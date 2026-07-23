@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "paths": {
+      "@/*": ["./src/server/*"]
+    },
+    "rootDir": "src/server",
+    "outDir": "dist/server",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "noEmitOnError": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
+    "types": ["node"]
+  },
+  "include": ["src/server/**/*.ts", "src/server/**/*.tsx"],
+  "exclude": ["src/server/adapters/cloudflare/**", "src/server/worker.ts"]
+}

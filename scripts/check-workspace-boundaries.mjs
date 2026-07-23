@@ -1,0 +1,511 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const apiRoot = path.join(repositoryRoot, 'apps/api');
+const legacyRoot = path.join(repositoryRoot, 'apps/legacy');
+const webRoot = path.join(repositoryRoot, 'apps/web');
+const failures = [];
+const defaultScriptNames = ['build', 'check', 'test', 'test:fast', 'start', 'dev:node', 'worker:dry-run'];
+const webDefaultScriptNames = new Set(['build', 'check', 'test', 'test:fast']);
+
+function relative(absolutePath) {
+    return path.relative(repositoryRoot, absolutePath).split(path.sep).join('/');
+}
+
+function requireFile(absolutePath) {
+    if (!fs.statSync(absolutePath, { throwIfNoEntry: false })?.isFile()) {
+        failures.push(`missing required file: ${relative(absolutePath)}`);
+    }
+}
+
+function forbidPath(absolutePath, reason) {
+    if (fs.existsSync(absolutePath)) failures.push(`${relative(absolutePath)}: ${reason}`);
+}
+
+function readJson(absolutePath) {
+    requireFile(absolutePath);
+    if (!fs.existsSync(absolutePath)) return {};
+    try {
+        return JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
+    } catch (error) {
+        failures.push(`${relative(absolutePath)}: invalid JSON (${error.message})`);
+        return {};
+    }
+}
+
+function workspaceDependencyRoots(workspaceRoot, { pythonEnvironments = false, wrangler = false } = {}) {
+    const roots = new Set([path.join(workspaceRoot, 'node_modules')]);
+    if (wrangler) roots.add(path.join(workspaceRoot, '.wrangler'));
+    if (!pythonEnvironments) return roots;
+    roots.add(path.join(workspaceRoot, '.venv'));
+    roots.add(path.join(workspaceRoot, 'venv'));
+    if (!fs.existsSync(workspaceRoot)) return roots;
+    for (const entry of fs.readdirSync(workspaceRoot, { withFileTypes: true })) {
+        if (entry.isDirectory() && entry.name.endsWith('_venv')) {
+            roots.add(path.join(workspaceRoot, entry.name));
+        }
+    }
+    return roots;
+}
+
+function filesUnder(directory, excludedDirectoryRoots = new Set()) {
+    if (!fs.existsSync(directory)) return [];
+    return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        const absolute = path.join(directory, entry.name);
+        if (entry.isDirectory() && excludedDirectoryRoots.has(absolute)) return [];
+        return entry.isDirectory() ? filesUnder(absolute, excludedDirectoryRoots) : [absolute];
+    });
+}
+
+function splitShellCommands(command) {
+    const commands = [];
+    let current = '';
+    let quote = null;
+    let escaped = false;
+    for (let index = 0; index < command.length; index += 1) {
+        const character = command[index];
+        if (escaped) {
+            current += character;
+            escaped = false;
+            continue;
+        }
+        if (character === '\\' && quote !== "'") {
+            current += character;
+            escaped = true;
+            continue;
+        }
+        if (quote) {
+            current += character;
+            if (character === quote) quote = null;
+            continue;
+        }
+        if (character === "'" || character === '"') {
+            current += character;
+            quote = character;
+            continue;
+        }
+        const pair = command.slice(index, index + 2);
+        if (pair === '&&' || pair === '||') {
+            if (current.trim()) commands.push(current.trim());
+            current = '';
+            index += 1;
+            continue;
+        }
+        if (character === ';' || character === '|') {
+            if (current.trim()) commands.push(current.trim());
+            current = '';
+            continue;
+        }
+        current += character;
+    }
+    if (current.trim()) commands.push(current.trim());
+    return commands;
+}
+
+function shellTokens(command) {
+    const tokens = [];
+    let current = '';
+    let quote = null;
+    let escaped = false;
+    for (const character of command) {
+        if (escaped) {
+            current += character;
+            escaped = false;
+            continue;
+        }
+        if (character === '\\' && quote !== "'") {
+            escaped = true;
+            continue;
+        }
+        if (quote) {
+            if (character === quote) quote = null;
+            else current += character;
+            continue;
+        }
+        if (character === "'" || character === '"') {
+            quote = character;
+        } else if (/\s/.test(character)) {
+            if (current) tokens.push(current);
+            current = '';
+        } else {
+            current += character;
+        }
+    }
+    if (current) tokens.push(current);
+    return tokens;
+}
+
+function pnpmInvocation(tokens) {
+    const pnpmIndex = tokens.findIndex((token) => /^(?:pnpm|pnpm\.cmd)$/.test(path.basename(token)));
+    if (pnpmIndex === -1) return null;
+
+    const args = tokens.slice(pnpmIndex + 1);
+    const filters = [];
+    let directory = null;
+    let recursive = false;
+    let commandIndex = -1;
+    for (let index = 0; index < args.length; index += 1) {
+        const argument = args[index];
+        if (argument === '--') continue;
+        if (argument === '--recursive' || argument === '-r') {
+            recursive = true;
+            continue;
+        }
+        if (argument === '--filter' || argument === '-F') {
+            filters.push(args[index + 1] ?? '');
+            index += 1;
+            continue;
+        }
+        if (argument.startsWith('--filter=')) {
+            filters.push(argument.slice('--filter='.length));
+            continue;
+        }
+        if (argument.startsWith('-F=')) {
+            filters.push(argument.slice('-F='.length));
+            continue;
+        }
+        if (argument === '--dir' || argument === '-C') {
+            directory = args[index + 1] ?? '';
+            index += 1;
+            continue;
+        }
+        if (argument.startsWith('--dir=')) {
+            directory = argument.slice('--dir='.length);
+            continue;
+        }
+        if (argument.startsWith('-C=')) {
+            directory = argument.slice('-C='.length);
+            continue;
+        }
+        if (!argument.startsWith('-')) {
+            commandIndex = index;
+            break;
+        }
+    }
+    if (commandIndex === -1) return { command: null, directory, filters, recursive, script: null };
+
+    const command = args[commandIndex];
+    const script = command === 'run' || command === 'run-script'
+        ? args[commandIndex + 1] ?? null
+        : !['exec', 'install', 'add', 'remove', 'update', 'dlx'].includes(command)
+            ? command
+            : null;
+    return { command, directory, filters, recursive, script };
+}
+
+function validateDefaultScripts(rootPackage, workspacePackages, targetFailures = failures) {
+    const packageScripts = new Map([
+        ['root', rootPackage.scripts ?? {}],
+        ['@imsweb/api', workspacePackages.api?.scripts ?? {}],
+        ['@imsweb/legacy', workspacePackages.legacy?.scripts ?? {}],
+        ['@imsweb/web', workspacePackages.web?.scripts ?? {}]
+    ]);
+    const allowedFilters = new Set(['@imsweb/api', '@imsweb/web']);
+
+    function inspectScript(packageName, scriptName, stack, evidence) {
+        const key = `${packageName}:${scriptName}`;
+        if (stack.includes(key)) {
+            targetFailures.push(`package.json: default command alias cycle: ${[...stack, key].join(' -> ')}`);
+            return;
+        }
+        const script = packageScripts.get(packageName)?.[scriptName];
+        if (typeof script !== 'string' || !script.trim()) {
+            targetFailures.push(`package.json: default command resolves to missing script ${key}`);
+            return;
+        }
+        if (/(?:^|[\s/])(?:apps\/legacy|@imsweb\/legacy|legacy:)(?:[\s/]|$)/i.test(script)) {
+            targetFailures.push(`package.json: default command ${stack[0] ?? key} reaches legacy through ${key}`);
+        }
+
+        for (const shellCommand of splitShellCommands(script)) {
+            const invocation = pnpmInvocation(shellTokens(shellCommand));
+            if (!invocation) continue;
+            if (invocation.directory && /(?:^|\/)apps\/legacy(?:\/|$)/i.test(invocation.directory)) {
+                targetFailures.push(`package.json: default command ${stack[0] ?? key} changes pnpm directory to legacy in ${key}`);
+                continue;
+            }
+            if (invocation.recursive) {
+                targetFailures.push(`package.json: default command ${stack[0] ?? key} uses unbounded recursive pnpm execution in ${key}`);
+                continue;
+            }
+            if (invocation.filters.length) {
+                const invalidFilters = invocation.filters.filter((filter) => !allowedFilters.has(filter));
+                if (invalidFilters.length) {
+                    targetFailures.push(
+                        `package.json: default command ${stack[0] ?? key} has unsupported pnpm filter(s) in ${key}: ${invalidFilters.join(', ')}`
+                    );
+                    continue;
+                }
+                for (const filter of new Set(invocation.filters)) {
+                    if (filter === '@imsweb/api') evidence.api = true;
+                    if (filter === '@imsweb/web') evidence.web = true;
+                    if (invocation.script) {
+                        inspectScript(filter, invocation.script, [...stack, key], evidence);
+                    }
+                }
+                continue;
+            }
+            if (invocation.script) {
+                inspectScript(packageName, invocation.script, [...stack, key], evidence);
+            }
+        }
+    }
+
+    for (const scriptName of defaultScriptNames) {
+        if (!rootPackage.scripts?.[scriptName]) {
+            targetFailures.push(`package.json: missing default API command ${scriptName}`);
+            continue;
+        }
+        const evidence = { api: false, web: false };
+        inspectScript('root', scriptName, [], evidence);
+        if (!evidence.api) {
+            targetFailures.push(`package.json: default command ${scriptName} never resolves to @imsweb/api`);
+        }
+        if (webDefaultScriptNames.has(scriptName) && !evidence.web) {
+            targetFailures.push(`package.json: default command ${scriptName} never resolves to @imsweb/web`);
+        }
+        if (!webDefaultScriptNames.has(scriptName) && evidence.web) {
+            targetFailures.push(`package.json: default command ${scriptName} must remain API-only`);
+        }
+    }
+}
+
+const rootPackage = readJson(path.join(repositoryRoot, 'package.json'));
+const apiPackage = readJson(path.join(apiRoot, 'package.json'));
+const legacyPackage = readJson(path.join(legacyRoot, 'package.json'));
+const webPackage = readJson(path.join(webRoot, 'package.json'));
+
+if (rootPackage.name !== 'imsweb-monorepo' || rootPackage.private !== true) {
+    failures.push('package.json: root must be the private imsweb-monorepo orchestrator');
+}
+for (const dependencyKind of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+    if (rootPackage[dependencyKind] && Object.keys(rootPackage[dependencyKind]).length) {
+        failures.push(`package.json: root aggregator must not declare ${dependencyKind}`);
+    }
+}
+if (apiPackage.name !== '@imsweb/api' || apiPackage.private !== true) {
+    failures.push('apps/api/package.json: expected private package @imsweb/api');
+}
+if (legacyPackage.name !== '@imsweb/legacy' || legacyPackage.private !== true) {
+    failures.push('apps/legacy/package.json: expected private package @imsweb/legacy');
+}
+for (const scriptName of ['dev:flask', 'start:flask', 'test:flask']) {
+    const script = legacyPackage.scripts?.[scriptName] ?? '';
+    if (!/\buv\s+run\s+--frozen\b/.test(script)) {
+        failures.push(`apps/legacy/package.json: ${scriptName} must use uv run --frozen`);
+    }
+    if (/\bpython3\b|requirements(?:\.lock|\.txt)?/i.test(script)) {
+        failures.push(`apps/legacy/package.json: ${scriptName} bypasses the UV project`);
+    }
+}
+if (webPackage.name !== '@imsweb/web' || webPackage.private !== true) {
+    failures.push('apps/web/package.json: expected private package @imsweb/web');
+}
+
+const workspace = fs.readFileSync(path.join(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8');
+for (const workspacePath of ['apps/api', 'apps/legacy', 'apps/web']) {
+    if (!workspace.includes(`- ${workspacePath}`)) {
+        failures.push(`pnpm-workspace.yaml: missing ${workspacePath}`);
+    }
+}
+
+for (const nestedRootMarker of ['.git', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
+    forbidPath(
+        path.join(webRoot, nestedRootMarker),
+        'web must use the repository root Git and pnpm workspace'
+    );
+}
+
+const npmrcPath = path.join(repositoryRoot, '.npmrc');
+const lockfilePath = path.join(repositoryRoot, 'pnpm-lock.yaml');
+requireFile(npmrcPath);
+requireFile(path.join(repositoryRoot, '.nvmrc'));
+requireFile(lockfilePath);
+for (const environmentTemplate of [
+    'apps/api/.env.example',
+    'apps/web/.env.example',
+    'deploy/.env.example',
+    'scripts/migration/.env.example'
+]) {
+    requireFile(path.join(repositoryRoot, environmentTemplate));
+}
+forbidPath(
+    path.join(repositoryRoot, '.env.example'),
+    'environment templates must be owned by their runtime surface'
+);
+if (fs.existsSync(npmrcPath)) {
+    const registrySettings = fs.readFileSync(npmrcPath, 'utf8')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !/^[#;]/.test(line) && /(?:^|:)registry\s*=/.test(line));
+    if (
+        !registrySettings.length ||
+        registrySettings.some((line) => line.slice(line.indexOf('=') + 1).trim() !== 'https://registry.npmjs.org/')
+    ) {
+        failures.push('.npmrc: every configured registry must be https://registry.npmjs.org/');
+    }
+}
+if (fs.existsSync(lockfilePath)) {
+    const lockfile = fs.readFileSync(lockfilePath, 'utf8');
+    const unsupportedTarballs = [...lockfile.matchAll(/tarball:\s*([^\s,}]+)/g)]
+        .map((match) => match[1])
+        .filter((url) => {
+            try {
+                return new URL(url).hostname !== 'registry.npmjs.org';
+            } catch {
+                return true;
+            }
+        });
+    if (unsupportedTarballs.length) {
+        failures.push(`pnpm-lock.yaml: non-official tarball source(s): ${unsupportedTarballs.join(', ')}`);
+    }
+}
+
+validateDefaultScripts(rootPackage, { api: apiPackage, legacy: legacyPackage, web: webPackage });
+for (const scriptName of ['legacy:build', 'legacy:check', 'legacy:test', 'legacy:start:node', 'legacy:start:flask']) {
+    if (!rootPackage.scripts?.[scriptName]?.includes('@imsweb/legacy')) {
+        failures.push(`package.json: ${scriptName} must explicitly filter @imsweb/legacy`);
+    }
+}
+
+requireFile(path.join(legacyRoot, 'public/index.html'));
+requireFile(path.join(apiRoot, 'src/server/app.ts'));
+requireFile(path.join(apiRoot, 'src/server/worker.ts'));
+requireFile(path.join(apiRoot, 'wrangler.jsonc'));
+requireFile(path.join(legacyRoot, 'src/server/main.ts'));
+requireFile(path.join(legacyRoot, 'flask/app.py'));
+requireFile(path.join(legacyRoot, 'pyproject.toml'));
+requireFile(path.join(legacyRoot, 'uv.lock'));
+requireFile(path.join(legacyRoot, '.python-version'));
+requireFile(path.join(legacyRoot, 'PROVENANCE.md'));
+requireFile(path.join(repositoryRoot, 'scripts/operations/backups/backup-legacy-source.sh'));
+
+const legacyPyprojectPath = path.join(legacyRoot, 'pyproject.toml');
+if (fs.existsSync(legacyPyprojectPath)) {
+    const pyproject = fs.readFileSync(legacyPyprojectPath, 'utf8');
+    for (const dependency of ['Flask', 'requests', 'PyJWT', 'Pillow', 'pypinyin', 'gunicorn']) {
+        if (!new RegExp(`['\"]${dependency}(?:[<>=!~]|['\"])`, 'i').test(pyproject)) {
+            failures.push(`apps/legacy/pyproject.toml: missing ${dependency} dependency`);
+        }
+    }
+    if (!/\[tool\.uv\][\s\S]*?package\s*=\s*false/.test(pyproject)) {
+        failures.push('apps/legacy/pyproject.toml: tool.uv package must be false');
+    }
+}
+for (const obsoleteRequirements of ['flask/requirements.txt', 'flask/requirements.lock']) {
+    forbidPath(path.join(legacyRoot, obsoleteRequirements), 'Legacy Python dependencies must be managed by UV');
+}
+forbidPath(
+    path.join(legacyRoot, '.legacy-python-envs-backup'),
+    'historical Python environments must not remain after UV migration'
+);
+
+for (const forbiddenRoot of [
+    'src', 'js', 'migrations', 'tsconfig.server.json', 'tsconfig.worker.json',
+    'vitest.config.mts', 'worker-configuration.d.ts', 'wrangler.jsonc'
+]) {
+    forbidPath(path.join(repositoryRoot, forbiddenRoot), 'application code must live in a workspace');
+}
+for (const appRoot of [apiRoot, legacyRoot]) {
+    forbidPath(path.join(appRoot, 'compose.yaml'), 'deployment composition must live under deploy');
+    forbidPath(path.join(appRoot, 'deploy'), 'deployment configuration must live in the repository deploy directory');
+}
+forbidPath(path.join(repositoryRoot, 'compose.yaml'), 'deployment composition must live under deploy');
+forbidPath(path.join(repositoryRoot, 'compose.emergency.yaml'), 'deployment composition must live under deploy');
+forbidPath(path.join(apiRoot, 'public'), 'API release assets must be generated from apps/legacy/public');
+forbidPath(path.join(repositoryRoot, 'public'), 'legacy frontend assets must live in apps/legacy/public');
+requireFile(path.join(legacyRoot, 'data/.gitignore'));
+for (const obsoleteRuntimePath of [
+    'database', 'public/Data', 'public/uploads', 'public/logs', 'public/idol_data.db',
+    'public/assets/images/eventchronicle/events', 'public/title'
+]) {
+    forbidPath(
+        path.join(legacyRoot, obsoleteRuntimePath),
+        'mutable Legacy data must live under apps/legacy/data'
+    );
+}
+forbidPath(path.join(repositoryRoot, 'pyproject.toml'), 'Legacy is the only Python project');
+forbidPath(path.join(repositoryRoot, 'uv.lock'), 'Legacy owns the Python lockfile');
+forbidPath(path.join(repositoryRoot, '.python-version'), 'Legacy owns the Python version pin');
+for (const forbiddenLegacySurface of [
+    'flask', 'public/app.py', 'public/templates', 'src/server/routes/wiki.ts'
+]) {
+    forbidPath(path.join(apiRoot, forbiddenLegacySurface), 'legacy runtime surface is forbidden in the API workspace');
+}
+for (const forbiddenLegacyDeploy of ['wrangler.jsonc', 'migrations', '.assetsignore']) {
+    forbidPath(path.join(legacyRoot, forbiddenLegacyDeploy), 'legacy is regression/rollback-only and must not be deployed');
+}
+const legacyExcludedRoots = workspaceDependencyRoots(legacyRoot, { pythonEnvironments: true });
+legacyExcludedRoots.add(path.join(legacyRoot, 'data'));
+for (const legacyFile of filesUnder(legacyRoot, legacyExcludedRoots)) {
+    const legacyRelative = path.relative(legacyRoot, legacyFile).split(path.sep).join('/');
+    if (path.basename(legacyFile).toLowerCase() === 'desktop.ini') {
+        failures.push(`${relative(legacyFile)}: desktop.ini is not a source artifact`);
+    }
+    if (/(?:^|\/)(?:__pycache__|\.pytest_cache)(?:\/|$)|\.(?:pyc|pyo)$/i.test(legacyRelative)) {
+        failures.push(`${relative(legacyFile)}: generated Python cache is not a source artifact`);
+    }
+}
+
+for (const sourceFile of filesUnder(apiRoot, workspaceDependencyRoots(apiRoot, { wrangler: true }))) {
+    if (/\.(?:py|pyc|pyo)$/i.test(sourceFile)) {
+        failures.push(`${relative(sourceFile)}: Python is forbidden in the API workspace`);
+    }
+}
+
+const apiDependencies = {
+    ...apiPackage.dependencies,
+    ...apiPackage.devDependencies
+};
+for (const dependency of ['express', 'cookie-parser', 'cors', 'helmet', 'multer', 'jsonwebtoken']) {
+    if (apiDependencies[dependency]) {
+        failures.push(`apps/api/package.json: legacy dependency remains: ${dependency}`);
+    }
+}
+const legacyDependencies = {
+    ...legacyPackage.dependencies,
+    ...legacyPackage.devDependencies
+};
+for (const dependency of ['hono', '@hono/node-server', 'wrangler', '@cloudflare/workers-types']) {
+    if (legacyDependencies[dependency]) {
+        failures.push(`apps/legacy/package.json: Hono/Worker dependency is forbidden: ${dependency}`);
+    }
+}
+
+const composePath = path.join(repositoryRoot, 'deploy/compose.yaml');
+const emergencyComposePath = path.join(repositoryRoot, 'deploy/compose.emergency.yaml');
+requireFile(composePath);
+requireFile(emergencyComposePath);
+const deploymentFiles = [
+    composePath,
+    emergencyComposePath,
+    path.join(repositoryRoot, 'deploy/nginx/templates/default.conf.template')
+];
+const deploymentSources = deploymentFiles
+    .filter((file) => fs.existsSync(file))
+    .map((file) => fs.readFileSync(file, 'utf8'))
+    .join('\n');
+if (/ims_flask|IMS_FLASK_UPSTREAM|(?:^|[^0-9])5000(?:[^0-9]|$)|apps\/legacy/i.test(deploymentSources)) {
+    failures.push('Compose/Nginx deployment must target only the Hono Node upstream');
+}
+if (fs.existsSync(composePath) && /^\s*build\s*:/m.test(fs.readFileSync(composePath, 'utf8'))) {
+    failures.push('deploy/compose.yaml: application image builds are forbidden in the Nginx-only deployment');
+}
+
+const clientRoot = path.join(apiRoot, 'dist/client');
+for (const outputFile of filesUnder(clientRoot)) {
+    const outputRelative = path.relative(clientRoot, outputFile).split(path.sep).join('/').toLowerCase();
+    if (
+        /(?:^|\/)(?:data|database|templates|uploads|logs|venv|\.venv|__pycache__|legacy)(?:\/|$)/.test(outputRelative) ||
+        /\.(?:db|sqlite3?|py|pyc|ini|log|sql|wal|shm|data)$/.test(outputRelative)
+    ) {
+        failures.push(`${relative(outputFile)}: forbidden file in Hono client output`);
+    }
+}
+
+if (failures.length) {
+    throw new Error(`Workspace boundary check failed:\n${failures.join('\n')}`);
+}
+process.stdout.write('Workspace boundary check passed: root orchestrator, API, web, self-contained legacy, and deployment surfaces are isolated\n');

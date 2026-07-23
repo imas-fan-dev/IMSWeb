@@ -1,0 +1,23 @@
+# Defense in depth. dist/client is built from an explicit allowlist; these
+# patterns keep accidental direct Wrangler asset builds private as well.
+**/*.db
+**/*.db-*
+**/*.sqlite*
+**/*.py
+**/*.ini
+**/*.log
+**/*.psd
+**/*.sql
+**/*.txt
+**/*.7z
+**/.env*
+**/templates/**
+**/Data/**
+**/uploads/**
+**/venv/**
+**/.venv/**
+**/__pycache__/**
+**/.staging/**
+**/.trash/**
+**/assets/images/eventchronicle/events/**
+**/*.data

@@ -1,0 +1,2 @@
+# Legacy browser assets must retain their historical bytes during relocation.
+apps/legacy/public/** -text

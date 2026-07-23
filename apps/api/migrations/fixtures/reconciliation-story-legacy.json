@@ -1,0 +1,13 @@
+{
+  "agencies": [
+    { "id": 1, "code": "cg", "name_cn": "灰姑娘女孩", "color": "#2681c8" }
+  ],
+  "idols": [
+    { "id": 10, "agency_id": 1, "name_cn": "测试偶像", "folder_name": "fixture", "color": "#ffffff" }
+  ],
+  "cg_stories": [
+    { "id": 1, "idol_id": 10, "category": "卡剧情", "card_name": "Card A", "up_name": "UP1", "video_title": "Part 1", "url": "https://example.test/1", "subtitle": "", "image_file": "cards/a.webp" },
+    { "id": 2, "idol_id": 10, "category": "卡剧情", "card_name": "Card A", "up_name": "UP2", "video_title": "Part 2", "url": "https://example.test/2", "subtitle": "", "image_file": "cards/a.webp" },
+    { "id": 3, "idol_id": 10, "category": "主线", "card_name": "Main", "up_name": "UP3", "video_title": "Main", "url": "https://example.test/3", "subtitle": null, "image_file": "" }
+  ]
+}

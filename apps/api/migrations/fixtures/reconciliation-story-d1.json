@@ -1,0 +1,22 @@
+{
+  "agencies": [
+    { "color": "#2681c8", "name_cn": "灰姑娘女孩", "code": "cg", "id": 1 }
+  ],
+  "idols": [
+    { "folder_name": "fixture", "name_cn": "测试偶像", "agency_id": 1, "id": 10, "color": "#ffffff" }
+  ],
+  "story_legacy_rows": [
+    { "legacy_table": "cg_stories", "legacy_id": 1, "row_json": "{\"id\":1,\"idol_id\":10,\"category\":\"卡剧情\",\"card_name\":\"Card A\",\"up_name\":\"UP1\",\"video_title\":\"Part 1\",\"url\":\"https://example.test/1\",\"subtitle\":\"\",\"image_file\":\"cards/a.webp\"}", "normalized_hash": "16db0294d60b61bcd64ca0c9993de1041ae8a21b57eb152ee2db1b93a879dffd", "last_seen_run_id": "migration:fixture" },
+    { "legacy_table": "cg_stories", "legacy_id": 2, "row_json": "{\"id\":2,\"idol_id\":10,\"category\":\"卡剧情\",\"card_name\":\"Card A\",\"up_name\":\"UP2\",\"video_title\":\"Part 2\",\"url\":\"https://example.test/2\",\"subtitle\":\"\",\"image_file\":\"cards/a.webp\"}", "normalized_hash": "93f47de47846e01b22f4b23084655252f54a9780d74982addaab753259c2a284", "last_seen_run_id": "migration:fixture" },
+    { "legacy_table": "cg_stories", "legacy_id": 3, "row_json": "{\"id\":3,\"idol_id\":10,\"category\":\"主线\",\"card_name\":\"Main\",\"up_name\":\"UP3\",\"video_title\":\"Main\",\"url\":\"https://example.test/3\",\"subtitle\":null,\"image_file\":\"\"}", "normalized_hash": "6e5ddbf29a7857b2d40889b96f6bef5c8f62dab9a1dda64e48dbe0b4c9083398", "last_seen_run_id": "migration:fixture" }
+  ],
+  "story_cards": [
+    { "id": 100, "idol_id": 10, "category": "卡剧情", "card_name": "Card A", "subtitle": "", "image_file": "cards/a.webp", "source_table": "cg_stories", "source_id": 1, "last_seen_run_id": "migration:fixture" },
+    { "id": 101, "idol_id": 10, "category": "主线", "card_name": "Main", "subtitle": null, "image_file": "", "source_table": "cg_stories", "source_id": 3, "last_seen_run_id": "migration:fixture" }
+  ],
+  "story_links": [
+    { "id": 200, "card_id": 100, "up_name": "UP1", "video_title": "Part 1", "url": "https://example.test/1", "source_table": "cg_stories", "source_id": 1, "source_link_index": 0, "last_seen_run_id": "migration:fixture" },
+    { "id": 201, "card_id": 100, "up_name": "UP2", "video_title": "Part 2", "url": "https://example.test/2", "source_table": "cg_stories", "source_id": 2, "source_link_index": 0, "last_seen_run_id": "migration:fixture" },
+    { "id": 202, "card_id": 101, "up_name": "UP3", "video_title": "Main", "url": "https://example.test/3", "source_table": "cg_stories", "source_id": 3, "source_link_index": 0, "last_seen_run_id": "migration:fixture" }
+  ]
+}

@@ -1,0 +1,79 @@
+# JavaScript dependencies and tooling caches
+node_modules/
+.pnpm-store/
+.npm/
+coverage/
+dist/
+.wrangler/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+.secrets/
+secrets/
+*.secret
+*.key
+*.pem
+*.p12
+
+# Runtime state
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+*.log
+*.pid
+*.sock
+logs/
+**/database/compensation/
+
+# Local exports and backup archives
+.backups/
+*.bak
+*.old
+*.orig
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+
+# Python environments and caches
+.venv/
+venv/
+*_venv/
+**/venv/
+**/*_venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Mutable application data (back up and migrate outside Git)
+apps/legacy/data/**
+!apps/legacy/data/.gitignore
+**/public/uploads/
+**/public/Data/
+**/public/assets/images/eventchronicle/events/upload/
+**/public/assets/images/eventchronicle/events/used/
+**/public/assets/images/eventchronicle/events/meta/
+**/public/assets/images/eventchronicle/events/.idempotency/
+**/public/assets/images/eventchronicle/events/.staging/
+**/public/assets/images/eventchronicle/events/.trash/
+
+# Process and editor artefacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~

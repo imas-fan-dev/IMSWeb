@@ -1,0 +1,4 @@
+services:
+  nginx:
+    environment:
+      IMS_EMERGENCY_INCLUDE: /etc/nginx/snippets/ims-emergency-deny.conf

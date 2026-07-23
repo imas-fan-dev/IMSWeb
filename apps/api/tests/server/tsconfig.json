@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.server.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "include": [
+    "../../src/server/**/*.ts",
+    "../../src/server/**/*.tsx",
+    "./**/*.ts"
+  ],
+  "exclude": [
+    "../../src/server/adapters/cloudflare/**",
+    "../../src/server/worker.ts"
+  ]
+}
