@@ -5,10 +5,10 @@ IMSWeb 现在由三个边界明确的应用 workspace 组成。API（Hono）是�
 
 ```text
 apps/
-  api/       @imsweb/api，Hono + Node + Cloudflare Worker
+  api/       @imsweb/api，Hono + Node
   web/       @imsweb/web，React Router + Tailwind + shadcn/ui
   legacy/    @imsweb/legacy，Express + Flask + 原站静态前端，Python 由 UV 管理
-deploy/      只指向 API Node 上游的 Nginx 配置
+deploy/      新版与 Legacy 两套 Compose，以及共用的 Nginx 配置
 scripts/     monorepo 边界、数据审计和迁移前清点
 tests/       仓库级部署与数据审计测试
 ```
@@ -26,12 +26,11 @@ pnpm install --frozen-lockfile
 pnpm run build
 pnpm run check
 pnpm run test
-pnpm run worker:dry-run
 ```
 
 根目录的 `build` 和 `check` 同时覆盖 `@imsweb/api` 与 `@imsweb/web`；`test` 覆盖
-Hono、仓库基础设施以及前端单元测试。`start`、`dev:node` 和 `worker:dry-run` 仍只执行
-`@imsweb/api`，因此合并前端不会自动切换生产流量。`pnpm run check:boundaries` 额外验证
+Hono、仓库基础设施以及前端单元测试。`start` 和 `dev:node` 只执行 `@imsweb/api`，
+因此合并前端不会自动切换生产流量。`pnpm run check:boundaries` 额外验证
 workspace、Legacy 资源归属、依赖和部署边界。
 
 Node 本地运行：
@@ -41,8 +40,8 @@ pnpm run build
 IMS_JWT_SECRET='<high-entropy-secret>' pnpm start
 ```
 
-Hono 的发布产物位于 `apps/api/dist/`。Worker 配置、D1 migrations 和测试也都在
-`apps/api/` 内，Wrangler 命令必须通过根脚本或 `pnpm --filter @imsweb/api ...` 执行。
+Hono 的发布产物位于 `apps/api/dist/`。当前构建、检查和测试只覆盖 Node 运行时；
+serverless 相关实现不属于当前部署或 PostgreSQL 迁移方案。
 
 ## Web 工作流
 
@@ -103,16 +102,27 @@ D1/R2 migration、Compose 或 Nginx 部署配置。
 `apps/web/public/` 中保存经过来源登记的专用资产。生产仍必须为所有可变 `IMS_*` 数据路径
 使用独立绝对路径，并确保 Hono 与 Legacy 不会同时写入同一份数据。
 
-Core 与 Story SQLite 的职责、`IMS_DB_PATH`/`IMS_STORY_DB_PATH` 配置示例、路径解析规则
-和启动前校验见 [数据库配置](docs/database-configuration.md)。
+统一 SQLite、旧两库合并、PostgreSQL 单库配置和启动前校验见
+[数据库配置](docs/database-configuration.md)。
+本地 PostgreSQL 固定为 18.4，可直接启动并导入统一 SQLite：
+
+```sh
+pnpm run dev:postgresql:up
+DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb' \
+  pnpm run migration:postgresql:import-sqlite -- \
+  --allow-foreign-key-violations
+```
+
+导入只接受空目标并逐表对账；原 SQLite 不会被修改。
 常驻 Hono Node 可以保留本地文件系统，也可以通过 `IMS_OBJECT_STORAGE=s3` 把可变媒体切到
-S3；配置、IAM 权限和迁移边界见 [Node 文件对象存储](docs/object-storage.md)。
+S3。S3 模式的图片读取使用短期签名 URL 直连 MinIO/S3，上传仍由 Hono 校验后写入；配置、
+IAM 权限和迁移边界见 [Node 文件对象存储](docs/object-storage.md)。
 
 环境模板按所有者放置，避免根目录文件混合不同进程的配置：
 
-- `apps/api/.env.example`：Hono Node、S3、SQLite 路径和账号操作；
+- `apps/api/.env.example`：Hono Node、SQLite/PostgreSQL、S3 和账号操作；
 - `apps/web/.env.example`：Web 开发代理和 Playwright；
-- `deploy/.env.example`：Nginx Compose；
+- `deploy/.env.example`：新版/Legacy Nginx、PostgreSQL 与本地 MinIO Compose；
 - `scripts/migration/.env.example`：一次性 inventory 快照输入。
 
 应用不会自动加载这些模板；实际值由 shell、进程管理器或显式 Compose `--env-file` 注入。
@@ -126,8 +136,10 @@ pnpm run check
 pnpm run test:fast
 ```
 
-`deploy/compose.yaml` 只运行官方 Nginx 并代理单个 Hono Node 上游；它不构建应用镜像，也不
-包含 Flask、Legacy 或 `5000` 端口。
+`deploy/` 只保留两个编排入口：`compose.yaml` 是当前的 PostgreSQL、MinIO 栈，并提供可选
+`proxy` profile 下的 Nginx；
+`compose.legacy.yaml` 是 Express + Flask 回滚代理。两者都不构建应用镜像，应用进程仍由
+宿主机进程管理器负责，且两个入口不能同时占用同一个 Nginx 监听端口。
 
 ## 文档
 
@@ -135,7 +147,8 @@ pnpm run test:fast
 - [Web workspace](apps/web/README.md)
 - [Legacy workspace](apps/legacy/README.md)
 - [AI 开发环境指南](docs/ai-development-environment.md)
-- [SQLite 数据库配置](docs/database-configuration.md)
+- [数据库配置](docs/database-configuration.md)
+- [数据库架构与 PostgreSQL 迁移边界](docs/database-architecture.md)
 - [Node 文件对象存储](docs/object-storage.md)
 - [部署、备份与回滚](docs/operations-runbook.md)
 - [Nginx 部署](deploy/nginx/README.md)

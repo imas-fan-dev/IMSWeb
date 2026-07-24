@@ -101,7 +101,7 @@ function sha256(file) {
 }
 
 const result = {
-    worker: scanExact(clientRoot, allowlist)
+    base: scanExact(clientRoot, allowlist)
 };
 if (!customClientRoot) {
     result.node = scanExact(nodeClientRoot, nodeAllowlist, { allowData: true });
@@ -123,4 +123,4 @@ const failed = Object.values(result).some((scan) =>
 if (failed) throw new Error(JSON.stringify(result, null, 2));
 
 const nodeSummary = result.node ? `; ${result.node.count} Node files` : '';
-process.stdout.write(`Client asset scan passed: ${result.worker.count} Worker files${nodeSummary}\n`);
+process.stdout.write(`Client asset scan passed: ${result.base.count} base files${nodeSummary}\n`);

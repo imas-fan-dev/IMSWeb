@@ -4,7 +4,7 @@
 
 IMSWeb is a pnpm monorepo with three application workspaces:
 
-- `apps/api/`: Hono backend for Node and Workers; source is in `src/server/`, migrations in `migrations/`, and tests in `tests/`.
+- `apps/api/`: Hono backend for Node; source is in `src/` and tests in `tests/`.
 - `apps/web/`: React Router 7 frontend; routes live in `app/routes/`, UI in `app/components/`, API helpers in `app/shared/api/`, and assets in `public/`.
 - `apps/legacy/`: Express, Flask, and original static resources retained only for regression and rollback.
 
@@ -29,15 +29,14 @@ preflight, local data configuration, service startup, and validation evidence.
 - `pnpm run test`: run infrastructure, API, Web unit, and routing-contract tests.
 - `pnpm run test:web`: run Web unit and Playwright tests.
 - `pnpm run test:all`: add isolated Legacy regressions.
-- `pnpm run worker:dry-run`: validate the Cloudflare Worker bundle.
 
 ## Coding Style & Naming Conventions
 
-Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and the `@/` alias rooted at `apps/api/src/server`. Web code uses two spaces, no semicolons, double quotes, 80 columns, and the `~/` app alias. Run `pnpm --filter @imsweb/web format` and `pnpm --filter @imsweb/web lint` for frontend changes. Use kebab-case filenames and PascalCase React components.
+Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and the `@/` alias rooted at `apps/api/src`. Web code uses two spaces, no semicolons, double quotes, 80 columns, and the `~/` app alias. Run `pnpm --filter @imsweb/web format` and `pnpm --filter @imsweb/web lint` for frontend changes. Use kebab-case filenames and PascalCase React components.
 
 ## Testing Guidelines
 
-Tests use Node's runner, Vitest, Testing Library, Playwright, and Python `unittest`. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. No numeric coverage threshold exists; shared API contract changes must cover Node and Worker runtimes.
+Tests use Node's runner, Vitest, Testing Library, Playwright, and Python `unittest`. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. No numeric coverage threshold exists; API persistence changes must cover the active Node runtime.
 
 ## Commit & Pull Request Guidelines
 
@@ -49,5 +48,4 @@ Copy settings from the owner-specific templates in `apps/api/.env.example`,
 `apps/web/.env.example`, `deploy/.env.example`, and
 `scripts/migration/.env.example`; never commit secrets, databases, uploads, or
 generated build output. Production requires a high-entropy `IMS_JWT_SECRET`.
-Treat Wrangler D1/R2 identifiers as placeholders until real resources are
-explicitly bound and verified.
+PostgreSQL migration work must keep credentials outside the repository and preserve the existing Core/Story data reconciliation gates.

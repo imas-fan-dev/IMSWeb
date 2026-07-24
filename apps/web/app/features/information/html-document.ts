@@ -13,7 +13,7 @@ export function buildInformationHtmlDocument(title: string, html: string) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline'; font-src 'none'; media-src 'self'; form-action 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: http: data: blob:; style-src 'unsafe-inline'; font-src 'none'; media-src 'self'; form-action 'none'; base-uri 'none'">
   <title>${escapeHtml(title)}</title>
   <style>
     :root { color-scheme: light dark; font-family: Geist, "Noto Sans SC", "PingFang SC", sans-serif; }

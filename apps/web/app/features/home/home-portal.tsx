@@ -104,16 +104,11 @@ function PortalDirectory() {
   return (
     <section aria-labelledby="portal-heading">
       <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mb-7 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold text-primary">DIRECTORY</p>
-            <h2 id="portal-heading" className="mt-2 text-2xl font-semibold">
-              站点导航
-            </h2>
-          </div>
-          <p className="hidden text-sm text-muted-foreground sm:block">
-            9 个原站业务入口
-          </p>
+        <div className="mb-7">
+          <p className="text-xs font-semibold text-primary">DIRECTORY</p>
+          <h2 id="portal-heading" className="mt-2 text-2xl font-semibold">
+            站点导航
+          </h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {portalItems.map((item) => (

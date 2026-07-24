@@ -46,24 +46,27 @@ cd ../..
 export NODE_ENV=development
 export IMS_PROJECT_ROOT="$PWD"
 export IMS_JWT_SECRET='local-development-only-change-me'
-export IMS_DB_PATH="$PWD/apps/legacy/data/core/news.db"
-export IMS_STORY_DB_PATH="$PWD/apps/legacy/data/story/idol_data.db"
+export IMS_DATABASE=sqlite
+export IMS_SQLITE_PATH="$PWD/apps/legacy/data/imsweb.db"
 export IMS_COMPENSATION_DIR="$PWD/apps/legacy/data/core/compensation"
 export IMS_UPLOADS_DIR="$PWD/apps/legacy/data/uploads"
 export IMS_EVENT_BASE_DIR="$PWD/apps/legacy/data/chronicle"
 export IMS_STORY_DATA_DIR="$PWD/apps/legacy/data/story/images"
 
-test -f "$IMS_DB_PATH"
-test -f "$IMS_STORY_DB_PATH"
+test -f "$IMS_SQLITE_PATH"
+sqlite3 "$IMS_SQLITE_PATH" 'PRAGMA quick_check;'
 pnpm run audit:data
 ```
+
+统一库不存在时，先阅读[数据库配置](database-configuration.md)，再执行一次
+`pnpm run migration:sqlite:merge`。合并命令不会覆盖已有目标。
 
 本地联调可变图片时统一使用 S3 兼容的 MinIO，不再使用文件系统模拟 OSS。先启动并自动创建
 `imsweb-test` bucket：
 
 ```sh
 pnpm run dev:minio:up
-docker compose -f deploy/compose.minio.yaml ps
+docker compose -f deploy/compose.yaml ps minio minio-init
 
 export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-test
@@ -71,6 +74,7 @@ export IMS_S3_REGION=us-east-1
 export IMS_S3_ENDPOINT=http://127.0.0.1:9000
 export IMS_S3_FORCE_PATH_STYLE=true
 export IMS_S3_PREFIX=local
+export IMS_S3_READ_URL_TTL_SECONDS=300
 export AWS_ACCESS_KEY_ID=imsweb-local
 export AWS_SECRET_ACCESS_KEY=imsweb-local-password
 ```
@@ -80,7 +84,34 @@ MinIO S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
 需要清空测试对象时才可另外执行带 `--volumes` 的 Compose 清理。
 
 `apps/legacy/data/` 被 Git 忽略，不得把数据库、上传或日志移动回 `public/`，也不得提交。
-数据库职责、生产路径和完整性检查见 [SQLite 数据库配置](database-configuration.md)。
+数据库职责、PostgreSQL 选项、生产路径和完整性检查见
+[数据库配置](database-configuration.md)。
+
+需要 PostgreSQL 联调时，使用精确固定的 PostgreSQL 18.4 本地栈：
+
+```sh
+pnpm run dev:postgresql:up
+docker compose -f deploy/compose.yaml ps postgres
+export IMS_DATABASE=postgresql
+export DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb'
+```
+
+新空库用 `pnpm run migration:postgresql` 初始化。需要从统一 SQLite 首次导入时直接运行
+`pnpm run migration:postgresql:import-sqlite -- --allow-foreign-key-violations`，不要先应用
+post-data migration。该 Compose 密码仅限回环地址上的本地开发。
+
+如果 PostgreSQL 里的活动、资讯或名片记录沿用 `/uploads/...` 地址，还必须先对账并把本地上传
+同步到 MinIO；设置 `IMS_OBJECT_STORAGE=s3` 本身不会搬迁文件：
+
+```sh
+pnpm run media:uploads:sync
+pnpm run media:uploads:sync -- --apply
+pnpm run media:information:sync
+pnpm run media:information:sync -- --apply
+```
+
+每组的第二条命令才会写入，且会通过当前对象状态机维护 PostgreSQL 索引并从 MinIO 回读核对。
+前一组迁移 Event、News 和名片上传，后一组迁移首页活动资讯索引及其 6 张历史原图。
 
 ## 4. 启动服务
 
@@ -146,7 +177,8 @@ pnpm run legacy:check
 
 - 保留开始时已经存在的 staged、unstaged 和 untracked 修改。
 - 不提交密钥、数据库、上传、日志、构建产物或 `.env`。
-- 不把 Cloudflare 占位 D1/R2 绑定当成真实资源，不执行生产迁移或切流。
-- `deploy/compose.yaml` 只用于 Nginx 部署验证，不是本地 API/Web 开发的前置依赖。
+- 不执行 PostgreSQL 生产迁移、数据切换或清理；这些操作需要独立审批和对账证据。
+- `deploy/compose.yaml` 统一保存当前 Nginx、PostgreSQL 和 MinIO 服务；本地 API/Web 只按需
+  启动其中的 PostgreSQL 或 MinIO；Nginx 位于可选 `proxy` profile，不是启动前置依赖。
 - 不使用破坏性 Git、数据库或文件清理命令，除非用户明确授权并已核对目标。
 - 完成时报告修改文件、实际运行的门禁、未通过原因、运行中的服务和可访问地址。

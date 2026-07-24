@@ -101,7 +101,7 @@ function isolatedServerEnv(label) {
         ...process.env,
         NODE_ENV: 'test',
         IMS_JWT_SECRET: 'test-only-secret-with-sufficient-entropy',
-        IMS_DB_PATH: path.join(tempDir, `${label}.db`),
+        IMS_SQLITE_PATH: path.join(tempDir, `${label}.db`),
         IMS_COMPENSATION_DIR: path.join(tempDir, `${label}-compensation`),
         IMS_UPLOADS_DIR: path.join(tempDir, `${label}-uploads`),
         IMS_EVENT_BASE_DIR: path.join(tempDir, `${label}-events`)
@@ -136,6 +136,30 @@ before(async () => {
         dept TEXT,
         producername TEXT
     )`);
+    await run(seedDb, `CREATE TABLE news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        image TEXT,
+        thumbnail TEXT,
+        content TEXT,
+        date TEXT,
+        author TEXT
+    )`);
+    for (let id = 1; id <= 3; id += 1) {
+        await run(
+            seedDb,
+            `INSERT INTO news (title, image, thumbnail, content, date, author)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+                `Seed news ${id}`,
+                `/uploads/news/original/${id}.webp`,
+                `/uploads/news/thumb/${id}.webp`,
+                `https://example.test/news/${id}`,
+                `2026-07-0${id}`,
+                'Security fixture'
+            ]
+        );
+    }
     await run(
         seedDb,
         `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
@@ -174,7 +198,7 @@ before(async () => {
 
     process.env.NODE_ENV = 'test';
     process.env.IMS_JWT_SECRET = 'test-only-secret-with-sufficient-entropy';
-    process.env.IMS_DB_PATH = databasePath;
+    process.env.IMS_SQLITE_PATH = databasePath;
     process.env.IMS_COMPENSATION_DIR = path.join(tempDir, 'compensation');
     process.env.IMS_UPLOADS_DIR = uploadsDir;
     process.env.IMS_COOKIE_SECURE = 'false';
@@ -410,6 +434,49 @@ test('malformed login input is rejected without terminating the server', async (
     assert.equal((await fetch(`${baseUrl}/api/news`)).status, 200);
 });
 
+test('compiled Node news route preserves legacy responses and snapshot pagination', async () => {
+    const legacy = await fetch(`${baseUrl}/api/news`);
+    assert.equal(legacy.status, 200);
+    const legacyBody = await legacy.json();
+    assert.equal(Array.isArray(legacyBody), true);
+    assert.deepEqual(legacyBody.map((item) => item.id), [3, 2, 1]);
+
+    const first = await fetch(`${baseUrl}/api/news?limit=2`);
+    assert.equal(first.status, 200);
+    const firstBody = await first.json();
+    assert.deepEqual(firstBody.items.map((item) => item.id), [3, 2]);
+    assert.equal(firstBody.pageInfo.hasNextPage, true);
+    assert.equal(firstBody.pageInfo.snapshotAt, '3');
+
+    const fixtureDb = new sqlite3.Database(databasePath);
+    try {
+        await run(
+            fixtureDb,
+            `INSERT INTO news (title, image, thumbnail, content, date, author)
+             VALUES ('New after snapshot', '', '', 'https://example.test/new', '2026-07-24', 'Fixture')`
+        );
+    } finally {
+        await close(fixtureDb);
+    }
+
+    const second = await fetch(
+        `${baseUrl}/api/news?limit=2&cursor=${encodeURIComponent(firstBody.pageInfo.nextCursor)}`
+    );
+    assert.equal(second.status, 200);
+    const secondBody = await second.json();
+    assert.deepEqual(secondBody.items.map((item) => item.id), [1]);
+    assert.deepEqual(secondBody.pageInfo, {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: '3'
+    });
+
+    const refreshed = await fetch(`${baseUrl}/api/news?limit=1`);
+    assert.equal((await refreshed.json()).items[0].id, 4);
+    assert.equal((await fetch(`${baseUrl}/api/news?limit=0`)).status, 400);
+    assert.equal((await fetch(`${baseUrl}/api/news?cursor=invalid`)).status, 400);
+});
+
 test('news publishing rejects missing bodies and unsafe links', async () => {
     const token = await getOpToken();
     const missingBody = await fetch(`${baseUrl}/api/admin/news`, {
@@ -605,19 +672,19 @@ test('[AUTH-01] Node and WebCrypto JWTs interoperate and invalid token classes s
     const now = Math.floor(Date.now() / 1000);
     const claims = {
         id: 1,
-        username: 'worker-minted-op',
-        producername: 'Worker Minted',
+        username: 'webcrypto-minted-op',
+        producername: 'WebCrypto Minted',
         dept: 'op',
-        csrfSecret: 'worker-minted-csrf',
+        csrfSecret: 'webcrypto-minted-csrf',
         iat: now,
         exp: now + 600
     };
-    const workerMinted = await signJwtWithWebCrypto({ alg: 'HS256', typ: 'JWT' }, claims, secret);
+    const webCryptoMinted = await signJwtWithWebCrypto({ alg: 'HS256', typ: 'JWT' }, claims, secret);
     const accepted = await fetch(`${baseUrl}/api/check`, {
-        headers: { Authorization: `Bearer ${workerMinted}` }
+        headers: { Authorization: `Bearer ${webCryptoMinted}` }
     });
     assert.equal(accepted.status, 200);
-    assert.equal((await accepted.json()).user.username, 'worker-minted-op');
+    assert.equal((await accepted.json()).user.username, 'webcrypto-minted-op');
 
     const nodeSession = await getOpSession();
     assert.equal(await verifyJwtWithWebCrypto(nodeSession.token, secret), true);
@@ -678,7 +745,7 @@ test('[MEDIA-01] shared GET/HEAD and range matrix runs against Node filesystem m
 test('[MEDIA-01 NODE-01] shared multipart contract runs against Node streaming parser', async () => {
     const { StreamingUploadParser } = require(path.join(
         PROJECT_ROOT,
-        'dist/server/adapters/node/streaming-upload-parser.js'
+        'dist/server/infra/http/busboy/upload-parser.js'
     ));
     const parser = new StreamingUploadParser();
     await assertMultipartParserContract({
@@ -1115,7 +1182,9 @@ test('production JWT secret length is measured in UTF-8 bytes', () => {
         ...process.env,
         NODE_ENV: 'production',
         IMS_JWT_SECRET: '😀'.repeat(8),
-        IMS_DB_PATH: path.join(tempDir, 'utf8-secret.db'),
+        IMS_SITE_ORIGIN: 'https://www.example.com',
+        IMS_SITE_PACKAGE_ORIGIN: 'https://ims-content.example.net',
+        IMS_SQLITE_PATH: path.join(tempDir, 'utf8-secret.db'),
         IMS_EVENT_BASE_DIR: path.join(tempDir, 'utf8-secret-events')
     };
     const result = spawnSync(process.execPath, ['-e', script], {

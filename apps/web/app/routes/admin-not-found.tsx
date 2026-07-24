@@ -4,8 +4,34 @@ export function meta() {
 
 export default function AdminNotFound() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 py-12">
-      <h1 className="text-2xl font-semibold">页面不存在</h1>
-    </main>
+    <Empty className="min-h-[28rem] border bg-card">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileQuestionIcon aria-hidden="true" />
+        </EmptyMedia>
+        <EmptyTitle>管理页面不存在</EmptyTitle>
+        <EmptyDescription>
+          这个地址没有对应的管理业务，返回工作台继续操作。
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button render={<Link to="/admin" />} nativeButton={false}>
+          <ArrowLeftIcon data-icon="inline-start" />
+          返回工作台
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }
+import { ArrowLeftIcon, FileQuestionIcon } from "lucide-react"
+import { Link } from "react-router"
+
+import { Button } from "~/components/ui/button"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "~/components/ui/empty"

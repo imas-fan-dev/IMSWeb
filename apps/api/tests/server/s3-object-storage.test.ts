@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { test, type TestContext } from 'node:test';
 import {
     CopyObjectCommand,
     DeleteObjectCommand,
@@ -10,7 +13,13 @@ import {
     PutObjectCommand,
     type S3Client
 } from '@aws-sdk/client-s3';
-import { S3ObjectStorage } from '@/adapters/node/s3-object-storage';
+import {
+    S3ObjectStorage,
+    type S3ReadUrlSigner
+} from '@/infra/oss/s3/object-storage';
+import { S3CompensationService } from '@/infra/oss/s3/compensation-service';
+import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
+import { SqliteConnection } from '@/infra/db/sqlite/connection';
 
 interface FakeObject {
     body: Uint8Array;
@@ -31,6 +40,7 @@ class FakeS3Client {
     readonly objects = new Map<string, FakeObject>();
     readonly commands: unknown[] = [];
     destroyCalls = 0;
+    deleteFailuresRemaining = 0;
     private revision = 0;
 
     async send(command: unknown): Promise<any> {
@@ -70,6 +80,10 @@ class FakeS3Client {
             return {};
         }
         if (command instanceof DeleteObjectCommand) {
+            if (this.deleteFailuresRemaining > 0) {
+                this.deleteFailuresRemaining -= 1;
+                throw s3Error('ServiceUnavailable', 503);
+            }
             this.objects.delete(command.input.Key!);
             return {};
         }
@@ -116,34 +130,74 @@ class FakeS3Client {
     }
 }
 
-function fixture(): { client: FakeS3Client; storage: S3ObjectStorage } {
+async function fixture(t: TestContext): Promise<{
+    client: FakeS3Client;
+    connection: SqliteConnection;
+    compensation: S3CompensationService;
+    signed: Array<{ command: GetObjectCommand | HeadObjectCommand; expiresIn: number }>;
+    state: S3UploadStateMachine;
+    storage: S3ObjectStorage;
+}> {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-s3-storage-'));
+    const connection = new SqliteConnection(path.join(directory, 'state.sqlite'));
+    const state = new S3UploadStateMachine(connection);
+    await state.initialize();
     const client = new FakeS3Client();
-    const storage = new S3ObjectStorage(
-        client as unknown as Pick<S3Client, 'send' | 'destroy'>,
-        { bucket: 'ims-media-prod', prefix: 'ims/production' }
+    const signed: Array<{
+        command: GetObjectCommand | HeadObjectCommand;
+        expiresIn: number;
+    }> = [];
+    const signer: S3ReadUrlSigner = async (command, expiresIn) => {
+        signed.push({ command, expiresIn });
+        return `https://media.example.test/${encodeURIComponent(command.input.Key!)}`;
+    };
+    let storage: S3ObjectStorage;
+    const compensation = new S3CompensationService(
+        connection,
+        state,
+        (objectId) => storage.deletePhysicalObject(objectId)
     );
-    return { client, storage };
+    storage = new S3ObjectStorage(
+        client as unknown as Pick<S3Client, 'send' | 'destroy'>,
+        {
+            bucket: 'ims-media-prod',
+            prefix: 'ims/production',
+            readUrlTtlSeconds: 300
+        },
+        signer,
+        state,
+        compensation
+    );
+    t.after(async () => {
+        storage.close();
+        await connection.close();
+        await fs.rm(directory, { recursive: true, force: true });
+    });
+    return { client, connection, compensation, signed, state, storage };
 }
 
-test('S3 object storage preserves logical keys across CRUD, copy, move, and pagination', async () => {
-    const { client, storage } = fixture();
+test('S3 object storage preserves logical keys across versioned CRUD, copy, and move', async (t) => {
+    const { client, state, storage } = await fixture(t);
     const firstBody = new TextEncoder().encode('first');
     const first = await storage.put('uploads/news/original/a b.webp', firstBody, {
         contentType: 'image/webp',
         metadata: { owner: 'news', idol: '樱木真乃' }
     });
     assert.equal(first.size, firstBody.byteLength);
-    assert.equal(client.objects.has('ims/production/uploads/news/original/a b.webp'), true);
+    const firstSnapshot = await state.snapshot('uploads/news/original/a b.webp');
+    assert.ok(firstSnapshot);
+    const firstPhysicalKey = `ims/production/__ims_s3/objects/${firstSnapshot.objectId}`;
+    assert.equal(client.objects.has(firstPhysicalKey), true);
     assert.equal(
-        client.objects.get('ims/production/uploads/news/original/a b.webp')?.metadata?.owner,
+        client.objects.get(firstPhysicalKey)?.metadata?.owner,
         'news'
     );
     assert.equal(
-        client.objects.get('ims/production/uploads/news/original/a b.webp')?.metadata?.idol,
+        client.objects.get(firstPhysicalKey)?.metadata?.idol,
         encodeURIComponent('樱木真乃')
     );
     assert.match(
-        client.objects.get('ims/production/uploads/news/original/a b.webp')?.metadata?.sha256 || '',
+        client.objects.get(firstPhysicalKey)?.metadata?.sha256 || '',
         /^[a-f0-9]{64}$/
     );
 
@@ -180,16 +234,19 @@ test('S3 object storage preserves logical keys across CRUD, copy, move, and pagi
             'uploads/news/original/z.webp'
         ]
     );
-    assert.ok(client.commands.filter((command) => command instanceof ListObjectsV2Command).length >= 2);
+    assert.ok(client.commands.some((command) => command instanceof ListObjectsV2Command));
 
     await storage.deletePrefix('uploads/news/original/');
     assert.deepEqual(await storage.list('uploads/news/original/'), []);
-    storage.close();
-    assert.equal(client.destroyCalls, 1);
+    assert.ok(await storage.putIfUnchanged(
+        'uploads/news/original/a b.webp',
+        null,
+        new Uint8Array([7])
+    ));
 });
 
-test('S3 object storage validates checksums and rejects unsafe logical keys', async () => {
-    const { client, storage } = fixture();
+test('S3 object storage validates checksums and rejects unsafe logical keys', async (t) => {
+    const { client, storage } = await fixture(t);
     await assert.rejects(
         storage.put('uploads/news/original/a.webp', new Uint8Array([1]), {
             sha256: '0'.repeat(64)
@@ -199,4 +256,127 @@ test('S3 object storage validates checksums and rejects unsafe logical keys', as
     assert.equal(client.commands.length, 0);
     await assert.rejects(storage.get('../secret'), /Invalid object key/);
     await assert.rejects(storage.list('uploads//news/'), /Invalid object key/);
+});
+
+test('S3 object storage signs GET and HEAD reads without proxying object bodies', async (t) => {
+    const { signed, state, storage } = await fixture(t);
+    const key = 'uploads/news/original/a b.webp';
+    await storage.put(key, new Uint8Array([1, 2, 3]), { contentType: 'image/webp' });
+
+    const snapshot = await state.snapshot(key);
+    assert.ok(snapshot);
+    assert.equal(await storage.createReadUrl(key),
+        `https://media.example.test/${encodeURIComponent(
+            `ims/production/__ims_s3/objects/${snapshot.objectId}`
+        )}`);
+    assert.ok(signed[0]?.command instanceof GetObjectCommand);
+    assert.equal(signed[0]?.expiresIn, 300);
+
+    await storage.createReadUrl(key, { method: 'HEAD' });
+    assert.ok(signed[1]?.command instanceof HeadObjectCommand);
+    assert.equal(await storage.createReadUrl('uploads/news/original/missing.webp'), null);
+    assert.equal(signed.length, 2);
+});
+
+test('S3 deferred publication hides new objects and restores the previous version on rollback', async (t) => {
+    const { storage } = await fixture(t);
+    const initialKey = 'uploads/news/original/initial-deferred.webp';
+    const initial = new TextEncoder().encode('initial');
+    await storage.put(initialKey, initial, { deferredPublication: true });
+    assert.equal(await storage.get(initialKey), null);
+    assert.equal(await storage.createReadUrl(initialKey), null);
+    assert.equal((await storage.list('uploads/news/original/')).some(
+        (object) => object.key === initialKey
+    ), false);
+    await storage.publish(initialKey);
+    assert.deepEqual((await storage.get(initialKey))?.body, initial);
+
+    const key = 'uploads/news/original/deferred.webp';
+    const previous = new TextEncoder().encode('previous');
+    const replacement = new TextEncoder().encode('replacement');
+
+    await storage.put(key, previous, { contentType: 'image/webp' });
+    await storage.put(key, replacement, {
+        contentType: 'image/webp',
+        deferredPublication: true
+    });
+    assert.deepEqual((await storage.get(key))?.body, previous);
+
+    await storage.delete(key);
+    assert.deepEqual((await storage.get(key))?.body, previous);
+
+    await storage.put(key, replacement, {
+        contentType: 'image/webp',
+        deferredPublication: true
+    });
+    assert.deepEqual((await storage.get(key))?.body, previous);
+    await storage.publish(key);
+    assert.deepEqual((await storage.get(key))?.body, replacement);
+});
+
+test('S3 reads legacy logical-key objects until a versioned write takes ownership', async (t) => {
+    const { client, state, storage } = await fixture(t);
+    const key = 'Data/sc/mano/card.webp';
+    const physicalKey = `ims/production/${key}`;
+    client.objects.set(physicalKey, {
+        body: new Uint8Array([1, 2]),
+        contentType: 'image/webp',
+        etag: '"legacy"',
+        lastModified: new Date('2026-07-22T00:00:00Z')
+    });
+
+    assert.deepEqual((await storage.get(key))?.body, new Uint8Array([1, 2]));
+    assert.deepEqual((await storage.list('Data/sc/')).map((object) => object.key), [key]);
+    await storage.put(key, new Uint8Array([3, 4]), { contentType: 'image/webp' });
+    assert.ok(await state.snapshot(key));
+    assert.deepEqual((await storage.get(key))?.body, new Uint8Array([3, 4]));
+});
+
+test('S3 lifecycle fences owner and object identity mutations', async (t) => {
+    const { state, storage } = await fixture(t);
+    const key = 'assets/images/eventchronicle/events/upload/a.webp';
+    await storage.put(key, new Uint8Array([1, 2, 3]), { ownerToken: 'owner-a' });
+    const first = await state.snapshot(key);
+    assert.ok(first);
+
+    assert.equal(await storage.deleteIfOwned(key, 'owner-b'), false);
+    assert.equal(await storage.exists(key), true);
+    await storage.put(key, new Uint8Array([4, 5, 6]), { ownerToken: 'owner-a' });
+    assert.equal(await storage.deleteIfObjectId(key, first.objectId), false);
+    assert.equal(await storage.moveIfOwned(key, `${key}.moved`, 'owner-b'), false);
+    assert.equal(await storage.moveIfOwned(key, `${key}.moved`, 'owner-a'), true);
+    assert.equal(await storage.exists(key), false);
+    assert.deepEqual((await storage.get(`${key}.moved`))?.body, new Uint8Array([4, 5, 6]));
+});
+
+test('S3 stale recovery and SQL compensation remove unreferenced physical versions', async (t) => {
+    const { client, compensation, connection, state, storage } = await fixture(t);
+    const staleKey = 'uploads/events/original/stale.webp';
+    await storage.put(staleKey, new Uint8Array([1]), { deferredPublication: true });
+    const stale = await state.snapshot(staleKey);
+    assert.ok(stale);
+    await connection.prepare(
+        'UPDATE s3_upload_operations SET updated_at=0 WHERE id=?'
+    ).bind(stale.operationId).run();
+    await storage.recoverStaleUploads(10, 1);
+    assert.equal(await storage.get(staleKey), null);
+    assert.equal(client.objects.has(`ims/production/__ims_s3/objects/${stale.objectId}`), false);
+    await compensation.run(storage);
+
+    const compensatedKey = 'uploads/events/original/compensated.webp';
+    await storage.put(compensatedKey, new Uint8Array([2]));
+    client.deleteFailuresRemaining = 1;
+    await storage.delete(compensatedKey);
+    assert.equal(await storage.get(compensatedKey), null);
+    assert.equal((await connection.prepare(
+        `SELECT COUNT(*) AS count FROM s3_compensation_jobs WHERE state='pending'`
+    ).first<{ count: number }>())?.count, 1);
+
+    await compensation.run(storage);
+    assert.equal((await connection.prepare(
+        `SELECT COUNT(*) AS count FROM s3_compensation_jobs WHERE state='pending'`
+    ).first<{ count: number }>())?.count, 0);
+    assert.equal((await connection.prepare(
+        `SELECT COUNT(*) AS count FROM s3_compensation_jobs WHERE state='completed'`
+    ).first<{ count: number }>())?.count, 2);
 });

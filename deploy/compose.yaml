@@ -2,6 +2,8 @@ name: imsweb
 
 services:
   nginx:
+    profiles:
+      - proxy
     image: ${IMS_NGINX_IMAGE:-nginx:1.30.4-alpine3.24}
     entrypoint: /docker-entrypoint.sh
     network_mode: host
@@ -12,9 +14,10 @@ services:
     environment:
       IMS_NGINX_LISTEN_PORT: ${IMS_NGINX_LISTEN_PORT:-8080}
       IMS_NGINX_SERVER_NAME: ${IMS_NGINX_SERVER_NAME:-_}
+      IMS_SITE_PACKAGE_SERVER_NAME: ${IMS_SITE_PACKAGE_SERVER_NAME:-content.localhost}
+      IMS_TRUST_OUTER_PROXY: ${IMS_TRUST_OUTER_PROXY:-false}
       IMS_NODE_UPSTREAM: ${IMS_NODE_UPSTREAM:-127.0.0.1:3000}
       IMS_CLIENT_MAX_BODY_SIZE: ${IMS_CLIENT_MAX_BODY_SIZE:-50m}
-      IMS_EMERGENCY_INCLUDE: /etc/nginx/snippets/ims-normal-mode.conf
       NGINX_ENVSUBST_FILTER: ^IMS_
       NGINX_ENTRYPOINT_QUIET_LOGS: "1"
     volumes:
@@ -38,3 +41,88 @@ services:
       options:
         max-size: 10m
         max-file: "5"
+
+  postgres:
+    image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${IMS_POSTGRES_DB:-imsweb}
+      POSTGRES_USER: ${IMS_POSTGRES_USER:-imsweb}
+      POSTGRES_PASSWORD: ${IMS_POSTGRES_PASSWORD:-imsweb-local-password}
+    ports:
+      - "127.0.0.1:${IMS_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    shm_size: 256mb
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  minio:
+    image: ${IMS_MINIO_IMAGE:-minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${IMS_MINIO_ROOT_USER:-imsweb-local}
+      MINIO_ROOT_PASSWORD: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
+    ports:
+      - "127.0.0.1:${IMS_MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${IMS_MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - http://127.0.0.1:9000/minio/health/live
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  minio-init:
+    image: ${IMS_MINIO_IMAGE:-minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${IMS_MINIO_ROOT_USER:-imsweb-local}
+      MINIO_ROOT_PASSWORD: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
+      IMS_MINIO_BUCKET: ${IMS_MINIO_BUCKET:-imsweb-test}
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb --ignore-existing "local/$${IMS_MINIO_BUCKET}"
+        mc anonymous set none "local/$${IMS_MINIO_BUCKET}"
+
+volumes:
+  postgresql-data:
+    name: imsweb-postgresql_postgresql-data
+  minio-data:
+    name: imsweb-minio_minio-data

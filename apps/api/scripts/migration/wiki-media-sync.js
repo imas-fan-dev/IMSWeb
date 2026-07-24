@@ -53,8 +53,8 @@ function parseArguments(argv, environment = process.env) {
     const projectRoot = path.resolve(__dirname, '../../../..');
     const options = {
         sourceOrigin: DEFAULT_SOURCE_ORIGIN,
-        database: environment.IMS_STORY_DB_PATH ||
-            path.join(projectRoot, 'apps/legacy/data/story/idol_data.db'),
+        database: environment.IMS_SQLITE_PATH ||
+            path.join(projectRoot, 'apps/legacy/data/imsweb.db'),
         stagingDir: path.join(projectRoot, 'apps/legacy/data/wiki-import'),
         manifest: undefined,
         pageConcurrency: DEFAULT_PAGE_CONCURRENCY,
@@ -108,7 +108,7 @@ function helpText() {
         '',
         'Options:',
         '  --source-origin <url>       Wiki origin (default: https://idol-master.top)',
-        '  --database <path>           Story SQLite database used for agency/idol mapping',
+        '  --database <path>           Unified SQLite database used for agency/idol mapping',
         '  --staging-dir <path>        Local page and asset staging directory',
         '  --manifest <path>           Output manifest path',
         '  --page-concurrency <n>      Concurrent story page requests (default: 4)',
@@ -123,7 +123,7 @@ function helpText() {
 }
 
 function loadIdolRows(database) {
-    if (!fs.existsSync(database)) throw new Error(`Story database does not exist: ${database}`);
+    if (!fs.existsSync(database)) throw new Error(`Unified database does not exist: ${database}`);
     return new Promise((resolve, reject) => {
         const connection = new sqlite3.Database(database, sqlite3.OPEN_READONLY, (openError) => {
             if (openError) {

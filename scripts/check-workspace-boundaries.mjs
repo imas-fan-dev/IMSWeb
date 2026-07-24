@@ -7,7 +7,7 @@ const apiRoot = path.join(repositoryRoot, 'apps/api');
 const legacyRoot = path.join(repositoryRoot, 'apps/legacy');
 const webRoot = path.join(repositoryRoot, 'apps/web');
 const failures = [];
-const defaultScriptNames = ['build', 'check', 'test', 'test:fast', 'start', 'dev:node', 'worker:dry-run'];
+const defaultScriptNames = ['build', 'check', 'test', 'test:fast', 'start', 'dev:node'];
 const webDefaultScriptNames = new Set(['build', 'check', 'test', 'test:fast']);
 
 function relative(absolutePath) {
@@ -371,9 +371,32 @@ for (const scriptName of ['legacy:build', 'legacy:check', 'legacy:test', 'legacy
 }
 
 requireFile(path.join(legacyRoot, 'public/index.html'));
-requireFile(path.join(apiRoot, 'src/server/app.ts'));
-requireFile(path.join(apiRoot, 'src/server/worker.ts'));
-requireFile(path.join(apiRoot, 'wrangler.jsonc'));
+requireFile(path.join(apiRoot, 'src/app.ts'));
+requireFile(path.join(apiRoot, 'src/main.ts'));
+forbidPath(path.join(apiRoot, 'src/server'), 'API source must be rooted directly at apps/api/src');
+for (const retiredWorkerSurface of [
+    'src/worker.ts',
+    'src/runtime/cloudflare-services.ts',
+    'src/runtime/worker-bindings.ts',
+    'src/infra/cache/d1',
+    'src/infra/db/d1',
+    'src/infra/http/cloudflare-assets',
+    'src/infra/http/web-form-data',
+    'src/infra/media/cloudflare-images',
+    'src/infra/oss/r2',
+    'src/infra/security/bcryptjs',
+    'tests/worker',
+    'tsconfig.worker.json',
+    'vitest.config.mts',
+    'worker-configuration.d.ts',
+    'wrangler.jsonc',
+    '.assetsignore'
+]) {
+    forbidPath(
+        path.join(apiRoot, retiredWorkerSurface),
+        'Cloudflare Worker runtime is retired; current API validation is Node-only'
+    );
+}
 requireFile(path.join(legacyRoot, 'src/server/main.ts'));
 requireFile(path.join(legacyRoot, 'flask/app.py'));
 requireFile(path.join(legacyRoot, 'pyproject.toml'));
@@ -464,6 +487,11 @@ for (const dependency of ['express', 'cookie-parser', 'cors', 'helmet', 'multer'
         failures.push(`apps/api/package.json: legacy dependency remains: ${dependency}`);
     }
 }
+for (const dependency of ['@cloudflare/vitest-pool-workers', '@cloudflare/workers-types', 'wrangler']) {
+    if (apiDependencies[dependency]) {
+        failures.push(`apps/api/package.json: retired Worker dependency remains: ${dependency}`);
+    }
+}
 const legacyDependencies = {
     ...legacyPackage.dependencies,
     ...legacyPackage.devDependencies
@@ -475,23 +503,32 @@ for (const dependency of ['hono', '@hono/node-server', 'wrangler', '@cloudflare/
 }
 
 const composePath = path.join(repositoryRoot, 'deploy/compose.yaml');
-const emergencyComposePath = path.join(repositoryRoot, 'deploy/compose.emergency.yaml');
+const legacyComposePath = path.join(repositoryRoot, 'deploy/compose.legacy.yaml');
+const currentTemplatePath = path.join(repositoryRoot, 'deploy/nginx/templates/default.conf.template');
+const legacyTemplatePath = path.join(repositoryRoot, 'deploy/nginx/templates-legacy/default.conf.template');
 requireFile(composePath);
-requireFile(emergencyComposePath);
-const deploymentFiles = [
-    composePath,
-    emergencyComposePath,
-    path.join(repositoryRoot, 'deploy/nginx/templates/default.conf.template')
-];
-const deploymentSources = deploymentFiles
+requireFile(legacyComposePath);
+requireFile(currentTemplatePath);
+requireFile(legacyTemplatePath);
+const currentDeploymentSources = [composePath, currentTemplatePath]
     .filter((file) => fs.existsSync(file))
     .map((file) => fs.readFileSync(file, 'utf8'))
     .join('\n');
-if (/ims_flask|IMS_FLASK_UPSTREAM|(?:^|[^0-9])5000(?:[^0-9]|$)|apps\/legacy/i.test(deploymentSources)) {
-    failures.push('Compose/Nginx deployment must target only the Hono Node upstream');
+if (/ims_(?:legacy_)?flask|IMS_(?:LEGACY_)?FLASK_UPSTREAM|(?:^|[^0-9])5000(?:[^0-9]|$)|apps\/legacy/i.test(currentDeploymentSources)) {
+    failures.push('Current Compose/Nginx deployment must target only the Hono Node upstream');
 }
-if (fs.existsSync(composePath) && /^\s*build\s*:/m.test(fs.readFileSync(composePath, 'utf8'))) {
-    failures.push('deploy/compose.yaml: application image builds are forbidden in the Nginx-only deployment');
+for (const deploymentComposePath of [composePath, legacyComposePath]) {
+    if (fs.existsSync(deploymentComposePath) && /^\s*build\s*:/m.test(fs.readFileSync(deploymentComposePath, 'utf8'))) {
+        failures.push(`${relative(deploymentComposePath)}: application image builds are forbidden`);
+    }
+}
+const composeFiles = filesUnder(path.join(repositoryRoot, 'deploy'))
+    .filter((file) => /(?:^|\/)compose(?:\.[^.]+)?\.ya?ml$/i.test(relative(file)))
+    .map((file) => relative(file))
+    .sort();
+const expectedComposeFiles = ['deploy/compose.legacy.yaml', 'deploy/compose.yaml'];
+if (JSON.stringify(composeFiles) !== JSON.stringify(expectedComposeFiles)) {
+    failures.push(`deploy: expected only ${expectedComposeFiles.join(' and ')}, found ${composeFiles.join(', ')}`);
 }
 
 const clientRoot = path.join(apiRoot, 'dist/client');

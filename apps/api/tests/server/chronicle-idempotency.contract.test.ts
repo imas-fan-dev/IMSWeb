@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
-import { HmacTokenService } from '@/adapters/shared/hmac-token-service';
-import type { IdempotencyClaim, IdempotencyResponse, IdempotencyStore } from '@/ports/idempotency-store';
+import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import type { IdempotencyClaim, IdempotencyResponse, IdempotencyStore } from '@/ports/cache';
 import {
     CHRONICLE_UPLOAD_ATTEMPT_LIMIT,
     CHRONICLE_UPLOAD_WRITE_LIMIT
 } from '@/middleware/rate-limit';
-import type { ImageInfo, ImageProcessor } from '@/ports/image-processor';
-import type { CompensationService } from '@/ports/compensation-service';
+import type { ImageInfo, ImageProcessor } from '@/ports/media';
+import type { CompensationService } from '@/ports/object-storage';
 import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
-import type { RateLimiter, RateLimitIdentity, RateLimitResult } from '@/ports/rate-limiter';
+import type { RateLimiter, RateLimitIdentity, RateLimitResult } from '@/ports/cache';
 import type { RuntimeServices } from '@/ports/runtime-services';
-import type { ParsedUpload, UploadParser } from '@/ports/upload-parser';
+import type { ParsedUpload, UploadParser } from '@/ports/http';
 
 const BASE = 'assets/images/eventchronicle/events';
 

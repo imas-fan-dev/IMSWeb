@@ -4,9 +4,13 @@ This file supplements the repository-level `AGENTS.md` for `@imsweb/api`.
 
 ## Architecture & Ownership
 
-`src/server/app.ts` assembles the shared Hono application. Domain routes belong in `src/server/domains/<domain>/`; runtime-neutral interfaces belong in `ports/`; Node, Cloudflare, and shared implementations belong in the matching `adapters/` directory. Keep environment wiring in `runtime/`, Node startup in `main.ts`, and Worker startup in `worker.ts`.
+`src/app.ts` assembles the Hono application. Domain routes belong in `src/domains/<domain>/`. Runtime-neutral capability and repository interfaces live in the flat `src/ports/` modules; `ports/runtime-services.ts` aggregates their injectable instances. `infra/oss` owns object persistence and compensation adapters, `infra/media` owns image-processing adapters, and `infra/http` owns multipart and static-response adapters. Under `infra/db`, `postgresql` and `sqlite` own provider-specific connections and schema strategies, `repositories` owns shared SQL repository implementations, and `sql` owns only the internal driver contract and query helpers. Other concrete implementations stay below matching middleware directories such as `s3`, `sharp`, `busboy`, or `bcrypt`. Keep environment wiring and concrete implementation selection in `runtime/`, and Node startup in `main.ts`.
 
-Business code shared by both runtimes must not import Node-only modules, Cloudflare bindings, SQLite, or R2 directly. Access infrastructure through ports and injected `RuntimeServices`. Internal imports use `@/`, rooted at `src/server`; do not use `@/server/...` or long relative paths.
+Business code imports only `@/ports/*` contracts; it must not import any `@/infra/*` module, SQLite, PostgreSQL, S3, Sharp, or upload-parser implementation directly. Repository use is capability-specific (`auth`, `audit`, `news`, `events`, `namecards`, `reactions`, `sitePackages`, or `story`) rather than a shared Core repository. Runtime composition is the only place that selects concrete middleware files. Name files inside middleware directories by business responsibility, such as `core-repository.ts`, `object-storage.ts`, `image-processor.ts`, or `rate-limiter.ts`; do not add middleware barrels or generic `adapter.ts`, `implementation.ts`, or `service.ts` files. Internal imports use `@/`, rooted at `src`; do not use `@/server/...` or long relative paths.
+
+The same rule applies to ORMs: domain code must not import Prisma Client or generated Prisma model types. If Prisma is introduced, keep it under `infra/db/prisma/`, map its records to types owned by `ports/repositories.ts`, and instantiate it only from `runtime/`.
+
+Do not create `src/shared`. Hono request context and request path policies belong in `middleware/`; frontend route decisions belong in `routing/`; runtime-neutral pure functions belong under `utils/{crypto,http,media,storage,validation}`. Do not add utility barrels, `index.ts`, `utils.ts`, or `helpers.ts`. SQL helpers belong to `infra/db/sql`; concrete middleware and runtime selection never belong in `utils`.
 
 ## Commands
 
@@ -17,15 +21,14 @@ pnpm run dev:node
 pnpm run build
 pnpm run check
 pnpm run test
-pnpm run worker:dry-run
 ```
 
-Use focused suites while iterating: `test:node`, `test:server`, `test:wiki`, `test:migration`, and `test:worker`. Run the full `check` and `test` gates before submitting changes that cross domains or runtimes.
+Use focused suites while iterating: `test:node`, `test:server`, `test:wiki`, and `test:assets`. Run the full `check` and `test` gates before submitting changes that cross domains.
 
 ## Style & Tests
 
-Use strict TypeScript, four-space indentation, semicolons, and single quotes. Prefer kebab-case filenames and explicit domain names. Tests use Node's test runner for Node/server/migration contracts and Vitest with the Cloudflare pool for Worker behavior. Name files `*.test.ts` or `*.test.js`. Shared request, persistence, security, or object-lifecycle changes require equivalent Node and Worker coverage.
+Use strict TypeScript, four-space indentation, semicolons, and single quotes. Prefer kebab-case filenames and explicit domain names. Tests use Node's test runner for Node/server contracts. Name files `*.test.ts` or `*.test.js`. Persistence changes require a focused driver or repository regression plus the Node runtime contract.
 
 ## Migrations, Assets & Security
 
-Add ordered SQL migrations under `migrations/core/` or `migrations/story/` and update reconciliation fixtures when schemas change. Static client output is allowlisted by `scripts/build/client-allowlist.json`; never publish all of `apps/legacy/public` implicitly. Do not commit secrets or production data. `IMS_JWT_SECRET` must be high entropy, and the D1/R2 identifiers in `wrangler.jsonc` remain placeholders until explicitly provisioned and verified.
+Keep Core and Story as logical repository boundaries over one physical SQLite or PostgreSQL database. Static client output is allowlisted by `scripts/build/client-allowlist.json`; never publish all of `apps/legacy/public` implicitly. Do not commit secrets or production data. `IMS_JWT_SECRET` must be high entropy.

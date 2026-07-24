@@ -30,11 +30,11 @@ requireBuild(
 const { createHonoApp } = require(path.join(SERVER_ROOT, 'app.js'));
 const { NodeStaticAssets } = require(path.join(
     SERVER_ROOT,
-    'adapters/node/node-static-assets.js'
+    'infra/http/filesystem/static-assets.js'
 ));
 const { resolveFrontendRoute } = require(path.join(
     SERVER_ROOT,
-    'shared/frontend-route-policy.js'
+    'routing/frontend-route-policy.js'
 ));
 
 function walkFiles(directory, root = directory) {
@@ -121,6 +121,8 @@ test('[FRT-02] real prerendered documents and selective SPA routes use build/cli
         '/admin/login',
         '/admin/login/',
         '/admin/chronicle/pending',
+        '/recommendations',
+        '/recommendations/',
         '/information/info-example-001',
         '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
         '/chronicle/activity-1/'
@@ -165,6 +167,17 @@ test('[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallb
     const sensitive = await request('/assets/images/eventchronicle/events/meta/private.json');
     assert.equal(sensitive.status, 403);
     assert.equal(await sensitive.text(), 'Forbidden');
+
+    for (const pathname of [
+        '/sites/hiro-2026',
+        '/site-content/hiro-2026/22222222-2222-4222-8222-222222222222/index.html'
+    ]) {
+        assert.deepEqual(
+            resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles),
+            { kind: 'server' },
+            pathname
+        );
+    }
 });
 
 test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', async () => {
@@ -203,7 +216,13 @@ test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', asy
         );
     }
 
-    for (const pathname of ['/about', '/admin', '/information/info-example-001', '/chronicle/activity-1']) {
+    for (const pathname of [
+        '/about',
+        '/admin',
+        '/recommendations',
+        '/information/info-example-001',
+        '/chronicle/activity-1'
+    ]) {
         assert.deepEqual(
             resolveFrontendRoute({ method: 'POST', pathname }, frontendFiles),
             { kind: 'server' },

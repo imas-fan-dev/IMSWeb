@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { createHonoApp } from '@/app';
-import { MemoryRateLimiter } from '@/adapters/node/memory-rate-limiter';
-import type { CoreRepository } from '@/ports/core-repository';
+import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import type { AuthRepository, ReactionRepository } from '@/ports/repositories';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { assertAbuseProtectionContract } from '../contracts/runtime-contracts.js';
@@ -26,9 +26,10 @@ test('[SECURITY] shared JSON and abuse limits use the Node memory limiter', asyn
         async incrementReaction() {
             calls.reactionMutations += 1;
         }
-    } as unknown as CoreRepository;
+    } as unknown as AuthRepository & ReactionRepository;
     const runtime: RuntimeServices = {
-        core,
+        auth: core,
+        reactions: core,
         compensation: {
             async enqueue() { return 'unused'; },
             async run() { compensationRuns += 1; }

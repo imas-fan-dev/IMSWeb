@@ -31,13 +31,6 @@ export type FriendLink = {
   accent: string
 }
 
-export type LegacyHighlight = {
-  category: "活动资讯" | "同人活动"
-  title: string
-  href: string
-  image: string
-}
-
 export const seriesItems: SeriesItem[] = [
   {
     name: "765PRO ALLSTARS",
@@ -174,46 +167,6 @@ export const friendLinks: FriendLink[] = [
     description: "通过哔哩哔哩联系站长",
     href: "https://space.bilibili.com/41356186?spm_id_from=333.1007.0.0",
     accent: "bg-franchise-gk",
-  },
-]
-
-// Migrated from the two carousel datasets in legacy assets/js/ims.js.
-export const legacyHighlights: LegacyHighlight[] = [
-  {
-    category: "活动资讯",
-    title: "篠泽广研讨会",
-    href: "/hiro2026.html",
-    image: "/assets/images/hiro2026/xzg2026.png",
-  },
-  {
-    category: "同人活动",
-    title: "广州偶像大师 ONLY",
-    href: "/",
-    image: "/assets/images/Information/guangzhou2026.png",
-  },
-  {
-    category: "同人活动",
-    title: "IFE02",
-    href: "https://www.bilibili.com/opus/1202632935749976099?spm_id_from=333.1387.0.0",
-    image: "/assets/images/Information/ife2.png",
-  },
-  {
-    category: "同人活动",
-    title: "成都偶像大师 ONLY",
-    href: "http://xhslink.com/o/3MHP3lo3cZZ",
-    image: "/assets/images/Information/chengduonly1st.jpg",
-  },
-  {
-    category: "同人活动",
-    title: "杭州偶像大师 ONLY",
-    href: "http://xhslink.com/o/8ax2OXQuXK8",
-    image: "/assets/images/Information/2026hangzhouonly.png",
-  },
-  {
-    category: "同人活动",
-    title: "湖南偶像大师 ONLY",
-    href: "https://www.bilibili.com/video/BV1kKEb6iE9F/?spm_id_from=333.337.search-card.all.click&vd_source=2d403c30948d57b26cc618ec6b594cd9",
-    image: "/assets/images/Information/hunan2026.png",
   },
 ]
 

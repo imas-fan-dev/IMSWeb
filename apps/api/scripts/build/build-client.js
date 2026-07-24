@@ -10,13 +10,9 @@ const outputRoot = path.join(packageRoot, 'dist/client');
 const nodeOutputRoot = path.join(packageRoot, 'dist/node-client');
 const sourceAllowlistPath = path.join(__dirname, 'client-allowlist.json');
 const outputAllowlistPath = path.join(packageRoot, 'dist/client-allowlist.json');
-const r2ManifestPath = path.join(packageRoot, 'dist/client-r2-assets.json');
 
-// Unity payloads keep their historical URLs but are published through R2.
-// Like the Static Assets list, this list is intentionally closed: adding a
-// file under apps/legacy/public never becomes deployable without a
-// reviewed change to this package's allowlist.
-const r2AssetFiles = [
+// Large Unity payloads are Node-only but keep their historical URLs.
+const nodeOnlyAssetFiles = [
     'runninggame/Build/webgame.data',
     'runninggame/BuildMobile/webgame.data'
 ];
@@ -48,7 +44,7 @@ function normalizeKey(value) {
     return value;
 }
 
-function assertPublishable(key, { r2 = false } = {}) {
+function assertPublishable(key, { large = false } = {}) {
     const lower = key.toLowerCase();
     const segments = lower.split('/');
     if (segments.some((segment) => forbiddenSegments.has(segment)) ||
@@ -56,10 +52,10 @@ function assertPublishable(key, { r2 = false } = {}) {
         forbiddenExtensions.test(lower)) {
         throw new Error(`Forbidden client asset: ${key}`);
     }
-    if (r2 !== lower.endsWith('.data')) {
-        throw new Error(`${r2 ? 'R2' : 'Static'} asset has the wrong publication class: ${key}`);
+    if (large !== lower.endsWith('.data')) {
+        throw new Error(`${large ? 'Large' : 'Static'} asset has the wrong publication class: ${key}`);
     }
-    if (!r2 && !allowedStaticExtensions.has(path.posix.extname(lower))) {
+    if (!large && !allowedStaticExtensions.has(path.posix.extname(lower))) {
         throw new Error(`Unsupported Static Asset extension: ${key}`);
     }
 }
@@ -107,18 +103,16 @@ for (const key of staticFiles) {
     copyAsset(absolute, nodeOutputRoot, key);
 }
 
-const r2 = r2AssetFiles.map((value) => {
+const nodeOnly = nodeOnlyAssetFiles.map((value) => {
     const key = normalizeKey(value);
-    assertPublishable(key, { r2: true });
-    const { absolute, stat } = sourceFile(key);
+    assertPublishable(key, { large: true });
+    const { absolute } = sourceFile(key);
     copyAsset(absolute, nodeOutputRoot, key);
-    return { url: `/${key}`, logicalKey: `unity/${key}`, bytes: stat.size };
+    return key;
 });
 
-fs.writeFileSync(r2ManifestPath, `${JSON.stringify({ generatedAt: new Date().toISOString(), assets: r2 }, null, 2)}\n`);
 fs.writeFileSync(outputAllowlistPath, `${JSON.stringify({ version: 1, files: staticFiles }, null, 2)}\n`);
 process.stdout.write(
-    `Built dist/client: ${staticFiles.length} Worker files; ` +
-    `dist/node-client: ${staticFiles.length + r2.length} Node files; ` +
-    `${r2.length} Unity .data files routed to R2 for Workers\n`
+    `Built dist/client: ${staticFiles.length} base files; ` +
+    `dist/node-client: ${staticFiles.length + nodeOnly.length} Node files\n`
 );

@@ -25,11 +25,11 @@ def configured_path(variable: str, default: str) -> Path:
     return path.resolve()
 
 
+DATABASE_PATH = configured_path("IMS_SQLITE_PATH", "apps/legacy/data/imsweb.db")
+
 PATHS = {
-    "core_db": configured_path("IMS_DB_PATH", "apps/legacy/data/core/news.db"),
-    "story_db": configured_path(
-        "IMS_STORY_DB_PATH", "apps/legacy/data/story/idol_data.db"
-    ),
+    "core_db": DATABASE_PATH,
+    "story_db": DATABASE_PATH,
     "story_data": configured_path(
         "IMS_STORY_DATA_DIR", "apps/legacy/data/story/images"
     ),
@@ -747,15 +747,24 @@ def has_blocking_issue(report: dict) -> bool:
 def build_report(
     details: bool = False, compensation_disposition: Path | None = None
 ) -> dict:
-    core_database, core_connection = database_summary(
-        PATHS["core_db"], CORE_SCHEMA, details
-    )
-    story_database, story_connection = database_summary(
-        PATHS["story_db"], STORY_SCHEMA, details
-    )
+    if PATHS["core_db"] == PATHS["story_db"]:
+        unified_database, unified_connection = database_summary(
+            PATHS["core_db"], {**CORE_SCHEMA, **STORY_SCHEMA}, details
+        )
+        databases = {"unified": unified_database}
+        core_connection = unified_connection
+        story_connection = unified_connection
+    else:
+        core_database, core_connection = database_summary(
+            PATHS["core_db"], CORE_SCHEMA, details
+        )
+        story_database, story_connection = database_summary(
+            PATHS["story_db"], STORY_SCHEMA, details
+        )
+        databases = {"core": core_database, "story": story_database}
     try:
         report = {
-            "databases": {"core": core_database, "story": story_database},
+            "databases": databases,
             "directories": {
                 "uploads": directory_summary(PATHS["uploads"]),
                 "story_data": directory_summary(PATHS["story_data"]),
@@ -772,10 +781,13 @@ def build_report(
             ),
         }
     finally:
-        if core_connection is not None:
-            core_connection.close()
-        if story_connection is not None:
-            story_connection.close()
+        connections = {
+            id(connection): connection
+            for connection in (core_connection, story_connection)
+            if connection is not None
+        }
+        for connection in connections.values():
+            connection.close()
     report["migration_ready"] = not has_blocking_issue(report)
     return report
 

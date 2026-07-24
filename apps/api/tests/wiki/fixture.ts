@@ -1,6 +1,6 @@
 import { createHonoApp } from '@/app';
-import { HmacTokenService } from '@/adapters/shared/hmac-token-service';
-import type { ImageInfo, ImageProcessor } from '@/ports/image-processor';
+import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import type {
@@ -11,8 +11,8 @@ import type {
     StoryRecord,
     StoryRepository,
     UpdateStoryInput
-} from '@/ports/story-repository';
-import type { ParsedUpload, UploadParser } from '@/ports/upload-parser';
+} from '@/ports/repositories';
+import type { ParsedUpload, UploadParser } from '@/ports/http';
 
 export const AGENCIES: AgencyRecord[] = [
     { id: 1, code: '765', name_cn: '765PRO', color: '#f34f6d' },

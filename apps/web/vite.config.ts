@@ -22,6 +22,8 @@ export default defineConfig({
       "@base-ui/react/button",
       "@base-ui/react/dialog",
       "@base-ui/react/separator",
+      "@base-ui/react/toggle",
+      "@base-ui/react/toggle-group",
     ],
   },
   server: {
@@ -38,6 +40,7 @@ export default defineConfig({
         "/icon",
         "/image",
         "/runninggame",
+        "/sites",
         "/story",
         "/uploads",
         "/wiki",

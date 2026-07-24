@@ -5,12 +5,8 @@
     "rootDir": "../.."
   },
   "include": [
-    "../../src/server/**/*.ts",
-    "../../src/server/**/*.tsx",
+    "../../src/**/*.ts",
+    "../../src/**/*.tsx",
     "./**/*.ts"
-  ],
-  "exclude": [
-    "../../src/server/adapters/cloudflare/**",
-    "../../src/server/worker.ts"
   ]
 }

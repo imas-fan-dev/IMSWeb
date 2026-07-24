@@ -4,18 +4,26 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
-import { FilesystemCompensationService } from '@/adapters/node/filesystem-compensation-service';
-import { FilesystemIdempotencyStore } from '@/adapters/node/filesystem-idempotency-store';
-import { FilesystemObjectStorage } from '@/adapters/node/filesystem-object-storage';
-import { MemoryRateLimiter } from '@/adapters/node/memory-rate-limiter';
-import { SqliteConnection } from '@/adapters/node/sqlite-connection';
-import { SqliteCoreRepository } from '@/adapters/node/sqlite-core-repository';
-import { HmacTokenService } from '@/adapters/shared/hmac-token-service';
-import type { CompensationService } from '@/ports/compensation-service';
-import type { CoreRepository } from '@/ports/core-repository';
-import type { ImageProcessor } from '@/ports/image-processor';
+import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
+import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
+import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
+import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import { SqliteConnection } from '@/infra/db/sqlite/connection';
+import { SqliteCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import type { CompensationService } from '@/ports/object-storage';
+import type {
+    AuditRepository,
+    AuthRepository,
+    EventRepository,
+    NamecardRepository,
+    NewsRepository,
+    ReactionRepository
+} from '@/ports/repositories';
+import type { ImageProcessor } from '@/ports/media';
 import type { ObjectStorage } from '@/ports/object-storage';
-import type { ParsedUpload, UploadParser } from '@/ports/upload-parser';
+import type { ParsedUpload, UploadParser } from '@/ports/http';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import {
     assertChronicleRateContract,
@@ -161,7 +169,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         fs.mkdir(directory, { recursive: true })));
 
     const connection = new SqliteConnection(path.join(root, 'core.sqlite'));
-    const core = new SqliteCoreRepository(connection);
+    const core = new SqliteCoreRepository(connection, new SqliteSchemaStrategy());
     await core.initialize();
     await connection.run(
         `INSERT INTO users (username, password, dept, producername) VALUES (?, 'contract-digest', 'op', ?)`,
@@ -186,13 +194,13 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     const repository = new Proxy(core, {
         get(target, property, receiver) {
             if (property === 'insertNews') {
-                return async (...args: Parameters<CoreRepository['insertNews']>) => {
+                return async (...args: Parameters<NewsRepository['insertNews']>) => {
                     if (businessInsertFailure) throw new Error('injected news insert failure');
                     return target.insertNews(...args);
                 };
             }
             if (property === 'insertEvent') {
-                return async (...args: Parameters<CoreRepository['insertEvent']>) => {
+                return async (...args: Parameters<EventRepository['insertEvent']>) => {
                     if (businessInsertFailure) throw new Error('injected event insert failure');
                     return target.insertEvent(...args);
                 };
@@ -200,7 +208,8 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
             const value = Reflect.get(target, property, receiver) as unknown;
             return typeof value === 'function' ? value.bind(target) : value;
         }
-    }) as CoreRepository;
+    }) as AuthRepository & AuditRepository & NewsRepository & EventRepository &
+        NamecardRepository & ReactionRepository;
     const compensation = new Proxy(compensationDelegate, {
         get(target, property, receiver) {
             if (property === 'enqueue') {
@@ -249,7 +258,12 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         }
     }) as ObjectStorage;
     const runtime: RuntimeServices = {
-        core: repository,
+        auth: repository,
+        audit: repository,
+        news: repository,
+        events: repository,
+        namecards: repository,
+        reactions: repository,
         compensation,
         storage,
         images,

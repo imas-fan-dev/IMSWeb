@@ -53,7 +53,7 @@ test('categorized add-user script resolves project-relative database paths', asy
             cwd: temporaryDirectory,
             env: {
                 ...process.env,
-                IMS_DB_PATH: path.relative(REPOSITORY_ROOT, databasePath),
+                IMS_SQLITE_PATH: path.relative(REPOSITORY_ROOT, databasePath),
                 IMS_NEW_USER_USERNAME: 'categorized-script-test',
                 IMS_NEW_USER_PASSWORD: 'temporary-test-password',
                 IMS_NEW_USER_DEPT: 'editor',

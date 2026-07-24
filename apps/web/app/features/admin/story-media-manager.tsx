@@ -24,7 +24,9 @@ import {
 import type { IdolMediaItem } from "./api"
 import {
   AdminField,
+  AdminEmptyState,
   AdminPageHeader,
+  AdminPanel,
   AdminStatus,
   adminControlClass,
 } from "./admin-ui"
@@ -178,11 +180,28 @@ export function StoryMediaManager() {
           <AlertDescription>{errorMessage(error)}</AlertDescription>
         </Alert>
       ) : loading && !data.agencies.length ? (
-        <p className="text-sm text-muted-foreground">正在加载角色目录</p>
+        <AdminPanel
+          title="角色素材"
+          description="正在读取事务所与角色目录。"
+          icon={ImageIcon}
+        >
+          <p className="py-8 text-sm text-muted-foreground">正在加载角色目录</p>
+        </AdminPanel>
+      ) : !data.agencies.length ? (
+        <AdminEmptyState
+          icon={ImageIcon}
+          title="还没有角色目录"
+          description="导入 Legacy 素材或刷新后再试。"
+        />
       ) : (
-        <div className="grid gap-8 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+        <AdminPanel
+          title="角色素材"
+          description="选择角色、预览当前素材，并上传对象存储版本。"
+          icon={ImageIcon}
+          contentClassName="grid gap-8 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]"
+        >
           <div className="min-w-0">
-            <div className="aspect-square w-full overflow-hidden rounded-md border bg-muted">
+            <div className="aspect-square w-full overflow-hidden rounded-lg border bg-muted">
               {imageUrl ? (
                 <img
                   src={imageUrl}
@@ -301,7 +320,7 @@ export function StoryMediaManager() {
               ) : null}
             </div>
           </form>
-        </div>
+        </AdminPanel>
       )}
     </div>
   )

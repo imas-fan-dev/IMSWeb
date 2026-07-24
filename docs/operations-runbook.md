@@ -1,6 +1,6 @@
 # 现网部署、备份与回滚手册
 
-本文适用于统一 Hono Node 后端（本地文件或 S3 媒体）和后续 Cloudflare 切换。所有生产操作都应先确认当前发布目录、数据目录、进程管理器和实际 Nginx/TLS 配置；仓库中的 Compose 模板只定义 HTTP 反向代理，不能代替尚未归档的生产证书与 HTTPS 策略。
+本文适用于统一 Hono Node 后端、单一 SQLite/PostgreSQL 数据库以及本地文件或 S3 媒体。当前不包含 Worker、D1 或 R2 部署。所有生产操作都应先确认当前发布目录、数据目录、进程管理器和实际 Nginx/TLS 配置；仓库当前 Compose 统一保存 HTTP 反向代理、PostgreSQL 与本地 MinIO，但不能代替生产数据库、对象存储、证书或 HTTPS 策略。
 
 ## 1. 首次纳管
 
@@ -10,7 +10,7 @@
 2. Nginx 完整展开配置（包括 TLS、上游和 include）；
 3. Node、Python、pnpm、SQLite 和 Nginx 版本；
 4. systemd、Supervisor、PM2 或面板中的启动命令、运行用户和环境变量名；
-5. `apps/legacy/data/core/news.db`、`apps/legacy/data/story/idol_data.db` 及全部媒体目录的备份；
+5. 当前 `IMS_SQLITE_PATH` 或 PostgreSQL 备份，以及全部媒体目录的配对备份；
 6. 当前首页、登录、资讯、名片、编年史和剧情页面的冒烟结果。
 
 用户密码哈希、访问日志、投稿联系人和 IP 属于敏感数据。备份目录应限制为运维用户可读，并设置保留期限。
@@ -44,14 +44,19 @@ Web 运行时，也不得把 Legacy 或审计脚本放入静态发布物。Legac
 
 | 变量 | 用途 | 兼容值/要求 |
 | --- | --- | --- |
-| `IMS_JWT_SECRET` | Hono Node JWT 签名密钥 | 必填；使用高熵随机值；Worker 通过 secret binding 单独注入同值 |
+| `IMS_JWT_SECRET` | Hono Node JWT 签名密钥 | 必填；使用高熵随机值 |
 | `NODE_ENV` | Hono Node 运行模式 | `development`、`test` 或 `production`；会去除首尾空白并转小写，未知值拒绝启动 |
 | `IMS_COOKIE_SECURE` | 是否只通过 HTTPS 发送认证 Cookie | 生产使用 `true` |
 | `HOST` | Hono Node 绑定地址 | 生产建议 `127.0.0.1` |
 | `PORT` | Hono Node 端口 | `3000` |
+| `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 默认 `direct`；仅显式启用仓库 Nginx 时设置 `nginx` |
 | `IMS_NGINX_IMAGE` | Compose 使用的官方 Nginx 镜像 | 默认 `nginx:1.30.4-alpine3.24`；生产固定经过验证的 tag/digest |
 | `IMS_NGINX_LISTEN_PORT` | host network 下 Nginx 监听端口 | 初次验证 `8080`；公网切换值按现网入口决定 |
 | `IMS_NGINX_SERVER_NAME` | Nginx `server_name` | 默认 `_`；生产设置实际域名 |
+| `IMS_SITE_PACKAGE_SERVER_NAME` | Nginx 独立站点包内容域 | 生产使用独立 registrable site，如 `ims-content.example.net` |
+| `IMS_TRUST_OUTER_PROXY` | 是否信任外层代理提供的 origin 头 | 默认 `false`；只有内层端口不对客户端开放且外层覆盖 proto/port 时设为 `true` |
+| `IMS_SITE_ORIGIN` | 主站绝对 origin | 生产必填；无路径，与内容域属于不同可注册站点 |
+| `IMS_SITE_PACKAGE_ORIGIN` | 站点包内容绝对 origin | 生产必填；无路径，与主站属于不同可注册站点 |
 | `IMS_NODE_UPSTREAM` | 统一 Hono Node 上游 | `127.0.0.1:3000` |
 | `IMS_CLIENT_MAX_BODY_SIZE` | Nginx 请求体上限 | `50m`，与应用限制保持一致 |
 | `IMS_OBJECT_STORAGE` | Node 可变媒体存储 | `filesystem` 或 `s3`；默认 `filesystem`，生产必须显式决定 |
@@ -60,23 +65,64 @@ Web 运行时，也不得把 Legacy 或审计脚本放入静态发布物。Legac
 | `IMS_S3_PREFIX` | bucket 内隔离前缀 | 可选，不含开头/结尾 `/` |
 | `IMS_S3_ENDPOINT` | S3-compatible endpoint | 可选 HTTP(S) URL；AWS S3 留空 |
 | `IMS_S3_FORCE_PATH_STYLE` | path-style 请求 | 默认 `false`；按 S3-compatible 服务要求设置 |
-| `IMS_DB_PATH` | Core SQLite 路径 | `./apps/legacy/data/core/news.db` |
+| `IMS_S3_READ_URL_TTL_SECONDS` | 图片签名 URL 有效期 | 默认 `300`；允许 `30..3600` 秒 |
+| `IMS_DATABASE` | 数据库 provider | `sqlite` 或 `postgresql`；一个实例只选一个 |
+| `IMS_SQLITE_PATH` | 唯一 SQLite 路径 | `./apps/legacy/data/imsweb.db` |
+| `DATABASE_URL` | 唯一 PostgreSQL 数据库 URL | `postgresql` 模式必填 |
+| `IMS_PG_POOL_MAX` | 单实例 PostgreSQL 连接池上限 | 默认 `10`，按数据库连接预算调整 |
+| `IMS_PG_IDLE_TIMEOUT_MS` | 应用空闲连接回收时间 | 默认 `30000` |
+| `IMS_PG_CONNECTION_TIMEOUT_MS` | 建连超时 | 默认 `5000` |
+| `IMS_PG_STATEMENT_TIMEOUT_MS` | 单语句超时 | 默认 `30000` |
+| `IMS_PG_IDLE_TRANSACTION_TIMEOUT_MS` | 空闲事务超时 | 默认 `30000` |
 | `IMS_COMPENSATION_DIR` | Node 删除补偿任务的持久 journal 目录 | `./apps/legacy/data/core/compensation` |
 | `IMS_IDEMPOTENCY_DIR` | Node 编年史幂等 journal 目录 | 生产使用独立持久目录；S3 模式默认位于 compensation 下 |
 | `IMS_PUBLIC_DIR` | Node 门户不可变静态根目录 | 生产必须为 `/srv/ims/current/apps/api/dist/node-client`；`./apps/legacy/public` 只用于本地源码兼容 |
 | `IMS_UPLOADS_DIR` | Node 普通上传目录；仍映射为 `/uploads/` | `./apps/legacy/data/uploads` |
 | `IMS_EVENT_BASE_DIR` | 编年史 JSON 与图片状态目录 | `./apps/legacy/data/chronicle` |
-| `IMS_STORY_DB_PATH` | 剧情 SQLite 路径 | `./apps/legacy/data/story/idol_data.db` |
 | `IMS_STORY_DATA_DIR` | 剧情图片根目录 | `./apps/legacy/data/story/images` |
 | `IMS_STORY_MAX_UPLOAD_BYTES` | Hono Wiki 请求体上限（字节） | 50 MiB 为 `52428800` |
+| `IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES` | 站点 ZIP 文件上限（字节） | 最大 25 MiB，为 `26214400`；multipart 请求体另含有界协议开销 |
 
 应用会将相对数据路径解析到项目根目录，因此生产发布禁止使用相对的可变数据路径。
 旧项目目录可以暂时继续作为数据源，但进程工作目录和 `/srv/ims/current` 必须指向一个完整、
 不可变的版本化 release；不得向正在运行的目录覆盖代码、锁文件、依赖或 `dist/`。
-Core/Story 数据库职责、本地配置、路径解析和启动前检查见
-[SQLite 数据库配置](database-configuration.md)。
+统一数据库职责、本地配置、两库合并和启动前检查见
+[数据库配置](database-configuration.md)。
 S3 的逻辑 key、凭据链、最小权限和切换校验见
 [Node 文件对象存储](object-storage.md)。
+
+### PostgreSQL 18.4 首次迁移
+
+PostgreSQL 运行基线固定为 18.4；不要使用 `latest`、`18` 或 beta tag。生产数据库凭据只由
+密钥管理服务注入。以下本地 Compose 仅用于迁移演练，默认密码不能用于共享或生产环境：
+
+```sh
+pnpm run dev:postgresql:up
+docker compose -f deploy/compose.yaml ps postgres
+```
+
+普通空库使用 `DATABASE_URL=... pnpm run migration:postgresql`。已经应用站点包 `0004` 的数据库
+也必须重跑同一命令以追加 `0005_site_package_publication_owner`，应用随后才会通过 schema
+启动检查。从统一 SQLite 首次迁移时，准备无 WAL/SHM/journal sidecar 的停写快照，确认目标
+16 张基础业务表及 2 张可选站点包表为空，然后直接执行：
+
+```sh
+IMS_SQLITE_PATH=/srv/ims/migration/imsweb.db \
+DATABASE_URL='postgresql://imsweb:<password>@127.0.0.1:5432/imsweb' \
+  pnpm run migration:postgresql:import-sqlite -- \
+  --allow-foreign-key-violations
+```
+
+命令在一个事务内执行两阶段 schema、分批导入、identity 校准与对账，并记录源 SHA-256。
+当前 33 条孤儿 `card_emojis` 会被保留在 `NOT VALID` 外键下；业务清理完成后执行：
+
+```sql
+ALTER TABLE public.card_emojis
+VALIDATE CONSTRAINT card_emojis_card_id_fkey;
+```
+
+在验证全部行数、关键字段、媒体逻辑路径和应用影子读之前，SQLite 仍是唯一写源；不得仅因全量
+导入成功就切换生产 `IMS_DATABASE`。
 
 ### 完整版本化 release
 
@@ -84,8 +130,7 @@ S3 的逻辑 key、凭据链、最小权限和切换校验见
 目录中的真实绝对路径，而不是让新 release 通过相对路径偶然找到旧数据：
 
 ```text
-/srv/ims/shared/database/news.db
-/srv/ims/shared/database/idol_data.db
+/srv/ims/shared/database/imsweb.db
 /srv/ims/shared/database/compensation/
 /srv/ims/shared/story-data/
 /srv/ims/shared/event-chronicle/{upload,used,meta}/
@@ -95,20 +140,20 @@ S3 的逻辑 key、凭据链、最小权限和切换校验见
 每个 release 使用共享绝对路径：
 
 ```sh
-export IMS_DB_PATH=/srv/ims/shared/database/news.db
+export IMS_DATABASE=sqlite
+export IMS_SQLITE_PATH=/srv/ims/shared/database/imsweb.db
 export IMS_COMPENSATION_DIR=/srv/ims/shared/database/compensation
 export IMS_UPLOADS_DIR=/srv/ims/shared/uploads
-export IMS_STORY_DB_PATH=/srv/ims/shared/database/idol_data.db
 export IMS_STORY_DATA_DIR=/srv/ims/shared/story-data
 export IMS_EVENT_BASE_DIR=/srv/ims/shared/event-chronicle
 ```
 
-`s3` 模式只要求 SQLite、compensation（含默认 idempotency 子目录）继续使用 release 之外的
+`s3` 模式只要求统一 SQLite、compensation（含默认 idempotency 子目录）继续使用 release 之外的
 绝对持久路径；三个本地媒体目录仅作为迁移来源，不再是 Node runtime 的发布前置条件：
 
 ```sh
-export IMS_DB_PATH=/srv/ims/shared/database/news.db
-export IMS_STORY_DB_PATH=/srv/ims/shared/database/idol_data.db
+export IMS_DATABASE=sqlite
+export IMS_SQLITE_PATH=/srv/ims/shared/database/imsweb.db
 export IMS_COMPENSATION_DIR=/srv/ims/shared/compensation
 export IMS_IDEMPOTENCY_DIR=/srv/ims/shared/idempotency
 export IMS_OBJECT_STORAGE=s3
@@ -151,24 +196,23 @@ pnpm run build
 pnpm run check
 pnpm run test:fast
 
-# 六个可变路径必须已由进程管理器导出为 releases 目录之外、彼此无祖先关系的绝对路径。
+# SQLite + filesystem 模式的五个可变路径必须位于 releases 目录之外且彼此无祖先关系。
 pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 cd "$IMS_CURRENT_LINK"
 test "$(pwd -P)" = "$(cd "$(readlink "$IMS_CURRENT_LINK")" && pwd -P)"
 ```
 
 必须先做完整 frozen install，再执行 build/check/test；不能先用 `--prod` 删除 TypeScript 等构建与
-测试依赖。`build:client` 生成 Worker 用的 exact 717-file `dist/client`，以及 Hono Node 用的
-exact 719-file `dist/node-client`；后者只多两个 Unity `.data`，使阶段一旧 URL 的 GET/HEAD/Range
-继续可用。激活命令有并发锁，并拒绝 lock/install 不匹配、缺失/额外静态文件、依赖或构建产物、
+测试依赖。`build:client` 生成受 allowlist 约束的 Node `dist/client` 和
+`dist/node-client`；后者包含 Unity `.data`，使旧 URL 的 GET/HEAD/Range 继续可用。
+激活命令有并发锁，并拒绝 lock/install 不匹配、缺失/额外静态文件、依赖或构建产物、
 路径交叠、位于 release/current 树内的可变数据路径、路径祖先软链接或非软链接的
 `current`。systemd、Supervisor 或 PM2 的 `WorkingDirectory`/`cwd` 必须设为
 `/srv/ims/current`，启动命令只运行现成的 `apps/api/dist/server/main.js`。旧版本目录可保留
 用于代码回滚，但绝不能继续作为运行进程的 cwd；若旧目录仍保存数据，只能通过上述绝对变量读取。
 进程管理器必须显式设置 `IMS_PROJECT_ROOT=/srv/ims/current` 和
 `IMS_PUBLIC_DIR=/srv/ims/current/apps/api/dist/node-client`；不要让静态路径指向源码
-`apps/legacy/public/`
-或旧项目目录。Cloudflare Static Assets 仍单独使用不含 `.data` 的 `dist/client`。
+`apps/legacy/public/` 或旧项目目录。
 
 账号维护脚本还接受以下一次性变量，不应长期写入环境文件：
 
@@ -193,8 +237,8 @@ IFS= read -r -s IMS_NEW_USER_PASSWORD
 printf '\nProducer name: '
 IFS= read -r IMS_NEW_USER_PRODUCER_NAME
 IMS_NEW_USER_DEPT=editor
-: "${IMS_DB_PATH:?export the same authoritative IMS_DB_PATH used by Hono Node}"
-export IMS_DB_PATH IMS_NEW_USER_USERNAME IMS_NEW_USER_PASSWORD IMS_NEW_USER_PRODUCER_NAME IMS_NEW_USER_DEPT
+: "${IMS_SQLITE_PATH:?export the same authoritative IMS_SQLITE_PATH used by Hono Node}"
+export IMS_SQLITE_PATH IMS_NEW_USER_USERNAME IMS_NEW_USER_PASSWORD IMS_NEW_USER_PRODUCER_NAME IMS_NEW_USER_DEPT
 pnpm run ops:account:add
 unset IMS_NEW_USER_USERNAME IMS_NEW_USER_PASSWORD IMS_NEW_USER_PRODUCER_NAME IMS_NEW_USER_DEPT
 
@@ -223,8 +267,8 @@ pnpm run audit:data
 
 `audit:data` 只读输出数据库表计数、外键检查、目录规模及媒体引用一致性 JSON。需要定位问题时使用 `pnpm run audit:data --details`；只有在真实生产数据源上才将 `pnpm run audit:data --strict` 作为上线闸门。strict 还要求普通 uploads 与 Core DB 引用形成 exact set、Chronicle 没有 orphan、删除补偿 journal 为空或全部 completed 且有显式 disposition。当前仓库副本已知缺少 700 个 core 媒体引用、8,866 个剧情图片引用，有 33 条孤儿表情记录，并有 53 个编年史文件名路径 alias，因此本地 `--strict` 返回 `2` 是预期结果，也证明本地仓库不能作为迁移源。
 
-`test:fast` 运行 Hono 构建/架构/迁移检查、只读数据审计、Node 安全回归、Wiki DOM/CRUD
-契约和 Cloudflare Worker integration；不安装 Flask、Pillow、Gunicorn 或 uWSGI。
+`test:fast` 运行 Hono Node 构建/架构、SQLite 合并、只读数据审计、Node 安全回归和 Wiki
+DOM/CRUD 契约；不执行 Worker、D1 或 R2 检测，也不安装 Flask、Pillow、Gunicorn 或 uWSGI。
 
 本地兼容启动只需要统一 Node 进程：
 
@@ -238,8 +282,8 @@ pnpm run start:node
 `node apps/api/js/server.js` 命令暂时可用，但同样要求发布目录中存在本次构建生成的
 `apps/api/dist/server/`。
 
-生产环境由进程管理器直接注入变量并管理一个 Hono Node 进程。Node 阶段必须保持单实例；
-编年史文件状态和内存限流在切换 D1 前不支持多副本。Flask、Jinja、Gunicorn 和 uWSGI
+生产环境由进程管理器直接注入变量并管理一个 Hono Node 进程。文件型编年史状态和内存限流
+在迁入共享持久层前不支持多副本。Flask、Jinja、Gunicorn 和 uWSGI
 只在 `apps/legacy` 保存回归/回滚源码；任何旧 Python 启动命令都必须从生产进程管理器移除。
 
 仓库的 `deploy/` 必须整体复制到稳定代理目录，例如 `/srv/ims/proxy/deploy`，不要从会随
@@ -260,7 +304,7 @@ docker compose -f deploy/compose.yaml run --rm --no-deps nginx nginx -t
 3. 选取一个不敏感的 pending 测试图片，在回环端口验证匿名请求为 `401`、新登录的 `op` Token 请求为 `200`；
 4. 在稳定代理目录执行 `docker compose -f deploy/compose.yaml config` 和容器内 `nginx -t`；
 5. 先让 Compose Nginx 监听未占用的 `8080`，启动后验证健康、路由和敏感路径；
-6. 只有现网 TLS 已迁移到经过验证的容器配置或仍由另一层可信入口终止时，才能切换公网流量；随后通过公网 HTTPS 重复 `401/200`；
+6. 只有现网 TLS 已迁移到经过验证的容器配置或仍由另一层可信入口终止时，才能切换公网流量；后者还必须隔离内层端口、确认外层覆盖 `X-Forwarded-Proto`/`X-Forwarded-Port` 并设置 `IMS_TRUST_OUTER_PROXY=true`，随后通过公网 HTTPS 重复 `401/200`；
 7. 若没有现存 pending 图片，通过正常上传流程准备测试图片，验证完成后由 `op` 拒绝删除。
 
 示例中的 URI 必须替换为经过 URL 编码的实际测试路径，`OP_TOKEN` 只放在当前受控 shell 环境中：
@@ -277,8 +321,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 
 预期依次为 `401` 和 `200`。轮换 `IMS_JWT_SECRET` 后必须重新登录获取 Token，不能使用轮换前的登录态。
 
-Compose 正常模式把模板和全部片段只读挂载到官方镜像，但站点模板只 include
-`ims-security.conf` 和空的 `ims-normal-mode.conf`。检查展开配置并启动：
+新版不依赖 Nginx；Compose 将其放在可选的 `proxy` profile。需要统一入口时，模板只加载
+`ims-security.conf` 并使用一个通用 Hono 上游。先为 Hono 设置
+`IMS_CLIENT_ADDRESS_SOURCE=nginx`，再检查展开配置并启动：
 
 ```sh
 docker compose -f deploy/compose.yaml config
@@ -288,9 +333,9 @@ docker compose -f deploy/compose.yaml ps
 curl -fsS "http://127.0.0.1:${IMS_NGINX_LISTEN_PORT:-8080}/healthz" -o /dev/null
 ```
 
-`deploy/nginx/templates/default.conf.template` 将 `/story`、`/wiki/`、`/image/`、
-`/api/wiki/` 和 `/` 原样转发到同一 `ims_node` 上游，不再剥离 `/wiki/` 前缀。
-模板或环境变量变化必须重新创建容器，不能只向旧进程发送 reload。
+`deploy/nginx/templates/default.conf.template` 不再维护业务或图片专用 location，所有请求使用
+同一个 `location /` 转发到 `ims_node`。图片路由由 Hono 完成鉴权和映射后返回 `307`，对象正文
+直接来自 MinIO/S3。模板或环境变量变化必须重新创建容器，不能只向旧进程发送 reload。
 
 随后从公网逐项确认以下路径返回 `404`，而不是数据库或源码内容：
 
@@ -306,16 +351,19 @@ curl -I https://example.invalid/assets/images/eventchronicle/events/meta/example
 
 最后还要通过公网 HTTPS 对同一个 `PENDING_URI` 重复匿名 `401` 与 `op` 登录后 `200` 的检查。只验证 `meta` 返回 `404` 不足以证明 pending 预览既安全又可用。
 
-Compose 使用 Linux host network，因此 `3000` 只绑定回环地址。不要同时配置 `ports:`，也不要为了容器回源把应用改绑 `0.0.0.0`。外网不应能绕过 Nginx 直连应用端口。
-当前只有一层 Nginx 时，代理配置应覆盖 `X-Forwarded-For` 为 `$remote_addr`，不要直接信任客户端传入的同名请求头；若前面已有 Cloudflare 或其他受信代理，应按真实代理链重新配置应用的 `trust proxy` 和入口头部规则，并做伪造头测试。
+启用 Compose Nginx 时使用 Linux host network，因此 `3000` 只绑定回环地址。不要同时配置
+`ports:`，也不要为了容器回源把应用改绑 `0.0.0.0`。直接部署 Hono 时应由防火墙或平台入口
+限制端口，并保持 `IMS_CLIENT_ADDRESS_SOURCE=direct`；只有仓库 Nginx 覆盖
+`X-Forwarded-For` 为 `$remote_addr` 时才切到 `nginx`，避免客户端伪造来源地址。
 
 ## 6. 发布前检查
 
 1. 确认工作树中没有 `.env`、数据库、sidecar、日志、PID、虚拟环境、归档备份或生产上传内容被纳入发布包；
-2. 使用锁文件安装依赖并运行 `pnpm run check` 和 `pnpm run test:fast`；默认 `check`
-   已包含 Wrangler dry-run。同时执行 `docker compose -f deploy/compose.yaml config` 和容器内 `nginx -t`；
-3. 在当前 shell 导出与进程管理器完全相同的 `IMS_DB_PATH`、`IMS_COMPENSATION_DIR`、`IMS_UPLOADS_DIR`、
-   `IMS_STORY_DB_PATH`、`IMS_STORY_DATA_DIR`、`IMS_EVENT_BASE_DIR`；
+2. 使用锁文件安装依赖并运行 `pnpm run check` 和 `pnpm run test:fast`；当前门禁只覆盖 Node。
+   同时执行 `docker compose -f deploy/compose.yaml config` 和容器内 `nginx -t`；
+3. 在当前 shell 导出与进程管理器完全相同的 `IMS_DATABASE`、`IMS_SQLITE_PATH` 或
+   `DATABASE_URL`、`IMS_COMPENSATION_DIR`、`IMS_UPLOADS_DIR`、`IMS_STORY_DATA_DIR` 和
+   `IMS_EVENT_BASE_DIR`；
 4. 对真实生产源保存详细审计并运行 strict 闸门；任何缺库、`quick_check`/外键检查失败、缺失引用、Core 未引用 upload、Chronicle orphan、未完成/未处置补偿 journal、非法编年史元数据或路径 alias 都必须先解释和处置：
 
    ```sh
@@ -349,17 +397,15 @@ resolve_from_project() {
   esac
 }
 
-NEWS_DB=$(resolve_from_project "${IMS_DB_PATH:-apps/legacy/data/core/news.db}")
+DATABASE=$(resolve_from_project "${IMS_SQLITE_PATH:-apps/legacy/data/imsweb.db}")
 COMPENSATION=$(resolve_from_project "${IMS_COMPENSATION_DIR:-apps/legacy/data/core/compensation}")
-STORY_DB=$(resolve_from_project "${IMS_STORY_DB_PATH:-apps/legacy/data/story/idol_data.db}")
 STORY_DATA=$(resolve_from_project "${IMS_STORY_DATA_DIR:-apps/legacy/data/story/images}")
 EVENT_BASE=$(resolve_from_project "${IMS_EVENT_BASE_DIR:-apps/legacy/data/chronicle}")
 UPLOADS=$(resolve_from_project "${IMS_UPLOADS_DIR:-apps/legacy/data/uploads}")
 UNITY_ROOT=$(resolve_from_project "apps/legacy/public/runninggame")
 
-test -f "$NEWS_DB"
+test -f "$DATABASE"
 test -d "$COMPENSATION"
-test -f "$STORY_DB"
 test -d "$STORY_DATA"
 test -d "$EVENT_BASE"
 test -d "$UPLOADS"
@@ -408,8 +454,7 @@ audit_data() {
 audit_data --details > "$BACKUP_DIR/audit-source-$STAMP.json"
 audit_data --strict
 
-sqlite3 "$NEWS_DB" ".backup '$BACKUP_DIR/news-$STAMP.db'"
-sqlite3 "$STORY_DB" ".backup '$BACKUP_DIR/story-$STAMP.db'"
+sqlite3 "$DATABASE" ".backup '$BACKUP_DIR/imsweb-$STAMP.db'"
 
 MEDIA_BACKUP="$BACKUP_DIR/media-$STAMP"
 mkdir -p "$MEDIA_BACKUP/uploads" "$MEDIA_BACKUP/story-data" \
@@ -425,10 +470,9 @@ cp "$UNITY_ROOT/BuildMobile/webgame.data" "$MEDIA_BACKUP/runninggame/BuildMobile
 audit_data --details > "$BACKUP_DIR/audit-source-after-backup-$STAMP.json"
 audit_data --strict
 
-sqlite3 "$BACKUP_DIR/news-$STAMP.db" "PRAGMA integrity_check;"
-sqlite3 "$BACKUP_DIR/story-$STAMP.db" "PRAGMA integrity_check;"
-export IMS_INVENTORY_CORE_DB_PATH="$BACKUP_DIR/news-$STAMP.db"
-export IMS_INVENTORY_STORY_DB_PATH="$BACKUP_DIR/story-$STAMP.db"
+sqlite3 "$BACKUP_DIR/imsweb-$STAMP.db" "PRAGMA integrity_check;"
+export IMS_INVENTORY_CORE_DB_PATH="$BACKUP_DIR/imsweb-$STAMP.db"
+export IMS_INVENTORY_STORY_DB_PATH="$BACKUP_DIR/imsweb-$STAMP.db"
 export IMS_INVENTORY_RUN_ID="$STAMP"
 sh scripts/migration/legacy-inventory.sh > "$BACKUP_DIR/manifest-$STAMP.jsonl"
 ```
@@ -447,7 +491,11 @@ disposition JSON 的 `action` 只允许 `retain-completed-for-audit` 或
 }
 ```
 
-### 7.1 离线迁移制品闸门
+### 7.1 已停用的 Cloudflare 迁移附录
+
+以下 D1/R2 内容仅保留为历史迁移证据，不属于当前 Node 发布、检查或 PostgreSQL 方案，禁止按
+当前运维流程执行。新工作应从[数据库架构](database-architecture.md)定义的 PostgreSQL 门禁
+重新设计。
 
 上述在线备份和媒体副本完成后，才从副本生成 D1 SQL、reject manifest 和严格 R2
 manifest。以下命令全部是本地离线操作；不含 `--remote`，不会访问 Cloudflare：
@@ -807,11 +855,11 @@ bindings/routes、一次性启用 Worker 写入。切写后不得再次运行 le
 
 上述 `STORY_DATA`、`EVENT_BASE`、`UPLOADS` 和 `COMPENSATION` 是可变状态备份的实际源路径。同步命令不得使用未展开的仓库默认路径，也不得在未核对目标目录时使用 `--delete`。生产 inventory 强制使用 `IMS_INVENTORY_*_DB_PATH` 指向刚生成的在线备份，并要求唯一 `IMS_INVENTORY_RUN_ID`；它不会把运行中的主数据库当作快照。
 
-末尾的审计再次验证备份窗口结束时的权威源，并将报告与恢复点配对；它不代替对备份副本本身的验证。备份完成后，还要对两个数据库副本执行 `PRAGMA integrity_check`，将媒体副本与清单核对文件数、总字节数和 SHA-256。定期在隔离目录做恢复演练；“备份命令成功”不等于“可以恢复”。
+末尾的审计再次验证备份窗口结束时的权威源，并将报告与恢复点配对；它不代替对备份副本本身的验证。备份完成后，还要对统一数据库副本执行 `PRAGMA integrity_check`，将媒体副本与清单核对文件数、总字节数和 SHA-256。定期在隔离目录做恢复演练；“备份命令成功”不等于“可以恢复”。
 
 ## 8. 发布与冒烟
 
-发布包和可变数据必须分开。即使可变数据尚留在旧项目目录，也通过六个绝对路径变量引用；
+发布包和可变数据必须分开。即使可变数据尚留在旧项目目录，也通过明确的绝对路径变量引用；
 新进程始终从第 3 节生成的完整 `/srv/ims/current` release 启动。发布期间不得覆盖 live 目录，
 数据库和媒体的权威路径也不能随代码切换变化。
 
@@ -832,7 +880,7 @@ bindings/routes、一次性启用 Worker 写入。切写后不得再次运行 le
 
 代码回滚与数据回滚必须分开判断。
 
-本次加固版本是安全回滚下限。正常代码回滚只能切到仍具备敏感路径、pending/名片鉴权、显式 JWT 密钥和上传校验的完整旧 release；稳定代理目录中的 `ims-security.conf` 和正常 Compose 服务始终保留，不随应用 release 回滚。若只发生代码问题且没有执行破坏性数据迁移，停止新进程、原子切回合格 release，并继续使用完全相同的六个绝对数据路径。不得把旧代码覆盖回 live 目录，也必须保留切换后产生的数据库和上传数据。
+本次加固版本是安全回滚下限。正常代码回滚只能切到仍具备敏感路径、pending/名片鉴权、显式 JWT 密钥和上传校验的完整旧 release；稳定代理目录中的 `ims-security.conf` 和正常 Compose 服务始终保留，不随应用 release 回滚。若只发生代码问题且没有执行破坏性数据迁移，停止新进程、原子切回合格 release，并继续使用完全相同的绝对数据路径。不得把旧代码覆盖回 live 目录，也必须保留切换后产生的数据库和上传数据。
 
 ```sh
 : "${PREVIOUS_RELEASE_ID:?set the already existing, validated release ID}"
@@ -843,17 +891,21 @@ test "$(readlink "$IMS_CURRENT_LINK")" = "$IMS_RELEASES_DIR/$PREVIOUS_RELEASE_ID
 rollback 会在锁内重新执行同一 frozen-install、静态清单、无监听 runtime 与路径隔离 preflight，
 然后只原子替换 `current` 软链接；不会复用新 release 的 staging rename，也不会改动六个共享数据路径。
 
-若确实被迫退到加固前应用，先用 `deploy/compose.emergency.yaml` 覆盖正常模式：
+若确实被迫退到 Legacy Express + Flask，先停止当前 Nginx，再切换到独立的
+`deploy/compose.legacy.yaml`。该编排默认加载旧应用所需的 pending/名片媒体拒绝规则：
 
 ```sh
-docker compose -f deploy/compose.yaml -f deploy/compose.emergency.yaml config
-docker compose -f deploy/compose.yaml -f deploy/compose.emergency.yaml \
-  run --rm --no-deps nginx nginx -t
-docker compose -f deploy/compose.yaml -f deploy/compose.emergency.yaml \
-  up -d --force-recreate nginx
+docker compose -f deploy/compose.yaml stop nginx
+docker compose -f deploy/compose.legacy.yaml config
+docker compose -f deploy/compose.legacy.yaml run --rm --no-deps nginx nginx -t
+docker compose -f deploy/compose.legacy.yaml up -d --force-recreate nginx
 ```
 
-确认 pending 编年史和名片原图均为 `404` 后才能切旧进程。该模式会暂时中断全部名片图片，不能作为长期状态；恢复加固应用后只使用基础 `deploy/compose.yaml` 强制重建容器以退出应急模式。旧硬编码 JWT 版本也不得重新使用已经泄露的密钥。
+Legacy Express 与 Flask 必须分别监听 `IMS_LEGACY_NODE_UPSTREAM` 和
+`IMS_LEGACY_FLASK_UPSTREAM`，默认是宿主机 `127.0.0.1:3000` 与 `127.0.0.1:5000`。
+确认 pending 编年史和名片原图均为 `404` 后才能恢复外部流量。该模式会暂时中断全部名片
+图片，不能作为长期状态；恢复新版时先停止 Legacy Compose，再用 `deploy/compose.yaml`
+重建 Nginx。旧硬编码 JWT 版本也不得重新使用已经泄露的密钥。
 
 若新版本写入了旧版本无法理解的数据：
 
@@ -868,8 +920,28 @@ docker compose -f deploy/compose.yaml -f deploy/compose.emergency.yaml \
 ## 10. 故障定位
 
 - Nginx `502`：执行 `docker compose -f deploy/compose.yaml logs --tail=200 nginx`，再检查宿主机 `127.0.0.1:3000` 和应用进程日志；
-- Node 与 Worker JWT 不兼容：核对两端的 `IMS_JWT_SECRET` 是否完全相同；
+- Node JWT 登录失效：核对进程中的 `IMS_JWT_SECRET` 是否被轮换或错误注入；
 - SQLite `database is locked`：确认是否存在多个非预期进程、长事务或备份方式错误，不要直接删除 WAL/SHM；
-- 图片 `404`：核对数据库相对路径、实际文件、大小写和 Nginx `/image/` 转发；
+- 图片 `404`：核对数据库逻辑路径、MinIO 对象键和前缀；图片 `307` 后失败则检查签名 URL 中的
+  endpoint 是否可从浏览器访问、系统时间是否同步以及凭据是否有 `GetObject`/`HeadObject`；
 - 编年史状态异常：同时检查 `meta`、`upload` 和 `used`，不要只恢复其中一个目录；
 - 原生模块启动失败：在目标主机重新用 pnpm 安装，不能复制其他平台的 `node_modules`。
+
+站点包上传会先写不可变对象，再提交数据库版本记录。进程在两者之间崩溃时，应用会保留
+`site-packages/{packageId}/revisions/{revisionId}/` 前缀，避免误删已经提交但响应丢失的版本；
+因此对象存储中可能留下没有数据库记录的 orphan revision prefix。清理必须按以下方式进行：
+
+1. 暂停站点包上传、发布和 token 旋转，保存同一窗口的数据库备份与
+   `site-packages/` 对象 inventory；
+2. 从 `site_package_revisions` 导出 `id`、`package_id`、`source_key`、`manifest_key` 和
+   `manifest_json`，把 source、manifest 及 manifest 中的全部 file key 组成数据库权威集合；
+3. 将 inventory 按完整 revision prefix 分组。数据库有记录但缺对象属于数据损坏，必须告警并
+   从源 ZIP/备份恢复，不能通过删除数据库行掩盖；只存在于对象存储的完整 prefix 才是候选 orphan；
+4. 候选 prefix 必须超过约定的上传最大时长与重试宽限期，并在两次独立 inventory 中都未被
+   数据库引用。保存 package/revision ID、对象数、字节数、最早/最晚修改时间和审批记录；
+5. 仅删除经过审批的完整
+   `site-packages/{packageId}/revisions/{revisionId}/`，禁止对 `site-packages/`、package
+   级前缀或通配结果执行批量删除；删除后重新列举该 prefix，并再次核对全部数据库引用仍存在。
+
+filesystem 与 MinIO/S3 使用同一对账规则。任何无法确认数据库提交结果、inventory 时间窗或
+prefix 边界的对象都保留到下一次人工对账，不把“未引用”直接等同于“可立即删除”。

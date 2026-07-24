@@ -68,9 +68,8 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             ).read_text(encoding="utf-8"),
             "apps/legacy/public/index.html": "<!doctype html>\n",
             "apps/legacy/data/.gitignore": "*\n!.gitignore\n",
-            "apps/api/src/server/app.ts": "export {};\n",
-            "apps/api/src/server/worker.ts": "export {};\n",
-            "apps/api/wrangler.jsonc": "{}\n",
+            "apps/api/src/app.ts": "export {};\n",
+            "apps/api/src/main.ts": "export {};\n",
             "apps/legacy/src/server/main.ts": "export {};\n",
             "apps/legacy/flask/app.py": "\n",
             "apps/legacy/.python-version": "3.12\n",
@@ -84,8 +83,9 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "apps/legacy/PROVENANCE.md": "# Fixture\n",
             "scripts/operations/backups/backup-legacy-source.sh": "#!/bin/sh\n",
             "deploy/compose.yaml": "services: {}\n",
-            "deploy/compose.emergency.yaml": "services: {}\n",
+            "deploy/compose.legacy.yaml": "services: {}\n",
             "deploy/nginx/templates/default.conf.template": "server {}\n",
+            "deploy/nginx/templates-legacy/default.conf.template": "server {}\n",
         }
         for relative_path, content in files.items():
             destination = root / relative_path
@@ -111,6 +111,42 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             result = self.run_fixture(root)
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_api_source_cannot_restore_server_subdirectory(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            nested_source = root / "apps/api/src/server/old-entry.ts"
+            nested_source.parent.mkdir(parents=True)
+            nested_source.write_text("export {};\n", encoding="utf-8")
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("apps/api/src/server", result.stderr)
+        self.assertIn("rooted directly at apps/api/src", result.stderr)
+
+    def test_api_cannot_restore_retired_worker_runtime(self):
+        for relative_path, reported_path in [
+            ("apps/api/src/worker.ts", "apps/api/src/worker.ts"),
+            (
+                "apps/api/src/infra/media/cloudflare-images/image-processor.ts",
+                "apps/api/src/infra/media/cloudflare-images",
+            ),
+            ("apps/api/tests/worker/runtime.test.ts", "apps/api/tests/worker"),
+            ("apps/api/wrangler.jsonc", "apps/api/wrangler.jsonc"),
+        ]:
+            with self.subTest(relative_path=relative_path):
+                with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+                    root = Path(temporary)
+                    self.make_fixture(root)
+                    candidate = root / relative_path
+                    candidate.parent.mkdir(parents=True, exist_ok=True)
+                    candidate.write_text("export {};\n", encoding="utf-8")
+                    result = self.run_fixture(root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(reported_path, result.stderr)
+                self.assertIn("Worker runtime is retired", result.stderr)
 
     def test_root_environment_template_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
@@ -168,7 +204,6 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         web_scripts = {
             "start": "start",
             "dev:node": "dev",
-            "worker:dry-run": "build",
         }
         for script_name, web_script in web_scripts.items():
             with self.subTest(script_name=script_name):

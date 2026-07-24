@@ -1,5 +1,9 @@
 # Hono migration acceptance contracts
 
+> Historical snapshot: the Worker/D1/R2 rows below describe the retired
+> 2026-07-22 migration branch. Current executable acceptance is Node-only and is
+> defined by the root and `@imsweb/api` scripts.
+
 This file is the executable-test handoff for
 `docs/plans/hono-backend-migration.md`. Production cutover (`CUT-*`) and
 retention/destruction (`RET-*`) remain external gates and are intentionally not

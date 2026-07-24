@@ -4,17 +4,18 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { FilesystemCompensationService } from '@/adapters/node/filesystem-compensation-service';
-import { FilesystemIdempotencyStore } from '@/adapters/node/filesystem-idempotency-store';
-import { FilesystemObjectStorage } from '@/adapters/node/filesystem-object-storage';
-import { NodeStaticAssets } from '@/adapters/node/node-static-assets';
+import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
+import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
+import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
+import { NodeStaticAssets } from '@/infra/http/filesystem/static-assets';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import {
     createNodeServiceLifecycle,
     initializeNodeRepositories
 } from '@/runtime/node-services';
-import { parseStoryMaxUploadBytes } from '@/config/env';
+import { parseClientAddressSource, parseStoryMaxUploadBytes } from '@/config/env';
+import { parseNodeDatabaseConfig } from '@/config/database';
 import { parseNodeObjectStorageConfig } from '@/config/object-storage';
 
 async function temporaryDirectory(prefix: string): Promise<string> {
@@ -45,6 +46,15 @@ test('story upload byte limit accepts only a positive bounded safe integer', () 
     }
 });
 
+test('Node trusts proxy address headers only when Nginx is explicit', () => {
+    assert.equal(parseClientAddressSource(undefined), 'direct');
+    assert.equal(parseClientAddressSource(' nginx '), 'nginx');
+    assert.throws(
+        () => parseClientAddressSource('automatic'),
+        /IMS_CLIENT_ADDRESS_SOURCE must be direct or nginx/
+    );
+});
+
 test('early close does not poison a later Node service and concurrent close is idempotent', async () => {
     let creates = 0;
     let coreCloses = 0;
@@ -53,7 +63,7 @@ test('early close does not poison a later Node service and concurrent close is i
     const lifecycle = createNodeServiceLifecycle(async () => {
         creates += 1;
         return {
-            core: { close: async () => { coreCloses += 1; } },
+            auth: { close: async () => { coreCloses += 1; } },
             story: { close: async () => { storyCloses += 1; } },
             storage: { close: () => { storageCloses += 1; } }
         } as unknown as RuntimeServices;
@@ -90,7 +100,8 @@ test('Node object storage configuration defaults locally and validates S3 settin
         region: 'ap-northeast-1',
         endpoint: 'https://objects.example.test',
         forcePathStyle: true,
-        prefix: 'ims/production'
+        prefix: 'ims/production',
+        readUrlTtlSeconds: 300
     });
 
     assert.throws(
@@ -116,6 +127,56 @@ test('Node object storage configuration defaults locally and validates S3 settin
             IMS_S3_FORCE_PATH_STYLE: 'sometimes'
         }),
         /must be true or false/
+    );
+    assert.throws(
+        () => parseNodeObjectStorageConfig({
+            IMS_OBJECT_STORAGE: 's3',
+            IMS_S3_BUCKET: 'ims-media-prod',
+            IMS_S3_REGION: 'ap-northeast-1',
+            IMS_S3_READ_URL_TTL_SECONDS: '10'
+        }),
+        /IMS_S3_READ_URL_TTL_SECONDS must be/
+    );
+});
+
+test('Node database configuration selects SQLite or one bounded PostgreSQL pool', () => {
+    const defaults = { path: '/data/imsweb.db' };
+    assert.deepEqual(parseNodeDatabaseConfig({}, defaults), {
+        type: 'sqlite',
+        path: '/data/imsweb.db'
+    });
+    assert.deepEqual(parseNodeDatabaseConfig({
+        IMS_DATABASE: ' pgsql ',
+        DATABASE_URL: 'postgresql://ims:secret@db.example.test:5432/ims',
+        IMS_PG_POOL_MAX: '8',
+        IMS_PG_IDLE_TIMEOUT_MS: '45000'
+    }, defaults), {
+        type: 'postgresql',
+        connectionString: 'postgresql://ims:secret@db.example.test:5432/ims',
+        maxConnections: 8,
+        idleTimeoutMs: 45_000,
+        connectionTimeoutMs: 5_000,
+        statementTimeoutMs: 30_000,
+        idleInTransactionTimeoutMs: 30_000
+    });
+    assert.throws(
+        () => parseNodeDatabaseConfig({ IMS_DATABASE: 'postgresql' }, defaults),
+        /DATABASE_URL is required/
+    );
+    assert.throws(
+        () => parseNodeDatabaseConfig({
+            IMS_DATABASE: 'postgresql',
+            DATABASE_URL: 'sqlite:///tmp/core.db'
+        }, defaults),
+        /valid PostgreSQL URL/
+    );
+    assert.throws(
+        () => parseNodeDatabaseConfig({
+            IMS_DATABASE: 'postgresql',
+            DATABASE_URL: 'postgresql://localhost/ims',
+            IMS_PG_POOL_MAX: '101'
+        }, defaults),
+        /IMS_PG_POOL_MAX must be an integer between 1 and 100/
     );
 });
 
@@ -180,12 +241,43 @@ test('NodeStaticAssets does not open a body for HEAD and opens only the requeste
     assert.equal(await get.text(), '3456');
     assert.deepEqual(opened, [{ start: 3, end: 6 }]);
 
+    const currentEtag = get.headers.get('etag');
+    const lastModified = get.headers.get('last-modified');
+    assert.ok(currentEtag);
+    assert.ok(lastModified);
+    const byEtag = await assets.fetch(new Request('http://ims.test/runninggame/Build/game.data', {
+        headers: { 'If-None-Match': `W/${currentEtag}` }
+    }));
+    assert.equal(byEtag.status, 304);
+    assert.equal(await byEtag.text(), '');
+    const byDate = await assets.fetch(new Request('http://ims.test/runninggame/Build/game.data', {
+        headers: { 'If-Modified-Since': lastModified }
+    }));
+    assert.equal(byDate.status, 304);
+    assert.deepEqual(opened, [{ start: 3, end: 6 }]);
+
+    const staleIfRange = await assets.fetch(new Request('http://ims.test/runninggame/Build/game.data', {
+        headers: { Range: 'bytes=3-6', 'If-Range': '"stale"' }
+    }));
+    assert.equal(staleIfRange.status, 200);
+    assert.equal(await staleIfRange.text(), '0123456789abcdef');
+    const matchingIfRange = await assets.fetch(new Request('http://ims.test/runninggame/Build/game.data', {
+        headers: { Range: 'bytes=3-6', 'If-Range': currentEtag }
+    }));
+    assert.equal(matchingIfRange.status, 206);
+    assert.equal(await matchingIfRange.text(), '3456');
+    assert.deepEqual(opened, [
+        { start: 3, end: 6 },
+        undefined,
+        { start: 3, end: 6 }
+    ]);
+
     const invalid = await assets.fetch(new Request('http://ims.test/runninggame/Build/game.data', {
         headers: { Range: 'bytes=99-100' }
     }));
     assert.equal(invalid.status, 416);
     assert.equal(invalid.headers.get('content-range'), 'bytes */16');
-    assert.equal(opened.length, 1);
+    assert.equal(opened.length, 3);
 });
 
 test('filesystem idempotency persists replay, rejects fingerprint reuse, and recovers failure', async (t) => {

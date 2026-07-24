@@ -1,8 +1,10 @@
 import { useRequest } from "alova/client"
 import {
   ArrowUpRightIcon,
+  CalendarDaysIcon,
   FileCode2Icon,
   ImagePlusIcon,
+  ImagesIcon,
   LinkIcon,
   LoaderCircleIcon,
   PencilIcon,
@@ -17,6 +19,7 @@ import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { Separator } from "~/components/ui/separator"
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
 import { buildInformationHtmlDocument } from "~/features/information/html-document"
 import { isApiError } from "~/shared/api"
 import {
@@ -35,7 +38,9 @@ import type {
 } from "./api"
 import {
   AdminField,
+  AdminEmptyState,
   AdminPageHeader,
+  AdminPanel,
   AdminStatus,
   adminControlClass,
   adminTextareaClass,
@@ -262,219 +267,227 @@ export function InformationManager() {
       />
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)]">
-        <form className="flex min-w-0 flex-col gap-6" onSubmit={submit}>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">
-                {editingId ? "编辑活动内容" : "添加活动内容"}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {editingId
-                  ? `内容 ID：${editingId}`
-                  : "新内容将显示在首页活动区"}
-              </p>
-            </div>
-            {editingId ? (
-              <Button type="button" variant="ghost" onClick={resetForm}>
-                <XIcon data-icon="inline-start" />
-                取消编辑
-              </Button>
-            ) : null}
-          </div>
-
-          <AdminField label="标题" htmlFor="information-title">
-            <input
-              id="information-title"
-              className={adminControlClass}
-              maxLength={200}
-              required
-              value={submission.title}
-              onChange={(event) =>
-                updateSubmission("title", event.target.value)
-              }
-            />
-          </AdminField>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <AdminField label="活动分类" htmlFor="information-category">
-              <select
-                id="information-category"
-                className={adminControlClass}
-                value={submission.category}
-                onChange={(event) =>
-                  updateSubmission(
-                    "category",
-                    event.target.value as InformationCategory
-                  )
-                }
-              >
-                <option value="activity">活动资讯</option>
-                <option value="fan">同人活动</option>
-              </select>
-            </AdminField>
-
-            <AdminField label="内容类型">
-              <div className="grid grid-cols-2 rounded-md border bg-muted p-1">
-                {(["external", "html"] as InformationContentType[]).map(
-                  (contentType) => (
-                    <button
-                      key={contentType}
-                      type="button"
-                      aria-pressed={submission.contentType === contentType}
-                      className="min-h-8 rounded-sm px-3 text-sm font-medium aria-pressed:bg-background aria-pressed:shadow-sm"
-                      onClick={() =>
-                        updateSubmission("contentType", contentType)
-                      }
-                    >
-                      {contentTypeLabel(contentType)}
-                    </button>
-                  )
-                )}
-              </div>
-            </AdminField>
-          </div>
-
-          <AdminField
-            label="封面图片"
-            htmlFor="information-cover"
-            description="PNG、JPEG 或 WebP，上传后转换为 WebP 并托管。"
+        <form className="min-w-0" onSubmit={submit}>
+          <AdminPanel
+            title={editingId ? "编辑活动内容" : "添加活动内容"}
+            description={
+              editingId ? `内容 ID：${editingId}` : "新内容将显示在首页活动区"
+            }
+            icon={editingId ? PencilIcon : PlusIcon}
+            action={
+              editingId ? (
+                <Button type="button" variant="ghost" onClick={resetForm}>
+                  <XIcon data-icon="inline-start" />
+                  取消编辑
+                </Button>
+              ) : null
+            }
+            contentClassName="flex flex-col gap-6"
           >
-            <input
-              id="information-cover"
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/avif"
-              className={adminControlClass}
-              disabled={coverUploading}
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (file) void uploadAsset(file, "cover")
-                event.target.value = ""
-              }}
-            />
-            {coverUploading ? (
-              <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <LoaderCircleIcon
-                  className="size-3 animate-spin"
-                  aria-hidden="true"
-                />
-                正在托管封面
-              </span>
-            ) : null}
-            {submission.image ? (
-              <div className="flex items-center gap-3 border-l-2 border-primary pl-3">
-                <img
-                  src={submission.image}
-                  alt="封面预览"
-                  className="h-16 w-24 rounded-md object-cover"
-                />
-                <code className="min-w-0 flex-1 truncate text-xs">
-                  {submission.image}
-                </code>
-              </div>
-            ) : null}
-          </AdminField>
-
-          {submission.contentType === "external" ? (
-            <AdminField label="外部链接" htmlFor="information-link">
-              <div className="relative">
-                <LinkIcon
-                  className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <input
-                  id="information-link"
-                  type="url"
-                  className={`${adminControlClass} pl-9`}
-                  placeholder="https://"
-                  required
-                  value={submission.externalUrl}
-                  onChange={(event) =>
-                    updateSubmission("externalUrl", event.target.value)
-                  }
-                />
-              </div>
+            <AdminField label="标题" htmlFor="information-title">
+              <input
+                id="information-title"
+                className={adminControlClass}
+                maxLength={200}
+                required
+                value={submission.title}
+                onChange={(event) =>
+                  updateSubmission("title", event.target.value)
+                }
+              />
             </AdminField>
-          ) : (
-            <>
-              <AdminField
-                label="HTML 正文"
-                htmlFor="information-html"
-                description="脚本、表单和外部资源不会在站内详情页执行。"
-              >
-                <textarea
-                  id="information-html"
-                  className={`${adminTextareaClass} min-h-80`}
-                  required
-                  value={submission.html}
-                  onChange={(event) =>
-                    updateSubmission("html", event.target.value)
-                  }
-                />
-              </AdminField>
-              <AdminField
-                label="正文图片"
-                htmlFor="information-body-image"
-                description="上传成功后会把图片标签插入 HTML 末尾。"
-              >
-                <input
-                  id="information-body-image"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/avif"
-                  className={adminControlClass}
-                  disabled={bodyImageUploading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    if (file) void uploadAsset(file, "body")
-                    event.target.value = ""
-                  }}
-                />
-              </AdminField>
-            </>
-          )}
 
-          <div className="flex flex-wrap justify-end gap-2 border-t pt-5">
-            <Button
-              type="submit"
-              size="lg"
-              disabled={saving || coverUploading || !submission.image}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <AdminField label="活动分类" htmlFor="information-category">
+                <select
+                  id="information-category"
+                  className={adminControlClass}
+                  value={submission.category}
+                  onChange={(event) =>
+                    updateSubmission(
+                      "category",
+                      event.target.value as InformationCategory
+                    )
+                  }
+                >
+                  <option value="activity">活动资讯</option>
+                  <option value="fan">同人活动</option>
+                </select>
+              </AdminField>
+
+              <AdminField label="内容类型">
+                <ToggleGroup
+                  value={[submission.contentType]}
+                  variant="outline"
+                  spacing={0}
+                  className="w-full"
+                  aria-label="内容类型"
+                  onValueChange={(values) => {
+                    const contentType = values[0] as
+                      | InformationContentType
+                      | undefined
+                    if (contentType) {
+                      updateSubmission("contentType", contentType)
+                    }
+                  }}
+                >
+                  {(["external", "html"] as InformationContentType[]).map(
+                    (contentType) => (
+                      <ToggleGroupItem
+                        key={contentType}
+                        value={contentType}
+                        className="flex-1"
+                      >
+                        {contentTypeLabel(contentType)}
+                      </ToggleGroupItem>
+                    )
+                  )}
+                </ToggleGroup>
+              </AdminField>
+            </div>
+
+            <AdminField
+              label="封面图片"
+              htmlFor="information-cover"
+              description="PNG、JPEG 或 WebP，上传后转换为 WebP 并托管。"
             >
-              {saving ? (
-                <LoaderCircleIcon
-                  data-icon="inline-start"
-                  className="animate-spin"
-                />
-              ) : editingId ? (
-                <PencilIcon data-icon="inline-start" />
-              ) : (
-                <PlusIcon data-icon="inline-start" />
-              )}
-              {editingId ? "保存活动内容" : "发布活动内容"}
-            </Button>
-          </div>
+              <input
+                id="information-cover"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/avif"
+                className={adminControlClass}
+                disabled={coverUploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) void uploadAsset(file, "cover")
+                  event.target.value = ""
+                }}
+              />
+              {coverUploading ? (
+                <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <LoaderCircleIcon
+                    className="size-3 animate-spin"
+                    aria-hidden="true"
+                  />
+                  正在托管封面
+                </span>
+              ) : null}
+              {submission.image ? (
+                <div className="flex items-center gap-3 border-l-2 border-primary pl-3">
+                  <img
+                    src={submission.image}
+                    alt="封面预览"
+                    className="h-16 w-24 rounded-md object-cover"
+                  />
+                  <code className="min-w-0 flex-1 truncate text-xs">
+                    {submission.image}
+                  </code>
+                </div>
+              ) : null}
+            </AdminField>
+
+            {submission.contentType === "external" ? (
+              <AdminField label="外部链接" htmlFor="information-link">
+                <div className="relative">
+                  <LinkIcon
+                    className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <input
+                    id="information-link"
+                    type="url"
+                    className={`${adminControlClass} pl-9`}
+                    placeholder="https://"
+                    required
+                    value={submission.externalUrl}
+                    onChange={(event) =>
+                      updateSubmission("externalUrl", event.target.value)
+                    }
+                  />
+                </div>
+              </AdminField>
+            ) : (
+              <>
+                <AdminField
+                  label="HTML 正文"
+                  htmlFor="information-html"
+                  description="脚本、表单和外部资源不会在站内详情页执行。"
+                >
+                  <textarea
+                    id="information-html"
+                    className={`${adminTextareaClass} min-h-80`}
+                    required
+                    value={submission.html}
+                    onChange={(event) =>
+                      updateSubmission("html", event.target.value)
+                    }
+                  />
+                </AdminField>
+                <AdminField
+                  label="正文图片"
+                  htmlFor="information-body-image"
+                  description="上传成功后会把图片标签插入 HTML 末尾。"
+                >
+                  <input
+                    id="information-body-image"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/avif"
+                    className={adminControlClass}
+                    disabled={bodyImageUploading}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (file) void uploadAsset(file, "body")
+                      event.target.value = ""
+                    }}
+                  />
+                </AdminField>
+              </>
+            )}
+
+            <Separator />
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="submit"
+                size="lg"
+                disabled={saving || coverUploading || !submission.image}
+              >
+                {saving ? (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                ) : editingId ? (
+                  <PencilIcon data-icon="inline-start" />
+                ) : (
+                  <PlusIcon data-icon="inline-start" />
+                )}
+                {editingId ? "保存活动内容" : "发布活动内容"}
+              </Button>
+            </div>
+          </AdminPanel>
         </form>
 
-        <aside className="min-w-0 border-l-0 xl:border-l xl:pl-8">
-          <div className="sticky top-8">
-            <div className="flex items-center gap-2">
-              {submission.contentType === "html" ? (
-                <FileCode2Icon
-                  className="size-4 text-primary"
-                  aria-hidden="true"
-                />
-              ) : (
-                <LinkIcon className="size-4 text-primary" aria-hidden="true" />
-              )}
-              <h2 className="text-sm font-semibold">内容预览</h2>
-            </div>
+        <aside className="min-w-0">
+          <AdminPanel
+            title="内容预览"
+            description={
+              submission.contentType === "html"
+                ? "以站内安全策略渲染 HTML。"
+                : "首页活动卡片的展示效果。"
+            }
+            icon={submission.contentType === "html" ? FileCode2Icon : LinkIcon}
+            className="sticky top-24"
+          >
             {submission.contentType === "html" ? (
               <iframe
                 title="活动 HTML 预览"
                 sandbox=""
                 srcDoc={previewDocument}
-                className="mt-4 h-[36rem] w-full rounded-md border bg-background"
+                className="h-[36rem] w-full rounded-lg border bg-background"
               />
             ) : (
-              <div className="mt-4 overflow-hidden rounded-md border bg-card">
+              <div className="overflow-hidden rounded-lg border bg-background">
                 <div className="aspect-[16/9] bg-muted">
                   {submission.image ? (
                     <img
@@ -498,32 +511,25 @@ export function InformationManager() {
                 </div>
               </div>
             )}
-          </div>
+          </AdminPanel>
         </aside>
       </div>
 
-      <Separator />
-
-      <section aria-labelledby="information-list-title">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 id="information-list-title" className="text-lg font-semibold">
-              已发布活动内容
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {data.cards.length} 条内容
-            </p>
-          </div>
-        </div>
+      <AdminPanel
+        title="已发布活动内容"
+        description={`${data.cards.length} 条内容`}
+        icon={CalendarDaysIcon}
+        contentClassName="pt-1"
+      >
         {error ? (
-          <Alert className="mt-5">
+          <Alert>
             <AlertTitle>活动内容加载失败</AlertTitle>
             <AlertDescription>{errorMessage(error)}</AlertDescription>
           </Alert>
         ) : loading ? (
-          <p className="mt-5 text-sm text-muted-foreground">正在加载内容</p>
+          <p className="py-6 text-sm text-muted-foreground">正在加载内容</p>
         ) : data.cards.length ? (
-          <div className="mt-3">
+          <div>
             {data.cards.map((card) => (
               <InformationRow
                 key={card.id}
@@ -535,36 +541,29 @@ export function InformationManager() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 border-y py-8 text-sm text-muted-foreground">
-            还没有活动内容。
-          </p>
+          <AdminEmptyState
+            icon={CalendarDaysIcon}
+            title="还没有活动内容"
+            description="使用上方表单发布第一条活动资讯或同人活动。"
+          />
         )}
-      </section>
+      </AdminPanel>
 
-      <Separator />
-
-      <section aria-labelledby="hosted-assets-title">
-        <div>
-          <h2 id="hosted-assets-title" className="text-lg font-semibold">
-            托管图片
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {data.assets.length} 个对象
-          </p>
-        </div>
+      <AdminPanel
+        title="托管图片"
+        description={`${data.assets.length} 个对象`}
+        icon={ImagesIcon}
+      >
         {data.assets.length ? (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {data.assets.map((url) => (
-              <article
-                key={url}
-                className="overflow-hidden rounded-md border bg-card"
-              >
+              <article key={url} className="min-w-0">
                 <img
                   src={url}
                   alt=""
-                  className="aspect-[16/9] w-full bg-muted object-cover"
+                  className="aspect-[16/9] w-full rounded-lg border bg-muted object-cover"
                 />
-                <div className="flex items-center gap-2 p-3">
+                <div className="mt-2 flex items-center gap-2">
                   <code className="min-w-0 flex-1 truncate text-xs">{url}</code>
                   <Button
                     type="button"
@@ -586,11 +585,13 @@ export function InformationManager() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 border-y py-8 text-sm text-muted-foreground">
-            还没有托管图片。
-          </p>
+          <AdminEmptyState
+            icon={ImagesIcon}
+            title="还没有托管图片"
+            description="上传封面或正文图片后，资源会显示在这里。"
+          />
         )}
-      </section>
+      </AdminPanel>
     </div>
   )
 }

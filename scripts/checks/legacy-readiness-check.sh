@@ -53,28 +53,24 @@ for file in \
     deploy/.env.example \
     scripts/migration/.env.example \
     deploy/compose.yaml \
-    deploy/compose.emergency.yaml \
+    deploy/compose.legacy.yaml \
     deploy/nginx/README.md \
     deploy/nginx/templates/default.conf.template \
+    deploy/nginx/templates-legacy/default.conf.template \
     deploy/nginx/snippets/ims-emergency-deny.conf \
-    deploy/nginx/snippets/ims-normal-mode.conf \
     deploy/nginx/snippets/ims-security.conf \
     deploy/nginx/snippets/proxy-common.conf \
     apps/api/package.json \
     apps/api/.assetsignore \
     apps/api/tsconfig.server.json \
-    apps/api/tsconfig.worker.json \
-    apps/api/wrangler.jsonc \
-    apps/api/src/server/app.ts \
-    apps/api/src/server/main.ts \
-    apps/api/src/server/worker.ts \
+    apps/api/src/app.ts \
+    apps/api/src/main.ts \
     apps/api/dist/server/main.js \
     apps/api/js/server.js \
     apps/api/scripts/README.md \
     apps/api/scripts/build/build-client.js \
     apps/api/scripts/build/build-server.js \
     apps/api/scripts/build/check-client.js \
-    apps/api/scripts/build/check-worker-bundle.js \
     apps/api/scripts/build/client-allowlist.json \
     apps/api/scripts/checks/hono-architecture.js \
     apps/api/scripts/operations/accounts/add-user.js \
@@ -102,16 +98,18 @@ else
 fi
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    if docker compose -f deploy/compose.yaml config --quiet >/dev/null 2>&1; then
-        pass "Docker Compose configuration"
+    if docker compose -f deploy/compose.yaml config --quiet >/dev/null 2>&1 && \
+        docker compose -f deploy/compose.legacy.yaml config --quiet >/dev/null 2>&1; then
+        pass "Current and Legacy Docker Compose configuration"
     else
-        fail "Docker Compose configuration"
+        fail "Current or Legacy Docker Compose configuration"
     fi
 elif command -v docker-compose >/dev/null 2>&1; then
-    if docker-compose -f deploy/compose.yaml config --quiet >/dev/null 2>&1; then
-        pass "Docker Compose configuration"
+    if docker-compose -f deploy/compose.yaml config --quiet >/dev/null 2>&1 && \
+        docker-compose -f deploy/compose.legacy.yaml config --quiet >/dev/null 2>&1; then
+        pass "Current and Legacy Docker Compose configuration"
     else
-        fail "Docker Compose configuration"
+        fail "Current or Legacy Docker Compose configuration"
     fi
 else
     warn "Docker Compose is unavailable; container config must be checked on the deployment host"
@@ -134,9 +132,8 @@ if command -v node >/dev/null 2>&1; then
 
     hono_tsc=apps/api/node_modules/typescript/bin/tsc
     if [ -f "$hono_tsc" ]; then
-        if node "$hono_tsc" -p apps/api/tsconfig.server.json --noEmit >/dev/null 2>&1 && \
-            node "$hono_tsc" -p apps/api/tsconfig.worker.json --noEmit >/dev/null 2>&1; then
-            pass "Node and Worker TypeScript strict typecheck"
+        if node "$hono_tsc" -p apps/api/tsconfig.server.json --noEmit >/dev/null 2>&1; then
+            pass "Node TypeScript strict typecheck"
         else
             fail "TypeScript strict typecheck"
         fi
@@ -154,11 +151,10 @@ const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-readiness-'));
 Object.assign(process.env, {
     NODE_ENV: 'test',
     IMS_JWT_SECRET: 'readiness-only-secret-with-sufficient-entropy',
-    IMS_DB_PATH: path.join(tempRoot, 'news.db'),
+    IMS_SQLITE_PATH: path.join(tempRoot, 'imsweb.db'),
     IMS_PUBLIC_DIR: path.join(tempRoot, 'public'),
     IMS_UPLOADS_DIR: path.join(tempRoot, 'uploads'),
     IMS_EVENT_BASE_DIR: path.join(tempRoot, 'chronicle'),
-    IMS_STORY_DB_PATH: path.join(tempRoot, 'story.db'),
     IMS_STORY_DATA_DIR: path.join(tempRoot, 'story-data')
 });
 
@@ -223,9 +219,8 @@ def display(path):
 
 storage_type = os.getenv("IMS_OBJECT_STORAGE", "filesystem").strip().lower()
 paths = (
-    ("IMS_DB_PATH", "apps/legacy/data/core/news.db", "file"),
+    ("IMS_SQLITE_PATH", "apps/legacy/data/imsweb.db", "file"),
     ("IMS_PUBLIC_DIR", "apps/legacy/public", "directory"),
-    ("IMS_STORY_DB_PATH", "apps/legacy/data/story/idol_data.db", "file"),
 ) + ((
     ("IMS_UPLOADS_DIR", "apps/legacy/data/uploads", "directory"),
     ("IMS_STORY_DATA_DIR", "apps/legacy/data/story/images", "directory"),
@@ -260,7 +255,7 @@ for name, default, expected_kind in paths:
     else:
         print(f"WARN  {name}: development default path is absent: {display(path)}")
 
-for name in ("IMS_DB_PATH", "IMS_STORY_DB_PATH"):
+for name in ("IMS_SQLITE_PATH",):
     database = resolved[name]
     if not database.is_file():
         continue

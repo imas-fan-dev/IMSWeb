@@ -3,6 +3,19 @@ map $http_upgrade $connection_upgrade {
     ''      '';
 }
 
+map "${IMS_TRUST_OUTER_PROXY}:$http_x_forwarded_proto" $ims_forwarded_proto {
+    default $scheme;
+    ~*^true:https$ https;
+    ~*^true:http$  http;
+}
+
+map "${IMS_TRUST_OUTER_PROXY}:$http_x_forwarded_proto:$http_x_forwarded_port" $ims_forwarded_port {
+    default $server_port;
+    ~*^true:https:$ 443;
+    ~*^true:http:$  80;
+    ~*^true:(?:https|http):([1-9][0-9]*)$ $1;
+}
+
 upstream ims_node {
     server ${IMS_NODE_UPSTREAM};
     keepalive 32;
@@ -15,7 +28,6 @@ server {
     client_max_body_size ${IMS_CLIENT_MAX_BODY_SIZE};
 
     include /etc/nginx/snippets/ims-security.conf;
-    include ${IMS_EMERGENCY_INCLUDE};
 
     location = /healthz {
         access_log off;
@@ -30,22 +42,8 @@ server {
         proxy_pass http://ims_node/api/wiki/test;
     }
 
-    location /story {
-        include /etc/nginx/snippets/proxy-common.conf;
-        proxy_pass http://ims_node;
-    }
-
-    location /wiki/ {
-        include /etc/nginx/snippets/proxy-common.conf;
-        proxy_pass http://ims_node;
-    }
-
-    location /image/ {
-        include /etc/nginx/snippets/proxy-common.conf;
-        proxy_pass http://ims_node;
-    }
-
-    location /api/wiki/ {
+    location ^~ /site-content/_preview/ {
+        access_log off;
         include /etc/nginx/snippets/proxy-common.conf;
         proxy_pass http://ims_node;
     }
@@ -53,5 +51,31 @@ server {
     location / {
         include /etc/nginx/snippets/proxy-common.conf;
         proxy_pass http://ims_node;
+    }
+}
+
+server {
+    listen ${IMS_NGINX_LISTEN_PORT};
+    server_name ${IMS_SITE_PACKAGE_SERVER_NAME};
+    server_tokens off;
+    client_max_body_size ${IMS_CLIENT_MAX_BODY_SIZE};
+
+    include /etc/nginx/snippets/ims-security.conf;
+
+    location ^~ /site-content/_preview/ {
+        access_log off;
+        include /etc/nginx/snippets/proxy-common.conf;
+        proxy_pass http://ims_node;
+    }
+
+    # The ^~ prefix is intentionally evaluated before the generic sensitive
+    # extension regex so manifest-authorized .txt assets can reach Hono.
+    location ^~ /site-content/ {
+        include /etc/nginx/snippets/proxy-common.conf;
+        proxy_pass http://ims_node;
+    }
+
+    location / {
+        return 404;
     }
 }

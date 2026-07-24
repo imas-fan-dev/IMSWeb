@@ -43,6 +43,42 @@ def journal_entry(key, state, attempts, **fields):
 
 
 class ChronicleAuditTests(unittest.TestCase):
+    def test_unified_path_is_reported_as_one_physical_database(self):
+        original_paths = {
+            "core_db": AUDIT.PATHS["core_db"],
+            "story_db": AUDIT.PATHS["story_db"],
+        }
+        database_path = Path("/tmp/imsweb-unified.db")
+        connection = mock.Mock()
+        AUDIT.PATHS.update({"core_db": database_path, "story_db": database_path})
+        try:
+            with (
+                mock.patch.object(
+                    AUDIT,
+                    "database_summary",
+                    return_value=({"path": str(database_path), "quick_check": "ok"}, connection),
+                ) as database_summary,
+                mock.patch.object(AUDIT, "directory_summary", return_value={"exists": True}),
+                mock.patch.object(AUDIT, "core_media_summary", return_value={}),
+                mock.patch.object(AUDIT, "story_media_summary", return_value={}),
+                mock.patch.object(AUDIT, "chronicle_summary", return_value={}),
+                mock.patch.object(
+                    AUDIT,
+                    "compensation_summary",
+                    return_value={"exists": True, "disposition_valid": True},
+                ),
+                mock.patch.object(AUDIT, "has_blocking_issue", return_value=False),
+            ):
+                report = AUDIT.build_report()
+        finally:
+            AUDIT.PATHS.update(original_paths)
+
+        self.assertEqual(list(report["databases"]), ["unified"])
+        schema = database_summary.call_args.args[1]
+        self.assertIn("users", schema)
+        self.assertIn("agencies", schema)
+        connection.close.assert_called_once_with()
+
     def test_core_media_is_an_exact_db_referenced_upload_set(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             uploads = Path(temporary_directory) / "uploads"

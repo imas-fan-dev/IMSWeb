@@ -141,38 +141,26 @@ function validateClientArtifacts(required) {
         fail('dist/client tree is not the exact reviewed client allowlist');
     }
 
-    const r2Manifest = JSON.parse(fs.readFileSync(required.get('apps/api/dist/client-r2-assets.json'), 'utf8'));
-    const expectedR2 = [
-        ['/runninggame/Build/webgame.data', 'unity/runninggame/Build/webgame.data'],
-        ['/runninggame/BuildMobile/webgame.data', 'unity/runninggame/BuildMobile/webgame.data']
+    const nodeOnlyFiles = [
+        'runninggame/Build/webgame.data',
+        'runninggame/BuildMobile/webgame.data'
     ];
-    if (!Array.isArray(r2Manifest.assets) || r2Manifest.assets.length !== expectedR2.length) {
-        fail('client R2 manifest must contain exactly the two reviewed Unity payloads');
-    }
-    for (let index = 0; index < expectedR2.length; index += 1) {
-        const asset = r2Manifest.assets[index];
-        const [url, logicalKey] = expectedR2[index];
-        if (asset?.url !== url || asset?.logicalKey !== logicalKey ||
-            !Number.isSafeInteger(asset?.bytes) || asset.bytes < 1) {
-            fail(`invalid client R2 manifest entry at index ${index}`);
-        }
-    }
     const nodeExpected = [
         ...expected,
-        ...expectedR2.map(([url]) => url.replace(/^\/+/, ''))
+        ...nodeOnlyFiles
     ].sort(compareUtf8);
     const nodeFiles = walkRegularFiles(nodeClientRoot, 'dist/node-client');
     if (JSON.stringify(nodeFiles) !== JSON.stringify(nodeExpected)) {
-        fail('dist/node-client tree is not the exact Static allowlist plus two Unity payloads');
+        fail('dist/node-client tree is not the exact allowlist plus two Node Unity payloads');
     }
     for (const relative of expected) {
-        const workerBody = fs.readFileSync(path.join(clientRoot, ...relative.split('/')));
+        const baseBody = fs.readFileSync(path.join(clientRoot, ...relative.split('/')));
         const nodeBody = fs.readFileSync(path.join(nodeClientRoot, ...relative.split('/')));
-        if (!workerBody.equals(nodeBody)) fail(`dist/client and dist/node-client differ: ${relative}`);
+        if (!baseBody.equals(nodeBody)) fail(`dist/client and dist/node-client differ: ${relative}`);
     }
-    for (const asset of r2Manifest.assets) {
-        const file = path.join(nodeClientRoot, ...asset.url.replace(/^\/+/, '').split('/'));
-        if (fs.statSync(file).size !== asset.bytes) fail(`Node Unity payload size differs: ${asset.url}`);
+    for (const relative of nodeOnlyFiles) {
+        const file = path.join(nodeClientRoot, ...relative.split('/'));
+        if (fs.statSync(file).size < 1) fail(`Node Unity payload is empty: ${relative}`);
     }
 }
 
@@ -339,7 +327,10 @@ async function probeRuntime(releaseRoot, publicDir, publicIndex, appPackagePath,
             fail('built server entry does not expose the expected Node runtime contract');
         }
 
-        const staticModulePath = path.join(releaseRoot, 'apps/api/dist/server/adapters/node/node-static-assets.js');
+        const staticModulePath = path.join(
+            releaseRoot,
+            'apps/api/dist/server/infra/http/filesystem/static-assets.js'
+        );
         const staticModule = require(staticModulePath);
         if (typeof staticModule.NodeStaticAssets !== 'function') {
             fail('built Node static-assets adapter is unavailable');
@@ -420,12 +411,11 @@ async function main() {
         'pnpm-workspace.yaml',
         'apps/api/package.json',
         'apps/api/dist/server/main.js',
-        'apps/api/dist/server/adapters/node/node-static-assets.js',
+        'apps/api/dist/server/infra/http/filesystem/static-assets.js',
         'apps/api/dist/client/index.html',
         'apps/api/dist/node-client/index.html',
         'apps/api/scripts/build/client-allowlist.json',
         'apps/api/dist/client-allowlist.json',
-        'apps/api/dist/client-r2-assets.json',
         'node_modules/.pnpm/lock.yaml',
         'node_modules/.modules.yaml'
     ];
@@ -455,10 +445,27 @@ async function main() {
     if (!['filesystem', 's3'].includes(objectStorage)) {
         fail('IMS_OBJECT_STORAGE must be filesystem or s3');
     }
+    const database = String(process.env.IMS_DATABASE || 'sqlite').trim().toLowerCase();
+    if (!['sqlite', 'postgres', 'postgresql', 'pgsql'].includes(database)) {
+        fail('IMS_DATABASE must be sqlite or postgresql');
+    }
+    if (database !== 'sqlite') {
+        let databaseUrl;
+        try {
+            databaseUrl = new URL(process.env.DATABASE_URL || '');
+        } catch {
+            fail('DATABASE_URL must be a valid PostgreSQL URL');
+        }
+        if (!['postgres:', 'postgresql:'].includes(databaseUrl.protocol) ||
+            !databaseUrl.hostname || !databaseUrl.pathname) {
+            fail('DATABASE_URL must be a valid PostgreSQL URL');
+        }
+    }
     const mutableDefinitions = [
-        ['IMS_DB_PATH', 'file'],
+        ...(database === 'sqlite' ? [
+            ['IMS_SQLITE_PATH', 'file']
+        ] : []),
         ['IMS_COMPENSATION_DIR', 'directory'],
-        ['IMS_STORY_DB_PATH', 'file'],
         ...(objectStorage === 'filesystem' ? [
             ['IMS_UPLOADS_DIR', 'directory'],
             ['IMS_STORY_DATA_DIR', 'directory'],

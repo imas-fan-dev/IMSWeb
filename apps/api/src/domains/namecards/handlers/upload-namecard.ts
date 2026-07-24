@@ -1,0 +1,80 @@
+import type { Context } from 'hono';
+import type { AppEnvironment } from '@/app';
+import type { UploadedFile } from '@/ports/http';
+import { md5Hex } from '@/utils/crypto/md5';
+import { randomHex } from '@/utils/crypto/random';
+import { messageFromError, statusFromError } from '@/utils/http/error-response';
+import { namecardRepository, getClientAddress, services } from '@/middleware/hono-context';
+import { safeUploadBaseName } from '@/utils/media/filename';
+import { validateUploadedImage } from '@/utils/media/image-upload';
+import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+
+export async function enforcePublicUploadLimit(
+    c: Context<AppEnvironment>
+): Promise<Response | null> {
+    const limiter = services(c).rateLimiter;
+    if (!limiter) return null;
+    const result = await limiter.consume('public-upload', getClientAddress(c), 30, 60 * 60);
+    return result.allowed ? null : c.json({ error: 'Too many requests' }, 429);
+}
+
+function uploadedFiles(value: UploadedFile | UploadedFile[] | undefined): UploadedFile[] {
+    if (!value) return [];
+    return Array.isArray(value) ? value : [value];
+}
+
+export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<Response> {
+    const limited = await enforcePublicUploadLimit(c);
+    if (limited) return limited;
+    const runtime = services(c);
+    if (!runtime.uploads || !runtime.images || !runtime.storage) throw new Error('Upload services unavailable');
+    const generated: string[] = [];
+    try {
+        const parsed = await runtime.uploads.parse(c.req.raw, {
+            maxBytes: 6 * 1024 * 1024 + 128 * 1024,
+            fileFields: ['images'],
+            maxFiles: 2,
+            maxFields: 4,
+            maxParts: 6
+        });
+        const files = uploadedFiles(parsed.files.images);
+        if (files.some((file) => !file.contentType.startsWith('image/'))) {
+            return c.json({ msg: '只允许上传图片文件' }, 400);
+        }
+        if (files.length !== 2) return c.json({ msg: '必须上传2张图片' });
+        if (files.some((file) => file.body.byteLength > 3 * 1024 * 1024)) {
+            return c.json({ msg: '文件过大' }, 400);
+        }
+        const outputs: Array<{ key: string; url: string; hash: string }> = [];
+        for (const file of files) {
+            await validateUploadedImage(file, runtime.images);
+            const webp = await runtime.images.toWebp(file.body, 85);
+            const key = `uploads/namecard/original/${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
+            await runtime.storage.put(key, webp, { contentType: 'image/webp' });
+            generated.push(key);
+            outputs.push({ key, url: `/${key}`, hash: md5Hex(webp) });
+        }
+        if (await namecardRepository(c).findCardByOrderedHashes(outputs[0].hash, outputs[1].hash)) {
+            await Promise.all(generated.map((key) => deleteObjectWithCompensation(runtime, key)));
+            return c.json({ msg: '重复上传' });
+        }
+        await namecardRepository(c).insertPendingCard({
+            image1Url: outputs[0].url,
+            image2Url: outputs[1].url,
+            hash1: outputs[0].hash,
+            hash2: outputs[1].hash,
+            ip: getClientAddress(c)
+        });
+        return c.json({ msg: '上传成功，等待审核' });
+    } catch (error) {
+        await Promise.all(generated.map((key) =>
+            deleteObjectWithCompensation(runtime, key).catch(() => undefined)
+        ));
+        const status = statusFromError(error);
+        if (status >= 500) {
+            console.error('Failed to upload namecard', error);
+            return c.json({ msg: '服务器错误' }, status as 500);
+        }
+        return c.json({ msg: messageFromError(error) }, status as 400);
+    }
+}

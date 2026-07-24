@@ -1,8 +1,10 @@
 # Cloudflare 全栈迁移设计
 
-Cloudflare 对应产品是 Workers、D1、R2、Images 和 Static Assets。仓库已实现完整 Hono
-Worker 入口与适配器；本文描述从当前 SQLite/本地媒体权威源切到该实现的数据和发布闸门。
-`apps/api/wrangler.jsonc` 中的资源名/ID 是本地占位值，本文不表示线上资源已创建或生产切写已完成。
+> 历史设计，已于 2026-07-24 停用。当前 API 只支持 Hono Node；本文不属于当前构建、
+> 验收或部署说明，不能直接执行其中的 Worker/D1/R2 切换步骤。
+
+Cloudflare 对应产品是 Workers、D1、R2、Images 和 Static Assets。本文保留此前从
+SQLite/本地媒体迁移到该架构的设计证据。
 
 ## 1. 目标架构
 
@@ -40,7 +42,7 @@ Worker 代码不回源到 Express/Flask。正式切换前，统一 Hono Node 继
 
 ### 已实现的 Worker 路由
 
-`apps/api/src/server/worker.ts` 与 Node 共用 `createHonoApp()`。Core、活动编年史和 Wiki 路由通过
+`apps/api/src/worker.ts` 与 Node 共用 `createHonoApp()`。Core、活动编年史和 Wiki 路由通过
 请求绑定构造 D1/R2/Images 适配器；不存在模块级 binding 或 secret 缓存。普通
 HTML/CSS/JS/图片进入 Static Assets，大型 Unity `.data` 通过 R2 保持原 URL。
 

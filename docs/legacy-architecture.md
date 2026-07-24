@@ -35,15 +35,22 @@ Bilibili 链接解析。
 当前这些能力位于：
 
 ```text
-apps/api/src/server/
+apps/api/src/
   app.ts                       Hono 应用工厂和中间件顺序
   main.ts                      Node listener 与生命周期
-  worker.ts                    Cloudflare Worker 入口
-  ports/                       业务依赖接口
-  adapters/node/               SQLite、文件系统、Sharp、Busboy
-  adapters/cloudflare/         D1、R2、Images、Assets
+  ports/*.ts                   业务能力、Repository 与运行时注入契约
+  infra/cache/                 幂等与限流适配器；按 filesystem、memory 归档
+  infra/db/                    数据库适配器；按 postgresql、sqlite、repositories、sql 归档
+  infra/http/                  上传与静态响应适配器；按 busboy、filesystem 归档
+  infra/media/                 图片处理适配器；按 sharp 归档
+  infra/oss/                   对象持久化适配器；按 filesystem、s3 归档
+  infra/security/              安全适配器；按 bcrypt、hmac 归档
+  runtime/                     唯一组合根，选择具体中间件并组装 Node
   domains/                     Core、Chronicle、Wiki Hono 路由与服务
 ```
+
+业务只从 `ports/` 导入接口，并使用注入的 `RuntimeServices` 实例；`infra/` 不定义业务合同。
+维护人员从 `infra/<能力>/<中间件>/<业务职责>.ts` 直接定位实现。
 
 Node 兼容阶段继续使用旧 SQLite 和本地目录格式，因此代码回滚与数据回滚仍是两件事。
 旧 Flask/Jinja/Gunicorn/uWSGI 源码与回归测试位于 `apps/legacy/flask` 和
@@ -64,7 +71,7 @@ Node 兼容阶段继续使用旧 SQLite 和本地目录格式，因此代码回�
 
 `news.db` 包含 `users`、`news`、`events`、`cards`、`card_emojis` 和 `logs`。
 `idol_data.db` 包含 `agencies`、`idols`、`theme_colors` 及七张 `*_stories` 表。
-编年史的旧审核状态由目录表达；Worker 适配器将其映射为 D1 中的明确状态，R2 只存对象。
+编年史的旧审核状态由目录表达；当前 Node 运行时通过仓储和补偿接口维护兼容语义。
 
 ## 4. 必须维持的兼容契约
 
@@ -73,15 +80,14 @@ Node 兼容阶段继续使用旧 SQLite 和本地目录格式，因此代码回�
 - 数据库主键、图片 URL 和编年史活动 ID 不做原地改写；
 - 上传原图、缩略图和审核目录不随代码发布覆盖；
 - SQLite 与对应媒体必须保存为同一恢复点；
-- 已切到 Cloudflare 写入后，代码回滚前必须先导出并处理 D1/R2 增量。
+- 已切到 PostgreSQL/S3 写入后，代码回滚前必须先导出并处理新增数据。
 
 ## 5. 仍需在线确认的缺口
 
-- 生产 TLS、域名、真实监听端口、Cloudflare 账户与资源 ID；
+- 生产 TLS、域名、真实监听端口、PostgreSQL/S3 账户与资源信息；
 - 生产数据库和媒体的严格审计结果、停写窗口和完整对账报告；
-- Cloudflare Images 的账户能力和费用；
-- Hono Node 与 Cloudflare 数据回滚演练、只读保留期限和责任人；
+- Hono Node 数据回滚演练、只读保留期限和责任人；
 - 旧后台 `localStorage` Token 的后续收敛方案。
 
 仓库内数据不是生产权威副本。没有上述证据时，只能确认迁移实现和本地验证完成，不能
-声明线上 D1/R2 切写或旧数据退役完成。
+声明线上 PostgreSQL/S3 切写或旧数据退役完成。

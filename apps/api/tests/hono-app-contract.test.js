@@ -43,8 +43,7 @@ function isolatedEnvironment(root) {
         ...process.env,
         NODE_ENV: 'test',
         IMS_JWT_SECRET: 'hono-contract-test-secret-at-least-32-bytes',
-        IMS_DB_PATH: path.join(root, 'core.db'),
-        IMS_STORY_DB_PATH: path.join(root, 'story.db'),
+        IMS_SQLITE_PATH: path.join(root, 'imsweb.db'),
         IMS_STORY_MAX_UPLOAD_BYTES: '52428800',
         IMS_UPLOADS_DIR: path.join(root, 'uploads'),
         IMS_EVENT_BASE_DIR: path.join(root, 'chronicle')
@@ -72,8 +71,7 @@ test('[ARC-01] default assets and mutable Legacy data use separate roots', () =>
         process.stdout.write(JSON.stringify({
             PROJECT_ROOT: paths.PROJECT_ROOT,
             PUBLIC_DIR: paths.PUBLIC_DIR,
-            DATABASE_PATH: paths.DATABASE_PATH,
-            STORY_DATABASE_PATH: paths.STORY_DATABASE_PATH,
+            SQLITE_DATABASE_PATH: paths.SQLITE_DATABASE_PATH,
             STORY_DATA_DIR: paths.STORY_DATA_DIR,
             UPLOADS_DIR: paths.UPLOADS_DIR,
             EVENT_BASE: paths.EVENT_BASE
@@ -81,7 +79,7 @@ test('[ARC-01] default assets and mutable Legacy data use separate roots', () =>
     `;
     const env = { ...process.env, NODE_ENV: 'test' };
     for (const name of [
-        'IMS_PROJECT_ROOT', 'IMS_PUBLIC_DIR', 'IMS_DB_PATH', 'IMS_STORY_DB_PATH',
+        'IMS_PROJECT_ROOT', 'IMS_PUBLIC_DIR', 'IMS_SQLITE_PATH',
         'IMS_STORY_DATA_DIR', 'IMS_UPLOADS_DIR', 'IMS_EVENT_BASE_DIR'
     ]) delete env[name];
     const result = spawnSync(process.execPath, ['-e', script], {
@@ -94,10 +92,9 @@ test('[ARC-01] default assets and mutable Legacy data use separate roots', () =>
     const paths = JSON.parse(result.stdout);
     assert.equal(paths.PROJECT_ROOT, REPOSITORY_ROOT);
     assert.equal(paths.PUBLIC_DIR, path.join(REPOSITORY_ROOT, 'apps/legacy/public'));
-    assert.equal(paths.DATABASE_PATH, path.join(REPOSITORY_ROOT, 'apps/legacy/data/core/news.db'));
     assert.equal(
-        paths.STORY_DATABASE_PATH,
-        path.join(REPOSITORY_ROOT, 'apps/legacy/data/story/idol_data.db')
+        paths.SQLITE_DATABASE_PATH,
+        path.join(REPOSITORY_ROOT, 'apps/legacy/data/imsweb.db')
     );
     assert.equal(
         paths.STORY_DATA_DIR,
@@ -280,7 +277,7 @@ test('[SEC-01] shared app adds security headers to early 413 and 429 responses',
     assertSecurityHeaderContract(responses.rateLimited);
 });
 
-test('[WRK-01] createHonoApp resolves bindings independently for every request', () => {
+test('[RUN-01] createHonoApp resolves service dependencies for every request', () => {
     const script = `
         (async () => {
             const entry = require(${JSON.stringify(SERVER_ENTRY)});

@@ -126,6 +126,10 @@ describe('WIKI-01 rendered DOM contract', () => {
         assert.ok(descendants(wiki, (node) =>
             node.tagName === 'a' && (attributes(node).href ?? '').startsWith('/story?agency=')
         ).length > 0, 'agency partials must retain story links');
+        const homeButton = byClass(wiki, 'home-btn')[0];
+        assert.ok(homeButton, 'Wiki home must retain its main-site return button');
+        assert.equal(attributes(homeButton).onclick, "location.href='/'");
+        assert.doesNotMatch(wikiHtml, /https:\/\/idol-master\.top/);
     });
 
     test('/story keeps compatibility statuses and the complete legacy DOM surface', async () => {
@@ -154,7 +158,8 @@ describe('WIKI-01 rendered DOM contract', () => {
         });
         const response = await fixture.app.request('/story?agency=闪耀色彩&idol=樱木真乃');
         assert.equal(response.status, 200);
-        const document = await parseDocument(await response.text());
+        const storyHtml = await response.text();
+        const document = await parseDocument(storyHtml);
 
         for (const id of [
             'dynamic-desktop-popup', 'global-mobile-popup', 'tabs-bar', 'addStoryModal', 'storyForm',
@@ -169,6 +174,11 @@ describe('WIKI-01 rendered DOM contract', () => {
         assert.ok(byClass(document, 'category-section').some((node) => attributes(node)['data-category'] === 'enzaP卡'));
         assert.ok(byClass(document, 'idol-card').some((node) => attributes(node)['data-card-name'] === '【fixture-card】'));
         assert.equal(attributes(byClass(document, 'profile-img')[0]!).src, '/assets/images/Production/283Mano.png');
+        assert.deepEqual(byClass(document, 'btn-back').map((node) => attributes(node).href), [
+            '/',
+            `/wiki/?agency=${encodeURIComponent('闪耀色彩')}`
+        ]);
+        assert.doesNotMatch(storyHtml, /https:\/\/idol-master\.top/);
         const payload = storyPayload(document);
         const category = payload.data.find((entry: { name: string }) => entry.name === 'enzaP卡');
         assert.ok(category);

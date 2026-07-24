@@ -12,7 +12,6 @@ import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
-import { Separator } from "~/components/ui/separator"
 import { isApiError } from "~/shared/api"
 import {
   createRecommendation,
@@ -20,7 +19,13 @@ import {
   getRecommendations,
 } from "./api"
 import type { Recommendation } from "./api"
-import { AdminField, AdminPageHeader, adminControlClass } from "./admin-ui"
+import {
+  AdminEmptyState,
+  AdminField,
+  AdminPageHeader,
+  AdminPanel,
+  adminControlClass,
+} from "./admin-ui"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
@@ -172,78 +177,80 @@ export function RecommendationManager() {
         }
       />
 
-      <form
-        className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,0.7fr)_auto] lg:items-end"
-        onSubmit={submit}
+      <AdminPanel
+        title="发布推荐"
+        description="填写首页展示信息，封面为空时使用站点默认图。"
+        icon={PlusIcon}
+        contentClassName="pt-1"
       >
-        <AdminField label="推荐标题" htmlFor="recommendation-title">
-          <input
-            id="recommendation-title"
-            className={adminControlClass}
-            maxLength={300}
-            required
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </AdminField>
-        <AdminField label="跳转链接" htmlFor="recommendation-url">
-          <input
-            id="recommendation-url"
-            type="url"
-            className={adminControlClass}
-            placeholder="https://"
-            required
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-          />
-        </AdminField>
-        <AdminField
-          label="封面图片"
-          htmlFor="recommendation-image"
-          description="不上传时使用默认占位。"
+        <form
+          className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,0.7fr)_auto] lg:items-end"
+          onSubmit={submit}
         >
-          <input
-            id="recommendation-image"
-            name="image"
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/avif"
-            className={adminControlClass}
-            onChange={(event) => setImage(event.target.files?.[0] ?? null)}
-          />
-        </AdminField>
-        <Button type="submit" size="lg" disabled={saving}>
-          {saving ? (
-            <LoaderCircleIcon
-              data-icon="inline-start"
-              className="animate-spin"
+          <AdminField label="推荐标题" htmlFor="recommendation-title">
+            <input
+              id="recommendation-title"
+              className={adminControlClass}
+              maxLength={300}
+              required
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
             />
-          ) : (
-            <PlusIcon data-icon="inline-start" />
-          )}
-          发布推荐
-        </Button>
-      </form>
+          </AdminField>
+          <AdminField label="跳转链接" htmlFor="recommendation-url">
+            <input
+              id="recommendation-url"
+              type="url"
+              className={adminControlClass}
+              placeholder="https://"
+              required
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+            />
+          </AdminField>
+          <AdminField
+            label="封面图片"
+            htmlFor="recommendation-image"
+            description="PNG、JPEG、WebP 或 AVIF。"
+          >
+            <input
+              id="recommendation-image"
+              name="image"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/avif"
+              className={adminControlClass}
+              onChange={(event) => setImage(event.target.files?.[0] ?? null)}
+            />
+          </AdminField>
+          <Button type="submit" size="lg" disabled={saving}>
+            {saving ? (
+              <LoaderCircleIcon
+                data-icon="inline-start"
+                className="animate-spin"
+              />
+            ) : (
+              <PlusIcon data-icon="inline-start" />
+            )}
+            发布推荐
+          </Button>
+        </form>
+      </AdminPanel>
 
-      <Separator />
-
-      <section aria-labelledby="recommendation-list-title">
-        <div>
-          <h2 id="recommendation-list-title" className="text-lg font-semibold">
-            已发布推荐
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {data.data.length} 条推荐
-          </p>
-        </div>
+      <AdminPanel
+        title="已发布推荐"
+        description={`${data.data.length} 条推荐`}
+        icon={ImageIcon}
+        contentClassName="pt-1"
+      >
         {error ? (
-          <Alert className="mt-5">
+          <Alert>
             <AlertTitle>推荐内容加载失败</AlertTitle>
             <AlertDescription>{errorMessage(error)}</AlertDescription>
           </Alert>
         ) : loading ? (
-          <p className="mt-5 text-sm text-muted-foreground">正在加载推荐</p>
+          <p className="py-6 text-sm text-muted-foreground">正在加载推荐</p>
         ) : data.data.length ? (
-          <div className="mt-3">
+          <div>
             {data.data.map((recommendation) => (
               <RecommendationRow
                 key={recommendation.id}
@@ -254,11 +261,13 @@ export function RecommendationManager() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 border-y py-8 text-sm text-muted-foreground">
-            还没有推荐内容。
-          </p>
+          <AdminEmptyState
+            icon={ImageIcon}
+            title="还没有推荐内容"
+            description="使用上方表单发布第一条首页推荐。"
+          />
         )}
-      </section>
+      </AdminPanel>
     </div>
   )
 }

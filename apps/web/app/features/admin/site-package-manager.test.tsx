@@ -1,0 +1,401 @@
+import { act, render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { SitePackageManager } from "./site-package-manager"
+
+const packageId = "11111111-1111-4111-8111-111111111111"
+const revisionOneId = "22222222-2222-4222-8222-222222222222"
+const revisionTwoId = "33333333-3333-4333-8333-333333333333"
+const revisionThreeId = "44444444-4444-4444-8444-444444444444"
+const previewToken = "a".repeat(64)
+
+function revision(
+  id: string,
+  revisionNumber: number,
+  publishedAt: number | null
+) {
+  return {
+    id,
+    packageId,
+    revisionNumber,
+    entryPath: "index.html",
+    runtimeMode: revisionNumber === 2 ? "isolated-script" : ("safe" as const),
+    state: "ready" as const,
+    fileCount: 13,
+    totalBytes: 1_048_576,
+    sourceSha256: "b".repeat(64),
+    createdBy: 1,
+    createdAt: 1_784_825_200_000 + revisionNumber,
+    publishedAt,
+  }
+}
+
+function packagePayload() {
+  return {
+    id: packageId,
+    slug: "hiro2026",
+    title: "Hiro 2026",
+    description: "活动专题页面",
+    publishedRevisionId: revisionOneId,
+    createdBy: 1,
+    updatedBy: 1,
+    createdAt: 1_784_825_200_000,
+    updatedAt: 1_784_825_300_000,
+    contentOrigin: "http://content.localhost:3000",
+    revisions: [
+      revision(revisionTwoId, 2, null),
+      revision(revisionOneId, 1, 1_784_825_250_000),
+    ],
+  }
+}
+
+function jsonResponse(payload: unknown, init?: ResponseInit) {
+  return new Response(JSON.stringify(payload), {
+    ...init,
+    headers: { "content-type": "application/json", ...init?.headers },
+  })
+}
+
+function requestDetails(call: unknown[]) {
+  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
+  if (input instanceof Request) {
+    return {
+      body: input.body,
+      headers: input.headers,
+      method: input.method,
+      url: input.url,
+    }
+  }
+  return {
+    body: init?.body ?? null,
+    headers: new Headers(init?.headers),
+    method: init?.method ?? "GET",
+    url: String(input),
+  }
+}
+
+function callsFor(fetchMock: ReturnType<typeof vi.fn>, fragment: string) {
+  return fetchMock.mock.calls
+    .map((call) => requestDetails(call))
+    .filter(({ url }) => url.includes(fragment))
+}
+
+async function completeNewPackageForm(
+  user: ReturnType<typeof userEvent.setup>
+) {
+  await user.type(screen.getByLabelText("页面标题"), "Hiro 2027")
+  await user.type(screen.getByLabelText("页面 slug"), "hiro2027")
+}
+
+describe("SitePackageManager", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.sessionStorage.clear()
+    document.cookie = "csrf_token=site-package-test; path=/"
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true)
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("rotates a preview token, isolates the iframe, and publishes a revision", async () => {
+    let currentPackage = packagePayload()
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+      const request = requestDetails(args)
+      if (request.method === "GET") {
+        return Promise.resolve(jsonResponse({ packages: [currentPackage] }))
+      }
+      if (request.url.endsWith("/preview-token")) {
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            packageId,
+            revisionId: revisionTwoId,
+            previewToken,
+            previewUrl: `http://content.localhost:3000/site-content/_preview/${previewToken}/`,
+          })
+        )
+      }
+      if (request.url.endsWith("/publish")) {
+        currentPackage = {
+          ...currentPackage,
+          publishedRevisionId: revisionTwoId,
+        }
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            packageId,
+            revisionId: revisionTwoId,
+            publishedAt: 1_784_825_400_000,
+          })
+        )
+      }
+      return Promise.reject(new Error(`Unexpected request: ${request.url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<SitePackageManager />)
+
+    expect(await screen.findByText("Hiro 2026")).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "预览版本 2" }))
+
+    const frame = await screen.findByTitle("Hiro 2026 · 版本 2")
+    expect(frame).toHaveAttribute("sandbox", "allow-scripts")
+    expect(frame.getAttribute("sandbox")).not.toContain("allow-same-origin")
+    expect(frame.getAttribute("sandbox")).not.toContain("allow-forms")
+    expect(frame.getAttribute("sandbox")).not.toContain("allow-top-navigation")
+    expect(frame).toHaveAttribute(
+      "src",
+      `http://content.localhost:3000/site-content/_preview/${previewToken}/`
+    )
+    expect(window.localStorage).toHaveLength(0)
+    expect(window.sessionStorage).toHaveLength(0)
+
+    await user.click(screen.getByRole("button", { name: "发布版本 2" }))
+    expect(
+      await screen.findByRole("button", { name: "版本 2 当前在线" })
+    ).toBeDisabled()
+
+    for (const fragment of ["/preview-token", "/publish"]) {
+      const [request] = callsFor(fetchMock, fragment)
+      expect(request?.method).toBe("POST")
+      expect(request?.headers.get("X-CSRFToken")).toBe("site-package-test")
+    }
+  })
+
+  it("uploads a new package as multipart and exposes an indeterminate progress state", async () => {
+    let resolveUpload: ((response: Response) => void) | undefined
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+      const request = requestDetails(args)
+      if (request.method === "GET") {
+        return Promise.resolve(jsonResponse({ packages: [] }))
+      }
+      return new Promise<Response>((resolve) => {
+        resolveUpload = resolve
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<SitePackageManager />)
+    expect(
+      await screen.findByText("还没有页面包。使用上方表单上传第一个版本。")
+    ).toBeVisible()
+    await completeNewPackageForm(user)
+    await user.selectOptions(
+      screen.getByLabelText("运行模式"),
+      "isolated-script"
+    )
+    await user.upload(
+      screen.getByLabelText("ZIP 页面包"),
+      new File(["zip"], "hiro2027.zip", { type: "application/zip" })
+    )
+    expect(
+      screen.getByLabelText<HTMLInputElement>("ZIP 页面包").files
+    ).toHaveLength(1)
+    expect(
+      screen.getByRole("button", { name: "创建并上传" }).closest("form")
+    ).toBeValid()
+    await user.click(screen.getByRole("button", { name: "创建并上传" }))
+
+    expect(
+      await screen.findByRole("progressbar", {
+        name: "正在校验并上传页面包",
+      })
+    ).not.toHaveAttribute("value")
+
+    const [uploadRequest] = callsFor(
+      fetchMock,
+      "/api/admin/site-packages"
+    ).filter(({ method }) => method === "POST")
+    expect(uploadRequest?.headers.get("X-CSRFToken")).toBe("site-package-test")
+    expect(uploadRequest?.body).toBeInstanceOf(FormData)
+    const form = uploadRequest?.body as FormData
+    expect(form.get("slug")).toBe("hiro2027")
+    expect(form.get("title")).toBe("Hiro 2027")
+    expect(form.get("entryPath")).toBe("index.html")
+    expect(form.get("runtimeMode")).toBe("isolated-script")
+    expect(form.get("archive")).toBeInstanceOf(File)
+
+    await act(async () => {
+      resolveUpload?.(
+        jsonResponse(
+          {
+            success: true,
+            packageId,
+            revisionId: revisionOneId,
+            previewToken,
+            previewUrl: `http://content.localhost:3000/site-content/_preview/${previewToken}/`,
+            warnings: [
+              "runtime-isolation-required",
+              "remote-reference:assets/fonts.css",
+              "content-type-corrected:assets/banner.png:image/jpeg",
+            ],
+            hasScripts: true,
+          },
+          { status: 201 }
+        )
+      )
+    })
+
+    const uploadNotice = (
+      await screen.findByText("页面包已创建，请预览确认后再发布")
+    ).closest("[role=alert]")
+    expect(uploadNotice).toBeVisible()
+    expect(uploadNotice).toHaveTextContent("包含脚本，必须在隔离内容域运行")
+    expect(uploadNotice).toHaveTextContent(
+      "包含会被隔离策略拦截的远程引用：assets/fonts.css"
+    )
+    expect(uploadNotice).toHaveTextContent(
+      "扩展名与内容不一致，assets/banner.png 已按 image/jpeg 提供"
+    )
+    expect(await screen.findByTitle("Hiro 2027 · 新上传版本")).toHaveAttribute(
+      "sandbox",
+      "allow-scripts"
+    )
+  })
+
+  it("uploads a new revision without publishing it", async () => {
+    let currentPackage = packagePayload()
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+      const request = requestDetails(args)
+      if (request.method === "GET") {
+        return Promise.resolve(jsonResponse({ packages: [currentPackage] }))
+      }
+      if (request.url.endsWith(`/${packageId}/revisions`)) {
+        const newRevision = revision(revisionThreeId, 3, null)
+        currentPackage = {
+          ...currentPackage,
+          revisions: [newRevision, ...currentPackage.revisions],
+        }
+        return Promise.resolve(
+          jsonResponse(
+            {
+              success: true,
+              revision: newRevision,
+              previewToken,
+              previewUrl: `http://content.localhost:3000/site-content/_preview/${previewToken}/`,
+              warnings: [],
+              hasScripts: false,
+            },
+            { status: 201 }
+          )
+        )
+      }
+      return Promise.reject(new Error(`Unexpected request: ${request.url}`))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<SitePackageManager />)
+    expect(await screen.findByText("Hiro 2026")).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "上传新版本" }))
+    const versionForm = screen
+      .getByText("上传“Hiro 2026”的新版本")
+      .closest("form")
+    expect(versionForm).not.toBeNull()
+    await user.upload(
+      within(versionForm!).getByLabelText("ZIP 页面包"),
+      new File(["zip"], "hiro2026-v3.zip", { type: "application/zip" })
+    )
+    await user.click(
+      within(versionForm!).getByRole("button", { name: "上传版本" })
+    )
+
+    expect(await screen.findByText("版本 3")).toBeVisible()
+    expect(await screen.findByTitle("Hiro 2026 · 新上传版本")).toHaveAttribute(
+      "sandbox",
+      "allow-scripts"
+    )
+    const [request] = callsFor(fetchMock, `/${packageId}/revisions`).filter(
+      ({ method, url }) => method === "POST" && !url.endsWith("/preview-token")
+    )
+    expect(request?.headers.get("X-CSRFToken")).toBe("site-package-test")
+    const form = request?.body as FormData
+    expect(form.get("entryPath")).toBe("index.html")
+    expect(form.get("runtimeMode")).toBe("safe")
+    expect(form.get("archive")).toBeInstanceOf(File)
+  })
+
+  it("blocks an oversized archive and reports a server validation failure", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+      const request = requestDetails(args)
+      if (request.method === "GET") {
+        return Promise.resolve(jsonResponse({ packages: [] }))
+      }
+      return Promise.resolve(
+        jsonResponse({ error: "页面包包含禁止的活动内容" }, { status: 400 })
+      )
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<SitePackageManager />)
+    await screen.findByText("0 个页面包")
+    await completeNewPackageForm(user)
+    const archiveInput = screen.getByLabelText("ZIP 页面包")
+    const oversized = new File(["zip"], "too-large.zip", {
+      type: "application/zip",
+    })
+    Object.defineProperty(oversized, "size", { value: 25 * 1024 * 1024 + 1 })
+    await user.upload(archiveInput, oversized)
+    await user.click(screen.getByRole("button", { name: "创建并上传" }))
+
+    expect(await screen.findByText("页面包不能超过 25 MiB")).toBeVisible()
+    expect(
+      callsFor(fetchMock, "/api/admin/site-packages").filter(
+        ({ method }) => method === "POST"
+      )
+    ).toHaveLength(0)
+
+    await user.upload(
+      archiveInput,
+      new File(["zip"], "invalid.zip", { type: "application/zip" })
+    )
+    await user.click(screen.getByRole("button", { name: "创建并上传" }))
+    expect(await screen.findByText("页面包包含禁止的活动内容")).toBeVisible()
+  })
+
+  it("renders loading, request failure, and empty states", async () => {
+    let resolveList: ((response: Response) => void) | undefined
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveList = resolve
+          })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: "数据库暂不可用" }, { status: 503 })
+      )
+      .mockResolvedValue(jsonResponse({ packages: [] }))
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<SitePackageManager />)
+    expect(screen.getByText("正在加载页面包")).toBeVisible()
+    await waitFor(() => expect(resolveList).toBeDefined())
+    await act(async () => {
+      resolveList?.(jsonResponse({ packages: [] }))
+    })
+    expect(
+      await screen.findByText("还没有页面包。使用上方表单上传第一个版本。")
+    ).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "刷新" }))
+    expect(await screen.findByText("页面包加载失败")).toBeVisible()
+    expect(screen.getByText("数据库暂不可用")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "刷新" }))
+    expect(
+      await screen.findByText("还没有页面包。使用上方表单上传第一个版本。")
+    ).toBeVisible()
+  })
+})

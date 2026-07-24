@@ -35,6 +35,6 @@ TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/wiki/*.tes
 | `test_default_upload_limit_remains_fifty_mib`, `test_environment_paths_and_upload_limit_are_honored`, production secret/environment tests, unique image name test | Covered by shared server configuration/security tests and deterministic route-level limit/unique-key behavior; they are not Flask runtime contracts |
 
 The old symlink-specific tests cannot be migrated literally because both Node
-and Worker Wiki routes now depend on `ObjectStorage`, not a directly traversable
+and Node Wiki routes now depend on `ObjectStorage`, not a directly traversable
 host filesystem. The replacement verifies that hostile request paths are denied
 before storage and that cleanup only receives canonical logical keys.

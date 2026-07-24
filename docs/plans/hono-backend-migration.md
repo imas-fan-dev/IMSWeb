@@ -1,5 +1,8 @@
 # Hono 后端全量迁移计划
 
+> 本文保留 2026-07-21 的双运行时迁移计划作为历史记录。2026-07-24 起当前实现与验收只支持
+> Hono Node；Worker、D1、R2 和 Cloudflare Images 章节不再是待执行计划。
+
 ## 1. 目标与已确认决策
 
 - 将现有 Express 与 Flask 后端全部迁移到 TypeScript + Hono。
@@ -52,13 +55,18 @@ scripts/                          # workspace boundary、数据审计和迁移�
 tests/                            # 根部署与数据审计测试
 apps/
   api/                            # @imsweb/api
-    src/server/
+    src/
       app.ts                      # createHonoApp()，只负责路由与中间件装配
       main.ts                     # Node 兼容入口
       worker.ts                   # Cloudflare Worker 入口
-      ports/
-      adapters/node/              # SQLite、文件系统、Sharp、流式 multipart
-      adapters/cloudflare/        # D1、R2、Images、Static Assets
+      ports/*.ts                  # 业务能力、Repository 与运行时注入契约
+      infra/cache/                # filesystem、memory 适配器
+      infra/db/                   # provider、共享 Repository 与内部 SQL Driver 契约
+      infra/http/                 # busboy、filesystem 等适配器
+      infra/media/                # sharp 适配器
+      infra/oss/                  # filesystem、s3 对象存储适配器
+      infra/security/             # bcrypt、hmac 适配器
+      runtime/                    # 唯一组合根，选择具体中间件
   legacy/                         # @imsweb/legacy
     public/                       # 原站浏览器资源与本地兼容数据
     database/                     # Express 本地 SQLite
@@ -82,7 +90,8 @@ apps/
 Legacy 的 Gunicorn/uWSGI 配置只接受 package-local 路径和环境变量，不保留历史
 `/idolweb/...` 或日志目录硬编码；它们仍不进入根 Compose 或生产进程配置。
 
-业务域只能依赖 `ports/` 中的接口，不得直接导入 Express、Flask、`sqlite3`、`fs`、
+业务域只能依赖 `ports/` 中的接口，不得导入任何 `infra/` 路径或直接导入
+Express、Flask、`sqlite3`、`fs`、
 Sharp、Multer、Pillow 或 Node 环境变量。
 
 ## 4. Hono 应用和兼容约束

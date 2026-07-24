@@ -1,0 +1,75 @@
+import type { Env, Handler } from 'hono';
+import {
+    authorizeWikiWrite,
+    cleanupWikiObjectPrefix,
+    findWikiMutationTarget,
+    parseWikiUpload,
+    wikiErrorBody,
+    wikiJson,
+    wikiStatusOf,
+    type WikiServicesResolver
+} from '@/domains/wiki/handler-support';
+import {
+    categoryFolder,
+    requireWikiServices,
+    storyObjectKey
+} from '@/domains/wiki/service';
+
+export function createHandleDeleteWikiCategory<E extends Env>(
+    resolveServices: WikiServicesResolver<E>
+): Handler<E> {
+    return async (context) => {
+        const services = await resolveServices(context);
+        const unauthorized = await authorizeWikiWrite(context, services);
+        if (unauthorized) return unauthorized;
+        requireWikiServices(services, ['story', 'storage', 'uploads']);
+        try {
+            const { fields } = await parseWikiUpload(context.req.raw, services);
+            const target = await findWikiMutationTarget(
+                services,
+                (fields.agency ?? '').trim(),
+                (fields.idol ?? '').trim()
+            );
+            if ('error' in target) return target.error;
+            const category = (fields.category_name ?? '').trim();
+            const images = await services.story!.listCategoryImages(
+                target.agency.code,
+                target.idol.id,
+                category
+            );
+            await services.story!.deleteCategory(
+                target.agency.code,
+                target.idol.id,
+                category
+            );
+            const keys = images.flatMap(({ image_file: imageFile }) => {
+                if (!imageFile) return [];
+                try {
+                    return [storyObjectKey(
+                        target.agency.code,
+                        target.idol.folderName,
+                        imageFile
+                    )];
+                } catch {
+                    return [];
+                }
+            });
+            const prefix = storyObjectKey(
+                target.agency.code,
+                target.idol.folderName,
+                `${categoryFolder(category)}/placeholder`
+            );
+            await cleanupWikiObjectPrefix(
+                services,
+                prefix.slice(0, prefix.lastIndexOf('/')),
+                keys
+            );
+            return wikiJson({ status: 'success' });
+        } catch (error) {
+            if (wikiStatusOf(error) === 413) {
+                return wikiJson(wikiErrorBody('上传文件超过大小限制'), 413);
+            }
+            return wikiJson(wikiErrorBody('删除分类失败'), 500);
+        }
+    };
+}

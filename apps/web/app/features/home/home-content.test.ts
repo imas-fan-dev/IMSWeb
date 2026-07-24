@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import {
   friendLinks,
-  legacyHighlights,
   portalItems,
   seriesItems,
   supportLinks,
@@ -44,16 +43,7 @@ describe("legacy home content migration", () => {
     expect(friendLinks[5]?.href).toContain("space.bilibili.com/41356186")
   })
 
-  it("imports the original activity spotlights and support entries", () => {
-    expect(legacyHighlights).toHaveLength(6)
-    expect(legacyHighlights.map((item) => item.title)).toEqual([
-      "篠泽广研讨会",
-      "广州偶像大师 ONLY",
-      "IFE02",
-      "成都偶像大师 ONLY",
-      "杭州偶像大师 ONLY",
-      "湖南偶像大师 ONLY",
-    ])
+  it("keeps site-support entries as static site configuration", () => {
     expect(supportLinks).toHaveLength(3)
   })
 })

@@ -3,8 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { FilesystemCompensationService } from '@/adapters/node/filesystem-compensation-service';
-import { FilesystemObjectStorage } from '@/adapters/node/filesystem-object-storage';
+import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
+import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { createWikiFixture, formFields, postForm } from './fixture';
 

@@ -10,6 +10,7 @@ describe("buildInformationHtmlDocument", () => {
     )
 
     expect(document).toContain("default-src 'none'")
+    expect(document).toContain("img-src 'self' https: http: data: blob:")
     expect(document).toContain("form-action 'none'")
     expect(document).toContain("&lt;Activity&gt;")
     expect(document).toContain("<h2>正文</h2>")

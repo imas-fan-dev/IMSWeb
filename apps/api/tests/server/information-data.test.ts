@@ -7,11 +7,9 @@ import {
     serializeInformationIndex
 } from '@/domains/information/data';
 
-test('information index keeps legacy cards manageable and strips HTML from summaries', () => {
+test('information index defaults empty and strips HTML from public summaries', () => {
     const index = defaultInformationIndex();
-    assert.equal(index.cards.length, 6);
-    assert.equal(index.cards[0]?.category, 'activity');
-    assert.equal(index.cards[0]?.contentType, 'external');
+    assert.deepEqual(index, { version: 1, cards: [], assets: [] });
 
     const htmlIndex = {
         version: 1 as const,

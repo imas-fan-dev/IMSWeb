@@ -54,6 +54,10 @@
   --color-franchise-sidem: var(--franchise-sidem);
   --color-franchise-sc: var(--franchise-sc);
   --color-franchise-gk: var(--franchise-gk);
+  --color-admin-ink: var(--admin-ink);
+  --color-admin-ink-foreground: var(--admin-ink-foreground);
+  --color-admin-ink-muted: var(--admin-ink-muted);
+  --color-admin-ink-subtle: var(--admin-ink-subtle);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -98,6 +102,10 @@
   --franchise-sidem: oklch(0.65 0.15 148);
   --franchise-sc: oklch(0.68 0.14 303);
   --franchise-gk: oklch(0.64 0.19 35);
+  --admin-ink: oklch(0.17 0.012 270);
+  --admin-ink-foreground: oklch(0.97 0.004 260);
+  --admin-ink-muted: oklch(0.25 0.015 270);
+  --admin-ink-subtle: oklch(0.72 0.018 260);
   --chart-1: var(--franchise-765);
   --chart-2: var(--franchise-cg);
   --chart-3: var(--franchise-ml);
@@ -143,6 +151,10 @@
   --info-foreground: oklch(0.92 0.04 225);
   --pending: oklch(0.75 0.11 300);
   --pending-foreground: oklch(0.92 0.04 300);
+  --admin-ink: oklch(0.13 0.01 270);
+  --admin-ink-foreground: oklch(0.97 0.004 260);
+  --admin-ink-muted: oklch(0.22 0.014 270);
+  --admin-ink-subtle: oklch(0.72 0.018 260);
   --sidebar: oklch(0.19 0.01 270);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);

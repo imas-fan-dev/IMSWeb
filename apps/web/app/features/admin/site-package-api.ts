@@ -1,0 +1,155 @@
+import { z } from "zod"
+
+import { apiClient, withCsrf } from "~/shared/api"
+
+const sitePackageRuntimeModeSchema = z.enum(["safe", "isolated-script"])
+const sitePackageRevisionStateSchema = z.enum(["ready", "archived"])
+
+export const sitePackageRevisionSchema = z.object({
+  id: z.string().uuid(),
+  packageId: z.string().uuid(),
+  revisionNumber: z.coerce.number().int().positive(),
+  entryPath: z.string(),
+  runtimeMode: sitePackageRuntimeModeSchema,
+  state: sitePackageRevisionStateSchema,
+  fileCount: z.coerce.number().int().nonnegative(),
+  totalBytes: z.coerce.number().int().nonnegative(),
+  sourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  createdBy: z.coerce.number().int().positive(),
+  createdAt: z.coerce.number().int().nonnegative(),
+  publishedAt: z.coerce.number().int().nonnegative().nullable(),
+})
+
+export const sitePackageSchema = z.object({
+  id: z.string().uuid(),
+  slug: z.string(),
+  title: z.string(),
+  description: z.string(),
+  publishedRevisionId: z.string().uuid().nullable(),
+  createdBy: z.coerce.number().int().positive(),
+  updatedBy: z.coerce.number().int().positive(),
+  createdAt: z.coerce.number().int().nonnegative(),
+  updatedAt: z.coerce.number().int().nonnegative(),
+  contentOrigin: z.string().url(),
+  revisions: z.array(sitePackageRevisionSchema),
+})
+
+const sitePackageListSchema = z.object({
+  packages: z.array(sitePackageSchema),
+})
+
+const uploadResultSchema = z.object({
+  success: z.literal(true),
+  packageId: z.string().uuid().optional(),
+  revisionId: z.string().uuid().optional(),
+  revision: sitePackageRevisionSchema.optional(),
+  previewUrl: z.string().url(),
+  warnings: z.array(z.string()).default([]),
+  hasScripts: z.boolean(),
+})
+
+const publishResultSchema = z.object({
+  success: z.literal(true),
+  packageId: z.string().uuid(),
+  revisionId: z.string().uuid(),
+  publishedAt: z.coerce.number().int().nonnegative(),
+})
+
+const previewResultSchema = z.object({
+  success: z.literal(true),
+  packageId: z.string().uuid(),
+  revisionId: z.string().uuid(),
+  previewUrl: z.string().url(),
+})
+
+export type SitePackageRuntimeMode = z.infer<
+  typeof sitePackageRuntimeModeSchema
+>
+export type SitePackageRevision = z.infer<typeof sitePackageRevisionSchema>
+export type SitePackage = z.infer<typeof sitePackageSchema>
+export type SitePackageUploadResult = z.infer<typeof uploadResultSchema>
+
+export type SitePackageUpload = {
+  archive: File
+  entryPath: string
+  runtimeMode: SitePackageRuntimeMode
+}
+
+export type NewSitePackageUpload = SitePackageUpload & {
+  slug: string
+  title: string
+  description: string
+}
+
+function appendUploadFields(form: FormData, upload: SitePackageUpload) {
+  form.append("entryPath", upload.entryPath)
+  form.append("runtimeMode", upload.runtimeMode)
+  form.append("archive", upload.archive)
+}
+
+export function getSitePackages() {
+  return apiClient.Get<z.infer<typeof sitePackageListSchema>, unknown>(
+    "/api/admin/site-packages",
+    { transform: (payload) => sitePackageListSchema.parse(payload) }
+  )
+}
+
+export function createSitePackage(upload: NewSitePackageUpload) {
+  const form = new FormData()
+  form.append("slug", upload.slug)
+  form.append("title", upload.title)
+  form.append("description", upload.description)
+  appendUploadFields(form, upload)
+  return apiClient.Post<SitePackageUploadResult, unknown>(
+    "/api/admin/site-packages",
+    form,
+    {
+      meta: withCsrf(),
+      transform: (payload) => uploadResultSchema.parse(payload),
+    }
+  )
+}
+
+export function createSitePackageRevision(
+  packageId: string,
+  upload: SitePackageUpload
+) {
+  const form = new FormData()
+  appendUploadFields(form, upload)
+  return apiClient.Post<SitePackageUploadResult, unknown>(
+    `/api/admin/site-packages/${encodeURIComponent(packageId)}/revisions`,
+    form,
+    {
+      meta: withCsrf(),
+      transform: (payload) => uploadResultSchema.parse(payload),
+    }
+  )
+}
+
+export function publishSitePackageRevision(
+  packageId: string,
+  revisionId: string
+) {
+  return apiClient.Post<z.infer<typeof publishResultSchema>, unknown>(
+    `/api/admin/site-packages/${encodeURIComponent(packageId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
+    undefined,
+    {
+      meta: withCsrf(),
+      transform: (payload) => publishResultSchema.parse(payload),
+    }
+  )
+}
+
+export function rotateSitePackagePreviewToken(
+  packageId: string,
+  revisionId: string
+) {
+  return apiClient.Post<z.infer<typeof previewResultSchema>, unknown>(
+    `/api/admin/site-packages/${encodeURIComponent(packageId)}/revisions/${encodeURIComponent(revisionId)}/preview-token`,
+    undefined,
+    {
+      meta: withCsrf(),
+      transform: (payload) => previewResultSchema.parse(payload),
+    }
+  )
+}

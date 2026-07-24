@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { test } from 'node:test';
-import { StreamingUploadParser } from '@/adapters/node/streaming-upload-parser';
-import { StandardUploadParser } from '@/adapters/shared/standard-upload-parser';
-import type { ImageInfo, ImageProcessor } from '@/ports/image-processor';
-import type { UploadParser } from '@/ports/upload-parser';
-import { validateUploadedImage } from '@/shared/image-upload';
-import { md5Hex } from '@/shared/md5';
+import sharp from 'sharp';
+import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
+import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
+import type { ImageInfo, ImageProcessor } from '@/ports/media';
+import type { UploadParser } from '@/ports/http';
+import { validateUploadedImage } from '@/utils/media/image-upload';
+import { md5Hex } from '@/utils/crypto/md5';
 
 class FixtureImages implements ImageProcessor {
     constructor(private readonly format = 'png', private readonly broken = false) {}
@@ -32,8 +33,7 @@ async function materializedMultipartRequest(form: FormData): Promise<Request> {
 }
 
 for (const [name, parser] of [
-    ['Node streaming', new StreamingUploadParser()],
-    ['Worker standard', new StandardUploadParser()]
+    ['Node streaming', new StreamingUploadParser()]
 ] as const) {
     test(`${name} multipart parser counts unknown files and enforces part limits without Content-Length`, async () => {
         const form = new FormData();
@@ -101,6 +101,40 @@ test('shared image upload contract rejects extension, MIME, decoded format, and 
     assert.equal((await validateUploadedImage(
         { filename: 'payload.jfif', contentType: 'image/pjpeg', body }, new FixtureImages('jpeg')
     )).format, 'jpeg');
+});
+
+test('Sharp image processor validates and converts real image bytes with stable dimensions', async () => {
+    const processor = new SharpImageProcessor();
+    const source = await sharp({
+        create: {
+            width: 8,
+            height: 4,
+            channels: 3,
+            background: { r: 120, g: 40, b: 200 }
+        }
+    }).png().toBuffer();
+
+    assert.deepEqual(await processor.validate(source, 'image/png'), {
+        format: 'png',
+        width: 8,
+        height: 4,
+        contentType: 'image/png'
+    });
+    await assert.rejects(processor.validate(source, 'image/jpeg'), /图片类型与内容不匹配/);
+    await assert.rejects(processor.validate(Uint8Array.of(1, 2, 3)), /unsupported image format|Input buffer/);
+
+    const webp = await sharp(await processor.toWebp(source, 82)).metadata();
+    assert.deepEqual({ format: webp.format, width: webp.width, height: webp.height }, {
+        format: 'webp', width: 8, height: 4
+    });
+    const thumbnail = await sharp(await processor.thumbnailPng(source, 3, 3)).metadata();
+    assert.deepEqual({ format: thumbnail.format, width: thumbnail.width, height: thumbnail.height }, {
+        format: 'png', width: 3, height: 3
+    });
+    const jpeg = await sharp(await processor.resizeJpeg(source, 20, 20)).metadata();
+    assert.deepEqual({ format: jpeg.format, width: jpeg.width, height: jpeg.height }, {
+        format: 'jpeg', width: 8, height: 4
+    });
 });
 
 test('shared MD5 implementation matches RFC vectors and legacy Node hashes', () => {

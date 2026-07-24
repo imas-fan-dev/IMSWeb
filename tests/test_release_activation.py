@@ -105,7 +105,7 @@ snapshots:
     write_file(staging, "apps/api/dist/server/main.js", MAIN_MODULE)
     write_file(
         staging,
-        "apps/api/dist/server/adapters/node/node-static-assets.js",
+        "apps/api/dist/server/infra/http/filesystem/static-assets.js",
         STATIC_MODULE,
     )
     client = "<!doctype html><title>release probe</title>\n"
@@ -117,25 +117,6 @@ snapshots:
     allowlist = json.dumps({"version": 1, "files": allowlist_files}, indent=2) + "\n"
     write_file(staging, "apps/api/scripts/build/client-allowlist.json", allowlist)
     write_file(staging, "apps/api/dist/client-allowlist.json", allowlist)
-    write_file(
-        staging,
-        "apps/api/dist/client-r2-assets.json",
-        json.dumps({
-            "generatedAt": "2026-07-21T00:00:00.000Z",
-            "assets": [
-                {
-                    "url": "/runninggame/Build/webgame.data",
-                    "logicalKey": "unity/runninggame/Build/webgame.data",
-                    "bytes": 10,
-                },
-                {
-                    "url": "/runninggame/BuildMobile/webgame.data",
-                    "logicalKey": "unity/runninggame/BuildMobile/webgame.data",
-                    "bytes": 20,
-                },
-            ],
-        }, indent=2) + "\n",
-    )
     for relative in allowlist_files:
         source = staging / "apps/api/dist/client" / relative
         write_file(staging, f"apps/api/dist/node-client/{relative}", source.read_text(encoding="utf-8"))
@@ -178,8 +159,7 @@ def deployment_environment(root: Path, releases: Path, current: Path) -> dict[st
     shared = root / "shared"
     for directory in ("compensation", "uploads", "Data", "events"):
         (shared / directory).mkdir(parents=True, exist_ok=True)
-    for database in ("core.db", "story.db"):
-        (shared / database).write_bytes(b"database fixture")
+    (shared / "imsweb.db").write_bytes(b"database fixture")
     environment = os.environ.copy()
     environment.update(
         {
@@ -188,10 +168,9 @@ def deployment_environment(root: Path, releases: Path, current: Path) -> dict[st
             "IMS_CURRENT_LINK": str(current),
             "IMS_PROJECT_ROOT": str(current),
             "IMS_PUBLIC_DIR": str(current / "apps/api/dist/node-client"),
-            "IMS_DB_PATH": str(shared / "core.db"),
+            "IMS_SQLITE_PATH": str(shared / "imsweb.db"),
             "IMS_COMPENSATION_DIR": str(shared / "compensation"),
             "IMS_UPLOADS_DIR": str(shared / "uploads"),
-            "IMS_STORY_DB_PATH": str(shared / "story.db"),
             "IMS_STORY_DATA_DIR": str(shared / "Data"),
             "IMS_EVENT_BASE_DIR": str(shared / "events"),
         }
@@ -392,22 +371,6 @@ class ReleaseActivationTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("IMS_COMPENSATION_DIR and IMS_UPLOADS_DIR must be disjoint", result.stderr)
-        self.assertTrue(staging.is_dir())
-
-    def test_mutable_database_paths_cannot_share_an_inode(self):
-        staging = self.stage("hard-linked-databases")
-        core_database = Path(self.environment["IMS_DB_PATH"])
-        story_database = Path(self.environment["IMS_STORY_DB_PATH"])
-        story_database.unlink()
-        os.link(core_database, story_database)
-
-        result = run_activation(staging, "hard-linked-databases", self.environment)
-
-        self.assertEqual(result.returncode, 1)
-        self.assertIn(
-            "IMS_DB_PATH and IMS_STORY_DB_PATH must be disjoint and cannot identify the same filesystem object",
-            result.stderr,
-        )
         self.assertTrue(staging.is_dir())
 
     def test_mutable_path_under_current_or_through_symlink_is_rejected(self):
