@@ -9,7 +9,7 @@
     "build:client": "node scripts/build/build-client.js",
     "build": "pnpm run build:server",
     "typecheck:server": "node node_modules/typescript/bin/tsc -p tsconfig.server.json --noEmit",
-    "dev:node": "tsx watch src/main.ts",
+    "dev:node": "tsx watch --include .env src/main.ts",
     "start": "node dist/server/main.js",
     "start:node": "node dist/server/main.js",
     "ops:account:add": "node scripts/operations/accounts/add-user.js",

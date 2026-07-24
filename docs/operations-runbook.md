@@ -50,8 +50,10 @@ pnpm-lock.yaml
 
 ## 3. 生产环境变量
 
-应用不会自动读取 `.env`。实际值由 systemd、Supervisor、PM2 或密钥管理服务注入；应用
-模板见 `apps/api/.env.example`。`deploy/.env.example` 只服务本地数据依赖，不是正式部署模板。
+API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 systemd、Supervisor、PM2
+或密钥管理服务已经注入的变量优先。生产仍建议由进程管理器或密钥服务注入，并确保任何部署侧
+`.env` 仅允许运行用户读取且不进入发布制品或版本控制。模板见 `apps/api/.env.example`；
+`deploy/.env.example` 只服务本地数据依赖，不是正式部署模板。
 
 | 变量 | 用途 | 要求 |
 | --- | --- | --- |

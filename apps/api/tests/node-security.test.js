@@ -21,6 +21,7 @@ const {
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const SERVER_ENTRY = path.join(PROJECT_ROOT, 'dist/server/main.js');
 const LEGACY_SERVER_ENTRY = path.join(PROJECT_ROOT, 'js/server.js');
+process.env.IMS_ENV_FILE = '';
 let NAMECARD_DIR;
 let EVENT_DIR;
 const TEST_FILE_PREFIX = `security-${process.pid}-${Date.now()}`;

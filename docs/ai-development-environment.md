@@ -30,30 +30,29 @@ pnpm install --frozen-lockfile
 
 ## 3. 配置本地数据
 
-应用不会自动读取 `.env`。模板按所有者分别位于 `apps/api/.env.example`、
-`apps/web/.env.example` 和 `deploy/.env.example`；在启动
-进程的 shell 中显式设置开发变量：
+配置模板按所有者分别位于 `apps/api/.env.example`、`apps/web/.env.example` 和
+`deploy/.env.example`。API 启动时自动读取 `apps/api/.env`，已有 shell 或进程管理器变量
+优先。创建被 Git 忽略的 `apps/api/.env` 并填写开发变量：
 
-```sh
-export NODE_ENV=development
-export IMS_PROJECT_ROOT="$PWD"
-export IMS_JWT_SECRET='local-development-only-change-me'
-export IMS_DATABASE=postgresql
-export DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb'
-export IMS_OBJECT_STORAGE=s3
-export IMS_S3_BUCKET=imsweb-test
-export IMS_S3_REGION=us-east-1
-export IMS_S3_ENDPOINT=http://127.0.0.1:9000
-export IMS_S3_FORCE_PATH_STYLE=true
-export IMS_S3_PREFIX=local
-export IMS_S3_READ_URL_TTL_SECONDS=300
-export AWS_ACCESS_KEY_ID=imsweb-local
-export AWS_SECRET_ACCESS_KEY=imsweb-local-password
-export IMS_COMPENSATION_DIR="$PWD/data/core/compensation"
-export IMS_IDEMPOTENCY_DIR="$PWD/data/core/idempotency"
-export IMS_UPLOADS_DIR="$PWD/data/uploads"
-export IMS_EVENT_BASE_DIR="$PWD/data/chronicle"
-export IMS_STORY_DATA_DIR="$PWD/data/story/images"
+```dotenv
+NODE_ENV=development
+IMS_JWT_SECRET=local-development-only-change-me
+IMS_DATABASE=postgresql
+DATABASE_URL=postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb
+IMS_OBJECT_STORAGE=s3
+IMS_S3_BUCKET=imsweb-test
+IMS_S3_REGION=us-east-1
+IMS_S3_ENDPOINT=http://127.0.0.1:9000
+IMS_S3_FORCE_PATH_STYLE=true
+IMS_S3_PREFIX=local
+IMS_S3_READ_URL_TTL_SECONDS=300
+AWS_ACCESS_KEY_ID=imsweb-local
+AWS_SECRET_ACCESS_KEY=imsweb-local-password
+IMS_COMPENSATION_DIR=data/core/compensation
+IMS_IDEMPOTENCY_DIR=data/core/idempotency
+IMS_UPLOADS_DIR=data/uploads
+IMS_EVENT_BASE_DIR=data/chronicle
+IMS_STORY_DATA_DIR=data/story/images
 ```
 
 本地运行统一使用 PostgreSQL 与 S3 兼容的 MinIO，不再把 SQLite 或文件系统作为隐式默认值。
@@ -98,7 +97,8 @@ pnpm run media:information:sync -- --apply
 lsof -nP -iTCP:3000 -sTCP:LISTEN
 ```
 
-终端一在上述 MinIO 环境变量所在的 shell 中启动 Hono Node：
+终端一启动 Hono Node。该命令使用 `tsx watch`，修改 API 导入的 TypeScript 源码或
+`apps/api/.env` 都会自动重启进程：
 
 ```sh
 pnpm run dev:node

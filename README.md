@@ -44,45 +44,31 @@ pnpm run check
 pnpm run test
 ```
 
-### 启动 API 与 Web
+### 启动 API
 
-启动本地 PostgreSQL 与 MinIO：
+先按 [`apps/api/.env.example`](apps/api/.env.example) 创建 `apps/api/.env`，再从仓库根目录运行：
 
 ```sh
 pnpm run dev:postgresql:up
 pnpm run dev:minio:up
-
-export IMS_DATABASE=postgresql
-export DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb'
-export IMS_OBJECT_STORAGE=s3
-export IMS_S3_BUCKET=imsweb-test
-export IMS_S3_REGION=us-east-1
-export IMS_S3_ENDPOINT=http://127.0.0.1:9000
-export IMS_S3_FORCE_PATH_STYLE=true
-export IMS_S3_PREFIX=local
-export AWS_ACCESS_KEY_ID=imsweb-local
-export AWS_SECRET_ACCESS_KEY=imsweb-local-password
-export IMS_JWT_SECRET='local-development-only-change-me'
-
-pnpm run migration:postgresql
+pnpm run migration:postgresql # 首次启动或 schema 更新时运行
 pnpm run dev:node
 ```
 
-在另一个终端启动 Web：
+API 默认地址为 `http://127.0.0.1:3000`。`dev:node` 会在源码或 `apps/api/.env` 变化时
+自动重启；环境变量说明见 [AI 开发环境指南](docs/ai-development-environment.md)。
+
+另一个终端可启动 Web：
 
 ```sh
 IMS_API_ORIGIN=http://127.0.0.1:3000 pnpm run dev:web
 ```
 
-Hono 默认监听 `http://127.0.0.1:3000`，Web 地址以 Vite 输出为准。应用不会自动加载
-`.env`；完整本地配置见 [AI 开发环境指南](docs/ai-development-environment.md)和
-[数据库配置](docs/database-configuration.md)。
-
 ## 常用命令
 
 | 命令 | 作用 |
 | --- | --- |
-| `pnpm run dev:node` | 监听并启动 Hono Node API |
+| `pnpm run dev:node` | 热重载启动 Hono Node API（源码和 `apps/api/.env`） |
 | `pnpm run dev:web` | 启动 React Router 开发服务器 |
 | `pnpm run build` | 构建 Web、API 和可发布客户端 |
 | `pnpm run check` | 运行边界、静态、架构、测试和资产检查 |

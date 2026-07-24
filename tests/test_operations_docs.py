@@ -30,7 +30,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "migration:sqlite:merge",
             "--allow-foreign-key-violations",
             "Hono Node",
-            "不会自动读取",
+            "自动读取 `apps/api/.env`",
             "PRAGMA quick_check",
             "-wal",
             "-shm",
@@ -47,9 +47,10 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "pnpm install --frozen-lockfile",
             "IMS_DATABASE=postgresql",
-            "DATABASE_URL='postgresql://imsweb:",
+            "DATABASE_URL=postgresql://imsweb:",
             "IMS_OBJECT_STORAGE=s3",
             "IMS_S3_BUCKET=imsweb-test",
+            "自动读取 `apps/api/.env`",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:minio:up",
             "pnpm run dev:node",
@@ -65,6 +66,14 @@ class OperationsDocumentationTests(unittest.TestCase):
                 "docs/ai-development-environment.md",
                 document.read_text(encoding="utf-8"),
             )
+
+    def test_api_development_command_hot_reloads_source_and_environment(self):
+        package = json.loads(
+            (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
+        )
+        command = package["scripts"]["dev:node"]
+        self.assertIn("tsx watch", command)
+        self.assertIn("--include .env", command)
 
     def test_environment_templates_are_owned_by_runtime_surfaces(self):
         self.assertFalse((PROJECT_ROOT / ".env.example").exists())

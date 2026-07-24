@@ -1,3 +1,4 @@
+import '@/config/load-environment';
 import { createServer, type RequestListener, type Server } from 'node:http';
 import { getRequestListener } from '@hono/node-server';
 import { createHonoApp } from '@/app';

@@ -10,6 +10,10 @@ const { test } = require('node:test');
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const REPOSITORY_ROOT = path.resolve(PROJECT_ROOT, '../..');
 const SERVER_ENTRY = path.join(PROJECT_ROOT, 'dist/server/main.js');
+const ENVIRONMENT_LOADER_ENTRY = path.join(
+    PROJECT_ROOT,
+    'dist/server/config/load-environment.js'
+);
 const LEGACY_SERVER_ENTRY = path.join(PROJECT_ROOT, 'js/server.js');
 const EXPECTED_SECURITY_HEADERS = {
     'cross-origin-opener-policy': 'same-origin',
@@ -42,6 +46,7 @@ function isolatedEnvironment(root) {
     return {
         ...process.env,
         NODE_ENV: 'test',
+        IMS_ENV_FILE: '',
         IMS_JWT_SECRET: 'hono-contract-test-secret-at-least-32-bytes',
         IMS_DATABASE: 'sqlite',
         IMS_SQLITE_PATH: path.join(root, 'imsweb.db'),
@@ -65,6 +70,54 @@ function runIsolated(script, options = {}) {
         fs.rmSync(temporaryRoot, { recursive: true, force: true });
     }
 }
+
+test('[RUN-01] compiled startup loads the API-owned .env without overriding process env', () => {
+    const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-api-env-'));
+    const apiRoot = path.join(temporaryRoot, 'apps/api');
+    const loaderEntry = path.join(apiRoot, 'dist/server/config/load-environment.js');
+    try {
+        fs.mkdirSync(path.dirname(loaderEntry), { recursive: true });
+        fs.writeFileSync(
+            path.join(apiRoot, 'package.json'),
+            JSON.stringify({ name: '@imsweb/api' })
+        );
+        fs.writeFileSync(
+            path.join(apiRoot, '.env'),
+            'IMS_ENV_FILE_ONLY=from-file\nIMS_ENV_PRIORITY=from-file\n'
+        );
+        fs.copyFileSync(ENVIRONMENT_LOADER_ENTRY, loaderEntry);
+
+        const environment = {
+            ...process.env,
+            IMS_ENV_PRIORITY: 'from-process'
+        };
+        delete environment.IMS_ENV_FILE_ONLY;
+        const result = spawnSync(
+            process.execPath,
+            [
+                '-e',
+                `require(${JSON.stringify(loaderEntry)});` +
+                    'process.stdout.write(JSON.stringify({' +
+                    'fileOnly: process.env.IMS_ENV_FILE_ONLY,' +
+                    'priority: process.env.IMS_ENV_PRIORITY' +
+                    '}));'
+            ],
+            {
+                cwd: temporaryRoot,
+                env: environment,
+                encoding: 'utf8'
+            }
+        );
+
+        assert.equal(result.status, 0, result.stderr || result.error?.message);
+        assert.deepEqual(JSON.parse(result.stdout), {
+            fileOnly: 'from-file',
+            priority: 'from-process'
+        });
+    } finally {
+        fs.rmSync(temporaryRoot, { recursive: true, force: true });
+    }
+});
 
 test('[ARC-01] default Web assets and mutable data use separate roots', () => {
     const pathsEntry = path.join(PROJECT_ROOT, 'dist/server/config/paths.js');
