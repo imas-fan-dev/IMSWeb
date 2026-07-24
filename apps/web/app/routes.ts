@@ -14,9 +14,13 @@ export default [
     route("live", "routes/live.tsx"),
     route("community", "routes/community.tsx"),
     route("works", "routes/works.tsx"),
+    route("wiki", "routes/wiki.tsx"),
+    route("story", "routes/story.tsx"),
     route("information/:contentId", "routes/information-content.tsx"),
     route("chronicle/:activityId", "routes/chronicle-activity.tsx"),
   ]),
+  route("wiki/classic", "routes/wiki-classic.tsx"),
+  route("story/classic", "routes/story-classic.tsx"),
   route("admin/login", "routes/admin-login.tsx"),
   route("admin", "routes/admin-layout.tsx", [
     index("routes/admin-index.tsx"),

@@ -206,6 +206,71 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("apps/web/.git", result.stderr)
 
+    def test_web_features_directory_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            feature = root / "apps/web/app/features/home/home-page.tsx"
+            feature.parent.mkdir(parents=True)
+            feature.write_text("export default function Home() {}\n", encoding="utf-8")
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("app/features", result.stderr)
+        self.assertIn("app/pages route hierarchy", result.stderr)
+
+    def test_web_page_cannot_construct_api_request(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            page = root / "apps/web/app/pages/home/home-page.tsx"
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                'export const loadHome = () => fetch("/api/news")\n',
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("apps/web/app/pages/home/home-page.tsx", result.stderr)
+        self.assertIn("requests must be defined in app/shared/api", result.stderr)
+
+    def test_web_page_cannot_own_api_module(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            page_api = root / "apps/web/app/pages/home/api.ts"
+            page_api.parent.mkdir(parents=True)
+            page_api.write_text(
+                'export { getHomeNews } from "~/shared/api"\n',
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("apps/web/app/pages/home/api.ts", result.stderr)
+        self.assertIn("page-local API modules are forbidden", result.stderr)
+
+    def test_web_source_tests_must_use_central_unit_hierarchy(self):
+        for relative_path in [
+            "apps/web/app/pages/home/home-page.test.tsx",
+            "apps/web/app/components/shared/site-header.test.tsx",
+            "apps/web/app/i18n/language.test.ts",
+            "apps/web/app/shared/api/api.test.ts",
+        ]:
+            with self.subTest(relative_path=relative_path):
+                with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+                    root = Path(temporary)
+                    self.make_fixture(root)
+                    source_test = root / relative_path
+                    source_test.parent.mkdir(parents=True)
+                    source_test.write_text("export {}\n", encoding="utf-8")
+                    result = self.run_fixture(root)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(relative_path, result.stderr)
+                self.assertIn("tests/unit", result.stderr)
+
     def test_python_is_rejected_from_api_source(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)

@@ -46,7 +46,8 @@ export const CHRONICLE_UPLOAD_DIR = path.join(EVENT_BASE, 'upload');
 export const CHRONICLE_USED_DIR = path.join(EVENT_BASE, 'used');
 export const CHRONICLE_META_DIR = path.join(EVENT_BASE, 'meta');
 export const CHRONICLE_IDEMPOTENCY_DIR = path.join(EVENT_BASE, '.idempotency');
-const DEFAULT_IDEMPOTENCY_DIR = process.env.IMS_OBJECT_STORAGE?.trim().toLowerCase() === 's3'
+const OBJECT_STORAGE_TYPE = process.env.IMS_OBJECT_STORAGE?.trim().toLowerCase() || 's3';
+const DEFAULT_IDEMPOTENCY_DIR = OBJECT_STORAGE_TYPE === 's3'
     ? path.join(COMPENSATION_DIR, 'idempotency')
     : CHRONICLE_IDEMPOTENCY_DIR;
 export const IDEMPOTENCY_DIR = configuredPath(

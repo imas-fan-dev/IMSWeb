@@ -38,27 +38,8 @@ pnpm install --frozen-lockfile
 export NODE_ENV=development
 export IMS_PROJECT_ROOT="$PWD"
 export IMS_JWT_SECRET='local-development-only-change-me'
-export IMS_DATABASE=sqlite
-export IMS_SQLITE_PATH="$PWD/data/imsweb.db"
-export IMS_COMPENSATION_DIR="$PWD/data/core/compensation"
-export IMS_UPLOADS_DIR="$PWD/data/uploads"
-export IMS_EVENT_BASE_DIR="$PWD/data/chronicle"
-export IMS_STORY_DATA_DIR="$PWD/data/story/images"
-
-test -f "$IMS_SQLITE_PATH"
-sqlite3 "$IMS_SQLITE_PATH" 'PRAGMA quick_check;'
-```
-
-统一库不存在时，先阅读[数据库配置](database-configuration.md)，再执行一次
-`pnpm run migration:sqlite:merge`。合并命令不会覆盖已有目标。
-
-本地联调可变图片时统一使用 S3 兼容的 MinIO，不再使用文件系统模拟 OSS。先启动并自动创建
-`imsweb-test` bucket：
-
-```sh
-pnpm run dev:minio:up
-docker compose -f deploy/compose.yaml ps minio minio-init
-
+export IMS_DATABASE=postgresql
+export DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb'
 export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-test
 export IMS_S3_REGION=us-east-1
@@ -68,6 +49,20 @@ export IMS_S3_PREFIX=local
 export IMS_S3_READ_URL_TTL_SECONDS=300
 export AWS_ACCESS_KEY_ID=imsweb-local
 export AWS_SECRET_ACCESS_KEY=imsweb-local-password
+export IMS_COMPENSATION_DIR="$PWD/data/core/compensation"
+export IMS_IDEMPOTENCY_DIR="$PWD/data/core/idempotency"
+export IMS_UPLOADS_DIR="$PWD/data/uploads"
+export IMS_EVENT_BASE_DIR="$PWD/data/chronicle"
+export IMS_STORY_DATA_DIR="$PWD/data/story/images"
+```
+
+本地运行统一使用 PostgreSQL 与 S3 兼容的 MinIO，不再把 SQLite 或文件系统作为隐式默认值。
+先启动数据库、对象存储并自动创建 `imsweb-test` bucket：
+
+```sh
+pnpm run dev:postgresql:up
+pnpm run dev:minio:up
+docker compose -f deploy/compose.yaml ps postgres minio minio-init
 ```
 
 MinIO S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
@@ -77,15 +72,6 @@ MinIO S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
 `data/` 被 Git 忽略，不得把数据库、上传或日志移动到 `public/`，也不得提交。
 数据库职责、PostgreSQL 选项、生产路径和完整性检查见
 [数据库配置](database-configuration.md)。
-
-需要 PostgreSQL 联调时，使用精确固定的 PostgreSQL 18.4 本地栈：
-
-```sh
-pnpm run dev:postgresql:up
-docker compose -f deploy/compose.yaml ps postgres
-export IMS_DATABASE=postgresql
-export DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb'
-```
 
 新空库用 `pnpm run migration:postgresql` 初始化。需要从统一 SQLite 首次导入时直接运行
 `pnpm run migration:postgresql:import-sqlite -- --allow-foreign-key-violations`，不要先应用

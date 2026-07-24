@@ -71,7 +71,7 @@ function parseReadUrlTtl(value: string | undefined): number {
 export function parseNodeObjectStorageConfig(
     environment: NodeJS.ProcessEnv = process.env
 ): NodeObjectStorageConfig {
-    const type = optionalValue(environment, 'IMS_OBJECT_STORAGE')?.toLowerCase() || 'filesystem';
+    const type = optionalValue(environment, 'IMS_OBJECT_STORAGE')?.toLowerCase() || 's3';
     if (type === 'filesystem') return { type };
     if (type !== 's3') {
         throw new Error('IMS_OBJECT_STORAGE must be filesystem or s3');

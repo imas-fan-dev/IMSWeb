@@ -85,8 +85,14 @@ test('early close does not poison a later Node service and concurrent close is i
     );
 });
 
-test('Node object storage configuration defaults locally and validates S3 settings', () => {
-    assert.deepEqual(parseNodeObjectStorageConfig({}), { type: 'filesystem' });
+test('Node object storage defaults to S3 and requires explicit filesystem compatibility', () => {
+    assert.throws(
+        () => parseNodeObjectStorageConfig({}),
+        /IMS_S3_BUCKET is required/
+    );
+    assert.deepEqual(parseNodeObjectStorageConfig({
+        IMS_OBJECT_STORAGE: 'filesystem'
+    }), { type: 'filesystem' });
     assert.deepEqual(parseNodeObjectStorageConfig({
         IMS_OBJECT_STORAGE: ' S3 ',
         IMS_S3_BUCKET: 'ims-media-prod',
@@ -139,9 +145,13 @@ test('Node object storage configuration defaults locally and validates S3 settin
     );
 });
 
-test('Node database configuration selects SQLite or one bounded PostgreSQL pool', () => {
+test('Node database defaults to PostgreSQL and requires explicit SQLite compatibility', () => {
     const defaults = { path: '/data/imsweb.db' };
-    assert.deepEqual(parseNodeDatabaseConfig({}, defaults), {
+    assert.throws(
+        () => parseNodeDatabaseConfig({}, defaults),
+        /DATABASE_URL is required/
+    );
+    assert.deepEqual(parseNodeDatabaseConfig({ IMS_DATABASE: 'sqlite' }, defaults), {
         type: 'sqlite',
         path: '/data/imsweb.db'
     });

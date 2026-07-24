@@ -6,6 +6,7 @@
   "scripts": {
     "build": "react-router build",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run build",
+    "design:lint": "designmd lint DESIGN.md",
     "dev": "react-router dev",
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview --host 127.0.0.1",
@@ -42,6 +43,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@google/design.md": "0.3.0",
     "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",

@@ -13,12 +13,15 @@ TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/wiki/*.tes
 
 ## Acceptance coverage
 
-- `dom.contract.test.ts`: `WIKI-01` root/Wiki split, public health/read routes,
-  nine rendered TSX templates, parse5 DOM inventory, hostile `storyData`,
-  static/image paths, GET/HEAD object responses, and random backgrounds.
+- `dom.contract.test.ts`: `WIKI-01` static/image paths, GET/HEAD object responses,
+  encoded traversal guards, public health, and random backgrounds.
+- `public-data.contract.test.ts`: anonymous agency/idol catalog reads, resolved
+  avatar media, grouped story cards, multiple sources, and parameter validation.
 - `security-crud.contract.test.ts`: Cookie-only HS256 JWT, editor/op roles,
   Wiki Header-to-claim CSRF, all six write guards, upload limits and validation,
   add/edit/delete/category CRUD, and database/object compensation order.
+- `admin-data.contract.test.ts`: protected dynamic agency/idol catalogs, selected
+  idol story reads, managed category choices, and ID-addressed link editing.
 - `bilibili.contract.test.ts`: `WIKI-02` fake fetch success/upstream failure,
   invalid input, AbortSignal, and the five-second timeout using a fake clock.
 

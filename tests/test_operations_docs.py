@@ -46,7 +46,12 @@ class OperationsDocumentationTests(unittest.TestCase):
     def test_ai_development_environment_is_executable_and_linked(self):
         for token in (
             "pnpm install --frozen-lockfile",
-            'IMS_SQLITE_PATH="$PWD/data/imsweb.db"',
+            "IMS_DATABASE=postgresql",
+            "DATABASE_URL='postgresql://imsweb:",
+            "IMS_OBJECT_STORAGE=s3",
+            "IMS_S3_BUCKET=imsweb-test",
+            "pnpm run dev:postgresql:up",
+            "pnpm run dev:minio:up",
             "pnpm run dev:node",
             "pnpm run dev:web",
             "curl --fail",
@@ -74,6 +79,9 @@ class OperationsDocumentationTests(unittest.TestCase):
             "IMS_OBJECT_STORAGE",
         ):
             self.assertIn(token, api_environment)
+        self.assertIn("IMS_DATABASE=postgresql", api_environment)
+        self.assertIn("IMS_OBJECT_STORAGE=s3", api_environment)
+        self.assertIn("DATABASE_URL=", api_environment)
         for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
             self.assertIn(token, web_environment)
         for token in ("IMS_POSTGRES_IMAGE", "IMS_MINIO_IMAGE", "IMS_MINIO_BUCKET"):

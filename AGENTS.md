@@ -5,7 +5,7 @@
 IMSWeb is a pnpm monorepo with two application workspaces:
 
 - `apps/api/`: Hono backend for Node; source is in `src/` and tests in `tests/`.
-- `apps/web/`: React Router 7 frontend; routes live in `app/routes/`, UI in `app/components/`, API helpers in `app/shared/api/`, and assets in `public/`.
+- `apps/web/`: React Router 7 frontend; route entries live in `app/routes/`, page implementations in `app/pages/`, shared UI in `app/components/`, API contracts and clients in `app/shared/api/`, and assets in `public/`.
 - `data/`: ignored local databases, uploads, and migration inputs; only `.gitignore` is tracked.
 
 Migration, deployment, and boundary tooling lives in `scripts/`, `deploy/`, `docs/`, and root `tests/`. Keep dependencies inside their owning workspace.

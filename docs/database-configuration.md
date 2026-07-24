@@ -1,21 +1,21 @@
 # 数据库配置
 
-Hono Node 的硬约束是“一个实例、一个物理数据库”。`IMS_DATABASE` 只决定这个数据库由
-SQLite 还是 PostgreSQL 提供；Core 与 Story 是同一数据库上的两个逻辑 Repository，不是两个
-连接或两个数据源。应用不会自动读取 `.env`，实际值必须由 shell 或进程管理器注入。
+Hono Node 的硬约束是“一个实例、一个物理数据库”。活动运行时统一使用 PostgreSQL；Core 与
+Story 是同一数据库上的两个逻辑 Repository，不是两个连接或两个数据源。SQLite 只保留给
+显式迁移、测试和离线兼容流程。应用不会自动读取 `.env`，实际值必须由 shell 或进程管理器注入。
 启用 S3 时，同一个数据库还保存 `s3_*` 生命周期控制面数据；对象字节仍只保存在 bucket，
 domain 不直接访问这些中间件表。
 
 完整表结构、抽象边界和 Prisma 评估见
 [数据库架构与 PostgreSQL 迁移边界](database-architecture.md)。
 
-## 统一 SQLite
+## SQLite 迁移兼容模式
 
-不设置 `IMS_DATABASE` 或设置为 `sqlite` 时，Hono Node 只读取 `IMS_SQLITE_PATH`：
+只有显式设置 `IMS_DATABASE=sqlite` 时，Hono Node 才读取 `IMS_SQLITE_PATH`：
 
 | 变量 | 本地默认值 | 用途 |
 | --- | --- | --- |
-| `IMS_DATABASE` | `sqlite` | 数据库驱动 |
+| `IMS_DATABASE` | 必须显式设置为 `sqlite` | 迁移兼容数据库驱动 |
 | `IMS_SQLITE_PATH` | `data/imsweb.db` | 唯一 SQLite 数据库 |
 
 本地启动：
@@ -84,8 +84,8 @@ pnpm run dev:postgresql:up
 docker compose -f deploy/compose.yaml ps postgres
 ```
 
-设置 `IMS_DATABASE=postgresql` 后，Hono Node 忽略 SQLite 路径，通过一个 `DATABASE_URL`
-创建一个共享连接池：
+不设置 `IMS_DATABASE` 或设置为 `postgresql` 时，Hono Node 忽略 SQLite 路径，通过一个
+必填的 `DATABASE_URL` 创建共享连接池：
 
 ```sh
 export IMS_DATABASE=postgresql

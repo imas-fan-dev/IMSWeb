@@ -106,6 +106,12 @@ export class MemoryStoryRepository implements StoryRepository {
         );
         return row ? cloneStory(row) : null;
     }
+    async findStoryById(_agencyCode: string, idolId: number, id: number) {
+        const row = this.stories.find((candidate) =>
+            candidate.idol_id === idolId && candidate.id === id
+        );
+        return row ? cloneStory(row) : null;
+    }
     async updateStory(input: UpdateStoryInput) {
         await this.applyUpdate(input);
     }

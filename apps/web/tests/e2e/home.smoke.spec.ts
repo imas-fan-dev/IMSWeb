@@ -7,6 +7,8 @@ const publicRoutes = [
   { path: "/live", title: /Live.*IMSWeb/i },
   { path: "/community", title: /制作人社区.*IMSWeb/i },
   { path: "/works", title: /同人作品.*IMSWeb/i },
+  { path: "/wiki", title: /剧情档案.*IMSWeb/i },
+  { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i },
 ]
 
 for (const route of publicRoutes) {
@@ -102,15 +104,42 @@ test("theme toggle persists the selected color scheme", async ({ page }) => {
 
 test("home exposes current discovery and birthday interactions", async ({
   page,
+  isMobile,
 }) => {
   await page.goto("/")
+
+  const brandBackground = page.getByTestId("home-brand-background")
+  await expect(brandBackground).toBeVisible()
+  await expect(brandBackground.locator(".home-brand-motif")).toHaveCount(20)
+  const firstMotif = brandBackground.locator(".home-brand-motif").first()
+  const initialTransform = await firstMotif.evaluate(
+    (element) => element.style.transform
+  )
+  await expect
+    .poll(() => firstMotif.evaluate((element) => element.style.transform))
+    .not.toBe(initialTransform)
 
   const seriesWall = page.getByRole("region", {
     name: "偶像大师交流站",
   })
   await expect(seriesWall.getByRole("link")).toHaveCount(0)
   await expect(seriesWall.getByTestId("series-band")).toHaveCount(6)
-  await expect(seriesWall.locator("img")).toHaveCount(0)
+  await expect(seriesWall.locator("img")).toHaveCount(6)
+  await expect(seriesWall.locator("img").first()).toHaveAttribute(
+    "src",
+    "/brand/series/wall/765pro.png"
+  )
+  if (!isMobile) {
+    const viewportWidth = page.viewportSize()?.width ?? 0
+    const lastSeriesBand = await seriesWall
+      .getByTestId("series-band")
+      .last()
+      .boundingBox()
+    expect(lastSeriesBand).not.toBeNull()
+    expect(lastSeriesBand!.x + lastSeriesBand!.width).toBeGreaterThan(
+      viewportWidth * 0.95
+    )
+  }
 
   const directory = page.getByRole("region", { name: "站点导航" })
   await expect(directory.getByRole("link")).toHaveCount(6)

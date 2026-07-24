@@ -43,7 +43,9 @@ function isolatedEnvironment(root) {
         ...process.env,
         NODE_ENV: 'test',
         IMS_JWT_SECRET: 'hono-contract-test-secret-at-least-32-bytes',
+        IMS_DATABASE: 'sqlite',
         IMS_SQLITE_PATH: path.join(root, 'imsweb.db'),
+        IMS_OBJECT_STORAGE: 'filesystem',
         IMS_STORY_MAX_UPLOAD_BYTES: '52428800',
         IMS_UPLOADS_DIR: path.join(root, 'uploads'),
         IMS_EVENT_BASE_DIR: path.join(root, 'chronicle')

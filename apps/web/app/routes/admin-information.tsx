@@ -1,4 +1,4 @@
-import { InformationManager } from "~/features/admin/information-manager"
+import { InformationManager } from "~/pages/admin/information/information-manager"
 
 export function meta() {
   return [{ title: "活动内容管理 | IMSWeb" }]

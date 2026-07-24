@@ -275,6 +275,11 @@ export interface StoryRepository {
         category: string,
         cardName: string
     ): Promise<StoryRecord | null>;
+    findStoryById(
+        agencyCode: string,
+        idolId: number,
+        id: number
+    ): Promise<StoryRecord | null>;
     updateStory(input: UpdateStoryInput): Promise<void>;
     updateStoryAndRenameGroup(input: {
         story: UpdateStoryInput;

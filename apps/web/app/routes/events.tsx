@@ -1,4 +1,4 @@
-import { EventsCenter } from "~/features/events/events-center"
+import { EventsCenter } from "~/pages/events/events-center"
 
 export function meta() {
   return [

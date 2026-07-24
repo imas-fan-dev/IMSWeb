@@ -18,8 +18,8 @@ import { toast } from "sonner"
 import { Badge } from "~/components/ui/badge"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
-import { getAdminSession, logoutAdmin } from "~/features/admin/api"
 import { cn } from "~/lib/utils"
+import { getAdminSession, logoutAdmin } from "~/shared/api"
 
 const navigation = [
   {
@@ -135,7 +135,7 @@ export default function AdminLayout() {
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-[100rem] items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link to="/admin" className="flex min-w-0 items-center gap-3">
-            <BrandWordmark className="text-lg" />
+            <BrandWordmark className="h-8" />
             <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
               内容运营台
             </span>

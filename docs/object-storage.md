@@ -1,8 +1,8 @@
 # Node 文件对象存储
 
-Hono Node 支持 `filesystem` 和 `s3` 两种可变媒体存储。默认值仍是
-`filesystem`，只有显式设置 `IMS_OBJECT_STORAGE=s3` 才会创建 S3 client；S3 配置缺失时
-服务拒绝初始化，不会回退到本地磁盘。
+Hono Node 活动运行时统一使用 `s3` 可变媒体存储；不设置 `IMS_OBJECT_STORAGE` 时默认创建
+S3 client。S3 配置缺失时服务拒绝初始化，不会回退到本地磁盘。`filesystem` 适配器只保留给
+显式迁移、测试和离线兼容流程。
 
 业务代码只依赖 `ObjectStorage` 和 `CompensationService` 端口，Node 组合根负责选择
 filesystem 或 S3 实例。S3 的对象字节保存在 bucket，上传状态、逻辑 key 映射和补偿任务保存在
@@ -42,7 +42,7 @@ S3 adapter 对业务保存与现有 `ObjectStorage` 端口相同的逻辑 key：
 
 | 变量 | 要求 |
 | --- | --- |
-| `IMS_OBJECT_STORAGE` | `filesystem` 或 `s3`，默认 `filesystem` |
+| `IMS_OBJECT_STORAGE` | `filesystem` 或 `s3`，默认 `s3`；filesystem 仅用于兼容流程 |
 | `IMS_S3_BUCKET` | S3 模式必填；普通 bucket 名称 |
 | `IMS_S3_REGION` | S3 模式必填；未设置时读取 `AWS_REGION` |
 | `IMS_S3_PREFIX` | 可选；同一 bucket 内的隔离前缀，不含开头/结尾 `/` |

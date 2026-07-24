@@ -1,8 +1,8 @@
 # @imsweb/api
 
-IMSWeb 后端已迁移为 TypeScript + Hono。当前唯一运行入口是 Hono Node：支持
-SQLite/PostgreSQL、可选本地/S3 媒体、Sharp 和流式 multipart，监听
-`127.0.0.1:3000`。
+IMSWeb 后端已迁移为 TypeScript + Hono。当前唯一运行入口是 Hono Node，活动运行时统一使用
+PostgreSQL 与 MinIO/S3，并提供 Sharp 和流式 multipart，监听 `127.0.0.1:3000`。SQLite 与
+filesystem 适配器只保留给显式迁移、测试和离线兼容流程。
 
 原 Express 与 Flask 路由均由 Hono 实现；Flask、Jinja、Gunicorn 和 uWSGI 不属于公开仓库
 或活动部署。生产数据仍必须按停写、在线备份、
@@ -77,10 +77,10 @@ IMS_JWT_SECRET='<high-entropy-secret>' pnpm --filter @imsweb/api run start:node
 生产只运行 `apps/api/dist/server/main.js`；`apps/api/js/server.js` 保留给旧
 PM2/systemd 命令，并转发同一 Hono 导出。生产必须显式设置 `IMS_JWT_SECRET`，完整变量
 见本 workspace 的 [`.env.example`](.env.example)；API 不会自动加载该文件。本地 Node
-使用的 SQLite/PostgreSQL 配置见
+使用的 PostgreSQL 配置和 SQLite 迁移兼容模式见
 [数据库配置](../../docs/database-configuration.md)；常驻 Node 部署的 S3 配置、权限
-和迁移边界见 [Node 文件对象存储](../../docs/object-storage.md)。只有显式设置
-`IMS_OBJECT_STORAGE=s3` 才会替换本地对象存储实现。S3 模式下，图片路由完成权限检查和
+和迁移边界见 [Node 文件对象存储](../../docs/object-storage.md)。运行时默认选择 S3，缺少
+bucket 或 region 配置时直接拒绝启动；filesystem 必须显式启用。S3 模式下，图片路由完成权限检查和
 业务路径映射后返回短期签名 URL，浏览器直接从 MinIO/S3 读取对象；上传、图片校验和转换
 仍全部经过 Hono。
 

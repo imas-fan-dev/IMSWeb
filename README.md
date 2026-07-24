@@ -46,13 +46,22 @@ pnpm run test
 
 ### 启动 API 与 Web
 
-使用空的本地 PostgreSQL 开发库：
+启动本地 PostgreSQL 与 MinIO：
 
 ```sh
 pnpm run dev:postgresql:up
+pnpm run dev:minio:up
 
 export IMS_DATABASE=postgresql
 export DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb'
+export IMS_OBJECT_STORAGE=s3
+export IMS_S3_BUCKET=imsweb-test
+export IMS_S3_REGION=us-east-1
+export IMS_S3_ENDPOINT=http://127.0.0.1:9000
+export IMS_S3_FORCE_PATH_STYLE=true
+export IMS_S3_PREFIX=local
+export AWS_ACCESS_KEY_ID=imsweb-local
+export AWS_SECRET_ACCESS_KEY=imsweb-local-password
 export IMS_JWT_SECRET='local-development-only-change-me'
 
 pnpm run migration:postgresql
@@ -87,7 +96,8 @@ Hono 默认监听 `http://127.0.0.1:3000`，Web 地址以 Vite 输出为准。�
 - API 业务代码依赖 `apps/api/src/ports/`，具体数据库、存储和媒体实现由 `runtime` 组合。
 - Web 构建产物经 manifest 和逐文件内容校验后复制到 `apps/api/dist/client` 与
   `apps/api/dist/node-client`；不要手工维护 API 静态目录。
-- SQLite 或 PostgreSQL 是唯一权威数据库。可变媒体可以使用本地文件系统或 S3 兼容存储。
+- PostgreSQL 是活动运行时的唯一权威数据库，MinIO/S3 是可变媒体的统一存储。SQLite 与
+  filesystem 适配器仅保留给显式迁移、测试和离线兼容流程。
 - `data/` 只保存本地运行状态和迁移输入，除 `.gitignore` 外不会进入版本控制。
 
 更具体的约束见 [API workspace](apps/api/README.md)、[Web workspace](apps/web/README.md)及各目录

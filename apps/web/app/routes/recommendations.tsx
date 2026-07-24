@@ -1,4 +1,4 @@
-import { RecommendationsCenter } from "~/features/recommendations/recommendations-center"
+import { RecommendationsCenter } from "~/pages/recommendations/recommendations-center"
 
 export function meta() {
   return [

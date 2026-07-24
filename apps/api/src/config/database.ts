@@ -61,7 +61,7 @@ export function parseNodeDatabaseConfig(
     environment: NodeJS.ProcessEnv,
     sqliteDefaults: SqliteDatabaseDefaults
 ): NodeDatabaseConfig {
-    const rawType = optionalValue(environment, 'IMS_DATABASE')?.toLowerCase() || 'sqlite';
+    const rawType = optionalValue(environment, 'IMS_DATABASE')?.toLowerCase() || 'postgresql';
     if (rawType === 'sqlite') {
         return {
             type: 'sqlite',

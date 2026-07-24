@@ -42,17 +42,30 @@ export function createHandleEditWikiStory<E extends Env>(
                 (fields.idol ?? '').trim()
             );
             if ('error' in target) return target.error;
-            const oldCardName = (fields.old_card_name ?? '').trim();
-            const oldCategory = (fields.old_category_name ?? '').trim();
+            const requestedOldCardName = (fields.old_card_name ?? '').trim();
+            const requestedOldCategory = (fields.old_category_name ?? '').trim();
             const category = (fields.category_name ?? '').trim();
             const cardName = (fields.card_name ?? '').trim();
-            const record = await services.story!.findFirstStoryByCard(
-                target.agency.code,
-                target.idol.id,
-                oldCategory,
-                oldCardName
-            );
+            const storyIdField = (fields.story_id ?? '').trim();
+            const storyId = Number(storyIdField);
+            if (storyIdField && (!Number.isSafeInteger(storyId) || storyId <= 0)) {
+                return wikiJson(wikiErrorBody('剧情 ID 无效'), 400);
+            }
+            const record = storyIdField
+                ? await services.story!.findStoryById(
+                    target.agency.code,
+                    target.idol.id,
+                    storyId
+                )
+                : await services.story!.findFirstStoryByCard(
+                    target.agency.code,
+                    target.idol.id,
+                    requestedOldCategory,
+                    requestedOldCardName
+                );
             if (!record) return wikiJson(wikiErrorBody('找不到要修改的记录'));
+            const oldCardName = storyIdField ? record.card_name : requestedOldCardName;
+            const oldCategory = storyIdField ? record.category : requestedOldCategory;
             let imageFile = record.image_file;
             if (file?.filename && converted) {
                 const location = newStoryImageLocation(

@@ -1,4 +1,4 @@
-import { HomePortal } from "~/features/home/home-portal"
+import { HomePortal } from "~/pages/home/home-portal"
 
 export function meta() {
   return [

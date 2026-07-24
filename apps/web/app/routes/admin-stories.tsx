@@ -1,9 +1,9 @@
-import { StoryMediaManager } from "~/features/admin/story-media-manager"
+import { StoryManagementPage } from "~/pages/admin/stories/story-management-page"
 
 export function meta() {
   return [{ title: "剧情内容管理 | IMSWeb" }]
 }
 
 export default function AdminStories() {
-  return <StoryMediaManager />
+  return <StoryManagementPage />
 }

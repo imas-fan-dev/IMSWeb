@@ -1,0 +1,19 @@
+import { describe, expect, it } from "vitest"
+
+import { buildInformationHtmlDocument } from "~/pages/information/html-document"
+
+describe("buildInformationHtmlDocument", () => {
+  it("places managed HTML behind a restrictive document policy", () => {
+    const document = buildInformationHtmlDocument(
+      "<Activity>",
+      '<h2>正文</h2><img src="/uploads/information/original/body.webp">'
+    )
+
+    expect(document).toContain("default-src 'none'")
+    expect(document).toContain("img-src 'self' https: http: data: blob:")
+    expect(document).toContain("form-action 'none'")
+    expect(document).toContain("&lt;Activity&gt;")
+    expect(document).toContain("<h2>正文</h2>")
+    expect(document).toContain("/uploads/information/original/body.webp")
+  })
+})

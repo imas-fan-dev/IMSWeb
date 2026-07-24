@@ -1,4 +1,4 @@
-import { RecommendationManager } from "~/features/admin/recommendation-manager"
+import { RecommendationManager } from "~/pages/admin/recommendations/recommendation-manager"
 
 export function meta() {
   return [{ title: "向您推荐管理 | IMSWeb" }]

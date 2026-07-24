@@ -101,7 +101,9 @@ function isolatedServerEnv(label) {
         ...process.env,
         NODE_ENV: 'test',
         IMS_JWT_SECRET: 'test-only-secret-with-sufficient-entropy',
+        IMS_DATABASE: 'sqlite',
         IMS_SQLITE_PATH: path.join(tempDir, `${label}.db`),
+        IMS_OBJECT_STORAGE: 'filesystem',
         IMS_COMPENSATION_DIR: path.join(tempDir, `${label}-compensation`),
         IMS_UPLOADS_DIR: path.join(tempDir, `${label}-uploads`),
         IMS_EVENT_BASE_DIR: path.join(tempDir, `${label}-events`)
@@ -198,7 +200,9 @@ before(async () => {
 
     process.env.NODE_ENV = 'test';
     process.env.IMS_JWT_SECRET = 'test-only-secret-with-sufficient-entropy';
+    process.env.IMS_DATABASE = 'sqlite';
     process.env.IMS_SQLITE_PATH = databasePath;
+    process.env.IMS_OBJECT_STORAGE = 'filesystem';
     process.env.IMS_COMPENSATION_DIR = path.join(tempDir, 'compensation');
     process.env.IMS_UPLOADS_DIR = uploadsDir;
     process.env.IMS_COOKIE_SECURE = 'false';

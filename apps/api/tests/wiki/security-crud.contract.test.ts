@@ -17,6 +17,8 @@ const WRITE_ENDPOINTS = [
     { method: 'POST', path: '/api/wiki/delete_category' },
     { method: 'POST', path: '/api/wiki/parse_bilibili' },
     { method: 'POST', path: '/api/wiki/save_story_layout' },
+    { method: 'POST', path: '/api/wiki/agency-icon' },
+    { method: 'DELETE', path: '/api/wiki/agency-icon' },
     { method: 'POST', path: '/api/wiki/idol-media' },
     { method: 'POST', path: '/api/wiki/idol-media/import-legacy' },
     { method: 'DELETE', path: '/api/wiki/idol-media' }
@@ -130,6 +132,50 @@ describe('Wiki Cookie JWT, role and Header-to-claim CSRF contract', () => {
         });
         assert.equal(saveLayout.status, 200);
         assert.deepEqual(await json(saveLayout), { status: 'success' });
+    });
+});
+
+describe('Wiki agency icon object storage contract', () => {
+    test('upload publishes a versioned catalog icon and delete removes it', async () => {
+        const fixture = createWikiFixture();
+        const headers = await fixture.authHeaders('editor');
+
+        const initial = await fixture.app.request('/api/wiki/catalog?agency=sc');
+        assert.equal(initial.status, 200);
+        assert.equal((await initial.json() as any).selection.agency.iconUrl, null);
+
+        const upload = await postMultipart(fixture, '/api/wiki/agency-icon', {
+            fields: { agency: '闪耀色彩' },
+            files: { image: uploadedPng() }
+        }, headers);
+        assert.equal(upload.status, 200);
+        assert.deepEqual(await upload.json(), {
+            status: 'success',
+            url: '/icon/agencies/sc.webp?v=fixture-4'
+        });
+        const key = 'Wiki/static/icon/agencies/sc.webp';
+        assert.ok(fixture.storage.objects.has(key));
+
+        const published = await fixture.app.request('/api/wiki/catalog?agency=sc');
+        assert.equal(
+            (await published.json() as any).selection.agency.iconUrl,
+            '/icon/agencies/sc.webp?v=fixture-4'
+        );
+        const served = await fixture.app.request('/icon/agencies/sc.webp');
+        assert.equal(served.status, 200);
+        assert.equal(served.headers.get('Content-Type'), 'image/webp');
+
+        const deletion = await fixture.app.request('/api/wiki/agency-icon', {
+            method: 'DELETE',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agency: '闪耀色彩' })
+        });
+        assert.equal(deletion.status, 200);
+        assert.deepEqual(await json(deletion), { status: 'success' });
+        assert.ok(!fixture.storage.objects.has(key));
+
+        const reverted = await fixture.app.request('/api/wiki/catalog?agency=sc');
+        assert.equal((await reverted.json() as any).selection.agency.iconUrl, null);
     });
 });
 

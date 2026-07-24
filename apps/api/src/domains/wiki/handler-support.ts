@@ -33,6 +33,24 @@ export function wikiMessageOf(error: unknown, fallback: string): string {
     return error instanceof Error && error.message ? error.message : fallback;
 }
 
+export async function authorizeWikiRead<E extends Env>(
+    context: Context<E>,
+    services: RuntimeServices
+): Promise<Response | null> {
+    if (!services.tokens) throw new Error('Wiki token service is not configured');
+    const token = getCookie(context, 'token');
+    if (!token) return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
+    try {
+        const claims = await services.tokens.verify(token);
+        if (!['op', 'editor'].includes(claims.dept)) {
+            return wikiJson(wikiErrorBody('无权限执行此操作'), 403);
+        }
+    } catch {
+        return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
+    }
+    return null;
+}
+
 function constantTimeEqual(left: string, right: string): boolean {
     const leftBytes = new TextEncoder().encode(left);
     const rightBytes = new TextEncoder().encode(right);
@@ -149,6 +167,20 @@ export async function findWikiMutationTarget(
     const idolRecord = await repository.findIdolByAgencyAndName(agency.id, idolName);
     if (!idolRecord) return { error: wikiJson(wikiErrorBody('找不到该偶像')) } as const;
     return { agency, idol: toWikiIdolFromRecord(agency, idolRecord) } as const;
+}
+
+export async function findWikiAgencyTarget(
+    services: RuntimeServices,
+    agencyNameOrCode: string
+) {
+    const repository = services.story!;
+    const agencyRecord = await repository.findAgencyByName(agencyNameOrCode) ??
+        await repository.findAgencyByCode(agencyNameOrCode);
+    const agency = agencyRecord ? toWikiAgency(agencyRecord) : null;
+    if (!agency) {
+        return { error: wikiJson(wikiErrorBody('企划不存在'), 404) } as const;
+    }
+    return { agency } as const;
 }
 
 export async function cleanupWikiObjects(

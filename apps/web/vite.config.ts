@@ -41,9 +41,7 @@ export default defineConfig({
         "/image",
         "/runninggame",
         "/sites",
-        "/story",
         "/uploads",
-        "/wiki",
       ].map((path) => [path, { target: honoOrigin, changeOrigin: true }])
     ),
   },

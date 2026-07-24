@@ -142,6 +142,18 @@ export class SqlStoryRepository implements StoryRepository {
         );
     }
 
+    findStoryById(
+        agencyCode: string,
+        idolId: number,
+        id: number
+    ): Promise<StoryRecord | null> {
+        return queryOne(this.database,
+            `SELECT id, idol_id, category, card_name, up_name, video_title, url, subtitle, image_file
+             FROM ${storyTable(agencyCode)} WHERE idol_id=? AND id=?`,
+            [idolId, id]
+        );
+    }
+
     async updateStory(input: UpdateStoryInput): Promise<void> {
         await executeSql(this.database,
             `UPDATE ${storyTable(input.agencyCode)}
