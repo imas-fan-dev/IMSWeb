@@ -2,15 +2,15 @@
 
 本文适用于统一 Hono Node 后端、单一 SQLite/PostgreSQL 数据库以及本地文件或 S3 媒体。
 当前公开项目不包含 Express、Flask、Worker、D1 或 R2 运行时。所有生产操作都应先确认实际
-发布目录、数据目录、进程管理器、Nginx/TLS 配置和回滚责任人。
+发布目录、数据目录、进程管理器、入口/TLS 配置和回滚责任人。
 
 ## 1. 首次纳管
 
 变更生产服务前保存以下只读证据：
 
 1. 当前 commit、release 路径、制品摘要和启动命令；
-2. Nginx 完整展开配置，包括 TLS、上游和 include；
-3. Node、pnpm、数据库和 Nginx 版本；
+2. 入口层完整配置，包括 TLS、上游、上传限制和转发头策略；
+3. Node、pnpm、数据库和入口组件版本；
 4. 进程管理器中的运行用户与环境变量名，不记录秘密值；
 5. 权威数据库备份及同一时间窗内的媒体备份；
 6. 首页、登录、资讯、编年史、剧情和管理页的冒烟结果。
@@ -50,15 +50,15 @@ pnpm-lock.yaml
 
 ## 3. 生产环境变量
 
-应用不会自动读取 `.env`。实际值由 systemd、Supervisor、PM2 或密钥管理服务注入；模板见
-`apps/api/.env.example` 和 `deploy/.env.example`。
+应用不会自动读取 `.env`。实际值由 systemd、Supervisor、PM2 或密钥管理服务注入；应用
+模板见 `apps/api/.env.example`。`deploy/.env.example` 只服务本地数据依赖，不是正式部署模板。
 
 | 变量 | 用途 | 要求 |
 | --- | --- | --- |
 | `IMS_JWT_SECRET` | JWT 签名密钥 | 必填，高熵随机值 |
 | `NODE_ENV` | 运行模式 | 生产使用 `production` |
 | `HOST`、`PORT` | Hono 监听地址 | 建议 `127.0.0.1:3000` |
-| `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；仓库 Nginx 为 `nginx` |
+| `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；外部受信 Nginx 为 `nginx` |
 | `IMS_DATABASE` | 数据库 provider | `sqlite` 或 `postgresql` |
 | `IMS_SQLITE_PATH` | SQLite 权威数据库 | SQLite 模式使用 release 外绝对路径 |
 | `DATABASE_URL` | PostgreSQL 连接 | PostgreSQL 模式必填，由密钥系统注入 |
@@ -171,20 +171,15 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 必须是 `/srv/ims/current`，启动命令只运行已构建的
 `apps/api/dist/server/main.js`。
 
-## 7. Nginx
+## 7. 入口与 TLS
 
-Nginx 是可选的单一 Hono 反向代理。将 `deploy/` 保存在稳定代理目录，不要从会随 release
-切换的目录挂载配置：
+`deploy/compose.yaml` 不运行应用、Nginx 或其他正式入口，只提供本地 PostgreSQL 和 MinIO。
+生产入口由目标平台独立管理，必须在切流前确认：
 
-```sh
-docker compose --env-file deploy/.env -f deploy/compose.yaml config
-docker compose --env-file deploy/.env -f deploy/compose.yaml pull nginx
-docker compose --env-file deploy/.env -f deploy/compose.yaml run --rm --no-deps nginx nginx -t
-docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --force-recreate nginx
-```
-
-默认模板只提供 HTTP。公网启用前必须补齐 TLS、真实域名、防火墙和外层代理信任策略。详见
-[Nginx Compose 部署](../deploy/nginx/README.md)。
+- TLS、真实域名、防火墙和上传大小限制已经生效；
+- 主站与隔离站点包使用预期域名并保持 Cookie 边界；
+- 上游只指向当前 Hono release，健康检查直接覆盖 `/api/wiki/test`；
+- 外部 Nginx 仅在覆盖转发头且不能被绕过时使用 `IMS_CLIENT_ADDRESS_SOURCE=nginx`。
 
 ## 8. 发布冒烟
 
@@ -195,7 +190,7 @@ curl --fail --silent --show-error http://127.0.0.1:3000/api/news >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
 ```
 
-还应覆盖登录、受保护写请求、Wiki SSR、普通图片、编年史和管理页，并观察应用与代理的
+还应覆盖登录、受保护写请求、Wiki SSR、普通图片、编年史和管理页，并观察应用与入口层的
 4xx/5xx、延迟和原生模块错误。站点包内容域必须单独验证 404 默认策略与一次性预览 URL。
 
 ## 9. 回滚
@@ -218,7 +213,7 @@ test "$(readlink "$IMS_CURRENT_LINK")" = "$IMS_RELEASES_DIR/$PREVIOUS_RELEASE_ID
 
 ## 10. 故障定位
 
-- Nginx `502`：检查容器日志、宿主机 `127.0.0.1:3000` 和应用日志。
+- 入口层 `502`：检查入口日志、Hono 监听地址、当前 release 和应用日志。
 - JWT 登录失效：核对 `IMS_JWT_SECRET` 是否被错误轮换或注入。
 - SQLite `database is locked`：检查非预期多进程、长事务和备份方式，不删除 WAL/SHM。
 - 图片 `404`：核对数据库逻辑路径、对象键和前缀；签名 URL 失败时检查 endpoint、时钟和权限。

@@ -166,7 +166,7 @@ pnpm run test
 - 保留开始时已经存在的 staged、unstaged 和 untracked 修改。
 - 不提交密钥、数据库、上传、日志、构建产物或 `.env`。
 - 不执行 PostgreSQL 生产迁移、数据切换或清理；这些操作需要独立审批和对账证据。
-- `deploy/compose.yaml` 统一保存当前 Nginx、PostgreSQL 和 MinIO 服务；本地 API/Web 只按需
-  启动其中的 PostgreSQL 或 MinIO；Nginx 位于可选 `proxy` profile，不是启动前置依赖。
+- `deploy/compose.yaml` 只保存本地 PostgreSQL 和 MinIO 服务，不包含应用、反向代理或正式
+  部署入口。
 - 不使用破坏性 Git、数据库或文件清理命令，除非用户明确授权并已核对目标。
 - 完成时报告修改文件、实际运行的门禁、未通过原因、运行中的服务和可访问地址。

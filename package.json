@@ -22,7 +22,7 @@
     "test:web": "pnpm --filter @imsweb/web run test",
     "test:web:unit": "pnpm --filter @imsweb/web run test:unit",
     "test:web-routing": "pnpm run build:web && pnpm run build:server && pnpm --filter @imsweb/api run test:web-routing",
-    "test:infra": "python3 -m unittest tests/test_release_activation.py tests/test_operations_docs.py tests/test_nginx_deployment.py tests/test_workspace_boundaries.py",
+    "test:infra": "python3 -m unittest tests/test_release_activation.py tests/test_operations_docs.py tests/test_compose_deployment.py tests/test_workspace_boundaries.py",
     "test": "pnpm run check:root && pnpm run test:infra && pnpm run test:api && pnpm run test:web:unit && pnpm run test:web-routing",
     "test:fast": "pnpm run test",
     "start": "pnpm --filter @imsweb/api run start",
@@ -50,12 +50,6 @@
     "ops:password:hash": "pnpm --filter @imsweb/api run ops:password:hash",
     "user:add": "pnpm run ops:account:add",
     "password:hash": "pnpm run ops:password:hash",
-    "ops:nginx:config": "docker compose -f deploy/compose.yaml config",
-    "ops:nginx:test": "docker compose -f deploy/compose.yaml run --rm --no-deps nginx nginx -t",
-    "ops:nginx:up": "docker compose -f deploy/compose.yaml up -d nginx",
-    "ops:nginx:reload": "docker compose -f deploy/compose.yaml exec nginx nginx -t && docker compose -f deploy/compose.yaml exec nginx nginx -s reload",
-    "ops:nginx:logs": "docker compose -f deploy/compose.yaml logs -f nginx",
-    "ops:nginx:down": "docker compose -f deploy/compose.yaml stop nginx",
     "test:all": "pnpm run test"
   },
   "engines": {

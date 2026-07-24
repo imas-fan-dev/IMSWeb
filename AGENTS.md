@@ -45,7 +45,6 @@ History is short, but the latest commit uses Conventional Commit style (`feat: .
 ## Security & Configuration
 
 Copy settings from the owner-specific templates in `apps/api/.env.example`,
-`apps/web/.env.example`, `deploy/.env.example`, and
-`scripts/migration/.env.example`; never commit secrets, databases, uploads, or
+`apps/web/.env.example`, and `deploy/.env.example`; never commit secrets, databases, uploads, or
 generated build output. Production requires a high-entropy `IMS_JWT_SECRET`.
 PostgreSQL migration work must keep credentials outside the repository and preserve the existing Core/Story data reconciliation gates. Historical Express/Flask source, data, and assets belong to a separate private repository and must not be copied into this public tree.

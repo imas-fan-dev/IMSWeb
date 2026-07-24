@@ -20,7 +20,7 @@ IMSWeb 是一个 pnpm monorepo：
 | `apps/api/` | `@imsweb/api` | Hono + TypeScript Node API |
 | `apps/web/` | `@imsweb/web` | React Router 7 + React 19 Web 应用 |
 | `data/` | - | 被 Git 忽略的本地数据库、上传和迁移输入 |
-| `deploy/` | - | PostgreSQL、MinIO 与可选 Nginx 编排 |
+| `deploy/` | - | 本地 PostgreSQL 与 MinIO 编排 |
 | `scripts/` | - | 边界检查、迁移、发布与运维工具 |
 | `tests/` | - | 仓库级基础设施和部署契约测试 |
 
@@ -32,7 +32,7 @@ IMSWeb 是一个 pnpm monorepo：
 
 - Node.js `>=22.13.0`
 - pnpm `>=11.10.0`，建议通过 Corepack 使用
-- Docker，仅在本地运行 PostgreSQL、MinIO 或 Nginx 时需要
+- Docker，仅在本地运行 PostgreSQL 或 MinIO 时需要
 
 从仓库根目录安装依赖并运行默认门禁：
 
@@ -121,4 +121,4 @@ Web 公开资产必须登记来源和许可状态，见
 - [数据库架构与 PostgreSQL 迁移边界](docs/database-architecture.md)
 - [Node 文件对象存储](docs/object-storage.md)
 - [部署、备份与回滚](docs/operations-runbook.md)
-- [Nginx Compose 部署](deploy/nginx/README.md)
+- [本地依赖服务](deploy/README.md)

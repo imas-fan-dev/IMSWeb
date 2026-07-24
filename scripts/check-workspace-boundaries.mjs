@@ -422,15 +422,16 @@ for (const dependency of ['@cloudflare/vitest-pool-workers', '@cloudflare/worker
     }
 }
 const composePath = path.join(repositoryRoot, 'deploy/compose.yaml');
-const currentTemplatePath = path.join(repositoryRoot, 'deploy/nginx/templates/default.conf.template');
 requireFile(composePath);
-requireFile(currentTemplatePath);
-const currentDeploymentSources = [composePath, currentTemplatePath]
-    .filter((file) => fs.existsSync(file))
-    .map((file) => fs.readFileSync(file, 'utf8'))
-    .join('\n');
-if (/ims_(?:legacy_)?flask|IMS_(?:LEGACY_)?FLASK_UPSTREAM|(?:^|[^0-9])5000(?:[^0-9]|$)|apps\/legacy/i.test(currentDeploymentSources)) {
-    failures.push('Current Compose/Nginx deployment must target only the Hono Node upstream');
+forbidPath(path.join(repositoryRoot, 'deploy/nginx'), 'reverse-proxy configuration is external to the Compose stack');
+const currentComposeSource = fs.existsSync(composePath)
+    ? fs.readFileSync(composePath, 'utf8')
+    : '';
+if (/ims_(?:legacy_)?flask|IMS_(?:LEGACY_)?FLASK_UPSTREAM|(?:^|[^0-9])5000(?:[^0-9]|$)|apps\/legacy/i.test(currentComposeSource)) {
+    failures.push('Current Compose deployment must not restore a retired runtime');
+}
+if (/^\s{2}nginx\s*:/mi.test(currentComposeSource) || /IMS_NGINX|nginx:\S*/i.test(currentComposeSource)) {
+    failures.push('deploy/compose.yaml must not provision Nginx');
 }
 for (const deploymentComposePath of [composePath]) {
     if (fs.existsSync(deploymentComposePath) && /^\s*build\s*:/m.test(fs.readFileSync(deploymentComposePath, 'utf8'))) {

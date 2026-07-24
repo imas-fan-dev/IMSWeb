@@ -106,29 +106,20 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 `apps/api/dist/client-manifest.json` 逐文件校验。`dist/client` 与 `dist/node-client` 必须包含
 相同内容；数据库、上传、迁移输入或私有历史资产不会进入发布产物。
 
-## Nginx
+## 部署入口
 
-新版不依赖 Nginx。需要统一 HTTP 入口时，可显式启动 `proxy` profile 中的单一 Hono
-反向代理；该代理没有图片专用路由：
+正式版本不依赖仓库 Compose 中的反向代理；`deploy/compose.yaml` 只提供本地 PostgreSQL 和
+MinIO。由外部受信 Nginx 接入时，将 `IMS_CLIENT_ADDRESS_SOURCE=nginx` 注入 Hono，并确保
+入口覆盖客户端提供的转发头。直接访问 Hono 时保留默认 `direct`，不要信任代理头。
 
-以下命令从仓库根目录执行：
-
-```sh
-docker compose -f deploy/compose.yaml config
-docker compose -f deploy/compose.yaml run --rm --no-deps nginx nginx -t
-docker compose -f deploy/compose.yaml up -d nginx
-```
-
-不指定服务执行 `docker compose up` 时不会启动 Nginx。使用代理时将
-`IMS_CLIENT_ADDRESS_SOURCE=nginx` 注入 Hono；直接访问 Hono 时保留默认 `direct`，不要信任
-客户端提供的代理头。生产切换前仍需核对 TLS、监听端口、防火墙、真实数据路径和回滚责任人。
+生产切换前仍需在目标平台核对 TLS、监听端口、防火墙、上传限制、真实数据路径和回滚责任人。
 
 ## 文档
 
 - [数据库配置](../../docs/database-configuration.md)
 - [Node 文件对象存储](../../docs/object-storage.md)
 - [部署、备份与回滚](../../docs/operations-runbook.md)
-- [Nginx Compose 部署](../../deploy/nginx/README.md)
+- [本地依赖服务](../../deploy/README.md)
 - [Hono 操作脚本](scripts/README.md)
 
 迁移的底线不变：先验证再切流，数据库与媒体成对迁移，任何时刻只保留一个权威写入点。

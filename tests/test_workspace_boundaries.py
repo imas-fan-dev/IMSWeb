@@ -23,7 +23,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
             "apps/api/.env.example": "IMS_JWT_SECRET=\n",
             "apps/web/.env.example": "IMS_API_ORIGIN=http://127.0.0.1:3000\n",
-            "deploy/.env.example": "IMS_NODE_UPSTREAM=127.0.0.1:3000\n",
+            "deploy/.env.example": "IMS_POSTGRES_IMAGE=postgres:18.4-alpine\n",
             "apps/api/package.json": (
                 PROJECT_ROOT / "apps/api/package.json"
             ).read_text(encoding="utf-8"),
@@ -34,7 +34,6 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "apps/api/src/main.ts": "export {};\n",
             "data/.gitignore": "*\n!.gitignore\n",
             "deploy/compose.yaml": "services: {}\n",
-            "deploy/nginx/templates/default.conf.template": "server {}\n",
         }
         for relative_path, content in files.items():
             destination = root / relative_path
@@ -73,6 +72,31 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("apps/legacy", result.stderr)
         self.assertIn("separate private repository", result.stderr)
+
+    def test_compose_nginx_service_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / "deploy/compose.yaml").write_text(
+                "services:\n  nginx:\n    image: nginx:alpine\n",
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must not provision Nginx", result.stderr)
+
+    def test_compose_nginx_directory_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            nginx_config = root / "deploy/nginx/default.conf"
+            nginx_config.parent.mkdir(parents=True)
+            nginx_config.write_text("server {}\n", encoding="utf-8")
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("reverse-proxy configuration is external", result.stderr)
 
     def test_api_source_cannot_restore_server_subdirectory(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:

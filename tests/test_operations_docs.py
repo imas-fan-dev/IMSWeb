@@ -76,10 +76,12 @@ class OperationsDocumentationTests(unittest.TestCase):
             self.assertIn(token, api_environment)
         for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
             self.assertIn(token, web_environment)
-        for token in ("IMS_NGINX_IMAGE", "IMS_NODE_UPSTREAM"):
+        for token in ("IMS_POSTGRES_IMAGE", "IMS_MINIO_IMAGE", "IMS_MINIO_BUCKET"):
             self.assertIn(token, deploy_environment)
 
         self.assertNotIn("IMS_NGINX_IMAGE", api_environment)
+        self.assertNotIn("IMS_NGINX_IMAGE", deploy_environment)
+        self.assertNotIn("IMS_NODE_UPSTREAM", deploy_environment)
         self.assertNotIn("IMS_JWT_SECRET", web_environment)
         self.assertNotIn("IMS_LEGACY", deploy_environment)
 
@@ -131,6 +133,22 @@ class OperationsDocumentationTests(unittest.TestCase):
         for document in documents:
             with self.subTest(document=document):
                 self.assertNotIn("apps/legacy", document.read_text(encoding="utf-8"))
+
+    def test_public_docs_do_not_offer_compose_nginx(self):
+        documents = [
+            PROJECT_ROOT / "README.md",
+            PROJECT_ROOT / "apps/api/README.md",
+            RUNBOOK,
+            AI_DEVELOPMENT_ENVIRONMENT,
+        ]
+        for document in documents:
+            with self.subTest(document=document):
+                content = document.read_text(encoding="utf-8")
+                self.assertNotIn("deploy/nginx", content)
+                self.assertNotIn("ops:nginx", content)
+
+        package = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))
+        self.assertFalse(any(name.startswith("ops:nginx") for name in package["scripts"]))
 
 
 if __name__ == "__main__":

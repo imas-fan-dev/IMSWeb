@@ -90,7 +90,7 @@ pnpm run start:node
 
 ## 本地 MinIO 联调
 
-MinIO 作为当前 Compose 中的本地 S3 兼容服务，按服务名独立启动，不要求启动 Nginx：
+MinIO 是 Compose 中的本地 S3 兼容服务；该 Compose 不包含应用或反向代理：
 
 ```sh
 pnpm run dev:minio:up
