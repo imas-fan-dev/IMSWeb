@@ -15,13 +15,12 @@ function SeriesWall() {
     >
       <div
         className="grid h-[19rem] grid-cols-2 sm:h-80 sm:grid-cols-3 lg:flex lg:h-[28rem]"
-        aria-label="偶像大师系列图片预览"
+        aria-hidden="true"
       >
         {seriesItems.map((series) => (
           <div
             key={series.name}
             data-testid="series-band"
-            aria-label={series.name}
             className={cn(
               "relative min-w-0 overflow-hidden lg:flex-1",
               series.background

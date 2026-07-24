@@ -86,7 +86,7 @@ test("theme toggle persists the selected color scheme", async ({ page }) => {
 
   const root = page.locator("html")
   const toggle = page.getByRole("button", {
-    name: "切换亮色或暗色模式",
+    name: /切换亮色或暗色模式|Toggle light or dark mode/,
   })
 
   await expect(root).not.toHaveClass(/dark/)
