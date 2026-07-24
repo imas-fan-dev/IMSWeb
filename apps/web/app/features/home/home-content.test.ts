@@ -7,33 +7,24 @@ import {
   supportLinks,
 } from "./home-content"
 
-describe("legacy home content migration", () => {
+describe("home content", () => {
   it("keeps the series wall free of navigation configuration", () => {
     expect(seriesItems.every((item) => !("href" in item))).toBe(true)
   })
 
-  it("preserves every series wall hover image", () => {
-    expect(seriesItems.map((item) => item.image)).toEqual([
-      "/assets/images/Production/765intro.png",
-      "/assets/images/Production/Cinderellaintro.png",
-      "/assets/images/Production/Millionintro.png",
-      "/assets/images/Production/Sidemintro.png",
-      "/assets/images/Production/Shinyintro.png",
-      "/assets/images/Production/Gakuenintro.png",
-    ])
+  it("keeps the series wall independent of external media", () => {
+    expect(seriesItems).toHaveLength(6)
+    expect(seriesItems.every((item) => !("image" in item))).toBe(true)
   })
 
-  it("preserves the nine navigator destinations", () => {
+  it("uses only current React destinations", () => {
     expect(portalItems.map((item) => item.href)).toEqual([
-      "/producermap.html",
-      "/ProducerNameCard.html",
-      "/WOWSIntroduction.html",
-      "/game.html",
-      "/Event.html",
-      "/wiki/",
-      "/runninggame/index.html",
-      "/timeline.html",
-      "/live.html",
+      "/events",
+      "/recommendations",
+      "/community",
+      "/works",
+      "/live",
+      "/about",
     ])
   })
 

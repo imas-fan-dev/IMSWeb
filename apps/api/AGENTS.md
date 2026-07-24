@@ -31,4 +31,4 @@ Use strict TypeScript, four-space indentation, semicolons, and single quotes. Pr
 
 ## Migrations, Assets & Security
 
-Keep Core and Story as logical repository boundaries over one physical SQLite or PostgreSQL database. Static client output is allowlisted by `scripts/build/client-allowlist.json`; never publish all of `apps/legacy/public` implicitly. Do not commit secrets or production data. `IMS_JWT_SECRET` must be high entropy.
+Keep Core and Story as logical repository boundaries over one physical SQLite or PostgreSQL database. Static client output must be generated from the verified `@imsweb/web` build and match `dist/client-manifest.json`; never hand-copy private historical assets into the release. Do not commit secrets or production data. `IMS_JWT_SECRET` must be high entropy.

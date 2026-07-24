@@ -1,6 +1,6 @@
 import birthdaySource from "./idol-birthdays.json"
 
-// Migrated from apps/legacy/public/assets/json/idol_birthday.json.
+// Maintained as public structured content for the birthday view.
 export type BirthdayRecord = {
   name: string
   birthday: string

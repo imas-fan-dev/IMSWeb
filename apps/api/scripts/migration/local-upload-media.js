@@ -6,10 +6,10 @@ const path = require('node:path');
 function parseArguments(argv, environment = process.env) {
     const projectRoot = path.resolve(__dirname, '../../../..');
     const sourceRoot = environment.IMS_UPLOADS_DIR ||
-        path.join(projectRoot, 'apps/legacy/data/uploads');
+        path.join(projectRoot, 'data/uploads');
     const options = {
         source: path.resolve(sourceRoot),
-        manifest: path.join(projectRoot, 'apps/legacy/data/upload-media-manifest.json'),
+        manifest: path.join(projectRoot, 'data/migration/upload-media-manifest.json'),
         apply: false,
         help: false
     };
@@ -35,7 +35,7 @@ function helpText() {
     return [
         'Usage: pnpm run media:uploads:sync -- [options]',
         '',
-        'Compares mutable Legacy uploads with the configured object storage.',
+        'Compares local uploads with the configured object storage.',
         'The command is read-only unless --apply is provided.',
         '',
         'Options:',

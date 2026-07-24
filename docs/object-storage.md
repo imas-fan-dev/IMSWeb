@@ -129,7 +129,7 @@ pnpm run media:uploads:sync -- --apply
 同步器只遍历 event、news、namecard 和 information 业务目录，生成文件数、字节数、MIME 和
 SHA-256 清单。`--apply` 通过当前 `S3ObjectStorage` 状态机同时维护 bucket 对象与统一数据库的
 `s3_*` 索引，写入后从目标重新读取校验；内容未变化的文件保持 `unchanged`。默认清单位于
-`apps/legacy/data/upload-media-manifest.json`，该路径被 Git 忽略。
+`data/migration/upload-media-manifest.json`，该路径被 Git 忽略。
 
 旧首页“活动资讯与同人活动”的 6 条卡片不属于 Event/News 表，也不应继续由代码常量兜底。
 新存储环境还需单独迁移它们的索引和原图：
@@ -150,7 +150,7 @@ Wiki 来源素材必须通过清单同步器导入，不能手工按展示名拼
 ```sh
 pnpm run wiki:media:sync -- \
   --database "$IMS_SQLITE_PATH" \
-  --staging-dir "$PWD/apps/legacy/data/wiki-import"
+  --staging-dir "$PWD/data/migration/wiki-import"
 ```
 
 默认命令只写入被 Git 忽略的 staging，并生成 `manifest.json`。清单完整后，可在已经设置本节
@@ -159,7 +159,7 @@ MinIO/S3 环境变量的同一 shell 中校验本地文件并上传，无需重�
 ```sh
 pnpm run wiki:media:sync -- \
   --database "$IMS_SQLITE_PATH" \
-  --staging-dir "$PWD/apps/legacy/data/wiki-import" \
+  --staging-dir "$PWD/data/migration/wiki-import" \
   --upload-existing
 ```
 
@@ -174,7 +174,7 @@ pnpm run wiki:media:sync -- \
 | `/assets/...` | `Wiki/static/assets/...` |
 
 `/image/*` 由 Story 数据库把展示名还原为稳定内部目录，再重定向到短期签名 URL；`/icon/*`
-和 `/css/*` 优先使用相同直读方式，缺失时才回退 Legacy Static Assets。manifest 保存每个素材的原始 URL、引用页面、目标键、
+和 `/css/*` 优先使用相同直读方式。manifest 保存每个素材的原始 URL、引用页面、目标键、
 字节数、MIME 与 SHA-256，可用于之后的增量同步和位置审计。
 
 应用需要 bucket 的 `ListBucket` 权限，以及目标 `IMS_S3_PREFIX` 下对象的

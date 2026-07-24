@@ -199,7 +199,6 @@ function validateDefaultScripts(rootPackage, workspacePackages, targetFailures =
     const packageScripts = new Map([
         ['root', rootPackage.scripts ?? {}],
         ['@imsweb/api', workspacePackages.api?.scripts ?? {}],
-        ['@imsweb/legacy', workspacePackages.legacy?.scripts ?? {}],
         ['@imsweb/web', workspacePackages.web?.scripts ?? {}]
     ]);
     const allowedFilters = new Set(['@imsweb/api', '@imsweb/web']);
@@ -274,7 +273,6 @@ function validateDefaultScripts(rootPackage, workspacePackages, targetFailures =
 
 const rootPackage = readJson(path.join(repositoryRoot, 'package.json'));
 const apiPackage = readJson(path.join(apiRoot, 'package.json'));
-const legacyPackage = readJson(path.join(legacyRoot, 'package.json'));
 const webPackage = readJson(path.join(webRoot, 'package.json'));
 
 if (rootPackage.name !== 'imsweb-monorepo' || rootPackage.private !== true) {
@@ -288,24 +286,12 @@ for (const dependencyKind of ['dependencies', 'devDependencies', 'optionalDepend
 if (apiPackage.name !== '@imsweb/api' || apiPackage.private !== true) {
     failures.push('apps/api/package.json: expected private package @imsweb/api');
 }
-if (legacyPackage.name !== '@imsweb/legacy' || legacyPackage.private !== true) {
-    failures.push('apps/legacy/package.json: expected private package @imsweb/legacy');
-}
-for (const scriptName of ['dev:flask', 'start:flask', 'test:flask']) {
-    const script = legacyPackage.scripts?.[scriptName] ?? '';
-    if (!/\buv\s+run\s+--frozen\b/.test(script)) {
-        failures.push(`apps/legacy/package.json: ${scriptName} must use uv run --frozen`);
-    }
-    if (/\bpython3\b|requirements(?:\.lock|\.txt)?/i.test(script)) {
-        failures.push(`apps/legacy/package.json: ${scriptName} bypasses the UV project`);
-    }
-}
 if (webPackage.name !== '@imsweb/web' || webPackage.private !== true) {
     failures.push('apps/web/package.json: expected private package @imsweb/web');
 }
 
 const workspace = fs.readFileSync(path.join(repositoryRoot, 'pnpm-workspace.yaml'), 'utf8');
-for (const workspacePath of ['apps/api', 'apps/legacy', 'apps/web']) {
+for (const workspacePath of ['apps/api', 'apps/web']) {
     if (!workspace.includes(`- ${workspacePath}`)) {
         failures.push(`pnpm-workspace.yaml: missing ${workspacePath}`);
     }
@@ -326,8 +312,7 @@ requireFile(lockfilePath);
 for (const environmentTemplate of [
     'apps/api/.env.example',
     'apps/web/.env.example',
-    'deploy/.env.example',
-    'scripts/migration/.env.example'
+    'deploy/.env.example'
 ]) {
     requireFile(path.join(repositoryRoot, environmentTemplate));
 }
@@ -363,14 +348,9 @@ if (fs.existsSync(lockfilePath)) {
     }
 }
 
-validateDefaultScripts(rootPackage, { api: apiPackage, legacy: legacyPackage, web: webPackage });
-for (const scriptName of ['legacy:build', 'legacy:check', 'legacy:test', 'legacy:start:node', 'legacy:start:flask']) {
-    if (!rootPackage.scripts?.[scriptName]?.includes('@imsweb/legacy')) {
-        failures.push(`package.json: ${scriptName} must explicitly filter @imsweb/legacy`);
-    }
-}
+validateDefaultScripts(rootPackage, { api: apiPackage, web: webPackage });
 
-requireFile(path.join(legacyRoot, 'public/index.html'));
+forbidPath(legacyRoot, 'Legacy is maintained in a separate private repository');
 requireFile(path.join(apiRoot, 'src/app.ts'));
 requireFile(path.join(apiRoot, 'src/main.ts'));
 forbidPath(path.join(apiRoot, 'src/server'), 'API source must be rooted directly at apps/api/src');
@@ -397,79 +377,28 @@ for (const retiredWorkerSurface of [
         'Cloudflare Worker runtime is retired; current API validation is Node-only'
     );
 }
-requireFile(path.join(legacyRoot, 'src/server/main.ts'));
-requireFile(path.join(legacyRoot, 'flask/app.py'));
-requireFile(path.join(legacyRoot, 'pyproject.toml'));
-requireFile(path.join(legacyRoot, 'uv.lock'));
-requireFile(path.join(legacyRoot, '.python-version'));
-requireFile(path.join(legacyRoot, 'PROVENANCE.md'));
-requireFile(path.join(repositoryRoot, 'scripts/operations/backups/backup-legacy-source.sh'));
-
-const legacyPyprojectPath = path.join(legacyRoot, 'pyproject.toml');
-if (fs.existsSync(legacyPyprojectPath)) {
-    const pyproject = fs.readFileSync(legacyPyprojectPath, 'utf8');
-    for (const dependency of ['Flask', 'requests', 'PyJWT', 'Pillow', 'pypinyin', 'gunicorn']) {
-        if (!new RegExp(`['\"]${dependency}(?:[<>=!~]|['\"])`, 'i').test(pyproject)) {
-            failures.push(`apps/legacy/pyproject.toml: missing ${dependency} dependency`);
-        }
-    }
-    if (!/\[tool\.uv\][\s\S]*?package\s*=\s*false/.test(pyproject)) {
-        failures.push('apps/legacy/pyproject.toml: tool.uv package must be false');
-    }
-}
-for (const obsoleteRequirements of ['flask/requirements.txt', 'flask/requirements.lock']) {
-    forbidPath(path.join(legacyRoot, obsoleteRequirements), 'Legacy Python dependencies must be managed by UV');
-}
-forbidPath(
-    path.join(legacyRoot, '.legacy-python-envs-backup'),
-    'historical Python environments must not remain after UV migration'
-);
-
 for (const forbiddenRoot of [
     'src', 'js', 'migrations', 'tsconfig.server.json', 'tsconfig.worker.json',
     'vitest.config.mts', 'worker-configuration.d.ts', 'wrangler.jsonc'
 ]) {
     forbidPath(path.join(repositoryRoot, forbiddenRoot), 'application code must live in a workspace');
 }
-for (const appRoot of [apiRoot, legacyRoot]) {
+for (const appRoot of [apiRoot, webRoot]) {
     forbidPath(path.join(appRoot, 'compose.yaml'), 'deployment composition must live under deploy');
     forbidPath(path.join(appRoot, 'deploy'), 'deployment configuration must live in the repository deploy directory');
 }
 forbidPath(path.join(repositoryRoot, 'compose.yaml'), 'deployment composition must live under deploy');
 forbidPath(path.join(repositoryRoot, 'compose.emergency.yaml'), 'deployment composition must live under deploy');
-forbidPath(path.join(apiRoot, 'public'), 'API release assets must be generated from apps/legacy/public');
-forbidPath(path.join(repositoryRoot, 'public'), 'legacy frontend assets must live in apps/legacy/public');
-requireFile(path.join(legacyRoot, 'data/.gitignore'));
-for (const obsoleteRuntimePath of [
-    'database', 'public/Data', 'public/uploads', 'public/logs', 'public/idol_data.db',
-    'public/assets/images/eventchronicle/events', 'public/title'
-]) {
-    forbidPath(
-        path.join(legacyRoot, obsoleteRuntimePath),
-        'mutable Legacy data must live under apps/legacy/data'
-    );
-}
-forbidPath(path.join(repositoryRoot, 'pyproject.toml'), 'Legacy is the only Python project');
-forbidPath(path.join(repositoryRoot, 'uv.lock'), 'Legacy owns the Python lockfile');
-forbidPath(path.join(repositoryRoot, '.python-version'), 'Legacy owns the Python version pin');
+forbidPath(path.join(apiRoot, 'public'), 'API release assets must be generated from the Web build');
+forbidPath(path.join(repositoryRoot, 'public'), 'frontend assets must be owned by apps/web');
+requireFile(path.join(repositoryRoot, 'data/.gitignore'));
+forbidPath(path.join(repositoryRoot, 'pyproject.toml'), 'the public monorepo has no root Python project');
+forbidPath(path.join(repositoryRoot, 'uv.lock'), 'the public monorepo has no root Python lockfile');
+forbidPath(path.join(repositoryRoot, '.python-version'), 'the public monorepo has no root Python version pin');
 for (const forbiddenLegacySurface of [
     'flask', 'public/app.py', 'public/templates', 'src/server/routes/wiki.ts'
 ]) {
-    forbidPath(path.join(apiRoot, forbiddenLegacySurface), 'legacy runtime surface is forbidden in the API workspace');
-}
-for (const forbiddenLegacyDeploy of ['wrangler.jsonc', 'migrations', '.assetsignore']) {
-    forbidPath(path.join(legacyRoot, forbiddenLegacyDeploy), 'legacy is regression/rollback-only and must not be deployed');
-}
-const legacyExcludedRoots = workspaceDependencyRoots(legacyRoot, { pythonEnvironments: true });
-legacyExcludedRoots.add(path.join(legacyRoot, 'data'));
-for (const legacyFile of filesUnder(legacyRoot, legacyExcludedRoots)) {
-    const legacyRelative = path.relative(legacyRoot, legacyFile).split(path.sep).join('/');
-    if (path.basename(legacyFile).toLowerCase() === 'desktop.ini') {
-        failures.push(`${relative(legacyFile)}: desktop.ini is not a source artifact`);
-    }
-    if (/(?:^|\/)(?:__pycache__|\.pytest_cache)(?:\/|$)|\.(?:pyc|pyo)$/i.test(legacyRelative)) {
-        failures.push(`${relative(legacyFile)}: generated Python cache is not a source artifact`);
-    }
+    forbidPath(path.join(apiRoot, forbiddenLegacySurface), 'retired runtime surface is forbidden in the API workspace');
 }
 
 for (const sourceFile of filesUnder(apiRoot, workspaceDependencyRoots(apiRoot, { wrangler: true }))) {
@@ -492,24 +421,10 @@ for (const dependency of ['@cloudflare/vitest-pool-workers', '@cloudflare/worker
         failures.push(`apps/api/package.json: retired Worker dependency remains: ${dependency}`);
     }
 }
-const legacyDependencies = {
-    ...legacyPackage.dependencies,
-    ...legacyPackage.devDependencies
-};
-for (const dependency of ['hono', '@hono/node-server', 'wrangler', '@cloudflare/workers-types']) {
-    if (legacyDependencies[dependency]) {
-        failures.push(`apps/legacy/package.json: Hono/Worker dependency is forbidden: ${dependency}`);
-    }
-}
-
 const composePath = path.join(repositoryRoot, 'deploy/compose.yaml');
-const legacyComposePath = path.join(repositoryRoot, 'deploy/compose.legacy.yaml');
 const currentTemplatePath = path.join(repositoryRoot, 'deploy/nginx/templates/default.conf.template');
-const legacyTemplatePath = path.join(repositoryRoot, 'deploy/nginx/templates-legacy/default.conf.template');
 requireFile(composePath);
-requireFile(legacyComposePath);
 requireFile(currentTemplatePath);
-requireFile(legacyTemplatePath);
 const currentDeploymentSources = [composePath, currentTemplatePath]
     .filter((file) => fs.existsSync(file))
     .map((file) => fs.readFileSync(file, 'utf8'))
@@ -517,7 +432,7 @@ const currentDeploymentSources = [composePath, currentTemplatePath]
 if (/ims_(?:legacy_)?flask|IMS_(?:LEGACY_)?FLASK_UPSTREAM|(?:^|[^0-9])5000(?:[^0-9]|$)|apps\/legacy/i.test(currentDeploymentSources)) {
     failures.push('Current Compose/Nginx deployment must target only the Hono Node upstream');
 }
-for (const deploymentComposePath of [composePath, legacyComposePath]) {
+for (const deploymentComposePath of [composePath]) {
     if (fs.existsSync(deploymentComposePath) && /^\s*build\s*:/m.test(fs.readFileSync(deploymentComposePath, 'utf8'))) {
         failures.push(`${relative(deploymentComposePath)}: application image builds are forbidden`);
     }
@@ -526,7 +441,7 @@ const composeFiles = filesUnder(path.join(repositoryRoot, 'deploy'))
     .filter((file) => /(?:^|\/)compose(?:\.[^.]+)?\.ya?ml$/i.test(relative(file)))
     .map((file) => relative(file))
     .sort();
-const expectedComposeFiles = ['deploy/compose.legacy.yaml', 'deploy/compose.yaml'];
+const expectedComposeFiles = ['deploy/compose.yaml'];
 if (JSON.stringify(composeFiles) !== JSON.stringify(expectedComposeFiles)) {
     failures.push(`deploy: expected only ${expectedComposeFiles.join(' and ')}, found ${composeFiles.join(', ')}`);
 }
@@ -545,4 +460,4 @@ for (const outputFile of filesUnder(clientRoot)) {
 if (failures.length) {
     throw new Error(`Workspace boundary check failed:\n${failures.join('\n')}`);
 }
-process.stdout.write('Workspace boundary check passed: root orchestrator, API, web, self-contained legacy, and deployment surfaces are isolated\n');
+process.stdout.write('Workspace boundary check passed: root orchestrator, API, web, data, and deployment surfaces are isolated\n');

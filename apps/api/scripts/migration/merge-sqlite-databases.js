@@ -279,11 +279,11 @@ function parseArguments(argv, environment = process.env) {
     }
     return {
         corePath: values.get('--core') || environment.IMS_DB_PATH ||
-            path.join(repositoryRoot, 'apps/legacy/data/core/news.db'),
+            path.join(repositoryRoot, 'data/import/core/news.db'),
         storyPath: values.get('--story') || environment.IMS_STORY_DB_PATH ||
-            path.join(repositoryRoot, 'apps/legacy/data/story/idol_data.db'),
+            path.join(repositoryRoot, 'data/import/story/idol_data.db'),
         outputPath: values.get('--output') || environment.IMS_SQLITE_PATH ||
-            path.join(repositoryRoot, 'apps/legacy/data/imsweb.db'),
+            path.join(repositoryRoot, 'data/imsweb.db'),
         allowForeignKeyViolations
     };
 }

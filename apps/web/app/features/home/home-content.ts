@@ -3,16 +3,13 @@ import {
   CalendarDaysIcon,
   ContactRoundIcon,
   Gamepad2Icon,
-  HistoryIcon,
   MapPinnedIcon,
   RadioTowerIcon,
-  ShipWheelIcon,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 export type SeriesItem = {
   name: string
-  image: string
   background: string
 }
 
@@ -34,100 +31,72 @@ export type FriendLink = {
 export const seriesItems: SeriesItem[] = [
   {
     name: "765PRO ALLSTARS",
-    image: "/assets/images/Production/765intro.png",
     background: "bg-[#f34e6c]",
   },
   {
     name: "CINDERELLA GIRLS",
-    image: "/assets/images/Production/Cinderellaintro.png",
     background: "bg-[#2581c7]",
   },
   {
     name: "MILLION LIVE!",
-    image: "/assets/images/Production/Millionintro.png",
     background: "bg-[#ffc20b]",
   },
   {
     name: "SideM",
-    image: "/assets/images/Production/Sidemintro.png",
     background: "bg-[#11be93]",
   },
   {
     name: "SHINY COLORS",
-    image: "/assets/images/Production/Shinyintro.png",
     background: "bg-[#8dbaff]",
   },
   {
     name: "学园偶像大师",
-    image: "/assets/images/Production/Gakuenintro.png",
     background: "bg-[#f39800]",
   },
 ]
 
-// Keep legacy destinations until their new React routes provide equivalent UX.
 export const portalItems: PortalItem[] = [
   {
-    title: "全国制作人社群",
-    description: "按地区查找社群与联系方式",
-    href: "/producermap.html",
-    icon: MapPinnedIcon,
+    title: "活动中心",
+    description: "浏览近期活动与公开信息",
+    href: "/events",
+    icon: CalendarDaysIcon,
     accent: "bg-franchise-765",
   },
   {
-    title: "制作人名片墙",
-    description: "浏览与发布制作人名片",
-    href: "/ProducerNameCard.html",
-    icon: ContactRoundIcon,
+    title: "内容推荐",
+    description: "发现社区作品与精选内容",
+    href: "/recommendations",
+    icon: BookOpenTextIcon,
     accent: "bg-franchise-cg",
   },
   {
-    title: "W@RSHIPS",
-    description: "战舰世界主题内容与社区资料",
-    href: "/WOWSIntroduction.html",
-    icon: ShipWheelIcon,
+    title: "社区入口",
+    description: "查找社区与协作项目",
+    href: "/community",
+    icon: ContactRoundIcon,
     accent: "bg-franchise-ml",
   },
   {
-    title: "同人游戏与 MOD",
-    description: "社区游戏、工具与模组",
-    href: "/game.html",
+    title: "作品与工具",
+    description: "浏览社区创作与实用工具",
+    href: "/works",
     icon: Gamepad2Icon,
     accent: "bg-franchise-sidem",
   },
   {
-    title: "线上与线下活动",
-    description: "国内活动发布与报名信息",
-    href: "/Event.html",
-    icon: CalendarDaysIcon,
+    title: "直播日程",
+    description: "查看演出与直播信息",
+    href: "/live",
+    icon: RadioTowerIcon,
     accent: "bg-franchise-sc",
   },
   {
-    title: "剧情整理大全",
-    description: "角色、剧集与剧情条目",
-    href: "/wiki/",
-    icon: BookOpenTextIcon,
+    title: "关于 IMSWeb",
+    description: "了解项目定位与维护方式",
+    href: "/about",
+    icon: MapPinnedIcon,
     accent: "bg-franchise-gk",
-  },
-  {
-    title: "板板大冒险",
-    description: "社区制作的网页游戏",
-    href: "/runninggame/index.html",
-    icon: Gamepad2Icon,
-    accent: "bg-franchise-765",
-  },
-  {
-    title: "同人活动编年史",
-    description: "历年国内同人活动记录",
-    href: "/timeline.html",
-    icon: HistoryIcon,
-    accent: "bg-franchise-cg",
-  },
-  {
-    title: "Live 和活动一览",
-    description: "演出与公开活动日程",
-    href: "/live.html",
-    icon: RadioTowerIcon,
-    accent: "bg-franchise-ml",
   },
 ]
 

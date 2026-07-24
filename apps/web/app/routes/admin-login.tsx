@@ -11,6 +11,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
 import { loginAdmin } from "~/features/admin/api"
 import { AdminField, adminControlClass } from "~/features/admin/admin-ui"
@@ -69,13 +70,7 @@ export default function AdminLogin() {
               className="rounded-md focus-visible:ring-3 focus-visible:ring-admin-ink-foreground/50 focus-visible:outline-none"
               aria-label="返回 IMSWeb 首页"
             >
-              <img
-                src="/brand/imsweb-logo.png"
-                width="545"
-                height="188"
-                alt="偶像大师交流站"
-                className="h-11 w-auto max-w-44 object-contain object-left sm:h-13 sm:max-w-52"
-              />
+              <BrandWordmark className="text-2xl text-admin-ink-foreground sm:text-3xl" />
             </Link>
             <Link
               to="/"

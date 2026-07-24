@@ -282,7 +282,7 @@ async function foreignKeyReport(client) {
 
 function parseArguments(argv, environment = process.env) {
     let sqlitePath = environment.IMS_SQLITE_PATH ||
-        path.join(repositoryRoot, 'apps/legacy/data/imsweb.db');
+        path.join(repositoryRoot, 'data/imsweb.db');
     let migrationsPath = DEFAULT_MIGRATIONS;
     let allowForeignKeyViolations = false;
     let batchSize = 250;

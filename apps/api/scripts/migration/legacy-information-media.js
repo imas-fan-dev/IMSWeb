@@ -86,11 +86,11 @@ function objectKey(url) {
 function parseArguments(argv, environment = process.env) {
     const projectRoot = path.resolve(__dirname, '../../../..');
     const options = {
-        source: path.resolve(environment.IMS_PUBLIC_DIR ||
-            path.join(projectRoot, 'apps/legacy/public')),
+        source: path.resolve(environment.IMS_INFORMATION_SOURCE_DIR ||
+            path.join(projectRoot, 'data/import/public')),
         manifest: path.join(
             projectRoot,
-            'apps/legacy/data/legacy-information-migration.json'
+            'data/migration/information-media-migration.json'
         ),
         apply: false,
         help: false
@@ -117,11 +117,11 @@ function helpText() {
     return [
         'Usage: pnpm run media:information:sync -- [options]',
         '',
-        'Moves the six Legacy home Information cards and images into object storage.',
+        'Moves the six historical home Information cards and images into object storage.',
         'The command is read-only unless --apply is provided.',
         '',
         'Options:',
-        '  --source <directory>   Legacy public root (default: IMS_PUBLIC_DIR)',
+        '  --source <directory>   Private historical export root (default: data/import/public)',
         '  --manifest <file>      JSON audit report path',
         '  --apply                Write images and the Information index, then verify them',
         '  --help                 Show this help',

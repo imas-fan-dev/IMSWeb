@@ -1,24 +1,40 @@
-# IMSWeb Monorepo
+# IMSWeb
 
-IMSWeb 现在由三个边界明确的应用 workspace 组成。API（Hono）是当前服务端与生产运行
-入口；Web 是新的 React 工程；Legacy 只用于回归对照与代码回滚，不属于当前部署拓扑。
+IMSWeb 是面向《偶像大师》中文社区的内容站与管理平台，提供资讯、活动、作品推荐、剧情、
+Wiki、编年史以及配套的内容管理能力。
 
-```text
-apps/
-  api/       @imsweb/api，Hono + Node
-  web/       @imsweb/web，React Router + Tailwind + shadcn/ui
-  legacy/    @imsweb/legacy，Express + Flask + 原站静态前端，Python 由 UV 管理
-deploy/      新版与 Legacy 两套 Compose，以及共用的 Nginx 配置
-scripts/     monorepo 边界、数据审计和迁移前清点
-tests/       仓库级部署与数据审计测试
-```
+本项目由社区独立维护，不是《偶像大师》系列的官方网站，也不代表相关官方或权利人。
 
-根 `package.json` 只负责编排，不声明应用依赖。依赖安装和锁文件由根统一管理，应用源码、
-构建产物和运行入口都属于各自 workspace。
+## 项目状态
 
-## 默认工作流
+当前公开仓库由 Hono Node API 和 React Web 组成。前端生产构建会被验证并打包进 API 的
+发布目录，Hono 是唯一服务端运行时。历史 Express/Flask 实现及其素材、数据不属于本开源
+项目，已在独立私有仓库中保留。
 
-要求 Node.js `>=22.13.0` 和 pnpm `>=11.10.0`：
+## 仓库结构
+
+IMSWeb 是一个 pnpm monorepo：
+
+| 路径 | 包 | 职责 |
+| --- | --- | --- |
+| `apps/api/` | `@imsweb/api` | Hono + TypeScript Node API |
+| `apps/web/` | `@imsweb/web` | React Router 7 + React 19 Web 应用 |
+| `data/` | - | 被 Git 忽略的本地数据库、上传和迁移输入 |
+| `deploy/` | - | PostgreSQL、MinIO 与可选 Nginx 编排 |
+| `scripts/` | - | 边界检查、迁移、发布与运维工具 |
+| `tests/` | - | 仓库级基础设施和部署契约测试 |
+
+根 package 只负责编排，依赖必须安装在实际使用它的 workspace 中。
+
+## 快速开始
+
+### 环境要求
+
+- Node.js `>=22.13.0`
+- pnpm `>=11.10.0`，建议通过 Corepack 使用
+- Docker，仅在本地运行 PostgreSQL、MinIO 或 Nginx 时需要
+
+从仓库根目录安装依赖并运行默认门禁：
 
 ```sh
 corepack enable
@@ -28,127 +44,81 @@ pnpm run check
 pnpm run test
 ```
 
-根目录的 `build` 和 `check` 同时覆盖 `@imsweb/api` 与 `@imsweb/web`；`test` 覆盖
-Hono、仓库基础设施以及前端单元测试。`start` 和 `dev:node` 只执行 `@imsweb/api`，
-因此合并前端不会自动切换生产流量。`pnpm run check:boundaries` 额外验证
-workspace、Legacy 资源归属、依赖和部署边界。
+### 启动 API 与 Web
 
-Node 本地运行：
-
-```sh
-pnpm run build
-IMS_JWT_SECRET='<high-entropy-secret>' pnpm start
-```
-
-Hono 的发布产物位于 `apps/api/dist/`。当前构建、检查和测试只覆盖 Node 运行时；
-serverless 相关实现不属于当前部署或 PostgreSQL 迁移方案。
-
-## Web 工作流
-
-```sh
-pnpm run dev:web
-pnpm run build:web
-pnpm run preview:web
-pnpm run check:web
-pnpm run test:web
-pnpm run test:web-routing
-```
-
-前端源码、测试和专用静态资源位于 `apps/web/`。它使用根锁文件，不得保留
-嵌套 `.git`、子级 `pnpm-lock.yaml` 或 `pnpm-workspace.yaml`。`test:web` 包含桌面与
-移动端 Playwright 测试；默认根 `test` 只运行前端单元测试。
-
-当前生产入口仍由 Hono 提供 legacy 首页。新前端构建产物和 selective SPA fallback 只有在
-路由 contract 通过并完成明确的部署切流后才能接管对应路径。`test:web-routing` 会用
-真实的 Hono 与前端构建产物验证这条边界，但不会修改生产路由。
-
-## Legacy 回归工作流
-
-Legacy 命令必须显式调用，不会被默认构建或测试链路触发：
-
-```sh
-pnpm run legacy:build
-pnpm run legacy:python:sync
-pnpm run legacy:check
-pnpm run legacy:test
-pnpm run legacy:start:node
-pnpm run legacy:start:flask
-pnpm run legacy:backup:source
-```
-
-也可以直接进入 `apps/legacy` 独立调试：
-
-```sh
-cd apps/legacy
-uv sync --frozen
-pnpm run build
-pnpm run start:node
-# 另一个终端：pnpm run start:flask
-```
-
-Express 默认使用 `data/core/news.db`、`data/uploads/`、`data/chronicle/` 和 `public/`；
-Flask 默认使用 `data/story/idol_data.db`、`data/story/images/`、`public/icon/` 与
-`public/css/`。这些相对路径都从 `apps/legacy` 解析，不依赖仓库根目录。Python 依赖只由该目录内的 `pyproject.toml`、
-`.python-version` 与 `uv.lock` 管理。
-
-`pnpm run test:all` 才会在 Hono 全套门禁之后执行 Legacy 回归。Legacy 不得包含 Wrangler、
-D1/R2 migration、Compose 或 Nginx 部署配置。
-
-## 数据边界
-
-原站的受版本管理静态资源位于 `apps/legacy/public/`；所有本地兼容数据库、上传、剧情图片、
-旧版标题素材归档、编年史状态和日志统一位于被 Git 忽略的 `apps/legacy/data/`。API 构建只根据固定 allowlist 从 Legacy 资源源生成自己的
-`dist/client` 与 `dist/node-client`，不会直接发布整个 Legacy 目录。新前端只在自身
-`apps/web/public/` 中保存经过来源登记的专用资产。生产仍必须为所有可变 `IMS_*` 数据路径
-使用独立绝对路径，并确保 Hono 与 Legacy 不会同时写入同一份数据。
-
-统一 SQLite、旧两库合并、PostgreSQL 单库配置和启动前校验见
-[数据库配置](docs/database-configuration.md)。
-本地 PostgreSQL 固定为 18.4，可直接启动并导入统一 SQLite：
+使用空的本地 PostgreSQL 开发库：
 
 ```sh
 pnpm run dev:postgresql:up
-DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb' \
-  pnpm run migration:postgresql:import-sqlite -- \
-  --allow-foreign-key-violations
+
+export IMS_DATABASE=postgresql
+export DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb'
+export IMS_JWT_SECRET='local-development-only-change-me'
+
+pnpm run migration:postgresql
+pnpm run dev:node
 ```
 
-导入只接受空目标并逐表对账；原 SQLite 不会被修改。
-常驻 Hono Node 可以保留本地文件系统，也可以通过 `IMS_OBJECT_STORAGE=s3` 把可变媒体切到
-S3。S3 模式的图片读取使用短期签名 URL 直连 MinIO/S3，上传仍由 Hono 校验后写入；配置、
-IAM 权限和迁移边界见 [Node 文件对象存储](docs/object-storage.md)。
-
-环境模板按所有者放置，避免根目录文件混合不同进程的配置：
-
-- `apps/api/.env.example`：Hono Node、SQLite/PostgreSQL、S3 和账号操作；
-- `apps/web/.env.example`：Web 开发代理和 Playwright；
-- `deploy/.env.example`：新版/Legacy Nginx、PostgreSQL 与本地 MinIO Compose；
-- `scripts/migration/.env.example`：一次性 inventory 快照输入。
-
-应用不会自动加载这些模板；实际值由 shell、进程管理器或显式 Compose `--env-file` 注入。
-生产 staging 必须先安装完整 frozen 依赖，完成构建、检查和测试；不能在构建前用 `--prod`
-删除 TypeScript 等开发依赖：
+在另一个终端启动 Web：
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm run build
-pnpm run check
-pnpm run test:fast
+IMS_API_ORIGIN=http://127.0.0.1:3000 pnpm run dev:web
 ```
 
-`deploy/` 只保留两个编排入口：`compose.yaml` 是当前的 PostgreSQL、MinIO 栈，并提供可选
-`proxy` profile 下的 Nginx；
-`compose.legacy.yaml` 是 Express + Flask 回滚代理。两者都不构建应用镜像，应用进程仍由
-宿主机进程管理器负责，且两个入口不能同时占用同一个 Nginx 监听端口。
+Hono 默认监听 `http://127.0.0.1:3000`，Web 地址以 Vite 输出为准。应用不会自动加载
+`.env`；完整本地配置见 [AI 开发环境指南](docs/ai-development-environment.md)和
+[数据库配置](docs/database-configuration.md)。
 
-## 文档
+## 常用命令
 
-- [API workspace](apps/api/README.md)
-- [Web workspace](apps/web/README.md)
-- [Legacy workspace](apps/legacy/README.md)
+| 命令 | 作用 |
+| --- | --- |
+| `pnpm run dev:node` | 监听并启动 Hono Node API |
+| `pnpm run dev:web` | 启动 React Router 开发服务器 |
+| `pnpm run build` | 构建 Web、API 和可发布客户端 |
+| `pnpm run check` | 运行边界、静态、架构、测试和资产检查 |
+| `pnpm run test` | 运行基础设施、API、Web 和路由契约测试 |
+| `pnpm run test:web` | 运行 Web 单元测试与 Playwright 测试 |
+| `pnpm run test:web-routing` | 验证真实前端产物与 Hono 路由所有权 |
+
+## 架构边界
+
+- Web 页面、组件和浏览器 API 位于 `apps/web/`；请求使用同源相对 URL。
+- API 业务代码依赖 `apps/api/src/ports/`，具体数据库、存储和媒体实现由 `runtime` 组合。
+- Web 构建产物经 manifest 和逐文件内容校验后复制到 `apps/api/dist/client` 与
+  `apps/api/dist/node-client`；不要手工维护 API 静态目录。
+- SQLite 或 PostgreSQL 是唯一权威数据库。可变媒体可以使用本地文件系统或 S3 兼容存储。
+- `data/` 只保存本地运行状态和迁移输入，除 `.gitignore` 外不会进入版本控制。
+
+更具体的约束见 [API workspace](apps/api/README.md)、[Web workspace](apps/web/README.md)及各目录
+的 `AGENTS.md`。
+
+## 参与贡献
+
+提交 Issue 或 Pull Request 前请阅读 [贡献指南](CONTRIBUTING.md)。请勿提交真实凭据、生产
+数据库、用户上传、个人信息、构建产物或来源不明的素材。
+
+安全问题请不要在公开 Issue 中披露可利用细节；在项目启用私密安全报告后，优先通过该渠道
+联系维护者。
+
+## 许可证与内容权利
+
+本仓库中由 IMSWeb contributors 原创的源代码和项目文档采用 [MIT License](LICENSE)。
+依赖项和第三方内容继续适用其各自许可证，MIT 不会重新授权这些内容。
+
+Web 公开资产必须登记来源和许可状态，见
+[资产来源记录](apps/web/docs/ASSET_PROVENANCE.md)。没有明确再分发授权的图片、字体、
+音视频、品牌标识、游戏资源或社区投稿不得加入公开仓库。
+
+《偶像大师》及相关名称、商标、角色和素材归各自权利人所有。本项目许可证不授予任何商标权，
+也不表示官方授权或背书。
+
+## 文档索引
+
+- [贡献指南](CONTRIBUTING.md)
 - [AI 开发环境指南](docs/ai-development-environment.md)
 - [数据库配置](docs/database-configuration.md)
 - [数据库架构与 PostgreSQL 迁移边界](docs/database-architecture.md)
 - [Node 文件对象存储](docs/object-storage.md)
 - [部署、备份与回滚](docs/operations-runbook.md)
-- [Nginx 部署](deploy/nginx/README.md)
+- [Nginx Compose 部署](deploy/nginx/README.md)

@@ -113,15 +113,16 @@ function walkRegularFiles(root, label) {
 }
 
 function validateClientArtifacts(required) {
-    const sourceManifest = JSON.parse(fs.readFileSync(required.get('apps/api/scripts/build/client-allowlist.json'), 'utf8'));
-    const outputManifest = JSON.parse(fs.readFileSync(required.get('apps/api/dist/client-allowlist.json'), 'utf8'));
-    if (JSON.stringify(sourceManifest) !== JSON.stringify(outputManifest)) {
-        fail('generated client allowlist differs from the reviewed source allowlist');
+    const manifest = JSON.parse(fs.readFileSync(required.get('apps/api/dist/client-manifest.json'), 'utf8'));
+    if (
+        manifest.version !== 1 ||
+        manifest.source !== '@imsweb/web' ||
+        !Array.isArray(manifest.files) ||
+        !manifest.files.length
+    ) {
+        fail('client manifest must be a non-empty version 1 @imsweb/web manifest');
     }
-    if (sourceManifest.version !== 1 || !Array.isArray(sourceManifest.files) || !sourceManifest.files.length) {
-        fail('client allowlist must be a non-empty version 1 file manifest');
-    }
-    const expected = sourceManifest.files.map((value) => {
+    const expected = manifest.files.map((value) => {
         if (typeof value !== 'string' || !value || value !== value.normalize('NFC') ||
             value.includes('\\') || value.includes('\0') ||
             path.posix.normalize(value) !== value || value.startsWith('/') || value.startsWith('../')) {
@@ -141,26 +142,14 @@ function validateClientArtifacts(required) {
         fail('dist/client tree is not the exact reviewed client allowlist');
     }
 
-    const nodeOnlyFiles = [
-        'runninggame/Build/webgame.data',
-        'runninggame/BuildMobile/webgame.data'
-    ];
-    const nodeExpected = [
-        ...expected,
-        ...nodeOnlyFiles
-    ].sort(compareUtf8);
     const nodeFiles = walkRegularFiles(nodeClientRoot, 'dist/node-client');
-    if (JSON.stringify(nodeFiles) !== JSON.stringify(nodeExpected)) {
-        fail('dist/node-client tree is not the exact allowlist plus two Node Unity payloads');
+    if (JSON.stringify(nodeFiles) !== JSON.stringify(expected)) {
+        fail('dist/node-client tree is not the exact Web client manifest');
     }
     for (const relative of expected) {
         const baseBody = fs.readFileSync(path.join(clientRoot, ...relative.split('/')));
         const nodeBody = fs.readFileSync(path.join(nodeClientRoot, ...relative.split('/')));
         if (!baseBody.equals(nodeBody)) fail(`dist/client and dist/node-client differ: ${relative}`);
-    }
-    for (const relative of nodeOnlyFiles) {
-        const file = path.join(nodeClientRoot, ...relative.split('/'));
-        if (fs.statSync(file).size < 1) fail(`Node Unity payload is empty: ${relative}`);
     }
 }
 
@@ -344,29 +333,33 @@ async function probeRuntime(releaseRoot, publicDir, publicIndex, appPackagePath,
         if (response.status !== 200 || !actual.equals(expected)) {
             fail(`static runtime probe failed: status=${response.status} bytes=${actual.length}/${expected.length}`);
         }
-        for (const relative of [
-            'runninggame/Build/webgame.data',
-            'runninggame/BuildMobile/webgame.data'
-        ]) {
-            const expectedUnity = fs.readFileSync(path.join(publicDir, ...relative.split('/')));
-            const url = `http://release.invalid/${relative}`;
-            const getResponse = await runtime.request(url);
-            const getBody = Buffer.from(await getResponse.arrayBuffer());
-            if (getResponse.status !== 200 || !getBody.equals(expectedUnity)) {
-                fail(`Node Unity GET probe failed: ${relative}`);
-            }
-            const headResponse = await runtime.request(url, { method: 'HEAD' });
-            const headBody = Buffer.from(await headResponse.arrayBuffer());
-            if (headResponse.status !== 200 || headBody.length !== 0 ||
-                headResponse.headers.get('content-length') !== String(expectedUnity.length)) {
-                fail(`Node Unity HEAD probe failed: ${relative}`);
-            }
-            const rangeResponse = await runtime.request(url, { headers: { range: 'bytes=1-3' } });
-            const rangeBody = Buffer.from(await rangeResponse.arrayBuffer());
-            if (rangeResponse.status !== 206 || !rangeBody.equals(expectedUnity.subarray(1, 4)) ||
-                rangeResponse.headers.get('content-range') !== `bytes 1-3/${expectedUnity.length}`) {
-                fail(`Node Unity Range probe failed: ${relative}`);
-            }
+        const manifest = JSON.parse(fs.readFileSync(
+            path.join(releaseRoot, 'apps/api/dist/client-manifest.json'),
+            'utf8'
+        ));
+        const relative = manifest.files.find((candidate) =>
+            candidate !== 'index.html' &&
+            fs.statSync(path.join(publicDir, ...candidate.split('/'))).size >= 4
+        );
+        if (!relative) fail('client manifest has no static file suitable for a runtime probe');
+        const expectedAsset = fs.readFileSync(path.join(publicDir, ...relative.split('/')));
+        const url = `http://release.invalid/${relative}`;
+        const getResponse = await runtime.request(url);
+        const getBody = Buffer.from(await getResponse.arrayBuffer());
+        if (getResponse.status !== 200 || !getBody.equals(expectedAsset)) {
+            fail(`Node static GET probe failed: ${relative}`);
+        }
+        const headResponse = await runtime.request(url, { method: 'HEAD' });
+        const headBody = Buffer.from(await headResponse.arrayBuffer());
+        if (headResponse.status !== 200 || headBody.length !== 0 ||
+            headResponse.headers.get('content-length') !== String(expectedAsset.length)) {
+            fail(`Node static HEAD probe failed: ${relative}`);
+        }
+        const rangeResponse = await runtime.request(url, { headers: { range: 'bytes=1-3' } });
+        const rangeBody = Buffer.from(await rangeResponse.arrayBuffer());
+        if (rangeResponse.status !== 206 || !rangeBody.equals(expectedAsset.subarray(1, 4)) ||
+            rangeResponse.headers.get('content-range') !== `bytes 1-3/${expectedAsset.length}`) {
+            fail(`Node static Range probe failed: ${relative}`);
         }
         assertLoadedInsideRelease(releaseRoot, baselineCache);
     } finally {
@@ -414,8 +407,7 @@ async function main() {
         'apps/api/dist/server/infra/http/filesystem/static-assets.js',
         'apps/api/dist/client/index.html',
         'apps/api/dist/node-client/index.html',
-        'apps/api/scripts/build/client-allowlist.json',
-        'apps/api/dist/client-allowlist.json',
+        'apps/api/dist/client-manifest.json',
         'node_modules/.pnpm/lock.yaml',
         'node_modules/.modules.yaml'
     ];

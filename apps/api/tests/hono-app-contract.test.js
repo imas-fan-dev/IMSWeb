@@ -64,7 +64,7 @@ function runIsolated(script, options = {}) {
     }
 }
 
-test('[ARC-01] default assets and mutable Legacy data use separate roots', () => {
+test('[ARC-01] default Web assets and mutable data use separate roots', () => {
     const pathsEntry = path.join(PROJECT_ROOT, 'dist/server/config/paths.js');
     const script = `
         const paths = require(${JSON.stringify(pathsEntry)});
@@ -91,17 +91,17 @@ test('[ARC-01] default assets and mutable Legacy data use separate roots', () =>
     assert.equal(result.status, 0, result.stderr);
     const paths = JSON.parse(result.stdout);
     assert.equal(paths.PROJECT_ROOT, REPOSITORY_ROOT);
-    assert.equal(paths.PUBLIC_DIR, path.join(REPOSITORY_ROOT, 'apps/legacy/public'));
+    assert.equal(paths.PUBLIC_DIR, path.join(REPOSITORY_ROOT, 'apps/api/dist/node-client'));
     assert.equal(
         paths.SQLITE_DATABASE_PATH,
-        path.join(REPOSITORY_ROOT, 'apps/legacy/data/imsweb.db')
+        path.join(REPOSITORY_ROOT, 'data/imsweb.db')
     );
     assert.equal(
         paths.STORY_DATA_DIR,
-        path.join(REPOSITORY_ROOT, 'apps/legacy/data/story/images')
+        path.join(REPOSITORY_ROOT, 'data/story/images')
     );
-    assert.equal(paths.UPLOADS_DIR, path.join(REPOSITORY_ROOT, 'apps/legacy/data/uploads'));
-    assert.equal(paths.EVENT_BASE, path.join(REPOSITORY_ROOT, 'apps/legacy/data/chronicle'));
+    assert.equal(paths.UPLOADS_DIR, path.join(REPOSITORY_ROOT, 'data/uploads'));
+    assert.equal(paths.EVENT_BASE, path.join(REPOSITORY_ROOT, 'data/chronicle'));
 });
 
 test('[RUN-01] invalid story upload byte limits fail before Node startup', () => {

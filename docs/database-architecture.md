@@ -11,13 +11,13 @@ one application instance
   -> capability Repository ports + StoryRepository
 ```
 
-SQLite 使用 `IMS_SQLITE_PATH` 指向统一的 `apps/legacy/data/imsweb.db`；PostgreSQL 使用一个
+SQLite 使用 `IMS_SQLITE_PATH` 指向统一的 `data/imsweb.db`；PostgreSQL 使用一个
 `DATABASE_URL`。Core SQL 适配器实现多个能力级 Repository port，并与 Story Repository 共享
 同一底层数据库；业务侧不感知该复用。媒体二进制由本地文件
 目录或 S3-compatible 对象存储保存。业务表只保存逻辑路径；S3 模式另外在同一数据库的 `s3_*`
 控制面表保存对象版本映射、上传状态和补偿任务，不把对象字节写入关系数据库。
 
-旧 `news.db` 和 `idol_data.db` 仅作为合并、对账和 Legacy 回归输入，不再被 Hono 运行时读取。
+旧 `news.db` 和 `idol_data.db` 仅作为合并与对账输入，不再被 Hono 运行时读取。
 当前部署与默认验收只有 Node，不包含 Worker、D1 或 R2。
 
 ## 统一表结构
@@ -37,7 +37,7 @@ SQLite 使用 `IMS_SQLITE_PATH` 指向统一的 `apps/legacy/data/imsweb.db`；P
 | Story | `agencies` | 企划维度，`code` 唯一 |
 | Story | `idols` | 偶像维度，`agency_id -> agencies.id` |
 | Story | `theme_colors` | 页面主题色 |
-| Story | 七张 `*_stories` | Legacy 剧情、视频和图片逻辑路径 |
+| Story | 七张 `*_stories` | 剧情、视频和图片逻辑路径 |
 
 七张 Story 表是 `765_stories`、`876_stories`、`cg_stories`、`ml_stories`、
 `sidem_stories`、`sc_stories` 和 `gk_stories`。PostgreSQL 第一阶段采用兼容 schema 原样迁移，

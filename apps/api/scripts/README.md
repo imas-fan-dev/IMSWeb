@@ -6,21 +6,21 @@
 
 | 分类 | 路径 | 数据影响 | 稳定入口 |
 | --- | --- | --- | --- |
-| 构建 | `build/` | 构建 `dist/server` 和 allowlist 静态资源 | `pnpm run build` |
+| 构建 | `build/` | 构建 `dist/server` 并打包已验证的 Web 静态资源 | `pnpm run build` |
 | 检查 | `checks/` | 只读架构边界 | `pnpm run check` |
-| SQLite 合并 | `migration/merge-sqlite-databases.js` | 从两个 Legacy 源生成一个新目标 | `pnpm run migration:sqlite:merge` |
+| SQLite 合并 | `migration/merge-sqlite-databases.js` | 从两个历史源生成一个新目标 | `pnpm run migration:sqlite:merge` |
 | PostgreSQL schema | `migration/postgres-migrations.js` | 对一个 PostgreSQL 数据库执行版本化 migration | `pnpm run migration:postgresql` |
 | PostgreSQL 导入 | `migration/sqlite-to-postgresql.js` | 从统一 SQLite 只读导入一个空 PostgreSQL | `pnpm run migration:postgresql:import-sqlite` |
 | 首页活动资讯 | `migration/legacy-information-media.js` | 审计静态 Information 卡片；可显式写当前 S3 索引 | `pnpm run media:information:sync` |
-| 本地上传媒体 | `migration/local-upload-media.js` | 审计 Legacy 上传；可显式写当前 S3 和对象索引 | `pnpm run media:uploads:sync` |
+| 本地上传媒体 | `migration/local-upload-media.js` | 审计本地上传；可显式写当前 S3 和对象索引 | `pnpm run media:uploads:sync` |
 | Wiki 媒体 | `migration/wiki-media-sync.js` | 读取统一 SQLite；可显式写 S3 | `pnpm run wiki:media:sync` |
 | 账号运维 | `operations/accounts/` | `add-user` 写统一 SQLite | `pnpm run ops:account:add` |
 
 ## SQLite 合并
 
-默认输入是 `apps/legacy/data/core/news.db` 和
-`apps/legacy/data/story/idol_data.db`，默认输出是
-`apps/legacy/data/imsweb.db`。三个路径必须不同，目标已存在时命令拒绝覆盖：
+默认输入是 `data/import/core/news.db` 和
+`data/import/story/idol_data.db`，默认输出是
+`data/imsweb.db`。三个路径必须不同，目标已存在时命令拒绝覆盖：
 
 ```sh
 pnpm run migration:sqlite:merge
@@ -50,7 +50,7 @@ DATABASE_URL='postgresql://imsweb:<password>@127.0.0.1:5432/imsweb' \
 pre-data migration、批量导入、identity 校准、post-data constraint 和逐表对账：
 
 ```sh
-IMS_SQLITE_PATH="$PWD/apps/legacy/data/imsweb.db" \
+IMS_SQLITE_PATH="$PWD/data/imsweb.db" \
 DATABASE_URL='postgresql://imsweb:<password>@127.0.0.1:5432/imsweb' \
   pnpm run migration:postgresql:import-sqlite -- \
   --allow-foreign-key-violations
@@ -71,9 +71,10 @@ pnpm run media:information:sync
 pnpm run media:information:sync -- --apply
 ```
 
-迁移器读取版本管理中的 Legacy 原图，把图片写到 `uploads/information/original/`，并通过条件写
+迁移器读取 `IMS_INFORMATION_SOURCE_DIR` 指定的私有历史导出目录，把图片写到
+`uploads/information/original/`，并通过条件写
 创建 `uploads/information/index.json`。已有管理员卡片保持不变；已迁移内容再次执行只做回读
-校验。默认报告写到被 Git 忽略的 `apps/legacy/data/legacy-information-migration.json`。
+校验。默认报告写到被 Git 忽略的 `data/migration/information-media-migration.json`。
 
 ## 本地上传媒体
 
@@ -91,7 +92,7 @@ pnpm run media:uploads:sync
 pnpm run media:uploads:sync -- --apply
 ```
 
-默认审计报告写到被 Git 忽略的 `apps/legacy/data/upload-media-manifest.json`。相同内容再次执行
+默认审计报告写到被 Git 忽略的 `data/migration/upload-media-manifest.json`。相同内容再次执行
 会标记为 `unchanged`，不会创建新对象版本。可用 `--source` 和 `--manifest` 覆盖本地输入与报告
 路径；命令只接受 `IMS_OBJECT_STORAGE=s3`。
 
@@ -103,7 +104,7 @@ SHA-256、MIME、大小和目标对象键清单。只有 `--upload` 或 `--uploa
 ```sh
 pnpm run wiki:media:sync -- \
   --database "$IMS_SQLITE_PATH" \
-  --staging-dir "$PWD/apps/legacy/data/wiki-import"
+  --staging-dir "$PWD/data/migration/wiki-import"
 ```
 
 ## 账号运维

@@ -2,11 +2,11 @@
 
 ## Project Structure & Module Organization
 
-IMSWeb is a pnpm monorepo with three application workspaces:
+IMSWeb is a pnpm monorepo with two application workspaces:
 
 - `apps/api/`: Hono backend for Node; source is in `src/` and tests in `tests/`.
 - `apps/web/`: React Router 7 frontend; routes live in `app/routes/`, UI in `app/components/`, API helpers in `app/shared/api/`, and assets in `public/`.
-- `apps/legacy/`: Express, Flask, and original static resources retained only for regression and rollback.
+- `data/`: ignored local databases, uploads, and migration inputs; only `.gitignore` is tracked.
 
 Migration, deployment, and boundary tooling lives in `scripts/`, `deploy/`, `docs/`, and root `tests/`. Keep dependencies inside their owning workspace.
 
@@ -28,7 +28,7 @@ preflight, local data configuration, service startup, and validation evidence.
 - `pnpm run check`: run static, architecture, migration, lint, test, and build checks.
 - `pnpm run test`: run infrastructure, API, Web unit, and routing-contract tests.
 - `pnpm run test:web`: run Web unit and Playwright tests.
-- `pnpm run test:all`: add isolated Legacy regressions.
+- `pnpm run test:web-routing`: validate the built Web client against Hono route ownership.
 
 ## Coding Style & Naming Conventions
 
@@ -48,4 +48,4 @@ Copy settings from the owner-specific templates in `apps/api/.env.example`,
 `apps/web/.env.example`, `deploy/.env.example`, and
 `scripts/migration/.env.example`; never commit secrets, databases, uploads, or
 generated build output. Production requires a high-entropy `IMS_JWT_SECRET`.
-PostgreSQL migration work must keep credentials outside the repository and preserve the existing Core/Story data reconciliation gates.
+PostgreSQL migration work must keep credentials outside the repository and preserve the existing Core/Story data reconciliation gates. Historical Express/Flask source, data, and assets belong to a separate private repository and must not be copied into this public tree.

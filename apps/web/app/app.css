@@ -187,34 +187,3 @@
     background: color-mix(in oklch, var(--primary) 28%, transparent);
   }
 }
-
-.home-brand-background {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  contain: strict;
-  pointer-events: none;
-  user-select: none;
-}
-
-.home-brand-motif {
-  position: absolute;
-  top: 0;
-  left: 0;
-  max-width: none;
-  height: auto;
-  filter: saturate(0.92);
-  transform-origin: center;
-  will-change: transform;
-}
-
-.dark .home-brand-motif {
-  filter: saturate(0.92) brightness(1.3);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-brand-motif {
-    will-change: auto;
-  }
-}

@@ -28,18 +28,10 @@ pnpm install --frozen-lockfile
 依赖只能由根 `pnpm-lock.yaml` 安装。不要在 workspace 中生成子锁文件，也不要使用
 `npm install`。安装需要下载依赖时，AI 应遵守当前网络和权限审批规则。
 
-只有修改或验证 `apps/legacy/flask` 时才准备 Python 环境：
-
-```sh
-cd apps/legacy
-uv sync --frozen
-cd ../..
-```
-
 ## 3. 配置本地数据
 
 应用不会自动读取 `.env`。模板按所有者分别位于 `apps/api/.env.example`、
-`apps/web/.env.example`、`deploy/.env.example` 和 `scripts/migration/.env.example`；在启动
+`apps/web/.env.example` 和 `deploy/.env.example`；在启动
 进程的 shell 中显式设置开发变量：
 
 ```sh
@@ -47,15 +39,14 @@ export NODE_ENV=development
 export IMS_PROJECT_ROOT="$PWD"
 export IMS_JWT_SECRET='local-development-only-change-me'
 export IMS_DATABASE=sqlite
-export IMS_SQLITE_PATH="$PWD/apps/legacy/data/imsweb.db"
-export IMS_COMPENSATION_DIR="$PWD/apps/legacy/data/core/compensation"
-export IMS_UPLOADS_DIR="$PWD/apps/legacy/data/uploads"
-export IMS_EVENT_BASE_DIR="$PWD/apps/legacy/data/chronicle"
-export IMS_STORY_DATA_DIR="$PWD/apps/legacy/data/story/images"
+export IMS_SQLITE_PATH="$PWD/data/imsweb.db"
+export IMS_COMPENSATION_DIR="$PWD/data/core/compensation"
+export IMS_UPLOADS_DIR="$PWD/data/uploads"
+export IMS_EVENT_BASE_DIR="$PWD/data/chronicle"
+export IMS_STORY_DATA_DIR="$PWD/data/story/images"
 
 test -f "$IMS_SQLITE_PATH"
 sqlite3 "$IMS_SQLITE_PATH" 'PRAGMA quick_check;'
-pnpm run audit:data
 ```
 
 统一库不存在时，先阅读[数据库配置](database-configuration.md)，再执行一次
@@ -83,7 +74,7 @@ MinIO S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
 `http://127.0.0.1:9001`。`pnpm run dev:minio:down` 默认保留 `minio-data` 卷；只有明确
 需要清空测试对象时才可另外执行带 `--volumes` 的 Compose 清理。
 
-`apps/legacy/data/` 被 Git 忽略，不得把数据库、上传或日志移动回 `public/`，也不得提交。
+`data/` 被 Git 忽略，不得把数据库、上传或日志移动到 `public/`，也不得提交。
 数据库职责、PostgreSQL 选项、生产路径和完整性检查见
 [数据库配置](database-configuration.md)。
 
@@ -134,8 +125,7 @@ IMS_API_ORIGIN=http://127.0.0.1:3000 pnpm run dev:web
 ```
 
 Hono 默认地址是 `http://127.0.0.1:3000`。Web 地址以 Vite 实际输出为准；如果端口冲突，
-为 Hono 设置其他 `PORT` 时必须同步修改 `IMS_API_ORIGIN`。Legacy Express 也默认使用
-`3000`，只在明确进行 Legacy 回归时启动，并避免与 Hono 同时占用该端口。
+为 Hono 设置其他 `PORT` 时必须同步修改 `IMS_API_ORIGIN`。
 
 启动后至少验证：
 
@@ -166,8 +156,6 @@ pnpm run test:web
 pnpm run check
 pnpm run test
 
-# 仅在 Legacy 受影响时
-pnpm run legacy:check
 ```
 
 先运行与修改范围匹配的最小门禁，再按影响面扩大。测试需要监听回环端口、写工具缓存或下载

@@ -2,7 +2,6 @@ import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
 
 export type FrontendRouteDecision =
     | { kind: 'server' }
-    | { kind: 'legacy'; assetPath: 'index.html' }
     | { kind: 'frontend'; assetPath: string }
     | { kind: 'not-found' };
 
@@ -91,7 +90,9 @@ export function resolveFrontendRoute(
     if (isSensitiveRequestPath(pathname) || isServerOwned(pathname)) return { kind: 'server' };
 
     if (pathname === '/' || pathname === '/index.html') {
-        return { kind: 'legacy', assetPath: 'index.html' };
+        return frontendFiles.has('index.html')
+            ? { kind: 'frontend', assetPath: 'index.html' }
+            : { kind: 'not-found' };
     }
 
     const routePathname = pathname.length > 1 && pathname.endsWith('/')

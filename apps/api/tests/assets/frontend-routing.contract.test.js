@@ -8,7 +8,6 @@ const { test } = require('node:test');
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const REPOSITORY_ROOT = path.resolve(PROJECT_ROOT, '../..');
 const FRONTEND_ROOT = path.join(REPOSITORY_ROOT, 'apps/web/build/client');
-const LEGACY_ROOT = path.join(REPOSITORY_ROOT, 'apps/legacy/public');
 const SERVER_ROOT = path.join(PROJECT_ROOT, 'dist/server');
 
 function requireBuild(file, command) {
@@ -59,7 +58,7 @@ class ContractStaticAssets {
     constructor(frontendFiles) {
         this.frontendFiles = frontendFiles;
         this.frontend = new NodeStaticAssets(FRONTEND_ROOT);
-        this.server = new NodeStaticAssets(LEGACY_ROOT);
+        this.server = new NodeStaticAssets(FRONTEND_ROOT);
     }
 
     async fetch(request) {
@@ -68,9 +67,6 @@ class ContractStaticAssets {
             pathname: new URL(request.url).pathname
         }, this.frontendFiles);
         if (decision.kind === 'server') return this.server.fetch(request);
-        if (decision.kind === 'legacy') {
-            return this.server.fetch(rewriteRequest(request, decision.assetPath));
-        }
         if (decision.kind === 'frontend') {
             return this.frontend.fetch(rewriteRequest(request, decision.assetPath));
         }
@@ -99,13 +95,11 @@ async function assertFileResponse(pathname, file, init) {
     return response;
 }
 
-test('[FRT-01] root and index.html remain on the legacy document', async () => {
-    const legacyIndex = path.join(LEGACY_ROOT, 'index.html');
+test('[FRT-01] root and index.html use the React document', async () => {
     const frontendIndex = path.join(FRONTEND_ROOT, 'index.html');
-    assert.notDeepEqual(fs.readFileSync(legacyIndex), fs.readFileSync(frontendIndex));
 
-    await assertFileResponse('/', legacyIndex);
-    await assertFileResponse('/index.html', legacyIndex);
+    await assertFileResponse('/', frontendIndex);
+    await assertFileResponse('/index.html', frontendIndex);
 });
 
 test('[FRT-02] real prerendered documents and selective SPA routes use build/client', async () => {

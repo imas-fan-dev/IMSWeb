@@ -6,7 +6,7 @@ This file supplements the repository-level `AGENTS.md` for `@imsweb/web`.
 
 Route definitions live in `app/routes.ts`; route modules and page-level orchestration live in `app/routes/`. Put reusable business components under `app/components/<domain>/`, generated or foundational primitives under `app/components/ui/`, and generic utilities under `app/lib/`. All browser API access, response parsing, Cookie handling, and CSRF behavior belongs in `app/shared/api/`.
 
-Use same-origin relative API URLs. Do not move Hono routes, server logic, or Legacy assets into this workspace. Files added to `public/` need a clear purpose and an entry in `docs/ASSET_PROVENANCE.md`.
+Use same-origin relative API URLs. Do not move Hono routes, server logic, or assets from the private historical repository into this workspace. Files added to `public/` need a clear purpose and an entry in `docs/ASSET_PROVENANCE.md`.
 
 ## Commands
 

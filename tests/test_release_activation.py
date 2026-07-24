@@ -113,19 +113,16 @@ snapshots:
     write_file(staging, "apps/api/dist/client/assets/app.css", "body { color: black; }\n")
     write_file(staging, "apps/api/dist/client/assets/app.js", "globalThis.releaseProbe = true;\n")
     write_file(staging, "apps/api/dist/client/assets/logo.png", "fixture-png\n")
-    allowlist_files = ["assets/app.css", "assets/app.js", "assets/logo.png", "index.html"]
-    allowlist = json.dumps({"version": 1, "files": allowlist_files}, indent=2) + "\n"
-    write_file(staging, "apps/api/scripts/build/client-allowlist.json", allowlist)
-    write_file(staging, "apps/api/dist/client-allowlist.json", allowlist)
-    for relative in allowlist_files:
+    client_files = ["assets/app.css", "assets/app.js", "assets/logo.png", "index.html"]
+    manifest = json.dumps({
+        "version": 1,
+        "source": "@imsweb/web",
+        "files": client_files,
+    }, indent=2) + "\n"
+    write_file(staging, "apps/api/dist/client-manifest.json", manifest)
+    for relative in client_files:
         source = staging / "apps/api/dist/client" / relative
         write_file(staging, f"apps/api/dist/node-client/{relative}", source.read_text(encoding="utf-8"))
-    write_file(staging, "apps/api/dist/node-client/runninggame/Build/webgame.data", "0123456789")
-    write_file(
-        staging,
-        "apps/api/dist/node-client/runninggame/BuildMobile/webgame.data",
-        "01234567890123456789",
-    )
     write_file(staging, "node_modules/.pnpm/lock.yaml", frozen_lock)
     write_file(
         staging,

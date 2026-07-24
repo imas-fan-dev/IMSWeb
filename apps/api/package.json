@@ -7,7 +7,7 @@
   "scripts": {
     "build:server": "node scripts/build/build-server.js",
     "build:client": "node scripts/build/build-client.js",
-    "build": "pnpm run build:client && pnpm run build:server",
+    "build": "pnpm run build:server",
     "typecheck:server": "node node_modules/typescript/bin/tsc -p tsconfig.server.json --noEmit",
     "dev:node": "tsx watch src/main.ts",
     "start": "node dist/server/main.js",
@@ -27,7 +27,7 @@
     "migration:upload-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/local-upload-media.js",
     "migration:wiki-media": "node scripts/migration/wiki-media-sync.js",
     "check:assets": "pnpm run build:client && node scripts/build/check-client.js",
-    "check": "pnpm run build:server && pnpm run syntax && pnpm run check:architecture && pnpm run check:assets",
+    "check": "pnpm run build:server && pnpm run syntax && pnpm run check:architecture",
     "test:node": "pnpm run build:server && node --test tests/hono-app-contract.test.js tests/node-listener-probe.test.js tests/node-security.test.js tests/operation-scripts.test.js",
     "test:wiki": "node node_modules/typescript/bin/tsc -p tests/wiki/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/wiki/*.test.ts",
     "test:server": "node node_modules/typescript/bin/tsc -p tests/server/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/server/*.test.ts",
@@ -38,7 +38,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "engines": {
     "node": ">=22.13.0"

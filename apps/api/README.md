@@ -4,8 +4,8 @@ IMSWeb 后端已迁移为 TypeScript + Hono。当前唯一运行入口是 Hono N
 SQLite/PostgreSQL、可选本地/S3 媒体、Sharp 和流式 multipart，监听
 `127.0.0.1:3000`。
 
-原 Express 与 Flask 路由均由 Hono 实现；Flask、Jinja、Gunicorn 和 uWSGI 已从活动
-部署中移除，仅在 `../legacy` 保留回归/回滚源码。生产数据仍必须按停写、在线备份、
+原 Express 与 Flask 路由均由 Hono 实现；Flask、Jinja、Gunicorn 和 uWSGI 不属于公开仓库
+或活动部署。生产数据仍必须按停写、在线备份、
 完整对账和单一权威写入源的闸门切换。PostgreSQL 18.4 的版本化 schema 与 SQLite 全量
 导入链路已经建立，生产切换仍需影子读、停写增量和回滚演练。不再把
 Worker、D1 或 R2 纳入当前设计和验收。
@@ -61,8 +61,8 @@ pnpm run check
 pnpm run test
 ```
 
-`pnpm run check` 会验证 Node 类型、Hono 架构边界和固定静态资源白名单。
-`pnpm run test` 还会运行 Node、Wiki DOM/CRUD、资源和仓库级数据审计契约；Hono
+`pnpm run check` 会验证 Node 类型、Hono 架构边界和 Web 客户端 manifest。
+`pnpm run test` 还会运行 Node、Wiki DOM/CRUD、资源和仓库级部署契约；Hono
 不需要 Python Web 依赖。
 
 ## 运行入口
@@ -88,7 +88,7 @@ PM2/systemd 命令，并转发同一 Hono 导出。生产必须显式设置 `IMS
 
 ```sh
 pnpm run dev:postgresql:up
-IMS_SQLITE_PATH="$PWD/apps/legacy/data/imsweb.db" \
+IMS_SQLITE_PATH="$PWD/data/imsweb.db" \
 DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb' \
   pnpm run migration:postgresql:import-sqlite -- \
   --allow-foreign-key-violations
@@ -102,9 +102,9 @@ DATABASE_URL='postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb' \
 
 ## 静态资源
 
-Node 发布集合由包内 `scripts/build/client-allowlist.json` 固定；新增
-`apps/legacy/public/` 文件不会自动发布。数据库、Python、模板、`Data/`、上传和编年史状态
-均被排除。Unity `.data` 文件由 Node 静态资源路径提供 Range/ETag 响应。
+Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
+`apps/api/dist/client-manifest.json` 逐文件校验。`dist/client` 与 `dist/node-client` 必须包含
+相同内容；数据库、上传、迁移输入或私有历史资产不会进入发布产物。
 
 ## Nginx
 

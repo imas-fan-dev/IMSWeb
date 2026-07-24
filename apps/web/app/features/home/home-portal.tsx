@@ -1,7 +1,6 @@
 import { ArrowRightIcon, CakeSliceIcon, ExternalLinkIcon } from "lucide-react"
 
 import { cn } from "~/lib/utils"
-import { AnimatedBrandBackground } from "./animated-brand-background"
 import { getBirthdaysOn } from "./birthday-data"
 import { BirthdayCalendar } from "./birthday-calendar"
 import { friendLinks, portalItems, seriesItems } from "./home-content"
@@ -19,28 +18,15 @@ function SeriesWall() {
         aria-label="偶像大师系列图片预览"
       >
         {seriesItems.map((series) => (
-          <button
+          <div
             key={series.name}
-            type="button"
-            aria-label={"预览 " + series.name + " 图片"}
+            data-testid="series-band"
+            aria-label={series.name}
             className={cn(
-              "group relative min-w-0 cursor-pointer appearance-none overflow-hidden border-0 p-0 transition-[flex,filter] duration-500 focus-visible:z-20 focus-visible:ring-4 focus-visible:ring-white/85 focus-visible:outline-none motion-reduce:transition-none lg:flex-1 lg:hover:flex-[1.5] lg:focus:flex-[1.5]",
+              "relative min-w-0 overflow-hidden lg:flex-1",
               series.background
             )}
-          >
-            <img
-              src={series.image}
-              alt=""
-              width="585"
-              height="500"
-              draggable={false}
-              className="pointer-events-none absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-focus:opacity-100 motion-reduce:transition-none"
-            />
-            <span
-              className="absolute inset-0 bg-neutral-950/0 transition-colors duration-500 group-hover:bg-neutral-950/10 group-focus:bg-neutral-950/10 motion-reduce:transition-none"
-              aria-hidden="true"
-            />
-          </button>
+          />
         ))}
       </div>
 
@@ -186,8 +172,7 @@ function FriendLinks() {
 export function HomePortal() {
   return (
     <main id="main-content" className="relative isolate overflow-clip">
-      <AnimatedBrandBackground />
-      <div className="relative z-10">
+      <div>
         <SeriesWall />
         <TodayBirthdayNotice />
         <PortalDirectory />

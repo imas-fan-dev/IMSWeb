@@ -54,8 +54,8 @@ function parseArguments(argv, environment = process.env) {
     const options = {
         sourceOrigin: DEFAULT_SOURCE_ORIGIN,
         database: environment.IMS_SQLITE_PATH ||
-            path.join(projectRoot, 'apps/legacy/data/imsweb.db'),
-        stagingDir: path.join(projectRoot, 'apps/legacy/data/wiki-import'),
+            path.join(projectRoot, 'data/imsweb.db'),
+        stagingDir: path.join(projectRoot, 'data/migration/wiki-import'),
         manifest: undefined,
         pageConcurrency: DEFAULT_PAGE_CONCURRENCY,
         assetConcurrency: DEFAULT_ASSET_CONCURRENCY,

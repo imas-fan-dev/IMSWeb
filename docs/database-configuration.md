@@ -16,14 +16,14 @@ domain 不直接访问这些中间件表。
 | 变量 | 本地默认值 | 用途 |
 | --- | --- | --- |
 | `IMS_DATABASE` | `sqlite` | 数据库驱动 |
-| `IMS_SQLITE_PATH` | `apps/legacy/data/imsweb.db` | 唯一 SQLite 数据库 |
+| `IMS_SQLITE_PATH` | `data/imsweb.db` | 唯一 SQLite 数据库 |
 
 本地启动：
 
 ```sh
 export IMS_DATABASE=sqlite
-export IMS_SQLITE_PATH="$PWD/apps/legacy/data/imsweb.db"
-export IMS_COMPENSATION_DIR="$PWD/apps/legacy/data/core/compensation"
+export IMS_SQLITE_PATH="$PWD/data/imsweb.db"
+export IMS_COMPENSATION_DIR="$PWD/data/core/compensation"
 test -f "$IMS_SQLITE_PATH"
 sqlite3 "$IMS_SQLITE_PATH" 'PRAGMA quick_check;'
 IMS_JWT_SECRET='<high-entropy-secret>' pnpm run dev:node
@@ -47,8 +47,8 @@ SQLite 在目标不存在时可能创建空文件，因此不能把“进程成�
 
 | 输入 | 默认路径 | 表 |
 | --- | --- | --- |
-| Core | `apps/legacy/data/core/news.db` | `users`, `logs`, `news`, `events`, `cards`, `card_emojis` |
-| Story | `apps/legacy/data/story/idol_data.db` | `agencies`, `idols`, `theme_colors`, 七张 `*_stories` |
+| Core | `data/import/core/news.db` | `users`, `logs`, `news`, `events`, `cards`, `card_emojis` |
+| Story | `data/import/story/idol_data.db` | `agencies`, `idols`, `theme_colors`, 七张 `*_stories` |
 
 它们不再是 Hono 的运行时配置。首次生成统一数据库时执行：
 
@@ -70,8 +70,8 @@ pnpm run migration:sqlite:merge -- --allow-foreign-key-violations
 命令会在报告中列出全部异常，不会静默删除数据。PostgreSQL 兼容性迁移会继续无损保留这些
 记录，并在导入后添加 `NOT VALID` 外键；新写入立即受约束，历史异常则等待业务确认后清洗。
 
-Legacy Express/Flask 回归仍可分别使用 `IMS_DB_PATH` 和 `IMS_STORY_DB_PATH`。这两个变量以及
-同名默认文件只属于 Legacy、merge 和 inventory，不得注入 Hono Node 生产进程。
+这些源库只是一次性迁移输入，不得注入 Hono Node 生产进程。完成迁移与对账后，应按数据
+保留策略从工作目录清理或归档到受控存储。
 
 ## PostgreSQL 单库
 
@@ -115,7 +115,7 @@ S3 模式还会在启动时验证 `0003_s3_object_lifecycle`。缺少该 migrati
 从统一 SQLite 首次迁移时，目标必须为空，并直接执行导入器：
 
 ```sh
-IMS_SQLITE_PATH="$PWD/apps/legacy/data/imsweb.db" \
+IMS_SQLITE_PATH="$PWD/data/imsweb.db" \
 DATABASE_URL='postgresql://imsweb:<password>@127.0.0.1:5432/imsweb' \
   pnpm run migration:postgresql:import-sqlite -- \
   --allow-foreign-key-violations

@@ -100,58 +100,26 @@ test("theme toggle persists the selected color scheme", async ({ page }) => {
   await expect(root).toHaveClass(/dark/)
 })
 
-test("home preserves legacy discovery and birthday interactions", async ({
+test("home exposes current discovery and birthday interactions", async ({
   page,
-  isMobile,
 }) => {
   await page.goto("/")
-
-  const animatedBackground = page.getByTestId("home-brand-background")
-  const backgroundMotifs = animatedBackground.locator("img")
-  await expect(animatedBackground).toHaveCSS("pointer-events", "none")
-  await expect(backgroundMotifs).toHaveCount(20)
-  expect(
-    await backgroundMotifs.evaluateAll((motifs) =>
-      motifs.every((motif) =>
-        /^\/assets\/images\/Production\/(765PRO|CinderellaGirls|Million|SideM|Shinycolors|Gakuen)\.png$/.test(
-          motif.getAttribute("src") ?? ""
-        )
-      )
-    )
-  ).toBe(true)
 
   const seriesWall = page.getByRole("region", {
     name: "偶像大师交流站",
   })
   await expect(seriesWall.getByRole("link")).toHaveCount(0)
-  await expect(seriesWall.getByText("765PRO", { exact: true })).toHaveCount(0)
-  const allstarsPreview = seriesWall.getByRole("button", {
-    name: "预览 765PRO ALLSTARS 图片",
-  })
-  await expect(
-    seriesWall.getByRole("button", { name: /预览 .* 图片/ })
-  ).toHaveCount(6)
-  const allstarsImage = allstarsPreview.locator("img")
-  await expect(allstarsImage).toHaveAttribute(
-    "src",
-    "/assets/images/Production/765intro.png"
-  )
-  await expect(allstarsImage).toHaveCSS("opacity", "0")
-  if (isMobile) {
-    await allstarsPreview.focus()
-  } else {
-    await allstarsPreview.hover()
-  }
-  await expect(allstarsImage).toHaveCSS("opacity", "1")
+  await expect(seriesWall.getByTestId("series-band")).toHaveCount(6)
+  await expect(seriesWall.locator("img")).toHaveCount(0)
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(9)
+  await expect(directory.getByRole("link")).toHaveCount(6)
   await expect(
-    directory.getByRole("link", { name: /全国制作人社群/ })
-  ).toHaveAttribute("href", "/producermap.html")
+    directory.getByRole("link", { name: /活动中心/ })
+  ).toHaveAttribute("href", "/events")
   await expect(
-    directory.getByRole("link", { name: /同人活动编年史/ })
-  ).toHaveAttribute("href", "/timeline.html")
+    directory.getByRole("link", { name: /关于 IMSWeb/ })
+  ).toHaveAttribute("href", "/about")
 
   const calendar = page.getByRole("region", { name: "偶像生日日历" })
   const visibleMonth = calendar.getByTestId("calendar-month")

@@ -1,6 +1,5 @@
 packages:
   - apps/api
-  - apps/legacy
   - apps/web
 
 overrides:

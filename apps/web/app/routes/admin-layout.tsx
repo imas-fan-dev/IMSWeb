@@ -16,6 +16,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { Badge } from "~/components/ui/badge"
+import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
 import { getAdminSession, logoutAdmin } from "~/features/admin/api"
 import { cn } from "~/lib/utils"
@@ -134,13 +135,7 @@ export default function AdminLayout() {
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-[100rem] items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link to="/admin" className="flex min-w-0 items-center gap-3">
-            <img
-              src="/brand/imsweb-logo.png"
-              width="545"
-              height="188"
-              alt="偶像大师交流站"
-              className="h-8 w-auto max-w-36 object-contain"
-            />
+            <BrandWordmark className="text-lg" />
             <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
               内容运营台
             </span>

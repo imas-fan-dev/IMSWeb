@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { Link, NavLink } from "react-router"
 
 import { LanguageSwitcher } from "~/components/shared/language-switcher"
+import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
 import {
@@ -45,15 +46,9 @@ export function SiteHeader() {
           className="flex min-w-0 items-center gap-3"
           aria-label={t("brand.homeLabel")}
         >
-          <img
-            src="/brand/imsweb-logo.png"
-            width="545"
-            height="188"
-            alt={t("brand.name")}
-            className="h-9 w-auto max-w-38 object-contain dark:brightness-110"
-          />
+          <BrandWordmark className="text-xl" />
           <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
-            IMSWeb
+            {t("brand.name")}
           </span>
         </Link>
 

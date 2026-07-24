@@ -60,8 +60,8 @@ __pycache__/
 .ruff_cache/
 
 # Mutable application data (back up and migrate outside Git)
-apps/legacy/data/**
-!apps/legacy/data/.gitignore
+data/**
+!data/.gitignore
 **/public/uploads/
 **/public/Data/
 **/public/assets/images/eventchronicle/events/upload/
