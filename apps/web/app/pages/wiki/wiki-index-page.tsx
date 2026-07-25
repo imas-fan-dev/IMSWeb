@@ -13,7 +13,6 @@ import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
 import { WikiHero } from "~/pages/wiki/components/wiki-hero"
 import { WikiIdolGrid } from "~/pages/wiki/components/wiki-idol-grid"
-import { classicAgencyIcons } from "~/pages/wiki/wiki-groups"
 import {
   getWikiCatalog,
   getWikiRandomBackground,
@@ -78,13 +77,22 @@ export function WikiIndexPage() {
   const loading = !requestIsCurrent
   const backgroundLoading = backgroundRequest.key !== backgroundKey
   const selection = catalog?.selection ?? null
-  const visibleIdols = useMemo(() => {
+  const visibleGroups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || !normalized) return selection?.idols ?? []
-    return selection.idols.filter((idol) =>
-      idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
-    )
+    if (!selection || !normalized) return selection?.groups ?? []
+    return selection.groups
+      .map((group) => ({
+        ...group,
+        idols: group.idols.filter((idol) =>
+          idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+        ),
+      }))
+      .filter((group) => group.idols.length)
   }, [deferredQuery, selection])
+  const idolCount = selection?.groups.reduce(
+    (total, group) => total + group.idols.length,
+    0
+  )
 
   return (
     <main id="main-content">
@@ -103,8 +111,7 @@ export function WikiIndexPage() {
         >
           {(catalog?.agencies ?? []).map((agency) => {
             const active = selection?.agency.name === agency.name
-            const iconUrl =
-              agency.iconUrl ?? classicAgencyIcons[agency.name] ?? ""
+            const iconUrl = agency.iconUrl ?? ""
             return (
               <button
                 key={agency.id}
@@ -199,7 +206,7 @@ export function WikiIndexPage() {
                 </h2>
                 <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                   <UsersIcon className="size-4" />
-                  {selection.idols.length} 位角色
+                  {idolCount} 位角色
                 </p>
               </div>
               <label className="relative block w-full sm:max-w-sm">
@@ -215,10 +222,10 @@ export function WikiIndexPage() {
             </div>
 
             <div className="mt-6">
-              {visibleIdols.length ? (
+              {visibleGroups.length ? (
                 <WikiIdolGrid
                   agency={selection.agency.name}
-                  idols={visibleIdols}
+                  groups={visibleGroups}
                 />
               ) : (
                 <div className="rounded-lg border border-dashed px-6 py-14 text-center">

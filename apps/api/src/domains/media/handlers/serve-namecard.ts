@@ -3,6 +3,7 @@ import type { AppEnvironment } from '@/app';
 import { authorizePrivate } from '@/domains/media/media-access';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 import { namecardRepository, services } from '@/middleware/hono-context';
+import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleServeNamecard(c: Context<AppEnvironment>): Promise<Response> {
     const runtime = services(c);
@@ -17,7 +18,7 @@ export async function handleServeNamecard(c: Context<AppEnvironment>): Promise<R
     const response = await objectReadResponse(
         c.req.raw,
         runtime.storage,
-        url.replace(/^\/+/, ''),
+        publicMediaObjectKey(url),
         isPrivate ? {
             'Cache-Control': 'private, no-store',
             'Vary': 'Cookie, Authorization'

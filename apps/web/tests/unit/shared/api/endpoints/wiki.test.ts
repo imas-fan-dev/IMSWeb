@@ -56,13 +56,32 @@ describe("Wiki admin API", () => {
               code: "765pro",
               name: "765PRO",
               color: null,
+              wikiEnabled: true,
+              bannerTitle: "765PRO ALLSTARS",
+              displayOrder: 0,
+              layoutRevision: 0,
               iconUrl: null,
-              idols: [
+              groups: [
                 {
-                  id: 10,
-                  name: "天海春香",
-                  folderName: "amami_haruka",
-                  color: "#e22b30",
+                  id: 1,
+                  code: "765pro",
+                  name: "765PRO",
+                  color: "#f34f6d",
+                  iconUrl: null,
+                  displayOrder: 0,
+                  isFallback: true,
+                  idols: [
+                    {
+                      id: 10,
+                      name: "天海春香",
+                      folderName: "amami_haruka",
+                      color: "#e22b30",
+                      textColor: "#ffffff",
+                      displayOrder: 0,
+                      imageUrl: "",
+                      imageFit: "cover",
+                    },
+                  ],
                 },
               ],
             },
@@ -76,15 +95,28 @@ describe("Wiki admin API", () => {
             id: 1,
             code: "765pro",
             name: "765PRO",
-            color: null,
+            color: "#f34f6d",
           },
           idol: {
             id: 10,
             name: "天海春香",
             folderName: "amami_haruka",
             color: "#e22b30",
+            textColor: "#ffffff",
+            displayOrder: 0,
+            imageUrl: "",
+            imageFit: "cover",
           },
-          categories: ["主线"],
+          categories: [
+            {
+              id: 1,
+              name: "主线",
+              storageSlug: "main",
+              displayOrder: 0,
+              showWhenEmpty: true,
+              backgroundEligible: false,
+            },
+          ],
           stories: [
             {
               id: 21,
@@ -105,7 +137,7 @@ describe("Wiki admin API", () => {
     const catalog = await getAdminWikiCatalog().send()
     const stories = await getAdminWikiStories("765PRO", "天海春香").send()
 
-    expect(catalog.agencies[0]?.idols[0]?.name).toBe("天海春香")
+    expect(catalog.agencies[0]?.groups[0]?.idols[0]?.name).toBe("天海春香")
     expect(stories.stories[0]?.id).toBe(21)
     const storyRequest = requestDetails(fetchMock.mock.calls[1] ?? [])
     const storyUrl = new URL(storyRequest.url, window.location.origin)
@@ -126,7 +158,8 @@ describe("Wiki admin API", () => {
               code: "sc",
               name: "闪耀色彩",
               color: "#8dbbff",
-              iconUrl: "/icon/agencies/sc.webp?v=test",
+              bannerTitle: "283 Production",
+              iconUrl: "/icon/agencies/6.webp",
               idolCount: 1,
             },
           ],
@@ -136,18 +169,29 @@ describe("Wiki admin API", () => {
               code: "sc",
               name: "闪耀色彩",
               color: "#8dbbff",
-              iconUrl: "/icon/agencies/sc.webp?v=test",
+              bannerTitle: "283 Production",
+              iconUrl: "/icon/agencies/6.webp",
               idolCount: 1,
             },
-            idols: [
+            layoutRevision: 3,
+            groups: [
               {
-                id: 10,
-                name: "樱木真乃",
-                folderName: "sakuragi_mano",
-                color: "#f1b0c9",
-                imageUrl: "/image/mano.webp",
-                imageFit: "cover",
-                textColor: "#ffffff",
+                id: 31,
+                code: "illumination-stars",
+                name: "illumination STARS",
+                color: "#ffd700",
+                iconUrl: null,
+                idols: [
+                  {
+                    id: 10,
+                    name: "樱木真乃",
+                    folderName: "sakuragi_mano",
+                    color: "#f1b0c9",
+                    imageUrl: "/image/mano.webp",
+                    imageFit: "cover",
+                    textColor: "#ffffff",
+                  },
+                ],
               },
             ],
           },
@@ -207,7 +251,7 @@ describe("Wiki admin API", () => {
     const stories = await getWikiStories("闪耀色彩", "樱木真乃").send()
     const background = await getWikiRandomBackground().send()
 
-    expect(catalog.selection?.idols[0]?.imageFit).toBe("cover")
+    expect(catalog.selection?.groups[0]?.idols[0]?.imageFit).toBe("cover")
     expect(stories.categories[0]?.cards[0]?.links[0]?.id).toBe(21)
     expect(background.card_name).toBe("【花风Smiley】")
     const requests = fetchMock.mock.calls.map(

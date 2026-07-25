@@ -218,11 +218,3 @@ export async function cleanupWikiObjectPrefix(
     }
     await cleanupWikiObjects(services, keys);
 }
-
-export function hasLightWikiIdolColor(name: string): boolean {
-    return new Set([
-        '萩原雪歩', '萩原雪步', '葛城リーリヤ', '葛城莉莉娅', '幽谷霧子',
-        '幽谷雾子', '桑山千雪', '奥空心白', '诗花', 'Altessimo', '中谷育',
-        'W', '蕾特拉', '神速一魂', '及川雫'
-    ]).has(name);
-}

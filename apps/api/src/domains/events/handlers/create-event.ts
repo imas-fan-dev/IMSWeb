@@ -7,6 +7,7 @@ import { eventRepository, services } from '@/middleware/hono-context';
 import { safeUploadBaseName } from '@/utils/media/filename';
 import { validateUploadedImage } from '@/utils/media/image-upload';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import { eventPosterObjectKey } from '@/utils/storage/business-object-keys';
 
 function oneFile(value: UploadedFile | UploadedFile[] | undefined): UploadedFile | null {
     if (!value || Array.isArray(value)) return null;
@@ -17,6 +18,7 @@ export async function handleCreateEvent(c: Context<AppEnvironment>): Promise<Res
     const runtime = services(c);
     if (!runtime.uploads || !runtime.images || !runtime.storage) throw new Error('Upload services unavailable');
     let key = '';
+    let publicKey = '';
     let businessCommitted = false;
     try {
         const parsed = await runtime.uploads.parse(c.req.raw, {
@@ -33,7 +35,8 @@ export async function handleCreateEvent(c: Context<AppEnvironment>): Promise<Res
         const info = await validateUploadedImage(file, runtime.images);
         const extension = info.format === 'jpeg' ? 'jpg' : info.format;
         const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.${extension}`;
-        key = `uploads/event/original/${filename}`;
+        publicKey = `uploads/event/original/${filename}`;
+        key = eventPosterObjectKey(filename);
         await runtime.storage.put(key, file.body, {
             contentType: info.contentType,
             deferredPublication: true
@@ -42,7 +45,7 @@ export async function handleCreateEvent(c: Context<AppEnvironment>): Promise<Res
             title: parsed.fields.title || '',
             name: parsed.fields.name || '',
             contact: parsed.fields.contact || '',
-            imageUrl: `/${key}`
+            imageUrl: `/${publicKey}`
         });
         businessCommitted = true;
         try {

@@ -19,6 +19,7 @@ import {
   FieldLabel,
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
+import { AdminFileUploadControl } from "~/pages/admin/components/admin-file-upload-field"
 import {
   createWikiStory,
   isApiError,
@@ -248,13 +249,17 @@ export function StoryEditorDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="wiki-story-image">卡片图片</FieldLabel>
-                <Input
+                <AdminFileUploadControl
                   id="wiki-story-image"
-                  type="file"
                   accept="image/png,image/jpeg,image/webp,image/avif,image/gif"
-                  onChange={(event) =>
-                    setValue("image", event.target.files?.[0] ?? null)
+                  emptyTitle={
+                    story?.imageFile ? "保留当前卡片图片" : "选择卡片图片"
                   }
+                  emptyDetail="PNG、JPEG、WebP、AVIF 或 GIF"
+                  fileKind="卡片图片"
+                  file={form.image}
+                  disabled={saving}
+                  onSelect={(image) => setValue("image", image)}
                 />
                 <FieldDescription>
                   {story?.imageFile

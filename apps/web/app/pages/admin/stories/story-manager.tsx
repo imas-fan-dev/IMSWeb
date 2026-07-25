@@ -45,6 +45,7 @@ import {
 } from "~/shared/api"
 import type {
   WikiAdminAgency,
+  WikiAdminCatalog,
   WikiAdminStories,
   WikiAdminStory,
 } from "~/shared/api"
@@ -111,6 +112,7 @@ export function StoryManager() {
     initialData: { status: "success" as const, agencies: [] },
   })
   onError(() => undefined)
+  const catalogData = catalog as WikiAdminCatalog
   const [agencyCode, setAgencyCode] = useState("")
   const [idolName, setIdolName] = useState("")
   const [storiesRequest, setStoriesRequest] = useState<{
@@ -127,11 +129,13 @@ export function StoryManager() {
   const [deleting, setDeleting] = useState(false)
 
   const selectedAgency: WikiAdminAgency | undefined =
-    catalog.agencies.find((agency) => agency.code === agencyCode) ??
-    catalog.agencies[0]
+    catalogData.agencies.find((agency) => agency.code === agencyCode) ??
+    catalogData.agencies[0]
+  const selectedAgencyIdols =
+    selectedAgency?.groups.flatMap((group) => group.idols) ?? []
   const selectedIdol =
-    selectedAgency?.idols.find((idol) => idol.name === idolName) ??
-    selectedAgency?.idols[0]
+    selectedAgencyIdols.find((idol) => idol.name === idolName) ??
+    selectedAgencyIdols[0]
 
   const selectedAgencyName = selectedAgency?.name ?? ""
   const selectedIdolName = selectedIdol?.name ?? ""
@@ -210,9 +214,9 @@ export function StoryManager() {
   )
 
   function chooseAgency(code: string) {
-    const agency = catalog.agencies.find((item) => item.code === code)
+    const agency = catalogData.agencies.find((item) => item.code === code)
     setAgencyCode(code)
-    setIdolName(agency?.idols[0]?.name ?? "")
+    setIdolName(agency?.groups[0]?.idols[0]?.name ?? "")
     setQuery("")
     setCategoryFilter("all")
   }
@@ -319,7 +323,7 @@ export function StoryManager() {
         </Alert>
       ) : null}
 
-      {catalogLoading && !catalog.agencies.length ? (
+      {catalogLoading && !catalogData.agencies.length ? (
         <AdminPanel
           title="Wiki 目录"
           description="正在读取企划与偶像。"
@@ -327,7 +331,7 @@ export function StoryManager() {
         >
           <p className="py-8 text-sm text-muted-foreground">正在加载目录</p>
         </AdminPanel>
-      ) : !catalog.agencies.length ? (
+      ) : !catalogData.agencies.length ? (
         <AdminEmptyState
           icon={BookOpenIcon}
           title="还没有可管理的 Wiki 目录"
@@ -344,7 +348,7 @@ export function StoryManager() {
             <SelectionControl
               label="企划"
               value={selectedAgency?.code ?? ""}
-              items={catalog.agencies.map((agency) => ({
+              items={catalogData.agencies.map((agency) => ({
                 label: agency.name,
                 value: agency.code,
               }))}
@@ -353,7 +357,7 @@ export function StoryManager() {
             <SelectionControl
               label="偶像"
               value={selectedIdol?.name ?? ""}
-              items={(selectedAgency?.idols ?? []).map((idol) => ({
+              items={selectedAgencyIdols.map((idol) => ({
                 label: idol.name,
                 value: idol.name,
               }))}
@@ -432,8 +436,8 @@ export function StoryManager() {
                     items={[
                       { label: "全部分类", value: "all" },
                       ...stories.categories.map((category) => ({
-                        label: category,
-                        value: category,
+                        label: category.name,
+                        value: category.name,
                       })),
                     ]}
                     value={categoryFilter}
@@ -446,8 +450,8 @@ export function StoryManager() {
                       <SelectGroup>
                         <SelectItem value="all">全部分类</SelectItem>
                         {stories.categories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -516,10 +520,12 @@ export function StoryManager() {
           story={editingStory}
           agency={selectedAgency.name}
           idol={selectedIdol.name}
-          categories={stories?.categories ?? []}
+          categories={
+            stories?.categories.map((category) => category.name) ?? []
+          }
           defaultCategory={
             categoryFilter === "all"
-              ? (stories?.categories[0] ?? "")
+              ? (stories?.categories[0]?.name ?? "")
               : categoryFilter
           }
           onOpenChange={setEditorOpen}

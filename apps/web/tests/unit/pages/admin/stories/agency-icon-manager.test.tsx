@@ -31,16 +31,24 @@ function catalogPayload(iconUrl: string | null) {
         code: "sc",
         name: "闪耀色彩",
         color: "#8dbbff",
+        wikiEnabled: true,
+        bannerTitle: "283 Production",
+        displayOrder: 0,
+        layoutRevision: 0,
         iconUrl,
-        idols: [],
+        groups: [],
       },
       {
         id: 7,
         code: "gk",
         name: "学园偶像大师",
         color: "#f39800",
+        wikiEnabled: true,
+        bannerTitle: "初星学园",
+        displayOrder: 1,
+        layoutRevision: 0,
         iconUrl: null,
-        idols: [],
+        groups: [],
       },
     ],
   }
@@ -57,7 +65,7 @@ describe("AgencyIconManager", () => {
   })
 
   it("uploads, previews, and removes the selected series icon", async () => {
-    let iconUrl: string | null = "/icon/agencies/sc.webp?v=old"
+    let iconUrl: string | null = "/icon/agencies/6.webp"
     const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
       const request = requestDetails(args)
       const url = new URL(request.url, window.location.origin)
@@ -71,7 +79,7 @@ describe("AgencyIconManager", () => {
         url.pathname === "/api/wiki/agency-icon" &&
         request.method === "POST"
       ) {
-        iconUrl = "/icon/agencies/sc.webp?v=new"
+        iconUrl = "/icon/agencies/6.webp"
         return Promise.resolve(
           Response.json({ status: "success", url: iconUrl })
         )
@@ -100,7 +108,7 @@ describe("AgencyIconManager", () => {
 
     expect(
       await screen.findByRole("img", { name: "闪耀色彩系列图标" })
-    ).toHaveAttribute("src", "/icon/agencies/sc.webp?v=old")
+    ).toHaveAttribute("src", "/icon/agencies/6.webp")
 
     const file = new File(["series-icon"], "shiny-colors.png", {
       type: "image/png",
@@ -115,7 +123,7 @@ describe("AgencyIconManager", () => {
     await waitFor(() => {
       expect(
         screen.getByRole("img", { name: "闪耀色彩系列图标" })
-      ).toHaveAttribute("src", "/icon/agencies/sc.webp?v=new")
+      ).toHaveAttribute("src", "/icon/agencies/6.webp")
     })
 
     const uploadRequest = fetchMock.mock.calls
@@ -134,7 +142,7 @@ describe("AgencyIconManager", () => {
       screen.getByRole("heading", { name: "移除自定义系列图标？" })
     ).toBeInTheDocument()
     expect(
-      screen.getByText("“闪耀色彩”将恢复使用 Wiki 默认系列图标。")
+      screen.getByText("“闪耀色彩”将不再显示系列图标。")
     ).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "确认移除" }))
     await waitFor(() => {

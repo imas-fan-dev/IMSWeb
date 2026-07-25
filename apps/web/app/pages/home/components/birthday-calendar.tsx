@@ -27,8 +27,9 @@ function calendarCells(year: number, month: number) {
   const firstDay = new Date(year, month - 1, 1).getDay()
   const mondayOffset = firstDay === 0 ? 6 : firstDay - 1
   const daysInMonth = new Date(year, month, 0).getDate()
+  const cellCount = Math.ceil((mondayOffset + daysInMonth) / 7) * 7
 
-  return Array.from({ length: 42 }, (_, index) => {
+  return Array.from({ length: cellCount }, (_, index) => {
     const day = index - mondayOffset + 1
     return day >= 1 && day <= daysInMonth ? day : null
   })
@@ -81,8 +82,8 @@ export function BirthdayCalendar({
       className="border-y bg-muted/20"
       aria-labelledby="birthday-heading"
     >
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mb-7 flex items-end justify-between gap-4">
+      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold text-primary">BIRTHDAYS</p>
             <h2 id="birthday-heading" className="mt-2 text-2xl font-semibold">
@@ -94,8 +95,11 @@ export function BirthdayCalendar({
           </p>
         </div>
 
-        <div className="grid overflow-hidden rounded-md border bg-card lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
-          <div className="p-4 sm:p-6">
+        <div
+          className="grid overflow-hidden rounded-md border bg-card lg:grid-cols-[minmax(0,1fr)_18rem]"
+          data-testid="birthday-calendar-panel"
+        >
+          <div className="p-4 sm:p-5 lg:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <p
                 className="text-lg font-semibold"
@@ -151,11 +155,14 @@ export function BirthdayCalendar({
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-7 gap-1.5 sm:gap-2">
+            <div
+              className="mt-4 grid grid-cols-7 gap-1 sm:gap-1.5"
+              data-testid="calendar-grid"
+            >
               {weekdays.map((weekday) => (
                 <span
                   key={weekday}
-                  className="flex h-8 items-center justify-center text-xs font-medium text-muted-foreground"
+                  className="flex h-7 items-center justify-center text-xs font-medium text-muted-foreground"
                 >
                   {weekday}
                 </span>
@@ -165,7 +172,7 @@ export function BirthdayCalendar({
                   return (
                     <span
                       key={`empty-${index}`}
-                      className="aspect-square rounded-md bg-muted/25"
+                      className="h-12 rounded-md bg-muted/20 sm:h-14 lg:h-16"
                       aria-hidden="true"
                     />
                   )
@@ -193,7 +200,7 @@ export function BirthdayCalendar({
                     aria-pressed={isSelected}
                     aria-current={isToday ? "date" : undefined}
                     className={cn(
-                      "relative flex aspect-square min-w-0 items-center justify-center rounded-md border bg-background text-sm font-medium transition-colors hover:border-primary/55 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                      "relative flex h-12 min-w-0 items-start justify-start rounded-md border bg-background p-1.5 text-sm font-medium transition-colors hover:border-primary/55 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:h-14 sm:p-2 lg:h-16",
                       isSelected &&
                         "border-primary bg-accent text-accent-foreground",
                       isToday && "ring-1 ring-primary/55"
@@ -202,7 +209,7 @@ export function BirthdayCalendar({
                     <span>{day}</span>
                     {birthdayCount ? (
                       <CakeSliceIcon
-                        className="absolute right-1 bottom-1 size-3 text-primary sm:right-1.5 sm:bottom-1.5"
+                        className="absolute right-1.5 bottom-1.5 size-3.5 text-primary"
                         aria-hidden="true"
                       />
                     ) : null}
@@ -212,13 +219,13 @@ export function BirthdayCalendar({
             </div>
           </div>
 
-          <div className="border-t p-5 lg:border-t-0 lg:border-l lg:p-6">
+          <div className="border-t bg-muted/10 p-5 lg:border-t-0 lg:border-l lg:p-6">
             <div className="flex items-center gap-2">
               <CakeSliceIcon
                 className="size-5 text-primary"
                 aria-hidden="true"
               />
-              <h3 className="font-semibold">当天生日</h3>
+              <h3 className="font-semibold">生日名单</h3>
             </div>
             <div className="mt-5" aria-live="polite">
               {selectedDay ? (

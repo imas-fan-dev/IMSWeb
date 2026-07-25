@@ -9,7 +9,6 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
-    agencyIconObjectKey,
     requireWikiServices
 } from '@/domains/wiki/service';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
@@ -29,10 +28,12 @@ export function createHandleDeleteWikiAgencyIcon<E extends Env>(
                 typeof fields.agency === 'string' ? fields.agency.trim() : ''
             );
             if ('error' in target) return target.error;
-            await deleteObjectWithCompensation(
-                services,
-                agencyIconObjectKey(target.agency.code)
-            );
+            const record = await services.story!.findAgencyById(target.agency.id);
+            const key = record?.icon_object_key ?? null;
+            await services.story!.setAgencyIconObjectKey(target.agency.id, null);
+            if (key?.startsWith(`wiki/agencies/${target.agency.code}/branding/`)) {
+                await deleteObjectWithCompensation(services, key);
+            }
             return wikiJson({ status: 'success' });
         } catch (error) {
             const status = wikiStatusOf(error, 400);

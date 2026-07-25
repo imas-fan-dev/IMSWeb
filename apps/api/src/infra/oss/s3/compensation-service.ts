@@ -10,7 +10,10 @@ interface CompensationRow {
     attempts: number;
 }
 
-export type S3PhysicalObjectDelete = (objectId: string) => Promise<void>;
+export type S3PhysicalObjectDelete = (
+    objectId: string,
+    physicalKey?: string | null
+) => Promise<void>;
 
 const MAX_ATTEMPTS = 5;
 
@@ -92,6 +95,7 @@ export class S3CompensationService implements CompensationService {
             const payload = JSON.parse(job.payload_json) as {
                 key?: unknown;
                 objectId?: unknown;
+                physicalKey?: unknown;
             };
             if (job.kind === 'delete-object') {
                 if (typeof payload.key !== 'string' || !payload.key) {
@@ -110,7 +114,10 @@ export class S3CompensationService implements CompensationService {
                     throw new Error('Invalid S3 object ID');
                 }
                 if (!await this.state.isObjectReferenced(payload.objectId)) {
-                    await this.deletePhysicalObject(payload.objectId);
+                    await this.deletePhysicalObject(
+                        payload.objectId,
+                        typeof payload.physicalKey === 'string' ? payload.physicalKey : null
+                    );
                     await this.state.removeVersionIfUnreferenced(payload.objectId);
                 }
             } else {

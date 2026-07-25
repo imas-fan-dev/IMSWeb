@@ -35,9 +35,20 @@ describe('Wiki admin dynamic data contract', () => {
 
     test('catalog is built from repository agencies and idols', async () => {
         const fixture = createWikiFixture();
-        fixture.storage.seed('Wiki/static/icon/agencies/sc.webp');
+        fixture.story.agencies[5]!.icon_object_key = 'wiki/agencies/sc/branding/icon.webp';
         fixture.story.addAgencyWithIdol(
-            { id: 88, code: 'future', name_cn: '未支持企划', color: '#000000' },
+            {
+                id: 88,
+                code: 'future',
+                name_cn: '未支持企划',
+                color: '#000000',
+                wiki_enabled: false,
+                display_order: 88,
+                banner_title: '未来企划',
+                icon_object_key: null,
+                fallback_artwork_object_key: null,
+                layout_revision: 0
+            },
             {
                 id: 88,
                 agency_id: 88,
@@ -46,7 +57,12 @@ describe('Wiki admin dynamic data contract', () => {
                 agency_color: '#000000',
                 name_cn: '未支持角色',
                 folder_name: 'unsupported',
-                color: null
+                color: null,
+                wiki_enabled: false,
+                display_order: 0,
+                text_color: '#ffffff',
+                avatar_object_key: null,
+                avatar_fit: 'cover'
             }
         );
         const response = await fixture.app.request('/api/admin/wiki/catalog', {
@@ -55,18 +71,35 @@ describe('Wiki admin dynamic data contract', () => {
         assert.equal(response.status, 200);
         const body = await response.json() as any;
         assert.equal(body.status, 'success');
-        assert.equal(body.agencies.length, 7);
+        assert.equal(body.agencies.length, 8);
         assert.deepEqual(body.agencies[5], {
             id: 6,
             code: 'sc',
             name: '闪耀色彩',
             color: '#8dbbff',
-            iconUrl: '/icon/agencies/sc.webp?v=fixture-3',
-            idols: [{
+            wikiEnabled: true,
+            bannerTitle: '闪耀色彩 Banner',
+            displayOrder: 5,
+            layoutRevision: 0,
+            iconUrl: '/icon/agencies/6.webp',
+            groups: [{
                 id: 6,
-                name: '樱木真乃',
-                folderName: 'sc_idol',
-                color: '#8dbbff'
+                code: 'sc-main',
+                name: '闪耀色彩 Main',
+                color: '#8dbbff',
+                iconUrl: null,
+                displayOrder: 0,
+                isFallback: true,
+                idols: [{
+                    id: 6,
+                    name: '樱木真乃',
+                    folderName: 'sc_idol',
+                    color: '#8dbbff',
+                    textColor: '#ffffff',
+                    displayOrder: 0,
+                    imageUrl: '',
+                    imageFit: 'cover'
+                }]
             }]
         });
     });
@@ -83,6 +116,7 @@ describe('Wiki admin dynamic data contract', () => {
             subtitle: '第一话',
             image_file: 'custom/story image.webp'
         });
+        await fixture.story.ensureWikiCategory(6, 6, '自定义分类', 'custom');
         const response = await fixture.app.request(
             `/api/admin/wiki/stories?agency=${encodeURIComponent('闪耀色彩')}` +
             `&idol=${encodeURIComponent('樱木真乃')}`,
@@ -93,8 +127,8 @@ describe('Wiki admin dynamic data contract', () => {
         assert.equal(body.status, 'success');
         assert.equal(body.agency.code, 'sc');
         assert.equal(body.idol.name, '樱木真乃');
-        assert.ok(body.categories.includes('enzaP卡'));
-        assert.ok(body.categories.includes('自定义分类'));
+        assert.ok(body.categories.some((category: any) => category.name === 'enzaP卡'));
+        assert.ok(body.categories.some((category: any) => category.name === '自定义分类'));
         assert.deepEqual(body.stories, [{
             id: 1,
             category: '自定义分类',

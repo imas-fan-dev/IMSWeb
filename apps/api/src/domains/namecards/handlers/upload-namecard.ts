@@ -8,6 +8,7 @@ import { namecardRepository, getClientAddress, services } from '@/middleware/hon
 import { safeUploadBaseName } from '@/utils/media/filename';
 import { validateUploadedImage } from '@/utils/media/image-upload';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import { namecardImageObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function enforcePublicUploadLimit(
     c: Context<AppEnvironment>
@@ -49,10 +50,12 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
         for (const file of files) {
             await validateUploadedImage(file, runtime.images);
             const webp = await runtime.images.toWebp(file.body, 85);
-            const key = `uploads/namecard/original/${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
+            const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
+            const publicKey = `uploads/namecard/original/${filename}`;
+            const key = namecardImageObjectKey(filename);
             await runtime.storage.put(key, webp, { contentType: 'image/webp' });
             generated.push(key);
-            outputs.push({ key, url: `/${key}`, hash: md5Hex(webp) });
+            outputs.push({ key, url: `/${publicKey}`, hash: md5Hex(webp) });
         }
         if (await namecardRepository(c).findCardByOrderedHashes(outputs[0].hash, outputs[1].hash)) {
             await Promise.all(generated.map((key) => deleteObjectWithCompensation(runtime, key)));

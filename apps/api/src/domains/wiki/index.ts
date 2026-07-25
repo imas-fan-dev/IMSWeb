@@ -2,7 +2,6 @@ export { registerWikiRoutes, type WikiServicesResolver } from "@/domains/wiki/ro
 export * from "@/domains/wiki/models";
 export {
   aggregateStories,
-  getPresetCategories,
   parseBilibili,
   randomBackground,
 } from "@/domains/wiki/service";

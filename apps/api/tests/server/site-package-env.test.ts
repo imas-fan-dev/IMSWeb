@@ -4,6 +4,7 @@ import {
     parseSiteOrigins,
     parseSitePackageMaxUploadBytes
 } from '@/config/env';
+import { sitePackageFrameAncestorOrigins } from '@/domains/site-packages/site-package-support';
 
 test('site-package origins are explicit, absolute, and isolated in production', () => {
     assert.deepEqual(parseSiteOrigins({ NODE_ENV: 'development', PORT: '4100' }), {
@@ -45,6 +46,17 @@ test('site-package origins are explicit, absolute, and isolated in production', 
         IMS_SITE_ORIGIN: 'https://www.example.com/path',
         IMS_SITE_PACKAGE_ORIGIN: 'https://ims-content.example.net'
     }), /without a path/);
+});
+
+test('site-package frame ancestors accept loopback aliases only for local development', () => {
+    assert.deepEqual(sitePackageFrameAncestorOrigins('http://127.0.0.1:5173'), [
+        'http://127.0.0.1:5173',
+        'http://localhost:5173',
+        'http://[::1]:5173'
+    ]);
+    assert.deepEqual(sitePackageFrameAncestorOrigins('https://www.example.com'), [
+        'https://www.example.com'
+    ]);
 });
 
 test('site-package upload limit is bounded by the archive parser maximum', () => {

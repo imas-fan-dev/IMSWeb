@@ -5,8 +5,10 @@ import { createWikiFixture } from "./fixture";
 describe("Wiki public dynamic data contract", () => {
   test("catalog exposes the requested agency and resolved idol artwork anonymously", async () => {
     const fixture = createWikiFixture();
-    fixture.storage.seed("Data/sc/sc_idol/icon.webp");
-    fixture.storage.seed("Wiki/static/icon/agencies/sc.webp");
+    fixture.story.idols[5]!.avatar_object_key =
+      "wiki/agencies/sc/idols/sc_idol/avatar.webp";
+    fixture.story.agencies[5]!.icon_object_key =
+      "wiki/agencies/sc/branding/icon.webp";
 
     const response = await fixture.app.request(
       `/api/wiki/catalog?agency=${encodeURIComponent("闪耀色彩")}`,
@@ -21,13 +23,20 @@ describe("Wiki public dynamic data contract", () => {
       code: "sc",
       name: "闪耀色彩",
       color: "#8dbbff",
-      iconUrl: "/icon/agencies/sc.webp?v=fixture-3",
+      bannerTitle: "闪耀色彩 Banner",
+      iconUrl: "/icon/agencies/6.webp",
       idolCount: 1,
     });
     assert.deepEqual(body.selection, {
       agency: body.agencies[5],
-      idols: [
-        {
+      layoutRevision: 0,
+      groups: [{
+        id: 6,
+        code: "sc-main",
+        name: "闪耀色彩 Main",
+        color: "#8dbbff",
+        iconUrl: null,
+        idols: [{
           id: 6,
           name: "樱木真乃",
           folderName: "sc_idol",
@@ -37,9 +46,10 @@ describe("Wiki public dynamic data contract", () => {
             `${encodeURIComponent("樱木真乃")}/icon.webp`,
           imageFit: "cover",
           textColor: "#ffffff",
-        },
-      ],
+        }],
+      }],
     });
+    assert.deepEqual(fixture.storage.lists, []);
   });
 
   test("catalog rejects unknown agencies without hiding the default selection", async () => {
@@ -61,7 +71,7 @@ describe("Wiki public dynamic data contract", () => {
 
   test("story view aggregates cards and multiple sources with encoded media URLs", async () => {
     const fixture = createWikiFixture();
-    fixture.storage.seed("Data/sc/sc_idol/icon.webp");
+    fixture.storage.seed("wiki/agencies/sc/idols/sc_idol/avatar.webp");
     fixture.story.seedStory({
       idol_id: 6,
       category: "enzaP卡",

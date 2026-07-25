@@ -70,7 +70,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${IMS_MINIO_ROOT_USER:-imsweb-local}
       MINIO_ROOT_PASSWORD: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
-      IMS_MINIO_BUCKET: ${IMS_MINIO_BUCKET:-imsweb-test}
+      IMS_MINIO_BUCKET: ${IMS_MINIO_BUCKET:-imsweb-media-local}
     entrypoint:
       - /bin/sh
       - -ec
@@ -79,6 +79,7 @@ services:
         mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
         mc mb --ignore-existing "local/$${IMS_MINIO_BUCKET}"
         mc anonymous set none "local/$${IMS_MINIO_BUCKET}"
+        mc version enable "local/$${IMS_MINIO_BUCKET}"
 
 volumes:
   postgresql-data:

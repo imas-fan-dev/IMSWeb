@@ -1,7 +1,13 @@
-import { setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { randomHex } from '@/utils/crypto/random';
+import {
+    ACCESS_TOKEN_TTL_SECONDS,
+    REFRESH_TOKEN_TTL_SECONDS,
+    accessTokenClaims,
+    hashAuthSecret,
+    setAuthenticationCookies
+} from '@/domains/auth/auth-session';
 import {
     auditRepository,
     authRepository,
@@ -31,13 +37,26 @@ export async function handleLogin(c: Context<AppEnvironment>): Promise<Response>
         return c.json({ success: false, message: '用户名或密码错误' }, 401);
     }
     const csrfSecret = randomHex(32);
-    const token = await runtime.tokens.sign({
-        id: user.id,
-        username: user.username,
-        producername: user.producername || '',
-        dept: user.dept,
-        csrfSecret
-    }, 2 * 60 * 60);
+    const refreshToken = randomHex(32);
+    const now = Math.floor(Date.now() / 1000);
+    const token = await runtime.tokens.sign(
+        accessTokenClaims(user, csrfSecret),
+        ACCESS_TOKEN_TTL_SECONDS
+    );
+    const [tokenHash, csrfHash] = await Promise.all([
+        hashAuthSecret(refreshToken),
+        hashAuthSecret(csrfSecret)
+    ]);
+    const repository = authRepository(c);
+    await repository.deleteExpiredRefreshSessions(now);
+    await repository.createRefreshSession({
+        id: randomHex(16),
+        userId: user.id,
+        tokenHash,
+        csrfHash,
+        expiresAt: now + REFRESH_TOKEN_TTL_SECONDS,
+        createdAt: now
+    });
     try {
         await auditRepository(c).insertAuditLog({
             username: user.username,
@@ -50,13 +69,7 @@ export async function handleLogin(c: Context<AppEnvironment>): Promise<Response>
     } catch (error) {
         console.error(error);
     }
-    const cookieOptions = {
-        secure: runtime.config?.cookieSecure ?? false,
-        sameSite: 'Lax' as const,
-        path: '/'
-    };
-    setCookie(c, 'token', token, { ...cookieOptions, httpOnly: true });
-    setCookie(c, 'csrf_token', csrfSecret, { ...cookieOptions, httpOnly: false });
+    setAuthenticationCookies(c, { accessToken: token, refreshToken, csrfSecret });
     return c.json({
         success: true,
         token,

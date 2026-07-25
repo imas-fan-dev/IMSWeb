@@ -18,16 +18,22 @@ Hono 执行。动态 `/api/thumbnail` 需要后端转换图片，是唯一保留
 
 S3 adapter 对业务保存与现有 `ObjectStorage` 端口相同的逻辑 key：
 
-- `uploads/`：资讯、活动和名片上传；
-- `assets/images/eventchronicle/events/`：编年史待审核、已使用、meta 和回滚对象；
-- `Data/`：剧情图片。
+- `editorial/{news,events,information}/`：资讯、活动与首页活动内容；
+- `community/namecards/`：用户投稿名片；
+- `chronicle/{media,metadata,trash}/`：编年史审核流；
+- `wiki/{agencies,shared}/`：Wiki 角色、剧情与公共素材；
+- `site-packages/`：管理员站点包不可变版本；
+- `system/migrations/`：迁移审计对象。
 
 新写入不会直接使用逻辑 key 作为 bucket key，而是保存为
-`<IMS_S3_PREFIX>/__ims_s3/objects/<object-id>` 不可变对象。统一数据库中的
+`<IMS_S3_PREFIX>/<逻辑目录>/objects/<object-id>/<文件名>` 不可变对象。例如逻辑 key
+`wiki/agencies/sc/idols/sakuragi_mano/avatar.webp` 对应物理 key
+`v1/wiki/agencies/sc/idols/sakuragi_mano/objects/<object-id>/avatar.webp`。统一数据库中的
 `s3_object_index` 负责逻辑 key 映射，`s3_upload_operations` 负责
 `uploading -> pending/ready -> deleted` 状态迁移。延迟发布对象在业务事务提交并调用
-`publish()` 前不可读；覆盖已有对象时继续提供旧 ready 版本，失败补偿会恢复旧映射。历史上按
-逻辑 key 直接写入的对象仍可只读兼容，并在下一次写入后进入版本化映射。
+`publish()` 前不可读；覆盖已有对象时继续提供旧 ready 版本，失败补偿会恢复旧映射。运行时只认
+数据库记录的 canonical logical key 与 `physical_key`，不读取 direct key，也不兼容
+`__ims_s3`。
 
 以下内容不进入 S3：
 
@@ -61,15 +67,15 @@ AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优
 
 SQLite 在首次启用 S3 时幂等创建 `s3_*` 控制面表。PostgreSQL 不允许应用隐式 DDL，启用 S3
 前必须执行 `pnpm run migration:postgresql` 并确认
-`0003_s3_object_lifecycle` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
+`0006_s3_semantic_physical_keys` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
 
 AWS S3 + IAM Role 示例：
 
 ```sh
 export IMS_OBJECT_STORAGE=s3
-export IMS_S3_BUCKET=ims-media-prod
+export IMS_S3_BUCKET=imsweb-media-prod
 export IMS_S3_REGION=ap-northeast-1
-export IMS_S3_PREFIX=ims/production
+export IMS_S3_PREFIX=v1
 export IMS_IDEMPOTENCY_DIR=/srv/ims/shared/idempotency
 pnpm run start:node
 ```
@@ -78,10 +84,11 @@ S3-compatible 示例：
 
 ```sh
 export IMS_OBJECT_STORAGE=s3
-export IMS_S3_BUCKET=ims-media-prod
+export IMS_S3_BUCKET=imsweb-media-prod
 export IMS_S3_REGION=us-east-1
 export IMS_S3_ENDPOINT=https://objects.example.com
 export IMS_S3_FORCE_PATH_STYLE=true
+export IMS_S3_PREFIX=v1
 export IMS_S3_READ_URL_TTL_SECONDS=300
 export AWS_ACCESS_KEY_ID='<access-key>'
 export AWS_SECRET_ACCESS_KEY='<secret-key>'
@@ -97,12 +104,13 @@ pnpm run dev:minio:up
 docker compose -f deploy/compose.yaml ps minio minio-init
 ```
 
-Compose 会在回环地址启动 MinIO，并由一次性 `minio-init` 服务创建 `imsweb-test` bucket。
+Compose 会在回环地址启动 MinIO，并由一次性 `minio-init` 服务创建私有且启用版本控制的
+`imsweb-media-local` 业务 bucket。
 Hono Node 使用以下配置连接：
 
 ```sh
 export IMS_OBJECT_STORAGE=s3
-export IMS_S3_BUCKET=imsweb-test
+export IMS_S3_BUCKET=imsweb-media-local
 export IMS_S3_REGION=us-east-1
 export IMS_S3_ENDPOINT=http://127.0.0.1:9000
 export IMS_S3_FORCE_PATH_STYLE=true
@@ -131,6 +139,32 @@ SHA-256 清单。`--apply` 通过当前 `S3ObjectStorage` 状态机同时维护 
 `s3_*` 索引，写入后从目标重新读取校验；内容未变化的文件保持 `unchanged`。默认清单位于
 `data/migration/upload-media-manifest.json`，该路径被 Git 忽略。
 
+Legacy 名片需要同时迁移关系数据、表情计数和双面原图，不能只运行通用上传目录同步器。专用
+迁移器从 Legacy 同源 API 建立快照，把每一面规范化为
+`card-{id}-{front|back}.{ext}`，数据库保存稳定的 `/uploads/namecard/original/...` URL，
+对象存储则使用 `community/namecards/assets/.../image.{ext}` 逻辑键。默认命令只下载到被 Git
+忽略的 staging、校验图片解码与 Legacy MD5，并对账 PostgreSQL/MinIO：
+
+```sh
+pnpm run media:namecards:sync -- \
+  --source-base-url https://idol-master.top
+```
+
+检查 `data/migration/legacy-namecards/manifest.json` 后，备份 PostgreSQL，再显式确认来源和目标
+bucket 执行写入：
+
+```sh
+pnpm run media:namecards:sync -- \
+  --source-base-url https://idol-master.top \
+  --apply \
+  --confirm-source https://idol-master.top \
+  --confirm-bucket "$IMS_S3_BUCKET"
+```
+
+应用顺序固定为先上传并回读全部对象，再在单个 PostgreSQL 事务中 upsert 名片、修正两面 URL、
+同步表情计数并校正 `cards` identity sequence。manifest 不保存投稿 IP；数据库仍按 Legacy 行完整
+保留该字段。命令不会删除不再被名片记录引用的旧对象，孤儿清理由单独审计决定。
+
 旧首页“活动资讯与同人活动”的 6 条卡片不属于 Event/News 表，也不应继续由代码常量兜底。
 新存储环境还需单独迁移它们的索引和原图：
 
@@ -139,8 +173,9 @@ pnpm run media:information:sync
 pnpm run media:information:sync -- --apply
 ```
 
-写入完成后，`/api/information` 只读取 `uploads/information/index.json`，图片统一使用
-`/uploads/information/original/...`。索引不存在时返回空集合，避免静态代码重新成为业务数据源。
+写入完成后，`/api/information` 只读取 `editorial/information/index.json`；页面与数据库仍保留
+稳定的 `/uploads/information/original/...` URL，由 API 映射到
+`editorial/information/assets/.../cover.<ext>`。索引不存在时返回空集合。
 
 ### Wiki 全量素材同步
 
@@ -163,24 +198,32 @@ pnpm run wiki:media:sync -- \
   --upload-existing
 ```
 
-也可在首次抓取时直接使用 `--upload`。两种上传模式都会逐对象执行 HEAD 校验，并把最新完整
-清单写入 `Wiki/manifests/idol-master-top-latest.json`。对象按 Wiki 业务结构落位：
+也可在首次抓取时直接使用 `--upload`。两种上传模式都会通过当前对象状态机写入并回读
+SHA-256，把最新完整清单写入
+`system/migrations/wiki/idol-master-top-latest.json`。对象按 Wiki 业务结构落位：
 
 | 来源路径 | 逻辑对象键 |
 | --- | --- |
-| `/image/{事务所}/{角色}/{用途}/{文件}` | `Data/{agencyCode}/{folderName}/{用途}/{文件}` |
-| `/icon/...` | `Wiki/static/icon/...` |
-| `/css/...` | `Wiki/static/css/...` |
-| `/assets/...` | `Wiki/static/assets/...` |
+| `/image/{事务所}/{角色}/icon.<ext>` | `wiki/agencies/{agencyCode}/idols/{folderName}/avatar.<ext>` |
+| `/image/{事务所}/{角色}/{用途}/{文件}` | `wiki/agencies/{agencyCode}/idols/{folderName}/story-images/{用途}/{文件}` |
+| 来源 `/icon/agencies/{code}.webp` | `wiki/agencies/{code}/branding/icon.webp` |
+| `/icon/...` | `wiki/shared/static/icon/...` |
+| `/css/...` | `wiki/shared/static/css/...` |
+| `/assets/...` | `wiki/shared/static/assets/...` |
 
-`/image/*` 由 Story 数据库把展示名还原为稳定内部目录，再重定向到短期签名 URL；`/icon/*`
-和 `/css/*` 优先使用相同直读方式。manifest 保存每个素材的原始 URL、引用页面、目标键、
+`/image/*` 由 Story 数据库把展示名还原为稳定内部目录，再重定向到短期签名 URL。运行时只提供
+数据库实体路由 `/icon/agencies/{id}.webp` 和 `/icon/wiki-groups/{id}.webp`；旧通用 `/icon/*`
+与 `/css/*` 不再读取清单对象。manifest 保存每个素材的原始 URL、引用页面、目标键、
 字节数、MIME 与 SHA-256，可用于之后的增量同步和位置审计。
+
+上传完成后运行 `pnpm run wiki:metadata:audit`。数据库中的非空媒体逻辑键才表示业务关联，目录中
+存在对象不能反向使其出现在公开 Wiki。必要时用 `--apply --strict` 关联已存在的语义化企划图标
+和头像，并要求最终报告中的缺失对象、未知分类和成员关系问题全部为零。
 
 应用需要 bucket 的 `ListBucket` 权限，以及目标 `IMS_S3_PREFIX` 下对象的
 `GetObject`、`PutObject`、`DeleteObject` 权限。copy/move 由读取、版本化写入和受保护删除组合完成。
-生产 bucket 建议启用版本控制、服务端加密、访问日志和生命周期策略；策略不能提前清理仍被
-SQLite 业务记录引用的对象。
+正式 bucket 固定使用 `imsweb-media-prod`，应用前缀固定使用 `v1`。创建时启用版本控制、
+服务端加密、访问日志和生命周期策略；策略不能提前清理仍被 PostgreSQL 活动索引引用的对象。
 
 ## 管理员站点包
 
@@ -203,26 +246,37 @@ site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 
 公开内容 URL 只接受 `site_packages.published_revision_id` 当前指向的版本，并使用
 `public, max-age=0, must-revalidate`，避免发布切换后缓存继续提供旧页面。历史版本的直接 URL
-返回 404，但仍可通过该版本的预览 bearer 查看；预览使用 `private, no-store`。含脚本版本只能
-在与主站不同可注册站点的 `IMS_SITE_PACKAGE_ORIGIN` 上运行，例如主站使用
-`www.example.com` 时内容域使用 `ims-content.example.net`，而不是普通的
-`content.example.com` 子域。这样可同时降低父域 Cookie tossing 和 same-site 隔离失效风险。
-生产启动会按 Public Suffix List 验证这个边界。CSP 禁止网络连接、表单、frame、object、
-同源沙箱和顶层导航，且只允许主站作为 `frame-ancestors`。
+返回 404，但仍可通过该版本的预览 bearer 查看；预览使用 `private, no-store`。浏览器公开入口
+固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳，因此活动页地址栏与主站保持同一
+origin。页面包本体仍从与主站不同可注册站点的 `IMS_SITE_PACKAGE_ORIGIN` 加载到受限 iframe，
+例如主站使用 `www.example.com` 时内容域使用 `ims-content.example.net`，而不是普通的
+`content.example.com` 子域。这样既保留稳定的主站路由，又降低父域 Cookie tossing 和
+same-site 隔离失效风险。生产启动会按 Public Suffix List 验证这个边界。CSP 禁止网络连接、
+表单、frame、object、同源沙箱和顶层导航，且只允许主站作为 `frame-ancestors`。
 
 ## 切换与校验
 
-设置 S3 变量不会自动搬迁现有文件。切换权威写入源前必须停写或建立可重放的最终增量窗口，
-并把三个本地目录映射到对应逻辑 key：
+设置 S3 变量不会自动搬迁现有文件。切换权威写入源前必须停写，并把旧目录一次性迁到
+canonical logical key：
 
 | 本地来源 | S3 目标前缀 |
 | --- | --- |
-| `IMS_UPLOADS_DIR/` | `<IMS_S3_PREFIX>/uploads/` |
-| `IMS_EVENT_BASE_DIR/{upload,used,meta,.trash}/` | `<IMS_S3_PREFIX>/assets/images/eventchronicle/events/<同名目录>/` |
-| `IMS_STORY_DATA_DIR/` | `<IMS_S3_PREFIX>/Data/` |
+| `IMS_UPLOADS_DIR/{news,event,information}/` | `editorial/...` |
+| `IMS_UPLOADS_DIR/namecard/` | `community/namecards/...` |
+| `IMS_EVENT_BASE_DIR/{upload,used,meta,.trash}/` | `chronicle/{media,metadata,trash}/...` |
+| `IMS_STORY_DATA_DIR/` | `wiki/agencies/...` |
 
 `IMS_UPLOADS_DIR` 使用 `pnpm run media:uploads:sync -- --apply` 完成上述清单、上传和回读核对；
-其他来源仍需先生成文件数、总字节数和 SHA-256 manifest，再上传并从目标重新读取核对。不要把
+旧 S3/MinIO 环境使用以下命令完成只读盘点和破坏性切换：
+
+```sh
+pnpm run migration:object-keys
+pnpm run migration:object-keys -- \
+  --apply --delete-source --confirm-bucket "$IMS_S3_BUCKET"
+```
+
+第二条命令逐对象写入 canonical key、回读 SHA-256 后删除旧 key；不提供双读窗口。其他来源仍需
+先生成文件数、总字节数和 SHA-256 manifest，再上传并从目标重新读取核对。不要把
 `IMS_EVENT_BASE_DIR/.idempotency` 或 `.staging` 上传到对象存储。完成只读冒烟后，才能把
 `IMS_OBJECT_STORAGE` 切为 `s3` 并恢复写入；回滚时同样只能保留一个权威写入端。
 

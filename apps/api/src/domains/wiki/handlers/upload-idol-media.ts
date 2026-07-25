@@ -1,6 +1,7 @@
 import type { Env, Handler } from 'hono';
 import {
     authorizeWikiWrite,
+    cleanupWikiObjects,
     findWikiMutationTarget,
     parseWikiUpload,
     singleWikiFile,
@@ -25,6 +26,8 @@ export function createHandleUploadWikiIdolMedia<E extends Env>(
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage', 'images', 'uploads']);
+        let createdKey: string | null = null;
+        let cleanupCreated = false;
         try {
             const upload = await parseWikiUpload(context.req.raw, services);
             const file = singleWikiFile(upload, 'image');
@@ -36,16 +39,19 @@ export function createHandleUploadWikiIdolMedia<E extends Env>(
             );
             if ('error' in target) return target.error;
             const converted = await validateAndConvertStoryImage(file, services.images!);
-            const key = idolMediaObjectKey(target.agency.code, target.idol.folderName);
-            const object = await services.storage!.put(key, converted, {
+            createdKey = idolMediaObjectKey(target.agency.code, target.idol.folderName);
+            cleanupCreated = !await services.storage!.exists(createdKey);
+            const object = await services.storage!.put(createdKey, converted, {
                 contentType: 'image/webp',
                 metadata: { kind: 'idol-media', idol: target.idol.name }
             });
+            await services.story!.setIdolAvatarObjectKey(target.idol.id, createdKey);
             return wikiJson({
                 status: 'success',
                 url: `${idolMediaUrl(target.agency.name, target.idol.name)}?v=${encodeURIComponent(object.etag)}`
             });
         } catch (error) {
+            if (createdKey && cleanupCreated) await cleanupWikiObjects(services, [createdKey]);
             const status = wikiStatusOf(error);
             if (status === 413) return wikiJson(wikiErrorBody('上传文件超过大小限制'), 413);
             if (status === 400) {

@@ -8,7 +8,7 @@ import {
     uploadedPng,
     type WikiFixture
 } from './fixture';
-import { categoryFolder } from '@/domains/wiki/service';
+import { categoryStorageSlug } from '@/domains/wiki/service';
 
 const WRITE_ENDPOINTS = [
     { method: 'POST', path: '/api/wiki/add_story' },
@@ -16,11 +16,10 @@ const WRITE_ENDPOINTS = [
     { method: 'POST', path: '/api/wiki/delete_story' },
     { method: 'POST', path: '/api/wiki/delete_category' },
     { method: 'POST', path: '/api/wiki/parse_bilibili' },
-    { method: 'POST', path: '/api/wiki/save_story_layout' },
+    { method: 'PUT', path: '/api/admin/wiki/agencies/6/layout' },
     { method: 'POST', path: '/api/wiki/agency-icon' },
     { method: 'DELETE', path: '/api/wiki/agency-icon' },
     { method: 'POST', path: '/api/wiki/idol-media' },
-    { method: 'POST', path: '/api/wiki/idol-media/import-legacy' },
     { method: 'DELETE', path: '/api/wiki/idol-media' }
 ];
 
@@ -30,7 +29,7 @@ async function json(response: Response) {
 
 function seedOriginal(fixture: WikiFixture) {
     const imageFile = 'original/old.webp';
-    const key = `Data/sc/sc_idol/${imageFile}`;
+    const key = `wiki/agencies/sc/idols/sc_idol/story-images/${imageFile}`;
     const row = fixture.story.seedStory({
         idol_id: 6,
         category: '测试分类',
@@ -41,6 +40,16 @@ function seedOriginal(fixture: WikiFixture) {
         image_file: imageFile
     });
     fixture.storage.seed(key, new Uint8Array([1, 2, 3]));
+    fixture.story.categories.push({
+        id: 100,
+        agency_id: 6,
+        idol_id: 6,
+        name: '测试分类',
+        storage_slug: categoryStorageSlug('测试分类'),
+        background_eligible: false,
+        display_order: 1,
+        show_when_empty: true
+    });
     return { row, key };
 }
 
@@ -93,15 +102,15 @@ describe('Wiki Cookie JWT, role and Header-to-claim CSRF contract', () => {
         }
 
         const viewer = await fixture.auth('viewer');
-        const forbidden = await fixture.app.request('/api/wiki/save_story_layout', {
-            method: 'POST',
+        const forbidden = await fixture.app.request('/api/admin/wiki/agencies/6/layout', {
+            method: 'PUT',
             headers: { Cookie: `token=${viewer.token}`, 'X-CSRFToken': viewer.csrf }
         });
         assert.equal(forbidden.status, 403);
         assert.deepEqual(await json(forbidden), { status: 'error', msg: '无权限执行此操作' });
 
-        const malformed = await fixture.app.request('/api/wiki/save_story_layout', {
-            method: 'POST',
+        const malformed = await fixture.app.request('/api/admin/wiki/agencies/6/layout', {
+            method: 'PUT',
             headers: { Cookie: 'token=not-a-jwt', 'X-CSRFToken': 'anything' }
         });
         assert.equal(malformed.status, 401);
@@ -126,12 +135,22 @@ describe('Wiki Cookie JWT, role and Header-to-claim CSRF contract', () => {
         assert.equal(fixture.story.stories.length, 2);
         assert.equal(fixture.storage.objects.size, 2);
 
-        const saveLayout = await fixture.app.request('/api/wiki/save_story_layout', {
-            method: 'POST',
-            headers: await fixture.authHeaders('editor')
+        const saveLayout = await fixture.app.request('/api/admin/wiki/agencies/6/layout', {
+            method: 'PUT',
+            headers: {
+                ...await fixture.authHeaders('editor'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                expectedRevision: 0,
+                groups: [{ id: 6, idolIds: [6] }]
+            })
         });
         assert.equal(saveLayout.status, 200);
-        assert.deepEqual(await json(saveLayout), { status: 'success' });
+        assert.deepEqual(await saveLayout.json(), {
+            status: 'success',
+            layoutRevision: 1
+        });
     });
 });
 
@@ -151,17 +170,17 @@ describe('Wiki agency icon object storage contract', () => {
         assert.equal(upload.status, 200);
         assert.deepEqual(await upload.json(), {
             status: 'success',
-            url: '/icon/agencies/sc.webp?v=fixture-4'
+            url: '/icon/agencies/6.webp'
         });
-        const key = 'Wiki/static/icon/agencies/sc.webp';
+        const key = 'wiki/agencies/sc/branding/icon.webp';
         assert.ok(fixture.storage.objects.has(key));
 
         const published = await fixture.app.request('/api/wiki/catalog?agency=sc');
         assert.equal(
             (await published.json() as any).selection.agency.iconUrl,
-            '/icon/agencies/sc.webp?v=fixture-4'
+            '/icon/agencies/6.webp'
         );
-        const served = await fixture.app.request('/icon/agencies/sc.webp');
+        const served = await fixture.app.request('/icon/agencies/6.webp');
         assert.equal(served.status, 200);
         assert.equal(served.headers.get('Content-Type'), 'image/webp');
 
@@ -180,7 +199,7 @@ describe('Wiki agency icon object storage contract', () => {
 });
 
 describe('Wiki idol media object storage contract', () => {
-    test('upload switches the catalog to object storage and delete restores the legacy fallback', async () => {
+    test('upload switches the catalog to object storage and delete clears the association', async () => {
         const fixture = createWikiFixture();
         fixture.story.idols[5]!.folder_name = 'sakuragi_mano';
         const headers = await fixture.authHeaders('editor');
@@ -191,8 +210,8 @@ describe('Wiki idol media object storage contract', () => {
         const initialMano = initialBody.agencies
             .find((agency: any) => agency.code === 'sc').idols
             .find((idol: any) => idol.name === '樱木真乃');
-        assert.equal(initialMano.source, 'legacy-character');
-        assert.equal(initialMano.imageUrl, '/assets/images/Production/283Mano.png');
+        assert.equal(initialMano.source, 'none');
+        assert.equal(initialMano.imageUrl, '');
 
         const upload = await postMultipart(fixture, '/api/wiki/idol-media', {
             fields: { agency: '闪耀色彩', idol: '樱木真乃' },
@@ -200,7 +219,7 @@ describe('Wiki idol media object storage contract', () => {
         }, headers);
         assert.equal(upload.status, 200);
         assert.equal((await json(upload)).status, 'success');
-        const key = 'Data/sc/sakuragi_mano/icon.webp';
+        const key = 'wiki/agencies/sc/idols/sakuragi_mano/avatar.webp';
         assert.ok(fixture.storage.objects.has(key));
 
         const stored = await fixture.app.request('/api/wiki/idol-media');
@@ -225,39 +244,7 @@ describe('Wiki idol media object storage contract', () => {
         const revertedMano = revertedBody.agencies
             .find((agency: any) => agency.code === 'sc').idols
             .find((idol: any) => idol.name === '樱木真乃');
-        assert.equal(revertedMano.source, 'legacy-character');
-    });
-
-    test('legacy import copies exact character art and skips agency-logo fallbacks', async () => {
-        const fixture = createWikiFixture();
-        fixture.story.idols[0]!.folder_name = 'amami_haruka';
-        fixture.story.idols[5]!.folder_name = 'sakuragi_mano';
-        fixture.services.staticAssets = {
-            async fetch(request: Request) {
-                const path = new URL(request.url).pathname;
-                return path.startsWith('/assets/images/')
-                    ? new Response(new TextEncoder().encode('valid-png'), { headers: { 'Content-Type': 'image/png' } })
-                    : new Response('not found', { status: 404 });
-            }
-        };
-
-        const response = await fixture.app.request('/api/wiki/idol-media/import-legacy', {
-            method: 'POST',
-            headers: await fixture.authHeaders('op')
-        });
-        assert.equal(response.status, 200);
-        const body = await response.json() as any;
-        assert.equal(body.status, 'success');
-        assert.equal(body.imported, 6);
-        assert.equal(body.skipped, 0);
-        assert.deepEqual(body.failed, []);
-        assert.ok(fixture.storage.objects.has('Data/765/amami_haruka/icon.webp'));
-        assert.ok(fixture.storage.objects.has('Data/sc/sakuragi_mano/icon.webp'));
-        assert.ok(fixture.storage.objects.has('Data/cg/cg_idol/icon.webp'));
-        assert.ok(fixture.storage.objects.has('Data/ml/ml_idol/icon.webp'));
-        assert.ok(fixture.storage.objects.has('Data/sidem/sidem_idol/icon.webp'));
-        assert.ok(fixture.storage.objects.has('Data/gk/gk_idol/icon.webp'));
-        assert.equal(fixture.storage.objects.size, 6);
+        assert.equal(revertedMano.source, 'none');
     });
 });
 
@@ -379,7 +366,7 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.equal(fixture.story.stories.length, 1);
         assert.equal(fixture.story.stories[0]!.card_name, '【updated】');
         assert.ok(!fixture.storage.objects.has(original.key));
-        const replacementKey = `Data/sc/sc_idol/${fixture.story.stories[0]!.image_file}`;
+        const replacementKey = `wiki/agencies/sc/idols/sc_idol/story-images/${fixture.story.stories[0]!.image_file}`;
         assert.ok(fixture.storage.objects.has(replacementKey));
 
         const deletion = await postForm(fixture, '/api/wiki/delete_story', formFields({
@@ -458,7 +445,7 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
     test('category cleanup enumerates unreferenced prefix objects and compensates each failed key', async () => {
         const fixture = createWikiFixture();
         const original = seedOriginal(fixture);
-        const prefix = `Data/sc/sc_idol/${categoryFolder('测试分类')}`;
+        const prefix = `wiki/agencies/sc/idols/sc_idol/story-images/${categoryStorageSlug('测试分类')}`;
         const orphanKey = `${prefix}/unreferenced.webp`;
         const jobs: Array<{ kind: string; payload: unknown }> = [];
         fixture.storage.seed(orphanKey);
@@ -498,8 +485,8 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
             card_name: '【foobar】',
             image_file: 'foobar/foobar.webp'
         });
-        const fooKey = `Data/sc/sc_idol/${foo.image_file}`;
-        const foobarKey = `Data/sc/sc_idol/${foobar.image_file}`;
+        const fooKey = `wiki/agencies/sc/idols/sc_idol/story-images/${foo.image_file}`;
+        const foobarKey = `wiki/agencies/sc/idols/sc_idol/story-images/${foobar.image_file}`;
         fixture.storage.seed(fooKey);
         fixture.storage.seed(foobarKey);
 
@@ -538,7 +525,10 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.ok(!fixture.storage.objects.has(original.key));
         assert.ok(fixture.storage.objects.has(movedKey));
         assert.equal(fixture.story.stories[0]!.category, '新分类');
-        assert.equal(`Data/sc/sc_idol/${fixture.story.stories[0]!.image_file}`, movedKey);
+        assert.equal(
+            `wiki/agencies/sc/idols/sc_idol/story-images/${fixture.story.stories[0]!.image_file}`,
+            movedKey
+        );
 
         const deletion = await postForm(fixture, '/api/wiki/delete_category', formFields({
             category_name: '新分类'

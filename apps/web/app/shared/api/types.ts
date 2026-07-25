@@ -7,6 +7,8 @@ export type ApiResponseType =
   | "raw"
 
 export interface ApiMethodMeta {
+  /** Alova token-authentication role for login, logout, and refresh requests. */
+  authRole?: "login" | "logout" | "refreshToken" | null
   /** Read the current csrf_token cookie and send it as X-CSRFToken. */
   csrf?: boolean
   /** Override content-type based response parsing for exceptional endpoints. */

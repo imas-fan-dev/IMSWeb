@@ -3,6 +3,7 @@ import type { AppEnvironment } from '@/app';
 import {
     chroniclePrefix,
     encodedChronicleMediaUrl,
+    listChronicleObjects,
     readChronicleMeta,
     type ChronicleMeta
 } from '@/domains/chronicle/chronicle-records';
@@ -14,7 +15,7 @@ export async function handleListChronicleActivities(
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
     const activities: Array<Record<string, unknown>> = [];
-    for (const entry of await storage.list(chroniclePrefix('meta'))) {
+    for (const entry of await listChronicleObjects(storage, 'meta')) {
         const id = entry.key.split('/').at(-1)!.replace(/\.json$/, '');
         try {
             const value = await readChronicleMeta(storage, id);
@@ -22,7 +23,7 @@ export async function handleListChronicleActivities(
                 ? value as ChronicleMeta
                 : {};
             const usedPrefix = `${chroniclePrefix('used', id)}/`;
-            const used = (await storage.list(usedPrefix))
+            const used = (await listChronicleObjects(storage, 'used', id))
                 .filter((candidate) => candidate.key.startsWith(usedPrefix));
             activities.push({
                 id,

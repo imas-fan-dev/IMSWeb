@@ -1,20 +1,20 @@
-export const SUPPORTED_AGENCY_CODES = ["765", "876", "cg", "ml", "sidem", "sc", "gk"] as const;
-
-export type SupportedAgencyCode = (typeof SUPPORTED_AGENCY_CODES)[number];
 export type WikiMediaFit = "contain" | "cover";
-export type WikiMediaSource = "object-storage" | "legacy-character" | "legacy-agency";
+export type WikiMediaSource = "object-storage" | "none";
 
 export interface WikiAgency {
   id: number;
-  code: SupportedAgencyCode;
+  code: string;
   name: string;
   color: string;
+  bannerTitle: string;
+  iconUrl: string | null;
+  layoutRevision: number;
 }
 
 export interface WikiIdol {
   id: number;
   agencyId: number;
-  agencyCode: SupportedAgencyCode;
+  agencyCode: string;
   agencyName: string;
   agencyColor: string;
   name: string;

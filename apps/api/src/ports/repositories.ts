@@ -6,9 +6,41 @@ export interface UserRecord {
     producername: string | null;
 }
 
+export interface RefreshSessionRecord {
+    id: string;
+    user_id: number;
+    token_hash: string;
+    previous_token_hash: string | null;
+    csrf_hash: string;
+    expires_at: number;
+    created_at: number;
+    updated_at: number;
+    revoked_at: number | null;
+}
+
+export interface NewRefreshSessionInput {
+    id: string;
+    userId: number;
+    tokenHash: string;
+    csrfHash: string;
+    expiresAt: number;
+    createdAt: number;
+}
+
 export interface AuthRepository {
     findUserByUsername(username: string): Promise<UserRecord | null>;
     findUserById(id: number): Promise<UserRecord | null>;
+    createRefreshSession(input: NewRefreshSessionInput): Promise<void>;
+    findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSessionRecord | null>;
+    rotateRefreshSession(input: {
+        id: string;
+        currentTokenHash: string;
+        nextTokenHash: string;
+        nextExpiresAt: number;
+        updatedAt: number;
+    }): Promise<boolean>;
+    revokeRefreshSession(id: string, revokedAt: number): Promise<void>;
+    deleteExpiredRefreshSessions(now: number): Promise<void>;
 }
 
 export interface AuditLogInput {
@@ -210,6 +242,12 @@ export interface AgencyRecord {
     code: string;
     name_cn: string;
     color: string;
+    wiki_enabled: boolean;
+    display_order: number;
+    banner_title: string;
+    icon_object_key: string | null;
+    fallback_artwork_object_key: string | null;
+    layout_revision: number;
 }
 
 export interface IdolRecord {
@@ -218,6 +256,11 @@ export interface IdolRecord {
     name_cn: string;
     folder_name: string;
     color: string | null;
+    wiki_enabled: boolean;
+    display_order: number;
+    text_color: string;
+    avatar_object_key: string | null;
+    avatar_fit: 'cover' | 'contain';
 }
 
 export interface IdolWithAgencyRecord extends IdolRecord {
@@ -225,6 +268,55 @@ export interface IdolWithAgencyRecord extends IdolRecord {
     agency_name: string;
     agency_color: string;
 }
+
+export interface WikiGroupRecord {
+    id: number;
+    agency_id: number;
+    code: string;
+    name: string;
+    color: string;
+    icon_object_key: string | null;
+    display_order: number;
+    is_fallback: boolean;
+}
+
+export interface WikiGroupMemberRecord {
+    agency_id: number;
+    group_id: number;
+    idol_id: number;
+    display_order: number;
+}
+
+export interface WikiCategoryRecord {
+    id: number;
+    agency_id: number;
+    name: string;
+    storage_slug: string;
+    background_eligible: boolean;
+    display_order: number;
+    show_when_empty: boolean;
+}
+
+export interface WikiBackgroundRecord extends StoryRecord {
+    agency_id: number;
+    agency_code: string;
+    agency_name: string;
+    idol_name: string;
+    idol_folder_name: string;
+}
+
+export interface WikiLayoutInput {
+    agencyId: number;
+    expectedRevision: number;
+    groups: Array<{
+        id: number;
+        idolIds: number[];
+    }>;
+}
+
+export type WikiLayoutSaveResult =
+    | { status: 'saved'; revision: number }
+    | { status: 'conflict'; revision: number };
 
 export interface StoryRecord {
     id: number;
@@ -259,14 +351,35 @@ export interface StoryRepository {
     listThemeColors(): Promise<Record<string, string>>;
     listAgencies(): Promise<AgencyRecord[]>;
     listIdolsWithAgencies(): Promise<IdolWithAgencyRecord[]>;
+    listWikiGroups(agencyId?: number): Promise<WikiGroupRecord[]>;
+    findWikiGroupById(id: number): Promise<WikiGroupRecord | null>;
+    listWikiGroupMembers(agencyId?: number): Promise<WikiGroupMemberRecord[]>;
+    listWikiCategories(agencyId: number, idolId: number): Promise<WikiCategoryRecord[]>;
     findAgencyByName(name: string): Promise<AgencyRecord | null>;
     findAgencyByCode(code: string): Promise<AgencyRecord | null>;
+    findAgencyById(id: number): Promise<AgencyRecord | null>;
     findIdolByAgencyAndName(agencyId: number, idolName: string): Promise<IdolRecord | null>;
+    findIdolById(id: number): Promise<IdolRecord | null>;
+    setAgencyIconObjectKey(agencyId: number, objectKey: string | null): Promise<void>;
+    setIdolAvatarObjectKey(idolId: number, objectKey: string | null): Promise<void>;
+    ensureWikiCategory(
+        agencyId: number,
+        idolId: number,
+        name: string,
+        storageSlug: string
+    ): Promise<WikiCategoryRecord>;
+    deleteWikiCategoryAssociation(
+        agencyId: number,
+        idolId: number,
+        name: string
+    ): Promise<WikiCategoryRecord | null>;
+    saveWikiLayout(input: WikiLayoutInput): Promise<WikiLayoutSaveResult>;
     listStories(agencyCode: string, idolId: number): Promise<StoryRecord[]>;
     sampleStory(agencyCode: string, categories: readonly string[]): Promise<(StoryRecord & {
         idol_name: string;
         agency_name: string;
     }) | null>;
+    sampleWikiBackground(): Promise<WikiBackgroundRecord | null>;
     insertStoryReturningId(input: NewStoryInput): Promise<number>;
     setStoryImage(agencyCode: string, id: number, imageFile: string): Promise<void>;
     findFirstStoryByCard(

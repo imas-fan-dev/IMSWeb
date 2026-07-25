@@ -1,26 +1,23 @@
 import { ArrowUpRightIcon } from "lucide-react"
 import { Link } from "react-router"
 
-import type { WikiPublicIdol } from "~/shared/api"
+import type { WikiPublicCatalog } from "~/shared/api"
 
-import { groupWikiIdols } from "../wiki-groups"
 import { safeWikiColor } from "../wiki-model"
 
 export function WikiIdolGrid({
   agency,
-  idols,
+  groups,
 }: {
   agency: string
-  idols: WikiPublicIdol[]
+  groups: NonNullable<WikiPublicCatalog["selection"]>["groups"]
 }) {
-  const groups = groupWikiIdols(agency, idols)
-
   return (
     <div className="space-y-10">
       {groups.map((group) => (
         <section
-          key={group.key}
-          aria-labelledby={`wiki-group-${group.key}`}
+          key={group.id}
+          aria-labelledby={`wiki-group-${group.id}`}
           style={{ contentVisibility: "auto", containIntrinsicSize: "640px" }}
         >
           <div className="mb-4 flex items-center justify-between gap-4 border-b pb-3">
@@ -42,7 +39,7 @@ export function WikiIdolGrid({
                 />
               ) : null}
               <h3
-                id={`wiki-group-${group.key}`}
+                id={`wiki-group-${group.id}`}
                 className="text-lg font-semibold break-words"
               >
                 {group.name}
@@ -62,14 +59,16 @@ export function WikiIdolGrid({
                 style={{ borderTopColor: safeWikiColor(idol.color) }}
               >
                 <div className="aspect-[4/5] overflow-hidden bg-muted">
-                  <img
-                    src={idol.imageUrl}
-                    alt={idol.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="size-full transition-transform duration-300 group-hover:scale-[1.03]"
-                    style={{ objectFit: idol.imageFit }}
-                  />
+                  {idol.imageUrl ? (
+                    <img
+                      src={idol.imageUrl}
+                      alt={idol.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="size-full transition-transform duration-300 group-hover:scale-[1.03]"
+                      style={{ objectFit: idol.imageFit }}
+                    />
+                  ) : null}
                 </div>
                 <div className="flex min-h-14 items-center justify-between gap-2 border-t px-3 py-2.5">
                   <span className="min-w-0 text-sm font-medium break-words">

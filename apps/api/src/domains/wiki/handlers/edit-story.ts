@@ -13,6 +13,7 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
+    categoryStorageSlug,
     newStoryImageLocation,
     requireWikiServices,
     storyObjectKey,
@@ -45,6 +46,12 @@ export function createHandleEditWikiStory<E extends Env>(
             const requestedOldCardName = (fields.old_card_name ?? '').trim();
             const requestedOldCategory = (fields.old_category_name ?? '').trim();
             const category = (fields.category_name ?? '').trim();
+            const categoryRecord = await services.story!.ensureWikiCategory(
+                target.agency.id,
+                target.idol.id,
+                category,
+                categoryStorageSlug(category)
+            );
             const cardName = (fields.card_name ?? '').trim();
             const storyIdField = (fields.story_id ?? '').trim();
             const storyId = Number(storyIdField);
@@ -71,7 +78,7 @@ export function createHandleEditWikiStory<E extends Env>(
                 const location = newStoryImageLocation(
                     target.agency.code,
                     target.idol.folderName,
-                    category
+                    categoryRecord.storage_slug
                 );
                 createdKey = location.key;
                 imageFile = location.imageFile;
@@ -88,13 +95,11 @@ export function createHandleEditWikiStory<E extends Env>(
                 const location = newStoryImageLocation(
                     target.agency.code,
                     target.idol.folderName,
-                    category,
+                    categoryRecord.storage_slug,
                     extension
                 );
                 const sourceKey = storyObjectKey(
-                    target.agency.code,
-                    target.idol.folderName,
-                    record.image_file
+                    target.agency.code, target.idol.folderName, record.image_file
                 );
                 if (await services.storage!.exists(sourceKey)) {
                     createdKey = location.key;

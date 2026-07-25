@@ -11,6 +11,7 @@ import type { RuntimeServices, ResolveServices } from '@/ports/runtime-services'
 import type { JwtClaims } from '@/ports/security';
 import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
 import { registerAuditRoutes } from '@/domains/audit/routes';
+import { registerAboutRoutes } from '@/domains/about/routes';
 import { registerAuthRoutes } from '@/domains/auth/routes';
 import { registerChronicleRoutes } from '@/domains/chronicle/routes';
 import { registerEventRoutes } from '@/domains/events/routes';
@@ -64,7 +65,11 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     app.use('*', async (c, next) => {
         await next();
         const pathname = new URL(c.req.raw.url).pathname;
-        if (pathname !== '/site-content' && !pathname.startsWith('/site-content/')) {
+        if (
+            pathname !== '/site-content' &&
+            !pathname.startsWith('/site-content/') &&
+            !c.res.headers.has('X-Frame-Options')
+        ) {
             c.header('X-Frame-Options', 'SAMEORIGIN');
         }
     });
@@ -102,6 +107,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     app.get('/api/wiki/test', (c) => c.json({ status: 'ok' }));
 
     registerReactionRoutes(app);
+    registerAboutRoutes(app);
     registerAuthRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);

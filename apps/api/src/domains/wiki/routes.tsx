@@ -5,7 +5,6 @@ import { createHandleDeleteWikiCategory } from "@/domains/wiki/handlers/delete-c
 import { createHandleDeleteWikiIdolMedia } from "@/domains/wiki/handlers/delete-idol-media";
 import { createHandleDeleteWikiStory } from "@/domains/wiki/handlers/delete-story";
 import { createHandleEditWikiStory } from "@/domains/wiki/handlers/edit-story";
-import { createHandleImportLegacyWikiIdolMedia } from "@/domains/wiki/handlers/import-legacy-idol-media";
 import { createHandleListAdminWikiCatalog } from "@/domains/wiki/handlers/list-admin-catalog";
 import { createHandleListAdminWikiStories } from "@/domains/wiki/handlers/list-admin-stories";
 import { createHandleListPublicWikiCatalog } from "@/domains/wiki/handlers/list-public-catalog";
@@ -13,9 +12,10 @@ import { createHandleListPublicWikiStories } from "@/domains/wiki/handlers/list-
 import { createHandleListWikiIdolMedia } from "@/domains/wiki/handlers/list-idol-media";
 import { createHandleParseBilibili } from "@/domains/wiki/handlers/parse-bilibili";
 import { createHandleRandomWikiBackground } from "@/domains/wiki/handlers/random-background";
-import { createHandleSaveWikiStoryLayout } from "@/domains/wiki/handlers/save-story-layout";
+import { handleRejectRetiredWikiStaticAsset } from "@/domains/wiki/handlers/reject-retired-wiki-static-asset";
+import { createHandleSaveWikiLayout } from "@/domains/wiki/handlers/save-wiki-layout";
 import { createHandleServeWikiIdolImage } from "@/domains/wiki/handlers/serve-wiki-idol-image";
-import { createHandleServeWikiStaticAssets } from "@/domains/wiki/handlers/serve-wiki-static-assets";
+import { createHandleServeWikiEntityIcon } from "@/domains/wiki/handlers/serve-wiki-entity-icon";
 import { handleWikiTest } from "@/domains/wiki/handlers/wiki-test";
 import { createHandleUploadWikiAgencyIcon } from "@/domains/wiki/handlers/upload-agency-icon";
 import { createHandleUploadWikiIdolMedia } from "@/domains/wiki/handlers/upload-idol-media";
@@ -30,14 +30,16 @@ export function registerWikiRoutes<E extends Env>(
   app.get("/api/wiki/test", handleWikiTest);
   app.on(
     ["GET", "HEAD"],
-    "/icon/*",
-    createHandleServeWikiStaticAssets(resolveServices, "icon"),
+    "/icon/agencies/:asset",
+    createHandleServeWikiEntityIcon(resolveServices, "agency"),
   );
   app.on(
     ["GET", "HEAD"],
-    "/css/*",
-    createHandleServeWikiStaticAssets(resolveServices, "css"),
+    "/icon/wiki-groups/:asset",
+    createHandleServeWikiEntityIcon(resolveServices, "group"),
   );
+  app.on(["GET", "HEAD"], "/icon/*", handleRejectRetiredWikiStaticAsset);
+  app.on(["GET", "HEAD"], "/css/*", handleRejectRetiredWikiStaticAsset);
   app.on(
     ["GET", "HEAD"],
     "/image/:agency/:idol/*",
@@ -79,10 +81,6 @@ export function registerWikiRoutes<E extends Env>(
     "/api/wiki/idol-media",
     createHandleDeleteWikiIdolMedia(resolveServices),
   );
-  app.post(
-    "/api/wiki/idol-media/import-legacy",
-    createHandleImportLegacyWikiIdolMedia(resolveServices),
-  );
   app.post("/api/wiki/add_story", createHandleAddWikiStory(resolveServices));
   app.post("/api/wiki/edit_story", createHandleEditWikiStory(resolveServices));
   app.post(
@@ -97,9 +95,9 @@ export function registerWikiRoutes<E extends Env>(
     "/api/wiki/parse_bilibili",
     createHandleParseBilibili(resolveServices),
   );
-  app.post(
-    "/api/wiki/save_story_layout",
-    createHandleSaveWikiStoryLayout(resolveServices),
+  app.put(
+    "/api/admin/wiki/agencies/:agencyId/layout",
+    createHandleSaveWikiLayout(resolveServices),
   );
   app.get(
     "/api/wiki/random_bg",

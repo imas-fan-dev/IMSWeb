@@ -132,7 +132,7 @@ test('legacy Information migration writes and verifies six images plus one store
     assert.equal(applied.summary.uploaded, 6);
     assert.equal(storage.objects.size, 7);
     const index = JSON.parse(Buffer.from(
-        storage.objects.get('uploads/information/index.json').body
+        storage.objects.get('editorial/information/index.json').body
     ).toString('utf8'));
     assert.equal(index.cards.length, 6);
     assert.equal(index.assets.length, 6);
@@ -151,9 +151,12 @@ test('legacy Information migration writes and verifies six images plus one store
     const replacement = '/uploads/information/original/admin-replacement.png';
     index.cards[0].image = replacement;
     index.assets.push(replacement);
-    await storage.put(replacement.replace(/^\/+/, ''), Buffer.from('replacement'));
     await storage.put(
-        'uploads/information/index.json',
+        'editorial/information/assets/admin-replacement/cover.png',
+        Buffer.from('replacement')
+    );
+    await storage.put(
+        'editorial/information/index.json',
         Buffer.from(JSON.stringify(index)),
         { contentType: 'application/json; charset=utf-8' }
     );

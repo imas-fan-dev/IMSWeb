@@ -9,7 +9,10 @@ import {
     wikiStatusOf,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
-import { requireWikiServices, storyObjectKey } from '@/domains/wiki/service';
+import {
+    requireWikiServices,
+    storyObjectKey
+} from '@/domains/wiki/service';
 
 export function createHandleDeleteWikiStory<E extends Env>(
     resolveServices: WikiServicesResolver<E>

@@ -4,12 +4,15 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {
-    INFORMATION_INDEX_KEY,
     defaultInformationIndex,
     parseInformationIndex,
     serializeInformationIndex
 } = require('../../src/domains/information/data.ts');
 const { contentTypeForPath } = require('../../src/utils/http/content-type.ts');
+const {
+    INFORMATION_INDEX_OBJECT_KEY,
+    publicMediaObjectKey
+} = require('../../src/utils/storage/business-object-keys.ts');
 
 const MIGRATED_AT = '2026-07-24T00:00:00.000Z';
 const LEGACY_INFORMATION_CARDS = [
@@ -77,10 +80,6 @@ const LEGACY_INFORMATION_CARDS = [
 
 function sha256(body) {
     return crypto.createHash('sha256').update(body).digest('hex');
-}
-
-function objectKey(url) {
-    return url.replace(/^\/+/, '');
 }
 
 function parseArguments(argv, environment = process.env) {
@@ -171,7 +170,7 @@ function nextInformationIndex(current) {
 
 async function syncLegacyInformation(sourceRoot, storage, apply) {
     const absoluteSource = path.resolve(sourceRoot);
-    const currentObject = await storage.get(INFORMATION_INDEX_KEY);
+    const currentObject = await storage.get(INFORMATION_INDEX_OBJECT_KEY);
     const current = currentObject
         ? parseInformationIndex(currentObject.body)
         : defaultInformationIndex();
@@ -182,7 +181,7 @@ async function syncLegacyInformation(sourceRoot, storage, apply) {
         const sourcePath = path.join(absoluteSource, seed.source);
         const body = await fs.readFile(sourcePath);
         const digest = sha256(body);
-        const key = objectKey(seed.image);
+        const key = publicMediaObjectKey(seed.image);
         const existing = await storage.get(key);
         const matches = existing !== null && existing.size === body.byteLength &&
             sha256(existing.body) === digest;
@@ -219,7 +218,7 @@ async function syncLegacyInformation(sourceRoot, storage, apply) {
             throw new Error('Information migration requires conditional object writes');
         }
         const stored = await storage.putIfUnchanged(
-            INFORMATION_INDEX_KEY,
+            INFORMATION_INDEX_OBJECT_KEY,
             currentObject?.etag || null,
             serializeInformationIndex(plan.index),
             { contentType: 'application/json; charset=utf-8' }
@@ -229,7 +228,7 @@ async function syncLegacyInformation(sourceRoot, storage, apply) {
     }
 
     if (apply || !indexChanged) {
-        const verified = await storage.get(INFORMATION_INDEX_KEY);
+        const verified = await storage.get(INFORMATION_INDEX_OBJECT_KEY);
         if (!verified) throw new Error('Information index verification failed');
         const parsed = parseInformationIndex(verified.body);
         for (const seed of LEGACY_INFORMATION_CARDS) {
@@ -277,6 +276,7 @@ async function main() {
         process.stdout.write(`${helpText()}\n`);
         return;
     }
+    require('../../src/config/load-environment.ts');
     const { parseNodeObjectStorageConfig } = require('../../src/config/object-storage.ts');
     if (parseNodeObjectStorageConfig().type !== 's3') {
         throw new Error('Information media sync requires IMS_OBJECT_STORAGE=s3');

@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import {
-    chroniclePrefix,
     encodedChronicleMediaUrl,
+    listChronicleObjects,
     readChronicleMeta,
     recordsFromChronicleMeta
 } from '@/domains/chronicle/chronicle-records';
@@ -14,7 +14,7 @@ export async function handleListPendingChronicleMedia(
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
     const result: Record<string, Array<Record<string, unknown>>> = {};
-    for (const entry of await storage.list(chroniclePrefix('meta'))) {
+    for (const entry of await listChronicleObjects(storage, 'meta')) {
         const activityId = entry.key.split('/').at(-1)!.replace(/\.json$/, '');
         try {
             const records = recordsFromChronicleMeta(await readChronicleMeta(storage, activityId))

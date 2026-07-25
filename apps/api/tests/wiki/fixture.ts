@@ -10,11 +10,15 @@ import type {
     NewStoryInput,
     StoryRecord,
     StoryRepository,
-    UpdateStoryInput
+    UpdateStoryInput,
+    WikiCategoryRecord,
+    WikiGroupMemberRecord,
+    WikiGroupRecord,
+    WikiLayoutInput
 } from '@/ports/repositories';
 import type { ParsedUpload, UploadParser } from '@/ports/http';
 
-export const AGENCIES: AgencyRecord[] = [
+const AGENCY_BASE = [
     { id: 1, code: '765', name_cn: '765PRO', color: '#f34f6d' },
     { id: 2, code: '876', name_cn: '876PRO', color: '#656a75' },
     { id: 3, code: 'cg', name_cn: '灰姑娘女孩', color: '#2681c8' },
@@ -22,7 +26,17 @@ export const AGENCIES: AgencyRecord[] = [
     { id: 5, code: 'sidem', name_cn: 'SideM', color: '#0fbe94' },
     { id: 6, code: 'sc', name_cn: '闪耀色彩', color: '#8dbbff' },
     { id: 7, code: 'gk', name_cn: '学园偶像大师', color: '#f39800' }
-];
+] as const;
+
+export const AGENCIES: AgencyRecord[] = AGENCY_BASE.map((agency, index) => ({
+    ...agency,
+    wiki_enabled: true,
+    display_order: index,
+    banner_title: `${agency.name_cn} Banner`,
+    icon_object_key: null,
+    fallback_artwork_object_key: null,
+    layout_revision: 0
+}));
 
 const IDOL_NAMES = ['天海春香', '日高爱', '岛村卯月', '春日未来', '天道辉', '樱木真乃', '花海咲季'];
 
@@ -34,7 +48,30 @@ export const IDOLS: IdolWithAgencyRecord[] = AGENCIES.map((agency, index) => ({
     agency_color: agency.color,
     name_cn: IDOL_NAMES[index]!,
     folder_name: `${agency.code}_idol`,
-    color: agency.color
+    color: agency.color,
+    wiki_enabled: true,
+    display_order: 0,
+    text_color: '#ffffff',
+    avatar_object_key: null,
+    avatar_fit: 'cover'
+}));
+
+const GROUPS: WikiGroupRecord[] = AGENCIES.map((agency, index) => ({
+    id: index + 1,
+    agency_id: agency.id,
+    code: `${agency.code}-main`,
+    name: `${agency.name_cn} Main`,
+    color: agency.color,
+    icon_object_key: null,
+    display_order: 0,
+    is_fallback: true
+}));
+
+const MEMBERS: WikiGroupMemberRecord[] = IDOLS.map((idol) => ({
+    agency_id: idol.agency_id,
+    group_id: idol.agency_id,
+    idol_id: idol.id,
+    display_order: 0
 }));
 
 function cloneStory(row: StoryRecord): StoryRecord {
@@ -44,6 +81,18 @@ function cloneStory(row: StoryRecord): StoryRecord {
 export class MemoryStoryRepository implements StoryRepository {
     agencies = AGENCIES.map((row) => ({ ...row }));
     idols = IDOLS.map((row) => ({ ...row }));
+    groups = GROUPS.map((row) => ({ ...row }));
+    members = MEMBERS.map((row) => ({ ...row }));
+    categories: Array<WikiCategoryRecord & { idol_id: number }> = IDOLS.map((idol) => ({
+        id: idol.id,
+        agency_id: idol.agency_id,
+        idol_id: idol.id,
+        name: idol.agency_code === 'sc' ? 'enzaP卡' : '未分类剧情',
+        storage_slug: idol.agency_code === 'sc' ? 'enza_pcard' : 'other',
+        background_eligible: idol.agency_code === 'sc',
+        display_order: 0,
+        show_when_empty: true
+    }));
     stories: StoryRecord[] = [];
     samples = new Map<string, (StoryRecord & { idol_name: string; agency_name: string }) | null>();
     nextId = 1;
@@ -57,17 +106,96 @@ export class MemoryStoryRepository implements StoryRepository {
     async listThemeColors() { return {}; }
     async listAgencies() { return this.agencies.map((row) => ({ ...row })); }
     async listIdolsWithAgencies() { return this.idols.map((row) => ({ ...row })); }
+    async listWikiGroups(agencyId?: number) {
+        return this.groups.filter((row) => agencyId === undefined || row.agency_id === agencyId)
+            .map((row) => ({ ...row }));
+    }
+    async findWikiGroupById(id: number) {
+        return this.groups.find((row) => row.id === id) ?? null;
+    }
+    async listWikiGroupMembers(agencyId?: number) {
+        return this.members.filter((row) => agencyId === undefined || row.agency_id === agencyId)
+            .map((row) => ({ ...row }));
+    }
+    async listWikiCategories(agencyId: number, idolId: number) {
+        return this.categories.filter((row) =>
+            row.agency_id === agencyId && row.idol_id === idolId
+        ).map(({ idol_id: _idolId, ...row }) => ({ ...row }));
+    }
     async findAgencyByName(name: string) {
         return this.agencies.find((row) => row.name_cn === name) ?? null;
     }
     async findAgencyByCode(code: string) {
         return this.agencies.find((row) => row.code === code) ?? null;
     }
+    async findAgencyById(id: number) {
+        return this.agencies.find((row) => row.id === id) ?? null;
+    }
     async findIdolByAgencyAndName(agencyId: number, idolName: string): Promise<IdolRecord | null> {
         const row = this.idols.find((candidate) => candidate.agency_id === agencyId && candidate.name_cn === idolName);
         if (!row) return null;
         const { agency_code: _code, agency_name: _name, agency_color: _color, ...idol } = row;
         return { ...idol };
+    }
+    async findIdolById(id: number): Promise<IdolRecord | null> {
+        const row = this.idols.find((candidate) => candidate.id === id);
+        if (!row) return null;
+        const { agency_code: _code, agency_name: _name, agency_color: _color, ...idol } = row;
+        return { ...idol };
+    }
+    async setAgencyIconObjectKey(agencyId: number, objectKey: string | null) {
+        const agency = this.agencies.find((row) => row.id === agencyId);
+        if (agency) agency.icon_object_key = objectKey;
+    }
+    async setIdolAvatarObjectKey(idolId: number, objectKey: string | null) {
+        const idol = this.idols.find((row) => row.id === idolId);
+        if (idol) idol.avatar_object_key = objectKey;
+    }
+    async ensureWikiCategory(agencyId: number, idolId: number, name: string, storageSlug: string) {
+        let category = this.categories.find((row) =>
+            row.agency_id === agencyId && row.idol_id === idolId && row.name === name
+        );
+        if (!category) {
+            category = {
+                id: Math.max(0, ...this.categories.map((row) => row.id)) + 1,
+                agency_id: agencyId,
+                idol_id: idolId,
+                name,
+                storage_slug: storageSlug,
+                background_eligible: false,
+                display_order: this.categories.filter((row) => row.idol_id === idolId).length,
+                show_when_empty: true
+            };
+            this.categories.push(category);
+        }
+        const { idol_id: _idolId, ...record } = category;
+        return { ...record };
+    }
+    async deleteWikiCategoryAssociation(agencyId: number, idolId: number, name: string) {
+        const category = (await this.listWikiCategories(agencyId, idolId))
+            .find((row) => row.name === name) ?? null;
+        this.categories = this.categories.filter((row) =>
+            !(row.agency_id === agencyId && row.idol_id === idolId && row.name === name)
+        );
+        return category;
+    }
+    async saveWikiLayout(input: WikiLayoutInput) {
+        const agency = this.agencies.find((row) => row.id === input.agencyId);
+        if (!agency) throw Object.assign(new Error('企划不存在'), { status: 404 });
+        if (agency.layout_revision !== input.expectedRevision) {
+            return { status: 'conflict' as const, revision: agency.layout_revision };
+        }
+        this.members = this.members.filter((row) => row.agency_id !== input.agencyId);
+        for (const group of input.groups) {
+            group.idolIds.forEach((idolId, displayOrder) => this.members.push({
+                agency_id: input.agencyId,
+                group_id: group.id,
+                idol_id: idolId,
+                display_order: displayOrder
+            }));
+        }
+        agency.layout_revision += 1;
+        return { status: 'saved' as const, revision: agency.layout_revision };
     }
     async listStories(agencyCode: string, idolId: number) {
         const agencyIds = new Set(this.agencies.filter((row) => row.code === agencyCode).map((row) => row.id));
@@ -76,6 +204,24 @@ export class MemoryStoryRepository implements StoryRepository {
     }
     async sampleStory(agencyCode: string, _categories: readonly string[]) {
         return this.samples.get(agencyCode) ?? null;
+    }
+    async sampleWikiBackground() {
+        for (const [agencyCode, story] of this.samples) {
+            if (!story) continue;
+            const agency = this.agencies.find((row) => row.code === agencyCode);
+            const idol = this.idols.find((row) => row.id === story.idol_id);
+            if (agency && idol) {
+                return {
+                    ...story,
+                    agency_id: agency.id,
+                    agency_code: agency.code,
+                    agency_name: agency.name_cn,
+                    idol_name: idol.name_cn,
+                    idol_folder_name: idol.folder_name
+                };
+            }
+        }
+        return null;
     }
     async insertStoryReturningId(input: NewStoryInput) {
         if (this.failNextInsert) {
@@ -252,6 +398,7 @@ export class MemoryObjectStorage implements ObjectStorage {
     puts: string[] = [];
     deletes: string[] = [];
     copies: Array<{ source: string; destination: string }> = [];
+    lists: string[] = [];
     deletedPrefixes: string[] = [];
     failNextPutAfterWrite = false;
     failDeleteKeys = new Set<string>();
@@ -288,6 +435,7 @@ export class MemoryObjectStorage implements ObjectStorage {
         await this.delete(sourceKey);
     }
     async list(prefix: string) {
+        this.lists.push(prefix);
         return [...this.objects.entries()].filter(([key]) => key.startsWith(prefix)).map(([key, value]) => ({
             key,
             size: value.size,

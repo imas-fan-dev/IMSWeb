@@ -1,5 +1,3 @@
-export const INFORMATION_INDEX_KEY = 'uploads/information/index.json';
-
 export const INFORMATION_CATEGORIES = ['activity', 'fan'] as const;
 export const INFORMATION_CONTENT_TYPES = ['external', 'html'] as const;
 

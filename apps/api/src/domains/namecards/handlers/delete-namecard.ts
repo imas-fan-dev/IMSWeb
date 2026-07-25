@@ -3,6 +3,7 @@ import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import { namecardRepository, services } from '@/middleware/hono-context';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 import { positiveInteger } from '@/utils/validation/number';
 
 export async function handleDeleteNamecard(c: Context<AppEnvironment>): Promise<Response> {
@@ -12,7 +13,7 @@ export async function handleDeleteNamecard(c: Context<AppEnvironment>): Promise<
     if (media) {
         try {
             await Promise.all([media.image1_url, media.image2_url].map((url) =>
-                deleteObjectWithCompensation(services(c), url.replace(/^\/+/, ''))
+                deleteObjectWithCompensation(services(c), publicMediaObjectKey(url))
             ));
         } catch (error) {
             console.error('Failed to clean media for committed namecard deletion', error);

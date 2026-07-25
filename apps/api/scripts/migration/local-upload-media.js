@@ -65,6 +65,7 @@ async function main() {
         return;
     }
 
+    require('../../src/config/load-environment.ts');
     const { parseNodeObjectStorageConfig } = require('../../src/config/object-storage.ts');
     if (parseNodeObjectStorageConfig().type !== 's3') {
         throw new Error('Upload media sync requires IMS_OBJECT_STORAGE=s3');

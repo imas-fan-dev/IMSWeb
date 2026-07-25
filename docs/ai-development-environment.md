@@ -40,7 +40,7 @@ IMS_JWT_SECRET=local-development-only-change-me
 IMS_DATABASE=postgresql
 DATABASE_URL=postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb
 IMS_OBJECT_STORAGE=s3
-IMS_S3_BUCKET=imsweb-test
+IMS_S3_BUCKET=imsweb-media-local
 IMS_S3_REGION=us-east-1
 IMS_S3_ENDPOINT=http://127.0.0.1:9000
 IMS_S3_FORCE_PATH_STYLE=true
@@ -56,7 +56,7 @@ IMS_STORY_DATA_DIR=data/story/images
 ```
 
 本地运行统一使用 PostgreSQL 与 S3 兼容的 MinIO，不再把 SQLite 或文件系统作为隐式默认值。
-先启动数据库、对象存储并自动创建 `imsweb-test` bucket：
+先启动数据库、对象存储并自动创建启用版本控制的 `imsweb-media-local` 业务 bucket：
 
 ```sh
 pnpm run dev:postgresql:up
@@ -84,10 +84,17 @@ pnpm run media:uploads:sync
 pnpm run media:uploads:sync -- --apply
 pnpm run media:information:sync
 pnpm run media:information:sync -- --apply
+pnpm run wiki:media:sync -- --database "$IMS_SQLITE_PATH" --upload-existing
+pnpm run wiki:metadata:audit
+pnpm run wiki:metadata:audit -- --apply --strict
 ```
 
 每组的第二条命令才会写入，且会通过当前对象状态机维护 PostgreSQL 索引并从 MinIO 回读核对。
 前一组迁移 Event、News 和名片上传，后一组迁移首页活动资讯索引及其 6 张历史原图。
+Wiki 媒体先按清单同步，再由元数据审计关联数据库逻辑键；活动数据报告未归零时不得切换 Wiki
+读模型。`--apply` 不创建业务实体，只关联已经存在且可回读的企划图标和偶像头像。
+已有 S3/MinIO bucket 的旧逻辑 key 使用 `pnpm run migration:object-keys` 盘点，再以
+`--apply --delete-source --confirm-bucket <bucket>` 一次性切换；运行时不提供旧路径双读。
 
 ## 4. 启动服务
 

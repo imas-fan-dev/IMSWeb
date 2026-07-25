@@ -27,6 +27,10 @@ export function meta() {
   ]
 }
 
+export function links() {
+  return [{ rel: "icon", href: "/favicon.ico", type: "image/x-icon" }]
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang={defaultLanguage} suppressHydrationWarning>

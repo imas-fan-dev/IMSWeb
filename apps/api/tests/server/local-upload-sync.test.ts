@@ -98,7 +98,7 @@ test('local upload sync is read-only by default, verifies writes, and is idempot
     assert.equal(applied.summary.uploaded, 2);
     assert.equal(applied.summary.verified, 2);
     assert.equal(storage.objects.get(
-        'uploads/event/original/activity.png'
+        'editorial/events/assets/activity/poster.png'
     )?.contentType, 'image/png');
 
     const repeated = await syncLocalUploads(directory, storage, true);

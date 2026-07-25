@@ -5,11 +5,13 @@ import { handleDeleteInformationAsset } from '@/domains/information/handlers/del
 import { handleGetInformation } from '@/domains/information/handlers/get-information';
 import { handleListAdminInformation } from '@/domains/information/handlers/list-admin-information';
 import { handleListInformation } from '@/domains/information/handlers/list-information';
+import { handleServeInformationContent } from '@/domains/information/handlers/serve-information-content';
 import { handleUpdateInformation } from '@/domains/information/handlers/update-information';
 import { handleUploadInformationAsset } from '@/domains/information/handlers/upload-information-asset';
 import { coreAuth, coreCsrf, opOnly } from '@/middleware/hono-auth';
 
 export function registerInformationRoutes(app: ImsHonoApp): void {
+    app.get('/information/:id/content', handleServeInformationContent);
     app.get('/api/information', handleListInformation);
     app.get('/api/information/:id', handleGetInformation);
     app.get('/api/admin/information', coreAuth, opOnly, handleListAdminInformation);

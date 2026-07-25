@@ -3,7 +3,6 @@ import {
   ArrowUpRightIcon,
   CloudUploadIcon,
   ImageIcon,
-  ImportIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
   Trash2Icon,
@@ -14,14 +13,14 @@ import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { Separator } from "~/components/ui/separator"
+import { AdminFileUploadField } from "~/pages/admin/components/admin-file-upload-field"
 import {
   deleteIdolMedia,
   getIdolMediaCatalog,
-  importLegacyIdolMedia,
   isApiError,
   uploadIdolMedia,
 } from "~/shared/api"
-import type { IdolMediaItem } from "~/shared/api"
+import type { IdolMediaCatalog, IdolMediaItem } from "~/shared/api"
 import {
   AdminEmptyState,
   AdminField,
@@ -37,8 +36,7 @@ function errorMessage(error: unknown) {
 
 function sourceLabel(source: IdolMediaItem["source"]) {
   if (source === "object-storage") return "对象存储"
-  if (source === "legacy-character") return "Legacy 角色图"
-  return "事务所兜底"
+  return "未关联"
 }
 
 export function StoryMediaManager() {
@@ -52,16 +50,16 @@ export function StoryMediaManager() {
     initialData: { status: "success" as const, agencies: [] },
   })
   onError(() => undefined)
+  const catalog = data as IdolMediaCatalog
   const [agencyCode, setAgencyCode] = useState("")
   const [idolName, setIdolName] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [importing, setImporting] = useState(false)
 
   const selectedAgency =
-    data.agencies.find((agency) => agency.code === agencyCode) ??
-    data.agencies[0]
+    catalog.agencies.find((agency) => agency.code === agencyCode) ??
+    catalog.agencies[0]
   const selectedIdol =
     selectedAgency?.idols.find((idol) => idol.name === idolName) ??
     selectedAgency?.idols[0]
@@ -79,7 +77,7 @@ export function StoryMediaManager() {
   )
 
   function chooseAgency(code: string) {
-    const agency = data.agencies.find((candidate) => candidate.code === code)
+    const agency = catalog.agencies.find((candidate) => candidate.code === code)
     setAgencyCode(code)
     setIdolName(agency?.idols[0]?.name ?? "")
     setFile(null)
@@ -117,24 +115,6 @@ export function StoryMediaManager() {
     }
   }
 
-  async function importLegacy() {
-    setImporting(true)
-    try {
-      const result = await importLegacyIdolMedia().send()
-      await refresh()
-      const failure = result.failed.length
-        ? `，${result.failed.length} 项失败`
-        : ""
-      toast.success(
-        `已导入 ${result.imported} 项，跳过 ${result.skipped} 项${failure}`
-      )
-    } catch (importError) {
-      toast.error(errorMessage(importError))
-    } finally {
-      setImporting(false)
-    }
-  }
-
   const imageUrl = localPreview || selectedIdol?.imageUrl || ""
   const imageFit = localPreview ? "cover" : (selectedIdol?.imageFit ?? "cover")
   const storyUrl =
@@ -149,28 +129,10 @@ export function StoryMediaManager() {
         title="剧情与角色素材"
         description="管理剧情入口所使用的角色图片；上传内容由对象存储统一提供。"
         actions={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={importing}
-              onClick={() => void importLegacy()}
-            >
-              {importing ? (
-                <LoaderCircleIcon
-                  data-icon="inline-start"
-                  className="animate-spin"
-                />
-              ) : (
-                <ImportIcon data-icon="inline-start" />
-              )}
-              导入 Legacy
-            </Button>
-            <Button type="button" variant="outline" onClick={() => refresh()}>
-              <RefreshCwIcon data-icon="inline-start" />
-              刷新
-            </Button>
-          </>
+          <Button type="button" variant="outline" onClick={() => refresh()}>
+            <RefreshCwIcon data-icon="inline-start" />
+            刷新
+          </Button>
         }
       />
 
@@ -179,7 +141,7 @@ export function StoryMediaManager() {
           <AlertTitle>角色素材加载失败</AlertTitle>
           <AlertDescription>{errorMessage(error)}</AlertDescription>
         </Alert>
-      ) : loading && !data.agencies.length ? (
+      ) : loading && !catalog.agencies.length ? (
         <AdminPanel
           title="角色素材"
           description="正在读取事务所与角色目录。"
@@ -187,11 +149,11 @@ export function StoryMediaManager() {
         >
           <p className="py-8 text-sm text-muted-foreground">正在加载角色目录</p>
         </AdminPanel>
-      ) : !data.agencies.length ? (
+      ) : !catalog.agencies.length ? (
         <AdminEmptyState
           icon={ImageIcon}
           title="还没有角色目录"
-          description="导入 Legacy 素材或刷新后再试。"
+          description="确认 Wiki 偶像数据已经初始化后再刷新。"
         />
       ) : (
         <AdminPanel
@@ -247,7 +209,7 @@ export function StoryMediaManager() {
                   value={selectedAgency?.code ?? ""}
                   onChange={(event) => chooseAgency(event.target.value)}
                 >
-                  {data.agencies.map((agency) => (
+                  {catalog.agencies.map((agency) => (
                     <option key={agency.code} value={agency.code}>
                       {agency.name}
                     </option>
@@ -275,18 +237,21 @@ export function StoryMediaManager() {
 
             <Separator />
 
-            <AdminField label="角色图片" htmlFor="story-media-image">
-              <input
-                id="story-media-image"
-                name="image"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/avif,image/gif"
-                className={adminControlClass}
-                required
-                disabled={!selectedIdol || saving}
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-            </AdminField>
+            <AdminFileUploadField
+              id="story-media-image"
+              name="image"
+              label="角色图片"
+              description="PNG、JPEG、WebP、AVIF 或 GIF；保存后由对象存储统一提供。"
+              accept="image/png,image/jpeg,image/webp,image/avif,image/gif"
+              emptyTitle="选择角色图片"
+              emptyDetail="PNG、JPEG、WebP、AVIF 或 GIF"
+              fileKind="角色图片"
+              file={file}
+              disabled={!selectedIdol}
+              uploading={saving}
+              required
+              onSelect={setFile}
+            />
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={!file || saving || !selectedIdol}>

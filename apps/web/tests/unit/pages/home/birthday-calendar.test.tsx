@@ -17,6 +17,7 @@ describe("BirthdayCalendar", () => {
     expect(screen.getByTestId("calendar-month")).toHaveTextContent(
       "2026 年 7 月"
     )
+    expect(screen.getByTestId("calendar-grid").children).toHaveLength(42)
     expect(screen.getByText("相马夏美")).toBeVisible()
     expect(screen.getByText("舞滨步")).toBeVisible()
 
@@ -24,6 +25,7 @@ describe("BirthdayCalendar", () => {
     expect(screen.getByTestId("calendar-month")).toHaveTextContent(
       "2026 年 8 月"
     )
+    expect(screen.getByTestId("calendar-grid").children).toHaveLength(49)
 
     await user.click(
       screen.getByRole("button", { name: "8 月 1 日，4 位偶像生日" })

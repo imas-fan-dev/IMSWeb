@@ -8,11 +8,17 @@ import { authRepository, newsRepository, services } from '@/middleware/hono-cont
 import { safeUploadBaseName } from '@/utils/media/filename';
 import { validateUploadedImage } from '@/utils/media/image-upload';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import {
+    newsOriginalObjectKey,
+    newsThumbnailObjectKey
+} from '@/utils/storage/business-object-keys';
 
 export async function handleCreateNews(c: Context<AppEnvironment>): Promise<Response> {
     const runtime = services(c);
     let originalKey = '';
     let thumbnailKey = '';
+    let originalPublicKey = '';
+    let thumbnailPublicKey = '';
     let businessCommitted = false;
     try {
         const submission = await parseNewsSubmission(c);
@@ -38,9 +44,11 @@ export async function handleCreateNews(c: Context<AppEnvironment>): Promise<Resp
             const info = await validateUploadedImage(submission.file, runtime.images);
             const extension = info.format === 'jpeg' ? 'jpg' : info.format;
             const filename = `${safeUploadBaseName(submission.file.filename)}-${Date.now()}-${randomHex(6)}.${extension}`;
-            originalKey = `uploads/news/original/${filename}`;
             const thumbnailName = filename.replace('.', '_thumb.');
-            thumbnailKey = `uploads/news/thumb/${thumbnailName}`;
+            originalPublicKey = `uploads/news/original/${filename}`;
+            thumbnailPublicKey = `uploads/news/thumb/${thumbnailName}`;
+            originalKey = newsOriginalObjectKey(filename);
+            thumbnailKey = newsThumbnailObjectKey(thumbnailName);
             await runtime.storage.put(originalKey, submission.file.body, {
                 contentType: info.contentType,
                 deferredPublication: true
@@ -63,8 +71,8 @@ export async function handleCreateNews(c: Context<AppEnvironment>): Promise<Resp
         }
         await newsRepository(c).insertNews({
             title: submission.title.trim(),
-            image: originalKey ? `/${originalKey}` : '',
-            thumbnail: thumbnailKey ? `/${thumbnailKey}` : '',
+            image: originalPublicKey ? `/${originalPublicKey}` : '',
+            thumbnail: thumbnailPublicKey ? `/${thumbnailPublicKey}` : '',
             content: url.href,
             date: new Date().toISOString(),
             author: user.producername || '未知P'

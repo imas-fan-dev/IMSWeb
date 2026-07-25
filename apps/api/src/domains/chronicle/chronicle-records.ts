@@ -1,5 +1,5 @@
 import type { UploadedFile } from '@/ports/http';
-import type { ObjectStorage } from '@/ports/object-storage';
+import type { ListedObject, ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
@@ -32,8 +32,24 @@ export function safeChronicleSegment(value: unknown, label: string): string {
 }
 
 export function chroniclePrefix(bucket: string, activityId = '', filename = ''): string {
-    return ['assets/images/eventchronicle/events', bucket, activityId, filename]
-        .filter(Boolean).join('/');
+    const roots: Record<string, string> = {
+        upload: 'chronicle/media/pending',
+        used: 'chronicle/media/published',
+        meta: 'chronicle/metadata',
+        '.trash': 'chronicle/trash'
+    };
+    const root = roots[bucket];
+    if (!root) throw new Error('invalid Chronicle object namespace');
+    return [root, activityId, filename].filter(Boolean).join('/');
+}
+
+export async function listChronicleObjects(
+    storage: ObjectStorage,
+    bucket: string,
+    activityId = ''
+): Promise<ListedObject[]> {
+    const prefix = `${chroniclePrefix(bucket, activityId).replace(/\/$/, '')}/`;
+    return (await storage.list(prefix)).filter((object) => object.key.startsWith(prefix));
 }
 
 function metaKey(activityId: string): string {

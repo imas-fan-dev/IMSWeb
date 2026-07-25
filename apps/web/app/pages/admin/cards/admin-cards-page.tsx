@@ -20,8 +20,8 @@ import {
   approveAdminNamecard,
   deleteAdminNamecard,
   getAdminNamecards,
-} from "~/shared/api/endpoints/admin"
-import type { AdminNamecard } from "~/shared/api/endpoints/admin"
+  type AdminNamecard,
+} from "~/shared/api"
 
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]

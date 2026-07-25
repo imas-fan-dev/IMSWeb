@@ -6,12 +6,14 @@ import type {
     EventRepository,
     EventInput,
     NamecardRepository,
+    NewRefreshSessionInput,
     NewSitePackageInput,
     NewSitePackageRevisionInput,
     NewsRepository,
     NewsInput,
     PendingCardInput,
     ReactionRepository,
+    RefreshSessionRecord,
     SitePackageRecord,
     SitePackagePublicationResult,
     SitePackageRepository,
@@ -55,6 +57,74 @@ export class SqlCoreRepository implements
 
     findUserById(id: number): Promise<UserRecord | null> {
         return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE id=?', [id]);
+    }
+
+    async createRefreshSession(input: NewRefreshSessionInput): Promise<void> {
+        await executeSql(this.database,
+            `INSERT INTO auth_refresh_sessions
+             (id, user_id, token_hash, previous_token_hash, csrf_hash,
+              expires_at, created_at, updated_at, revoked_at)
+             VALUES (?, ?, ?, NULL, ?, ?, ?, ?, NULL)`,
+            [
+                input.id,
+                input.userId,
+                input.tokenHash,
+                input.csrfHash,
+                input.expiresAt,
+                input.createdAt,
+                input.createdAt
+            ]
+        );
+    }
+
+    findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSessionRecord | null> {
+        return queryOne<RefreshSessionRecord>(this.database,
+            `SELECT * FROM auth_refresh_sessions
+             WHERE token_hash=? OR previous_token_hash=?
+             ORDER BY CASE WHEN token_hash=? THEN 0 ELSE 1 END
+             LIMIT 1`,
+            [tokenHash, tokenHash, tokenHash]
+        );
+    }
+
+    async rotateRefreshSession(input: {
+        id: string;
+        currentTokenHash: string;
+        nextTokenHash: string;
+        nextExpiresAt: number;
+        updatedAt: number;
+    }): Promise<boolean> {
+        const result = await executeSql(this.database,
+            `UPDATE auth_refresh_sessions
+             SET previous_token_hash=token_hash, token_hash=?, expires_at=?, updated_at=?
+             WHERE id=? AND token_hash=? AND revoked_at IS NULL AND expires_at>?`,
+            [
+                input.nextTokenHash,
+                input.nextExpiresAt,
+                input.updatedAt,
+                input.id,
+                input.currentTokenHash,
+                input.updatedAt
+            ]
+        );
+        return result.meta.changes === 1;
+    }
+
+    async revokeRefreshSession(id: string, revokedAt: number): Promise<void> {
+        await executeSql(this.database,
+            `UPDATE auth_refresh_sessions
+             SET revoked_at=COALESCE(revoked_at, ?), updated_at=?
+             WHERE id=?`,
+            [revokedAt, revokedAt, id]
+        );
+    }
+
+    async deleteExpiredRefreshSessions(now: number): Promise<void> {
+        await executeSql(
+            this.database,
+            'DELETE FROM auth_refresh_sessions WHERE expires_at<=?',
+            [now]
+        );
     }
 
     async insertAuditLog(input: AuditLogInput): Promise<void> {

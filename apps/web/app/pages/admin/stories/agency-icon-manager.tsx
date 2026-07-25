@@ -39,6 +39,7 @@ import {
   isApiError,
   uploadWikiAgencyIcon,
 } from "~/shared/api"
+import type { WikiAdminCatalog } from "~/shared/api"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
@@ -55,6 +56,7 @@ export function AgencyIconManager() {
     initialData: { status: "success" as const, agencies: [] },
   })
   onError(() => undefined)
+  const catalog = data as WikiAdminCatalog
   const [agencyCode, setAgencyCode] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [localPreview, setLocalPreview] = useState("")
@@ -64,8 +66,8 @@ export function AgencyIconManager() {
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const selectedAgency =
-    data.agencies.find((agency) => agency.code === agencyCode) ??
-    data.agencies[0]
+    catalog.agencies.find((agency) => agency.code === agencyCode) ??
+    catalog.agencies[0]
   useEffect(
     () => () => {
       if (localPreviewRef.current) {
@@ -124,7 +126,7 @@ export function AgencyIconManager() {
       <AdminPageHeader
         eyebrow="SERIES IDENTITY"
         title="Wiki 系列图标"
-        description="上传后会覆盖公开剧情档案中的 Wiki 默认系列图标。"
+        description="上传后会更新公开剧情档案中的系列图标。"
         actions={
           <Button type="button" variant="outline" onClick={() => refresh()}>
             <RefreshCwIcon data-icon="inline-start" />
@@ -138,7 +140,7 @@ export function AgencyIconManager() {
           <AlertTitle>系列目录加载失败</AlertTitle>
           <AlertDescription>{errorMessage(error)}</AlertDescription>
         </Alert>
-      ) : loading && !data.agencies.length ? (
+      ) : loading && !catalog.agencies.length ? (
         <AdminPanel
           title="系列图标"
           description="正在读取 Wiki 系列目录。"
@@ -146,7 +148,7 @@ export function AgencyIconManager() {
         >
           <p className="py-8 text-sm text-muted-foreground">正在加载系列目录</p>
         </AdminPanel>
-      ) : !data.agencies.length ? (
+      ) : !catalog.agencies.length ? (
         <AdminEmptyState
           icon={ShapesIcon}
           title="还没有可管理的系列"
@@ -180,7 +182,7 @@ export function AgencyIconManager() {
                 </p>
                 <div className="mt-1">
                   <AdminStatus>
-                    {selectedAgency?.iconUrl ? "已自定义" : "使用默认"}
+                    {selectedAgency?.iconUrl ? "已设置" : "未设置"}
                   </AdminStatus>
                 </div>
               </div>
@@ -205,7 +207,7 @@ export function AgencyIconManager() {
                   selectFile(null)
                 }}
               >
-                {data.agencies.map((agency) => (
+                {catalog.agencies.map((agency) => (
                   <option key={agency.code} value={agency.code}>
                     {agency.name}
                   </option>
@@ -274,7 +276,7 @@ export function AgencyIconManager() {
             </AlertDialogMedia>
             <AlertDialogTitle>移除自定义系列图标？</AlertDialogTitle>
             <AlertDialogDescription>
-              “{selectedAgency?.name ?? ""}”将恢复使用 Wiki 默认系列图标。
+              “{selectedAgency?.name ?? ""}”将不再显示系列图标。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -190,7 +190,7 @@ test('Node database defaults to PostgreSQL and requires explicit SQLite compatib
     );
 });
 
-test('FilesystemObjectStorage maps Data keys exclusively to storyDataDir', async (t) => {
+test('FilesystemObjectStorage maps canonical business keys to owned roots', async (t) => {
     const root = await temporaryDirectory('ims-storage-roots-');
     t.after(() => fs.rm(root, { recursive: true, force: true }));
     const publicDir = path.join(root, 'public');
@@ -201,23 +201,26 @@ test('FilesystemObjectStorage maps Data keys exclusively to storyDataDir', async
         uploadsDir: path.join(root, 'uploads'),
         chronicleDir: path.join(root, 'chronicle')
     });
-    const key = 'Data/sc/idol/card.webp';
+    const key = 'wiki/agencies/sc/idols/idol/story-images/card.webp';
     const body = new Uint8Array([1, 2, 3, 4]);
 
     await storage.put(key, body, { contentType: 'image/webp' });
     assert.deepEqual((await storage.get(key))?.body, body);
-    assert.deepEqual((await storage.list('Data/sc')).map((entry) => entry.key), [key]);
+    assert.deepEqual((await storage.list('wiki/agencies/sc')).map((entry) => entry.key), [key]);
     await assert.rejects(fs.lstat(path.join(publicDir, key)), { code: 'ENOENT' });
-    assert.deepEqual(new Uint8Array(await fs.readFile(path.join(storyDataDir, 'sc/idol/card.webp'))), body);
+    assert.deepEqual(new Uint8Array(await fs.readFile(
+        path.join(storyDataDir, 'agencies/sc/idols/idol/story-images/card.webp')
+    )), body);
     await storage.delete(key);
     assert.equal(await storage.exists(key), false);
 
-    const thumbnailKey = 'uploads/news/thumb/legacy_thumb.jpg';
+    const thumbnailKey = 'editorial/news/assets/legacy/thumbnail.jpg';
     await storage.put(thumbnailKey, new Uint8Array([0x89, 0x50, 0x4e, 0x47]), {
         contentType: 'image/png'
     });
     assert.equal((await storage.get(thumbnailKey))?.contentType, 'image/png');
     await assert.rejects(fs.lstat(path.join(publicDir, thumbnailKey)), { code: 'ENOENT' });
+    await assert.rejects(storage.put('Data/sc/idol/card.webp', body), /Unsupported object key namespace/);
 });
 
 test('NodeStaticAssets does not open a body for HEAD and opens only the requested byte range', async (t) => {

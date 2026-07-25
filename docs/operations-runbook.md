@@ -74,6 +74,12 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_SITE_ORIGIN` | 主站 origin | 生产必填，无路径 |
 | `IMS_SITE_PACKAGE_ORIGIN` | 隔离站点包 origin | 生产必填，与主站不同 registrable site |
 
+管理员会话使用 15 分钟的 access JWT 和 30 天滑动有效期的 refresh token。两者都只写入
+`HttpOnly`、`SameSite=Lax` Cookie；refresh token 只保存 SHA-256 摘要，并在每次刷新时轮换。
+CSRF Cookie 保持脚本可读，用于 Alova 自动刷新和管理写请求的双提交校验。发布包含鉴权改动的
+版本前必须先运行 `pnpm run migration:postgresql`，确认
+`0008_auth_refresh_sessions` 已写入 `ims_schema_migrations`。
+
 S3 模式还需要 `IMS_S3_BUCKET`、`IMS_S3_REGION` 及可选 endpoint/prefix；凭据使用标准 AWS
 凭据链，不写入仓库。完整说明见 [Node 文件对象存储](object-storage.md)。
 
@@ -216,7 +222,10 @@ test "$(readlink "$IMS_CURRENT_LINK")" = "$IMS_RELEASES_DIR/$PREVIOUS_RELEASE_ID
 ## 10. 故障定位
 
 - 入口层 `502`：检查入口日志、Hono 监听地址、当前 release 和应用日志。
-- JWT 登录失效：核对 `IMS_JWT_SECRET` 是否被错误轮换或注入。
+- JWT 登录失效：核对 `IMS_JWT_SECRET` 是否被错误轮换或注入，并确认 access JWT 过期后
+  `/api/refresh` 能读取未撤销的 `auth_refresh_sessions` 记录。
+- refresh 连续返回 `401`：检查 refresh Cookie 的 `/api` Path、CSRF header/cookie 是否一致，
+  再检查会话是否过期、已登出撤销或因旧 refresh token 重放而整条会话被撤销。
 - SQLite `database is locked`：检查非预期多进程、长事务和备份方式，不删除 WAL/SHM。
 - 图片 `404`：核对数据库逻辑路径、对象键和前缀；签名 URL 失败时检查 endpoint、时钟和权限。
 - 编年史状态异常：将数据库记录、对象和 journal 作为一个恢复单元检查。

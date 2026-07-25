@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { contentTypeForPath } from '@/utils/http/content-type';
+import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 const BUSINESS_DIRECTORIES = ['event', 'information', 'namecard', 'news'] as const;
 
@@ -75,7 +76,7 @@ function logicalKey(sourceRoot: string, sourcePath: string): string {
     if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
         throw new Error(`Unsafe upload media path: ${sourcePath}`);
     }
-    return ['uploads', ...segments].join('/').normalize('NFC');
+    return publicMediaObjectKey(['uploads', ...segments].join('/').normalize('NFC'));
 }
 
 export async function listLocalUploadFiles(sourceRoot: string): Promise<string[]> {

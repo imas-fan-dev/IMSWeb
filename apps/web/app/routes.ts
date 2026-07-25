@@ -28,6 +28,7 @@ export default [
   route("admin", "routes/admin-layout.tsx", [
     index("routes/admin-index.tsx"),
     route("events", "routes/admin-events.tsx"),
+    route("about", "routes/admin-about.tsx"),
     route("information", "routes/admin-information.tsx"),
     route("recommendations", "routes/admin-recommendations.tsx"),
     route("cards", "routes/admin-cards.tsx"),

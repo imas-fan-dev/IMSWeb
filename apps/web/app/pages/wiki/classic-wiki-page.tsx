@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import {
   type CSSProperties,
+  startTransition,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -16,11 +17,6 @@ import {
 } from "react"
 import { Link, useSearchParams } from "react-router"
 
-import {
-  classicAgencyBanner,
-  classicAgencyIcons,
-  groupWikiIdols,
-} from "~/pages/wiki/wiki-groups"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
 import {
   getWikiCatalog,
@@ -30,9 +26,15 @@ import {
 import type { WikiPublicCatalog, WikiRandomBackground } from "~/shared/api"
 
 import "./classic-wiki.css"
+import "./classic-wiki-index.css"
 
 function classicErrorMessage(error: unknown) {
   return isApiError(error) ? error.message : "剧情导航暂时无法加载"
+}
+
+interface BackgroundLayers {
+  current: WikiRandomBackground | null
+  previous: WikiRandomBackground | null
 }
 
 export function ClassicWikiPage() {
@@ -45,9 +47,10 @@ export function ClassicWikiPage() {
   }>({ key: "", data: null, error: null })
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [backgroundVersion, setBackgroundVersion] = useState(0)
-  const [background, setBackground] = useState<WikiRandomBackground | null>(
-    null
-  )
+  const [backgroundLayers, setBackgroundLayers] = useState<BackgroundLayers>({
+    current: null,
+    previous: null,
+  })
   const [query, setQuery] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
   const [navigationOpen, setNavigationOpen] = useState(false)
@@ -59,7 +62,10 @@ export function ClassicWikiPage() {
     void getWikiCatalog(requestedAgency || undefined)
       .send()
       .then((data) => {
-        if (active) setCatalogRequest({ key: requestKey, data, error: null })
+        if (!active) return
+        startTransition(() => {
+          setCatalogRequest({ key: requestKey, data, error: null })
+        })
       })
       .catch((error: unknown) => {
         if (active) setCatalogRequest({ key: requestKey, data: null, error })
@@ -74,7 +80,11 @@ export function ClassicWikiPage() {
     void getWikiRandomBackground()
       .send()
       .then((data) => {
-        if (active) setBackground(data)
+        if (!active) return
+        setBackgroundLayers(({ current }) => ({
+          current: data,
+          previous: current?.url === data.url ? null : current,
+        }))
       })
       .catch(() => undefined)
     return () => {
@@ -82,38 +92,64 @@ export function ClassicWikiPage() {
     }
   }, [backgroundVersion])
 
+  useEffect(() => {
+    if (!backgroundLayers.previous) return
+    const timeout = window.setTimeout(() => {
+      setBackgroundLayers(({ current }) => ({ current, previous: null }))
+    }, 1050)
+    return () => window.clearTimeout(timeout)
+  }, [backgroundLayers.current?.url, backgroundLayers.previous])
+
   const requestIsCurrent = catalogRequest.key === requestKey
-  const catalog = requestIsCurrent ? catalogRequest.data : null
+  const catalog = catalogRequest.data
   const catalogError = requestIsCurrent ? catalogRequest.error : null
-  const loading = !requestIsCurrent
+  const loading = !catalog && !catalogError
   const selection = catalog?.selection ?? null
-  const accent = safeWikiColor(selection?.agency.color)
-  const visibleIdols = useMemo(() => {
+  const background = backgroundLayers.current
+  const pendingAgency = catalog?.agencies.find(
+    (agency) => agency.name === requestedAgency
+  )
+  const accent = safeWikiColor(pendingAgency?.color ?? selection?.agency.color)
+  const groups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || !normalized) return selection?.idols ?? []
-    return selection.idols.filter((idol) =>
-      idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
-    )
+    if (!selection || !normalized) return selection?.groups ?? []
+    return selection.groups
+      .map((group) => ({
+        ...group,
+        idols: group.idols.filter((idol) =>
+          idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+        ),
+      }))
+      .filter((group) => group.idols.length)
   }, [deferredQuery, selection])
-  const groups = useMemo(
-    () => groupWikiIdols(selection?.agency.name ?? "", visibleIdols),
-    [selection?.agency.name, visibleIdols]
+  const idolCount = selection?.groups.reduce(
+    (total, group) => total + group.idols.length,
+    0
   )
   const style = { "--classic-accent": accent } as CSSProperties
 
   function selectAgency(agency: string) {
     setQuery("")
     setNavigationOpen(false)
-    setSearchParams({ agency })
+    setSearchParams({ agency }, { preventScrollReset: true })
   }
 
   return (
     <main id="main-content" className="wiki-classic-shell" style={style}>
-      {background?.url && background.agency_name && background.idol_name ? (
+      {backgroundLayers.previous?.url ? (
         <img
+          src={backgroundLayers.previous.url}
+          alt=""
+          className="wiki-classic-background is-previous"
+          aria-hidden="true"
+        />
+      ) : null}
+      {background?.url ? (
+        <img
+          key={background.url}
           src={background.url}
           alt=""
-          className="wiki-classic-background"
+          className="wiki-classic-background is-current"
           aria-hidden="true"
         />
       ) : null}
@@ -124,6 +160,7 @@ export function ClassicWikiPage() {
           type="button"
           className="wiki-classic-icon-button"
           aria-label="打开企划导航"
+          title="打开企划导航"
           aria-expanded={navigationOpen}
           onClick={() => setNavigationOpen(true)}
         >
@@ -134,6 +171,7 @@ export function ClassicWikiPage() {
           to="/wiki"
           className="wiki-classic-icon-button"
           aria-label="切换到新版视图"
+          title="切换到新版视图"
         >
           <LayoutGridIcon />
         </Link>
@@ -149,27 +187,41 @@ export function ClassicWikiPage() {
           />
         ) : null}
         <aside
-          className={`wiki-classic-sidebar${navigationOpen ? " is-open" : ""}`}
+          className={
+            navigationOpen
+              ? "wiki-classic-sidebar is-open"
+              : "wiki-classic-sidebar"
+          }
           aria-label="企划导航"
         >
           <div className="wiki-classic-sidebar-heading">
-            <span>PROJECTS</span>
+            <span>企划导航</span>
             <button
               type="button"
               className="wiki-classic-sidebar-close"
               aria-label="关闭企划导航"
+              title="关闭企划导航"
               onClick={() => setNavigationOpen(false)}
             >
               <XIcon />
             </button>
           </div>
           {(catalog?.agencies ?? []).map((agency) => {
-            const active = selection?.agency.name === agency.name
+            const active = requestIsCurrent
+              ? selection?.agency.name === agency.name
+              : requestedAgency === agency.name
+            const pending = active && !requestIsCurrent
             return (
               <button
                 key={agency.id}
                 type="button"
-                className={`wiki-classic-agency-button${active ? " is-active" : ""}`}
+                className={
+                  pending
+                    ? "wiki-classic-agency-button is-active is-pending"
+                    : active
+                      ? "wiki-classic-agency-button is-active"
+                      : "wiki-classic-agency-button"
+                }
                 style={
                   {
                     "--agency-color": safeWikiColor(agency.color),
@@ -179,13 +231,15 @@ export function ClassicWikiPage() {
                 onClick={() => selectAgency(agency.name)}
               >
                 <span className="wiki-classic-agency-icon">
-                  <img
-                    src={classicAgencyIcons[agency.name]}
-                    alt=""
-                    onError={(event) => {
-                      event.currentTarget.hidden = true
-                    }}
-                  />
+                  {agency.iconUrl ? (
+                    <img
+                      src={agency.iconUrl}
+                      alt=""
+                      onError={(event) => {
+                        event.currentTarget.hidden = true
+                      }}
+                    />
+                  ) : null}
                 </span>
                 <span>{agency.name}</span>
                 <small>{agency.idolCount}</small>
@@ -202,7 +256,11 @@ export function ClassicWikiPage() {
           </Link>
         </aside>
 
-        <section className="wiki-classic-content" aria-live="polite">
+        <section
+          className="wiki-classic-content"
+          aria-busy={!requestIsCurrent}
+          aria-live="polite"
+        >
           {catalogError ? (
             <div className="wiki-classic-status is-error">
               <AlertCircleIcon />
@@ -225,25 +283,25 @@ export function ClassicWikiPage() {
               <span />
             </div>
           ) : selection ? (
-            <>
+            <div key={selection.agency.id} className="wiki-classic-agency-view">
               <header className="wiki-classic-banner">
-                <p>{selection.agency.code.toUpperCase()} ARCHIVE</p>
-                <h1>{classicAgencyBanner(selection.agency.name)}</h1>
-                <span>{selection.idols.length} 位角色</span>
+                <p>{selection.agency.code.toUpperCase()}</p>
+                <h1>{selection.agency.bannerTitle}</h1>
+                <span>{idolCount} 位角色</span>
               </header>
 
               <div className="wiki-classic-groups">
                 {groups.length ? (
                   groups.map((group) => (
                     <section
-                      key={group.key}
+                      key={group.id}
                       className="wiki-classic-group"
                       style={
                         {
                           "--group-color": safeWikiColor(group.color),
                         } as CSSProperties
                       }
-                      aria-labelledby={`classic-group-${group.key}`}
+                      aria-labelledby={`classic-group-${group.id}`}
                     >
                       <div className="wiki-classic-group-title">
                         {group.iconUrl ? (
@@ -255,7 +313,9 @@ export function ClassicWikiPage() {
                             }}
                           />
                         ) : null}
-                        <h2 id={`classic-group-${group.key}`}>{group.name}</h2>
+                        <h2 id={`classic-group-${group.id}`} title={group.name}>
+                          {group.name}
+                        </h2>
                         <small>{group.idols.length}</small>
                       </div>
                       <div className="wiki-classic-idol-grid">
@@ -273,15 +333,20 @@ export function ClassicWikiPage() {
                             }
                           >
                             <span className="wiki-classic-idol-image">
-                              <img
-                                src={idol.imageUrl}
-                                alt={idol.name}
-                                loading="lazy"
-                                decoding="async"
-                                style={{ objectFit: idol.imageFit }}
-                              />
+                              {idol.imageUrl ? (
+                                <img
+                                  src={idol.imageUrl}
+                                  alt={idol.name}
+                                  loading="lazy"
+                                  decoding="async"
+                                  style={{ objectFit: idol.imageFit }}
+                                />
+                              ) : null}
                             </span>
-                            <span className="wiki-classic-idol-name">
+                            <span
+                              className="wiki-classic-idol-name"
+                              title={idol.name}
+                            >
                               {idol.name}
                             </span>
                           </Link>
@@ -299,7 +364,7 @@ export function ClassicWikiPage() {
                   </div>
                 )}
               </div>
-            </>
+            </div>
           ) : (
             <div className="wiki-classic-status">
               <h1>当前没有可展示的 Wiki 数据</h1>
@@ -323,6 +388,8 @@ export function ClassicWikiPage() {
       <button
         type="button"
         className="wiki-classic-background-button"
+        aria-label="切换壁纸"
+        title="切换壁纸"
         onClick={() => setBackgroundVersion((current) => current + 1)}
       >
         <RefreshCwIcon />
@@ -332,12 +399,17 @@ export function ClassicWikiPage() {
         type="button"
         className="wiki-classic-search-button"
         aria-label="搜索角色"
+        title="搜索角色"
         aria-expanded={searchOpen}
         onClick={() => setSearchOpen((current) => !current)}
       >
         {searchOpen ? <XIcon /> : <SearchIcon />}
       </button>
-      <label className={`wiki-classic-search${searchOpen ? " is-open" : ""}`}>
+      <label
+        className={
+          searchOpen ? "wiki-classic-search is-open" : "wiki-classic-search"
+        }
+      >
         <SearchIcon />
         <span className="sr-only">搜索角色</span>
         <input

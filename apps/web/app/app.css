@@ -188,7 +188,7 @@
   }
 }
 
-.home-brand-background {
+.series-icon-background {
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -198,7 +198,7 @@
   user-select: none;
 }
 
-.home-brand-motif {
+.series-icon-motif {
   position: absolute;
   top: 0;
   left: 0;
@@ -211,18 +211,18 @@
   will-change: transform;
 }
 
-.dark .home-brand-motif {
+.dark .series-icon-motif {
   filter: saturate(0.92) brightness(1.3);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-brand-motif {
+  .series-icon-motif {
     will-change: auto;
   }
 }
 
 @media (forced-colors: active) {
-  .home-brand-background {
+  .series-icon-background {
     display: none;
   }
 }

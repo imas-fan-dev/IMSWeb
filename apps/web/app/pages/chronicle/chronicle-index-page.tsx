@@ -24,7 +24,7 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
-import { getChronicleActivities } from "~/shared/api/endpoints/chronicle"
+import { getChronicleActivities } from "~/shared/api"
 
 export function meta() {
   return [{ title: "活动编年史 | IMSWeb" }]

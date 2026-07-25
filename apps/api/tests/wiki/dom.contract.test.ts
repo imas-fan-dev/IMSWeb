@@ -2,25 +2,30 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { createWikiFixture } from "./fixture";
 
-describe("WIKI-01 static and story object paths", () => {
-  test("icon/css routes work while encoded traversal and sensitive paths are rejected before assets/storage", async () => {
+describe("WIKI-01 database-associated media and story object paths", () => {
+  test("entity icon routes use database keys while retired static routes and traversal are rejected", async () => {
     const fixture = createWikiFixture();
+    fixture.story.agencies[2]!.icon_object_key =
+      "wiki/shared/static/icon/cg/cute.webp";
     fixture.storage.seed(
-      "Wiki/static/icon/cg/cute.webp",
+      "wiki/shared/static/icon/cg/cute.webp",
       new TextEncoder().encode("object-icon"),
       "image/webp",
     );
-    const icon = await fixture.app.request("/icon/cg/cute.webp");
+    const icon = await fixture.app.request("/icon/agencies/3.webp");
     assert.equal(icon.status, 200);
     assert.equal(await icon.text(), "object-icon");
     const css = await fixture.app.request("/css/story.css");
-    assert.equal(css.status, 200);
-    assert.equal(await css.text(), "fixture-css");
+    assert.equal(css.status, 404);
+    assert.equal((await fixture.app.request("/icon/cg/cute.webp")).status, 404);
 
     const callsBefore = fixture.staticRequests.length;
     const storageGetsBefore = [...fixture.storage.gets];
+    assert.equal(
+      (await fixture.app.request("/icon/agencies/%252e%252e.webp")).status,
+      404,
+    );
     for (const path of [
-      "/icon/%252e%252e/app.py",
       "/css/%252e%252e/templates/story.html",
       "/image/闪耀色彩/樱木真乃/%252e%252e/secret.webp",
       "/image/闪耀色彩/樱木真乃/%255c..%255csecret.webp",
@@ -34,7 +39,7 @@ describe("WIKI-01 static and story object paths", () => {
 
   test("image GET/HEAD preserve body and metadata while unknown targets remain 404", async () => {
     const fixture = createWikiFixture();
-    const key = "Data/sc/sc_idol/cards/fixture.webp";
+    const key = "wiki/agencies/sc/idols/sc_idol/story-images/cards/fixture.webp";
     fixture.storage.seed(key, new Uint8Array([9, 8, 7]), "image/webp");
     const path = "/image/闪耀色彩/樱木真乃/cards/fixture.webp";
     const get = await fixture.app.request(path);
@@ -72,6 +77,10 @@ describe("WIKI-01 static and story object paths", () => {
     const health = await fixture.app.request("/api/wiki/test");
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), { status: "ok" });
+    const empty = await fixture.app.request("/api/wiki/random_bg");
+    assert.equal(empty.status, 200);
+    assert.deepEqual(await empty.json(), { url: "" });
+
     fixture.story.samples.set("cg", {
       id: 501,
       idol_id: 3,
@@ -85,20 +94,11 @@ describe("WIKI-01 static and story object paths", () => {
       idol_name: "岛村卯月",
       agency_name: "灰姑娘女孩",
     });
-    const fallback = await fixture.app.request("/api/wiki/random_bg");
-    assert.equal(fallback.status, 200);
-    assert.deepEqual(await fallback.json(), {
-      url: "/assets/images/Production/Cinderellaintro.png",
-      card_name: "企划视觉素材",
-      idol_name: "岛村卯月",
-      agency_name: "灰姑娘女孩",
-    });
-
-    fixture.storage.seed("Data/cg/cg_idol/card/bg.webp");
+    fixture.storage.seed("wiki/agencies/cg/idols/cg_idol/story-images/card/bg.webp");
     const background = await fixture.app.request("/api/wiki/random_bg");
     assert.equal(background.status, 200);
     assert.deepEqual(await background.json(), {
-      url: "/image/灰姑娘女孩/岛村卯月/card/bg.webp",
+      url: "/image/%E7%81%B0%E5%A7%91%E5%A8%98%E5%A5%B3%E5%AD%A9/%E5%B2%9B%E6%9D%91%E5%8D%AF%E6%9C%88/card/bg.webp",
       card_name: "【背景】",
       idol_name: "岛村卯月",
       agency_name: "灰姑娘女孩",

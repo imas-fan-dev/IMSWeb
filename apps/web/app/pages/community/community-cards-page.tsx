@@ -1,6 +1,8 @@
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  FileImageIcon,
+  ImageUpIcon,
   ImagesIcon,
   UploadIcon,
 } from "lucide-react"
@@ -10,7 +12,8 @@ import { Link } from "react-router"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { Button } from "~/components/ui/button"
+import { FileUploadControl } from "~/components/shared/file-upload-control"
+import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Card,
   CardContent,
@@ -26,18 +29,15 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty"
+import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   addNamecardReaction,
   getNamecardPage,
   getNamecardReactions,
   uploadNamecard,
-} from "~/shared/api/endpoints/community"
-import type {
-  Namecard,
-  NamecardPage,
-  NamecardReactions,
-} from "~/shared/api/endpoints/community"
+} from "~/shared/api"
+import type { Namecard, NamecardPage, NamecardReactions } from "~/shared/api"
 
 const QUICK_REACTIONS = ["❤️", "👍", "👏", "✨"] as const
 
@@ -164,8 +164,12 @@ export default function CommunityCardsPage() {
     setPage(nextPage)
   }
 
-  function chooseFile(file: File | undefined, side: "front" | "back") {
-    if (!file) return
+  function chooseFile(file: File | null, side: "front" | "back") {
+    if (!file) {
+      if (side === "front") setFront(null)
+      else setBack(null)
+      return
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("只能上传图片文件")
       return
@@ -201,10 +205,13 @@ export default function CommunityCardsPage() {
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-12">
-      <Button variant="ghost" size="sm" render={<Link to="/community" />}>
+      <Link
+        to="/community"
+        className={buttonVariants({ variant: "ghost", size: "sm" })}
+      >
         <ArrowLeftIcon data-icon="inline-start" />
         返回社区
-      </Button>
+      </Link>
 
       <header className="mt-8 max-w-3xl">
         <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
@@ -295,37 +302,51 @@ export default function CommunityCardsPage() {
           </CardHeader>
           <CardContent>
             <form
-              className="grid gap-5 md:grid-cols-2"
+              className="flex flex-col gap-5"
               onSubmit={(event) => void submit(event)}
             >
-              <label className="grid gap-2 text-sm font-medium">
-                名片正面
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) =>
-                    chooseFile(event.target.files?.[0], "front")
-                  }
-                  className="min-h-10 rounded-md border bg-background px-3 py-2 font-normal file:mr-3 file:border-0 file:bg-transparent file:font-medium"
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-medium">
-                名片背面
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) =>
-                    chooseFile(event.target.files?.[0], "back")
-                  }
-                  className="min-h-10 rounded-md border bg-background px-3 py-2 font-normal file:mr-3 file:border-0 file:bg-transparent file:font-medium"
-                />
-              </label>
-              <div className="md:col-span-2">
-                <Button type="submit" disabled={uploading || !front || !back}>
-                  <UploadIcon data-icon="inline-start" />
-                  {uploading ? "正在上传" : "提交审核"}
-                </Button>
-              </div>
+              <FieldGroup className="grid gap-5 md:grid-cols-2">
+                <Field data-disabled={uploading || undefined}>
+                  <FieldLabel htmlFor="namecard-front">名片正面</FieldLabel>
+                  <FileUploadControl
+                    id="namecard-front"
+                    accept="image/*"
+                    emptyTitle="选择名片正面"
+                    emptyDetail="图片文件 · 不超过 3 MiB"
+                    fileKind="名片正面"
+                    file={front}
+                    uploading={uploading}
+                    required
+                    selectedIcon={FileImageIcon}
+                    emptyIcon={ImageUpIcon}
+                    onSelect={(file) => chooseFile(file, "front")}
+                  />
+                </Field>
+                <Field data-disabled={uploading || undefined}>
+                  <FieldLabel htmlFor="namecard-back">名片背面</FieldLabel>
+                  <FileUploadControl
+                    id="namecard-back"
+                    accept="image/*"
+                    emptyTitle="选择名片背面"
+                    emptyDetail="图片文件 · 不超过 3 MiB"
+                    fileKind="名片背面"
+                    file={back}
+                    uploading={uploading}
+                    required
+                    selectedIcon={FileImageIcon}
+                    emptyIcon={ImageUpIcon}
+                    onSelect={(file) => chooseFile(file, "back")}
+                  />
+                </Field>
+              </FieldGroup>
+              <Button
+                type="submit"
+                className="self-start"
+                disabled={uploading || !front || !back}
+              >
+                <UploadIcon data-icon="inline-start" />
+                {uploading ? "正在上传" : "提交审核"}
+              </Button>
             </form>
           </CardContent>
         </Card>

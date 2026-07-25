@@ -127,8 +127,6 @@ test('[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallb
 
     for (const pathname of [
         '/api/not-a-real-route',
-        '/wiki/not-a-real-route',
-        '/story-not-a-real-route',
         '/image/not-a-real-file.webp',
         '/css/not-a-real-file.css',
         '/icon/not-a-real-file.webp',
@@ -154,7 +152,8 @@ test('[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallb
 
     for (const pathname of [
         '/sites/hiro-2026',
-        '/site-content/hiro-2026/22222222-2222-4222-8222-222222222222/index.html'
+        '/site-content/hiro-2026/22222222-2222-4222-8222-222222222222/index.html',
+        '/information/info-example-001/content'
     ]) {
         assert.deepEqual(
             resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles),
@@ -167,6 +166,11 @@ test('[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallb
 test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', async () => {
     for (const pathname of [
         '/unknown',
+        '/wiki/not-a-real-route',
+        '/wiki/classic/extra-segment',
+        '/story-not-a-real-route',
+        '/story/extra-segment',
+        '/story/classic/extra-segment',
         '/chronicle/one/two',
         '/chronicle/one%2Ftwo',
         '/chronicle/one%5Ctwo',

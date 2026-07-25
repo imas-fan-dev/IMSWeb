@@ -2,18 +2,7 @@ import type { Context, MiddlewareHandler, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { AppEnvironment } from '@/app';
 import { services } from '@/middleware/hono-context';
-
-function constantTimeEqual(left: unknown, right: unknown): boolean {
-    if (typeof left !== 'string' || typeof right !== 'string') return false;
-    const a = new TextEncoder().encode(left);
-    const b = new TextEncoder().encode(right);
-    let mismatch = a.length ^ b.length;
-    const length = Math.max(a.length, b.length);
-    for (let index = 0; index < length; index += 1) {
-        mismatch |= (a[index] || 0) ^ (b[index] || 0);
-    }
-    return mismatch === 0;
-}
+import { constantTimeEqual } from '@/utils/crypto/constant-time';
 
 export async function authenticateCoreRequest(c: Context<AppEnvironment>): Promise<Response | null> {
     const authorization = (c.req.header('authorization') || '').trim();
@@ -61,5 +50,3 @@ export async function protectCoreCsrf(c: Context<AppEnvironment>, next: Next): P
 export const coreAuth: MiddlewareHandler<AppEnvironment> = authenticateCore;
 export const opOnly: MiddlewareHandler<AppEnvironment> = requireOp;
 export const coreCsrf: MiddlewareHandler<AppEnvironment> = protectCoreCsrf;
-
-export { constantTimeEqual };

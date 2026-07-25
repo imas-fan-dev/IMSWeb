@@ -14,9 +14,11 @@ export default defineConfig({
   },
   plugins: [tailwindcss(), reactRouter()],
   optimizeDeps: {
+    entries: ["app/**/*.{ts,tsx}"],
     include: [
       "@base-ui/react > use-sync-external-store/shim",
       "@base-ui/react > use-sync-external-store/shim/with-selector",
+      "@tanstack/react-virtual",
     ],
     exclude: [
       "@base-ui/react/button",

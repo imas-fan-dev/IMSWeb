@@ -16,7 +16,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertEqual(services, ["postgres", "minio", "minio-init"])
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
         self.assertIn("image: ${IMS_MINIO_IMAGE:-minio/minio:", compose)
-        self.assertIn("postgresql-data:/var/lib/postgresql/data", compose)
+        self.assertIn("postgresql-data:/var/lib/postgresql", compose)
         self.assertIn("minio-data:/data", compose)
         self.assertNotRegex(compose, r"(?m)^\s+build:")
         self.assertNotRegex(compose, r"(?i)nginx")

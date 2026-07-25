@@ -1,4 +1,5 @@
 export * from "./admin"
+export * from "./about"
 export * from "./chronicle"
 export * from "./community"
 export * from "./events"

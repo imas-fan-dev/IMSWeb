@@ -11,7 +11,7 @@ test('S3-capable media responses redirect GET and HEAD without loading object by
             calls.push({ key, method: options?.method });
             return key.endsWith('missing.webp')
                 ? null
-                : `http://127.0.0.1:9000/imsweb-test/${key}?signed=true`;
+                : `http://127.0.0.1:9000/imsweb-media-local/${key}?signed=true`;
         },
         async get() {
             gets += 1;
@@ -27,7 +27,7 @@ test('S3-capable media responses redirect GET and HEAD without loading object by
     );
     assert.equal(get?.status, 307);
     assert.equal(get?.headers.get('location'),
-        'http://127.0.0.1:9000/imsweb-test/uploads/news/original/a.webp?signed=true');
+        'http://127.0.0.1:9000/imsweb-media-local/uploads/news/original/a.webp?signed=true');
     assert.equal(get?.headers.get('cache-control'), 'private, no-store');
 
     const head = await objectReadResponse(

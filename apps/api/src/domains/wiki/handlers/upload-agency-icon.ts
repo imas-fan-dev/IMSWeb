@@ -1,6 +1,7 @@
 import type { Env, Handler } from 'hono';
 import {
     authorizeWikiWrite,
+    cleanupWikiObjects,
     findWikiAgencyTarget,
     parseWikiUpload,
     singleWikiFile,
@@ -25,6 +26,8 @@ export function createHandleUploadWikiAgencyIcon<E extends Env>(
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage', 'images', 'uploads']);
+        let createdKey: string | null = null;
+        let cleanupCreated = false;
         try {
             const upload = await parseWikiUpload(context.req.raw, services);
             const file = singleWikiFile(upload, 'image');
@@ -40,8 +43,10 @@ export function createHandleUploadWikiAgencyIcon<E extends Env>(
                 file,
                 services.images!
             );
-            const object = await services.storage!.put(
-                agencyIconObjectKey(target.agency.code),
+            createdKey = agencyIconObjectKey(target.agency.code);
+            cleanupCreated = !await services.storage!.exists(createdKey);
+            await services.storage!.put(
+                createdKey,
                 converted,
                 {
                     contentType: 'image/webp',
@@ -51,11 +56,13 @@ export function createHandleUploadWikiAgencyIcon<E extends Env>(
                     }
                 }
             );
+            await services.story!.setAgencyIconObjectKey(target.agency.id, createdKey);
             return wikiJson({
                 status: 'success',
-                url: agencyIconUrl(target.agency.code, object.etag)
+                url: agencyIconUrl(target.agency.id)
             });
         } catch (error) {
+            if (createdKey && cleanupCreated) await cleanupWikiObjects(services, [createdKey]);
             const status = wikiStatusOf(error);
             if (status === 413) {
                 return wikiJson(wikiErrorBody('上传文件超过大小限制'), 413);

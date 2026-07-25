@@ -6,6 +6,7 @@ import {
   ContactRoundIcon,
   HistoryIcon,
   HomeIcon,
+  InfoIcon,
   LoaderCircleIcon,
   LogOutIcon,
   MegaphoneIcon,
@@ -45,6 +46,13 @@ const navigation = [
     description: "活动资讯与同人活动",
     icon: CalendarDaysIcon,
     accent: "bg-franchise-cg",
+  },
+  {
+    to: "/admin/about",
+    label: "关于本站",
+    description: "站点介绍与贡献名单",
+    icon: InfoIcon,
+    accent: "bg-primary",
   },
   {
     to: "/admin/recommendations",

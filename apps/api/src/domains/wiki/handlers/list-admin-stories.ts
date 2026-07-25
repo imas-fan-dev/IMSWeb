@@ -6,7 +6,6 @@ import {
   type WikiServicesResolver,
 } from "@/domains/wiki/handler-support";
 import {
-  getPresetCategories,
   requireWikiServices,
   toWikiAgency,
   wikiStoryImageUrl,
@@ -25,7 +24,8 @@ export function createHandleListAdminWikiStories<E extends Env>(
     if (!agencyName || !idolName) {
       return wikiJson(wikiErrorBody("缺少企划或偶像参数"), 400);
     }
-    const agencyRecord = await services.story!.findAgencyByName(agencyName);
+    const agencyRecord = await services.story!.findAgencyByName(agencyName) ??
+      await services.story!.findAgencyByCode(agencyName);
     const agency = agencyRecord ? toWikiAgency(agencyRecord) : null;
     if (!agency) return wikiJson(wikiErrorBody("企划不存在"), 404);
     const idol = await services.story!.findIdolByAgencyAndName(
@@ -33,14 +33,10 @@ export function createHandleListAdminWikiStories<E extends Env>(
       idolName,
     );
     if (!idol) return wikiJson(wikiErrorBody("找不到该偶像"), 404);
-    const stories = await services.story!.listStories(agency.code, idol.id);
-    const presetCategories = getPresetCategories(agency.name, idol.name_cn);
-    const categories = [
-      ...new Set([
-        ...presetCategories,
-        ...stories.map((story) => story.category),
-      ]),
-    ];
+    const [stories, categoryRows] = await Promise.all([
+      services.story!.listStories(agency.code, idol.id),
+      services.story!.listWikiCategories(agency.id, idol.id),
+    ]);
     return wikiJson({
       status: "success",
       agency: {
@@ -54,8 +50,21 @@ export function createHandleListAdminWikiStories<E extends Env>(
         name: idol.name_cn,
         folderName: idol.folder_name,
         color: idol.color,
+        textColor: idol.text_color,
+        displayOrder: idol.display_order,
+        imageUrl: idol.avatar_object_key
+          ? `/image/${encodeURIComponent(agency.name)}/${encodeURIComponent(idol.name_cn)}/icon.webp`
+          : "",
+        imageFit: idol.avatar_fit,
       },
-      categories,
+      categories: categoryRows.map((category) => ({
+        id: category.id,
+        name: category.name,
+        storageSlug: category.storage_slug,
+        displayOrder: category.display_order,
+        showWhenEmpty: category.show_when_empty,
+        backgroundEligible: category.background_eligible,
+      })),
       stories: stories.map((story) => ({
         id: story.id,
         category: story.category,

@@ -21,7 +21,8 @@ function agency(
     code,
     name,
     color,
-    iconUrl: code === "sc" ? "/icon/agencies/sc.webp?v=test" : null,
+    bannerTitle: code === "sc" ? "283 Production" : "765PRO ALLSTARS",
+    iconUrl: code === "sc" ? "/icon/agencies/6.webp" : null,
     idolCount,
   }
 }
@@ -55,7 +56,20 @@ function catalogPayload(selected: "765PRO" | "闪耀色彩" = "闪耀色彩") {
   return {
     status: "success",
     agencies,
-    selection: { agency: selectedAgency, idols: [idol] },
+    selection: {
+      agency: selectedAgency,
+      layoutRevision: 0,
+      groups: [
+        {
+          id: selected === "765PRO" ? 1 : 6,
+          code: selected === "765PRO" ? "765pro" : "illumination-stars",
+          name: selected === "765PRO" ? "765PRO" : "illumination STARS",
+          color: selectedAgency.color,
+          iconUrl: null,
+          idols: [idol],
+        },
+      ],
+    },
   }
 }
 
@@ -110,12 +124,12 @@ describe("WikiIndexPage", () => {
     ).toBeVisible()
     expect(
       screen.getByRole("tab", { name: /闪耀色彩/ }).querySelector("img")
-    ).toHaveAttribute("src", "/icon/agencies/sc.webp?v=test")
+    ).toHaveAttribute("src", "/icon/agencies/6.webp")
     await user.click(screen.getByRole("tab", { name: /765PRO/ }))
     expect(await screen.findByRole("link", { name: /天海春香/ })).toBeVisible()
     expect(
       screen.getByRole("tab", { name: /765PRO/ }).querySelector("img")
-    ).toHaveAttribute("src", "/icon/765pro.webp")
+    ).toBeNull()
     expect(
       screen.getByRole("heading", { level: 3, name: "765PRO" })
     ).toBeVisible()

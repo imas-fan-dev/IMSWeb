@@ -4,11 +4,6 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const {
-    HeadObjectCommand,
-    PutObjectCommand,
-    S3Client
-} = require('@aws-sdk/client-s3');
 const sqlite3 = require('sqlite3');
 
 const DEFAULT_SOURCE_ORIGIN = 'https://idol-master.top';
@@ -16,8 +11,8 @@ const DEFAULT_PAGE_CONCURRENCY = 4;
 const DEFAULT_ASSET_CONCURRENCY = 4;
 const MAX_PAGE_BYTES = 8 * 1024 * 1024;
 const MAX_ASSET_BYTES = 64 * 1024 * 1024;
-const WIKI_STATIC_PREFIX = 'Wiki/static';
-const WIKI_MANIFEST_KEY = 'Wiki/manifests/idol-master-top-latest.json';
+const WIKI_STATIC_PREFIX = 'wiki/shared/static';
+const WIKI_MANIFEST_KEY = 'system/migrations/wiki/idol-master-top-latest.json';
 const ASSET_PATH_PREFIXES = ['/image/', '/icon/', '/css/', '/assets/'];
 const USER_AGENT = 'IMSWeb-Wiki-Media-Sync/1.0 (+https://idol-master.top/)';
 
@@ -198,21 +193,38 @@ function mapAssetUrl(assetUrl, idolIndex) {
         const idolName = segments[2];
         const idol = idolIndex.get(`${agencyName}\0${idolName}`);
         if (!idol) throw new Error(`Wiki image has no local agency/idol mapping: ${agencyName}/${idolName}`);
+        const relativeSegments = segments.slice(3);
+        const avatar = relativeSegments.length === 1 &&
+            /^icon\.(?:avif|bmp|gif|jpe?g|png|webp)$/i.test(relativeSegments[0]);
+        const extension = path.posix.extname(relativeSegments[0]).toLowerCase();
         return {
             kind: 'story-media',
             agencyCode: idol.agencyCode,
             agencyName,
             idolName,
             folderName: idol.folderName,
-            relativePath: segments.slice(3).join('/'),
-            objectKey: safeObjectKey(['Data', idol.agencyCode, idol.folderName, ...segments.slice(3)])
+            relativePath: relativeSegments.join('/'),
+            objectKey: avatar
+                ? safeObjectKey([
+                    'wiki', 'agencies', idol.agencyCode, 'idols', idol.folderName,
+                    `avatar${extension}`
+                ])
+                : safeObjectKey([
+                    'wiki', 'agencies', idol.agencyCode, 'idols', idol.folderName,
+                    'story-images', ...relativeSegments
+                ])
         };
     }
     if (['icon', 'css', 'assets'].includes(segments[0])) {
+        const agencyIcon = segments[0] === 'icon' && segments[1] === 'agencies' &&
+            segments.length === 3 && /^[a-z0-9_-]+\.webp$/i.test(segments[2]);
+        const agencyCode = agencyIcon ? segments[2].slice(0, -'.webp'.length) : null;
         return {
             kind: 'wiki-static',
             relativePath: segments.join('/'),
-            objectKey: safeObjectKey(['Wiki', 'static', ...segments])
+            objectKey: agencyCode
+                ? safeObjectKey(['wiki', 'agencies', agencyCode, 'branding', 'icon.webp'])
+                : safeObjectKey(['wiki', 'shared', 'static', ...segments])
         };
     }
     throw new Error(`Unsupported first-party Wiki asset path: ${assetUrl}`);
@@ -440,71 +452,37 @@ function storyIdentity(story, idolIndex) {
     return { ...idol, sourceUrl: story.url };
 }
 
-function s3Configuration(environment = process.env) {
+async function objectStorage(environment = process.env) {
+    require('../../src/config/load-environment.ts');
     if (environment.IMS_OBJECT_STORAGE?.trim().toLowerCase() !== 's3') {
         throw new Error('--upload requires IMS_OBJECT_STORAGE=s3');
     }
-    const bucket = environment.IMS_S3_BUCKET?.trim();
-    const region = environment.IMS_S3_REGION?.trim() || environment.AWS_REGION?.trim();
-    if (!bucket || !region) throw new Error('--upload requires IMS_S3_BUCKET and IMS_S3_REGION');
-    const prefix = environment.IMS_S3_PREFIX?.trim().replace(/^\/+|\/+$/g, '') || '';
-    const forcePathStyle = ['1', 'true', 'yes', 'on'].includes(
-        environment.IMS_S3_FORCE_PATH_STYLE?.trim().toLowerCase() || ''
-    );
-    return {
-        bucket,
-        prefix,
-        client: new S3Client({
-            region,
-            endpoint: environment.IMS_S3_ENDPOINT?.trim() || undefined,
-            forcePathStyle
-        })
-    };
+    const { resolveNodeServices } = require('../../src/runtime/node-services.ts');
+    return (await resolveNodeServices()).storage;
 }
 
-function physicalKey(prefix, logicalKey) {
-    return prefix ? `${prefix}/${logicalKey}` : logicalKey;
-}
-
-function missingS3Object(error) {
-    return error?.$metadata?.httpStatusCode === 404 || ['NotFound', 'NoSuchKey'].includes(error?.name);
-}
-
-async function uploadAsset(config, stagingDir, asset) {
-    const key = physicalKey(config.prefix, asset.objectKey);
-    try {
-        const current = await config.client.send(new HeadObjectCommand({
-            Bucket: config.bucket,
-            Key: key
-        }));
-        if (
-            current.ContentLength === asset.bytes &&
-            current.Metadata?.sha256 === asset.sha256
-        ) {
-            return { status: 'unchanged', etag: current.ETag || null };
-        }
-    } catch (error) {
-        if (!missingS3Object(error)) throw error;
+async function uploadAsset(storage, stagingDir, asset) {
+    const current = await storage.get(asset.objectKey);
+    if (
+        current && current.size === asset.bytes &&
+        sha256(current.body) === asset.sha256
+    ) {
+        return { status: 'unchanged', etag: current.etag || null };
     }
     const body = await fsp.readFile(path.join(stagingDir, asset.stagedPath));
-    const result = await config.client.send(new PutObjectCommand({
-        Bucket: config.bucket,
-        Key: key,
-        Body: body,
-        ContentType: asset.contentType,
-        Metadata: {
+    const result = await storage.put(asset.objectKey, body, {
+        contentType: asset.contentType,
+        sha256: asset.sha256,
+        metadata: {
             sha256: asset.sha256,
             source: encodeURIComponent(asset.sourcePath)
         }
-    }));
-    const verified = await config.client.send(new HeadObjectCommand({
-        Bucket: config.bucket,
-        Key: key
-    }));
-    if (verified.ContentLength !== asset.bytes || verified.Metadata?.sha256 !== asset.sha256) {
+    });
+    const verified = await storage.get(asset.objectKey);
+    if (!verified || verified.size !== asset.bytes || sha256(verified.body) !== asset.sha256) {
         throw new Error(`Uploaded object verification failed: ${asset.objectKey}`);
     }
-    return { status: 'uploaded', etag: result.ETag || verified.ETag || null };
+    return { status: current ? 'replaced' : 'uploaded', etag: result.etag || verified.etag || null };
 }
 
 async function writeManifest(file, manifest) {
@@ -512,15 +490,13 @@ async function writeManifest(file, manifest) {
     await fsp.writeFile(file, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 }
 
-async function uploadManifestDocument(config, sourceOrigin, manifest) {
+async function uploadManifestDocument(storage, sourceOrigin, manifest) {
     const body = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-    await config.client.send(new PutObjectCommand({
-        Bucket: config.bucket,
-        Key: physicalKey(config.prefix, WIKI_MANIFEST_KEY),
-        Body: body,
-        ContentType: 'application/json; charset=utf-8',
-        Metadata: { sha256: sha256(body), source: encodeURIComponent(`${sourceOrigin}/wiki/`) }
-    }));
+    await storage.put(WIKI_MANIFEST_KEY, body, {
+        contentType: 'application/json; charset=utf-8',
+        sha256: sha256(body),
+        metadata: { source: encodeURIComponent(`${sourceOrigin}/wiki/`) }
+    });
 }
 
 async function uploadExistingManifest(options) {
@@ -559,21 +535,21 @@ async function uploadExistingManifest(options) {
         }
     });
 
-    const config = s3Configuration();
+    const storage = await objectStorage();
     const results = await mapConcurrent(parsed.assets, options.assetConcurrency, async (asset) => {
-        const result = await uploadAsset(config, options.stagingDir, asset);
+        const result = await uploadAsset(storage, options.stagingDir, asset);
         asset.upload = result;
         return result;
     });
     parsed.uploadedAt = new Date().toISOString();
     parsed.summary = {
         ...parsed.summary,
-        uploaded: results.filter((result) => result.status === 'uploaded').length,
+        uploaded: results.filter((result) =>
+            result.status === 'uploaded' || result.status === 'replaced').length,
         unchanged: results.filter((result) => result.status === 'unchanged').length
     };
     await writeManifest(options.manifest, parsed);
-    await uploadManifestDocument(config, options.sourceOrigin, parsed);
-    config.client.destroy();
+    await uploadManifestDocument(storage, options.sourceOrigin, parsed);
     return parsed;
 }
 
@@ -744,13 +720,13 @@ async function syncWikiMedia(options) {
     ));
 
     if (!manifest.errors.length && options.upload) {
-        const config = s3Configuration();
+        const storage = await objectStorage();
         const uploadResults = await mapConcurrent(
             manifest.assets,
             options.assetConcurrency,
             async (asset) => {
                 try {
-                    const result = await uploadAsset(config, options.stagingDir, asset);
+                    const result = await uploadAsset(storage, options.stagingDir, asset);
                     asset.upload = result;
                     return result;
                 } catch (error) {
@@ -764,11 +740,11 @@ async function syncWikiMedia(options) {
                 }
             }
         );
-        const uploaded = uploadResults.filter((result) => result?.status === 'uploaded').length;
+        const uploaded = uploadResults.filter((result) =>
+            result?.status === 'uploaded' || result?.status === 'replaced').length;
         const unchanged = uploadResults.filter((result) => result?.status === 'unchanged').length;
         manifest.summary.uploaded = uploaded;
         manifest.summary.unchanged = unchanged;
-        config.client.destroy();
     }
 
     manifest.complete = manifest.errors.length === 0;
@@ -791,9 +767,8 @@ async function syncWikiMedia(options) {
     }
 
     if (options.upload) {
-        const config = s3Configuration();
-        await uploadManifestDocument(config, options.sourceOrigin, manifest);
-        config.client.destroy();
+        const storage = await objectStorage();
+        await uploadManifestDocument(storage, options.sourceOrigin, manifest);
     }
     return manifest;
 }
@@ -804,14 +779,21 @@ async function main() {
         process.stdout.write(`${helpText()}\n`);
         return;
     }
-    const manifest = options.uploadExisting
-        ? await uploadExistingManifest(options)
-        : await syncWikiMedia(options);
-    process.stdout.write(`${JSON.stringify({
-        manifest: options.manifest,
-        complete: manifest.complete,
-        ...manifest.summary
-    }, null, 2)}\n`);
+    try {
+        const manifest = options.uploadExisting
+            ? await uploadExistingManifest(options)
+            : await syncWikiMedia(options);
+        process.stdout.write(`${JSON.stringify({
+            manifest: options.manifest,
+            complete: manifest.complete,
+            ...manifest.summary
+        }, null, 2)}\n`);
+    } finally {
+        if (options.upload) {
+            const { closeNodeServices } = require('../../src/runtime/node-services.ts');
+            await closeNodeServices();
+        }
+    }
 }
 
 if (require.main === module) {

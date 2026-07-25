@@ -111,11 +111,18 @@ function isolatedServerEnv(label) {
     };
 }
 
+function namecardObjectPath(publicUrl) {
+    const filename = path.basename(publicUrl);
+    const extension = path.extname(filename).toLowerCase();
+    const stem = path.basename(filename, extension);
+    return path.join(NAMECARD_DIR, stem, `image${extension}`);
+}
+
 before(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-node-security-'));
     const uploadsDir = path.join(tempDir, 'uploads');
-    NAMECARD_DIR = path.join(uploadsDir, 'namecard/original');
-    EVENT_DIR = path.join(uploadsDir, 'event/original');
+    NAMECARD_DIR = path.join(uploadsDir, 'community/namecards/assets');
+    EVENT_DIR = path.join(uploadsDir, 'editorial/events/assets');
     fs.mkdirSync(NAMECARD_DIR, { recursive: true });
     fs.mkdirSync(EVENT_DIR, { recursive: true });
     databasePath = path.join(tempDir, 'news.db');
@@ -196,7 +203,9 @@ before(async () => {
         PENDING_FRONT_URL,
         PENDING_BACK_URL
     ]) {
-        fs.writeFileSync(path.join(NAMECARD_DIR, path.basename(mediaUrl)), validPng);
+        const target = namecardObjectPath(mediaUrl);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, validPng);
     }
 
     process.env.NODE_ENV = 'test';
@@ -226,7 +235,7 @@ after(async () => {
     if (closeDatabase) await closeDatabase();
     for (const filename of fs.readdirSync(NAMECARD_DIR)) {
         if (filename.startsWith(TEST_FILE_PREFIX)) {
-            fs.rmSync(path.join(NAMECARD_DIR, filename), { force: true });
+            fs.rmSync(path.join(NAMECARD_DIR, filename), { recursive: true, force: true });
         }
     }
     if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
@@ -547,11 +556,22 @@ test('information management hosts images and publishes sandboxed HTML content',
     assert.equal(detail.status, 200);
     assert.match((await detail.json()).card.html, /Hosted HTML/);
 
+    const document = await fetch(`${baseUrl}/information/${createdCard.id}/content`);
+    assert.equal(document.status, 200);
+    assert.match(document.headers.get('content-type'), /^text\/html/);
+    assert.match(document.headers.get('content-security-policy'), /script-src 'none'/);
+    assert.equal(document.headers.get('x-frame-options'), 'SAMEORIGIN');
+    assert.match(await document.text(), /Hosted HTML/);
+
     const removed = await fetch(`${baseUrl}/api/admin/information/${createdCard.id}`, {
         method: 'DELETE',
         headers: auth
     });
     assert.equal(removed.status, 200);
+    assert.equal(
+        (await fetch(`${baseUrl}/information/${createdCard.id}/content`)).status,
+        404
+    );
     const removedAsset = await fetch(`${baseUrl}/api/admin/information/assets`, {
         method: 'DELETE',
         headers: { ...auth, 'content-type': 'application/json' },
@@ -768,7 +788,13 @@ test('[MEDIA-01 NODE-01] shared multipart contract runs against Node streaming p
 
 test('event deletion survives media cleanup failure after database commit', async () => {
     const filename = `${TEST_FILE_PREFIX}-cleanup-failure.png`;
-    const mediaPath = path.join(EVENT_DIR, filename);
+    const extension = path.extname(filename);
+    const mediaPath = path.join(
+        EVENT_DIR,
+        path.basename(filename, extension),
+        `poster${extension}`
+    );
+    fs.mkdirSync(path.dirname(mediaPath), { recursive: true });
     fs.mkdirSync(mediaPath);
 
     const fixtureDb = new sqlite3.Database(databasePath);
@@ -798,7 +824,7 @@ test('event deletion survives media cleanup failure after database commit', asyn
 });
 
 test('pending chronicle media requires op authentication', async () => {
-    const pendingDir = path.join(chronicleBase, 'upload', 'activity-one');
+    const pendingDir = path.join(chronicleBase, 'media/pending', 'activity-one');
     fs.mkdirSync(pendingDir, { recursive: true });
     fs.writeFileSync(path.join(pendingDir, 'photo.jpg'), 'test image');
 
@@ -829,11 +855,16 @@ test('chronicle upload commits files using the final multipart activityId', asyn
     });
     assert.equal(response.status, 200);
 
-    const metaPath = path.join(chronicleBase, 'meta', `${activityId}.json`);
+    const metaPath = path.join(chronicleBase, 'metadata', `${activityId}.json`);
     const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
     assert.equal(meta.records.length, 1);
     assert.equal(
-        fs.existsSync(path.join(chronicleBase, 'upload', activityId, meta.records[0].filename)),
+        fs.existsSync(path.join(
+            chronicleBase,
+            'media/pending',
+            activityId,
+            meta.records[0].filename
+        )),
         true
     );
     assert.deepEqual(fs.readdirSync(path.join(chronicleBase, '.staging')), []);
@@ -841,9 +872,9 @@ test('chronicle upload commits files using the final multipart activityId', asyn
 
 test('chronicle approval and rejection enforce pending state', async () => {
     const activityId = 'activity-state';
-    const uploadDir = path.join(chronicleBase, 'upload', activityId);
-    const usedDir = path.join(chronicleBase, 'used', activityId);
-    const metaPath = path.join(chronicleBase, 'meta', `${activityId}.json`);
+    const uploadDir = path.join(chronicleBase, 'media/pending', activityId);
+    const usedDir = path.join(chronicleBase, 'media/published', activityId);
+    const metaPath = path.join(chronicleBase, 'metadata', `${activityId}.json`);
     fs.mkdirSync(uploadDir, { recursive: true });
     fs.mkdirSync(usedDir, { recursive: true });
     fs.writeFileSync(path.join(uploadDir, 'pending.png'), validPng);
@@ -894,8 +925,8 @@ test('chronicle approval and rejection enforce pending state', async () => {
 
 test('chronicle listings share upload formats and safely encode legacy metadata', async () => {
     const activityId = 'activity-formats';
-    const usedDir = path.join(chronicleBase, 'used', activityId);
-    const metaDir = path.join(chronicleBase, 'meta');
+    const usedDir = path.join(chronicleBase, 'media/published', activityId);
+    const metaDir = path.join(chronicleBase, 'metadata');
     fs.mkdirSync(usedDir, { recursive: true });
     fs.mkdirSync(metaDir, { recursive: true });
     fs.writeFileSync(
@@ -926,8 +957,8 @@ test('chronicle listings share upload formats and safely encode legacy metadata'
 
 test('chronicle deletion preserves object metadata and rejects traversal', async () => {
     const activityId = 'activity-delete';
-    const usedDir = path.join(chronicleBase, 'used', activityId);
-    const metaDir = path.join(chronicleBase, 'meta');
+    const usedDir = path.join(chronicleBase, 'media/published', activityId);
+    const metaDir = path.join(chronicleBase, 'metadata');
     fs.mkdirSync(usedDir, { recursive: true });
     fs.mkdirSync(metaDir, { recursive: true });
     fs.writeFileSync(path.join(usedDir, 'photo.jpg'), 'test image');
@@ -961,8 +992,8 @@ test('chronicle deletion preserves object metadata and rejects traversal', async
 test('chronicle operations preserve decomposed Unicode path identity', async () => {
     const activityId = 'activity-e\u0301';
     const filename = 'photo-e\u0301.png';
-    const usedDir = path.join(chronicleBase, 'used', activityId);
-    const metaPath = path.join(chronicleBase, 'meta', `${activityId}.json`);
+    const usedDir = path.join(chronicleBase, 'media/published', activityId);
+    const metaPath = path.join(chronicleBase, 'metadata', `${activityId}.json`);
     fs.mkdirSync(usedDir, { recursive: true });
     fs.writeFileSync(path.join(usedDir, filename), validPng);
     fs.writeFileSync(metaPath, JSON.stringify({

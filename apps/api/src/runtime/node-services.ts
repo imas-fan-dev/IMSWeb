@@ -134,7 +134,7 @@ async function createNodeObjectStorage(
     const compensation = new S3CompensationService(
         database,
         state,
-        (objectId) => storage.deletePhysicalObject(objectId)
+        (objectId, physicalKey) => storage.deletePhysicalObject(objectId, physicalKey)
     );
     storage = new S3ObjectStorage(
         client,

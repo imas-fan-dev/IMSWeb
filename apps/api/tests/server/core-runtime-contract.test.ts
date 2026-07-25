@@ -288,9 +288,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
 
     const objectCount = () => Promise.all([
         countFiles(uploadsDir),
-        countFiles(path.join(chronicleDir, 'upload')),
-        countFiles(path.join(chronicleDir, 'used')),
-        countFiles(path.join(chronicleDir, '.trash'))
+        countFiles(path.join(chronicleDir, 'media/pending')),
+        countFiles(path.join(chronicleDir, 'media/published')),
+        countFiles(path.join(chronicleDir, 'trash'))
     ]).then((counts) => counts.reduce((sum, count) => sum + count, 0));
 
     const compensationCounts = async (): Promise<{ pending: number; completed: number }> => {
@@ -313,7 +313,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         news: (await connection.get<{ count: number }>('SELECT COUNT(*) AS count FROM news'))!.count,
         events: (await connection.get<{ count: number }>('SELECT COUNT(*) AS count FROM events'))!.count,
         cards: (await connection.get<{ count: number }>('SELECT COUNT(*) AS count FROM cards'))!.count,
-        chronicle: await chronicleRecordCount(path.join(chronicleDir, 'meta')),
+        chronicle: await chronicleRecordCount(path.join(chronicleDir, 'metadata')),
         objects: await objectCount()
     });
 
@@ -407,7 +407,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                 attemptCount: windows.get(
                     `chronicle-upload-attempt\0${clientAddress(client)}`
                 )?.identities.size || 0,
-                records: await chronicleRecordCount(path.join(chronicleDir, 'meta')),
+                records: await chronicleRecordCount(path.join(chronicleDir, 'metadata')),
                 objects: await objectCount(),
                 parserCalls: parser.calls,
                 storageMutations

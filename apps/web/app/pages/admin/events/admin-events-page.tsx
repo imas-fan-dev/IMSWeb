@@ -16,9 +16,12 @@ import {
   AdminPanel,
   adminControlClass,
 } from "~/pages/admin/components/admin-ui"
-import { createAdminEvent, deleteAdminEvent } from "~/shared/api/endpoints/admin"
-import { getEventPage } from "~/shared/api/endpoints/events"
-import type { EventListItem } from "~/shared/api/endpoints/events"
+import {
+  createAdminEvent,
+  deleteAdminEvent,
+  getEventPage,
+  type EventListItem,
+} from "~/shared/api"
 
 export function meta() {
   return [{ title: "活动管理 | IMSWeb" }]

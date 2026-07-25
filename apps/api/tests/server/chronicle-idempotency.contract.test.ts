@@ -14,7 +14,15 @@ import type { RateLimiter, RateLimitIdentity, RateLimitResult } from '@/ports/ca
 import type { RuntimeServices } from '@/ports/runtime-services';
 import type { ParsedUpload, UploadParser } from '@/ports/http';
 
-const BASE = 'assets/images/eventchronicle/events';
+const CHRONICLE_PREFIXES = {
+    upload: 'chronicle/media/pending',
+    used: 'chronicle/media/published',
+    meta: 'chronicle/metadata'
+} as const;
+
+function chronicleKey(bucket: keyof typeof CHRONICLE_PREFIXES, suffix: string): string {
+    return `${CHRONICLE_PREFIXES[bucket]}/${suffix}`;
+}
 
 function stored(body: Uint8Array, contentType = 'application/octet-stream'): StoredObject {
     return { body: Uint8Array.from(body), size: body.byteLength, contentType, etag: `"${body.byteLength}"` };
@@ -35,7 +43,7 @@ class MemoryStorage implements ObjectStorage {
     }
     async put(key: string, body: Uint8Array, options?: PutObjectOptions) {
         this.puts.push(key);
-        if (this.failMetaOnce && key.includes('/meta/')) {
+        if (this.failMetaOnce && key.startsWith('chronicle/metadata/')) {
             this.failMetaOnce = false;
             throw new Error('injected metadata failure');
         }
@@ -59,7 +67,10 @@ class MemoryStorage implements ObjectStorage {
     }
     async move(sourceKey: string, destinationKey: string) {
         this.moves.push({ source: sourceKey, destination: destinationKey });
-        if (this.failRollbackOnce && sourceKey.includes('/used/') && destinationKey.includes('/upload/')) {
+        if (
+            this.failRollbackOnce &&
+            sourceKey.includes('/published/') && destinationKey.includes('/pending/')
+        ) {
             this.failRollbackOnce = false;
             throw new Error('injected rollback failure');
         }
@@ -78,10 +89,14 @@ class MemoryStorage implements ObjectStorage {
         this.objects.set(key, stored(body, contentType));
     }
     seedMeta(activityId: string, records: unknown[]) {
-        this.seed(`${BASE}/meta/${activityId}.json`, new TextEncoder().encode(JSON.stringify({ records })), 'application/json');
+        this.seed(
+            chronicleKey('meta', `${activityId}.json`),
+            new TextEncoder().encode(JSON.stringify({ records })),
+            'application/json'
+        );
     }
     async records(activityId: string): Promise<Array<Record<string, unknown>>> {
-        const value = await this.get(`${BASE}/meta/${activityId}.json`);
+        const value = await this.get(chronicleKey('meta', `${activityId}.json`));
         return value ? JSON.parse(new TextDecoder().decode(value.body)).records : [];
     }
 }
@@ -342,7 +357,7 @@ test('Chronicle upload replays success and charges every conflicting attempt', a
     const first = await uploadRequest(app, 'upload-key');
     assert.equal(first.status, 200);
     assert.deepEqual(await first.json(), { success: true, count: 1 });
-    const uploadKeys = () => [...storage.objects.keys()].filter((key) => key.includes('/upload/'));
+    const uploadKeys = () => [...storage.objects.keys()].filter((key) => key.includes('/pending/'));
     assert.equal(uploadKeys().length, 1);
     const putCount = storage.puts.length;
 
@@ -512,8 +527,8 @@ test('Chronicle conflict payloads spend quota before image validation', async ()
 
 test('Chronicle used-media queries isolate activity directory prefixes', async () => {
     const { app, storage } = await fixture();
-    storage.seed(`${BASE}/used/10/ten.png`, new Uint8Array([10]));
-    storage.seed(`${BASE}/used/1/one.png`, new Uint8Array([1]));
+    storage.seed(chronicleKey('used', '10/ten.png'), new Uint8Array([10]));
+    storage.seed(chronicleKey('used', '1/one.png'), new Uint8Array([1]));
     storage.seedMeta('1', []);
     storage.seedMeta('10', []);
 
@@ -536,7 +551,7 @@ test('Chronicle approval resumes after metadata and rollback failures, then repl
     const { app, storage, auth } = await fixture();
     const activityId = '7';
     const filename = 'pending.png';
-    storage.seed(`${BASE}/upload/${activityId}/${filename}`, new Uint8Array([1]));
+    storage.seed(chronicleKey('upload', `${activityId}/${filename}`), new Uint8Array([1]));
     storage.seedMeta(activityId, [{ filename, status: 'pending' }]);
     storage.failMetaOnce = true;
     storage.failRollbackOnce = true;
@@ -546,8 +561,8 @@ test('Chronicle approval resumes after metadata and rollback failures, then repl
     });
 
     assert.equal((await request()).status, 500);
-    assert.equal(await storage.exists(`${BASE}/upload/${activityId}/${filename}`), false);
-    assert.equal(await storage.exists(`${BASE}/used/${activityId}/${filename}`), true);
+    assert.equal(await storage.exists(chronicleKey('upload', `${activityId}/${filename}`)), false);
+    assert.equal(await storage.exists(chronicleKey('used', `${activityId}/${filename}`)), true);
     assert.equal((await storage.records(activityId))[0]?.status, 'pending');
 
     const recovered = await request();
@@ -601,7 +616,7 @@ test('Chronicle takeover barriers preserve the replacement result for every admi
         const { app, storage, idempotency, auth } = await fixture();
         const activityId = `takeover-${mutation.label}`;
         const filename = 'item.png';
-        const source = `${BASE}/${mutation.sourceBucket}/${activityId}/${filename}`;
+        const source = chronicleKey(mutation.sourceBucket, `${activityId}/${filename}`);
         storage.seed(source, new Uint8Array([1]));
         storage.seedMeta(activityId, [{ filename, status: mutation.initialStatus }]);
         const barrier = idempotency.armOwnershipBarrier();
@@ -625,14 +640,17 @@ test('Chronicle takeover barriers preserve the replacement result for every admi
         if (mutation.finalStatus) {
             assert.equal(records[0]?.status, mutation.finalStatus, `${mutation.label} metadata`);
             assert.equal(
-                await storage.exists(`${BASE}/${mutation.finalBucket}/${activityId}/${filename}`),
+                await storage.exists(chronicleKey(
+                    mutation.finalBucket,
+                    `${activityId}/${filename}`
+                )),
                 true,
                 `${mutation.label} destination`
             );
         } else {
             assert.deepEqual(records, [], `${mutation.label} metadata`);
             assert.equal(
-                [...storage.objects.keys()].some((key) => key.includes('/.trash/')),
+                [...storage.objects.keys()].some((key) => key.startsWith('chronicle/trash/')),
                 false,
                 `${mutation.label} trash`
             );
@@ -640,7 +658,7 @@ test('Chronicle takeover barriers preserve the replacement result for every admi
         }
         assert.equal(
             storage.moves.some(({ source: movedSource, destination }) =>
-                movedSource.includes('/used/') && destination.includes('/upload/')),
+                movedSource.includes('/published/') && destination.includes('/pending/')),
             false,
             `${mutation.label} never rolls back a shared destination`
         );
@@ -649,7 +667,7 @@ test('Chronicle takeover barriers preserve the replacement result for every admi
 
 test('Chronicle reject and used-delete operations replay without duplicate side effects', async () => {
     const { app, storage, auth } = await fixture();
-    storage.seed(`${BASE}/upload/8/reject.png`, new Uint8Array([1]));
+    storage.seed(chronicleKey('upload', '8/reject.png'), new Uint8Array([1]));
     storage.seedMeta('8', [{ filename: 'reject.png', status: 'pending' }]);
     const reject = () => app.request('/eventchronicle/admin/reject/8/reject.png', {
         method: 'POST', headers: { ...auth, 'Idempotency-Key': 'reject-key' }
@@ -659,7 +677,7 @@ test('Chronicle reject and used-delete operations replay without duplicate side 
     assert.equal((await reject()).status, 200);
     assert.equal(storage.moves.length, movesAfterReject);
 
-    storage.seed(`${BASE}/used/9/delete.png`, new Uint8Array([2]));
+    storage.seed(chronicleKey('used', '9/delete.png'), new Uint8Array([2]));
     storage.seedMeta('9', [{ filename: 'delete.png', status: 'approved' }]);
     const remove = () => app.request('/eventchronicle/admin/delete-used/9/delete.png', {
         method: 'DELETE', headers: { ...auth, 'Idempotency-Key': 'delete-key' }
@@ -683,7 +701,7 @@ test('Chronicle committed deletions stay successful when cleanup and compensatio
         const { app, storage, compensation, auth } = await fixture();
         const activityId = `cleanup-${mutation.label}`;
         const filename = 'item.png';
-        const source = `${BASE}/${mutation.bucket}/${activityId}/${filename}`;
+        const source = chronicleKey(mutation.bucket, `${activityId}/${filename}`);
         storage.seed(source, new Uint8Array([1]));
         storage.seedMeta(activityId, [{ filename, status: mutation.status }]);
         storage.failDeleteAttempts = 1;
@@ -716,7 +734,7 @@ test('Chronicle committed deletions stay successful when cleanup and compensatio
         } else {
             assert.equal(await storage.exists(source), false, `${mutation.label} source moved`);
             assert.equal(
-                [...storage.objects.keys()].some((key) => key.includes('/.trash/')),
+                [...storage.objects.keys()].some((key) => key.startsWith('chronicle/trash/')),
                 true,
                 `${mutation.label} retained trash`
             );
@@ -730,7 +748,7 @@ test('Chronicle committed deletion compensation still converges on a later reque
     const { app, storage, compensation, auth } = await fixture();
     const activityId = 'cleanup-convergence';
     const filename = 'item.png';
-    const source = `${BASE}/upload/${activityId}/${filename}`;
+    const source = chronicleKey('upload', `${activityId}/${filename}`);
     storage.seed(source, new Uint8Array([1]));
     storage.seedMeta(activityId, [{ filename, status: 'pending' }]);
     storage.failDeleteAttempts = 1;

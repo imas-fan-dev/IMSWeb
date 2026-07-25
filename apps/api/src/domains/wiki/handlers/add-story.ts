@@ -13,6 +13,7 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
+    categoryStorageSlug,
     newStoryImageLocation,
     requireWikiServices,
     validateAndConvertStoryImage
@@ -41,6 +42,12 @@ export function createHandleAddWikiStory<E extends Env>(
             );
             if ('error' in target) return target.error;
             const category = (fields.category_name ?? '未分类剧情').trim();
+            const categoryRecord = await services.story!.ensureWikiCategory(
+                target.agency.id,
+                target.idol.id,
+                category,
+                categoryStorageSlug(category)
+            );
             const cardName = (fields.card_name ?? '').trim();
             const upName = (fields.up_name ?? '默认UP').trim();
             const videoTitle = (fields.video_title ?? '').trim();
@@ -50,7 +57,7 @@ export function createHandleAddWikiStory<E extends Env>(
                 const location = newStoryImageLocation(
                     target.agency.code,
                     target.idol.folderName,
-                    category
+                    categoryRecord.storage_slug
                 );
                 createdKey = location.key;
                 imageFile = location.imageFile;

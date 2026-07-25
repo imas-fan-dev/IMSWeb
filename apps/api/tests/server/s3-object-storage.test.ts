@@ -155,7 +155,7 @@ async function fixture(t: TestContext): Promise<{
     const compensation = new S3CompensationService(
         connection,
         state,
-        (objectId) => storage.deletePhysicalObject(objectId)
+        (objectId, physicalKey) => storage.deletePhysicalObject(objectId, physicalKey)
     );
     storage = new S3ObjectStorage(
         client as unknown as Pick<S3Client, 'send' | 'destroy'>,
@@ -186,7 +186,9 @@ test('S3 object storage preserves logical keys across versioned CRUD, copy, and 
     assert.equal(first.size, firstBody.byteLength);
     const firstSnapshot = await state.snapshot('uploads/news/original/a b.webp');
     assert.ok(firstSnapshot);
-    const firstPhysicalKey = `ims/production/__ims_s3/objects/${firstSnapshot.objectId}`;
+    const firstPhysicalKey =
+        `ims/production/uploads/news/original/objects/${firstSnapshot.objectId}/a b.webp`;
+    assert.equal(firstSnapshot.physicalKey, firstPhysicalKey);
     assert.equal(client.objects.has(firstPhysicalKey), true);
     assert.equal(
         client.objects.get(firstPhysicalKey)?.metadata?.owner,
@@ -234,7 +236,11 @@ test('S3 object storage preserves logical keys across versioned CRUD, copy, and 
             'uploads/news/original/z.webp'
         ]
     );
-    assert.ok(client.commands.some((command) => command instanceof ListObjectsV2Command));
+    assert.equal(
+        client.commands.some((command) => command instanceof ListObjectsV2Command),
+        false,
+        'logical listings come from the managed state index'
+    );
 
     await storage.deletePrefix('uploads/news/original/');
     assert.deepEqual(await storage.list('uploads/news/original/'), []);
@@ -267,7 +273,7 @@ test('S3 object storage signs GET and HEAD reads without proxying object bodies'
     assert.ok(snapshot);
     assert.equal(await storage.createReadUrl(key),
         `https://media.example.test/${encodeURIComponent(
-            `ims/production/__ims_s3/objects/${snapshot.objectId}`
+            `ims/production/uploads/news/original/objects/${snapshot.objectId}/a b.webp`
         )}`);
     assert.ok(signed[0]?.command instanceof GetObjectCommand);
     assert.equal(signed[0]?.expiresIn, 300);
@@ -314,8 +320,39 @@ test('S3 deferred publication hides new objects and restores the previous versio
     assert.deepEqual((await storage.get(key))?.body, replacement);
 });
 
-test('S3 reads legacy logical-key objects until a versioned write takes ownership', async (t) => {
-    const { client, state, storage } = await fixture(t);
+test('S3 listings resolve all readable versions with one metadata query', async (t) => {
+    const { connection, storage } = await fixture(t);
+    const prefix = 'wiki/agencies/sc/branding/';
+    const replacedKey = `${prefix}icon.webp`;
+    const readyKey = `${prefix}wordmark.webp`;
+    const hiddenKey = `${prefix}draft.webp`;
+
+    await storage.put(replacedKey, new Uint8Array([1]));
+    await storage.put(replacedKey, new Uint8Array([2, 3]), {
+        deferredPublication: true
+    });
+    await storage.put(readyKey, new Uint8Array([4, 5, 6]));
+    await storage.put(hiddenKey, new Uint8Array([7]), {
+        deferredPublication: true
+    });
+
+    const originalPrepare = connection.prepare.bind(connection);
+    let metadataQueries = 0;
+    connection.prepare = (sql: string) => {
+        metadataQueries += 1;
+        return originalPrepare(sql);
+    };
+
+    const listed = await storage.list(prefix);
+    assert.equal(metadataQueries, 1);
+    assert.deepEqual(listed, [
+        { key: replacedKey, size: 1, etag: '"etag-1"' },
+        { key: readyKey, size: 3, etag: '"etag-3"' }
+    ]);
+});
+
+test('S3 ignores objects that have no managed semantic-key index', async (t) => {
+    const { client, storage } = await fixture(t);
     const key = 'Data/sc/mano/card.webp';
     const physicalKey = `ims/production/${key}`;
     client.objects.set(physicalKey, {
@@ -325,16 +362,13 @@ test('S3 reads legacy logical-key objects until a versioned write takes ownershi
         lastModified: new Date('2026-07-22T00:00:00Z')
     });
 
-    assert.deepEqual((await storage.get(key))?.body, new Uint8Array([1, 2]));
-    assert.deepEqual((await storage.list('Data/sc/')).map((object) => object.key), [key]);
-    await storage.put(key, new Uint8Array([3, 4]), { contentType: 'image/webp' });
-    assert.ok(await state.snapshot(key));
-    assert.deepEqual((await storage.get(key))?.body, new Uint8Array([3, 4]));
+    assert.equal(await storage.get(key), null);
+    assert.deepEqual(await storage.list('Data/sc/'), []);
 });
 
 test('S3 lifecycle fences owner and object identity mutations', async (t) => {
     const { state, storage } = await fixture(t);
-    const key = 'assets/images/eventchronicle/events/upload/a.webp';
+    const key = 'chronicle/media/pending/a.webp';
     await storage.put(key, new Uint8Array([1, 2, 3]), { ownerToken: 'owner-a' });
     const first = await state.snapshot(key);
     assert.ok(first);
@@ -351,7 +385,7 @@ test('S3 lifecycle fences owner and object identity mutations', async (t) => {
 
 test('S3 stale recovery and SQL compensation remove unreferenced physical versions', async (t) => {
     const { client, compensation, connection, state, storage } = await fixture(t);
-    const staleKey = 'uploads/events/original/stale.webp';
+    const staleKey = 'editorial/events/assets/stale/poster.webp';
     await storage.put(staleKey, new Uint8Array([1]), { deferredPublication: true });
     const stale = await state.snapshot(staleKey);
     assert.ok(stale);
@@ -360,7 +394,9 @@ test('S3 stale recovery and SQL compensation remove unreferenced physical versio
     ).bind(stale.operationId).run();
     await storage.recoverStaleUploads(10, 1);
     assert.equal(await storage.get(staleKey), null);
-    assert.equal(client.objects.has(`ims/production/__ims_s3/objects/${stale.objectId}`), false);
+    assert.equal(client.objects.has(
+        `ims/production/editorial/events/assets/stale/objects/${stale.objectId}/poster.webp`
+    ), false);
     await compensation.run(storage);
 
     const compensatedKey = 'uploads/events/original/compensated.webp';

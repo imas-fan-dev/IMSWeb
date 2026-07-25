@@ -408,11 +408,14 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.equal(metadata.status, 200);
     assert.equal((await metadata.json()).revisionId, publishedId);
     const stable = await app.request('http://main.test/sites/hiro-2026');
-    assert.equal(stable.status, 302);
-    assert.equal(
-        stable.headers.get('location'),
-        `http://content.test/site-content/hiro-2026/${publishedId}/`
+    assert.equal(stable.status, 200);
+    assert.match(
+        await stable.text(),
+        new RegExp(`src="http://content\\.test/site-content/hiro-2026/${publishedId}/"`)
     );
+    assert.match(stable.headers.get('content-security-policy') || '',
+        /frame-src http:\/\/content\.test/);
+    assert.equal(stable.headers.get('x-frame-options'), 'DENY');
 
     const wrongOrigin = await app.request(
         `http://main.test/site-content/hiro-2026/${publishedId}/`
@@ -500,9 +503,9 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.equal((await app.request(
         `http://content.test/site-content/_preview/${'a'.repeat(64)}/`
     )).status, 200, 'historical revisions remain available through their preview token');
-    assert.equal(
-        (await app.request('http://main.test/sites/hiro-2026')).headers.get('location'),
-        `http://content.test/site-content/hiro-2026/${previewId}/`
+    assert.match(
+        await (await app.request('http://main.test/sites/hiro-2026')).text(),
+        new RegExp(`/site-content/hiro-2026/${previewId}/`)
     );
 
     const rollback = await app.request(
@@ -520,9 +523,9 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.equal((await app.request(
         `http://content.test/site-content/hiro-2026/${publishedId}/`
     )).status, 200);
-    assert.equal(
-        (await app.request('http://main.test/sites/hiro-2026')).headers.get('location'),
-        `http://content.test/site-content/hiro-2026/${publishedId}/`
+    assert.match(
+        await (await app.request('http://main.test/sites/hiro-2026')).text(),
+        new RegExp(`/site-content/hiro-2026/${publishedId}/`)
     );
 
     const auditCountBeforeFailedPublish = (await repository.listRecentAuditLogs(100)).length;

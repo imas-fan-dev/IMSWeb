@@ -1,6 +1,7 @@
 import type { Env, Handler } from 'hono';
 import {
     authorizeWikiWrite,
+    cleanupWikiObjects,
     cleanupWikiObjectPrefix,
     findWikiMutationTarget,
     parseWikiUpload,
@@ -10,7 +11,6 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
-    categoryFolder,
     requireWikiServices,
     storyObjectKey
 } from '@/domains/wiki/service';
@@ -42,6 +42,11 @@ export function createHandleDeleteWikiCategory<E extends Env>(
                 target.idol.id,
                 category
             );
+            const categoryRecord = await services.story!.deleteWikiCategoryAssociation(
+                target.agency.id,
+                target.idol.id,
+                category
+            );
             const keys = images.flatMap(({ image_file: imageFile }) => {
                 if (!imageFile) return [];
                 try {
@@ -54,16 +59,20 @@ export function createHandleDeleteWikiCategory<E extends Env>(
                     return [];
                 }
             });
-            const prefix = storyObjectKey(
-                target.agency.code,
-                target.idol.folderName,
-                `${categoryFolder(category)}/placeholder`
-            );
-            await cleanupWikiObjectPrefix(
-                services,
-                prefix.slice(0, prefix.lastIndexOf('/')),
-                keys
-            );
+            if (categoryRecord) {
+                const prefix = storyObjectKey(
+                    target.agency.code,
+                    target.idol.folderName,
+                    `${categoryRecord.storage_slug}/placeholder`
+                );
+                await cleanupWikiObjectPrefix(
+                    services,
+                    prefix.slice(0, prefix.lastIndexOf('/')),
+                    keys
+                );
+            } else {
+                await cleanupWikiObjects(services, keys);
+            }
             return wikiJson({ status: 'success' });
         } catch (error) {
             if (wikiStatusOf(error) === 413) {

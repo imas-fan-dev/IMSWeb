@@ -1,10 +1,17 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError, normalizeRequestError } from "~/shared/api/api-error"
+import { apiClient } from "~/shared/api/client"
 import { readCookie } from "~/shared/api/cookies"
+import { getAdminSession } from "~/shared/api/endpoints/admin"
 import { applyApiRequestPolicy, CSRF_HEADER_NAME } from "~/shared/api/request"
 import { handleApiResponse } from "~/shared/api/response"
 import { withCsrf } from "~/shared/api/types"
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  document.cookie = "csrf_token=; Max-Age=0; path=/"
+})
 
 describe("API request policy", () => {
   it("decodes cookie values without truncating embedded equals signs", () => {
@@ -133,5 +140,67 @@ describe("network errors", () => {
       method: "GET",
       url: "/api/news",
     })
+  })
+})
+
+describe("Alova access-token refresh", () => {
+  it("coalesces concurrent 401 responses and replays both requests", async () => {
+    document.cookie = "csrf_token=alova-refresh-csrf; path=/"
+    let checkRequests = 0
+    let refreshRequests = 0
+    let refreshHeaders: Headers | undefined
+    let releaseInitialChecks!: () => void
+    const initialChecksReady = new Promise<void>((resolve) => {
+      releaseInitialChecks = resolve
+    })
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const pathname = new URL(String(input), "http://ims.test").pathname
+        if (pathname === "/api/refresh") {
+          refreshRequests += 1
+          refreshHeaders = new Headers(init?.headers)
+          return Response.json({ success: true })
+        }
+        if (pathname === "/api/check") {
+          checkRequests += 1
+          if (checkRequests <= 2) {
+            if (checkRequests === 2) releaseInitialChecks()
+            await initialChecksReady
+            return Response.json(
+              { success: false, message: "token无效" },
+              { status: 401 }
+            )
+          }
+          return Response.json({
+            success: true,
+            user: {
+              id: 1,
+              username: "alova-op",
+              producername: "Alova Producer",
+              dept: "op",
+            },
+          })
+        }
+        throw new Error(`Unexpected request: ${pathname}`)
+      })
+    )
+
+    const [first, second] = await Promise.all([
+      getAdminSession().send(),
+      apiClient
+        .Get<{
+          success: true
+          user: { username: string }
+        }>("/api/check?request=second")
+        .send(),
+    ])
+
+    expect(first.user.username).toBe("alova-op")
+    expect(second.user.username).toBe("alova-op")
+    expect(refreshRequests).toBe(1)
+    expect(checkRequests).toBe(4)
+    expect(refreshHeaders?.get("X-CSRFToken")).toBe("alova-refresh-csrf")
   })
 })

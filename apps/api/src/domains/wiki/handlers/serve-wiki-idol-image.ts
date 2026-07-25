@@ -5,7 +5,6 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
-    isSupportedAgencyCode,
     requireWikiServices,
     storyObjectKey
 } from '@/domains/wiki/service';
@@ -33,7 +32,7 @@ export function createHandleServeWikiIdolImage<E extends Env>(
         }
         if (!agencyName || !idolName || !filename) return wikiPlain('Not found', 404);
         const agency = await services.story!.findAgencyByName(agencyName);
-        if (!agency || !isSupportedAgencyCode(agency.code)) return wikiPlain('Not found', 404);
+        if (!agency) return wikiPlain('Not found', 404);
         const idol = await services.story!.findIdolByAgencyAndName(agency.id, idolName);
         if (!idol) return wikiPlain('Not found', 404);
         let response;
@@ -41,7 +40,9 @@ export function createHandleServeWikiIdolImage<E extends Env>(
             response = await objectReadResponse(
                 context.req.raw,
                 services.storage!,
-                storyObjectKey(agency.code, idol.folder_name, filename)
+                /^icon\.[a-z0-9]+$/i.test(filename)
+                    ? idol.avatar_object_key ?? ''
+                    : storyObjectKey(agency.code, idol.folder_name, filename)
             );
         } catch {
             return wikiPlain('Not found', 404);

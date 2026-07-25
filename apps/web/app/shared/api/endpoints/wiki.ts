@@ -8,6 +8,21 @@ const wikiAdminIdolSchema = z.object({
   name: z.string(),
   folderName: z.string(),
   color: z.string().nullable(),
+  textColor: z.string(),
+  displayOrder: z.coerce.number().int().nonnegative(),
+  imageUrl: z.string(),
+  imageFit: z.enum(["contain", "cover"]),
+})
+
+const wikiAdminGroupSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  code: z.string(),
+  name: z.string(),
+  color: z.string(),
+  iconUrl: z.string().nullable(),
+  displayOrder: z.coerce.number().int().nonnegative(),
+  isFallback: z.boolean(),
+  idols: z.array(wikiAdminIdolSchema),
 })
 
 const wikiAdminAgencySchema = z.object({
@@ -15,8 +30,12 @@ const wikiAdminAgencySchema = z.object({
   code: z.string(),
   name: z.string(),
   color: z.string().nullable(),
+  wikiEnabled: z.boolean(),
+  bannerTitle: z.string(),
+  displayOrder: z.coerce.number().int().nonnegative(),
+  layoutRevision: z.coerce.number().int().nonnegative(),
   iconUrl: z.string().nullable(),
-  idols: z.array(wikiAdminIdolSchema),
+  groups: z.array(wikiAdminGroupSchema),
 })
 
 const wikiAdminCatalogSchema = z.object({
@@ -38,9 +57,23 @@ export const wikiAdminStorySchema = z.object({
 
 const wikiAdminStoriesSchema = z.object({
   status: z.literal("success"),
-  agency: wikiAdminAgencySchema.omit({ iconUrl: true, idols: true }),
+  agency: z.object({
+    id: z.coerce.number().int().positive(),
+    code: z.string(),
+    name: z.string(),
+    color: z.string(),
+  }),
   idol: wikiAdminIdolSchema,
-  categories: z.array(z.string()),
+  categories: z.array(
+    z.object({
+      id: z.coerce.number().int().positive(),
+      name: z.string(),
+      storageSlug: z.string(),
+      displayOrder: z.coerce.number().int().nonnegative(),
+      showWhenEmpty: z.boolean(),
+      backgroundEligible: z.boolean(),
+    })
+  ),
   stories: z.array(wikiAdminStorySchema),
 })
 
@@ -50,6 +83,11 @@ const wikiMutationResultSchema = z.object({
 
 const wikiAgencyIconResultSchema = wikiMutationResultSchema.extend({
   url: z.string(),
+})
+
+const wikiLayoutResultSchema = z.object({
+  status: z.literal("success"),
+  layoutRevision: z.coerce.number().int().nonnegative(),
 })
 
 const bilibiliResultSchema = z.object({
@@ -64,6 +102,7 @@ const wikiPublicAgencySchema = z.object({
   code: z.string(),
   name: z.string(),
   color: z.string(),
+  bannerTitle: z.string(),
   iconUrl: z.string().nullable(),
   idolCount: z.coerce.number().int().nonnegative(),
 })
@@ -78,13 +117,23 @@ const wikiPublicIdolSchema = z.object({
   textColor: z.string(),
 })
 
+const wikiPublicGroupSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  code: z.string(),
+  name: z.string(),
+  color: z.string(),
+  iconUrl: z.string().nullable(),
+  idols: z.array(wikiPublicIdolSchema),
+})
+
 const wikiPublicCatalogSchema = z.object({
   status: z.literal("success"),
   agencies: z.array(wikiPublicAgencySchema),
   selection: z
     .object({
       agency: wikiPublicAgencySchema,
-      idols: z.array(wikiPublicIdolSchema),
+      layoutRevision: z.coerce.number().int().nonnegative(),
+      groups: z.array(wikiPublicGroupSchema),
     })
     .nullable(),
 })
@@ -105,7 +154,12 @@ const wikiPublicStoryCardSchema = z.object({
 
 const wikiPublicStoriesSchema = z.object({
   status: z.literal("success"),
-  agency: wikiPublicAgencySchema.omit({ iconUrl: true, idolCount: true }),
+  agency: z.object({
+    id: z.coerce.number().int().positive(),
+    code: z.string(),
+    name: z.string(),
+    color: z.string(),
+  }),
   idol: wikiPublicIdolSchema,
   categories: z.array(
     z.object({
@@ -237,6 +291,21 @@ export function deleteWikiAgencyIcon(agency: string) {
     {
       meta: withCsrf(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function saveWikiLayout(
+  agencyId: number,
+  expectedRevision: number,
+  groups: Array<{ id: number; idolIds: number[] }>
+) {
+  return apiClient.Put<z.infer<typeof wikiLayoutResultSchema>, unknown>(
+    `/api/admin/wiki/agencies/${agencyId}/layout`,
+    { expectedRevision, groups },
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiLayoutResultSchema.parse(payload),
     }
   )
 }

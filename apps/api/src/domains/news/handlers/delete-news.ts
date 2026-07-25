@@ -3,6 +3,7 @@ import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import { newsRepository, services } from '@/middleware/hono-context';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleDeleteNews(c: Context<AppEnvironment>): Promise<Response> {
     const id = Number(c.req.param('id'));
@@ -11,7 +12,7 @@ export async function handleDeleteNews(c: Context<AppEnvironment>): Promise<Resp
     if (media) {
         try {
             await Promise.all([media.image, media.thumbnail].filter(Boolean).map((url) =>
-                deleteObjectWithCompensation(services(c), url.replace(/^\/+/, ''))
+                deleteObjectWithCompensation(services(c), publicMediaObjectKey(url))
             ));
         } catch (error) {
             console.error('Failed to clean media for committed news deletion', error);

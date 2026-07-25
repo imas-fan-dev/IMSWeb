@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -10,12 +10,21 @@ function response(payload: unknown) {
   return Promise.resolve(Response.json(payload))
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
+}
+
 const agencies = [
   {
     id: 1,
     code: "765",
     name: "765PRO",
     color: "#f34f6d",
+    bannerTitle: "765PRO ALLSTARS",
     iconUrl: null,
     idolCount: 1,
   },
@@ -24,6 +33,7 @@ const agencies = [
     code: "sc",
     name: "闪耀色彩",
     color: "#8dbbff",
+    bannerTitle: "283 Production",
     iconUrl: null,
     idolCount: 2,
   },
@@ -31,40 +41,71 @@ const agencies = [
 
 function catalogPayload(agencyName = "闪耀色彩") {
   const agency = agencies.find((item) => item.name === agencyName)!
-  const idols =
+  const groups =
     agencyName === "765PRO"
       ? [
           {
             id: 1,
-            name: "天海春香",
-            folderName: "amami_haruka",
-            color: "#e22b30",
-            imageUrl: "/image/haruka.webp",
-            imageFit: "cover",
-            textColor: "#ffffff",
+            code: "765pro",
+            name: "765PRO",
+            color: "#f34f6d",
+            iconUrl: null,
+            idols: [
+              {
+                id: 1,
+                name: "天海春香",
+                folderName: "amami_haruka",
+                color: "#e22b30",
+                imageUrl: "/image/haruka.webp",
+                imageFit: "cover",
+                textColor: "#ffffff",
+              },
+            ],
           },
         ]
       : [
           {
-            id: 6,
-            name: "樱木真乃",
-            folderName: "sakuragi_mano",
-            color: "#f1b0c9",
-            imageUrl: "/image/mano.webp",
-            imageFit: "cover",
-            textColor: "#ffffff",
+            id: 31,
+            code: "illumination-stars",
+            name: "illumination STARS",
+            color: "#ffd700",
+            iconUrl: null,
+            idols: [
+              {
+                id: 6,
+                name: "樱木真乃",
+                folderName: "sakuragi_mano",
+                color: "#f1b0c9",
+                imageUrl: "/image/mano.webp",
+                imageFit: "cover",
+                textColor: "#ffffff",
+              },
+            ],
           },
           {
-            id: 7,
-            name: "芹泽朝日",
-            folderName: "serizawa_asahi",
+            id: 32,
+            code: "straylight",
+            name: "Straylight",
             color: "#f4bd00",
-            imageUrl: "/image/asahi.webp",
-            imageFit: "cover",
-            textColor: "#111111",
+            iconUrl: null,
+            idols: [
+              {
+                id: 7,
+                name: "芹泽朝日",
+                folderName: "serizawa_asahi",
+                color: "#f4bd00",
+                imageUrl: "/image/asahi.webp",
+                imageFit: "cover",
+                textColor: "#111111",
+              },
+            ],
           },
         ]
-  return { status: "success", agencies, selection: { agency, idols } }
+  return {
+    status: "success",
+    agencies,
+    selection: { agency, layoutRevision: 0, groups },
+  }
 }
 
 function storyPayload() {
@@ -119,6 +160,7 @@ describe("classic Wiki pages", () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it("keeps the template-style navigation and grouped classic story links", async () => {
+    let backgroundRequest = 0
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -127,9 +169,14 @@ describe("classic Wiki pages", () => {
           window.location.origin
         )
         if (url.pathname === "/api/wiki/random_bg") {
+          backgroundRequest += 1
           return response({
-            url: "/image/background.webp",
-            card_name: "【花风Smiley】",
+            url:
+              backgroundRequest === 1
+                ? "/image/background.webp"
+                : "/image/background-two.webp",
+            card_name:
+              backgroundRequest === 1 ? "【花风Smiley】" : "【映す光】",
             idol_name: "樱木真乃",
             agency_name: "闪耀色彩",
           })
@@ -143,7 +190,7 @@ describe("classic Wiki pages", () => {
     )
     const user = userEvent.setup()
 
-    render(
+    const { container } = render(
       <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
         <ClassicWikiPage />
       </MemoryRouter>
@@ -164,6 +211,9 @@ describe("classic Wiki pages", () => {
     )
 
     await user.click(screen.getByRole("button", { name: "搜索角色" }))
+    expect(
+      screen.getByRole("textbox", { name: "搜索角色" }).closest("label")
+    ).toHaveClass("is-open")
     await user.type(
       screen.getByRole("textbox", { name: "搜索角色" }),
       "芹泽朝日"
@@ -172,6 +222,84 @@ describe("classic Wiki pages", () => {
       screen.queryByRole("heading", { name: "illumination STARS" })
     ).toBeNull()
     expect(screen.getByRole("link", { name: /芹泽朝日/ })).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "切换壁纸" }))
+    await waitFor(() => {
+      expect(
+        container.querySelector(".wiki-classic-background.is-current")
+      ).toHaveAttribute("src", "/image/background-two.webp")
+    })
+    expect(
+      container.querySelector(".wiki-classic-background.is-previous")
+    ).toHaveAttribute("src", "/image/background.webp")
+
+    await user.click(screen.getByRole("button", { name: "打开企划导航" }))
+    expect(screen.getByRole("complementary", { name: "企划导航" })).toHaveClass(
+      "is-open"
+    )
+  })
+
+  it("keeps the current series visible while the next catalog loads", async () => {
+    const nextCatalog = deferred<Response>()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        if (url.pathname === "/api/wiki/random_bg") {
+          return response({
+            url: "/image/background.webp",
+            idol_name: "樱木真乃",
+            agency_name: "闪耀色彩",
+          })
+        }
+        if (url.searchParams.get("agency") === "765PRO") {
+          return nextCatalog.promise
+        }
+        return response(catalogPayload("闪耀色彩"))
+      })
+    )
+    const user = userEvent.setup()
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
+        <ClassicWikiPage />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("heading", { name: "illumination STARS" })
+    ).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: /765PRO/ }))
+
+    expect(
+      screen.getByRole("heading", { name: "illumination STARS" })
+    ).toBeVisible()
+    expect(container.querySelector(".wiki-classic-loading")).toBeNull()
+    expect(screen.getByRole("button", { name: /765PRO/ })).toHaveClass(
+      "is-pending"
+    )
+    expect(screen.getByRole("button", { name: /765PRO/ })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+    expect(container.querySelector(".wiki-classic-content")).toHaveAttribute(
+      "aria-busy",
+      "true"
+    )
+
+    nextCatalog.resolve(Response.json(catalogPayload("765PRO")))
+
+    expect(
+      await screen.findByRole("heading", { name: "765PRO ALLSTARS" })
+    ).toBeVisible()
+    expect(container.querySelector(".wiki-classic-content")).toHaveAttribute(
+      "aria-busy",
+      "false"
+    )
   })
 
   it("filters classic categories and opens every dynamic story source", async () => {

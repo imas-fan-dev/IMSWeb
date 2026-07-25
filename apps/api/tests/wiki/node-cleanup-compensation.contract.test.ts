@@ -46,7 +46,7 @@ test('Node Wiki delete journals a failed cleanup and the next compensation scan 
         card_name: '【journal】',
         image_file: 'original/journal.webp'
     });
-    const key = 'Data/sc/sc_idol/original/journal.webp';
+    const key = 'wiki/agencies/sc/idols/sc_idol/story-images/original/journal.webp';
     await delegate.put(key, Uint8Array.of(1, 2, 3), { contentType: 'image/webp' });
 
     const deletion = await postForm(fixture, '/api/wiki/delete_story', formFields({

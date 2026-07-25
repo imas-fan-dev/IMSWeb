@@ -47,22 +47,33 @@ test('Wiki media sync maps source paths to stable business object keys', () => {
             idolName: '樱木真乃',
             folderName: 'sakuragi_mano',
             relativePath: 'card/card_1.webp',
-            objectKey: 'Data/sc/sakuragi_mano/card/card_1.webp'
+            objectKey: 'wiki/agencies/sc/idols/sakuragi_mano/story-images/card/card_1.webp'
         }
     );
     assert.equal(
+        mapAssetUrl(
+            'https://idol-master.top/image/%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9/%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83/icon.webp',
+            idolIndex
+        ).objectKey,
+        'wiki/agencies/sc/idols/sakuragi_mano/avatar.webp'
+    );
+    assert.equal(
         mapAssetUrl('https://idol-master.top/icon/sc/wing.webp', idolIndex).objectKey,
-        'Wiki/static/icon/sc/wing.webp'
+        'wiki/shared/static/icon/sc/wing.webp'
     );
     assert.equal(
         mapAssetUrl('https://idol-master.top/css/story.css?v=38', idolIndex).objectKey,
-        'Wiki/static/css/story.css'
+        'wiki/shared/static/css/story.css'
+    );
+    assert.equal(
+        mapAssetUrl('https://idol-master.top/icon/agencies/sc.webp', idolIndex).objectKey,
+        'wiki/agencies/sc/branding/icon.webp'
     );
     assert.throws(
         () => mapAssetUrl('https://idol-master.top/image/闪耀色彩/不存在/icon.webp', idolIndex),
         /no local agency\/idol mapping/
     );
-    assert.throws(() => safeObjectKey(['Wiki', '..', 'secret']), /Unsafe object-key segment/);
+    assert.throws(() => safeObjectKey(['wiki', '..', 'secret']), /Unsafe object-key segment/);
 });
 
 test('Wiki media sync extracts story, DOM, inline CSS, and storyData assets', async () => {

@@ -222,12 +222,12 @@ export function ClassicStoryPage() {
                   {category.cards.length ? (
                     <div className="wiki-classic-story-grid">
                       {category.cards.map((card) => {
-                        const textOnly = stories.agency.name === "765PRO"
+                        const textOnly = !card.img
                         return (
                           <button
                             key={`${category.name}\u0000${card.name}`}
                             type="button"
-                            className={`wiki-classic-story-card${textOnly ? " is-text-only" : ""}`}
+                            className={`wiki-classic-story-card${textOnly ? "is-text-only" : ""}`}
                             onClick={() => setSelectedCard({ category, card })}
                           >
                             {!textOnly ? (

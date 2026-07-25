@@ -49,7 +49,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "IMS_DATABASE=postgresql",
             "DATABASE_URL=postgresql://imsweb:",
             "IMS_OBJECT_STORAGE=s3",
-            "IMS_S3_BUCKET=imsweb-test",
+            "IMS_S3_BUCKET=imsweb-media-local",
             "自动读取 `apps/api/.env`",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:minio:up",

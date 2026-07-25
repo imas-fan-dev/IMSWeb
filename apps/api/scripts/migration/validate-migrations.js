@@ -51,7 +51,7 @@ async function validate(directory, requiredTables, requiredColumns = {}) {
 (async () => {
     const core = await validate(path.join(projectRoot, 'migrations/core'), [
         'users', 'cards', 'object_index', 'upload_operations', 'chronicle_items',
-        'chronicle_metadata', 'compensation_jobs'
+        'chronicle_metadata', 'compensation_jobs', 'auth_refresh_sessions'
     ]);
     const story = await validate(path.join(projectRoot, 'migrations/story'), [
         'story_legacy_rows', 'story_cards', 'story_links', 'story_import_runs'

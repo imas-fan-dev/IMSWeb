@@ -14,6 +14,7 @@
 | 首页活动资讯 | `migration/legacy-information-media.js` | 审计静态 Information 卡片；可显式写当前 S3 索引 | `pnpm run media:information:sync` |
 | 本地上传媒体 | `migration/local-upload-media.js` | 审计本地上传；可显式写当前 S3 和对象索引 | `pnpm run media:uploads:sync` |
 | Wiki 媒体 | `migration/wiki-media-sync.js` | 读取统一 SQLite；可显式写 S3 | `pnpm run wiki:media:sync` |
+| Wiki 元数据 | `migration/wiki-metadata-audit.ts` | 默认只读审计；`--apply` 只关联已存在的语义媒体 | `pnpm run wiki:metadata:audit` |
 | 账号运维 | `operations/accounts/` | `add-user` 写统一 SQLite | `pnpm run ops:account:add` |
 
 ## SQLite 合并
@@ -72,8 +73,8 @@ pnpm run media:information:sync -- --apply
 ```
 
 迁移器读取 `IMS_INFORMATION_SOURCE_DIR` 指定的私有历史导出目录，把图片写到
-`uploads/information/original/`，并通过条件写
-创建 `uploads/information/index.json`。已有管理员卡片保持不变；已迁移内容再次执行只做回读
+`editorial/information/assets/<asset>/cover.<ext>`，并通过条件写创建
+`editorial/information/index.json`。已有管理员卡片保持不变；已迁移内容再次执行只做回读
 校验。默认报告写到被 Git 忽略的 `data/migration/information-media-migration.json`。
 
 ## 本地上传媒体
@@ -85,8 +86,9 @@ PostgreSQL、`IMS_UPLOADS_DIR` 和 S3 变量的 shell 中执行只读对账：
 pnpm run media:uploads:sync
 ```
 
-确认报告后显式写入；同步器会把 event、news、namecard 和 information 目录映射到
-`uploads/...` 逻辑键，通过当前对象状态机写入，并从目标重新读取校验 SHA-256：
+确认报告后显式写入；同步器会把 event、news 和 information 映射到 `editorial/...`，把
+namecard 映射到 `community/namecards/...`，通过当前对象状态机写入并从目标重新读取校验
+SHA-256：
 
 ```sh
 pnpm run media:uploads:sync -- --apply
@@ -106,6 +108,19 @@ pnpm run wiki:media:sync -- \
   --database "$IMS_SQLITE_PATH" \
   --staging-dir "$PWD/data/migration/wiki-import"
 ```
+
+应用 `0007_wiki_catalog_metadata` 后，企划、分组、成员、分类顺序和媒体逻辑键均从数据库读取。
+先对活动 PostgreSQL 与目标对象存储执行只读审计：
+
+```sh
+pnpm run wiki:metadata:audit
+pnpm run wiki:metadata:audit -- --strict
+```
+
+默认报告写到 `data/migration/wiki-metadata-audit.json`。媒体同步已经产生语义化企划图标或头像，
+但数据库关联仍为空时，显式执行 `--apply` 只回填能够从当前 `ObjectStorage` 回读的逻辑键，随后
+重新生成完整报告。生产切换要求 `--strict` 为零；该工具不会根据对象目录创建企划、偶像、分组
+或分类，也不会恢复旧站 URL。
 
 ## 账号运维
 

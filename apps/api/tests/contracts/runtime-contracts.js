@@ -385,20 +385,53 @@ async function assertCoreAuthContract(fixture) {
     equal(claims.username, fixture.expectedUser.username, `${fixture.runtime} JWT username`);
     equal(claims.dept, fixture.expectedUser.dept, `${fixture.runtime} JWT role`);
     equal(typeof claims.csrfSecret, 'string', `${fixture.runtime} JWT CSRF claim`);
-    equal(claims.exp - claims.iat, 2 * 60 * 60, `${fixture.runtime} JWT lifetime`);
+    equal(claims.exp - claims.iat, 15 * 60, `${fixture.runtime} access JWT lifetime`);
     const loginCookies = fixture.setCookies(login.response);
     const loginTokenCookie = loginCookies.find((value) => value.startsWith('token='));
+    const loginRefreshCookie = loginCookies.find((value) => value.startsWith('refresh_token='));
     const loginCsrfCookie = loginCookies.find((value) => value.startsWith('csrf_token='));
-    if (!loginTokenCookie || !loginCsrfCookie) fail(`${fixture.runtime} login must set both cookies`);
-    for (const cookie of [loginTokenCookie, loginCsrfCookie]) {
-        if (!/Path=\//i.test(cookie)) fail(`${fixture.runtime} login cookie must set Path=/: ${cookie}`);
+    if (!loginTokenCookie || !loginRefreshCookie || !loginCsrfCookie) {
+        fail(`${fixture.runtime} login must set access, refresh, and CSRF cookies`);
+    }
+    for (const cookie of [loginTokenCookie, loginRefreshCookie, loginCsrfCookie]) {
         if (!/SameSite=Lax/i.test(cookie)) fail(`${fixture.runtime} login cookie must set SameSite=Lax: ${cookie}`);
         if (fixture.secureCookies && !/; Secure/i.test(cookie)) {
             fail(`${fixture.runtime} login cookie must set Secure: ${cookie}`);
         }
     }
+    if (!/Path=\//i.test(loginTokenCookie) || !/Path=\//i.test(loginCsrfCookie)) {
+        fail(`${fixture.runtime} access and CSRF cookies must set Path=/`);
+    }
+    if (!/Path=\/api/i.test(loginRefreshCookie)) {
+        fail(`${fixture.runtime} refresh cookie must set Path=/api`);
+    }
     if (!/; HttpOnly/i.test(loginTokenCookie)) fail(`${fixture.runtime} token cookie must be HttpOnly`);
+    if (!/; HttpOnly/i.test(loginRefreshCookie)) fail(`${fixture.runtime} refresh cookie must be HttpOnly`);
     if (/; HttpOnly/i.test(loginCsrfCookie)) fail(`${fixture.runtime} CSRF cookie must remain script-readable`);
+
+    const refresh = await fixture.request('/api/refresh', {
+        method: 'POST',
+        headers: {
+            Cookie: login.cookie,
+            'X-CSRFToken': login.csrf
+        }
+    });
+    equal(refresh.status, 200, `${fixture.runtime} refresh status`);
+    const refreshCookies = fixture.setCookies(refresh);
+    const refreshedTokenCookie = refreshCookies.find((value) => value.startsWith('token='));
+    const refreshedRefreshCookie = refreshCookies.find(
+        (value) => value.startsWith('refresh_token=')
+    );
+    const refreshedCsrfCookie = refreshCookies.find((value) => value.startsWith('csrf_token='));
+    if (!refreshedTokenCookie || !refreshedRefreshCookie || !refreshedCsrfCookie) {
+        fail(`${fixture.runtime} refresh must rotate access and refresh cookies`);
+    }
+    if (refreshedRefreshCookie.split(';', 1)[0] === loginRefreshCookie.split(';', 1)[0]) {
+        fail(`${fixture.runtime} refresh token must rotate`);
+    }
+    const refreshedCookieHeader = refreshCookies
+        .map((value) => value.split(';', 1)[0])
+        .join('; ');
 
     for (const authorization of [login.token, `Bearer ${login.token}`]) {
         const response = await fixture.request('/api/check', {
@@ -415,7 +448,7 @@ async function assertCoreAuthContract(fixture) {
     const wrongCsrf = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
-            Cookie: login.cookie,
+            Cookie: refreshedCookieHeader,
             'X-CSRFToken': 'wrong-contract-token'
         }
     });
@@ -430,7 +463,7 @@ async function assertCoreAuthContract(fixture) {
     const cookieWrite = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
-            Cookie: login.cookie,
+            Cookie: refreshedCookieHeader,
             'X-CSRFToken': login.csrf
         }
     });
@@ -452,21 +485,36 @@ async function assertCoreAuthContract(fixture) {
     );
     await fixture.assertMutationState('after-authorization');
 
-    const logout = await fixture.request('/api/logout', { method: 'POST' });
+    const logout = await fixture.request('/api/logout', {
+        method: 'POST',
+        headers: {
+            Cookie: refreshedCookieHeader,
+            'X-CSRFToken': login.csrf
+        }
+    });
     await assertJsonResponse(logout, 200, { success: true }, `${fixture.runtime} logout`);
     const setCookie = fixture.setCookies(logout);
     const tokenCookie = setCookie.find((value) => value.startsWith('token='));
+    const refreshCookie = setCookie.find((value) => value.startsWith('refresh_token='));
     const csrfCookie = setCookie.find((value) => value.startsWith('csrf_token='));
-    if (!tokenCookie || !csrfCookie) fail(`${fixture.runtime} logout must clear both cookies`);
-    for (const cookie of [tokenCookie, csrfCookie]) {
+    if (!tokenCookie || !refreshCookie || !csrfCookie) {
+        fail(`${fixture.runtime} logout must clear all authentication cookies`);
+    }
+    for (const cookie of [tokenCookie, refreshCookie, csrfCookie]) {
         if (!/Max-Age=0/i.test(cookie)) fail(`${fixture.runtime} logout cookie must set Max-Age=0: ${cookie}`);
-        if (!/Path=\//i.test(cookie)) fail(`${fixture.runtime} logout cookie must preserve Path=/: ${cookie}`);
         if (!/SameSite=Lax/i.test(cookie)) fail(`${fixture.runtime} logout cookie must preserve SameSite=Lax: ${cookie}`);
         if (fixture.secureCookies && !/; Secure/i.test(cookie)) {
             fail(`${fixture.runtime} logout cookie must preserve Secure: ${cookie}`);
         }
     }
+    if (!/Path=\//i.test(tokenCookie) || !/Path=\//i.test(csrfCookie)) {
+        fail(`${fixture.runtime} logout must preserve access and CSRF Path=/`);
+    }
+    if (!/Path=\/api/i.test(refreshCookie)) {
+        fail(`${fixture.runtime} logout must preserve refresh Path=/api`);
+    }
     if (!/; HttpOnly/i.test(tokenCookie)) fail(`${fixture.runtime} token logout cookie must remain HttpOnly`);
+    if (!/; HttpOnly/i.test(refreshCookie)) fail(`${fixture.runtime} refresh logout cookie must remain HttpOnly`);
     if (/; HttpOnly/i.test(csrfCookie)) fail(`${fixture.runtime} CSRF logout cookie must remain script-readable`);
 
     return login;

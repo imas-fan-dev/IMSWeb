@@ -11,7 +11,7 @@ import type {
 import { contentTypeForPath } from '@/utils/http/content-type';
 
 function contentTypeForObject(key: string, filePath: string): string {
-    return key.replace(/^\/+/, '').startsWith('uploads/news/thumb/')
+    return key.replace(/^\/+/, '').includes('/thumbnail.')
         ? 'image/png'
         : contentTypeForPath(filePath);
 }
@@ -56,15 +56,22 @@ export class FilesystemObjectStorage implements ObjectStorage {
 
         let root = this.roots.publicDir;
         let relative = normalized;
-        if (normalized.startsWith('uploads/')) {
+        if (
+            normalized.startsWith('editorial/') ||
+            normalized.startsWith('community/')
+        ) {
             root = this.roots.uploadsDir;
-            relative = normalized.slice('uploads/'.length);
-        } else if (normalized.startsWith('assets/images/eventchronicle/events/')) {
+        } else if (normalized.startsWith('chronicle/')) {
             root = this.roots.chronicleDir;
-            relative = normalized.slice('assets/images/eventchronicle/events/'.length);
-        } else if (normalized.startsWith('Data/')) {
+            relative = normalized.slice('chronicle/'.length);
+        } else if (normalized.startsWith('wiki/')) {
             root = this.roots.storyDataDir;
-            relative = normalized.slice('Data/'.length);
+            relative = normalized.slice('wiki/'.length);
+        } else if (
+            !normalized.startsWith('site-packages/') &&
+            !normalized.startsWith('system/')
+        ) {
+            throw new Error(`Unsupported object key namespace: ${segments[0]}`);
         }
         const candidate = path.resolve(root, relative);
         const rel = path.relative(root, candidate);

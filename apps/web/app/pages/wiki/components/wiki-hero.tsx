@@ -20,16 +20,22 @@ export function WikiHero({
     .join(" · ")
 
   return (
-    <section className="relative isolate min-h-64 overflow-hidden border-b bg-neutral-950 text-white sm:min-h-72">
+    <section
+      className="relative isolate min-h-[28rem] overflow-hidden border-b bg-neutral-950 text-white sm:min-h-[clamp(30rem,62svh,42rem)]"
+      aria-label="剧情档案视觉"
+    >
       {background?.url ? (
         <img
           src={background.url}
           alt={background.card_name || "剧情档案视觉"}
-          className="absolute inset-0 size-full object-cover opacity-55"
+          className="absolute inset-0 size-full object-cover object-[center_25%]"
         />
       ) : null}
-      <div className="absolute inset-0 bg-black/55" aria-hidden="true" />
-      <div className="relative mx-auto flex min-h-64 w-full max-w-7xl flex-col justify-end px-4 py-8 sm:min-h-72 sm:px-6 lg:px-8">
+      <div
+        className="absolute inset-0 bg-black/30 sm:bg-black/25"
+        aria-hidden="true"
+      />
+      <div className="relative mx-auto flex min-h-[28rem] w-full max-w-7xl flex-col justify-end px-4 py-8 drop-shadow-[0_2px_8px_rgb(0_0_0/0.9)] sm:min-h-[clamp(30rem,62svh,42rem)] sm:px-6 sm:py-10 lg:px-8 lg:py-12">
         <p className="text-xs font-semibold text-white/70">STORY ARCHIVE</p>
         <div className="mt-2 flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
           <div>

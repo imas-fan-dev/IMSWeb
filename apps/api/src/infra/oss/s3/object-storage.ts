@@ -4,13 +4,11 @@ import {
     DeleteObjectCommand,
     GetObjectCommand,
     HeadObjectCommand,
-    ListObjectsV2Command,
     PutObjectCommand,
     type S3Client
 } from '@aws-sdk/client-s3';
 import type {
     CompensationService,
-    ListedObject,
     ObjectReadUrlOptions,
     ObjectStorage,
     PutObjectOptions,
@@ -35,10 +33,8 @@ export type S3ReadUrlSigner = (
 
 interface ResolvedObject {
     physicalKey: string;
-    version: S3ObjectVersion | null;
+    version: S3ObjectVersion;
 }
-
-const INTERNAL_OBJECT_PREFIX = '__ims_s3/objects';
 
 function normalizeKey(key: string, preserveTrailingSlash = false): string {
     const normalized = key.replace(/^\/+/, '').replace(/\\/g, '/');
@@ -66,9 +62,16 @@ function withPrefix(prefix: string, key: string): string {
 
 export function s3PhysicalObjectKey(
     options: S3ObjectStorageOptions,
+    logicalKey: string,
     objectId: string
 ): string {
-    return withPrefix(normalizedPrefix(options), `${INTERNAL_OBJECT_PREFIX}/${objectId}`);
+    const segments = normalizeKey(logicalKey).split('/');
+    const filename = segments.pop()!;
+    const directory = segments.join('/') || '_root';
+    return withPrefix(
+        normalizedPrefix(options),
+        `${directory}/objects/${objectId}/${filename}`
+    );
 }
 
 function sha256(body: Uint8Array): string {
@@ -101,36 +104,31 @@ function encodeCopySource(bucket: string, key: string): string {
 }
 
 export class S3ObjectStorage implements ObjectStorage {
-    private readonly prefix: string;
-
     constructor(
         private readonly client: Pick<S3Client, 'send' | 'destroy'>,
         private readonly options: S3ObjectStorageOptions,
         private readonly signReadUrl: S3ReadUrlSigner,
         private readonly state: S3UploadStateMachine,
         private readonly compensation?: CompensationService
-    ) {
-        this.prefix = normalizedPrefix(options);
+    ) {}
+
+    private physicalObjectKey(logicalKey: string, objectId: string): string {
+        return s3PhysicalObjectKey(this.options, logicalKey, objectId);
     }
 
-    private legacyPhysicalKey(key: string, preserveTrailingSlash = false): string {
-        return withPrefix(this.prefix, normalizeKey(key, preserveTrailingSlash));
+    private physicalKeyForVersion(version: S3ObjectVersion): string {
+        if (!version.physicalKey) {
+            throw new Error(`S3 object has no semantic physical key: ${version.objectId}`);
+        }
+        return version.physicalKey;
     }
 
-    private logicalKey(key: string): string | null {
-        if (!this.prefix) return key;
-        const prefix = `${this.prefix}/`;
-        return key.startsWith(prefix) ? key.slice(prefix.length) : null;
-    }
-
-    private physicalObjectKey(objectId: string): string {
-        return s3PhysicalObjectKey(this.options, objectId);
-    }
-
-    async deletePhysicalObject(objectId: string): Promise<void> {
+    async deletePhysicalObject(objectId: string, knownPhysicalKey?: string | null): Promise<void> {
+        const physicalKey = knownPhysicalKey || await this.state.physicalKey(objectId);
+        if (!physicalKey) throw new Error(`S3 object has no semantic physical key: ${objectId}`);
         await this.client.send(new DeleteObjectCommand({
             Bucket: this.options.bucket,
-            Key: this.physicalObjectKey(objectId)
+            Key: physicalKey
         }));
     }
 
@@ -151,13 +149,10 @@ export class S3ObjectStorage implements ObjectStorage {
 
     private async resolve(key: string): Promise<ResolvedObject | null> {
         const logicalKey = normalizeKey(key);
-        if (await this.state.isManaged(logicalKey)) {
-            const readable = await this.state.readable(logicalKey);
-            return readable
-                ? { physicalKey: this.physicalObjectKey(readable.objectId), version: readable }
-                : null;
-        }
-        return { physicalKey: this.legacyPhysicalKey(logicalKey), version: null };
+        const readable = await this.state.readable(logicalKey);
+        return readable
+            ? { physicalKey: this.physicalKeyForVersion(readable), version: readable }
+            : null;
     }
 
     private async getResolved(resolved: ResolvedObject): Promise<StoredObject | null> {
@@ -222,9 +217,11 @@ export class S3ObjectStorage implements ObjectStorage {
         }
 
         const objectId = crypto.randomUUID();
+        const physicalKey = this.physicalObjectKey(logicalKey, objectId);
         const operation = await this.state.beginUpload(
             logicalKey,
             objectId,
+            physicalKey,
             options.deferredPublication ? 'pending' : 'ready'
         );
         if (expectedPreviousObjectId !== undefined &&
@@ -237,7 +234,7 @@ export class S3ObjectStorage implements ObjectStorage {
         try {
             const result = await this.client.send(new PutObjectCommand({
                 Bucket: this.options.bucket,
-                Key: this.physicalObjectKey(objectId),
+                Key: physicalKey,
                 Body: body,
                 ContentType: contentType,
                 Metadata: {
@@ -290,27 +287,25 @@ export class S3ObjectStorage implements ObjectStorage {
         durableCleanup = false
     ): Promise<void> {
         if (await this.state.isObjectReferenced(objectId)) return;
+        const physicalKey = await this.state.physicalKey(objectId);
         try {
-            await this.deletePhysicalObject(objectId);
+            await this.deletePhysicalObject(objectId, physicalKey);
             await this.state.removeVersionIfUnreferenced(objectId);
         } catch (error) {
             if (durableCleanup) return;
             if (!this.compensation) throw error;
-            await this.compensation.enqueue('delete-s3-object', { objectId }, cause ?? error);
+            await this.compensation.enqueue(
+                'delete-s3-object',
+                { objectId, physicalKey },
+                cause ?? error
+            );
         }
     }
 
     async delete(key: string): Promise<void> {
         const logicalKey = normalizeKey(key);
-        if (await this.state.isManaged(logicalKey)) {
-            const objectId = await this.state.claimDelete(logicalKey);
-            if (objectId) await this.cleanupPhysicalObject(objectId, undefined, true);
-            return;
-        }
-        await this.client.send(new DeleteObjectCommand({
-            Bucket: this.options.bucket,
-            Key: this.legacyPhysicalKey(logicalKey)
-        }));
+        const objectId = await this.state.claimDelete(logicalKey);
+        if (objectId) await this.cleanupPhysicalObject(objectId, undefined, true);
     }
 
     async deleteIfObjectId(key: string, expectedObjectId: string): Promise<boolean> {
@@ -354,17 +349,11 @@ export class S3ObjectStorage implements ObjectStorage {
     async copy(sourceKey: string, destinationKey: string): Promise<void> {
         const source = await this.resolve(sourceKey);
         if (!source) throw new Error('S3 source object not found');
-        if (source.version) {
-            await this.copyVersion(
-                { physicalKey: source.physicalKey, version: source.version },
-                destinationKey,
-                source.version.ownerToken
-            );
-            return;
-        }
-        const legacy = await this.getResolved(source);
-        if (!legacy) throw new Error('S3 source object not found');
-        await this.put(destinationKey, legacy.body, { contentType: legacy.contentType });
+        await this.copyVersion(
+            { physicalKey: source.physicalKey, version: source.version },
+            destinationKey,
+            source.version.ownerToken
+        );
     }
 
     private async copyVersion(
@@ -374,12 +363,18 @@ export class S3ObjectStorage implements ObjectStorage {
     ): Promise<void> {
         const logicalKey = normalizeKey(destinationKey);
         const objectId = crypto.randomUUID();
-        const operation = await this.state.beginUpload(logicalKey, objectId, 'ready');
+        const physicalKey = this.physicalObjectKey(logicalKey, objectId);
+        const operation = await this.state.beginUpload(
+            logicalKey,
+            objectId,
+            physicalKey,
+            'ready'
+        );
         let copied = false;
         try {
             const result = await this.client.send(new CopyObjectCommand({
                 Bucket: this.options.bucket,
-                Key: this.physicalObjectKey(objectId),
+                Key: physicalKey,
                 CopySource: encodeCopySource(this.options.bucket, source.physicalKey),
                 MetadataDirective: 'COPY'
             }));
@@ -418,7 +413,7 @@ export class S3ObjectStorage implements ObjectStorage {
             return false;
         }
         const resolved = {
-            physicalKey: this.physicalObjectKey(source.objectId),
+            physicalKey: this.physicalKeyForVersion(source),
             version: source
         };
         if (!await this.physicalExists(resolved.physicalKey)) return false;
@@ -431,43 +426,13 @@ export class S3ObjectStorage implements ObjectStorage {
         return true;
     }
 
-    private async listLegacy(prefix: string): Promise<ListedObject[]> {
-        const physicalPrefix = this.legacyPhysicalKey(prefix, true);
-        const results: ListedObject[] = [];
-        let continuationToken: string | undefined;
-        do {
-            const page = await this.client.send(new ListObjectsV2Command({
-                Bucket: this.options.bucket,
-                Prefix: physicalPrefix,
-                ContinuationToken: continuationToken
-            }));
-            for (const object of page.Contents || []) {
-                if (!object.Key) continue;
-                const key = this.logicalKey(object.Key);
-                if (!key || key.startsWith(`${INTERNAL_OBJECT_PREFIX}/`) ||
-                    await this.state.isManaged(key)) {
-                    continue;
-                }
-                results.push({ key, size: object.Size || 0, etag: object.ETag || '' });
-            }
-            continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
-            if (page.IsTruncated && !continuationToken) {
-                throw new Error('S3 truncated a listing without a continuation token');
-            }
-        } while (continuationToken);
-        return results;
-    }
-
-    async list(prefix: string): Promise<ListedObject[]> {
+    async list(prefix: string) {
         const logicalPrefix = normalizeKey(prefix, true);
-        const managed = (await this.state.listReadable(logicalPrefix)).map((object) => ({
+        return (await this.state.listReadable(logicalPrefix)).map((object) => ({
             key: object.logicalKey,
             size: object.size,
             etag: object.etag
         }));
-        const legacy = await this.listLegacy(logicalPrefix);
-        return [...managed, ...legacy].sort((left, right) =>
-            left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
     }
 
     async deletePrefix(prefix: string): Promise<void> {

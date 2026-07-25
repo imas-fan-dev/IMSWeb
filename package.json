@@ -42,11 +42,14 @@
     "migration:sqlite:merge": "pnpm --filter @imsweb/api run migration:sqlite:merge",
     "migration:postgresql": "pnpm --filter @imsweb/api run migration:postgresql",
     "migration:postgresql:import-sqlite": "pnpm --filter @imsweb/api run migration:postgresql:import-sqlite",
+    "migration:object-keys": "pnpm --filter @imsweb/api run migration:object-keys",
     "media:information:sync": "pnpm --filter @imsweb/api run migration:information-media",
+    "media:namecards:sync": "pnpm --filter @imsweb/api run migration:namecards",
     "media:uploads:sync": "pnpm --filter @imsweb/api run migration:upload-media",
     "migration:release:activate": "sh scripts/migration/activate-node-release.sh",
     "migration:release:rollback": "sh scripts/migration/activate-node-release.sh --rollback",
     "wiki:media:sync": "pnpm --filter @imsweb/api run migration:wiki-media",
+    "wiki:metadata:audit": "pnpm --filter @imsweb/api run wiki:metadata:audit",
     "ops:account:add": "pnpm --filter @imsweb/api run ops:account:add",
     "ops:password:hash": "pnpm --filter @imsweb/api run ops:password:hash",
     "user:add": "pnpm run ops:account:add",
@@ -55,6 +58,5 @@
   },
   "engines": {
     "node": ">=22.13.0"
-  },
-  "packageManager": "pnpm@10.29.3+sha512.498e1fb4cca5aa06c1dcf2611e6fafc50972ffe7189998c409e90de74566444298ffe43e6cd2acdc775ba1aa7cc5e092a8b7054c811ba8c5770f84693d33d2dc"
+  }
 }

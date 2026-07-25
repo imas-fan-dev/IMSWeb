@@ -1,7 +1,6 @@
 import {
     INFORMATION_CATEGORIES,
     INFORMATION_CONTENT_TYPES,
-    INFORMATION_INDEX_KEY,
     defaultInformationIndex,
     informationAssetUrl,
     informationLink,
@@ -15,6 +14,9 @@ import {
 import type { UploadedFile } from '@/ports/http';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { randomHex } from '@/utils/crypto/random';
+import {
+    INFORMATION_INDEX_OBJECT_KEY
+} from '@/utils/storage/business-object-keys';
 
 const INDEX_CONTENT_TYPE = 'application/json; charset=utf-8';
 const MAX_HTML_LENGTH = 500_000;
@@ -47,7 +49,7 @@ export function createInformationId(): string {
 }
 
 export async function readInformationIndex(storage: ObjectStorage): Promise<IndexSnapshot> {
-    const object = await storage.get(INFORMATION_INDEX_KEY);
+    const object = await storage.get(INFORMATION_INDEX_OBJECT_KEY);
     return object
         ? { index: parseInformationIndex(object.body), etag: object.etag }
         : { index: defaultInformationIndex(), etag: null };
@@ -62,11 +64,13 @@ export async function updateInformationIndex(
         const next = update(snapshot.index);
         const body = serializeInformationIndex(next);
         if (!storage.putIfUnchanged) {
-            await storage.put(INFORMATION_INDEX_KEY, body, { contentType: INDEX_CONTENT_TYPE });
+            await storage.put(INFORMATION_INDEX_OBJECT_KEY, body, {
+                contentType: INDEX_CONTENT_TYPE
+            });
             return next;
         }
         const stored = await storage.putIfUnchanged(
-            INFORMATION_INDEX_KEY,
+            INFORMATION_INDEX_OBJECT_KEY,
             snapshot.etag,
             body,
             { contentType: INDEX_CONTENT_TYPE }

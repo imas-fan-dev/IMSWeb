@@ -106,16 +106,41 @@ test("theme toggle persists the selected color scheme", async ({ page }) => {
   await expect(root).toHaveClass(/dark/)
 })
 
+test("wiki hero gives story artwork an expanded frame", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/wiki")
+
+  const hero = page.getByRole("region", { name: "剧情档案视觉" })
+  await expect(hero).toBeVisible()
+  const heroBox = await hero.boundingBox()
+  expect(heroBox).not.toBeNull()
+  expect(heroBox!.height).toBeGreaterThanOrEqual(isMobile ? 448 : 480)
+
+  const artwork = hero.locator("img")
+  if ((await artwork.count()) > 0) {
+    await expect(artwork).toHaveCSS("opacity", "1")
+    await expect(artwork).toHaveCSS("object-fit", "cover")
+    await expect(artwork).toHaveCSS("object-position", "50% 25%")
+  }
+
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth
+  )
+  expect(hasHorizontalOverflow).toBe(false)
+})
+
 test("home exposes current discovery and birthday interactions", async ({
   page,
   isMobile,
 }) => {
   await page.goto("/")
 
-  const brandBackground = page.getByTestId("home-brand-background")
+  const brandBackground = page.getByTestId("series-icon-background")
   await expect(brandBackground).toBeVisible()
-  await expect(brandBackground.locator(".home-brand-motif")).toHaveCount(20)
-  const firstMotif = brandBackground.locator(".home-brand-motif").first()
+  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(20)
+  const firstMotif = brandBackground.locator(".series-icon-motif").first()
   const initialTransform = await firstMotif.evaluate(
     (element) => element.style.transform
   )

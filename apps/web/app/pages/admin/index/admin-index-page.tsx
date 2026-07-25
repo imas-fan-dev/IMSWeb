@@ -3,6 +3,7 @@ import {
   BookOpenTextIcon,
   CalendarDaysIcon,
   HistoryIcon,
+  InfoIcon,
   NewspaperIcon,
   PackageOpenIcon,
 } from "lucide-react"
@@ -21,6 +22,14 @@ import { cn } from "~/lib/utils"
 import { AdminPageHeader } from "~/pages/admin/components/admin-ui"
 
 const workspaces = [
+  {
+    title: "关于本站",
+    description: "站点介绍、宣言与贡献名单",
+    to: "/admin/about",
+    icon: InfoIcon,
+    accent: "bg-primary",
+    scope: ["品牌信息", "站点概要", "贡献名单"],
+  },
   {
     title: "活动内容",
     description: "外链、站内 HTML 与托管图片",

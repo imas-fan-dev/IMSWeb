@@ -12,6 +12,7 @@ import { services } from '@/middleware/hono-context';
 import { safeUploadBaseName } from '@/utils/media/filename';
 import { validateUploadedImage } from '@/utils/media/image-upload';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import { informationAssetObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleUploadInformationAsset(
     c: Context<AppEnvironment>
@@ -21,6 +22,7 @@ export async function handleUploadInformationAsset(
         throw new Error('Upload services unavailable');
     }
     let key = '';
+    let publicKey = '';
     try {
         const parsed = await runtime.uploads.parse(c.req.raw, {
             maxBytes: MAX_INFORMATION_IMAGE_BYTES + 64 * 1024,
@@ -36,8 +38,9 @@ export async function handleUploadInformationAsset(
         await validateUploadedImage(file, runtime.images);
         const webp = await runtime.images.toWebp(file.body, 88);
         const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
-        key = `uploads/information/original/${filename}`;
-        const url = `/${key}`;
+        publicKey = `uploads/information/original/${filename}`;
+        key = informationAssetObjectKey(filename);
+        const url = `/${publicKey}`;
         await runtime.storage.put(key, webp, { contentType: 'image/webp' });
         await updateInformationIndex(runtime.storage, (index) => ({
             ...index,

@@ -85,8 +85,9 @@ pnpm run build:server
 pnpm run start:node
 ```
 
-生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度 `IMS_JWT_SECRET`。数据库导入、
-媒体迁移和部署配置分别见下方专项文档。
+生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度 `IMS_JWT_SECRET`。管理员登录使用
+15 分钟 access JWT 与可轮换、可撤销的 30 天 refresh token；发布前必须应用最新 PostgreSQL
+迁移。数据库导入、媒体迁移和部署配置分别见下方专项文档。
 
 ## 静态资源
 

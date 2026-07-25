@@ -3,7 +3,7 @@ import { ArrowLeftIcon, CalendarDaysIcon, LoaderCircleIcon } from "lucide-react"
 import { Link, useParams } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { buildInformationHtmlDocument } from "~/pages/information/html-document"
+import { InformationDocumentFrame } from "~/pages/information/components/information-document-frame"
 import { getHomeInformationDetail, isApiError } from "~/shared/api"
 
 export function meta() {
@@ -59,8 +59,6 @@ export default function InformationContent() {
     )
   }
 
-  const document = buildInformationHtmlDocument(data.card.title, data.card.html)
-
   return (
     <main id="main-content">
       <header className="border-b bg-muted/20">
@@ -81,11 +79,9 @@ export default function InformationContent() {
         </div>
       </header>
       <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-        <iframe
+        <InformationDocumentFrame
+          contentId={data.card.id}
           title={data.card.title}
-          sandbox=""
-          srcDoc={document}
-          className="min-h-[70svh] w-full rounded-md border bg-background"
         />
       </div>
     </main>

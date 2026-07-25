@@ -9,6 +9,7 @@ import { informationAssetUrl } from '@/domains/information/data';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { services } from '@/middleware/hono-context';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleDeleteInformationAsset(
     c: Context<AppEnvironment>
@@ -28,7 +29,7 @@ export async function handleDeleteInformationAsset(
             return { ...index, assets: index.assets.filter((asset) => asset !== url) };
         });
         try {
-            await deleteObjectWithCompensation(runtime, url.replace(/^\/+/, ''));
+            await deleteObjectWithCompensation(runtime, publicMediaObjectKey(url));
         } catch (error) {
             console.error('Failed to clean committed information asset deletion', error);
         }

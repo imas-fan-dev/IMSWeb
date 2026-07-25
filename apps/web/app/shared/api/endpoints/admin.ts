@@ -60,11 +60,7 @@ const informationAssetSchema = z.object({
   url: z.string(),
 })
 
-const idolMediaSourceSchema = z.enum([
-  "object-storage",
-  "legacy-character",
-  "legacy-agency",
-])
+const idolMediaSourceSchema = z.enum(["object-storage", "none"])
 
 const idolMediaCatalogSchema = z.object({
   status: z.literal("success"),
@@ -82,13 +78,6 @@ const idolMediaCatalogSchema = z.object({
       ),
     })
   ),
-})
-
-const idolMediaImportSchema = z.object({
-  status: z.literal("success"),
-  imported: z.coerce.number().int().nonnegative(),
-  skipped: z.coerce.number().int().nonnegative(),
-  failed: z.array(z.string()),
 })
 
 const pendingChronicleMediaSchema = z.record(
@@ -162,13 +151,16 @@ export function loginAdmin(username: string, password: string) {
   return apiClient.Post<z.infer<typeof loginSchema>, unknown>(
     "/api/login",
     { username, password },
-    { transform: (payload) => loginSchema.parse(payload) }
+    {
+      meta: { authRole: "login" },
+      transform: (payload) => loginSchema.parse(payload),
+    }
   )
 }
 
 export function logoutAdmin() {
   return apiClient.Post<{ success: true }, unknown>("/api/logout", undefined, {
-    meta: withCsrf(),
+    meta: withCsrf({ authRole: "logout" }),
   })
 }
 
@@ -351,16 +343,5 @@ export function deleteAdminEvent(id: string) {
     `/api/events/${encodeURIComponent(id)}`,
     undefined,
     { meta: withCsrf() }
-  )
-}
-
-export function importLegacyIdolMedia() {
-  return apiClient.Post<z.infer<typeof idolMediaImportSchema>, unknown>(
-    "/api/wiki/idol-media/import-legacy",
-    undefined,
-    {
-      meta: withCsrf(),
-      transform: (payload) => idolMediaImportSchema.parse(payload),
-    }
   )
 }
