@@ -30,6 +30,8 @@
     "start:node": "pnpm --filter @imsweb/api run start:node",
     "dev:node": "pnpm --filter @imsweb/api run dev:node",
     "dev:web": "pnpm --filter @imsweb/web run dev",
+    "dev:data:export": "pnpm --filter @imsweb/api run dev:data:export",
+    "dev:data:restore": "pnpm --filter @imsweb/api run dev:data:restore",
     "dev:minio:config": "docker compose -f deploy/compose.yaml config",
     "dev:minio:up": "docker compose -f deploy/compose.yaml up -d minio minio-init",
     "dev:minio:logs": "docker compose -f deploy/compose.yaml logs -f minio",

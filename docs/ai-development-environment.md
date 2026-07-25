@@ -96,6 +96,17 @@ Wiki 媒体先按清单同步，再由元数据审计关联数据库逻辑键；
 已有 S3/MinIO bucket 的旧逻辑 key 使用 `pnpm run migration:object-keys` 盘点，再以
 `--apply --delete-source --confirm-bucket <bucket>` 一次性切换；运行时不提供旧路径双读。
 
+需要打包并私下分享当前开发容器的 PostgreSQL 与 MinIO 数据时，使用 API workspace 提供的
+逻辑快照命令。默认产物和 SHA-256 sidecar 位于 Git 忽略的 `data/exports/`：
+
+```sh
+pnpm run dev:data:export
+pnpm run dev:data:restore -- data/exports/<snapshot>.tar.gz
+```
+
+归档包含用户资料和密码哈希，不得提交到 Git。恢复到非空开发容器必须人工确认后增加
+`--force`；详细格式、覆盖语义和自定义输出路径见 `apps/api/scripts/README.md`。
+
 ## 4. 启动服务
 
 先确认端口没有被无关进程占用；不要未经确认终止已有进程：
