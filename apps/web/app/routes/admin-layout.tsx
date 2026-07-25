@@ -1,5 +1,6 @@
 import { useRequest } from "alova/client"
 import {
+  ArrowLeftIcon,
   BookOpenTextIcon,
   CalendarDaysIcon,
   ChevronRightIcon,
@@ -8,21 +9,25 @@ import {
   HomeIcon,
   InfoIcon,
   LoaderCircleIcon,
+  LogInIcon,
   LogOutIcon,
   MegaphoneIcon,
   NewspaperIcon,
   PackageOpenIcon,
+  RefreshCwIcon,
+  ShieldXIcon,
   UserRoundIcon,
+  type LucideIcon,
 } from "lucide-react"
-import { useEffect } from "react"
-import { Link, NavLink, Outlet, useNavigate } from "react-router"
+import type { ReactNode } from "react"
+import { Link, Navigate, NavLink, Outlet, useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { Badge } from "~/components/ui/badge"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
-import { getAdminSession, logoutAdmin } from "~/shared/api"
+import { getAdminSession, isApiError, logoutAdmin } from "~/shared/api"
 
 const navigation = [
   {
@@ -100,16 +105,107 @@ function navClass({ isActive }: { isActive: boolean }) {
   )
 }
 
+function AdminAccessState({
+  icon: Icon,
+  label,
+  title,
+  description,
+  children,
+}: {
+  icon: LucideIcon
+  label: string
+  title: string
+  description: string
+  children: ReactNode
+}) {
+  return (
+    <main className="min-h-svh bg-background">
+      <div className="grid h-1 grid-cols-6" aria-hidden="true">
+        <span className="bg-franchise-765" />
+        <span className="bg-franchise-cg" />
+        <span className="bg-franchise-ml" />
+        <span className="bg-franchise-sidem" />
+        <span className="bg-franchise-sc" />
+        <span className="bg-franchise-gk" />
+      </div>
+      <section className="mx-auto flex min-h-[calc(100svh-0.25rem)] w-full max-w-xl flex-col justify-center px-6 py-12 sm:px-10">
+        <span className="flex size-11 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <p className="mt-6 text-xs font-semibold text-primary">{label}</p>
+        <h1 className="mt-2 text-2xl font-semibold">{title}</h1>
+        <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+        <div className="mt-7 flex flex-wrap gap-3">{children}</div>
+      </section>
+    </main>
+  )
+}
+
+function AdminAccessDenied() {
+  return (
+    <AdminAccessState
+      icon={ShieldXIcon}
+      label="ACCESS RESTRICTED"
+      title="无法访问管理工作台"
+      description="当前登录账号没有内容运营权限。"
+    >
+      <Button render={<Link to="/admin/login" />} nativeButton={false}>
+        <LogInIcon data-icon="inline-start" />
+        切换管理账号
+      </Button>
+      <Button variant="outline" render={<Link to="/" />} nativeButton={false}>
+        <ArrowLeftIcon data-icon="inline-start" />
+        返回站点
+      </Button>
+    </AdminAccessState>
+  )
+}
+
+function AdminSessionFailure({ onRetry }: { onRetry: () => void }) {
+  return (
+    <AdminAccessState
+      icon={RefreshCwIcon}
+      label="SESSION CHECK FAILED"
+      title="无法验证管理会话"
+      description="会话服务暂时不可用，请重试。"
+    >
+      <Button type="button" onClick={onRetry}>
+        <RefreshCwIcon data-icon="inline-start" />
+        重新验证
+      </Button>
+      <Button variant="outline" render={<Link to="/" />} nativeButton={false}>
+        <ArrowLeftIcon data-icon="inline-start" />
+        返回站点
+      </Button>
+    </AdminAccessState>
+  )
+}
+
+function isExpiredSession(error: unknown): boolean {
+  return (
+    isApiError(error) &&
+    (error.status === 401 || error.code === "CSRF_TOKEN_MISSING")
+  )
+}
+
 export default function AdminLayout() {
   const navigate = useNavigate()
-  const { data, loading, error, onError } = useRequest(getAdminSession())
+  const { data, loading, error, onError, send } = useRequest(getAdminSession())
   onError(() => undefined)
 
-  useEffect(() => {
-    if (error) {
-      void navigate("/admin/login", { replace: true })
-    }
-  }, [error, navigate])
+  if (isExpiredSession(error)) {
+    return <Navigate to="/admin/login" replace />
+  }
+
+  if (isApiError(error) && error.status === 403) {
+    return <AdminAccessDenied />
+  }
+
+  if (error) {
+    return <AdminSessionFailure onRetry={() => void send()} />
+  }
 
   if (loading || !data) {
     return (
@@ -134,6 +230,10 @@ export default function AdminLayout() {
         </span>
       </main>
     )
+  }
+
+  if (data.user.dept !== "op") {
+    return <AdminAccessDenied />
   }
 
   async function logout() {

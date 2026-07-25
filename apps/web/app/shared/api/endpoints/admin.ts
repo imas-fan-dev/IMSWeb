@@ -17,7 +17,7 @@ const loginSchema = z.object({
   success: z.literal(true),
   username: z.string(),
   producername: z.string().nullable().optional(),
-  dept: z.string(),
+  dept: z.literal("op"),
 })
 
 const informationCategorySchema = z.enum(["activity", "fan"])
@@ -149,7 +149,7 @@ export function getAdminSession() {
 
 export function loginAdmin(username: string, password: string) {
   return apiClient.Post<z.infer<typeof loginSchema>, unknown>(
-    "/api/login",
+    "/api/admin/login",
     { username, password },
     {
       meta: { authRole: "login" },

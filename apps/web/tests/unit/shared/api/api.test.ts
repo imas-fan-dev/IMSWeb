@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ApiError, normalizeRequestError } from "~/shared/api/api-error"
 import { apiClient } from "~/shared/api/client"
 import { readCookie } from "~/shared/api/cookies"
-import { getAdminSession } from "~/shared/api/endpoints/admin"
+import { getAdminSession, loginAdmin } from "~/shared/api/endpoints/admin"
 import { applyApiRequestPolicy, CSRF_HEADER_NAME } from "~/shared/api/request"
 import { handleApiResponse } from "~/shared/api/response"
 import { withCsrf } from "~/shared/api/types"
@@ -144,6 +144,31 @@ describe("network errors", () => {
 })
 
 describe("Alova access-token refresh", () => {
+  it("uses the role-gated admin endpoint without refreshing a failed login", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      expect(new URL(String(input), "http://ims.test").pathname).toBe(
+        "/api/admin/login"
+      )
+      return Response.json(
+        {
+          success: false,
+          message: "用户名或密码错误",
+        },
+        { status: 401 }
+      )
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(loginAdmin("reader", "password").send()).rejects.toMatchObject(
+      {
+        kind: "http",
+        status: 401,
+        message: "用户名或密码错误",
+      }
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it("coalesces concurrent 401 responses and replays both requests", async () => {
     document.cookie = "csrf_token=alova-refresh-csrf; path=/"
     let checkRequests = 0

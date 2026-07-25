@@ -46,7 +46,8 @@ pnpm run check:root
 - 复用现有 port、adapter、API client 和 UI 原语，不在页面或业务域重复实现基础设施逻辑。
 - 保持 Pull Request 聚焦，不夹带无关格式化、生成产物或目录重构。
 
-修改前还应阅读根目录和目标 workspace 的 `AGENTS.md`。
+修改前还应阅读根目录和目标 workspace 的 `.rules`；`AGENTS.md` 与 `CLAUDE.md` 是指向该
+文件的兼容软链接。规则文件变更后运行 `pnpm run check:rules` 校验所有作用域。
 
 ## 测试要求
 

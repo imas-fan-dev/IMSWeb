@@ -15,7 +15,10 @@ import {
     services
 } from '@/middleware/hono-context';
 
-export async function handleLogin(c: Context<AppEnvironment>): Promise<Response> {
+async function login(
+    c: Context<AppEnvironment>,
+    requiredDepartment?: string
+): Promise<Response> {
     let body: Record<string, unknown>;
     try {
         body = await c.req.json<Record<string, unknown>>();
@@ -35,6 +38,12 @@ export async function handleLogin(c: Context<AppEnvironment>): Promise<Response>
     const user = await authRepository(c).findUserByUsername(username);
     if (!user || !await runtime.passwords.verify(password, user.password)) {
         return c.json({ success: false, message: '用户名或密码错误' }, 401);
+    }
+    if (requiredDepartment && user.dept !== requiredDepartment) {
+        return c.json({
+            success: false,
+            message: '当前账号没有管理工作台权限'
+        }, 403);
     }
     const csrfSecret = randomHex(32);
     const refreshToken = randomHex(32);
@@ -77,4 +86,12 @@ export async function handleLogin(c: Context<AppEnvironment>): Promise<Response>
         producername: user.producername,
         dept: user.dept
     });
+}
+
+export function handleLogin(c: Context<AppEnvironment>): Promise<Response> {
+    return login(c);
+}
+
+export function handleAdminLogin(c: Context<AppEnvironment>): Promise<Response> {
+    return login(c, 'op');
 }

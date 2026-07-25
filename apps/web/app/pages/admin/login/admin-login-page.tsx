@@ -37,11 +37,7 @@ export default function AdminLogin() {
     setSubmitting(true)
     setError("")
     try {
-      const session = await loginAdmin(username, password).send()
-      if (session.dept !== "op") {
-        setError("当前账号没有管理工作台权限")
-        return
-      }
+      await loginAdmin(username, password).send()
       void navigate("/admin", { replace: true })
     } catch (loginError) {
       setError(isApiError(loginError) ? loginError.message : "登录失败")

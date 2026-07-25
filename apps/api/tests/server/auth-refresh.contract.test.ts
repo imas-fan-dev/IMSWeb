@@ -12,10 +12,12 @@ import { hashAuthSecret } from '@/domains/auth/auth-session';
 import type { RuntimeServices } from '@/ports/runtime-services';
 
 const USERNAME = 'refresh-contract-op';
+const NON_OP_USERNAME = 'refresh-contract-user';
 const PASSWORD = 'refresh-contract-password';
 
 interface AuthFixture {
     app: ReturnType<typeof createHonoApp>;
+    connection: SqliteConnection;
     repository: SqlCoreRepository;
     close(): Promise<void>;
 }
@@ -52,6 +54,11 @@ async function createFixture(): Promise<AuthFixture> {
          VALUES (?, 'refresh-contract-digest', 'op', 'Refresh Contract Producer')`,
         [USERNAME]
     );
+    await connection.run(
+        `INSERT INTO users (username, password, dept, producername)
+         VALUES (?, 'refresh-contract-digest', 'user', 'Refresh Contract User')`,
+        [NON_OP_USERNAME]
+    );
     const runtime: RuntimeServices = {
         auth: repository,
         audit: repository,
@@ -65,6 +72,7 @@ async function createFixture(): Promise<AuthFixture> {
     };
     return {
         app: createHonoApp(() => runtime),
+        connection,
         repository,
         async close() {
             await repository.close();
@@ -73,22 +81,73 @@ async function createFixture(): Promise<AuthFixture> {
     };
 }
 
-async function login(fixture: AuthFixture): Promise<{
+async function login(
+    fixture: AuthFixture,
+    options: { path?: string; username?: string } = {}
+): Promise<{
     response: Response;
     cookies: Map<string, string>;
-    body: { token: string };
+    body: { success: boolean; token?: string; message?: string };
 }> {
-    const response = await fixture.app.request('http://ims.test/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: USERNAME, password: PASSWORD })
-    });
+    const response = await fixture.app.request(
+        `http://ims.test${options.path || '/api/login'}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: options.username || USERNAME,
+                password: PASSWORD
+            })
+        }
+    );
     return {
         response,
         cookies: cookieValues(response),
-        body: await response.json() as { token: string }
+        body: await response.json() as {
+            success: boolean;
+            token?: string;
+            message?: string;
+        }
     };
 }
+
+test('admin login rejects non-op users before creating a refresh session', async (t) => {
+    const fixture = await createFixture();
+    t.after(() => fixture.close());
+
+    const denied = await login(fixture, {
+        path: '/api/admin/login',
+        username: NON_OP_USERNAME
+    });
+    assert.equal(denied.response.status, 403);
+    assert.deepEqual(denied.body, {
+        success: false,
+        message: '当前账号没有管理工作台权限'
+    });
+    assert.deepEqual(setCookies(denied.response), []);
+    assert.deepEqual(
+        await fixture.connection.get<{ total: number }>(
+            'SELECT COUNT(*) AS total FROM auth_refresh_sessions'
+        ),
+        { total: 0 }
+    );
+
+    const regularLogin = await login(fixture, { username: NON_OP_USERNAME });
+    assert.equal(regularLogin.response.status, 200);
+});
+
+test('admin login issues a refresh session for op users', async (t) => {
+    const fixture = await createFixture();
+    t.after(() => fixture.close());
+
+    const session = await login(fixture, { path: '/api/admin/login' });
+    assert.equal(session.response.status, 200);
+    assert.deepEqual([...session.cookies.keys()].sort(), [
+        'csrf_token',
+        'refresh_token',
+        'token'
+    ]);
+});
 
 test('access JWT login creates a rotating refresh session with CSRF binding', async (t) => {
     const fixture = await createFixture();
@@ -101,7 +160,9 @@ test('access JWT login creates a rotating refresh session with CSRF binding', as
         'refresh_token',
         'token'
     ]);
-    const claims = jwtPayload(session.body.token);
+    const token = session.body.token;
+    assert.ok(token);
+    const claims = jwtPayload(token);
     assert.equal(Number(claims.exp) - Number(claims.iat), 15 * 60);
 
     const refreshToken = session.cookies.get('refresh_token')!;

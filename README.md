@@ -87,7 +87,8 @@ IMS_API_ORIGIN=http://127.0.0.1:3000 pnpm run dev:web
 - `data/` 只保存本地运行状态和迁移输入，除 `.gitignore` 外不会进入版本控制。
 
 更具体的约束见 [API workspace](apps/api/README.md)、[Web workspace](apps/web/README.md)及各目录
-的 `AGENTS.md`。
+的 `.rules`。`AGENTS.md` 与 `CLAUDE.md` 均为指向同目录 `.rules` 的兼容入口；运行
+`pnpm run check:rules` 可快速校验链接完整性。
 
 ## 参与贡献
 

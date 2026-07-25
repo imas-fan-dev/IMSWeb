@@ -1,8 +1,8 @@
 # AI 开发环境指南
 
 本指南供 AI 编码代理在 IMSWeb 仓库中初始化、启动和验证本地开发环境。开始前仍须读取根
-`AGENTS.md` 以及目标 workspace 内的同名文件；本指南不授权生产部署、数据迁移或清理
-用户已有修改。
+目录及目标 workspace 的 `.rules`；同目录的 `AGENTS.md` 与 `CLAUDE.md` 均为兼容软链接。
+本指南不授权生产部署、数据迁移或清理用户已有修改。
 
 ## 1. 确认工作区
 
@@ -145,6 +145,7 @@ curl --fail --silent --show-error \
 
 ```sh
 # 仓库边界或文档
+pnpm run check:rules
 pnpm run check:root
 pnpm run test:infra
 
