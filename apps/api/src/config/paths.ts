@@ -5,8 +5,8 @@ import path from 'node:path';
 // runtime data have separate roots.
 export const PROJECT_ROOT = process.env.IMS_PROJECT_ROOT
     ? path.resolve(process.env.IMS_PROJECT_ROOT)
-    : path.resolve(__dirname, '../../../../..');
-const DATA_DIR = path.join(PROJECT_ROOT, 'data');
+    : path.resolve(__dirname, '../../../..');
+const LEGACY_DATA_DIR = path.join(PROJECT_ROOT, 'apps/legacy/data');
 
 function configuredPath(environmentName: string, fallback: string): string {
     const value = process.env[environmentName];
@@ -19,19 +19,19 @@ export const PUBLIC_DIR = configuredPath(
 );
 export const SQLITE_DATABASE_PATH = configuredPath(
     'IMS_SQLITE_PATH',
-    path.join(DATA_DIR, 'imsweb.db')
+    path.join(LEGACY_DATA_DIR, 'imsweb.db')
 );
 export const COMPENSATION_DIR = configuredPath(
     'IMS_COMPENSATION_DIR',
-    path.join(DATA_DIR, 'core', 'compensation')
+    path.join(LEGACY_DATA_DIR, 'core', 'compensation')
 );
 export const STORY_DATA_DIR = configuredPath(
     'IMS_STORY_DATA_DIR',
-    path.join(DATA_DIR, 'story', 'images')
+    path.join(LEGACY_DATA_DIR, 'story', 'images')
 );
 export const UPLOADS_DIR = configuredPath(
     'IMS_UPLOADS_DIR',
-    path.join(DATA_DIR, 'uploads')
+    path.join(LEGACY_DATA_DIR, 'uploads')
 );
 export const NEWS_ORIGINAL_DIR = path.join(UPLOADS_DIR, 'news/original');
 export const NEWS_THUMB_DIR = path.join(UPLOADS_DIR, 'news/thumb');
@@ -40,7 +40,7 @@ export const EVENT_ORIGINAL_DIR = path.join(UPLOADS_DIR, 'event/original');
 
 export const EVENT_BASE = configuredPath(
     'IMS_EVENT_BASE_DIR',
-    path.join(DATA_DIR, 'chronicle')
+    path.join(LEGACY_DATA_DIR, 'chronicle')
 );
 export const CHRONICLE_UPLOAD_DIR = path.join(EVENT_BASE, 'upload');
 export const CHRONICLE_USED_DIR = path.join(EVENT_BASE, 'used');

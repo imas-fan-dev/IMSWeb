@@ -91,6 +91,40 @@ const idolMediaImportSchema = z.object({
   failed: z.array(z.string()),
 })
 
+const pendingChronicleMediaSchema = z.record(
+  z.string(),
+  z.array(
+    z.object({
+      filename: z.string().min(1),
+      url: z.string().min(1),
+      uploader: z.string().optional(),
+      time: z.string().optional(),
+    })
+  )
+)
+
+const usedChronicleMediaSchema = z.record(
+  z.string(),
+  z.array(
+    z.object({
+      filename: z.string().min(1),
+      url: z.string().min(1),
+    })
+  )
+)
+
+const adminNamecardSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  image1_url: z.string().min(1),
+  image2_url: z.string().min(1),
+  status: z.string(),
+})
+
+const adminNamecardListSchema = z.object({
+  success: z.literal(true),
+  data: z.array(adminNamecardSchema),
+})
+
 export type AdminSession = z.infer<typeof adminSessionSchema>["user"]
 export type AdminInformationCard = z.infer<typeof adminInformationCardSchema>
 export type AdminInformationIndex = z.infer<typeof adminInformationIndexSchema>
@@ -102,6 +136,9 @@ export type InformationContentType = z.infer<
 export type IdolMediaCatalog = z.infer<typeof idolMediaCatalogSchema>
 export type IdolMediaAgency = IdolMediaCatalog["agencies"][number]
 export type IdolMediaItem = IdolMediaAgency["idols"][number]
+export type PendingChronicleMedia = z.infer<typeof pendingChronicleMediaSchema>
+export type UsedChronicleMedia = z.infer<typeof usedChronicleMediaSchema>
+export type AdminNamecard = z.infer<typeof adminNamecardSchema>
 
 export type InformationSubmission = {
   title: string
@@ -233,6 +270,86 @@ export function deleteIdolMedia(agency: string, idol: string) {
   return apiClient.Delete<{ status: "success" }, unknown>(
     "/api/wiki/idol-media",
     { agency, idol },
+    { meta: withCsrf() }
+  )
+}
+
+export function getPendingChronicleMedia() {
+  return apiClient.Get<PendingChronicleMedia, unknown>(
+    "/eventchronicle/admin/pending",
+    { transform: (payload) => pendingChronicleMediaSchema.parse(payload) }
+  )
+}
+
+export function getUsedChronicleMedia() {
+  return apiClient.Get<UsedChronicleMedia, unknown>(
+    "/eventchronicle/admin/used",
+    { transform: (payload) => usedChronicleMediaSchema.parse(payload) }
+  )
+}
+
+export function approveChronicleMedia(activityId: string, filename: string) {
+  return apiClient.Post<{ success: true }, unknown>(
+    `/eventchronicle/admin/approve/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+    undefined,
+    { meta: withCsrf() }
+  )
+}
+
+export function rejectChronicleMedia(activityId: string, filename: string) {
+  return apiClient.Post<{ success: true }, unknown>(
+    `/eventchronicle/admin/reject/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+    undefined,
+    { meta: withCsrf() }
+  )
+}
+
+export function deleteUsedChronicleMedia(activityId: string, filename: string) {
+  return apiClient.Delete<{ success: true }, unknown>(
+    `/eventchronicle/admin/delete-used/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+    undefined,
+    { meta: withCsrf() }
+  )
+}
+
+export function getAdminNamecards(page = 1) {
+  return apiClient.Get<z.infer<typeof adminNamecardListSchema>, unknown>(
+    "/api/admin/cards",
+    {
+      params: { page },
+      transform: (payload) => adminNamecardListSchema.parse(payload),
+    }
+  )
+}
+
+export function approveAdminNamecard(id: number) {
+  return apiClient.Post<{ success: true }, unknown>(
+    `/api/admin/cards/approve/${id}`,
+    undefined,
+    { meta: withCsrf() }
+  )
+}
+
+export function deleteAdminNamecard(id: number) {
+  return apiClient.Delete<{ success: true }, unknown>(
+    `/api/admin/cards/${id}`,
+    undefined,
+    { meta: withCsrf() }
+  )
+}
+
+export function createAdminEvent(form: FormData) {
+  return apiClient.Post<{ success: true; id: number }, unknown>(
+    "/api/events",
+    form,
+    { meta: withCsrf() }
+  )
+}
+
+export function deleteAdminEvent(id: string) {
+  return apiClient.Delete<{ success: true }, unknown>(
+    `/api/events/${encodeURIComponent(id)}`,
+    undefined,
     { meta: withCsrf() }
   )
 }

@@ -108,9 +108,12 @@ tests/e2e/            浏览器流程与可访问性冒烟测试
 
 React Router 当前拥有以下页面：
 
-- 预渲染公开页面：`/`、`/about`、`/events`、`/live`、`/community`、`/works`、`/wiki`、`/wiki/classic`、`/story`、`/story/classic`
-- 动态前端页面：`/chronicle/:activityId`
-- 后台页面：`/admin`、`/admin/login`、`/admin/chronicle` 与 `/admin/*` 内部 404
+- 预渲染公开页面：`/`、`/about`、`/events`、`/recommendations`、`/live`、
+  `/community`、`/community/cards`、`/works`、`/works/:workSlug`
+  的已登记专题、`/wiki`、`/wiki/classic`、`/story`、`/story/classic`、`/chronicle`
+- 动态前端页面：`/information/:contentId`、`/chronicle/:activityId`
+- 后台页面：`/admin`、`/admin/login`、`/admin/events`、`/admin/cards`、
+  `/admin/chronicle` 与其他 `/admin/*` 业务页
 
 这些页面由当前 Web 构建拥有。Hono 在可发布客户端存在时从
 `apps/api/dist/node-client` 提供根页面和静态资源。
@@ -127,11 +130,11 @@ React Router 当前拥有以下页面：
 
 ## 预渲染与 selective SPA fallback
 
-`react-router.config.ts` 预渲染公开页面，包括现代 `/wiki`、`/story` 与兼容旧模板交互的
-`/wiki/classic`、`/story/classic`。查询参数由浏览器端读取，
+`react-router.config.ts` 预渲染公开入口、已登记的作品专题、现代 `/wiki`、`/story`
+与兼容旧模板交互的 `/wiki/classic`、`/story/classic`。查询参数由浏览器端读取，
 构建产物中的 `__spa-fallback.html` 仅用于无法预先枚举的前端路由：
 
-- 单段动态路由 `/chronicle/:activityId`
+- 单段动态内容路由 `/information/:contentId`、`/chronicle/:activityId`
 - `/admin` 与 `/admin/*`
 
 Hono 应按这个 allowlist 做 selective SPA fallback。未知路径应返回 404；API 与媒体路径必须

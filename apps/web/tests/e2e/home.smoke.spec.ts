@@ -4,11 +4,15 @@ const publicRoutes = [
   { path: "/", title: /IMSWeb/i },
   { path: "/about", title: /关于我们.*IMSWeb/i },
   { path: "/events", title: /活动.*IMSWeb/i },
+  { path: "/recommendations", title: /向您推荐.*IMSWeb/i },
   { path: "/live", title: /Live.*IMSWeb/i },
   { path: "/community", title: /制作人社区.*IMSWeb/i },
+  { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
   { path: "/works", title: /同人作品.*IMSWeb/i },
   { path: "/wiki", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i },
+  { path: "/works/sc", title: /SHINY COLORS.*IMSWeb/i },
+  { path: "/chronicle", title: /活动编年史.*IMSWeb/i },
 ]
 
 for (const route of publicRoutes) {

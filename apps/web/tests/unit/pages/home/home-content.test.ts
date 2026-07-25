@@ -8,8 +8,15 @@ import {
 } from "~/pages/home/home-content"
 
 describe("home content", () => {
-  it("keeps the series wall free of navigation configuration", () => {
-    expect(seriesItems.every((item) => !("href" in item))).toBe(true)
+  it("links every series band to its restored wall image", () => {
+    expect(seriesItems.map((item) => item.image)).toEqual([
+      "/brand/series/wall/765pro.png",
+      "/brand/series/wall/cinderella-girls.png",
+      "/brand/series/wall/million-live.png",
+      "/brand/series/wall/sidem.png",
+      "/brand/series/wall/shiny-colors.png",
+      "/brand/series/wall/gakuen.png",
+    ])
   })
 
   it("uses the six restored series-wall images", () => {
@@ -32,6 +39,7 @@ describe("home content", () => {
       "/works",
       "/live",
       "/about",
+      "/chronicle",
     ])
   })
 
