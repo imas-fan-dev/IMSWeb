@@ -53,7 +53,10 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
             const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
             const publicKey = `uploads/namecard/original/${filename}`;
             const key = namecardImageObjectKey(filename);
-            await runtime.storage.put(key, webp, { contentType: 'image/webp' });
+            await runtime.storage.put(key, webp, {
+                contentType: 'image/webp',
+                protectedAccess: true
+            });
             generated.push(key);
             outputs.push({ key, url: `/${publicKey}`, hash: md5Hex(webp) });
         }

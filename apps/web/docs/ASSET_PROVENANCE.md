@@ -14,6 +14,8 @@
 `public/brand/imsweb-logo.png` 从现代 Web 初始提交 `aadff77` 原样恢复；该文件与 Legacy
 `public/assets/images/logo.png` 完全一致，尺寸为 545 x 188，SHA-256 为
 `aa2ed68b5c1df4e8800a576dd09251c314b0da8f37b43e96247b64e993aeb483`。
+浏览器默认使用的 `public/brand/imsweb-logo.webp` 由该 PNG 通过 Sharp 无损转换生成；PNG
+继续作为可追溯源文件保留。
 
 ## 首页背景系列标志
 
@@ -47,6 +49,9 @@
 
 六张文件均为 585 x 500 PNG，未裁切、重绘或转换格式。人物图像的著作权和相关标志权利
 归各自权利人，许可边界与上节相同。
+
+同目录的六张 `.webp` 由对应 PNG 通过 Sharp 以 quality 85、alpha quality 100 和 smart
+subsample 参数生成，作为浏览器默认交付版本；原始 PNG 继续用于来源核验和后续再编码。
 
 `public/favicon.ico` 随 Web 工程初始化进入仓库。若未来替换为定制图标，应在同一变更中记录
 作者、原始来源、适用许可证或书面授权、允许的使用范围、修改情况和 SHA-256。

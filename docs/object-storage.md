@@ -9,10 +9,14 @@ filesystem 或 S3 实例。S3 的对象字节保存在 bucket，上传状态、�
 当前 `IMS_DATABASE` 指向的统一数据库；两部分都通过抽象实例注入，domain 不感知 S3、SQLite 或
 PostgreSQL。
 
-S3 模式采用控制面与数据面分离：业务 URL 仍保持 `/uploads/*`、`/image/*` 等稳定路径，
-Hono 完成数据库映射、对象存在性检查和私有资源鉴权后返回 `307` 短期签名 URL，浏览器随后
-直接从 MinIO/S3 获取对象字节。上传、MIME/尺寸校验、格式转换、数据库提交和失败补偿始终由
-Hono 执行。动态 `/api/thumbnail` 需要后端转换图片，是唯一保留后端读取对象正文的图片接口。
+S3 模式采用控制面与数据面分离：业务 URL 仍保持 `/uploads/*`、`/image/*` 等稳定路径。
+Hono 完成数据库映射、对象存在性检查和受保护资源鉴权后，公开对象返回单一 bucket 的 CDN
+地址，受保护对象返回短期签名 URL；浏览器随后直接从 MinIO、R2 或其他 S3-compatible 服务获取
+对象字节。上传、MIME/尺寸校验、格式转换、数据库提交和失败补偿始终由 Hono 执行。动态
+`/api/thumbnail` 需要后端转换图片，是唯一保留后端读取对象正文的图片接口。
+
+R2 只通过 S3-compatible API 和绑定到单一 bucket 的自定义域名接入。本项目不部署
+Cloudflare Worker，不读取 Worker binding，也不使用 D1。
 
 ## 存储边界
 
@@ -25,13 +29,15 @@ S3 adapter 对业务保存与现有 `ObjectStorage` 端口相同的逻辑 key：
 - `site-packages/`：管理员站点包不可变版本；
 - `system/migrations/`：迁移审计对象。
 
-新写入不会直接使用逻辑 key 作为 bucket key，而是保存为
+公开写入不会直接使用逻辑 key 作为 bucket key，而是保存为
 `<IMS_S3_PREFIX>/<逻辑目录>/objects/<object-id>/<文件名>` 不可变对象。例如逻辑 key
 `wiki/agencies/sc/idols/sakuragi_mano/avatar.webp` 对应物理 key
 `v1/wiki/agencies/sc/idols/sakuragi_mano/objects/<object-id>/avatar.webp`。统一数据库中的
 `s3_object_index` 负责逻辑 key 映射，`s3_upload_operations` 负责
-`uploading -> pending/ready -> deleted` 状态迁移。延迟发布对象在业务事务提交并调用
-`publish()` 前不可读；覆盖已有对象时继续提供旧 ready 版本，失败补偿会恢复旧映射。运行时只认
+`uploading -> pending/ready -> deleted` 状态迁移。待审核对象固定写入
+`<IMS_S3_PREFIX>/__protected/`；ready 对象不区分业务目录，统一写入公开语义路径。发布时在同一
+bucket 内复制为新的公开 ready 版本并清理受保护版本。覆盖已有对象时继续提供旧 ready 版本，
+失败补偿会恢复旧映射。运行时只认
 数据库记录的 canonical logical key 与 `physical_key`，不读取 direct key，也不兼容
 `__ims_s3`。
 
@@ -50,15 +56,28 @@ S3 adapter 对业务保存与现有 `ObjectStorage` 端口相同的逻辑 key：
 | --- | --- |
 | `IMS_OBJECT_STORAGE` | `filesystem` 或 `s3`，默认 `s3`；filesystem 仅用于兼容流程 |
 | `IMS_S3_BUCKET` | S3 模式必填；普通 bucket 名称 |
+| `IMS_S3_PUBLIC_READ_URL_BASE` | 可选；单一 bucket 的 MinIO path-style 公开基址或 R2 自定义域名 |
 | `IMS_S3_REGION` | S3 模式必填；未设置时读取 `AWS_REGION` |
 | `IMS_S3_PREFIX` | 可选；同一 bucket 内的隔离前缀，不含开头/结尾 `/` |
 | `IMS_S3_ENDPOINT` | S3-compatible 服务可选；无凭据的 HTTP(S) URL |
 | `IMS_S3_FORCE_PATH_STYLE` | 默认 `false`；MinIO 等服务通常使用 `true` |
 | `IMS_S3_READ_URL_TTL_SECONDS` | 签名读取 URL 有效期，默认 `300`，允许 `30..3600` 秒 |
 
-`IMS_S3_ENDPOINT` 会进入签名 URL，因此必须是浏览器可访问且由后端也能连接的地址。生产
+`IMS_S3_PREFIX` 可以完全留空，也可以是 `tenant/site-a` 这样的多段值。最终物理路径固定为
+`bucket/<IMS_S3_PREFIX>/<业务语义目录>/objects/<object-id>/<文件名>`；受保护对象在 prefix 后
+额外增加 `__protected/`。留空时 bucket 后直接接业务语义目录。
+`IMS_S3_PUBLIC_READ_URL_BASE` 标识同一个 bucket 的公开入口：MinIO path-style URL 应
+包含 bucket，例如 `https://objects.example.com/imsweb-media-prod`；R2 自定义域名已绑定
+bucket，因此只填写 `https://media.example.com`。两者都会继续拼接相同的 prefix 与物理路径。
+
+`IMS_S3_ENDPOINT` 会进入私有签名 URL，因此必须是浏览器可访问且由后端也能连接的地址。生产
 MinIO 应使用独立 HTTPS 域名或对象入口，不要把容器内 DNS 名或回环地址签发给远端浏览器。
-bucket 继续保持私有；待审核名片和编年史图片只在 Hono 鉴权通过后获得短期 URL。
+R2 S3 endpoint 始终需要签名；待审核名片和编年史图片只在 Hono 鉴权通过后获得短期 URL。
+R2 自定义域名及本地 MinIO 匿名策略必须阻断所有包含 `/__protected/` 的路径，避免绕过 Hono。
+
+公开访问由对象生命周期决定，而不是业务目录白名单或调用方选择。普通 ready 写入默认公开；
+延迟发布写入和业务 pending 名片显式使用受保护访问，审核通过后才由 `publish()` 移到公开路径。
+因此站点包、配置和迁移清单只要处于 ready 状态，也与其他 ready 对象使用相同 CDN 访问方式。
 
 AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优先绑定 IAM Role；本地
 或第三方 S3-compatible 服务可临时注入 `AWS_ACCESS_KEY_ID`、
@@ -67,7 +86,7 @@ AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优
 
 SQLite 在首次启用 S3 时幂等创建 `s3_*` 控制面表。PostgreSQL 不允许应用隐式 DDL，启用 S3
 前必须执行 `pnpm run migration:postgresql` 并确认
-`0006_s3_semantic_physical_keys` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
+`0009_s3_public_storage_scope` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
 
 AWS S3 + IAM Role 示例：
 
@@ -95,6 +114,28 @@ export AWS_SECRET_ACCESS_KEY='<secret-key>'
 pnpm run start:node
 ```
 
+Cloudflare R2 示例：
+
+```sh
+export IMS_OBJECT_STORAGE=s3
+export IMS_S3_BUCKET=imsweb-media-prod
+export IMS_S3_PUBLIC_READ_URL_BASE=https://imas-assets.texasoct.tech
+export IMS_S3_REGION=auto
+export IMS_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+export IMS_S3_FORCE_PATH_STYLE=false
+export IMS_S3_PREFIX=
+export AWS_ACCESS_KEY_ID='<r2-access-key-id>'
+export AWS_SECRET_ACCESS_KEY='<r2-secret-access-key>'
+pnpm run start:node
+```
+
+自定义域名必须直接绑定 `IMS_S3_BUCKET`，并用 Cloudflare WAF 阻断
+`http.request.uri.path contains "/__protected/"`。对该域名配置缓存规则时，可以长期缓存包含
+`/objects/<object-id>/` 的不可变物理 URL；Hono 的稳定业务 URL 只缓存重定向，不作为对象正文
+缓存键。R2 不提供通用 S3 bucket versioning/access logging API，运维基线应使用应用自己的不可变
+版本、PostgreSQL 状态索引、R2 审计能力和独立备份，不把 MinIO/AWS 的 bucket 设置命令照搬到
+R2。R2 S3 凭据只授予该业务 bucket 的对象操作权限。
+
 ## 本地 MinIO 联调
 
 MinIO 是 Compose 中的本地 S3 兼容服务；该 Compose 不包含应用或反向代理：
@@ -104,13 +145,14 @@ pnpm run dev:minio:up
 docker compose -f deploy/compose.yaml ps minio minio-init
 ```
 
-Compose 会在回环地址启动 MinIO，并由一次性 `minio-init` 服务创建私有且启用版本控制的
-`imsweb-media-local` 业务 bucket。
+Compose 会在回环地址启动 MinIO，并由一次性 `minio-init` 服务创建一个启用版本控制的
+`imsweb-media-local` bucket。匿名策略允许读取公开对象，但显式拒绝 `__protected/` 路径。
 Hono Node 使用以下配置连接：
 
 ```sh
 export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-media-local
+export IMS_S3_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
 export IMS_S3_REGION=us-east-1
 export IMS_S3_ENDPOINT=http://127.0.0.1:9000
 export IMS_S3_FORCE_PATH_STYLE=true
@@ -222,8 +264,9 @@ SHA-256，把最新完整清单写入
 
 应用需要 bucket 的 `ListBucket` 权限，以及目标 `IMS_S3_PREFIX` 下对象的
 `GetObject`、`PutObject`、`DeleteObject` 权限。copy/move 由读取、版本化写入和受保护删除组合完成。
-正式 bucket 固定使用 `imsweb-media-prod`，应用前缀固定使用 `v1`。创建时启用版本控制、
-服务端加密、访问日志和生命周期策略；策略不能提前清理仍被 PostgreSQL 活动索引引用的对象。
+正式 bucket 名称与前缀由部署环境显式确定。MinIO/AWS 可启用其 provider 支持的版本控制、
+服务端加密、访问日志和生命周期策略；R2 使用应用不可变版本、审计与备份策略。任何生命周期
+策略都不能提前清理仍被 PostgreSQL 活动索引引用的对象。
 
 ## 管理员站点包
 
@@ -244,15 +287,16 @@ site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 源 ZIP 的 SHA-256 同时进入版本元数据和对象写入校验。预览 URL 中的随机 bearer token 只在
 创建版本或管理员主动旋转时返回一次，数据库只保存 SHA-256；旧 token 在旋转后立即失效。
 
-公开内容 URL 只接受 `site_packages.published_revision_id` 当前指向的版本，并使用
-`public, max-age=0, must-revalidate`，避免发布切换后缓存继续提供旧页面。历史版本的直接 URL
-返回 404，但仍可通过该版本的预览 bearer 查看；预览使用 `private, no-store`。浏览器公开入口
-固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳，因此活动页地址栏与主站保持同一
-origin。页面包本体仍从与主站不同可注册站点的 `IMS_SITE_PACKAGE_ORIGIN` 加载到受限 iframe，
-例如主站使用 `www.example.com` 时内容域使用 `ims-content.example.net`，而不是普通的
-`content.example.com` 子域。这样既保留稳定的主站路由，又降低父域 Cookie tossing 和
-same-site 隔离失效风险。生产启动会按 Public Suffix List 验证这个边界。CSP 禁止网络连接、
-表单、frame、object、同源沙箱和顶层导航，且只允许主站作为 `frame-ancestors`。
+公开内容 URL 只接受 `site_packages.published_revision_id` 当前指向的版本。入口 HTML 使用
+`public, max-age=0, must-revalidate`，避免发布切换后缓存继续提供旧页面；版本化静态资源使用
+长期 immutable 缓存。运行时会删除入口 HTML 中阻塞渲染的 `fonts.css` import，并从独立 CSS
+响应中移除 CSP 必然拒绝的远程字体声明。历史版本的直接 URL 返回 404，但仍可通过该版本的
+预览 bearer 查看；预览使用 `private, no-store`。浏览器公开入口
+固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳；页面包本体也从主站
+`/site-content/...` 路径加载。iframe 的 `sandbox` 不包含 `allow-same-origin`，因此即使请求
+使用主站域名，页面包文档仍获得 opaque origin，脚本不能访问父页面、主站 Cookie 或存储。
+CSP 继续禁止网络连接、表单、frame、object 和顶层导航，且只允许主站作为
+`frame-ancestors`。
 
 ## 切换与校验
 
@@ -282,3 +326,45 @@ pnpm run migration:object-keys -- \
 
 AWS CLI 可用 `head-bucket`、`list-objects-v2` 和只读下载作为上线前连通性检查。应用本身会在
 首次媒体操作时使用相同凭据链，不在启动时创建 bucket 或修改 bucket 策略。
+
+### 旧双桶到单桶的收敛
+
+已有 R2 双桶部署切换到单桶前，必须先在自定义域名上启用 WAF：拒绝所有包含
+`/__protected/` 的路径。应用仍通过 R2 S3 endpoint 和签名 URL 读取这些对象，公开对象则继续
+使用 CDN 自定义域名。WAF 生效前禁止把受保护对象复制到公开桶。
+
+将 `IMS_S3_BUCKET` 指向保留的单一 bucket、删除旧的 `IMS_S3_PUBLIC_BUCKET`，保持
+`IMS_S3_PREFIX` 为空。先只读盘点旧 private bucket 与 PostgreSQL 权威清单：
+
+```sh
+pnpm run migration:single-bucket -- \
+  --legacy-private-bucket imsweb-media-private-prod
+```
+
+确认输出数量后进入停写窗口，并精确确认源、目标 bucket：
+
+```sh
+pnpm run migration:single-bucket -- \
+  --apply \
+  --legacy-private-bucket imsweb-media-private-prod \
+  --confirm-source-bucket imsweb-media-private-prod \
+  --confirm-target-bucket "$IMS_S3_BUCKET"
+```
+
+命令要求源 bucket 对象与数据库清单完全一致。ready 对象保留业务语义路径；storage pending
+对象和 `cards.status='pending'` 的名片写入 `__protected/` 后再拼接业务语义路径。复制结果经
+HEAD 大小和 ETag 校验后，命令在同一个 PostgreSQL 事务中更新版本及上传操作索引，最后删除旧
+bucket 中的源对象。目标已匹配的对象会跳过，因此失败后可重跑；旧 bucket 为空并完成访问冒烟
+后才能删除。
+
+对于单桶内仍需按公开策略纠正位置的 ready 对象，可先生成报告，再在停写窗口应用：
+
+```sh
+pnpm run migration:public-objects
+pnpm run migration:public-objects -- \
+  --apply \
+  --confirm-bucket "$IMS_S3_BUCKET"
+```
+
+报告写入被 Git 忽略的 `data/migration/public-object-placement*.json`。新上传的 pending 名片直接
+写入 `__protected/`；审核通过时 `publish()` 在同一 bucket 内移动到公开业务语义路径。

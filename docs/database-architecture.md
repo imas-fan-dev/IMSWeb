@@ -18,7 +18,8 @@ SQLite 使用 `IMS_SQLITE_PATH` 指向统一的 `data/imsweb.db`；PostgreSQL �
 控制面表保存对象版本映射、上传状态和补偿任务，不把对象字节写入关系数据库。
 
 旧 `news.db` 和 `idol_data.db` 仅作为合并与对账输入，不再被 Hono 运行时读取。
-当前部署与默认验收只有 Node，不包含 Worker、D1 或 R2。
+当前应用运行时与默认验收只有 Node，不包含 Worker 或 D1。对象存储可以通过同一个 S3 adapter
+选择 MinIO、Cloudflare R2 或其他兼容 provider；R2 不引入新的应用运行时。
 
 ## 统一表结构
 
@@ -61,7 +62,8 @@ runtime/node-services.ts -> infra/db/sqlite/{connection,schema-strategy}
 
 runtime/node-services.ts -> infra/oss/filesystem or infra/oss/s3
                          -> injected ManagedSqlDatabase lifecycle state
-                         -> signed read URL -> browser -> MinIO/S3
+                         -> private signed URL or public CDN URL
+                         -> browser -> MinIO/S3/R2
 ```
 
 - 路由按能力依赖 `AuthRepository`、`NewsRepository`、`EventRepository` 等端口以及
@@ -76,9 +78,12 @@ runtime/node-services.ts -> infra/oss/filesystem or infra/oss/s3
 - `runtime/` 是唯一组合根，每个实例只创建一个 Driver；同一个 Core SQL 适配器按能力注入多个
   Repository port，Story 适配器共享该 Driver。
 - `runtime/` 独立选择 filesystem/S3；S3 状态机只依赖 `ManagedSqlDatabase`，不依赖具体 driver。
-- S3 读取通过 ObjectStorage port 签发短期 URL，上传和业务提交仍只经过 Hono。
+- S3 受保护读取通过 ObjectStorage port 签发短期 URL；所有 ready 对象使用单一 bucket 的
+  CDN URL，上传和业务提交仍只经过 Hono。
 - S3 使用 `s3_object_versions`、`s3_object_index`、`s3_upload_operations` 和
   `s3_compensation_jobs` 实现延迟发布、版本 fencing、过期恢复和有租约补偿。
+- `s3_object_versions.storage_scope` 与 `s3_upload_operations.storage_scope` 记录对象访问级别；
+  受保护对象写入 `__protected/`，发布时在同一 bucket 生成新的公开 ready 版本。
 - SQLite/PG `close()` 都是幂等的，支持多个 Repository 端口共享同一底层资源。
 
 PostgreSQL Driver 使用有界连接池、连接/语句/空闲事务超时、未命名参数化查询和同连接短事务。

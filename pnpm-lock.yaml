@@ -34,18 +34,21 @@ importers:
       hono:
         specifier: 4.12.31
         version: 4.12.31
+      parse5:
+        specifier: 8.0.1
+        version: 8.0.1
       pg:
         specifier: ^8.22.0
         version: 8.22.0
+      postcss:
+        specifier: 8.5.15
+        version: 8.5.15
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
       sqlite3:
         specifier: ^6.0.1
         version: 6.0.1
-      tldts:
-        specifier: 7.4.9
-        version: 7.4.9
       yauzl:
         specifier: ^3.4.0
         version: 3.4.0
@@ -68,9 +71,6 @@ importers:
       '@types/yazl':
         specifier: ^3.3.1
         version: 3.3.1
-      parse5:
-        specifier: 8.0.1
-        version: 8.0.1
       tsx:
         specifier: ^4.23.1
         version: 4.23.1

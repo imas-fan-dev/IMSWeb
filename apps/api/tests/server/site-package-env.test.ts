@@ -6,45 +6,29 @@ import {
 } from '@/config/env';
 import { sitePackageFrameAncestorOrigins } from '@/domains/site-packages/site-package-support';
 
-test('site-package origins are explicit, absolute, and isolated in production', () => {
+test('site-package content uses the explicit main-site origin', () => {
     assert.deepEqual(parseSiteOrigins({ NODE_ENV: 'development', PORT: '4100' }), {
-        siteOrigin: 'http://127.0.0.1:5173',
-        sitePackageOrigin: 'http://content.localhost:4100'
+        siteOrigin: 'http://127.0.0.1:5173'
     });
     assert.deepEqual(parseSiteOrigins({
         NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://www.example.com',
-        IMS_SITE_PACKAGE_ORIGIN: 'https://ims-content.example.net'
+        IMS_SITE_ORIGIN: 'https://www.example.com'
     }), {
-        siteOrigin: 'https://www.example.com',
-        sitePackageOrigin: 'https://ims-content.example.net'
+        siteOrigin: 'https://www.example.com'
     });
     assert.throws(
         () => parseSiteOrigins({ NODE_ENV: 'production' }),
         /required in production/
     );
-    assert.throws(() => parseSiteOrigins({
-        NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://same.example.com',
-        IMS_SITE_PACKAGE_ORIGIN: 'https://same.example.com'
-    }), /must be distinct/);
-    assert.throws(() => parseSiteOrigins({
-        NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://www.example.com',
-        IMS_SITE_PACKAGE_ORIGIN: 'https://content.example.com'
-    }), /independent registrable sites/);
     assert.deepEqual(parseSiteOrigins({
         NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://www.example.co.uk',
-        IMS_SITE_PACKAGE_ORIGIN: 'https://content.other.co.uk'
+        IMS_SITE_ORIGIN: 'https://www.example.co.uk'
     }), {
-        siteOrigin: 'https://www.example.co.uk',
-        sitePackageOrigin: 'https://content.other.co.uk'
+        siteOrigin: 'https://www.example.co.uk'
     });
     assert.throws(() => parseSiteOrigins({
         NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://www.example.com/path',
-        IMS_SITE_PACKAGE_ORIGIN: 'https://ims-content.example.net'
+        IMS_SITE_ORIGIN: 'https://www.example.com/path'
     }), /without a path/);
 });
 

@@ -71,6 +71,8 @@ services:
       MINIO_ROOT_USER: ${IMS_MINIO_ROOT_USER:-imsweb-local}
       MINIO_ROOT_PASSWORD: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
       IMS_MINIO_BUCKET: ${IMS_MINIO_BUCKET:-imsweb-media-local}
+    volumes:
+      - ./minio-public-policy.json:/config/minio-public-policy.json:ro
     entrypoint:
       - /bin/sh
       - -ec
@@ -78,7 +80,10 @@ services:
       - |
         mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
         mc mb --ignore-existing "local/$${IMS_MINIO_BUCKET}"
-        mc anonymous set none "local/$${IMS_MINIO_BUCKET}"
+        while IFS= read -r line || [ -n "$${line}" ]; do
+          printf '%s\n' "$${line//\{\{BUCKET\}\}/$${IMS_MINIO_BUCKET}}"
+        done < /config/minio-public-policy.json > /tmp/policy.json
+        mc anonymous set-json /tmp/policy.json "local/$${IMS_MINIO_BUCKET}"
         mc version enable "local/$${IMS_MINIO_BUCKET}"
 
 volumes:

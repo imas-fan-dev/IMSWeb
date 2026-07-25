@@ -4,10 +4,20 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import {
+    brotliCompressSync,
+    brotliDecompressSync,
+    gzipSync,
+    gunzipSync
+} from 'node:zlib';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
-import { NodeStaticAssets } from '@/infra/http/filesystem/static-assets';
+import {
+    FrontendStaticAssets,
+    listFrontendFiles,
+    NodeStaticAssets
+} from '@/infra/http/filesystem/static-assets';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import {
@@ -143,6 +153,43 @@ test('Node object storage defaults to S3 and requires explicit filesystem compat
         }),
         /IMS_S3_READ_URL_TTL_SECONDS must be/
     );
+    assert.deepEqual(parseNodeObjectStorageConfig({
+        IMS_OBJECT_STORAGE: 's3',
+        IMS_S3_BUCKET: 'ims-media-prod',
+        IMS_S3_PUBLIC_READ_URL_BASE: 'https://media.example.test/content/',
+        IMS_S3_REGION: 'auto',
+        IMS_S3_PREFIX: ''
+    }), {
+        type: 's3',
+        bucket: 'ims-media-prod',
+        publicReadUrlBase: 'https://media.example.test/content',
+        region: 'auto',
+        endpoint: undefined,
+        forcePathStyle: false,
+        prefix: '',
+        readUrlTtlSeconds: 300
+    });
+    assert.throws(() => parseNodeObjectStorageConfig({
+        IMS_OBJECT_STORAGE: 's3',
+        IMS_S3_BUCKET: 'ims-media-prod',
+        IMS_S3_PUBLIC_BUCKET: 'ims-public-prod',
+        IMS_S3_REGION: 'auto'
+    }), /no longer supported/);
+    assert.deepEqual(parseNodeObjectStorageConfig({
+        IMS_OBJECT_STORAGE: 's3',
+        IMS_S3_BUCKET: 'ims-media-prod',
+        IMS_S3_PUBLIC_READ_URL_BASE: 'https:\/\/media.example.test',
+        IMS_S3_REGION: 'auto'
+    }), {
+        type: 's3',
+        bucket: 'ims-media-prod',
+        publicReadUrlBase: 'https://media.example.test',
+        region: 'auto',
+        endpoint: undefined,
+        forcePathStyle: false,
+        prefix: '',
+        readUrlTtlSeconds: 300
+    });
 });
 
 test('Node database defaults to PostgreSQL and requires explicit SQLite compatibility', () => {
@@ -291,6 +338,84 @@ test('NodeStaticAssets does not open a body for HEAD and opens only the requeste
     assert.equal(invalid.status, 416);
     assert.equal(invalid.headers.get('content-range'), 'bytes */16');
     assert.equal(opened.length, 3);
+});
+
+test('NodeStaticAssets negotiates precompressed assets without exposing encoded files', async (t) => {
+    const root = await temporaryDirectory('ims-static-compression-');
+    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    const assetPath = path.join(root, 'assets/app-abcdef12.js');
+    const unhashedAssetPath = path.join(root, 'assets/runtime.js');
+    const htmlPath = path.join(root, 'index.html');
+    const source = Buffer.from('const message = "imsweb";\n'.repeat(200));
+    const brotli = brotliCompressSync(source);
+    const gzip = gzipSync(source);
+    await fs.mkdir(path.dirname(assetPath), { recursive: true });
+    await Promise.all([
+        fs.writeFile(assetPath, source),
+        fs.writeFile(`${assetPath}.br`, brotli),
+        fs.writeFile(`${assetPath}.gz`, gzip),
+        fs.writeFile(unhashedAssetPath, source),
+        fs.writeFile(htmlPath, '<!doctype html><title>IMSWeb</title>')
+    ]);
+    const assets = new NodeStaticAssets(root);
+
+    const brotliResponse = await assets.fetch(new Request('http://ims.test/assets/app-abcdef12.js', {
+        headers: { 'Accept-Encoding': 'gzip;q=0.8, br' }
+    }));
+    assert.equal(brotliResponse.status, 200);
+    assert.equal(brotliResponse.headers.get('content-encoding'), 'br');
+    assert.equal(brotliResponse.headers.get('content-length'), String(brotli.byteLength));
+    assert.equal(brotliResponse.headers.get('accept-ranges'), 'none');
+    assert.equal(brotliResponse.headers.get('vary'), 'Accept-Encoding');
+    assert.equal(
+        brotliResponse.headers.get('cache-control'),
+        'public, max-age=31536000, immutable'
+    );
+    assert.deepEqual(
+        brotliDecompressSync(Buffer.from(await brotliResponse.arrayBuffer())),
+        source
+    );
+
+    const gzipResponse = await assets.fetch(new Request('http://ims.test/assets/app-abcdef12.js', {
+        headers: { 'Accept-Encoding': 'br;q=0, gzip' }
+    }));
+    assert.equal(gzipResponse.headers.get('content-encoding'), 'gzip');
+    assert.deepEqual(gunzipSync(Buffer.from(await gzipResponse.arrayBuffer())), source);
+
+    const head = await assets.fetch(new Request('http://ims.test/assets/app-abcdef12.js', {
+        method: 'HEAD',
+        headers: { 'Accept-Encoding': 'br' }
+    }));
+    assert.equal(head.headers.get('content-encoding'), 'br');
+    assert.equal(head.headers.get('content-length'), String(brotli.byteLength));
+    assert.equal(await head.text(), '');
+
+    const range = await assets.fetch(new Request('http://ims.test/assets/app-abcdef12.js', {
+        headers: {
+            'Accept-Encoding': 'br',
+            Range: 'bytes=0-4'
+        }
+    }));
+    assert.equal(range.status, 206);
+    assert.equal(range.headers.get('content-encoding'), null);
+    assert.equal(range.headers.get('content-range'), `bytes 0-4/${source.byteLength}`);
+    assert.deepEqual(Buffer.from(await range.arrayBuffer()), source.subarray(0, 5));
+
+    const html = await assets.fetch(new Request('http://ims.test/index.html'));
+    assert.equal(html.headers.get('cache-control'), 'public, max-age=0, must-revalidate');
+    const unhashed = await assets.fetch(new Request('http://ims.test/assets/runtime.js'));
+    assert.equal(unhashed.headers.get('cache-control'), null);
+    const frontendFiles = listFrontendFiles(root).sort();
+    assert.deepEqual(frontendFiles, [
+        'assets/app-abcdef12.js',
+        'assets/runtime.js',
+        'index.html'
+    ]);
+    const frontend = new FrontendStaticAssets(assets, new Set(frontendFiles));
+    const encodedPath = await frontend.fetch(
+        new Request('http://ims.test/assets/app-abcdef12.js.br')
+    );
+    assert.equal(encodedPath.status, 404);
 });
 
 test('filesystem idempotency persists replay, rejects fingerprint reuse, and recovers failure', async (t) => {

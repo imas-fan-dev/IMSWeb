@@ -10,7 +10,6 @@ export interface NodeRuntimeConfig {
     storyMaxUploadBytes: number;
     sitePackageMaxUploadBytes: number;
     siteOrigin: string;
-    sitePackageOrigin: string;
     clientAddressSource: 'direct' | 'nginx';
 }
 

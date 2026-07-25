@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 import type { CompensationService, ObjectStorage } from '@/ports/object-storage';
-import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
+import {
+    S3UploadStateMachine,
+    type S3StorageScope
+} from '@/infra/oss/s3/upload-state-machine';
 
 interface CompensationRow {
     id: string;
@@ -12,7 +15,8 @@ interface CompensationRow {
 
 export type S3PhysicalObjectDelete = (
     objectId: string,
-    physicalKey?: string | null
+    physicalKey?: string | null,
+    storageScope?: S3StorageScope
 ) => Promise<void>;
 
 const MAX_ATTEMPTS = 5;
@@ -96,6 +100,7 @@ export class S3CompensationService implements CompensationService {
                 key?: unknown;
                 objectId?: unknown;
                 physicalKey?: unknown;
+                storageScope?: unknown;
             };
             if (job.kind === 'delete-object') {
                 if (typeof payload.key !== 'string' || !payload.key) {
@@ -114,9 +119,16 @@ export class S3CompensationService implements CompensationService {
                     throw new Error('Invalid S3 object ID');
                 }
                 if (!await this.state.isObjectReferenced(payload.objectId)) {
+                    const storageScope = payload.storageScope === undefined
+                        ? 'private'
+                        : payload.storageScope;
+                    if (storageScope !== 'private' && storageScope !== 'public') {
+                        throw new Error('Invalid S3 storage scope');
+                    }
                     await this.deletePhysicalObject(
                         payload.objectId,
-                        typeof payload.physicalKey === 'string' ? payload.physicalKey : null
+                        typeof payload.physicalKey === 'string' ? payload.physicalKey : null,
+                        storageScope
                     );
                     await this.state.removeVersionIfUnreferenced(payload.objectId);
                 }

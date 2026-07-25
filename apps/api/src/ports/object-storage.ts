@@ -11,6 +11,7 @@ export interface PutObjectOptions {
     sha256?: string;
     metadata?: Record<string, string>;
     deferredPublication?: boolean;
+    protectedAccess?: boolean;
     ownerToken?: string;
 }
 
@@ -24,9 +25,17 @@ export interface ObjectReadUrlOptions {
     method?: 'GET' | 'HEAD';
 }
 
+export interface ObjectReadTarget {
+    url: string;
+    visibility: 'private' | 'public';
+}
+
 export interface ObjectStorage {
     get(key: string): Promise<StoredObject | null>;
-    createReadUrl?(key: string, options?: ObjectReadUrlOptions): Promise<string | null>;
+    createReadUrl?(
+        key: string,
+        options?: ObjectReadUrlOptions
+    ): Promise<ObjectReadTarget | null>;
     put(key: string, body: Uint8Array, options?: PutObjectOptions): Promise<StoredObject>;
     putIfUnchanged?(
         key: string,
@@ -49,6 +58,7 @@ export interface ObjectStorage {
     deletePrefix(prefix: string): Promise<void>;
     close?(): void | Promise<void>;
     publish?(key: string): Promise<void>;
+    reconcilePlacement?(key: string): Promise<boolean>;
     recoverStaleUploads?(limit?: number, staleSeconds?: number): Promise<void>;
 }
 

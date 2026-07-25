@@ -22,6 +22,18 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertNotRegex(compose, r"(?i)nginx")
         self.assertNotIn("network_mode: host", compose)
 
+    def test_minio_creates_one_public_bucket_with_a_protected_prefix(self):
+        compose = COMPOSE_PATH.read_text(encoding="utf-8")
+        policy = (PROJECT_ROOT / "deploy/minio-public-policy.json").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("IMS_MINIO_PUBLIC_BUCKET", compose)
+        self.assertNotRegex(compose, r"(?m)^\s+sed\s")
+        self.assertIn('mc anonymous set-json /tmp/policy.json', compose)
+        self.assertIn('mc version enable "local/$${IMS_MINIO_BUCKET}"', compose)
+        self.assertIn("/__protected/*", policy)
+        self.assertIn("/*/__protected/*", policy)
+
     def test_only_current_compose_is_present(self):
         self.assertTrue(COMPOSE_PATH.is_file())
         self.assertEqual(

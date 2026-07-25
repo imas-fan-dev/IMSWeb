@@ -156,7 +156,7 @@ test("home exposes current discovery and birthday interactions", async ({
   await expect(seriesWall.locator("img")).toHaveCount(6)
   await expect(seriesWall.locator("img").first()).toHaveAttribute(
     "src",
-    "/brand/series/wall/765pro.png"
+    "/brand/series/wall/765pro.webp"
   )
   if (!isMobile) {
     const viewportWidth = page.viewportSize()?.width ?? 0

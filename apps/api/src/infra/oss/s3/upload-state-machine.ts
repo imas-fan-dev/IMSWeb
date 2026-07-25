@@ -3,10 +3,17 @@ import type { ManagedSqlDatabase, SqlStatement } from '@/infra/db/sql/database';
 
 export type S3UploadState = 'uploading' | 'pending' | 'ready' | 'deleted';
 export type S3PublishedObjectState = 'pending' | 'ready';
+export type S3StorageScope = 'private' | 'public';
+
+export interface S3PhysicalObject {
+    physicalKey: string;
+    storageScope: S3StorageScope;
+}
 
 export interface S3ObjectVersion {
     objectId: string;
     physicalKey: string | null;
+    storageScope: S3StorageScope;
     size: number;
     contentType: string;
     sha256: string;
@@ -26,6 +33,7 @@ export interface S3UploadOperation {
     logicalKey: string;
     objectId: string;
     physicalKey: string;
+    storageScope: S3StorageScope;
     targetState: S3PublishedObjectState;
     previousObjectId: string | null;
     previousState: S3UploadState | null;
@@ -44,6 +52,7 @@ interface ObjectIndexRow {
 interface ObjectVersionRow {
     object_id: string;
     physical_key: string | null;
+    storage_scope: S3StorageScope;
     byte_size: number;
     content_type: string;
     sha256: string;
@@ -61,6 +70,7 @@ export interface S3StaleUpload {
     logical_key: string;
     object_id: string;
     physical_key: string | null;
+    storage_scope: S3StorageScope;
     target_state: S3PublishedObjectState;
     previous_object_id: string | null;
     previous_state: S3UploadState | null;
@@ -79,6 +89,8 @@ const SQLITE_SCHEMA = `
     CREATE TABLE IF NOT EXISTS s3_object_versions (
         object_id TEXT PRIMARY KEY,
         physical_key TEXT,
+        storage_scope TEXT NOT NULL DEFAULT 'private'
+            CHECK (storage_scope IN ('private', 'public')),
         byte_size INTEGER NOT NULL CHECK (byte_size >= 0),
         content_type TEXT NOT NULL,
         sha256 TEXT NOT NULL CHECK (length(sha256) = 64),
@@ -102,6 +114,8 @@ const SQLITE_SCHEMA = `
         logical_key TEXT NOT NULL,
         object_id TEXT NOT NULL UNIQUE,
         physical_key TEXT,
+        storage_scope TEXT NOT NULL DEFAULT 'private'
+            CHECK (storage_scope IN ('private', 'public')),
         target_state TEXT NOT NULL CHECK (target_state IN ('pending', 'ready')),
         previous_object_id TEXT,
         previous_state TEXT CHECK (
@@ -131,7 +145,7 @@ const SQLITE_SCHEMA = `
         ON s3_compensation_jobs(quarantined_at, state, next_attempt_at, attempts, created_at);
 `;
 
-const REQUIRED_POSTGRESQL_MIGRATION = '0006_s3_semantic_physical_keys';
+const REQUIRED_POSTGRESQL_MIGRATION = '0009_s3_public_storage_scope';
 
 function escapeLike(value: string): string {
     return value.replace(/[\\%_]/g, (character) => `\\${character}`);
@@ -141,6 +155,7 @@ function version(row: ObjectVersionRow): S3ObjectVersion {
     return {
         objectId: row.object_id,
         physicalKey: row.physical_key,
+        storageScope: row.storage_scope,
         size: row.byte_size,
         contentType: row.content_type,
         sha256: row.sha256,
@@ -172,6 +187,24 @@ export class S3UploadStateMachine {
                 'physical_key',
                 'TEXT'
             );
+            await this.addSqliteColumnIfMissing(
+                's3_object_versions',
+                'storage_scope',
+                "TEXT NOT NULL DEFAULT 'private' CHECK (storage_scope IN ('private', 'public'))"
+            );
+            await this.addSqliteColumnIfMissing(
+                's3_upload_operations',
+                'storage_scope',
+                "TEXT NOT NULL DEFAULT 'private' CHECK (storage_scope IN ('private', 'public'))"
+            );
+            await this.database.executeScript(`
+                CREATE UNIQUE INDEX IF NOT EXISTS s3_object_versions_physical_scope_idx
+                    ON s3_object_versions(storage_scope, physical_key)
+                    WHERE physical_key IS NOT NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS s3_upload_operations_physical_scope_idx
+                    ON s3_upload_operations(storage_scope, physical_key)
+                    WHERE physical_key IS NOT NULL;
+            `);
             return;
         }
         const migration = await this.database.prepare(
@@ -220,6 +253,7 @@ export class S3UploadStateMachine {
     private cleanupJob(
         objectId: string,
         physicalKey: string | null,
+        storageScope: S3StorageScope,
         now: number
     ): SqlStatement {
         return this.database.prepare(
@@ -228,7 +262,7 @@ export class S3UploadStateMachine {
              VALUES (?, 'delete-s3-object', ?, 'pending', 0, ?, ?, ?)`
         ).bind(
             crypto.randomUUID(),
-            JSON.stringify({ objectId, physicalKey }),
+            JSON.stringify({ objectId, physicalKey, storageScope }),
             now,
             now,
             now
@@ -281,14 +315,27 @@ export class S3UploadStateMachine {
         return null;
     }
 
-    async physicalKey(objectId: string): Promise<string | null> {
+    async physicalObject(objectId: string): Promise<S3PhysicalObject | null> {
         const object = await this.objectVersion(objectId);
-        if (object?.physicalKey) return object.physicalKey;
+        if (object?.physicalKey) {
+            return {
+                physicalKey: object.physicalKey,
+                storageScope: object.storageScope
+            };
+        }
         const operation = await this.database.prepare(
-            `SELECT physical_key FROM s3_upload_operations
+            `SELECT physical_key, storage_scope FROM s3_upload_operations
              WHERE object_id=? ORDER BY created_at DESC LIMIT 1`
-        ).bind(objectId).first<{ physical_key: string | null }>();
-        return operation?.physical_key ?? null;
+        ).bind(objectId).first<{
+            physical_key: string | null;
+            storage_scope: S3StorageScope;
+        }>();
+        return operation?.physical_key
+            ? {
+                physicalKey: operation.physical_key,
+                storageScope: operation.storage_scope
+            }
+            : null;
     }
 
     async supersededObjectIds(operation: S3UploadOperation | S3StaleUpload): Promise<string[]> {
@@ -355,6 +402,7 @@ export class S3UploadStateMachine {
         logicalKey: string,
         objectId: string,
         physicalKey: string,
+        storageScope: S3StorageScope,
         targetState: S3PublishedObjectState
     ): Promise<S3UploadOperation> {
         await this.initialize();
@@ -363,15 +411,16 @@ export class S3UploadStateMachine {
         const now = Date.now();
         await this.database.prepare(
             `INSERT INTO s3_upload_operations
-                (id, state, logical_key, object_id, physical_key, target_state,
+                (id, state, logical_key, object_id, physical_key, storage_scope, target_state,
                  previous_object_id, previous_state, previous_operation_id,
                  previous_incarnation, created_at, updated_at)
-             VALUES (?, 'uploading', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             VALUES (?, 'uploading', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
             id,
             logicalKey,
             objectId,
             physicalKey,
+            storageScope,
             targetState,
             previous?.object_id ?? null,
             previous?.state ?? null,
@@ -385,6 +434,7 @@ export class S3UploadStateMachine {
             logicalKey,
             objectId,
             physicalKey,
+            storageScope,
             targetState,
             previousObjectId: previous?.object_id ?? null,
             previousState: previous?.state ?? null,
@@ -395,7 +445,7 @@ export class S3UploadStateMachine {
 
     async completeUpload(
         operation: S3UploadOperation,
-        object: Omit<S3ObjectVersion, 'objectId' | 'physicalKey'>
+        object: Omit<S3ObjectVersion, 'objectId' | 'physicalKey' | 'storageScope'>
     ): Promise<boolean> {
         const now = Date.now();
         const nextIncarnation = (operation.previousIncarnation ?? 0) + 1;
@@ -404,7 +454,7 @@ export class S3UploadStateMachine {
             : [];
         const supersededObjects = await Promise.all(supersededObjectIds.map(async (objectId) => ({
             objectId,
-            physicalKey: await this.physicalKey(objectId)
+            physicalObject: await this.physicalObject(objectId)
         })));
         const indexStatement = operation.previousObjectId === null
             ? this.database.prepare(
@@ -453,12 +503,13 @@ export class S3UploadStateMachine {
         const statements = [
             this.database.prepare(
                 `INSERT INTO s3_object_versions
-                    (object_id, physical_key, byte_size, content_type, sha256, etag,
-                     owner_token, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                    (object_id, physical_key, storage_scope, byte_size, content_type, sha256,
+                     etag, owner_token, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
             ).bind(
                 operation.objectId,
                 operation.physicalKey,
+                operation.storageScope,
                 object.size,
                 object.contentType,
                 object.sha256,
@@ -480,7 +531,14 @@ export class S3UploadStateMachine {
             ).bind(now, operation.previousOperationId));
         }
         for (const object of supersededObjects) {
-            statements.push(this.cleanupJob(object.objectId, object.physicalKey, now));
+            if (object.physicalObject) {
+                statements.push(this.cleanupJob(
+                    object.objectId,
+                    object.physicalObject.physicalKey,
+                    object.physicalObject.storageScope,
+                    now
+                ));
+            }
         }
         const results = await this.database.batch(statements);
         if (results[1]?.meta.changes === 1) {
@@ -530,7 +588,7 @@ export class S3UploadStateMachine {
         const supersededObjectIds = await this.supersededObjectIds(operation);
         const supersededObjects = await Promise.all(supersededObjectIds.map(async (objectId) => ({
             objectId,
-            physicalKey: await this.physicalKey(objectId)
+            physicalObject: await this.physicalObject(objectId)
         })));
         const now = Date.now();
         const statements = [
@@ -551,7 +609,14 @@ export class S3UploadStateMachine {
             ).bind(now, operation.previous_operation_id));
         }
         for (const object of supersededObjects) {
-            statements.push(this.cleanupJob(object.objectId, object.physicalKey, now));
+            if (object.physicalObject) {
+                statements.push(this.cleanupJob(
+                    object.objectId,
+                    object.physicalObject.physicalKey,
+                    object.physicalObject.storageScope,
+                    now
+                ));
+            }
         }
         const results = await this.database.batch(statements);
         if (results[0]?.meta.changes !== 1) {
@@ -600,7 +665,12 @@ export class S3UploadStateMachine {
                  WHERE id=? AND state IN ('uploading', 'pending', 'ready')`
             ).bind(now, current.operationId));
         }
-        statements.push(this.cleanupJob(current.objectId, current.physicalKey, now));
+        statements.push(this.cleanupJob(
+            current.objectId,
+            current.physicalKey,
+            current.storageScope,
+            now
+        ));
         const results = await this.database.batch(statements);
         return results[0]?.meta.changes === 1 ? current.objectId : null;
     }
@@ -623,7 +693,12 @@ export class S3UploadStateMachine {
                 `UPDATE s3_upload_operations SET state='deleted', updated_at=?
                  WHERE id=? AND state='uploading'`
             ).bind(now, operation.id),
-            this.cleanupJob(operation.object_id, operation.physical_key, now)
+            this.cleanupJob(
+                operation.object_id,
+                operation.physical_key,
+                operation.storage_scope,
+                now
+            )
         ]);
         return results[0]?.meta.changes === 1 ? operation.object_id : null;
     }

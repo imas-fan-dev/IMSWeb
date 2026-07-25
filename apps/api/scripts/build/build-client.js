@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 
 const packageRoot = path.resolve(__dirname, '../..');
 const repositoryRoot = path.resolve(packageRoot, '../..');
@@ -14,9 +15,11 @@ const manifestPath = path.join(packageRoot, 'dist/client-manifest.json');
 const maxAssetBytes = 25 * 1024 * 1024;
 const maxAssetFiles = 20_000;
 const allowedExtensions = new Set([
-    '.avif', '.bmp', '.css', '.gif', '.html', '.ico', '.jpeg', '.jpg', '.js',
-    '.json', '.png', '.svg', '.webp', '.woff', '.woff2'
+    '.avif', '.bmp', '.br', '.css', '.gif', '.gz', '.html', '.ico', '.jpeg',
+    '.jpg', '.js', '.json', '.png', '.svg', '.webp', '.woff', '.woff2'
 ]);
+const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.svg']);
+const compressionThreshold = 1024;
 const forbiddenSegments = new Set([
     '.git', '.staging', '.trash', '.venv', '__pycache__', 'data', 'database',
     'logs', 'templates', 'uploads', 'venv'
@@ -60,7 +63,37 @@ function walk(directory, prefix = '') {
         const normalized = process.platform === 'darwin' ? relative.normalize('NFC') : relative;
         const stat = fs.statSync(absolute);
         assertPublishable(normalized, stat);
-        return [{ absolute, relative: normalized }];
+        return [{ absolute, relative: normalized, size: stat.size }];
+    });
+}
+
+function compressedVariants(file) {
+    if (
+        file.size < compressionThreshold ||
+        !compressibleExtensions.has(path.posix.extname(file.relative).toLowerCase())
+    ) {
+        return [];
+    }
+    const source = fs.readFileSync(file.absolute);
+    const candidates = [
+        {
+            relative: `${file.relative}.br`,
+            content: zlib.brotliCompressSync(source, {
+                params: {
+                    [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+                    [zlib.constants.BROTLI_PARAM_QUALITY]: 11
+                }
+            })
+        },
+        {
+            relative: `${file.relative}.gz`,
+            content: zlib.gzipSync(source, { level: 9 })
+        }
+    ];
+    return candidates.filter((candidate) => {
+        if (candidate.content.byteLength >= source.byteLength) return false;
+        assertPublishable(candidate.relative, { size: candidate.content.byteLength });
+        return true;
     });
 }
 
@@ -68,7 +101,11 @@ if (!fs.statSync(sourceRoot, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Error(`Web build output is missing: ${sourceRoot}\nRun pnpm run build:web first.`);
 }
 
-const files = walk(sourceRoot).sort((left, right) => compareUtf8(left.relative, right.relative));
+const sourceFiles = walk(sourceRoot);
+const files = [
+    ...sourceFiles,
+    ...sourceFiles.flatMap(compressedVariants)
+].sort((left, right) => compareUtf8(left.relative, right.relative));
 if (!files.length || files.length > maxAssetFiles) {
     throw new Error(`Web build file count must be between 1 and ${maxAssetFiles}`);
 }
@@ -84,7 +121,11 @@ for (const outputRoot of outputRoots) {
     for (const file of files) {
         const destination = path.join(outputRoot, ...file.relative.split('/'));
         fs.mkdirSync(path.dirname(destination), { recursive: true });
-        fs.copyFileSync(file.absolute, destination, fs.constants.COPYFILE_EXCL);
+        if (file.content) {
+            fs.writeFileSync(destination, file.content, { flag: 'wx' });
+        } else {
+            fs.copyFileSync(file.absolute, destination, fs.constants.COPYFILE_EXCL);
+        }
     }
 }
 
@@ -93,4 +134,7 @@ fs.writeFileSync(manifestPath, `${JSON.stringify({
     source: '@imsweb/web',
     files: files.map((file) => file.relative)
 }, null, 2)}\n`);
-process.stdout.write(`Packaged ${files.length} Web build files for the Node release\n`);
+process.stdout.write(
+    `Packaged ${sourceFiles.length} Web files and ${files.length - sourceFiles.length} ` +
+    'precompressed variants for the Node release\n'
+);

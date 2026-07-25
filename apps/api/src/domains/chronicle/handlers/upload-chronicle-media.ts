@@ -100,6 +100,7 @@ export async function handleUploadChronicleMedia(
             const key = chroniclePrefix('upload', activityId, filename);
             await runtime.storage.put(key, file.body, {
                 contentType: info.contentType,
+                protectedAccess: true,
                 ...(handle ? { ownerToken: handle.token } : {})
             });
             written.push(key);

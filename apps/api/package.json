@@ -29,6 +29,8 @@
     "migration:information-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/legacy-information-media.js",
     "migration:namecards": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/legacy-namecards.js",
     "migration:upload-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/local-upload-media.js",
+    "migration:public-objects": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/public-object-placement.ts",
+    "migration:single-bucket": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/single-bucket-consolidation.ts",
     "migration:wiki-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/wiki-media-sync.js",
     "wiki:metadata:audit": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/wiki-metadata-audit.ts",
     "check:assets": "pnpm run build:client && node scripts/build/check-client.js",
@@ -36,7 +38,7 @@
     "test:node": "pnpm run build:server && node --test tests/hono-app-contract.test.js tests/node-listener-probe.test.js tests/node-security.test.js tests/operation-scripts.test.js",
     "test:wiki": "node node_modules/typescript/bin/tsc -p tests/wiki/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/wiki/*.test.ts",
     "test:server": "node node_modules/typescript/bin/tsc -p tests/server/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/server/*.test.ts",
-    "test:migration": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/migration/legacy-information-media.test.js tests/migration/legacy-namecards.test.js tests/migration/local-upload-media.test.js tests/migration/merge-sqlite-databases.test.js tests/migration/postgres-migrations.test.js tests/migration/semantic-object-keys.test.js tests/migration/sqlite-to-postgresql.test.js tests/migration/wiki-media-sync.test.js tests/migration/wiki-metadata-audit.test.js",
+    "test:migration": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/migration/legacy-information-media.test.js tests/migration/legacy-namecards.test.js tests/migration/local-upload-media.test.js tests/migration/merge-sqlite-databases.test.js tests/migration/postgres-migrations.test.js tests/migration/public-object-placement.test.js tests/migration/semantic-object-keys.test.js tests/migration/single-bucket-consolidation.test.js tests/migration/sqlite-to-postgresql.test.js tests/migration/wiki-media-sync.test.js tests/migration/wiki-metadata-audit.test.js",
     "test:web-routing": "node --test tests/assets/frontend-routing.contract.test.js",
     "test:fast": "pnpm run check && pnpm run test:node && pnpm run test:server && pnpm run test:wiki && pnpm run test:migration",
     "test": "pnpm run test:fast"
@@ -56,10 +58,11 @@
     "bcryptjs": "3.0.2",
     "busboy": "1.6.0",
     "hono": "4.12.31",
+    "parse5": "8.0.1",
     "pg": "^8.22.0",
+    "postcss": "8.5.15",
     "sharp": "^0.34.5",
     "sqlite3": "^6.0.1",
-    "tldts": "7.4.9",
     "yauzl": "^3.4.0"
   },
   "devDependencies": {
@@ -69,7 +72,6 @@
     "@types/pg": "^8.20.0",
     "@types/yauzl": "^3.4.0",
     "@types/yazl": "^3.3.1",
-    "parse5": "8.0.1",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "yazl": "^3.3.1"

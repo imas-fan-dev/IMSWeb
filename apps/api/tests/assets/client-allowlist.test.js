@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
+const { brotliDecompressSync, gunzipSync } = require('node:zlib');
 
 const PACKAGE_ROOT = path.resolve(__dirname, '../..');
 const REPOSITORY_ROOT = path.resolve(PACKAGE_ROOT, '../..');
@@ -33,7 +34,7 @@ function run(script, environment = process.env) {
     });
 }
 
-test('[AST-01] release clients exactly package the Web build', () => {
+test('[AST-01] release clients package the Web build and encoded variants', () => {
     assert.ok(fs.existsSync(path.join(WEB_ROOT, 'index.html')), 'Web build must run first');
 
     const build = run(BUILD_SCRIPT);
@@ -47,16 +48,38 @@ test('[AST-01] release clients exactly package the Web build', () => {
     assert.deepEqual(manifest.files, [...manifest.files].sort((left, right) =>
         Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
     ));
-    assert.deepEqual(walk(WEB_ROOT).sort(), manifest.files);
+    const webFiles = walk(WEB_ROOT).sort();
+    assert.deepEqual(
+        manifest.files.filter((file) => !file.endsWith('.br') && !file.endsWith('.gz')),
+        webFiles
+    );
     assert.deepEqual(walk(CLIENT_ROOT).sort(), manifest.files);
     assert.deepEqual(walk(NODE_CLIENT_ROOT).sort(), manifest.files);
     assert.ok(manifest.files.includes('index.html'));
     assert.ok(manifest.files.includes('__spa-fallback.html'));
+    assert.ok(manifest.files.includes('index.html.br'));
+    assert.ok(manifest.files.includes('index.html.gz'));
 
     for (const relative of manifest.files) {
         assert.deepEqual(
             fs.readFileSync(path.join(CLIENT_ROOT, relative)),
             fs.readFileSync(path.join(NODE_CLIENT_ROOT, relative)),
+            relative
+        );
+    }
+    for (const relative of manifest.files.filter((file) => file.endsWith('.br'))) {
+        const sourceRelative = relative.slice(0, -3);
+        assert.deepEqual(
+            brotliDecompressSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
+            fs.readFileSync(path.join(CLIENT_ROOT, sourceRelative)),
+            relative
+        );
+    }
+    for (const relative of manifest.files.filter((file) => file.endsWith('.gz'))) {
+        const sourceRelative = relative.slice(0, -3);
+        assert.deepEqual(
+            gunzipSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
+            fs.readFileSync(path.join(CLIENT_ROOT, sourceRelative)),
             relative
         );
     }

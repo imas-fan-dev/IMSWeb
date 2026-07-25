@@ -1,5 +1,3 @@
-import { getDomain } from 'tldts';
-
 export type RuntimeEnvironment = 'development' | 'test' | 'production';
 
 export interface CookieOptions {
@@ -27,7 +25,6 @@ const DEFAULT_SITE_PACKAGE_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export interface SiteOriginConfig {
     siteOrigin: string;
-    sitePackageOrigin: string;
 }
 
 function absoluteOrigin(name: string, value: string): string {
@@ -52,33 +49,14 @@ export function parseSiteOrigins(
 ): SiteOriginConfig {
     const mode = String(environment.NODE_ENV || 'development').trim().toLowerCase();
     const production = mode === 'production';
-    if (production && (!environment.IMS_SITE_ORIGIN || !environment.IMS_SITE_PACKAGE_ORIGIN)) {
-        throw new Error(
-            'IMS_SITE_ORIGIN and IMS_SITE_PACKAGE_ORIGIN are required in production'
-        );
+    if (production && !environment.IMS_SITE_ORIGIN) {
+        throw new Error('IMS_SITE_ORIGIN is required in production');
     }
     const siteOrigin = absoluteOrigin(
         'IMS_SITE_ORIGIN',
         environment.IMS_SITE_ORIGIN || 'http://127.0.0.1:5173'
     );
-    const sitePackageOrigin = absoluteOrigin(
-        'IMS_SITE_PACKAGE_ORIGIN',
-        environment.IMS_SITE_PACKAGE_ORIGIN ||
-            `http://content.localhost:${environment.PORT || '3000'}`
-    );
-    if (siteOrigin === sitePackageOrigin) {
-        throw new Error('IMS_SITE_ORIGIN and IMS_SITE_PACKAGE_ORIGIN must be distinct origins');
-    }
-    if (production) {
-        const siteDomain = getDomain(new URL(siteOrigin).hostname);
-        const packageDomain = getDomain(new URL(sitePackageOrigin).hostname);
-        if (!siteDomain || !packageDomain || siteDomain === packageDomain) {
-            throw new Error(
-                'IMS_SITE_ORIGIN and IMS_SITE_PACKAGE_ORIGIN must use independent registrable sites'
-            );
-        }
-    }
-    return { siteOrigin, sitePackageOrigin };
+    return { siteOrigin };
 }
 
 export function parseSitePackageMaxUploadBytes(value: string | undefined): number {

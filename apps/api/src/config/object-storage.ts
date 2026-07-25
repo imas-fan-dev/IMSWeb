@@ -3,6 +3,7 @@ export type NodeObjectStorageConfig =
     | {
         type: 's3';
         bucket: string;
+        publicReadUrlBase?: string;
         region: string;
         endpoint?: string;
         forcePathStyle: boolean;
@@ -59,6 +60,31 @@ function parseEndpoint(value: string | undefined): string | undefined {
     return endpoint.toString().replace(/\/$/, '');
 }
 
+function parsePublicReadUrlBase(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+    let base: URL;
+    try {
+        base = new URL(value);
+    } catch {
+        throw new Error('IMS_S3_PUBLIC_READ_URL_BASE must be a valid HTTP(S) URL');
+    }
+    if (
+        !['http:', 'https:'].includes(base.protocol) ||
+        base.username || base.password || base.search || base.hash
+    ) {
+        throw new Error(
+            'IMS_S3_PUBLIC_READ_URL_BASE must be a credential-free HTTP(S) URL'
+        );
+    }
+    return base.toString().replace(/\/+$/, '');
+}
+
+function validateBucket(name: string, value: string): void {
+    if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(value)) {
+        throw new Error(`${name} must be a valid general-purpose S3 bucket name`);
+    }
+}
+
 function parseReadUrlTtl(value: string | undefined): number {
     if (value === undefined) return 300;
     const ttl = Number(value);
@@ -78,9 +104,13 @@ export function parseNodeObjectStorageConfig(
     }
 
     const bucket = requiredValue(environment, 'IMS_S3_BUCKET');
-    if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
-        throw new Error('IMS_S3_BUCKET must be a valid general-purpose S3 bucket name');
+    validateBucket('IMS_S3_BUCKET', bucket);
+    if (optionalValue(environment, 'IMS_S3_PUBLIC_BUCKET')) {
+        throw new Error('IMS_S3_PUBLIC_BUCKET is no longer supported; configure one IMS_S3_BUCKET');
     }
+    const publicReadUrlBase = parsePublicReadUrlBase(
+        optionalValue(environment, 'IMS_S3_PUBLIC_READ_URL_BASE')
+    );
     const region = optionalValue(environment, 'IMS_S3_REGION') ||
         optionalValue(environment, 'AWS_REGION');
     if (!region) {
@@ -93,6 +123,7 @@ export function parseNodeObjectStorageConfig(
     return {
         type,
         bucket,
+        ...(publicReadUrlBase ? { publicReadUrlBase } : {}),
         region,
         endpoint: parseEndpoint(optionalValue(environment, 'IMS_S3_ENDPOINT')),
         forcePathStyle: parseBoolean(

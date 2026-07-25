@@ -8,7 +8,7 @@ describe("BrandWordmark", () => {
     render(<BrandWordmark />)
 
     const logo = screen.getByRole("img", { name: "偶像大师交流站" })
-    expect(logo).toHaveAttribute("src", "/brand/imsweb-logo.png")
+    expect(logo).toHaveAttribute("src", "/brand/imsweb-logo.webp")
     expect(logo).toHaveAttribute("width", "545")
     expect(logo).toHaveAttribute("height", "188")
   })

@@ -15,6 +15,8 @@ import {
 } from '@aws-sdk/client-s3';
 import {
     S3ObjectStorage,
+    s3PhysicalObjectKey,
+    type S3ObjectStorageOptions,
     type S3ReadUrlSigner
 } from '@/infra/oss/s3/object-storage';
 import { S3CompensationService } from '@/infra/oss/s3/compensation-service';
@@ -43,11 +45,24 @@ class FakeS3Client {
     deleteFailuresRemaining = 0;
     private revision = 0;
 
+    object(bucket: string, key: string): FakeObject | undefined {
+        return this.objects.get(`${bucket}/${key}`);
+    }
+
+    hasObject(bucket: string, key: string): boolean {
+        return this.objects.has(`${bucket}/${key}`);
+    }
+
+    setObject(bucket: string, key: string, object: FakeObject): void {
+        this.objects.set(`${bucket}/${key}`, object);
+    }
+
     async send(command: unknown): Promise<any> {
         this.commands.push(command);
         if (command instanceof PutObjectCommand) {
             const key = command.input.Key!;
-            const current = this.objects.get(key);
+            const storageKey = `${command.input.Bucket}/${key}`;
+            const current = this.objects.get(storageKey);
             if (command.input.IfNoneMatch === '*' && current) {
                 throw s3Error('PreconditionFailed', 412);
             }
@@ -56,7 +71,7 @@ class FakeS3Client {
             }
             const body = Uint8Array.from(command.input.Body as Uint8Array);
             const etag = `"etag-${++this.revision}"`;
-            this.objects.set(key, {
+            this.objects.set(storageKey, {
                 body,
                 contentType: command.input.ContentType,
                 etag,
@@ -66,7 +81,7 @@ class FakeS3Client {
             return { ETag: etag };
         }
         if (command instanceof GetObjectCommand) {
-            const object = this.objects.get(command.input.Key!);
+            const object = this.object(command.input.Bucket!, command.input.Key!);
             if (!object) throw s3Error('NoSuchKey', 404);
             return {
                 Body: { transformToByteArray: async () => Uint8Array.from(object.body) },
@@ -76,7 +91,9 @@ class FakeS3Client {
             };
         }
         if (command instanceof HeadObjectCommand) {
-            if (!this.objects.has(command.input.Key!)) throw s3Error('NotFound', 404);
+            if (!this.hasObject(command.input.Bucket!, command.input.Key!)) {
+                throw s3Error('NotFound', 404);
+            }
             return {};
         }
         if (command instanceof DeleteObjectCommand) {
@@ -84,15 +101,17 @@ class FakeS3Client {
                 this.deleteFailuresRemaining -= 1;
                 throw s3Error('ServiceUnavailable', 503);
             }
-            this.objects.delete(command.input.Key!);
+            this.objects.delete(`${command.input.Bucket}/${command.input.Key}`);
             return {};
         }
         if (command instanceof CopyObjectCommand) {
             const decoded = decodeURIComponent(command.input.CopySource!);
-            const sourceKey = decoded.slice(`${command.input.Bucket}/`.length);
-            const source = this.objects.get(sourceKey);
+            const separator = decoded.indexOf('/');
+            const sourceBucket = decoded.slice(0, separator);
+            const sourceKey = decoded.slice(separator + 1);
+            const source = this.object(sourceBucket, sourceKey);
             if (!source) throw s3Error('NoSuchKey', 404);
-            this.objects.set(command.input.Key!, {
+            this.setObject(command.input.Bucket!, command.input.Key!, {
                 ...source,
                 body: Uint8Array.from(source.body),
                 lastModified: new Date('2026-07-22T00:00:01Z')
@@ -100,7 +119,10 @@ class FakeS3Client {
             return {};
         }
         if (command instanceof ListObjectsV2Command) {
+            const bucketPrefix = `${command.input.Bucket}/`;
             const keys = [...this.objects.keys()]
+                .filter((key) => key.startsWith(bucketPrefix))
+                .map((key) => key.slice(bucketPrefix.length))
                 .filter((key) => key.startsWith(command.input.Prefix || ''))
                 .sort();
             const start = Number(command.input.ContinuationToken || 0);
@@ -109,8 +131,8 @@ class FakeS3Client {
             return {
                 Contents: page.map((key) => ({
                     Key: key,
-                    Size: this.objects.get(key)!.body.byteLength,
-                    ETag: this.objects.get(key)!.etag
+                    Size: this.object(command.input.Bucket!, key)!.body.byteLength,
+                    ETag: this.object(command.input.Bucket!, key)!.etag
                 })),
                 IsTruncated: next < keys.length,
                 NextContinuationToken: next < keys.length ? String(next) : undefined
@@ -118,7 +140,9 @@ class FakeS3Client {
         }
         if (command instanceof DeleteObjectsCommand) {
             for (const object of command.input.Delete?.Objects || []) {
-                if (object.Key) this.objects.delete(object.Key);
+                if (object.Key) {
+                    this.objects.delete(`${command.input.Bucket}/${object.Key}`);
+                }
             }
             return {};
         }
@@ -130,7 +154,10 @@ class FakeS3Client {
     }
 }
 
-async function fixture(t: TestContext): Promise<{
+async function fixture(
+    t: TestContext,
+    storageOptions: Partial<S3ObjectStorageOptions> = {}
+): Promise<{
     client: FakeS3Client;
     connection: SqliteConnection;
     compensation: S3CompensationService;
@@ -155,14 +182,16 @@ async function fixture(t: TestContext): Promise<{
     const compensation = new S3CompensationService(
         connection,
         state,
-        (objectId, physicalKey) => storage.deletePhysicalObject(objectId, physicalKey)
+        (objectId, physicalKey, storageScope) =>
+            storage.deletePhysicalObject(objectId, physicalKey, storageScope)
     );
     storage = new S3ObjectStorage(
         client as unknown as Pick<S3Client, 'send' | 'destroy'>,
         {
             bucket: 'ims-media-prod',
             prefix: 'ims/production',
-            readUrlTtlSeconds: 300
+            readUrlTtlSeconds: 300,
+            ...storageOptions
         },
         signer,
         state,
@@ -187,19 +216,20 @@ test('S3 object storage preserves logical keys across versioned CRUD, copy, and 
     const firstSnapshot = await state.snapshot('uploads/news/original/a b.webp');
     assert.ok(firstSnapshot);
     const firstPhysicalKey =
-        `ims/production/uploads/news/original/objects/${firstSnapshot.objectId}/a b.webp`;
+        `ims/production/uploads/news/original/objects/` +
+        `${firstSnapshot.objectId}/a b.webp`;
     assert.equal(firstSnapshot.physicalKey, firstPhysicalKey);
-    assert.equal(client.objects.has(firstPhysicalKey), true);
+    assert.equal(client.hasObject('ims-media-prod', firstPhysicalKey), true);
     assert.equal(
-        client.objects.get(firstPhysicalKey)?.metadata?.owner,
+        client.object('ims-media-prod', firstPhysicalKey)?.metadata?.owner,
         'news'
     );
     assert.equal(
-        client.objects.get(firstPhysicalKey)?.metadata?.idol,
+        client.object('ims-media-prod', firstPhysicalKey)?.metadata?.idol,
         encodeURIComponent('樱木真乃')
     );
     assert.match(
-        client.objects.get(firstPhysicalKey)?.metadata?.sha256 || '',
+        client.object('ims-media-prod', firstPhysicalKey)?.metadata?.sha256 || '',
         /^[a-f0-9]{64}$/
     );
 
@@ -236,6 +266,14 @@ test('S3 object storage preserves logical keys across versioned CRUD, copy, and 
             'uploads/news/original/z.webp'
         ]
     );
+    assert.deepEqual(
+        (await storage.list('')).map((object) => object.key),
+        [
+            'uploads/news/original/a b.webp',
+            'uploads/news/original/moved.webp',
+            'uploads/news/original/z.webp'
+        ]
+    );
     assert.equal(
         client.commands.some((command) => command instanceof ListObjectsV2Command),
         false,
@@ -264,6 +302,26 @@ test('S3 object storage validates checksums and rejects unsafe logical keys', as
     await assert.rejects(storage.list('uploads//news/'), /Invalid object key/);
 });
 
+test('S3 physical keys support both an optional custom prefix and no prefix', () => {
+    assert.equal(s3PhysicalObjectKey({
+        bucket: 'private',
+        prefix: 'tenant/site-a',
+        readUrlTtlSeconds: 300
+    }, 'wiki/agencies/sc/branding/icon.webp', 'object-id'),
+    'tenant/site-a/wiki/agencies/sc/branding/objects/object-id/icon.webp');
+    assert.equal(s3PhysicalObjectKey({
+        bucket: 'private',
+        readUrlTtlSeconds: 300
+    }, 'wiki/agencies/sc/branding/icon.webp', 'object-id'),
+    'wiki/agencies/sc/branding/objects/object-id/icon.webp');
+    assert.equal(s3PhysicalObjectKey({
+        bucket: 'single',
+        prefix: 'tenant/site-a',
+        readUrlTtlSeconds: 300
+    }, 'site-packages/package/source.zip', 'object-id', 'private'),
+    'tenant/site-a/__protected/site-packages/package/objects/object-id/source.zip');
+});
+
 test('S3 object storage signs GET and HEAD reads without proxying object bodies', async (t) => {
     const { signed, state, storage } = await fixture(t);
     const key = 'uploads/news/original/a b.webp';
@@ -271,10 +329,13 @@ test('S3 object storage signs GET and HEAD reads without proxying object bodies'
 
     const snapshot = await state.snapshot(key);
     assert.ok(snapshot);
-    assert.equal(await storage.createReadUrl(key),
-        `https://media.example.test/${encodeURIComponent(
-            `ims/production/uploads/news/original/objects/${snapshot.objectId}/a b.webp`
-        )}`);
+    assert.deepEqual(await storage.createReadUrl(key), {
+        url: `https://media.example.test/${encodeURIComponent(
+            `ims/production/uploads/news/original/objects/` +
+            `${snapshot.objectId}/a b.webp`
+        )}`,
+        visibility: 'private'
+    });
     assert.ok(signed[0]?.command instanceof GetObjectCommand);
     assert.equal(signed[0]?.expiresIn, 300);
 
@@ -282,6 +343,99 @@ test('S3 object storage signs GET and HEAD reads without proxying object bodies'
     assert.ok(signed[1]?.command instanceof HeadObjectCommand);
     assert.equal(await storage.createReadUrl('uploads/news/original/missing.webp'), null);
     assert.equal(signed.length, 2);
+});
+
+test('S3 public and protected objects share one bucket with distinct read paths', async (t) => {
+    const { client, signed, state, storage } = await fixture(t, {
+        publicReadUrlBase: 'https://media.example.test/bucket-root',
+        prefix: 'tenant/site-a'
+    });
+    const key = 'wiki/agencies/sc/idols/mano/story-images/card 01.webp';
+    await storage.put(key, new Uint8Array([1, 2, 3]), { contentType: 'image/webp' });
+    const snapshot = await state.snapshot(key);
+    assert.ok(snapshot);
+    assert.equal(snapshot.storageScope, 'public');
+    assert.equal(client.hasObject('ims-media-prod', snapshot.physicalKey!), true);
+    assert.deepEqual(await storage.createReadUrl(key), {
+        url: 'https://media.example.test/bucket-root/' +
+            snapshot.physicalKey!.split('/').map(encodeURIComponent).join('/'),
+        visibility: 'public'
+    });
+    assert.equal(signed.length, 0);
+
+    const namecardKey = 'community/namecards/assets/mano/image.webp';
+    await storage.put(namecardKey, new Uint8Array([4]), { protectedAccess: true });
+    const pendingNamecard = await state.snapshot(namecardKey);
+    assert.ok(pendingNamecard);
+    assert.equal(pendingNamecard.state, 'ready');
+    assert.equal(pendingNamecard.storageScope, 'private');
+    assert.match(pendingNamecard.physicalKey!, /\/__protected\/community\/namecards\//);
+    assert.equal((await storage.createReadUrl(namecardKey))?.visibility, 'private');
+    await storage.publish(namecardKey);
+    const publishedNamecard = await state.snapshot(namecardKey);
+    assert.ok(publishedNamecard);
+    assert.equal(publishedNamecard.storageScope, 'public');
+    assert.equal((await storage.createReadUrl(namecardKey))?.visibility, 'public');
+    assert.equal(client.hasObject('ims-media-prod', pendingNamecard.physicalKey!), false);
+
+    const readyInternalKey = 'site-packages/example/revisions/one/source.zip';
+    await storage.put(readyInternalKey, new Uint8Array([5]));
+    const readyInternal = await state.snapshot(readyInternalKey);
+    assert.ok(readyInternal);
+    assert.equal(readyInternal.storageScope, 'public');
+    assert.doesNotMatch(readyInternal.physicalKey!, /\/__protected\//);
+    assert.equal(client.hasObject('ims-media-prod', readyInternal.physicalKey!), true);
+    assert.equal((await storage.createReadUrl(readyInternalKey))?.visibility, 'public');
+});
+
+test('S3 deferred public media stays private until publication moves it', async (t) => {
+    const { client, state, storage } = await fixture(t, {
+        publicReadUrlBase: 'https://media.example.test'
+    });
+    const key = 'editorial/events/assets/new-event/poster.webp';
+    await storage.put(key, new Uint8Array([1, 2, 3]), {
+        contentType: 'image/webp',
+        deferredPublication: true
+    });
+    const pending = await state.snapshot(key);
+    assert.ok(pending);
+    assert.equal(pending.state, 'pending');
+    assert.equal(pending.storageScope, 'private');
+    assert.equal(client.hasObject('ims-media-prod', pending.physicalKey!), true);
+    assert.match(pending.physicalKey!, /\/__protected\/editorial\/events\/assets\//);
+    assert.equal(await storage.createReadUrl(key), null);
+
+    await storage.publish(key);
+    const published = await state.snapshot(key);
+    assert.ok(published);
+    assert.equal(published.state, 'ready');
+    assert.equal(published.storageScope, 'public');
+    assert.equal(client.hasObject('ims-media-prod', published.physicalKey!), true);
+    assert.equal(client.hasObject('ims-media-prod', pending.physicalKey!), false);
+    const copy = client.commands.find((command) => command instanceof CopyObjectCommand);
+    assert.ok(copy instanceof CopyObjectCommand);
+    assert.equal(copy.input.Bucket, 'ims-media-prod');
+    assert.match(
+        decodeURIComponent(copy.input.CopySource!),
+        /^ims-media-prod\/ims\/production\/__protected\//
+    );
+});
+
+test('S3 compensation preserves public access scope after a delete failure', async (t) => {
+    const { client, compensation, state, storage } = await fixture(t, {
+        publicReadUrlBase: 'https://media.example.test'
+    });
+    const key = 'wiki/shared/compensation/public.webp';
+    await storage.put(key, new Uint8Array([1]));
+    const snapshot = await state.snapshot(key);
+    assert.ok(snapshot);
+    assert.equal(snapshot.storageScope, 'public');
+    client.deleteFailuresRemaining = 1;
+
+    await storage.delete(key);
+    assert.equal(client.hasObject('ims-media-prod', snapshot.physicalKey!), true);
+    await compensation.run(storage);
+    assert.equal(client.hasObject('ims-media-prod', snapshot.physicalKey!), false);
 });
 
 test('S3 deferred publication hides new objects and restores the previous version on rollback', async (t) => {
@@ -355,7 +509,7 @@ test('S3 ignores objects that have no managed semantic-key index', async (t) => 
     const { client, storage } = await fixture(t);
     const key = 'Data/sc/mano/card.webp';
     const physicalKey = `ims/production/${key}`;
-    client.objects.set(physicalKey, {
+    client.setObject('ims-media-prod', physicalKey, {
         body: new Uint8Array([1, 2]),
         contentType: 'image/webp',
         etag: '"legacy"',
@@ -394,7 +548,8 @@ test('S3 stale recovery and SQL compensation remove unreferenced physical versio
     ).bind(stale.operationId).run();
     await storage.recoverStaleUploads(10, 1);
     assert.equal(await storage.get(staleKey), null);
-    assert.equal(client.objects.has(
+    assert.equal(client.hasObject(
+        'ims-media-prod',
         `ims/production/editorial/events/assets/stale/objects/${stale.objectId}/poster.webp`
     ), false);
     await compensation.run(storage);

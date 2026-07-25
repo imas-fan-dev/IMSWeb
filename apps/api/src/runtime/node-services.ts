@@ -120,6 +120,7 @@ async function createNodeObjectStorage(
     });
     const options = {
         bucket: config.bucket,
+        publicReadUrlBase: config.publicReadUrlBase,
         prefix: config.prefix,
         readUrlTtlSeconds: config.readUrlTtlSeconds
     };
@@ -134,7 +135,8 @@ async function createNodeObjectStorage(
     const compensation = new S3CompensationService(
         database,
         state,
-        (objectId, physicalKey) => storage.deletePhysicalObject(objectId, physicalKey)
+        (objectId, physicalKey, storageScope) =>
+            storage.deletePhysicalObject(objectId, physicalKey, storageScope)
     );
     storage = new S3ObjectStorage(
         client,
@@ -254,7 +256,6 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 storyMaxUploadBytes: STORY_MAX_UPLOAD_BYTES,
                 sitePackageMaxUploadBytes: SITE_PACKAGE_MAX_UPLOAD_BYTES,
                 siteOrigin: SITE_ORIGINS.siteOrigin,
-                sitePackageOrigin: SITE_ORIGINS.sitePackageOrigin,
                 clientAddressSource: CLIENT_ADDRESS_SOURCE
             }
         };

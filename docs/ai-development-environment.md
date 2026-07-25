@@ -41,6 +41,7 @@ IMS_DATABASE=postgresql
 DATABASE_URL=postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb
 IMS_OBJECT_STORAGE=s3
 IMS_S3_BUCKET=imsweb-media-local
+IMS_S3_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
 IMS_S3_REGION=us-east-1
 IMS_S3_ENDPOINT=http://127.0.0.1:9000
 IMS_S3_FORCE_PATH_STYLE=true
@@ -56,7 +57,7 @@ IMS_STORY_DATA_DIR=data/story/images
 ```
 
 本地运行统一使用 PostgreSQL 与 S3 兼容的 MinIO，不再把 SQLite 或文件系统作为隐式默认值。
-先启动数据库、对象存储并自动创建启用版本控制的 `imsweb-media-local` 业务 bucket：
+先启动数据库、对象存储并自动创建启用版本控制的单一业务 bucket：
 
 ```sh
 pnpm run dev:postgresql:up
@@ -67,6 +68,8 @@ docker compose -f deploy/compose.yaml ps postgres minio minio-init
 MinIO S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
 `http://127.0.0.1:9001`。`pnpm run dev:minio:down` 默认保留 `minio-data` 卷；只有明确
 需要清空测试对象时才可另外执行带 `--volumes` 的 Compose 清理。
+`imsweb-media-local` 对公开对象开放下载，但匿名策略拒绝包含 `__protected/` 的路径；本地公开
+URL 由该 bucket 的 path-style 基址继续拼接可选 `IMS_S3_PREFIX` 和业务语义物理路径。
 
 `data/` 被 Git 忽略，不得把数据库、上传或日志移动到 `public/`，也不得提交。
 数据库职责、PostgreSQL 选项、生产路径和完整性检查见
@@ -95,6 +98,8 @@ Wiki 媒体先按清单同步，再由元数据审计关联数据库逻辑键；
 读模型。`--apply` 不创建业务实体，只关联已经存在且可回读的企划图标和偶像头像。
 已有 S3/MinIO bucket 的旧逻辑 key 使用 `pnpm run migration:object-keys` 盘点，再以
 `--apply --delete-source --confirm-bucket <bucket>` 一次性切换；运行时不提供旧路径双读。
+已有受保护但应公开的 ready 媒体使用 `pnpm run migration:public-objects` 生成位置报告；只有在
+停写窗口精确确认当前单一 bucket 后才执行 `--apply`。
 
 需要打包并私下分享当前开发容器的 PostgreSQL 与 MinIO 数据时，使用 API workspace 提供的
 逻辑快照命令。默认产物和 SHA-256 sidecar 位于 Git 忽略的 `data/exports/`：
@@ -173,5 +178,6 @@ pnpm run test
 - 不执行 PostgreSQL 生产迁移、数据切换或清理；这些操作需要独立审批和对账证据。
 - `deploy/compose.yaml` 只保存本地 PostgreSQL 和 MinIO 服务，不包含应用、反向代理或正式
   部署入口。
+- Cloudflare R2 仅作为 S3-compatible 对象存储与自定义域名 CDN；本计划不部署 Worker 或 D1。
 - 不使用破坏性 Git、数据库或文件清理命令，除非用户明确授权并已核对目标。
 - 完成时报告修改文件、实际运行的门禁、未通过原因、运行中的服务和可访问地址。

@@ -34,7 +34,9 @@ pnpm run test
 模块，必须在目标 Linux 环境安装并执行启动冒烟。
 
 `pnpm run build` 先生成 Web，再构建 API，并把经过 manifest 校验的 Web 文件写入
-`apps/api/dist/client` 与 `apps/api/dist/node-client`。发布物至少包含：
+`apps/api/dist/client` 与 `apps/api/dist/node-client`。大于 1 KiB 的 HTML、JavaScript、CSS、
+JSON 和 SVG 会在压缩结果更小时生成 `.br` 与 `.gz` 版本；Hono 按 `Accept-Encoding` 选择编码，
+Range 请求继续读取原始文件。发布物至少包含：
 
 ```text
 apps/api/dist/server/
@@ -72,7 +74,6 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
 | `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
 | `IMS_SITE_ORIGIN` | 主站 origin | 生产必填，无路径 |
-| `IMS_SITE_PACKAGE_ORIGIN` | 隔离站点包 origin | 生产必填，与主站不同 registrable site |
 
 管理员会话使用 15 分钟的 access JWT 和 30 天滑动有效期的 refresh token。两者都只写入
 `HttpOnly`、`SameSite=Lax` Cookie；refresh token 只保存 SHA-256 摘要，并在每次刷新时轮换。
@@ -80,8 +81,10 @@ CSRF Cookie 保持脚本可读，用于 Alova 自动刷新和管理写请求的�
 版本前必须先运行 `pnpm run migration:postgresql`，确认
 `0008_auth_refresh_sessions` 已写入 `ims_schema_migrations`。
 
-S3 模式还需要 `IMS_S3_BUCKET`、`IMS_S3_REGION` 及可选 endpoint/prefix；凭据使用标准 AWS
-凭据链，不写入仓库。完整说明见 [Node 文件对象存储](object-storage.md)。
+S3 模式还需要 `IMS_S3_BUCKET`、`IMS_S3_REGION` 及可选 endpoint/prefix。启用 CDN 读取时配置
+同一 bucket 的 `IMS_S3_PUBLIC_READ_URL_BASE`，并在自定义域名 WAF 阻断 `/__protected/`；凭据
+使用标准 AWS 凭据链，不写入仓库。R2 只作为 S3-compatible provider 与单 bucket 自定义域名，
+不部署 Worker 或 D1。完整说明见 [Node 文件对象存储](object-storage.md)。
 
 生产相对路径会随 release 改变，因此所有可变数据路径必须是绝对路径，且不能位于
 `IMS_RELEASES_DIR` 或 `IMS_CURRENT_LINK` 下。
@@ -181,7 +184,9 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 
 ## 7. 入口与 TLS
 
-`deploy/compose.yaml` 不运行应用、Nginx 或其他正式入口，只提供本地 PostgreSQL 和 MinIO。
+`deploy/compose.yaml` 不运行应用、Nginx 或其他正式入口，只提供本地 PostgreSQL 和 MinIO；
+MinIO 初始化服务创建一个 bucket，并通过匿名读取策略拒绝 `__protected/`，用于验证签名读取和
+公开 CDN 路径语义。
 生产入口由目标平台独立管理，必须在切流前确认：
 
 - TLS、真实域名、防火墙和上传大小限制已经生效；
@@ -196,10 +201,15 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 ```sh
 curl --fail --silent --show-error http://127.0.0.1:3000/api/news >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
+ENTRY_ASSET=entry.client-CURRENT_HASH.js
+curl --head --header 'Accept-Encoding: br, gzip' \
+  "http://127.0.0.1:3000/assets/${ENTRY_ASSET}"
 ```
 
 还应覆盖登录、受保护写请求、Wiki SSR、普通图片、编年史和管理页，并观察应用与入口层的
-4xx/5xx、延迟和原生模块错误。站点包内容域必须单独验证 404 默认策略与一次性预览 URL。
+4xx/5xx、延迟和原生模块错误。压缩探测应返回 `Content-Encoding: br`、
+`Vary: Accept-Encoding` 和 immutable 缓存；外部入口不得剥离这些响应头或重复压缩。站点包
+内容域必须单独验证 404 默认策略与一次性预览 URL。
 
 ## 9. 回滚
 

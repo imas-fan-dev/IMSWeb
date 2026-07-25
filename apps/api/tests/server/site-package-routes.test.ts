@@ -112,7 +112,7 @@ function revision(
     };
 }
 
-test('site-package routes enforce origin, manifest allowlists, CSP, and immutable revisions', async (t) => {
+test('site-package routes share the main origin and enforce manifests, CSP, and revisions', async (t) => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-site-package-routes-'));
     t.after(() => fs.rm(root, { recursive: true, force: true }));
     const repository = new SqlCoreRepository(
@@ -129,6 +129,7 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     const previewPrefix = `site-packages/${packageId}/revisions/${previewId}`;
     const publishedManifest = {
         'index.html': `${publishedPrefix}/files/index.html`,
+        'fonts.css': `${publishedPrefix}/files/fonts.css`,
         'email_template.txt': `${publishedPrefix}/files/email_template.txt`,
         'leak.txt': `${publishedPrefix}/source.zip`
     };
@@ -158,8 +159,21 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     await repository.publishSitePackageRevision(packageId, publishedId, 1, 3_000);
     await storage.put(
         `${publishedPrefix}/files/index.html`,
-        new TextEncoder().encode('<!doctype html><html><body>published</body></html>'),
+        new TextEncoder().encode(
+            '<!doctype html><html><head><style>' +
+            '@import url("assets/fonts/fonts.css"); body { color: black; }' +
+            '</style></head><body>published</body></html>'
+        ),
         { contentType: 'text/html; charset=utf-8' }
+    );
+    await storage.put(
+        `${publishedPrefix}/files/fonts.css`,
+        new TextEncoder().encode([
+            '@font-face { font-family: Remote; src: url(https://fonts.example/remote.woff2); }',
+            '@font-face { font-family: Local; src: url(local.woff2); }',
+            'body { font-family: Local, sans-serif; }'
+        ].join('\n')),
+        { contentType: 'text/css; charset=utf-8' }
     );
     await storage.put(
         `${publishedPrefix}/files/email_template.txt`,
@@ -199,7 +213,6 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
         },
         config: {
             siteOrigin: 'http://main.test',
-            sitePackageOrigin: 'http://content.test',
             clientAddressSource: 'direct' as const
         }
     };
@@ -209,7 +222,6 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
         config: {
             ...runtimeServices.config,
             siteOrigin: 'http://main.test:8080',
-            sitePackageOrigin: 'http://content.test:8080',
             clientAddressSource: 'nginx' as const
         }
     }));
@@ -254,7 +266,7 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
 
     const forwardedHeaders = {
         'x-forwarded-proto': 'http',
-        'x-forwarded-host': 'content.test',
+        'x-forwarded-host': 'main.test',
         'x-forwarded-port': '8080'
     };
     const forwardedContent = await nginxApp.request(
@@ -265,20 +277,13 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.equal(forwardedContent.headers.get('location'), null);
     assert.equal((await nginxApp.request('http://upstream.test/api/wiki/test', {
         headers: forwardedHeaders
-    })).status, 404);
+    })).status, 200);
 
     assert.equal((await app.request('http://main.test/api/wiki/test')).status, 200);
-    for (const [pathname, init] of [
-        ['/api/wiki/test', undefined],
-        ['/api/admin/site-packages', {
-            headers: { authorization: 'Bearer op-token' }
-        }],
-        ['/sites/hiro-2026', undefined],
-        [`/site-content/hiro-2026/${publishedId}/`, { method: 'POST' }]
-    ] as const) {
-        const response = await app.request(`http://content.test${pathname}`, init);
-        assert.equal(response.status, 404, `${pathname} must be unavailable on the content origin`);
-    }
+    assert.equal((await app.request(
+        `http://main.test/site-content/hiro-2026/${publishedId}/`,
+        { method: 'POST' }
+    )).status, 404);
 
     for (const [pathname, init] of [
         ['/api/admin/site-packages', undefined],
@@ -411,33 +416,40 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.equal(stable.status, 200);
     assert.match(
         await stable.text(),
-        new RegExp(`src="http://content\\.test/site-content/hiro-2026/${publishedId}/"`)
+        new RegExp(`src="http://main\\.test/site-content/hiro-2026/${publishedId}/"`)
     );
     assert.match(stable.headers.get('content-security-policy') || '',
-        /frame-src http:\/\/content\.test/);
+        /frame-src http:\/\/main\.test/);
     assert.equal(stable.headers.get('x-frame-options'), 'DENY');
 
-    const wrongOrigin = await app.request(
+    const published = await app.request(
         `http://main.test/site-content/hiro-2026/${publishedId}/`
     );
-    assert.equal(wrongOrigin.status, 308);
-    assert.equal(
-        wrongOrigin.headers.get('location'),
-        `http://content.test/site-content/hiro-2026/${publishedId}/`
-    );
-
-    const published = await app.request(
-        `http://content.test/site-content/hiro-2026/${publishedId}/`
-    );
     assert.equal(published.status, 200);
-    assert.match(await published.text(), /published/);
+    const publishedText = await published.text();
+    assert.match(publishedText, /published/);
+    assert.match(publishedText, /body \{ color: black; \}/);
+    assert.doesNotMatch(publishedText, /fonts\/fonts\.css|@import/);
     assert.equal(published.headers.get('cache-control'), 'public, max-age=0, must-revalidate');
     assert.equal(published.headers.get('x-frame-options'), null);
     assert.match(published.headers.get('content-security-policy') || '', /script-src 'none'/);
     assert.match(published.headers.get('content-security-policy') || '', /frame-ancestors http:\/\/main\.test/);
 
+    const stylesheet = await app.request(
+        `http://main.test/site-content/hiro-2026/${publishedId}/fonts.css`
+    );
+    const stylesheetText = await stylesheet.text();
+    assert.equal(stylesheet.status, 200);
+    assert.equal(stylesheet.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+    assert.doesNotMatch(stylesheetText, /fonts\.example|font-family: Remote/);
+    assert.match(stylesheetText, /font-family: Local|url\(local\.woff2\)/);
+    assert.equal(
+        stylesheet.headers.get('content-length'),
+        String(new TextEncoder().encode(stylesheetText).byteLength)
+    );
+
     const textAsset = await app.request(
-        `http://content.test/site-content/hiro-2026/${publishedId}/email_template.txt`
+        `http://main.test/site-content/hiro-2026/${publishedId}/email_template.txt`
     );
     assert.equal(textAsset.status, 200);
     assert.equal(await textAsset.text(), 'hello');
@@ -449,13 +461,13 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
         `/site-content/hiro-2026/${publishedId}/leak.txt`,
         `/site-content/hiro-2026/${publishedId}/%252e%252e/source.zip`
     ]) {
-        const denied = await app.request(`http://content.test${pathname}`);
+        const denied = await app.request(`http://main.test${pathname}`);
         assert.notEqual(denied.status, 200, pathname);
     }
     assert.equal(storage.reads.length, readsBeforeDenials, 'denied paths do not reach storage');
 
     const preview = await app.request(
-        `http://content.test/site-content/_preview/${'b'.repeat(64)}/`
+        `http://main.test/site-content/_preview/${'b'.repeat(64)}/`
     );
     assert.equal(preview.status, 200);
     assert.equal(preview.headers.get('cache-control'), 'private, no-store');
@@ -473,10 +485,10 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.match(rotatedBody.previewToken, /^[a-f0-9]{64}$/);
     assert.equal(
         rotatedBody.previewUrl,
-        `http://content.test/site-content/_preview/${rotatedBody.previewToken}/`
+        `http://main.test/site-content/_preview/${rotatedBody.previewToken}/`
     );
     assert.equal((await app.request(
-        `http://content.test/site-content/_preview/${'b'.repeat(64)}/`
+        `http://main.test/site-content/_preview/${'b'.repeat(64)}/`
     )).status, 404, 'rotating a token invalidates the previous bearer URL');
     assert.equal((await app.request(rotatedBody.previewUrl)).status, 200);
 
@@ -494,14 +506,14 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.equal((await repository.listRecentAuditLogs(1))[0]?.action, '发布站点包版本');
     const readsBeforeOldRevision = storage.reads.length;
     assert.equal((await app.request(
-        `http://content.test/site-content/hiro-2026/${publishedId}/`
+        `http://main.test/site-content/hiro-2026/${publishedId}/`
     )).status, 404, 'a historical revision is not a public content URL');
     assert.equal(storage.reads.length, readsBeforeOldRevision);
     assert.equal((await app.request(
-        `http://content.test/site-content/hiro-2026/${previewId}/`
+        `http://main.test/site-content/hiro-2026/${previewId}/`
     )).status, 200);
     assert.equal((await app.request(
-        `http://content.test/site-content/_preview/${'a'.repeat(64)}/`
+        `http://main.test/site-content/_preview/${'a'.repeat(64)}/`
     )).status, 200, 'historical revisions remain available through their preview token');
     assert.match(
         await (await app.request('http://main.test/sites/hiro-2026')).text(),
@@ -518,10 +530,10 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     assert.equal(rollbackBody.publishedAt, 3_000);
     assert.equal((await repository.listRecentAuditLogs(1))[0]?.action, '回滚站点包版本');
     assert.equal((await app.request(
-        `http://content.test/site-content/hiro-2026/${previewId}/`
+        `http://main.test/site-content/hiro-2026/${previewId}/`
     )).status, 404);
     assert.equal((await app.request(
-        `http://content.test/site-content/hiro-2026/${publishedId}/`
+        `http://main.test/site-content/hiro-2026/${publishedId}/`
     )).status, 200);
     assert.match(
         await (await app.request('http://main.test/sites/hiro-2026')).text(),
@@ -542,7 +554,7 @@ test('site-package routes enforce origin, manifest allowlists, CSP, and immutabl
     );
 
     const head = await app.request(
-        `http://content.test/site-content/hiro-2026/${publishedId}/`,
+        `http://main.test/site-content/hiro-2026/${publishedId}/`,
         { method: 'HEAD' }
     );
     assert.equal(head.status, 200);

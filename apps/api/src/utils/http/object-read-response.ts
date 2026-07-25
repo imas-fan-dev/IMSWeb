@@ -8,13 +8,17 @@ export async function objectReadResponse(
     extraHeaders?: HeadersInit
 ): Promise<Response | null> {
     if (storage.createReadUrl) {
-        const url = await storage.createReadUrl(key, {
+        const target = await storage.createReadUrl(key, {
             method: request.method === 'HEAD' ? 'HEAD' : 'GET'
         });
-        if (!url) return null;
+        if (!target) return null;
         const headers = new Headers(extraHeaders);
-        headers.set('Location', url);
-        headers.set('Cache-Control', 'private, no-store');
+        headers.set('Location', target.url);
+        if (target.visibility === 'private') {
+            headers.set('Cache-Control', 'private, no-store');
+        } else if (!headers.has('Cache-Control')) {
+            headers.set('Cache-Control', 'public, max-age=300');
+        }
         headers.set('Referrer-Policy', 'no-referrer');
         return new Response(null, { status: 307, headers });
     }

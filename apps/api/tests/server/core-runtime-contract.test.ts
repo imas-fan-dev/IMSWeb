@@ -177,7 +177,8 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     );
     await connection.run(
         `INSERT INTO cards (id, image1_url, image2_url, status)
-         VALUES (?, '/seed-front.webp', '/seed-back.webp', 'approved')`,
+         VALUES (?, '/uploads/namecard/original/contract-seed-front.webp',
+                    '/uploads/namecard/original/contract-seed-back.webp', 'approved')`,
         [APPROVED_CARD_ID]
     );
 
@@ -431,6 +432,28 @@ test('[CORE-01] shared mutation contract uses Node SQLite/filesystem adapters', 
 test('[STATE-01] post-commit media failures preserve Node success semantics', async (t) => {
     const fixture = await createFixture(t);
     await assertPostCommitMediaContract({ runtime: 'Node', ...fixture });
+});
+
+test('[STATE-01] namecard approval retries object publication before success', async (t) => {
+    const fixture = await createFixture(t);
+    const token = await fixture.opToken();
+    const approve = () => fixture.request(`/api/admin/cards/approve/${APPROVED_CARD_ID}`, {
+        method: 'POST',
+        headers: { Authorization: token }
+    });
+
+    fixture.failObjectPublishes(true);
+    const failed = await approve();
+    assert.equal(failed.status, 200);
+    assert.deepEqual(await failed.json(), { success: false });
+
+    fixture.failObjectPublishes(false);
+    const retried = await approve();
+    assert.equal(retried.status, 200);
+    assert.deepEqual(await retried.json(), { success: true });
+    assert.equal((await fixture.snapshot()).auditActions.filter(
+        (action) => action === '审核图片通过'
+    ).length, 1);
 });
 
 test('[MEDIA-01] shared route boundaries use Node SQLite/filesystem adapters', async (t) => {

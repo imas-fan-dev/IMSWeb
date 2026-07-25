@@ -49,6 +49,8 @@
     "media:information:sync": "pnpm --filter @imsweb/api run migration:information-media",
     "media:namecards:sync": "pnpm --filter @imsweb/api run migration:namecards",
     "media:uploads:sync": "pnpm --filter @imsweb/api run migration:upload-media",
+    "migration:public-objects": "pnpm --filter @imsweb/api run migration:public-objects",
+    "migration:single-bucket": "pnpm --filter @imsweb/api run migration:single-bucket",
     "migration:release:activate": "sh scripts/migration/activate-node-release.sh",
     "migration:release:rollback": "sh scripts/migration/activate-node-release.sh --rollback",
     "wiki:media:sync": "pnpm --filter @imsweb/api run migration:wiki-media",

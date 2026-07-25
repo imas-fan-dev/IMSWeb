@@ -8,26 +8,26 @@ import {
 } from "~/pages/home/home-content"
 
 describe("home content", () => {
-  it("links every series band to its restored wall image", () => {
+  it("links every series band to its optimized wall image", () => {
     expect(seriesItems.map((item) => item.image)).toEqual([
-      "/brand/series/wall/765pro.png",
-      "/brand/series/wall/cinderella-girls.png",
-      "/brand/series/wall/million-live.png",
-      "/brand/series/wall/sidem.png",
-      "/brand/series/wall/shiny-colors.png",
-      "/brand/series/wall/gakuen.png",
+      "/brand/series/wall/765pro.webp",
+      "/brand/series/wall/cinderella-girls.webp",
+      "/brand/series/wall/million-live.webp",
+      "/brand/series/wall/sidem.webp",
+      "/brand/series/wall/shiny-colors.webp",
+      "/brand/series/wall/gakuen.webp",
     ])
   })
 
-  it("uses the six restored series-wall images", () => {
+  it("uses the six optimized series-wall images", () => {
     expect(seriesItems).toHaveLength(6)
     expect(seriesItems.map((item) => item.image)).toEqual([
-      "/brand/series/wall/765pro.png",
-      "/brand/series/wall/cinderella-girls.png",
-      "/brand/series/wall/million-live.png",
-      "/brand/series/wall/sidem.png",
-      "/brand/series/wall/shiny-colors.png",
-      "/brand/series/wall/gakuen.png",
+      "/brand/series/wall/765pro.webp",
+      "/brand/series/wall/cinderella-girls.webp",
+      "/brand/series/wall/million-live.webp",
+      "/brand/series/wall/sidem.webp",
+      "/brand/series/wall/shiny-colors.webp",
+      "/brand/series/wall/gakuen.webp",
     ])
   })
 

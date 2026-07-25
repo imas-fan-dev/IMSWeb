@@ -22,7 +22,6 @@ import { registerNewsRoutes } from '@/domains/news/routes';
 import { registerReactionRoutes } from '@/domains/reactions/routes';
 import { registerSiteRoutes } from '@/domains/site/routes';
 import { registerSitePackageRoutes } from '@/domains/site-packages/routes';
-import { requestOrigin } from '@/domains/site-packages/site-package-support';
 import { registerWikiRoutes } from '@/domains/wiki/index';
 
 export interface AppEnvironment {
@@ -73,22 +72,6 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
             c.header('X-Frame-Options', 'SAMEORIGIN');
         }
     });
-    app.use('*', async (c, next) => {
-        const contentOrigin = c.get('services').config?.sitePackageOrigin;
-        if (!contentOrigin || requestOrigin(c) !== contentOrigin) {
-            await next();
-            return;
-        }
-        const pathname = new URL(c.req.raw.url).pathname;
-        const method = c.req.method.toUpperCase();
-        const isContentPath = pathname === '/site-content' ||
-            pathname.startsWith('/site-content/');
-        if (!isContentPath || method !== 'GET' && method !== 'HEAD') {
-            return c.text('Not Found', 404);
-        }
-        await next();
-    });
-
     app.use('*', requestRateLimit());
     app.use('*', jsonBodyLimit());
     app.use('*', async (c, next) => {

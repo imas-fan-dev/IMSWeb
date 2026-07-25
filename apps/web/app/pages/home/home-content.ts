@@ -34,32 +34,32 @@ export const seriesItems: SeriesItem[] = [
   {
     name: "765PRO ALLSTARS",
     background: "bg-[#f34e6c]",
-    image: "/brand/series/wall/765pro.png",
+    image: "/brand/series/wall/765pro.webp",
   },
   {
     name: "CINDERELLA GIRLS",
     background: "bg-[#2581c7]",
-    image: "/brand/series/wall/cinderella-girls.png",
+    image: "/brand/series/wall/cinderella-girls.webp",
   },
   {
     name: "MILLION LIVE!",
     background: "bg-[#ffc20b]",
-    image: "/brand/series/wall/million-live.png",
+    image: "/brand/series/wall/million-live.webp",
   },
   {
     name: "SideM",
     background: "bg-[#11be93]",
-    image: "/brand/series/wall/sidem.png",
+    image: "/brand/series/wall/sidem.webp",
   },
   {
     name: "SHINY COLORS",
     background: "bg-[#8dbaff]",
-    image: "/brand/series/wall/shiny-colors.png",
+    image: "/brand/series/wall/shiny-colors.webp",
   },
   {
     name: "学园偶像大师",
     background: "bg-[#f39800]",
-    image: "/brand/series/wall/gakuen.png",
+    image: "/brand/series/wall/gakuen.webp",
   },
 ]
 

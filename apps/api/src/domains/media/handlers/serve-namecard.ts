@@ -22,7 +22,9 @@ export async function handleServeNamecard(c: Context<AppEnvironment>): Promise<R
         isPrivate ? {
             'Cache-Control': 'private, no-store',
             'Vary': 'Cookie, Authorization'
-        } : undefined
+        } : {
+            'Cache-Control': 'public, max-age=31536000, immutable'
+        }
     );
     return response ?? c.text('Not Found', 404);
 }

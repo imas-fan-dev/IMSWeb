@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/client-s3';
 import type {
     CompensationService,
+    ObjectReadTarget,
     ObjectReadUrlOptions,
     ObjectStorage,
     PutObjectOptions,
@@ -16,12 +17,15 @@ import type {
 } from '@/ports/object-storage';
 import {
     S3UploadStateMachine,
-    type S3ObjectVersion
+    type S3ObjectVersion,
+    type S3StorageScope
 } from '@/infra/oss/s3/upload-state-machine';
 import { contentTypeForPath } from '@/utils/http/content-type';
+import { PROTECTED_PHYSICAL_KEY_SEGMENT } from '@/utils/storage/object-access-policy';
 
 export interface S3ObjectStorageOptions {
     bucket: string;
+    publicReadUrlBase?: string;
     prefix?: string;
     readUrlTtlSeconds: number;
 }
@@ -33,6 +37,7 @@ export type S3ReadUrlSigner = (
 
 interface ResolvedObject {
     physicalKey: string;
+    storageScope: S3StorageScope;
     version: S3ObjectVersion;
 }
 
@@ -63,15 +68,16 @@ function withPrefix(prefix: string, key: string): string {
 export function s3PhysicalObjectKey(
     options: S3ObjectStorageOptions,
     logicalKey: string,
-    objectId: string
+    objectId: string,
+    storageScope: S3StorageScope = 'public'
 ): string {
     const segments = normalizeKey(logicalKey).split('/');
     const filename = segments.pop()!;
     const directory = segments.join('/') || '_root';
-    return withPrefix(
-        normalizedPrefix(options),
-        `${directory}/objects/${objectId}/${filename}`
-    );
+    const semanticKey = `${directory}/objects/${objectId}/${filename}`;
+    return withPrefix(normalizedPrefix(options), storageScope === 'private'
+        ? `${PROTECTED_PHYSICAL_KEY_SEGMENT}/${semanticKey}`
+        : semanticKey);
 }
 
 function sha256(body: Uint8Array): string {
@@ -103,6 +109,11 @@ function encodeCopySource(bucket: string, key: string): string {
     return [bucket, ...key.split('/')].map(encodeURIComponent).join('/');
 }
 
+function publicObjectUrl(base: string, physicalKey: string): string {
+    const encodedKey = physicalKey.split('/').map(encodeURIComponent).join('/');
+    return `${base.replace(/\/$/, '')}/${encodedKey}`;
+}
+
 export class S3ObjectStorage implements ObjectStorage {
     constructor(
         private readonly client: Pick<S3Client, 'send' | 'destroy'>,
@@ -112,8 +123,12 @@ export class S3ObjectStorage implements ObjectStorage {
         private readonly compensation?: CompensationService
     ) {}
 
-    private physicalObjectKey(logicalKey: string, objectId: string): string {
-        return s3PhysicalObjectKey(this.options, logicalKey, objectId);
+    private physicalObjectKey(
+        logicalKey: string,
+        objectId: string,
+        storageScope: S3StorageScope
+    ): string {
+        return s3PhysicalObjectKey(this.options, logicalKey, objectId, storageScope);
     }
 
     private physicalKeyForVersion(version: S3ObjectVersion): string {
@@ -123,12 +138,22 @@ export class S3ObjectStorage implements ObjectStorage {
         return version.physicalKey;
     }
 
-    async deletePhysicalObject(objectId: string, knownPhysicalKey?: string | null): Promise<void> {
-        const physicalKey = knownPhysicalKey || await this.state.physicalKey(objectId);
-        if (!physicalKey) throw new Error(`S3 object has no semantic physical key: ${objectId}`);
+    private targetScope(protectedAccess = false): S3StorageScope {
+        return protectedAccess ? 'private' : 'public';
+    }
+
+    async deletePhysicalObject(
+        objectId: string,
+        knownPhysicalKey?: string | null,
+        _knownStorageScope?: S3StorageScope
+    ): Promise<void> {
+        const stored = knownPhysicalKey
+            ? { physicalKey: knownPhysicalKey }
+            : await this.state.physicalObject(objectId);
+        if (!stored) throw new Error(`S3 object has no semantic physical key: ${objectId}`);
         await this.client.send(new DeleteObjectCommand({
             Bucket: this.options.bucket,
-            Key: physicalKey
+            Key: stored.physicalKey
         }));
     }
 
@@ -151,7 +176,11 @@ export class S3ObjectStorage implements ObjectStorage {
         const logicalKey = normalizeKey(key);
         const readable = await this.state.readable(logicalKey);
         return readable
-            ? { physicalKey: this.physicalKeyForVersion(readable), version: readable }
+            ? {
+                physicalKey: this.physicalKeyForVersion(readable),
+                storageScope: readable.storageScope,
+                version: readable
+            }
             : null;
     }
 
@@ -178,14 +207,26 @@ export class S3ObjectStorage implements ObjectStorage {
     async createReadUrl(
         key: string,
         options: ObjectReadUrlOptions = {}
-    ): Promise<string | null> {
+    ): Promise<ObjectReadTarget | null> {
         const resolved = await this.resolve(key);
-        if (!resolved || !await this.physicalExists(resolved.physicalKey)) return null;
-        const input = { Bucket: this.options.bucket, Key: resolved.physicalKey };
+        if (!resolved || !await this.physicalExists(resolved)) return null;
+        if (resolved.storageScope === 'public' && this.options.publicReadUrlBase) {
+            return {
+                url: publicObjectUrl(this.options.publicReadUrlBase, resolved.physicalKey),
+                visibility: 'public'
+            };
+        }
+        const input = {
+            Bucket: this.options.bucket,
+            Key: resolved.physicalKey
+        };
         const command = options.method === 'HEAD'
             ? new HeadObjectCommand(input)
             : new GetObjectCommand(input);
-        return this.signReadUrl(command, this.options.readUrlTtlSeconds);
+        return {
+            url: await this.signReadUrl(command, this.options.readUrlTtlSeconds),
+            visibility: 'private'
+        };
     }
 
     async put(key: string, body: Uint8Array, options: PutObjectOptions = {}): Promise<StoredObject> {
@@ -217,11 +258,15 @@ export class S3ObjectStorage implements ObjectStorage {
         }
 
         const objectId = crypto.randomUUID();
-        const physicalKey = this.physicalObjectKey(logicalKey, objectId);
+        const storageScope = this.targetScope(
+            options.deferredPublication || options.protectedAccess
+        );
+        const physicalKey = this.physicalObjectKey(logicalKey, objectId, storageScope);
         const operation = await this.state.beginUpload(
             logicalKey,
             objectId,
             physicalKey,
+            storageScope,
             options.deferredPublication ? 'pending' : 'ready'
         );
         if (expectedPreviousObjectId !== undefined &&
@@ -287,16 +332,24 @@ export class S3ObjectStorage implements ObjectStorage {
         durableCleanup = false
     ): Promise<void> {
         if (await this.state.isObjectReferenced(objectId)) return;
-        const physicalKey = await this.state.physicalKey(objectId);
+        const physicalObject = await this.state.physicalObject(objectId);
         try {
-            await this.deletePhysicalObject(objectId, physicalKey);
+            await this.deletePhysicalObject(
+                objectId,
+                physicalObject?.physicalKey,
+                physicalObject?.storageScope
+            );
             await this.state.removeVersionIfUnreferenced(objectId);
         } catch (error) {
             if (durableCleanup) return;
             if (!this.compensation) throw error;
             await this.compensation.enqueue(
                 'delete-s3-object',
-                { objectId, physicalKey },
+                {
+                    objectId,
+                    physicalKey: physicalObject?.physicalKey ?? null,
+                    storageScope: physicalObject?.storageScope ?? 'private'
+                },
                 cause ?? error
             );
         }
@@ -328,11 +381,13 @@ export class S3ObjectStorage implements ObjectStorage {
         return true;
     }
 
-    private async physicalExists(physicalKey: string): Promise<boolean> {
+    private async physicalExists(
+        object: Pick<ResolvedObject, 'physicalKey' | 'storageScope'>
+    ): Promise<boolean> {
         try {
             await this.client.send(new HeadObjectCommand({
                 Bucket: this.options.bucket,
-                Key: physicalKey
+                Key: object.physicalKey
             }));
             return true;
         } catch (error) {
@@ -343,31 +398,29 @@ export class S3ObjectStorage implements ObjectStorage {
 
     async exists(key: string): Promise<boolean> {
         const resolved = await this.resolve(key);
-        return resolved ? this.physicalExists(resolved.physicalKey) : false;
+        return resolved ? this.physicalExists(resolved) : false;
     }
 
     async copy(sourceKey: string, destinationKey: string): Promise<void> {
         const source = await this.resolve(sourceKey);
         if (!source) throw new Error('S3 source object not found');
-        await this.copyVersion(
-            { physicalKey: source.physicalKey, version: source.version },
-            destinationKey,
-            source.version.ownerToken
-        );
+        await this.copyVersion(source, destinationKey, source.version.ownerToken);
     }
 
     private async copyVersion(
-        source: { physicalKey: string; version: S3ObjectVersion },
+        source: ResolvedObject,
         destinationKey: string,
         ownerToken: string | null
     ): Promise<void> {
         const logicalKey = normalizeKey(destinationKey);
+        const storageScope = this.targetScope();
         const objectId = crypto.randomUUID();
-        const physicalKey = this.physicalObjectKey(logicalKey, objectId);
+        const physicalKey = this.physicalObjectKey(logicalKey, objectId, storageScope);
         const operation = await this.state.beginUpload(
             logicalKey,
             objectId,
             physicalKey,
+            storageScope,
             'ready'
         );
         let copied = false;
@@ -375,7 +428,10 @@ export class S3ObjectStorage implements ObjectStorage {
             const result = await this.client.send(new CopyObjectCommand({
                 Bucket: this.options.bucket,
                 Key: physicalKey,
-                CopySource: encodeCopySource(this.options.bucket, source.physicalKey),
+                CopySource: encodeCopySource(
+                    this.options.bucket,
+                    source.physicalKey
+                ),
                 MetadataDirective: 'COPY'
             }));
             copied = true;
@@ -414,9 +470,10 @@ export class S3ObjectStorage implements ObjectStorage {
         }
         const resolved = {
             physicalKey: this.physicalKeyForVersion(source),
+            storageScope: source.storageScope,
             version: source
         };
-        if (!await this.physicalExists(resolved.physicalKey)) return false;
+        if (!await this.physicalExists(resolved)) return false;
         await this.copyVersion(resolved, destinationKey, expectedOwnerToken);
         const deleted = await this.deleteIfOwned(sourceKey, expectedOwnerToken);
         if (!deleted) {
@@ -427,7 +484,7 @@ export class S3ObjectStorage implements ObjectStorage {
     }
 
     async list(prefix: string) {
-        const logicalPrefix = normalizeKey(prefix, true);
+        const logicalPrefix = prefix ? normalizeKey(prefix, true) : '';
         return (await this.state.listReadable(logicalPrefix)).map((object) => ({
             key: object.logicalKey,
             size: object.size,
@@ -440,10 +497,33 @@ export class S3ObjectStorage implements ObjectStorage {
     }
 
     async publish(key: string): Promise<void> {
-        const supersededObjectIds = await this.state.publish(normalizeKey(key));
+        const logicalKey = normalizeKey(key);
+        const snapshot = await this.state.snapshot(logicalKey);
+        if (!snapshot) throw new Error('S3 object not found');
+        const targetScope = this.targetScope();
+        if (snapshot.storageScope !== targetScope) {
+            const resolved = {
+                physicalKey: this.physicalKeyForVersion(snapshot),
+                storageScope: snapshot.storageScope,
+                version: snapshot
+            };
+            if (!await this.physicalExists(resolved)) throw new Error('S3 object not found');
+            await this.copyVersion(resolved, logicalKey, snapshot.ownerToken);
+            return;
+        }
+        const supersededObjectIds = await this.state.publish(logicalKey);
         for (const objectId of supersededObjectIds) {
             await this.cleanupPhysicalObject(objectId, undefined, true);
         }
+    }
+
+    async reconcilePlacement(key: string): Promise<boolean> {
+        const logicalKey = normalizeKey(key);
+        const resolved = await this.resolve(logicalKey);
+        if (!resolved || resolved.storageScope === this.targetScope()) return false;
+        if (!await this.physicalExists(resolved)) throw new Error('S3 object not found');
+        await this.copyVersion(resolved, logicalKey, resolved.version.ownerToken);
+        return true;
     }
 
     async recoverStaleUploads(limit = 10, staleSeconds = 15 * 60): Promise<void> {

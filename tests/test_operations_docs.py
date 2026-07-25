@@ -93,7 +93,11 @@ class OperationsDocumentationTests(unittest.TestCase):
         self.assertIn("DATABASE_URL=", api_environment)
         for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
             self.assertIn(token, web_environment)
-        for token in ("IMS_POSTGRES_IMAGE", "IMS_MINIO_IMAGE", "IMS_MINIO_BUCKET"):
+        for token in (
+            "IMS_POSTGRES_IMAGE",
+            "IMS_MINIO_IMAGE",
+            "IMS_MINIO_BUCKET",
+        ):
             self.assertIn(token, deploy_environment)
 
         self.assertNotIn("IMS_NGINX_IMAGE", api_environment)
@@ -106,6 +110,7 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "IMS_OBJECT_STORAGE",
             "IMS_S3_BUCKET",
+            "IMS_S3_PUBLIC_READ_URL_BASE",
             "IMS_S3_REGION",
             "IMS_S3_ENDPOINT",
             "IMS_S3_FORCE_PATH_STYLE",
@@ -116,6 +121,11 @@ class OperationsDocumentationTests(unittest.TestCase):
             "PutObject",
             "DeleteObject",
             "不会自动搬迁",
+            "migration:public-objects",
+            "migration:single-bucket",
+            "__protected",
+            "Worker",
+            "D1",
         ):
             self.assertIn(token, self.object_storage)
 
