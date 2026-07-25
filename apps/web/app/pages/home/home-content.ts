@@ -3,6 +3,7 @@ import {
   CalendarDaysIcon,
   ContactRoundIcon,
   Gamepad2Icon,
+  HistoryIcon,
   MapPinnedIcon,
   RadioTowerIcon,
 } from "lucide-react"
@@ -104,6 +105,13 @@ export const portalItems: PortalItem[] = [
     href: "/about",
     icon: MapPinnedIcon,
     accent: "bg-franchise-gk",
+  },
+  {
+    title: "活动编年史",
+    description: "回顾社区线下活动与共同记忆",
+    href: "/chronicle",
+    icon: HistoryIcon,
+    accent: "bg-franchise-765",
   },
 ]
 

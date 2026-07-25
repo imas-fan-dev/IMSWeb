@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import type { StaticAssets } from '@/ports/http';
+import { resolveFrontendRoute } from '@/routing/frontend-route-policy';
 import { contentTypeForPath } from '@/utils/http/content-type';
 import { parseRange } from '@/utils/http/stored-object-response';
 
@@ -131,5 +132,56 @@ export class NodeStaticAssets implements StaticAssets {
             status: range ? 206 : 200,
             headers
         });
+    }
+}
+
+export function listFrontendFiles(directory: string, root = directory): string[] {
+    let entries: fsSync.Dirent[];
+    try {
+        entries = fsSync.readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+        throw error;
+    }
+    return entries.flatMap((entry) => {
+        const absolute = path.join(directory, entry.name);
+        if (entry.isSymbolicLink()) {
+            throw new Error(`Frontend asset tree contains a symbolic link: ${absolute}`);
+        }
+        if (entry.isDirectory()) return listFrontendFiles(absolute, root);
+        if (!entry.isFile()) {
+            throw new Error(`Frontend asset tree contains a non-file: ${absolute}`);
+        }
+        return [path.relative(root, absolute).split(path.sep).join('/')];
+    });
+}
+
+function rewriteFrontendRequest(request: Request, assetPath: string): Request {
+    const url = new URL(request.url);
+    url.pathname = `/${assetPath}`;
+    url.search = '';
+    url.hash = '';
+    return new Request(url, {
+        method: request.method,
+        headers: request.headers
+    });
+}
+
+export class FrontendStaticAssets implements StaticAssets {
+    constructor(
+        private readonly assets: StaticAssets,
+        private readonly frontendFiles: ReadonlySet<string>
+    ) {}
+
+    async fetch(request: Request): Promise<Response> {
+        const decision = resolveFrontendRoute({
+            method: request.method,
+            pathname: new URL(request.url).pathname
+        }, this.frontendFiles);
+        if (decision.kind === 'server') return this.assets.fetch(request);
+        if (decision.kind === 'not-found') {
+            return new Response('Not Found', { status: 404 });
+        }
+        return this.assets.fetch(rewriteFrontendRequest(request, decision.assetPath));
     }
 }

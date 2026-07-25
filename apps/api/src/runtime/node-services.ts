@@ -50,7 +50,11 @@ import {
     FilesystemObjectStorage,
     type FilesystemStorageRoots
 } from '@/infra/oss/filesystem/object-storage';
-import { NodeStaticAssets } from '@/infra/http/filesystem/static-assets';
+import {
+    FrontendStaticAssets,
+    listFrontendFiles,
+    NodeStaticAssets
+} from '@/infra/http/filesystem/static-assets';
 import { S3CompensationService } from '@/infra/oss/s3/compensation-service';
 import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
 import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
@@ -235,7 +239,10 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             story,
             ...objectStorageInfrastructure,
             images: new SharpImageProcessor(),
-            staticAssets: new NodeStaticAssets(PUBLIC_DIR),
+            staticAssets: new FrontendStaticAssets(
+                new NodeStaticAssets(PUBLIC_DIR),
+                new Set(listFrontendFiles(PUBLIC_DIR))
+            ),
             uploads: new StreamingUploadParser(),
             idempotency: new FilesystemIdempotencyStore(IDEMPOTENCY_DIR),
             rateLimiter: new MemoryRateLimiter(),
