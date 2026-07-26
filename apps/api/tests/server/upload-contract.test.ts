@@ -9,6 +9,15 @@ import type { UploadParser } from '@/ports/http';
 import { validateUploadedImage } from '@/utils/media/image-upload';
 import { md5Hex } from '@/utils/crypto/md5';
 
+function versionAtLeast(actual: string, minimum: readonly number[]): boolean {
+    const parts = actual.split('.').map(Number);
+    for (const [index, part] of minimum.entries()) {
+        if ((parts[index] ?? 0) > part) return true;
+        if ((parts[index] ?? 0) < part) return false;
+    }
+    return true;
+}
+
 class FixtureImages implements ImageProcessor {
     constructor(private readonly format = 'png', private readonly broken = false) {}
     async validate(): Promise<ImageInfo> {
@@ -103,6 +112,11 @@ test('shared image upload contract rejects extension, MIME, decoded format, and 
     )).format, 'jpeg');
 });
 
+test('Sharp runtime includes the libvips fixes for inherited image decoder CVEs', () => {
+    assert.ok(versionAtLeast(sharp.versions.sharp, [0, 35, 0]), sharp.versions.sharp);
+    assert.ok(versionAtLeast(sharp.versions.vips, [8, 18, 3]), sharp.versions.vips);
+});
+
 test('Sharp image processor validates and converts real image bytes with stable dimensions', async () => {
     const processor = new SharpImageProcessor();
     const source = await sharp({
@@ -120,6 +134,17 @@ test('Sharp image processor validates and converts real image bytes with stable 
         height: 4,
         contentType: 'image/png'
     });
+    for (const [format, contentType, encoded] of [
+        ['gif', 'image/gif', await sharp(source).gif().toBuffer()],
+        ['tiff', 'image/tiff', await sharp(source).tiff().toBuffer()]
+    ] as const) {
+        assert.deepEqual(await processor.validate(encoded, contentType), {
+            format,
+            width: 8,
+            height: 4,
+            contentType
+        });
+    }
     await assert.rejects(processor.validate(source, 'image/jpeg'), /图片类型与内容不匹配/);
     await assert.rejects(processor.validate(Uint8Array.of(1, 2, 3)), /unsupported image format|Input buffer/);
 
