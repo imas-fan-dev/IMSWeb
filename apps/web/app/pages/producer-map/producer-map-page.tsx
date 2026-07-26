@@ -3,10 +3,10 @@ import {
   ExternalLinkIcon,
   ImageIcon,
   LoaderCircleIcon,
-  MapPinIcon,
   RefreshCwIcon,
   SearchIcon,
   UsersRoundIcon,
+  XIcon,
 } from "lucide-react"
 import { useMemo, useState } from "react"
 
@@ -26,6 +26,7 @@ import { ChinaCommunityMap } from "~/pages/producer-map/components/china-communi
 import {
   getProducerMapContent,
   type ProducerMapCommunity,
+  type ProducerMapRegion,
   type ProducerMapSeries,
 } from "~/shared/api"
 
@@ -84,6 +85,53 @@ function CommunityImageDialog({
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>关闭</DialogClose>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RegionImageDialog({
+  region,
+  onOpenChange,
+}: {
+  region: ProducerMapRegion | null
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={Boolean(region)} onOpenChange={onOpenChange}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-sm"
+        className="max-h-[calc(100svh-2rem)] max-w-[calc(100%-2rem)] gap-3 overflow-hidden bg-background p-3 sm:max-w-6xl"
+      >
+        <DialogHeader className="flex-row items-center gap-3 px-1">
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="truncate">{region?.name}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {region?.name}地区资料大图
+            </DialogDescription>
+          </div>
+          <DialogClose
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="关闭地区资料"
+                title="关闭"
+              />
+            }
+          >
+            <XIcon />
+          </DialogClose>
+        </DialogHeader>
+        {region?.imageUrl ? (
+          <img
+            src={region.imageUrl}
+            alt={`${region.name}地区资料`}
+            className="max-h-[calc(100svh-6.5rem)] w-full object-contain"
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )
@@ -163,7 +211,7 @@ export default function ProducerMapPage() {
     send: refresh,
     onError,
   } = useRequest(getProducerMapContent())
-  const [selectedProvince, setSelectedProvince] = useState<string | null>(null)
+  const [imageRegion, setImageRegion] = useState<ProducerMapRegion | null>(null)
   const [regionFilter, setRegionFilter] = useState("all")
   const [query, setQuery] = useState("")
   const [imageCommunity, setImageCommunity] =
@@ -177,9 +225,6 @@ export default function ProducerMapPage() {
   const enabledCommunities = useMemo(
     () => data?.communities.filter((community) => community.enabled) ?? [],
     [data]
-  )
-  const selectedRegion = enabledRegions.find(
-    (region) => region.province === selectedProvince
   )
   const visibleCommunities = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN")
@@ -254,85 +299,16 @@ export default function ProducerMapPage() {
         </section>
 
         <section className="border-b" aria-label="地区社群地图">
-          <div className="mx-auto grid w-full max-w-7xl lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
-            <div className="min-w-0 border-b lg:border-r lg:border-b-0">
-              <ChinaCommunityMap
-                regions={enabledRegions}
-                selectedProvince={selectedProvince}
-                onSelect={setSelectedProvince}
-              />
-            </div>
-            <aside className="flex min-h-72 flex-col p-5 sm:p-7 lg:min-h-0 lg:p-8">
-              <label
-                htmlFor="producer-map-region"
-                className="text-xs font-semibold text-muted-foreground"
-              >
-                地区资料
-              </label>
-              <select
-                id="producer-map-region"
-                className="mt-2 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-                value={selectedProvince || ""}
-                onChange={(event) =>
-                  setSelectedProvince(event.target.value || null)
-                }
-              >
-                <option value="">全国概览</option>
-                {enabledRegions.map((region) => (
-                  <option key={region.id} value={region.province}>
-                    {region.name}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-8">
-                <MapPinIcon
-                  className="size-6 text-primary"
-                  aria-hidden="true"
-                />
-                <h2 className="mt-4 text-xl font-semibold">
-                  {selectedProvince
-                    ? selectedRegion?.name || selectedProvince
-                    : "全国制作人社群"}
-                </h2>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  {selectedRegion?.summary ||
-                    (selectedProvince
-                      ? "该地区资料尚未收录。"
-                      : `当前收录 ${enabledRegions.length} 个地区、${enabledCommunities.length} 个社群。`)}
-                </p>
-                {selectedRegion?.imageUrl ? (
-                  <img
-                    src={selectedRegion.imageUrl}
-                    alt={`${selectedRegion.name}地区资料`}
-                    className="mt-5 max-h-56 w-full rounded-md border object-contain"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : null}
-                {selectedRegion?.contact ? (
-                  <p className="mt-4 text-sm leading-6 font-medium break-words">
-                    {selectedRegion.contact}
-                  </p>
-                ) : null}
-              </div>
-              {selectedRegion?.linkUrl ? (
-                <Button
-                  className="mt-auto self-start"
-                  variant="outline"
-                  render={
-                    <a
-                      href={selectedRegion.linkUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    />
-                  }
-                  nativeButton={false}
-                >
-                  <ExternalLinkIcon data-icon="inline-start" />
-                  访问地区入口
-                </Button>
-              ) : null}
-            </aside>
+          <div className="mx-auto w-full max-w-7xl">
+            <ChinaCommunityMap
+              regions={enabledRegions}
+              onSelect={(province) => {
+                const region = enabledRegions.find(
+                  (item) => item.province === province
+                )
+                if (region?.imageUrl) setImageRegion(region)
+              }}
+            />
           </div>
         </section>
 
@@ -411,6 +387,12 @@ export default function ProducerMapPage() {
         community={imageCommunity}
         onOpenChange={(open) => {
           if (!open) setImageCommunity(null)
+        }}
+      />
+      <RegionImageDialog
+        region={imageRegion}
+        onOpenChange={(open) => {
+          if (!open) setImageRegion(null)
         }}
       />
     </main>

@@ -4,35 +4,19 @@ import * as echarts from "echarts/core"
 import { CanvasRenderer } from "echarts/renderers"
 import { useEffect, useRef, useState } from "react"
 
-import {
-  getProducerMapGeometry,
-  type ProducerMapRegion,
-  type ProducerMapSeries,
-} from "~/shared/api"
+import { getProducerMapGeometry, type ProducerMapRegion } from "~/shared/api"
 
 echarts.use([MapChart, TooltipComponent, CanvasRenderer])
 
 const mapName = "imsweb-producer-map"
 
-const seriesColors: Record<ProducerMapSeries, string> = {
-  all: "#c7c9ce",
-  "765": "#df647f",
-  cg: "#5d8fd8",
-  ml: "#d8a94c",
-  sidem: "#4aa879",
-  sc: "#9b78c8",
-  gakuen: "#d97355",
-}
-
 type MapGeoJson = Parameters<typeof echarts.registerMap>[1]
 
 export function ChinaCommunityMap({
   regions,
-  selectedProvince,
   onSelect,
 }: {
   regions: ProducerMapRegion[]
-  selectedProvince: string | null
   onSelect: (province: string) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -104,42 +88,35 @@ export function ChinaCommunityMap({
             type: "map",
             map: mapName,
             roam: false,
-            selectedMode: "single",
             layoutCenter: ["50%", "50%"],
-            layoutSize: "96%",
+            layoutSize: "88%",
             label: { show: false },
             itemStyle: {
-              areaColor: "#e7e8eb",
-              borderColor: "#a9abb1",
+              areaColor: "#d9dade",
+              borderColor: "#9b9da4",
               borderWidth: 0.75,
             },
             emphasis: {
-              label: { show: true, color: "#17171a", fontSize: 11 },
-              itemStyle: {
-                areaColor: "#f2afc0",
-                borderColor: "#b52d60",
-                borderWidth: 1.5,
-              },
-            },
-            select: {
+              scale: true,
+              focus: "self",
               label: { show: true, color: "#17171a", fontSize: 11 },
               itemStyle: {
                 areaColor: "#e67c9c",
                 borderColor: "#9f1f51",
-                borderWidth: 1.5,
+                borderWidth: 2,
+                shadowBlur: 18,
+                shadowColor: "rgba(181, 45, 96, 0.38)",
               },
             },
             data: regions.map((region) => ({
               name: region.province,
-              selected: region.province === selectedProvince,
-              itemStyle: { areaColor: seriesColors[region.series] },
             })),
           },
         ],
       },
       { notMerge: true }
     )
-  }, [ready, regions, selectedProvince])
+  }, [ready, regions])
 
   if (loadError) {
     return (
@@ -153,8 +130,8 @@ export function ChinaCommunityMap({
     <div
       ref={containerRef}
       role="img"
-      aria-label="中国省级行政区制作人社群地图"
-      className="aspect-[4/3] min-h-80 w-full lg:aspect-auto lg:h-[38rem]"
+      aria-label="中国省级行政区制作人社群地图，选择省份查看地区资料"
+      className="aspect-[4/3] min-h-80 w-full sm:aspect-[16/10] lg:aspect-auto lg:h-[42rem]"
     />
   )
 }

@@ -3,6 +3,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   ExternalLinkIcon,
+  ImageIcon,
   LoaderCircleIcon,
   MapPinnedIcon,
   PlusIcon,
@@ -150,6 +151,81 @@ function SeriesSelect({
   )
 }
 
+function ImageUrlEditor({
+  id,
+  label,
+  value,
+  previewAlt,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: string | null
+  previewAlt: string
+  onChange: (value: string | null) => void
+}) {
+  const [failedValue, setFailedValue] = useState<string | null>(null)
+  const previewFailed = Boolean(value && failedValue === value)
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] lg:items-start">
+      <div className="flex aspect-[16/10] min-h-36 items-center justify-center overflow-hidden rounded-lg border bg-muted/25">
+        {value && !previewFailed ? (
+          <img
+            src={value}
+            alt={previewAlt}
+            className="size-full object-contain"
+            loading="lazy"
+            onError={() => setFailedValue(value)}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2 px-4 text-center text-xs text-muted-foreground">
+            <ImageIcon className="size-5" aria-hidden="true" />
+            <span>{previewFailed ? "图片无法预览" : "尚未设置图片"}</span>
+          </div>
+        )}
+      </div>
+      <AdminField
+        label={label}
+        htmlFor={id}
+        description="公开页将使用此地址展示图片；修改后需保存更改。"
+      >
+        <input
+          id={id}
+          className={adminControlClass}
+          maxLength={500}
+          placeholder="https://… 或 /uploads/…"
+          value={value || ""}
+          onChange={(event) => onChange(event.target.value || null)}
+        />
+        {value ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              render={<a href={value} target="_blank" rel="noreferrer" />}
+              nativeButton={false}
+            >
+              <ExternalLinkIcon data-icon="inline-start" />
+              打开原图
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onChange(null)}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              清除图片
+            </Button>
+          </div>
+        ) : null}
+      </AdminField>
+    </div>
+  )
+}
+
 function RegionEditor({
   region,
   index,
@@ -253,7 +329,7 @@ function RegionEditor({
           }
         />
       </AdminField>
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-2">
         <AdminField label="联络信息" htmlFor={`${prefix}-contact`}>
           <input
             id={`${prefix}-contact`}
@@ -277,18 +353,14 @@ function RegionEditor({
             }
           />
         </AdminField>
-        <AdminField label="地区图片 URL" htmlFor={`${prefix}-image`}>
-          <input
-            id={`${prefix}-image`}
-            className={adminControlClass}
-            maxLength={500}
-            value={region.imageUrl || ""}
-            onChange={(event) =>
-              onChange({ ...region, imageUrl: event.target.value || null })
-            }
-          />
-        </AdminField>
       </div>
+      <ImageUrlEditor
+        id={`${prefix}-image`}
+        label="地区资料图片 URL"
+        value={region.imageUrl}
+        previewAlt={`${region.name || region.province}地区资料图片`}
+        onChange={(imageUrl) => onChange({ ...region, imageUrl })}
+      />
     </AdminPanel>
   )
 }
@@ -406,7 +478,7 @@ function CommunityEditor({
           }
         />
       </AdminField>
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-2">
         <AdminField label="联络信息" htmlFor={`${prefix}-contact`}>
           <input
             id={`${prefix}-contact`}
@@ -430,18 +502,14 @@ function CommunityEditor({
             }
           />
         </AdminField>
-        <AdminField label="联络图片 URL" htmlFor={`${prefix}-image`}>
-          <input
-            id={`${prefix}-image`}
-            className={adminControlClass}
-            maxLength={500}
-            value={community.imageUrl || ""}
-            onChange={(event) =>
-              onChange({ ...community, imageUrl: event.target.value || null })
-            }
-          />
-        </AdminField>
       </div>
+      <ImageUrlEditor
+        id={`${prefix}-image`}
+        label="联络图片 URL"
+        value={community.imageUrl}
+        previewAlt={`${community.name || `社群 ${index + 1}`}联络图片`}
+        onChange={(imageUrl) => onChange({ ...community, imageUrl })}
+      />
     </AdminPanel>
   )
 }

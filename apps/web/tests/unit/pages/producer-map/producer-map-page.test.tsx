@@ -88,13 +88,15 @@ describe("ProducerMapPage", () => {
       await screen.findByRole("heading", { name: "全国制作人地图" })
     ).toBeVisible()
     expect(screen.getByText("2 个公开条目")).toBeVisible()
+    expect(screen.queryByRole("combobox", { name: "地区资料" })).toBeNull()
 
     await user.click(screen.getByRole("button", { name: "测试地图选择广东省" }))
-    expect(screen.getByText("珠三角与粤东西北制作人交流信息。")).toBeVisible()
+    expect(screen.getByRole("dialog", { name: "广东制作人社群" })).toBeVisible()
     expect(screen.getByAltText("广东制作人社群地区资料")).toHaveAttribute(
       "src",
       "/maps/guangdong.png"
     )
+    await user.click(screen.getByRole("button", { name: "关闭地区资料" }))
 
     await user.type(screen.getByPlaceholderText("搜索社群"), "广东")
     expect(screen.getByText("1 个公开条目")).toBeVisible()
