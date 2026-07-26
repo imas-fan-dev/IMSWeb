@@ -161,7 +161,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             with self.subTest(document=document):
                 self.assertNotIn("apps/legacy", document.read_text(encoding="utf-8"))
 
-    def test_public_docs_do_not_offer_compose_nginx(self):
+    def test_public_docs_keep_nginx_out_of_compose(self):
         documents = [
             PROJECT_ROOT / "README.md",
             PROJECT_ROOT / "apps/api/README.md",
@@ -171,11 +171,13 @@ class OperationsDocumentationTests(unittest.TestCase):
         for document in documents:
             with self.subTest(document=document):
                 content = document.read_text(encoding="utf-8")
-                self.assertNotIn("deploy/nginx", content)
                 self.assertNotIn("ops:nginx", content)
 
         package = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))
         self.assertFalse(any(name.startswith("ops:nginx") for name in package["scripts"]))
+        compose = (PROJECT_ROOT / "deploy/compose.yaml").read_text(encoding="utf-8")
+        self.assertNotRegex(compose, r"(?i)nginx")
+        self.assertIn("deploy/nginx/", self.runbook)
 
 
 if __name__ == "__main__":

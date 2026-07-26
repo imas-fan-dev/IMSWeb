@@ -40,10 +40,29 @@ class ComposeDeploymentTests(unittest.TestCase):
             sorted(path.name for path in (PROJECT_ROOT / "deploy").glob("compose*.yaml")),
             ["compose.yaml"],
         )
-        self.assertFalse((PROJECT_ROOT / "deploy/nginx").exists())
+        self.assertTrue((PROJECT_ROOT / "deploy/nginx/imsweb.conf.example").is_file())
+        self.assertTrue((PROJECT_ROOT / "deploy/nginx/README.md").is_file())
         self.assertFalse((PROJECT_ROOT / "compose.yaml").exists())
         self.assertFalse((PROJECT_ROOT / "compose.emergency.yaml").exists())
         self.assertFalse((PROJECT_ROOT / "apps/legacy").exists())
+
+    def test_host_nginx_config_keeps_application_and_minio_private(self):
+        config = (
+            PROJECT_ROOT / "deploy/nginx/imsweb.conf.example"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("server 127.0.0.1:3000;", config)
+        self.assertIn("server 127.0.0.1:9000;", config)
+        self.assertNotIn("127.0.0.1:9001", config)
+        self.assertIn("server_name __IMS_APP_DOMAIN__;", config)
+        self.assertIn("server_name __IMS_S3_DOMAIN__;", config)
+        self.assertIn("proxy_pass http://imsweb_node;", config)
+        self.assertIn("proxy_pass http://imsweb_minio;", config)
+        self.assertIn("proxy_set_header X-Forwarded-For $remote_addr;", config)
+        self.assertIn("proxy_set_header Host $http_host;", config)
+        self.assertIn("proxy_request_buffering off;", config)
+        self.assertEqual(config.count("client_max_body_size 64m;"), 2)
+        self.assertNotIn("client_max_body_size 0;", config)
 
 
 if __name__ == "__main__":

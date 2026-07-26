@@ -72,6 +72,8 @@ bucket，因此只填写 `https://media.example.com`。两者都会继续拼接�
 
 `IMS_S3_ENDPOINT` 会进入私有签名 URL，因此必须是浏览器可访问且由后端也能连接的地址。生产
 MinIO 应使用独立 HTTPS 域名或对象入口，不要把容器内 DNS 名或回环地址签发给远端浏览器。
+MinIO 与 Hono 位于同一宿主机时，可使用 [`deploy/nginx/`](../deploy/nginx/README.md) 的双域名
+模板：主域名代理完整 Web/API，独立对象域名在保留 Host 和 URI 的情况下代理 MinIO S3 API。
 R2 S3 endpoint 始终需要签名；待审核名片和编年史图片只在 Hono 鉴权通过后获得短期 URL。
 R2 自定义域名及本地 MinIO 匿名策略必须阻断所有包含 `/__protected/` 的路径，避免绕过 Hono。
 

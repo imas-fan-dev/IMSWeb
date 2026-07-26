@@ -611,10 +611,6 @@ for (const dependency of [
 }
 const composePath = path.join(repositoryRoot, "deploy/compose.yaml");
 requireFile(composePath);
-forbidPath(
-  path.join(repositoryRoot, "deploy/nginx"),
-  "reverse-proxy configuration is external to the Compose stack",
-);
 const currentComposeSource = fs.existsSync(composePath)
   ? fs.readFileSync(composePath, "utf8")
   : "";

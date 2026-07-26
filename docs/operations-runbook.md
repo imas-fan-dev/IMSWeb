@@ -186,8 +186,11 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 
 `deploy/compose.yaml` 不运行应用、Nginx 或其他正式入口，只提供本地 PostgreSQL 和 MinIO；
 MinIO 初始化服务创建一个 bucket，并通过匿名读取策略拒绝 `__protected/`，用于验证签名读取和
-公开 CDN 路径语义。
-生产入口由目标平台独立管理，必须在切流前确认：
+公开 CDN 路径语义。宿主机部署可使用 [`deploy/nginx/`](../deploy/nginx/README.md) 中的 Nginx
+模板：主域名整体代理到 Hono，使 Web 与 API 同源；同机 MinIO 使用独立对象域名代理到回环
+S3 API，且不暴露 Console。
+
+生产入口必须在切流前确认：
 
 - TLS、真实域名、防火墙和上传大小限制已经生效；
 - 主站与隔离站点包使用预期域名并保持 Cookie 边界；

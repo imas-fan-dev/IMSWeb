@@ -86,17 +86,16 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must not provision Nginx", result.stderr)
 
-    def test_compose_nginx_directory_is_rejected(self):
+    def test_host_nginx_directory_is_allowed(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)
             self.make_fixture(root)
-            nginx_config = root / "deploy/nginx/default.conf"
+            nginx_config = root / "deploy/nginx/imsweb.conf.example"
             nginx_config.parent.mkdir(parents=True)
             nginx_config.write_text("server {}\n", encoding="utf-8")
             result = self.run_fixture(root)
 
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("reverse-proxy configuration is external", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_api_source_cannot_restore_server_subdirectory(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
