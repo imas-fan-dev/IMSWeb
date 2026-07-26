@@ -82,6 +82,26 @@ class OperationsDocumentationTests(unittest.TestCase):
         self.assertIn("tsx watch", command)
         self.assertIn("--include .env", command)
 
+    def test_local_r2_compose_entrypoint_uses_api_environment_without_minio(self):
+        package = json.loads(
+            (PROJECT_ROOT / "package.json").read_text(encoding="utf-8")
+        )
+        scripts = package["scripts"]
+
+        for name in ("dev:api:r2:config", "dev:api:r2:up"):
+            with self.subTest(name=name):
+                command = scripts[name]
+                self.assertIn("--env-file apps/api/.env", command)
+                self.assertNotIn("--profile local-storage", command)
+
+        for token in (
+            "pnpm run dev:api:r2:config",
+            "pnpm run dev:api:r2:up",
+            "不启用或依赖 MinIO",
+            "`auto` region",
+        ):
+            self.assertIn(token, self.ai_guide)
+
     def test_environment_templates_are_owned_by_runtime_surfaces(self):
         self.assertFalse((PROJECT_ROOT / ".env.example").exists())
         api_environment = API_ENVIRONMENT.read_text(encoding="utf-8")
@@ -106,7 +126,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "IMS_MINIO_IMAGE",
             "IMS_MINIO_BUCKET",
             "IMS_S3_ENDPOINT",
-            "IMS_S3_PUBLIC_READ_URL_BASE",
+            "IMS_PUBLIC_READ_URL_BASE",
             "AWS_ACCESS_KEY_ID",
         ):
             self.assertIn(token, deploy_environment)
@@ -121,7 +141,7 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "IMS_OBJECT_STORAGE",
             "IMS_S3_BUCKET",
-            "IMS_S3_PUBLIC_READ_URL_BASE",
+            "IMS_PUBLIC_READ_URL_BASE",
             "IMS_S3_REGION",
             "IMS_S3_ENDPOINT",
             "IMS_S3_FORCE_PATH_STYLE",

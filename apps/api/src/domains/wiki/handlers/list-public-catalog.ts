@@ -9,13 +9,14 @@ import {
   toWikiIdol,
   wikiGroupIconUrl,
 } from "@/domains/wiki/service";
+import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
 
 export function createHandleListPublicWikiCatalog<E extends Env>(
   resolveServices: WikiServicesResolver<E>,
 ): Handler<E> {
   return async (context) => {
     const services = await resolveServices(context);
-    requireWikiServices(services, ["story"]);
+    requireWikiServices(services, ["story", "storage"]);
     const [agencyRows, idolRows, groupRows, memberRows] = await Promise.all([
       services.story!.listAgencies(),
       services.story!.listIdolsWithAgencies(),
@@ -27,15 +28,23 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
       if (!idol.wiki_enabled) continue;
       counts.set(idol.agency_id, (counts.get(idol.agency_id) ?? 0) + 1);
     }
-    const agencies = agencyRows.filter((agency) => agency.wiki_enabled).map((agency) => ({
-      id: agency.id,
-      code: agency.code,
-      name: agency.name_cn,
-      color: agency.color,
-      bannerTitle: agency.banner_title,
-      iconUrl: agency.icon_object_key ? `/icon/agencies/${agency.id}.webp` : null,
-      idolCount: counts.get(agency.id) ?? 0,
-    }));
+    const agencies = await Promise.all(agencyRows
+      .filter((agency) => agency.wiki_enabled)
+      .map(async (agency) => ({
+        id: agency.id,
+        code: agency.code,
+        name: agency.name_cn,
+        color: agency.color,
+        bannerTitle: agency.banner_title,
+        iconUrl: agency.icon_object_key
+          ? await resolvePublicObjectUrl(
+              services.storage!,
+              agency.icon_object_key,
+              `/icon/agencies/${agency.id}.webp`,
+            )
+          : null,
+        idolCount: counts.get(agency.id) ?? 0,
+      })));
     const requestedAgency = (context.req.query("agency") ?? "").trim();
     const selectedAgency = requestedAgency
       ? agencies.find(
@@ -54,18 +63,24 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
         idol.agency_id === selectedAgency.id &&
         idol.wiki_enabled,
     );
-    const idols = new Map(selectedRows.map((row) => {
+    const idols = new Map(await Promise.all(selectedRows.map(async (row) => {
       const idol = toWikiIdol(row);
       return [idol.id, {
         id: idol.id,
         name: idol.name,
         folderName: idol.folderName,
         color: idol.color,
-        imageUrl: idol.avatarUrl ?? "",
+        imageUrl: row.avatar_object_key
+          ? await resolvePublicObjectUrl(
+              services.storage!,
+              row.avatar_object_key,
+              idol.avatarUrl ?? "",
+            )
+          : "",
         imageFit: idol.avatarFit ?? "cover",
         textColor: idol.textColor ?? "#ffffff",
-      }];
-    }));
+      }] as const;
+    })));
     const membersByGroup = new Map<number, typeof memberRows>();
     for (const member of memberRows) {
       if (member.agency_id !== selectedAgency.id) continue;
@@ -75,17 +90,24 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
     }
     const groups = groupRows
       .filter((group) => group.agency_id === selectedAgency.id)
-      .map((group) => ({
+      .map(async (group) => ({
         id: group.id,
         code: group.code,
         name: group.name,
         color: group.color,
-        iconUrl: group.icon_object_key ? wikiGroupIconUrl(group.id) : null,
+        iconUrl: group.icon_object_key
+          ? await resolvePublicObjectUrl(
+              services.storage!,
+              group.icon_object_key,
+              wikiGroupIconUrl(group.id),
+            )
+          : null,
         idols: (membersByGroup.get(group.id) ?? []).flatMap((member) => {
           const idol = idols.get(member.idol_id);
           return idol ? [idol] : [];
         }),
       }));
+    const resolvedGroups = await Promise.all(groups);
     const selectedAgencyRow = agencyRows.find((agency) => agency.id === selectedAgency.id)!;
     return wikiJson({
       status: "success",
@@ -93,7 +115,7 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
       selection: {
         agency: selectedAgency,
         layoutRevision: selectedAgencyRow.layout_revision,
-        groups,
+        groups: resolvedGroups,
       },
     });
   };

@@ -356,6 +356,17 @@ test('S3 public and protected objects share one bucket with distinct read paths'
     assert.ok(snapshot);
     assert.equal(snapshot.storageScope, 'public');
     assert.equal(client.hasObject('ims-media-prod', snapshot.physicalKey!), true);
+    const commandsBeforePublicUrl = client.commands.length;
+    assert.equal(
+        await storage.createPublicReadUrl(key),
+        'https://media.example.test/bucket-root/' +
+            snapshot.physicalKey!.split('/').map(encodeURIComponent).join('/')
+    );
+    assert.equal(
+        client.commands.length,
+        commandsBeforePublicUrl,
+        'public response URL resolution must not issue an S3 HEAD request'
+    );
     assert.deepEqual(await storage.createReadUrl(key), {
         url: 'https://media.example.test/bucket-root/' +
             snapshot.physicalKey!.split('/').map(encodeURIComponent).join('/'),
@@ -370,6 +381,7 @@ test('S3 public and protected objects share one bucket with distinct read paths'
     assert.equal(pendingNamecard.state, 'ready');
     assert.equal(pendingNamecard.storageScope, 'private');
     assert.match(pendingNamecard.physicalKey!, /\/__protected\/community\/namecards\//);
+    assert.equal(await storage.createPublicReadUrl(namecardKey), null);
     assert.equal((await storage.createReadUrl(namecardKey))?.visibility, 'private');
     await storage.publish(namecardKey);
     const publishedNamecard = await state.snapshot(namecardKey);
@@ -377,6 +389,10 @@ test('S3 public and protected objects share one bucket with distinct read paths'
     assert.equal(publishedNamecard.storageScope, 'public');
     assert.equal((await storage.createReadUrl(namecardKey))?.visibility, 'public');
     assert.equal(client.hasObject('ims-media-prod', pendingNamecard.physicalKey!), false);
+    assert.match(
+        await storage.createPublicReadUrl(namecardKey) ?? '',
+        /^https:\/\/media\.example\.test\/bucket-root\//
+    );
 
     const readyInternalKey = 'site-packages/example/revisions/one/source.zip';
     await storage.put(readyInternalKey, new Uint8Array([5]));

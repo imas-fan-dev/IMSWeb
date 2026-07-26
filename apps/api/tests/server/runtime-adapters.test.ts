@@ -104,6 +104,21 @@ test('Node object storage defaults to S3 and requires explicit filesystem compat
         IMS_OBJECT_STORAGE: 'filesystem'
     }), { type: 'filesystem' });
     assert.deepEqual(parseNodeObjectStorageConfig({
+        IMS_OBJECT_STORAGE: 'filesystem',
+        IMS_SITE_ORIGIN: 'https://www.example.test/'
+    }), {
+        type: 'filesystem',
+        publicReadUrlBase: 'https://www.example.test'
+    });
+    assert.deepEqual(parseNodeObjectStorageConfig({
+        IMS_OBJECT_STORAGE: 'filesystem',
+        IMS_SITE_ORIGIN: 'https://www.example.test',
+        IMS_PUBLIC_READ_URL_BASE: 'https://media.example.test/assets/'
+    }), {
+        type: 'filesystem',
+        publicReadUrlBase: 'https://media.example.test/assets'
+    });
+    assert.deepEqual(parseNodeObjectStorageConfig({
         IMS_OBJECT_STORAGE: ' S3 ',
         IMS_S3_BUCKET: 'ims-media-prod',
         AWS_REGION: 'ap-northeast-1',
@@ -175,6 +190,13 @@ test('Node object storage defaults to S3 and requires explicit filesystem compat
         IMS_S3_PUBLIC_BUCKET: 'ims-public-prod',
         IMS_S3_REGION: 'auto'
     }), /no longer supported/);
+    assert.throws(() => parseNodeObjectStorageConfig({
+        IMS_OBJECT_STORAGE: 's3',
+        IMS_S3_BUCKET: 'ims-media-prod',
+        IMS_PUBLIC_READ_URL_BASE: 'https://media-a.example.test',
+        IMS_S3_PUBLIC_READ_URL_BASE: 'https://media-b.example.test',
+        IMS_S3_REGION: 'auto'
+    }), /must match/);
     assert.deepEqual(parseNodeObjectStorageConfig({
         IMS_OBJECT_STORAGE: 's3',
         IMS_S3_BUCKET: 'ims-media-prod',
@@ -247,12 +269,26 @@ test('FilesystemObjectStorage maps canonical business keys to owned roots', asyn
         storyDataDir,
         uploadsDir: path.join(root, 'uploads'),
         chronicleDir: path.join(root, 'chronicle')
+    }, {
+        publicReadUrlBase: 'https://media.example.test/content/'
     });
     const key = 'wiki/agencies/sc/idols/idol/story-images/card.webp';
     const body = new Uint8Array([1, 2, 3, 4]);
 
     await storage.put(key, body, { contentType: 'image/webp' });
     assert.deepEqual((await storage.get(key))?.body, body);
+    assert.equal(
+        await storage.createPublicReadUrl(key, {
+            publicPath: '/image/SC/Mano/cards/card.webp'
+        }),
+        'https://media.example.test/content/image/SC/Mano/cards/card.webp'
+    );
+    assert.equal(
+        await storage.createPublicReadUrl('wiki/agencies/sc/missing.webp', {
+            publicPath: '/image/missing.webp'
+        }),
+        null
+    );
     assert.deepEqual((await storage.list('wiki/agencies/sc')).map((entry) => entry.key), [key]);
     await assert.rejects(fs.lstat(path.join(publicDir, key)), { code: 'ENOENT' });
     assert.deepEqual(new Uint8Array(await fs.readFile(

@@ -163,3 +163,137 @@ test("public activity covers use the same full-page viewer", async ({
     })
   }
 })
+
+test("namecard images show a shimmer until the network response completes", async ({
+  page,
+}, testInfo) => {
+  const slowImageUrl = "/test-assets/slow-namecard-front.png"
+  let releaseImage: () => void = () => undefined
+  let markImageRequested: () => void = () => undefined
+  const imageRequested = new Promise<void>((resolve) => {
+    markImageRequested = resolve
+  })
+  const imageResponseGate = new Promise<void>((resolve) => {
+    releaseImage = resolve
+  })
+
+  await page.route("**/api/cards?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        list: [
+          {
+            id: 42,
+            image1_url: slowImageUrl,
+            image2_url: coverUrl,
+            status: "approved",
+            created_at: null,
+          },
+        ],
+        total: 1,
+        totalPage: 1,
+      }),
+    })
+  })
+  await page.route("**/api/reactions?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({}),
+    })
+  })
+  await page.route(`**${slowImageUrl}`, async (route) => {
+    markImageRequested()
+    await imageResponseGate
+    await route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64"
+      ),
+    })
+  })
+
+  await page.goto("/community/cards", { waitUntil: "domcontentloaded" })
+  await imageRequested
+
+  const image = page
+    .getByRole("button", { name: "查看制作人名片 42 正面" })
+    .locator("img")
+
+  try {
+    await expect(image).toHaveAttribute("data-image-state", "loading")
+    await expect(image).toHaveAttribute("aria-busy", "true")
+    await expect(image).toHaveCSS("animation-name", "image-loading-shimmer")
+    await expect(image).toHaveCSS("background-image", /linear-gradient/)
+
+    if (process.env.CAPTURE_IMAGE_LOADING_QA === "1") {
+      await page.screenshot({
+        path: `/tmp/imsweb-image-loading-${testInfo.project.name}.png`,
+        fullPage: false,
+      })
+    }
+  } finally {
+    releaseImage()
+  }
+
+  await expect(image).toHaveAttribute("data-image-state", "loaded")
+  await expect(image).not.toHaveAttribute("aria-busy")
+  await expect(image).toHaveCSS("animation-name", "none")
+})
+
+test("namecard images use the shared full-page viewer", async ({
+  page,
+}, testInfo) => {
+  await page.route("**/api/cards?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        list: [
+          {
+            id: 42,
+            image1_url: coverUrl,
+            image2_url: "/brand/series/wall/shiny-colors.webp",
+            status: "approved",
+            created_at: null,
+          },
+        ],
+        total: 1,
+        totalPage: 1,
+      }),
+    })
+  })
+  await page.route("**/api/reactions?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({}),
+    })
+  })
+
+  await page.goto("/community/cards")
+  await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
+
+  const dialog = page.getByRole("dialog", { name: "制作人名片 42 正面" })
+  await expect(dialog).toBeVisible()
+  await expectFullPageGlass(page, dialog)
+  await expect(dialog.getByLabel("名片查看区域")).toBeVisible()
+  await expect(dialog.getByRole("img")).toHaveAttribute(
+    "data-image-state",
+    "loaded"
+  )
+
+  await dialog.getByRole("button", { name: "放大名片" }).click()
+  await expect(dialog.getByText("125%", { exact: true })).toBeVisible()
+
+  if (process.env.CAPTURE_INFORMATION_COVER_QA === "1") {
+    await page.screenshot({
+      path: `/tmp/imsweb-namecard-preview-${testInfo.project.name}.png`,
+      fullPage: false,
+    })
+  }
+
+  await dialog.getByRole("button", { name: "关闭名片预览" }).click()
+  await page.getByRole("button", { name: "查看制作人名片 42 背面" }).click()
+  await expect(
+    page.getByRole("dialog", { name: "制作人名片 42 背面" })
+  ).toBeVisible()
+})

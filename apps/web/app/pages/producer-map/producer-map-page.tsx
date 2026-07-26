@@ -40,6 +40,68 @@ const seriesBorder: Record<ProducerMapSeries, string> = {
   gakuen: "border-t-franchise-gk",
 }
 
+type DialogImageLayout = "community" | "region"
+
+function DialogImageViewport({
+  src,
+  alt,
+  layout,
+}: {
+  src: string
+  alt: string
+  layout: DialogImageLayout
+}) {
+  const [state, setState] = useState<"loading" | "loaded" | "error">("loading")
+
+  return (
+    <div
+      className={
+        layout === "region"
+          ? "relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md bg-muted"
+          : "relative flex h-[min(60svh,36rem)] min-h-64 w-full items-center justify-center overflow-hidden rounded-md border bg-muted"
+      }
+      data-image-state={state}
+      aria-label={`${alt}加载区域`}
+    >
+      <img
+        src={src}
+        alt={alt}
+        onLoad={() => setState("loaded")}
+        onError={() => setState("error")}
+        className={`max-h-full max-w-full object-contain transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none ${
+          state === "loaded"
+            ? "scale-100 opacity-100"
+            : "scale-[0.985] opacity-0"
+        }`}
+      />
+      <div
+        className={`pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-200 motion-reduce:transition-none ${
+          state === "loaded" ? "opacity-0" : "opacity-100"
+        }`}
+        aria-live="polite"
+      >
+        {state === "error" ? (
+          <>
+            <ImageIcon
+              className="size-7 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <span className="sr-only">图片加载失败</span>
+          </>
+        ) : (
+          <>
+            <LoaderCircleIcon
+              className="size-5 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+            <span className="sr-only">正在加载图片</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function meta() {
   return [{ title: "制作人社群地图 | IMSWeb" }]
 }
@@ -76,10 +138,11 @@ function CommunityImageDialog({
           </DialogDescription>
         </DialogHeader>
         {community?.imageUrl ? (
-          <img
+          <DialogImageViewport
+            key={community.imageUrl}
             src={community.imageUrl}
             alt={`${community.name}联络图片`}
-            className="mx-auto max-h-[60svh] w-auto rounded-md border object-contain"
+            layout="community"
           />
         ) : null}
         <DialogFooter>
@@ -126,10 +189,11 @@ function RegionImageDialog({
           </DialogClose>
         </DialogHeader>
         {region?.imageUrl ? (
-          <img
+          <DialogImageViewport
+            key={region.imageUrl}
             src={region.imageUrl}
             alt={`${region.name}地区资料`}
-            className="max-h-[calc(100svh-6.5rem)] w-full object-contain"
+            layout="region"
           />
         ) : null}
       </DialogContent>

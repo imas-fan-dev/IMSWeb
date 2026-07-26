@@ -82,7 +82,8 @@ CSRF Cookie 保持脚本可读，用于 Alova 自动刷新和管理写请求的�
 `0008_auth_refresh_sessions` 已写入 `ims_schema_migrations`。
 
 S3 模式还需要 `IMS_S3_BUCKET`、`IMS_S3_REGION` 及可选 endpoint/prefix。启用 CDN 读取时配置
-同一 bucket 的 `IMS_S3_PUBLIC_READ_URL_BASE`，并在自定义域名 WAF 阻断 `/__protected/`；凭据
+同一 bucket 的 `IMS_PUBLIC_READ_URL_BASE`（旧名 `IMS_S3_PUBLIC_READ_URL_BASE` 仍兼容），
+并在自定义域名 WAF 阻断 `/__protected/`；凭据
 使用标准 AWS 凭据链，不写入仓库。R2 只作为 S3-compatible provider 与单 bucket 自定义域名，
 不部署 Worker 或 D1。完整说明见 [Node 文件对象存储](object-storage.md)。
 

@@ -1,5 +1,5 @@
 export type NodeObjectStorageConfig =
-    | { type: 'filesystem' }
+    | { type: 'filesystem'; publicReadUrlBase?: string }
     | {
         type: 's3';
         bucket: string;
@@ -60,20 +60,23 @@ function parseEndpoint(value: string | undefined): string | undefined {
     return endpoint.toString().replace(/\/$/, '');
 }
 
-function parsePublicReadUrlBase(value: string | undefined): string | undefined {
+function parsePublicReadUrlBase(
+    name: string,
+    value: string | undefined
+): string | undefined {
     if (!value) return undefined;
     let base: URL;
     try {
         base = new URL(value);
     } catch {
-        throw new Error('IMS_S3_PUBLIC_READ_URL_BASE must be a valid HTTP(S) URL');
+        throw new Error(`${name} must be a valid HTTP(S) URL`);
     }
     if (
         !['http:', 'https:'].includes(base.protocol) ||
         base.username || base.password || base.search || base.hash
     ) {
         throw new Error(
-            'IMS_S3_PUBLIC_READ_URL_BASE must be a credential-free HTTP(S) URL'
+            `${name} must be a credential-free HTTP(S) URL`
         );
     }
     return base.toString().replace(/\/+$/, '');
@@ -98,9 +101,22 @@ export function parseNodeObjectStorageConfig(
     environment: NodeJS.ProcessEnv = process.env
 ): NodeObjectStorageConfig {
     const type = optionalValue(environment, 'IMS_OBJECT_STORAGE')?.toLowerCase() || 's3';
-    if (type === 'filesystem') return { type };
-    if (type !== 's3') {
+    if (type !== 's3' && type !== 'filesystem') {
         throw new Error('IMS_OBJECT_STORAGE must be filesystem or s3');
+    }
+
+    const genericPublicReadUrlBase = parsePublicReadUrlBase(
+        'IMS_PUBLIC_READ_URL_BASE',
+        optionalValue(environment, 'IMS_PUBLIC_READ_URL_BASE') ||
+            (type === 'filesystem' ? optionalValue(environment, 'IMS_SITE_ORIGIN') : undefined)
+    );
+    if (type === 'filesystem') {
+        return {
+            type,
+            ...(genericPublicReadUrlBase
+                ? { publicReadUrlBase: genericPublicReadUrlBase }
+                : {})
+        };
     }
 
     const bucket = requiredValue(environment, 'IMS_S3_BUCKET');
@@ -108,9 +124,20 @@ export function parseNodeObjectStorageConfig(
     if (optionalValue(environment, 'IMS_S3_PUBLIC_BUCKET')) {
         throw new Error('IMS_S3_PUBLIC_BUCKET is no longer supported; configure one IMS_S3_BUCKET');
     }
-    const publicReadUrlBase = parsePublicReadUrlBase(
+    const legacyPublicReadUrlBase = parsePublicReadUrlBase(
+        'IMS_S3_PUBLIC_READ_URL_BASE',
         optionalValue(environment, 'IMS_S3_PUBLIC_READ_URL_BASE')
     );
+    if (
+        genericPublicReadUrlBase &&
+        legacyPublicReadUrlBase &&
+        genericPublicReadUrlBase !== legacyPublicReadUrlBase
+    ) {
+        throw new Error(
+            'IMS_PUBLIC_READ_URL_BASE and IMS_S3_PUBLIC_READ_URL_BASE must match when both are set'
+        );
+    }
+    const publicReadUrlBase = genericPublicReadUrlBase ?? legacyPublicReadUrlBase;
     const region = optionalValue(environment, 'IMS_S3_REGION') ||
         optionalValue(environment, 'AWS_REGION');
     if (!region) {

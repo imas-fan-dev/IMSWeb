@@ -40,7 +40,7 @@ API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问�
 
 生产配置应将 `COMPOSE_PROFILES` 留空，并设置完整的 `IMS_S3_*`、AWS 凭据、HTTPS
 `IMS_SITE_ORIGIN`、高熵 `IMS_JWT_SECRET` 和 `IMS_API_DATABASE_URL`。R2 使用 `auto` region；
-`IMS_S3_ENDPOINT` 是 R2 S3 API 域名，`IMS_S3_PUBLIC_READ_URL_BASE` 是 bucket 自定义域名，
+`IMS_S3_ENDPOINT` 是 R2 S3 API 域名，`IMS_PUBLIC_READ_URL_BASE` 是 bucket 自定义域名，
 二者不能互换。渲染配置和启动 API 栈：
 
 ```sh

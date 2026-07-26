@@ -50,7 +50,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -Atc \
 ```
 
 最后一条必须输出 `0009_s3_public_storage_scope`。R2 凭据应只授权该 bucket，并配置与之绑定的
-`IMS_S3_PUBLIC_READ_URL_BASE`。
+`IMS_PUBLIC_READ_URL_BASE`（旧名 `IMS_S3_PUBLIC_READ_URL_BASE` 仍兼容）。
 
 ## 3. 写入 PostgreSQL 控制面
 

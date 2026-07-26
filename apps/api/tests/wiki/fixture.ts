@@ -402,11 +402,18 @@ export class MemoryObjectStorage implements ObjectStorage {
     deletedPrefixes: string[] = [];
     failNextPutAfterWrite = false;
     failDeleteKeys = new Set<string>();
+    publicReadUrlBase: string | null = null;
+    publicReads: string[] = [];
 
     async get(key: string) {
         this.gets.push(key);
         const value = this.objects.get(key);
         return value ? { ...value, body: Uint8Array.from(value.body) } : null;
+    }
+    async createPublicReadUrl(key: string) {
+        this.publicReads.push(key);
+        if (!this.publicReadUrlBase || !this.objects.has(key)) return null;
+        return `${this.publicReadUrlBase}/${key.split('/').map(encodeURIComponent).join('/')}`;
     }
     async put(key: string, body: Uint8Array, options?: PutObjectOptions) {
         this.puts.push(key);

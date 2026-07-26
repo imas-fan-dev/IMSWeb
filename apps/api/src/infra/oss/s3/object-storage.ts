@@ -204,6 +204,18 @@ export class S3ObjectStorage implements ObjectStorage {
         return resolved ? this.getResolved(resolved) : null;
     }
 
+    async createPublicReadUrl(key: string): Promise<string | null> {
+        const resolved = await this.resolve(key);
+        if (
+            !resolved ||
+            resolved.storageScope !== 'public' ||
+            !this.options.publicReadUrlBase
+        ) {
+            return null;
+        }
+        return publicObjectUrl(this.options.publicReadUrlBase, resolved.physicalKey);
+    }
+
     async createReadUrl(
         key: string,
         options: ObjectReadUrlOptions = {}

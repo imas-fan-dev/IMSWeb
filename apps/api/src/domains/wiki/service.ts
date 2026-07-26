@@ -1,6 +1,7 @@
 import type { UploadedFile } from "@/ports/http";
 import type { ImageProcessor } from "@/ports/media";
 import type { RuntimeServices } from "@/ports/runtime-services";
+import type { ObjectStorage } from "@/ports/object-storage";
 import type {
   AgencyRecord,
   IdolRecord,
@@ -15,6 +16,7 @@ import {
   type WikiRandomBackground,
   type WikiStoryCategory,
 } from "@/domains/wiki/models";
+import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
 
 export const DEFAULT_STORY_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
 const imageTypes: Record<
@@ -286,11 +288,27 @@ export async function validateAndConvertStoryImage(
 
 export async function randomBackground(
   repository: StoryRepository,
+  storage?: ObjectStorage,
 ): Promise<WikiRandomBackground> {
   const story = await repository.sampleWikiBackground();
   if (!story?.image_file) return { url: "" };
+  const fallback = wikiStoryImageUrl(
+    story.agency_name,
+    story.idol_name,
+    story.image_file,
+  );
   return {
-    url: wikiStoryImageUrl(story.agency_name, story.idol_name, story.image_file),
+    url: storage
+      ? await resolvePublicObjectUrl(
+          storage,
+          storyObjectKey(
+            story.agency_code,
+            story.idol_folder_name,
+            story.image_file,
+          ),
+          fallback,
+        )
+      : fallback,
     card_name: story.card_name,
     idol_name: story.idol_name,
     agency_name: story.agency_name,

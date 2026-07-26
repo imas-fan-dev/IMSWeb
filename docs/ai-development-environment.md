@@ -41,7 +41,7 @@ IMS_DATABASE=postgresql
 DATABASE_URL=postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/imsweb
 IMS_OBJECT_STORAGE=s3
 IMS_S3_BUCKET=imsweb-media-local
-IMS_S3_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
+IMS_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
 IMS_S3_REGION=us-east-1
 IMS_S3_ENDPOINT=http://127.0.0.1:9000
 IMS_S3_FORCE_PATH_STYLE=true
@@ -124,6 +124,21 @@ curl --fail --silent --show-error \
 
 该路径使用构建后的镜像，不提供源码热更新。Compose 会等待 PostgreSQL 与 MinIO 就绪、创建
 bucket、幂等应用 migrations，再启动 API；本地变量见 `deploy/.env.example`。
+
+需要让本地 Compose API 直接测试 Cloudflare R2 时，在被 Git 忽略的 `apps/api/.env` 中配置
+`IMS_S3_*`、`AWS_ACCESS_KEY_ID` 和 `AWS_SECRET_ACCESS_KEY`，并使用独立入口：
+
+```sh
+pnpm run dev:api:r2:config
+pnpm run dev:api:r2:up
+curl --fail --silent --show-error \
+  http://127.0.0.1:3000/api/wiki/test >/dev/null
+```
+
+该入口继续使用 Compose 内的本地 PostgreSQL、开发模式和 3000 端口，但不启用或依赖 MinIO；
+R2 凭据不会写入命令、Compose 文件或 Git。R2 使用 `auto` region、S3 API endpoint 和关闭
+path-style 寻址，公开读取基址应使用绑定到该 bucket 的自定义域名。优先为本地测试使用独立
+bucket 或限制到目标 bucket 的凭据，避免测试写入污染其他环境。
 
 需要修改 API 源码时使用下方热更新流程。先确认端口没有被无关进程或 Compose API 占用；不要
 未经确认终止已有进程：

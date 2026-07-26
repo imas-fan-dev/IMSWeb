@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { newsRepository } from '@/middleware/hono-context';
+import { newsRepository, services } from '@/middleware/hono-context';
+import { resolvePublicMediaFields } from '@/utils/storage/public-object-url';
 import {
     decodeDescendingIdCursor,
     descendingIdAsDecimal,
@@ -9,6 +10,16 @@ import {
 
 const DEFAULT_CURSOR_LIMIT = 20;
 const MAX_CURSOR_LIMIT = 100;
+
+async function publicNewsRows(
+    c: Context<AppEnvironment>,
+    rows: Record<string, unknown>[]
+): Promise<Record<string, unknown>[]> {
+    const storage = services(c).storage;
+    return storage
+        ? Promise.all(rows.map((row) => resolvePublicMediaFields(storage, row, ['thumbnail'])))
+        : rows;
+}
 
 function boundedLimit(value: string | undefined): number | null {
     if (value === undefined) return DEFAULT_CURSOR_LIMIT;
@@ -43,7 +54,7 @@ async function listCursorNews(
         cursor?.afterId
     );
     const hasNextPage = rows.length > limit;
-    const items = hasNextPage ? rows.slice(0, limit) : rows;
+    const items = await publicNewsRows(c, hasNextPage ? rows.slice(0, limit) : rows);
     const lastId = items.length ? descendingIdAsDecimal(items.at(-1)?.id) : null;
     if (items.length && !lastId) throw new Error('News row has an invalid id');
 
@@ -66,7 +77,7 @@ export async function handleListPublicNews(c: Context<AppEnvironment>): Promise<
         return listCursorNews(c, limitValue, cursorValue);
     }
     try {
-        return c.json(await newsRepository(c).listPublicNews());
+        return c.json(await publicNewsRows(c, await newsRepository(c).listPublicNews()));
     } catch {
         return c.json([], 500);
     }

@@ -25,6 +25,9 @@ export function buildInformationHtmlDocument(title: string, html: string) {
     h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
     p, ul, ol, blockquote, figure { margin: 1em 0; }
     img, video { display: block; max-width: 100%; height: auto; margin: 24px auto; }
+    @keyframes image-loading-shimmer { to { background-position: -200% 0; } }
+    img[data-image-state="loading"] { background-color: color-mix(in srgb, CanvasText 7%, Canvas); background-image: linear-gradient(105deg, transparent 28%, color-mix(in srgb, CanvasText 18%, transparent) 48%, transparent 68%); background-position: 200% 0; background-size: 220% 100%; animation: image-loading-shimmer 1.25s ease-in-out infinite; }
+    img[data-image-state="error"] { background-color: color-mix(in srgb, CanvasText 7%, Canvas); }
     figure img { margin-bottom: 8px; }
     figcaption { color: GrayText; font-size: 0.875em; text-align: center; }
     a { color: LinkText; text-underline-offset: 3px; }
@@ -34,6 +37,7 @@ export function buildInformationHtmlDocument(title: string, html: string) {
     th, td { padding: 8px 10px; border: 1px solid GrayText; text-align: left; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     pre { max-width: 100%; overflow: auto; padding: 16px; background: color-mix(in srgb, CanvasText 7%, Canvas); }
+    @media (prefers-reduced-motion: reduce) { img[data-image-state="loading"] { animation: none; } }
     @media (max-width: 520px) { article { width: min(100% - 24px, 880px); padding: 24px 0 48px; } }
   </style>
 </head>

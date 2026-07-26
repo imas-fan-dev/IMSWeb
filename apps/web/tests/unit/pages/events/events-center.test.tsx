@@ -202,7 +202,7 @@ describe("EventsCenter", () => {
     window.sessionStorage.setItem(
       EVENTS_SESSION_CACHE_KEY,
       JSON.stringify({
-        version: 1,
+        version: 2,
         savedAt: Date.now(),
         scrollY: 720,
         items,
@@ -230,5 +230,49 @@ describe("EventsCenter", () => {
         useFlushSync: false,
       })
     )
+  })
+
+  it("rejects cached relative image paths and refreshes them from the API", async () => {
+    window.sessionStorage.setItem(
+      EVENTS_SESSION_CACHE_KEY,
+      JSON.stringify({
+        version: 2,
+        savedAt: Date.now(),
+        scrollY: 0,
+        items: [
+          {
+            ...event(1),
+            image_url: "/uploads/event/original/stale.png",
+          },
+        ],
+        pageInfo: {
+          nextCursor: null,
+          hasNextPage: false,
+          snapshotAt: "1",
+        },
+      })
+    )
+    const directUrl =
+      "https://media.example.test/editorial/events/event-1/poster.png"
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        items: [{ ...event(1), image_url: directUrl }],
+        pageInfo: {
+          nextCursor: null,
+          hasNextPage: false,
+          snapshotAt: "1",
+        },
+      })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<EventsCenter />)
+
+    expect(await screen.findByRole("heading", { name: "活动 1" })).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(document.querySelector(`img[src="${directUrl}"]`)).not.toBeNull()
+    expect(
+      document.querySelector('img[src="/uploads/event/original/stale.png"]')
+    ).toBeNull()
   })
 })

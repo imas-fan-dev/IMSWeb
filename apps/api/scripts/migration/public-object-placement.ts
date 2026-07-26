@@ -31,7 +31,7 @@ export function parsePublicObjectPlacementArguments(
 ): Options {
     const config = parseNodeObjectStorageConfig(environment);
     if (config.type !== 's3' || !config.publicReadUrlBase) {
-        throw new Error('IMS_S3_PUBLIC_READ_URL_BASE is required');
+        throw new Error('IMS_PUBLIC_READ_URL_BASE is required');
     }
     let apply = false;
     let concurrency = 16;

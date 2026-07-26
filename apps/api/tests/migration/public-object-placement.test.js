@@ -50,5 +50,5 @@ test('public object placement requires a public read URL', () => {
         IMS_OBJECT_STORAGE: 's3',
         IMS_S3_BUCKET: 'ims-media',
         IMS_S3_REGION: 'auto'
-    }), /IMS_S3_PUBLIC_READ_URL_BASE is required/);
+    }), /IMS_PUBLIC_READ_URL_BASE is required/);
 });

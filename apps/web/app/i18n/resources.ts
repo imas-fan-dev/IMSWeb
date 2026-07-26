@@ -29,7 +29,6 @@ export const resources = {
         works: "作品",
         chronicle: "编年史",
         about: "关于",
-        wiki: "进入资料库",
         open: "打开导航",
       },
       footer: {
@@ -85,7 +84,6 @@ export const resources = {
         works: "Works",
         chronicle: "Chronicle",
         about: "About",
-        wiki: "Open knowledge base",
         open: "Open navigation",
       },
       footer: {

@@ -53,7 +53,7 @@ bucket：
 ```dotenv
 IMS_OBJECT_STORAGE=s3
 IMS_S3_BUCKET=imsweb-media-prod
-IMS_S3_PUBLIC_READ_URL_BASE=https://objects.example.com/imsweb-media-prod
+IMS_PUBLIC_READ_URL_BASE=https://objects.example.com/imsweb-media-prod
 IMS_S3_REGION=us-east-1
 IMS_S3_ENDPOINT=https://objects.example.com
 IMS_S3_FORCE_PATH_STYLE=true

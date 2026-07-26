@@ -1,4 +1,4 @@
-import { MenuIcon } from "lucide-react"
+import { ExternalLinkIcon, MenuIcon } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, NavLink } from "react-router"
@@ -78,9 +78,10 @@ export function SiteHeader() {
 
         <Link
           to="/wiki"
-          className="hidden rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:inline-flex"
+          className="hidden items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:inline-flex"
         >
-          {t("navigation.wiki")}
+          Wiki
+          <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
         </Link>
 
         <LanguageSwitcher />
@@ -131,9 +132,10 @@ export function SiteHeader() {
               <Link
                 to="/wiki"
                 onClick={() => setMobileNavigationOpen(false)}
-                className="mt-2 rounded-md bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
+                className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
               >
-                {t("navigation.wiki")}
+                Wiki
+                <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
               </Link>
             </nav>
           </SheetContent>

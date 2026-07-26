@@ -10,6 +10,7 @@ import {
 import { ThemeProvider } from "next-themes"
 import { useTranslation } from "react-i18next"
 
+import { ImageLoadingIndicator } from "~/components/shared/image-loading-indicator"
 import { ThemeColorSync } from "~/components/shared/theme-toggle"
 import { Toaster } from "~/components/ui/sonner"
 import { I18nProvider } from "~/i18n/provider"
@@ -58,6 +59,7 @@ export default function App() {
       enableSystem
       disableTransitionOnChange
     >
+      <ImageLoadingIndicator />
       <ThemeColorSync />
       <Outlet />
       <Toaster position="top-right" richColors closeButton />

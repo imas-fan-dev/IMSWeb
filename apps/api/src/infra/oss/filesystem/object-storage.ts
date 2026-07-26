@@ -27,10 +27,21 @@ export interface FilesystemStorageRoots {
     storyDataDir: string;
 }
 
+export interface FilesystemObjectStorageOptions {
+    publicReadUrlBase?: string;
+}
+
+function publicObjectUrl(base: string, publicPath: string): string {
+    return `${base.replace(/\/+$/, '')}/${publicPath.replace(/^\/+/, '')}`;
+}
+
 export class FilesystemObjectStorage implements ObjectStorage {
     private readonly mutationQueues = new Map<string, Promise<void>>();
 
-    constructor(private readonly roots: FilesystemStorageRoots) {}
+    constructor(
+        private readonly roots: FilesystemStorageRoots,
+        private readonly options: FilesystemObjectStorageOptions = {}
+    ) {}
 
     private async exclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
         const previous = this.mutationQueues.get(key) ?? Promise.resolve();
@@ -109,6 +120,21 @@ export class FilesystemObjectStorage implements ObjectStorage {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
             throw error;
         }
+    }
+
+    async createPublicReadUrl(
+        key: string,
+        options: { publicPath?: string } = {}
+    ): Promise<string | null> {
+        if (!this.options.publicReadUrlBase || !options.publicPath) return null;
+        try {
+            const stat = await fs.lstat(this.resolveKey(key));
+            if (!stat.isFile() || stat.isSymbolicLink()) return null;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            throw error;
+        }
+        return publicObjectUrl(this.options.publicReadUrlBase, options.publicPath);
     }
 
     async put(key: string, body: Uint8Array, options: PutObjectOptions = {}): Promise<StoredObject> {
