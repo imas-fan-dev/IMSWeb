@@ -7,13 +7,18 @@ import type { ProducerMapContent } from "~/shared/api"
 
 vi.mock("~/pages/producer-map/components/china-community-map", () => ({
   ChinaCommunityMap: ({
+    detailsOpen,
     onSelect,
   }: {
+    detailsOpen: boolean
     onSelect: (province: string) => void
   }) => (
-    <button type="button" onClick={() => onSelect("广东省")}>
-      测试地图选择广东省
-    </button>
+    <>
+      <button type="button" onClick={() => onSelect("广东省")}>
+        测试地图选择广东省
+      </button>
+      <output data-testid="map-details-open">{String(detailsOpen)}</output>
+    </>
   ),
 }))
 
@@ -89,14 +94,17 @@ describe("ProducerMapPage", () => {
     ).toBeVisible()
     expect(screen.getByText("2 个公开条目")).toBeVisible()
     expect(screen.queryByRole("combobox", { name: "地区资料" })).toBeNull()
+    expect(screen.getByTestId("map-details-open")).toHaveTextContent("false")
 
     await user.click(screen.getByRole("button", { name: "测试地图选择广东省" }))
+    expect(screen.getByTestId("map-details-open")).toHaveTextContent("true")
     expect(screen.getByRole("dialog", { name: "广东制作人社群" })).toBeVisible()
     expect(screen.getByAltText("广东制作人社群地区资料")).toHaveAttribute(
       "src",
       "/maps/guangdong.png"
     )
     await user.click(screen.getByRole("button", { name: "关闭地区资料" }))
+    expect(screen.getByTestId("map-details-open")).toHaveTextContent("false")
 
     await user.type(screen.getByPlaceholderText("搜索社群"), "广东")
     expect(screen.getByText("1 个公开条目")).toBeVisible()

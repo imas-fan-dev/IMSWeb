@@ -302,6 +302,7 @@ export default function ProducerMapPage() {
           <div className="mx-auto w-full max-w-7xl">
             <ChinaCommunityMap
               regions={enabledRegions}
+              detailsOpen={Boolean(imageRegion)}
               onSelect={(province) => {
                 const region = enabledRegions.find(
                   (item) => item.province === province
