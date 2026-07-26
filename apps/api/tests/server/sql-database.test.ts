@@ -184,3 +184,29 @@ test('PostgreSQL news pagination uses a bounded descending id range', async () =
     assert.match(calls[1]?.sql ?? '', /WHERE id<=\$1 AND id<\$2 ORDER BY id DESC LIMIT \$3/);
     assert.deepEqual(calls[1]?.values, ['9', '7', 3]);
 });
+
+test('PostgreSQL reaction upsert qualifies the existing count', async () => {
+    const calls: Array<{ sql: string; values?: unknown[] }> = [];
+    const pool = {
+        async query(sql: string, values?: unknown[]) {
+            calls.push({ sql, values });
+            return pgResult([], 1);
+        },
+        async connect() {
+            throw new Error('reaction upsert must not open a transaction');
+        },
+        async end() {}
+    } as unknown as PostgresPool;
+    const repository = new SqlCoreRepository(
+        new PostgresConnection(pool),
+        new PostgresqlSchemaStrategy()
+    );
+
+    await repository.incrementReaction(456, '❤️');
+
+    assert.match(
+        calls[0]?.sql ?? '',
+        /ON CONFLICT\(card_id, emoji\) DO UPDATE SET count=card_emojis\.count\+1/
+    );
+    assert.deepEqual(calls[0]?.values, [456, '❤️']);
+});
