@@ -629,16 +629,6 @@ if (
 ) {
   failures.push("deploy/compose.yaml must not provision Nginx");
 }
-for (const deploymentComposePath of [composePath]) {
-  if (
-    fs.existsSync(deploymentComposePath) &&
-    /^\s*build\s*:/m.test(fs.readFileSync(deploymentComposePath, "utf8"))
-  ) {
-    failures.push(
-      `${relative(deploymentComposePath)}: application image builds are forbidden`,
-    );
-  }
-}
 const composeFiles = filesUnder(path.join(repositoryRoot, "deploy"))
   .filter((file) => /(?:^|\/)compose(?:\.[^.]+)?\.ya?ml$/i.test(relative(file)))
   .map((file) => relative(file))

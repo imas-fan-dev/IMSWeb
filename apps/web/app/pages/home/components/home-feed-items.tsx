@@ -1,5 +1,6 @@
 import { ArrowUpRightIcon, CalendarDaysIcon, ImageIcon } from "lucide-react"
 
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { HomeEvent, HomeNews } from "~/shared/api"
 
@@ -54,23 +55,22 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
   )}`
 
   return (
-    <a
-      href="/events"
-      className="group grid min-h-24 grid-cols-[5rem_minmax(0,1fr)] gap-3 py-4 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
+    <div className="group grid min-h-24 grid-cols-[5rem_minmax(0,1fr)] gap-3 py-4">
       <span className="flex h-16 w-20 items-center justify-center overflow-hidden rounded-md bg-info/12 text-info">
         {imageUrl ? (
-          <img
+          <CoverImagePreview
             src={imageUrl}
-            alt=""
-            loading="lazy"
-            className="size-full object-cover"
+            alt={`${event.title}封面`}
+            className="size-full"
           />
         ) : (
           <CalendarDaysIcon aria-hidden="true" className="size-5" />
         )}
       </span>
-      <span className="min-w-0">
+      <a
+        href="/events"
+        className="min-w-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
         <span
           className="line-clamp-2 text-sm font-medium break-words whitespace-pre-line group-hover:text-primary"
           title={event.title}
@@ -91,8 +91,8 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
             {event.contact}
           </span>
         ) : null}
-      </span>
-    </a>
+      </a>
+    </div>
   )
 }
 

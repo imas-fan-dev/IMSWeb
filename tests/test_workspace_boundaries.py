@@ -86,6 +86,22 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must not provision Nginx", result.stderr)
 
+    def test_api_compose_build_is_allowed(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / "deploy/compose.yaml").write_text(
+                "services:\n"
+                "  api:\n"
+                "    build:\n"
+                "      context: ..\n"
+                "      dockerfile: apps/api/Dockerfile\n",
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_host_nginx_directory_is_allowed(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)

@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Button } from "~/components/ui/button"
 import { Separator } from "~/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
@@ -277,10 +278,10 @@ export function InformationManager() {
             />
             {submission.image ? (
               <div className="flex min-w-0 items-center gap-3 border-l-2 border-primary pl-3">
-                <img
+                <CoverImagePreview
                   src={submission.image}
-                  alt="封面预览"
-                  className="h-16 w-24 shrink-0 rounded-md object-cover"
+                  alt="当前封面"
+                  className="h-16 w-24"
                 />
                 <div className="min-w-0">
                   <p className="text-xs font-medium">当前封面</p>

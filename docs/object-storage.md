@@ -140,7 +140,7 @@ R2。R2 S3 凭据只授予该业务 bucket 的对象操作权限。
 
 ## 本地 MinIO 联调
 
-MinIO 是 Compose 中的本地 S3 兼容服务；该 Compose 不包含应用或反向代理：
+MinIO 是 Compose 中的本地 S3 兼容服务；同一 Compose 也可启动 API，但不包含反向代理：
 
 ```sh
 pnpm run dev:minio:up

@@ -97,9 +97,10 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 
 ## 部署入口
 
-正式版本不依赖仓库 Compose 中的反向代理；`deploy/compose.yaml` 只提供本地 PostgreSQL 和
-MinIO。由外部受信 Nginx 接入时，将 `IMS_CLIENT_ADDRESS_SOURCE=nginx` 注入 Hono，并确保
-入口覆盖客户端提供的转发头。直接访问 Hono 时保留默认 `direct`，不要信任代理头。
+`deploy/compose.yaml` 可以构建并启动 Hono API、本地 PostgreSQL 和 MinIO，但不提供反向代理
+或 TLS。API 镜像包含 Web 发布物，Compose 启动时会先幂等应用 PostgreSQL migrations。由外部
+受信 Nginx 接入时，将 `IMS_CLIENT_ADDRESS_SOURCE=nginx` 注入 Hono，并确保入口覆盖客户端
+提供的转发头。直接访问 Hono 时保留默认 `direct`，不要信任代理头。
 
 生产切换前仍需在目标平台核对 TLS、监听端口、防火墙、上传限制、真实数据路径和回滚责任人。
 

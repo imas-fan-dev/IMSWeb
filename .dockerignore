@@ -1,0 +1,13 @@
+.git
+.github
+.agents
+.codex
+**/node_modules
+**/dist
+apps/web/build
+**/.env
+**/.react-router
+**/playwright-report
+**/test-results
+data/*
+!data/.gitignore
