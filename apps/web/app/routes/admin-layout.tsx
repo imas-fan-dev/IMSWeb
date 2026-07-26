@@ -11,6 +11,7 @@ import {
   LoaderCircleIcon,
   LogInIcon,
   LogOutIcon,
+  MapPinnedIcon,
   MegaphoneIcon,
   NewspaperIcon,
   PackageOpenIcon,
@@ -58,6 +59,13 @@ const navigation = [
     description: "站点介绍与贡献名单",
     icon: InfoIcon,
     accent: "bg-primary",
+  },
+  {
+    to: "/admin/producer-map",
+    label: "制作人地图",
+    description: "地区资料与社群名录",
+    icon: MapPinnedIcon,
+    accent: "bg-franchise-sidem",
   },
   {
     to: "/admin/recommendations",

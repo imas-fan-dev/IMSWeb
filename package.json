@@ -52,6 +52,8 @@
     "migration:object-keys": "pnpm --filter @imsweb/api run migration:object-keys",
     "media:information:sync": "pnpm --filter @imsweb/api run migration:information-media",
     "media:namecards:sync": "pnpm --filter @imsweb/api run migration:namecards",
+    "media:producer-map:sync": "pnpm --filter @imsweb/api run migration:producer-map",
+    "test:r2:producer-map": "pnpm --filter @imsweb/api run test:r2:producer-map",
     "media:uploads:sync": "pnpm --filter @imsweb/api run migration:upload-media",
     "migration:public-objects": "pnpm --filter @imsweb/api run migration:public-objects",
     "migration:single-bucket": "pnpm --filter @imsweb/api run migration:single-bucket",

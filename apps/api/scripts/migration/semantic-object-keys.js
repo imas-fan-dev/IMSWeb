@@ -50,6 +50,9 @@ function mediaObjectKey(key) {
     if (prefix === 'uploads/namecard/original') {
         return `community/namecards/assets/${file.stem}/image.${file.extension}`;
     }
+    if (prefix === 'uploads/producer-map') {
+        return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
+    }
     throw new Error(`Unsupported uploads key: ${key}`);
 }
 

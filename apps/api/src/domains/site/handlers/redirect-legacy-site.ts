@@ -6,7 +6,7 @@ export const LEGACY_SITE_REDIRECTS: ReadonlyMap<string, string> = new Map([
     ['/Event.html', '/events'],
     ['/addevent.html', '/events'],
     ['/producer.html', '/admin/login'],
-    ['/producermap.html', '/community'],
+    ['/producermap.html', '/producer-map'],
     ['/ProducerNameCard.html', '/community/cards'],
     ['/game.html', '/works/games'],
     ['/live.html', '/live'],

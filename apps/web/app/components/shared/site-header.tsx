@@ -28,6 +28,7 @@ const navigation = [
   { to: "/live", label: "navigation.live", end: false },
   { to: "/community", label: "navigation.community", end: true },
   { to: "/community/cards", label: "navigation.cards", end: false },
+  { to: "/producer-map", label: "navigation.producerMap", end: false },
   { to: "/works", label: "navigation.works", end: false },
   { to: "/chronicle", label: "navigation.chronicle", end: false },
   { to: "/about", label: "navigation.about", end: false },

@@ -12,6 +12,7 @@ export default {
     "/live",
     "/community",
     "/community/cards",
+    "/producer-map",
     "/works",
     "/works/765",
     "/works/cg",
