@@ -86,8 +86,84 @@ services:
         mc anonymous set-json /tmp/policy.json "local/$${IMS_MINIO_BUCKET}"
         mc version enable "local/$${IMS_MINIO_BUCKET}"
 
+  api:
+    image: ${IMS_API_IMAGE:-imsweb-api:local}
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: ${IMS_API_NODE_ENV:-development}
+      HOST: 0.0.0.0
+      PORT: 3000
+      IMS_ENV_FILE: ""
+      IMS_JWT_SECRET: ${IMS_JWT_SECRET:-imsweb-local-development-secret-change-before-sharing}
+      IMS_COOKIE_SECURE: ${IMS_COOKIE_SECURE:-false}
+      IMS_CLIENT_ADDRESS_SOURCE: ${IMS_CLIENT_ADDRESS_SOURCE:-direct}
+      IMS_SITE_ORIGIN: ${IMS_SITE_ORIGIN:-http://127.0.0.1:3000}
+      IMS_DATABASE: postgresql
+      DATABASE_URL: ${IMS_API_DATABASE_URL:-postgresql://imsweb:imsweb-local-password@postgres:5432/imsweb}
+      IMS_OBJECT_STORAGE: s3
+      IMS_S3_BUCKET: ${IMS_MINIO_BUCKET:-imsweb-media-local}
+      IMS_S3_PUBLIC_READ_URL_BASE: http://127.0.0.1:${IMS_MINIO_API_PORT:-9000}/${IMS_MINIO_BUCKET:-imsweb-media-local}
+      IMS_S3_REGION: us-east-1
+      IMS_S3_ENDPOINT: http://minio:9000
+      IMS_S3_FORCE_PATH_STYLE: "true"
+      IMS_S3_PREFIX: ${IMS_S3_PREFIX:-local}
+      IMS_S3_READ_URL_TTL_SECONDS: ${IMS_S3_READ_URL_TTL_SECONDS:-300}
+      AWS_ACCESS_KEY_ID: ${IMS_MINIO_ROOT_USER:-imsweb-local}
+      AWS_SECRET_ACCESS_KEY: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
+      IMS_PROJECT_ROOT: /app
+      IMS_PUBLIC_DIR: /app/apps/api/dist/node-client
+      IMS_COMPENSATION_DIR: /app/data/core/compensation
+      IMS_IDEMPOTENCY_DIR: /app/data/core/idempotency
+      IMS_UPLOADS_DIR: /app/data/uploads
+      IMS_EVENT_BASE_DIR: /app/data/chronicle
+      IMS_STORY_DATA_DIR: /app/data/story/images
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        node apps/api/scripts/migration/postgres-migrations.js
+        exec node apps/api/dist/server/main.js
+    ports:
+      - "127.0.0.1:${IMS_API_PORT:-3000}:3000"
+    volumes:
+      - api-data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/wiki/test').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
 volumes:
   postgresql-data:
     name: imsweb-postgresql_postgresql-data
   minio-data:
     name: imsweb-minio_minio-data
+  api-data:
+    name: imsweb-api_api-data
