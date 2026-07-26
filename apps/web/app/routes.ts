@@ -22,6 +22,7 @@ export default [
     route("information/:contentId", "routes/information-content.tsx"),
     route("chronicle", "routes/chronicle-index.tsx"),
     route("chronicle/:activityId", "routes/chronicle-activity.tsx"),
+    route("packages/:siteSlug", "routes/site-detail.tsx"),
   ]),
   route("wiki/classic", "routes/wiki-classic.tsx"),
   route("story/classic", "routes/story-classic.tsx"),
