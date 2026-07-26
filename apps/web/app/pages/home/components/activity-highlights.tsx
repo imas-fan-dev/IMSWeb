@@ -1,6 +1,7 @@
 import { useRequest } from "alova/client"
 import { ArrowUpRightIcon } from "lucide-react"
 
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getHomeInformation } from "~/shared/api"
@@ -58,22 +59,22 @@ export function ActivityHighlights() {
             {items.map((item) => {
               const external = isExternalLink(item.href)
               return (
-                <a
+                <article
                   key={item.href + item.title}
-                  href={item.href}
-                  target={external ? "_blank" : undefined}
-                  rel={external ? "noreferrer" : undefined}
-                  className="group overflow-hidden rounded-md border bg-card transition-colors hover:border-foreground/25 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="group overflow-hidden rounded-md border bg-card transition-colors hover:border-foreground/25"
                 >
-                  <span className="block aspect-[16/9] overflow-hidden bg-muted">
-                    <img
-                      src={item.image}
-                      alt=""
-                      loading="lazy"
-                      className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
-                    />
-                  </span>
-                  <span className="flex min-h-20 items-center gap-3 px-4 py-3">
+                  <CoverImagePreview
+                    src={item.image}
+                    alt={`${item.title}封面`}
+                    className="aspect-[16/9] w-full rounded-none bg-muted"
+                    imageClassName="transition-transform duration-300 group-hover:scale-[1.025]"
+                  />
+                  <a
+                    href={item.href}
+                    target={external ? "_blank" : undefined}
+                    rel={external ? "noreferrer" : undefined}
+                    className="flex min-h-20 items-center gap-3 px-4 py-3 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-medium text-primary">
                         {item.category}
@@ -86,8 +87,8 @@ export function ActivityHighlights() {
                       className="size-4 shrink-0 text-muted-foreground"
                       aria-hidden="true"
                     />
-                  </span>
-                </a>
+                  </a>
+                </article>
               )
             })}
           </div>

@@ -10,6 +10,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
@@ -38,10 +39,10 @@ function InformationRow({
 }) {
   return (
     <article className="grid grid-cols-[6rem_minmax(0,1fr)] gap-4 border-b py-5 last:border-b-0 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
-      <img
+      <CoverImagePreview
         src={card.image}
-        alt=""
-        className="aspect-[16/10] w-full rounded-md bg-muted object-cover"
+        alt={`${card.title}封面`}
+        className="aspect-[16/10] w-full bg-muted"
       />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -118,10 +119,10 @@ export function InformationPreview({
           <div className="overflow-hidden rounded-lg border bg-background">
             <div className="aspect-[16/9] bg-muted">
               {submission.image ? (
-                <img
+                <CoverImagePreview
                   src={submission.image}
-                  alt=""
-                  className="size-full object-cover"
+                  alt={`${submission.title || "活动标题"}封面`}
+                  className="size-full rounded-none"
                 />
               ) : (
                 <div className="flex size-full items-center justify-center text-muted-foreground">

@@ -5,6 +5,7 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { EventListItem } from "~/shared/api"
 
@@ -56,11 +57,10 @@ export function EventRow({ event }: { event: EventListItem }) {
     <article className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 border-b py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
       <div className="flex aspect-[4/3] w-full items-center justify-center self-start overflow-hidden rounded-md bg-info/12 text-info">
         {imageUrl ? (
-          <img
+          <CoverImagePreview
             src={imageUrl}
-            alt=""
-            loading="lazy"
-            className="size-full object-cover"
+            alt={`${event.title}封面`}
+            className="size-full"
           />
         ) : (
           <ImageIcon aria-hidden="true" className="size-6" />
