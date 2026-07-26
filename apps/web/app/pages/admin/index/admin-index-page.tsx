@@ -4,6 +4,7 @@ import {
   CalendarDaysIcon,
   HistoryIcon,
   InfoIcon,
+  MapPinnedIcon,
   NewspaperIcon,
   PackageOpenIcon,
 } from "lucide-react"
@@ -29,6 +30,14 @@ const workspaces = [
     icon: InfoIcon,
     accent: "bg-primary",
     scope: ["品牌信息", "站点概要", "贡献名单"],
+  },
+  {
+    title: "制作人地图",
+    description: "地区资料与制作人社群名录",
+    to: "/admin/producer-map",
+    icon: MapPinnedIcon,
+    accent: "bg-franchise-sidem",
+    scope: ["地图地区", "社群条目", "联络入口"],
   },
   {
     title: "活动内容",

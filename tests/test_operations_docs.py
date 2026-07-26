@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import unittest
 
 
@@ -11,6 +12,10 @@ AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/ai-development-environment.md"
 API_ENVIRONMENT = PROJECT_ROOT / "apps/api/.env.example"
 WEB_ENVIRONMENT = PROJECT_ROOT / "apps/web/.env.example"
 DEPLOY_ENVIRONMENT = PROJECT_ROOT / "deploy/.env.example"
+PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/producer-map-online-migration.md"
+PRODUCER_MAP_SQL = (
+    PROJECT_ROOT / "deploy/migrations/producer-map-r2-control-plane.sql"
+)
 
 
 class OperationsDocumentationTests(unittest.TestCase):
@@ -20,6 +25,8 @@ class OperationsDocumentationTests(unittest.TestCase):
         cls.database_configuration = DATABASE_CONFIGURATION.read_text(encoding="utf-8")
         cls.object_storage = OBJECT_STORAGE.read_text(encoding="utf-8")
         cls.ai_guide = AI_DEVELOPMENT_ENVIRONMENT.read_text(encoding="utf-8")
+        cls.producer_map_migration = PRODUCER_MAP_MIGRATION.read_text(encoding="utf-8")
+        cls.producer_map_sql = PRODUCER_MAP_SQL.read_text(encoding="utf-8")
 
     def test_database_configuration_covers_one_database_and_provider_selection(self):
         for token in (
@@ -182,6 +189,57 @@ class OperationsDocumentationTests(unittest.TestCase):
         compose = (PROJECT_ROOT / "deploy/compose.yaml").read_text(encoding="utf-8")
         self.assertNotRegex(compose, r"(?i)nginx")
         self.assertIn("deploy/nginx/", self.runbook)
+
+    def test_producer_map_online_migration_is_guarded_and_complete(self):
+        root_package = json.loads(
+            (PROJECT_ROOT / "package.json").read_text(encoding="utf-8")
+        )
+        api_package = json.loads(
+            (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("test:r2:producer-map", root_package["scripts"])
+        r2_command = api_package["scripts"]["test:r2:producer-map"]
+        self.assertIn("--require-r2", r2_command)
+        self.assertIn("--expect-bucket imsweb-media-public-prod", r2_command)
+        self.assertIn("--expect-empty-prefix", r2_command)
+        self.assertNotIn("--apply", r2_command)
+
+        rows = re.findall(
+            r"^\s+\('community/producer-map/[^\n]+$",
+            self.producer_map_sql,
+            re.MULTILINE,
+        )
+        self.assertEqual(len(rows), 44)
+        self.assertEqual(sum("/assets/community-" in row for row in rows), 9)
+        self.assertEqual(sum("/assets/region-" in row for row in rows), 34)
+        self.assertEqual(sum("/config.json'" in row for row in rows), 1)
+
+        for token in (
+            "0009_s3_public_storage_scope",
+            "pg_advisory_xact_lock",
+            "RAISE EXCEPTION",
+            "ON CONFLICT (object_id) DO NOTHING",
+            "ON CONFLICT (id) DO NOTHING",
+            "ON CONFLICT (logical_key) DO NOTHING",
+            "storage_scope = 'public'",
+            "<> 7529245",
+            "COMMIT;",
+        ):
+            self.assertIn(token, self.producer_map_sql)
+
+        for token in (
+            "imsweb-media-public-prod",
+            "test -z \"${IMS_S3_PREFIX:-}\"",
+            "pg_dump --format=custom",
+            "producer-map-r2-control-plane.sql",
+            "pnpm run test:r2:producer-map",
+            "参数层禁止 `--apply`",
+            "configStatus=unchanged",
+            "objects.unchanged=43",
+            "不要追加 `--apply`",
+            "禁止只删数据库或只删 R2",
+        ):
+            self.assertIn(token, self.producer_map_migration)
 
 
 if __name__ == "__main__":

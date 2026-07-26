@@ -19,6 +19,7 @@ import { registerInformationRoutes } from '@/domains/information/routes';
 import { registerMediaRoutes } from '@/domains/media/routes';
 import { registerNamecardRoutes } from '@/domains/namecards/routes';
 import { registerNewsRoutes } from '@/domains/news/routes';
+import { registerProducerMapRoutes } from '@/domains/producer-map/routes';
 import { registerReactionRoutes } from '@/domains/reactions/routes';
 import { registerSiteRoutes } from '@/domains/site/routes';
 import { registerSitePackageRoutes } from '@/domains/site-packages/routes';
@@ -91,6 +92,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
 
     registerReactionRoutes(app);
     registerAboutRoutes(app);
+    registerProducerMapRoutes(app);
     registerAuthRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);

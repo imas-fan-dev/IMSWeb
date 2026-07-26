@@ -41,6 +41,7 @@ export function eventPosterObjectKey(filename: string): string {
 
 export const INFORMATION_INDEX_OBJECT_KEY = 'editorial/information/index.json';
 export const ABOUT_PAGE_OBJECT_KEY = 'editorial/about/config.json';
+export const PRODUCER_MAP_OBJECT_KEY = 'community/producer-map/config.json';
 
 export function informationAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
@@ -50,6 +51,11 @@ export function informationAssetObjectKey(filename: string): string {
 export function namecardImageObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `community/namecards/assets/${file.stem}/image.${file.extension}`;
+}
+
+export function producerMapAssetObjectKey(filename: string): string {
+    const file = fileParts(filename);
+    return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
 }
 
 export function publicMediaObjectKey(value: string): string {
@@ -75,6 +81,8 @@ export function publicMediaObjectKey(value: string): string {
             return informationAssetObjectKey(filename);
         case 'uploads/namecard/original':
             return namecardImageObjectKey(filename);
+        case 'uploads/producer-map':
+            return producerMapAssetObjectKey(filename);
         default:
             throw new Error(`Unsupported public media object path: ${legacyKey}`);
     }
