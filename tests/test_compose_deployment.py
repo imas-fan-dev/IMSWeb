@@ -17,16 +17,35 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertEqual(services, ["postgres", "minio", "minio-init", "api"])
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
         self.assertIn("image: ${IMS_MINIO_IMAGE:-minio/minio:", compose)
+        self.assertEqual(compose.count("      - local-storage"), 2)
         self.assertIn("postgresql-data:/var/lib/postgresql", compose)
         self.assertIn("minio-data:/data", compose)
         self.assertIn("image: ${IMS_API_IMAGE:-imsweb-api:local}", compose)
         self.assertIn("dockerfile: apps/api/Dockerfile", compose)
         self.assertIn('127.0.0.1:${IMS_API_PORT:-3000}:3000', compose)
         self.assertIn("condition: service_completed_successfully", compose)
+        self.assertIn("required: false", compose)
         self.assertIn("node apps/api/scripts/migration/postgres-migrations.js", compose)
         self.assertIn("api-data:/app/data", compose)
         self.assertNotRegex(compose, r"(?i)nginx")
         self.assertNotIn("network_mode: host", compose)
+
+    def test_api_accepts_external_s3_and_postgresql_pool_configuration(self):
+        compose = COMPOSE_PATH.read_text(encoding="utf-8")
+
+        for token in (
+            "IMS_OBJECT_STORAGE: ${IMS_OBJECT_STORAGE:-s3}",
+            "IMS_S3_BUCKET: ${IMS_S3_BUCKET:-imsweb-media-local}",
+            "IMS_S3_PUBLIC_READ_URL_BASE: ${IMS_S3_PUBLIC_READ_URL_BASE:-",
+            "IMS_S3_REGION: ${IMS_S3_REGION:-us-east-1}",
+            "IMS_S3_ENDPOINT: ${IMS_S3_ENDPOINT:-http://minio:9000}",
+            "IMS_S3_FORCE_PATH_STYLE: ${IMS_S3_FORCE_PATH_STYLE:-true}",
+            "IMS_S3_PREFIX: ${IMS_S3_PREFIX-local}",
+            "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-imsweb-local}",
+            "AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-imsweb-local-password}",
+            "IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}",
+        ):
+            self.assertIn(token, compose)
 
     def test_api_image_is_a_non_root_production_build(self):
         dockerfile = API_DOCKERFILE_PATH.read_text(encoding="utf-8")

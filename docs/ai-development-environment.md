@@ -188,8 +188,9 @@ pnpm run test
 - 保留开始时已经存在的 staged、unstaged 和 untracked 修改。
 - 不提交密钥、数据库、上传、日志、构建产物或 `.env`。
 - 不执行 PostgreSQL 生产迁移、数据切换或清理；这些操作需要独立审批和对账证据。
-- `deploy/compose.yaml` 保存本地 PostgreSQL、MinIO 和构建后的 Hono API，不包含反向代理或
-  TLS 入口；`deploy/nginx/` 仅保存宿主机入口模板，不由开发 Compose 启动。
+- `deploy/compose.yaml` 保存 PostgreSQL 和构建后的 Hono API；本地 `local-storage` profile
+  额外启动 MinIO，生产可关闭该 profile 并直接配置 R2。Compose 不包含反向代理或 TLS 入口；
+  `deploy/nginx/` 仅保存宿主机入口模板，不由开发 Compose 启动。
 - Cloudflare R2 仅作为 S3-compatible 对象存储与自定义域名 CDN；本计划不部署 Worker 或 D1。
 - 不使用破坏性 Git、数据库或文件清理命令，除非用户明确授权并已核对目标。
 - 完成时报告修改文件、实际运行的门禁、未通过原因、运行中的服务和可访问地址。

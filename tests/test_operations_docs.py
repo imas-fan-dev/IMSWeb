@@ -94,9 +94,13 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
             self.assertIn(token, web_environment)
         for token in (
+            "COMPOSE_PROFILES=local-storage",
             "IMS_POSTGRES_IMAGE",
             "IMS_MINIO_IMAGE",
             "IMS_MINIO_BUCKET",
+            "IMS_S3_ENDPOINT",
+            "IMS_S3_PUBLIC_READ_URL_BASE",
+            "AWS_ACCESS_KEY_ID",
         ):
             self.assertIn(token, deploy_environment)
 

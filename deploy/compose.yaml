@@ -32,6 +32,8 @@ services:
 
   minio:
     image: ${IMS_MINIO_IMAGE:-minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    profiles:
+      - local-storage
     command: server /data --console-address ":9001"
     restart: unless-stopped
     environment:
@@ -63,6 +65,8 @@ services:
 
   minio-init:
     image: ${IMS_MINIO_IMAGE:-minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    profiles:
+      - local-storage
     depends_on:
       minio:
         condition: service_healthy
@@ -97,6 +101,7 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+        required: false
     environment:
       NODE_ENV: ${IMS_API_NODE_ENV:-development}
       HOST: 0.0.0.0
@@ -108,16 +113,21 @@ services:
       IMS_SITE_ORIGIN: ${IMS_SITE_ORIGIN:-http://127.0.0.1:3000}
       IMS_DATABASE: postgresql
       DATABASE_URL: ${IMS_API_DATABASE_URL:-postgresql://imsweb:imsweb-local-password@postgres:5432/imsweb}
-      IMS_OBJECT_STORAGE: s3
-      IMS_S3_BUCKET: ${IMS_MINIO_BUCKET:-imsweb-media-local}
-      IMS_S3_PUBLIC_READ_URL_BASE: http://127.0.0.1:${IMS_MINIO_API_PORT:-9000}/${IMS_MINIO_BUCKET:-imsweb-media-local}
-      IMS_S3_REGION: us-east-1
-      IMS_S3_ENDPOINT: http://minio:9000
-      IMS_S3_FORCE_PATH_STYLE: "true"
-      IMS_S3_PREFIX: ${IMS_S3_PREFIX:-local}
+      IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}
+      IMS_PG_IDLE_TIMEOUT_MS: ${IMS_PG_IDLE_TIMEOUT_MS:-30000}
+      IMS_PG_CONNECTION_TIMEOUT_MS: ${IMS_PG_CONNECTION_TIMEOUT_MS-}
+      IMS_PG_STATEMENT_TIMEOUT_MS: ${IMS_PG_STATEMENT_TIMEOUT_MS:-30000}
+      IMS_PG_IDLE_TRANSACTION_TIMEOUT_MS: ${IMS_PG_IDLE_TRANSACTION_TIMEOUT_MS:-30000}
+      IMS_OBJECT_STORAGE: ${IMS_OBJECT_STORAGE:-s3}
+      IMS_S3_BUCKET: ${IMS_S3_BUCKET:-imsweb-media-local}
+      IMS_S3_PUBLIC_READ_URL_BASE: ${IMS_S3_PUBLIC_READ_URL_BASE:-http://127.0.0.1:9000/imsweb-media-local}
+      IMS_S3_REGION: ${IMS_S3_REGION:-us-east-1}
+      IMS_S3_ENDPOINT: ${IMS_S3_ENDPOINT:-http://minio:9000}
+      IMS_S3_FORCE_PATH_STYLE: ${IMS_S3_FORCE_PATH_STYLE:-true}
+      IMS_S3_PREFIX: ${IMS_S3_PREFIX-local}
       IMS_S3_READ_URL_TTL_SECONDS: ${IMS_S3_READ_URL_TTL_SECONDS:-300}
-      AWS_ACCESS_KEY_ID: ${IMS_MINIO_ROOT_USER:-imsweb-local}
-      AWS_SECRET_ACCESS_KEY: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-imsweb-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-imsweb-local-password}
       IMS_PROJECT_ROOT: /app
       IMS_PUBLIC_DIR: /app/apps/api/dist/node-client
       IMS_COMPENSATION_DIR: /app/data/core/compensation
