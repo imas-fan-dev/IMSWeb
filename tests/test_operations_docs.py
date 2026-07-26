@@ -191,6 +191,19 @@ class OperationsDocumentationTests(unittest.TestCase):
         self.assertIn("deploy/nginx/", self.runbook)
 
     def test_producer_map_online_migration_is_guarded_and_complete(self):
+        root_package = json.loads(
+            (PROJECT_ROOT / "package.json").read_text(encoding="utf-8")
+        )
+        api_package = json.loads(
+            (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("test:r2:producer-map", root_package["scripts"])
+        r2_command = api_package["scripts"]["test:r2:producer-map"]
+        self.assertIn("--require-r2", r2_command)
+        self.assertIn("--expect-bucket imsweb-media-public-prod", r2_command)
+        self.assertIn("--expect-empty-prefix", r2_command)
+        self.assertNotIn("--apply", r2_command)
+
         rows = re.findall(
             r"^\s+\('community/producer-map/[^\n]+$",
             self.producer_map_sql,
@@ -219,6 +232,8 @@ class OperationsDocumentationTests(unittest.TestCase):
             "test -z \"${IMS_S3_PREFIX:-}\"",
             "pg_dump --format=custom",
             "producer-map-r2-control-plane.sql",
+            "pnpm run test:r2:producer-map",
+            "参数层禁止 `--apply`",
             "configStatus=unchanged",
             "objects.unchanged=43",
             "不要追加 `--apply`",

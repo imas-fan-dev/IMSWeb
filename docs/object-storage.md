@@ -131,6 +131,17 @@ export AWS_SECRET_ACCESS_KEY='<r2-secret-access-key>'
 pnpm run start:node
 ```
 
+制作人地图提供一个真实 R2 的只读外部验收入口。它不会进入默认单元测试，也不会在没有生产
+凭据的开发机或 CI 中隐式运行：
+
+```sh
+IMS_ENV_FILE=/path/to/online.env pnpm run test:r2:producer-map
+```
+
+该命令固定校验 Producer Map 的线上 bucket 与空 prefix，拒绝 MinIO、非 Cloudflare R2 endpoint、
+非 `auto` region 和任何 `--apply` 写入参数，并从 R2 回读 43 张图片校验字节数与 SHA-256。
+源站、配置或对象只要出现差异，命令就以非零状态退出。
+
 自定义域名必须直接绑定 `IMS_S3_BUCKET`，并用 Cloudflare WAF 阻断
 `http.request.uri.path contains "/__protected/"`。对该域名配置缓存规则时，可以长期缓存包含
 `/objects/<object-id>/` 的不可变物理 URL；Hono 的稳定业务 URL 只缓存重定向，不作为对象正文

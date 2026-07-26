@@ -73,16 +73,19 @@ SQL 使用 advisory lock。目标逻辑键、object ID、operation ID 或物理�
 
 ## 4. R2 和应用验收
 
-使用线上 PostgreSQL 与 R2 环境运行只读导入器：
+使用线上 PostgreSQL 与 R2 环境运行专用的真实 R2 验收命令：
 
 ```sh
-pnpm run media:producer-map:sync -- \
-  --source-base-url https://idol-master.top
+IMS_ENV_FILE=/path/to/online.env pnpm run test:r2:producer-map
 ```
 
-期望 `configStatus=unchanged`、`objects.unchanged=43`、`imagesLinked=0`。该命令会重新下载原站
-图片，并通过线上控制面从 R2 回读每个对象做字节数与 SHA-256 校验。出现 `would-upload`、
-`would-replace` 或 `would-write` 时停止，不要追加 `--apply`。
+该命令是显式的外部集成验收，不属于默认单元测试；运行环境必须同时提供线上 PostgreSQL 和
+R2 的只读所需凭据。它会强制检查 Cloudflare R2 S3 endpoint、`region=auto`、bucket
+`imsweb-media-public-prod` 和空 prefix，并且在参数层禁止 `--apply`。命令会重新下载原站图片，
+再通过线上控制面从 R2 回读每个对象做字节数与 SHA-256 校验；只有
+`configStatus=unchanged`、`objects.unchanged=43`、`imagesLinked=0` 时才返回成功。任何
+`would-upload`、`would-replace` 或 `would-write` 都会让验收失败。不要追加 `--apply`，也不得
+改用普通导入命令绕过验收。
 
 发布本 PR 的应用 release 后检查：
 

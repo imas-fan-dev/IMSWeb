@@ -21,7 +21,9 @@ const {
     parseArguments,
     parseLegacyMapScript,
     parseLegacyPage,
-    syncProducerMapData
+    syncProducerMapData,
+    validateR2Acceptance,
+    validateR2Target
 } = require('../../scripts/migration/legacy-producer-map');
 
 class MemoryStorage {
@@ -145,6 +147,87 @@ test('Producer Map migration is read-only by default and normalizes its source',
     assert.match(helpText(), /read-only/);
     assert.throws(() => parseArguments(['--source-base-url']), /requires a value/);
     assert.throws(() => parseArguments(['--unknown']), /Unknown argument/);
+});
+
+test('Producer Map R2 acceptance arguments cannot enable writes', () => {
+    const options = parseArguments([
+        '--require-r2',
+        '--expect-bucket',
+        'imsweb-media-public-prod',
+        '--expect-empty-prefix'
+    ], {});
+    assert.equal(options.requireR2, true);
+    assert.equal(options.expectedBucket, 'imsweb-media-public-prod');
+    assert.equal(options.expectEmptyPrefix, true);
+    assert.throws(
+        () => parseArguments([
+            '--require-r2',
+            '--expect-bucket',
+            'imsweb-media-public-prod',
+            '--apply'
+        ], {}),
+        /read-only/
+    );
+    assert.throws(
+        () => parseArguments(['--require-r2'], {}),
+        /requires --expect-bucket/
+    );
+});
+
+test('Producer Map R2 acceptance validates the exact storage target', () => {
+    const target = {
+        type: 's3',
+        bucket: 'imsweb-media-public-prod',
+        region: 'auto',
+        endpoint: 'https://example-account.r2.cloudflarestorage.com',
+        forcePathStyle: false,
+        prefix: '',
+        readUrlTtlSeconds: 300
+    };
+    assert.doesNotThrow(() => validateR2Target(
+        target,
+        'imsweb-media-public-prod',
+        true
+    ));
+    assert.throws(
+        () => validateR2Target({ ...target, endpoint: 'http://127.0.0.1:9000' },
+            target.bucket, true),
+        /Cloudflare R2 S3 API endpoint/
+    );
+    assert.throws(
+        () => validateR2Target({ ...target, region: 'us-east-1' }, target.bucket, true),
+        /IMS_S3_REGION=auto/
+    );
+    assert.throws(
+        () => validateR2Target(target, 'another-bucket', true),
+        /IMS_S3_BUCKET=another-bucket/
+    );
+    assert.throws(
+        () => validateR2Target({ ...target, prefix: 'production' }, target.bucket, true),
+        /empty IMS_S3_PREFIX/
+    );
+});
+
+test('Producer Map R2 acceptance fails unless source and objects are unchanged', () => {
+    const accepted = {
+        configStatus: 'unchanged',
+        regionsAdded: 0,
+        communitiesAdded: 0,
+        imagesLinked: 0,
+        media: [{ objectStatus: 'unchanged' }]
+    };
+    assert.doesNotThrow(() => validateR2Acceptance(accepted));
+    assert.throws(
+        () => validateR2Acceptance({
+            ...accepted,
+            media: [{ objectStatus: 'would-replace' }]
+        }),
+        /configuration or media differs/
+    );
+    assert.throws(
+        () => validateR2Acceptance({ ...accepted, configStatus: 'would-write' }),
+        /configuration or media differs/
+    );
 });
 
 test('Producer Map parser reads legacy titles and community image paths', async () => {

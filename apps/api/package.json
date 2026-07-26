@@ -29,6 +29,7 @@
     "migration:information-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/legacy-information-media.js",
     "migration:namecards": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/legacy-namecards.js",
     "migration:producer-map": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/legacy-producer-map.js",
+    "test:r2:producer-map": "pnpm run migration:producer-map -- --require-r2 --expect-bucket imsweb-media-public-prod --expect-empty-prefix",
     "migration:upload-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/local-upload-media.js",
     "migration:public-objects": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/public-object-placement.ts",
     "migration:single-bucket": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/single-bucket-consolidation.ts",

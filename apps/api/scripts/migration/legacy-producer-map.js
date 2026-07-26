@@ -59,6 +59,9 @@ function parseArguments(argv, environment = process.env) {
         apply: false,
         confirmSource: '',
         confirmBucket: '',
+        requireR2: false,
+        expectedBucket: '',
+        expectEmptyPrefix: false,
         help: false
     };
     let manifestExplicit = false;
@@ -78,10 +81,19 @@ function parseArguments(argv, environment = process.env) {
         } else if (argument === '--apply') options.apply = true;
         else if (argument === '--confirm-source') options.confirmSource = normalizedBaseUrl(next());
         else if (argument === '--confirm-bucket') options.confirmBucket = next();
+        else if (argument === '--require-r2') options.requireR2 = true;
+        else if (argument === '--expect-bucket') options.expectedBucket = next();
+        else if (argument === '--expect-empty-prefix') options.expectEmptyPrefix = true;
         else if (argument === '--help' || argument === '-h') options.help = true;
         else throw new Error(`Unknown argument: ${argument}`);
     }
     if (!manifestExplicit) options.manifest = path.join(options.staging, 'manifest.json');
+    if (options.requireR2 && options.apply) {
+        throw new Error('--require-r2 is read-only and cannot be combined with --apply');
+    }
+    if (options.requireR2 && !options.expectedBucket) {
+        throw new Error('--require-r2 requires --expect-bucket');
+    }
     return options;
 }
 
@@ -100,8 +112,52 @@ function helpText() {
         '  --apply                  Upload media and conditionally update the map config',
         '  --confirm-source <url>   Required exact source confirmation with --apply',
         '  --confirm-bucket <name>  Required exact IMS_S3_BUCKET confirmation with --apply',
+        '  --require-r2             Require a read-only Cloudflare R2 acceptance run',
+        '  --expect-bucket <name>   Exact bucket required by --require-r2',
+        '  --expect-empty-prefix    Require an empty prefix with --require-r2',
         '  --help                   Show this help'
     ].join('\n');
+}
+
+function validateR2Target(config, expectedBucket, expectEmptyPrefix) {
+    if (config.type !== 's3') {
+        throw new Error('R2 acceptance requires IMS_OBJECT_STORAGE=s3');
+    }
+    if (config.bucket !== expectedBucket) {
+        throw new Error(`R2 acceptance requires IMS_S3_BUCKET=${expectedBucket}`);
+    }
+    if (config.region !== 'auto') {
+        throw new Error('R2 acceptance requires IMS_S3_REGION=auto');
+    }
+    if (!config.endpoint) {
+        throw new Error('R2 acceptance requires IMS_S3_ENDPOINT');
+    }
+    const endpoint = new URL(config.endpoint);
+    if (endpoint.protocol !== 'https:' ||
+        !endpoint.hostname.endsWith('.r2.cloudflarestorage.com') ||
+        endpoint.pathname !== '/') {
+        throw new Error(
+            'R2 acceptance requires the Cloudflare R2 S3 API endpoint'
+        );
+    }
+    if (expectEmptyPrefix && config.prefix !== '') {
+        throw new Error('R2 acceptance requires an empty IMS_S3_PREFIX');
+    }
+}
+
+function validateR2Acceptance(result) {
+    const nonMatchingObjects = result.media.filter(
+        (item) => item.objectStatus !== 'unchanged'
+    );
+    if (result.configStatus !== 'unchanged' ||
+        result.regionsAdded !== 0 ||
+        result.communitiesAdded !== 0 ||
+        result.imagesLinked !== 0 ||
+        nonMatchingObjects.length !== 0) {
+        throw new Error(
+            'R2 acceptance failed: Producer Map configuration or media differs from the source'
+        );
+    }
 }
 
 async function fetchWithRetry(url, label) {
@@ -562,8 +618,16 @@ async function main() {
         throw new Error(`Apply requires --confirm-bucket ${bucket || '<IMS_S3_BUCKET>'}`);
     }
     const { parseNodeObjectStorageConfig } = require('../../src/config/object-storage.ts');
-    if (parseNodeObjectStorageConfig().type !== 's3') {
+    const storageConfig = parseNodeObjectStorageConfig();
+    if (storageConfig.type !== 's3') {
         throw new Error('Legacy Producer Map migration requires IMS_OBJECT_STORAGE=s3');
+    }
+    if (options.requireR2) {
+        validateR2Target(
+            storageConfig,
+            options.expectedBucket,
+            options.expectEmptyPrefix
+        );
     }
     const {
         PRODUCER_MAP_OBJECT_KEY,
@@ -596,12 +660,14 @@ async function main() {
                 validateDraft: validateProducerMapDraft
             }
         );
+        if (options.requireR2) validateR2Acceptance(result);
         const report = {
             generatedAt: new Date().toISOString(),
             sourceBaseUrl: options.sourceBaseUrl,
             targetBucket: bucket,
             targetPrefix: process.env.IMS_S3_PREFIX || '',
             apply: options.apply,
+            r2Acceptance: options.requireR2,
             page: source.page,
             script: source.script,
             summary: {
@@ -623,6 +689,7 @@ async function main() {
         process.stdout.write(`${JSON.stringify({
             manifest: options.manifest,
             apply: options.apply,
+            r2Acceptance: options.requireR2,
             ...report.summary
         }, null, 2)}\n`);
     } finally {
@@ -643,5 +710,7 @@ module.exports = {
     parseArguments,
     parseLegacyMapScript,
     parseLegacyPage,
-    syncProducerMapData
+    syncProducerMapData,
+    validateR2Acceptance,
+    validateR2Target
 };
