@@ -30,6 +30,7 @@ export const resources = {
         chronicle: "编年史",
         about: "关于",
         wiki: "进入资料库",
+        runningGame: "板板大暴走",
         open: "打开导航",
       },
       footer: {
@@ -86,6 +87,7 @@ export const resources = {
         chronicle: "Chronicle",
         about: "About",
         wiki: "Open knowledge base",
+        runningGame: "Running Idol",
         open: "Open navigation",
       },
       footer: {

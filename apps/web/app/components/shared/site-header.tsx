@@ -83,6 +83,13 @@ export function SiteHeader() {
           {t("navigation.wiki")}
         </Link>
 
+        <a
+          href="/runninggame/"
+          className="hidden rounded-md border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:inline-flex"
+        >
+          {t("navigation.runningGame")}
+        </a>
+
         <LanguageSwitcher />
         <ThemeToggle className="ml-auto md:ml-0" />
 
@@ -135,6 +142,13 @@ export function SiteHeader() {
               >
                 {t("navigation.wiki")}
               </Link>
+              <a
+                href="/runninggame/"
+                onClick={() => setMobileNavigationOpen(false)}
+                className="mt-1 rounded-md border px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-muted"
+              >
+                {t("navigation.runningGame")}
+              </a>
             </nav>
           </SheetContent>
         </Sheet>

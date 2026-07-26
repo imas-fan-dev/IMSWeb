@@ -1,3 +1,9 @@
+import { Link } from "react-router"
+
+import { Card, CardContent } from "~/components/ui/card"
+import { cn } from "~/lib/utils"
+import { workEntries } from "./works-content"
+
 export function meta() {
   return [{ title: "同人作品 | IMSWeb" }]
 }
@@ -9,6 +15,32 @@ export default function Works() {
       <p className="mt-4 leading-7 text-muted-foreground">
         收录由制作人创作和维护的游戏与专题内容。
       </p>
+
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {workEntries.map((entry) => (
+          <Link
+            key={entry.slug}
+            to={`/works/${entry.slug}`}
+            className="focus-visible:ring-3 block rounded-md focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <Card className="group h-full transition-colors hover:border-foreground/25 hover:bg-muted/30">
+              <div
+                className={cn("h-1 w-full rounded-t-xl", entry.accent)}
+                aria-hidden="true"
+              />
+              <CardContent className="p-5">
+                <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+                  {entry.eyebrow}
+                </p>
+                <h2 className="mt-1 text-lg font-semibold">{entry.title}</h2>
+                <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
+                  {entry.summary}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
     </main>
   )
 }
