@@ -19,7 +19,7 @@ describe("home content", () => {
     ])
   })
 
-  it("uses the six optimized series-wall images", () => {
+  it("uses the six optimized series-wall images with work links", () => {
     expect(seriesItems).toHaveLength(6)
     expect(seriesItems.map((item) => item.image)).toEqual([
       "/brand/series/wall/765pro.webp",
@@ -28,6 +28,14 @@ describe("home content", () => {
       "/brand/series/wall/sidem.webp",
       "/brand/series/wall/shiny-colors.webp",
       "/brand/series/wall/gakuen.webp",
+    ])
+    expect(seriesItems.map((item) => item.href)).toEqual([
+      "/works/765",
+      "/works/cg",
+      "/works/ml",
+      "/works/sidem",
+      "/works/sc",
+      "/works/gakuen",
     ])
   })
 
