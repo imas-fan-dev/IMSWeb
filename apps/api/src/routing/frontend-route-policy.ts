@@ -29,6 +29,7 @@ const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map([
   ["/live", "live/index.html"],
   ["/community", "community/index.html"],
   ["/community/cards", "community/cards/index.html"],
+  ["/producer-map", "producer-map/index.html"],
   ["/works", "works/index.html"],
   ["/works/765", "works/765/index.html"],
   ["/works/cg", "works/cg/index.html"],

@@ -9,7 +9,8 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
         '/uploads/news/thumb/:filename',
         '/uploads/event/original/:filename',
         '/uploads/information/:filename',
-        '/uploads/information/original/:filename'
+        '/uploads/information/original/:filename',
+        '/uploads/producer-map/:filename'
     ]) {
         app.get(route, handleServePublicUpload);
         app.on('HEAD', route, handleServePublicUpload);

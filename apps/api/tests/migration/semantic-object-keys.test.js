@@ -54,6 +54,10 @@ test('semantic media keys preserve public filename identity under business roles
         mediaObjectKey('uploads/namecard/original/card-front.webp'),
         'community/namecards/assets/card-front/image.webp'
     );
+    assert.equal(
+        mediaObjectKey('uploads/producer-map/community-u149.png'),
+        'community/producer-map/assets/community-u149/image.png'
+    );
 });
 
 test('semantic migration apply requires an exact bucket confirmation', () => {
