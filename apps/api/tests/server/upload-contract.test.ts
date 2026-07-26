@@ -134,11 +134,11 @@ test('Sharp image processor validates and converts real image bytes with stable 
         height: 4,
         contentType: 'image/png'
     });
-    for (const [format, contentType, encoded] of [
-        ['gif', 'image/gif', await sharp(source).gif().toBuffer()],
-        ['tiff', 'image/tiff', await sharp(source).tiff().toBuffer()]
+    for (const [format, contentType, declaredType, encoded] of [
+        ['gif', 'image/gif', 'image/gif', await sharp(source).gif().toBuffer()],
+        ['tiff', 'image/tiff', undefined, await sharp(source).tiff().toBuffer()]
     ] as const) {
-        assert.deepEqual(await processor.validate(encoded, contentType), {
+        assert.deepEqual(await processor.validate(encoded, declaredType), {
             format,
             width: 8,
             height: 4,
