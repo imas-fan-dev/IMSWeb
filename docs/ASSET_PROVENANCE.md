@@ -37,6 +37,14 @@ binary files are not committed to `apps/web/public/`.
 | `brand/works/gakuen/character.png` | `https://idol-master.top/assets/images/Production/GakuenSaki.png` | Gakuen Idolmaster series introduction |
 | `brand/fonts/iris-idol.ttf` | `https://idol-master.top/assets/font/IrisIdol.ttf` | Series title display font |
 
+The Web series pages load the state machine's immutable public R2 versions
+directly from `https://imas-assets.texasoct.tech`; the tracked URL map lives in
+`apps/web/app/pages/works/brand-assets.ts`. After a migration publishes a new
+physical version, update that map from
+`data/migration/legacy-brand-assets/manifest.json` in the same release. The old
+`/assets/images/Production/*` and `/assets/font/IrisIdol.ttf` Hono routes remain
+compatibility endpoints and are not used by the current series pages.
+
 ## Producer map
 
 The administrative boundary is a versioned client-side resource. Community
