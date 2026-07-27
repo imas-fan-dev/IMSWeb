@@ -2,20 +2,12 @@ import { useRequest } from "alova/client"
 import { ArrowUpRightIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
 import type { CSSProperties } from "react"
 
+import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { getAboutPageContent } from "~/shared/api"
 import type { AboutGroup, AboutPerson } from "~/shared/api"
-
-const seriesAccents = [
-  "bg-franchise-765",
-  "bg-franchise-cg",
-  "bg-franchise-ml",
-  "bg-franchise-sidem",
-  "bg-franchise-sc",
-  "bg-franchise-gk",
-] as const
 
 const groupAccents = [
   {
@@ -316,11 +308,10 @@ export default function About() {
               </div>
             </div>
           </div>
-          <div className="grid h-1.5 grid-cols-6" aria-hidden="true">
-            {seriesAccents.map((accent) => (
-              <span key={accent} className={accent} />
-            ))}
-          </div>
+          <SeriesAccentStrip
+            className="h-1.5"
+            data-testid="series-accent-strip"
+          />
         </section>
 
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
