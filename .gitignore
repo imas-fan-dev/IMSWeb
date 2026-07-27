@@ -71,6 +71,9 @@ data/**
 **/public/assets/images/eventchronicle/events/.staging/
 **/public/assets/images/eventchronicle/events/.trash/
 
+# Personal notes and planning (local only)
+note/
+
 # Process and editor artefacts
 .DS_Store
 Thumbs.db

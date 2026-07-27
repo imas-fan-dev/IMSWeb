@@ -12,16 +12,17 @@ export function SeriesWall() {
     >
       <div
         className="grid h-[19rem] grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-[28rem] lg:grid-cols-6"
-        aria-hidden="true"
       >
         {seriesItems.map((series) => (
-          <div
+          <a
             key={series.name}
             data-testid="series-band"
+            href={series.href}
             className={cn(
-              "group relative min-w-0 overflow-hidden",
+              "group relative min-w-0 overflow-hidden focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:ring-inset focus-visible:outline-none",
               series.background
             )}
+            aria-label={series.name}
           >
             <img
               src={series.image}
@@ -32,7 +33,7 @@ export function SeriesWall() {
               decoding="async"
               draggable={false}
             />
-          </div>
+          </a>
         ))}
       </div>
 
@@ -42,15 +43,14 @@ export function SeriesWall() {
       />
       <div className="relative z-10 flex min-h-44 items-center justify-center bg-neutral-950 px-5 text-center lg:pointer-events-none lg:absolute lg:inset-0 lg:min-h-0 lg:bg-transparent">
         <div className="max-w-3xl text-white">
-          <p className="text-xs font-semibold">PRODUCER PORTAL</p>
           <h1
             id="home-heading"
-            className="mt-3 text-3xl font-semibold sm:text-5xl"
+            className="text-3xl font-semibold sm:text-5xl"
           >
-            偶像大师交流站
+            THE iDOLM@STER
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 sm:text-lg sm:leading-7">
-            中文资料、活动日程、制作人社区与共同创作内容的统一入口
+          <p className="mx-auto mt-4 max-w-2xl text-lg leading-7 sm:text-xl sm:leading-8">
+            欢迎您！Producer！
           </p>
         </div>
       </div>

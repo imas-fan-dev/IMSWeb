@@ -149,9 +149,9 @@ test("home exposes current discovery and birthday interactions", async ({
     .not.toBe(initialTransform)
 
   const seriesWall = page.getByRole("region", {
-    name: "偶像大师交流站",
+    name: "THE iDOLM@STER",
   })
-  await expect(seriesWall.getByRole("link")).toHaveCount(0)
+  await expect(seriesWall.getByRole("link")).toHaveCount(6)
   await expect(seriesWall.getByTestId("series-band")).toHaveCount(6)
   await expect(seriesWall.locator("img")).toHaveCount(6)
   await expect(seriesWall.locator("img").first()).toHaveAttribute(
