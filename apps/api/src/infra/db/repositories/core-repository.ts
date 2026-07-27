@@ -336,7 +336,7 @@ export class SqlCoreRepository implements
     async incrementReaction(cardId: number, emoji: string): Promise<void> {
         await executeSql(this.database,
             `INSERT INTO card_emojis (card_id, emoji, count) VALUES (?, ?, 1)
-             ON CONFLICT(card_id, emoji) DO UPDATE SET count=count+1`,
+             ON CONFLICT(card_id, emoji) DO UPDATE SET count=card_emojis.count+1`,
             [cardId, emoji]
         );
     }

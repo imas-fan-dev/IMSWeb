@@ -7,23 +7,33 @@ import CommunityCardsPage from "~/pages/community/community-cards-page"
 
 const apiMocks = vi.hoisted(() => ({
   getNamecardPage: vi.fn(),
+  getNamecardReactions: vi.fn(),
+  addNamecardReaction: vi.fn(),
   uploadNamecard: vi.fn(),
   sendPage: vi.fn(),
+  sendReactions: vi.fn(),
+  sendAddReaction: vi.fn(),
   sendUpload: vi.fn(),
 }))
 
-vi.mock("~/shared/api", () => ({
-  addNamecardReaction: vi.fn(),
-  getNamecardReactions: vi.fn(),
-  getNamecardPage: apiMocks.getNamecardPage,
-  uploadNamecard: apiMocks.uploadNamecard,
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
 }))
 
+vi.mock("~/shared/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/shared/api")>()
+  return {
+    ...actual,
+    addNamecardReaction: apiMocks.addNamecardReaction,
+    getNamecardReactions: apiMocks.getNamecardReactions,
+    getNamecardPage: apiMocks.getNamecardPage,
+    uploadNamecard: apiMocks.uploadNamecard,
+  }
+})
+
 vi.mock("sonner", () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-  },
+  toast: toastMocks,
 }))
 
 describe("CommunityCardsPage", () => {
@@ -36,7 +46,15 @@ describe("CommunityCardsPage", () => {
       totalPage: 0,
     })
     apiMocks.sendUpload.mockResolvedValue({ msg: "已提交审核" })
+    apiMocks.sendReactions.mockResolvedValue({})
+    apiMocks.sendAddReaction.mockResolvedValue({ ok: true })
     apiMocks.getNamecardPage.mockReturnValue({ send: apiMocks.sendPage })
+    apiMocks.getNamecardReactions.mockReturnValue({
+      send: apiMocks.sendReactions,
+    })
+    apiMocks.addNamecardReaction.mockReturnValue({
+      send: apiMocks.sendAddReaction,
+    })
     apiMocks.uploadNamecard.mockReturnValue({ send: apiMocks.sendUpload })
   })
 
@@ -76,5 +94,115 @@ describe("CommunityCardsPage", () => {
       expect(apiMocks.uploadNamecard).toHaveBeenCalledWith(front, back)
       expect(apiMocks.sendUpload).toHaveBeenCalledOnce()
     })
+  })
+
+  it("opens the complete reaction picker and updates the selected count", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue({
+      list: [
+        {
+          id: 42,
+          image1_url: "/uploads/front.webp",
+          image2_url: "/uploads/back.webp",
+          status: "approved",
+          created_at: null,
+        },
+      ],
+      page: 1,
+      perPage: 12,
+      total: 1,
+      totalPage: 1,
+    })
+    apiMocks.sendReactions.mockResolvedValue({ "❤️": 4, "🐵": 2 })
+
+    render(
+      <MemoryRouter>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("button", { name: "❤️，4 次反应" })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "🐵，2 次反应" })).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "添加反应" }))
+
+    expect(screen.getByText("选择反应")).toBeVisible()
+    expect(screen.getAllByRole("button", { name: /，添加反应$/ })).toHaveLength(
+      46
+    )
+
+    await user.click(screen.getByRole("button", { name: "🧒，添加反应" }))
+
+    await waitFor(() => {
+      expect(apiMocks.addNamecardReaction).toHaveBeenCalledWith(42, "🧒")
+      expect(apiMocks.sendAddReaction).toHaveBeenCalledOnce()
+      expect(screen.getByRole("button", { name: "🧒，1 次反应" })).toBeVisible()
+    })
+
+    for (let nextCount = 2; nextCount <= 10; nextCount += 1) {
+      await user.click(
+        screen.getByRole("button", {
+          name: `🧒，${nextCount - 1} 次反应`,
+        })
+      )
+      expect(
+        await screen.findByRole("button", {
+          name: `🧒，${nextCount} 次反应`,
+        })
+      ).toBeVisible()
+    }
+
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
+    await user.click(screen.getByRole("button", { name: "🧒，10 次反应" }))
+    expect(toastMocks.error).toHaveBeenCalledWith("这个反应点得太多了")
+    expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
+  })
+
+  it("opens both namecard sides in the shared image preview", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue({
+      list: [
+        {
+          id: 42,
+          image1_url: "/uploads/front.webp",
+          image2_url: "/uploads/back.webp",
+          status: "approved",
+          created_at: null,
+        },
+      ],
+      page: 1,
+      perPage: 12,
+      total: 1,
+      totalPage: 1,
+    })
+
+    render(
+      <MemoryRouter>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "查看制作人名片 42 正面",
+      })
+    )
+
+    expect(screen.getByRole("dialog")).toBeVisible()
+    expect(
+      screen.getByRole("img", { name: "制作人名片 42 正面" })
+    ).toBeVisible()
+    expect(screen.getByLabelText("名片查看区域")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "关闭名片预览" }))
+    await user.click(
+      screen.getByRole("button", { name: "查看制作人名片 42 背面" })
+    )
+
+    expect(
+      screen.getByRole("img", { name: "制作人名片 42 背面" })
+    ).toBeVisible()
   })
 })

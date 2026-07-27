@@ -43,12 +43,14 @@ export function CoverImagePreview({
   className,
   imageClassName,
   loading = "lazy",
+  previewLabel = "封面",
 }: {
   src: string
   alt: string
   className?: string
   imageClassName?: string
   loading?: React.ImgHTMLAttributes<HTMLImageElement>["loading"]
+  previewLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<ViewState>({
@@ -184,7 +186,7 @@ export function CoverImagePreview({
             {alt}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            活动封面大图预览
+            {previewLabel}大图预览
           </DialogDescription>
           <DialogClose
             render={
@@ -193,7 +195,7 @@ export function CoverImagePreview({
                 variant="ghost"
                 size="icon"
                 className="border border-foreground/10 bg-background/30 text-foreground shadow-sm backdrop-blur-xl hover:bg-background/55 hover:text-foreground"
-                aria-label="关闭封面预览"
+                aria-label={`关闭${previewLabel}预览`}
                 title="关闭"
               />
             }
@@ -207,7 +209,7 @@ export function CoverImagePreview({
             "relative flex min-h-0 touch-none items-center justify-center overflow-hidden px-3 sm:px-8",
             scale > 1 ? (dragging ? "cursor-grabbing" : "cursor-grab") : ""
           )}
-          aria-label="封面查看区域"
+          aria-label={`${previewLabel}查看区域`}
           onDoubleClick={() =>
             updateScale((current) => (current === 1 ? 2 : 1))
           }
@@ -244,7 +246,7 @@ export function CoverImagePreview({
               variant="ghost"
               size="icon"
               className="text-foreground hover:bg-background/55 hover:text-foreground"
-              aria-label="缩小封面"
+              aria-label={`缩小${previewLabel}`}
               title="缩小"
               disabled={scale <= MIN_SCALE}
               onClick={() => updateScale((current) => current - SCALE_STEP)}
@@ -262,7 +264,7 @@ export function CoverImagePreview({
               variant="ghost"
               size="icon"
               className="text-foreground hover:bg-background/55 hover:text-foreground"
-              aria-label="放大封面"
+              aria-label={`放大${previewLabel}`}
               title="放大"
               disabled={scale >= MAX_SCALE}
               onClick={() => updateScale((current) => current + SCALE_STEP)}
@@ -274,7 +276,7 @@ export function CoverImagePreview({
               variant="ghost"
               size="icon"
               className="ml-2 text-foreground hover:bg-background/55 hover:text-foreground"
-              aria-label="复位封面"
+              aria-label={`复位${previewLabel}`}
               title="复位"
               disabled={scale === 1 && offset.x === 0 && offset.y === 0}
               onClick={resetView}

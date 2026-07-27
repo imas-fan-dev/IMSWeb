@@ -45,6 +45,8 @@
     "dev:api:up": "docker compose --profile local-storage -f deploy/compose.yaml up -d --build api",
     "dev:api:logs": "docker compose --profile local-storage -f deploy/compose.yaml logs -f api",
     "dev:api:down": "docker compose --profile local-storage -f deploy/compose.yaml stop api",
+    "dev:api:r2:config": "docker compose --env-file apps/api/.env -f deploy/compose.yaml config --quiet",
+    "dev:api:r2:up": "docker compose --env-file apps/api/.env -f deploy/compose.yaml up -d --build api",
     "preview:web": "pnpm --filter @imsweb/web run preview",
     "migration:sqlite:merge": "pnpm --filter @imsweb/api run migration:sqlite:merge",
     "migration:postgresql": "pnpm --filter @imsweb/api run migration:postgresql",

@@ -9,6 +9,7 @@ import {
     type ChronicleMeta
 } from '@/domains/chronicle/chronicle-records';
 import { services } from '@/middleware/hono-context';
+import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
 
 export async function handleGetChronicleActivity(
     c: Context<AppEnvironment>
@@ -26,13 +27,16 @@ export async function handleGetChronicleActivity(
         // Preserve legacy fallback on malformed metadata.
     }
     const usedPrefix = `${chroniclePrefix('used', activityId)}/`;
-    const images = (await listChronicleObjects(storage, 'used', activityId))
+    const images = await Promise.all((await listChronicleObjects(storage, 'used', activityId))
         .filter((entry) => entry.key.startsWith(usedPrefix))
-        .map((entry) => encodedChronicleMediaUrl(
-            'used',
-            activityId,
-            entry.key.split('/').at(-1)!
-        ));
+        .map((entry) => {
+            const fallback = encodedChronicleMediaUrl(
+                'used',
+                activityId,
+                entry.key.split('/').at(-1)!
+            );
+            return resolvePublicObjectUrl(storage, entry.key, fallback);
+        }));
     return c.json({
         id: activityId,
         title: meta.title || `活动 ${activityId}`,

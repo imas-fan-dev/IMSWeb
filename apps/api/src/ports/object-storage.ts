@@ -25,6 +25,10 @@ export interface ObjectReadUrlOptions {
     method?: 'GET' | 'HEAD';
 }
 
+export interface PublicObjectReadUrlOptions {
+    publicPath?: string;
+}
+
 export interface ObjectReadTarget {
     url: string;
     visibility: 'private' | 'public';
@@ -32,6 +36,10 @@ export interface ObjectReadTarget {
 
 export interface ObjectStorage {
     get(key: string): Promise<StoredObject | null>;
+    createPublicReadUrl?(
+        key: string,
+        options?: PublicObjectReadUrlOptions
+    ): Promise<string | null>;
     createReadUrl?(
         key: string,
         options?: ObjectReadUrlOptions

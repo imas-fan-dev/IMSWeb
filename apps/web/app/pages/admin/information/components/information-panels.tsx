@@ -9,8 +9,10 @@ import {
   PencilIcon,
   Trash2Icon,
 } from "lucide-react"
+import { useEffect, useRef } from "react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import { observeImageLoading } from "~/components/shared/image-loading-indicator"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
@@ -89,6 +91,37 @@ function InformationRow({
   )
 }
 
+function InformationHtmlPreviewFrame({ document }: { document: string }) {
+  const frameRef = useRef<HTMLIFrameElement>(null)
+  const imageObserverCleanupRef = useRef<(() => void) | null>(null)
+
+  function handleLoad() {
+    imageObserverCleanupRef.current?.()
+    const contentDocument = frameRef.current?.contentDocument
+    if (!contentDocument) return
+
+    imageObserverCleanupRef.current = observeImageLoading(contentDocument)
+  }
+
+  useEffect(
+    () => () => {
+      imageObserverCleanupRef.current?.()
+    },
+    []
+  )
+
+  return (
+    <iframe
+      ref={frameRef}
+      title="活动 HTML 预览"
+      sandbox="allow-same-origin"
+      srcDoc={document}
+      onLoad={handleLoad}
+      className="h-[36rem] w-full rounded-lg border bg-background"
+    />
+  )
+}
+
 export function InformationPreview({
   document,
   submission,
@@ -109,12 +142,7 @@ export function InformationPreview({
         className="sticky top-24"
       >
         {submission.contentType === "html" ? (
-          <iframe
-            title="活动 HTML 预览"
-            sandbox=""
-            srcDoc={document}
-            className="h-[36rem] w-full rounded-lg border bg-background"
-          />
+          <InformationHtmlPreviewFrame document={document} />
         ) : (
           <div className="overflow-hidden rounded-lg border bg-background">
             <div className="aspect-[16/9] bg-muted">

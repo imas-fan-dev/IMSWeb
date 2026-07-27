@@ -4,13 +4,15 @@ import {
   FileImageIcon,
   ImageUpIcon,
   ImagesIcon,
+  PlusIcon,
   UploadIcon,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
 import { Link } from "react-router"
 import { toast } from "sonner"
 
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -30,16 +32,24 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+} from "~/components/ui/popover"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   addNamecardReaction,
   getNamecardPage,
   getNamecardReactions,
+  NAMECARD_REACTIONS,
   uploadNamecard,
 } from "~/shared/api"
 import type { Namecard, NamecardPage, NamecardReactions } from "~/shared/api"
 
-const QUICK_REACTIONS = ["❤️", "👍", "👏", "✨"] as const
+const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
+const SESSION_REACTION_LIMIT = 10
 
 export function meta() {
   return [{ title: "制作人名片墙 | IMSWeb" }]
@@ -48,6 +58,8 @@ export function meta() {
 function NamecardReactionBar({ cardId }: { cardId: number }) {
   const [reactions, setReactions] = useState<NamecardReactions>({})
   const [busy, setBusy] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const sessionCounts = useRef(new Map<string, number>())
 
   useEffect(() => {
     let active = true
@@ -63,13 +75,22 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
   }, [cardId])
 
   async function react(emoji: string) {
+    if (busy !== null) return
+    const sessionCount = sessionCounts.current.get(emoji) ?? 0
+    if (sessionCount >= SESSION_REACTION_LIMIT) {
+      toast.error("这个反应点得太多了")
+      return
+    }
+
     setBusy(emoji)
     try {
       await addNamecardReaction(cardId, emoji).send()
+      sessionCounts.current.set(emoji, sessionCount + 1)
       setReactions((current) => ({
         ...current,
         [emoji]: (current[emoji] ?? 0) + 1,
       }))
+      setPickerOpen(false)
     } catch {
       toast.error("暂时无法添加反应")
     } finally {
@@ -77,22 +98,61 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
     }
   }
 
+  const activeReactions = Object.entries(reactions).filter(
+    ([emoji, count]) => count > 0 && NAMECARD_REACTION_SET.has(emoji)
+  )
+
   return (
-    <div className="flex flex-wrap gap-1.5" aria-label="名片反应">
-      {QUICK_REACTIONS.map((emoji) => (
+    <div className="flex min-h-6 flex-wrap gap-1.5" aria-label="名片反应">
+      {activeReactions.map(([emoji, count]) => (
         <Button
           key={emoji}
           type="button"
           size="xs"
           variant="outline"
           disabled={busy !== null}
-          aria-label={`${emoji}，${reactions[emoji] ?? 0} 次反应`}
+          aria-label={`${emoji}，${count} 次反应`}
           onClick={() => void react(emoji)}
         >
           <span aria-hidden="true">{emoji}</span>
-          {reactions[emoji] ?? 0}
+          {count}
         </Button>
       ))}
+
+      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="outline"
+              aria-label="添加反应"
+              disabled={busy !== null}
+            />
+          }
+        >
+          <PlusIcon aria-hidden="true" />
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-64 sm:w-80">
+          <PopoverTitle className="mb-2">选择反应</PopoverTitle>
+          <div className="grid grid-cols-6 gap-1 sm:grid-cols-8">
+            {NAMECARD_REACTIONS.map((emoji) => (
+              <Button
+                key={emoji}
+                type="button"
+                size="icon"
+                variant={reactions[emoji] ? "secondary" : "ghost"}
+                className="text-base"
+                disabled={busy !== null}
+                aria-label={`${emoji}，添加反应`}
+                onClick={() => void react(emoji)}
+              >
+                <span aria-hidden="true">{emoji}</span>
+              </Button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
@@ -102,20 +162,14 @@ function NamecardItem({ card }: { card: Namecard }) {
     <Card className="h-full">
       <div className="grid grid-cols-2 gap-px bg-border">
         {[card.image1_url, card.image2_url].map((image, index) => (
-          <a
+          <CoverImagePreview
             key={image}
-            href={image}
-            target="_blank"
-            rel="noreferrer"
-            className="overflow-hidden bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
-            <img
-              src={image}
-              alt={`制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
-              className="aspect-[3/2] w-full object-cover transition-transform hover:scale-[1.02]"
-              loading="lazy"
-            />
-          </a>
+            src={image}
+            alt={`制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
+            previewLabel="名片"
+            className="aspect-[3/2] w-full rounded-none bg-muted"
+            imageClassName="transition-transform group-hover:scale-[1.02]"
+          />
         ))}
       </div>
       <CardHeader>

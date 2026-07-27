@@ -110,7 +110,9 @@ async function createNodeObjectStorage(
     if (config.type === 'filesystem') {
         return {
             compensation: new FilesystemCompensationService(COMPENSATION_DIR),
-            storage: new FilesystemObjectStorage(filesystemRoots)
+            storage: new FilesystemObjectStorage(filesystemRoots, {
+                publicReadUrlBase: config.publicReadUrlBase
+            })
         };
     }
     const client = new S3Client({

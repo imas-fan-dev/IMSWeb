@@ -5,10 +5,13 @@ import { createWikiFixture } from "./fixture";
 describe("Wiki public dynamic data contract", () => {
   test("catalog exposes the requested agency and resolved idol artwork anonymously", async () => {
     const fixture = createWikiFixture();
+    fixture.storage.publicReadUrlBase = "https://cdn.example.test";
     fixture.story.idols[5]!.avatar_object_key =
       "wiki/agencies/sc/idols/sc_idol/avatar.webp";
     fixture.story.agencies[5]!.icon_object_key =
       "wiki/agencies/sc/branding/icon.webp";
+    fixture.storage.seed("wiki/agencies/sc/idols/sc_idol/avatar.webp");
+    fixture.storage.seed("wiki/agencies/sc/branding/icon.webp");
 
     const response = await fixture.app.request(
       `/api/wiki/catalog?agency=${encodeURIComponent("闪耀色彩")}`,
@@ -24,7 +27,8 @@ describe("Wiki public dynamic data contract", () => {
       name: "闪耀色彩",
       color: "#8dbbff",
       bannerTitle: "闪耀色彩 Banner",
-      iconUrl: "/icon/agencies/6.webp",
+      iconUrl:
+        "https://cdn.example.test/wiki/agencies/sc/branding/icon.webp",
       idolCount: 1,
     });
     assert.deepEqual(body.selection, {
@@ -42,8 +46,7 @@ describe("Wiki public dynamic data contract", () => {
           folderName: "sc_idol",
           color: "#8dbbff",
           imageUrl:
-            `/image/${encodeURIComponent("闪耀色彩")}/` +
-            `${encodeURIComponent("樱木真乃")}/icon.webp`,
+            "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/avatar.webp",
           imageFit: "cover",
           textColor: "#ffffff",
         }],
@@ -72,6 +75,7 @@ describe("Wiki public dynamic data contract", () => {
   test("story view aggregates cards and multiple sources with encoded media URLs", async () => {
     const fixture = createWikiFixture();
     fixture.storage.seed("wiki/agencies/sc/idols/sc_idol/avatar.webp");
+    fixture.storage.publicReadUrlBase = "https://cdn.example.test";
     fixture.story.seedStory({
       idol_id: 6,
       category: "enzaP卡",
@@ -81,6 +85,9 @@ describe("Wiki public dynamic data contract", () => {
       subtitle: "全话",
       image_file: "cards/story image.webp",
     });
+    fixture.storage.seed(
+      "wiki/agencies/sc/idols/sc_idol/story-images/cards/story image.webp",
+    );
     fixture.story.seedStory({
       idol_id: 6,
       category: "enzaP卡",
@@ -109,8 +116,8 @@ describe("Wiki public dynamic data contract", () => {
     assert.equal(category.cards[0].links.length, 2);
     assert.equal(
       category.cards[0].img,
-      `/image/${encodeURIComponent("闪耀色彩")}/` +
-        `${encodeURIComponent("樱木真乃")}/cards/story%20image.webp`,
+      "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/" +
+        "story-images/cards/story%20image.webp",
     );
   });
 

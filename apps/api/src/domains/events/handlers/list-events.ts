@@ -5,12 +5,23 @@ import {
     encodeEventCursor,
     eventIdAsDecimal
 } from '@/domains/events/event-cursor';
-import { eventRepository } from '@/middleware/hono-context';
+import { eventRepository, services } from '@/middleware/hono-context';
+import { resolvePublicMediaFields } from '@/utils/storage/public-object-url';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 5;
 const DEFAULT_CURSOR_LIMIT = 20;
 const MAX_PAGE_VALUE = 100;
+
+async function publicEventRows(
+    c: Context<AppEnvironment>,
+    rows: Record<string, unknown>[]
+): Promise<Record<string, unknown>[]> {
+    const storage = services(c).storage;
+    return storage
+        ? Promise.all(rows.map((row) => resolvePublicMediaFields(storage, row, ['image_url'])))
+        : rows;
+}
 
 function boundedPaginationInteger(value: string | undefined, fallback: number): number | null {
     if (value === undefined) return fallback;
@@ -41,7 +52,7 @@ async function listCursorEvents(
 
     const rows = await repository.listEventsByCursor(limit + 1, snapshotId, cursor?.afterId);
     const hasNextPage = rows.length > limit;
-    const items = hasNextPage ? rows.slice(0, limit) : rows;
+    const items = await publicEventRows(c, hasNextPage ? rows.slice(0, limit) : rows);
     const lastId = items.length ? eventIdAsDecimal(items.at(-1)?.id) : null;
     if (items.length && !lastId) throw new Error('Event row has an invalid id');
 
@@ -75,6 +86,9 @@ export async function handleListEvents(c: Context<AppEnvironment>): Promise<Resp
     if (!page) return c.json({ error: 'page must be an integer between 1 and 100' }, 400);
     if (!size) return c.json({ error: 'size must be an integer between 1 and 100' }, 400);
     const total = await eventRepository(c).countEvents();
-    const list = await eventRepository(c).listEvents(size, (page - 1) * size);
+    const list = await publicEventRows(
+        c,
+        await eventRepository(c).listEvents(size, (page - 1) * size)
+    );
     return c.json({ list, totalPage: Math.ceil(total / size) });
 }

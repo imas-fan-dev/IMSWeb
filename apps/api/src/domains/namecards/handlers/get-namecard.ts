@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { namecardRepository } from '@/middleware/hono-context';
+import { namecardRepository, services } from '@/middleware/hono-context';
+import { resolvePublicMediaFields } from '@/utils/storage/public-object-url';
 import { positiveInteger } from '@/utils/validation/number';
 
 export async function handleGetNamecard(c: Context<AppEnvironment>): Promise<Response> {
@@ -8,7 +9,12 @@ export async function handleGetNamecard(c: Context<AppEnvironment>): Promise<Res
     if (!id) return c.json({});
     try {
         const card = await namecardRepository(c).findApprovedCardMedia(id);
-        return c.json(card ? { image1_url: card.image1_url, image2_url: card.image2_url } : {});
+        if (!card) return c.json({});
+        const media = { image1_url: card.image1_url, image2_url: card.image2_url };
+        const storage = services(c).storage;
+        return c.json(storage
+            ? await resolvePublicMediaFields(storage, media, ['image1_url', 'image2_url'])
+            : media);
     } catch {
         return c.json({});
     }

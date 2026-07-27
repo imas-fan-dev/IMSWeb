@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { observeImageLoading } from "~/components/shared/image-loading-indicator"
+
 const minimumFrameHeight = 480
 const maximumFrameHeight = 24_000
 
@@ -15,6 +17,7 @@ export function InformationDocumentFrame({
   title: string
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null)
+  const imageObserverCleanupRef = useRef<(() => void) | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const [height, setHeight] = useState(minimumFrameHeight)
 
@@ -37,12 +40,17 @@ export function InformationDocumentFrame({
   }, [])
 
   function handleLoad() {
+    imageObserverCleanupRef.current?.()
     resizeObserverRef.current?.disconnect()
     syncTheme()
     syncHeight()
 
     const contentDocument = frameRef.current?.contentDocument
-    if (!contentDocument || !("ResizeObserver" in window)) return
+    if (!contentDocument) return
+
+    imageObserverCleanupRef.current = observeImageLoading(contentDocument)
+
+    if (!("ResizeObserver" in window)) return
     const observer = new ResizeObserver(syncHeight)
     observer.observe(contentDocument.documentElement)
     if (contentDocument.body) observer.observe(contentDocument.body)
@@ -57,6 +65,7 @@ export function InformationDocumentFrame({
     })
     return () => {
       themeObserver.disconnect()
+      imageObserverCleanupRef.current?.()
       resizeObserverRef.current?.disconnect()
     }
   }, [syncTheme])

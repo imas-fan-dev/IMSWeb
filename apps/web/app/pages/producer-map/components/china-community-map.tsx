@@ -14,9 +14,11 @@ type MapGeoJson = Parameters<typeof echarts.registerMap>[1]
 
 export function ChinaCommunityMap({
   regions,
+  detailsOpen,
   onSelect,
 }: {
   regions: ProducerMapRegion[]
+  detailsOpen: boolean
   onSelect: (province: string) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -88,6 +90,7 @@ export function ChinaCommunityMap({
             type: "map",
             map: mapName,
             roam: false,
+            selectedMode: false,
             layoutCenter: ["50%", "50%"],
             layoutSize: "88%",
             label: { show: false },
@@ -117,6 +120,15 @@ export function ChinaCommunityMap({
       { notMerge: true }
     )
   }, [ready, regions])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !ready || detailsOpen) return
+
+    chart.dispatchAction({ type: "downplay", seriesIndex: 0 })
+    chart.dispatchAction({ type: "unselect", seriesIndex: 0 })
+    chart.dispatchAction({ type: "hideTip" })
+  }, [detailsOpen, ready])
 
   if (loadError) {
     return (

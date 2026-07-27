@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { readInformationIndex } from '@/domains/information/content-store';
+import { publicInformationCard } from '@/domains/information/public-response';
 import { services } from '@/middleware/hono-context';
 
 export async function handleGetInformation(c: Context<AppEnvironment>): Promise<Response> {
@@ -12,5 +13,5 @@ export async function handleGetInformation(c: Context<AppEnvironment>): Promise<
         return c.json({ error: '活动内容不存在' }, 404);
     }
     c.header('Cache-Control', 'no-cache');
-    return c.json({ card });
+    return c.json({ card: await publicInformationCard(storage, card) });
 }

@@ -36,7 +36,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         for token in (
             "IMS_OBJECT_STORAGE: ${IMS_OBJECT_STORAGE:-s3}",
             "IMS_S3_BUCKET: ${IMS_S3_BUCKET:-imsweb-media-local}",
-            "IMS_S3_PUBLIC_READ_URL_BASE: ${IMS_S3_PUBLIC_READ_URL_BASE:-",
+            "IMS_PUBLIC_READ_URL_BASE: ${IMS_PUBLIC_READ_URL_BASE:-",
             "IMS_S3_REGION: ${IMS_S3_REGION:-us-east-1}",
             "IMS_S3_ENDPOINT: ${IMS_S3_ENDPOINT:-http://minio:9000}",
             "IMS_S3_FORCE_PATH_STYLE: ${IMS_S3_FORCE_PATH_STYLE:-true}",

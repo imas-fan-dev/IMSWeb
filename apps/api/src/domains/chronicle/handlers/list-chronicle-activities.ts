@@ -8,6 +8,7 @@ import {
     type ChronicleMeta
 } from '@/domains/chronicle/chronicle-records';
 import { services } from '@/middleware/hono-context';
+import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
 
 export async function handleListChronicleActivities(
     c: Context<AppEnvironment>
@@ -25,13 +26,16 @@ export async function handleListChronicleActivities(
             const usedPrefix = `${chroniclePrefix('used', id)}/`;
             const used = (await listChronicleObjects(storage, 'used', id))
                 .filter((candidate) => candidate.key.startsWith(usedPrefix));
+            const cover = used[0]
+                ? encodedChronicleMediaUrl('used', id, used[0].key.split('/').at(-1)!)
+                : null;
             activities.push({
                 id,
                 title: meta.title || `活动 ${id}`,
                 date: meta.date || '待定',
                 location: meta.location || '待补充',
-                cover: used[0]
-                    ? encodedChronicleMediaUrl('used', id, used[0].key.split('/').at(-1)!)
+                cover: used[0] && cover
+                    ? await resolvePublicObjectUrl(storage, used[0].key, cover)
                     : null
             });
         } catch {

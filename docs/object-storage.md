@@ -56,7 +56,8 @@ bucket 内复制为新的公开 ready 版本并清理受保护版本。覆盖已
 | --- | --- |
 | `IMS_OBJECT_STORAGE` | `filesystem` 或 `s3`，默认 `s3`；filesystem 仅用于兼容流程 |
 | `IMS_S3_BUCKET` | S3 模式必填；普通 bucket 名称 |
-| `IMS_S3_PUBLIC_READ_URL_BASE` | 可选；单一 bucket 的 MinIO path-style 公开基址或 R2 自定义域名 |
+| `IMS_PUBLIC_READ_URL_BASE` | 可选；filesystem 使用的公开站点前缀，或单一 bucket 的 MinIO/R2 公开基址 |
+| `IMS_S3_PUBLIC_READ_URL_BASE` | `IMS_PUBLIC_READ_URL_BASE` 的 S3 兼容别名；新配置应使用通用名称 |
 | `IMS_S3_REGION` | S3 模式必填；未设置时读取 `AWS_REGION` |
 | `IMS_S3_PREFIX` | 可选；同一 bucket 内的隔离前缀，不含开头/结尾 `/` |
 | `IMS_S3_ENDPOINT` | S3-compatible 服务可选；无凭据的 HTTP(S) URL |
@@ -66,7 +67,8 @@ bucket 内复制为新的公开 ready 版本并清理受保护版本。覆盖已
 `IMS_S3_PREFIX` 可以完全留空，也可以是 `tenant/site-a` 这样的多段值。最终物理路径固定为
 `bucket/<IMS_S3_PREFIX>/<业务语义目录>/objects/<object-id>/<文件名>`；受保护对象在 prefix 后
 额外增加 `__protected/`。留空时 bucket 后直接接业务语义目录。
-`IMS_S3_PUBLIC_READ_URL_BASE` 标识同一个 bucket 的公开入口：MinIO path-style URL 应
+`IMS_PUBLIC_READ_URL_BASE` 标识公开入口：filesystem 会在此前缀后拼接现有公开路由，
+S3/R2 会拼接版本化物理对象键。MinIO path-style URL 应
 包含 bucket，例如 `https://objects.example.com/imsweb-media-prod`；R2 自定义域名已绑定
 bucket，因此只填写 `https://media.example.com`。两者都会继续拼接相同的 prefix 与物理路径。
 
@@ -121,7 +123,7 @@ Cloudflare R2 示例：
 ```sh
 export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-media-prod
-export IMS_S3_PUBLIC_READ_URL_BASE=https://imas-assets.texasoct.tech
+export IMS_PUBLIC_READ_URL_BASE=https://imas-assets.texasoct.tech
 export IMS_S3_REGION=auto
 export IMS_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
 export IMS_S3_FORCE_PATH_STYLE=false
@@ -165,7 +167,7 @@ Hono Node 使用以下配置连接：
 ```sh
 export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-media-local
-export IMS_S3_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
+export IMS_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
 export IMS_S3_REGION=us-east-1
 export IMS_S3_ENDPOINT=http://127.0.0.1:9000
 export IMS_S3_FORCE_PATH_STYLE=true

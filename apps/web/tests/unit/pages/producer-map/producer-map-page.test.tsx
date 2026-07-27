@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -7,13 +7,18 @@ import type { ProducerMapContent } from "~/shared/api"
 
 vi.mock("~/pages/producer-map/components/china-community-map", () => ({
   ChinaCommunityMap: ({
+    detailsOpen,
     onSelect,
   }: {
+    detailsOpen: boolean
     onSelect: (province: string) => void
   }) => (
-    <button type="button" onClick={() => onSelect("广东省")}>
-      测试地图选择广东省
-    </button>
+    <>
+      <button type="button" onClick={() => onSelect("广东省")}>
+        测试地图选择广东省
+      </button>
+      <output data-testid="map-details-open">{String(detailsOpen)}</output>
+    </>
   ),
 }))
 
@@ -89,14 +94,22 @@ describe("ProducerMapPage", () => {
     ).toBeVisible()
     expect(screen.getByText("2 个公开条目")).toBeVisible()
     expect(screen.queryByRole("combobox", { name: "地区资料" })).toBeNull()
+    expect(screen.getByTestId("map-details-open")).toHaveTextContent("false")
 
     await user.click(screen.getByRole("button", { name: "测试地图选择广东省" }))
+    expect(screen.getByTestId("map-details-open")).toHaveTextContent("true")
     expect(screen.getByRole("dialog", { name: "广东制作人社群" })).toBeVisible()
-    expect(screen.getByAltText("广东制作人社群地区资料")).toHaveAttribute(
-      "src",
-      "/maps/guangdong.png"
-    )
+    const regionImage = screen.getByAltText("广东制作人社群地区资料")
+    const regionViewport =
+      screen.getByLabelText("广东制作人社群地区资料加载区域")
+    expect(regionImage).toHaveAttribute("src", "/maps/guangdong.png")
+    expect(regionViewport).toHaveClass("aspect-video")
+    expect(regionViewport).toHaveAttribute("data-image-state", "loading")
+    fireEvent.load(regionImage)
+    expect(regionViewport).toHaveAttribute("data-image-state", "loaded")
+    expect(regionImage).toHaveClass("opacity-100")
     await user.click(screen.getByRole("button", { name: "关闭地区资料" }))
+    expect(screen.getByTestId("map-details-open")).toHaveTextContent("false")
 
     await user.type(screen.getByPlaceholderText("搜索社群"), "广东")
     expect(screen.getByText("1 个公开条目")).toBeVisible()
@@ -109,9 +122,15 @@ describe("ProducerMapPage", () => {
     await user.click(
       within(community).getByRole("button", { name: "查看联络图片" })
     )
-    expect(
+    const communityImage =
       await screen.findByAltText("广东偶像大师交流组联络图片")
-    ).toHaveAttribute("src", "/maps/community-qr.png")
+    const communityViewport =
+      screen.getByLabelText("广东偶像大师交流组联络图片加载区域")
+    expect(communityImage).toHaveAttribute("src", "/maps/community-qr.png")
+    expect(communityViewport).toHaveClass("min-h-64")
+    expect(communityViewport).toHaveAttribute("data-image-state", "loading")
+    fireEvent.load(communityImage)
+    expect(communityViewport).toHaveAttribute("data-image-state", "loaded")
   })
 
   it("offers retry when the producer map API cannot be loaded", async () => {
