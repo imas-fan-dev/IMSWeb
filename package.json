@@ -5,7 +5,7 @@
   "description": "IMSWeb monorepo workspace orchestrator",
   "license": "MIT",
   "scripts": {
-    "prepare": "node scripts/install-git-hooks.mjs",
+    "prepare": "node .husky/install.mjs",
     "check:rules": "node scripts/check-agent-rules.mjs",
     "check:boundaries": "node scripts/check-workspace-boundaries.mjs",
     "design:lint": "pnpm --filter @imsweb/web run design:lint",
@@ -75,5 +75,8 @@
   },
   "engines": {
     "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "husky": "9.1.7"
   }
 }

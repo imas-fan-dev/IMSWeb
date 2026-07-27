@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import shutil
 import stat
 import subprocess
@@ -7,8 +8,8 @@ import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-HOOK_INSTALLER = PROJECT_ROOT / "scripts/install-git-hooks.mjs"
-PRE_COMMIT_HOOK = PROJECT_ROOT / ".githooks/pre-commit"
+HOOK_INSTALLER = PROJECT_ROOT / ".husky/install.mjs"
+PRE_COMMIT_HOOK = PROJECT_ROOT / ".husky/pre-commit"
 
 
 class GitHooksTests(unittest.TestCase):
@@ -21,40 +22,42 @@ class GitHooksTests(unittest.TestCase):
             PRE_COMMIT_HOOK.read_text(encoding="utf-8"),
         )
 
-    def test_installer_skips_non_git_dependency_layer(self):
-        with tempfile.TemporaryDirectory(prefix="ims-git-hooks-") as temporary:
+    def test_installer_skips_when_husky_is_disabled_without_dev_dependencies(self):
+        with tempfile.TemporaryDirectory(prefix="ims-husky-") as temporary:
             root = Path(temporary)
-            script = root / "scripts/install-git-hooks.mjs"
+            script = root / ".husky/install.mjs"
             script.parent.mkdir(parents=True)
             shutil.copyfile(HOOK_INSTALLER, script)
+            environment = {**os.environ, "HUSKY": "0"}
 
             install = subprocess.run(
-                ["node", "scripts/install-git-hooks.mjs"],
+                ["node", ".husky/install.mjs"],
                 cwd=root,
                 check=False,
                 capture_output=True,
+                env=environment,
                 text=True,
             )
 
         self.assertEqual(install.returncode, 0, install.stderr)
-        self.assertIn("not inside a Git worktree", install.stdout)
+        self.assertEqual(install.stdout, "")
 
-    def test_installer_configures_repository_hooks_path(self):
-        with tempfile.TemporaryDirectory(prefix="ims-git-hooks-") as temporary:
+    def test_husky_installer_configures_repository_hooks_path(self):
+        with tempfile.TemporaryDirectory(prefix="ims-husky-") as temporary:
             root = Path(temporary)
-            script = root / "scripts/install-git-hooks.mjs"
-            hook = root / ".githooks/pre-commit"
-            script.parent.mkdir(parents=True)
-            hook.parent.mkdir(parents=True)
-            shutil.copyfile(HOOK_INSTALLER, script)
-            shutil.copyfile(PRE_COMMIT_HOOK, hook)
             subprocess.run(["git", "init", "--quiet"], cwd=root, check=True)
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"CI", "HUSKY", "NODE_ENV"}
+            }
 
             install = subprocess.run(
-                ["node", "scripts/install-git-hooks.mjs"],
+                ["node", str(HOOK_INSTALLER)],
                 cwd=root,
                 check=False,
                 capture_output=True,
+                env=environment,
                 text=True,
             )
             configured_path = subprocess.run(
@@ -66,7 +69,7 @@ class GitHooksTests(unittest.TestCase):
             )
 
         self.assertEqual(install.returncode, 0, install.stderr)
-        self.assertEqual(configured_path.stdout.strip(), ".githooks")
+        self.assertEqual(configured_path.stdout.strip(), ".husky/_")
 
 
 if __name__ == "__main__":

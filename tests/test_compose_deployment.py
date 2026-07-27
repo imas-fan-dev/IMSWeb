@@ -56,6 +56,12 @@ class ComposeDeploymentTests(unittest.TestCase):
             "pnpm install --offline --frozen-lockfile --prod --filter @imsweb/api...",
             dockerfile,
         )
+        self.assertEqual(dockerfile.count("ENV HUSKY=0"), 2)
+        self.assertEqual(
+            dockerfile.count("COPY .husky/install.mjs .husky/install.mjs"),
+            2,
+        )
+        self.assertNotIn("--ignore-scripts", dockerfile)
         self.assertIn("pnpm --filter @imsweb/api rebuild sqlite3", dockerfile)
         self.assertIn("COPY --from=build /app/apps/api/dist apps/api/dist", dockerfile)
         self.assertIn("USER node", dockerfile)
