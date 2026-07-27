@@ -54,6 +54,139 @@ for (const route of publicRoutes) {
   })
 }
 
+test("work detail content stays below the sticky site header", async ({
+  page,
+  isMobile,
+}) => {
+  if (!isMobile) {
+    await page.setViewportSize({ width: 1600, height: 900 })
+  }
+  await page.goto("/works/sc")
+
+  const header = page.getByRole("banner")
+  const title = page.getByRole("heading", {
+    name: "THE IDOLM@STER",
+    exact: true,
+  })
+  await expect(header).toBeVisible()
+  await expect(title).toBeVisible()
+
+  const headerBox = await header.boundingBox()
+  const titleBox = await title.boundingBox()
+  expect(headerBox).not.toBeNull()
+  expect(titleBox).not.toBeNull()
+  expect(titleBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height)
+
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth
+  )
+  expect(hasHorizontalOverflow).toBe(false)
+
+  if (!isMobile) {
+    const copyBox = await page.getByTestId("work-detail-copy").boundingBox()
+    const navBox = await page.getByTestId("work-nav-card").boundingBox()
+    const character = page.getByRole("img", {
+      name: "SHINY COLORS 角色立绘",
+    })
+    expect(copyBox).not.toBeNull()
+    expect(navBox).not.toBeNull()
+    expect(copyBox!.x + copyBox!.width).toBeLessThanOrEqual(navBox!.x)
+    await expect(character).toHaveCSS("opacity", "1")
+    await expect(character.locator("..")).toHaveCSS("position", "relative")
+  }
+})
+
+test("work detail keeps narrow-screen artwork behind the copy", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 1024 })
+  await page.goto("/works/sc")
+
+  const headerBox = await page.getByRole("banner").boundingBox()
+  const titleBox = await page
+    .getByRole("heading", { name: "THE IDOLM@STER", exact: true })
+    .boundingBox()
+  const copyBox = await page.getByTestId("work-detail-copy").boundingBox()
+  const character = page.getByRole("img", {
+    name: "SHINY COLORS 角色立绘",
+  })
+
+  expect(headerBox).not.toBeNull()
+  expect(titleBox).not.toBeNull()
+  expect(copyBox).not.toBeNull()
+  expect(titleBox!.y).toBeLessThan(headerBox!.y + headerBox!.height + 160)
+  expect(copyBox!.x).toBeGreaterThanOrEqual(0)
+  expect(copyBox!.x + copyBox!.width).toBeLessThanOrEqual(768)
+  await expect(character).toHaveCSS("opacity", "0.2")
+  await expect(character.locator("..")).toHaveCSS("position", "absolute")
+})
+
+test("work detail loads its character and font directly from R2", async ({
+  page,
+}) => {
+  const assetResponses = new Map<string, number>()
+  const legacyAssetRequests: string[] = []
+  page.on("request", (request) => {
+    const url = request.url()
+    if (
+      url.includes("/assets/images/Production/") ||
+      url.includes("/assets/font/IrisIdol.ttf")
+    ) {
+      legacyAssetRequests.push(url)
+    }
+  })
+  page.on("response", (response) => {
+    const url = response.url()
+    if (url.startsWith("https://imas-assets.texasoct.tech/brand/")) {
+      assetResponses.set(url, response.status())
+    }
+  })
+
+  await page.goto("/works/sc")
+
+  const character = page.getByRole("img", {
+    name: "SHINY COLORS 角色立绘",
+  })
+  await expect(character).toBeVisible()
+  await expect(character).toHaveAttribute(
+    "src",
+    /^https:\/\/imas-assets\.texasoct\.tech\/brand\/works\/sc\//
+  )
+  await expect
+    .poll(() =>
+      character.evaluate((image: HTMLImageElement) => image.naturalWidth)
+    )
+    .toBeGreaterThan(0)
+  await expect
+    .poll(() => page.evaluate(() => document.fonts.check("16px idolFont")))
+    .toBe(true)
+
+  expect(assetResponses.size).toBeGreaterThanOrEqual(2)
+  expect([...assetResponses.values()].every((status) => status === 200)).toBe(
+    true
+  )
+  expect(legacyAssetRequests).toEqual([])
+})
+
+test("work detail carries the homepage moving series background", async ({
+  page,
+}) => {
+  await page.goto("/works/sc")
+
+  const background = page.getByTestId("series-icon-background")
+  const motifs = background.locator(".series-icon-motif")
+  await expect(background).toBeVisible()
+  await expect(motifs).toHaveCount(12)
+
+  const firstMotif = motifs.first()
+  const initialTransform = await firstMotif.evaluate(
+    (element) => element.style.transform
+  )
+  await expect
+    .poll(() => firstMotif.evaluate((element) => element.style.transform))
+    .not.toBe(initialTransform)
+})
+
 test("mobile navigation keeps link semantics and closes after routing", async ({
   page,
   isMobile,

@@ -1,7 +1,9 @@
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
 import { Link } from "react-router"
 
+import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Button } from "~/components/ui/button"
+import { IDOL_FONT_URL } from "~/pages/works/brand-assets"
 import {
   Card,
   CardContent,
@@ -20,7 +22,11 @@ export function meta({ params }: WorkDetailProps) {
   return [{ title: `${entry?.title ?? "作品专题"} | IMSWeb` }]
 }
 
-function WorkNavCard({ entry }: { entry: NonNullable<ReturnType<typeof getWorkEntry>> }) {
+function WorkNavCard({
+  entry,
+}: {
+  entry: NonNullable<ReturnType<typeof getWorkEntry>>
+}) {
   const hasNav = (entry.navLinks?.length ?? 0) > 0
   const hasLinks = (entry.links?.length ?? 0) > 0
 
@@ -28,8 +34,11 @@ function WorkNavCard({ entry }: { entry: NonNullable<ReturnType<typeof getWorkEn
 
   return (
     <>
-      {/* Desktop: floating card */}
-      <Card className="hidden lg:block fixed bottom-8 right-8 z-30 w-56 shadow-lg border-border/60">
+      {/* Wide desktop: keep navigation in-flow so it cannot cover copy. */}
+      <Card
+        data-testid="work-nav-card"
+        className="sticky top-24 hidden w-56 shrink-0 self-start border-border/60 shadow-lg 2xl:block"
+      >
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">探索 {entry.title}</CardTitle>
           <CardDescription className="text-xs">相关入口与资源</CardDescription>
@@ -75,8 +84,8 @@ function WorkNavCard({ entry }: { entry: NonNullable<ReturnType<typeof getWorkEn
         </CardContent>
       </Card>
 
-      {/* Mobile: inline button group */}
-      <div className="lg:hidden mt-10 flex flex-wrap gap-2">
+      {/* Smaller viewports: give navigation its own full-width row. */}
+      <div className="flex w-full basis-full flex-wrap gap-2 2xl:hidden">
         {entry.navLinks?.map((navLink) => (
           <Button
             key={navLink.href}
@@ -114,28 +123,36 @@ function WorkNavCard({ entry }: { entry: NonNullable<ReturnType<typeof getWorkEn
   )
 }
 
-function FranchiseDetail({ entry }: { entry: NonNullable<ReturnType<typeof getWorkEntry>> }) {
+function FranchiseDetail({
+  entry,
+}: {
+  entry: NonNullable<ReturnType<typeof getWorkEntry>>
+}) {
   return (
-    <section className="mx-auto flex w-full max-w-[1600px] flex-col items-center gap-8 px-6 py-8 lg:flex-row lg:items-start lg:justify-between lg:px-[50px] lg:py-[100px]">
-      {/* Character illustration — left side */}
-      <div className="flex-1 flex justify-center">
+    <section className="relative mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-[1600px] flex-col items-center gap-8 overflow-hidden px-6 py-8 sm:py-12 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between lg:px-[50px] lg:py-16 xl:py-20">
+      {/* On narrow screens, mirror About's ambient artwork treatment. */}
+      <div className="pointer-events-none absolute inset-y-0 right-[-12%] w-[72%] overflow-hidden sm:right-[-8%] sm:w-[60%] lg:relative lg:inset-auto lg:flex lg:w-auto lg:flex-1 lg:justify-center lg:overflow-visible">
         {entry.characterImage ? (
           <img
             src={entry.characterImage}
             alt={`${entry.title} 角色立绘`}
-            className="w-full max-w-[250px] sm:max-w-[350px] lg:max-w-[500px] h-auto"
+            className="h-full w-full object-contain object-bottom opacity-15 sm:opacity-20 lg:h-auto lg:max-w-[500px] lg:opacity-100"
             loading="lazy"
           />
         ) : null}
       </div>
 
       {/* Text content — right side */}
-      <div className="flex-[1.2] w-full lg:-translate-y-[8vw]">
+      <div
+        data-testid="work-detail-copy"
+        className="relative z-10 w-full flex-[1.2] lg:pt-2"
+      >
         {/* Gradient titles — first line always "THE IDOLM@STER" */}
         <h1
-          className="font-bold leading-none"
+          className="leading-none font-bold"
           style={{
-            fontFamily: "'idolFont', 'Georgia', 'Noto Serif SC', 'PingFang SC', serif",
+            fontFamily:
+              "'idolFont', 'Georgia', 'Noto Serif SC', 'PingFang SC', serif",
             fontSize:
               entry.slug === "765"
                 ? "clamp(14px, 5vw, 65px)"
@@ -151,9 +168,10 @@ function FranchiseDetail({ entry }: { entry: NonNullable<ReturnType<typeof getWo
         {/* Second line: franchise name (765 has no second title in original) */}
         {entry.slug !== "765" ? (
           <h1
-            className="font-bold leading-none mt-1"
+            className="mt-1 leading-none font-bold"
             style={{
-              fontFamily: "'idolFont', 'Georgia', 'Noto Serif SC', 'PingFang SC', serif",
+              fontFamily:
+                "'idolFont', 'Georgia', 'Noto Serif SC', 'PingFang SC', serif",
               fontSize: "clamp(14px, 5vw, 65px)",
               backgroundImage: `linear-gradient(${entry.gradient})`,
               WebkitBackgroundClip: "text",
@@ -167,7 +185,7 @@ function FranchiseDetail({ entry }: { entry: NonNullable<ReturnType<typeof getWo
 
         {/* Japanese name */}
         <p
-          className="font-bold text-[#807C7B] leading-none mt-2"
+          className="mt-2 leading-none font-bold text-[#807C7B]"
           style={{ fontSize: "clamp(10px, 5vw, 25px)" }}
         >
           {entry.japaneseName}
@@ -184,17 +202,15 @@ function FranchiseDetail({ entry }: { entry: NonNullable<ReturnType<typeof getWo
                 fontSize: "clamp(15px, 5vw, 28px)",
               }}
             >
-              <span className="inline-block skew-x-[10deg]">
-                {line}
-              </span>
+              <span className="inline-block skew-x-[10deg]">{line}</span>
             </span>
           ))}
         </div>
 
         {/* Since */}
-        <div className="mt-8 lg:translate-y-[3vw]">
+        <div className="mt-8">
           <p
-            className="italic font-bold"
+            className="font-bold italic"
             style={{
               fontSize: "clamp(10px, 5vw, 42px)",
               color: entry.gradient
@@ -207,7 +223,7 @@ function FranchiseDetail({ entry }: { entry: NonNullable<ReturnType<typeof getWo
         </div>
 
         {/* 企划概要 */}
-        <div className="mt-4 lg:translate-y-[5vw]">
+        <div className="mt-8">
           <h2
             className="text-center font-bold"
             style={{
@@ -221,7 +237,7 @@ function FranchiseDetail({ entry }: { entry: NonNullable<ReturnType<typeof getWo
             {entry.description.map((paragraph) => (
               <span
                 key={paragraph}
-                className="inline-block rounded-md px-4 py-2.5 font-bold leading-relaxed"
+                className="inline-block rounded-md px-4 py-2.5 leading-relaxed font-bold"
                 style={{
                   backgroundColor: entry.introBg || undefined,
                   color: "#817C7D",
@@ -234,6 +250,8 @@ function FranchiseDetail({ entry }: { entry: NonNullable<ReturnType<typeof getWo
           </div>
         </div>
       </div>
+
+      <WorkNavCard entry={entry} />
     </section>
   )
 }
@@ -265,41 +283,43 @@ export default function WorkDetailPage({ params }: WorkDetailProps) {
   const isFranchise = entry.gradient !== ""
 
   return (
-    <main id="main-content">
+    <main
+      id="main-content"
+      className="relative isolate min-h-[calc(100svh-4rem)] scroll-mt-16 overflow-x-clip"
+    >
       {/* Idol font */}
       <style>{`
         @font-face {
           font-family: "idolFont";
-          src: url("/assets/font/IrisIdol.ttf") format("truetype");
+          src: url("${IDOL_FONT_URL}") format("truetype");
+          font-display: swap;
         }
       `}</style>
 
-      {isFranchise ? (
-        <>
+      <SeriesIconBackground />
+      <div className="relative z-10 min-h-[calc(100svh-4rem)] bg-background/75 sm:bg-background/60">
+        {isFranchise ? (
           <FranchiseDetail entry={entry} />
-          <section className="mx-auto w-full max-w-5xl px-6">
+        ) : (
+          <section className="mx-auto w-full max-w-5xl px-6 py-14">
+            <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
+              {entry.eyebrow}
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+              {entry.title}
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
+              {entry.summary}
+            </p>
+            <div className="mt-10 space-y-5 text-base leading-8">
+              {entry.description.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
             <WorkNavCard entry={entry} />
           </section>
-        </>
-      ) : (
-        <section className="mx-auto w-full max-w-5xl px-6 py-14">
-          <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
-            {entry.eyebrow}
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
-            {entry.title}
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
-            {entry.summary}
-          </p>
-          <div className="mt-10 space-y-5 text-base leading-8">
-            {entry.description.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-          </div>
-          <WorkNavCard entry={entry} />
-        </section>
-      )}
+        )}
+      </div>
     </main>
   )
 }

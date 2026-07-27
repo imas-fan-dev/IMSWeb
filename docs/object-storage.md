@@ -42,6 +42,17 @@ bucket 内复制为新的公开 ready 版本并清理受保护版本。覆盖已
 数据库记录的 canonical logical key 与 `physical_key`，不读取 direct key，也不兼容
 `__ims_s3`。
 
+作品系列页是公开品牌资产的例外读取面：前端从迁移清单引用当前 ready 版本的不可变 R2
+`physical_key` URL，浏览器直接访问 R2 自定义域名，不经过 Hono。R2 bucket CORS 仅允许正式站点
+与明确的本地开发 origin 执行 `GET`，以支持跨域字体；旧 `/assets/...` 路由只保留外部链接兼容。
+生产 CORS 的可审计配置位于 `deploy/r2-public-cors.json`，使用最新版 Wrangler 应用并回读：
+
+```sh
+pnpm dlx wrangler@latest r2 bucket cors set imsweb-media-public-prod \
+  --file deploy/r2-public-cors.json
+pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
+```
+
 以下内容不进入 S3：
 
 - Core/Story 关系数据；SQLite 使用一个 `IMS_SQLITE_PATH`，PostgreSQL 使用一个
