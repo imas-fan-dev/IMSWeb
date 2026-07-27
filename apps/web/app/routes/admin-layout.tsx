@@ -27,6 +27,7 @@ import { toast } from "sonner"
 
 import { Badge } from "~/components/ui/badge"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
+import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
 import { getAdminSession, isApiError, logoutAdmin } from "~/shared/api"
@@ -145,14 +146,7 @@ function AdminAccessState({
 }) {
   return (
     <main className="min-h-svh bg-background">
-      <div className="grid h-1 grid-cols-6" aria-hidden="true">
-        <span className="bg-franchise-765" />
-        <span className="bg-franchise-cg" />
-        <span className="bg-franchise-ml" />
-        <span className="bg-franchise-sidem" />
-        <span className="bg-franchise-sc" />
-        <span className="bg-franchise-gk" />
-      </div>
+      <SeriesAccentStrip className="h-1" />
       <section className="mx-auto flex min-h-[calc(100svh-0.25rem)] w-full max-w-xl flex-col justify-center px-6 py-12 sm:px-10">
         <span className="flex size-11 items-center justify-center rounded-md bg-destructive/10 text-destructive">
           <Icon className="size-5" aria-hidden="true" />
@@ -235,17 +229,7 @@ export default function AdminLayout() {
   if (loading || !data) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-5 bg-background">
-        <div
-          className="grid h-1 w-32 grid-cols-6 overflow-hidden rounded-full"
-          aria-hidden="true"
-        >
-          <span className="bg-franchise-765" />
-          <span className="bg-franchise-cg" />
-          <span className="bg-franchise-ml" />
-          <span className="bg-franchise-sidem" />
-          <span className="bg-franchise-sc" />
-          <span className="bg-franchise-gk" />
-        </div>
+        <SeriesAccentStrip className="h-1 w-32 overflow-hidden rounded-full" />
         <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircleIcon
             className="size-4 animate-spin"
@@ -273,14 +257,7 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-svh bg-background">
-      <div className="grid h-1 grid-cols-6" aria-hidden="true">
-        <span className="bg-franchise-765" />
-        <span className="bg-franchise-cg" />
-        <span className="bg-franchise-ml" />
-        <span className="bg-franchise-sidem" />
-        <span className="bg-franchise-sc" />
-        <span className="bg-franchise-gk" />
-      </div>
+      <SeriesAccentStrip className="h-1" />
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-[100rem] items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link to="/admin" className="flex min-w-0 items-center gap-3">

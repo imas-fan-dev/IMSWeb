@@ -96,12 +96,12 @@
   --info-foreground: oklch(0.27 0.08 230);
   --pending: oklch(0.68 0.12 300);
   --pending-foreground: oklch(0.3 0.1 300);
-  --franchise-765: oklch(0.67 0.19 8);
-  --franchise-cg: oklch(0.64 0.16 252);
-  --franchise-ml: oklch(0.75 0.15 76);
-  --franchise-sidem: oklch(0.65 0.15 148);
-  --franchise-sc: oklch(0.68 0.14 303);
-  --franchise-gk: oklch(0.64 0.19 35);
+  --franchise-765: #f34e6c;
+  --franchise-cg: #2581c7;
+  --franchise-ml: #ffc20b;
+  --franchise-sidem: #11be93;
+  --franchise-sc: #8dbaff;
+  --franchise-gk: #f39800;
   --admin-ink: oklch(0.17 0.012 270);
   --admin-ink-foreground: oklch(0.97 0.004 260);
   --admin-ink-muted: oklch(0.25 0.015 270);

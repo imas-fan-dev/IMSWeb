@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import About from "~/pages/about/about-page"
 import type { AboutPageContent } from "~/shared/api"
+import { seriesWallItems } from "~/shared/series-wall"
 
 vi.mock("~/components/shared/series-icon-background", () => ({
   SeriesIconBackground: () => <div data-testid="series-icon-background" />,
@@ -101,6 +102,11 @@ describe("About page", () => {
     )
     expect(screen.getByText("本分组名单暂未公开。")).toBeVisible()
     expect(screen.getByTestId("series-icon-background")).toBeVisible()
+    expect(
+      screen
+        .getByTestId("series-accent-strip")
+        .querySelectorAll("[data-series-accent]")
+    ).toHaveLength(seriesWallItems.length)
     expect(container.querySelector("main#main-content")).not.toBeNull()
     expect(fetchMock).toHaveBeenCalledOnce()
   })

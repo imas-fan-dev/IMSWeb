@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { lazy, Suspense, useMemo, useState } from "react"
 
+import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
@@ -396,14 +397,7 @@ export default function ProducerMapPage() {
               </p>
             </div>
           </div>
-          <div className="grid h-1.5 grid-cols-6" aria-hidden="true">
-            <span className="bg-franchise-765" />
-            <span className="bg-franchise-cg" />
-            <span className="bg-franchise-ml" />
-            <span className="bg-franchise-sidem" />
-            <span className="bg-franchise-sc" />
-            <span className="bg-franchise-gk" />
-          </div>
+          <SeriesAccentStrip className="h-1.5" />
         </section>
 
         <section className="border-b" aria-label="地区社群地图">

@@ -10,6 +10,7 @@ import {
 import { useState } from "react"
 import { Link, useNavigate } from "react-router"
 
+import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
@@ -49,17 +50,10 @@ export default function AdminLogin() {
   return (
     <main className="grid min-h-svh bg-background lg:grid-cols-[minmax(24rem,0.84fr)_minmax(32rem,1.16fr)]">
       <section className="relative flex min-h-[20rem] overflow-hidden border-b bg-admin-ink px-6 py-7 text-admin-ink-foreground sm:px-10 sm:py-10 lg:min-h-svh lg:border-r lg:border-b-0 lg:px-14 lg:py-12 xl:px-18">
-        <div
-          className="absolute inset-y-0 left-0 grid w-1 grid-rows-6"
-          aria-hidden="true"
-        >
-          <span className="bg-franchise-765" />
-          <span className="bg-franchise-cg" />
-          <span className="bg-franchise-ml" />
-          <span className="bg-franchise-sidem" />
-          <span className="bg-franchise-sc" />
-          <span className="bg-franchise-gk" />
-        </div>
+        <SeriesAccentStrip
+          className="absolute inset-y-0 left-0 w-1"
+          orientation="vertical"
+        />
 
         <div className="mx-auto flex w-full max-w-lg flex-col">
           <div className="flex items-start justify-between gap-6">
