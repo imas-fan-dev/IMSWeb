@@ -5,11 +5,13 @@ import {
   InfoIcon,
   ListPlusIcon,
   LoaderCircleIcon,
+  MonitorIcon,
   MoveIcon,
   PlusIcon,
   RefreshCwIcon,
   RotateCcwIcon,
   SaveIcon,
+  SmartphoneIcon,
   Trash2Icon,
   UserPlusIcon,
 } from "lucide-react"
@@ -24,6 +26,8 @@ import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
+import { cn } from "~/lib/utils"
 import {
   AdminField,
   AdminPageHeader,
@@ -293,6 +297,13 @@ type HeroCompositionPatch = Pick<
   "heroImageScale" | "heroImageOffsetX" | "heroImageOffsetY"
 >
 
+type AboutPreviewMode = "desktop" | "mobile"
+
+const aboutPreviewModes = [
+  { value: "desktop", label: "桌面端", icon: MonitorIcon },
+  { value: "mobile", label: "移动端", icon: SmartphoneIcon },
+] as const
+
 function HeroCompositionPreview({
   content,
   onChange,
@@ -300,6 +311,7 @@ function HeroCompositionPreview({
   content: AboutPageContent
   onChange: (patch: HeroCompositionPatch) => void
 }) {
+  const [previewMode, setPreviewMode] = useState<AboutPreviewMode>("desktop")
   const dragStart = useRef<{
     pointerId: number
     x: number
@@ -309,6 +321,7 @@ function HeroCompositionPreview({
   } | null>(null)
   const accentStart = previewColor(content.accentColorStart, "#B4E04B")
   const accentEnd = previewColor(content.accentColorEnd, "#E6F9E5")
+  const isMobilePreview = previewMode === "mobile"
 
   function updatePosition(offsetX: number, offsetY: number) {
     onChange({
@@ -373,12 +386,46 @@ function HeroCompositionPreview({
 
   return (
     <div className="overflow-hidden rounded-lg border bg-background">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b px-4 py-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <MoveIcon className="size-4 shrink-0 text-primary" aria-hidden />
           <p className="text-sm font-semibold">公开页构图预览</p>
         </div>
+        <div className="relative rounded-lg bg-muted p-1">
+          <span
+            aria-hidden="true"
+            className={cn(
+              "absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md border bg-background shadow-sm transition-transform duration-200 motion-reduce:transition-none",
+              isMobilePreview && "translate-x-full"
+            )}
+          />
+          <ToggleGroup
+            aria-label="预览设备"
+            value={[previewMode]}
+            spacing={0}
+            className="relative grid grid-cols-2"
+            onValueChange={(values) => {
+              const nextMode = values[0] as AboutPreviewMode | undefined
+              if (nextMode) setPreviewMode(nextMode)
+            }}
+          >
+            {aboutPreviewModes.map(({ value, label, icon: Icon }) => (
+              <ToggleGroupItem
+                key={value}
+                value={value}
+                className="min-w-20 bg-transparent px-3 text-muted-foreground hover:bg-transparent aria-pressed:bg-transparent aria-pressed:text-foreground data-[state=on]:bg-transparent"
+              >
+                <Icon data-icon="inline-start" aria-hidden="true" />
+                {label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
         <dl className="flex items-center gap-4 font-mono text-xs text-muted-foreground">
+          <div>
+            <dt className="sr-only">预览比例</dt>
+            <dd>{isMobilePreview ? "9:16" : "16:9"}</dd>
+          </div>
           <div>
             <dt className="sr-only">缩放</dt>
             <dd>{content.heroImageScale}%</dd>
@@ -410,93 +457,156 @@ function HeroCompositionPreview({
         </Button>
       </div>
 
-      <div className="relative mx-auto min-h-[26rem] w-full max-w-[80rem] overflow-hidden bg-[#fcfcfa] sm:aspect-[16/9] sm:min-h-0">
+      <div className="overflow-auto bg-muted/30 p-3 sm:p-5">
         <div
-          role="group"
-          tabIndex={0}
-          aria-label="角色构图位置，可拖拽或使用方向键调整"
-          data-testid="about-hero-composition-preview"
-          className="group absolute inset-y-0 left-0 z-10 w-[44%] cursor-grab touch-none overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:cursor-grabbing"
-          onKeyDown={handleKeyDown}
-          onPointerCancel={finishDrag}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={finishDrag}
-        >
-          <div className="pointer-events-none absolute inset-3 z-20 border border-dashed border-black/15 opacity-60 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-          <span className="pointer-events-none absolute top-5 left-5 z-30 grid size-8 place-items-center rounded-md border border-black/10 bg-white/90 text-black/60 shadow-sm">
-            <MoveIcon className="size-4" aria-hidden />
-          </span>
-          {content.heroImageUrl ? (
-            <img
-              src={content.heroImageUrl}
-              alt={`${content.heroImageAlt}构图预览`}
-              draggable={false}
-              className="pointer-events-none h-full w-full object-contain object-bottom select-none"
-              style={{
-                transform: `translate(${content.heroImageOffsetX}%, ${content.heroImageOffsetY}%) scale(${content.heroImageScale / 100})`,
-                transformOrigin: "center bottom",
-              }}
-            />
-          ) : (
-            <div className="grid h-full place-items-center text-black/35">
-              <ImageIcon className="size-8" aria-hidden />
-            </div>
+          data-testid="about-hero-preview-canvas"
+          data-preview-mode={previewMode}
+          className={cn(
+            "relative mx-auto w-full overflow-hidden bg-[#fcfcfa] shadow-sm transition-[width,aspect-ratio] duration-300 motion-reduce:transition-none",
+            isMobilePreview
+              ? "aspect-[9/16] max-w-96"
+              : "aspect-[16/9] max-w-[80rem] min-w-3xl"
           )}
-        </div>
-
-        <div className="pointer-events-none absolute inset-y-0 right-0 flex w-[58%] flex-col px-[5%] py-[5%] text-black">
-          <p
-            className="truncate text-base font-semibold sm:text-2xl"
-            style={titleGradient}
-          >
-            {content.siteName}
-          </p>
-          <p className="mt-1 truncate text-[10px] text-black/45 sm:text-xs">
-            {content.siteNameEn}
-          </p>
-          <div className="mt-[7%] space-y-1.5 sm:space-y-2">
-            {[content.welcome, ...content.manifesto].slice(0, 4).map((item) => (
-              <p
-                key={item}
-                className="w-fit max-w-full truncate px-2 py-1 text-[10px] font-medium sm:px-3 sm:text-sm"
-                style={{
-                  backgroundImage: `linear-gradient(90deg, ${accentStart}99, ${accentEnd}55)`,
-                }}
-              >
-                {item}
-              </p>
-            ))}
-          </div>
-          <p
-            className="mt-[7%] text-[10px] font-semibold sm:text-sm"
-            style={{ color: accentStart }}
-          >
-            Since{content.sinceYear}
-          </p>
+        >
           <div
-            className="mt-auto mb-[3%] border-l-2 px-3 py-2 sm:px-5 sm:py-4"
-            style={{
-              borderColor: accentStart,
-              backgroundImage: `linear-gradient(110deg, ${accentEnd}99, ${accentStart}22)`,
-            }}
+            role="group"
+            tabIndex={0}
+            aria-label="角色构图位置，可拖拽或使用方向键调整"
+            data-testid="about-hero-composition-preview"
+            className={cn(
+              "group absolute inset-y-0 z-10 cursor-grab touch-none overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:cursor-grabbing",
+              isMobilePreview ? "right-[-12%] w-[72%]" : "left-0 w-[44%]"
+            )}
+            onKeyDown={handleKeyDown}
+            onPointerCancel={finishDrag}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={finishDrag}
           >
-            <p className="text-xs font-semibold sm:text-lg">
-              {content.overviewTitle}
-            </p>
-            <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-black/55 sm:text-xs">
-              {content.overview[0]}
-            </p>
+            <div className="pointer-events-none absolute inset-3 z-20 border border-dashed border-black/15 opacity-60 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+            <span
+              className={cn(
+                "pointer-events-none absolute top-5 z-30 grid size-8 place-items-center rounded-md border border-black/10 bg-white/90 text-black/60 shadow-sm",
+                isMobilePreview ? "right-16" : "left-5"
+              )}
+            >
+              <MoveIcon className="size-4" aria-hidden />
+            </span>
+            {content.heroImageUrl ? (
+              <img
+                src={content.heroImageUrl}
+                alt={`${content.heroImageAlt}构图预览`}
+                draggable={false}
+                className={cn(
+                  "pointer-events-none h-full w-full object-contain object-bottom select-none",
+                  isMobilePreview && "opacity-20"
+                )}
+                style={{
+                  transform: `translate(${content.heroImageOffsetX}%, ${content.heroImageOffsetY}%) scale(${content.heroImageScale / 100})`,
+                  transformOrigin: "center bottom",
+                }}
+              />
+            ) : (
+              <div className="grid h-full place-items-center text-black/35">
+                <ImageIcon className="size-8" aria-hidden />
+              </div>
+            )}
           </div>
-        </div>
 
-        <div className="absolute inset-x-0 bottom-0 z-40 grid h-1 grid-cols-6">
-          <span className="bg-[#ff5b7f]" />
-          <span className="bg-[#2f91df]" />
-          <span className="bg-[#efaa19]" />
-          <span className="bg-[#39a95b]" />
-          <span className="bg-[#aa78df]" />
-          <span className="bg-[#e64c34]" />
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-y-0 right-0 z-20 flex flex-col text-black",
+              isMobilePreview ? "w-full px-6 py-8" : "w-[58%] px-[5%] py-[5%]"
+            )}
+          >
+            <p
+              className={cn(
+                "font-semibold",
+                isMobilePreview ? "text-3xl leading-tight" : "truncate text-2xl"
+              )}
+              style={titleGradient}
+            >
+              {content.siteName}
+            </p>
+            <p
+              className={cn(
+                "mt-1 text-black/45",
+                isMobilePreview ? "text-sm" : "truncate text-xs"
+              )}
+            >
+              {content.siteNameEn}
+            </p>
+            <div
+              className={cn(
+                "flex flex-col items-start",
+                isMobilePreview ? "mt-8 gap-2" : "mt-[7%] gap-2"
+              )}
+            >
+              {[content.welcome, ...content.manifesto]
+                .slice(0, 4)
+                .map((item) => (
+                  <p
+                    key={item}
+                    className={cn(
+                      "w-fit max-w-full px-3 py-1 text-sm font-medium",
+                      isMobilePreview ? "leading-6" : "truncate"
+                    )}
+                    style={{
+                      backgroundImage: `linear-gradient(90deg, ${accentStart}99, ${accentEnd}55)`,
+                    }}
+                  >
+                    {item}
+                  </p>
+                ))}
+            </div>
+            <p
+              className={cn(
+                "font-semibold italic",
+                isMobilePreview ? "mt-8 text-right text-2xl" : "mt-[7%] text-sm"
+              )}
+              style={{ color: accentStart }}
+            >
+              Since{content.sinceYear}
+            </p>
+            <div
+              className={cn(
+                "mt-auto border-l-2 px-5 py-4",
+                isMobilePreview ? "mb-4" : "mb-[3%]"
+              )}
+              style={{
+                borderColor: accentStart,
+                backgroundImage: `linear-gradient(110deg, ${accentEnd}99, ${accentStart}22)`,
+              }}
+            >
+              <p
+                className={cn(
+                  "font-semibold",
+                  isMobilePreview ? "text-lg" : "text-base"
+                )}
+              >
+                {content.overviewTitle}
+              </p>
+              <p
+                className={cn(
+                  "mt-1 leading-relaxed text-black/55",
+                  isMobilePreview
+                    ? "line-clamp-3 text-sm"
+                    : "line-clamp-2 text-xs"
+                )}
+              >
+                {content.overview[0]}
+              </p>
+            </div>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 z-40 grid h-1 grid-cols-6">
+            <span className="bg-[#ff5b7f]" />
+            <span className="bg-[#2f91df]" />
+            <span className="bg-[#efaa19]" />
+            <span className="bg-[#39a95b]" />
+            <span className="bg-[#aa78df]" />
+            <span className="bg-[#e64c34]" />
+          </div>
         </div>
       </div>
     </div>
