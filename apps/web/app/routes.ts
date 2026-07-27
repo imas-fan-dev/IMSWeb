@@ -38,6 +38,7 @@ export default [
     route("site-packages", "routes/admin-site-packages.tsx"),
     route("stories", "routes/admin-stories.tsx"),
     route("chronicle", "routes/admin-chronicle.tsx"),
+    route("accounts", "routes/admin-accounts.tsx"),
     route("*", "routes/admin-not-found.tsx"),
   ]),
 ] satisfies RouteConfig

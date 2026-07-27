@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
           username: "upload-qa",
           producername: "上传样式检查",
           dept: "op",
+          adminRole: "admin",
         },
       }),
     })

@@ -3,6 +3,7 @@ export interface JwtClaims {
     username: string;
     producername: string;
     dept: string;
+    adminRole?: 'admin' | 'super_admin' | null;
     csrfSecret: string;
     iat?: number;
     exp?: number;
@@ -16,6 +17,7 @@ export interface TokenService {
 
 export interface PasswordVerifier {
     verify(value: string, digest: string): Promise<boolean>;
+    hash?(value: string): Promise<string>;
 }
 
 export interface SecurityServices {

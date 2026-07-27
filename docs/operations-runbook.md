@@ -60,6 +60,7 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | 变量 | 用途 | 要求 |
 | --- | --- | --- |
 | `IMS_JWT_SECRET` | JWT 签名密钥 | 必填，高熵随机值 |
+| `IMS_SUPER_ADMIN_USERNAME` | 最高管理员用户名 | 首次启用时填写一个现有 `op` 用户名 |
 | `NODE_ENV` | 运行模式 | 生产使用 `production` |
 | `HOST`、`PORT` | Hono 监听地址 | 建议 `127.0.0.1:3000` |
 | `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；外部受信 Nginx 为 `nginx` |
@@ -79,7 +80,9 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 `HttpOnly`、`SameSite=Lax` Cookie；refresh token 只保存 SHA-256 摘要，并在每次刷新时轮换。
 CSRF Cookie 保持脚本可读，用于 Alova 自动刷新和管理写请求的双提交校验。发布包含鉴权改动的
 版本前必须先运行 `pnpm run migration:postgresql`，确认
-`0008_auth_refresh_sessions` 已写入 `ims_schema_migrations`。
+`0010_admin_roles` 已写入 `ims_schema_migrations`。首次启用管理员角色时，将
+`IMS_SUPER_ADMIN_USERNAME` 设为一个现有 `op` 账号；服务会把该账号提升为唯一最高管理员。
+角色完成初始化后可以移除该变量，后续启动会从数据库确认最高管理员。
 
 S3 模式还需要 `IMS_S3_BUCKET`、`IMS_S3_REGION` 及可选 endpoint/prefix。启用 CDN 读取时配置
 同一 bucket 的 `IMS_PUBLIC_READ_URL_BASE`（旧名 `IMS_S3_PUBLIC_READ_URL_BASE` 仍兼容），

@@ -77,7 +77,8 @@ export async function handleRefresh(c: Context<AppEnvironment>): Promise<Respons
             id: user.id,
             username: user.username,
             producername: user.producername || '',
-            dept: user.dept
+            dept: user.dept,
+            adminRole: user.admin_role
         }
     });
 }

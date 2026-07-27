@@ -1,9 +1,25 @@
+export type AdminRole = 'admin' | 'super_admin';
+
 export interface UserRecord {
     id: number;
     username: string;
     password: string;
     dept: string;
     producername: string | null;
+    admin_role: AdminRole | null;
+}
+
+export interface AdminAccountRecord {
+    id: number;
+    username: string;
+    producername: string | null;
+    admin_role: AdminRole;
+}
+
+export interface NewAdminAccountInput {
+    username: string;
+    passwordHash: string;
+    producername: string;
 }
 
 export interface RefreshSessionRecord {
@@ -41,6 +57,13 @@ export interface AuthRepository {
     }): Promise<boolean>;
     revokeRefreshSession(id: string, revokedAt: number): Promise<void>;
     deleteExpiredRefreshSessions(now: number): Promise<void>;
+}
+
+export interface AdminAccountRepository {
+    ensureSuperAdmin(username?: string): Promise<void>;
+    listAdminAccounts(): Promise<AdminAccountRecord[]>;
+    createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord>;
+    deleteAdminAccount(id: number): Promise<boolean>;
 }
 
 export interface AuditLogInput {
@@ -436,6 +459,7 @@ export interface StoryRepository {
 
 export interface RepositoryServices {
     auth: AuthRepository;
+    adminAccounts: AdminAccountRepository;
     audit: AuditRepository;
     news: NewsRepository;
     events: EventRepository;

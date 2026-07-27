@@ -139,7 +139,7 @@ test("home exposes current discovery and birthday interactions", async ({
 
   const brandBackground = page.getByTestId("series-icon-background")
   await expect(brandBackground).toBeVisible()
-  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(20)
+  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(12)
   const firstMotif = brandBackground.locator(".series-icon-motif").first()
   const initialTransform = await firstMotif.evaluate(
     (element) => element.style.transform

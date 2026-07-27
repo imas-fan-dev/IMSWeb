@@ -109,6 +109,7 @@ services:
       IMS_ENV_FILE: ""
       IMS_JWT_SECRET: ${IMS_JWT_SECRET:-imsweb-local-development-secret-change-before-sharing}
       IMS_COOKIE_SECURE: ${IMS_COOKIE_SECURE:-false}
+      IMS_SUPER_ADMIN_USERNAME: ${IMS_SUPER_ADMIN_USERNAME-}
       IMS_CLIENT_ADDRESS_SOURCE: ${IMS_CLIENT_ADDRESS_SOURCE:-direct}
       IMS_SITE_ORIGIN: ${IMS_SITE_ORIGIN:-http://127.0.0.1:3000}
       IMS_DATABASE: postgresql

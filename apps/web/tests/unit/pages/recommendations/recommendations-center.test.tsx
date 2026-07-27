@@ -2,9 +2,9 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { parseRecommendationPage } from "~/shared/api"
 import { RecommendationsCenter } from "~/pages/recommendations/recommendations-center"
-import { RECOMMENDATIONS_SESSION_CACHE_KEY } from "~/pages/recommendations/hooks/recommendations-feed-cache"
+import { cacheRecommendationFeed, parseRecommendationPage } from "~/shared/api"
+import type { Recommendation } from "~/shared/api"
 
 const { virtualizerOptions } = vi.hoisted(() => ({
   virtualizerOptions: vi.fn(),
@@ -50,9 +50,12 @@ function recommendation(id: number) {
   }
 }
 
+function cachedRecommendation(id: number): Recommendation {
+  return { ...recommendation(id), id: String(id) }
+}
+
 describe("RecommendationsCenter", () => {
   beforeEach(() => {
-    window.sessionStorage.clear()
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
   })
@@ -208,24 +211,18 @@ describe("RecommendationsCenter", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it("restores a large session snapshot while keeping the DOM bounded", async () => {
+  it("restores a large Alova snapshot while keeping the DOM bounded", async () => {
     const items = Array.from({ length: 65 }, (_, index) =>
-      recommendation(65 - index)
+      cachedRecommendation(65 - index)
     )
-    window.sessionStorage.setItem(
-      RECOMMENDATIONS_SESSION_CACHE_KEY,
-      JSON.stringify({
-        version: 1,
-        savedAt: Date.now(),
-        scrollY: 720,
-        items,
-        pageInfo: {
-          nextCursor: null,
-          hasNextPage: false,
-          snapshotAt: "65",
-        },
-      })
-    )
+    await cacheRecommendationFeed({
+      items,
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "65",
+      },
+    })
     const fetchMock = vi.fn<typeof fetch>()
     vi.stubGlobal("fetch", fetchMock)
 
@@ -243,5 +240,40 @@ describe("RecommendationsCenter", () => {
         useFlushSync: false,
       })
     )
+  })
+
+  it("bypasses the Alova snapshot when the user refreshes", async () => {
+    await cacheRecommendationFeed({
+      items: [{ ...cachedRecommendation(1), title: "缓存中的推荐" }],
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "1",
+      },
+    })
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        items: [recommendation(1)],
+        pageInfo: {
+          nextCursor: null,
+          hasNextPage: false,
+          snapshotAt: "1",
+        },
+      })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<RecommendationsCenter />)
+
+    expect(
+      await screen.findByRole("heading", { name: "缓存中的推荐" })
+    ).toBeVisible()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "刷新推荐列表" }))
+
+    expect(await screen.findByRole("heading", { name: "推荐 1" })).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

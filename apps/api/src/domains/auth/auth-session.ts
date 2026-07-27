@@ -79,6 +79,7 @@ export function accessTokenClaims(
         username: user.username,
         producername: user.producername || '',
         dept: user.dept,
+        adminRole: user.admin_role,
         csrfSecret,
         jti: randomHex(16)
     };

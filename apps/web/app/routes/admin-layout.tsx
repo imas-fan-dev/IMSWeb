@@ -18,6 +18,7 @@ import {
   RefreshCwIcon,
   ShieldXIcon,
   UserRoundIcon,
+  UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react"
 import type { ReactNode } from "react"
@@ -30,7 +31,15 @@ import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
 import { getAdminSession, isApiError, logoutAdmin } from "~/shared/api"
 
-const navigation = [
+const navigation: Array<{
+  to: string
+  label: string
+  description: string
+  icon: LucideIcon
+  accent: string
+  end?: boolean
+  superOnly?: boolean
+}> = [
   {
     to: "/admin",
     label: "工作台",
@@ -101,6 +110,14 @@ const navigation = [
     description: "活动图片审核",
     icon: HistoryIcon,
     accent: "bg-franchise-gk",
+  },
+  {
+    to: "/admin/accounts",
+    label: "管理员账号",
+    description: "运营账号与访问控制",
+    icon: UsersRoundIcon,
+    accent: "bg-franchise-cg",
+    superOnly: true,
   },
 ]
 
@@ -279,6 +296,16 @@ export default function AdminLayout() {
                 {data.user.producername || data.user.username}
               </span>
             </Badge>
+            <Badge
+              variant={
+                data.user.adminRole === "super_admin" ? "default" : "secondary"
+              }
+              className="hidden md:flex"
+            >
+              {data.user.adminRole === "super_admin"
+                ? "最高管理员"
+                : "一般管理员"}
+            </Badge>
             <Button
               type="button"
               variant="outline"
@@ -304,37 +331,42 @@ export default function AdminLayout() {
               </p>
               <p className="mt-2 text-sm font-medium">内容中枢</p>
             </div>
-            {navigation.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={navClass}
-              >
-                <span
-                  className={cn(
-                    "absolute inset-y-3 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
-                    item.accent
-                  )}
-                  aria-hidden="true"
-                />
-                <item.icon className="size-4 shrink-0" aria-hidden="true" />
-                <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
-                  <span>{item.label}</span>
-                  <span className="hidden text-[0.68rem] leading-4 font-normal text-admin-ink-subtle lg:block">
-                    {item.description}
+            {navigation
+              .filter(
+                (item) =>
+                  !item.superOnly || data.user.adminRole === "super_admin"
+              )
+              .map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={navClass}
+                >
+                  <span
+                    className={cn(
+                      "absolute inset-y-3 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
+                      item.accent
+                    )}
+                    aria-hidden="true"
+                  />
+                  <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
+                    <span>{item.label}</span>
+                    <span className="hidden text-[0.68rem] leading-4 font-normal text-admin-ink-subtle lg:block">
+                      {item.description}
+                    </span>
                   </span>
-                </span>
-                <ChevronRightIcon
-                  className="ml-auto hidden size-3 opacity-50 transition-transform group-hover:translate-x-0.5 lg:block"
-                  aria-hidden="true"
-                />
-              </NavLink>
-            ))}
+                  <ChevronRightIcon
+                    className="ml-auto hidden size-3 opacity-50 transition-transform group-hover:translate-x-0.5 lg:block"
+                    aria-hidden="true"
+                  />
+                </NavLink>
+              ))}
           </nav>
         </aside>
         <main className="min-w-0 bg-muted/20 px-4 py-7 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
-          <Outlet />
+          <Outlet context={{ adminSession: data.user }} />
         </main>
       </div>
     </div>

@@ -110,6 +110,7 @@ class OperationsDocumentationTests(unittest.TestCase):
 
         for token in (
             "IMS_JWT_SECRET",
+            "IMS_SUPER_ADMIN_USERNAME",
             "IMS_DATABASE",
             "IMS_SQLITE_PATH",
             "IMS_OBJECT_STORAGE",

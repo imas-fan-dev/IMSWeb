@@ -60,6 +60,7 @@ describe("AdminLogin", () => {
           username: "operator",
           producername: "Operator",
           dept: "op",
+          adminRole: "admin",
         })
       )
     )

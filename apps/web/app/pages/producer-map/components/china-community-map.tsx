@@ -4,7 +4,7 @@ import * as echarts from "echarts/core"
 import { CanvasRenderer } from "echarts/renderers"
 import { useEffect, useRef, useState } from "react"
 
-import { getProducerMapGeometry, type ProducerMapRegion } from "~/shared/api"
+import type { ProducerMapGeometry, ProducerMapRegion } from "~/shared/api"
 
 echarts.use([MapChart, TooltipComponent, CanvasRenderer])
 
@@ -12,11 +12,60 @@ const mapName = "imsweb-producer-map"
 
 type MapGeoJson = Parameters<typeof echarts.registerMap>[1]
 
+function applyMapOptions(chart: echarts.ECharts, regions: ProducerMapRegion[]) {
+  chart.setOption(
+    {
+      animationDuration: 260,
+      tooltip: {
+        trigger: "item",
+        formatter: (params: { name?: string }) => params.name || "",
+        backgroundColor: "rgba(20, 20, 24, 0.92)",
+        borderWidth: 0,
+        textStyle: { color: "#ffffff", fontSize: 12 },
+      },
+      series: [
+        {
+          type: "map",
+          map: mapName,
+          roam: false,
+          selectedMode: false,
+          layoutCenter: ["50%", "50%"],
+          layoutSize: "88%",
+          label: { show: false },
+          itemStyle: {
+            areaColor: "#d9dade",
+            borderColor: "#9b9da4",
+            borderWidth: 0.75,
+          },
+          emphasis: {
+            scale: true,
+            focus: "self",
+            label: { show: true, color: "#17171a", fontSize: 11 },
+            itemStyle: {
+              areaColor: "#e67c9c",
+              borderColor: "#9f1f51",
+              borderWidth: 2,
+              shadowBlur: 18,
+              shadowColor: "rgba(181, 45, 96, 0.38)",
+            },
+          },
+          data: regions.map((region) => ({
+            name: region.province,
+          })),
+        },
+      ],
+    },
+    { notMerge: true }
+  )
+}
+
 export function ChinaCommunityMap({
+  geometry,
   regions,
   detailsOpen,
   onSelect,
 }: {
+  geometry: ProducerMapGeometry
   regions: ProducerMapRegion[]
   detailsOpen: boolean
   onSelect: (province: string) => void
@@ -24,12 +73,17 @@ export function ChinaCommunityMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<echarts.ECharts | null>(null)
   const onSelectRef = useRef(onSelect)
+  const regionsRef = useRef(regions)
   const [loadError, setLoadError] = useState(false)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
     onSelectRef.current = onSelect
   }, [onSelect])
+
+  useEffect(() => {
+    regionsRef.current = regions
+  }, [regions])
 
   useEffect(() => {
     const container = containerRef.current
@@ -39,9 +93,8 @@ export function ChinaCommunityMap({
     let active = true
     let resizeObserver: ResizeObserver | undefined
 
-    async function mountChart() {
+    function mountChart() {
       try {
-        const geometry = await getProducerMapGeometry().send()
         const geoJson = geometry as MapGeoJson
         if (!active) return
         echarts.registerMap(mapName, geoJson)
@@ -53,72 +106,31 @@ export function ChinaCommunityMap({
             onSelectRef.current(params.name)
           }
         })
+        applyMapOptions(chart, regionsRef.current)
         chartRef.current = chart
         resizeObserver = new ResizeObserver(() => chart.resize())
         resizeObserver.observe(mapContainer)
+        setLoadError(false)
         setReady(true)
       } catch {
         if (active) setLoadError(true)
       }
     }
 
-    void mountChart()
+    mountChart()
     return () => {
       active = false
       resizeObserver?.disconnect()
       chartRef.current?.dispose()
       chartRef.current = null
     }
-  }, [])
+  }, [geometry])
 
   useEffect(() => {
     const chart = chartRef.current
     if (!chart || !ready) return
 
-    chart.setOption(
-      {
-        animationDuration: 260,
-        tooltip: {
-          trigger: "item",
-          formatter: (params: { name?: string }) => params.name || "",
-          backgroundColor: "rgba(20, 20, 24, 0.92)",
-          borderWidth: 0,
-          textStyle: { color: "#ffffff", fontSize: 12 },
-        },
-        series: [
-          {
-            type: "map",
-            map: mapName,
-            roam: false,
-            selectedMode: false,
-            layoutCenter: ["50%", "50%"],
-            layoutSize: "88%",
-            label: { show: false },
-            itemStyle: {
-              areaColor: "#d9dade",
-              borderColor: "#9b9da4",
-              borderWidth: 0.75,
-            },
-            emphasis: {
-              scale: true,
-              focus: "self",
-              label: { show: true, color: "#17171a", fontSize: 11 },
-              itemStyle: {
-                areaColor: "#e67c9c",
-                borderColor: "#9f1f51",
-                borderWidth: 2,
-                shadowBlur: 18,
-                shadowColor: "rgba(181, 45, 96, 0.38)",
-              },
-            },
-            data: regions.map((region) => ({
-              name: region.province,
-            })),
-          },
-        ],
-      },
-      { notMerge: true }
-    )
+    applyMapOptions(chart, regions)
   }, [ready, regions])
 
   useEffect(() => {

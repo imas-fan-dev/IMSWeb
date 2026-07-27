@@ -1,4 +1,6 @@
 import type {
+    AdminAccountRecord,
+    AdminAccountRepository,
     AuditLogInput,
     AuditRepository,
     AuthRepository,
@@ -6,6 +8,7 @@ import type {
     EventRepository,
     EventInput,
     NamecardRepository,
+    NewAdminAccountInput,
     NewRefreshSessionInput,
     NewSitePackageInput,
     NewSitePackageRevisionInput,
@@ -29,6 +32,7 @@ import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/que
 
 export class SqlCoreRepository implements
     AuthRepository,
+    AdminAccountRepository,
     AuditRepository,
     NewsRepository,
     EventRepository,
@@ -57,6 +61,67 @@ export class SqlCoreRepository implements
 
     findUserById(id: number): Promise<UserRecord | null> {
         return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE id=?', [id]);
+    }
+
+    async ensureSuperAdmin(username?: string): Promise<void> {
+        const current = await queryAll<AdminAccountRecord>(this.database,
+            `SELECT id, username, producername, admin_role
+             FROM users WHERE dept='op' AND admin_role='super_admin'`
+        );
+        if (current.length > 1) throw new Error('Multiple super administrators are configured');
+        if (current.length === 1) {
+            if (username && current[0]!.username !== username) {
+                throw new Error(
+                    'IMS_SUPER_ADMIN_USERNAME does not match the configured super administrator'
+                );
+            }
+            return;
+        }
+        if (!username) {
+            throw new Error(
+                'IMS_SUPER_ADMIN_USERNAME is required until a super administrator is configured'
+            );
+        }
+        const target = await this.findUserByUsername(username);
+        if (!target || target.dept !== 'op') {
+            throw new Error('IMS_SUPER_ADMIN_USERNAME must identify an existing op account');
+        }
+        const result = await executeSql(this.database,
+            `UPDATE users SET admin_role='super_admin'
+             WHERE id=? AND dept='op' AND admin_role='admin'`,
+            [target.id]
+        );
+        if (result.meta.changes !== 1) {
+            throw new Error('Failed to configure the super administrator');
+        }
+    }
+
+    listAdminAccounts(): Promise<AdminAccountRecord[]> {
+        return queryAll<AdminAccountRecord>(this.database,
+            `SELECT id, username, producername, admin_role
+             FROM users
+             WHERE dept='op' AND admin_role IN ('admin', 'super_admin')
+             ORDER BY CASE admin_role WHEN 'super_admin' THEN 0 ELSE 1 END, id`
+        );
+    }
+
+    async createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord> {
+        const created = await queryOne<AdminAccountRecord>(this.database,
+            `INSERT INTO users (username, password, dept, producername, admin_role)
+             VALUES (?, ?, 'op', ?, 'admin')
+             RETURNING id, username, producername, admin_role`,
+            [input.username, input.passwordHash, input.producername]
+        );
+        if (!created) throw new Error('Failed to create administrator account');
+        return created;
+    }
+
+    async deleteAdminAccount(id: number): Promise<boolean> {
+        const result = await executeSql(this.database,
+            `DELETE FROM users WHERE id=? AND dept='op' AND admin_role='admin'`,
+            [id]
+        );
+        return result.meta.changes === 1;
     }
 
     async createRefreshSession(input: NewRefreshSessionInput): Promise<void> {

@@ -11,6 +11,7 @@ import type { RuntimeServices, ResolveServices } from '@/ports/runtime-services'
 import type { JwtClaims } from '@/ports/security';
 import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
 import { registerAuditRoutes } from '@/domains/audit/routes';
+import { registerAdminAccountRoutes } from '@/domains/admin-accounts/routes';
 import { registerAboutRoutes } from '@/domains/about/routes';
 import { registerAuthRoutes } from '@/domains/auth/routes';
 import { registerChronicleRoutes } from '@/domains/chronicle/routes';
@@ -94,6 +95,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);
     registerAuthRoutes(app);
+    registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);
     registerNewsRoutes(app);

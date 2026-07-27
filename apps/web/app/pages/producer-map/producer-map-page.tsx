@@ -8,7 +8,7 @@ import {
   UsersRoundIcon,
   XIcon,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { lazy, Suspense, useMemo, useState } from "react"
 
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -22,13 +22,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import { ChinaCommunityMap } from "~/pages/producer-map/components/china-community-map"
 import {
   getProducerMapContent,
+  getProducerMapGeometry,
   type ProducerMapCommunity,
   type ProducerMapRegion,
   type ProducerMapSeries,
 } from "~/shared/api"
+
+const chinaCommunityMapModule =
+  import("~/pages/producer-map/components/china-community-map")
+const ChinaCommunityMap = lazy(async () => {
+  const module = await chinaCommunityMapModule
+  return { default: module.ChinaCommunityMap }
+})
 
 const seriesBorder: Record<ProducerMapSeries, string> = {
   all: "border-t-foreground/25",
@@ -117,6 +124,23 @@ function LoadingState() {
         正在读取制作人地图
       </p>
     </main>
+  )
+}
+
+function MapLoadingState() {
+  return (
+    <div className="flex aspect-[4/3] min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-sm text-muted-foreground sm:aspect-[16/10] lg:aspect-auto lg:h-[42rem]">
+      <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+      <span className="ml-2">正在读取地图边界</span>
+    </div>
+  )
+}
+
+function MapUnavailableState() {
+  return (
+    <div className="flex aspect-[4/3] min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-center text-sm text-muted-foreground sm:aspect-[16/10] lg:aspect-auto lg:h-[42rem]">
+      地图边界暂时无法加载，地区与社群名录仍可正常浏览。
+    </div>
   )
 }
 
@@ -272,15 +296,31 @@ export default function ProducerMapPage() {
     data,
     loading,
     error,
-    send: refresh,
-    onError,
-  } = useRequest(getProducerMapContent())
+    send: refreshContent,
+    onError: onContentError,
+  } = useRequest(getProducerMapContent(), {
+    force: ({ args }) => args[0] === true,
+  })
+  const {
+    data: geometry,
+    loading: geometryLoading,
+    error: geometryError,
+    send: refreshGeometry,
+    onError: onGeometryError,
+  } = useRequest(getProducerMapGeometry(), {
+    force: ({ args }) => args[0] === true,
+  })
   const [imageRegion, setImageRegion] = useState<ProducerMapRegion | null>(null)
   const [regionFilter, setRegionFilter] = useState("all")
   const [query, setQuery] = useState("")
   const [imageCommunity, setImageCommunity] =
     useState<ProducerMapCommunity | null>(null)
-  onError(() => undefined)
+  onContentError(() => undefined)
+  onGeometryError(() => undefined)
+
+  async function forceRefresh() {
+    await Promise.allSettled([refreshContent(true), refreshGeometry(true)])
+  }
 
   const enabledRegions = useMemo(
     () => data?.regions.filter((region) => region.enabled) ?? [],
@@ -322,7 +362,11 @@ export default function ProducerMapPage() {
           <AlertTitle>制作人地图暂时无法显示</AlertTitle>
           <AlertDescription className="mt-2 flex flex-col items-start gap-4">
             <span>{error?.message || "未能读取制作人地图配置。"}</span>
-            <Button type="button" variant="outline" onClick={() => refresh()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void forceRefresh()}
+            >
               <RefreshCwIcon data-icon="inline-start" />
               重新加载
             </Button>
@@ -364,16 +408,25 @@ export default function ProducerMapPage() {
 
         <section className="border-b" aria-label="地区社群地图">
           <div className="mx-auto w-full max-w-7xl">
-            <ChinaCommunityMap
-              regions={enabledRegions}
-              detailsOpen={Boolean(imageRegion)}
-              onSelect={(province) => {
-                const region = enabledRegions.find(
-                  (item) => item.province === province
-                )
-                if (region?.imageUrl) setImageRegion(region)
-              }}
-            />
+            {geometry ? (
+              <Suspense fallback={<MapLoadingState />}>
+                <ChinaCommunityMap
+                  geometry={geometry}
+                  regions={enabledRegions}
+                  detailsOpen={Boolean(imageRegion)}
+                  onSelect={(province) => {
+                    const region = enabledRegions.find(
+                      (item) => item.province === province
+                    )
+                    if (region?.imageUrl) setImageRegion(region)
+                  }}
+                />
+              </Suspense>
+            ) : geometryLoading ? (
+              <MapLoadingState />
+            ) : geometryError ? (
+              <MapUnavailableState />
+            ) : null}
           </div>
         </section>
 
@@ -434,17 +487,34 @@ export default function ProducerMapPage() {
             </p>
           )}
 
-          <p className="mt-10 text-xs text-muted-foreground">
-            地图来源：{" "}
-            <a
-              href={data.mapSourceUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="underline decoration-border underline-offset-4 hover:text-foreground"
+          <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              地图来源：{" "}
+              <a
+                href={data.mapSourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-border underline-offset-4 hover:text-foreground"
+              >
+                {data.mapSourceLabel}
+              </a>
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={loading || geometryLoading}
+              onClick={() => void forceRefresh()}
+              aria-label="强制刷新地图数据"
+              title="强制刷新地图数据"
             >
-              {data.mapSourceLabel}
-            </a>
-          </p>
+              <RefreshCwIcon
+                data-icon="inline-start"
+                className={loading || geometryLoading ? "animate-spin" : ""}
+              />
+              刷新数据
+            </Button>
+          </div>
         </section>
       </div>
 

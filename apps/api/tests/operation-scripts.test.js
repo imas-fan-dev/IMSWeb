@@ -56,7 +56,8 @@ test('categorized add-user script resolves project-relative database paths', asy
         username TEXT UNIQUE,
         password TEXT,
         dept TEXT,
-        producername TEXT
+        producername TEXT,
+        admin_role TEXT
     )`);
     await close(database);
 
@@ -78,13 +79,15 @@ test('categorized add-user script resolves project-relative database paths', asy
         const verificationDatabase = new sqlite3.Database(databasePath);
         const user = await get(
             verificationDatabase,
-            'SELECT username, dept, producername, password FROM users WHERE username = ?',
+            `SELECT username, dept, producername, password, admin_role
+             FROM users WHERE username = ?`,
             ['categorized-script-test']
         );
         await close(verificationDatabase);
         assert.equal(user.username, 'categorized-script-test');
         assert.equal(user.dept, 'editor');
         assert.equal(user.producername, 'Script Test');
+        assert.equal(user.admin_role, null);
         assert.match(user.password, /^\$2[aby]\$/);
     } finally {
         fs.rmSync(temporaryDirectory, { recursive: true, force: true });

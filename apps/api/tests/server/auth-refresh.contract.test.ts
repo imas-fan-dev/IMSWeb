@@ -50,8 +50,8 @@ async function createFixture(): Promise<AuthFixture> {
     const repository = new SqlCoreRepository(connection, new SqliteSchemaStrategy());
     await repository.initialize();
     await connection.run(
-        `INSERT INTO users (username, password, dept, producername)
-         VALUES (?, 'refresh-contract-digest', 'op', 'Refresh Contract Producer')`,
+        `INSERT INTO users (username, password, dept, producername, admin_role)
+         VALUES (?, 'refresh-contract-digest', 'op', 'Refresh Contract Producer', 'admin')`,
         [USERNAME]
     );
     await connection.run(

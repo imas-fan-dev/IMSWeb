@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { getEventPage } from "~/shared/api"
+import { cacheEventFeed, getEventPage } from "~/shared/api"
 import type { EventListItem, EventPageInfo } from "~/shared/api"
-import {
-  clearEventsFeedCache,
-  readEventsFeedCache,
-  writeEventsFeedCache,
-  writeEventsFeedScrollPosition,
-} from "./events-feed-cache"
 
 const pageSize = 20
 
@@ -59,7 +53,7 @@ export function useEventsFeed() {
   const [state, setState] = useState<FeedState>(initialState)
   const requestInFlight = useRef(false)
 
-  const loadFirstPage = useCallback(async () => {
+  const loadFirstPage = useCallback(async (forceRequest = false) => {
     if (requestInFlight.current) return
     requestInFlight.current = true
     setState((current) => ({
@@ -71,7 +65,7 @@ export function useEventsFeed() {
     }))
 
     try {
-      const page = await getEventPage({ limit: pageSize }).send()
+      const page = await getEventPage({ limit: pageSize }).send(forceRequest)
       const items = deduplicateEvents([], page.items)
       setState({
         phase: "ready",
@@ -81,7 +75,6 @@ export function useEventsFeed() {
         error: null,
         loadMoreError: null,
       })
-      writeEventsFeedCache(items, page.pageInfo)
     } catch (error) {
       setState({
         ...initialState,
@@ -114,6 +107,10 @@ export function useEventsFeed() {
     try {
       const page = await getEventPage({ limit: pageSize, cursor }).send()
       const items = deduplicateEvents(state.items, page.items)
+      await cacheEventFeed({
+        items,
+        pageInfo: page.pageInfo,
+      })
       setState((current) => ({
         ...current,
         items,
@@ -121,7 +118,6 @@ export function useEventsFeed() {
         loadingMore: false,
         loadMoreError: null,
       }))
-      writeEventsFeedCache(items, page.pageInfo)
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -135,45 +131,13 @@ export function useEventsFeed() {
 
   const refresh = useCallback(async () => {
     if (requestInFlight.current) return
-    clearEventsFeedCache()
-    await loadFirstPage()
+    await loadFirstPage(true)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }, [loadFirstPage])
 
   useEffect(() => {
-    const cached = readEventsFeedCache()
-    if (!cached) {
-      void loadFirstPage()
-      return
-    }
-
-    setState({
-      phase: "ready",
-      items: cached.items,
-      pageInfo: cached.pageInfo,
-      loadingMore: false,
-      error: null,
-      loadMoreError: null,
-    })
-    let secondFrame: number | undefined
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        window.scrollTo({ top: cached.scrollY, behavior: "auto" })
-      })
-    })
-    return () => {
-      window.cancelAnimationFrame(firstFrame)
-      if (secondFrame !== undefined) window.cancelAnimationFrame(secondFrame)
-    }
+    void loadFirstPage()
   }, [loadFirstPage])
-
-  useEffect(() => {
-    window.addEventListener("pagehide", writeEventsFeedScrollPosition)
-    return () => {
-      writeEventsFeedScrollPosition()
-      window.removeEventListener("pagehide", writeEventsFeedScrollPosition)
-    }
-  }, [])
 
   return {
     ...state,
