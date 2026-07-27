@@ -28,6 +28,15 @@ pnpm install --frozen-lockfile
 依赖只能由根 `pnpm-lock.yaml` 安装。不要在 workspace 中生成子锁文件，也不要使用
 `npm install`。安装需要下载依赖时，AI 应遵守当前网络和权限审批规则。
 
+根 workspace 的 `prepare` 会把当前仓库的 `core.hooksPath` 配置为 `.githooks`。提交前 hook
+会检查 staged diff、仓库规则与边界、Web lint/typecheck，以及 API 语法、类型和架构边界。
+可用以下命令重新安装并手动执行同一组检查：
+
+```sh
+pnpm run prepare
+pnpm run check:pre-commit
+```
+
 ## 3. 配置本地数据
 
 配置模板按所有者分别位于 `apps/api/.env.example`、`apps/web/.env.example` 和

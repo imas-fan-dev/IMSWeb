@@ -26,6 +26,7 @@ preflight, local data configuration, service startup, and validation evidence.
 - `pnpm run dev:web`: start the Web dev server.
 - `pnpm run build`: build API and Web after checking workspace boundaries.
 - `pnpm run check`: run static, architecture, migration, lint, test, and build checks.
+- `pnpm run check:pre-commit`: run the fast checks enforced by the Git pre-commit hook.
 - `pnpm run test`: run infrastructure, API, Web unit, and routing-contract tests.
 - `pnpm run test:web`: run Web unit and Playwright tests.
 - `pnpm run test:web-routing`: validate the built Web client against Hono route ownership.

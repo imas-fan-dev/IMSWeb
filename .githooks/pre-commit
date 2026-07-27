@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+repository_root=$(git rev-parse --show-toplevel)
+cd "$repository_root"
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pre-commit: pnpm is required; enable Corepack and install dependencies" >&2
+  exit 1
+fi
+
+exec pnpm run check:pre-commit

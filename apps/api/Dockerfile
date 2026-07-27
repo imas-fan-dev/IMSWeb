@@ -13,6 +13,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY scripts/install-git-hooks.mjs scripts/install-git-hooks.mjs
 
 FROM pnpm-base AS build
 
