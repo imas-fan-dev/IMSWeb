@@ -14,6 +14,7 @@ import { registerAuditRoutes } from '@/domains/audit/routes';
 import { registerAdminAccountRoutes } from '@/domains/admin-accounts/routes';
 import { registerAboutRoutes } from '@/domains/about/routes';
 import { registerAuthRoutes } from '@/domains/auth/routes';
+import { registerBrandAssetRoutes } from '@/domains/brand-assets/routes';
 import { registerChronicleRoutes } from '@/domains/chronicle/routes';
 import { registerEventRoutes } from '@/domains/events/routes';
 import { registerInformationRoutes } from '@/domains/information/routes';
@@ -94,6 +95,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     registerReactionRoutes(app);
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);
+    registerBrandAssetRoutes(app);
     registerAuthRoutes(app);
     registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);

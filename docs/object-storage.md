@@ -24,6 +24,7 @@ S3 adapter 对业务保存与现有 `ObjectStorage` 端口相同的逻辑 key：
 
 - `editorial/{news,events,information}/`：资讯、活动与首页活动内容；
 - `community/namecards/`：用户投稿名片；
+- `brand/{works,fonts}/`：系列介绍角色立绘与标题字体；
 - `chronicle/{media,metadata,trash}/`：编年史审核流；
 - `wiki/{agencies,shared}/`：Wiki 角色、剧情与公共素材；
 - `site-packages/`：管理员站点包不可变版本；
@@ -143,6 +144,22 @@ IMS_ENV_FILE=/path/to/online.env pnpm run test:r2:producer-map
 该命令固定校验 Producer Map 的线上 bucket 与空 prefix，拒绝 MinIO、非 Cloudflare R2 endpoint、
 非 `auto` region 和任何 `--apply` 写入参数，并从 R2 回读 43 张图片校验字节数与 SHA-256。
 源站、配置或对象只要出现差异，命令就以非零状态退出。
+
+系列介绍素材使用相同的先审计、后写入流程。默认命令会抓取六张角色立绘和标题字体，验证
+PNG 解码、字体 SFNT 表目录、MIME、字节数与 SHA-256，并只生成 Git 忽略的 staging 和清单：
+
+```sh
+pnpm run media:brand-assets:sync
+pnpm run media:brand-assets:sync -- \
+  --apply \
+  --confirm-source https://idol-master.top \
+  --confirm-bucket "$IMS_S3_BUCKET"
+pnpm run test:r2:brand-assets
+```
+
+写入通过 `S3ObjectStorage` 状态机维护数据库索引，并从 R2 和公开自定义域名回读核对。Hono 只为
+清单中的六个旧角色路径提供稳定 307 映射；字体由 Hono 从 R2 同源代理，避免公开 R2 域名缺少
+字体 CORS 响应头时被浏览器拒绝。运行时不开放任意 `/assets/` 对象键读取。
 
 自定义域名必须直接绑定 `IMS_S3_BUCKET`，并用 Cloudflare WAF 阻断
 `http.request.uri.path contains "/__protected/"`。对该域名配置缓存规则时，可以长期缓存包含
