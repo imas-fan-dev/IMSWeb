@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "react-router build",
+    "postbuild": "node ../../scripts/check-classic-wiki-css-build.mjs",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run build",
     "design:lint": "designmd lint DESIGN.md",
     "dev": "react-router dev",
