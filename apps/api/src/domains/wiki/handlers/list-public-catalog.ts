@@ -96,7 +96,12 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
       membersByGroup.set(member.group_id, members);
     }
     const groups = groupRows
-      .filter((group) => group.agency_id === selectedAgency.id)
+      .filter((group) => {
+        if (group.agency_id !== selectedAgency.id) return false;
+        if (!group.is_fallback) return true;
+        const members = membersByGroup.get(group.id);
+        return members && members.length > 0;
+      })
       .map(async (group) => ({
         id: group.id,
         code: group.code,

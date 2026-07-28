@@ -85,6 +85,12 @@ describe("StoryPage", () => {
     expect(
       screen.getByRole("heading", { name: "【花风Smiley】" })
     ).toBeVisible()
+
+    // Click the card to open the Dialog with links
+    await user.click(
+      screen.getByRole("button", { name: /【花风Smiley】/ })
+    )
+    expect(screen.getByRole("dialog")).toBeVisible()
     expect(screen.getByRole("link", { name: /卡片剧情/ })).toHaveAttribute(
       "href",
       "https://www.bilibili.com/video/BV1xx411c7mD"

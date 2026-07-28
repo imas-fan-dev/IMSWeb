@@ -231,7 +231,7 @@ describe('Wiki admin dynamic data contract', () => {
                 iconUrl:
                     'https://cdn.example.test/wiki/agencies/sc/groups/sc-main/icon.webp?v=3',
                 displayOrder: 0,
-                isFallback: true,
+                isFallback: false,
                 imageTransform: CONTAIN_TRANSFORM,
                 mediaRevision: 3,
                 idolIds: [6],

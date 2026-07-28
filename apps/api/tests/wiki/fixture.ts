@@ -113,7 +113,7 @@ const GROUPS: WikiGroupRecord[] = AGENCIES.map((agency, index) => ({
     icon_rotation: CONTAIN_TRANSFORM.rotation,
     icon_media_revision: 0,
     display_order: 0,
-    is_fallback: true
+    is_fallback: false
 }));
 
 const MEMBERS: WikiGroupMemberRecord[] = IDOLS.map((idol) => ({
