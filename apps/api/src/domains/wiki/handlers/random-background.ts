@@ -11,6 +11,6 @@ export function createHandleRandomWikiBackground<E extends Env>(
     return async (context) => {
         const services = await resolveServices(context);
         requireWikiServices(services, ['story', 'storage']);
-        return wikiJson(await randomBackground(services.story!, services.storage));
+        return wikiJson(await randomBackground(services.story!, services.storage!));
     };
 }

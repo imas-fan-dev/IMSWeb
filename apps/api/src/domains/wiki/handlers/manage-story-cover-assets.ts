@@ -17,7 +17,7 @@ import {
     versionedStoryCoverAssetObjectKey
 } from '@/domains/wiki/service';
 import type { WikiStoryCoverAssetRecord } from '@/ports/repositories';
-import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
+import { requirePublicObjectUrl } from '@/utils/storage/public-object-url';
 
 function positiveId(value: string | undefined, label: string): number {
     const id = Number(value);
@@ -42,18 +42,14 @@ function booleanField(value: string | undefined, fallback: boolean): boolean {
     throw Object.assign(new Error('启用状态无效'), { status: 400 });
 }
 
-function assetFallbackUrl(id: number): string {
-    return `/api/wiki/story-cover-assets/${id}.webp`;
-}
-
 async function serializeAsset(
     services: Awaited<ReturnType<WikiServicesResolver<Env>>>,
-    asset: WikiStoryCoverAssetRecord
+    asset: WikiStoryCoverAssetRecord,
+    resolvedUrl?: string
 ) {
-    const url = await resolvePublicObjectUrl(
+    const url = resolvedUrl ?? await requirePublicObjectUrl(
         services.storage!,
-        asset.object_key,
-        assetFallbackUrl(asset.id)
+        asset.object_key
     );
     return {
         id: asset.id,
@@ -123,6 +119,7 @@ export function createHandleCreateWikiStoryCoverAsset<E extends Env>(
                 contentType: 'image/webp',
                 metadata: { kind: 'wiki-story-cover-asset', agency: agency.name_cn }
             });
+            const publicUrl = await requirePublicObjectUrl(services.storage!, createdKey);
             const asset = await services.story!.createStoryCoverAsset({
                 agencyId,
                 name: assetName(upload.fields.name),
@@ -130,7 +127,7 @@ export function createHandleCreateWikiStoryCoverAsset<E extends Env>(
             });
             return wikiJson({
                 status: 'success',
-                asset: await serializeAsset(services, asset)
+                asset: await serializeAsset(services, asset, publicUrl)
             });
         } catch (error) {
             if (createdKey) await cleanupWikiObjects(services, [createdKey]);
@@ -179,6 +176,7 @@ export function createHandleUpdateWikiStoryCoverAsset<E extends Env>(
                     metadata: { kind: 'wiki-story-cover-asset', agency: agency.name_cn }
                 });
             }
+            const publicUrl = await requirePublicObjectUrl(services.storage!, objectKey);
             const result = await services.story!.updateStoryCoverAsset({
                 id: assetId,
                 agencyId: agency.id,
@@ -201,7 +199,7 @@ export function createHandleUpdateWikiStoryCoverAsset<E extends Env>(
             }
             return wikiJson({
                 status: 'success',
-                asset: await serializeAsset(services, result.asset)
+                asset: await serializeAsset(services, result.asset, publicUrl)
             });
         } catch (error) {
             if (createdKey) await cleanupWikiObjects(services, [createdKey]);

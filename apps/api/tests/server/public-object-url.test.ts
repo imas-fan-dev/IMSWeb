@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ObjectStorage } from '@/ports/object-storage';
 import {
+    requirePublicObjectUrl,
     resolvePublicMediaFields,
     resolvePublicMediaUrl,
     resolvePublicObjectUrl
@@ -57,6 +58,23 @@ test('public URL resolution preserves external, private, and unsupported fallbac
     assert.equal(
         await resolvePublicObjectUrl(storage, 'private/object.webp', '/media/fallback.webp'),
         '/media/fallback.webp'
+    );
+});
+
+test('required public URLs fail closed instead of returning an application fallback', async () => {
+    const directStorage = storageWithPublicUrls(
+        (key) => `https://cdn.example.test/${key}`
+    );
+    assert.equal(
+        await requirePublicObjectUrl(directStorage, 'wiki/shared.webp'),
+        'https://cdn.example.test/wiki/shared.webp'
+    );
+
+    const unavailableStorage = storageWithPublicUrls(() => null);
+    await assert.rejects(
+        requirePublicObjectUrl(unavailableStorage, 'wiki/shared.webp'),
+        (error: Error & { status?: number }) =>
+            error.status === 503 && /公开对象读取地址/.test(error.message)
     );
 });
 
