@@ -32,7 +32,6 @@ import type {
   WikiRandomBackground,
 } from "~/shared/api"
 
-import "./classic-wiki.css"
 import "./classic-wiki-index.css"
 
 function classicErrorMessage(error: unknown) {
