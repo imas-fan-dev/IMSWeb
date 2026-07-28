@@ -23,7 +23,7 @@
     "syntax": "pnpm run syntax:node && pnpm run syntax:scripts",
     "check:architecture": "node scripts/checks/hono-architecture.js",
     "migration:sqlite:merge": "node scripts/migration/merge-sqlite-databases.js",
-    "migration:postgresql": "node scripts/migration/postgres-migrations.js",
+    "migration:postgresql": "node --env-file-if-exists=.env scripts/migration/postgres-migrations.js",
     "migration:postgresql:import-sqlite": "node scripts/migration/sqlite-to-postgresql.js",
     "migration:object-keys": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/semantic-object-keys.js",
     "migration:brand-assets": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/legacy-brand-assets.js",
