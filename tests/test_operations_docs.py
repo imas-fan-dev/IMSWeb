@@ -12,6 +12,7 @@ AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/ai-development-environment.md"
 API_ENVIRONMENT = PROJECT_ROOT / "apps/api/.env.example"
 WEB_ENVIRONMENT = PROJECT_ROOT / "apps/web/.env.example"
 DEPLOY_ENVIRONMENT = PROJECT_ROOT / "deploy/.env.example"
+PNPM_WORKSPACE = PROJECT_ROOT / "pnpm-workspace.yaml"
 PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/producer-map-online-migration.md"
 PRODUCER_MAP_SQL = (
     PROJECT_ROOT / "deploy/migrations/producer-map-r2-control-plane.sql"
@@ -53,10 +54,11 @@ class OperationsDocumentationTests(unittest.TestCase):
     def test_ai_development_environment_is_executable_and_linked(self):
         for token in (
             "pnpm install --frozen-lockfile",
-            "IMS_DATABASE=postgresql",
-            "DATABASE_URL=postgresql://imsweb:",
-            "IMS_OBJECT_STORAGE=s3",
-            "IMS_S3_BUCKET=imsweb-media-local",
+            "pnpm run dev:doctor",
+            "pnpm dev",
+            "pnpm run dev:down",
+            "PostgreSQL",
+            "MinIO",
             "自动读取 `apps/api/.env`",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:minio:up",
@@ -65,6 +67,8 @@ class OperationsDocumentationTests(unittest.TestCase):
             "curl --fail",
             "git status --short",
             "deploy/compose.yaml",
+            "WSL2",
+            "远程 context",
         ):
             self.assertIn(token, self.ai_guide)
 
@@ -74,6 +78,47 @@ class OperationsDocumentationTests(unittest.TestCase):
                 document.read_text(encoding="utf-8"),
             )
 
+    def test_root_development_launcher_is_the_documented_default(self):
+        package = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))
+        scripts = package["scripts"]
+
+        self.assertEqual(package["packageManager"], "pnpm@11.10.0")
+        self.assertIn(
+            "verifyDepsBeforeRun: warn",
+            PNPM_WORKSPACE.read_text(encoding="utf-8"),
+        )
+        self.assertEqual(scripts["dev"], "node scripts/development/dev-environment.mjs")
+        self.assertEqual(
+            scripts["dev:doctor"],
+            "node scripts/development/dev-environment.mjs --doctor",
+        )
+        self.assertEqual(
+            scripts["dev:down"],
+            "node scripts/development/dev-environment.mjs --down",
+        )
+        self.assertIn(
+            "tests/development-environment.test.js", scripts["test:infra"]
+        )
+        self.assertIn(
+            "scripts/development/dev-environment.mjs", scripts["check:root"]
+        )
+        launcher = (
+            PROJECT_ROOT / "scripts/development/dev-environment.mjs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("inspectContainerTarget", launcher)
+        self.assertIn("Refusing to modify a non-local container target", launcher)
+        self.assertIn('IMS_ENV_FILE: ""', launcher)
+
+        for document in (
+            PROJECT_ROOT / "README.md",
+            PROJECT_ROOT / "CONTRIBUTING.md",
+            PROJECT_ROOT / "apps/api/README.md",
+            PROJECT_ROOT / "apps/web/README.md",
+            AI_DEVELOPMENT_ENVIRONMENT,
+        ):
+            with self.subTest(document=document):
+                self.assertIn("pnpm dev", document.read_text(encoding="utf-8"))
+
     def test_api_development_command_hot_reloads_source_and_environment(self):
         package = json.loads(
             (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
@@ -81,6 +126,8 @@ class OperationsDocumentationTests(unittest.TestCase):
         command = package["scripts"]["dev:node"]
         self.assertIn("tsx watch", command)
         self.assertIn("--include .env", command)
+        migration_command = package["scripts"]["migration:postgresql"]
+        self.assertIn("--env-file-if-exists=.env", migration_command)
 
     def test_local_r2_compose_entrypoint_uses_api_environment_without_minio(self):
         package = json.loads(

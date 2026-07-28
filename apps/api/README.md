@@ -67,16 +67,17 @@ pnpm run test
 
 ## 启动
 
-从仓库根目录按 [`.env.example`](.env.example) 创建 `apps/api/.env`，然后运行：
+日常开发从仓库根目录运行：
 
 ```sh
-pnpm run dev:postgresql:up
-pnpm run dev:minio:up
-pnpm run migration:postgresql # 首次启动或 schema 更新时运行
-pnpm run dev:node
+pnpm dev
 ```
 
-API 默认监听 `http://127.0.0.1:3000`。开发命令会监听源码和 `apps/api/.env` 并自动重启。
+该入口会启动并等待 PostgreSQL/MinIO、幂等迁移 schema，再同时启动 API 与 Web 热更新进程；
+它会禁用 `apps/api/.env` 并注入完整的隔离本地配置。API 默认监听
+`http://127.0.0.1:3000`。需要只调试 API 时，可按 [`.env.example`](.env.example)
+配置 `apps/api/.env`，手动启动依赖和 migration 后运行 `pnpm run dev:node`；API 会自动读取并
+监听该文件，已有 shell 环境变量优先。
 
 构建后运行：
 
