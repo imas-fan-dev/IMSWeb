@@ -89,7 +89,7 @@ describe('Wiki admin dynamic data contract', () => {
                 color: '#8dbbff',
                 iconUrl: null,
                 displayOrder: 0,
-                isFallback: true,
+                isFallback: false,
                 idols: [{
                     id: 6,
                     name: '樱木真乃',
