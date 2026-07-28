@@ -32,7 +32,7 @@ export function StoryCategorySection({
           />
           <h2
             id={`${categoryId}-title`}
-            className="text-xl font-semibold break-words"
+            className="text-xl font-semibold wrap-break-word"
           >
             {category.name}
           </h2>
@@ -48,7 +48,7 @@ export function StoryCategorySection({
           const imageUrl = card.img || fallbackImage
           return (
             <Card key={cardKey} className="rounded-lg py-0">
-              <div className="aspect-[16/10] overflow-hidden bg-muted">
+              <div className="aspect-16/10 overflow-hidden bg-muted">
                 <img
                   src={imageUrl}
                   alt={card.name}
@@ -62,7 +62,7 @@ export function StoryCategorySection({
                 />
               </div>
               <CardHeader className="pt-4">
-                <h3 className="font-heading text-base leading-snug font-medium">
+                <h3 className="font-heading text-base/snug font-medium">
                   {card.name}
                 </h3>
                 {card.subtitle ? (
@@ -83,10 +83,10 @@ export function StoryCategorySection({
                     >
                       <UserRoundIcon className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium break-words">
+                        <span className="block text-sm font-medium wrap-break-word">
                           {label}
                         </span>
-                        <span className="block text-xs break-words text-muted-foreground">
+                        <span className="block text-xs wrap-break-word text-muted-foreground">
                           {link.up || "未知投稿者"}
                         </span>
                       </span>

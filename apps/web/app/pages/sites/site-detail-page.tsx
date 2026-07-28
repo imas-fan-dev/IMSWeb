@@ -90,7 +90,7 @@ export default function SiteDetailPage({
             {data.title}
           </h1>
 
-          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-base/7 text-muted-foreground">
             {data.description || "暂无简介。"}
           </p>
 

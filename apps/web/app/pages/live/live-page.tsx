@@ -46,7 +46,7 @@ function LiveCard({ event }: { event: LiveEvent }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold leading-snug">
+          <h3 className="text-base/snug font-semibold">
             {event.title}
           </h3>
 
@@ -131,7 +131,7 @@ export default function Live() {
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">
           Live 日程
         </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
+        <p className="mt-4 text-base/7 text-muted-foreground">
           查看各企划已公布的演出安排与线上活动信息。
         </p>
       </div>

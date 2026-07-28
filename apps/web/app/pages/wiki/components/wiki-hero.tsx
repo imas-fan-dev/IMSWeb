@@ -21,7 +21,7 @@ export function WikiHero({
 
   return (
     <section
-      className="relative isolate min-h-[28rem] overflow-hidden border-b bg-neutral-950 text-white sm:min-h-[clamp(30rem,62svh,42rem)]"
+      className="relative isolate min-h-112 overflow-hidden border-b bg-neutral-950 text-white sm:min-h-[clamp(30rem,62svh,42rem)]"
       aria-label="剧情档案视觉"
     >
       {background?.url ? (
@@ -35,12 +35,12 @@ export function WikiHero({
         className="absolute inset-0 bg-black/30 sm:bg-black/25"
         aria-hidden="true"
       />
-      <div className="relative mx-auto flex min-h-[28rem] w-full max-w-7xl flex-col justify-end px-4 py-8 drop-shadow-[0_2px_8px_rgb(0_0_0/0.9)] sm:min-h-[clamp(30rem,62svh,42rem)] sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+      <div className="relative mx-auto flex min-h-112 w-full max-w-7xl flex-col justify-end px-4 py-8 drop-shadow-[0_2px_8px_rgb(0_0_0/0.9)] sm:min-h-[clamp(30rem,62svh,42rem)] sm:px-6 sm:py-10 lg:px-8 lg:py-12">
         <p className="text-xs font-semibold text-white/70">STORY ARCHIVE</p>
         <div className="mt-2 flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-3xl font-semibold sm:text-4xl">剧情档案</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
+            <p className="mt-3 max-w-2xl text-sm/6 text-white/80 sm:text-base">
               按企划与偶像查找主线、卡片、活动和特别剧情。
             </p>
             {source ? (

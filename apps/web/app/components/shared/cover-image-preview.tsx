@@ -178,7 +178,7 @@ export function CoverImagePreview({
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-background/85 supports-backdrop-filter:bg-background/45 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150"
-        className="top-0 left-0 grid h-svh max-h-none w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-transparent p-0 text-foreground ring-0 sm:max-w-none data-open:zoom-in-100 data-closed:zoom-out-100"
+        className="top-0 left-0 grid h-svh max-h-none w-screen max-w-none translate-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-transparent p-0 text-foreground ring-0 sm:max-w-none data-open:zoom-in-100 data-closed:zoom-out-100"
         onKeyDown={handleKeyDown}
       >
         <header className="flex h-16 min-w-0 items-center gap-3 px-4 sm:px-6">

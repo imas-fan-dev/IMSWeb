@@ -146,7 +146,7 @@ export default function AdminCardsPage() {
                       <img
                         src={image}
                         alt={`名片 #${card.id} ${index === 0 ? "正面" : "背面"}`}
-                        className="aspect-[3/2] w-full bg-muted object-cover"
+                        className="aspect-3/2 w-full bg-muted object-cover"
                         loading="lazy"
                       />
                     </a>

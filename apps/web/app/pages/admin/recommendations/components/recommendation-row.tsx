@@ -31,7 +31,7 @@ export function RecommendationRow({
 }) {
   return (
     <article className="grid grid-cols-[5rem_minmax(0,1fr)] gap-4 border-b py-5 last:border-b-0 sm:grid-cols-[6rem_minmax(0,1fr)_auto]">
-      <div className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
+      <div className="flex aspect-4/3 w-full items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
         {recommendation.thumbnail || recommendation.image ? (
           <img
             src={recommendation.thumbnail || recommendation.image || ""}

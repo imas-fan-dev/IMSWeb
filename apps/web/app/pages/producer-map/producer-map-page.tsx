@@ -130,7 +130,7 @@ function LoadingState() {
 
 function MapLoadingState() {
   return (
-    <div className="flex aspect-[4/3] min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-sm text-muted-foreground sm:aspect-[16/10] lg:aspect-auto lg:h-[42rem]">
+    <div className="flex aspect-4/3 min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-sm text-muted-foreground sm:aspect-16/10 lg:aspect-auto lg:h-168">
       <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
       <span className="ml-2">正在读取地图边界</span>
     </div>
@@ -139,7 +139,7 @@ function MapLoadingState() {
 
 function MapUnavailableState() {
   return (
-    <div className="flex aspect-[4/3] min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-center text-sm text-muted-foreground sm:aspect-[16/10] lg:aspect-auto lg:h-[42rem]">
+    <div className="flex aspect-4/3 min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-center text-sm text-muted-foreground sm:aspect-16/10 lg:aspect-auto lg:h-168">
       地图边界暂时无法加载，地区与社群名录仍可正常浏览。
     </div>
   )
@@ -243,7 +243,7 @@ function CommunityCard({
             {community.platform}
             {community.region ? ` · ${community.region}` : " · 全国"}
           </p>
-          <h3 className="mt-2 text-base font-semibold break-words">
+          <h3 className="mt-2 text-base font-semibold wrap-break-word">
             {community.name}
           </h3>
         </div>
@@ -252,11 +252,11 @@ function CommunityCard({
           aria-hidden="true"
         />
       </div>
-      <p className="mt-4 text-sm leading-6 break-words text-muted-foreground">
+      <p className="mt-4 text-sm/6 wrap-break-word text-muted-foreground">
         {community.description || "由制作人共同维护的交流社群。"}
       </p>
       {community.contact ? (
-        <p className="mt-3 text-sm leading-6 font-medium break-words">
+        <p className="mt-3 text-sm/6 font-medium wrap-break-word">
           {community.contact}
         </p>
       ) : null}
@@ -384,7 +384,7 @@ export default function ProducerMapPage() {
         <section className="border-b">
           <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
             <div className="max-w-3xl">
-              <h1 className="text-3xl leading-tight font-semibold sm:text-5xl">
+              <h1 className="text-3xl/tight font-semibold sm:text-5xl">
                 {data.title}
               </h1>
               {data.subtitle ? (
@@ -392,7 +392,7 @@ export default function ProducerMapPage() {
                   {data.subtitle}
                 </p>
               ) : null}
-              <p className="mt-6 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+              <p className="mt-6 max-w-2xl text-base/7 text-muted-foreground sm:text-lg">
                 {data.introduction}
               </p>
             </div>
@@ -432,7 +432,7 @@ export default function ProducerMapPage() {
                 {visibleCommunities.length} 个公开条目
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:w-[34rem]">
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-136">
               <label className="relative">
                 <span className="sr-only">搜索社群</span>
                 <SearchIcon

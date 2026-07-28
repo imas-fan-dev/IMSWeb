@@ -167,7 +167,7 @@ function NamecardItem({ card }: { card: Namecard }) {
             src={image}
             alt={`制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
             previewLabel="名片"
-            className="aspect-[3/2] w-full rounded-none bg-muted"
+            className="aspect-3/2 w-full rounded-none bg-muted"
             imageClassName="transition-transform group-hover:scale-[1.02]"
           />
         ))}

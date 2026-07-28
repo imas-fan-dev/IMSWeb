@@ -189,7 +189,7 @@ export function WikiIndexPage() {
             <Skeleton className="mt-5 h-10 w-full max-w-md" />
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {Array.from({ length: 12 }, (_, index) => (
-                <Skeleton key={index} className="aspect-[4/5] rounded-lg" />
+                <Skeleton key={index} className="aspect-4/5 rounded-lg" />
               ))}
             </div>
           </div>

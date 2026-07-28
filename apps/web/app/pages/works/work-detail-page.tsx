@@ -129,14 +129,14 @@ function FranchiseDetail({
   entry: NonNullable<ReturnType<typeof getWorkEntry>>
 }) {
   return (
-    <section className="relative mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-[1600px] flex-col items-center gap-8 overflow-hidden px-6 py-8 sm:py-12 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between lg:px-[50px] lg:py-16 xl:py-20">
+    <section className="relative mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-400 flex-col items-center gap-8 overflow-hidden px-6 py-8 sm:py-12 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between lg:px-12.5 lg:py-16 xl:py-20">
       {/* On narrow screens, mirror About's ambient artwork treatment. */}
       <div className="pointer-events-none absolute inset-y-0 right-[-12%] w-[72%] overflow-hidden sm:right-[-8%] sm:w-[60%] lg:relative lg:inset-auto lg:flex lg:w-auto lg:flex-1 lg:justify-center lg:overflow-visible">
         {entry.characterImage ? (
           <img
             src={entry.characterImage}
             alt={`${entry.title} 角色立绘`}
-            className="h-full w-full object-contain object-bottom opacity-15 sm:opacity-20 lg:h-auto lg:max-w-[500px] lg:opacity-100"
+            className="size-full object-contain object-bottom opacity-15 sm:opacity-20 lg:h-auto lg:max-w-125 lg:opacity-100"
             loading="lazy"
           />
         ) : null}
@@ -196,13 +196,13 @@ function FranchiseDetail({
           {entry.tagline.map((line) => (
             <span
               key={line}
-              className="inline-block w-fit -skew-x-[10deg] px-4 py-2.5 font-bold text-white"
+              className="inline-block w-fit skew-x-[-10deg] px-4 py-2.5 font-bold text-white"
               style={{
                 backgroundImage: `linear-gradient(${entry.gradient})`,
                 fontSize: "clamp(15px, 5vw, 28px)",
               }}
             >
-              <span className="inline-block skew-x-[10deg]">{line}</span>
+              <span className="inline-block skew-x-10">{line}</span>
             </span>
           ))}
         </div>
@@ -308,10 +308,10 @@ export default function WorkDetailPage({ params }: WorkDetailProps) {
             <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
               {entry.title}
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
+            <p className="mt-5 max-w-2xl text-lg/8 text-muted-foreground">
               {entry.summary}
             </p>
-            <div className="mt-10 space-y-5 text-base leading-8">
+            <div className="mt-10 space-y-5 text-base/8">
               {entry.description.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
