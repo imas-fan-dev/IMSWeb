@@ -31,7 +31,7 @@ export function RandomIdol() {
           <h2 id="random-idol-heading" className="mt-2 text-2xl font-semibold">
             随机担当
           </h2>
-          <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
+          <p className="mt-4 max-w-xl text-sm/6 text-muted-foreground">
             从完整生日资料中随机选择一位偶像，并进入对应剧情资料页。
           </p>
         </div>

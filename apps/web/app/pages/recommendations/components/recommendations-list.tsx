@@ -39,7 +39,7 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
 
   const content = (
     <>
-      <div className="flex aspect-[4/3] w-full items-center justify-center self-start overflow-hidden rounded-md bg-warning/14 text-warning-foreground">
+      <div className="flex aspect-4/3 w-full items-center justify-center self-start overflow-hidden rounded-md bg-warning/14 text-warning-foreground">
         {thumbnail ? (
           <img
             src={thumbnail}
@@ -53,7 +53,7 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
       </div>
       <div className="min-w-0 py-0.5">
         <p className="text-xs font-medium text-primary">推荐 #{item.id}</p>
-        <h2 className="mt-1.5 text-base leading-6 font-semibold group-hover:text-primary sm:text-lg sm:leading-7">
+        <h2 className="mt-1.5 text-base/6 font-semibold group-hover:text-primary sm:text-lg/7">
           {item.title}
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">
@@ -89,7 +89,7 @@ export function RecommendationsSkeleton() {
           key={item}
           className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6"
         >
-          <Skeleton className="aspect-[4/3] w-full" />
+          <Skeleton className="aspect-4/3 w-full" />
           <div className="space-y-3 py-1">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-5 w-4/5" />

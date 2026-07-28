@@ -91,7 +91,7 @@ function PersonCard({
         className={`absolute inset-y-0 left-0 w-1 ${accent.stripe}`}
         aria-hidden="true"
       />
-      <div className="grid min-h-32 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-4 py-5 pr-5 pl-6 sm:gap-x-6 sm:py-6 sm:pr-6 sm:pl-8 md:grid-cols-[5rem_minmax(0,1fr)_12rem]">
+      <div className="grid min-h-32 grid-cols-[auto_minmax(0,1fr)] items-center gap-4 py-5 pr-5 pl-6 sm:gap-x-6 sm:py-6 sm:pr-6 sm:pl-8 md:grid-cols-[5rem_minmax(0,1fr)_12rem]">
         {person.avatarUrl ? (
           <img
             src={person.avatarUrl}
@@ -108,10 +108,10 @@ function PersonCard({
           </span>
         )}
         <div className="min-w-0">
-          <h3 className="text-lg font-semibold break-words sm:text-xl">
+          <h3 className="text-lg font-semibold wrap-break-word sm:text-xl">
             {person.name}
           </h3>
-          <p className="mt-2 text-sm leading-6 break-words text-muted-foreground sm:text-base">
+          <p className="mt-2 text-sm/6 wrap-break-word text-muted-foreground sm:text-base">
             {person.description || "感谢为本站提供帮助。"}
           </p>
         </div>
@@ -181,7 +181,7 @@ function PeopleGroup({
             ))}
           </div>
         ) : (
-          <p className="text-center text-sm leading-6 text-muted-foreground">
+          <p className="text-center text-sm/6 text-muted-foreground">
             本分组名单暂未公开。
           </p>
         )}
@@ -237,11 +237,11 @@ export default function About() {
           }
         >
           {data.heroImageUrl ? (
-            <div className="pointer-events-none absolute top-0 right-[-12%] bottom-0 w-[72%] overflow-hidden sm:right-[-8%] sm:w-[60%] lg:top-12 lg:right-auto lg:left-0 lg:w-[44%]">
+            <div className="pointer-events-none absolute inset-y-0 right-[-12%] w-[72%] overflow-hidden sm:right-[-8%] sm:w-[60%] lg:top-12 lg:right-auto lg:left-0 lg:w-[44%]">
               <img
                 src={data.heroImageUrl}
                 alt={data.heroImageAlt}
-                className="h-full w-full object-contain object-bottom opacity-15 sm:opacity-20 lg:opacity-100"
+                className="size-full object-contain object-bottom opacity-15 sm:opacity-20 lg:opacity-100"
                 style={{
                   transform: `translate(${data.heroImageOffsetX}%, ${data.heroImageOffsetY}%) scale(${data.heroImageScale / 100})`,
                   transformOrigin: "center bottom",
@@ -253,11 +253,11 @@ export default function About() {
               />
             </div>
           ) : null}
-          <div className="relative mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:min-h-[61rem] lg:px-8 lg:py-20">
+          <div className="relative mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:min-h-244 lg:px-8 lg:py-20">
             <div className="relative z-10 max-w-2xl lg:ml-[44%]">
               <h1
                 id="about-title"
-                className="bg-clip-text text-4xl leading-tight font-semibold text-transparent sm:text-5xl lg:text-6xl"
+                className="bg-clip-text text-4xl/tight font-semibold text-transparent sm:text-5xl lg:text-6xl"
                 style={titleGradientStyle}
               >
                 {data.siteName}
@@ -272,7 +272,7 @@ export default function About() {
                   (line: string, index: number) => (
                     <p key={`${index}-${line}`}>
                       <span
-                        className="inline-block px-4 py-2 text-base leading-7 font-semibold sm:text-lg"
+                        className="inline-block px-4 py-2 text-base/7 font-semibold sm:text-lg"
                         style={highlightGradientStyle}
                       >
                         {line}
@@ -295,7 +295,7 @@ export default function About() {
                   {data.overviewTitle}
                 </h2>
                 <div
-                  className="mt-4 space-y-4 rounded-md px-5 py-5 text-sm leading-7 text-muted-foreground sm:px-6 sm:text-base sm:leading-8"
+                  className="mt-4 space-y-4 rounded-md p-5 text-sm/7 text-muted-foreground sm:px-6 sm:text-base/8"
                   style={overviewGradientStyle}
                 >
                   {data.overview.map((paragraph: string, index: number) => (

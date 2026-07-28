@@ -144,7 +144,7 @@ export function ChinaCommunityMap({
 
   if (loadError) {
     return (
-      <div className="flex aspect-[4/3] min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-center text-sm text-muted-foreground lg:aspect-auto lg:h-[38rem]">
+      <div className="flex aspect-4/3 min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-center text-sm text-muted-foreground lg:aspect-auto lg:h-152">
         地图边界暂时无法加载，地区与社群名录仍可正常浏览。
       </div>
     )
@@ -155,7 +155,7 @@ export function ChinaCommunityMap({
       ref={containerRef}
       role="img"
       aria-label="中国省级行政区制作人社群地图，选择省份查看地区资料"
-      className="aspect-[4/3] min-h-80 w-full sm:aspect-[16/10] lg:aspect-auto lg:h-[42rem]"
+      className="aspect-4/3 min-h-80 w-full sm:aspect-16/10 lg:aspect-auto lg:h-168"
     />
   )
 }

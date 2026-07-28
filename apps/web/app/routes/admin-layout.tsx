@@ -153,7 +153,7 @@ function AdminAccessState({
         </span>
         <p className="mt-6 text-xs font-semibold text-primary">{label}</p>
         <h1 className="mt-2 text-2xl font-semibold">{title}</h1>
-        <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
+        <p className="mt-3 max-w-md text-sm/6 text-muted-foreground">
           {description}
         </p>
         <div className="mt-7 flex flex-wrap gap-3">{children}</div>
@@ -259,7 +259,7 @@ export default function AdminLayout() {
     <div className="min-h-svh bg-background">
       <SeriesAccentStrip className="h-1" />
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-[100rem] items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-16 w-full max-w-400 items-center gap-4 px-4 sm:px-6 lg:px-8">
           <Link to="/admin" className="flex min-w-0 items-center gap-3">
             <BrandWordmark className="h-8" />
             <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
@@ -296,7 +296,7 @@ export default function AdminLayout() {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-[100rem] grid-cols-[minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="mx-auto grid w-full max-w-400 grid-cols-[minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="min-w-0 border-b bg-admin-ink text-admin-ink-foreground lg:min-h-[calc(100svh-4.25rem)] lg:border-r lg:border-b-0">
           <nav
             className="flex max-w-full min-w-0 gap-1 overflow-x-auto p-3 lg:sticky lg:top-16 lg:flex-col lg:gap-2 lg:p-5"
@@ -330,7 +330,7 @@ export default function AdminLayout() {
                   <item.icon className="size-4 shrink-0" aria-hidden="true" />
                   <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
                     <span>{item.label}</span>
-                    <span className="hidden text-[0.68rem] leading-4 font-normal text-admin-ink-subtle lg:block">
+                    <span className="hidden text-[10.88px]/4 font-normal text-admin-ink-subtle lg:block">
                       {item.description}
                     </span>
                   </span>

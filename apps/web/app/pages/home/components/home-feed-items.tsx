@@ -72,7 +72,7 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
         className="min-w-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <span
-          className="line-clamp-2 text-sm font-medium break-words whitespace-pre-line group-hover:text-primary"
+          className="line-clamp-2 text-sm font-medium wrap-break-word whitespace-pre-line group-hover:text-primary"
           title={event.title}
         >
           {event.title}
@@ -115,7 +115,7 @@ export function HomeNewsRow({ item }: { item: HomeNews }) {
       </span>
       <span className="min-w-0">
         <span
-          className="line-clamp-2 text-sm font-medium break-words group-hover:text-primary"
+          className="line-clamp-2 text-sm font-medium wrap-break-word group-hover:text-primary"
           title={item.title}
         >
           {item.title}

@@ -180,7 +180,7 @@ function ImageUrlEditor({
                 style={previewImageStyle}
                 className={
                   portrait
-                    ? "h-full w-full object-contain"
+                    ? "size-full object-contain"
                     : "size-full object-cover"
                 }
               />
@@ -464,8 +464,8 @@ function HeroCompositionPreview({
           className={cn(
             "relative mx-auto w-full overflow-hidden bg-[#fcfcfa] shadow-sm transition-[width,aspect-ratio] duration-300 motion-reduce:transition-none",
             isMobilePreview
-              ? "aspect-[9/16] max-w-96"
-              : "aspect-[16/9] max-w-[80rem] min-w-3xl"
+              ? "aspect-9/16 max-w-96"
+              : "aspect-video max-w-7xl min-w-3xl"
           )}
         >
           <div
@@ -498,7 +498,7 @@ function HeroCompositionPreview({
                 alt={`${content.heroImageAlt}构图预览`}
                 draggable={false}
                 className={cn(
-                  "pointer-events-none h-full w-full object-contain object-bottom select-none",
+                  "pointer-events-none size-full object-contain object-bottom select-none",
                   isMobilePreview && "opacity-20"
                 )}
                 style={{
@@ -516,13 +516,13 @@ function HeroCompositionPreview({
           <div
             className={cn(
               "pointer-events-none absolute inset-y-0 right-0 z-20 flex flex-col text-black",
-              isMobilePreview ? "w-full px-6 py-8" : "w-[58%] px-[5%] py-[5%]"
+              isMobilePreview ? "w-full px-6 py-8" : "w-[58%] p-[5%]"
             )}
           >
             <p
               className={cn(
                 "font-semibold",
-                isMobilePreview ? "text-3xl leading-tight" : "truncate text-2xl"
+                isMobilePreview ? "text-3xl/tight" : "truncate text-2xl"
               )}
               style={titleGradient}
             >

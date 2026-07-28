@@ -44,7 +44,7 @@ function InformationRow({
       <CoverImagePreview
         src={card.image}
         alt={`${card.title}封面`}
-        className="aspect-[16/10] w-full bg-muted"
+        className="aspect-16/10 w-full bg-muted"
       />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -117,7 +117,7 @@ function InformationHtmlPreviewFrame({ document }: { document: string }) {
       sandbox="allow-same-origin"
       srcDoc={document}
       onLoad={handleLoad}
-      className="h-[36rem] w-full rounded-lg border bg-background"
+      className="h-144 w-full rounded-lg border bg-background"
     />
   )
 }
@@ -145,7 +145,7 @@ export function InformationPreview({
           <InformationHtmlPreviewFrame document={document} />
         ) : (
           <div className="overflow-hidden rounded-lg border bg-background">
-            <div className="aspect-[16/9] bg-muted">
+            <div className="aspect-video bg-muted">
               {submission.image ? (
                 <CoverImagePreview
                   src={submission.image}
@@ -247,7 +247,7 @@ export function InformationAssetsPanel({
               <img
                 src={url}
                 alt=""
-                className="aspect-[16/9] w-full rounded-lg border bg-muted object-cover"
+                className="aspect-video w-full rounded-lg border bg-muted object-cover"
               />
               <div className="mt-2 flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate text-xs">{url}</code>

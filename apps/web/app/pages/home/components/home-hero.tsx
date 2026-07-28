@@ -11,7 +11,7 @@ export function SeriesWall() {
       aria-labelledby="home-heading"
     >
       <div
-        className="grid h-[19rem] grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-[28rem] lg:grid-cols-6"
+        className="grid h-76 grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-112 lg:grid-cols-6"
       >
         {seriesItems.map((series) => (
           <a
@@ -49,7 +49,7 @@ export function SeriesWall() {
           >
             THE iDOLM@STER
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-lg leading-7 sm:text-xl sm:leading-8">
+          <p className="mx-auto mt-4 max-w-2xl text-lg/7 sm:text-xl/8">
             欢迎您！Producer！
           </p>
         </div>
@@ -65,12 +65,12 @@ export function TodayBirthdayNotice() {
 
   return (
     <aside className="border-b bg-card" aria-label="今日生日">
-      <div className="mx-auto flex w-full max-w-7xl items-start gap-3 px-4 py-4 sm:items-center sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl items-start gap-3 p-4 sm:items-center sm:px-6 lg:px-8">
         <CakeSliceIcon
           className="mt-0.5 size-5 shrink-0 text-primary sm:mt-0"
           aria-hidden="true"
         />
-        <p className="text-sm leading-6">
+        <p className="text-sm/6">
           <span className="font-medium">今天生日：</span>
           {birthdays.map((idol, index) => (
             <span

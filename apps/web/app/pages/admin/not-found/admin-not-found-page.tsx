@@ -4,7 +4,7 @@ export function meta() {
 
 export default function AdminNotFound() {
   return (
-    <Empty className="min-h-[28rem] border bg-card">
+    <Empty className="min-h-112 border bg-card">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <FileQuestionIcon aria-hidden="true" />

@@ -45,7 +45,7 @@ pnpm dev
 | `pnpm build`       | 生成生产前端产物与预渲染页面             |
 | `pnpm design:lint` | 校验根目录 `DESIGN.md` 设计规范          |
 | `pnpm preview`     | 在 `127.0.0.1` 上预览已构建产物          |
-| `pnpm lint`        | 执行 ESLint，警告也视为失败              |
+| `pnpm lint`        | 执行 ESLint 与 Tailwind canonical 类检查 |
 | `pnpm typecheck`   | 生成路由类型并执行 TypeScript 检查       |
 | `pnpm test:unit`   | 运行 Vitest 单元与组件测试               |
 | `pnpm test:e2e`    | 运行 Playwright 桌面端和移动端测试       |

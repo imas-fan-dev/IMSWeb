@@ -68,7 +68,7 @@ export function StoryTable({
                     <Badge variant="outline">{linkCount} 个来源</Badge>
                   ) : null}
                 </div>
-                <p className="mt-2 font-medium break-words">{story.cardName}</p>
+                <p className="mt-2 font-medium wrap-break-word">{story.cardName}</p>
                 {story.subtitle ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {story.subtitle}

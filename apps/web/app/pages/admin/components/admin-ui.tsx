@@ -48,7 +48,7 @@ export function AdminField({
       </label>
       {children}
       {description ? (
-        <p className="text-xs leading-5 text-muted-foreground">{description}</p>
+        <p className="text-xs/5 text-muted-foreground">{description}</p>
       ) : null}
     </div>
   )
@@ -71,10 +71,10 @@ export function AdminPageHeader({
         <p className="text-[0.68rem] font-semibold text-primary uppercase">
           {eyebrow}
         </p>
-        <h1 className="mt-2 text-2xl leading-tight font-semibold text-balance sm:text-[1.75rem]">
+        <h1 className="mt-2 text-2xl/tight font-semibold text-balance sm:text-[1.75rem]">
           {title}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+        <p className="mt-2 max-w-2xl text-sm/6 text-muted-foreground">
           {description}
         </p>
       </div>
