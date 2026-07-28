@@ -304,6 +304,7 @@ describe('Wiki idol media object storage contract', () => {
 describe('Wiki agency story cover asset contract', () => {
     test('one uploaded asset can back a card and cannot be deleted while referenced', async () => {
         const fixture = createWikiFixture();
+        fixture.storage.publicReadUrlBase = 'https://cdn.example.test';
         const headers = await fixture.authHeaders('editor');
         const upload = await postMultipart(
             fixture,
@@ -317,6 +318,8 @@ describe('Wiki agency story cover asset contract', () => {
         assert.equal(upload.status, 200);
         const uploaded = await upload.json() as any;
         assert.equal(uploaded.asset.name, '共用主线封面');
+        assert.match(uploaded.asset.imageUrl, /^https:\/\/cdn\.example\.test\//);
+        assert.doesNotMatch(uploaded.asset.imageUrl, /\/api\/wiki\/story-cover-assets\//);
         assert.match(
             fixture.story.coverAssets[0]!.object_key,
             /^wiki\/agencies\/sc\/story-cover-assets\/[0-9a-f-]+\.webp$/
@@ -347,7 +350,20 @@ describe('Wiki agency story cover asset contract', () => {
         const story = (await stories.json() as any).stories[0];
         assert.equal(story.coverAssetId, uploaded.asset.id);
         assert.equal(story.coverAssetName, '共用主线封面');
-        assert.match(story.imageUrl, /story-cover-assets/);
+        assert.match(story.imageUrl, /^https:\/\/cdn\.example\.test\//);
+        assert.doesNotMatch(story.imageUrl, /\/api\/wiki\/story-cover-assets\//);
+
+        const publicStories = await fixture.app.request(
+            `/api/wiki/stories?agency=${encodeURIComponent('闪耀色彩')}` +
+            `&idol=${encodeURIComponent('樱木真乃')}`
+        );
+        assert.equal(publicStories.status, 200);
+        const publicCard = (await publicStories.json() as any).categories
+            .flatMap((category: any) => category.cards)
+            .find((card: any) => card.name === '【共享素材卡片】');
+        assert.ok(publicCard);
+        assert.match(publicCard.img, /^https:\/\/cdn\.example\.test\//);
+        assert.doesNotMatch(publicCard.img, /\/api\/wiki\/story-cover-assets\//);
 
         const inUse = await fixture.app.request(
             `/api/admin/wiki/story-cover-assets/${uploaded.asset.id}`,
@@ -379,6 +395,24 @@ describe('Wiki agency story cover asset contract', () => {
             { method: 'DELETE', headers }
         );
         assert.equal(deleted.status, 200);
+        assert.equal(fixture.story.coverAssets.length, 0);
+        assert.equal(fixture.storage.objects.size, 0);
+    });
+
+    test('asset upload fails cleanly when a direct public read URL is unavailable', async () => {
+        const fixture = createWikiFixture();
+        const response = await postMultipart(
+            fixture,
+            '/api/admin/wiki/agencies/6/story-cover-assets',
+            {
+                fields: { name: '不可直读素材' },
+                files: { image: uploadedPng('shared-cover', 'shared.png') }
+            },
+            await fixture.authHeaders('editor')
+        );
+
+        assert.equal(response.status, 503);
+        assert.match((await response.json() as any).msg, /公开对象读取地址/);
         assert.equal(fixture.story.coverAssets.length, 0);
         assert.equal(fixture.storage.objects.size, 0);
     });

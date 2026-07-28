@@ -9,12 +9,14 @@ import {
   idolImageTransform,
   requireWikiServices,
   storyObjectKey,
-  storyCoverAssetUrl,
   storyImageTransform,
   toWikiAgency,
   wikiStoryImageUrl,
 } from "@/domains/wiki/service";
-import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
+import {
+  requirePublicObjectUrl,
+  resolvePublicObjectUrl,
+} from "@/utils/storage/public-object-url";
 
 function revisionedUrl(url: string, revision: number): string {
   return url ? `${url}${url.includes("?") ? "&" : "?"}v=${revision}` : url;
@@ -68,14 +70,16 @@ export function createHandleListAdminWikiStories<E extends Env>(
         coverAssetName: card.cover_asset_name,
         imageUrl: card.cover_asset_object_key || card.image_file
           ? revisionedUrl(
-              await resolvePublicObjectUrl(
-                services.storage!,
-                card.cover_asset_object_key ??
-                  storyObjectKey(agency.code, idol.folder_name, card.image_file!),
-                card.cover_asset_id
-                  ? storyCoverAssetUrl(card.cover_asset_id)
-                  : wikiStoryImageUrl(agency.name, idol.name_cn, card.image_file),
-              ),
+              card.cover_asset_object_key
+                ? await requirePublicObjectUrl(
+                    services.storage!,
+                    card.cover_asset_object_key,
+                  )
+                : await resolvePublicObjectUrl(
+                    services.storage!,
+                    storyObjectKey(agency.code, idol.folder_name, card.image_file!),
+                    wikiStoryImageUrl(agency.name, idol.name_cn, card.image_file),
+                  ),
               card.cover_asset_revision ?? card.image_media_revision,
             )
           : "",
@@ -99,18 +103,20 @@ export function createHandleListAdminWikiStories<E extends Env>(
         coverAssetName: story.cover_asset_name,
         imageUrl: story.cover_asset_object_key || story.image_file
           ? revisionedUrl(
-              await resolvePublicObjectUrl(
-                services.storage!,
-                story.cover_asset_object_key ??
-                  storyObjectKey(agency.code, idol.folder_name, story.image_file!),
-                story.cover_asset_id
-                  ? storyCoverAssetUrl(story.cover_asset_id)
-                  : wikiStoryImageUrl(
+              story.cover_asset_object_key
+                ? await requirePublicObjectUrl(
+                    services.storage!,
+                    story.cover_asset_object_key,
+                  )
+                : await resolvePublicObjectUrl(
+                    services.storage!,
+                    storyObjectKey(agency.code, idol.folder_name, story.image_file!),
+                    wikiStoryImageUrl(
                       agency.name,
                       idol.name_cn,
                       story.image_file,
                     ),
-              ),
+                  ),
               story.cover_asset_revision ?? story.image_media_revision,
             )
           : "",

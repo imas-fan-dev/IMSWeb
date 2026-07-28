@@ -8,11 +8,13 @@ import {
   aggregateStories,
   requireWikiServices,
   storyObjectKey,
-  storyCoverAssetUrl,
   toWikiAgency,
   toWikiIdolFromRecord,
 } from "@/domains/wiki/service";
-import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
+import {
+  requirePublicObjectUrl,
+  resolvePublicObjectUrl,
+} from "@/utils/storage/public-object-url";
 
 export function createHandleListPublicWikiStories<E extends Env>(
   resolveServices: WikiServicesResolver<E>,
@@ -60,16 +62,16 @@ export function createHandleListPublicWikiStories<E extends Env>(
         return {
           ...card,
           img: row?.cover_asset_object_key || row?.image_file
-            ? await resolvePublicObjectUrl(
-                services.storage!,
-                row.cover_asset_object_key ??
+            ? row.cover_asset_object_key
+              ? await requirePublicObjectUrl(
+                  services.storage!,
+                  row.cover_asset_object_key,
+                )
+              : await resolvePublicObjectUrl(
+                  services.storage!,
                   storyObjectKey(agency.code, idol.folderName, row.image_file!),
-                row.cover_asset_id
-                  ? `${storyCoverAssetUrl(row.cover_asset_id)}?v=${
-                      row.cover_asset_revision ?? 0
-                    }`
-                  : card.img,
-              )
+                  card.img,
+                )
             : card.img,
         };
       })),

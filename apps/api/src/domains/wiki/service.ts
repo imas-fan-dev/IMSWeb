@@ -19,7 +19,10 @@ import {
   type WikiRandomBackground,
   type WikiStoryCategory,
 } from "@/domains/wiki/models";
-import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
+import {
+  requirePublicObjectUrl,
+  resolvePublicObjectUrl,
+} from "@/utils/storage/public-object-url";
 
 export const DEFAULT_STORY_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
 const imageTypes: Record<
@@ -218,10 +221,6 @@ export function versionedStoryCoverAssetObjectKey(
   return `wiki/agencies/${code}/story-cover-assets/${version}.webp`;
 }
 
-export function storyCoverAssetUrl(id: number): string {
-  return `/api/wiki/story-cover-assets/${id}.webp`;
-}
-
 export function versionedWikiGroupIconObjectKey(
   code: string,
   groupCode: string,
@@ -395,7 +394,7 @@ export async function validateAndConvertStoryImage(
 
 export async function randomBackground(
   repository: StoryRepository,
-  storage?: ObjectStorage,
+  storage: ObjectStorage,
 ): Promise<WikiRandomBackground> {
   const story = await repository.sampleWikiBackground();
   if (!story || (!story.image_file && !story.cover_asset_object_key)) {
@@ -406,19 +405,14 @@ export async function randomBackground(
     story.idol_folder_name,
     story.image_file!,
   );
-  const fallback = story.cover_asset_id
-    ? `${storyCoverAssetUrl(story.cover_asset_id)}?v=${
-        story.cover_asset_revision ?? 0
-      }`
-    : wikiStoryImageUrl(story.agency_name, story.idol_name, story.image_file);
   return {
-    url: storage
-      ? await resolvePublicObjectUrl(
+    url: story.cover_asset_object_key
+      ? await requirePublicObjectUrl(storage, objectKey)
+      : await resolvePublicObjectUrl(
           storage,
           objectKey,
-          fallback,
-        )
-      : fallback,
+          wikiStoryImageUrl(story.agency_name, story.idol_name, story.image_file),
+        ),
     card_name: story.card_name,
     idol_name: story.idol_name,
     agency_name: story.agency_name,

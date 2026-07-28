@@ -14,6 +14,24 @@ export async function resolvePublicObjectUrl(
     }
 }
 
+export async function requirePublicObjectUrl(
+    storage: ObjectStorage,
+    key: string
+): Promise<string> {
+    if (!storage.createPublicReadUrl) {
+        throw Object.assign(new Error('公开对象读取地址未配置'), { status: 503 });
+    }
+    try {
+        const url = await storage.createPublicReadUrl(key);
+        if (url) return url;
+    } catch (cause) {
+        throw Object.assign(new Error('公开对象读取地址不可用', { cause }), {
+            status: 503
+        });
+    }
+    throw Object.assign(new Error('公开对象读取地址不可用'), { status: 503 });
+}
+
 export async function resolvePublicMediaUrl(
     storage: ObjectStorage,
     value: string
