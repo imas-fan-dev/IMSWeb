@@ -64,7 +64,7 @@ const GROUPS: WikiGroupRecord[] = AGENCIES.map((agency, index) => ({
     color: agency.color,
     icon_object_key: null,
     display_order: 0,
-    is_fallback: true
+    is_fallback: false
 }));
 
 const MEMBERS: WikiGroupMemberRecord[] = IDOLS.map((idol) => ({
