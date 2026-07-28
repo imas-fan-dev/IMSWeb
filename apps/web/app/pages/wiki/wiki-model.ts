@@ -3,13 +3,13 @@ import type { WikiPublicStoryCard, WikiPublicStoryCategory } from "~/shared/api"
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 
 const ASPECT_BY_CATEGORY: Record<string, string> = {
-  "竖卡": "4 / 5",
-  "P卡": "9 / 16",
-  "亲密度剧情": "1 / 1",
-  "enza主线": "2.8 / 1",
-  "enza组合剧情": "2.8 / 1",
-  "enza节日剧情": "2.8 / 1",
-  "scsp活动": "2.8 / 1",
+  竖卡: "4 / 5",
+  P卡: "9 / 16",
+  亲密度剧情: "1 / 1",
+  enza主线: "2.8 / 1",
+  enza组合剧情: "2.8 / 1",
+  enza节日剧情: "2.8 / 1",
+  scsp活动: "2.8 / 1",
 }
 
 export function storyCardAspectRatio(categoryName: string) {
@@ -17,19 +17,19 @@ export function storyCardAspectRatio(categoryName: string) {
 }
 
 const COLUMNS_BY_CATEGORY: Record<string, string> = {
-  "竖卡": "repeat(5, minmax(0, 1fr))",
-  "P卡": "repeat(5, minmax(0, 1fr))",
-  "亲密度剧情": "repeat(auto-fill, minmax(160px, 1fr))",
-  "enza主线": "repeat(auto-fill, minmax(280px, 1fr))",
-  "enza组合剧情": "repeat(auto-fill, minmax(280px, 1fr))",
-  "enza节日剧情": "repeat(auto-fill, minmax(280px, 1fr))",
-  "scsp活动": "repeat(auto-fill, minmax(280px, 1fr))",
+  竖卡: "repeat(5, minmax(0, 1fr))",
+  P卡: "repeat(5, minmax(0, 1fr))",
+  亲密度剧情: "repeat(auto-fill, minmax(160px, 1fr))",
+  enza主线: "repeat(auto-fill, minmax(280px, 1fr))",
+  enza组合剧情: "repeat(auto-fill, minmax(280px, 1fr))",
+  enza节日剧情: "repeat(auto-fill, minmax(280px, 1fr))",
+  scsp活动: "repeat(auto-fill, minmax(280px, 1fr))",
 }
 
 const GAP_BY_CATEGORY: Record<string, string> = {
-  "竖卡": "14px",
-  "P卡": "12px",
-  "亲密度剧情": "12px",
+  竖卡: "14px",
+  P卡: "12px",
+  亲密度剧情: "12px",
 }
 
 export function storyCardGap(categoryName: string) {
@@ -37,7 +37,9 @@ export function storyCardGap(categoryName: string) {
 }
 
 export function storyCardColumns(categoryName: string) {
-  return COLUMNS_BY_CATEGORY[categoryName] ?? "repeat(auto-fill, minmax(240px, 1fr))"
+  return (
+    COLUMNS_BY_CATEGORY[categoryName] ?? "repeat(auto-fill, minmax(240px, 1fr))"
+  )
 }
 
 export function safeWikiColor(value: string | null | undefined) {
@@ -66,6 +68,11 @@ export function storyCardMatches(
     category.name,
     card.name,
     card.subtitle,
-    ...card.links.flatMap((link) => [link.up, link.title]),
+    ...card.links.flatMap((link) => [
+      link.up,
+      link.title,
+      link.contentType,
+      link.sourcePlatform,
+    ]),
   ].some((value) => value.toLocaleLowerCase("zh-CN").includes(normalized))
 }

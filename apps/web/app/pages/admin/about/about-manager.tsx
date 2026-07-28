@@ -28,6 +28,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
 import { cn } from "~/lib/utils"
+import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
 import {
   AdminField,
   AdminPageHeader,
@@ -37,6 +38,7 @@ import {
 } from "~/pages/admin/components/admin-ui"
 import {
   getAdminAboutPageContent,
+  uploadAboutHeroImage,
   updateAdminAboutPageContent,
 } from "~/shared/api"
 import type {
@@ -843,6 +845,8 @@ export function AboutManager() {
   const [revision, setRevision] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [heroFile, setHeroFile] = useState<File | null>(null)
+  const [uploadingHero, setUploadingHero] = useState(false)
 
   onSuccess((event) => {
     const snapshot = event.data as AboutAdminSnapshot
@@ -858,7 +862,7 @@ export function AboutManager() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!draft) return
+    if (!draft || uploadingHero) return
     setSaving(true)
     try {
       const result = await updateAdminAboutPageContent(draft, revision).send()
@@ -872,6 +876,26 @@ export function AboutManager() {
       )
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function uploadHero(file: File | null) {
+    setHeroFile(file)
+    if (!file) return
+    setUploadingHero(true)
+    try {
+      const result = await uploadAboutHeroImage(file).send()
+      change((content) => ({ ...content, heroImageUrl: result.url }))
+      setHeroFile(null)
+      toast.success("角色主视觉已上传，请保存更改")
+    } catch (uploadError) {
+      toast.error(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "角色主视觉上传失败"
+      )
+    } finally {
+      setUploadingHero(false)
     }
   }
 
@@ -910,13 +934,13 @@ export function AboutManager() {
             <Button
               type="button"
               variant="outline"
-              disabled={loading || saving}
+              disabled={loading || saving || uploadingHero}
               onClick={() => refresh()}
             >
               <RefreshCwIcon data-icon="inline-start" />
               重新读取
             </Button>
-            <Button type="submit" disabled={!dirty || saving}>
+            <Button type="submit" disabled={!dirty || saving || uploadingHero}>
               {saving ? (
                 <LoaderCircleIcon
                   className="animate-spin"
@@ -1037,9 +1061,19 @@ export function AboutManager() {
           content={draft}
           onChange={(patch) => change((content) => ({ ...content, ...patch }))}
         />
+        <AdminImageUploadField
+          id="about-hero-image-upload"
+          name="image"
+          label="上传角色主视觉图"
+          description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB；上传后请保存更改以发布。"
+          file={heroFile}
+          disabled={saving}
+          uploading={uploadingHero}
+          onSelect={(file) => void uploadHero(file)}
+        />
         <ImageUrlEditor
           id="about-hero-image"
-          label="角色主视觉图"
+          label="角色主视觉图链接"
           value={draft.heroImageUrl}
           alt={`${draft.heroImageAlt}预览`}
           showPreview={false}

@@ -2,6 +2,7 @@ import type { Context, Env } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { ParsedUpload, UploadedFile } from '@/ports/http';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import type { NewStoryLinkInput, StoryRepository } from '@/ports/repositories';
 import { DEFAULT_STORY_UPLOAD_MAX_BYTES, toWikiAgency, toWikiIdolFromRecord } from '@/domains/wiki/service';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
@@ -132,8 +133,8 @@ export async function parseWikiUpload(
         maxBytes,
         fileFields: ['image'],
         maxFiles: 1,
-        maxFields: 16,
-        maxParts: 17
+        maxFields: 24,
+        maxParts: 25
     });
 }
 
@@ -155,17 +156,93 @@ export function splitStoryUrl(raw: string): { url: string; subtitle: string } {
         };
 }
 
+export interface WikiStorySourceDraft {
+    upName: string;
+    videoTitle: string;
+    url: string;
+    contentTypeId?: number;
+    sourcePlatformId?: number;
+}
+
+export function optionalWikiCatalogId(value: unknown, label: string): number | undefined {
+    if (value === undefined || value === null || value === '') return undefined;
+    const id = typeof value === 'number' ? value : Number(value);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+        throw Object.assign(new Error(`${label} ID 无效`), { status: 400 });
+    }
+    return id;
+}
+
+export async function resolveWikiStorySources(
+    repository: StoryRepository,
+    drafts: WikiStorySourceDraft[]
+): Promise<NewStoryLinkInput[]> {
+    if (!drafts.length) return [];
+    const [contentTypes, sourcePlatforms] = await Promise.all([
+        repository.listStoryContentTypes(),
+        repository.listStorySourcePlatforms()
+    ]);
+    const contentTypesById = new Map(contentTypes.map((option) => [option.id, option]));
+    const sourcePlatformsById = new Map(
+        sourcePlatforms.map((option) => [option.id, option])
+    );
+    const defaultContentType = contentTypes.find((option) =>
+        option.is_active && option.name === '剧情'
+    ) ?? contentTypes.find((option) => option.is_active);
+    const defaultSourcePlatform = sourcePlatforms.find((option) =>
+        option.is_active && option.name === '其他来源'
+    ) ?? sourcePlatforms.find((option) => option.is_active);
+    const bilibiliPlatform = sourcePlatforms.find((option) =>
+        option.is_active && option.name.toLocaleLowerCase() === 'bilibili'
+    );
+    if (!defaultContentType || !defaultSourcePlatform) {
+        throw Object.assign(new Error('请先在管理端启用内容类型和来源平台'), { status: 409 });
+    }
+    return drafts.map((draft, index) => {
+        const contentType = draft.contentTypeId
+            ? contentTypesById.get(draft.contentTypeId)
+            : defaultContentType;
+        const inferredPlatform = /(?:bilibili\.com|b23\.tv)\//i.test(draft.url)
+            ? bilibiliPlatform
+            : undefined;
+        const sourcePlatform = draft.sourcePlatformId
+            ? sourcePlatformsById.get(draft.sourcePlatformId)
+            : inferredPlatform ?? defaultSourcePlatform;
+        if (!contentType) {
+            throw Object.assign(new Error(`第 ${index + 1} 个来源的内容类型不存在`), {
+                status: 400
+            });
+        }
+        if (!sourcePlatform) {
+            throw Object.assign(new Error(`第 ${index + 1} 个来源的平台不存在`), {
+                status: 400
+            });
+        }
+        return {
+            ...draft,
+            contentTypeId: contentType.id,
+            sourcePlatformId: sourcePlatform.id
+        };
+    });
+}
+
 export async function findWikiMutationTarget(
     services: RuntimeServices,
     agencyName: string,
-    idolName: string
+    idolName: string,
+    errorStatus = 200
 ) {
     const repository = services.story!;
-    const agencyRecord = await repository.findAgencyByName(agencyName);
+    const agencyRecord = await repository.findAgencyByName(agencyName) ??
+        await repository.findAgencyByCode(agencyName);
     const agency = agencyRecord ? toWikiAgency(agencyRecord) : null;
-    if (!agency) return { error: wikiJson(wikiErrorBody('企划不存在')) } as const;
+    if (!agency) {
+        return { error: wikiJson(wikiErrorBody('企划不存在'), errorStatus) } as const;
+    }
     const idolRecord = await repository.findIdolByAgencyAndName(agency.id, idolName);
-    if (!idolRecord) return { error: wikiJson(wikiErrorBody('找不到该偶像')) } as const;
+    if (!idolRecord) {
+        return { error: wikiJson(wikiErrorBody('找不到该内容页'), errorStatus) } as const;
+    }
     return { agency, idol: toWikiIdolFromRecord(agency, idolRecord) } as const;
 }
 

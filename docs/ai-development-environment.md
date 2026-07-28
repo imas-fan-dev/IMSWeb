@@ -74,6 +74,20 @@ pnpm dev --api-port 3100 --web-port 5174
 注入本地所需值；生产 `.env` 或 shell 配置不会污染本地 API。细粒度 API 入口仍按原契约读取
 `apps/api/.env`。
 
+需要在 API/Web 热更新期间使用 Cloudflare R2 测试桶时，使用显式入口：
+
+```sh
+pnpm run dev:r2
+# 同样支持：pnpm run dev:r2 --api-port 3100 --web-port 5180
+```
+
+该模式继续启动本地 PostgreSQL 和应用 migrations，但不启动或初始化 MinIO。启动器从
+`apps/api/.env` 中仅提取 `IMS_OBJECT_STORAGE`、`IMS_S3_*`、公开读取基址和 AWS 凭据；
+`NODE_ENV`、JWT、站点 origin、数据库和本地数据目录仍由开发启动器隔离注入。为防止本地热更新
+误写生产对象，bucket 名必须明确包含独立的 `test` 段，region 必须为 `auto`，endpoint 必须是
+无凭据、无路径的 Cloudflare R2 HTTPS S3 API 地址。需要使用另一个被忽略的配置文件时设置
+`IMS_DEV_R2_ENV_FILE`。
+
 doctor 会显示解析到的容器 endpoint，并通过同一 Compose 项目执行只读 `ps` 探测。若
 `DOCKER_HOST`、`DOCKER_CONTEXT`、`CONTAINER_HOST`、`CONTAINER_CONNECTION` 或 Podman 默认
 connection 指向非回环主机，`pnpm dev` 和 `pnpm run dev:down` 都会在任何容器写操作前拒绝执行。

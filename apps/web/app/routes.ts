@@ -36,6 +36,7 @@ export default [
     route("recommendations", "routes/admin-recommendations.tsx"),
     route("cards", "routes/admin-cards.tsx"),
     route("site-packages", "routes/admin-site-packages.tsx"),
+    route("stories/assets", "routes/admin-story-assets.tsx"),
     route("stories", "routes/admin-stories.tsx"),
     route("chronicle", "routes/admin-chronicle.tsx"),
     route("accounts", "routes/admin-accounts.tsx"),

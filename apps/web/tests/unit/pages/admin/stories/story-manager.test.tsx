@@ -101,6 +101,27 @@ function storiesPayload(upName = "投稿者") {
         backgroundEligible: false,
       },
     ],
+    contentTypes: [
+      {
+        id: 1,
+        name: "剧情",
+        description: "",
+        displayOrder: 0,
+        isActive: true,
+        revision: 0,
+      },
+    ],
+    sourcePlatforms: [
+      {
+        id: 1,
+        name: "Bilibili",
+        homepageUrl: "https://www.bilibili.com",
+        description: "",
+        displayOrder: 0,
+        isActive: true,
+        revision: 0,
+      },
+    ],
     stories: [
       {
         id: 21,
@@ -109,6 +130,10 @@ function storiesPayload(upName = "投稿者") {
         upName,
         videoTitle: "第一话 开场",
         url: "https://www.bilibili.com/video/BV1xx411c7mD",
+        contentTypeId: 1,
+        contentTypeName: "剧情",
+        sourcePlatformId: 1,
+        sourcePlatformName: "Bilibili",
         subtitle: "开场",
         imageFile: null,
         imageUrl: "",
@@ -165,7 +190,7 @@ describe("StoryManager", () => {
     )
 
     await user.click(screen.getByRole("button", { name: "编辑" }))
-    const upInput = screen.getByLabelText("投稿者")
+    const upInput = screen.getByLabelText("发布者或署名")
     await user.clear(upInput)
     await user.type(upInput, "新投稿者")
     await user.click(screen.getByRole("button", { name: "保存修改" }))

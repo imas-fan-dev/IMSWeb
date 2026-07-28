@@ -8,6 +8,7 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
         '/uploads/news/original/:filename',
         '/uploads/news/thumb/:filename',
         '/uploads/event/original/:filename',
+        '/uploads/about/hero/:filename',
         '/uploads/information/:filename',
         '/uploads/information/original/:filename',
         '/uploads/producer-map/:filename'

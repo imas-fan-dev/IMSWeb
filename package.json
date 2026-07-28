@@ -1,6 +1,7 @@
 {
   "name": "imsweb-monorepo",
   "version": "1.0.0",
+  "packageManager": "pnpm@11.10.0",
   "private": true,
   "description": "IMSWeb monorepo workspace orchestrator",
   "license": "MIT",
@@ -32,6 +33,7 @@
     "test": "pnpm run check:root && pnpm run test:infra && pnpm run test:api && pnpm run test:web:unit && pnpm run test:web-routing",
     "test:fast": "pnpm run test",
     "dev": "node scripts/development/dev-environment.mjs",
+    "dev:r2": "node scripts/development/dev-environment.mjs --r2",
     "dev:doctor": "node scripts/development/dev-environment.mjs --doctor",
     "dev:down": "node scripts/development/dev-environment.mjs --down",
     "start": "pnpm --filter @imsweb/api run start",

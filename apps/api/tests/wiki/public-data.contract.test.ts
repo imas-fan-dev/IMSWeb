@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { createWikiFixture } from "./fixture";
 
+const COVER_TRANSFORM = {
+  fit: "cover", focalX: 0.5, focalY: 0.5, zoom: 1, rotation: 0,
+};
+const CONTAIN_TRANSFORM = {
+  fit: "contain", focalX: 0.5, focalY: 0.5, zoom: 1, rotation: 0,
+};
+
 describe("Wiki public dynamic data contract", () => {
   test("catalog exposes the requested agency and resolved idol artwork anonymously", async () => {
     const fixture = createWikiFixture();
@@ -30,6 +37,8 @@ describe("Wiki public dynamic data contract", () => {
       iconUrl:
         "https://cdn.example.test/wiki/agencies/sc/branding/icon.webp",
       idolCount: 1,
+      entryCount: 1,
+      imageTransform: CONTAIN_TRANSFORM,
     });
     assert.deepEqual(body.selection, {
       agency: body.agencies[5],
@@ -40,6 +49,7 @@ describe("Wiki public dynamic data contract", () => {
         name: "闪耀色彩 Main",
         color: "#8dbbff",
         iconUrl: null,
+        imageTransform: CONTAIN_TRANSFORM,
         idols: [{
           id: 6,
           name: "樱木真乃",
@@ -48,11 +58,33 @@ describe("Wiki public dynamic data contract", () => {
           imageUrl:
             "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/avatar.webp",
           imageFit: "cover",
+          imageTransform: COVER_TRANSFORM,
           textColor: "#ffffff",
+          entryKind: "idol",
+          entrySubtype: null,
         }],
       }],
+      ungroupedIdols: [],
     });
     assert.deepEqual(fixture.storage.lists, []);
+  });
+
+  test("catalog places idols without memberships in the final ungrouped collection", async () => {
+    const fixture = createWikiFixture();
+    fixture.story.members = fixture.story.members.filter(
+      (member) => member.idol_id !== 6,
+    );
+
+    const response = await fixture.app.request(
+      `/api/wiki/catalog?agency=${encodeURIComponent("闪耀色彩")}`,
+    );
+
+    assert.equal(response.status, 200);
+    const selection = ((await response.json()) as any).selection;
+    assert.deepEqual(selection.groups[0].idols, []);
+    assert.equal(selection.ungroupedIdols.length, 1);
+    assert.equal(selection.ungroupedIdols[0].id, 6);
+    assert.equal(selection.ungroupedIdols[0].name, "樱木真乃");
   });
 
   test("catalog rejects unknown agencies without hiding the default selection", async () => {

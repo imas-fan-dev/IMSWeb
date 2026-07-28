@@ -61,6 +61,8 @@ describe("AboutManager", () => {
     const original = aboutContent()
     document.cookie = "csrf_token=about-manager-test; path=/"
     let savedBody: unknown
+    let uploadedFileName: string | null = null
+    let uploadCsrf: string | null = null
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockImplementation(async (input, init) => {
@@ -68,6 +70,18 @@ describe("AboutManager", () => {
           input instanceof Request
             ? input
             : new Request(new URL(String(input), "http://localhost"), init)
+        if (request.method === "POST") {
+          const form = init?.body
+          if (!(form instanceof FormData))
+            throw new Error("missing upload form")
+          const image = form.get("image")
+          uploadedFileName = image instanceof File ? image.name : null
+          uploadCsrf = request.headers.get("x-csrftoken")
+          return jsonResponse({
+            success: true,
+            url: "/uploads/about/hero/new-hero.webp",
+          })
+        }
         if (request.method === "PUT") {
           savedBody = await request.clone().json()
           const submitted = savedBody as {
@@ -92,7 +106,7 @@ describe("AboutManager", () => {
 
     const welcome = await screen.findByLabelText("欢迎语")
     expect(welcome).toHaveValue("欢迎制作人！")
-    expect(screen.getByLabelText("角色主视觉图")).toHaveValue(
+    expect(screen.getByLabelText("角色主视觉图链接")).toHaveValue(
       "/brand/about/gakuen-arisa.png"
     )
     expect(screen.getByLabelText("角色图片替代文本")).toHaveValue(
@@ -123,6 +137,24 @@ describe("AboutManager", () => {
     expect(screen.getByLabelText("渐变起始色十六进制值")).toHaveValue("#B4E04B")
     expect(screen.getByLabelText("头像")).toHaveValue(
       "/brand/about/staff/producer-a.webp"
+    )
+    const heroUpload = screen.getByLabelText("上传角色主视觉图")
+    await user.upload(
+      heroUpload,
+      new File([Uint8Array.of(1, 2, 3)], "new-hero.png", {
+        type: "image/png",
+      })
+    )
+    await waitFor(() => expect(uploadedFileName).toBe("new-hero.png"))
+    expect(uploadCsrf).toBe("about-manager-test")
+    await waitFor(() => {
+      expect(screen.getByLabelText("角色主视觉图链接")).toHaveValue(
+        "/uploads/about/hero/new-hero.webp"
+      )
+    })
+    expect(heroPreview).toHaveAttribute(
+      "src",
+      "/uploads/about/hero/new-hero.webp"
     )
     vi.spyOn(compositionPreview, "getBoundingClientRect").mockReturnValue({
       bottom: 600,
@@ -166,6 +198,7 @@ describe("AboutManager", () => {
     expect(savedBody).toMatchObject({
       revision: '"revision-7"',
       content: {
+        heroImageUrl: "/uploads/about/hero/new-hero.webp",
         heroImageOffsetX: 10,
         heroImageOffsetY: 10,
         heroImageScale: 120,

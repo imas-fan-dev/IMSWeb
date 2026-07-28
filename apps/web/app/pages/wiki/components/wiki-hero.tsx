@@ -41,7 +41,7 @@ export function WikiHero({
           <div>
             <h1 className="text-3xl font-semibold sm:text-4xl">剧情档案</h1>
             <p className="mt-3 max-w-2xl text-sm/6 text-white/80 sm:text-base">
-              按企划与偶像查找主线、卡片、活动和特别剧情。
+              按企划与内容页查找主线、卡片、活动和特别剧情。
             </p>
             {source ? (
               <p className="mt-2 text-xs text-white/65">

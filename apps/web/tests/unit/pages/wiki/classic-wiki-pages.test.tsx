@@ -39,7 +39,11 @@ const agencies = [
   },
 ]
 
-function catalogPayload(agencyName = "闪耀色彩") {
+function catalogPayload(
+  agencyName = "闪耀色彩",
+  duplicateIdolAcrossGroups = false,
+  includeUngroupedIdol = false
+) {
   const agency = agencies.find((item) => item.name === agencyName)!
   const groups =
     agencyName === "765PRO"
@@ -89,6 +93,19 @@ function catalogPayload(agencyName = "闪耀色彩") {
             color: "#f4bd00",
             iconUrl: null,
             idols: [
+              ...(duplicateIdolAcrossGroups
+                ? [
+                    {
+                      id: 6,
+                      name: "樱木真乃",
+                      folderName: "sakuragi_mano",
+                      color: "#f1b0c9",
+                      imageUrl: "/image/mano.webp",
+                      imageFit: "cover",
+                      textColor: "#ffffff",
+                    },
+                  ]
+                : []),
               {
                 id: 7,
                 name: "芹泽朝日",
@@ -104,7 +121,25 @@ function catalogPayload(agencyName = "闪耀色彩") {
   return {
     status: "success",
     agencies,
-    selection: { agency, layoutRevision: 0, groups },
+    selection: {
+      agency,
+      layoutRevision: 0,
+      groups,
+      ungroupedIdols:
+        agencyName === "闪耀色彩" && includeUngroupedIdol
+          ? [
+              {
+                id: 8,
+                name: "浅仓透",
+                folderName: "asakura_toru",
+                color: "#50d0d0",
+                imageUrl: "/image/toru.webp",
+                imageFit: "cover",
+                textColor: "#111111",
+              },
+            ]
+          : [],
+    },
   }
 }
 
@@ -140,12 +175,16 @@ function storyPayload() {
                 up: "投稿者一",
                 title: "卡片剧情",
                 url: "https://www.bilibili.com/video/BV1xx411c7mD",
+                contentType: "剧情",
+                sourcePlatform: "Bilibili",
               },
               {
                 id: 2,
                 up: "投稿者二",
                 title: "另一视角",
                 url: "https://www.bilibili.com/video/BV1xx411c7mE",
+                contentType: "语音",
+                sourcePlatform: "Bilibili",
               },
             ],
           },
@@ -210,12 +249,12 @@ describe("classic Wiki pages", () => {
       "/story/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
 
-    await user.click(screen.getByRole("button", { name: "搜索角色" }))
+    await user.click(screen.getByRole("button", { name: "搜索内容页" }))
     expect(
-      screen.getByRole("textbox", { name: "搜索角色" }).closest("label")
+      screen.getByRole("textbox", { name: "搜索内容页" }).closest("label")
     ).toHaveClass("is-open")
     await user.type(
-      screen.getByRole("textbox", { name: "搜索角色" }),
+      screen.getByRole("textbox", { name: "搜索内容页" }),
       "芹泽朝日"
     )
     expect(
@@ -300,6 +339,76 @@ describe("classic Wiki pages", () => {
       "aria-busy",
       "false"
     )
+  })
+
+  it("keeps a cross-group idol in both classic groups without inflating the total", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response(catalogPayload("闪耀色彩", true))
+      })
+    )
+
+    render(
+      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
+        <ClassicWikiPage />
+      </MemoryRouter>
+    )
+
+    const illumination = (
+      await screen.findByRole("heading", { name: "illumination STARS" })
+    ).closest("section")!
+    const straylight = screen
+      .getByRole("heading", { name: "Straylight" })
+      .closest("section")!
+    expect(
+      within(illumination).getByRole("link", { name: /樱木真乃/ })
+    ).toBeVisible()
+    expect(
+      within(straylight).getByRole("link", { name: /樱木真乃/ })
+    ).toBeVisible()
+
+    const banner = screen
+      .getByRole("heading", { level: 1, name: "283 Production" })
+      .closest("header")!
+    expect(within(banner).getByText("2 个内容页")).toBeVisible()
+  })
+
+  it("places ungrouped idols after every configured classic group", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response(catalogPayload("闪耀色彩", false, true))
+      })
+    )
+
+    render(
+      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
+        <ClassicWikiPage />
+      </MemoryRouter>
+    )
+
+    const straylightHeading = await screen.findByRole("heading", {
+      name: "Straylight",
+    })
+    const ungroupedHeading = screen.getByRole("heading", { name: "未归档" })
+    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
+    expect(
+      straylightHeading.compareDocumentPosition(ungroupedHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0)
   })
 
   it("filters classic categories and opens every dynamic story source", async () => {

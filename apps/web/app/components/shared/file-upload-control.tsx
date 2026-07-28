@@ -1,15 +1,26 @@
 import type { LucideIcon } from "lucide-react"
 import { FileUpIcon, LoaderCircleIcon, UploadIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
 
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
+function formatFileSize(bytes: number, language: string) {
+  const formatInteger = new Intl.NumberFormat(language, {
+    maximumFractionDigits: 0,
+  })
+  const formatDecimal = new Intl.NumberFormat(language, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })
+
+  if (bytes < 1024) return `${formatInteger.format(bytes)} B`
+  if (bytes < 1024 * 1024) {
+    return `${formatDecimal.format(bytes / 1024)} KiB`
+  }
+  return `${formatDecimal.format(bytes / 1024 / 1024)} MiB`
 }
 
 export type FileUploadControlProps = {
@@ -47,15 +58,20 @@ export function FileUploadControl({
   resetAfterSelect = false,
   invalid = false,
   invalidLabel,
-  dropZoneLabel = `${fileKind}文件选择`,
-  dropTitle = `松开以选择${fileKind}`,
+  dropZoneLabel,
+  dropTitle,
   selectedIcon: SelectedIcon = FileUpIcon,
   emptyIcon: EmptyIcon = UploadIcon,
   onSelect,
 }: FileUploadControlProps) {
+  const { i18n, t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const inactive = disabled || uploading
+  const language = i18n.resolvedLanguage || i18n.language
+  const resolvedDropZoneLabel =
+    dropZoneLabel || t("upload.dropZoneLabel", { fileKind })
+  const resolvedDropTitle = dropTitle || t("upload.dropTitle", { fileKind })
 
   useEffect(() => {
     if (!file && inputRef.current) inputRef.current.value = ""
@@ -73,14 +89,17 @@ export function FileUploadControl({
   }
 
   const title = uploading
-    ? `正在上传${fileKind}`
+    ? t("upload.uploadingTitle", { fileKind })
     : dragging
-      ? dropTitle
+      ? resolvedDropTitle
       : file?.name || emptyTitle
   const detail = uploading
-    ? "上传完成前请勿关闭页面"
+    ? t("upload.uploadingDetail")
     : file
-      ? `${fileKind} · ${formatFileSize(file.size)}`
+      ? t("upload.selectedDetail", {
+          fileKind,
+          size: formatFileSize(file.size, language),
+        })
       : emptyDetail
 
   return (
@@ -100,7 +119,7 @@ export function FileUploadControl({
       />
       <div
         role="group"
-        aria-label={dropZoneLabel}
+        aria-label={resolvedDropZoneLabel}
         className={cn(
           "flex min-h-24 min-w-0 flex-col justify-center gap-4 rounded-lg border border-dashed bg-muted/25 p-4 transition-[border-color,background-color,box-shadow] peer-focus-visible:border-ring peer-focus-visible:ring-3 peer-focus-visible:ring-ring/30 sm:flex-row sm:items-center",
           dragging && "border-primary bg-accent/45 ring-3 ring-ring/20",
@@ -163,16 +182,19 @@ export function FileUploadControl({
               {title}
             </p>
             {uploading ? (
-              <Badge variant="secondary">上传中</Badge>
+              <Badge variant="secondary">{t("upload.uploadingStatus")}</Badge>
             ) : file ? (
               <Badge variant={invalid ? "destructive" : "secondary"}>
-                {invalidLabel || (invalid ? "不可用" : "已选择")}
+                {invalidLabel ||
+                  t(
+                    invalid
+                      ? "upload.unavailableStatus"
+                      : "upload.selectedStatus"
+                  )}
               </Badge>
             ) : null}
           </div>
-          <p className="mt-1 text-xs/5 text-muted-foreground">
-            {detail}
-          </p>
+          <p className="mt-1 text-xs/5 text-muted-foreground">{detail}</p>
         </div>
 
         {!uploading ? (
@@ -184,7 +206,7 @@ export function FileUploadControl({
               onClick={() => inputRef.current?.click()}
             >
               <UploadIcon data-icon="inline-start" />
-              {file ? "更换" : "选择文件"}
+              {t(file ? "upload.changeFile" : "upload.selectFile")}
             </Button>
             {file ? (
               <Button
@@ -192,8 +214,8 @@ export function FileUploadControl({
                 variant="ghost"
                 size="icon"
                 disabled={inactive}
-                aria-label={`移除 ${file.name}`}
-                title="移除已选择的文件"
+                aria-label={t("upload.removeFile", { fileName: file.name })}
+                title={t("upload.removeSelectedFile")}
                 onClick={clearFile}
               >
                 <XIcon />

@@ -3,9 +3,11 @@ import {
     authorizeWikiWrite,
     cleanupWikiObjects,
     findWikiMutationTarget,
+    optionalWikiCatalogId,
     parseWikiUpload,
     singleWikiFile,
     splitStoryUrl,
+    resolveWikiStorySources,
     wikiErrorBody,
     wikiJson,
     wikiMessageOf,
@@ -13,9 +15,14 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
+    parseWikiImageTransform,
+    parseWikiMediaRevision
+} from '@/domains/wiki/image-transform';
+import {
     categoryStorageSlug,
     newStoryImageLocation,
     requireWikiServices,
+    storyImageTransform,
     storyObjectKey,
     validateAndConvertStoryImage
 } from '@/domains/wiki/service';
@@ -71,6 +78,14 @@ export function createHandleEditWikiStory<E extends Env>(
                     requestedOldCardName
                 );
             if (!record) return wikiJson(wikiErrorBody('找不到要修改的记录'));
+            const imageTransform = parseWikiImageTransform(
+                fields,
+                storyImageTransform(record)
+            );
+            const expectedMediaRevision = parseWikiMediaRevision(
+                fields,
+                record.image_media_revision
+            );
             const oldCardName = storyIdField ? record.card_name : requestedOldCardName;
             const oldCategory = storyIdField ? record.category : requestedOldCategory;
             let imageFile = record.image_file;
@@ -109,17 +124,35 @@ export function createHandleEditWikiStory<E extends Env>(
                 }
             }
             const parsedUrl = splitStoryUrl((fields.url ?? '').trim());
+            const [resolvedSource] = await resolveWikiStorySources(services.story!, [{
+                upName: (fields.up_name ?? '').trim(),
+                videoTitle: (fields.video_title ?? '').trim(),
+                url: parsedUrl.url,
+                contentTypeId: optionalWikiCatalogId(
+                    fields.content_type_id,
+                    '内容类型'
+                ) ?? record.content_type_id,
+                sourcePlatformId: optionalWikiCatalogId(
+                    fields.source_platform_id,
+                    '来源平台'
+                ) ?? record.source_platform_id
+            }]);
             const story = {
                 id: record.id,
                 agencyCode: target.agency.code,
                 idolId: target.idol.id,
                 category,
                 cardName,
-                upName: (fields.up_name ?? '').trim(),
-                videoTitle: (fields.video_title ?? '').trim(),
+                upName: resolvedSource!.upName,
+                videoTitle: resolvedSource!.videoTitle,
                 url: parsedUrl.url,
+                contentTypeId: resolvedSource!.contentTypeId,
+                sourcePlatformId: resolvedSource!.sourcePlatformId,
                 subtitle: parsedUrl.subtitle,
-                imageFile
+                imageFile,
+                coverAssetId: file?.filename ? null : record.cover_asset_id,
+                imageTransform,
+                expectedMediaRevision
             };
             await services.story!.updateStoryAndRenameGroup({
                 story,
@@ -137,6 +170,12 @@ export function createHandleEditWikiStory<E extends Env>(
                 return wikiJson(wikiErrorBody(
                     wikiMessageOf(error, '图片内容损坏或无法解码')
                 ), 400);
+            }
+            if (status >= 400 && status < 500) {
+                return wikiJson(
+                    wikiErrorBody(wikiMessageOf(error, '剧情卡片状态冲突')),
+                    status
+                );
             }
             return wikiJson(wikiErrorBody('修改剧情失败'), 500);
         }

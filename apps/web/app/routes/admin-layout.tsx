@@ -15,20 +15,28 @@ import {
   MegaphoneIcon,
   NewspaperIcon,
   PackageOpenIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
   RefreshCwIcon,
   ShieldXIcon,
   UserRoundIcon,
   UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Link, Navigate, NavLink, Outlet, useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { Badge } from "~/components/ui/badge"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
-import { Button } from "~/components/ui/button"
+import { Button, buttonVariants } from "~/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip"
 import { cn } from "~/lib/utils"
 import { getAdminSession, isApiError, logoutAdmin } from "~/shared/api"
 
@@ -122,9 +130,13 @@ const navigation: Array<{
   },
 ]
 
-function navClass({ isActive }: { isActive: boolean }) {
+function navClass(
+  { isActive }: { isActive: boolean },
+  sidebarCollapsed: boolean
+) {
   return cn(
     "group relative flex min-h-12 shrink-0 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:min-h-14",
+    sidebarCollapsed && "lg:justify-center lg:gap-0 lg:px-0",
     isActive
       ? "bg-admin-ink-muted text-admin-ink-foreground"
       : "text-admin-ink-subtle hover:bg-admin-ink-muted hover:text-admin-ink-foreground"
@@ -211,6 +223,7 @@ function isExpiredSession(error: unknown): boolean {
 
 export default function AdminLayout() {
   const navigate = useNavigate()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { data, loading, error, onError, send } = useRequest(getAdminSession())
   onError(() => undefined)
 
@@ -283,6 +296,14 @@ export default function AdminLayout() {
                 ? "最高管理员"
                 : "一般管理员"}
             </Badge>
+            <Link
+              to="/"
+              aria-label="返回主站"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <HomeIcon data-icon="inline-start" aria-hidden="true" />
+              <span className="hidden sm:inline">返回主站</span>
+            </Link>
             <Button
               type="button"
               variant="outline"
@@ -296,51 +317,129 @@ export default function AdminLayout() {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-400 grid-cols-[minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="min-w-0 border-b bg-admin-ink text-admin-ink-foreground lg:min-h-[calc(100svh-4.25rem)] lg:border-r lg:border-b-0">
-          <nav
-            className="flex max-w-full min-w-0 gap-1 overflow-x-auto p-3 lg:sticky lg:top-16 lg:flex-col lg:gap-2 lg:p-5"
-            aria-label="管理业务"
-          >
-            <div className="mb-3 hidden px-3 lg:block">
-              <p className="text-[0.68rem] font-semibold text-admin-ink-subtle uppercase">
-                IMSWEB OPERATIONS
-              </p>
-              <p className="mt-2 text-sm font-medium">内容中枢</p>
-            </div>
-            {navigation
-              .filter(
-                (item) =>
-                  !item.superOnly || data.user.adminRole === "super_admin"
-              )
-              .map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={navClass}
-                >
-                  <span
-                    className={cn(
-                      "absolute inset-y-3 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
-                      item.accent
+      <div
+        className={cn(
+          "mx-auto grid w-full max-w-400 grid-cols-[minmax(0,1fr)] transition-[grid-template-columns] duration-200 motion-reduce:transition-none",
+          sidebarCollapsed
+            ? "lg:grid-cols-[4.5rem_minmax(0,1fr)]"
+            : "lg:grid-cols-[17rem_minmax(0,1fr)]"
+        )}
+      >
+        <aside
+          className="min-w-0 border-b bg-admin-ink text-admin-ink-foreground lg:min-h-[calc(100svh-4.25rem)] lg:border-r lg:border-b-0"
+          data-collapsed={sidebarCollapsed}
+        >
+          <TooltipProvider>
+            <nav
+              id="admin-navigation"
+              className={cn(
+                "flex max-w-full min-w-0 gap-1 overflow-x-auto p-3 lg:sticky lg:top-16 lg:flex-col lg:gap-2",
+                sidebarCollapsed ? "lg:p-3" : "lg:p-5"
+              )}
+              aria-label="管理业务"
+            >
+              <div
+                className={cn(
+                  "mb-3 hidden items-start lg:flex",
+                  sidebarCollapsed
+                    ? "justify-center"
+                    : "justify-between gap-3 px-3"
+                )}
+              >
+                {sidebarCollapsed ? null : (
+                  <div>
+                    <p className="text-[0.68rem] font-semibold text-admin-ink-subtle uppercase">
+                      IMSWEB OPERATIONS
+                    </p>
+                    <p className="mt-2 text-sm font-medium">内容中枢</p>
+                  </div>
+                )}
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-admin-ink-subtle hover:bg-admin-ink-muted hover:text-admin-ink-foreground"
+                        aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
+                        aria-controls="admin-navigation"
+                        aria-expanded={!sidebarCollapsed}
+                        onClick={() =>
+                          setSidebarCollapsed((collapsed) => !collapsed)
+                        }
+                      />
+                    }
+                  >
+                    {sidebarCollapsed ? (
+                      <PanelLeftOpenIcon aria-hidden="true" />
+                    ) : (
+                      <PanelLeftCloseIcon aria-hidden="true" />
                     )}
-                    aria-hidden="true"
-                  />
-                  <item.icon className="size-4 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 whitespace-nowrap lg:flex lg:flex-col">
-                    <span>{item.label}</span>
-                    <span className="hidden text-[10.88px]/4 font-normal text-admin-ink-subtle lg:block">
-                      {item.description}
-                    </span>
-                  </span>
-                  <ChevronRightIcon
-                    className="ml-auto hidden size-3 opacity-50 transition-transform group-hover:translate-x-0.5 lg:block"
-                    aria-hidden="true"
-                  />
-                </NavLink>
-              ))}
-          </nav>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    {sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              {navigation
+                .filter(
+                  (item) =>
+                    !item.superOnly || data.user.adminRole === "super_admin"
+                )
+                .map((item) => {
+                  const link = (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className={(state) => navClass(state, sidebarCollapsed)}
+                    >
+                      <span
+                        className={cn(
+                          "absolute inset-y-3 left-0 w-0.5 rounded-full opacity-0 transition-opacity group-aria-[current=page]:opacity-100",
+                          item.accent
+                        )}
+                        aria-hidden="true"
+                      />
+                      <item.icon
+                        className="size-4 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span
+                        className={cn(
+                          "min-w-0 whitespace-nowrap lg:flex lg:flex-col",
+                          sidebarCollapsed && "lg:sr-only"
+                        )}
+                      >
+                        <span>{item.label}</span>
+                        <span className="hidden text-[10.88px]/4 font-normal text-admin-ink-subtle lg:block">
+                          {item.description}
+                        </span>
+                      </span>
+                      <ChevronRightIcon
+                        className={cn(
+                          "ml-auto hidden size-3 opacity-50 transition-transform group-hover:translate-x-0.5 lg:block",
+                          sidebarCollapsed && "lg:hidden"
+                        )}
+                        aria-hidden="true"
+                      />
+                    </NavLink>
+                  )
+
+                  if (!sidebarCollapsed) {
+                    return link
+                  }
+
+                  return (
+                    <Tooltip key={item.to}>
+                      <TooltipTrigger render={link} />
+                      <TooltipContent side="right">{item.label}</TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+            </nav>
+          </TooltipProvider>
         </aside>
         <main className="min-w-0 bg-muted/20 px-4 py-7 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
           <Outlet context={{ adminSession: data.user }} />

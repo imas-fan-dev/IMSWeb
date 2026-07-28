@@ -50,6 +50,11 @@ const aboutAdminUpdateSchema = aboutAdminSnapshotSchema.extend({
   success: z.literal(true),
 })
 
+const aboutHeroImageUploadSchema = z.object({
+  success: z.literal(true),
+  url: z.string().min(1),
+})
+
 export type AboutPerson = z.infer<typeof aboutPersonSchema>
 export type AboutGroup = z.infer<typeof aboutGroupSchema>
 export type AboutPageContent = z.infer<typeof aboutPageContentSchema>
@@ -77,6 +82,19 @@ export function updateAdminAboutPageContent(
     {
       meta: withCsrf(),
       transform: (payload) => aboutAdminUpdateSchema.parse(payload),
+    }
+  )
+}
+
+export function uploadAboutHeroImage(file: File) {
+  const form = new FormData()
+  form.append("image", file)
+  return apiClient.Post<z.infer<typeof aboutHeroImageUploadSchema>, unknown>(
+    "/api/admin/about/hero-image",
+    form,
+    {
+      meta: withCsrf(),
+      transform: (payload) => aboutHeroImageUploadSchema.parse(payload),
     }
   )
 }

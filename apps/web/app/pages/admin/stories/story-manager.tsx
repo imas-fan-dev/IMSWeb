@@ -520,9 +520,9 @@ export function StoryManager() {
           story={editingStory}
           agency={selectedAgency.name}
           idol={selectedIdol.name}
-          categories={
-            stories?.categories.map((category) => category.name) ?? []
-          }
+          categories={stories?.categories ?? []}
+          contentTypes={stories?.contentTypes ?? []}
+          sourcePlatforms={stories?.sourcePlatforms ?? []}
           defaultCategory={
             categoryFilter === "all"
               ? (stories?.categories[0]?.name ?? "")

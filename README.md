@@ -57,6 +57,17 @@ pnpm dev
 - API：`http://127.0.0.1:3000`
 - MinIO 控制台：`http://127.0.0.1:9001`
 
+需要让同一套 API/Web 热更新环境连接 Cloudflare R2 测试桶时，在被 Git 忽略的
+`apps/api/.env` 中填写测试桶配置后运行：
+
+```sh
+pnpm run dev:r2
+```
+
+该入口继续使用本地 PostgreSQL，但不会启动或初始化 MinIO。启动器只读取 R2 存储字段和 AWS
+凭据，并拒绝名称未明确标记为 `test` 的 bucket；API 的 JWT、站点地址和数据库仍使用隔离的
+本地开发配置。
+
 首次启动可能需要拉取容器镜像。`Ctrl+C` 只停止本次启动的 API 和 Web，PostgreSQL、MinIO
 及数据卷会保留，以便下次快速启动；不再使用时运行：
 
@@ -74,6 +85,7 @@ pnpm run dev:down
 | 命令                        | 作用                                               |
 | --------------------------- | -------------------------------------------------- |
 | `pnpm dev`                  | 一键启动本地依赖、迁移、API 与 Web 热更新环境      |
+| `pnpm run dev:r2`           | 使用 R2 测试桶启动 API 与 Web 热更新环境           |
 | `pnpm run dev:doctor`       | 只读检查 Node、pnpm、依赖、容器运行时和端口        |
 | `pnpm run dev:down`         | 停止本地 PostgreSQL 与 MinIO，保留数据卷           |
 | `pnpm run dev:node`         | 热重载启动 Hono Node API（源码和 `apps/api/.env`） |

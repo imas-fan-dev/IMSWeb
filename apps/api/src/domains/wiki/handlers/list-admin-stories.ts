@@ -6,10 +6,19 @@ import {
   type WikiServicesResolver,
 } from "@/domains/wiki/handler-support";
 import {
+  idolImageTransform,
   requireWikiServices,
+  storyObjectKey,
+  storyCoverAssetUrl,
+  storyImageTransform,
   toWikiAgency,
   wikiStoryImageUrl,
 } from "@/domains/wiki/service";
+import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
+
+function revisionedUrl(url: string, revision: number): string {
+  return url ? `${url}${url.includes("?") ? "&" : "?"}v=${revision}` : url;
+}
 
 export function createHandleListAdminWikiStories<E extends Env>(
   resolveServices: WikiServicesResolver<E>,
@@ -18,11 +27,11 @@ export function createHandleListAdminWikiStories<E extends Env>(
     const services = await resolveServices(context);
     const unauthorized = await authorizeWikiRead(context, services);
     if (unauthorized) return unauthorized;
-    requireWikiServices(services, ["story"]);
+    requireWikiServices(services, ["story", "storage"]);
     const agencyName = (context.req.query("agency") ?? "").trim();
     const idolName = (context.req.query("idol") ?? "").trim();
     if (!agencyName || !idolName) {
-      return wikiJson(wikiErrorBody("缺少企划或偶像参数"), 400);
+      return wikiJson(wikiErrorBody("缺少企划或内容页参数"), 400);
     }
     const agencyRecord = await services.story!.findAgencyByName(agencyName) ??
       await services.story!.findAgencyByCode(agencyName);
@@ -32,10 +41,83 @@ export function createHandleListAdminWikiStories<E extends Env>(
       agency.id,
       idolName,
     );
-    if (!idol) return wikiJson(wikiErrorBody("找不到该偶像"), 404);
-    const [stories, categoryRows] = await Promise.all([
+    if (!idol) return wikiJson(wikiErrorBody("找不到该内容页"), 404);
+    const [stories, cardRows, categoryRows, contentTypes, sourcePlatforms] = await Promise.all([
       services.story!.listStories(agency.code, idol.id),
+      services.story!.listStoryCards(agency.code, idol.id),
       services.story!.listWikiCategories(agency.id, idol.id),
+      services.story!.listStoryContentTypes(),
+      services.story!.listStorySourcePlatforms(),
+    ]);
+    const [idolImageUrl, resolvedCards, resolvedStories] = await Promise.all([
+      idol.avatar_object_key
+        ? resolvePublicObjectUrl(
+            services.storage!,
+            idol.avatar_object_key,
+            `/image/${encodeURIComponent(agency.name)}/` +
+              `${encodeURIComponent(idol.name_cn)}/icon.webp`,
+          ).then((url) => revisionedUrl(url, idol.avatar_media_revision))
+        : Promise.resolve(""),
+      Promise.all(cardRows.map(async (card) => ({
+        cardId: card.card_id,
+        category: card.category,
+        cardName: card.card_name,
+        subtitle: card.subtitle ?? "",
+        imageFile: card.image_file,
+        coverAssetId: card.cover_asset_id,
+        coverAssetName: card.cover_asset_name,
+        imageUrl: card.cover_asset_object_key || card.image_file
+          ? revisionedUrl(
+              await resolvePublicObjectUrl(
+                services.storage!,
+                card.cover_asset_object_key ??
+                  storyObjectKey(agency.code, idol.folder_name, card.image_file!),
+                card.cover_asset_id
+                  ? storyCoverAssetUrl(card.cover_asset_id)
+                  : wikiStoryImageUrl(agency.name, idol.name_cn, card.image_file),
+              ),
+              card.cover_asset_revision ?? card.image_media_revision,
+            )
+          : "",
+        imageTransform: storyImageTransform(card),
+        mediaRevision: card.image_media_revision,
+      }))),
+      Promise.all(stories.map(async (story) => ({
+        id: story.id,
+        category: story.category,
+        cardName: story.card_name,
+        upName: story.up_name,
+        videoTitle: story.video_title,
+        url: story.url,
+        contentTypeId: story.content_type_id,
+        contentTypeName: story.content_type_name,
+        sourcePlatformId: story.source_platform_id,
+        sourcePlatformName: story.source_platform_name,
+        subtitle: story.subtitle ?? "",
+        imageFile: story.image_file,
+        coverAssetId: story.cover_asset_id,
+        coverAssetName: story.cover_asset_name,
+        imageUrl: story.cover_asset_object_key || story.image_file
+          ? revisionedUrl(
+              await resolvePublicObjectUrl(
+                services.storage!,
+                story.cover_asset_object_key ??
+                  storyObjectKey(agency.code, idol.folder_name, story.image_file!),
+                story.cover_asset_id
+                  ? storyCoverAssetUrl(story.cover_asset_id)
+                  : wikiStoryImageUrl(
+                      agency.name,
+                      idol.name_cn,
+                      story.image_file,
+                    ),
+              ),
+              story.cover_asset_revision ?? story.image_media_revision,
+            )
+          : "",
+        cardId: story.card_id,
+        imageTransform: storyImageTransform(story),
+        mediaRevision: story.image_media_revision,
+      }))),
     ]);
     return wikiJson({
       status: "success",
@@ -52,10 +134,12 @@ export function createHandleListAdminWikiStories<E extends Env>(
         color: idol.color,
         textColor: idol.text_color,
         displayOrder: idol.display_order,
-        imageUrl: idol.avatar_object_key
-          ? `/image/${encodeURIComponent(agency.name)}/${encodeURIComponent(idol.name_cn)}/icon.webp`
-          : "",
+        imageUrl: idolImageUrl,
         imageFit: idol.avatar_fit,
+        imageTransform: idolImageTransform(idol),
+        mediaRevision: idol.avatar_media_revision,
+        entryKind: idol.entry_kind,
+        entrySubtype: idol.entry_subtype,
       },
       categories: categoryRows.map((category) => ({
         id: category.id,
@@ -65,21 +149,25 @@ export function createHandleListAdminWikiStories<E extends Env>(
         showWhenEmpty: category.show_when_empty,
         backgroundEligible: category.background_eligible,
       })),
-      stories: stories.map((story) => ({
-        id: story.id,
-        category: story.category,
-        cardName: story.card_name,
-        upName: story.up_name,
-        videoTitle: story.video_title,
-        url: story.url,
-        subtitle: story.subtitle ?? "",
-        imageFile: story.image_file,
-        imageUrl: wikiStoryImageUrl(
-          agency.name,
-          idol.name_cn,
-          story.image_file,
-        ),
+      contentTypes: contentTypes.map((option) => ({
+        id: option.id,
+        name: option.name,
+        description: option.description,
+        displayOrder: option.display_order,
+        isActive: option.is_active,
+        revision: option.revision,
       })),
+      sourcePlatforms: sourcePlatforms.map((option) => ({
+        id: option.id,
+        name: option.name,
+        homepageUrl: option.homepage_url,
+        description: option.description,
+        displayOrder: option.display_order,
+        isActive: option.is_active,
+        revision: option.revision,
+      })),
+      cards: resolvedCards,
+      stories: resolvedStories,
     });
   };
 }

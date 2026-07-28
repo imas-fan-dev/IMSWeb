@@ -223,6 +223,12 @@ function sqliteStorySchema(): string {
             display_order INTEGER NOT NULL DEFAULT 0,
             banner_title TEXT NOT NULL DEFAULT '',
             icon_object_key TEXT,
+            icon_fit TEXT NOT NULL DEFAULT 'contain' CHECK (icon_fit IN ('cover', 'contain')),
+            icon_focal_x REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_x BETWEEN 0 AND 1),
+            icon_focal_y REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_y BETWEEN 0 AND 1),
+            icon_zoom REAL NOT NULL DEFAULT 1 CHECK (icon_zoom BETWEEN 1 AND 3),
+            icon_rotation INTEGER NOT NULL DEFAULT 0 CHECK (icon_rotation IN (0, 90, 180, 270)),
+            icon_media_revision INTEGER NOT NULL DEFAULT 0 CHECK (icon_media_revision >= 0),
             fallback_artwork_object_key TEXT,
             layout_revision INTEGER NOT NULL DEFAULT 0
         );
@@ -237,6 +243,19 @@ function sqliteStorySchema(): string {
             text_color TEXT NOT NULL DEFAULT '#ffffff',
             avatar_object_key TEXT,
             avatar_fit TEXT NOT NULL DEFAULT 'cover' CHECK (avatar_fit IN ('cover', 'contain')),
+            avatar_focal_x REAL NOT NULL DEFAULT 0.5 CHECK (avatar_focal_x BETWEEN 0 AND 1),
+            avatar_focal_y REAL NOT NULL DEFAULT 0.5 CHECK (avatar_focal_y BETWEEN 0 AND 1),
+            avatar_zoom REAL NOT NULL DEFAULT 1 CHECK (avatar_zoom BETWEEN 1 AND 3),
+            avatar_rotation INTEGER NOT NULL DEFAULT 0 CHECK (avatar_rotation IN (0, 90, 180, 270)),
+            avatar_media_revision INTEGER NOT NULL DEFAULT 0 CHECK (avatar_media_revision >= 0),
+            entry_kind TEXT NOT NULL DEFAULT 'idol'
+                CHECK (entry_kind IN ('idol', 'unit', 'story', 'other')),
+            entry_subtype TEXT
+                CHECK (entry_subtype IS NULL OR entry_subtype IN ('main', 'event', 'special', 'other')),
+            CHECK (
+                (entry_kind = 'story' AND entry_subtype IS NOT NULL)
+                OR (entry_kind <> 'story' AND entry_subtype IS NULL)
+            ),
             FOREIGN KEY(agency_id) REFERENCES agencies(id)
         );
         CREATE INDEX IF NOT EXISTS idx_idols_agency ON idols(agency_id);
@@ -257,6 +276,12 @@ const SQLITE_WIKI_SCHEMA = `
         name TEXT NOT NULL,
         color TEXT NOT NULL CHECK (color GLOB '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
         icon_object_key TEXT,
+        icon_fit TEXT NOT NULL DEFAULT 'contain' CHECK (icon_fit IN ('cover', 'contain')),
+        icon_focal_x REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_x BETWEEN 0 AND 1),
+        icon_focal_y REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_y BETWEEN 0 AND 1),
+        icon_zoom REAL NOT NULL DEFAULT 1 CHECK (icon_zoom BETWEEN 1 AND 3),
+        icon_rotation INTEGER NOT NULL DEFAULT 0 CHECK (icon_rotation IN (0, 90, 180, 270)),
+        icon_media_revision INTEGER NOT NULL DEFAULT 0 CHECK (icon_media_revision >= 0),
         display_order INTEGER NOT NULL CHECK (display_order >= 0),
         is_fallback INTEGER NOT NULL DEFAULT 0 CHECK (is_fallback IN (0, 1)),
         UNIQUE(agency_id, code),
@@ -271,7 +296,7 @@ const SQLITE_WIKI_SCHEMA = `
     CREATE TABLE IF NOT EXISTS wiki_group_members (
         agency_id INTEGER NOT NULL,
         group_id INTEGER NOT NULL,
-        idol_id INTEGER NOT NULL UNIQUE,
+        idol_id INTEGER NOT NULL,
         display_order INTEGER NOT NULL CHECK (display_order >= 0),
         PRIMARY KEY(group_id, idol_id),
         UNIQUE(group_id, display_order),
@@ -303,6 +328,7 @@ const SQLITE_WIKI_SCHEMA = `
         display_order INTEGER NOT NULL CHECK (display_order >= 0),
         show_when_empty INTEGER NOT NULL DEFAULT 1 CHECK (show_when_empty IN (0, 1)),
         PRIMARY KEY(idol_id, category_id),
+        UNIQUE(agency_id, idol_id, category_id),
         UNIQUE(idol_id, display_order),
         FOREIGN KEY(idol_id, agency_id) REFERENCES idols(id, agency_id) ON DELETE CASCADE,
         FOREIGN KEY(category_id, agency_id) REFERENCES wiki_categories(id, agency_id) ON DELETE CASCADE
@@ -313,6 +339,130 @@ const SQLITE_WIKI_SCHEMA = `
         ON wiki_idol_categories(category_id);
     CREATE INDEX IF NOT EXISTS idx_wiki_idol_categories_idol_order
         ON wiki_idol_categories(idol_id, display_order);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agencies_name_cn
+        ON agencies(name_cn);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_idols_agency_name_cn
+        ON idols(agency_id, name_cn);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_idols_agency_folder_name
+        ON idols(agency_id, folder_name);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_groups_agency_name
+        ON wiki_groups(agency_id, name);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_idol_categories_agency_identity
+        ON wiki_idol_categories(agency_id, idol_id, category_id);
+`;
+
+const SQLITE_NORMALIZED_STORY_SCHEMA = `
+    CREATE TABLE IF NOT EXISTS wiki_story_content_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL DEFAULT '',
+        display_order INTEGER NOT NULL CHECK (display_order >= 0),
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0)
+    );
+    INSERT OR IGNORE INTO wiki_story_content_types
+        (id, name, description, display_order)
+    VALUES
+        (1, '剧情', '卡片剧情、活动剧情或相关视频内容', 0),
+        (2, '语音', '语音、广播或音频内容', 1),
+        (3, '电话', '游戏内电话与通话内容', 2),
+        (4, '文本专栏', '访谈、专栏、翻译与文字资料', 3);
+
+    CREATE TABLE IF NOT EXISTS wiki_story_source_platforms (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        homepage_url TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        display_order INTEGER NOT NULL CHECK (display_order >= 0),
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0)
+    );
+    INSERT OR IGNORE INTO wiki_story_source_platforms
+        (id, name, homepage_url, description, display_order)
+    VALUES
+        (1, 'Bilibili', 'https://www.bilibili.com', 'Bilibili 视频与专栏', 0),
+        (2, '其他来源', '', '尚未归类或没有独立平台目录的来源', 1);
+
+    CREATE TABLE IF NOT EXISTS wiki_story_cover_assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agency_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        object_key TEXT NOT NULL UNIQUE,
+        display_order INTEGER NOT NULL CHECK (display_order >= 0),
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+        UNIQUE(id, agency_id),
+        UNIQUE(agency_id, name),
+        FOREIGN KEY(agency_id) REFERENCES agencies(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wiki_story_cover_assets_agency_order
+        ON wiki_story_cover_assets(agency_id, display_order, id);
+
+    CREATE TABLE IF NOT EXISTS wiki_story_cards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agency_id INTEGER NOT NULL,
+        idol_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL,
+        card_name TEXT NOT NULL,
+        subtitle TEXT,
+        image_file TEXT,
+        cover_asset_id INTEGER,
+        image_fit TEXT NOT NULL DEFAULT 'cover' CHECK (image_fit IN ('cover', 'contain')),
+        image_focal_x REAL NOT NULL DEFAULT 0.5 CHECK (image_focal_x BETWEEN 0 AND 1),
+        image_focal_y REAL NOT NULL DEFAULT 0.5 CHECK (image_focal_y BETWEEN 0 AND 1),
+        image_zoom REAL NOT NULL DEFAULT 1 CHECK (image_zoom BETWEEN 1 AND 3),
+        image_rotation INTEGER NOT NULL DEFAULT 0 CHECK (image_rotation IN (0, 90, 180, 270)),
+        image_media_revision INTEGER NOT NULL DEFAULT 0 CHECK (image_media_revision >= 0),
+        deleted_at TEXT,
+        display_order INTEGER NOT NULL CHECK (display_order >= 0),
+        UNIQUE(id, agency_id),
+        UNIQUE(agency_id, idol_id, category_id, card_name),
+        CHECK (cover_asset_id IS NULL OR image_file IS NULL),
+        FOREIGN KEY(cover_asset_id, agency_id)
+            REFERENCES wiki_story_cover_assets(id, agency_id) ON DELETE RESTRICT,
+        FOREIGN KEY(agency_id, idol_id, category_id)
+            REFERENCES wiki_idol_categories(agency_id, idol_id, category_id)
+            ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wiki_story_cards_agency_idol
+        ON wiki_story_cards(agency_id, idol_id, display_order);
+    CREATE INDEX IF NOT EXISTS idx_wiki_story_cards_category
+        ON wiki_story_cards(category_id);
+    CREATE INDEX IF NOT EXISTS idx_wiki_story_cards_background
+        ON wiki_story_cards(category_id, id)
+        WHERE image_file IS NOT NULL OR cover_asset_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_wiki_story_cards_cover_asset
+        ON wiki_story_cards(cover_asset_id) WHERE cover_asset_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS wiki_story_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agency_id INTEGER NOT NULL,
+        card_id INTEGER NOT NULL,
+        up_name TEXT,
+        video_title TEXT,
+        url TEXT,
+        content_type_id INTEGER NOT NULL DEFAULT 1,
+        source_platform_id INTEGER NOT NULL DEFAULT 2,
+        display_order INTEGER NOT NULL CHECK (display_order >= 0),
+        legacy_table TEXT,
+        legacy_id INTEGER,
+        legacy_subtitle TEXT,
+        legacy_image_file TEXT,
+        deleted_at TEXT,
+        UNIQUE(card_id, display_order),
+        UNIQUE(legacy_table, legacy_id),
+        CHECK ((legacy_table IS NULL) = (legacy_id IS NULL)),
+        FOREIGN KEY(content_type_id)
+            REFERENCES wiki_story_content_types(id) ON DELETE RESTRICT,
+        FOREIGN KEY(source_platform_id)
+            REFERENCES wiki_story_source_platforms(id) ON DELETE RESTRICT,
+        FOREIGN KEY(card_id, agency_id)
+            REFERENCES wiki_story_cards(id, agency_id) ON DELETE CASCADE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_story_links_agency_api_id
+        ON wiki_story_links(agency_id, COALESCE(legacy_id, id));
+    CREATE INDEX IF NOT EXISTS idx_wiki_story_links_card
+        ON wiki_story_links(card_id, display_order);
 `;
 
 const SQLITE_WIKI_SEED = `
@@ -376,6 +526,86 @@ const SQLITE_WIKI_SEED = `
     );
 `;
 
+const SQLITE_NORMALIZED_STORY_SEED = `
+    WITH legacy_rows AS (
+        SELECT '765' AS agency_code, '765_stories' AS legacy_table, * FROM "765_stories"
+        UNION ALL SELECT '876', '876_stories', * FROM "876_stories"
+        UNION ALL SELECT 'cg', 'cg_stories', * FROM cg_stories
+        UNION ALL SELECT 'ml', 'ml_stories', * FROM ml_stories
+        UNION ALL SELECT 'sidem', 'sidem_stories', * FROM sidem_stories
+        UNION ALL SELECT 'sc', 'sc_stories', * FROM sc_stories
+        UNION ALL SELECT 'gk', 'gk_stories', * FROM gk_stories
+    ), resolved AS (
+        SELECT a.id AS agency_id, rows.id AS legacy_id, rows.idol_id,
+               c.id AS category_id, rows.card_name, rows.subtitle, rows.image_file
+        FROM legacy_rows rows
+        JOIN agencies a ON a.code = rows.agency_code
+        JOIN idols i ON i.id = rows.idol_id AND i.agency_id = a.id
+        JOIN wiki_categories c ON c.agency_id = a.id AND c.name = rows.category
+    ), ranked AS (
+        SELECT resolved.*,
+               ROW_NUMBER() OVER (
+                   PARTITION BY agency_id, idol_id, category_id, card_name
+                   ORDER BY legacy_id
+               ) AS canonical_order
+        FROM resolved
+    ), canonical AS (
+        SELECT * FROM ranked WHERE canonical_order = 1
+    ), ordered AS (
+        SELECT canonical.*,
+               ROW_NUMBER() OVER (
+                   PARTITION BY idol_id, category_id ORDER BY legacy_id, card_name
+               ) - 1 AS display_order
+        FROM canonical
+    )
+    INSERT OR IGNORE INTO wiki_story_cards
+        (agency_id, idol_id, category_id, card_name, subtitle, image_file, display_order)
+    SELECT agency_id, idol_id, category_id, card_name, subtitle, image_file, display_order
+    FROM ordered;
+
+    WITH legacy_rows AS (
+        SELECT '765' AS agency_code, '765_stories' AS legacy_table, * FROM "765_stories"
+        UNION ALL SELECT '876', '876_stories', * FROM "876_stories"
+        UNION ALL SELECT 'cg', 'cg_stories', * FROM cg_stories
+        UNION ALL SELECT 'ml', 'ml_stories', * FROM ml_stories
+        UNION ALL SELECT 'sidem', 'sidem_stories', * FROM sidem_stories
+        UNION ALL SELECT 'sc', 'sc_stories', * FROM sc_stories
+        UNION ALL SELECT 'gk', 'gk_stories', * FROM gk_stories
+    ), resolved AS (
+        SELECT a.id AS agency_id, rows.legacy_table, rows.id AS legacy_id,
+               rows.idol_id, c.id AS category_id, rows.card_name,
+               rows.up_name, rows.video_title, rows.url, rows.subtitle, rows.image_file
+        FROM legacy_rows rows
+        JOIN agencies a ON a.code = rows.agency_code
+        JOIN idols i ON i.id = rows.idol_id AND i.agency_id = a.id
+        JOIN wiki_categories c ON c.agency_id = a.id AND c.name = rows.category
+    ), linked AS (
+        SELECT resolved.*, cards.id AS card_id,
+               ROW_NUMBER() OVER (
+                   PARTITION BY cards.id ORDER BY resolved.legacy_id
+               ) - 1 AS display_order
+        FROM resolved
+        JOIN wiki_story_cards cards
+          ON cards.agency_id = resolved.agency_id
+         AND cards.idol_id = resolved.idol_id
+         AND cards.category_id = resolved.category_id
+         AND cards.card_name = resolved.card_name
+    )
+    INSERT OR IGNORE INTO wiki_story_links
+        (agency_id, card_id, up_name, video_title, url, display_order,
+         legacy_table, legacy_id, legacy_subtitle, legacy_image_file)
+    SELECT agency_id, card_id, up_name, video_title, url, display_order,
+           legacy_table, legacy_id, subtitle, image_file
+    FROM linked;
+
+    UPDATE sqlite_sequence
+    SET seq = MAX(
+        seq,
+        COALESCE((SELECT MAX(legacy_id) FROM wiki_story_links), 0)
+    )
+    WHERE name = 'wiki_story_links';
+`;
+
 export class SqliteSchemaStrategy implements SqlSchemaStrategy {
     async initializeCore(database: ManagedSqlDatabase): Promise<void> {
         await database.executeScript(SQLITE_CORE_SCHEMA);
@@ -413,10 +643,23 @@ export class SqliteSchemaStrategy implements SqlSchemaStrategy {
 
     async initializeStory(database: ManagedSqlDatabase): Promise<void> {
         await database.executeScript(sqliteStorySchema());
+        const hadNormalizedStorySchema = await this.tableExists(database, 'wiki_story_cards');
         await this.ensureColumn(database, 'agencies', 'wiki_enabled', 'INTEGER NOT NULL DEFAULT 1');
         await this.ensureColumn(database, 'agencies', 'display_order', 'INTEGER NOT NULL DEFAULT 0');
         await this.ensureColumn(database, 'agencies', 'banner_title', "TEXT NOT NULL DEFAULT ''");
         await this.ensureColumn(database, 'agencies', 'icon_object_key', 'TEXT');
+        await this.ensureColumn(database, 'agencies', 'icon_fit',
+            "TEXT NOT NULL DEFAULT 'contain' CHECK (icon_fit IN ('cover', 'contain'))");
+        await this.ensureColumn(database, 'agencies', 'icon_focal_x',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_x BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'agencies', 'icon_focal_y',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_y BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'agencies', 'icon_zoom',
+            'REAL NOT NULL DEFAULT 1 CHECK (icon_zoom BETWEEN 1 AND 3)');
+        await this.ensureColumn(database, 'agencies', 'icon_rotation',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (icon_rotation IN (0, 90, 180, 270))');
+        await this.ensureColumn(database, 'agencies', 'icon_media_revision',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (icon_media_revision >= 0)');
         await this.ensureColumn(database, 'agencies', 'fallback_artwork_object_key', 'TEXT');
         await this.ensureColumn(database, 'agencies', 'layout_revision', 'INTEGER NOT NULL DEFAULT 0');
         await this.ensureColumn(database, 'idols', 'wiki_enabled', 'INTEGER NOT NULL DEFAULT 1');
@@ -424,8 +667,163 @@ export class SqliteSchemaStrategy implements SqlSchemaStrategy {
         await this.ensureColumn(database, 'idols', 'text_color', "TEXT NOT NULL DEFAULT '#ffffff'");
         await this.ensureColumn(database, 'idols', 'avatar_object_key', 'TEXT');
         await this.ensureColumn(database, 'idols', 'avatar_fit', "TEXT NOT NULL DEFAULT 'cover'");
+        await this.ensureColumn(database, 'idols', 'avatar_focal_x',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (avatar_focal_x BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'idols', 'avatar_focal_y',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (avatar_focal_y BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'idols', 'avatar_zoom',
+            'REAL NOT NULL DEFAULT 1 CHECK (avatar_zoom BETWEEN 1 AND 3)');
+        await this.ensureColumn(database, 'idols', 'avatar_rotation',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (avatar_rotation IN (0, 90, 180, 270))');
+        await this.ensureColumn(database, 'idols', 'avatar_media_revision',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (avatar_media_revision >= 0)');
+        await this.ensureColumn(database, 'idols', 'deleted_at', 'TEXT');
+        const entryKindAdded = await this.ensureColumn(database, 'idols', 'entry_kind',
+            "TEXT NOT NULL DEFAULT 'idol' CHECK (entry_kind IN ('idol', 'unit', 'story', 'other'))");
+        await this.ensureColumn(database, 'idols', 'entry_subtype',
+            "TEXT CHECK (entry_subtype IS NULL OR entry_subtype IN ('main', 'event', 'special', 'other'))");
         await database.executeScript(SQLITE_WIKI_SCHEMA);
-        await database.executeScript(SQLITE_WIKI_SEED);
+        await this.ensureColumn(database, 'wiki_groups', 'icon_fit',
+            "TEXT NOT NULL DEFAULT 'contain' CHECK (icon_fit IN ('cover', 'contain'))");
+        await this.ensureColumn(database, 'wiki_groups', 'icon_focal_x',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_x BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'wiki_groups', 'icon_focal_y',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (icon_focal_y BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'wiki_groups', 'icon_zoom',
+            'REAL NOT NULL DEFAULT 1 CHECK (icon_zoom BETWEEN 1 AND 3)');
+        await this.ensureColumn(database, 'wiki_groups', 'icon_rotation',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (icon_rotation IN (0, 90, 180, 270))');
+        await this.ensureColumn(database, 'wiki_groups', 'icon_media_revision',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (icon_media_revision >= 0)');
+        await this.removeExclusiveWikiGroupMembership(database);
+        if (hadNormalizedStorySchema) {
+            await database.executeScript(SQLITE_NORMALIZED_STORY_SCHEMA);
+        } else {
+            await database.executeScript(`
+                BEGIN IMMEDIATE;
+                ${SQLITE_WIKI_SEED}
+                ${SQLITE_NORMALIZED_STORY_SCHEMA}
+                ${SQLITE_NORMALIZED_STORY_SEED}
+                COMMIT;
+            `);
+        }
+        if (entryKindAdded || !hadNormalizedStorySchema) {
+            await database.executeScript(`
+                UPDATE idols
+                SET entry_kind='unit', entry_subtype=NULL
+                WHERE id IN (
+                    SELECT members.idol_id
+                    FROM wiki_group_members members
+                    JOIN wiki_groups groups
+                      ON groups.id=members.group_id
+                     AND groups.agency_id=members.agency_id
+                    JOIN agencies agencies ON agencies.id=groups.agency_id
+                    WHERE agencies.code='sidem' AND groups.code='sidem-units'
+                );
+                UPDATE idols
+                SET entry_kind='story', entry_subtype='special'
+                WHERE id IN (
+                    SELECT members.idol_id
+                    FROM wiki_group_members members
+                    JOIN wiki_groups groups
+                      ON groups.id=members.group_id
+                     AND groups.agency_id=members.agency_id
+                    JOIN agencies agencies ON agencies.id=groups.agency_id
+                    WHERE agencies.code='sidem' AND groups.code='sidem-special'
+                );
+            `);
+        }
+        await this.ensureColumn(database, 'wiki_story_cards', 'image_fit',
+            "TEXT NOT NULL DEFAULT 'cover' CHECK (image_fit IN ('cover', 'contain'))");
+        await this.ensureColumn(database, 'wiki_story_cards', 'image_focal_x',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (image_focal_x BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'wiki_story_cards', 'image_focal_y',
+            'REAL NOT NULL DEFAULT 0.5 CHECK (image_focal_y BETWEEN 0 AND 1)');
+        await this.ensureColumn(database, 'wiki_story_cards', 'image_zoom',
+            'REAL NOT NULL DEFAULT 1 CHECK (image_zoom BETWEEN 1 AND 3)');
+        await this.ensureColumn(database, 'wiki_story_cards', 'image_rotation',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (image_rotation IN (0, 90, 180, 270))');
+        await this.ensureColumn(database, 'wiki_story_cards', 'image_media_revision',
+            'INTEGER NOT NULL DEFAULT 0 CHECK (image_media_revision >= 0)');
+        await this.ensureColumn(database, 'wiki_story_cards', 'cover_asset_id', 'INTEGER');
+        await this.ensureColumn(database, 'wiki_story_cards', 'deleted_at', 'TEXT');
+        await this.ensureColumn(database, 'wiki_story_links', 'content_type_id',
+            'INTEGER NOT NULL DEFAULT 1');
+        await this.ensureColumn(database, 'wiki_story_links', 'source_platform_id',
+            'INTEGER NOT NULL DEFAULT 2');
+        await this.ensureColumn(database, 'wiki_story_links', 'deleted_at', 'TEXT');
+        await database.prepare(
+            `UPDATE wiki_story_links SET source_platform_id=1
+             WHERE source_platform_id=2 AND (
+                 LOWER(COALESCE(url, '')) LIKE '%bilibili.com/%'
+                 OR LOWER(COALESCE(url, '')) LIKE '%b23.tv/%'
+             )`
+        ).run();
+        await database.executeScript(`
+            CREATE INDEX IF NOT EXISTS idx_wiki_story_links_content_type
+                ON wiki_story_links(content_type_id, card_id);
+            CREATE INDEX IF NOT EXISTS idx_wiki_story_links_source_platform
+                ON wiki_story_links(source_platform_id, card_id);
+            CREATE INDEX IF NOT EXISTS idx_idols_active_agency_order
+                ON idols(agency_id, display_order, id) WHERE deleted_at IS NULL;
+            CREATE INDEX IF NOT EXISTS idx_wiki_story_cards_active_idol_order
+                ON wiki_story_cards(agency_id, idol_id, display_order, id)
+                WHERE deleted_at IS NULL;
+            CREATE INDEX IF NOT EXISTS idx_wiki_story_links_active_card_order
+                ON wiki_story_links(card_id, display_order, id)
+                WHERE deleted_at IS NULL;
+        `);
+    }
+
+    private async tableExists(database: ManagedSqlDatabase, table: string): Promise<boolean> {
+        const row = await database.prepare(
+            "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?"
+        ).bind(table).first<{ present: number }>();
+        return row !== null;
+    }
+
+    private async removeExclusiveWikiGroupMembership(database: ManagedSqlDatabase): Promise<void> {
+        const indexes = await database.prepare('PRAGMA index_list(wiki_group_members)')
+            .all<{ name: string; unique: number }>();
+        let hasExclusiveIdolIndex = false;
+        for (const index of indexes.results.filter((candidate) => candidate.unique === 1)) {
+            const columns = await database.prepare(`PRAGMA index_info("${index.name}")`)
+                .all<{ name: string }>();
+            if (columns.results.length === 1 && columns.results[0]?.name === 'idol_id') {
+                hasExclusiveIdolIndex = true;
+                break;
+            }
+        }
+        if (!hasExclusiveIdolIndex) return;
+        await database.executeScript(`
+            PRAGMA foreign_keys = OFF;
+            BEGIN IMMEDIATE;
+            ALTER TABLE wiki_group_members RENAME TO wiki_group_members_exclusive;
+            CREATE TABLE wiki_group_members (
+                agency_id INTEGER NOT NULL,
+                group_id INTEGER NOT NULL,
+                idol_id INTEGER NOT NULL,
+                display_order INTEGER NOT NULL CHECK (display_order >= 0),
+                PRIMARY KEY(group_id, idol_id),
+                UNIQUE(group_id, display_order),
+                FOREIGN KEY(group_id, agency_id)
+                    REFERENCES wiki_groups(id, agency_id) ON DELETE CASCADE,
+                FOREIGN KEY(idol_id, agency_id)
+                    REFERENCES idols(id, agency_id) ON DELETE CASCADE
+            );
+            INSERT INTO wiki_group_members(agency_id, group_id, idol_id, display_order)
+            SELECT agency_id, group_id, idol_id, display_order
+            FROM wiki_group_members_exclusive;
+            DROP TABLE wiki_group_members_exclusive;
+            CREATE INDEX idx_wiki_group_members_agency
+                ON wiki_group_members(agency_id);
+            CREATE INDEX idx_wiki_group_members_group_order
+                ON wiki_group_members(group_id, display_order);
+            CREATE INDEX idx_wiki_group_members_idol
+                ON wiki_group_members(idol_id);
+            COMMIT;
+            PRAGMA foreign_keys = ON;
+        `);
     }
 
     private async ensureColumn(
@@ -433,10 +831,11 @@ export class SqliteSchemaStrategy implements SqlSchemaStrategy {
         table: string,
         column: string,
         definition: string
-    ): Promise<void> {
+    ): Promise<boolean> {
         const rows = await database.prepare(`PRAGMA table_info(${table})`)
             .all<{ name: string }>();
-        if (rows.results.some((row) => row.name === column)) return;
+        if (rows.results.some((row) => row.name === column)) return false;
         await database.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+        return true;
     }
 }

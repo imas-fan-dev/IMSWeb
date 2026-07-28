@@ -167,4 +167,48 @@ describe("AdminLayout", () => {
       "/admin/accounts"
     )
   })
+
+  it("links back to the public site and collapses the desktop sidebar", async () => {
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 3,
+          username: "operator",
+          producername: "Operator",
+          dept: "op",
+          adminRole: "admin",
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+    const user = userEvent.setup()
+
+    renderAdminLayout()
+
+    expect(screen.getByRole("link", { name: "返回主站" })).toHaveAttribute(
+      "href",
+      "/"
+    )
+    const sidebar = screen.getByLabelText("管理业务").closest("aside")
+    const collapseButton = screen.getByRole("button", { name: "收起侧栏" })
+
+    expect(sidebar).toHaveAttribute("data-collapsed", "false")
+    expect(collapseButton).toHaveAttribute("aria-expanded", "true")
+
+    await user.click(collapseButton)
+
+    expect(sidebar).toHaveAttribute("data-collapsed", "true")
+    expect(screen.getByRole("button", { name: "展开侧栏" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    )
+    expect(screen.getByRole("link", { name: /剧情内容/ })).toHaveAttribute(
+      "href",
+      "/admin/stories"
+    )
+  })
 })

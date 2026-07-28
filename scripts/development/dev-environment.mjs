@@ -35,19 +35,21 @@ function usage() {
 
 Usage:
   pnpm dev [--api-port PORT] [--web-port PORT]
+  pnpm run dev:r2 [--api-port PORT] [--web-port PORT]
   pnpm run dev:doctor
   pnpm run dev:down
 
 Options:
   --api-port PORT  Hono port (default: ${defaultApiPort})
   --web-port PORT  React Router port (default: ${defaultWebPort})
+  --r2             Use the R2 test bucket configured in apps/api/.env
   --doctor         Check prerequisites without changing local state
   --down           Stop local PostgreSQL and MinIO without deleting data
   --dry-run        Print the startup plan without executing it
   -h, --help       Show this help
 
 Environment overrides:
-  IMS_DEV_API_PORT, IMS_DEV_WEB_PORT
+  IMS_DEV_API_PORT, IMS_DEV_WEB_PORT, IMS_DEV_R2_ENV_FILE
 `;
 }
 
@@ -73,6 +75,7 @@ export function parseArguments(argv, environment = process.env) {
     down: false,
     dryRun: false,
     help: false,
+    r2: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -92,6 +95,10 @@ export function parseArguments(argv, environment = process.env) {
     }
     if (argument === "--dry-run") {
       options.dryRun = true;
+      continue;
+    }
+    if (argument === "--r2") {
+      options.r2 = true;
       continue;
     }
     if (argument === "--api-port" || argument === "--web-port") {
@@ -168,12 +175,161 @@ function encodedPostgresUrl({ host, port, database, username, password }) {
   return url.toString();
 }
 
+function requiredR2Value(environment, name) {
+  const value = String(environment[name] || "").trim();
+  if (!value) throw new Error(`${name} is required for R2 hot reload`);
+  return value;
+}
+
+function parseCredentialFreeUrl(name, value, { r2Endpoint = false } = {}) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid HTTPS URL`);
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`${name} must be a credential-free HTTPS URL`);
+  }
+  if (
+    r2Endpoint &&
+    (!parsed.hostname.endsWith(".r2.cloudflarestorage.com") ||
+      (parsed.pathname !== "/" && parsed.pathname !== ""))
+  ) {
+    throw new Error(
+      `${name} must be a Cloudflare R2 S3 API endpoint without a path`,
+    );
+  }
+  return parsed.toString().replace(/\/+$/, "");
+}
+
+function resolveR2StorageEnvironment(environment) {
+  const storageType = requiredR2Value(
+    environment,
+    "IMS_OBJECT_STORAGE",
+  ).toLowerCase();
+  if (storageType !== "s3") {
+    throw new Error("R2 hot reload requires IMS_OBJECT_STORAGE=s3");
+  }
+
+  const bucket = requiredR2Value(environment, "IMS_S3_BUCKET");
+  if (!/(?:^|[._-])test(?:$|[._-])/.test(bucket.toLowerCase())) {
+    throw new Error(
+      "R2 hot reload refuses a bucket whose name is not explicitly marked as test",
+    );
+  }
+  if (String(environment.IMS_S3_PUBLIC_BUCKET || "").trim()) {
+    throw new Error(
+      "IMS_S3_PUBLIC_BUCKET is unsupported; R2 hot reload uses one test bucket",
+    );
+  }
+
+  const publicReadUrl = requiredR2Value(
+    {
+      IMS_PUBLIC_READ_URL_BASE:
+        environment.IMS_PUBLIC_READ_URL_BASE ||
+        environment.IMS_S3_PUBLIC_READ_URL_BASE,
+    },
+    "IMS_PUBLIC_READ_URL_BASE",
+  );
+  const publicReadUrlBase = parseCredentialFreeUrl(
+    "IMS_PUBLIC_READ_URL_BASE",
+    publicReadUrl,
+  );
+  const legacyPublicReadUrl = String(
+    environment.IMS_S3_PUBLIC_READ_URL_BASE || "",
+  ).trim();
+  if (
+    legacyPublicReadUrl &&
+    parseCredentialFreeUrl(
+      "IMS_S3_PUBLIC_READ_URL_BASE",
+      legacyPublicReadUrl,
+    ) !== publicReadUrlBase
+  ) {
+    throw new Error(
+      "IMS_PUBLIC_READ_URL_BASE and IMS_S3_PUBLIC_READ_URL_BASE must match",
+    );
+  }
+
+  const region = requiredR2Value(environment, "IMS_S3_REGION");
+  if (region !== "auto") {
+    throw new Error("R2 hot reload requires IMS_S3_REGION=auto");
+  }
+  const endpoint = parseCredentialFreeUrl(
+    "IMS_S3_ENDPOINT",
+    requiredR2Value(environment, "IMS_S3_ENDPOINT"),
+    { r2Endpoint: true },
+  );
+  const forcePathStyle = String(environment.IMS_S3_FORCE_PATH_STYLE || "false")
+    .trim()
+    .toLowerCase();
+  if (!["false", "0", "no", "off"].includes(forcePathStyle)) {
+    throw new Error("R2 hot reload requires IMS_S3_FORCE_PATH_STYLE=false");
+  }
+
+  const prefix = String(environment.IMS_S3_PREFIX || "")
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+  const prefixSegments = prefix ? prefix.split("/") : [];
+  if (
+    prefix.includes("\\") ||
+    prefixSegments.some(
+      (segment) => !segment || segment === "." || segment === "..",
+    )
+  ) {
+    throw new Error("IMS_S3_PREFIX must be a valid object-key prefix");
+  }
+  const readUrlTtlSeconds = String(
+    environment.IMS_S3_READ_URL_TTL_SECONDS || "300",
+  ).trim();
+  const ttl = Number(readUrlTtlSeconds);
+  if (!Number.isSafeInteger(ttl) || ttl < 30 || ttl > 3_600) {
+    throw new Error(
+      "IMS_S3_READ_URL_TTL_SECONDS must be an integer between 30 and 3600",
+    );
+  }
+
+  const accessKeyId = requiredR2Value(environment, "AWS_ACCESS_KEY_ID");
+  const secretAccessKey = requiredR2Value(environment, "AWS_SECRET_ACCESS_KEY");
+  const sessionToken = String(environment.AWS_SESSION_TOKEN || "").trim();
+
+  return {
+    IMS_OBJECT_STORAGE: "s3",
+    IMS_S3_BUCKET: bucket,
+    IMS_PUBLIC_READ_URL_BASE: publicReadUrlBase,
+    IMS_S3_PUBLIC_READ_URL_BASE: publicReadUrlBase,
+    IMS_S3_PUBLIC_BUCKET: "",
+    IMS_S3_REGION: "auto",
+    IMS_S3_ENDPOINT: endpoint,
+    IMS_S3_FORCE_PATH_STYLE: "false",
+    IMS_S3_PREFIX: prefix,
+    IMS_S3_READ_URL_TTL_SECONDS: readUrlTtlSeconds,
+    AWS_ACCESS_KEY_ID: accessKeyId,
+    AWS_SECRET_ACCESS_KEY: secretAccessKey,
+    ...(sessionToken ? { AWS_SESSION_TOKEN: sessionToken } : {}),
+  };
+}
+
 export function resolveDevelopmentConfiguration({
   environment = process.env,
   deployEnvironment = readEnvironmentFile(
     path.join(repositoryRoot, "deploy/.env"),
   ),
   options = parseArguments([], environment),
+  r2Environment = options.r2
+    ? readEnvironmentFile(
+        path.resolve(
+          repositoryRoot,
+          environment.IMS_DEV_R2_ENV_FILE || "apps/api/.env",
+        ),
+      )
+    : {},
 } = {}) {
   const infrastructure = {
     ...localInfrastructureDefaults,
@@ -199,14 +355,19 @@ export function resolveDevelopmentConfiguration({
   const minioPassword = infrastructure.IMS_MINIO_ROOT_PASSWORD;
   const bucket = infrastructure.IMS_MINIO_BUCKET;
 
-  for (const [name, value] of Object.entries({
+  const requiredInfrastructure = {
     IMS_POSTGRES_DB: database,
     IMS_POSTGRES_USER: username,
     IMS_POSTGRES_PASSWORD: password,
-    IMS_MINIO_ROOT_USER: minioUsername,
-    IMS_MINIO_ROOT_PASSWORD: minioPassword,
-    IMS_MINIO_BUCKET: bucket,
-  })) {
+    ...(!options.r2
+      ? {
+          IMS_MINIO_ROOT_USER: minioUsername,
+          IMS_MINIO_ROOT_PASSWORD: minioPassword,
+          IMS_MINIO_BUCKET: bucket,
+        }
+      : {}),
+  };
+  for (const [name, value] of Object.entries(requiredInfrastructure)) {
     if (!String(value || "").trim()) throw new Error(`${name} cannot be empty`);
   }
 
@@ -227,9 +388,26 @@ export function resolveDevelopmentConfiguration({
   if (fs.existsSync(deployEnvironmentPath)) {
     composeArguments.push("--env-file", deployEnvironmentPath);
   }
-  composeArguments.push("--profile", "local-storage", "-f", composePath);
+  if (!options.r2) composeArguments.push("--profile", "local-storage");
+  composeArguments.push("-f", composePath);
 
   const applicationEnvironment = sanitizedApplicationEnvironment(environment);
+  const objectStorageEnvironment = options.r2
+    ? resolveR2StorageEnvironment(r2Environment)
+    : {
+        IMS_OBJECT_STORAGE: "s3",
+        IMS_S3_BUCKET: bucket,
+        IMS_PUBLIC_READ_URL_BASE: `${minioOrigin}/${bucket}`,
+        IMS_S3_PUBLIC_READ_URL_BASE: `${minioOrigin}/${bucket}`,
+        IMS_S3_PUBLIC_BUCKET: "",
+        IMS_S3_REGION: "us-east-1",
+        IMS_S3_ENDPOINT: minioOrigin,
+        IMS_S3_FORCE_PATH_STYLE: "true",
+        IMS_S3_PREFIX: "local",
+        IMS_S3_READ_URL_TTL_SECONDS: "300",
+        AWS_ACCESS_KEY_ID: minioUsername,
+        AWS_SECRET_ACCESS_KEY: minioPassword,
+      };
   const apiEnvironment = {
     ...applicationEnvironment,
     NODE_ENV: "development",
@@ -243,18 +421,7 @@ export function resolveDevelopmentConfiguration({
     IMS_SITE_ORIGIN: webOrigin,
     IMS_DATABASE: "postgresql",
     DATABASE_URL: databaseUrl,
-    IMS_OBJECT_STORAGE: "s3",
-    IMS_S3_BUCKET: bucket,
-    IMS_PUBLIC_READ_URL_BASE: `${minioOrigin}/${bucket}`,
-    IMS_S3_PUBLIC_READ_URL_BASE: `${minioOrigin}/${bucket}`,
-    IMS_S3_PUBLIC_BUCKET: "",
-    IMS_S3_REGION: "us-east-1",
-    IMS_S3_ENDPOINT: minioOrigin,
-    IMS_S3_FORCE_PATH_STYLE: "true",
-    IMS_S3_PREFIX: "local",
-    IMS_S3_READ_URL_TTL_SECONDS: "300",
-    AWS_ACCESS_KEY_ID: minioUsername,
-    AWS_SECRET_ACCESS_KEY: minioPassword,
+    ...objectStorageEnvironment,
     IMS_PUBLIC_DIR: "apps/api/dist/node-client",
     IMS_COMPENSATION_DIR: "data/core/compensation",
     IMS_IDEMPOTENCY_DIR: "data/core/idempotency",
@@ -262,7 +429,6 @@ export function resolveDevelopmentConfiguration({
     IMS_EVENT_BASE_DIR: "data/chronicle",
     IMS_STORY_DATA_DIR: "data/story/images",
   };
-  delete apiEnvironment.AWS_SESSION_TOKEN;
   delete apiEnvironment.AWS_SECURITY_TOKEN;
 
   return {
@@ -276,7 +442,9 @@ export function resolveDevelopmentConfiguration({
     minioPort,
     database,
     username,
-    bucket,
+    bucket: apiEnvironment.IMS_S3_BUCKET,
+    publicReadUrlBase: apiEnvironment.IMS_PUBLIC_READ_URL_BASE,
+    storageMode: options.r2 ? "r2" : "minio",
     composeArguments,
     composeEnvironment: {
       ...environment,
@@ -292,6 +460,7 @@ export function resolveDevelopmentConfiguration({
 
 export function buildCommandPlan(configuration) {
   const compose = configuration.composeArguments;
+  const usesMinio = configuration.storageMode === "minio";
   return {
     composeConfig: {
       command: "docker",
@@ -305,7 +474,13 @@ export function buildCommandPlan(configuration) {
     },
     infrastructure: {
       command: "docker",
-      args: [...compose, "up", "-d", "postgres", "minio"],
+      args: [
+        ...compose,
+        "up",
+        "-d",
+        "postgres",
+        ...(usesMinio ? ["minio"] : []),
+      ],
       env: configuration.composeEnvironment,
     },
     postgresReady: {
@@ -323,11 +498,13 @@ export function buildCommandPlan(configuration) {
       ],
       env: configuration.composeEnvironment,
     },
-    minioInit: {
-      command: "docker",
-      args: [...compose, "run", "--rm", "--no-deps", "minio-init"],
-      env: configuration.composeEnvironment,
-    },
+    minioInit: usesMinio
+      ? {
+          command: "docker",
+          args: [...compose, "run", "--rm", "--no-deps", "minio-init"],
+          env: configuration.composeEnvironment,
+        }
+      : undefined,
     migrate: {
       command: process.platform === "win32" ? "pnpm.cmd" : "pnpm",
       args: ["--filter", "@imsweb/api", "run", "migration:postgresql"],
@@ -356,7 +533,12 @@ export function buildCommandPlan(configuration) {
     },
     down: {
       command: "docker",
-      args: [...compose, "stop", "minio-init", "minio", "postgres"],
+      args: [
+        ...compose,
+        "stop",
+        ...(usesMinio ? ["minio-init", "minio"] : []),
+        "postgres",
+      ],
       env: configuration.composeEnvironment,
     },
   };
@@ -797,9 +979,16 @@ async function supervise(configuration, plan) {
     process.stdout.write("\n[dev] Development environment is ready\n");
     process.stdout.write(`[dev] Web:           ${configuration.webOrigin}\n`);
     process.stdout.write(`[dev] API:           ${configuration.apiOrigin}\n`);
-    process.stdout.write(
-      `[dev] MinIO console: ${configuration.minioConsoleOrigin}\n`,
-    );
+    if (configuration.storageMode === "r2") {
+      process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
+      process.stdout.write(
+        `[dev] R2 public URL:  ${configuration.publicReadUrlBase}\n`,
+      );
+    } else {
+      process.stdout.write(
+        `[dev] MinIO console: ${configuration.minioConsoleOrigin}\n`,
+      );
+    }
     process.stdout.write(
       "[dev] Press Ctrl+C to stop API and Web. Local data services stay running.\n\n",
     );
@@ -936,21 +1125,33 @@ async function doctor(configuration, plan) {
 
 function printPlan(configuration, plan) {
   process.stdout.write("[dev] Startup plan (no commands executed)\n");
-  for (const [label, specification] of Object.entries({
-    "Validate Compose": plan.composeConfig,
-    "Start PostgreSQL and MinIO": plan.infrastructure,
-    "Wait for PostgreSQL": plan.postgresReady,
-    "Initialize MinIO bucket": plan.minioInit,
-    "Apply PostgreSQL migrations": plan.migrate,
-    "Start Hono API": plan.api,
-    "Start React Web": plan.web,
-  })) {
+  const commands = [
+    ["Validate Compose", plan.composeConfig],
+    [
+      configuration.storageMode === "r2"
+        ? "Start PostgreSQL"
+        : "Start PostgreSQL and MinIO",
+      plan.infrastructure,
+    ],
+    ["Wait for PostgreSQL", plan.postgresReady],
+    ...(plan.minioInit ? [["Initialize MinIO bucket", plan.minioInit]] : []),
+    ["Apply PostgreSQL migrations", plan.migrate],
+    ["Start Hono API", plan.api],
+    ["Start React Web", plan.web],
+  ];
+  for (const [label, specification] of commands) {
     process.stdout.write(
       `[dev] ${label}: ${printableCommand(specification)}\n`,
     );
   }
   process.stdout.write(`[dev] Web URL: ${configuration.webOrigin}\n`);
   process.stdout.write(`[dev] API URL: ${configuration.apiOrigin}\n`);
+  if (configuration.storageMode === "r2") {
+    process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
+    process.stdout.write(
+      `[dev] R2 public URL: ${configuration.publicReadUrlBase}\n`,
+    );
+  }
 }
 
 export async function prepareDevelopmentEnvironment(
@@ -962,16 +1163,26 @@ export async function prepareDevelopmentEnvironment(
     "Validating local Compose configuration",
     plan.composeConfig,
   );
-  operations.runCommand("Starting PostgreSQL and MinIO", plan.infrastructure);
-  await operations.waitForCommand("Waiting for PostgreSQL", plan.postgresReady);
-  process.stdout.write("[dev] Waiting for MinIO\n");
-  await operations.waitForUrl(
-    "MinIO",
-    `${configuration.minioOrigin}/minio/health/live`,
-    undefined,
-    60_000,
+  operations.runCommand(
+    configuration.storageMode === "r2"
+      ? "Starting PostgreSQL"
+      : "Starting PostgreSQL and MinIO",
+    plan.infrastructure,
   );
-  operations.runCommand("Initializing the local MinIO bucket", plan.minioInit);
+  await operations.waitForCommand("Waiting for PostgreSQL", plan.postgresReady);
+  if (plan.minioInit) {
+    process.stdout.write("[dev] Waiting for MinIO\n");
+    await operations.waitForUrl(
+      "MinIO",
+      `${configuration.minioOrigin}/minio/health/live`,
+      undefined,
+      60_000,
+    );
+    operations.runCommand(
+      "Initializing the local MinIO bucket",
+      plan.minioInit,
+    );
+  }
   operations.runCommand("Applying PostgreSQL migrations", plan.migrate);
 }
 

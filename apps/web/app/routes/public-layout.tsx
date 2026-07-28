@@ -1,6 +1,7 @@
 import { Outlet } from "react-router"
 import { useTranslation } from "react-i18next"
 
+import { AdminReturnShortcut } from "~/components/shared/admin-return-shortcut"
 import { SiteFooter } from "~/components/shared/site-footer"
 import { SiteHeader } from "~/components/shared/site-header"
 
@@ -20,6 +21,7 @@ export default function PublicLayout() {
         <Outlet />
       </div>
       <SiteFooter />
+      <AdminReturnShortcut />
     </div>
   )
 }

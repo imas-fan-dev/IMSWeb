@@ -10,6 +10,8 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { WikiEntryKindBadge } from "~/components/wiki/wiki-entry-kind"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
@@ -85,9 +87,9 @@ export function StoryPage() {
         className="mx-auto flex min-h-[60svh] w-full max-w-3xl flex-col items-start justify-center px-4 py-16 sm:px-6"
       >
         <BookOpenIcon className="size-8 text-primary" />
-        <h1 className="mt-4 text-2xl font-semibold">请选择一位角色</h1>
+        <h1 className="mt-4 text-2xl font-semibold">请选择一个内容页</h1>
         <p className="mt-2 text-muted-foreground">
-          剧情地址缺少企划或角色信息。
+          剧情地址缺少企划或内容页信息。
         </p>
         <Link
           to="/wiki"
@@ -121,7 +123,7 @@ export function StoryPage() {
                   to={`/wiki?agency=${encodeURIComponent(agencyName)}`}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
-                  返回角色目录
+                  返回内容目录
                 </Link>
               </div>
             </AlertDescription>
@@ -148,11 +150,10 @@ export function StoryPage() {
                 className="aspect-square max-w-40 overflow-hidden rounded-lg border bg-muted"
                 style={{ borderColor: safeWikiColor(stories.idol.color) }}
               >
-                <img
+                <WikiTransformedImage
                   src={stories.idol.imageUrl}
                   alt={stories.idol.name}
-                  className="size-full"
-                  style={{ objectFit: stories.idol.imageFit }}
+                  transform={stories.idol.imageTransform}
                 />
               </div>
               <div className="min-w-0">
@@ -163,13 +164,20 @@ export function StoryPage() {
                   <ArrowLeftIcon className="size-4" />
                   {stories.agency.name}
                 </Link>
-                <h1 className="wrap-break-words mt-3 text-3xl font-semibold">
-                  {stories.idol.name}
-                </h1>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <h1 className="wrap-break-words text-3xl font-semibold">
+                    {stories.idol.name}
+                  </h1>
+                  <WikiEntryKindBadge
+                    kind={stories.idol.entryKind}
+                    subtype={stories.idol.entrySubtype}
+                    variant="secondary"
+                  />
+                </div>
                 <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
                   <span>{visibleCategories.length} 个分类</span>
                   <span>{cardCount ?? 0} 张卡片</span>
-                  <span>{linkCount ?? 0} 个剧情来源</span>
+                  <span>{linkCount ?? 0} 个内容来源</span>
                 </p>
                 <Link
                   to={`/story/classic?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
@@ -193,7 +201,7 @@ export function StoryPage() {
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索卡片、标题或投稿者"
+                  placeholder="搜索卡片、类型、平台或发布者"
                   className="pl-9"
                 />
               </label>
@@ -222,6 +230,7 @@ export function StoryPage() {
                   category={category}
                   categoryId={`story-category-${index}`}
                   fallbackImage={stories.idol.imageUrl}
+                  fallbackTransform={stories.idol.imageTransform}
                   accentColor={stories.idol.color ?? stories.agency.color}
                 />
               ))

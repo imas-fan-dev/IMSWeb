@@ -43,6 +43,11 @@ export const INFORMATION_INDEX_OBJECT_KEY = 'editorial/information/index.json';
 export const ABOUT_PAGE_OBJECT_KEY = 'editorial/about/config.json';
 export const PRODUCER_MAP_OBJECT_KEY = 'community/producer-map/config.json';
 
+export function aboutHeroObjectKey(filename: string): string {
+    const file = fileParts(filename);
+    return `editorial/about/assets/${file.stem}/hero.${file.extension}`;
+}
+
 export function informationAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `editorial/information/assets/${file.stem}/cover.${file.extension}`;
@@ -79,6 +84,8 @@ export function publicMediaObjectKey(value: string): string {
             return informationAssetObjectKey(filename);
         case 'uploads/information/original':
             return informationAssetObjectKey(filename);
+        case 'uploads/about/hero':
+            return aboutHeroObjectKey(filename);
         case 'uploads/namecard/original':
             return namecardImageObjectKey(filename);
         case 'uploads/producer-map':

@@ -3,6 +3,35 @@ import { z } from "zod"
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
 
+export const wikiImageTransformSchema = z.object({
+  fit: z.enum(["contain", "cover"]),
+  focalX: z.coerce.number().min(0).max(1),
+  focalY: z.coerce.number().min(0).max(1),
+  zoom: z.coerce.number().min(1).max(3),
+  rotation: z.union([
+    z.literal(0),
+    z.literal(90),
+    z.literal(180),
+    z.literal(270),
+  ]),
+})
+
+export const defaultWikiImageTransform: WikiImageTransform = {
+  fit: "cover",
+  focalX: 0.5,
+  focalY: 0.5,
+  zoom: 1,
+  rotation: 0,
+}
+
+export const wikiEntryKindSchema = z.enum(["idol", "unit", "story", "other"])
+export const wikiStoryEntrySubtypeSchema = z.enum([
+  "main",
+  "event",
+  "special",
+  "other",
+])
+
 const wikiAdminIdolSchema = z.object({
   id: z.coerce.number().int().positive(),
   name: z.string(),
@@ -12,6 +41,12 @@ const wikiAdminIdolSchema = z.object({
   displayOrder: z.coerce.number().int().nonnegative(),
   imageUrl: z.string(),
   imageFit: z.enum(["contain", "cover"]),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  mediaRevision: z.coerce.number().int().nonnegative().default(0),
+  wikiEnabled: z.boolean().default(true),
+  groupIds: z.array(z.coerce.number().int().positive()).default([]),
+  entryKind: wikiEntryKindSchema.default("idol"),
+  entrySubtype: wikiStoryEntrySubtypeSchema.nullable().default(null),
 })
 
 const wikiAdminGroupSchema = z.object({
@@ -22,6 +57,9 @@ const wikiAdminGroupSchema = z.object({
   iconUrl: z.string().nullable(),
   displayOrder: z.coerce.number().int().nonnegative(),
   isFallback: z.boolean(),
+  idolIds: z.array(z.coerce.number().int().positive()).default([]),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  mediaRevision: z.coerce.number().int().nonnegative().default(0),
   idols: z.array(wikiAdminIdolSchema),
 })
 
@@ -35,6 +73,9 @@ const wikiAdminAgencySchema = z.object({
   displayOrder: z.coerce.number().int().nonnegative(),
   layoutRevision: z.coerce.number().int().nonnegative(),
   iconUrl: z.string().nullable(),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  mediaRevision: z.coerce.number().int().nonnegative().default(0),
+  idols: z.array(wikiAdminIdolSchema).default([]),
   groups: z.array(wikiAdminGroupSchema),
 })
 
@@ -43,16 +84,47 @@ const wikiAdminCatalogSchema = z.object({
   agencies: z.array(wikiAdminAgencySchema),
 })
 
-export const wikiAdminStorySchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiAdminStoryCardSchema = z.object({
   category: z.string(),
   cardName: z.string(),
+  subtitle: z.string(),
+  imageFile: z.string().nullable(),
+  coverAssetId: z.coerce.number().int().positive().nullable().optional(),
+  coverAssetName: z.string().nullable().optional(),
+  imageUrl: z.string(),
+  cardId: z.coerce.number().int().positive().optional(),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  mediaRevision: z.coerce.number().int().nonnegative().default(0),
+})
+
+export const wikiAdminStorySchema = wikiAdminStoryCardSchema.extend({
+  id: z.coerce.number().int().positive(),
   upName: z.string(),
   videoTitle: z.string(),
   url: z.string(),
-  subtitle: z.string(),
-  imageFile: z.string().nullable(),
-  imageUrl: z.string(),
+  contentTypeId: z.coerce.number().int().positive(),
+  contentTypeName: z.string(),
+  sourcePlatformId: z.coerce.number().int().positive(),
+  sourcePlatformName: z.string(),
+})
+
+const wikiStoryContentTypeSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  name: z.string(),
+  description: z.string(),
+  displayOrder: z.coerce.number().int().nonnegative(),
+  isActive: z.boolean(),
+  revision: z.coerce.number().int().nonnegative(),
+})
+
+const wikiStorySourcePlatformSchema = wikiStoryContentTypeSchema.extend({
+  homepageUrl: z.string(),
+})
+
+const wikiStorySourceCatalogSchema = z.object({
+  status: z.literal("success"),
+  contentTypes: z.array(wikiStoryContentTypeSchema),
+  sourcePlatforms: z.array(wikiStorySourcePlatformSchema),
 })
 
 const wikiAdminStoriesSchema = z.object({
@@ -74,11 +146,58 @@ const wikiAdminStoriesSchema = z.object({
       backgroundEligible: z.boolean(),
     })
   ),
+  contentTypes: z.array(wikiStoryContentTypeSchema),
+  sourcePlatforms: z.array(wikiStorySourcePlatformSchema),
+  cards: z.array(wikiAdminStoryCardSchema).optional(),
   stories: z.array(wikiAdminStorySchema),
+})
+
+const wikiStoryCoverAssetSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  agencyId: z.coerce.number().int().positive(),
+  name: z.string(),
+  imageUrl: z.string(),
+  displayOrder: z.coerce.number().int().nonnegative(),
+  isActive: z.boolean(),
+  revision: z.coerce.number().int().nonnegative(),
+  usageCount: z.coerce.number().int().nonnegative(),
+})
+
+const wikiStoryCoverAssetsSchema = z.object({
+  status: z.literal("success"),
+  agency: z.object({
+    id: z.coerce.number().int().positive(),
+    code: z.string(),
+    name: z.string(),
+  }),
+  assets: z.array(wikiStoryCoverAssetSchema),
 })
 
 const wikiMutationResultSchema = z.object({
   status: z.literal("success"),
+})
+
+const wikiStoryCoverAssetMutationSchema = wikiMutationResultSchema.extend({
+  asset: wikiStoryCoverAssetSchema,
+})
+
+const wikiAgencyMutationResultSchema = wikiMutationResultSchema.extend({
+  agency: z.object({ id: z.coerce.number().int().positive() }),
+})
+
+const wikiGroupMutationResultSchema = wikiMutationResultSchema.extend({
+  group: z.object({ id: z.coerce.number().int().positive() }),
+})
+
+const wikiIdolMutationResultSchema = wikiMutationResultSchema.extend({
+  idol: z.object({ id: z.coerce.number().int().positive() }),
+})
+
+const wikiIdolDeleteResultSchema = wikiMutationResultSchema.extend({
+  softDeleted: z.object({
+    cards: z.coerce.number().int().nonnegative(),
+    stories: z.coerce.number().int().nonnegative(),
+  }),
 })
 
 const wikiAgencyIconResultSchema = wikiMutationResultSchema.extend({
@@ -105,6 +224,8 @@ const wikiPublicAgencySchema = z.object({
   bannerTitle: z.string(),
   iconUrl: z.string().nullable(),
   idolCount: z.coerce.number().int().nonnegative(),
+  entryCount: z.coerce.number().int().nonnegative().optional(),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
 })
 
 const wikiPublicIdolSchema = z.object({
@@ -115,6 +236,9 @@ const wikiPublicIdolSchema = z.object({
   imageUrl: z.string(),
   imageFit: z.enum(["contain", "cover"]),
   textColor: z.string(),
+  entryKind: wikiEntryKindSchema.default("idol"),
+  entrySubtype: wikiStoryEntrySubtypeSchema.nullable().default(null),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
 })
 
 const wikiPublicGroupSchema = z.object({
@@ -123,6 +247,7 @@ const wikiPublicGroupSchema = z.object({
   name: z.string(),
   color: z.string(),
   iconUrl: z.string().nullable(),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
   idols: z.array(wikiPublicIdolSchema),
 })
 
@@ -134,6 +259,7 @@ const wikiPublicCatalogSchema = z.object({
       agency: wikiPublicAgencySchema,
       layoutRevision: z.coerce.number().int().nonnegative(),
       groups: z.array(wikiPublicGroupSchema),
+      ungroupedIdols: z.array(wikiPublicIdolSchema).default([]),
     })
     .nullable(),
 })
@@ -143,12 +269,15 @@ const wikiPublicStoryLinkSchema = z.object({
   up: z.string(),
   title: z.string(),
   url: z.string(),
+  contentType: z.string(),
+  sourcePlatform: z.string(),
 })
 
 const wikiPublicStoryCardSchema = z.object({
   name: z.string(),
   img: z.string(),
   subtitle: z.string(),
+  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
   links: z.array(wikiPublicStoryLinkSchema),
 })
 
@@ -178,9 +307,23 @@ const wikiRandomBackgroundSchema = z.object({
 
 export type WikiAdminCatalog = z.infer<typeof wikiAdminCatalogSchema>
 export type WikiAdminAgency = z.infer<typeof wikiAdminAgencySchema>
+export type WikiAdminGroup = z.infer<typeof wikiAdminGroupSchema>
 export type WikiAdminIdol = z.infer<typeof wikiAdminIdolSchema>
 export type WikiAdminStories = z.infer<typeof wikiAdminStoriesSchema>
+export type WikiAdminStoryCard = z.infer<typeof wikiAdminStoryCardSchema>
 export type WikiAdminStory = z.infer<typeof wikiAdminStorySchema>
+export type WikiStoryCoverAsset = z.infer<typeof wikiStoryCoverAssetSchema>
+export type WikiStoryCoverAssets = z.infer<typeof wikiStoryCoverAssetsSchema>
+export type WikiStoryContentType = z.infer<typeof wikiStoryContentTypeSchema>
+export type WikiStorySourcePlatform = z.infer<
+  typeof wikiStorySourcePlatformSchema
+>
+export type WikiStorySourceCatalog = z.infer<
+  typeof wikiStorySourceCatalogSchema
+>
+export type WikiImageTransform = z.infer<typeof wikiImageTransformSchema>
+export type WikiEntryKind = z.infer<typeof wikiEntryKindSchema>
+export type WikiStoryEntrySubtype = z.infer<typeof wikiStoryEntrySubtypeSchema>
 export type BilibiliParseResult = z.infer<typeof bilibiliResultSchema>
 export type WikiPublicAgency = z.infer<typeof wikiPublicAgencySchema>
 export type WikiPublicIdol = z.infer<typeof wikiPublicIdolSchema>
@@ -198,8 +341,88 @@ export type WikiStorySubmission = {
   upName: string
   videoTitle: string
   url: string
+  contentTypeId: number
+  sourcePlatformId: number
   subtitle: string
   image?: File | null
+  imageTransform?: WikiImageTransform
+  mediaRevision?: number
+}
+
+export type WikiStorySourceSubmission = {
+  upName: string
+  videoTitle: string
+  url: string
+  contentTypeId: number
+  sourcePlatformId: number
+}
+
+export type WikiStoryCatalogOptionSubmission = {
+  name: string
+  description: string
+  isActive: boolean
+}
+
+export type WikiStorySourcePlatformSubmission =
+  WikiStoryCatalogOptionSubmission & {
+    homepageUrl: string
+  }
+
+export type WikiStoryBatchSubmission = {
+  agency: string
+  idol: string
+  category: string
+  cardName: string
+  subtitle: string
+  sources: WikiStorySourceSubmission[]
+  image?: File | null
+  coverAssetId?: number | null
+  imageTransform?: WikiImageTransform
+}
+
+export type WikiStorySourcesSubmission = {
+  agency: string
+  idol: string
+  expectedRevision: number
+  sources: WikiStorySourceSubmission[]
+}
+
+export type WikiStoryCardSubmission = {
+  agency: string
+  idol: string
+  categoryId: number
+  cardName: string
+  subtitle: string
+  image?: File | null
+  coverAssetId?: number | null
+  removeImage?: boolean
+  imageTransform: WikiImageTransform
+  mediaRevision: number
+}
+
+export type WikiAgencySubmission = {
+  code: string
+  name: string
+  color: string
+  bannerTitle: string
+  wikiEnabled: boolean
+}
+
+export type WikiGroupSubmission = {
+  code: string
+  name: string
+  color: string
+}
+
+export type WikiIdolSubmission = {
+  name: string
+  folderName: string
+  color: string | null
+  textColor: string
+  wikiEnabled: boolean
+  groupIds: number[]
+  entryKind?: WikiEntryKind
+  entrySubtype?: WikiStoryEntrySubtype | null
 }
 
 export type WikiStoryGroup = {
@@ -247,7 +470,23 @@ function appendStoryFields(form: FormData, submission: WikiStorySubmission) {
   form.append("up_name", submission.upName.trim())
   form.append("video_title", submission.videoTitle.trim())
   form.append("url", `${url}${subtitle ? ` | ${subtitle}` : ""}`)
+  form.append("content_type_id", String(submission.contentTypeId))
+  form.append("source_platform_id", String(submission.sourcePlatformId))
   if (submission.image) form.append("image", submission.image)
+  if (submission.imageTransform) {
+    appendImageTransform(form, submission.imageTransform)
+  }
+  if (submission.mediaRevision !== undefined) {
+    form.append("expected_revision", String(submission.mediaRevision))
+  }
+}
+
+function appendImageTransform(form: FormData, transform: WikiImageTransform) {
+  form.append("image_fit", transform.fit)
+  form.append("image_focal_x", String(transform.focalX))
+  form.append("image_focal_y", String(transform.focalY))
+  form.append("image_zoom", String(transform.zoom))
+  form.append("image_rotation", String(transform.rotation))
 }
 
 function appendStoryGroup(form: FormData, group: WikiStoryGroup) {
@@ -268,6 +507,282 @@ export function getAdminWikiStories(agency: string, idol: string) {
     params: { agency, idol },
     transform: (payload) => wikiAdminStoriesSchema.parse(payload),
   })
+}
+
+export function getAdminWikiStoryCoverAssets(agencyId: number) {
+  return apiClient.Get<WikiStoryCoverAssets, unknown>(
+    `/api/admin/wiki/agencies/${agencyId}/story-cover-assets`,
+    {
+      transform: (payload) => wikiStoryCoverAssetsSchema.parse(payload),
+    }
+  )
+}
+
+export function createWikiStoryCoverAsset(input: {
+  agencyId: number
+  name: string
+  image: File
+}) {
+  const form = new FormData()
+  form.append("name", input.name.trim())
+  form.append("image", input.image)
+  return apiClient.Post<
+    z.infer<typeof wikiStoryCoverAssetMutationSchema>,
+    unknown
+  >(`/api/admin/wiki/agencies/${input.agencyId}/story-cover-assets`, form, {
+    meta: withCsrf(),
+    transform: (payload) => wikiStoryCoverAssetMutationSchema.parse(payload),
+  })
+}
+
+export function updateWikiStoryCoverAsset(input: {
+  assetId: number
+  name: string
+  isActive: boolean
+  expectedRevision: number
+  image?: File | null
+}) {
+  const form = new FormData()
+  form.append("name", input.name.trim())
+  form.append("is_active", String(input.isActive))
+  form.append("expected_revision", String(input.expectedRevision))
+  if (input.image) form.append("image", input.image)
+  return apiClient.Patch<
+    z.infer<typeof wikiStoryCoverAssetMutationSchema>,
+    unknown
+  >(`/api/admin/wiki/story-cover-assets/${input.assetId}`, form, {
+    meta: withCsrf(),
+    transform: (payload) => wikiStoryCoverAssetMutationSchema.parse(payload),
+  })
+}
+
+export function deleteWikiStoryCoverAsset(assetId: number) {
+  return apiClient.Delete<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/story-cover-assets/${assetId}`,
+    undefined,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function getWikiStorySourceCatalog() {
+  return apiClient.Get<WikiStorySourceCatalog, unknown>(
+    "/api/admin/wiki/story-source-catalog",
+    {
+      transform: (payload) => wikiStorySourceCatalogSchema.parse(payload),
+    }
+  )
+}
+
+const contentTypeMutationSchema = wikiMutationResultSchema.extend({
+  option: wikiStoryContentTypeSchema,
+})
+const sourcePlatformMutationSchema = wikiMutationResultSchema.extend({
+  option: wikiStorySourcePlatformSchema,
+})
+
+export function createWikiStoryContentType(
+  submission: WikiStoryCatalogOptionSubmission
+) {
+  return apiClient.Post<z.infer<typeof contentTypeMutationSchema>, unknown>(
+    "/api/admin/wiki/story-content-types",
+    submission,
+    {
+      meta: withCsrf(),
+      transform: (payload) => contentTypeMutationSchema.parse(payload),
+    }
+  )
+}
+
+export function updateWikiStoryContentType(
+  optionId: number,
+  expectedRevision: number,
+  submission: WikiStoryCatalogOptionSubmission
+) {
+  return apiClient.Patch<z.infer<typeof contentTypeMutationSchema>, unknown>(
+    `/api/admin/wiki/story-content-types/${optionId}`,
+    { ...submission, expectedRevision },
+    {
+      meta: withCsrf(),
+      transform: (payload) => contentTypeMutationSchema.parse(payload),
+    }
+  )
+}
+
+export function deleteWikiStoryContentType(optionId: number) {
+  return apiClient.Delete<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/story-content-types/${optionId}`,
+    undefined,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function createWikiStorySourcePlatform(
+  submission: WikiStorySourcePlatformSubmission
+) {
+  return apiClient.Post<z.infer<typeof sourcePlatformMutationSchema>, unknown>(
+    "/api/admin/wiki/story-source-platforms",
+    submission,
+    {
+      meta: withCsrf(),
+      transform: (payload) => sourcePlatformMutationSchema.parse(payload),
+    }
+  )
+}
+
+export function updateWikiStorySourcePlatform(
+  optionId: number,
+  expectedRevision: number,
+  submission: WikiStorySourcePlatformSubmission
+) {
+  return apiClient.Patch<z.infer<typeof sourcePlatformMutationSchema>, unknown>(
+    `/api/admin/wiki/story-source-platforms/${optionId}`,
+    { ...submission, expectedRevision },
+    {
+      meta: withCsrf(),
+      transform: (payload) => sourcePlatformMutationSchema.parse(payload),
+    }
+  )
+}
+
+export function deleteWikiStorySourcePlatform(optionId: number) {
+  return apiClient.Delete<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/story-source-platforms/${optionId}`,
+    undefined,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function createWikiAgency(submission: WikiAgencySubmission) {
+  return apiClient.Post<
+    z.infer<typeof wikiAgencyMutationResultSchema>,
+    unknown
+  >("/api/admin/wiki/agencies", submission, {
+    meta: withCsrf(),
+    transform: (payload) => wikiAgencyMutationResultSchema.parse(payload),
+  })
+}
+
+export function updateWikiAgency(
+  agencyId: number,
+  submission: Omit<WikiAgencySubmission, "code">
+) {
+  return apiClient.Patch<
+    z.infer<typeof wikiAgencyMutationResultSchema>,
+    unknown
+  >(`/api/admin/wiki/agencies/${agencyId}`, submission, {
+    meta: withCsrf(),
+    transform: (payload) => wikiAgencyMutationResultSchema.parse(payload),
+  })
+}
+
+export function createWikiGroup(
+  agencyId: number,
+  submission: WikiGroupSubmission
+) {
+  return apiClient.Post<z.infer<typeof wikiGroupMutationResultSchema>, unknown>(
+    `/api/admin/wiki/agencies/${agencyId}/groups`,
+    submission,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiGroupMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function updateWikiGroup(
+  groupId: number,
+  submission: Omit<WikiGroupSubmission, "code">
+) {
+  return apiClient.Patch<
+    z.infer<typeof wikiGroupMutationResultSchema>,
+    unknown
+  >(`/api/admin/wiki/groups/${groupId}`, submission, {
+    meta: withCsrf(),
+    transform: (payload) => wikiGroupMutationResultSchema.parse(payload),
+  })
+}
+
+export function deleteWikiGroup(groupId: number, expectedRevision: number) {
+  return apiClient.Delete<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/groups/${groupId}`,
+    { expectedRevision },
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function createWikiIdol(
+  agencyId: number,
+  submission: WikiIdolSubmission
+) {
+  return apiClient.Post<z.infer<typeof wikiIdolMutationResultSchema>, unknown>(
+    `/api/admin/wiki/agencies/${agencyId}/idols`,
+    submission,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiIdolMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function updateWikiIdol(
+  idolId: number,
+  submission: Omit<WikiIdolSubmission, "folderName">
+) {
+  return apiClient.Patch<z.infer<typeof wikiIdolMutationResultSchema>, unknown>(
+    `/api/admin/wiki/idols/${idolId}`,
+    submission,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiIdolMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+type WikiEntityImageKind = "agency" | "group" | "idol"
+
+const wikiEntityImagePath = {
+  agency: (id: number) => `/api/admin/wiki/agencies/${id}/icon`,
+  group: (id: number) => `/api/admin/wiki/groups/${id}/icon`,
+  idol: (id: number) => `/api/admin/wiki/idols/${id}/avatar`,
+} satisfies Record<WikiEntityImageKind, (id: number) => string>
+
+const wikiEntityImageResultSchema = wikiMutationResultSchema.extend({
+  url: z.string(),
+  mediaRevision: z.coerce.number().int().nonnegative(),
+  imageTransform: wikiImageTransformSchema,
+})
+
+export function saveWikiEntityImage(input: {
+  kind: WikiEntityImageKind
+  id: number
+  file?: File | null
+  transform: WikiImageTransform
+  expectedRevision: number
+}) {
+  const form = new FormData()
+  if (input.file) form.append("image", input.file)
+  appendImageTransform(form, input.transform)
+  form.append("expected_revision", String(input.expectedRevision))
+  return apiClient.Put<z.infer<typeof wikiEntityImageResultSchema>, unknown>(
+    wikiEntityImagePath[input.kind](input.id),
+    form,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiEntityImageResultSchema.parse(payload),
+    }
+  )
 }
 
 export function uploadWikiAgencyIcon(agency: string, file: File) {
@@ -315,6 +830,167 @@ export function createWikiStory(submission: WikiStorySubmission) {
   appendStoryFields(form, submission)
   return apiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
     "/api/wiki/add_story",
+    form,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function createWikiStoryBatch(submission: WikiStoryBatchSubmission) {
+  const form = new FormData()
+  form.append("agency", submission.agency)
+  form.append("idol", submission.idol)
+  form.append("category_name", submission.category.trim())
+  form.append("card_name", normalizedCardName(submission.cardName))
+  form.append("subtitle", submission.subtitle.trim().replaceAll("|", "｜"))
+  form.append(
+    "sources_json",
+    JSON.stringify(
+      submission.sources.map((source) => ({
+        upName: source.upName.trim(),
+        videoTitle: source.videoTitle.trim(),
+        url: source.url.trim().replaceAll("|", ""),
+        contentTypeId: source.contentTypeId,
+        sourcePlatformId: source.sourcePlatformId,
+      }))
+    )
+  )
+  if (submission.image) form.append("image", submission.image)
+  if (submission.coverAssetId) {
+    form.append("cover_asset_id", String(submission.coverAssetId))
+  }
+  if (submission.imageTransform) {
+    appendImageTransform(form, submission.imageTransform)
+  }
+  return apiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    "/api/wiki/add_story",
+    form,
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function createWikiStorySources(
+  cardId: number,
+  submission: WikiStorySourcesSubmission
+) {
+  return apiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/cards/${cardId}/sources`,
+    {
+      agency: submission.agency,
+      idol: submission.idol,
+      expectedRevision: submission.expectedRevision,
+      sources: submission.sources.map((source) => ({
+        upName: source.upName.trim(),
+        videoTitle: source.videoTitle.trim(),
+        url: source.url.trim().replaceAll("|", ""),
+        contentTypeId: source.contentTypeId,
+        sourcePlatformId: source.sourcePlatformId,
+      })),
+    },
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+const wikiStoryLinkDeleteResultSchema = wikiMutationResultSchema.extend({
+  cardDeleted: z.boolean(),
+})
+
+export function deleteWikiStoryLink(input: {
+  agency: string
+  idol: string
+  storyId: number
+  expectedRevision: number
+}) {
+  return apiClient.Delete<
+    z.infer<typeof wikiStoryLinkDeleteResultSchema>,
+    unknown
+  >(`/api/admin/wiki/stories/${input.storyId}`, undefined, {
+    params: {
+      agency: input.agency,
+      idol: input.idol,
+      expectedRevision: input.expectedRevision,
+    },
+    meta: withCsrf(),
+    transform: (payload) => wikiStoryLinkDeleteResultSchema.parse(payload),
+  })
+}
+
+export function deleteWikiIdol(idolId: number, expectedRevision: number) {
+  return apiClient.Delete<z.infer<typeof wikiIdolDeleteResultSchema>, unknown>(
+    `/api/admin/wiki/idols/${idolId}`,
+    { expectedRevision },
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiIdolDeleteResultSchema.parse(payload),
+    }
+  )
+}
+
+export function updateWikiCategory(input: {
+  categoryId: number
+  agencyId: number
+  idolId: number
+  name: string
+  expectedName: string
+}) {
+  return apiClient.Patch<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/categories/${input.categoryId}`,
+    {
+      agencyId: input.agencyId,
+      idolId: input.idolId,
+      name: input.name.trim(),
+      expectedName: input.expectedName,
+    },
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function createWikiCategory(input: {
+  agencyId: number
+  idolId: number
+  name: string
+}) {
+  return apiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/agencies/${input.agencyId}/idols/${input.idolId}/categories`,
+    { name: input.name.trim() },
+    {
+      meta: withCsrf(),
+      transform: (payload) => wikiMutationResultSchema.parse(payload),
+    }
+  )
+}
+
+export function updateWikiStoryCard(
+  cardId: number,
+  submission: WikiStoryCardSubmission
+) {
+  const form = new FormData()
+  form.append("agency", submission.agency)
+  form.append("idol", submission.idol)
+  form.append("category_id", String(submission.categoryId))
+  form.append("card_name", normalizedCardName(submission.cardName))
+  form.append("subtitle", submission.subtitle.trim().replaceAll("|", "｜"))
+  form.append("expected_revision", String(submission.mediaRevision))
+  form.append(
+    "cover_asset_id",
+    submission.coverAssetId == null ? "" : String(submission.coverAssetId)
+  )
+  if (submission.removeImage) form.append("remove_image", "true")
+  appendImageTransform(form, submission.imageTransform)
+  if (submission.image) form.append("image", submission.image)
+  return apiClient.Patch<z.infer<typeof wikiMutationResultSchema>, unknown>(
+    `/api/admin/wiki/cards/${cardId}`,
     form,
     {
       meta: withCsrf(),
