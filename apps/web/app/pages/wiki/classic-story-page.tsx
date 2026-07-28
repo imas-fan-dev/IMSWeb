@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import { safeExternalStoryUrl, safeWikiColor, storyCardAspectRatio, storyCardColumns } from "~/pages/wiki/wiki-model"
+import { safeExternalStoryUrl, safeWikiColor, storyCardAspectRatio, storyCardColumns, storyCardGap } from "~/pages/wiki/wiki-model"
 import { getWikiStories, isApiError } from "~/shared/api"
 import type {
   WikiPublicStories,
@@ -224,6 +224,7 @@ export function ClassicStoryPage() {
                       className="wiki-classic-story-grid"
                       style={{
                         gridTemplateColumns: storyCardColumns(category.name),
+                        gap: storyCardGap(category.name),
                       }}
                     >
                       {category.cards.map((card) => {
