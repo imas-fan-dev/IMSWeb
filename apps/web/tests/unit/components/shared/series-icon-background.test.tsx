@@ -41,7 +41,7 @@ describe("SeriesIconBackground", () => {
     const firstMotif = motifs[0]
 
     expect(background).toHaveAttribute("aria-hidden", "true")
-    expect(motifs).toHaveLength(20)
+    expect(motifs).toHaveLength(12)
     expect(firstMotif).toHaveAttribute("src", "/brand/series/765pro.png")
     expect(firstMotif).toHaveAttribute("width", "193")
     expect(firstMotif).toHaveAttribute("height", "150")
@@ -54,6 +54,9 @@ describe("SeriesIconBackground", () => {
     expect(nextX - initialX).toBeCloseTo(0.2)
     expect(nextY - initialY).toBeCloseTo(0.2)
     expect(nextRotation - initialRotation).toBeCloseTo(0.1)
+
+    act(() => nextFrame?.(24))
+    expect(readTransform(firstMotif)).toEqual([nextX, nextY, nextRotation])
   })
 
   it("repels a nearby motif from the pointer", () => {

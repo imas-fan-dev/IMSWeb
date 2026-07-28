@@ -2,6 +2,8 @@ packages:
   - apps/api
   - apps/web
 
+verifyDepsBeforeRun: warn
+
 overrides:
   sharp: 0.35.3
   zod: 3.25.76

@@ -21,7 +21,12 @@ const SQLITE_CORE_SCHEMA = `
     );
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE, password TEXT, dept TEXT, producername TEXT
+        username TEXT UNIQUE, password TEXT, dept TEXT, producername TEXT,
+        admin_role TEXT CHECK (
+            admin_role IS NULL OR (
+                dept = 'op' AND admin_role IN ('admin', 'super_admin')
+            )
+        )
     );
     CREATE TABLE IF NOT EXISTS auth_refresh_sessions (
         id TEXT PRIMARY KEY,
@@ -372,8 +377,38 @@ const SQLITE_WIKI_SEED = `
 `;
 
 export class SqliteSchemaStrategy implements SqlSchemaStrategy {
-    initializeCore(database: ManagedSqlDatabase): Promise<void> {
-        return database.executeScript(SQLITE_CORE_SCHEMA);
+    async initializeCore(database: ManagedSqlDatabase): Promise<void> {
+        await database.executeScript(SQLITE_CORE_SCHEMA);
+        await this.ensureColumn(database, 'users', 'admin_role', 'TEXT');
+        await database.prepare(
+            "UPDATE users SET admin_role='admin' WHERE dept='op' AND admin_role IS NULL"
+        ).run();
+        await database.executeScript(`
+            CREATE TRIGGER IF NOT EXISTS users_admin_role_insert_check
+            BEFORE INSERT ON users
+            WHEN (NEW.dept = 'op' AND (
+                    NEW.admin_role IS NULL OR
+                    NEW.admin_role NOT IN ('admin', 'super_admin')
+                )) OR (
+                    COALESCE(NEW.dept, '') <> 'op' AND NEW.admin_role IS NOT NULL
+                )
+            BEGIN
+                SELECT RAISE(ABORT, 'users.admin_role does not match dept');
+            END;
+            CREATE TRIGGER IF NOT EXISTS users_admin_role_update_check
+            BEFORE UPDATE OF dept, admin_role ON users
+            WHEN (NEW.dept = 'op' AND (
+                    NEW.admin_role IS NULL OR
+                    NEW.admin_role NOT IN ('admin', 'super_admin')
+                )) OR (
+                    COALESCE(NEW.dept, '') <> 'op' AND NEW.admin_role IS NOT NULL
+                )
+            BEGIN
+                SELECT RAISE(ABORT, 'users.admin_role does not match dept');
+            END;
+            CREATE UNIQUE INDEX IF NOT EXISTS users_one_super_admin_idx
+                ON users(admin_role) WHERE admin_role='super_admin';
+        `);
     }
 
     async initializeStory(database: ManagedSqlDatabase): Promise<void> {

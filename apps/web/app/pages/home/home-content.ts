@@ -9,12 +9,9 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
-export type SeriesItem = {
-  name: string
-  background: string
-  image: string
-  href: string
-}
+import { seriesWallItems } from "~/shared/series-wall"
+
+export type SeriesItem = (typeof seriesWallItems)[number]
 
 export type PortalItem = {
   title: string
@@ -31,44 +28,7 @@ export type FriendLink = {
   accent: string
 }
 
-export const seriesItems: SeriesItem[] = [
-  {
-    name: "765PRO ALLSTARS",
-    background: "bg-[#f34e6c]",
-    image: "/brand/series/wall/765pro.webp",
-    href: "/works/765",
-  },
-  {
-    name: "CINDERELLA GIRLS",
-    background: "bg-[#2581c7]",
-    image: "/brand/series/wall/cinderella-girls.webp",
-    href: "/works/cg",
-  },
-  {
-    name: "MILLION LIVE!",
-    background: "bg-[#ffc20b]",
-    image: "/brand/series/wall/million-live.webp",
-    href: "/works/ml",
-  },
-  {
-    name: "SideM",
-    background: "bg-[#11be93]",
-    image: "/brand/series/wall/sidem.webp",
-    href: "/works/sidem",
-  },
-  {
-    name: "SHINY COLORS",
-    background: "bg-[#8dbaff]",
-    image: "/brand/series/wall/shiny-colors.webp",
-    href: "/works/sc",
-  },
-  {
-    name: "学园偶像大师",
-    background: "bg-[#f39800]",
-    image: "/brand/series/wall/gakuen.webp",
-    href: "/works/gakuen",
-  },
-]
+export const seriesItems: readonly SeriesItem[] = seriesWallItems
 
 export const portalItems: PortalItem[] = [
   {

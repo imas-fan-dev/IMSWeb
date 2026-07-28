@@ -60,6 +60,7 @@ describe("AdminLayout", () => {
           username: "reader",
           producername: "Reader",
           dept: "user",
+          adminRole: null,
         },
       },
       loading: false,
@@ -112,5 +113,58 @@ describe("AdminLayout", () => {
     renderAdminLayout()
 
     expect(screen.getByRole("heading", { name: "管理登录路由" })).toBeVisible()
+  })
+
+  it("hides account management from a regular administrator", () => {
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 3,
+          username: "operator",
+          producername: "Operator",
+          dept: "op",
+          adminRole: "admin",
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+
+    renderAdminLayout()
+
+    expect(screen.getByText("一般管理员")).toBeVisible()
+    expect(
+      screen.queryByRole("link", { name: /管理员账号/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it("shows account management to the super administrator", () => {
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 1,
+          username: "super-operator",
+          producername: "Super Operator",
+          dept: "op",
+          adminRole: "super_admin",
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+
+    renderAdminLayout()
+
+    expect(screen.getByText("最高管理员")).toBeVisible()
+    expect(screen.getByRole("link", { name: /管理员账号/ })).toHaveAttribute(
+      "href",
+      "/admin/accounts"
+    )
   })
 })

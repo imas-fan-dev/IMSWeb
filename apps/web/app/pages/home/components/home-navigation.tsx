@@ -62,7 +62,7 @@ export function FriendLinks() {
               href={link.href}
               target="_blank"
               rel="noreferrer"
-              className="group relative flex min-h-24 items-center gap-4 border-b px-4 py-5 transition-colors hover:bg-muted/35 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:px-5 [&:nth-last-child(-n+2)]:sm:border-b-0 [&:nth-last-child(-n+3)]:lg:border-b-0"
+              className="group relative flex min-h-24 items-center gap-4 border-b px-4 py-5 transition-colors hover:bg-muted/35 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:px-5 nth-last-[-n+2]:sm:border-b-0 nth-last-[-n+3]:lg:border-b-0"
             >
               <span
                 className={cn("h-9 w-1 shrink-0 rounded-full", link.accent)}
@@ -70,7 +70,7 @@ export function FriendLinks() {
               />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{link.title}</span>
-                <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                <span className="mt-1 block text-xs/5 text-muted-foreground">
                   {link.description}
                 </span>
               </span>

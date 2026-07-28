@@ -22,7 +22,8 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0006_s3_semantic_physical_keys', phase: 'post-data' },
             { version: '0007_wiki_catalog_metadata', phase: 'post-data' },
             { version: '0008_auth_refresh_sessions', phase: 'pre-data' },
-            { version: '0009_s3_public_storage_scope', phase: 'post-data' }
+            { version: '0009_s3_public_storage_scope', phase: 'post-data' },
+            { version: '0010_admin_roles', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -81,7 +82,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0006_s3_semantic_physical_keys',
         '0007_wiki_catalog_metadata',
         '0008_auth_refresh_sessions',
-        '0009_s3_public_storage_scope'
+        '0009_s3_public_storage_scope',
+        '0010_admin_roles'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

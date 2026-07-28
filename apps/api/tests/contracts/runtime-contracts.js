@@ -768,13 +768,14 @@ async function assertCoreMutationContract(fixture) {
     const loginBody = await json(login, `${fixture.runtime} login`);
     deepEqual(
         Object.keys(loginBody).sort(),
-        ['dept', 'producername', 'success', 'token', 'username'],
+        ['adminRole', 'dept', 'producername', 'success', 'token', 'username'],
         `${fixture.runtime} login response fields`
     );
     equal(loginBody.success, true, `${fixture.runtime} login success`);
     equal(loginBody.username, fixture.username, `${fixture.runtime} login username`);
     equal(loginBody.producername, fixture.producername, `${fixture.runtime} login producername`);
     equal(loginBody.dept, 'op', `${fixture.runtime} login role`);
+    equal(loginBody.adminRole, 'admin', `${fixture.runtime} admin role`);
     equal(typeof loginBody.token, 'string', `${fixture.runtime} login token`);
     const auth = { Authorization: loginBody.token };
 

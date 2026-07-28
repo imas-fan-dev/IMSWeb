@@ -1,3 +1,5 @@
+import { WORK_CHARACTER_IMAGE_URLS } from "~/pages/works/brand-assets"
+
 export type WorkEntry = {
   slug: string
   title: string
@@ -41,7 +43,7 @@ export const workEntries: WorkEntry[] = [
     since: 2005,
     summary: "从街机与家用机作品出发的偶像大师原点。",
     heroImage: "/brand/series/wall/765pro.webp",
-    characterImage: "/assets/images/Production/765Haruka.png",
+    characterImage: WORK_CHARACTER_IMAGE_URLS["765"],
     description: [
       "《偶像大师》是一款起源于娱乐设施用街机的偶像养成类游戏。起源于2005年。",
       "玩家在游戏中以制作人的身份培育偶像的系统、个性丰富的角色以及多彩的乐曲，获得了广大玩家和粉丝的支持。",
@@ -70,7 +72,7 @@ export const workEntries: WorkEntry[] = [
     since: 2011,
     summary: "拥有丰富角色与多种内容形态的灰姑娘女孩企划。",
     heroImage: "/brand/series/wall/cinderella-girls.webp",
-    characterImage: "/assets/images/Production/346Uzuki.png",
+    characterImage: WORK_CHARACTER_IMAGE_URLS.cg,
     description: [
       "《偶像大师灰姑娘女孩》起始于2011年开始提供服务的社交游戏。",
       "登场偶像超过190人，2015年1月播出电视动画，同年9月推出了节奏游戏《偶像大师灰姑娘女孩星光舞台》。",
@@ -94,12 +96,12 @@ export const workEntries: WorkEntry[] = [
       "「经过欢笑与烦恼，女孩们将会更加闪耀——",
       "请与我们一起，在这座剧场中实现梦想！」",
       "通过和偶像们共同打造的演唱会现场",
-      '一同寻找“百万的闪耀”吧！',
+      "一同寻找“百万的闪耀”吧！",
     ],
     since: 2013,
     summary: "以 765PRO LIVE THE@TER 为舞台延展的企划。",
     heroImage: "/brand/series/wall/million-live.webp",
-    characterImage: "/assets/images/Production/765Mirai.png",
+    characterImage: WORK_CHARACTER_IMAGE_URLS.ml,
     description: [
       "《偶像大师百万现场！》于2013年作为「偶像大师」系列的社交游戏诞生，2017年6月推出了手机APP游戏《偶像大师百万现场！剧场时光》。",
       '在该游戏中，玩家将以"765PRO LIVE THEATER"为舞台，培育"765 MILLION ALLSTARS"的52名偶像。',
@@ -127,7 +129,7 @@ export const workEntries: WorkEntry[] = [
     since: 2014,
     summary: "讲述怀抱不同经历的男性偶像走向舞台的企划。",
     heroImage: "/brand/series/wall/sidem.webp",
-    characterImage: "/assets/images/Production/315Teru.png",
+    characterImage: WORK_CHARACTER_IMAGE_URLS.sidem,
     description: [
       "「偶像大师」系列首款男性偶像培育游戏，诞生于2014年。2017年8月推出手机游戏《偶像大师SideM LIVE ON ST@GE!》，2021年10月则推出手机游戏《偶像大师SideM GROWING STARS》。",
       "目前事务所已迁移至偶像大师官方网站的SideM企划页面，偶像们的故事仍在继续的同时，还会在演唱会、音乐、周边等领域广泛展开！",
@@ -155,7 +157,7 @@ export const workEntries: WorkEntry[] = [
     since: 2018,
     summary: "聚焦组合关系、细腻叙事与舞台表达的闪耀色彩企划。",
     heroImage: "/brand/series/wall/shiny-colors.webp",
-    characterImage: "/assets/images/Production/283Mano.png",
+    characterImage: WORK_CHARACTER_IMAGE_URLS.sc,
     description: [
       "《偶像大师闪耀色彩》自2018年起作为「偶像大师」系列的一员面世。企划从游戏起步，广泛延伸至演唱会、周边、CD和广播等众多领域。",
       "手机APP游戏《偶像大师闪耀色彩Song For Prism》也正火热运营中。企划于2024年4月播出动画第一季，2024年10月顺利播出动画第二季。",
@@ -183,16 +185,14 @@ export const workEntries: WorkEntry[] = [
     since: 2024,
     summary: "以初星学园为舞台展开的偶像培养企划。",
     heroImage: "/brand/series/wall/gakuen.webp",
-    characterImage: "/assets/images/Production/GakuenSaki.png",
+    characterImage: WORK_CHARACTER_IMAGE_URLS.gakuen,
     description: [
       '于2024年诞生的「偶像大师」系列最新作。玩家将作为制作人，入学偶像育成学校"初星学园"，对兼备各种问题与多彩魅力的"偶像之卵"们进行培育。',
       "该企划以2024年春季上线的手机APP游戏为起点，在CD、周边、演唱会等多方面广泛展开！",
       "在全新的舞台上与偶像们所共同描绘的学园生活，请尽情享受！",
     ],
     accent: "bg-franchise-gk",
-    navLinks: [
-      { label: "📖 剧情浏览", href: "/story" },
-    ],
+    navLinks: [{ label: "📖 剧情浏览", href: "/story" }],
   },
   {
     slug: "games",
@@ -211,9 +211,7 @@ export const workEntries: WorkEntry[] = [
     ],
     accent: "bg-info",
     links: [{ label: "打开板板大冒险", href: "/runninggame/" }],
-    navLinks: [
-      { label: "📰 资料库", href: "/wiki" },
-    ],
+    navLinks: [{ label: "📰 资料库", href: "/wiki" }],
   },
   {
     slug: "wows",
@@ -231,9 +229,7 @@ export const workEntries: WorkEntry[] = [
       "历史图片和社群信息需要完成有效性与授权复核后再逐项恢复展示。",
     ],
     accent: "bg-warning",
-    navLinks: [
-      { label: "📰 资料库", href: "/wiki" },
-    ],
+    navLinks: [{ label: "📰 资料库", href: "/wiki" }],
   },
 ]
 

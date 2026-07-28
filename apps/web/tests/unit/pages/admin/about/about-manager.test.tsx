@@ -98,6 +98,20 @@ describe("AboutManager", () => {
     expect(screen.getByLabelText("角色图片替代文本")).toHaveValue(
       "亚里沙老师全身立绘"
     )
+    const desktopPreviewButton = screen.getByRole("button", {
+      name: "桌面端",
+    })
+    const mobilePreviewButton = screen.getByRole("button", {
+      name: "移动端",
+    })
+    const previewCanvas = screen.getByTestId("about-hero-preview-canvas")
+    expect(desktopPreviewButton).toHaveAttribute("aria-pressed", "true")
+    expect(mobilePreviewButton).toHaveAttribute("aria-pressed", "false")
+    expect(previewCanvas).toHaveAttribute("data-preview-mode", "desktop")
+    await user.click(mobilePreviewButton)
+    expect(desktopPreviewButton).toHaveAttribute("aria-pressed", "false")
+    expect(mobilePreviewButton).toHaveAttribute("aria-pressed", "true")
+    expect(previewCanvas).toHaveAttribute("data-preview-mode", "mobile")
     const heroScale = screen.getByLabelText("角色缩放")
     const compositionPreview = screen.getByTestId(
       "about-hero-composition-preview"

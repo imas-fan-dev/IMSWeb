@@ -1,5 +1,7 @@
+import { setCache } from "alova"
 import { z } from "zod"
 
+import { PUBLIC_QUERY_CACHE_FOR } from "../cache-policy"
 import { apiClient } from "../client"
 
 const recommendationIdSchema = z
@@ -70,7 +72,12 @@ export function getRecommendationPage({
   if (cursor) params.cursor = cursor
 
   return apiClient.Get<RecommendationPage, unknown>("/api/news", {
+    cacheFor: PUBLIC_QUERY_CACHE_FOR,
     params,
     transform: parseRecommendationPage,
   })
+}
+
+export function cacheRecommendationFeed(page: RecommendationPage) {
+  return setCache(getRecommendationPage(), page)
 }

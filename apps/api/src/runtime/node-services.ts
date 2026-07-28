@@ -4,6 +4,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { NodeDatabaseConfig } from '@/config/database';
 import type { NodeObjectStorageConfig } from '@/config/object-storage';
 import type {
+    AdminAccountRepository,
     AuditRepository,
     AuthRepository,
     EventRepository,
@@ -29,10 +30,12 @@ import {
 import {
     CLIENT_ADDRESS_SOURCE,
     COOKIE_OPTIONS,
+    IS_PRODUCTION,
     SECRET_KEY,
     SITE_ORIGINS,
     SITE_PACKAGE_MAX_UPLOAD_BYTES,
-    STORY_MAX_UPLOAD_BYTES
+    STORY_MAX_UPLOAD_BYTES,
+    SUPER_ADMIN_USERNAME
 } from '@/config/env';
 import { parseNodeObjectStorageConfig } from '@/config/object-storage';
 import { parseNodeDatabaseConfig } from '@/config/database';
@@ -70,6 +73,7 @@ interface InitializableResource {
 interface CoreRepositoryAdapter extends
     InitializableResource,
     AuthRepository,
+    AdminAccountRepository,
     AuditRepository,
     NewsRepository,
     EventRepository,
@@ -221,6 +225,9 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
     const { database: connection, core, story } = createNodeRepositories(database);
     try {
         await initializeNodeRepositories(core, story);
+        if (IS_PRODUCTION || SUPER_ADMIN_USERNAME) {
+            await core.ensureSuperAdmin(SUPER_ADMIN_USERNAME);
+        }
         const filesystemRoots = {
             publicDir: PUBLIC_DIR,
             uploadsDir: UPLOADS_DIR,
@@ -234,6 +241,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         );
         return {
             auth: core,
+            adminAccounts: core,
             audit: core,
             news: core,
             events: core,

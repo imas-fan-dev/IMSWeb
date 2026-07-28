@@ -13,7 +13,13 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/compose.yaml config
 ```
 
-启动完整本地 API 栈：
+日常源码开发优先运行根目录 `pnpm dev`。它会复用本 Compose 文件启动并等待 PostgreSQL/MinIO，
+初始化 bucket、应用 migration，再启动宿主机上的 API/Web 热更新进程；无需先复制
+`deploy/.env`。如需调整本地依赖端口或凭据，再从模板创建该文件。停止依赖且保留数据卷使用
+`pnpm run dev:down`。启动和停止前可运行 `pnpm run dev:doctor`；统一入口仅允许 Unix socket、
+Windows named pipe 或回环地址上的本机 Docker/Podman endpoint，远程 context 会被拒绝。
+
+需要验证构建后容器镜像时，启动完整本地 API 栈：
 
 ```sh
 pnpm run dev:api:up
@@ -21,7 +27,8 @@ docker compose -f deploy/compose.yaml ps postgres minio minio-init api
 curl --fail http://127.0.0.1:3000/api/wiki/test
 ```
 
-`dev:api:up` 会构建 API 镜像，并按健康依赖顺序启动 PostgreSQL、MinIO 初始化任务和 API。
+`dev:api:up` 是容器集成预览入口：它会构建 API 镜像，并按健康依赖顺序启动 PostgreSQL、
+MinIO 初始化任务和 API，但不提供源码热更新。
 只需要依赖服务或需要 Hono 源码热更新时，仍可分别运行：
 
 ```sh
@@ -39,7 +46,8 @@ API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问�
 ## PostgreSQL + Cloudflare R2
 
 生产配置应将 `COMPOSE_PROFILES` 留空，并设置完整的 `IMS_S3_*`、AWS 凭据、HTTPS
-`IMS_SITE_ORIGIN`、高熵 `IMS_JWT_SECRET` 和 `IMS_API_DATABASE_URL`。R2 使用 `auto` region；
+`IMS_SITE_ORIGIN`、高熵 `IMS_JWT_SECRET`、`IMS_API_DATABASE_URL`，并在首次启用管理员角色时将
+`IMS_SUPER_ADMIN_USERNAME` 设为现有 `op` 账号。R2 使用 `auto` region；
 `IMS_S3_ENDPOINT` 是 R2 S3 API 域名，`IMS_PUBLIC_READ_URL_BASE` 是 bucket 自定义域名，
 二者不能互换。渲染配置和启动 API 栈：
 

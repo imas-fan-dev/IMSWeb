@@ -48,8 +48,10 @@ async function addUser() {
             try {
                 const passwordHash = await bcrypt.hash(password, 12);
                 db.run(
-                    'INSERT INTO users (username, password, dept, producername) VALUES (?, ?, ?, ?)',
-                    [username, passwordHash, dept, producername],
+                    `INSERT INTO users
+                     (username, password, dept, producername, admin_role)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    [username, passwordHash, dept, producername, dept === 'op' ? 'admin' : null],
                     function onInsert(err) {
                         if (err) {
                             if (err.code === 'SQLITE_CONSTRAINT') {

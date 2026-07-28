@@ -128,7 +128,7 @@ export function SiteHeader() {
                   onClick={() => setMobileNavigationOpen(false)}
                   className={({ isActive }) =>
                     cn(
-                      "rounded-md px-3 py-3 text-sm font-medium hover:bg-muted",
+                      "rounded-md p-3 text-sm font-medium hover:bg-muted",
                       isActive && "bg-muted text-primary"
                     )
                   }
@@ -139,7 +139,7 @@ export function SiteHeader() {
               <Link
                 to="/wiki"
                 onClick={() => setMobileNavigationOpen(false)}
-                className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
+                className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary p-3 text-sm font-medium text-primary-foreground"
               >
                 Wiki
                 <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
@@ -147,7 +147,7 @@ export function SiteHeader() {
               <a
                 href="/runninggame/"
                 onClick={() => setMobileNavigationOpen(false)}
-                className="mt-1 rounded-md border px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-muted"
+                className="mt-1 rounded-md border p-3 text-sm font-medium text-muted-foreground hover:bg-muted"
               >
                 {t("navigation.runningGame")}
               </a>

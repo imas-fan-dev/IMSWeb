@@ -169,7 +169,7 @@ function ImageUrlEditor({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] lg:items-start">
-      <div className="flex aspect-[16/10] min-h-36 items-center justify-center overflow-hidden rounded-lg border bg-muted/25">
+      <div className="flex aspect-16/10 min-h-36 items-center justify-center overflow-hidden rounded-lg border bg-muted/25">
         {value && !previewFailed ? (
           <img
             src={value}

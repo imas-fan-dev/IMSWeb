@@ -170,7 +170,7 @@ export function FileUploadControl({
               </Badge>
             ) : null}
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <p className="mt-1 text-xs/5 text-muted-foreground">
             {detail}
           </p>
         </div>

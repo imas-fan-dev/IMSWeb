@@ -10,6 +10,7 @@ import {
 import { useState } from "react"
 import { Link, useNavigate } from "react-router"
 
+import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
@@ -48,18 +49,11 @@ export default function AdminLogin() {
 
   return (
     <main className="grid min-h-svh bg-background lg:grid-cols-[minmax(24rem,0.84fr)_minmax(32rem,1.16fr)]">
-      <section className="relative flex min-h-[20rem] overflow-hidden border-b bg-admin-ink px-6 py-7 text-admin-ink-foreground sm:px-10 sm:py-10 lg:min-h-svh lg:border-r lg:border-b-0 lg:px-14 lg:py-12 xl:px-18">
-        <div
-          className="absolute inset-y-0 left-0 grid w-1 grid-rows-6"
-          aria-hidden="true"
-        >
-          <span className="bg-franchise-765" />
-          <span className="bg-franchise-cg" />
-          <span className="bg-franchise-ml" />
-          <span className="bg-franchise-sidem" />
-          <span className="bg-franchise-sc" />
-          <span className="bg-franchise-gk" />
-        </div>
+      <section className="relative flex min-h-80 overflow-hidden border-b bg-admin-ink px-6 py-7 text-admin-ink-foreground sm:p-10 lg:min-h-svh lg:border-r lg:border-b-0 lg:px-14 lg:py-12 xl:px-18">
+        <SeriesAccentStrip
+          className="absolute inset-y-0 left-0 w-1"
+          orientation="vertical"
+        />
 
         <div className="mx-auto flex w-full max-w-lg flex-col">
           <div className="flex items-start justify-between gap-6">
@@ -90,7 +84,7 @@ export default function AdminLogin() {
             <h1 className="mt-4 max-w-md text-4xl leading-[1.16] font-semibold text-balance sm:text-5xl">
               内容管理工作台
             </h1>
-            <p className="mt-5 max-w-sm text-sm leading-6 text-admin-ink-subtle sm:text-base sm:leading-7">
+            <p className="mt-5 max-w-sm text-sm/6 text-admin-ink-subtle sm:text-base/7">
               管理站点内容，维护面向制作人社区的公开信息。
             </p>
           </div>
@@ -104,7 +98,7 @@ export default function AdminLogin() {
 
       <section className="flex items-center px-6 py-12 sm:px-10 lg:px-16 xl:px-24">
         <form
-          className="mx-auto flex w-full max-w-[28rem] flex-col gap-6"
+          className="mx-auto flex w-full max-w-md flex-col gap-6"
           onSubmit={submit}
           aria-describedby="admin-login-description"
         >
@@ -120,7 +114,7 @@ export default function AdminLogin() {
             <h2 className="mt-6 text-3xl font-semibold">管理登录</h2>
             <p
               id="admin-login-description"
-              className="mt-2 text-sm leading-6 text-muted-foreground"
+              className="mt-2 text-sm/6 text-muted-foreground"
             >
               使用具有内容运营权限的站点账号登录。
             </p>

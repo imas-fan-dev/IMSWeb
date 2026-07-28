@@ -40,7 +40,7 @@ export function WikiIdolGrid({
               ) : null}
               <h3
                 id={`wiki-group-${group.id}`}
-                className="text-lg font-semibold break-words"
+                className="text-lg font-semibold wrap-break-word"
               >
                 {group.name}
               </h3>
@@ -58,7 +58,7 @@ export function WikiIdolGrid({
                 className="group overflow-hidden rounded-lg border bg-card shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 style={{ borderTopColor: safeWikiColor(idol.color) }}
               >
-                <div className="aspect-[4/5] overflow-hidden bg-muted">
+                <div className="aspect-4/5 overflow-hidden bg-muted">
                   {idol.imageUrl ? (
                     <img
                       src={idol.imageUrl}
@@ -71,7 +71,7 @@ export function WikiIdolGrid({
                   ) : null}
                 </div>
                 <div className="flex min-h-14 items-center justify-between gap-2 border-t px-3 py-2.5">
-                  <span className="min-w-0 text-sm font-medium break-words">
+                  <span className="min-w-0 text-sm font-medium wrap-break-word">
                     {idol.name}
                   </span>
                   <ArrowUpRightIcon className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />

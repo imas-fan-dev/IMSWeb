@@ -117,6 +117,19 @@ export const SITE_PACKAGE_MAX_UPLOAD_BYTES = parseSitePackageMaxUploadBytes(
 );
 export const SITE_ORIGINS = parseSiteOrigins();
 
+export function parseSuperAdminUsername(value: string | undefined): string | undefined {
+    const username = value?.trim();
+    if (!username) return undefined;
+    if (username.length > 128 || /[\0-\x1f\x7f]/.test(username)) {
+        throw new Error('IMS_SUPER_ADMIN_USERNAME must be at most 128 printable characters');
+    }
+    return username;
+}
+
+export const SUPER_ADMIN_USERNAME = parseSuperAdminUsername(
+    process.env.IMS_SUPER_ADMIN_USERNAME
+);
+
 export function parseClientAddressSource(
     value: string | undefined
 ): 'direct' | 'nginx' {

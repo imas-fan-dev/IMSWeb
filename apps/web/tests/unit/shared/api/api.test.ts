@@ -205,6 +205,7 @@ describe("Alova access-token refresh", () => {
               username: "alova-op",
               producername: "Alova Producer",
               dept: "op",
+              adminRole: "admin",
             },
           })
         }

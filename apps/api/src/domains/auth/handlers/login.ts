@@ -84,7 +84,8 @@ async function login(
         token,
         username: user.username,
         producername: user.producername,
-        dept: user.dept
+        dept: user.dept,
+        adminRole: user.admin_role
     });
 }
 

@@ -172,7 +172,8 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     const core = new SqliteCoreRepository(connection, new SqliteSchemaStrategy());
     await core.initialize();
     await connection.run(
-        `INSERT INTO users (username, password, dept, producername) VALUES (?, 'contract-digest', 'op', ?)`,
+        `INSERT INTO users (username, password, dept, producername, admin_role)
+         VALUES (?, 'contract-digest', 'op', ?, 'admin')`,
         [USERNAME, PRODUCER]
     );
     await connection.run(

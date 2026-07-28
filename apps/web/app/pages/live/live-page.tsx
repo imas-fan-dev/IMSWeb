@@ -1,12 +1,14 @@
 import { useRequest } from "alova/client"
 import {
   CalendarDaysIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ExternalLinkIcon,
   MapPinIcon,
   RadioIcon,
   ClockIcon,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
@@ -20,16 +22,30 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
+import { Input } from "~/components/ui/input"
+import {
+  hasLiveBrandLogo,
+  LiveBrandLogo,
+} from "~/pages/live/components/live-brand-logo"
+import {
+  eventsForMonth,
+  LIVE_ARCHIVE_START_MONTH,
+  livePage,
+  livePageCount,
+  monthKey,
+  nextMonthKey,
+  upcomingLiveEvents,
+} from "~/pages/live/live-schedule-model"
 import { getLiveEvents, type LiveEvent } from "~/shared/api"
 
 export function meta() {
   return [{ title: "Live 日程 | IMSWeb" }]
 }
 
-function LiveLoading() {
+function LiveLoading({ label, rows = 3 }: { label: string; rows?: number }) {
   return (
-    <div className="space-y-4" aria-label="正在加载 Live 日程">
-      {Array.from({ length: 6 }, (_, i) => (
+    <div className="space-y-4" aria-label={label}>
+      {Array.from({ length: rows }, (_, i) => (
         <Skeleton key={i} className="h-32 w-full rounded-xl" />
       ))}
     </div>
@@ -46,7 +62,7 @@ function LiveCard({ event }: { event: LiveEvent }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold leading-snug">
+          <h3 className="text-base/snug font-semibold">
             {event.title}
           </h3>
 
@@ -66,11 +82,20 @@ function LiveCard({ event }: { event: LiveEvent }) {
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            {event.franchises.map((f) => (
-              <Badge key={f} variant="outline" className="text-xs">
-                {f}
-              </Badge>
-            ))}
+            {event.franchises.map((franchise, index) => {
+              const code = event.brandCodes[index] ?? "OTHER"
+              return (
+                <span key={`${code}-${franchise}`}>
+                  {hasLiveBrandLogo(code) ? (
+                    <LiveBrandLogo code={code} name={franchise} />
+                  ) : (
+                    <Badge variant="outline" className="text-xs">
+                      {franchise}
+                    </Badge>
+                  )}
+                </span>
+              )
+            })}
             {event.detailUrl ? (
               <a
                 href={event.detailUrl}
@@ -99,28 +124,53 @@ function LiveCard({ event }: { event: LiveEvent }) {
 }
 
 export default function Live() {
-  const { data, loading, error } = useRequest(getLiveEvents)
-  const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const today = useMemo(() => new Date(), [])
+  const currentMonth = useMemo(() => monthKey(today), [today])
+  const initialMonths = useMemo(
+    () => [currentMonth, nextMonthKey(today)],
+    [currentMonth, today]
+  )
+  const {
+    data: initialData,
+    loading: initialLoading,
+    error: initialError,
+  } = useRequest(getLiveEvents(initialMonths))
+  const {
+    data: selectedData,
+    loading: selectedLoading,
+    error: selectedError,
+    send: loadSelectedMonth,
+  } = useRequest((month: string) => getLiveEvents([month]), {
+    immediate: false,
+  })
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const [page, setPage] = useState(1)
+  const loadSelectedMonthRef = useRef(loadSelectedMonth)
 
-  const { years, filtered } = useMemo(() => {
-    if (!data) return { years: [], filtered: [] }
+  const usesInitialData = initialMonths.includes(selectedMonth)
 
-    const yearsSet = new Set(data.map((e) => e.year))
-    const yearsArr = Array.from(yearsSet).sort((a, b) => b - a)
+  useEffect(() => {
+    loadSelectedMonthRef.current = loadSelectedMonth
+  }, [loadSelectedMonth])
 
-    const filteredEvents = selectedYear
-      ? data.filter((e) => e.year === selectedYear)
-      : data
+  useEffect(() => {
+    if (usesInitialData) return
+    void loadSelectedMonthRef.current(selectedMonth).catch(() => undefined)
+  }, [selectedMonth, usesInitialData])
 
-    // sort by date descending
-    filteredEvents.sort((a, b) => {
-      if (a.year !== b.year) return b.year - a.year
-      if (a.month !== b.month) return b.month - a.month
-      return b.day - a.day
-    })
-
-    return { years: yearsArr, filtered: filteredEvents }
-  }, [data, selectedYear])
+  const featuredEvents = useMemo(
+    () => upcomingLiveEvents(initialData ?? [], today),
+    [initialData, today]
+  )
+  const archiveSource = usesInitialData ? initialData : selectedData
+  const archiveEvents = useMemo(
+    () => eventsForMonth(archiveSource ?? [], selectedMonth),
+    [archiveSource, selectedMonth]
+  )
+  const pageCount = livePageCount(archiveEvents)
+  const pagedEvents = livePage(archiveEvents, page)
+  const archiveLoading = usesInitialData ? initialLoading : selectedLoading
+  const archiveError = usesInitialData ? initialError : selectedError
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-4xl px-6 py-16">
@@ -131,88 +181,158 @@ export default function Live() {
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">
           Live 日程
         </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
+        <p className="mt-4 text-base/7 text-muted-foreground">
           查看各企划已公布的演出安排与线上活动信息。
         </p>
       </div>
 
-      {loading ? (
-        <div className="mt-10">
-          <LiveLoading />
+      <section className="mt-10" aria-labelledby="featured-live-title">
+        <div className="mb-5 flex items-end justify-between gap-4">
+          <h2 id="featured-live-title" className="text-xl font-semibold">
+            未来两周
+          </h2>
+          {!initialLoading && !initialError ? (
+            <span className="text-sm text-muted-foreground">
+              {featuredEvents.length} 条
+            </span>
+          ) : null}
         </div>
-      ) : null}
 
-      {error ? (
-        <div className="mt-10">
+        {initialLoading ? <LiveLoading label="正在加载未来两周日程" /> : null}
+
+        {initialError ? (
           <Alert variant="destructive">
             <RadioIcon aria-hidden="true" />
             <AlertTitle>无法加载日程</AlertTitle>
             <AlertDescription>请稍后刷新页面重试。</AlertDescription>
           </Alert>
-        </div>
-      ) : null}
+        ) : null}
 
-      {!loading && !error && data?.length === 0 ? (
-        <div className="mt-10">
-          <Empty className="min-h-64 border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <CalendarDaysIcon aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>暂无日程</EmptyTitle>
-              <EmptyDescription>
-                当前没有已公布的演出安排。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        </div>
-      ) : null}
+        {!initialLoading && !initialError ? (
+          featuredEvents.length ? (
+            <div className="space-y-4">
+              {featuredEvents.map((event) => (
+                <LiveCard key={event.id} event={event} />
+              ))}
+            </div>
+          ) : (
+            <Empty className="min-h-48 border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CalendarDaysIcon aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>未来两周暂无日程</EmptyTitle>
+                <EmptyDescription>
+                  当前没有已公布的近期演出安排。
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )
+        ) : null}
+      </section>
 
-      {!loading && !error && data?.length ? (
-        <>
-          <div className="mt-8 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant={selectedYear === null ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedYear(null)}
-            >
-              全部
-            </Button>
-            {years.map((year) => (
-              <Button
-                key={year}
-                type="button"
-                variant={selectedYear === year ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedYear(year)}
-              >
-                {year}
-              </Button>
-            ))}
+      <section
+        className="mt-12 border-t pt-10"
+        aria-labelledby="archive-live-title"
+      >
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <h2 id="archive-live-title" className="text-xl font-semibold">
+              更多日程
+            </h2>
+            {!archiveLoading && !archiveError ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                共 {archiveEvents.length} 条
+              </p>
+            ) : null}
           </div>
+          <label className="grid gap-1.5 text-sm font-medium">
+            <span>月份</span>
+            <Input
+              type="month"
+              min={LIVE_ARCHIVE_START_MONTH}
+              value={selectedMonth}
+              onChange={(event) => {
+                setSelectedMonth(event.target.value)
+                setPage(1)
+              }}
+              className="w-44"
+              aria-label="筛选日程月份"
+            />
+          </label>
+        </div>
 
-          <section className="mt-6 space-y-4" aria-label="日程列表">
-            {filtered.length === 0 ? (
+        <div className="mt-6">
+          {archiveLoading ? (
+            <LiveLoading label="正在加载所选月份日程" rows={4} />
+          ) : null}
+
+          {archiveError ? (
+            <Alert variant="destructive">
+              <RadioIcon aria-hidden="true" />
+              <AlertTitle>无法加载所选月份</AlertTitle>
+              <AlertDescription>请稍后重试或选择其他月份。</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {!archiveLoading && !archiveError ? (
+            archiveEvents.length ? (
+              <div className="space-y-4" aria-label="更多日程列表">
+                {pagedEvents.map((event) => (
+                  <LiveCard key={event.id} event={event} />
+                ))}
+              </div>
+            ) : (
               <Empty className="min-h-48 border">
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
                     <CalendarDaysIcon aria-hidden="true" />
                   </EmptyMedia>
-                  <EmptyTitle>该年份暂无日程</EmptyTitle>
+                  <EmptyTitle>该月份暂无日程</EmptyTitle>
                   <EmptyDescription>
-                    {selectedYear} 年没有已记录的演出安排。
+                    {selectedMonth} 没有已记录的演出安排。
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
-            ) : (
-              filtered.map((event, index) => (
-                <LiveCard key={`${event.year}-${event.month}-${event.day}-${index}`} event={event} />
-              ))
-            )}
-          </section>
-        </>
-      ) : null}
+            )
+          ) : null}
+        </div>
+
+        {!archiveLoading && !archiveError && archiveEvents.length > 10 ? (
+          <nav
+            className="mt-6 flex items-center justify-center gap-3"
+            aria-label="更多日程分页"
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="上一页"
+              title="上一页"
+              disabled={page === 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              <ChevronLeftIcon aria-hidden="true" />
+            </Button>
+            <span className="min-w-20 text-center text-sm tabular-nums">
+              第 {page} / {pageCount} 页
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="下一页"
+              title="下一页"
+              disabled={page === pageCount}
+              onClick={() =>
+                setPage((current) => Math.min(pageCount, current + 1))
+              }
+            >
+              <ChevronRightIcon aria-hidden="true" />
+            </Button>
+          </nav>
+        ) : null}
+      </section>
     </main>
   )
 }

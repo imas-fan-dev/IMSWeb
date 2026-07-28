@@ -53,7 +53,7 @@ export default function ChronicleIndexPage() {
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">
           活动编年史
         </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
+        <p className="mt-4 text-base/7 text-muted-foreground">
           由制作人共同整理的线下活动记录。进入活动页面可以浏览已审核照片，
           也可以提交你保存的现场影像。
         </p>
@@ -97,7 +97,7 @@ export default function ChronicleIndexPage() {
                     <img
                       src={activity.cover}
                       alt=""
-                      className="aspect-[16/7] w-full object-cover"
+                      className="aspect-16/7 w-full object-cover"
                       loading="lazy"
                     />
                   ) : null}

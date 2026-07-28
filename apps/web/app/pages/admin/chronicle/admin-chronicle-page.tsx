@@ -12,7 +12,7 @@ import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
-import { Tabs, TabsList, TabsPanel, TabsTab } from "~/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import {
   AdminEmptyState,
   AdminPageHeader,
@@ -142,9 +142,7 @@ function PendingSection() {
                     </p>
                   ) : null}
                   {item.time ? (
-                    <p className="text-xs text-muted-foreground">
-                      {item.time}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{item.time}</p>
                   ) : null}
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -306,15 +304,15 @@ export default function AdminChronicle() {
       >
         <Tabs defaultValue="pending">
           <TabsList>
-            <TabsTab value="pending">待审核</TabsTab>
-            <TabsTab value="used">已通过</TabsTab>
+            <TabsTrigger value="pending">待审核</TabsTrigger>
+            <TabsTrigger value="used">已通过</TabsTrigger>
           </TabsList>
-          <TabsPanel value="pending">
+          <TabsContent value="pending">
             <PendingSection />
-          </TabsPanel>
-          <TabsPanel value="used">
+          </TabsContent>
+          <TabsContent value="used">
             <UsedSection />
-          </TabsPanel>
+          </TabsContent>
         </Tabs>
       </AdminPanel>
     </div>

@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { getRecommendationPage } from "~/shared/api"
+import { cacheRecommendationFeed, getRecommendationPage } from "~/shared/api"
 import type { Recommendation, RecommendationPage } from "~/shared/api"
-import {
-  clearRecommendationsFeedCache,
-  readRecommendationsFeedCache,
-  writeRecommendationsFeedCache,
-  writeRecommendationsFeedScrollPosition,
-} from "./recommendations-feed-cache"
 
 const pageSize = 20
 
@@ -59,7 +53,7 @@ export function useRecommendationsFeed() {
   const [state, setState] = useState<FeedState>(initialState)
   const requestInFlight = useRef(false)
 
-  const loadFirstPage = useCallback(async () => {
+  const loadFirstPage = useCallback(async (forceRequest = false) => {
     if (requestInFlight.current) return
     requestInFlight.current = true
     setState((current) => ({
@@ -71,7 +65,9 @@ export function useRecommendationsFeed() {
     }))
 
     try {
-      const result = await getRecommendationPage({ limit: pageSize }).send()
+      const result = await getRecommendationPage({ limit: pageSize }).send(
+        forceRequest
+      )
       const items = deduplicateRecommendations([], result.items)
       setState({
         phase: "ready",
@@ -81,7 +77,6 @@ export function useRecommendationsFeed() {
         error: null,
         loadMoreError: null,
       })
-      writeRecommendationsFeedCache(items, result.pageInfo)
     } catch (error) {
       setState({
         ...initialState,
@@ -116,6 +111,10 @@ export function useRecommendationsFeed() {
         cursor: state.pageInfo.nextCursor,
       }).send()
       const items = deduplicateRecommendations(state.items, result.items)
+      await cacheRecommendationFeed({
+        items,
+        pageInfo: result.pageInfo,
+      })
       setState((current) => ({
         ...current,
         items,
@@ -123,7 +122,6 @@ export function useRecommendationsFeed() {
         loadingMore: false,
         loadMoreError: null,
       }))
-      writeRecommendationsFeedCache(items, result.pageInfo)
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -137,48 +135,13 @@ export function useRecommendationsFeed() {
 
   const refresh = useCallback(async () => {
     if (requestInFlight.current) return
-    clearRecommendationsFeedCache()
-    await loadFirstPage()
+    await loadFirstPage(true)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }, [loadFirstPage])
 
   useEffect(() => {
-    const cached = readRecommendationsFeedCache()
-    if (!cached) {
-      void loadFirstPage()
-      return
-    }
-
-    setState({
-      phase: "ready",
-      items: cached.items,
-      pageInfo: cached.pageInfo,
-      loadingMore: false,
-      error: null,
-      loadMoreError: null,
-    })
-    let secondFrame: number | undefined
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        window.scrollTo({ top: cached.scrollY, behavior: "auto" })
-      })
-    })
-    return () => {
-      window.cancelAnimationFrame(firstFrame)
-      if (secondFrame !== undefined) window.cancelAnimationFrame(secondFrame)
-    }
+    void loadFirstPage()
   }, [loadFirstPage])
-
-  useEffect(() => {
-    window.addEventListener("pagehide", writeRecommendationsFeedScrollPosition)
-    return () => {
-      writeRecommendationsFeedScrollPosition()
-      window.removeEventListener(
-        "pagehide",
-        writeRecommendationsFeedScrollPosition
-      )
-    }
-  }, [])
 
   return {
     ...state,

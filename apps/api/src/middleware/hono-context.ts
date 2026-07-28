@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import type { AppEnvironment } from '@/app';
 import type {
+    AdminAccountRepository,
     AuditRepository,
     AuthRepository,
     EventRepository,
@@ -27,6 +28,10 @@ function requireRepository<Key extends keyof RuntimeServices>(
 
 export function authRepository(c: Context<AppEnvironment>): AuthRepository {
     return requireRepository(c, 'auth');
+}
+
+export function adminAccountRepository(c: Context<AppEnvironment>): AdminAccountRepository {
+    return requireRepository(c, 'adminAccounts');
 }
 
 export function auditRepository(c: Context<AppEnvironment>): AuditRepository {

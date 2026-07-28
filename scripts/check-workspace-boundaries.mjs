@@ -19,6 +19,7 @@ const defaultScriptNames = [
   "dev:node",
 ];
 const webDefaultScriptNames = new Set(["build", "check", "test", "test:fast"]);
+const allowedRootDevDependencies = new Set(["husky"]);
 
 function relative(absolutePath) {
   return path.relative(repositoryRoot, absolutePath).split(path.sep).join("/");
@@ -342,12 +343,16 @@ for (const dependencyKind of [
   "optionalDependencies",
   "peerDependencies",
 ]) {
-  if (
-    rootPackage[dependencyKind] &&
-    Object.keys(rootPackage[dependencyKind]).length
-  ) {
+  const forbiddenDependencies = Object.keys(
+    rootPackage[dependencyKind] ?? {},
+  ).filter(
+    (dependency) =>
+      dependencyKind !== "devDependencies" ||
+      !allowedRootDevDependencies.has(dependency),
+  );
+  if (forbiddenDependencies.length) {
     failures.push(
-      `package.json: root aggregator must not declare ${dependencyKind}`,
+      `package.json: root aggregator must not declare ${dependencyKind}: ${forbiddenDependencies.join(", ")}`,
     );
   }
 }

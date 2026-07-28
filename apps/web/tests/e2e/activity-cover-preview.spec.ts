@@ -34,6 +34,7 @@ test.beforeEach(async ({ page }) => {
           username: "information-qa",
           producername: "活动内容检查",
           dept: "op",
+          adminRole: "admin",
         },
       }),
     })

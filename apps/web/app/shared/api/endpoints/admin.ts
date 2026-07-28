@@ -3,6 +3,8 @@ import { z } from "zod"
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
 
+const adminRoleSchema = z.enum(["admin", "super_admin"])
+
 const adminSessionSchema = z.object({
   success: z.literal(true),
   user: z.object({
@@ -10,6 +12,7 @@ const adminSessionSchema = z.object({
     username: z.string(),
     producername: z.string().optional().default(""),
     dept: z.string(),
+    adminRole: adminRoleSchema.nullable(),
   }),
 })
 
@@ -18,6 +21,24 @@ const loginSchema = z.object({
   username: z.string(),
   producername: z.string().nullable().optional(),
   dept: z.literal("op"),
+  adminRole: adminRoleSchema,
+})
+
+const adminAccountSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  username: z.string(),
+  producername: z.string(),
+  adminRole: adminRoleSchema,
+})
+
+const adminAccountListSchema = z.object({
+  success: z.literal(true),
+  accounts: z.array(adminAccountSchema),
+})
+
+const adminAccountMutationSchema = z.object({
+  success: z.literal(true),
+  account: adminAccountSchema,
 })
 
 const informationCategorySchema = z.enum(["activity", "fan"])
@@ -115,6 +136,8 @@ const adminNamecardListSchema = z.object({
 })
 
 export type AdminSession = z.infer<typeof adminSessionSchema>["user"]
+export type AdminRole = z.infer<typeof adminRoleSchema>
+export type AdminAccount = z.infer<typeof adminAccountSchema>
 export type AdminInformationCard = z.infer<typeof adminInformationCardSchema>
 export type AdminInformationIndex = z.infer<typeof adminInformationIndexSchema>
 export type AdminRecommendation = z.infer<typeof recommendationSchema>
@@ -162,6 +185,36 @@ export function logoutAdmin() {
   return apiClient.Post<{ success: true }, unknown>("/api/logout", undefined, {
     meta: withCsrf({ authRole: "logout" }),
   })
+}
+
+export function getAdminAccounts() {
+  return apiClient.Get<z.infer<typeof adminAccountListSchema>, unknown>(
+    "/api/admin/accounts",
+    { transform: (payload) => adminAccountListSchema.parse(payload) }
+  )
+}
+
+export function createAdminAccount(input: {
+  username: string
+  producername: string
+  password: string
+}) {
+  return apiClient.Post<z.infer<typeof adminAccountMutationSchema>, unknown>(
+    "/api/admin/accounts",
+    input,
+    {
+      meta: withCsrf(),
+      transform: (payload) => adminAccountMutationSchema.parse(payload),
+    }
+  )
+}
+
+export function deleteAdminAccount(id: number) {
+  return apiClient.Delete<{ success: true }, unknown>(
+    `/api/admin/accounts/${id}`,
+    undefined,
+    { meta: withCsrf() }
+  )
 }
 
 export function getAdminInformation() {

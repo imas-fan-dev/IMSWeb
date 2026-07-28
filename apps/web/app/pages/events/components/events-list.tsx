@@ -55,7 +55,7 @@ export function EventRow({ event }: { event: EventListItem }) {
 
   return (
     <article className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 border-b py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
-      <div className="flex aspect-[4/3] w-full items-center justify-center self-start overflow-hidden rounded-md bg-info/12 text-info">
+      <div className="flex aspect-4/3 w-full items-center justify-center self-start overflow-hidden rounded-md bg-info/12 text-info">
         {imageUrl ? (
           <CoverImagePreview
             src={imageUrl}
@@ -69,7 +69,7 @@ export function EventRow({ event }: { event: EventListItem }) {
 
       <div className="min-w-0 py-0.5">
         <p className="text-xs font-medium text-primary">活动 #{event.id}</p>
-        <h2 className="mt-1.5 text-base leading-6 font-semibold whitespace-pre-line sm:text-lg sm:leading-7">
+        <h2 className="mt-1.5 text-base/6 font-semibold whitespace-pre-line sm:text-lg/7">
           {event.title}
         </h2>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
@@ -98,7 +98,7 @@ export function EventRow({ event }: { event: EventListItem }) {
                 {event.contact}
               </a>
             ) : (
-              <span className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-line">
+              <span className="min-w-0 wrap-anywhere whitespace-pre-line">
                 {event.contact}
               </span>
             )}
@@ -117,7 +117,7 @@ export function EventsSkeleton() {
           key={item}
           className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6"
         >
-          <Skeleton className="aspect-[4/3] w-full" />
+          <Skeleton className="aspect-4/3 w-full" />
           <div className="space-y-3 py-1">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-5 w-4/5" />

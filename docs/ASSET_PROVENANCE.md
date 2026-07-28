@@ -18,6 +18,33 @@ art direction of `https://idol-master.top/About.html`.
 | `brand/about/staff/rainbow-notes.webp` | `https://idol-master.top/assets/images/Creator/hongsebiji.webp` | Staff avatar |
 | `brand/about/staff/sakuragaoka-unnamed.webp` | `https://idol-master.top/assets/images/Creator/yingqiuwuming.webp` | Staff avatar |
 
+## Series introductions
+
+The six character illustrations and the `IrisIdol.ttf` display font used by the
+series introduction pages are imported from the current public legacy site with
+`pnpm run media:brand-assets:sync`. The command stages source files under the
+ignored `data/migration/legacy-brand-assets/` directory and writes them through
+the object-storage state machine under `brand/works/` and `brand/fonts/`; the
+binary files are not committed to `apps/web/public/`.
+
+| Object storage asset | Original source | Purpose |
+| --- | --- | --- |
+| `brand/works/765/character.png` | `https://idol-master.top/assets/images/Production/765Haruka.png` | 765PRO ALLSTARS series introduction |
+| `brand/works/cg/character.png` | `https://idol-master.top/assets/images/Production/346Uzuki.png` | CINDERELLA GIRLS series introduction |
+| `brand/works/ml/character.png` | `https://idol-master.top/assets/images/Production/765Mirai.png` | MILLION LIVE! series introduction |
+| `brand/works/sidem/character.png` | `https://idol-master.top/assets/images/Production/315Teru.png` | SideM series introduction |
+| `brand/works/sc/character.png` | `https://idol-master.top/assets/images/Production/283Mano.png` | SHINY COLORS series introduction |
+| `brand/works/gakuen/character.png` | `https://idol-master.top/assets/images/Production/GakuenSaki.png` | Gakuen Idolmaster series introduction |
+| `brand/fonts/iris-idol.ttf` | `https://idol-master.top/assets/font/IrisIdol.ttf` | Series title display font |
+
+The Web series pages load the state machine's immutable public R2 versions
+directly from `https://imas-assets.texasoct.tech`; the tracked URL map lives in
+`apps/web/app/pages/works/brand-assets.ts`. After a migration publishes a new
+physical version, update that map from
+`data/migration/legacy-brand-assets/manifest.json` in the same release. The old
+`/assets/images/Production/*` and `/assets/font/IrisIdol.ttf` Hono routes remain
+compatibility endpoints and are not used by the current series pages.
+
 ## Producer map
 
 The administrative boundary is a versioned client-side resource. Community

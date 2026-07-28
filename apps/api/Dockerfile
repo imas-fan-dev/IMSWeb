@@ -4,6 +4,7 @@ FROM node:${NODE_VERSION}-bookworm-slim AS pnpm-base
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
+ENV HUSKY=0
 
 RUN corepack enable \
     && corepack prepare pnpm@11.10.0 --activate
@@ -13,6 +14,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY .husky/install.mjs .husky/install.mjs
 
 FROM pnpm-base AS build
 
@@ -26,6 +28,7 @@ FROM node:${NODE_VERSION}-bookworm AS production-dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
+ENV HUSKY=0
 
 RUN corepack enable \
     && corepack prepare pnpm@11.10.0 --activate
@@ -35,6 +38,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY .husky/install.mjs .husky/install.mjs
 
 COPY --from=build /pnpm/store /pnpm/store
 

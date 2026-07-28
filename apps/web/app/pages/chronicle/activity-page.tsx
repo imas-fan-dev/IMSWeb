@@ -34,7 +34,7 @@ function ActivityLoading() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="aspect-[4/3] rounded-lg" />
+          <Skeleton key={i} className="aspect-4/3 rounded-lg" />
         ))}
       </div>
     </div>
@@ -125,7 +125,7 @@ export default function ChronicleActivityPage({
                     <img
                       src={url}
                       alt={`${data.title} — 照片 ${index + 1}`}
-                      className="aspect-[4/3] w-full object-cover transition-transform group-hover:scale-105"
+                      className="aspect-4/3 w-full object-cover transition-transform group-hover:scale-105"
                       loading="lazy"
                     />
                   </a>

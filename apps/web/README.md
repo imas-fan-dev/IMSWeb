@@ -20,22 +20,22 @@ IMSWeb 的新前端工程。项目使用 React Router 7 framework mode 组织路
 
 ## 本地开发
 
-需要 Node.js 22.13.0 或更新版本，以及 pnpm 11。依赖统一从父仓库根目录安装：
+需要 Node.js 22.13.0 或更新版本，以及 pnpm 11。依赖统一从父仓库根目录安装。推荐从根目录
+一键启动 Web、API 和本地依赖：
 
 ```sh
-pnpm install
-pnpm dev:web
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-进入 `apps/web` 后也可直接执行该包自己的 `pnpm dev`、`pnpm check` 等脚本。
+进入 `apps/web` 后也可直接执行该包自己的 `pnpm dev`、`pnpm check` 等脚本；这条细粒度入口
+只启动 Web，适合已经单独启动 API 或只修改静态界面的场景。
 
 开发代理和 Playwright 的环境变量模板位于 [`.env.example`](.env.example)。工具只读取启动
 进程已有的环境变量，不会把 `IMS_API_ORIGIN` 暴露给浏览器代码：
 
-```sh
-export IMS_API_ORIGIN=http://127.0.0.1:3000
-pnpm dev
-```
+默认代理目标已经是 `http://127.0.0.1:3000`。只有 API 使用非默认端口时才需要在启动 Web 的
+进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端口自动完成同步。
 
 常用命令：
 
@@ -45,7 +45,7 @@ pnpm dev
 | `pnpm build`       | 生成生产前端产物与预渲染页面             |
 | `pnpm design:lint` | 校验根目录 `DESIGN.md` 设计规范          |
 | `pnpm preview`     | 在 `127.0.0.1` 上预览已构建产物          |
-| `pnpm lint`        | 执行 ESLint，警告也视为失败              |
+| `pnpm lint`        | 执行 ESLint 与 Tailwind canonical 类检查 |
 | `pnpm typecheck`   | 生成路由类型并执行 TypeScript 检查       |
 | `pnpm test:unit`   | 运行 Vitest 单元与组件测试               |
 | `pnpm test:e2e`    | 运行 Playwright 桌面端和移动端测试       |

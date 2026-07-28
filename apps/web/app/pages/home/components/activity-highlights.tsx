@@ -41,8 +41,8 @@ export function ActivityHighlights() {
           >
             {[0, 1, 2].map((item) => (
               <div key={item} className="overflow-hidden rounded-md border">
-                <Skeleton className="aspect-[16/9] w-full" />
-                <div className="space-y-2 px-4 py-4">
+                <Skeleton className="aspect-video w-full" />
+                <div className="space-y-2 p-4">
                   <Skeleton className="h-3 w-20" />
                   <Skeleton className="h-5 w-3/4" />
                 </div>
@@ -66,7 +66,7 @@ export function ActivityHighlights() {
                   <CoverImagePreview
                     src={item.image}
                     alt={`${item.title}封面`}
-                    className="aspect-[16/9] w-full rounded-none bg-muted"
+                    className="aspect-video w-full rounded-none bg-muted"
                     imageClassName="transition-transform duration-300 group-hover:scale-[1.025]"
                   />
                   <a

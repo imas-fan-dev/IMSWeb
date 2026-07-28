@@ -12,7 +12,8 @@
 
 ## 准备环境
 
-需要 Node.js `>=22.13.0` 和 pnpm `>=11.10.0`：
+需要 macOS/Linux（Windows 使用 WSL2）、Node.js `>=22.13.0`、pnpm `>=11.10.0`，以及连接
+本机引擎的 Docker/Podman Compose v2：
 
 ```sh
 corepack enable
@@ -20,18 +21,21 @@ pnpm install --frozen-lockfile
 pnpm run check:root
 ```
 
-应用不会自动加载 `.env`。从 `apps/api/.env.example`、`apps/web/.env.example` 或
-`deploy/.env.example` 选择变量，并只在本地 shell、进程管理器或未提交的 env 文件中设置
-实际值。完整流程见 [AI 开发环境指南](docs/ai-development-environment.md)。
+运行 `pnpm dev` 可启动完整本地热更新环境；`pnpm run dev:doctor` 会先以只读方式诊断依赖、
+端口和实际容器 endpoint。统一入口拒绝远程 context，并使用隔离的本地配置，无需先创建
+`.env`。API 独立启动时会自动读取被 Git 忽略的
+`apps/api/.env`，shell 或进程管理器变量优先；Compose 定制配置使用 `deploy/.env`。不要在
+`apps/web/.env` 中放置浏览器可见的密钥。完整流程见
+[AI 开发环境指南](docs/ai-development-environment.md)。
 
 ## 选择修改位置
 
-| 修改范围 | 主要位置 | 最小验证 |
-| --- | --- | --- |
-| Hono API、数据库、媒体、服务端路由 | `apps/api/` | `pnpm run check:api`、`pnpm run test:api` |
-| React 页面、组件、浏览器 API | `apps/web/` | `pnpm run check:web`、`pnpm run test:web` |
-| 根脚本、部署或文档契约 | `scripts/`、`deploy/`、`docs/`、`tests/` | `pnpm run check:root`、`pnpm run test:infra` |
-| 跨 workspace 契约 | 多个位置 | `pnpm run check`、`pnpm run test` |
+| 修改范围                           | 主要位置                                 | 最小验证                                     |
+| ---------------------------------- | ---------------------------------------- | -------------------------------------------- |
+| Hono API、数据库、媒体、服务端路由 | `apps/api/`                              | `pnpm run check:api`、`pnpm run test:api`    |
+| React 页面、组件、浏览器 API       | `apps/web/`                              | `pnpm run check:web`、`pnpm run test:web`    |
+| 根脚本、部署或文档契约             | `scripts/`、`deploy/`、`docs/`、`tests/` | `pnpm run check:root`、`pnpm run test:infra` |
+| 跨 workspace 契约                  | 多个位置                                 | `pnpm run check`、`pnpm run test`            |
 
 历史 Express/Flask 项目位于独立私有仓库，不接受从该仓库复制代码、数据或资产到公开项目。
 

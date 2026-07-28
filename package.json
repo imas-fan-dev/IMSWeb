@@ -5,10 +5,14 @@
   "description": "IMSWeb monorepo workspace orchestrator",
   "license": "MIT",
   "scripts": {
+    "prepare": "node .husky/install.mjs",
     "check:rules": "node scripts/check-agent-rules.mjs",
     "check:boundaries": "node scripts/check-workspace-boundaries.mjs",
     "design:lint": "pnpm --filter @imsweb/web run design:lint",
-    "check:root": "pnpm run check:rules && pnpm run check:boundaries && pnpm run design:lint && sh -n scripts/migration/activate-node-release.sh && node --check scripts/migration/preflight-node-release.cjs",
+    "check:root": "pnpm run check:rules && pnpm run check:boundaries && pnpm run design:lint && sh -n scripts/migration/activate-node-release.sh && node --check scripts/migration/preflight-node-release.cjs && node --check scripts/development/dev-environment.mjs",
+    "check:web:static": "pnpm --filter @imsweb/web run lint && pnpm --filter @imsweb/web run typecheck",
+    "check:api:static": "pnpm run syntax && pnpm --filter @imsweb/api run check:architecture",
+    "check:pre-commit": "git diff --cached --check && pnpm run check:root && pnpm run check:web:static && pnpm run check:api:static",
     "build:server": "pnpm --filter @imsweb/api run build:server",
     "build:client": "pnpm --filter @imsweb/api run build:client",
     "build:api": "pnpm --filter @imsweb/api run build",
@@ -24,9 +28,12 @@
     "test:web": "pnpm --filter @imsweb/web run test",
     "test:web:unit": "pnpm --filter @imsweb/web run test:unit",
     "test:web-routing": "pnpm run build:web && pnpm run build:server && pnpm --filter @imsweb/api run test:web-routing",
-    "test:infra": "python3 -m unittest tests/test_agent_rules.py tests/test_release_activation.py tests/test_operations_docs.py tests/test_compose_deployment.py tests/test_workspace_boundaries.py",
+    "test:infra": "node --test tests/development-environment.test.js && python3 -m unittest tests/test_agent_rules.py tests/test_git_hooks.py tests/test_release_activation.py tests/test_operations_docs.py tests/test_compose_deployment.py tests/test_workspace_boundaries.py",
     "test": "pnpm run check:root && pnpm run test:infra && pnpm run test:api && pnpm run test:web:unit && pnpm run test:web-routing",
     "test:fast": "pnpm run test",
+    "dev": "node scripts/development/dev-environment.mjs",
+    "dev:doctor": "node scripts/development/dev-environment.mjs --doctor",
+    "dev:down": "node scripts/development/dev-environment.mjs --down",
     "start": "pnpm --filter @imsweb/api run start",
     "start:node": "pnpm --filter @imsweb/api run start:node",
     "dev:node": "pnpm --filter @imsweb/api run dev:node",
@@ -53,9 +60,11 @@
     "migration:postgresql:import-sqlite": "pnpm --filter @imsweb/api run migration:postgresql:import-sqlite",
     "migration:object-keys": "pnpm --filter @imsweb/api run migration:object-keys",
     "media:information:sync": "pnpm --filter @imsweb/api run migration:information-media",
+    "media:brand-assets:sync": "pnpm --filter @imsweb/api run migration:brand-assets",
     "media:namecards:sync": "pnpm --filter @imsweb/api run migration:namecards",
     "media:producer-map:sync": "pnpm --filter @imsweb/api run migration:producer-map",
     "test:r2:producer-map": "pnpm --filter @imsweb/api run test:r2:producer-map",
+    "test:r2:brand-assets": "pnpm --filter @imsweb/api run test:r2:brand-assets",
     "media:uploads:sync": "pnpm --filter @imsweb/api run migration:upload-media",
     "migration:public-objects": "pnpm --filter @imsweb/api run migration:public-objects",
     "migration:single-bucket": "pnpm --filter @imsweb/api run migration:single-bucket",
@@ -71,5 +80,8 @@
   },
   "engines": {
     "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "husky": "9.1.7"
   }
 }

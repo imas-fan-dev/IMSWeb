@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -80,11 +86,30 @@ function jsonResponse(payload: unknown) {
   })
 }
 
+function requestPath(input: RequestInfo | URL) {
+  const url = input instanceof Request ? input.url : String(input)
+  return new URL(url, "http://localhost").pathname
+}
+
+function geometry() {
+  return {
+    type: "FeatureCollection",
+    features: [],
+  }
+}
+
 describe("ProducerMapPage", () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it("renders configured regions, filters communities, and opens contact media", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(content())))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        jsonResponse(
+          requestPath(input) === "/api/producer-map" ? content() : geometry()
+        )
+      )
+    )
     const user = userEvent.setup()
 
     render(<ProducerMapPage />)
@@ -94,7 +119,9 @@ describe("ProducerMapPage", () => {
     ).toBeVisible()
     expect(screen.getByText("2 个公开条目")).toBeVisible()
     expect(screen.queryByRole("combobox", { name: "地区资料" })).toBeNull()
-    expect(screen.getByTestId("map-details-open")).toHaveTextContent("false")
+    expect(await screen.findByTestId("map-details-open")).toHaveTextContent(
+      "false"
+    )
 
     await user.click(screen.getByRole("button", { name: "测试地图选择广东省" }))
     expect(screen.getByTestId("map-details-open")).toHaveTextContent("true")
@@ -134,11 +161,74 @@ describe("ProducerMapPage", () => {
   })
 
   it("offers retry when the producer map API cannot be loaded", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (requestPath(input) === "/api/producer-map") {
+          throw new Error("offline")
+        }
+        return jsonResponse(geometry())
+      })
+    )
 
     render(<ProducerMapPage />)
 
     expect(await screen.findByText("制作人地图暂时无法显示")).toBeVisible()
     expect(screen.getByRole("button", { name: "重新加载" })).toBeVisible()
+  })
+
+  it("starts content and geometry requests before either response settles", async () => {
+    const pending = new Map<string, (response: Response) => void>()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (input: RequestInfo | URL) =>
+          new Promise<Response>((resolve) => {
+            pending.set(requestPath(input), resolve)
+          })
+      )
+    )
+
+    render(<ProducerMapPage />)
+
+    await waitFor(() => {
+      expect(pending.has("/api/producer-map")).toBe(true)
+      expect(pending.has("/maps/china-provinces.json")).toBe(true)
+    })
+
+    pending.get("/api/producer-map")?.(jsonResponse(content()))
+    pending.get("/maps/china-provinces.json")?.(jsonResponse(geometry()))
+
+    expect(
+      await screen.findByRole("heading", { name: "全国制作人地图" })
+    ).toBeVisible()
+  })
+
+  it("forces both map requests when the user refreshes", async () => {
+    let contentRequests = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (requestPath(input) === "/api/producer-map") {
+        contentRequests += 1
+        return jsonResponse({
+          ...content(),
+          title: `全国制作人地图 ${contentRequests}`,
+        })
+      }
+      return jsonResponse(geometry())
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<ProducerMapPage />)
+
+    expect(
+      await screen.findByRole("heading", { name: "全国制作人地图 1" })
+    ).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "强制刷新地图数据" }))
+
+    expect(
+      await screen.findByRole("heading", { name: "全国制作人地图 2" })
+    ).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 })

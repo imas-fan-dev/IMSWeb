@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EventsCenter } from "~/pages/events/events-center"
-import { EVENTS_SESSION_CACHE_KEY } from "~/pages/events/hooks/events-feed-cache"
+import { cacheEventFeed } from "~/shared/api"
+import type { EventListItem } from "~/shared/api"
 
 const { virtualizerOptions } = vi.hoisted(() => ({
   virtualizerOptions: vi.fn(),
@@ -50,9 +51,12 @@ function event(id: number) {
   }
 }
 
+function cachedEvent(id: number): EventListItem {
+  return { ...event(id), id: String(id) }
+}
+
 describe("EventsCenter", () => {
   beforeEach(() => {
-    window.sessionStorage.clear()
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
   })
@@ -197,22 +201,18 @@ describe("EventsCenter", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it("restores a large session snapshot while keeping the DOM bounded", async () => {
-    const items = Array.from({ length: 65 }, (_, index) => event(65 - index))
-    window.sessionStorage.setItem(
-      EVENTS_SESSION_CACHE_KEY,
-      JSON.stringify({
-        version: 2,
-        savedAt: Date.now(),
-        scrollY: 720,
-        items,
-        pageInfo: {
-          nextCursor: null,
-          hasNextPage: false,
-          snapshotAt: "65",
-        },
-      })
+  it("restores a large Alova snapshot while keeping the DOM bounded", async () => {
+    const items = Array.from({ length: 65 }, (_, index) =>
+      cachedEvent(65 - index)
     )
+    await cacheEventFeed({
+      items,
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "65",
+      },
+    })
     const fetchMock = vi.fn<typeof fetch>()
     vi.stubGlobal("fetch", fetchMock)
 
@@ -232,26 +232,21 @@ describe("EventsCenter", () => {
     )
   })
 
-  it("rejects cached relative image paths and refreshes them from the API", async () => {
-    window.sessionStorage.setItem(
-      EVENTS_SESSION_CACHE_KEY,
-      JSON.stringify({
-        version: 2,
-        savedAt: Date.now(),
-        scrollY: 0,
-        items: [
-          {
-            ...event(1),
-            image_url: "/uploads/event/original/stale.png",
-          },
-        ],
-        pageInfo: {
-          nextCursor: null,
-          hasNextPage: false,
-          snapshotAt: "1",
+  it("bypasses the Alova snapshot when the user refreshes", async () => {
+    await cacheEventFeed({
+      items: [
+        {
+          ...cachedEvent(1),
+          title: "缓存中的活动",
+          image_url: "/uploads/event/original/stale.png",
         },
-      })
-    )
+      ],
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: "1",
+      },
+    })
     const directUrl =
       "https://media.example.test/editorial/events/event-1/poster.png"
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
@@ -265,8 +260,16 @@ describe("EventsCenter", () => {
       })
     )
     vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
 
     render(<EventsCenter />)
+
+    expect(
+      await screen.findByRole("heading", { name: "缓存中的活动" })
+    ).toBeVisible()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "刷新活动列表" }))
 
     expect(await screen.findByRole("heading", { name: "活动 1" })).toBeVisible()
     expect(fetchMock).toHaveBeenCalledTimes(1)
