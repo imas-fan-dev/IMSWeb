@@ -8,7 +8,7 @@ import {
 } from "~/components/ui/card"
 import type { WikiPublicStoryCategory } from "~/shared/api"
 
-import { safeExternalStoryUrl, safeWikiColor } from "../wiki-model"
+import { safeExternalStoryUrl, safeWikiColor, storyCardAspectRatio, storyCardColumns } from "../wiki-model"
 
 export function StoryCategorySection({
   category,
@@ -42,19 +42,27 @@ export function StoryCategorySection({
         </span>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div
+        className="grid gap-4"
+        style={{
+          gridTemplateColumns: storyCardColumns(category.name),
+        }}
+      >
         {category.cards.map((card) => {
           const cardKey = `${category.name}\u0000${card.name}`
           const imageUrl = card.img || fallbackImage
           return (
             <Card key={cardKey} className="rounded-lg py-0">
-              <div className="aspect-[16/10] overflow-hidden bg-muted">
+              <div
+                className="overflow-hidden bg-muted"
+                style={{ aspectRatio: storyCardAspectRatio(category.name) }}
+              >
                 <img
                   src={imageUrl}
                   alt={card.name}
                   loading="lazy"
                   decoding="async"
-                  className="size-full object-cover"
+                  className="size-full object-contain"
                   onError={(event) => {
                     if (event.currentTarget.src.endsWith(fallbackImage)) return
                     event.currentTarget.src = fallbackImage

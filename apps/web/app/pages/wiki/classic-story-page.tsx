@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import { safeExternalStoryUrl, safeWikiColor } from "~/pages/wiki/wiki-model"
+import { safeExternalStoryUrl, safeWikiColor, storyCardAspectRatio, storyCardColumns } from "~/pages/wiki/wiki-model"
 import { getWikiStories, isApiError } from "~/shared/api"
 import type {
   WikiPublicStories,
@@ -220,7 +220,12 @@ export function ClassicStoryPage() {
                     <small>{category.cards.length} 张卡片</small>
                   </header>
                   {category.cards.length ? (
-                    <div className="wiki-classic-story-grid">
+                    <div
+                      className="wiki-classic-story-grid"
+                      style={{
+                        gridTemplateColumns: storyCardColumns(category.name),
+                      }}
+                    >
                       {category.cards.map((card) => {
                         const textOnly = !card.img
                         return (
@@ -231,7 +236,12 @@ export function ClassicStoryPage() {
                             onClick={() => setSelectedCard({ category, card })}
                           >
                             {!textOnly ? (
-                              <span className="wiki-classic-story-card-image">
+                              <span
+                                className="wiki-classic-story-card-image"
+                                style={{
+                                  aspectRatio: storyCardAspectRatio(category.name),
+                                }}
+                              >
                                 <img
                                   src={card.img || stories.idol.imageUrl}
                                   alt=""
