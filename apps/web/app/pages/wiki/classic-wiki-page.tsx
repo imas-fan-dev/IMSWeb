@@ -17,13 +17,20 @@ import {
 } from "react"
 import { Link, useSearchParams } from "react-router"
 
+import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { wikiEntryKindLabel } from "~/components/wiki/wiki-entry-kind"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
 import {
   getWikiCatalog,
   getWikiRandomBackground,
   isApiError,
 } from "~/shared/api"
-import type { WikiPublicCatalog, WikiRandomBackground } from "~/shared/api"
+import type {
+  WikiImageTransform,
+  WikiPublicCatalog,
+  WikiPublicIdol,
+  WikiRandomBackground,
+} from "~/shared/api"
 
 import "./classic-wiki.css"
 import "./classic-wiki-index.css"
@@ -122,10 +129,21 @@ export function ClassicWikiPage() {
       }))
       .filter((group) => group.idols.length)
   }, [deferredQuery, selection])
-  const idolCount = selection?.groups.reduce(
-    (total, group) => total + group.idols.length,
-    0
-  )
+  const ungroupedIdols = useMemo(() => {
+    const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
+    if (!selection || !normalized) return selection?.ungroupedIdols ?? []
+    return selection.ungroupedIdols.filter((idol) =>
+      idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+    )
+  }, [deferredQuery, selection])
+  const contentPageCount = selection
+    ? new Set(
+        [
+          ...selection.groups.flatMap((group) => group.idols),
+          ...selection.ungroupedIdols,
+        ].map((idol) => idol.id)
+      ).size
+    : 0
   const style = { "--classic-accent": accent } as CSSProperties
 
   function selectAgency(agency: string) {
@@ -232,9 +250,10 @@ export function ClassicWikiPage() {
               >
                 <span className="wiki-classic-agency-icon">
                   {agency.iconUrl ? (
-                    <img
+                    <WikiTransformedImage
                       src={agency.iconUrl}
                       alt=""
+                      transform={agency.imageTransform}
                       onError={(event) => {
                         event.currentTarget.hidden = true
                       }}
@@ -276,7 +295,7 @@ export function ClassicWikiPage() {
           ) : loading ? (
             <div
               className="wiki-classic-loading"
-              aria-label="正在加载经典角色目录"
+              aria-label="正在加载经典内容目录"
             >
               <span />
               <span />
@@ -287,77 +306,39 @@ export function ClassicWikiPage() {
               <header className="wiki-classic-banner">
                 <p>{selection.agency.code.toUpperCase()}</p>
                 <h1>{selection.agency.bannerTitle}</h1>
-                <span>{idolCount} 位角色</span>
+                <span>{contentPageCount} 个内容页</span>
               </header>
 
               <div className="wiki-classic-groups">
-                {groups.length ? (
-                  groups.map((group) => (
-                    <section
-                      key={group.id}
-                      className="wiki-classic-group"
-                      style={
-                        {
-                          "--group-color": safeWikiColor(group.color),
-                        } as CSSProperties
-                      }
-                      aria-labelledby={`classic-group-${group.id}`}
-                    >
-                      <div className="wiki-classic-group-title">
-                        {group.iconUrl ? (
-                          <img
-                            src={group.iconUrl}
-                            alt=""
-                            onError={(event) => {
-                              event.currentTarget.hidden = true
-                            }}
-                          />
-                        ) : null}
-                        <h2 id={`classic-group-${group.id}`} title={group.name}>
-                          {group.name}
-                        </h2>
-                        <small>{group.idols.length}</small>
-                      </div>
-                      <div className="wiki-classic-idol-grid">
-                        {group.idols.map((idol) => (
-                          <Link
-                            key={idol.id}
-                            to={`/story/classic?agency=${encodeURIComponent(selection.agency.name)}&idol=${encodeURIComponent(idol.name)}`}
-                            className="wiki-classic-idol-card"
-                            style={
-                              {
-                                "--idol-color": safeWikiColor(
-                                  idol.color ?? group.color
-                                ),
-                              } as CSSProperties
-                            }
-                          >
-                            <span className="wiki-classic-idol-image">
-                              {idol.imageUrl ? (
-                                <img
-                                  src={idol.imageUrl}
-                                  alt={idol.name}
-                                  loading="lazy"
-                                  decoding="async"
-                                  style={{ objectFit: idol.imageFit }}
-                                />
-                              ) : null}
-                            </span>
-                            <span
-                              className="wiki-classic-idol-name"
-                              title={idol.name}
-                            >
-                              {idol.name}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </section>
-                  ))
+                {groups.length || ungroupedIdols.length ? (
+                  <>
+                    {groups.map((group) => (
+                      <ClassicIdolSection
+                        key={group.id}
+                        agency={selection.agency.name}
+                        headingId={`classic-group-${group.id}`}
+                        title={group.name}
+                        color={group.color}
+                        iconUrl={group.iconUrl}
+                        imageTransform={group.imageTransform}
+                        idols={group.idols}
+                      />
+                    ))}
+                    {ungroupedIdols.length ? (
+                      <ClassicIdolSection
+                        agency={selection.agency.name}
+                        headingId="classic-group-ungrouped"
+                        title="未归档"
+                        color={selection.agency.color}
+                        iconUrl={null}
+                        idols={ungroupedIdols}
+                      />
+                    ) : null}
+                  </>
                 ) : (
                   <div className="wiki-classic-status">
                     <SearchIcon />
-                    <h2>没有匹配的角色</h2>
+                    <h2>没有匹配的内容页</h2>
                     <button type="button" onClick={() => setQuery("")}>
                       清除搜索词
                     </button>
@@ -398,8 +379,8 @@ export function ClassicWikiPage() {
       <button
         type="button"
         className="wiki-classic-search-button"
-        aria-label="搜索角色"
-        title="搜索角色"
+        aria-label="搜索内容页"
+        title="搜索内容页"
         aria-expanded={searchOpen}
         onClick={() => setSearchOpen((current) => !current)}
       >
@@ -411,13 +392,89 @@ export function ClassicWikiPage() {
         }
       >
         <SearchIcon />
-        <span className="sr-only">搜索角色</span>
+        <span className="sr-only">搜索内容页</span>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索偶像名字..."
+          placeholder="搜索偶像、组合或剧情..."
         />
       </label>
     </main>
+  )
+}
+
+function ClassicIdolSection({
+  agency,
+  headingId,
+  title,
+  color,
+  iconUrl,
+  imageTransform,
+  idols,
+}: {
+  agency: string
+  headingId: string
+  title: string
+  color: string
+  iconUrl: string | null
+  imageTransform?: WikiImageTransform
+  idols: WikiPublicIdol[]
+}) {
+  return (
+    <section
+      className="wiki-classic-group"
+      style={{ "--group-color": safeWikiColor(color) } as CSSProperties}
+      aria-labelledby={headingId}
+    >
+      <div className="wiki-classic-group-title">
+        {iconUrl && imageTransform ? (
+          <WikiTransformedImage
+            src={iconUrl}
+            alt=""
+            transform={imageTransform}
+            onError={(event) => {
+              event.currentTarget.hidden = true
+            }}
+          />
+        ) : null}
+        <h2 id={headingId} title={title}>
+          {title}
+        </h2>
+        <small>{idols.length}</small>
+      </div>
+      <div className="wiki-classic-idol-grid">
+        {idols.map((idol) => (
+          <Link
+            key={idol.id}
+            to={`/story/classic?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
+            aria-label={idol.name}
+            className="wiki-classic-idol-card"
+            style={
+              {
+                "--idol-color": safeWikiColor(idol.color ?? color),
+              } as CSSProperties
+            }
+          >
+            <span className="wiki-classic-idol-image">
+              {idol.imageUrl ? (
+                <WikiTransformedImage
+                  src={idol.imageUrl}
+                  alt={idol.name}
+                  transform={idol.imageTransform}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : null}
+            </span>
+            <span className="wiki-classic-idol-name" title={idol.name}>
+              {idol.name}
+            </span>
+            <small className="wiki-classic-idol-kind">
+              {wikiEntryKindLabel(idol.entryKind, idol.entrySubtype)}
+            </small>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }

@@ -5,7 +5,9 @@ import {
   type WikiServicesResolver,
 } from "@/domains/wiki/handler-support";
 import {
+  groupImageTransform,
   requireWikiServices,
+  toWikiAgency,
   toWikiIdol,
   wikiGroupIconUrl,
 } from "@/domains/wiki/service";
@@ -44,6 +46,8 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
             )
           : null,
         idolCount: counts.get(agency.id) ?? 0,
+        entryCount: counts.get(agency.id) ?? 0,
+        imageTransform: toWikiAgency(agency).imageTransform,
       })));
     const requestedAgency = (context.req.query("agency") ?? "").trim();
     const selectedAgency = requestedAgency
@@ -78,7 +82,10 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
             )
           : "",
         imageFit: idol.avatarFit ?? "cover",
+        imageTransform: idol.avatarTransform,
         textColor: idol.textColor ?? "#ffffff",
+        entryKind: idol.entryKind,
+        entrySubtype: idol.entrySubtype,
       }] as const;
     })));
     const membersByGroup = new Map<number, typeof memberRows>();
@@ -102,12 +109,21 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
               wikiGroupIconUrl(group.id),
             )
           : null,
+        imageTransform: groupImageTransform(group),
         idols: (membersByGroup.get(group.id) ?? []).flatMap((member) => {
           const idol = idols.get(member.idol_id);
           return idol ? [idol] : [];
         }),
       }));
     const resolvedGroups = await Promise.all(groups);
+    const assignedIdolIds = new Set(
+      memberRows
+        .filter((member) => member.agency_id === selectedAgency.id)
+        .map((member) => member.idol_id),
+    );
+    const ungroupedIdols = [...idols.values()].filter(
+      (idol) => !assignedIdolIds.has(idol.id),
+    );
     const selectedAgencyRow = agencyRows.find((agency) => agency.id === selectedAgency.id)!;
     return wikiJson({
       status: "success",
@@ -116,6 +132,7 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
         agency: selectedAgency,
         layoutRevision: selectedAgencyRow.layout_revision,
         groups: resolvedGroups,
+        ungroupedIdols,
       },
     });
   };

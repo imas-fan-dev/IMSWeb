@@ -28,6 +28,11 @@ export function storyCardMatches(
     category.name,
     card.name,
     card.subtitle,
-    ...card.links.flatMap((link) => [link.up, link.title]),
+    ...card.links.flatMap((link) => [
+      link.up,
+      link.title,
+      link.contentType,
+      link.sourcePlatform,
+    ]),
   ].some((value) => value.toLocaleLowerCase("zh-CN").includes(normalized))
 }

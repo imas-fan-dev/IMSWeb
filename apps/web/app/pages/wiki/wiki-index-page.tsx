@@ -8,6 +8,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
@@ -89,10 +90,21 @@ export function WikiIndexPage() {
       }))
       .filter((group) => group.idols.length)
   }, [deferredQuery, selection])
-  const idolCount = selection?.groups.reduce(
-    (total, group) => total + group.idols.length,
-    0
-  )
+  const visibleUngroupedIdols = useMemo(() => {
+    const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
+    if (!selection || !normalized) return selection?.ungroupedIdols ?? []
+    return selection.ungroupedIdols.filter((idol) =>
+      idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+    )
+  }, [deferredQuery, selection])
+  const contentPageCount = selection
+    ? new Set(
+        [
+          ...selection.groups.flatMap((group) => group.idols),
+          ...selection.ungroupedIdols,
+        ].map((idol) => idol.id)
+      ).size
+    : 0
 
   return (
     <main id="main-content">
@@ -139,10 +151,11 @@ export function WikiIndexPage() {
                     aria-hidden="true"
                   />
                   {iconUrl ? (
-                    <img
+                    <WikiTransformedImage
                       src={iconUrl}
                       alt=""
-                      className="absolute inset-0 size-full bg-background object-contain p-1"
+                      transform={agency.imageTransform}
+                      className="absolute inset-0 bg-background p-1"
                       onError={(event) => {
                         event.currentTarget.hidden = true
                       }}
@@ -151,7 +164,7 @@ export function WikiIndexPage() {
                 </span>
                 {agency.name}
                 <span className="text-xs text-muted-foreground">
-                  {agency.idolCount}
+                  {agency.entryCount ?? agency.idolCount}
                 </span>
               </button>
             )
@@ -184,7 +197,7 @@ export function WikiIndexPage() {
             </AlertDescription>
           </Alert>
         ) : loading ? (
-          <div aria-label="正在加载角色目录">
+          <div aria-label="正在加载内容目录">
             <Skeleton className="h-8 w-40" />
             <Skeleton className="mt-5 h-10 w-full max-w-md" />
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -206,30 +219,31 @@ export function WikiIndexPage() {
                 </h2>
                 <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                   <UsersIcon className="size-4" />
-                  {idolCount} 位角色
+                  {contentPageCount} 个内容页
                 </p>
               </div>
               <label className="relative block w-full sm:max-w-sm">
-                <span className="sr-only">搜索角色</span>
+                <span className="sr-only">搜索内容页</span>
                 <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索角色"
+                  placeholder="搜索偶像、组合或剧情"
                   className="pl-9"
                 />
               </label>
             </div>
 
             <div className="mt-6">
-              {visibleGroups.length ? (
+              {visibleGroups.length || visibleUngroupedIdols.length ? (
                 <WikiIdolGrid
                   agency={selection.agency.name}
                   groups={visibleGroups}
+                  ungroupedIdols={visibleUngroupedIdols}
                 />
               ) : (
                 <div className="rounded-lg border border-dashed px-6 py-14 text-center">
-                  <p className="font-medium">没有匹配的角色</p>
+                  <p className="font-medium">没有匹配的内容页</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     清除搜索词后可查看完整目录。
                   </p>

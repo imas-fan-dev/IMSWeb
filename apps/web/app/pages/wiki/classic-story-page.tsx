@@ -9,6 +9,8 @@ import {
 import { type CSSProperties, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router"
 
+import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { wikiEntryKindLabel } from "~/components/wiki/wiki-entry-kind"
 import {
   Dialog,
   DialogContent,
@@ -99,8 +101,8 @@ export function ClassicStoryPage() {
       >
         <div className="wiki-classic-story-status">
           <Layers3Icon />
-          <h1>请选择一位角色</h1>
-          <p>剧情地址缺少企划或角色信息。</p>
+          <h1>请选择一个内容页</h1>
+          <p>剧情地址缺少企划或内容页信息。</p>
           <Link to="/wiki/classic">返回经典剧情导航</Link>
         </div>
       </main>
@@ -122,7 +124,7 @@ export function ClassicStoryPage() {
               重新加载
             </button>
             <Link to={`/wiki/classic?agency=${encodeURIComponent(agencyName)}`}>
-              返回角色目录
+              返回内容目录
             </Link>
           </div>
         </div>
@@ -139,14 +141,18 @@ export function ClassicStoryPage() {
         <div className="wiki-classic-story-layout">
           <aside className="wiki-classic-story-profile">
             <p className="wiki-classic-story-project">
-              {stories.agency.code.toUpperCase()} ARCHIVE
+              {stories.agency.code.toUpperCase()} ARCHIVE ·{" "}
+              {wikiEntryKindLabel(
+                stories.idol.entryKind,
+                stories.idol.entrySubtype
+              )}
             </p>
             <h1>{stories.idol.name}</h1>
             <div className="wiki-classic-story-avatar">
-              <img
+              <WikiTransformedImage
                 src={stories.idol.imageUrl}
                 alt={stories.idol.name}
-                style={{ objectFit: stories.idol.imageFit }}
+                transform={stories.idol.imageTransform}
               />
             </div>
             <dl className="wiki-classic-story-counts">
@@ -232,15 +238,16 @@ export function ClassicStoryPage() {
                           >
                             {!textOnly ? (
                               <span className="wiki-classic-story-card-image">
-                                <img
+                                <WikiTransformedImage
                                   src={card.img || stories.idol.imageUrl}
                                   alt=""
+                                  transform={card.imageTransform}
+                                  fallbackSrc={stories.idol.imageUrl}
+                                  fallbackTransform={
+                                    stories.idol.imageTransform
+                                  }
                                   loading="lazy"
                                   decoding="async"
-                                  onError={(event) => {
-                                    event.currentTarget.src =
-                                      stories.idol.imageUrl
-                                  }}
                                 />
                               </span>
                             ) : null}

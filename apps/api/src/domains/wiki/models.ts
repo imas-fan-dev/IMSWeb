@@ -1,3 +1,9 @@
+import type {
+  WikiEntryKind,
+  WikiImageTransform,
+  WikiStoryEntrySubtype,
+} from "@/ports/repositories";
+
 export type WikiMediaFit = "contain" | "cover";
 export type WikiMediaSource = "object-storage" | "none";
 
@@ -9,6 +15,8 @@ export interface WikiAgency {
   bannerTitle: string;
   iconUrl: string | null;
   layoutRevision: number;
+  imageTransform: WikiImageTransform;
+  mediaRevision: number;
 }
 
 export interface WikiIdol {
@@ -22,8 +30,12 @@ export interface WikiIdol {
   color: string | null;
   avatarUrl?: string;
   avatarFit?: WikiMediaFit;
+  avatarTransform?: WikiImageTransform;
+  mediaRevision?: number;
   avatarSource?: WikiMediaSource;
   textColor?: string;
+  entryKind: WikiEntryKind;
+  entrySubtype: WikiStoryEntrySubtype | null;
 }
 
 export interface WikiStoryRow {
@@ -43,12 +55,15 @@ export interface WikiStoryLink {
   up: string;
   title: string;
   url: string;
+  contentType: string;
+  sourcePlatform: string;
 }
 
 export interface WikiStoryCard {
   name: string;
   img: string;
   subtitle: string;
+  imageTransform: WikiImageTransform;
   links: WikiStoryLink[];
 }
 

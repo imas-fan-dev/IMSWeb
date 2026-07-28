@@ -6,9 +6,12 @@ import type {
   AgencyRecord,
   IdolRecord,
   IdolWithAgencyRecord,
+  StoryCardRecord,
   StoryRecord,
   StoryRepository,
   WikiCategoryRecord,
+  WikiGroupRecord,
+  WikiImageTransform,
 } from "@/ports/repositories";
 import {
   type WikiAgency,
@@ -61,6 +64,8 @@ export function toWikiAgency(record: AgencyRecord): WikiAgency {
     bannerTitle: record.banner_title,
     iconUrl: record.icon_object_key ? agencyIconUrl(record.id) : null,
     layoutRevision: record.layout_revision,
+    imageTransform: agencyImageTransform(record),
+    mediaRevision: record.icon_media_revision,
   };
 }
 
@@ -78,8 +83,12 @@ export function toWikiIdol(record: IdolWithAgencyRecord): WikiIdol {
       ? idolMediaUrl(record.agency_name, record.name_cn)
       : "",
     avatarFit: record.avatar_fit,
+    avatarTransform: idolImageTransform(record),
+    mediaRevision: record.avatar_media_revision,
     avatarSource: record.avatar_object_key ? "object-storage" : "none",
     textColor: record.text_color,
+    entryKind: record.entry_kind,
+    entrySubtype: record.entry_subtype,
   };
 }
 
@@ -100,8 +109,54 @@ export function toWikiIdolFromRecord(
       ? idolMediaUrl(agency.name, record.name_cn)
       : "",
     avatarFit: record.avatar_fit,
+    avatarTransform: idolImageTransform(record),
+    mediaRevision: record.avatar_media_revision,
     avatarSource: record.avatar_object_key ? "object-storage" : "none",
     textColor: record.text_color,
+    entryKind: record.entry_kind,
+    entrySubtype: record.entry_subtype,
+  };
+}
+
+export function agencyImageTransform(record: AgencyRecord): WikiImageTransform {
+  return {
+    fit: record.icon_fit,
+    focalX: record.icon_focal_x,
+    focalY: record.icon_focal_y,
+    zoom: record.icon_zoom,
+    rotation: record.icon_rotation,
+  };
+}
+
+export function groupImageTransform(record: WikiGroupRecord): WikiImageTransform {
+  return {
+    fit: record.icon_fit,
+    focalX: record.icon_focal_x,
+    focalY: record.icon_focal_y,
+    zoom: record.icon_zoom,
+    rotation: record.icon_rotation,
+  };
+}
+
+export function idolImageTransform(record: IdolRecord): WikiImageTransform {
+  return {
+    fit: record.avatar_fit,
+    focalX: record.avatar_focal_x,
+    focalY: record.avatar_focal_y,
+    zoom: record.avatar_zoom,
+    rotation: record.avatar_rotation,
+  };
+}
+
+export function storyImageTransform(
+  record: StoryRecord | StoryCardRecord,
+): WikiImageTransform {
+  return {
+    fit: record.image_fit,
+    focalX: record.image_focal_x,
+    focalY: record.image_focal_y,
+    zoom: record.image_zoom,
+    rotation: record.image_rotation,
   };
 }
 
@@ -149,6 +204,40 @@ export function agencyIconObjectKey(code: string): string {
   return `wiki/agencies/${code}/branding/icon.webp`;
 }
 
+export function versionedAgencyIconObjectKey(
+  code: string,
+  version: string,
+): string {
+  return `wiki/agencies/${code}/branding/icons/${version}.webp`;
+}
+
+export function versionedStoryCoverAssetObjectKey(
+  code: string,
+  version: string,
+): string {
+  return `wiki/agencies/${code}/story-cover-assets/${version}.webp`;
+}
+
+export function storyCoverAssetUrl(id: number): string {
+  return `/api/wiki/story-cover-assets/${id}.webp`;
+}
+
+export function versionedWikiGroupIconObjectKey(
+  code: string,
+  groupCode: string,
+  version: string,
+): string {
+  return `wiki/agencies/${code}/groups/${groupCode}/icons/${version}.webp`;
+}
+
+export function versionedIdolAvatarObjectKey(
+  code: string,
+  folderName: string,
+  version: string,
+): string {
+  return `wiki/agencies/${code}/idols/${folderName}/avatars/${version}.webp`;
+}
+
 export function agencyIconUrl(id: number): string {
   return `/icon/agencies/${id}.webp`;
 }
@@ -176,12 +265,27 @@ export function aggregateStories(
   categoryRecords: WikiCategoryRecord[],
   agency: string,
   idol: string,
+  cardRows: StoryCardRecord[] = [],
 ): WikiStoryCategory[] {
   const categories = new Map<
     string,
     Map<string, WikiStoryCategory["cards"][number]>
   >();
   for (const category of categoryRecords) categories.set(category.name, new Map());
+  for (const row of cardRows) {
+    let cards = categories.get(row.category);
+    if (!cards) {
+      cards = new Map();
+      categories.set(row.category, cards);
+    }
+    cards.set(row.card_name, {
+      name: row.card_name,
+      img: wikiStoryImageUrl(agency, idol, row.image_file),
+      subtitle: row.subtitle ?? "",
+      imageTransform: storyImageTransform(row),
+      links: [],
+    });
+  }
   for (const row of rows) {
     let cards = categories.get(row.category);
     if (!cards) {
@@ -194,6 +298,7 @@ export function aggregateStories(
         name: row.card_name,
         img: wikiStoryImageUrl(agency, idol, row.image_file),
         subtitle: row.subtitle ?? "",
+        imageTransform: storyImageTransform(row),
         links: [],
       };
       cards.set(row.card_name, card);
@@ -203,6 +308,8 @@ export function aggregateStories(
       up: row.up_name,
       title: row.video_title,
       url: row.url,
+      contentType: row.content_type_name,
+      sourcePlatform: row.source_platform_name,
     });
   }
   return [...categories.entries()]
@@ -291,21 +398,24 @@ export async function randomBackground(
   storage?: ObjectStorage,
 ): Promise<WikiRandomBackground> {
   const story = await repository.sampleWikiBackground();
-  if (!story?.image_file) return { url: "" };
-  const fallback = wikiStoryImageUrl(
-    story.agency_name,
-    story.idol_name,
-    story.image_file,
+  if (!story || (!story.image_file && !story.cover_asset_object_key)) {
+    return { url: "" };
+  }
+  const objectKey = story.cover_asset_object_key ?? storyObjectKey(
+    story.agency_code,
+    story.idol_folder_name,
+    story.image_file!,
   );
+  const fallback = story.cover_asset_id
+    ? `${storyCoverAssetUrl(story.cover_asset_id)}?v=${
+        story.cover_asset_revision ?? 0
+      }`
+    : wikiStoryImageUrl(story.agency_name, story.idol_name, story.image_file);
   return {
     url: storage
       ? await resolvePublicObjectUrl(
           storage,
-          storyObjectKey(
-            story.agency_code,
-            story.idol_folder_name,
-            story.image_file,
-          ),
+          objectKey,
           fallback,
         )
       : fallback,

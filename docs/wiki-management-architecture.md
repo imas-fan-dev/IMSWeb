@@ -1,447 +1,309 @@
-# Wiki 数据库驱动内容与管理架构
+# Wiki 动态内容与管理架构
 
-## 实施状态
+## 当前状态
 
-代码侧第一批切换已完成：`0007_wiki_catalog_metadata` 保存一次性历史种子，SQLite 提供等价表与
-约束，API/Web 已切换到数据库分组、结构化分类和媒体逻辑键，旧角色名单、预设分类、Legacy 媒体
-回退及通用静态 Wiki 路由已移除。布局保存使用 `layout_revision` 乐观锁；分组与分类定义的完整
-管理界面仍属于后续管理能力，不影响当前读模型切换。
+Wiki 的企划、栏目、内容页、栏目归档关系、剧情分类、剧情卡片、内容类型、来源平台和媒体构图均由
+数据库驱动。React 不维护企划或内容页名单，也不根据名称重建栏目关系；Hono 通过
+`StoryRepository` 读取和修改业务数据，通过 `ObjectStorage` 保存图片字节。
 
-阶段 2 的工具入口为 `pnpm run wiki:metadata:audit`。活动 PostgreSQL 与 MinIO/S3 尚未在仓库代码
-施工中自动写入或宣告切换；生产发布前仍须按本文门禁执行清单同步、`--apply --strict` 回读审计，
-并保存报告作为外部切换证据。
-
-## 架构决策
-
-Wiki 的企划、偶像、展示分组、成员顺序、预设分类、展示颜色和媒体关联均以关系数据库为
-唯一写源。React 页面只负责交互，通过同源 API 读取 Hono 返回的完整读模型；不得根据企划名、
-偶像名或 `folder_name` 在浏览器内重建业务关系。
-
-公开 `/wiki` 与 `/story` 已迁移到 React Router。公开页面只读取匿名 JSON API，管理页使用
-受保护的行级读模型，并复用已经过补偿测试的 Wiki 写接口。两类前端都不读取数据库结构或
-拼接对象存储键。
-
-Web 同时提供 `/wiki/classic` 与 `/story/classic` 作为旧模板交互兼容视图。两套公开视图
-读取相同的匿名 API，并直接渲染 API 返回的分组、成员顺序和分类顺序。Classic 只是一种视觉
-呈现，不拥有另一份数据配置。
-
-图片、CSS 构建产物等二进制内容不写入关系数据库。数据库只保存业务实体、关系、显示元数据
-和对象存储逻辑键；图片字节继续由 `ObjectStorage` 保存，S3 模式下由现有 `s3_*` 控制面表维护
-逻辑键到物理版本的映射。
-
-以下内容仍属于程序规则，不进入数据库：
-
-- Cookie JWT、CSRF、角色权限、路径穿越防护和请求状态码；
-- 上传大小、允许的 MIME/图片格式和对象键规范化规则；
-- 通用加载、错误、空状态等界面文案；
-- 旧七张剧情表在 SQL 适配器内的受控表名映射，直至剧情表归一化完成。
-
-当前待清理的运行时数据债务包括：
-
-- Web `wiki-groups.ts` 中的组合、成员、图标、Banner 和顺序；
-- API `legacy-media.ts` 中的旧头像、系列 Logo 和背景路径；
-- API `service.ts` 中的亮色文字名单、企划顺序、预设分类、分类目录名和随机背景候选；
-- `SUPPORTED_AGENCY_CODES` 对公开目录的内容过滤。
+当前 PostgreSQL 最低 schema 版本为 `0017_wiki_entry_types`。`0011` 至 `0017` 已在
+代码、SQLite 等价 schema 和测试夹具中落地，但代码合入或本地迁移成功不代表生产数据库已完成
+迁移，生产边界见“迁移与发布”。
 
 ```text
-React public /wiki, /story and classic variants
-  -> same-origin /api/wiki/catalog and /api/wiki/stories
-  -> Hono Wiki read handlers -> StoryRepository
+公开 /wiki、/story（含 classic 视图）
+  -> /api/wiki/catalog、/api/wiki/stories
+  -> Hono Wiki handlers -> StoryRepository -> PostgreSQL
 
-React admin
-  -> same-origin /api/admin/wiki/*
-  -> Hono Wiki handlers
-  -> StoryRepository -> SQLite or PostgreSQL
-  -> ObjectStorage   -> filesystem or S3-compatible storage
-
-Hono media /image and /icon
-  -> database logical key -> ObjectStorage
+后台 /admin/stories
+  -> /api/admin/wiki/catalog、/api/admin/wiki/stories
+  -> 企划/栏目/内容页 CRUD 与剧情写接口
+  -> StoryRepository + ObjectStorage
 ```
 
-## 目标数据模型
-
-| 数据 | 唯一写源 | 对外形态 |
-| --- | --- | --- |
-| 企划身份与展示元数据 | `agencies` | 公开与管理目录 API |
-| 偶像身份与展示元数据 | `idols` | 公开与管理目录 API |
-| 展示分组与成员顺序 | `wiki_groups`、`wiki_group_members` | 目录 API 的有序 `groups` |
-| 分类定义与偶像分类顺序 | `wiki_categories`、`wiki_idol_categories` | 剧情 API 的有序 `categories` |
-| 剧情链接与卡片字段 | 七张 `*_stories` | 公开聚合视图与管理行级视图 |
-| 媒体业务关联 | 上述实体的 `*_object_key`、剧情 `image_file` | 稳定同源媒体 URL |
-| 媒体字节与版本 | `ObjectStorage`、`s3_*` 控制面表 | `/image/...`、`/icon/...` |
-
-### `agencies` 增量字段
-
-| 字段 | 约束与用途 |
-| --- | --- |
-| `wiki_enabled` | `BOOLEAN NOT NULL DEFAULT TRUE`，决定是否进入 Wiki 目录 |
-| `display_order` | `INTEGER NOT NULL`，企划稳定排序 |
-| `banner_title` | `TEXT NOT NULL`，Classic 与新版共同使用的展示标题 |
-| `icon_object_key` | 可空逻辑键；空值表示没有系列图标，不回退到代码路径 |
-| `fallback_artwork_object_key` | 可空逻辑键；没有可用剧情图片时的企划视觉 |
-| `layout_revision` | `BIGINT NOT NULL DEFAULT 0`，管理端布局写入的乐观锁版本 |
-
-### `idols` 增量字段
-
-| 字段 | 约束与用途 |
-| --- | --- |
-| `wiki_enabled` | `BOOLEAN NOT NULL DEFAULT TRUE` |
-| `display_order` | `INTEGER NOT NULL`，分组内默认排序 |
-| `text_color` | `TEXT NOT NULL`，替代按偶像名维护的亮色例外名单 |
-| `avatar_object_key` | 可空头像逻辑键；空值由 UI 显示中性占位，不回退旧站资源 |
-| `avatar_fit` | `TEXT NOT NULL CHECK (avatar_fit IN ('cover', 'contain'))` |
-
-`idols` 需要补充 `(id, agency_id)` 唯一约束，供成员关系建立同企划复合外键。
-
-### `wiki_groups`
-
-每行表示一个企划内的展示组合或业务分区：
+## 关系模型
 
 ```text
-id, agency_id, code, name, color, icon_object_key,
-display_order, is_fallback
+Agency
+  |-- Section *           (wiki_groups，兼容名)
+  |     `-- ContentPage * (idols + wiki_group_members，多对多)
+  |-- ContentPage *
+  `-- Category *
+          `-- IdolCategory *
+                  `-- StoryCard *
+                          `-- StoryLink *
+                                |-- ContentType 1
+                                `-- SourcePlatform 1
 ```
 
-- `(agency_id, code)` 唯一；同一企划最多一个 `is_fallback=true` 分组。
-- `(id, agency_id)` 唯一，供成员表建立同企划复合外键。
-- `display_order` 非负且在企划内唯一。
-- `color` 使用六位十六进制颜色；`icon_object_key` 可空。
-- fallback 分组也是数据库记录，不由 Web 临时创建“其他”分组。
+| 业务对象 | 运行时写源                                | 关键关系                                   |
+| -------- | ----------------------------------------- | ------------------------------------------ |
+| 企划     | `agencies`                                | 拥有栏目、内容页和分类                       |
+| 栏目     | `wiki_groups`                             | 必须归属一个企划，仅负责组织内容页           |
+| 归档关系 | `wiki_group_members`                      | 内容页与栏目多对多，保存栏目内顺序           |
+| 内容页   | `idols`                                   | 必须归属企划，可加入多个栏目并保存页面类型    |
+| 分类     | `wiki_categories`、`wiki_idol_categories` | 企划级定义，按内容页启用并排序               |
+| 剧情卡片 | `wiki_story_cards`                        | 归属内容页与分类，保存卡名、字幕、图片和构图 |
+| 卡片内容 | `wiki_story_links`                        | 多种内容与多条来源可归入同一张卡片         |
+| 内容类型 | `wiki_story_content_types`                | 剧情、语音、电话、文本专栏等动态目录       |
+| 来源平台 | `wiki_story_source_platforms`             | 平台名称、主页、说明、启用状态与版本       |
+| 图片字节 | `ObjectStorage`                           | 数据库只保存对象逻辑键和构图元数据         |
 
-### `wiki_group_members`
+### 动态目录、栏目与内容页
+
+`0011_wiki_dynamic_catalog` 完成以下约束调整：
+
+- 移除 `wiki_group_members.idol_id` 的全局唯一约束；主键仍为
+  `(group_id, idol_id)`，所以同一内容页可加入多个栏目，但不能在同一栏目内重复。
+- 成员关系同时保存 `agency_id`，并通过同企划外键阻止跨企划关联。
+- 企划名称全局唯一；内容页名称和 `folder_name` 在企划内唯一；栏目代码和名称在企划内唯一。
+- 企划、栏目代码及内容页目录标识使用小写字母、数字、下划线或连字符；颜色使用六位十六进制值。
+
+新增企划时，Repository 会在同一批次创建一个初始 `other` fallback 栏目；该栏目与其他栏目一样
+可以删除。新增或编辑内容页时提交无重复的 `groupIds`，空数组表示暂不归档；服务端验证所有非空
+栏目 ID 均属于该内容页的企划。编辑内容页时只增删发生变化的归档关系：保留未变化关系的
+`display_order`，并将新加入栏目的关系追加到该栏目末尾。
+
+`PUT /api/admin/wiki/agencies/:agencyId/layout` 用于保存完整栏目布局。请求必须覆盖该企划的全部
+现存栏目，同一栏目内不能重复内容页，但同一内容页可以出现在多个栏目中；未出现在任何栏目成员
+列表中的内容页保持未归档状态。`expectedRevision` 与 `agencies.layout_revision` 实现乐观锁，冲突返回
+`409`。
+
+`0017_wiki_entry_types` 在兼容表 `idols` 上新增 `entry_kind` 和 `entry_subtype`。界面把所有记录称为
+“内容页”，再以 `idol`、`unit`、`story`、`other` 区分偶像、组合、剧情专题和其他内容；剧情专题
+必须进一步选择 `main`、`event`、`special` 或 `other`。既有记录默认保留为偶像，SideM 的组合栏目
+成员回填为组合，特殊剧情栏目成员回填为特殊剧情。数据库约束保证非剧情内容没有剧情子类型。
+
+本阶段只改变业务叫法和增加类型元数据。`idols`、`idolId`、公开查询参数 `idol=` 以及既有对象存储
+路径仍是兼容契约，避免破坏书签、外部客户端和已有媒体；新代码不得根据内容页类型改写这些标识。
+
+### 规范化剧情
+
+`0012_wiki_normalized_stories` 新增 `wiki_story_cards` 和 `wiki_story_links`。运行时查询和写入均使用
+这两张表，不再按企划选择不同的剧情表：
+
+- 卡片由 `agency_id + idol_id + category_id + card_name` 唯一确定。
+- 卡片保存共享的字幕、图片、构图与展示顺序；来源保存发布者、标题、URL、内容类型、来源平台和卡内顺序。
+- 一次新增请求可以原子创建一张卡片及 0 至 20 条来源；分类不存在时会创建企划级分类及对应
+  内容页关联。向已有卡片追加来源使用卡片 ID 和媒体版本精确定位，不再按名称隐式创建卡片。
+- 卡片可以在尚无可用剧情链接时先保存资料、封面和构图；删除最后一条来源会保留空卡片，后续可
+  继续按卡片 ID 追加来源。公开页和管理工作台都会显示空卡片。
+- 分类和卡片使用稳定 ID 独立编辑：分类名称是企划级共享定义，卡片保存自己的名称、字幕、图片与
+  构图；来源仍以来源 `id` 精确定位。移动卡片分类不会修改其来源行。
+
+迁移会把七张历史 `*_stories` 表回填到规范化表，并用双向 `EXCEPT`、行数和卡片数检查保证投影
+一致。历史行的 `legacy_table`、`legacy_id`、`legacy_subtitle`、`legacy_image_file` 仅用于迁移
+对账和兼容既有 API ID。七张历史表保留为只读迁移证据，不是运行时读写源，也不能继续新增数据。
+
+`0014_wiki_story_source_catalogs` 把内容类型和来源平台从来源文本中拆成可管理目录。同一张卡片可由
+多条 `wiki_story_links` 同时关联剧情、语音、电话或文本专栏；每条链接另行关联来源平台，发布者
+仍保留为该链接自己的署名。既有链接默认回填为“剧情”，Bilibili URL 归入 Bilibili，其余归入
+“其他来源”。目录项可停用，停用不影响历史显示；仍被链接引用的目录项受外键保护，不能删除。
+
+`0015_wiki_story_cover_assets` 新增企划级 `wiki_story_cover_assets` 素材目录，并允许剧情卡片通过
+`cover_asset_id` 复用其中一张封面。共享素材和卡片自己的 `image_file` 互斥；素材只能被同企划卡片
+引用，仍有引用时不能删除。素材替换只更新一个版本化对象键，引用它的全部卡片会在下次读取时使用
+新图，而每张卡片仍保留自己的构图参数。
+
+`0016_wiki_soft_deletion` 为内容页、剧情卡片和剧情来源增加 `deleted_at`。删除内容页时，三层记录在
+同一事务中标记为已删除，并从公开与管理读取中隐藏；栏目成员、分类关联、页面图片、剧情图片及
+共享素材引用均保留，避免一次操作物理移除大量关联数据。删除使用页面图片媒体版本作为乐观锁，
+并递增企划布局版本。目前不开放恢复入口，但数据结构保留了后续恢复能力。
+
+## 图片与构图
+
+`0013_wiki_image_transforms` 为企划图标、栏目图标、内容页图片和剧情卡片图片增加统一构图字段：
+
+| 字段语义      | 允许值                  |
+| ------------- | ----------------------- |
+| 适配方式      | `cover` 或 `contain`    |
+| 水平/垂直焦点 | `0` 到 `1`              |
+| 缩放          | `1` 到 `3`              |
+| 旋转          | `0`、`90`、`180`、`270` |
+| 媒体版本      | 非负整数                |
+
+管理端可上传 PNG、JPEG、WebP、AVIF 或 GIF；服务端校验内容并统一转换为 WebP。上传使用带 UUID
+版本的对象键，数据库提交成功后才清理旧对象；数据库失败或版本冲突时清理新对象，避免孤儿文件。
+API 不向浏览器暴露对象存储 key。
+
+图片上传和仅调整构图都提交 `expected_revision`。Repository 以实体的
+`icon_media_revision`、`avatar_media_revision` 或卡片的 `image_media_revision` 做比较并原子递增；
+并发编辑冲突返回 `409` 和当前版本。剧情卡可选择企划共享素材、独立图片或无封面；同一卡片的全部
+来源共享所选图片与构图。
+
+公开页和后台预览都通过 `ObjectStorage.createPublicReadUrl` 把数据库中的逻辑对象键解析为
+OSS、R2 或本地 MinIO 的公开直链，并复用同一组 `imageTransform`，因此裁满/完整显示、焦点、
+缩放和旋转在编辑预览与 Wiki 展示中的层级和效果一致。读取不经 Hono 转发图片字节；上传、替换、
+删除和构图保存仍只允许通过鉴权后的管理 API 完成。
+
+## API 契约
+
+公开读取无需登录；管理读取和所有写入要求有效 access JWT。写请求还要求 JWT claim 匹配的
+`X-CSRFToken`，角色必须为 `editor` 或 `op`。
+
+### 公开与管理读取
+
+| 方法与路径                                        | 用途                                            |
+| ------------------------------------------------- | ----------------------------------------------- |
+| `GET /api/wiki/catalog?agency=...`                | 有序企划及所选企划的栏目、内容页、类型与构图    |
+| `GET /api/wiki/stories?agency=...&idol=...`       | 分类 -> 卡片 -> 来源的公开剧情树                |
+| `GET /api/admin/wiki/catalog`                     | 全量企划、唯一内容页、各栏目成员 ID 与媒体版本   |
+| `GET /api/admin/wiki/stories?agency=...&idol=...` | 单个内容页的分类、卡片来源和可编辑字段           |
+| `GET /api/admin/wiki/agencies/:agencyId/story-cover-assets` | 企划共享封面、状态与引用计数          |
+| `POST /api/admin/wiki/agencies/:agencyId/story-cover-assets` | 上传企划共享封面                      |
+| `PATCH /api/admin/wiki/story-cover-assets/:assetId`          | 编辑名称、状态或替换图片              |
+| `DELETE /api/admin/wiki/story-cover-assets/:assetId`         | 仅删除未被卡片引用的素材              |
+| `GET /api/admin/wiki/story-source-catalog`        | 全量内容类型与来源平台目录                      |
+
+公开 catalog 的 `entryCount` 按内容页 ID 去重；`idolCount`、`groups`、`idols` 和
+`ungroupedIdols` 作为兼容字段继续返回。同一内容页可在多个栏目分支中展示，但不重复计数；没有
+任何栏目关系的内容页通过 `ungroupedIdols` 返回，并在全部栏目之后展示。
+
+### 企划、栏目与内容页写入
+
+| 方法与路径                                       | 当前行为                                         |
+| ------------------------------------------------ | ------------------------------------------------ |
+| `POST /api/admin/wiki/agencies`                  | 新增企划并创建 fallback 栏目                     |
+| `PATCH /api/admin/wiki/agencies/:agencyId`       | 编辑企划名称、颜色、标题和 Wiki 可见性           |
+| `POST /api/admin/wiki/agencies/:agencyId/groups` | 在指定企划下新增栏目                             |
+| `PATCH /api/admin/wiki/groups/:groupId`          | 编辑栏目代码、名称和颜色                         |
+| `DELETE /api/admin/wiki/groups/:groupId`         | 删除栏目并保留内容页、剧情和其他归档关系         |
+| `POST /api/admin/wiki/agencies/:agencyId/idols`  | 新增内容页，写入类型及零个或多个 `groupIds`      |
+| `PATCH /api/admin/wiki/idols/:idolId`            | 编辑内容页资料、类型、可见性和多个栏目关系       |
+| `DELETE /api/admin/wiki/idols/:idolId`           | 软删除内容页及其卡片、来源，保留媒体与关联记录   |
+| `PUT /api/admin/wiki/agencies/:agencyId/layout`  | 以 `layoutRevision` 保存完整栏目成员顺序         |
+
+当前没有企划删除接口。创建后不可通过当前编辑表单修改企划代码或内容页 `folderName`，避免改变稳定
+业务标识和媒体路径。删除栏目只删除栏目及其归档关系；失去最后一个栏目关系的内容页进入未归档区。
+
+### 媒体与剧情写入
+
+| 方法与路径                                     | 当前行为                                   |
+| ---------------------------------------------- | ------------------------------------------ |
+| `PUT /api/admin/wiki/agencies/:agencyId/icon`  | 上传/替换企划图标或只更新构图              |
+| `PUT /api/admin/wiki/groups/:groupId/icon`     | 上传/替换栏目图标或只更新构图              |
+| `PUT /api/admin/wiki/idols/:idolId/avatar`     | 上传/替换内容页图片或只更新构图            |
+| `POST /api/wiki/add_story`                     | 原子新增卡片及 0 至 20 条来源              |
+| `POST /api/admin/wiki/cards/:cardId/sources`   | 按卡片 ID 和版本原子追加 1 至 20 条来源    |
+| `POST /api/wiki/edit_story`                    | 按来源 ID 编辑兼容客户端中的来源字段       |
+| `DELETE /api/admin/wiki/stories/:storyId`      | 删除单条来源；最后一条删除后保留空卡片     |
+| `POST /api/admin/wiki/agencies/:agencyId/idols/:idolId/categories` | 为内容页显式新增空分类     |
+| `PATCH /api/admin/wiki/categories/:categoryId` | 重命名企划级共享分类并保留素材目录         |
+| `PATCH /api/admin/wiki/cards/:cardId`          | 编辑卡片分类、名称、字幕、图片和构图       |
+| `POST /api/wiki/delete_story`                  | 删除指定分类下的整张卡片及其来源           |
+| `POST /api/wiki/delete_category`               | 删除该内容页的分类关联及其剧情             |
+| `POST /api/wiki/parse_bilibili`                | 解析 Bilibili 标题、UP 和规范 URL          |
+
+内容与来源目录使用以下管理接口；新增和编辑结果会由工作台重新读取，目录编辑使用 `revision` 防止
+静默覆盖：
+
+| 方法与路径                                                | 当前行为                       |
+| --------------------------------------------------------- | ------------------------------ |
+| `POST /api/admin/wiki/story-content-types`                | 新增内容类型                   |
+| `PATCH /api/admin/wiki/story-content-types/:optionId`     | 编辑名称、说明与启用状态       |
+| `DELETE /api/admin/wiki/story-content-types/:optionId`    | 仅删除未被任何来源引用的类型   |
+| `POST /api/admin/wiki/story-source-platforms`             | 新增来源平台                   |
+| `PATCH /api/admin/wiki/story-source-platforms/:optionId`  | 编辑名称、主页、说明与启用状态 |
+| `DELETE /api/admin/wiki/story-source-platforms/:optionId` | 仅删除未被任何来源引用的平台   |
+
+剧情写接口保留在现有 `/api/wiki/*` 路径以兼容客户端，但和 `/api/admin/wiki/*` 一样受管理写权限
+与 CSRF 保护。旧的企划图标和内容页媒体兼容接口仍存在于路由层；新的工作台使用上表三个按实体 ID
+寻址、带构图和版本控制的 `PUT` 接口。
+
+## 管理工作台
+
+`/admin/stories` 直接呈现 Wiki 内容工作台，层级与公开剧情页一致：
 
 ```text
-agency_id, group_id, idol_id, display_order
+企划 -> 栏目 -> 内容页 -> 分类 -> 卡片 -> 来源
 ```
 
-- `(group_id, idol_id)` 为主键，`idol_id` 唯一，确保一个偶像只进入一个展示分组。
-- 通过 `(group_id, agency_id)` 与 `(idol_id, agency_id)` 复合外键阻止跨企划成员关系。
-- `display_order` 在分组内唯一；新增偶像必须显式分配到该企划的 fallback 分组。
+- 顶部切换企划；左侧树按栏目展开内容页，未归档内容固定在末尾；桌面为双栏，移动端使用侧边
+  Sheet。
+- 同一内容页出现在多个栏目时以同一个内容页 ID 选中，右侧仍只有一份资料和剧情内容。
+- 企划、栏目、内容页共用实体编辑 Dialog；内容页通过分段控件选择类型，并可归入多个栏目。
+- 实体编辑器内可上传图片，并实时预览适配方式、焦点、缩放和 90 度旋转。
+- 右侧按分类 -> 卡片 -> 内容来源折叠展示；每条来源显示内容类型、来源平台和发布者，卡片汇总内容
+  类型数与来源数。分类和卡片均有独立二次编辑入口；新增卡片时可不添加来源，也可在同一个 Dialog 中添加多种
+  内容与多条来源，已有卡片可继续批量添加，单条来源也可独立编辑或删除。
+- 顶部“类型与来源”打开数据库目录管理；目录项可新增、编辑、停用或在无引用时删除。
+- 顶部“企划素材库”进入 `/admin/stories/assets` 专用页面；素材按企划上传、搜索、编辑、停用和删除，
+  卡片编辑器可在共享素材、独立上传和无封面之间切换。
+- 当前企划和内容页写入 URL 查询参数 `agencyId`、`idolId`，刷新或分享后台地址时可恢复工作位置。
 
-### `wiki_categories` 与 `wiki_idol_categories`
+写入成功后工作台重新读取 catalog 或当前内容页 stories，服务端读模型始终是最终显示依据。
 
-`wiki_categories` 保存企划内可复用的分类定义：
+## 一致性边界
 
-```text
-id, agency_id, name, storage_slug, background_eligible
-```
+- 企划拥有栏目和内容页；归档关系只允许连接同一企划的实体。
+- 内容页可以不属于任何栏目，也可属于多个栏目；栏目内不能重复，公开计数按内容页 ID 去重。
+- 完整布局写入必须覆盖全部现存栏目；没有出现在成员列表中的内容页保持未归档状态。
+- 同一企划内的实体名称、代码或目录标识按数据库约束保持唯一。
+- 剧情层级只写规范化卡片/来源表；历史表只用于对账。
+- 共享封面只允许同企划卡片引用，并与卡片独立图片互斥；引用计数非零时删除返回 `409`。
+- 分类重命名携带当前名称，卡片追加来源以及栏目、来源删除携带当前媒体版本；过期写入返回 `409`，
+  不覆盖其他管理员的修改。
+- 非空媒体逻辑键必须能由 `ObjectStorage` 回读；对象存在本身不反向创建业务关联。
+- 媒体和布局均使用 revision 防止静默覆盖并发修改。
 
-`wiki_idol_categories` 保存某偶像启用的分类及其顺序：
+## 迁移与发布
 
-```text
-agency_id, idol_id, category_id, display_order, show_when_empty
-```
+### 本地开发
 
-- `(agency_id, name)` 唯一；`storage_slug` 经过与对象键相同的安全校验。
-- `wiki_categories` 的 `(id, agency_id)` 唯一；关联表分别通过
-  `(idol_id, agency_id)` 和 `(category_id, agency_id)` 复合外键阻止跨企划分类。
-- `show_when_empty` 替代 `getPresetCategories()`，决定空分类是否出现在读模型中。
-- 新增剧情时，写服务必须在同一数据库事务中解析或创建分类定义与偶像关联。
-- 旧剧情表仍保存分类名称；读取时未匹配的历史分类追加到结果并产生审计告警，迁移验收要求告警为零。
-- `background_eligible` 替代 `randomBackground()` 内按企划写死的候选分类。
-
-`theme_colors` 当前只是未被运行时消费的 `name -> color` 表，缺少实体外键和顺序语义。迁移时可
-作为颜色回填输入，但不能作为新的通用配置表；确认无其他消费者后再单独决定是否退役。
-
-## Repository 与服务边界
-
-`StoryRepository` 负责批量返回数据库记录，不返回 URL，也不接触对象存储。Wiki service 只把
-记录中的逻辑键解析成稳定同源 URL。目标端口至少提供：
-
-- 按可选企划选择器读取有序企划、分组、成员和媒体逻辑键；
-- 按偶像读取有序分类及剧情行；
-- 原子保存企划展示元数据、分组、成员顺序和分类顺序；
-- 原子设置或清除系列图标、组合图标和偶像头像逻辑键；
-- 从数据库选择符合 `background_eligible` 的随机剧情图片。
-
-目录读取必须使用有界批量查询，不能按每个偶像或每个分组执行一次 SQL。对象存在性不通过目录
-扫描推断；业务表中的逻辑键是关联事实，`ObjectStorage` 只负责按键读取和版本管理。
-
-## 公开读取 API
-
-公开接口无需登录，只返回浏览页面需要的数据，不包含数据库表名、对象存储 key 或管理字段。
-
-### `GET /api/wiki/catalog?agency=...`
-
-返回 `wiki_enabled=true` 的有序企划摘要，以及当前企划的完整有序分组。分组内已经包含角色，
-Web 不再调用 `groupWikiIdols()`。省略 `agency` 时选择 `display_order` 最小的企划；查询参数同时
-接受数据库中的企划 `code` 或名称。
-
-媒体 URL 由数据库逻辑键解析。逻辑键为空时返回 `null` 或空 URL，由前端显示中性占位；不得回退
-到 `classicAgencyIcons`、`legacyAvatarMedia` 或任意 `/assets/images/...` 路径。
-
-目标响应形态：
-
-```json
-{
-  "status": "success",
-  "agencies": [
-    {
-      "id": 6,
-      "code": "sc",
-      "name": "闪耀色彩",
-      "color": "#8dbbff",
-      "bannerTitle": "283 Production",
-      "iconUrl": "/icon/agencies/6.webp?v=etag",
-      "idolCount": 28
-    }
-  ],
-  "selection": {
-    "agency": { "id": 6, "code": "sc", "name": "闪耀色彩" },
-    "layoutRevision": 4,
-    "groups": [
-      {
-        "id": 31,
-        "code": "illumination-stars",
-        "name": "illumination STARS",
-        "color": "#ffd700",
-        "iconUrl": "/icon/wiki-groups/31.webp?v=etag",
-        "idols": []
-      }
-    ]
-  }
-}
-```
-
-### `GET /api/wiki/stories?agency=...&idol=...`
-
-返回当前角色、头像和按分类、卡片聚合的剧情来源。同一卡片的多个数据库行会保留为多个
-`links`。分类顺序和空分类可见性来自 `wiki_idol_categories`；卡片图片和头像均使用稳定的
-同源 URL。前端只允许打开 `http`/`https` 来源链接。
-
-## 管理读取 API
-
-两个接口都要求 access JWT Cookie，角色必须为 `editor` 或 `op`。access JWT 过期时，Web
-客户端通过 refresh Cookie 自动轮换会话并重放原请求。GET 不要求 CSRF；所有写请求仍要求
-JWT claim 对应的 `X-CSRFToken`。
-
-### `GET /api/admin/wiki/catalog`
-
-返回数据库中的 Wiki 企划、展示元数据、分组、成员顺序和媒体状态。该接口不逐个扫描对象存储，
-适合页面首次加载；对象是否关联以业务表逻辑键为准。
-
-```json
-{
-  "status": "success",
-  "agencies": [
-    {
-      "id": 6,
-      "code": "sc",
-      "name": "闪耀色彩",
-      "color": "#8dbbff",
-      "bannerTitle": "283 Production",
-      "displayOrder": 6,
-      "layoutRevision": 4,
-      "iconUrl": "/icon/agencies/6.webp?v=etag",
-      "groups": [
-        {
-          "id": 31,
-          "code": "illumination-stars",
-          "name": "illumination STARS",
-          "displayOrder": 1,
-          "idols": [
-            {
-              "id": 6,
-              "name": "樱木真乃",
-              "folderName": "sakuragi_mano",
-              "color": "#ffbad6",
-              "textColor": "#333333",
-              "displayOrder": 1
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
-
-### `GET /api/admin/wiki/stories?agency=...&idol=...`
-
-只读取当前选择的偶像，避免一次传输整个 Wiki。`stories` 是可编辑的数据库行；同一卡片可以有
-多个不同 `id` 的链接。`categories` 返回分类 ID、名称、存储 slug、顺序、空分类可见性和随机
-背景资格，不再合并后端名称规则。
-
-```json
-{
-  "status": "success",
-  "agency": { "id": 6, "code": "sc", "name": "闪耀色彩", "color": "#8dbbff" },
-  "idol": { "id": 6, "name": "樱木真乃", "folderName": "sakuragi_mano", "color": "#ffbad6" },
-  "categories": [
-    {
-      "id": 81,
-      "name": "enzaP卡",
-      "storageSlug": "enza_pcard",
-      "displayOrder": 4,
-      "showWhenEmpty": true,
-      "backgroundEligible": true
-    }
-  ],
-  "stories": [
-    {
-      "id": 101,
-      "category": "enzaP卡",
-      "cardName": "【示例卡片】",
-      "upName": "投稿者",
-      "videoTitle": "第一话",
-      "url": "https://www.bilibili.com/video/BV...",
-      "subtitle": "剧情备注",
-      "imageFile": "enza_pcard/example.webp",
-      "imageUrl": "/image/.../enza_pcard/example.webp"
-    }
-  ]
-}
-```
-
-缺少查询参数返回 `400`；企划或偶像不存在返回 `404`。响应中的 `imageUrl` 已经过路径分段编码，
-前端不应自行生成对象键。
-
-## 管理写接口
-
-所有新增写接口统一放在 `/api/admin/wiki/*`，要求 `editor` 或 `op` access JWT Cookie 与匹配
-的 CSRF claim。refresh token 只由 `/api/refresh` 和 `/api/logout` 使用。前端统一封装在
-`app/shared/api/endpoints/`，不要在组件中手写 Cookie、CSRF header 或数据库字段。
-
-| 操作 | 接口 | 主要字段 |
-| --- | --- | --- |
-| 编辑企划展示信息 | `PATCH /api/admin/wiki/agencies/:agencyId` | `bannerTitle`、`color`、`displayOrder`、`wikiEnabled` |
-| 新增展示分组 | `POST /api/admin/wiki/groups` | `agencyId`、`code`、`name`、`color`、`isFallback` |
-| 编辑/删除展示分组 | `PATCH/DELETE /api/admin/wiki/groups/:groupId` | 分组展示字段；删除前必须迁移成员 |
-| 保存完整分组布局 | `PUT /api/admin/wiki/agencies/:agencyId/layout` | `expectedRevision`、有序分组和成员 ID |
-| 新增/编辑分类 | `POST/PATCH /api/admin/wiki/categories` | `agencyId`、`name`、`storageSlug`、`backgroundEligible` |
-| 保存偶像分类顺序 | `PUT /api/admin/wiki/idols/:idolId/categories` | 有序分类 ID、`showWhenEmpty` |
-| 上传或移除企划/分组/偶像媒体 | `/api/admin/wiki/media/*` | 业务实体 ID 与图片，不接受客户端对象键 |
-| 新增剧情链接 | `POST /api/wiki/add_story` | `agency`、`idol`、`category_name`、`card_name`、`up_name`、`video_title`、`url`、可选 `image` |
-| 编辑剧情链接 | `POST /api/wiki/edit_story` | 新增字段加 `story_id`、`old_category_name`、`old_card_name` |
-| 删除整张卡片及其链接 | `POST /api/wiki/delete_story` | `agency`、`idol`、`category_name`、`card_name` |
-| 删除分类及其剧情 | `POST /api/wiki/delete_category` | `agency`、`idol`、`category_name` |
-| 解析 Bilibili | `POST /api/wiki/parse_bilibili` | JSON `{ "url": "..." }` |
-
-`story_id` 是新增的精确编辑键。服务端按该 ID 读取原始分类和卡片名，不信任客户端提交的旧
-分组字段；未提供 `story_id` 时继续兼容旧客户端按卡片查找第一条链接的写入行为。
-
-布局保存必须在一个数据库事务内验证以下条件后整体提交：请求覆盖该企划所有启用偶像、每个
-偶像只出现一次、所有分组属于该企划、顺序不重复且恰有一个 fallback 分组。服务端用
-`expectedRevision` 与 `agencies.layout_revision` 做比较；版本不一致返回 `409`，成功后递增版本。
-
-媒体上传先写入受管理的逻辑键，再在数据库事务中设置实体的 `*_object_key`；数据库提交失败时
-清理新对象。移除媒体时先清空业务关联并提交，再按预期对象版本删除，失败进入补偿队列。公开
-接口和媒体 handler 永远不接受或返回原始对象键。
-
-## 一致性与验证
-
-- 剧情图片先写对象存储，再提交数据库；数据库失败时清理新对象。
-- 替换或删除在数据库提交后清理旧对象；清理失败进入补偿机制，不回滚已经提交的业务记录。
-- 分类删除只清理规范化目录前缀，不能跨到名称相近的兄弟目录。
-- 每个 `wiki_enabled` 偶像必须恰好属于一个同企划分组。
-- 每个企划必须恰好有一个 fallback 分组，且企划、分组、成员和分类顺序均无重复值。
-- 每个历史剧情分类必须能解析到同企划的 `wiki_categories` 和当前偶像的分类关联。
-- 所有非空 `*_object_key` 必须能由 `ObjectStorage` 回读；对象存在不反向推导业务关联。
-- 动态读接口不返回对象存储内部 key、数据库表名或认证信息。
-
-## 数据迁移与切换
-
-### 阶段 0：活动数据盘点
-
-迁移前必须连接活动 PostgreSQL 与目标 MinIO/S3，记录以下基线；工作区中的空 SQLite 文件不能
-代替活动数据证据：
-
-- `agencies`、`idols`、七张剧情表和 `theme_colors` 的行数与关键字段摘要；
-- 当前公开 catalog/stories 的企划、分组、成员与分类顺序快照；
-- 旧头像、企划图标、分组图标、企划视觉和剧情图片的对象存在性及 SHA-256；
-- 无匹配分组偶像、重复成员、未知分类和缺失对象列表。
-
-任何未知偶像或缺失业务媒体都必须显式决定目标分组或空媒体状态，不能由迁移器静默猜测。
-
-### 阶段 1：版本化 schema 与业务数据回填
-
-新增 PostgreSQL `0007_wiki_catalog_metadata` post-data migration。之所以使用 post-data，是因为
-首次 SQLite 导入会先写入 `agencies`、`idols` 和剧情行，migration 才能按稳定 ID/业务键建立
-关系。SQLite Schema Strategy 与 Story migration 同步提供等价表、约束和测试夹具。
-
-该 migration 在一个事务中：
-
-1. 先添加可空企划/偶像展示字段并创建四张 Wiki 元数据表和索引；
-2. 将当前 `wiki-groups.ts` 的分组/成员、`service.ts` 的分类/顺序和 `legacy-media.ts` 的业务关联
-   转换为一次性种子数据；
-3. 按 `agency.code + idol.folder_name` 解析成员，按现有剧情行补齐未列出的分类；
-4. 验证全量成员、分类与顺序约束，再设置 `NOT NULL`/唯一约束；任一不满足则回滚整个
-   migration。
-
-版本化 migration 中的种子是不可变的历史初始化记录，不是运行时配置。切换后新增或调整数据只
-通过管理 API/数据库事务完成，不再修改 migration 或重新引入 TypeScript 常量。
-
-### 阶段 2：媒体关联回填
-
-提供 `wiki:metadata:migrate` 工具，默认只生成 `data/migration/` 下被忽略的 JSON 报告；只有
-显式 `--apply` 才写入。工具通过 `StoryRepository` 和 `ObjectStorage` 工作，不直连 provider：
-
-1. 将仍需保留的旧媒体同步到语义化 Wiki 对象键；
-2. 回读大小、MIME、ETag/SHA-256 后设置对应实体的逻辑键；
-3. 对缺失对象保留 `NULL` 并报告，不写入旧站 URL；
-4. 应用后重新读取数据库和对象存储，确保报告中的待处理项为零或已有显式豁免。
-
-### 阶段 3：API 与 Web 同步切换
-
-- Repository 新增数据库驱动的目录、分类、布局与媒体关联方法；
-- 公开与管理 API 同步升级 schema，直接返回 `groups` 和结构化 `categories`；
-- 新旧 Wiki 视图同时改为渲染 API 分组；删除 Web 端二次分组逻辑；
-- 随机背景仅从数据库标记的候选分类和对象键选择；没有候选时返回空 URL；
-- 切换版本不提供运行时双读。迁移未通过时拒绝发布，而不是回退 TypeScript 常量。
-
-### 阶段 4：退役旧实现
-
-只有数据库/对象存储审计和新读模型门禁全部通过后，才删除：
-
-- `apps/web/app/pages/wiki/wiki-groups.ts` 及对应单元测试；
-- `apps/api/src/domains/wiki/legacy-media.ts` 与 `import-legacy-idol-media` handler/路由；
-- `getPresetCategories()`、企划顺序/颜色、亮色文字名单、分类目录映射和随机背景候选常量；
-- `/css/*` Wiki 路由和通用旧 `/icon/*` 静态 fallback，仅保留数据库实体媒体路由；
-- 无持久化行为的 `save-story-layout` 兼容 handler。
-
-不可删除已经执行的 migration。旧静态文件从运行时树移除后仍可从 Git 历史恢复，但不再参与发布。
-
-## 验收门禁
-
-数据级验收必须全部为零：未分组启用偶像、重复成员、跨企划成员、缺少 fallback 的企划、重复
-顺序、未知剧情分类、无效颜色、非法对象键和非空但不可读的媒体键。
-
-行为级验收要求迁移前后企划/分组/偶像/分类的集合与顺序一致；允许的差异只有已记录的缺失媒体
-改为空占位。还必须证明运行时源代码不再包含角色名单、预设分类名单或 `/assets/images/...` Wiki
-回退路径。
-
-实现阶段至少运行：
+先执行只读诊断，再使用统一开发入口；`pnpm dev` 会启动本地 PostgreSQL/MinIO、幂等应用全部
+migration，然后启动 API 和 Web：
 
 ```sh
-pnpm --filter @imsweb/api run check
+pnpm run dev:doctor
+pnpm dev
+```
+
+仅需对已运行的本地 PostgreSQL 应用 migration 时，可在确认目标连接为本地回环数据库后运行：
+
+```sh
+pnpm run migration:postgresql
+```
+
+API 启动会检查 `ims_schema_migrations` 是否包含 `0017_wiki_entry_types`；缺失时拒绝启动并
+提示迁移。已经执行的 migration 不得修改或删除。
+
+### 生产环境
+
+生产迁移是独立发布操作，不由代码合入、本地测试或 `pnpm dev` 代替。执行前必须确认生产数据库
+URL、备份、维护窗口和对象存储目标；执行后保存以下证据：
+
+1. `0011` 至 `0017` 均记录在 `ims_schema_migrations`，checksum 无漂移。
+2. `0012` 的历史行数、卡片数和双向投影检查全部通过。
+3. 企划、栏目、内容页、页面类型及多栏目归档关系可从管理 catalog 回读。
+4. 非空媒体逻辑键可从目标 S3/MinIO 回读，上传替换不会遗留新对象。
+5. 公开 catalog/stories 与后台工作台完成实际 HTTP 和浏览器检查。
+
+本次 schema 不删除七张历史剧情表，因此可保留迁移证据；但回滚旧代码前必须确认旧版本不会继续
+向历史表写入，否则会与规范化运行时数据分叉。生产迁移和切换需要独立审批，本地门禁通过不等于
+生产切换完成。
+
+## 验证命令
+
+从仓库根目录使用 Node.js `>=22.13.0` 和 pnpm 11：
+
+```sh
+# schema、Repository、路由与迁移契约
+pnpm --filter @imsweb/api run typecheck:server
+pnpm --filter @imsweb/api run test:migration
 pnpm --filter @imsweb/api run test:wiki
 pnpm --filter @imsweb/api run test:server
-pnpm --filter @imsweb/web run check
+
+# 工作台、公开视图和 API 客户端
+pnpm --filter @imsweb/web run lint
+pnpm --filter @imsweb/web run typecheck
+pnpm --filter @imsweb/web run test:unit
+pnpm --filter @imsweb/web run build
+
+# 仓库级发布门禁
 pnpm run test:web-routing
 pnpm run check
 pnpm run test
 ```
 
-迁移工具另需覆盖 dry-run 无写入、重复执行幂等、事务回滚、未知成员、未知分类、缺失对象和应用后
-回读对账。生产切换证据必须包含活动 PostgreSQL 查询与 MinIO/S3 回读，不能用 fixture 或空本地库
-代替。
-
-## 回滚边界
-
-schema migration 采用增量表/列，不在首次切换中删除原剧情表或旧字段。代码发布失败可以回滚到
-切换前版本；数据回填必须幂等。完成阶段 4 后的回滚仍应读取数据库元数据，不得恢复 Web 静态
-配置或 API legacy fallback。生产数据迁移和外部切换需要独立审批，本地门禁通过不等于生产完成。
-
-## 管理端交互顺序
-
-1. 页面加载时请求管理 catalog，保留当前 `layoutRevision`，并选择第一个可用企划与偶像。
-2. 分组拖放只修改本地草稿；保存时提交完整布局与 `expectedRevision`，`409` 后重新加载而不是
-   覆盖他人修改。
-3. 选择变化时只请求对应 stories；用请求状态防止旧响应覆盖新选择。
-4. 分类管理按分类 ID 写入定义与偶像关联；删除按钮必须区分“仅取消该偶像关联”和“删除分类及
-   剧情”。
-5. 剧情表单按 `story.id` 编辑单条链接；删除按钮必须明确“整张卡片”或“整个分类”的影响范围。
-6. 写成功后重新获取当前服务端读模型，并覆盖加载、错误、空列表、冲突、成功和移动端状态。
-
-公开目录使用 `/api/wiki/catalog`，角色剧情使用 `/api/wiki/stories`；`/wiki` 与 `/story`
-由 Web 预渲染产物提供，不能再注册为 Hono HTML handler。
+涉及真实媒体或迁移切换时，自动化测试之外还必须用目标环境的 PostgreSQL、对象存储和浏览器完成
+回读；fixture、空 SQLite 或仅构建成功不能作为生产数据验收证据。

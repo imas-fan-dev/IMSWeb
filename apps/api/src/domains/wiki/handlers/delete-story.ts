@@ -32,11 +32,17 @@ export function createHandleDeleteWikiStory<E extends Env>(
             if ('error' in target) return target.error;
             const category = (fields.category_name ?? '').trim();
             const cardName = (fields.card_name ?? '').trim();
-            const rows = await services.story!.listStoryGroupForDelete(
-                target.agency.code,
-                target.idol.id,
-                category,
-                cardName
+            const [rows, cards] = await Promise.all([
+                services.story!.listStoryGroupForDelete(
+                    target.agency.code,
+                    target.idol.id,
+                    category,
+                    cardName
+                ),
+                services.story!.listStoryCards(target.agency.code, target.idol.id)
+            ]);
+            const card = cards.find((candidate) =>
+                candidate.category === category && candidate.card_name === cardName
             );
             await services.story!.deleteStoryGroup(
                 target.agency.code,
@@ -44,13 +50,16 @@ export function createHandleDeleteWikiStory<E extends Env>(
                 category,
                 cardName
             );
-            await cleanupWikiObjects(services, rows.flatMap((row) => {
-                if (!row.image_file) return [];
+            const imageFiles = new Set([
+                card?.image_file,
+                ...rows.map((row) => row.image_file)
+            ].filter((value): value is string => Boolean(value)));
+            await cleanupWikiObjects(services, [...imageFiles].flatMap((imageFile) => {
                 try {
                     return [storyObjectKey(
                         target.agency.code,
                         target.idol.folderName,
-                        row.image_file
+                        imageFile
                     )];
                 } catch {
                     return [];

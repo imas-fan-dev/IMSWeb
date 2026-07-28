@@ -36,6 +36,28 @@ class SqliteStatement implements SqlStatement {
     }
 
     async run<Row = Record<string, unknown>>(): Promise<SqlResult<Row>> {
+        if (/^\s*SELECT\b/i.test(this.sql)) {
+            const rows = await this.connection.all<Row>(this.sql, this.values);
+            return { results: rows, success: true, meta: { changes: 0 } };
+        }
+        if (/\bRETURNING\b/i.test(this.sql)) {
+            const rows = await this.connection.all<Row>(this.sql, this.values);
+            const meta = await this.connection.get<{
+                changes: number;
+                last_row_id: number;
+            }>(
+                `SELECT changes() AS changes,
+                        last_insert_rowid() AS last_row_id`
+            );
+            return {
+                results: rows,
+                success: true,
+                meta: {
+                    changes: meta?.changes ?? rows.length,
+                    ...(meta?.last_row_id ? { last_row_id: meta.last_row_id } : {})
+                }
+            };
+        }
         const result = await this.connection.run(this.sql, this.values);
         return {
             results: [],

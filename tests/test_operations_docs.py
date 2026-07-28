@@ -89,6 +89,10 @@ class OperationsDocumentationTests(unittest.TestCase):
         )
         self.assertEqual(scripts["dev"], "node scripts/development/dev-environment.mjs")
         self.assertEqual(
+            scripts["dev:r2"],
+            "node scripts/development/dev-environment.mjs --r2",
+        )
+        self.assertEqual(
             scripts["dev:doctor"],
             "node scripts/development/dev-environment.mjs --doctor",
         )
@@ -108,6 +112,7 @@ class OperationsDocumentationTests(unittest.TestCase):
         self.assertIn("inspectContainerTarget", launcher)
         self.assertIn("Refusing to modify a non-local container target", launcher)
         self.assertIn('IMS_ENV_FILE: ""', launcher)
+        self.assertIn("R2 hot reload refuses a bucket", launcher)
 
         for document in (
             PROJECT_ROOT / "README.md",

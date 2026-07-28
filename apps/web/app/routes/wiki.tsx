@@ -5,7 +5,7 @@ export function meta() {
     { title: "剧情档案 | IMSWeb" },
     {
       name: "description",
-      content: "偶像大师各企划角色剧情、卡片剧情与影像来源档案。",
+      content: "偶像大师各企划内容页、剧情卡片与影像来源档案。",
     },
   ]
 }

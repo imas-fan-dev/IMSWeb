@@ -1,4 +1,5 @@
 import { FileImageIcon, ImageUpIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { AdminFileUploadField } from "./admin-file-upload-field"
 
@@ -25,6 +26,8 @@ export function AdminImageUploadField({
   resetAfterSelect?: boolean
   onSelect: (file: File | null) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <AdminFileUploadField
       id={id}
@@ -32,9 +35,9 @@ export function AdminImageUploadField({
       label={label}
       description={description}
       accept={adminImageAccept}
-      emptyTitle="选择一张图片"
-      emptyDetail="PNG、JPEG、WebP 或 AVIF"
-      fileKind="图片"
+      emptyTitle={t("upload.image.emptyTitle")}
+      emptyDetail={t("upload.image.emptyDetail")}
+      fileKind={t("upload.image.fileKind")}
       file={file}
       disabled={disabled}
       uploading={uploading}

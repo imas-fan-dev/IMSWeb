@@ -14,6 +14,39 @@ export const resources = {
       actions: {
         close: "关闭",
       },
+      upload: {
+        dropZoneLabel: "{{fileKind}}文件选择",
+        dropTitle: "松开以选择{{fileKind}}",
+        uploadingTitle: "正在上传{{fileKind}}",
+        uploadingDetail: "上传完成前请勿关闭页面",
+        uploadingStatus: "上传中",
+        selectedDetail: "{{fileKind}} · {{size}}",
+        unavailableStatus: "不可用",
+        selectedStatus: "已选择",
+        changeFile: "更换",
+        selectFile: "选择文件",
+        removeFile: "移除 {{fileName}}",
+        removeSelectedFile: "移除已选择的文件",
+        image: {
+          label: "上传图片",
+          emptyTitle: "选择一张图片",
+          emptyDetail: "PNG、JPEG、WebP 或 AVIF",
+          emptyDetailWithGif: "PNG、JPEG、WebP、AVIF 或 GIF",
+          conversionDetail:
+            "支持 PNG、JPEG、WebP、AVIF 或 GIF，保存时统一转换为 WebP。",
+          fileKind: "图片",
+        },
+        eventImage: {
+          emptyTitle: "选择活动图片",
+          emptyDetail: "图片文件 · 不超过 3 MiB",
+          fileKind: "活动图片",
+        },
+        storyCover: {
+          emptyTitle: "选择共享封面",
+          emptyDetail: "JPEG、PNG、WebP 或 GIF",
+          fileKind: "封面图片",
+        },
+      },
       navigation: {
         mainLabel: "主导航",
         mobileLabel: "移动端主导航",
@@ -69,6 +102,39 @@ export const resources = {
       },
       actions: {
         close: "Close",
+      },
+      upload: {
+        dropZoneLabel: "{{fileKind}} file picker",
+        dropTitle: "Drop to select {{fileKind}}",
+        uploadingTitle: "Uploading {{fileKind}}",
+        uploadingDetail: "Keep this page open until the upload is complete",
+        uploadingStatus: "Uploading",
+        selectedDetail: "{{fileKind}} · {{size}}",
+        unavailableStatus: "Unavailable",
+        selectedStatus: "Selected",
+        changeFile: "Change",
+        selectFile: "Choose file",
+        removeFile: "Remove {{fileName}}",
+        removeSelectedFile: "Remove selected file",
+        image: {
+          label: "Upload image",
+          emptyTitle: "Choose an image",
+          emptyDetail: "PNG, JPEG, WebP, or AVIF",
+          emptyDetailWithGif: "PNG, JPEG, WebP, AVIF, or GIF",
+          conversionDetail:
+            "PNG, JPEG, WebP, AVIF, or GIF. Images are converted to WebP when saved.",
+          fileKind: "Image",
+        },
+        eventImage: {
+          emptyTitle: "Choose an event image",
+          emptyDetail: "Image file · Up to 3 MiB",
+          fileKind: "Event image",
+        },
+        storyCover: {
+          emptyTitle: "Choose a shared cover",
+          emptyDetail: "JPEG, PNG, WebP, or GIF",
+          fileKind: "Cover image",
+        },
       },
       navigation: {
         mainLabel: "Main navigation",

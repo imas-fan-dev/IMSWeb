@@ -11,6 +11,8 @@ import type {
     PutObjectOptions,
     StoredObject
 } from '@/ports/object-storage';
+import type { ImageProcessor } from '@/ports/media';
+import type { UploadParser } from '@/ports/http';
 import type { AuditLogInput } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 
@@ -72,11 +74,42 @@ class MemoryStorage implements ObjectStorage {
     }
 }
 
+const uploads: UploadParser = {
+    async parse(request) {
+        const form = await request.formData();
+        const image = form.get('image');
+        if (!(image instanceof File)) return { fields: {}, files: {} };
+        return {
+            fields: {},
+            files: {
+                image: {
+                    filename: image.name,
+                    contentType: image.type,
+                    body: new Uint8Array(await image.arrayBuffer())
+                }
+            }
+        };
+    }
+};
+
+const images: ImageProcessor = {
+    async validate() {
+        return { format: 'png', width: 800, height: 1_600, contentType: 'image/png' };
+    },
+    async toWebp(body) {
+        return Uint8Array.of(0x52, 0x49, 0x46, 0x46, ...body);
+    },
+    async thumbnailPng(body) { return body; },
+    async resizeJpeg(body) { return body; }
+};
+
 function fixture() {
     const storage = new MemoryStorage();
     const audit: AuditLogInput[] = [];
     const services: RuntimeServices = {
         storage,
+        uploads,
+        images,
         audit: {
             async insertAuditLog(input) { audit.push(input); },
             async listRecentAuditLogs() { return []; }
@@ -202,6 +235,47 @@ test('about page admin updates are authenticated, audited, and revision guarded'
     });
     assert.equal(staleResponse.status, 409);
     assert.match((await staleResponse.json() as { error: string }).error, /刷新后重试/);
+});
+
+test('about hero uploads are authenticated, audited, and publicly readable', async () => {
+    const { request, audit } = fixture();
+    const unauthorizedForm = new FormData();
+    unauthorizedForm.append(
+        'image',
+        new Blob([Uint8Array.of(1)], { type: 'image/png' }),
+        'hero.png'
+    );
+    const unauthorized = await request('/api/admin/about/hero-image', {
+        method: 'POST',
+        body: unauthorizedForm
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const form = new FormData();
+    form.append(
+        'image',
+        new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/png' }),
+        'new-hero.png'
+    );
+    const response = await request('/api/admin/about/hero-image', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer about-token' },
+        body: form
+    });
+    assert.equal(response.status, 200);
+    const uploaded = await response.json() as { success: true; url: string };
+    assert.equal(uploaded.success, true);
+    assert.match(uploaded.url, /^\/uploads\/about\/hero\/new-hero-\d+-[a-f0-9]{12}\.webp$/);
+    assert.equal(audit.at(-1)?.action, '上传关于页主视觉');
+    assert.equal(audit.at(-1)?.target, uploaded.url);
+
+    const publicResponse = await request(uploaded.url);
+    assert.equal(publicResponse.status, 200);
+    assert.equal(publicResponse.headers.get('content-type'), 'image/webp');
+    assert.deepEqual(
+        new Uint8Array(await publicResponse.arrayBuffer()),
+        Uint8Array.of(0x52, 0x49, 0x46, 0x46, 1, 2, 3)
+    );
 });
 
 test('about page rejects unsafe profile links before persistence', async () => {

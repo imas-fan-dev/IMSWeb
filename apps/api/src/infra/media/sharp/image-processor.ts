@@ -29,7 +29,9 @@ export class SharpImageProcessor implements ImageProcessor {
     }
 
     async toWebp(body: Uint8Array, quality = 85): Promise<Uint8Array> {
-        return new Uint8Array(await sharp(body, INPUT_OPTIONS).webp({ quality }).toBuffer());
+        return new Uint8Array(
+            await sharp(body, INPUT_OPTIONS).rotate().webp({ quality }).toBuffer()
+        );
     }
 
     async thumbnailPng(body: Uint8Array, width: number, height: number): Promise<Uint8Array> {

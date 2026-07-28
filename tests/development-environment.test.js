@@ -9,6 +9,20 @@ const scriptUrl = pathToFileURL(
 ).href;
 const launcher = import(scriptUrl);
 
+const r2TestEnvironment = Object.freeze({
+  IMS_OBJECT_STORAGE: "s3",
+  IMS_S3_BUCKET: "imsweb-media-public-test",
+  IMS_PUBLIC_READ_URL_BASE: "https://test.assets.example.com",
+  IMS_S3_PUBLIC_READ_URL_BASE: "https://test.assets.example.com",
+  IMS_S3_REGION: "auto",
+  IMS_S3_ENDPOINT: "https://account.r2.cloudflarestorage.com",
+  IMS_S3_FORCE_PATH_STYLE: "false",
+  IMS_S3_PREFIX: "",
+  IMS_S3_READ_URL_TTL_SECONDS: "300",
+  AWS_ACCESS_KEY_ID: "test-access-key",
+  AWS_SECRET_ACCESS_KEY: "test-secret-key",
+});
+
 test("development launcher parses defaults and explicit ports", async () => {
   const { parseArguments } = await launcher;
 
@@ -19,6 +33,7 @@ test("development launcher parses defaults and explicit ports", async () => {
     down: false,
     dryRun: false,
     help: false,
+    r2: false,
   });
   assert.deepEqual(
     parseArguments(
@@ -32,6 +47,7 @@ test("development launcher parses defaults and explicit ports", async () => {
       down: false,
       dryRun: true,
       help: false,
+      r2: false,
     },
   );
   assert.equal(
@@ -41,6 +57,7 @@ test("development launcher parses defaults and explicit ports", async () => {
     }).apiPort,
     3200,
   );
+  assert.equal(parseArguments(["--r2"], {}).r2, true);
 });
 
 test("development launcher rejects ambiguous or invalid arguments", async () => {
@@ -118,6 +135,72 @@ test("development configuration derives a fully local runtime", async () => {
   );
 });
 
+test("development configuration isolates an explicit R2 test runtime", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+  const configuration = resolveDevelopmentConfiguration({
+    environment: {
+      PATH: "/test/bin",
+      IMS_SUPER_ADMIN_USERNAME: "production-admin",
+      IMS_JWT_SECRET: "production-secret",
+      DATABASE_URL: "postgresql://production.invalid/imsweb",
+    },
+    deployEnvironment: {},
+    options: parseArguments(
+      ["--r2", "--api-port", "3100", "--web-port", "5180"],
+      {},
+    ),
+    r2Environment: r2TestEnvironment,
+  });
+
+  assert.equal(configuration.storageMode, "r2");
+  assert.equal(configuration.bucket, "imsweb-media-public-test");
+  assert.equal(
+    configuration.apiEnvironment.IMS_PUBLIC_READ_URL_BASE,
+    "https://test.assets.example.com",
+  );
+  assert.equal(configuration.apiEnvironment.IMS_S3_REGION, "auto");
+  assert.equal(
+    configuration.apiEnvironment.IMS_S3_ENDPOINT,
+    "https://account.r2.cloudflarestorage.com",
+  );
+  assert.equal(configuration.apiEnvironment.IMS_S3_FORCE_PATH_STYLE, "false");
+  assert.equal(
+    configuration.apiEnvironment.AWS_ACCESS_KEY_ID,
+    "test-access-key",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_JWT_SECRET,
+    "imsweb-local-development-secret",
+  );
+  assert.equal(
+    configuration.apiEnvironment.DATABASE_URL.includes("127.0.0.1"),
+    true,
+  );
+  assert.equal(
+    "IMS_SUPER_ADMIN_USERNAME" in configuration.apiEnvironment,
+    false,
+  );
+  assert.equal(configuration.composeArguments.includes("local-storage"), false);
+});
+
+test("R2 hot reload rejects a bucket not marked as test", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+
+  assert.throws(
+    () =>
+      resolveDevelopmentConfiguration({
+        environment: {},
+        deployEnvironment: {},
+        options: parseArguments(["--r2"], {}),
+        r2Environment: {
+          ...r2TestEnvironment,
+          IMS_S3_BUCKET: "imsweb-media-public-prod",
+        },
+      }),
+    /not explicitly marked as test/,
+  );
+});
+
 test("development command plan orders local infrastructure before hot reload", async () => {
   const { buildCommandPlan, parseArguments, resolveDevelopmentConfiguration } =
     await launcher;
@@ -185,6 +268,27 @@ test("development command plan orders local infrastructure before hot reload", a
       .includes("imsweb-local-development-secret"),
     false,
   );
+});
+
+test("R2 command plan starts PostgreSQL without MinIO", async () => {
+  const { buildCommandPlan, parseArguments, resolveDevelopmentConfiguration } =
+    await launcher;
+  const configuration = resolveDevelopmentConfiguration({
+    environment: {},
+    deployEnvironment: {},
+    options: parseArguments(["--r2"], {}),
+    r2Environment: r2TestEnvironment,
+  });
+  const plan = buildCommandPlan(configuration);
+
+  assert.deepEqual(plan.infrastructure.args.slice(-3), [
+    "up",
+    "-d",
+    "postgres",
+  ]);
+  assert.equal(plan.infrastructure.args.includes("minio"), false);
+  assert.equal(plan.minioInit, undefined);
+  assert.deepEqual(plan.down.args.slice(-2), ["stop", "postgres"]);
 });
 
 test("development launcher enforces the repository Node baseline", async () => {
@@ -354,6 +458,45 @@ test("development preparation waits for dependencies before migration", async ()
     "Waiting for PostgreSQL",
     "MinIO:http://127.0.0.1:9000/minio/health/live",
     "Initializing the local MinIO bucket",
+    "Applying PostgreSQL migrations",
+  ]);
+});
+
+test("R2 development preparation skips MinIO", async () => {
+  const {
+    buildCommandPlan,
+    parseArguments,
+    prepareDevelopmentEnvironment,
+    resolveDevelopmentConfiguration,
+  } = await launcher;
+  const configuration = resolveDevelopmentConfiguration({
+    environment: {},
+    deployEnvironment: {},
+    options: parseArguments(["--r2"], {}),
+    r2Environment: r2TestEnvironment,
+  });
+  const events = [];
+
+  await prepareDevelopmentEnvironment(
+    configuration,
+    buildCommandPlan(configuration),
+    {
+      runCommand(label) {
+        events.push(label);
+      },
+      async waitForCommand(label) {
+        events.push(label);
+      },
+      async waitForUrl() {
+        events.push("unexpected MinIO wait");
+      },
+    },
+  );
+
+  assert.deepEqual(events, [
+    "Validating local Compose configuration",
+    "Starting PostgreSQL",
+    "Waiting for PostgreSQL",
     "Applying PostgreSQL migrations",
   ]);
 });

@@ -1,13 +1,17 @@
 import {
   CalendarDaysIcon,
+  FileImageIcon,
+  ImageUpIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import type { FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Button } from "~/components/ui/button"
 import {
   AdminEmptyState,
@@ -32,11 +36,13 @@ async function loadEvents() {
 }
 
 export default function AdminEventsPage() {
+  const { t } = useTranslation()
   const [events, setEvents] = useState<EventListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [creating, setCreating] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [eventImage, setEventImage] = useState<File | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -85,6 +91,7 @@ export default function AdminEventsPage() {
       await createAdminEvent(form).send()
       toast.success("活动已发布")
       formElement.reset()
+      setEventImage(null)
       await refresh()
     } catch {
       toast.error("活动发布失败，请检查内容后重试")
@@ -166,13 +173,19 @@ export default function AdminEventsPage() {
             />
           </AdminField>
           <AdminField label="活动图片" htmlFor="event-image">
-            <input
+            <FileUploadControl
               id="event-image"
               name="image"
-              type="file"
-              required
               accept="image/*"
-              className={adminControlClass}
+              emptyTitle={t("upload.eventImage.emptyTitle")}
+              emptyDetail={t("upload.eventImage.emptyDetail")}
+              fileKind={t("upload.eventImage.fileKind")}
+              file={eventImage}
+              disabled={creating}
+              required
+              selectedIcon={FileImageIcon}
+              emptyIcon={ImageUpIcon}
+              onSelect={setEventImage}
             />
           </AdminField>
           <div className="md:col-span-2">

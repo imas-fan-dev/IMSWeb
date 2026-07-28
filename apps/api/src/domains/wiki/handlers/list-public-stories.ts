@@ -8,6 +8,7 @@ import {
   aggregateStories,
   requireWikiServices,
   storyObjectKey,
+  storyCoverAssetUrl,
   toWikiAgency,
   toWikiIdolFromRecord,
 } from "@/domains/wiki/service";
@@ -22,7 +23,7 @@ export function createHandleListPublicWikiStories<E extends Env>(
     const agencyName = (context.req.query("agency") ?? "").trim();
     const idolName = (context.req.query("idol") ?? "").trim();
     if (!agencyName || !idolName) {
-      return wikiJson(wikiErrorBody("缺少企划或偶像参数"), 400);
+      return wikiJson(wikiErrorBody("缺少企划或内容页参数"), 400);
     }
     const agencyRecord = await services.story!.findAgencyByName(agencyName) ??
       await services.story!.findAgencyByCode(agencyName);
@@ -34,9 +35,10 @@ export function createHandleListPublicWikiStories<E extends Env>(
       agency.id,
       idolName,
     );
-    if (!idolRecord?.wiki_enabled) return wikiJson(wikiErrorBody("找不到该偶像"), 404);
-    const [storyRows, categoryRows] = await Promise.all([
+    if (!idolRecord?.wiki_enabled) return wikiJson(wikiErrorBody("找不到该内容页"), 404);
+    const [storyRows, cardRows, categoryRows] = await Promise.all([
       services.story!.listStories(agency.code, idolRecord.id),
+      services.story!.listStoryCards(agency.code, idolRecord.id),
       services.story!.listWikiCategories(agency.id, idolRecord.id),
     ]);
     const idol = toWikiIdolFromRecord(agency, idolRecord);
@@ -45,8 +47,9 @@ export function createHandleListPublicWikiStories<E extends Env>(
       categoryRows,
       agency.name,
       idol.name,
+      cardRows,
     );
-    const storyRowsByCard = new Map(storyRows.map((row) => [
+    const storyRowsByCard = new Map(cardRows.map((row) => [
       `${row.category}\u0000${row.card_name}`,
       row,
     ]));
@@ -56,11 +59,16 @@ export function createHandleListPublicWikiStories<E extends Env>(
         const row = storyRowsByCard.get(`${category.name}\u0000${card.name}`);
         return {
           ...card,
-          img: row?.image_file
+          img: row?.cover_asset_object_key || row?.image_file
             ? await resolvePublicObjectUrl(
                 services.storage!,
-                storyObjectKey(agency.code, idol.folderName, row.image_file),
-                card.img,
+                row.cover_asset_object_key ??
+                  storyObjectKey(agency.code, idol.folderName, row.image_file!),
+                row.cover_asset_id
+                  ? `${storyCoverAssetUrl(row.cover_asset_id)}?v=${
+                      row.cover_asset_revision ?? 0
+                    }`
+                  : card.img,
               )
             : card.img,
         };
@@ -87,7 +95,10 @@ export function createHandleListPublicWikiStories<E extends Env>(
             )
           : "",
         imageFit: idol.avatarFit ?? "cover",
+        imageTransform: idol.avatarTransform,
         textColor: idol.textColor ?? "#ffffff",
+        entryKind: idol.entryKind,
+        entrySubtype: idol.entrySubtype,
       },
       categories: publicCategories,
     });

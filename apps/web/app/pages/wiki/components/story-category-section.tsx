@@ -6,7 +6,9 @@ import {
   CardDescription,
   CardHeader,
 } from "~/components/ui/card"
-import type { WikiPublicStoryCategory } from "~/shared/api"
+import { Badge } from "~/components/ui/badge"
+import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import type { WikiImageTransform, WikiPublicStoryCategory } from "~/shared/api"
 
 import { safeExternalStoryUrl, safeWikiColor } from "../wiki-model"
 
@@ -14,11 +16,13 @@ export function StoryCategorySection({
   category,
   categoryId,
   fallbackImage,
+  fallbackTransform,
   accentColor,
 }: {
   category: WikiPublicStoryCategory
   categoryId: string
   fallbackImage: string
+  fallbackTransform: WikiImageTransform
   accentColor: string
 }) {
   return (
@@ -45,20 +49,17 @@ export function StoryCategorySection({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {category.cards.map((card) => {
           const cardKey = `${category.name}\u0000${card.name}`
-          const imageUrl = card.img || fallbackImage
           return (
             <Card key={cardKey} className="rounded-lg py-0">
               <div className="aspect-16/10 overflow-hidden bg-muted">
-                <img
-                  src={imageUrl}
+                <WikiTransformedImage
+                  src={card.img || fallbackImage}
                   alt={card.name}
+                  transform={card.img ? card.imageTransform : fallbackTransform}
+                  fallbackSrc={fallbackImage}
+                  fallbackTransform={fallbackTransform}
                   loading="lazy"
                   decoding="async"
-                  className="size-full object-cover"
-                  onError={(event) => {
-                    if (event.currentTarget.src.endsWith(fallbackImage)) return
-                    event.currentTarget.src = fallbackImage
-                  }}
                 />
               </div>
               <CardHeader className="pt-4">
@@ -83,11 +84,15 @@ export function StoryCategorySection({
                     >
                       <UserRoundIcon className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1">
+                        <span className="mb-1 flex flex-wrap gap-1.5">
+                          <Badge variant="secondary">{link.contentType}</Badge>
+                          <Badge variant="outline">{link.sourcePlatform}</Badge>
+                        </span>
                         <span className="block text-sm font-medium wrap-break-word">
                           {label}
                         </span>
                         <span className="block text-xs wrap-break-word text-muted-foreground">
-                          {link.up || "未知投稿者"}
+                          {link.up || "未知发布者"}
                         </span>
                       </span>
                       <ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground group-hover/link:text-foreground" />
@@ -95,9 +100,16 @@ export function StoryCategorySection({
                   ) : (
                     <div
                       key={link.id}
-                      className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground"
+                      className="rounded-md border border-dashed px-3 py-2"
                     >
-                      {label} · 链接不可用
+                      <span className="mb-1 flex flex-wrap gap-1.5">
+                        <Badge variant="secondary">{link.contentType}</Badge>
+                        <Badge variant="outline">{link.sourcePlatform}</Badge>
+                      </span>
+                      <span className="block text-sm font-medium">{label}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {link.up || "未知发布者"} · 链接不可用
+                      </span>
                     </div>
                   )
                 })}
