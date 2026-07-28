@@ -970,6 +970,10 @@
   align-content: start;
   gap: 5px;
   padding: 13px;
+  margin: 8px;
+  border: 1px solid #e8e6ea;
+  border-radius: 8px;
+  background: #faf9fb;
 }
 
 .wiki-classic-story-card-body strong,
