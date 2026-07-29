@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { cn } from "~/lib/utils"
 import {
   safeExternalStoryUrl,
   safeWikiColor,
@@ -241,11 +242,21 @@ export function ClassicStoryPage() {
                     >
                       {category.cards.map((card) => {
                         const textOnly = !card.img
+                        const hasSources = card.links.length > 0
                         return (
                           <button
                             key={`${category.name}\u0000${card.name}`}
                             type="button"
-                            className={`wiki-classic-story-card${textOnly ? "is-text-only" : ""}`}
+                            className={cn(
+                              "wiki-classic-story-card",
+                              textOnly && "is-text-only"
+                            )}
+                            data-source-state={
+                              hasSources ? "available" : "empty"
+                            }
+                            aria-label={
+                              !hasSources ? `${card.name}，暂无来源` : undefined
+                            }
                             onClick={() => setSelectedCard({ category, card })}
                           >
                             {!textOnly ? (

@@ -36,6 +36,7 @@ import {
   createHandleUpdateWikiStoryCatalogOption,
 } from "@/domains/wiki/handlers/manage-story-source-catalog";
 import { createHandleRandomWikiBackground } from "@/domains/wiki/handlers/random-background";
+import { createHandleRandomWikiIdol } from "@/domains/wiki/handlers/random-idol";
 import { handleRejectRetiredWikiStaticAsset } from "@/domains/wiki/handlers/reject-retired-wiki-static-asset";
 import { createHandleSaveWikiLayout } from "@/domains/wiki/handlers/save-wiki-layout";
 import { createHandleSaveWikiEntityImage } from "@/domains/wiki/handlers/save-entity-image";
@@ -131,15 +132,24 @@ export function registerWikiRoutes<E extends Env>(
   );
   app.post(
     "/api/admin/wiki/story-source-platforms",
-    createHandleCreateWikiStoryCatalogOption(resolveServices, "source-platform"),
+    createHandleCreateWikiStoryCatalogOption(
+      resolveServices,
+      "source-platform",
+    ),
   );
   app.patch(
     "/api/admin/wiki/story-source-platforms/:optionId",
-    createHandleUpdateWikiStoryCatalogOption(resolveServices, "source-platform"),
+    createHandleUpdateWikiStoryCatalogOption(
+      resolveServices,
+      "source-platform",
+    ),
   );
   app.delete(
     "/api/admin/wiki/story-source-platforms/:optionId",
-    createHandleDeleteWikiStoryCatalogOption(resolveServices, "source-platform"),
+    createHandleDeleteWikiStoryCatalogOption(
+      resolveServices,
+      "source-platform",
+    ),
   );
   app.post(
     "/api/admin/wiki/agencies",
@@ -247,4 +257,5 @@ export function registerWikiRoutes<E extends Env>(
     "/api/wiki/random_bg",
     createHandleRandomWikiBackground(resolveServices),
   );
+  app.get("/api/wiki/random_idol", createHandleRandomWikiIdol(resolveServices));
 }

@@ -364,6 +364,7 @@ export default function CommunityCardsPage() {
                   <FieldLabel htmlFor="namecard-front">名片正面</FieldLabel>
                   <FileUploadControl
                     id="namecard-front"
+                    compact
                     accept="image/*"
                     emptyTitle="选择名片正面"
                     emptyDetail="图片文件 · 不超过 3 MiB"
@@ -380,6 +381,7 @@ export default function CommunityCardsPage() {
                   <FieldLabel htmlFor="namecard-back">名片背面</FieldLabel>
                   <FileUploadControl
                     id="namecard-back"
+                    compact
                     accept="image/*"
                     emptyTitle="选择名片背面"
                     emptyDetail="图片文件 · 不超过 3 MiB"

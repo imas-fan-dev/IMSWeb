@@ -6,6 +6,7 @@ import { services } from '@/middleware/hono-context';
 export interface NewsSubmission {
     title?: unknown;
     content?: unknown;
+    coverUrl?: unknown;
     file?: UploadedFile;
 }
 
@@ -28,6 +29,7 @@ export async function parseNewsSubmission(c: Context<AppEnvironment>): Promise<N
         return {
             title: parsed.fields.title,
             content: parsed.fields.content,
+            coverUrl: parsed.fields.cover_url,
             file: Array.isArray(value) ? value[0] : value
         };
     }

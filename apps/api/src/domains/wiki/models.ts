@@ -60,6 +60,7 @@ export interface WikiStoryLink {
 }
 
 export interface WikiStoryCard {
+  id: number;
   name: string;
   img: string;
   subtitle: string;
@@ -74,7 +75,27 @@ export interface WikiStoryCategory {
 
 export interface WikiRandomBackground {
   url: string;
+  card_id?: number;
   card_name?: string;
   idol_name?: string;
   agency_name?: string;
+}
+
+export interface WikiRandomIdol {
+  status: "success";
+  eligibleCount: number;
+  idol: {
+    id: number;
+    name: string;
+    color: string | null;
+    textColor: string;
+    imageUrl: string;
+    imageTransform: WikiImageTransform;
+    agency: {
+      id: number;
+      code: string;
+      name: string;
+      color: string;
+    };
+  } | null;
 }

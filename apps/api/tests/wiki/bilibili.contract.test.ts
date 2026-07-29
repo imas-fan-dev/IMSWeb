@@ -26,6 +26,7 @@ describe('WIKI-02 isolated Bilibili parsing contract', () => {
                 data: {
                     bvid: 'BV1xx411c7mD',
                     title: '合集标题',
+                    pic: 'http://i0.hdslb.com/bfs/archive/cover.jpg#fragment',
                     owner: { name: '测试UP' },
                     pages: [
                         { page: 1, part: '第一话' },
@@ -41,7 +42,8 @@ describe('WIKI-02 isolated Bilibili parsing contract', () => {
             status: 'success',
             title: '第二话',
             up: '测试UP',
-            std_url: 'https://www.bilibili.com/video/BV1xx411c7mD?p=2'
+            std_url: 'https://www.bilibili.com/video/BV1xx411c7mD?p=2',
+            cover_url: 'https://i0.hdslb.com/bfs/archive/cover.jpg'
         });
         assert.equal(requestedUrl, 'https://api.bilibili.com/x/web-interface/view?bvid=BV1xx411c7mD');
         assert.equal(new Headers(requestedInit?.headers).get('user-agent'), 'Mozilla/5.0');

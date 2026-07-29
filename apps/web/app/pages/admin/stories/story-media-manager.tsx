@@ -240,6 +240,7 @@ export function StoryMediaManager() {
             <AdminFileUploadField
               id="story-media-image"
               name="image"
+              compact
               label="角色图片"
               description="PNG、JPEG、WebP、AVIF 或 GIF；保存后由对象存储统一提供。"
               accept="image/png,image/jpeg,image/webp,image/avif,image/gif"

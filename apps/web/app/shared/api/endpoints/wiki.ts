@@ -214,6 +214,7 @@ const bilibiliResultSchema = z.object({
   title: z.string(),
   up: z.string(),
   std_url: z.string(),
+  cover_url: z.string().default(""),
 })
 
 const wikiPublicAgencySchema = z.object({
@@ -274,6 +275,7 @@ const wikiPublicStoryLinkSchema = z.object({
 })
 
 const wikiPublicStoryCardSchema = z.object({
+  id: z.coerce.number().int().positive(),
   name: z.string(),
   img: z.string(),
   subtitle: z.string(),
@@ -300,9 +302,33 @@ const wikiPublicStoriesSchema = z.object({
 
 const wikiRandomBackgroundSchema = z.object({
   url: z.string(),
+  card_id: z.coerce.number().int().positive().optional(),
   card_name: z.string().optional(),
   idol_name: z.string().optional(),
   agency_name: z.string().optional(),
+})
+
+const wikiRandomIdolSchema = z.object({
+  status: z.literal("success"),
+  eligibleCount: z.coerce.number().int().nonnegative(),
+  idol: z
+    .object({
+      id: z.coerce.number().int().positive(),
+      name: z.string(),
+      color: z.string().nullable(),
+      textColor: z.string(),
+      imageUrl: z.string(),
+      imageTransform: wikiImageTransformSchema.default(
+        defaultWikiImageTransform
+      ),
+      agency: z.object({
+        id: z.coerce.number().int().positive(),
+        code: z.string(),
+        name: z.string(),
+        color: z.string(),
+      }),
+    })
+    .nullable(),
 })
 
 export type WikiAdminCatalog = z.infer<typeof wikiAdminCatalogSchema>
@@ -332,6 +358,7 @@ export type WikiPublicStories = z.infer<typeof wikiPublicStoriesSchema>
 export type WikiPublicStoryCategory = WikiPublicStories["categories"][number]
 export type WikiPublicStoryCard = WikiPublicStoryCategory["cards"][number]
 export type WikiRandomBackground = z.infer<typeof wikiRandomBackgroundSchema>
+export type WikiRandomIdol = z.infer<typeof wikiRandomIdolSchema>
 
 export type WikiStorySubmission = {
   agency: string
@@ -449,6 +476,12 @@ export function getWikiStories(agency: string, idol: string) {
 export function getWikiRandomBackground() {
   return apiClient.Get<WikiRandomBackground, unknown>("/api/wiki/random_bg", {
     transform: (payload) => wikiRandomBackgroundSchema.parse(payload),
+  })
+}
+
+export function getWikiRandomIdol() {
+  return apiClient.Get<WikiRandomIdol, unknown>("/api/wiki/random_idol", {
+    transform: (payload) => wikiRandomIdolSchema.parse(payload),
   })
 }
 

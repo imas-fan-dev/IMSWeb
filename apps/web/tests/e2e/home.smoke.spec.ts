@@ -218,6 +218,68 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
   expect(consoleErrors).toEqual([])
 })
 
+test("homepage navigation keeps secondary destinations in the directory", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/")
+
+  if (isMobile) {
+    await page.getByRole("button", { name: /打开导航|Open navigation/ }).click()
+  }
+
+  const navigation = page.getByRole("navigation", {
+    name: isMobile
+      ? /移动端主导航|Mobile navigation/
+      : /主导航|Main navigation/,
+  })
+  await expect(navigation.locator("a")).toHaveCount(isMobile ? 7 : 5)
+
+  for (const primaryHref of [
+    "/",
+    "/events",
+    "/recommendations",
+    "/live",
+    "/community",
+  ]) {
+    await expect(navigation.locator(`a[href="${primaryHref}"]`)).toBeVisible()
+  }
+  for (const secondaryHref of [
+    "/community/cards",
+    "/producer-map",
+    "/works",
+    "/chronicle",
+    "/about",
+  ]) {
+    await expect(navigation.locator(`a[href="${secondaryHref}"]`)).toHaveCount(
+      0
+    )
+  }
+  if (isMobile) {
+    await page.keyboard.press("Escape")
+    await expect(navigation).toBeHidden()
+  }
+
+  const directory = page.getByRole("region", { name: "站点导航" })
+  await expect(directory.getByRole("link")).toHaveCount(9)
+  await expect(
+    directory.getByRole("link", { name: /制作人名片墙/ })
+  ).toHaveAttribute("href", "/community/cards")
+  await expect(
+    directory.getByRole("link", { name: /制作人地图/ })
+  ).toHaveAttribute("href", "/producer-map")
+
+  const friendLinksBox = await page
+    .getByRole("region", { name: "友情链接" })
+    .boundingBox()
+  const siteSupportBox = await page
+    .getByRole("region", { name: "网站支持" })
+    .boundingBox()
+  expect(friendLinksBox).not.toBeNull()
+  expect(siteSupportBox).not.toBeNull()
+  expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
+})
+
 test("theme toggle persists the selected color scheme", async ({ page }) => {
   await page.goto("/")
   await page.evaluate(() => localStorage.setItem("theme", "light"))
@@ -304,10 +366,16 @@ test("home exposes current discovery and birthday interactions", async ({
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(6)
+  await expect(directory.getByRole("link")).toHaveCount(9)
   await expect(
     directory.getByRole("link", { name: /活动中心/ })
   ).toHaveAttribute("href", "/events")
+  await expect(
+    directory.getByRole("link", { name: /制作人名片墙/ })
+  ).toHaveAttribute("href", "/community/cards")
+  await expect(
+    directory.getByRole("link", { name: /制作人地图/ })
+  ).toHaveAttribute("href", "/producer-map")
   await expect(
     directory.getByRole("link", { name: /关于 IMSWeb/ })
   ).toHaveAttribute("href", "/about")
@@ -329,12 +397,33 @@ test("home exposes current discovery and birthday interactions", async ({
   const highlights = page.getByRole("region", {
     name: "活动资讯与同人活动",
   })
-  await expect(highlights.getByRole("link")).toHaveCount(6)
+  await expect(highlights.getByLabel("正在加载活动资讯")).toHaveCount(0)
+  const highlightLinkCount = await highlights.getByRole("link").count()
+  if (highlightLinkCount === 0) {
+    await expect(
+      highlights.getByText("当前没有已发布的活动资讯。")
+    ).toBeVisible()
+  } else {
+    expect(highlightLinkCount).toBeGreaterThan(0)
+  }
 
   const randomIdol = page.getByRole("region", { name: "随机担当" })
   await randomIdol.getByRole("button", { name: "随机选择" }).click()
   await expect(randomIdol.getByRole("link")).toHaveCount(1)
+  await expect(randomIdol.getByTestId("random-idol-avatar")).toBeVisible()
+  await expect(
+    randomIdol.getByRole("link", { name: "查看剧情档案" })
+  ).toHaveAttribute("href", /^\/story\?agency=.+&idol=.+/)
+  await expect(
+    randomIdol.getByText(/Wiki 收录 · \d+ 位可抽取偶像/)
+  ).toBeVisible()
 
   const siteSupport = page.getByRole("region", { name: "网站支持" })
   await expect(siteSupport.getByRole("link")).toHaveCount(3)
+
+  const friendLinksBox = await friendLinks.boundingBox()
+  const siteSupportBox = await siteSupport.boundingBox()
+  expect(friendLinksBox).not.toBeNull()
+  expect(siteSupportBox).not.toBeNull()
+  expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
 })

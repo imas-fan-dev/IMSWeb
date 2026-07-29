@@ -3,10 +3,18 @@ import { describe, test } from "node:test";
 import { createWikiFixture } from "./fixture";
 
 const COVER_TRANSFORM = {
-  fit: "cover", focalX: 0.5, focalY: 0.5, zoom: 1, rotation: 0,
+  fit: "cover",
+  focalX: 0.5,
+  focalY: 0.5,
+  zoom: 1,
+  rotation: 0,
 };
 const CONTAIN_TRANSFORM = {
-  fit: "contain", focalX: 0.5, focalY: 0.5, zoom: 1, rotation: 0,
+  fit: "contain",
+  focalX: 0.5,
+  focalY: 0.5,
+  zoom: 1,
+  rotation: 0,
 };
 
 describe("Wiki public dynamic data contract", () => {
@@ -34,8 +42,7 @@ describe("Wiki public dynamic data contract", () => {
       name: "闪耀色彩",
       color: "#8dbbff",
       bannerTitle: "闪耀色彩 Banner",
-      iconUrl:
-        "https://cdn.example.test/wiki/agencies/sc/branding/icon.webp",
+      iconUrl: "https://cdn.example.test/wiki/agencies/sc/branding/icon.webp",
       idolCount: 1,
       entryCount: 1,
       imageTransform: CONTAIN_TRANSFORM,
@@ -43,30 +50,96 @@ describe("Wiki public dynamic data contract", () => {
     assert.deepEqual(body.selection, {
       agency: body.agencies[5],
       layoutRevision: 0,
-      groups: [{
-        id: 6,
-        code: "sc-main",
-        name: "闪耀色彩 Main",
-        color: "#8dbbff",
-        iconUrl: null,
-        imageTransform: CONTAIN_TRANSFORM,
-        idols: [{
+      groups: [
+        {
           id: 6,
-          name: "樱木真乃",
-          folderName: "sc_idol",
+          code: "sc-main",
+          name: "闪耀色彩 Main",
           color: "#8dbbff",
-          imageUrl:
-            "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/avatar.webp",
-          imageFit: "cover",
-          imageTransform: COVER_TRANSFORM,
-          textColor: "#ffffff",
-          entryKind: "idol",
-          entrySubtype: null,
-        }],
-      }],
+          iconUrl: null,
+          imageTransform: CONTAIN_TRANSFORM,
+          idols: [
+            {
+              id: 6,
+              name: "樱木真乃",
+              folderName: "sc_idol",
+              color: "#8dbbff",
+              imageUrl:
+                "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/avatar.webp",
+              imageFit: "cover",
+              imageTransform: COVER_TRANSFORM,
+              textColor: "#ffffff",
+              entryKind: "idol",
+              entrySubtype: null,
+            },
+          ],
+        },
+      ],
       ungroupedIdols: [],
     });
     assert.deepEqual(fixture.storage.lists, []);
+  });
+
+  test("random idol samples only enabled Wiki idol entries with resolved artwork", async () => {
+    const fixture = createWikiFixture();
+    fixture.storage.publicReadUrlBase = "https://cdn.example.test";
+    for (const idol of fixture.story.idols) {
+      idol.entry_kind = "story";
+      idol.entry_subtype = "event";
+    }
+    fixture.story.idols[0]!.entry_kind = "idol";
+    fixture.story.idols[0]!.entry_subtype = null;
+    fixture.story.idols[0]!.wiki_enabled = false;
+    fixture.story.idols[1]!.entry_kind = "idol";
+    fixture.story.idols[1]!.entry_subtype = null;
+    fixture.story.agencies[1]!.wiki_enabled = false;
+
+    const selected = fixture.story.idols[5]!;
+    selected.entry_kind = "idol";
+    selected.entry_subtype = null;
+    selected.avatar_object_key = "wiki/agencies/sc/idols/sc_idol/avatar.webp";
+    selected.avatar_focal_x = 0.35;
+    selected.avatar_focal_y = 0.4;
+    selected.avatar_zoom = 1.25;
+    fixture.storage.seed(selected.avatar_object_key);
+
+    const response = await fixture.app.request("/api/wiki/random_idol");
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      status: "success",
+      eligibleCount: 1,
+      idol: {
+        id: 6,
+        name: "樱木真乃",
+        color: "#8dbbff",
+        textColor: "#ffffff",
+        imageUrl:
+          "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/avatar.webp",
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.35,
+          focalY: 0.4,
+          zoom: 1.25,
+          rotation: 0,
+        },
+        agency: {
+          id: 6,
+          code: "sc",
+          name: "闪耀色彩",
+          color: "#8dbbff",
+        },
+      },
+    });
+
+    selected.wiki_enabled = false;
+    const empty = await fixture.app.request("/api/wiki/random_idol");
+    assert.equal(empty.status, 200);
+    assert.deepEqual(await empty.json(), {
+      status: "success",
+      eligibleCount: 0,
+      idol: null,
+    });
   });
 
   test("catalog places idols without memberships in the final ungrouped collection", async () => {
@@ -145,6 +218,7 @@ describe("Wiki public dynamic data contract", () => {
     );
     assert.ok(category);
     assert.equal(category.cards.length, 1);
+    assert.equal(category.cards[0].id, fixture.story.cards[0]!.card_id);
     assert.equal(category.cards[0].links.length, 2);
     assert.equal(
       category.cards[0].img,

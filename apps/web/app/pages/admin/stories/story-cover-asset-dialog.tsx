@@ -146,6 +146,7 @@ export function StoryCoverAssetDialog({
               </FieldLabel>
               <FileUploadControl
                 id="story-cover-asset-image"
+                compact
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 emptyTitle={t("upload.storyCover.emptyTitle")}
                 emptyDetail={t("upload.storyCover.emptyDetail")}

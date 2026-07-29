@@ -27,11 +27,6 @@ const navigation = [
   },
   { to: "/live", label: "navigation.live", end: false },
   { to: "/community", label: "navigation.community", end: true },
-  { to: "/community/cards", label: "navigation.cards", end: false },
-  { to: "/producer-map", label: "navigation.producerMap", end: false },
-  { to: "/works", label: "navigation.works", end: false },
-  { to: "/chronicle", label: "navigation.chronicle", end: false },
-  { to: "/about", label: "navigation.about", end: false },
 ] as const
 
 function desktopLinkClass({ isActive }: { isActive: boolean }) {
@@ -61,7 +56,7 @@ export function SiteHeader() {
         </Link>
 
         <nav
-          className="ml-auto hidden items-center gap-5 md:flex"
+          className="ml-auto hidden items-center gap-5 lg:flex"
           aria-label={t("navigation.mainLabel")}
         >
           {navigation.map((item) => (
@@ -78,7 +73,7 @@ export function SiteHeader() {
 
         <Link
           to="/wiki"
-          className="hidden items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:inline-flex"
+          className="hidden items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:inline-flex"
         >
           Wiki
           <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
@@ -86,13 +81,13 @@ export function SiteHeader() {
 
         <a
           href="/runninggame/"
-          className="hidden rounded-md border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:inline-flex"
+          className="hidden rounded-md border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:inline-flex"
         >
           {t("navigation.runningGame")}
         </a>
 
         <LanguageSwitcher />
-        <ThemeToggle className="ml-auto md:ml-0" />
+        <ThemeToggle className="ml-auto lg:ml-0" />
 
         <Sheet
           open={mobileNavigationOpen}
@@ -104,7 +99,7 @@ export function SiteHeader() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="md:hidden"
+                className="lg:hidden"
                 aria-label={t("navigation.open")}
               />
             }

@@ -17,12 +17,14 @@ import {
   type WikiAgency,
   type WikiIdol,
   type WikiRandomBackground,
+  type WikiRandomIdol,
   type WikiStoryCategory,
 } from "@/domains/wiki/models";
 import {
   requirePublicObjectUrl,
   resolvePublicObjectUrl,
 } from "@/utils/storage/public-object-url";
+import { normalizeBilibiliCoverUrl } from "@/utils/media/bilibili-cover";
 
 export const DEFAULT_STORY_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
 const imageTypes: Record<
@@ -131,7 +133,9 @@ export function agencyImageTransform(record: AgencyRecord): WikiImageTransform {
   };
 }
 
-export function groupImageTransform(record: WikiGroupRecord): WikiImageTransform {
+export function groupImageTransform(
+  record: WikiGroupRecord,
+): WikiImageTransform {
   return {
     fit: record.icon_fit,
     focalX: record.icon_focal_x,
@@ -196,8 +200,17 @@ export function idolMediaObjectKey(
   folderName: string,
   extension = ".webp",
 ): string {
-  const segments = ["wiki", "agencies", code, "idols", folderName, `avatar${extension}`];
-  if (segments.some((segment) => !segment || /[\\/\0-\x1f\x7f]/.test(segment))) {
+  const segments = [
+    "wiki",
+    "agencies",
+    code,
+    "idols",
+    folderName,
+    `avatar${extension}`,
+  ];
+  if (
+    segments.some((segment) => !segment || /[\\/\0-\x1f\x7f]/.test(segment))
+  ) {
     throw new Error("invalid Wiki idol media object key");
   }
   return segments.join("/");
@@ -270,7 +283,8 @@ export function aggregateStories(
     string,
     Map<string, WikiStoryCategory["cards"][number]>
   >();
-  for (const category of categoryRecords) categories.set(category.name, new Map());
+  for (const category of categoryRecords)
+    categories.set(category.name, new Map());
   for (const row of cardRows) {
     let cards = categories.get(row.category);
     if (!cards) {
@@ -278,6 +292,7 @@ export function aggregateStories(
       categories.set(row.category, cards);
     }
     cards.set(row.card_name, {
+      id: row.card_id,
       name: row.card_name,
       img: wikiStoryImageUrl(agency, idol, row.image_file),
       subtitle: row.subtitle ?? "",
@@ -294,6 +309,7 @@ export function aggregateStories(
     let card = cards.get(row.card_name);
     if (!card) {
       card = {
+        id: row.card_id,
         name: row.card_name,
         img: wikiStoryImageUrl(agency, idol, row.image_file),
         subtitle: row.subtitle ?? "",
@@ -314,8 +330,9 @@ export function aggregateStories(
   return [...categories.entries()]
     .filter(
       ([name, cards]) =>
-        categoryRecords.some((category) => category.name === name && category.show_when_empty) ||
-        cards.size > 0,
+        categoryRecords.some(
+          (category) => category.name === name && category.show_when_empty,
+        ) || cards.size > 0,
     )
     .map(([name, cards]) => ({ name, cards: [...cards.values()] }));
 }
@@ -400,22 +417,83 @@ export async function randomBackground(
   if (!story || (!story.image_file && !story.cover_asset_object_key)) {
     return { url: "" };
   }
-  const objectKey = story.cover_asset_object_key ?? storyObjectKey(
-    story.agency_code,
-    story.idol_folder_name,
-    story.image_file!,
-  );
+  const objectKey =
+    story.cover_asset_object_key ??
+    storyObjectKey(
+      story.agency_code,
+      story.idol_folder_name,
+      story.image_file!,
+    );
   return {
     url: story.cover_asset_object_key
       ? await requirePublicObjectUrl(storage, objectKey)
       : await resolvePublicObjectUrl(
           storage,
           objectKey,
-          wikiStoryImageUrl(story.agency_name, story.idol_name, story.image_file),
+          wikiStoryImageUrl(
+            story.agency_name,
+            story.idol_name,
+            story.image_file,
+          ),
         ),
+    card_id: story.card_id,
     card_name: story.card_name,
     idol_name: story.idol_name,
     agency_name: story.agency_name,
+  };
+}
+
+export async function randomIdol(
+  repository: StoryRepository,
+  storage: ObjectStorage,
+  random: () => number = Math.random,
+): Promise<WikiRandomIdol> {
+  const [agencies, idols] = await Promise.all([
+    repository.listAgencies(),
+    repository.listIdolsWithAgencies(),
+  ]);
+  const enabledAgencyIds = new Set(
+    agencies.filter((agency) => agency.wiki_enabled).map((agency) => agency.id),
+  );
+  const eligibleIdols = idols.filter(
+    (idol) =>
+      enabledAgencyIds.has(idol.agency_id) &&
+      idol.wiki_enabled &&
+      idol.entry_kind === "idol",
+  );
+  if (!eligibleIdols.length) {
+    return { status: "success", eligibleCount: 0, idol: null };
+  }
+
+  const sampledIndex = Math.min(
+    eligibleIdols.length - 1,
+    Math.max(0, Math.floor(random() * eligibleIdols.length)),
+  );
+  const row = eligibleIdols[sampledIndex]!;
+  const idol = toWikiIdol(row);
+  return {
+    status: "success",
+    eligibleCount: eligibleIdols.length,
+    idol: {
+      id: idol.id,
+      name: idol.name,
+      color: idol.color,
+      textColor: idol.textColor ?? "#ffffff",
+      imageUrl: row.avatar_object_key
+        ? await resolvePublicObjectUrl(
+            storage,
+            row.avatar_object_key,
+            idol.avatarUrl ?? "",
+          )
+        : "",
+      imageTransform: idol.avatarTransform!,
+      agency: {
+        id: idol.agencyId,
+        code: idol.agencyCode,
+        name: idol.agencyName,
+        color: idol.agencyColor,
+      },
+    },
   };
 }
 
@@ -455,6 +533,7 @@ export async function parseBilibili(
         title: String(payload.data?.title ?? ""),
         up: String(payload.data?.upper?.name ?? ""),
         std_url: `https://www.bilibili.com/list/ml${ml[1]}`,
+        cover_url: normalizeBilibiliCoverUrl(payload.data?.cover),
       };
     }
     const pageNumber = Number(/[?&]p=(\d+)/.exec(input)?.[1] ?? "1");
@@ -468,6 +547,7 @@ export async function parseBilibili(
       title: String(title ?? ""),
       up: String(payload.data?.owner?.name ?? ""),
       std_url: `https://www.bilibili.com/video/${String(payload.data?.bvid ?? bv?.[1] ?? "")}${pageNumber > 1 ? `?p=${pageNumber}` : ""}`,
+      cover_url: normalizeBilibiliCoverUrl(payload.data?.pic),
     };
   } finally {
     clearTimeout(timeout);

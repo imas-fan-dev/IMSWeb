@@ -51,6 +51,9 @@ describe("AdminImageUploadField", () => {
     )
 
     expect(onSelect).toHaveBeenCalledWith(file)
+    expect(screen.getByRole("group", { name: "图片文件选择" })).toHaveClass(
+      "min-h-0"
+    )
     expect(screen.getByText("summer-live.png")).toBeVisible()
     expect(screen.getByText(/1.5 KiB/)).toBeVisible()
     expect(screen.getByText("已选择")).toBeVisible()

@@ -43,11 +43,13 @@ describe("home content", () => {
     expect(portalItems.map((item) => item.href)).toEqual([
       "/events",
       "/recommendations",
-      "/community",
-      "/works",
       "/live",
-      "/about",
+      "/community",
+      "/community/cards",
+      "/producer-map",
+      "/works",
       "/chronicle",
+      "/about",
     ])
   })
 

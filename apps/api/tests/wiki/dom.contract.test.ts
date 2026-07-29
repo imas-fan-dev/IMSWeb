@@ -110,6 +110,7 @@ describe("WIKI-01 database-associated media and story object paths", () => {
     assert.equal(background.status, 200);
     assert.deepEqual(await background.json(), {
       url: "/image/%E7%81%B0%E5%A7%91%E5%A8%98%E5%A5%B3%E5%AD%A9/%E5%B2%9B%E6%9D%91%E5%8D%AF%E6%9C%88/card/bg.webp",
+      card_id: 401,
       card_name: "【背景】",
       idol_name: "岛村卯月",
       agency_name: "灰姑娘女孩",
