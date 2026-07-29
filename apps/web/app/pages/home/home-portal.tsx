@@ -22,8 +22,8 @@ export function HomePortal() {
         <BirthdayCalendar />
         <ActivityHighlights />
         <RandomIdol />
-        <SiteSupport />
         <FriendLinks />
+        <SiteSupport />
       </div>
     </main>
   )

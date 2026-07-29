@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { WikiIndexPage } from "~/pages/wiki/wiki-index-page"
@@ -114,8 +114,14 @@ function renderWiki(initialEntry = "/wiki?agency=闪耀色彩") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <WikiIndexPage />
+      <LocationProbe />
     </MemoryRouter>
   )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location-search">{location.search}</output>
 }
 
 describe("WikiIndexPage", () => {
@@ -130,6 +136,7 @@ describe("WikiIndexPage", () => {
       if (url.pathname === "/api/wiki/random_bg") {
         return response({
           url: "/image/background.webp",
+          card_id: 401,
           card_name: "【花风Smiley】",
           idol_name: "樱木真乃",
           agency_name: "闪耀色彩",
@@ -156,16 +163,25 @@ describe("WikiIndexPage", () => {
       "href",
       "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
+    expect(screen.getByRole("link", { name: "查看对应卡片" })).toHaveAttribute(
+      "href",
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83#story-card-401"
+    )
     expect(
       screen.getByRole("heading", { name: "illumination STARS" })
     ).toBeVisible()
+    const agencyTabs = screen.getByRole("tablist", { name: "偶像大师企划" })
     expect(
-      screen.getByRole("tab", { name: /闪耀色彩/ }).querySelector("img")
+      within(agencyTabs)
+        .getByRole("tab", { name: /闪耀色彩/ })
+        .querySelector("img")
     ).toHaveAttribute("src", "/icon/agencies/6.webp")
-    await user.click(screen.getByRole("tab", { name: /765PRO/ }))
+    await user.click(within(agencyTabs).getByRole("tab", { name: /765PRO/ }))
     expect(await screen.findByRole("link", { name: /天海春香/ })).toBeVisible()
     expect(
-      screen.getByRole("tab", { name: /765PRO/ }).querySelector("img")
+      within(agencyTabs)
+        .getByRole("tab", { name: /765PRO/ })
+        .querySelector("img")
     ).toBeNull()
     expect(
       screen.getByRole("heading", { level: 3, name: "765PRO" })
@@ -209,6 +225,108 @@ describe("WikiIndexPage", () => {
       name: "闪耀色彩",
     }).parentElement!
     expect(within(summary).getByText("1 个内容页")).toBeVisible()
+  })
+
+  it("filters each agency by group and keeps the selection in the URL", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response(
+              catalogPayload(
+                url.searchParams.get("agency") === "765PRO"
+                  ? "765PRO"
+                  : "闪耀色彩",
+                true
+              )
+            )
+      })
+    )
+    const user = userEvent.setup()
+
+    renderWiki()
+
+    const groupTabs = await screen.findByRole("tablist", {
+      name: "按组合或分类筛选",
+    })
+    const allTab = within(groupTabs).getByRole("tab", { name: /全部/ })
+    const luminousTab = within(groupTabs).getByRole("tab", {
+      name: /Project Luminous/,
+    })
+    expect(allTab).toHaveAttribute("aria-selected", "true")
+
+    await user.click(luminousTab)
+
+    expect(luminousTab).toHaveAttribute("aria-selected", "true")
+    expect(
+      screen.queryByRole("heading", { name: "illumination STARS" })
+    ).toBeNull()
+    expect(
+      screen.getByRole("heading", { name: "Project Luminous" })
+    ).toBeVisible()
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      "agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&group=7"
+    )
+
+    const searchInput = screen.getByLabelText("搜索内容页")
+    await user.type(searchInput, "不存在")
+    expect(await screen.findByText("没有匹配的内容页")).toBeVisible()
+    await user.clear(searchInput)
+    expect(
+      await screen.findByRole("heading", { name: "Project Luminous" })
+    ).toBeVisible()
+
+    await user.click(allTab)
+    expect(screen.getByTestId("location-search")).not.toHaveTextContent(
+      "group="
+    )
+
+    await user.click(luminousTab)
+    const agencyTabs = screen.getByRole("tablist", { name: "偶像大师企划" })
+    await user.click(within(agencyTabs).getByRole("tab", { name: /765PRO/ }))
+
+    expect(await screen.findByRole("link", { name: /天海春香/ })).toBeVisible()
+    expect(screen.getByTestId("location-search")).not.toHaveTextContent(
+      "group="
+    )
+  })
+
+  it("filters ungrouped entries and falls back to all for an invalid group", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response(catalogPayload("闪耀色彩", false, true))
+      })
+    )
+    const user = userEvent.setup()
+
+    renderWiki("/wiki?agency=闪耀色彩&group=999")
+
+    const groupTabs = await screen.findByRole("tablist", {
+      name: "按组合或分类筛选",
+    })
+    expect(
+      within(groupTabs).getByRole("tab", { name: /全部/ })
+    ).toHaveAttribute("aria-selected", "true")
+
+    await user.click(within(groupTabs).getByRole("tab", { name: /未归档/ }))
+
+    expect(
+      screen.queryByRole("heading", { name: "illumination STARS" })
+    ).toBeNull()
+    expect(screen.getByRole("heading", { name: "未归档" })).toBeVisible()
+    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
   })
 
   it("renders idols without memberships in a final ungrouped section", async () => {

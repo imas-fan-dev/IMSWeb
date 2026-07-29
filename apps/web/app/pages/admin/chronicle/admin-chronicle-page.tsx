@@ -1,3 +1,4 @@
+import { useRequest } from "alova/client"
 import {
   CheckIcon,
   ConstructionIcon,
@@ -6,7 +7,7 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react"
-import { useCallback, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -33,26 +34,19 @@ export function meta() {
 }
 
 function PendingSection() {
-  const [data, setData] = useState<PendingChronicleMedia | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const {
+    data,
+    loading,
+    error,
+    send: load,
+    onError,
+  } = useRequest(getPendingChronicleMedia(), {
+    initialData: {} as PendingChronicleMedia,
+  })
+  onError(() => undefined)
   const [busyKey, setBusyKey] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(false)
-    try {
-      const result = await getPendingChronicleMedia().send()
-      setData(result)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   if (loading) {
-    load()
     return <Skeleton className="h-48 w-full rounded-xl" />
   }
 
@@ -66,7 +60,7 @@ function PendingSection() {
     )
   }
 
-  const entries = data ? Object.entries(data) : []
+  const entries = Object.entries(data)
 
   if (entries.length === 0) {
     return (
@@ -177,26 +171,19 @@ function PendingSection() {
 }
 
 function UsedSection() {
-  const [data, setData] = useState<UsedChronicleMedia | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const {
+    data,
+    loading,
+    error,
+    send: load,
+    onError,
+  } = useRequest(getUsedChronicleMedia(), {
+    initialData: {} as UsedChronicleMedia,
+  })
+  onError(() => undefined)
   const [busyKey, setBusyKey] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(false)
-    try {
-      const result = await getUsedChronicleMedia().send()
-      setData(result)
-    } catch {
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   if (loading) {
-    load()
     return <Skeleton className="h-48 w-full rounded-xl" />
   }
 
@@ -210,7 +197,7 @@ function UsedSection() {
     )
   }
 
-  const entries = data ? Object.entries(data) : []
+  const entries = Object.entries(data)
 
   if (entries.length === 0) {
     return (

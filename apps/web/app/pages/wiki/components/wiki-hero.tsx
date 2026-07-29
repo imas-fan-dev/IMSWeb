@@ -1,4 +1,4 @@
-import { HistoryIcon, RefreshCwIcon } from "lucide-react"
+import { ArrowUpRightIcon, HistoryIcon, RefreshCwIcon } from "lucide-react"
 import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
@@ -18,6 +18,10 @@ export function WikiHero({
   const source = [background?.agency_name, background?.idol_name]
     .filter(Boolean)
     .join(" · ")
+  const cardHref =
+    background?.card_id && background.agency_name && background.idol_name
+      ? `/story?agency=${encodeURIComponent(background.agency_name)}&idol=${encodeURIComponent(background.idol_name)}#story-card-${background.card_id}`
+      : null
 
   return (
     <section
@@ -51,6 +55,15 @@ export function WikiHero({
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
+            {cardHref ? (
+              <Link
+                to={cardHref}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white bg-white px-2.5 text-sm font-medium text-neutral-950 transition-colors hover:bg-white/85 focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none"
+              >
+                <ArrowUpRightIcon className="size-4" />
+                查看对应卡片
+              </Link>
+            ) : null}
             <Link
               to={classicHref}
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/35 bg-black/30 px-2.5 text-sm font-medium text-white transition-colors hover:bg-white/15 focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none"

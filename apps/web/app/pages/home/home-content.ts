@@ -4,6 +4,8 @@ import {
   ContactRoundIcon,
   Gamepad2Icon,
   HistoryIcon,
+  IdCardIcon,
+  InfoIcon,
   MapPinnedIcon,
   RadioTowerIcon,
 } from "lucide-react"
@@ -46,11 +48,32 @@ export const portalItems: PortalItem[] = [
     accent: "bg-franchise-cg",
   },
   {
+    title: "直播日程",
+    description: "查看演出与直播信息",
+    href: "/live",
+    icon: RadioTowerIcon,
+    accent: "bg-franchise-sc",
+  },
+  {
     title: "社区入口",
     description: "查找社区与协作项目",
     href: "/community",
     icon: ContactRoundIcon,
     accent: "bg-franchise-ml",
+  },
+  {
+    title: "制作人名片墙",
+    description: "浏览制作人名片与社区成员",
+    href: "/community/cards",
+    icon: IdCardIcon,
+    accent: "bg-franchise-sidem",
+  },
+  {
+    title: "制作人地图",
+    description: "查看各地制作人的公开分布",
+    href: "/producer-map",
+    icon: MapPinnedIcon,
+    accent: "bg-franchise-gk",
   },
   {
     title: "作品与工具",
@@ -60,25 +83,18 @@ export const portalItems: PortalItem[] = [
     accent: "bg-franchise-sidem",
   },
   {
-    title: "直播日程",
-    description: "查看演出与直播信息",
-    href: "/live",
-    icon: RadioTowerIcon,
-    accent: "bg-franchise-sc",
-  },
-  {
-    title: "关于 IMSWeb",
-    description: "了解项目定位与维护方式",
-    href: "/about",
-    icon: MapPinnedIcon,
-    accent: "bg-franchise-gk",
-  },
-  {
     title: "活动编年史",
     description: "回顾社区线下活动与共同记忆",
     href: "/chronicle",
     icon: HistoryIcon,
     accent: "bg-franchise-765",
+  },
+  {
+    title: "关于 IMSWeb",
+    description: "了解项目定位与维护方式",
+    href: "/about",
+    icon: InfoIcon,
+    accent: "bg-franchise-gk",
   },
 ]
 

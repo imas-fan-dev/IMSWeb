@@ -126,6 +126,12 @@ describe("AboutManager", () => {
     expect(desktopPreviewButton).toHaveAttribute("aria-pressed", "false")
     expect(mobilePreviewButton).toHaveAttribute("aria-pressed", "true")
     expect(previewCanvas).toHaveAttribute("data-preview-mode", "mobile")
+    const precisePositionButton = screen.getByRole("button", {
+      name: /精细位置/,
+    })
+    expect(precisePositionButton).toHaveAttribute("aria-expanded", "false")
+    await user.click(precisePositionButton)
+    expect(precisePositionButton).toHaveAttribute("aria-expanded", "true")
     const heroScale = screen.getByLabelText("角色缩放")
     const compositionPreview = screen.getByTestId(
       "about-hero-composition-preview"

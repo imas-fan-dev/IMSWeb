@@ -1,81 +1,183 @@
-import { ShuffleIcon, SparklesIcon } from "lucide-react"
-import { useState } from "react"
+import {
+  ArrowUpRightIcon,
+  AlertCircleIcon,
+  ShuffleIcon,
+  UserRoundIcon,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+import { Link } from "react-router"
 
-import { Button } from "~/components/ui/button"
-import { birthdays } from "../birthday-data"
-import type { BirthdayRecord } from "../birthday-data"
+import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { Button, buttonVariants } from "~/components/ui/button"
+import { Skeleton } from "~/components/ui/skeleton"
+import { cn } from "~/lib/utils"
+import { safeWikiColor } from "~/pages/wiki/wiki-model"
+import { getWikiRandomIdol, isApiError } from "~/shared/api"
+import type { WikiRandomIdol } from "~/shared/api"
 
-function idolWikiHref(idol: BirthdayRecord) {
-  const idolName = idol.name === "伴田路子" ? "Roco" : idol.name
+function idolStoryHref(idol: NonNullable<WikiRandomIdol["idol"]>) {
   return (
-    "/wiki/story?agency=" +
-    encodeURIComponent(idol.agency) +
+    "/story?agency=" +
+    encodeURIComponent(idol.agency.name) +
     "&idol=" +
-    encodeURIComponent(idolName)
+    encodeURIComponent(idol.name)
   )
 }
 
 export function RandomIdol() {
-  const [selectedIdol, setSelectedIdol] = useState<BirthdayRecord | null>(null)
+  const [requestVersion, setRequestVersion] = useState(0)
+  const [request, setRequest] = useState<{
+    data: WikiRandomIdol | null
+    error: unknown
+    loading: boolean
+  }>({ data: null, error: null, loading: true })
 
-  function selectRandomIdol() {
-    const index = Math.floor(Math.random() * birthdays.length)
-    setSelectedIdol(birthdays[index] ?? null)
-  }
+  useEffect(() => {
+    let active = true
+    void getWikiRandomIdol()
+      .send()
+      .then((data) => {
+        if (active) setRequest({ data, error: null, loading: false })
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setRequest((current) => ({ ...current, error, loading: false }))
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [requestVersion])
+
+  const selectedIdol = request.data?.idol ?? null
+  const errorMessage = isApiError(request.error)
+    ? request.error.message
+    : "随机担当暂时无法加载"
 
   return (
     <section aria-labelledby="random-idol-heading">
-      <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.72fr)] lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.78fr)] lg:px-8">
         <div className="flex flex-col justify-center">
           <p className="text-xs font-semibold text-primary">IDOL PICK</p>
           <h2 id="random-idol-heading" className="mt-2 text-2xl font-semibold">
             随机担当
           </h2>
           <p className="mt-4 max-w-xl text-sm/6 text-muted-foreground">
-            从完整生日资料中随机选择一位偶像，并进入对应剧情资料页。
+            从 Wiki 角色档案中邂逅一位新的担当。
           </p>
         </div>
 
-        <div className="flex min-h-52 flex-col justify-between rounded-md border bg-card p-6">
-          <div
-            className="flex min-h-24 items-center justify-center text-center"
-            aria-live="polite"
-          >
-            {selectedIdol ? (
-              <div>
-                <span
-                  className="mx-auto mb-4 block size-3 rounded-full"
-                  style={{ backgroundColor: selectedIdol.color }}
-                  aria-hidden="true"
-                />
-                <a
-                  href={idolWikiHref(selectedIdol)}
-                  className="text-2xl font-semibold hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                >
+        <div
+          className="flex min-h-72 flex-col justify-between rounded-lg border bg-card p-4 sm:p-5"
+          aria-live="polite"
+          aria-busy={request.loading}
+        >
+          {request.loading && !selectedIdol ? (
+            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
+              <Skeleton className="aspect-4/5 w-full" />
+              <div className="space-y-3 py-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-40 max-w-full" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </div>
+          ) : request.error && !selectedIdol ? (
+            <div className="flex min-h-40 flex-col items-center justify-center text-center">
+              <AlertCircleIcon className="size-7 text-destructive" />
+              <p className="mt-3 font-medium">{errorMessage}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                请稍后重新加载角色档案。
+              </p>
+            </div>
+          ) : selectedIdol ? (
+            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-5">
+              <div
+                data-testid="random-idol-avatar"
+                className="aspect-4/5 overflow-hidden rounded-md border bg-muted"
+                style={{
+                  borderColor: safeWikiColor(
+                    selectedIdol.color ?? selectedIdol.agency.color
+                  ),
+                }}
+              >
+                {selectedIdol.imageUrl ? (
+                  <WikiTransformedImage
+                    src={selectedIdol.imageUrl}
+                    alt={`${selectedIdol.name}头像`}
+                    transform={selectedIdol.imageTransform}
+                  />
+                ) : (
+                  <div className="flex size-full items-center justify-center">
+                    <UserRoundIcon
+                      className="size-9 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">暂无头像</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-col justify-center">
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: safeWikiColor(selectedIdol.agency.color),
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate">{selectedIdol.agency.name}</span>
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold wrap-break-word">
                   {selectedIdol.name}
-                </a>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {selectedIdol.agency}
+                </h3>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Wiki 收录 · {request.data?.eligibleCount ?? 0} 位可抽取偶像
                 </p>
               </div>
+            </div>
+          ) : (
+            <div className="flex min-h-40 flex-col items-center justify-center text-center">
+              <UserRoundIcon className="size-7 text-muted-foreground" />
+              <p className="mt-3 font-medium">暂时没有可抽取的偶像</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                可在 Wiki 管理中启用偶像角色。
+              </p>
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {selectedIdol ? (
+              <Link
+                to={idolStoryHref(selectedIdol)}
+                className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+              >
+                查看剧情档案
+                <ArrowUpRightIcon data-icon="inline-end" />
+              </Link>
             ) : (
-              <div className="text-muted-foreground">
-                <SparklesIcon
-                  className="mx-auto mb-3 size-7"
-                  aria-hidden="true"
-                />
-                等待抽取今日的随机担当
-              </div>
+              <span aria-hidden="true" />
             )}
+            <Button
+              type="button"
+              className="w-full"
+              disabled={request.loading}
+              onClick={() => {
+                setRequest((current) => ({
+                  ...current,
+                  error: null,
+                  loading: true,
+                }))
+                setRequestVersion((current) => current + 1)
+              }}
+            >
+              <ShuffleIcon data-icon="inline-start" />
+              {request.loading
+                ? "正在选择"
+                : request.error
+                  ? "重新加载"
+                  : "随机选择"}
+            </Button>
           </div>
-          <Button
-            type="button"
-            className="mt-5 w-full"
-            onClick={selectRandomIdol}
-          >
-            <ShuffleIcon data-icon="inline-start" />
-            随机选择
-          </Button>
         </div>
       </div>
     </section>

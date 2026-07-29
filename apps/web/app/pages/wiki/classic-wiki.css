@@ -939,7 +939,19 @@
   text-align: left;
   transition:
     transform 160ms ease,
-    box-shadow 160ms ease;
+    box-shadow 160ms ease,
+    filter 160ms ease,
+    opacity 160ms ease;
+}
+
+.wiki-classic-story-card[data-source-state="empty"] {
+  filter: saturate(0.5);
+  opacity: 0.45;
+}
+
+.wiki-classic-story-card[data-source-state="empty"]:hover,
+.wiki-classic-story-card[data-source-state="empty"]:focus-visible {
+  opacity: 0.7;
 }
 
 .wiki-classic-story-card:hover,

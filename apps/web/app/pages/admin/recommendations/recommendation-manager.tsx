@@ -4,27 +4,30 @@ import {
   LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
+  WandSparklesIcon,
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
+import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
+import { Input } from "~/components/ui/input"
 import {
   createRecommendation,
   deleteRecommendation,
   getRecommendations,
   isApiError,
+  parseBilibiliStoryUrl,
 } from "~/shared/api"
 import type { AdminRecommendation } from "~/shared/api"
 import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
 import {
   AdminEmptyState,
-  AdminField,
   AdminPageHeader,
   AdminPanel,
-  adminControlClass,
 } from "~/pages/admin/components/admin-ui"
+import { RecommendationDraftPreview } from "./components/recommendation-draft-preview"
 import { RecommendationRow } from "./components/recommendation-row"
 
 function errorMessage(error: unknown) {
@@ -45,6 +48,8 @@ export function RecommendationManager() {
   const [title, setTitle] = useState("")
   const [url, setUrl] = useState("")
   const [image, setImage] = useState<File | null>(null)
+  const [coverUrl, setCoverUrl] = useState("")
+  const [parsing, setParsing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
@@ -56,11 +61,13 @@ export function RecommendationManager() {
       const form = new FormData()
       form.append("title", title)
       form.append("content", url)
+      if (coverUrl) form.append("cover_url", coverUrl)
       if (image) form.append("image", image)
       await createRecommendation(form).send()
       setTitle("")
       setUrl("")
       setImage(null)
+      setCoverUrl("")
       const imageInput = formElement.elements.namedItem(
         "image"
       ) as HTMLInputElement | null
@@ -71,6 +78,24 @@ export function RecommendationManager() {
       toast.error(errorMessage(saveError))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function parseBilibili() {
+    if (!url.trim()) return
+    setParsing(true)
+    try {
+      const result = await parseBilibiliStoryUrl(url).send()
+      setTitle(result.title)
+      setUrl(result.std_url)
+      setCoverUrl(result.cover_url)
+      toast.success(
+        result.cover_url ? "已获取 B站标题与封面" : "已获取 B站标题"
+      )
+    } catch (parseError) {
+      toast.error(errorMessage(parseError))
+    } finally {
+      setParsing(false)
     }
   }
 
@@ -109,50 +134,92 @@ export function RecommendationManager() {
         contentClassName="pt-1"
       >
         <form
-          className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,0.7fr)_auto] lg:items-start"
+          className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.85fr)] lg:gap-8"
           onSubmit={submit}
         >
-          <AdminField label="推荐标题" htmlFor="recommendation-title">
-            <input
-              id="recommendation-title"
-              className={adminControlClass}
-              maxLength={300}
-              required
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </AdminField>
-          <AdminField label="跳转链接" htmlFor="recommendation-url">
-            <input
-              id="recommendation-url"
-              type="url"
-              className={adminControlClass}
-              placeholder="https://"
-              required
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-            />
-          </AdminField>
-          <AdminImageUploadField
-            id="recommendation-image"
-            name="image"
-            label="封面图片"
-            description="PNG、JPEG、WebP 或 AVIF。"
-            file={image}
-            disabled={saving}
-            onSelect={setImage}
-          />
-          <Button type="submit" size="lg" className="lg:mt-6" disabled={saving}>
-            {saving ? (
-              <LoaderCircleIcon
-                data-icon="inline-start"
-                className="animate-spin"
+          <div className="min-w-0">
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="recommendation-title">推荐标题</FieldLabel>
+                <Input
+                  id="recommendation-title"
+                  className="h-10 px-3"
+                  maxLength={300}
+                  required
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="recommendation-url">跳转链接</FieldLabel>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    id="recommendation-url"
+                    type="url"
+                    className="h-10 px-3"
+                    placeholder="https://"
+                    required
+                    value={url}
+                    onChange={(event) => {
+                      setUrl(event.target.value)
+                      setCoverUrl("")
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 shrink-0"
+                    disabled={!url.trim() || parsing || saving}
+                    onClick={() => void parseBilibili()}
+                  >
+                    {parsing ? (
+                      <LoaderCircleIcon
+                        data-icon="inline-start"
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <WandSparklesIcon data-icon="inline-start" />
+                    )}
+                    解析 B站
+                  </Button>
+                </div>
+              </Field>
+              <AdminImageUploadField
+                id="recommendation-image"
+                name="image"
+                label="封面图片"
+                description="PNG、JPEG、WebP 或 AVIF。"
+                file={image}
+                disabled={saving}
+                onSelect={setImage}
               />
-            ) : (
-              <PlusIcon data-icon="inline-start" />
-            )}
-            发布推荐
-          </Button>
+            </FieldGroup>
+            <Button
+              type="submit"
+              size="lg"
+              className="mt-5 w-full sm:w-auto"
+              disabled={saving}
+            >
+              {saving ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin"
+                />
+              ) : (
+                <PlusIcon data-icon="inline-start" />
+              )}
+              发布推荐
+            </Button>
+          </div>
+
+          <div className="min-w-0 border-t pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
+            <RecommendationDraftPreview
+              title={title}
+              url={url}
+              image={image}
+              remoteImageUrl={coverUrl}
+            />
+          </div>
         </form>
       </AdminPanel>
 

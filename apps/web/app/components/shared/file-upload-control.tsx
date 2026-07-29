@@ -38,6 +38,7 @@ export type FileUploadControlProps = {
   resetAfterSelect?: boolean
   invalid?: boolean
   invalidLabel?: string | null
+  compact?: boolean
   dropZoneLabel?: string
   dropTitle?: string
   selectedIcon?: LucideIcon
@@ -58,6 +59,7 @@ export function FileUploadControl({
   resetAfterSelect = false,
   invalid = false,
   invalidLabel,
+  compact = false,
   dropZoneLabel,
   dropTitle,
   selectedIcon: SelectedIcon = FileUpIcon,
@@ -121,7 +123,8 @@ export function FileUploadControl({
         role="group"
         aria-label={resolvedDropZoneLabel}
         className={cn(
-          "flex min-h-24 min-w-0 flex-col justify-center gap-4 rounded-lg border border-dashed bg-muted/25 p-4 transition-[border-color,background-color,box-shadow] peer-focus-visible:border-ring peer-focus-visible:ring-3 peer-focus-visible:ring-ring/30 sm:flex-row sm:items-center",
+          "flex min-w-0 flex-col justify-center rounded-lg border border-dashed bg-muted/25 transition-[border-color,background-color,box-shadow] peer-focus-visible:border-ring peer-focus-visible:ring-3 peer-focus-visible:ring-ring/30 sm:flex-row sm:items-center",
+          compact ? "min-h-0 gap-3 p-3" : "min-h-24 gap-4 p-4",
           dragging && "border-primary bg-accent/45 ring-3 ring-ring/20",
           invalid && "border-destructive/50 bg-destructive/5",
           inactive
@@ -155,6 +158,7 @@ export function FileUploadControl({
         <span
           className={cn(
             "flex size-11 shrink-0 items-center justify-center rounded-lg border bg-background text-muted-foreground",
+            compact && "size-9",
             file && !invalid && "text-primary",
             invalid && "text-destructive"
           )}
@@ -194,7 +198,14 @@ export function FileUploadControl({
               </Badge>
             ) : null}
           </div>
-          <p className="mt-1 text-xs/5 text-muted-foreground">{detail}</p>
+          <p
+            className={cn(
+              "mt-1 text-xs/5 text-muted-foreground",
+              compact && "line-clamp-1"
+            )}
+          >
+            {detail}
+          </p>
         </div>
 
         {!uploading ? (
@@ -202,6 +213,7 @@ export function FileUploadControl({
             <Button
               type="button"
               variant="outline"
+              size={compact ? "sm" : "default"}
               disabled={inactive}
               onClick={() => inputRef.current?.click()}
             >
@@ -212,7 +224,7 @@ export function FileUploadControl({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size={compact ? "icon-sm" : "icon"}
                 disabled={inactive}
                 aria-label={t("upload.removeFile", { fileName: file.name })}
                 title={t("upload.removeSelectedFile")}

@@ -12,6 +12,11 @@ import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
+import {
+  UNGROUPED_FILTER,
+  WikiGroupFilter,
+  type WikiGroupFilterValue,
+} from "~/pages/wiki/components/wiki-group-filter"
 import { WikiHero } from "~/pages/wiki/components/wiki-hero"
 import { WikiIdolGrid } from "~/pages/wiki/components/wiki-idol-grid"
 import {
@@ -28,6 +33,7 @@ function errorMessage(error: unknown) {
 export function WikiIndexPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedAgency = searchParams.get("agency")?.trim() ?? ""
+  const requestedGroup = searchParams.get("group")?.trim() ?? ""
   const [catalogRequest, setCatalogRequest] = useState<{
     key: string
     data: WikiPublicCatalog | null
@@ -78,25 +84,43 @@ export function WikiIndexPage() {
   const loading = !requestIsCurrent
   const backgroundLoading = backgroundRequest.key !== backgroundKey
   const selection = catalog?.selection ?? null
+  const requestedGroupId = Number(requestedGroup)
+  const selectedGroup = selection?.groups.find(
+    (group) =>
+      Number.isInteger(requestedGroupId) && group.id === requestedGroupId
+  )
+  const showUngroupedOnly = Boolean(
+    selection?.ungroupedIdols.length && requestedGroup === UNGROUPED_FILTER
+  )
+  const groupFilterValue: WikiGroupFilterValue = selectedGroup
+    ? selectedGroup.id
+    : showUngroupedOnly
+      ? UNGROUPED_FILTER
+      : null
   const visibleGroups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || !normalized) return selection?.groups ?? []
-    return selection.groups
+    if (!selection || showUngroupedOnly) return []
+    const groups = selectedGroup ? [selectedGroup] : selection.groups
+    if (!normalized) return groups
+    return groups
       .map((group) => ({
         ...group,
-        idols: group.idols.filter((idol) =>
-          idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
-        ),
+        idols: group.name.toLocaleLowerCase("zh-CN").includes(normalized)
+          ? group.idols
+          : group.idols.filter((idol) =>
+              idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+            ),
       }))
       .filter((group) => group.idols.length)
-  }, [deferredQuery, selection])
+  }, [deferredQuery, selectedGroup, selection, showUngroupedOnly])
   const visibleUngroupedIdols = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || !normalized) return selection?.ungroupedIdols ?? []
+    if (!selection || selectedGroup) return []
+    if (!normalized) return selection.ungroupedIdols
     return selection.ungroupedIdols.filter((idol) =>
       idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
     )
-  }, [deferredQuery, selection])
+  }, [deferredQuery, selectedGroup, selection])
   const contentPageCount = selection
     ? new Set(
         [
@@ -105,6 +129,15 @@ export function WikiIndexPage() {
         ].map((idol) => idol.id)
       ).size
     : 0
+
+  function selectGroup(value: WikiGroupFilterValue) {
+    if (!selection) return
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set("agency", selection.agency.name)
+    if (value === null) nextSearchParams.delete("group")
+    else nextSearchParams.set("group", String(value))
+    setSearchParams(nextSearchParams, { preventScrollReset: true })
+  }
 
   return (
     <main id="main-content">
@@ -200,7 +233,7 @@ export function WikiIndexPage() {
           <div aria-label="正在加载内容目录">
             <Skeleton className="h-8 w-40" />
             <Skeleton className="mt-5 h-10 w-full max-w-md" />
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <div className="mt-6 grid grid-cols-3 gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {Array.from({ length: 12 }, (_, index) => (
                 <Skeleton key={index} className="aspect-4/5 rounded-lg" />
               ))}
@@ -234,6 +267,15 @@ export function WikiIndexPage() {
               </label>
             </div>
 
+            <WikiGroupFilter
+              groups={selection.groups}
+              ungroupedCount={selection.ungroupedIdols.length}
+              totalCount={contentPageCount}
+              value={groupFilterValue}
+              agencyColor={selection.agency.color}
+              onValueChange={selectGroup}
+            />
+
             <div className="mt-6">
               {visibleGroups.length || visibleUngroupedIdols.length ? (
                 <WikiIdolGrid
@@ -245,7 +287,11 @@ export function WikiIndexPage() {
                 <div className="rounded-lg border border-dashed px-6 py-14 text-center">
                   <p className="font-medium">没有匹配的内容页</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    清除搜索词后可查看完整目录。
+                    {query
+                      ? "清除搜索词后可查看当前范围内的完整目录。"
+                      : groupFilterValue !== null
+                        ? "当前组合或分类还没有可展示的内容页。"
+                        : "当前企划还没有可展示的内容页。"}
                   </p>
                 </div>
               )}

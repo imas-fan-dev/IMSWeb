@@ -14,6 +14,7 @@ export function AdminImageUploadField({
   disabled = false,
   uploading = false,
   resetAfterSelect = false,
+  compact = true,
   onSelect,
 }: {
   id: string
@@ -24,6 +25,7 @@ export function AdminImageUploadField({
   disabled?: boolean
   uploading?: boolean
   resetAfterSelect?: boolean
+  compact?: boolean
   onSelect: (file: File | null) => void
 }) {
   const { t } = useTranslation()
@@ -42,6 +44,7 @@ export function AdminImageUploadField({
       disabled={disabled}
       uploading={uploading}
       resetAfterSelect={resetAfterSelect}
+      compact={compact}
       selectedIcon={FileImageIcon}
       emptyIcon={ImageUpIcon}
       onSelect={onSelect}

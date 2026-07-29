@@ -176,6 +176,7 @@ export default function AdminEventsPage() {
             <FileUploadControl
               id="event-image"
               name="image"
+              compact
               accept="image/*"
               emptyTitle={t("upload.eventImage.emptyTitle")}
               emptyDetail={t("upload.eventImage.emptyDetail")}

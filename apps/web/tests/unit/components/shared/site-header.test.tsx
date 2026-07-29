@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter } from "react-router"
 import type { ReactNode } from "react"
@@ -37,5 +37,22 @@ describe("SiteHeader", () => {
 
     expect(screen.getByRole("link", { name: "Wiki" })).toBe(wikiLink)
     expect(screen.queryByText("Open knowledge base")).not.toBeInTheDocument()
+  })
+
+  it("keeps only primary destinations in the global navigation", () => {
+    render(<SiteHeader />, { wrapper: TestProviders })
+
+    const navigation = screen.getByRole("navigation", { name: "主导航" })
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .map((link) => link.textContent)
+    ).toEqual(["首页", "活动", "推荐", "Live", "社区"])
+
+    for (const secondaryLabel of ["名片墙", "地图", "作品", "编年史", "关于"]) {
+      expect(
+        within(navigation).queryByRole("link", { name: secondaryLabel })
+      ).not.toBeInTheDocument()
+    }
   })
 })

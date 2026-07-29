@@ -143,7 +143,7 @@ function catalogPayload(
   }
 }
 
-function storyPayload() {
+function storyPayload(includeSourcelessCard = false) {
   return {
     status: "success",
     agency: {
@@ -166,6 +166,7 @@ function storyPayload() {
         name: "enza主线",
         cards: [
           {
+            id: 401,
             name: "【W.I.N.G.編】",
             img: "/image/wing.webp",
             subtitle: "全话",
@@ -188,6 +189,17 @@ function storyPayload() {
               },
             ],
           },
+          ...(includeSourcelessCard
+            ? [
+                {
+                  id: 402,
+                  name: "【来源待补】",
+                  img: "",
+                  subtitle: "待编辑",
+                  links: [],
+                },
+              ]
+            : []),
         ],
       },
       { name: "特殊剧情", cards: [] },
@@ -439,5 +451,38 @@ describe("classic Wiki pages", () => {
       "https://www.bilibili.com/video/BV1xx411c7mD"
     )
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
+  })
+
+  it("marks only source-free classic cards as faded and keeps them openable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload(true)))
+    )
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter
+        initialEntries={["/story/classic?agency=闪耀色彩&idol=樱木真乃"]}
+      >
+        <ClassicStoryPage />
+      </MemoryRouter>
+    )
+
+    const sourcedCard = await screen.findByRole("button", {
+      name: /W\.I\.N\.G/,
+    })
+    const sourcelessCard = screen.getByRole("button", {
+      name: "【来源待补】，暂无来源",
+    })
+    expect(sourcedCard).toHaveAttribute("data-source-state", "available")
+    expect(sourcelessCard).toHaveAttribute("data-source-state", "empty")
+    expect(sourcelessCard).toHaveClass(
+      "wiki-classic-story-card",
+      "is-text-only"
+    )
+
+    await user.click(sourcelessCard)
+    expect(screen.getByRole("dialog")).toBeVisible()
+    expect(screen.getByText("暂无可用剧情来源")).toBeVisible()
   })
 })

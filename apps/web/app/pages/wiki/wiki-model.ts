@@ -12,8 +12,14 @@ const ASPECT_BY_CATEGORY: Record<string, string> = {
   scsp活动: "2.8 / 1",
 }
 
+const PORTRAIT_CARD_CATEGORIES = new Set(["竖卡", "P卡"])
+
 export function storyCardAspectRatio(categoryName: string) {
   return ASPECT_BY_CATEGORY[categoryName] ?? "16 / 9"
+}
+
+export function isPortraitStoryCategory(categoryName: string) {
+  return PORTRAIT_CARD_CATEGORIES.has(categoryName)
 }
 
 const COLUMNS_BY_CATEGORY: Record<string, string> = {

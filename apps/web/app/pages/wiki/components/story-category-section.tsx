@@ -1,4 +1,5 @@
 import { ExternalLinkIcon, UserRoundIcon } from "lucide-react"
+import type { CSSProperties } from "react"
 import { useState } from "react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
@@ -10,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { cn } from "~/lib/utils"
 import type {
   WikiImageTransform,
   WikiPublicStoryCard,
@@ -17,6 +19,7 @@ import type {
 } from "~/shared/api"
 
 import {
+  isPortraitStoryCategory,
   safeExternalStoryUrl,
   safeWikiColor,
   storyCardAspectRatio,
@@ -30,19 +33,26 @@ export function StoryCategorySection({
   fallbackImage,
   fallbackTransform,
   accentColor,
+  highlightedCardId,
 }: {
   category: WikiPublicStoryCategory
   categoryId: string
   fallbackImage: string
   fallbackTransform: WikiImageTransform
   accentColor: string
+  highlightedCardId: number | null
 }) {
   const [selectedCard, setSelectedCard] = useState<WikiPublicStoryCard | null>(
     null
   )
+  const portraitCards = isPortraitStoryCategory(category.name)
 
   return (
-    <section id={categoryId} aria-labelledby={`${categoryId}-title`}>
+    <section
+      id={categoryId}
+      aria-labelledby={`${categoryId}-title`}
+      className="scroll-mt-20"
+    >
       <div className="mb-4 flex items-end justify-between gap-4 border-b pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <span
@@ -63,25 +73,41 @@ export function StoryCategorySection({
       </div>
 
       <div
-        className="grid"
-        style={{
-          gridTemplateColumns: storyCardColumns(category.name),
-          gap: storyCardGap(category.name),
-        }}
+        className={cn(
+          "grid grid-cols-2 gap-3 sm:grid-cols-(--story-card-columns) sm:gap-(--story-card-gap)",
+          portraitCards && "grid-cols-3 gap-2"
+        )}
+        data-card-layout={portraitCards ? "portrait" : "landscape"}
+        style={
+          {
+            "--story-card-columns": storyCardColumns(category.name),
+            "--story-card-gap": storyCardGap(category.name),
+          } as CSSProperties
+        }
       >
         {category.cards.map((card) => {
           const cardKey = `${category.name}\u0000${card.name}`
           const textOnly = !card.img
+          const hasSources = card.links.length > 0
+          const isTargetCard = card.id === highlightedCardId
           const accentColorValue = safeWikiColor(accentColor)
           return (
             <button
               key={cardKey}
+              id={`story-card-${card.id}`}
               type="button"
-              className={
+              className={cn(
                 textOnly
-                  ? "flex min-h-13 items-center justify-center rounded-lg border-2 bg-white px-4 py-3 text-center text-[15px] font-bold shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                  : "overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              }
+                  ? "flex min-h-13 items-center justify-center rounded-lg border-2 bg-white px-4 py-3 text-center text-[15px] font-bold shadow-sm transition-all duration-500 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  : "overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-[box-shadow,filter,opacity,transform] duration-500 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                !hasSources &&
+                  "opacity-45 saturate-50 hover:opacity-70 focus-visible:opacity-70",
+                "scroll-mt-24",
+                isTargetCard && "shadow-lg ring-3 ring-primary ring-offset-3"
+              )}
+              data-source-state={hasSources ? "available" : "empty"}
+              data-cover-target={isTargetCard ? "true" : undefined}
+              aria-label={!hasSources ? `${card.name}，暂无来源` : undefined}
               style={
                 textOnly
                   ? {
@@ -129,12 +155,12 @@ export function StoryCategorySection({
                       decoding="async"
                     />
                   </div>
-                  <div className="space-y-1 px-4 py-3">
-                    <h3 className="font-heading text-base/snug font-medium">
+                  <div className="space-y-1 p-2 sm:px-4 sm:py-3">
+                    <h3 className="font-heading text-sm/snug font-medium wrap-break-word sm:text-base/snug">
                       {card.name}
                     </h3>
                     {card.subtitle ? (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs wrap-break-word text-muted-foreground sm:text-sm">
                         {card.subtitle}
                       </p>
                     ) : null}

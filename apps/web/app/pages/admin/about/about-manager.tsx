@@ -1,5 +1,6 @@
 import { useRequest } from "alova/client"
 import {
+  ChevronDownIcon,
   ExternalLinkIcon,
   ImageIcon,
   InfoIcon,
@@ -11,6 +12,7 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   SaveIcon,
+  SlidersHorizontalIcon,
   SmartphoneIcon,
   Trash2Icon,
   UserPlusIcon,
@@ -26,6 +28,11 @@ import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "~/components/ui/collapsible"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
 import { cn } from "~/lib/utils"
 import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
@@ -389,7 +396,7 @@ function HeroCompositionPreview({
   return (
     <div className="overflow-hidden rounded-lg border bg-background">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b px-4 py-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
           <MoveIcon className="size-4 shrink-0 text-primary" aria-hidden />
           <p className="text-sm font-semibold">公开页构图预览</p>
         </div>
@@ -431,14 +438,6 @@ function HeroCompositionPreview({
           <div>
             <dt className="sr-only">缩放</dt>
             <dd>{content.heroImageScale}%</dd>
-          </div>
-          <div>
-            <dt className="sr-only">水平偏移</dt>
-            <dd>X {content.heroImageOffsetX}%</dd>
-          </div>
-          <div>
-            <dt className="sr-only">垂直偏移</dt>
-            <dd>Y {content.heroImageOffsetY}%</dd>
           </div>
         </dl>
         <Button
@@ -610,6 +609,72 @@ function HeroCompositionPreview({
             <span className="bg-[#e64c34]" />
           </div>
         </div>
+      </div>
+
+      <div className="grid gap-4 border-t p-4 lg:grid-cols-[minmax(14rem,1fr)_minmax(18rem,1fr)]">
+        <VisualRangeEditor
+          id="about-hero-image-scale"
+          label="角色缩放"
+          value={content.heroImageScale}
+          min={60}
+          max={160}
+          suffix="%"
+          description="调整角色相对画布的大小"
+          onChange={(heroImageScale) =>
+            onChange({
+              heroImageScale,
+              heroImageOffsetX: content.heroImageOffsetX,
+              heroImageOffsetY: content.heroImageOffsetY,
+            })
+          }
+        />
+        <Collapsible className="border-t pt-1 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+          <CollapsibleTrigger
+            type="button"
+            className="group flex w-full items-center gap-2 rounded-md px-1 py-2 text-left text-sm font-medium outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <SlidersHorizontalIcon className="size-4 text-muted-foreground" />
+            <span className="flex-1">精细位置</span>
+            <span className="text-xs font-normal text-muted-foreground tabular-nums">
+              X {content.heroImageOffsetX}% · Y {content.heroImageOffsetY}%
+            </span>
+            <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-aria-expanded:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="grid gap-4 pt-2 sm:grid-cols-2">
+            <VisualRangeEditor
+              id="about-hero-image-offset-x"
+              label="水平偏移"
+              value={content.heroImageOffsetX}
+              min={-40}
+              max={40}
+              suffix="%"
+              description="负值向左，正值向右"
+              onChange={(heroImageOffsetX) =>
+                onChange({
+                  heroImageScale: content.heroImageScale,
+                  heroImageOffsetX,
+                  heroImageOffsetY: content.heroImageOffsetY,
+                })
+              }
+            />
+            <VisualRangeEditor
+              id="about-hero-image-offset-y"
+              label="垂直偏移"
+              value={content.heroImageOffsetY}
+              min={-40}
+              max={40}
+              suffix="%"
+              description="负值向上，正值向下"
+              onChange={(heroImageOffsetY) =>
+                onChange({
+                  heroImageScale: content.heroImageScale,
+                  heroImageOffsetX: content.heroImageOffsetX,
+                  heroImageOffsetY,
+                })
+              }
+            />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   )
@@ -1055,7 +1120,7 @@ export function AboutManager() {
         title="首屏主视觉"
         description="替换左侧角色图，并校准不同长宽比素材的缩放、位置与页面渐变。"
         icon={ImageIcon}
-        contentClassName="space-y-6"
+        contentClassName="flex flex-col gap-6"
       >
         <HeroCompositionPreview
           content={draft}
@@ -1100,44 +1165,6 @@ export function AboutManager() {
             }
           />
         </AdminField>
-        <div className="grid gap-5 sm:grid-cols-3">
-          <VisualRangeEditor
-            id="about-hero-image-scale"
-            label="角色缩放"
-            value={draft.heroImageScale}
-            min={60}
-            max={160}
-            suffix="%"
-            description="调整角色相对画布的大小"
-            onChange={(heroImageScale) =>
-              change((content) => ({ ...content, heroImageScale }))
-            }
-          />
-          <VisualRangeEditor
-            id="about-hero-image-offset-x"
-            label="水平偏移"
-            value={draft.heroImageOffsetX}
-            min={-40}
-            max={40}
-            suffix="%"
-            description="负值向左，正值向右"
-            onChange={(heroImageOffsetX) =>
-              change((content) => ({ ...content, heroImageOffsetX }))
-            }
-          />
-          <VisualRangeEditor
-            id="about-hero-image-offset-y"
-            label="垂直偏移"
-            value={draft.heroImageOffsetY}
-            min={-40}
-            max={40}
-            suffix="%"
-            description="负值向上，正值向下"
-            onChange={(heroImageOffsetY) =>
-              change((content) => ({ ...content, heroImageOffsetY }))
-            }
-          />
-        </div>
         <div className="grid gap-5 sm:grid-cols-2">
           <ColorEditor
             id="about-accent-color-start"

@@ -21,6 +21,7 @@ import {
   getAdminWikiStoryCoverAssets,
   getWikiCatalog,
   getWikiRandomBackground,
+  getWikiRandomIdol,
   getWikiStories,
   saveWikiEntityImage,
   uploadWikiAgencyIcon,
@@ -299,6 +300,7 @@ describe("Wiki admin API", () => {
               name: "enzaP卡",
               cards: [
                 {
+                  id: 401,
                   name: "【花风Smiley】",
                   img: "/image/story.webp",
                   subtitle: "全话",
@@ -328,6 +330,7 @@ describe("Wiki admin API", () => {
       .mockResolvedValueOnce(
         successResponse({
           url: "/image/background.webp",
+          card_id: 401,
           card_name: "【花风Smiley】",
           idol_name: "樱木真乃",
           agency_name: "闪耀色彩",
@@ -370,6 +373,8 @@ describe("Wiki admin API", () => {
       rotation: 0,
     })
     expect(stories.categories[0]?.cards[0]?.links[0]?.id).toBe(21)
+    expect(stories.categories[0]?.cards[0]?.id).toBe(401)
+    expect(background.card_id).toBe(401)
     expect(background.card_name).toBe("【花风Smiley】")
     const requests = fetchMock.mock.calls.map(
       (call) => new URL(requestDetails(call).url, window.location.origin)
@@ -381,6 +386,47 @@ describe("Wiki admin API", () => {
     ])
     expect(requests[0]?.searchParams.get("agency")).toBe("闪耀色彩")
     expect(requests[1]?.searchParams.get("idol")).toBe("樱木真乃")
+  })
+
+  it("validates the Wiki-backed random idol contract", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      successResponse({
+        status: "success",
+        eligibleCount: 345,
+        idol: {
+          id: 6,
+          name: "樱木真乃",
+          color: "#8dbbff",
+          textColor: "#ffffff",
+          imageUrl: "/image/闪耀色彩/樱木真乃/icon.webp",
+          imageTransform: {
+            fit: "cover",
+            focalX: 0.35,
+            focalY: 0.4,
+            zoom: 1.25,
+            rotation: 0,
+          },
+          agency: {
+            id: 6,
+            code: "sc",
+            name: "闪耀色彩",
+            color: "#8dbbff",
+          },
+        },
+      })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await getWikiRandomIdol().send()
+
+    expect(result.eligibleCount).toBe(345)
+    expect(result.idol?.name).toBe("樱木真乃")
+    expect(result.idol?.imageTransform.zoom).toBe(1.25)
+    const request = new URL(
+      requestDetails(fetchMock.mock.calls[0] ?? []).url,
+      window.location.origin
+    )
+    expect(request.pathname).toBe("/api/wiki/random_idol")
   })
 
   it("sends exact story edits and destructive group operations with CSRF", async () => {
