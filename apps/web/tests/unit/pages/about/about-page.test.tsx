@@ -5,10 +5,6 @@ import About from "~/pages/about/about-page"
 import type { AboutPageContent } from "~/lib/api"
 import { seriesWallItems } from "~/lib/series-wall"
 
-vi.mock("~/components/shared/series-icon-background", () => ({
-  SeriesIconBackground: () => <div data-testid="series-icon-background" />,
-}))
-
 function aboutContent(): AboutPageContent {
   return {
     version: 1,
@@ -101,7 +97,6 @@ describe("About page", () => {
       "https://example.com/producer-a"
     )
     expect(screen.getByText("本分组名单暂未公开。")).toBeVisible()
-    expect(screen.getByTestId("series-icon-background")).toBeVisible()
     expect(
       screen
         .getByTestId("series-accent-strip")

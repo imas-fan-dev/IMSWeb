@@ -16,9 +16,9 @@ import {
   UNGROUPED_FILTER,
   WikiGroupFilter,
   type WikiGroupFilterValue,
-} from "~/pages/wiki/components/wiki-group-filter"
-import { WikiHero } from "~/pages/wiki/components/wiki-hero"
-import { WikiIdolGrid } from "~/pages/wiki/components/wiki-idol-grid"
+} from "~/pages/wiki/modern/components/wiki-group-filter"
+import { WikiHero } from "~/pages/wiki/modern/components/wiki-hero"
+import { WikiIdolGrid } from "~/pages/wiki/modern/components/wiki-idol-grid"
 import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
 import type { WikiPublicCatalog, WikiRandomBackground } from "~/lib/api"
 
@@ -64,7 +64,13 @@ export function WikiIndexPage() {
         if (active) setCatalogRequest({ key: requestKey, data, error: null })
       })
       .catch((error: unknown) => {
-        if (active) setCatalogRequest({ key: requestKey, data: null, error })
+        if (active) {
+          setCatalogRequest((current) => ({
+            key: requestKey,
+            data: current.data,
+            error,
+          }))
+        }
       })
     return () => {
       active = false
@@ -86,6 +92,7 @@ export function WikiIndexPage() {
 
   const requestIsCurrent = catalogRequest.key === requestKey
   const catalog = requestIsCurrent ? catalogRequest.data : null
+  const availableCatalog = catalogRequest.data
   const catalogError = requestIsCurrent ? catalogRequest.error : null
   const loading = !requestIsCurrent
   const backgroundLoading = backgroundRequest.key !== backgroundKey
@@ -156,12 +163,16 @@ export function WikiIndexPage() {
 
       <section className="border-b bg-card" aria-label="企划选择">
         <div
-          className="mx-auto flex w-full max-w-7xl gap-2 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8"
+          className="mx-auto flex w-full max-w-7xl gap-2 overflow-x-auto overscroll-x-contain px-4 py-3 sm:px-6 lg:px-8"
+          data-testid="wiki-agency-tabs"
           role="tablist"
           aria-label="偶像大师企划"
+          aria-busy={!requestIsCurrent}
         >
-          {(catalog?.agencies ?? []).map((agency) => {
-            const active = selection?.agency.name === agency.name
+          {(availableCatalog?.agencies ?? []).map((agency) => {
+            const active = requestIsCurrent
+              ? selection?.agency.name === agency.name
+              : requestedAgency === agency.name
             const iconUrl = agency.iconUrl ?? ""
             return (
               <button
@@ -171,7 +182,10 @@ export function WikiIndexPage() {
                 aria-selected={active}
                 onClick={() => {
                   setQuery("")
-                  setSearchParams({ agency: agency.name })
+                  setSearchParams(
+                    { agency: agency.name },
+                    { preventScrollReset: true }
+                  )
                 }}
                 className="relative flex h-12 shrink-0 items-center gap-2.5 rounded-md border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 style={

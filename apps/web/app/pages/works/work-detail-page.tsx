@@ -1,7 +1,6 @@
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
 import { Link } from "react-router"
 
-import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Button } from "~/components/ui/button"
 import { IDOL_FONT_URL } from "~/pages/works/brand-assets"
 import {
@@ -293,8 +292,7 @@ export default function WorkDetailPage({ params }: Route.ComponentProps) {
         }
       `}</style>
 
-      <SeriesIconBackground />
-      <div className="relative z-10 min-h-[calc(100svh-4rem)] bg-background/75 sm:bg-background/60">
+      <div className="relative z-10 min-h-[calc(100svh-4rem)]">
         {isFranchise ? (
           <FranchiseDetail entry={entry} />
         ) : (

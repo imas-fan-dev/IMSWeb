@@ -11,7 +11,6 @@ import {
 import { lazy, Suspense, useMemo, useState } from "react"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
-import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
@@ -379,8 +378,7 @@ export default function ProducerMapPage() {
 
   return (
     <main id="main-content" className="relative isolate overflow-clip">
-      <SeriesIconBackground />
-      <div className="relative z-10 bg-background/88">
+      <div className="relative z-10">
         <section className="border-b">
           <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
             <div className="max-w-3xl">

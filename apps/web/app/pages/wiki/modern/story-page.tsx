@@ -24,8 +24,8 @@ import {
   SheetTrigger,
 } from "~/components/ui/sheet"
 import { Skeleton } from "~/components/ui/skeleton"
-import { StoryCategorySection } from "~/pages/wiki/components/story-category-section"
-import { StoryNavigationPanel } from "~/pages/wiki/components/story-navigation-panel"
+import { StoryCategorySection } from "~/pages/wiki/modern/components/story-category-section"
+import { StoryNavigationPanel } from "~/pages/wiki/modern/components/story-navigation-panel"
 import { safeWikiColor, storyCardMatches } from "~/pages/wiki/wiki-model"
 import { cn } from "~/lib/utils"
 import { getWikiStories, isApiError } from "~/lib/api"

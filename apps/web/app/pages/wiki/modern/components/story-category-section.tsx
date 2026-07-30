@@ -25,7 +25,7 @@ import {
   storyCardAspectRatio,
   storyCardColumns,
   storyCardGap,
-} from "../wiki-model"
+} from "~/pages/wiki/wiki-model"
 
 export function StoryCategorySection({
   category,
@@ -90,7 +90,6 @@ export function StoryCategorySection({
           const textOnly = !card.img
           const hasSources = card.links.length > 0
           const isTargetCard = card.id === highlightedCardId
-          const accentColorValue = safeWikiColor(accentColor)
           return (
             <button
               key={cardKey}
@@ -98,41 +97,14 @@ export function StoryCategorySection({
               type="button"
               className={cn(
                 textOnly
-                  ? "flex min-h-13 items-center justify-center rounded-lg border-2 bg-white px-4 py-3 text-center text-[15px] font-bold shadow-sm transition-all duration-500 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  ? "flex min-h-13 items-center justify-center rounded-lg border bg-card px-4 py-3 text-center text-[15px] font-bold shadow-sm transition-all duration-500 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                   : "overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-[box-shadow,filter,opacity,transform] duration-500 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-                !hasSources &&
-                  "opacity-45 saturate-50 hover:opacity-70 focus-visible:opacity-70",
                 "scroll-mt-24",
                 isTargetCard && "shadow-lg ring-3 ring-primary ring-offset-3"
               )}
               data-source-state={hasSources ? "available" : "empty"}
               data-cover-target={isTargetCard ? "true" : undefined}
               aria-label={!hasSources ? `${card.name}，暂无来源` : undefined}
-              style={
-                textOnly
-                  ? {
-                      borderColor: accentColorValue,
-                      color: accentColorValue,
-                    }
-                  : undefined
-              }
-              onMouseEnter={
-                textOnly
-                  ? (event) => {
-                      event.currentTarget.style.backgroundColor =
-                        accentColorValue
-                      event.currentTarget.style.color = "#fff"
-                    }
-                  : undefined
-              }
-              onMouseLeave={
-                textOnly
-                  ? (event) => {
-                      event.currentTarget.style.backgroundColor = ""
-                      event.currentTarget.style.color = accentColorValue
-                    }
-                  : undefined
-              }
               onClick={() => setSelectedCard(card)}
             >
               {textOnly ? (

@@ -3,7 +3,6 @@ import { ArrowUpRightIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
 import type { CSSProperties } from "react"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
-import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { getAboutPageContent } from "~/lib/api"
@@ -224,8 +223,7 @@ export default function About() {
 
   return (
     <main id="main-content" className="relative isolate overflow-clip">
-      <SeriesIconBackground />
-      <div className="relative z-10 bg-background/75 sm:bg-background/60">
+      <div className="relative z-10">
         <section
           className="relative overflow-hidden border-b"
           aria-labelledby="about-title"

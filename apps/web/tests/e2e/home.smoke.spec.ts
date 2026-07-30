@@ -45,9 +45,17 @@ for (const route of publicRoutes) {
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN")
     await expect(page.locator("main#main-content")).toBeVisible()
     await expect(page.locator("main#main-content")).not.toBeEmpty()
-    await expect(
-      page.getByRole("link", { name: "跳到主要内容" })
-    ).toHaveAttribute("href", "#main-content")
+    if (route.path === "/wiki/classic") {
+      await expect(page.getByTestId("series-icon-background")).toHaveCount(0)
+    } else {
+      await expect(
+        page.getByRole("link", { name: "跳到主要内容" })
+      ).toHaveAttribute("href", "#main-content")
+      const background = page.getByTestId("series-icon-background")
+      await expect(background).toBeVisible()
+      await expect(background).toHaveCount(1)
+      await expect(background.locator(".series-icon-motif")).toHaveCount(18)
+    }
 
     expect(consoleErrors, "the page should not log console errors").toEqual([])
     expect(pageErrors, "the page should not raise uncaught errors").toEqual([])
@@ -176,7 +184,7 @@ test("work detail carries the homepage moving series background", async ({
   const background = page.getByTestId("series-icon-background")
   const motifs = background.locator(".series-icon-motif")
   await expect(background).toBeVisible()
-  await expect(motifs).toHaveCount(12)
+  await expect(motifs).toHaveCount(18)
 
   const firstMotif = motifs.first()
   const initialTransform = await firstMotif.evaluate(
@@ -361,7 +369,7 @@ test("home exposes current discovery and birthday interactions", async ({
 
   const brandBackground = page.getByTestId("series-icon-background")
   await expect(brandBackground).toBeVisible()
-  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(12)
+  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(18)
   const firstMotif = brandBackground.locator(".series-icon-motif").first()
   const initialTransform = await firstMotif.evaluate(
     (element) => element.style.transform

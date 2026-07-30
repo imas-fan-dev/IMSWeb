@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { ClassicStoryPage } from "~/pages/wiki/classic-story-page"
-import { ClassicWikiPage } from "~/pages/wiki/classic-wiki-page"
+import { ClassicStoryPage } from "~/pages/wiki/classic/classic-story-page"
+import { ClassicWikiPage } from "~/pages/wiki/classic/classic-wiki-page"
 
 function response(payload: unknown) {
   return Promise.resolve(Response.json(payload))
@@ -143,7 +143,11 @@ function catalogPayload(
   }
 }
 
-function storyPayload(includeSourcelessCard = false) {
+function storyPayload(
+  includeSourcelessCard = false,
+  idolColor = "#f1b0c9",
+  textColor = "#ffffff"
+) {
   return {
     status: "success",
     agency: {
@@ -156,10 +160,10 @@ function storyPayload(includeSourcelessCard = false) {
       id: 6,
       name: "樱木真乃",
       folderName: "sakuragi_mano",
-      color: "#f1b0c9",
+      color: idolColor,
       imageUrl: "/image/mano.webp",
       imageFit: "cover",
-      textColor: "#ffffff",
+      textColor,
     },
     categories: [
       {
@@ -284,10 +288,49 @@ describe("classic Wiki pages", () => {
       container.querySelector(".wiki-classic-background.is-previous")
     ).toHaveAttribute("src", "/image/background.webp")
 
-    await user.click(screen.getByRole("button", { name: "打开企划导航" }))
-    expect(screen.getByRole("complementary", { name: "企划导航" })).toHaveClass(
-      "is-open"
+    const agencyTabs = screen.getByRole("tablist", {
+      name: "偶像大师企划",
+    })
+    const banner = screen
+      .getByRole("heading", { name: "283 Production" })
+      .closest("header")!
+    const mobileSearch = screen.getByRole("textbox", {
+      name: "搜索当前企划内容页",
+    })
+    const firstGroup = screen
+      .getByRole("heading", { name: "Straylight" })
+      .closest("section")!
+    const mobileBar = container.querySelector<HTMLElement>(
+      ".wiki-classic-mobile-bar"
+    )!
+    const navigationButton = within(mobileBar).getByRole("button", {
+      name: "打开企划导航",
+    })
+    const sidebar = container.querySelector(".wiki-classic-sidebar")!
+    expect(navigationButton).toHaveAttribute("aria-expanded", "false")
+    expect(sidebar).not.toHaveClass("is-open")
+    await user.click(navigationButton)
+    expect(navigationButton).toHaveAttribute("aria-expanded", "true")
+    expect(sidebar).toHaveClass("is-open")
+    expect(
+      within(sidebar as HTMLElement).getByRole("link", { name: "返回首页" })
+    ).toHaveAttribute("href", "/")
+    await user.click(
+      within(sidebar as HTMLElement).getByRole("button", {
+        name: "关闭企划导航",
+      })
     )
+    expect(navigationButton).toHaveAttribute("aria-expanded", "false")
+    expect(sidebar).not.toHaveClass("is-open")
+    expect(agencyTabs).toBeInTheDocument()
+    expect(
+      banner.compareDocumentPosition(mobileSearch) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0)
+    expect(
+      mobileSearch.compareDocumentPosition(firstGroup) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0)
   })
 
   it("keeps the current series visible while the next catalog loads", async () => {
@@ -324,16 +367,16 @@ describe("classic Wiki pages", () => {
       await screen.findByRole("heading", { name: "illumination STARS" })
     ).toBeVisible()
 
-    await user.click(screen.getByRole("button", { name: /765PRO/ }))
+    await user.click(screen.getByRole("tab", { name: /765PRO/ }))
 
     expect(
       screen.getByRole("heading", { name: "illumination STARS" })
     ).toBeVisible()
     expect(container.querySelector(".wiki-classic-loading")).toBeNull()
-    expect(screen.getByRole("button", { name: /765PRO/ })).toHaveClass(
+    expect(screen.getByRole("tab", { name: /765PRO/ })).toHaveClass(
       "is-pending"
     )
-    expect(screen.getByRole("button", { name: /765PRO/ })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: /765PRO/ })).toHaveAttribute(
       "aria-current",
       "page"
     )
@@ -451,6 +494,41 @@ describe("classic Wiki pages", () => {
       "https://www.bilibili.com/video/BV1xx411c7mD"
     )
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
+  })
+
+  it("derives readable classic story colors from a pale idol accent", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          Response.json(storyPayload(false, "#dffaff", "#ffffff"))
+        )
+    )
+
+    const { container } = render(
+      <MemoryRouter
+        initialEntries={["/story/classic?agency=闪耀色彩&idol=樱木真乃"]}
+      >
+        <ClassicStoryPage />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("heading", { name: "樱木真乃" })
+    ).toBeVisible()
+    const shell = container.querySelector<HTMLElement>(
+      ".wiki-classic-story-shell"
+    )!
+    expect(shell.style.getPropertyValue("--classic-story-color")).toBe(
+      "#dffaff"
+    )
+    expect(shell.style.getPropertyValue("--classic-story-ink")).not.toBe(
+      "#dffaff"
+    )
+    expect(shell.style.getPropertyValue("--classic-story-on-color")).toBe(
+      "#202126"
+    )
   })
 
   it("marks only source-free classic cards as faded and keeps them openable", async () => {

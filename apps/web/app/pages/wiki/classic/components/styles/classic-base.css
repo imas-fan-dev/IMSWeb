@@ -1,3 +1,4 @@
+/* Shared foundation for the classic catalog and story component trees. */
 .wiki-classic-shell {
   --classic-ink: #32343a;
   --classic-paper: #fffafb;
@@ -104,7 +105,7 @@
 }
 
 .wiki-classic-agency-button.is-active {
-  color: #fff;
+  color: var(--agency-on-color, #fff);
   background: var(--agency-color);
 }
 
@@ -220,7 +221,7 @@
   padding: 8px 20px;
   border: 3px solid #fff;
   border-radius: 999px;
-  color: #fff;
+  color: var(--group-on-color, #fff);
   background: var(--group-color);
   box-shadow: 0 7px 16px rgb(48 38 42 / 22%);
 }
@@ -311,7 +312,7 @@
   padding: 6px 10px;
   border: 2px solid var(--idol-color);
   border-radius: 999px;
-  color: color-mix(in srgb, var(--idol-color) 72%, #272930);
+  color: var(--idol-ink, #272930);
   background: #fff;
   box-shadow: 0 5px 10px rgb(54 39 45 / 12%);
   font-size: 13px;
@@ -682,6 +683,8 @@
 
 .wiki-classic-story-shell {
   --classic-story-color: #f34f6d;
+  --classic-story-ink: #a51f3c;
+  --classic-story-on-color: #fff;
   --classic-story-tint: #fff4f6;
   min-height: 100svh;
   padding: 28px;
@@ -720,7 +723,7 @@
 
 .wiki-classic-story-profile h1 {
   margin: 0 0 18px;
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
   font-size: 24px;
   font-weight: 900;
   line-height: 1.25;
@@ -761,7 +764,7 @@
 
 .wiki-classic-story-counts dd {
   margin: 2px 0 0;
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
   font-size: 18px;
   font-weight: 900;
 }
@@ -779,7 +782,7 @@
   gap: 8px;
   border: 2px solid var(--classic-story-color);
   border-radius: 8px;
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
   background: #fff;
   font-size: 13px;
   font-weight: 800;
@@ -787,7 +790,7 @@
 }
 
 .wiki-classic-story-actions a:first-child {
-  color: #fff;
+  color: var(--classic-story-on-color);
   background: var(--classic-story-color);
 }
 
@@ -824,7 +827,7 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
   font-size: 13px;
 }
 
@@ -857,7 +860,7 @@
 
 .wiki-classic-story-tabs button.is-active {
   border-color: var(--classic-story-color);
-  color: #fff;
+  color: var(--classic-story-on-color);
   background: var(--classic-story-color);
 }
 
@@ -909,7 +912,7 @@
 .wiki-classic-story-category h2 {
   min-width: 0;
   margin: 0;
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
   font-size: 19px;
   font-weight: 900;
   overflow-wrap: anywhere;
@@ -923,8 +926,11 @@
 
 .wiki-classic-story-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: var(
+    --classic-story-grid-columns,
+    repeat(4, minmax(0, 1fr))
+  );
+  gap: var(--classic-story-grid-gap, 18px);
 }
 
 .wiki-classic-story-card {
@@ -1007,7 +1013,7 @@
 
 .wiki-classic-story-card-body span {
   margin-top: auto;
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
   font-weight: 800;
 }
 
@@ -1016,18 +1022,23 @@
   min-height: 108px;
   place-items: center;
   border: 2px solid var(--classic-story-color);
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
   text-align: center;
 }
 
 .wiki-classic-story-card.is-text-only .wiki-classic-story-card-body {
   min-height: 0;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   place-items: center;
 }
 
 .wiki-classic-story-card.is-text-only:hover,
 .wiki-classic-story-card.is-text-only:focus-visible {
-  color: #fff;
+  color: var(--classic-story-on-color);
   background: var(--classic-story-color);
 }
 
@@ -1035,7 +1046,7 @@
 .wiki-classic-story-card.is-text-only:hover small,
 .wiki-classic-story-card.is-text-only:focus-visible span,
 .wiki-classic-story-card.is-text-only:focus-visible small {
-  color: #fff;
+  color: var(--classic-story-on-color);
 }
 
 .wiki-classic-story-empty {
@@ -1065,7 +1076,7 @@
 .wiki-classic-story-status > svg {
   width: 38px;
   height: 38px;
-  color: var(--classic-story-color);
+  color: var(--classic-story-ink);
 }
 
 .wiki-classic-story-status h1,
@@ -1084,7 +1095,7 @@
   padding: 9px 16px;
   border: 2px solid var(--classic-story-color);
   border-radius: 8px;
-  color: #fff;
+  color: var(--classic-story-on-color);
   background: var(--classic-story-color);
   font-weight: 800;
 }
@@ -1125,7 +1136,7 @@
 
 .wiki-classic-story-dialog [data-slot="dialog-header"] > p {
   margin: 0;
-  color: var(--classic-story-color, #f34f6d);
+  color: var(--classic-story-ink, #a51f3c);
   font-size: 11px;
   font-weight: 800;
 }

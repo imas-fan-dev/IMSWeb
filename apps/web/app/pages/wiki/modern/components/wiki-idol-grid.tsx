@@ -9,7 +9,7 @@ import type {
   WikiPublicIdol,
 } from "~/lib/api"
 
-import { safeWikiColor } from "../wiki-model"
+import { safeWikiColor } from "~/pages/wiki/wiki-model"
 
 type PublicGroup = NonNullable<WikiPublicCatalog["selection"]>["groups"][number]
 

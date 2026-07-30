@@ -1,0 +1,2 @@
+@layer classic-story-base;
+@import "../styles/classic-base.css" layer(classic-story-base);
