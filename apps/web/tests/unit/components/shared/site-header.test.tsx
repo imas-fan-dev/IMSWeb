@@ -25,18 +25,27 @@ describe("SiteHeader", () => {
     await i18n.changeLanguage(defaultLanguage)
   })
 
-  it("keeps the Wiki action concise across languages", async () => {
+  it("labels the story archive across languages and removes the game", async () => {
     render(<SiteHeader />, { wrapper: TestProviders })
 
-    const wikiLink = screen.getByRole("link", { name: "Wiki" })
-    expect(wikiLink).toHaveAttribute("href", "/wiki")
-    expect(wikiLink.querySelector("svg")).toHaveAttribute("aria-hidden", "true")
-    expect(screen.queryByText("进入资料库")).not.toBeInTheDocument()
+    const storySiteLink = screen.getByRole("link", { name: "剧情站" })
+    expect(storySiteLink).toHaveAttribute("href", "/wiki")
+    expect(storySiteLink.querySelector("svg")).toHaveAttribute(
+      "aria-hidden",
+      "true"
+    )
+    expect(
+      screen.queryByRole("link", { name: "板板大暴走" })
+    ).not.toBeInTheDocument()
 
     await act(() => i18n.changeLanguage("en"))
 
-    expect(screen.getByRole("link", { name: "Wiki" })).toBe(wikiLink)
-    expect(screen.queryByText("Open knowledge base")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Story Archive" })).toBe(
+      storySiteLink
+    )
+    expect(
+      screen.queryByRole("link", { name: "Running Idol" })
+    ).not.toBeInTheDocument()
   })
 
   it("keeps only primary destinations in the global navigation", () => {

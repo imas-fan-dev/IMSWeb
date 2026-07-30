@@ -222,6 +222,11 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   page,
   isMobile,
 }) => {
+  if (process.env.CAPTURE_HEADER_QA === "1") {
+    await page.addInitScript(() => {
+      localStorage.setItem("imsweb.language", "zh-CN")
+    })
+  }
   await page.goto("/")
 
   if (isMobile) {
@@ -233,7 +238,7 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       ? /移动端主导航|Mobile navigation/
       : /主导航|Main navigation/,
   })
-  await expect(navigation.locator("a")).toHaveCount(isMobile ? 7 : 5)
+  await expect(navigation.locator("a")).toHaveCount(isMobile ? 6 : 5)
 
   for (const primaryHref of [
     "/",
@@ -255,13 +260,35 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       0
     )
   }
+  await expect(page.locator('a[href="/runninggame/"]')).toHaveCount(0)
+  await expect(
+    (isMobile ? navigation : page.getByRole("banner")).getByRole("link", {
+      name: /剧情站|Story Archive/,
+    })
+  ).toHaveAttribute("href", "/wiki")
   if (isMobile) {
     await page.keyboard.press("Escape")
     await expect(navigation).toBeHidden()
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(9)
+  await expect(directory.getByRole("link")).toHaveCount(10)
+  await expect(directory.getByRole("link", { name: /剧情站/ })).toHaveAttribute(
+    "href",
+    "/wiki"
+  )
+
+  await expect(
+    page.getByRole("contentinfo").getByRole("link", {
+      name: /剧情站|Story Archive/,
+    })
+  ).toHaveAttribute("href", "/wiki/")
+  if (process.env.CAPTURE_HEADER_QA === "1") {
+    await page.getByRole("contentinfo").scrollIntoViewIfNeeded()
+    await page.screenshot({
+      path: `/tmp/imsweb-footer-story-site-${isMobile ? "mobile" : "desktop"}.png`,
+    })
+  }
   await expect(
     directory.getByRole("link", { name: /制作人名片墙/ })
   ).toHaveAttribute("href", "/community/cards")
@@ -366,7 +393,7 @@ test("home exposes current discovery and birthday interactions", async ({
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(9)
+  await expect(directory.getByRole("link")).toHaveCount(10)
   await expect(
     directory.getByRole("link", { name: /活动中心/ })
   ).toHaveAttribute("href", "/events")
