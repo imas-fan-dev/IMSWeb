@@ -26,7 +26,7 @@ export function SiteFooter() {
             href="/wiki/"
             className="inline-flex items-center gap-1 hover:text-foreground"
           >
-            Wiki
+            {t("navigation.storySite")}
             <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
           </a>
         </nav>

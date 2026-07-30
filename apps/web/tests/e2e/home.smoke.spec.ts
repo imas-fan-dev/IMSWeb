@@ -222,6 +222,11 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   page,
   isMobile,
 }) => {
+  if (process.env.CAPTURE_HEADER_QA === "1") {
+    await page.addInitScript(() => {
+      localStorage.setItem("imsweb.language", "zh-CN")
+    })
+  }
   await page.goto("/")
 
   if (isMobile) {
@@ -272,6 +277,18 @@ test("homepage navigation keeps secondary destinations in the directory", async 
     "href",
     "/wiki"
   )
+
+  await expect(
+    page.getByRole("contentinfo").getByRole("link", {
+      name: /剧情站|Story Archive/,
+    })
+  ).toHaveAttribute("href", "/wiki/")
+  if (process.env.CAPTURE_HEADER_QA === "1") {
+    await page.getByRole("contentinfo").scrollIntoViewIfNeeded()
+    await page.screenshot({
+      path: `/tmp/imsweb-footer-story-site-${isMobile ? "mobile" : "desktop"}.png`,
+    })
+  }
   await expect(
     directory.getByRole("link", { name: /制作人名片墙/ })
   ).toHaveAttribute("href", "/community/cards")
