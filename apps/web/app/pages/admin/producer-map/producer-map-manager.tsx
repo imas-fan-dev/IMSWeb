@@ -38,7 +38,7 @@ import {
   type ProducerMapCommunity,
   type ProducerMapContent,
   type ProducerMapRegion,
-} from "~/shared/api"
+} from "~/lib/api"
 
 function formatUpdateTime(value: string | null): string {
   if (!value) return "尚未保存过自定义配置"
@@ -514,6 +514,10 @@ function CommunityEditor({
   )
 }
 
+export function meta() {
+  return [{ title: "制作人地图配置 | IMSWeb" }]
+}
+
 export function ProducerMapManager() {
   const {
     loading,
@@ -848,3 +852,5 @@ export function ProducerMapManager() {
     </form>
   )
 }
+
+export default ProducerMapManager

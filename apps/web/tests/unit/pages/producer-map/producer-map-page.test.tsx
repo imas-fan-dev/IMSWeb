@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import ProducerMapPage from "~/pages/producer-map/producer-map-page"
-import type { ProducerMapContent } from "~/shared/api"
+import type { ProducerMapContent } from "~/lib/api"
 
 vi.mock("~/pages/producer-map/components/china-community-map", () => ({
   ChinaCommunityMap: ({

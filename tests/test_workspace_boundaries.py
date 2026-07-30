@@ -250,6 +250,39 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertIn("app/features", result.stderr)
         self.assertIn("app/pages route hierarchy", result.stderr)
 
+    def test_web_shared_directory_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            shared_module = root / "apps/web/app/shared/legacy.ts"
+            shared_module.parent.mkdir(parents=True)
+            shared_module.write_text("export {}\n", encoding="utf-8")
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("apps/web/app/shared", result.stderr)
+        self.assertIn("shared modules must live under app/lib", result.stderr)
+
+    def test_web_lib_api_request_and_public_facade_import_are_allowed(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            endpoint = root / "apps/web/app/lib/api/endpoints/home.ts"
+            endpoint.parent.mkdir(parents=True)
+            endpoint.write_text(
+                'export const getHome = () => fetch("/api/home")\n',
+                encoding="utf-8",
+            )
+            page = root / "apps/web/app/pages/home/home-page.tsx"
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                'export { getHome } from "~/lib/api"\n',
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_web_page_cannot_construct_api_request(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)
@@ -264,7 +297,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("apps/web/app/pages/home/home-page.tsx", result.stderr)
-        self.assertIn("requests must be defined in app/shared/api", result.stderr)
+        self.assertIn("requests must be defined in app/lib/api", result.stderr)
 
     def test_web_page_cannot_own_api_module(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
@@ -273,7 +306,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             page_api = root / "apps/web/app/pages/home/api.ts"
             page_api.parent.mkdir(parents=True)
             page_api.write_text(
-                'export { getHomeNews } from "~/shared/api"\n',
+                'export { getHomeNews } from "~/lib/api"\n',
                 encoding="utf-8",
             )
             result = self.run_fixture(root)
@@ -282,12 +315,28 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertIn("apps/web/app/pages/home/api.ts", result.stderr)
         self.assertIn("page-local API modules are forbidden", result.stderr)
 
+    def test_web_source_cannot_import_api_internals(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            page = root / "apps/web/app/pages/home/home-page.tsx"
+            page.parent.mkdir(parents=True)
+            page.write_text(
+                'export { apiClient } from "~/lib/api/client"\n',
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("apps/web/app/pages/home/home-page.tsx", result.stderr)
+        self.assertIn("import the public ~/lib/api facade", result.stderr)
+
     def test_web_source_tests_must_use_central_unit_hierarchy(self):
         for relative_path in [
             "apps/web/app/pages/home/home-page.test.tsx",
             "apps/web/app/components/shared/site-header.test.tsx",
             "apps/web/app/i18n/language.test.ts",
-            "apps/web/app/shared/api/api.test.ts",
+            "apps/web/app/lib/api/api.test.ts",
         ]:
             with self.subTest(relative_path=relative_path):
                 with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:

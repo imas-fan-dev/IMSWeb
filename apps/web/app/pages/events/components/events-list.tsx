@@ -7,7 +7,7 @@ import {
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
-import type { EventListItem } from "~/shared/api"
+import type { EventListItem } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",

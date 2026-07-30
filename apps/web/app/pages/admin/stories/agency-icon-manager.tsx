@@ -38,8 +38,8 @@ import {
   getAdminWikiCatalog,
   isApiError,
   uploadWikiAgencyIcon,
-} from "~/shared/api"
-import type { WikiAdminCatalog } from "~/shared/api"
+} from "~/lib/api"
+import type { WikiAdminCatalog } from "~/lib/api"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"

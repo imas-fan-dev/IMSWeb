@@ -9,6 +9,16 @@ import { FriendLinks, PortalDirectory } from "./components/home-navigation"
 import { RandomIdol } from "./components/random-idol"
 import { SiteSupport } from "./components/site-support"
 
+export function meta() {
+  return [
+    { title: "IMSWeb | 偶像大师交流站" },
+    {
+      name: "description",
+      content: "偶像大师中文资料、活动日程、制作人社区与共同创作入口。",
+    },
+  ]
+}
+
 export function HomePortal() {
   return (
     <main id="main-content" className="relative isolate overflow-clip">
@@ -28,3 +38,5 @@ export function HomePortal() {
     </main>
   )
 }
+
+export default HomePortal

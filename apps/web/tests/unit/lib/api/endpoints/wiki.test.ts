@@ -32,7 +32,7 @@ import {
   updateWikiStoryCard,
   updateWikiStoryCoverAsset,
   updateWikiStory,
-} from "~/shared/api/endpoints/wiki"
+} from "~/lib/api/endpoints/wiki"
 
 function requestDetails(call: unknown[]) {
   const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]

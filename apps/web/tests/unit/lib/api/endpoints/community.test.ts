@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { namecardSchema } from "~/shared/api/endpoints/community"
+import { namecardSchema } from "~/lib/api/endpoints/community"
 
 describe("community API contracts", () => {
   it("normalizes numeric string card IDs", () => {

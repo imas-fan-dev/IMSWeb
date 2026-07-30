@@ -2,7 +2,7 @@ import { useRequest } from "alova/client"
 import { act, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { getHomeNews } from "~/shared/api"
+import { getHomeNews } from "~/lib/api"
 import { HomeFeed } from "~/pages/home/components/home-feed"
 
 function NewsProbe({ onSuccess }: { onSuccess: (data: unknown) => void }) {

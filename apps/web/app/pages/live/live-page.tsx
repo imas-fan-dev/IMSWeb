@@ -36,7 +36,7 @@ import {
   nextMonthKey,
   upcomingLiveEvents,
 } from "~/pages/live/live-schedule-model"
-import { getLiveEvents, type LiveEvent } from "~/shared/api"
+import { getLiveEvents, type LiveEvent } from "~/lib/api"
 
 export function meta() {
   return [{ title: "Live 日程 | IMSWeb" }]
@@ -62,9 +62,7 @@ function LiveCard({ event }: { event: LiveEvent }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-base/snug font-semibold">
-            {event.title}
-          </h3>
+          <h3 className="text-base/snug font-semibold">{event.title}</h3>
 
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {event.time ? (

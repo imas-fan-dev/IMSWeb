@@ -2,7 +2,7 @@ import { ArrowUpRightIcon, CalendarDaysIcon, ImageIcon } from "lucide-react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
-import type { HomeEvent, HomeNews } from "~/shared/api"
+import type { HomeEvent, HomeNews } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",

@@ -2,8 +2,8 @@ import { render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import About from "~/pages/about/about-page"
-import type { AboutPageContent } from "~/shared/api"
-import { seriesWallItems } from "~/shared/series-wall"
+import type { AboutPageContent } from "~/lib/api"
+import { seriesWallItems } from "~/lib/series-wall"
 
 vi.mock("~/components/shared/series-icon-background", () => ({
   SeriesIconBackground: () => <div data-testid="series-icon-background" />,

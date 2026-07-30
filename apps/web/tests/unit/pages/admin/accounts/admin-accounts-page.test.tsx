@@ -4,7 +4,7 @@ import { MemoryRouter, Outlet, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import AdminAccountsPage from "~/pages/admin/accounts/admin-accounts-page"
-import type { AdminSession } from "~/shared/api"
+import type { AdminSession } from "~/lib/api"
 
 const mocks = vi.hoisted(() => ({
   success: vi.fn(),

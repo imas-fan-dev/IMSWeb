@@ -42,13 +42,13 @@ import {
   getAdminWikiCatalog,
   getAdminWikiStories,
   isApiError,
-} from "~/shared/api"
+} from "~/lib/api"
 import type {
   WikiAdminAgency,
   WikiAdminCatalog,
   WikiAdminStories,
   WikiAdminStory,
-} from "~/shared/api"
+} from "~/lib/api"
 import {
   AdminEmptyState,
   AdminPageHeader,

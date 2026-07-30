@@ -49,11 +49,8 @@ import {
   isApiError,
   updateWikiStoryContentType,
   updateWikiStorySourcePlatform,
-} from "~/shared/api"
-import type {
-  WikiStoryContentType,
-  WikiStorySourcePlatform,
-} from "~/shared/api"
+} from "~/lib/api"
+import type { WikiStoryContentType, WikiStorySourcePlatform } from "~/lib/api"
 
 type CatalogKind = "content-type" | "source-platform"
 type CatalogOption = WikiStoryContentType | WikiStorySourcePlatform

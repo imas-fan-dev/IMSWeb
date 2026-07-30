@@ -2,7 +2,7 @@ import type {
   ProducerMapCommunity,
   ProducerMapRegion,
   ProducerMapSeries,
-} from "~/shared/api"
+} from "~/lib/api"
 
 export const provinceOptions = [
   "北京市",

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { cacheRecommendationFeed, getRecommendationPage } from "~/shared/api"
-import type { Recommendation, RecommendationPage } from "~/shared/api"
+import { cacheRecommendationFeed, getRecommendationPage } from "~/lib/api"
+import type { Recommendation, RecommendationPage } from "~/lib/api"
 
 const pageSize = 20
 

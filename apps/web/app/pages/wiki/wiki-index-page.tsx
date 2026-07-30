@@ -19,15 +19,21 @@ import {
 } from "~/pages/wiki/components/wiki-group-filter"
 import { WikiHero } from "~/pages/wiki/components/wiki-hero"
 import { WikiIdolGrid } from "~/pages/wiki/components/wiki-idol-grid"
-import {
-  getWikiCatalog,
-  getWikiRandomBackground,
-  isApiError,
-} from "~/shared/api"
-import type { WikiPublicCatalog, WikiRandomBackground } from "~/shared/api"
+import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
+import type { WikiPublicCatalog, WikiRandomBackground } from "~/lib/api"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "剧情档案暂时无法加载"
+}
+
+export function meta() {
+  return [
+    { title: "剧情档案 | IMSWeb" },
+    {
+      name: "description",
+      content: "偶像大师各企划内容页、剧情卡片与影像来源档案。",
+    },
+  ]
 }
 
 export function WikiIndexPage() {
@@ -306,3 +312,5 @@ export function WikiIndexPage() {
     </main>
   )
 }
+
+export default WikiIndexPage

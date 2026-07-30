@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ProducerMapManager } from "~/pages/admin/producer-map/producer-map-manager"
-import type { ProducerMapContent } from "~/shared/api"
+import type { ProducerMapContent } from "~/lib/api"
 
 function content(): ProducerMapContent {
   return {

@@ -19,8 +19,8 @@ import {
   getIdolMediaCatalog,
   isApiError,
   uploadIdolMedia,
-} from "~/shared/api"
-import type { IdolMediaCatalog, IdolMediaItem } from "~/shared/api"
+} from "~/lib/api"
+import type { IdolMediaCatalog, IdolMediaItem } from "~/lib/api"
 import {
   AdminEmptyState,
   AdminField,

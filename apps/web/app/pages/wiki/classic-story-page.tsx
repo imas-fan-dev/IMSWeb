@@ -26,12 +26,12 @@ import {
   storyCardColumns,
   storyCardGap,
 } from "~/pages/wiki/wiki-model"
-import { getWikiStories, isApiError } from "~/shared/api"
+import { getWikiStories, isApiError } from "~/lib/api"
 import type {
   WikiPublicStories,
   WikiPublicStoryCard,
   WikiPublicStoryCategory,
-} from "~/shared/api"
+} from "~/lib/api"
 
 import "./classic-wiki.css"
 
@@ -42,6 +42,16 @@ interface SelectedStoryCard {
 
 function classicStoryErrorMessage(error: unknown) {
   return isApiError(error) ? error.message : "剧情内容暂时无法加载"
+}
+
+export function meta() {
+  return [
+    { title: "经典剧情详情 | IMSWeb" },
+    {
+      name: "description",
+      content: "保留原 Wiki 模板分类与剧情卡片交互方式的经典视图。",
+    },
+  ]
 }
 
 export function ClassicStoryPage() {
@@ -346,3 +356,5 @@ export function ClassicStoryPage() {
     </main>
   )
 }
+
+export default ClassicStoryPage

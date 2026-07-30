@@ -14,7 +14,7 @@ vi.mock("alova/client", () => ({
   useRequest: mocks.useRequest,
 }))
 
-vi.mock("~/shared/api", () => ({
+vi.mock("~/lib/api", () => ({
   getAdminSession: mocks.getAdminSession,
 }))
 

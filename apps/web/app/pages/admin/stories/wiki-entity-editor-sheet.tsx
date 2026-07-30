@@ -57,7 +57,7 @@ import {
   type WikiEntryKind,
   type WikiImageTransform,
   type WikiStoryEntrySubtype,
-} from "~/shared/api"
+} from "~/lib/api"
 
 export type WikiEntityEditorTarget =
   | { kind: "agency"; entity: WikiAdminAgency | null }

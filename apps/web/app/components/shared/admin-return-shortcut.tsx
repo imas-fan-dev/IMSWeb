@@ -2,7 +2,7 @@ import { useRequest } from "alova/client"
 import { LayoutDashboardIcon } from "lucide-react"
 import { Link } from "react-router"
 
-import { getAdminSession } from "~/shared/api"
+import { getAdminSession } from "~/lib/api"
 
 export function AdminReturnShortcut() {
   const { data, error, onError } = useRequest(getAdminSession())

@@ -1,4 +1,4 @@
-import type { WikiPublicStoryCard, WikiPublicStoryCategory } from "~/shared/api"
+import type { WikiPublicStoryCard, WikiPublicStoryCategory } from "~/lib/api"
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
 

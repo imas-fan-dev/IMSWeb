@@ -28,13 +28,23 @@ import { StoryCategorySection } from "~/pages/wiki/components/story-category-sec
 import { StoryNavigationPanel } from "~/pages/wiki/components/story-navigation-panel"
 import { safeWikiColor, storyCardMatches } from "~/pages/wiki/wiki-model"
 import { cn } from "~/lib/utils"
-import { getWikiStories, isApiError } from "~/shared/api"
-import type { WikiPublicStories } from "~/shared/api"
+import { getWikiStories, isApiError } from "~/lib/api"
+import type { WikiPublicStories } from "~/lib/api"
 
 const TARGET_CARD_HIGHLIGHT_MS = 1800
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "剧情内容暂时无法加载"
+}
+
+export function meta() {
+  return [
+    { title: "剧情详情 | IMSWeb" },
+    {
+      name: "description",
+      content: "按分类浏览内容页的剧情卡片与投稿来源。",
+    },
+  ]
 }
 
 export function StoryPage() {
@@ -374,3 +384,5 @@ export function StoryPage() {
     </main>
   )
 }
+
+export default StoryPage

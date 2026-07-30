@@ -1,7 +1,7 @@
 import type { ComponentPropsWithoutRef } from "react"
 
 import { cn } from "~/lib/utils"
-import { seriesWallItems } from "~/shared/series-wall"
+import { seriesWallItems } from "~/lib/series-wall"
 
 type SeriesAccentStripProps = Omit<
   ComponentPropsWithoutRef<"div">,

@@ -2,7 +2,7 @@ import { useWatcher } from "alova/client"
 import { ArrowRightIcon, CalendarDaysIcon, NewspaperIcon } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { getHomeEvents, getHomeNews } from "~/shared/api"
+import { getHomeEvents, getHomeNews } from "~/lib/api"
 import { useHomeSummaryCount } from "../hooks/use-home-summary-count"
 import { HomeEventRow, HomeFeedSkeleton, HomeNewsRow } from "./home-feed-items"
 

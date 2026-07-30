@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
-import { seriesWallItems } from "~/shared/series-wall"
+import { seriesWallItems } from "~/lib/series-wall"
 
 describe("SeriesAccentStrip", () => {
   it("renders the shared series colors in homepage order", () => {

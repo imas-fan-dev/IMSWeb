@@ -4,7 +4,7 @@ import * as echarts from "echarts/core"
 import { CanvasRenderer } from "echarts/renderers"
 import { useEffect, useRef, useState } from "react"
 
-import type { ProducerMapGeometry, ProducerMapRegion } from "~/shared/api"
+import type { ProducerMapGeometry, ProducerMapRegion } from "~/lib/api"
 
 echarts.use([MapChart, TooltipComponent, CanvasRenderer])
 

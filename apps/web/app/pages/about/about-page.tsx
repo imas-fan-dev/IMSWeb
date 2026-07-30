@@ -6,8 +6,8 @@ import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
-import { getAboutPageContent } from "~/shared/api"
-import type { AboutGroup, AboutPerson } from "~/shared/api"
+import { getAboutPageContent } from "~/lib/api"
+import type { AboutGroup, AboutPerson } from "~/lib/api"
 
 const groupAccents = [
   {

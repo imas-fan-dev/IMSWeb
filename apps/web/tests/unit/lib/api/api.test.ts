@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError, normalizeRequestError } from "~/shared/api/api-error"
-import { apiClient } from "~/shared/api/client"
-import { readCookie } from "~/shared/api/cookies"
-import { getAdminSession, loginAdmin } from "~/shared/api/endpoints/admin"
-import { applyApiRequestPolicy, CSRF_HEADER_NAME } from "~/shared/api/request"
-import { handleApiResponse } from "~/shared/api/response"
-import { withCsrf } from "~/shared/api/types"
+import { ApiError, normalizeRequestError } from "~/lib/api/api-error"
+import { apiClient } from "~/lib/api/client"
+import { readCookie } from "~/lib/api/cookies"
+import { getAdminSession, loginAdmin } from "~/lib/api/endpoints/admin"
+import { applyApiRequestPolicy, CSRF_HEADER_NAME } from "~/lib/api/request"
+import { handleApiResponse } from "~/lib/api/response"
+import { withCsrf } from "~/lib/api/types"
 
 afterEach(() => {
   vi.unstubAllGlobals()

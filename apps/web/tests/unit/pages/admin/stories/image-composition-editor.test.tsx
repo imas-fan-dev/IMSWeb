@@ -7,10 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { i18n } from "~/i18n/config"
 import { defaultLanguage, defaultNamespace } from "~/i18n/resources"
 import { ImageCompositionEditor } from "~/pages/admin/stories/image-composition-editor"
-import {
-  defaultWikiImageTransform,
-  type WikiImageTransform,
-} from "~/shared/api"
+import { defaultWikiImageTransform, type WikiImageTransform } from "~/lib/api"
 
 function TestI18nProvider({ children }: { children: ReactNode }) {
   return (

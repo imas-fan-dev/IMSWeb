@@ -20,7 +20,7 @@ import {
   AdminPanel,
   AdminStatus,
 } from "~/pages/admin/components/admin-ui"
-import type { AdminInformationCard, InformationSubmission } from "~/shared/api"
+import type { AdminInformationCard, InformationSubmission } from "~/lib/api"
 
 import {
   categoryLabel,

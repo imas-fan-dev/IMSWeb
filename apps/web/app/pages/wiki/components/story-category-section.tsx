@@ -16,7 +16,7 @@ import type {
   WikiImageTransform,
   WikiPublicStoryCard,
   WikiPublicStoryCategory,
-} from "~/shared/api"
+} from "~/lib/api"
 
 import {
   isPortraitStoryCategory,

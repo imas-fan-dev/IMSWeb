@@ -2,7 +2,7 @@ import { LayoutGridIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
-import type { WikiPublicCatalog } from "~/shared/api"
+import type { WikiPublicCatalog } from "~/lib/api"
 
 import { safeWikiColor } from "../wiki-model"
 

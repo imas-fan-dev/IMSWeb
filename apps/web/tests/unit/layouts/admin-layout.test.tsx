@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import AdminLayout from "~/routes/admin-layout"
-import { ApiError } from "~/shared/api/api-error"
+import AdminLayout from "~/layouts/admin-layout"
+import { ApiError } from "~/lib/api/api-error"
 
 const mocks = vi.hoisted(() => ({
   getAdminSession: vi.fn(() => ({ id: "admin-session-method" })),
@@ -18,7 +18,7 @@ vi.mock("alova/client", () => ({
   useRequest: mocks.useRequest,
 }))
 
-vi.mock("~/shared/api", () => ({
+vi.mock("~/lib/api", () => ({
   getAdminSession: mocks.getAdminSession,
   isApiError: (error: unknown) =>
     typeof error === "object" &&

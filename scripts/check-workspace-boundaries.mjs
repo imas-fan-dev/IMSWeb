@@ -385,11 +385,15 @@ for (const nestedRootMarker of [
 }
 
 const webAppRoot = path.join(webRoot, "app");
-const webApiRoot = path.join(webAppRoot, "shared/api");
+const webApiRoot = path.join(webAppRoot, "lib/api");
 const webPagesRoot = path.join(webAppRoot, "pages");
 forbidPath(
   path.join(webAppRoot, "features"),
   "web page implementations must follow the app/pages route hierarchy",
+);
+forbidPath(
+  path.join(webAppRoot, "shared"),
+  "web shared modules must live under app/lib",
 );
 for (const sourceFile of filesUnder(webAppRoot)) {
   if (!/\.tsx?$/.test(sourceFile)) continue;
@@ -405,18 +409,18 @@ for (const sourceFile of filesUnder(webAppRoot)) {
     /^(?:api|.+-api)\.ts$/.test(path.basename(sourceFile))
   ) {
     failures.push(
-      `${relative(sourceFile)}: page-local API modules are forbidden; use app/shared/api/endpoints`,
+      `${relative(sourceFile)}: page-local API modules are forbidden; use app/lib/api/endpoints`,
     );
   }
   const source = fs.readFileSync(sourceFile, "utf8");
   if (/\bfetch\s*\(|\bapiClient\s*\./.test(source)) {
     failures.push(
-      `${relative(sourceFile)}: browser requests must be defined in app/shared/api`,
+      `${relative(sourceFile)}: browser requests must be defined in app/lib/api`,
     );
   }
-  if (/from\s+['"]~\/shared\/api\//.test(source)) {
+  if (/from\s+['"]~\/lib\/api\//.test(source)) {
     failures.push(
-      `${relative(sourceFile)}: import the public ~/shared/api facade instead of API internals`,
+      `${relative(sourceFile)}: import the public ~/lib/api facade instead of API internals`,
     );
   }
 }

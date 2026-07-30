@@ -4,7 +4,7 @@ import { ArrowUpRightIcon } from "lucide-react"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
-import { getHomeInformation } from "~/shared/api"
+import { getHomeInformation } from "~/lib/api"
 
 function isExternalLink(href: string) {
   return href.startsWith("http://") || href.startsWith("https://")

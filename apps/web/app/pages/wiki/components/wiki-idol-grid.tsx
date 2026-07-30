@@ -7,7 +7,7 @@ import type {
   WikiImageTransform,
   WikiPublicCatalog,
   WikiPublicIdol,
-} from "~/shared/api"
+} from "~/lib/api"
 
 import { safeWikiColor } from "../wiki-model"
 

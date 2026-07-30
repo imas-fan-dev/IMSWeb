@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import { StoryOutline } from "~/pages/admin/stories/story-outline"
-import { defaultWikiImageTransform, type WikiAdminStories } from "~/shared/api"
+import { defaultWikiImageTransform, type WikiAdminStories } from "~/lib/api"
 
 const stories: WikiAdminStories = {
   status: "success",

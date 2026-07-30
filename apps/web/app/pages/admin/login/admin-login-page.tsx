@@ -19,7 +19,7 @@ import {
   AdminField,
   adminControlClass,
 } from "~/pages/admin/components/admin-ui"
-import { isApiError, loginAdmin } from "~/shared/api"
+import { isApiError, loginAdmin } from "~/lib/api"
 
 export function meta() {
   return [{ title: "管理登录 | IMSWeb" }]

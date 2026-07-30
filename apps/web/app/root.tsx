@@ -1,20 +1,7 @@
-import {
-  Links,
-  Link,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-  isRouteErrorResponse,
-} from "react-router"
-import { ThemeProvider } from "next-themes"
+import { Link, isRouteErrorResponse } from "react-router"
 import { useTranslation } from "react-i18next"
 
-import { ImageLoadingIndicator } from "~/components/shared/image-loading-indicator"
-import { ThemeColorSync } from "~/components/shared/theme-toggle"
-import { Toaster } from "~/components/ui/sonner"
-import { I18nProvider } from "~/i18n/provider"
-import { defaultLanguage } from "~/i18n/resources"
+import { RootAppLayout, RootDocumentLayout } from "~/layouts/root-layout"
 import type { Route } from "./+types/root"
 import "./app.css"
 
@@ -32,40 +19,9 @@ export function links() {
   return [{ rel: "icon", href: "/favicon.ico", type: "image/x-icon" }]
 }
 
-export function Layout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang={defaultLanguage} suppressHydrationWarning>
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#171717" />
-        <Meta />
-        <Links />
-      </head>
-      <body className="min-h-svh antialiased">
-        <I18nProvider>{children}</I18nProvider>
-        <ScrollRestoration />
-        <Scripts />
-      </body>
-    </html>
-  )
-}
+export { RootDocumentLayout as Layout }
 
-export default function App() {
-  return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <ImageLoadingIndicator />
-      <ThemeColorSync />
-      <Outlet />
-      <Toaster position="top-right" richColors closeButton />
-    </ThemeProvider>
-  )
-}
+export default RootAppLayout
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   const { t } = useTranslation()

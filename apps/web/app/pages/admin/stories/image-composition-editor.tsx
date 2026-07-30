@@ -33,10 +33,7 @@ import {
 import { Slider } from "~/components/ui/slider"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
 import { cn } from "~/lib/utils"
-import {
-  defaultWikiImageTransform,
-  type WikiImageTransform,
-} from "~/shared/api"
+import { defaultWikiImageTransform, type WikiImageTransform } from "~/lib/api"
 
 type PreviewRatio = "square" | "story"
 

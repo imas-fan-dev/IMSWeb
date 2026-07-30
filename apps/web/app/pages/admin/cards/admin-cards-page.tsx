@@ -21,7 +21,7 @@ import {
   deleteAdminNamecard,
   getAdminNamecards,
   type AdminNamecard,
-} from "~/shared/api"
+} from "~/lib/api"
 
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]

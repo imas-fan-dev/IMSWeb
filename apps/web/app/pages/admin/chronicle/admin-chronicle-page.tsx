@@ -27,7 +27,7 @@ import {
   rejectChronicleMedia,
   type PendingChronicleMedia,
   type UsedChronicleMedia,
-} from "~/shared/api"
+} from "~/lib/api"
 
 export function meta() {
   return [{ title: "活动纪年审核 | IMSWeb" }]
