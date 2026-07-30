@@ -202,6 +202,7 @@ export default function AdminEventsPage() {
         title="现有活动"
         description="展示当前公开 API 返回的最近活动"
         icon={CalendarDaysIcon}
+        contentClassName="min-w-0"
       >
         {loading ? (
           <p className="text-sm text-muted-foreground">正在读取活动……</p>
@@ -212,22 +213,27 @@ export default function AdminEventsPage() {
             description="请确认服务状态后刷新页面。"
           />
         ) : events.length ? (
-          <div className="grid gap-3">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
             {events.map((item) => (
               <article
                 key={item.id}
-                className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center"
+                className="flex max-w-full min-w-0 flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center"
               >
                 {item.image_url ? (
                   <img
                     src={item.image_url}
                     alt=""
-                    className="aspect-video w-full rounded-lg bg-muted object-cover sm:w-40"
+                    className="aspect-video w-full rounded-lg bg-muted object-cover sm:w-40 sm:shrink-0"
                     loading="lazy"
                   />
                 ) : null}
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-medium">{item.title}</h3>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <h3
+                    className="line-clamp-2 font-medium wrap-break-word"
+                    title={item.title}
+                  >
+                    {item.title}
+                  </h3>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {item.name || "未填写主办方"}
                   </p>
@@ -241,6 +247,7 @@ export default function AdminEventsPage() {
                   type="button"
                   size="sm"
                   variant="destructive"
+                  className="self-start sm:self-center"
                   disabled={busyId === item.id}
                   onClick={() => void remove(item)}
                 >
