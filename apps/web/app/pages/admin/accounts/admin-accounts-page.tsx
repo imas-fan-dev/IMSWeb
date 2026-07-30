@@ -67,7 +67,7 @@ import {
   isApiError,
   type AdminAccount,
   type AdminSession,
-} from "~/shared/api"
+} from "~/lib/api"
 
 type AdminOutletContext = {
   adminSession: AdminSession

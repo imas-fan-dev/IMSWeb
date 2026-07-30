@@ -1,7 +1,7 @@
 import { ArrowUpRightIcon, ImageIcon } from "lucide-react"
 
 import { Skeleton } from "~/components/ui/skeleton"
-import type { Recommendation } from "~/shared/api"
+import type { Recommendation } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",

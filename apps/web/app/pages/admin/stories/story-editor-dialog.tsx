@@ -47,7 +47,7 @@ import {
   parseBilibiliStoryUrl,
   updateWikiStory,
   updateWikiStoryCard,
-} from "~/shared/api"
+} from "~/lib/api"
 import type {
   WikiAdminStories,
   WikiAdminStory,
@@ -59,7 +59,7 @@ import type {
   WikiStorySourcePlatform,
   WikiStorySourceSubmission,
   WikiStorySubmission,
-} from "~/shared/api"
+} from "~/lib/api"
 
 type StorySourceForm = WikiStorySourceSubmission & { key: number }
 

@@ -34,7 +34,7 @@ import {
   isApiError,
   updateWikiStoryCoverAsset,
   type WikiStoryCoverAsset,
-} from "~/shared/api"
+} from "~/lib/api"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "保存失败，请稍后重试"

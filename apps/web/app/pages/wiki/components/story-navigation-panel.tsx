@@ -4,7 +4,7 @@ import { Link } from "react-router"
 import { buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { cn } from "~/lib/utils"
-import type { WikiPublicStories, WikiPublicStoryCategory } from "~/shared/api"
+import type { WikiPublicStories, WikiPublicStoryCategory } from "~/lib/api"
 
 export function StoryNavigationPanel({
   stories,

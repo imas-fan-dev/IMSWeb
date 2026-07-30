@@ -25,7 +25,7 @@ import {
   deleteAdminEvent,
   getEventPage,
   type EventListItem,
-} from "~/shared/api"
+} from "~/lib/api"
 
 export function meta() {
   return [{ title: "活动管理 | IMSWeb" }]

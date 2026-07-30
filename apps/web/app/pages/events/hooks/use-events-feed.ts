@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { cacheEventFeed, getEventPage } from "~/shared/api"
-import type { EventListItem, EventPageInfo } from "~/shared/api"
+import { cacheEventFeed, getEventPage } from "~/lib/api"
+import type { EventListItem, EventPageInfo } from "~/lib/api"
 
 const pageSize = 20
 

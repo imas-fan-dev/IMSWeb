@@ -12,8 +12,8 @@ import { Button, buttonVariants } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import { cn } from "~/lib/utils"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
-import { getWikiRandomIdol, isApiError } from "~/shared/api"
-import type { WikiRandomIdol } from "~/shared/api"
+import { getWikiRandomIdol, isApiError } from "~/lib/api"
+import type { WikiRandomIdol } from "~/lib/api"
 
 function idolStoryHref(idol: NonNullable<WikiRandomIdol["idol"]>) {
   return (

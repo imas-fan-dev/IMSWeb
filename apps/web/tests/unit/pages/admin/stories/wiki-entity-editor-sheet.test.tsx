@@ -13,7 +13,7 @@ import {
   type WikiAdminAgency,
   type WikiAdminGroup,
   type WikiAdminIdol,
-} from "~/shared/api"
+} from "~/lib/api"
 
 function requestDetails(call: unknown[]) {
   const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]

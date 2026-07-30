@@ -6,7 +6,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "~/components/ui/badge"
-import type { WikiEntryKind, WikiStoryEntrySubtype } from "~/shared/api"
+import type { WikiEntryKind, WikiStoryEntrySubtype } from "~/lib/api"
 
 export const wikiEntryKindOptions = [
   {

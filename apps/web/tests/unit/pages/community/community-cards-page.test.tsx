@@ -21,8 +21,8 @@ const toastMocks = vi.hoisted(() => ({
   success: vi.fn(),
 }))
 
-vi.mock("~/shared/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/shared/api")>()
+vi.mock("~/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
     ...actual,
     addNamecardReaction: apiMocks.addNamecardReaction,

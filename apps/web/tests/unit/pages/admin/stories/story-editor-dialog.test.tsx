@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryEditorDialog } from "~/pages/admin/stories/story-editor-dialog"
-import { defaultWikiImageTransform, type WikiAdminStory } from "~/shared/api"
+import { defaultWikiImageTransform, type WikiAdminStory } from "~/lib/api"
 
 const category = {
   id: 1,

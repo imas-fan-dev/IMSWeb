@@ -17,7 +17,8 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
-import { getChronicleActivity } from "~/shared/api"
+import { getChronicleActivity } from "~/lib/api"
+import type { Route } from "./+types/activity-page"
 
 export function meta() {
   return [{ title: "活动纪年 | IMSWeb" }]
@@ -42,19 +43,15 @@ function ActivityLoading() {
 }
 
 export default function ChronicleActivityPage({
-  activityId,
-}: {
-  activityId: string
-}) {
+  params,
+}: Route.ComponentProps) {
+  const { activityId } = params
   const { data, loading, error } = useRequest(() =>
     getChronicleActivity(activityId)
   )
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-6xl px-6 py-16"
-    >
+    <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-16">
       {loading ? <ActivityLoading /> : null}
 
       {error ? (
@@ -72,9 +69,7 @@ export default function ChronicleActivityPage({
               <HistoryIcon aria-hidden="true" />
             </EmptyMedia>
             <EmptyTitle>未找到该活动</EmptyTitle>
-            <EmptyDescription>
-              该活动编号不存在或尚未收录。
-            </EmptyDescription>
+            <EmptyDescription>该活动编号不存在或尚未收录。</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : null}

@@ -2,7 +2,7 @@ import { ArrowUpRightIcon, HistoryIcon, RefreshCwIcon } from "lucide-react"
 import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
-import type { WikiRandomBackground } from "~/shared/api"
+import type { WikiRandomBackground } from "~/lib/api"
 
 export function WikiHero({
   background,

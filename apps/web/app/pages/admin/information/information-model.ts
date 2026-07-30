@@ -1,9 +1,9 @@
-import { isApiError } from "~/shared/api"
+import { isApiError } from "~/lib/api"
 import type {
   InformationCategory,
   InformationContentType,
   InformationSubmission,
-} from "~/shared/api"
+} from "~/lib/api"
 
 export const emptyInformationSubmission: InformationSubmission = {
   title: "",

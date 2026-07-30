@@ -7,6 +7,16 @@ import { Button } from "~/components/ui/button"
 import { EventRow, EventsSkeleton } from "./components/events-list"
 import { useEventsFeed } from "./hooks/use-events-feed"
 
+export function meta() {
+  return [
+    { title: "活动中心 | IMSWeb" },
+    {
+      name: "description",
+      content: "浏览 IMSWeb 制作人社区持续更新的国内活动。",
+    },
+  ]
+}
+
 export function EventsCenter() {
   const {
     phase,
@@ -208,3 +218,5 @@ export function EventsCenter() {
     </main>
   )
 }
+
+export default EventsCenter

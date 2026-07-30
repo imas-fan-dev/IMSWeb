@@ -6,7 +6,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "~/components/ui/button"
-import type { AdminRecommendation } from "~/shared/api"
+import type { AdminRecommendation } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",

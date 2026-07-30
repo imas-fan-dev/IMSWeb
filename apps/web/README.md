@@ -64,34 +64,37 @@ pnpm exec playwright install chromium
 ```text
 app/
   components/ui/    shadcn 生成或维护的基础 UI 原语
-  lib/               与业务无关的前端工具
-  pages/             按页面层级组织的页面实现与页面专用组件
+  layouts/           顶层、公开站点与管理端 layout
+  lib/               跨页面非 UI 基础设施与通用工具
+    api/             统一 API 出口、客户端和请求策略
+      endpoints/     按接口领域组织的请求函数、schema 与类型
+  pages/             按 URL 与业务层级组织的 route-ready 页面模块
     admin/           后台页面及其下级页面
     <page>/components/ 复杂页面的页面专用展示与表单单元
     <page>/hooks/      页面专用请求状态与浏览器缓存逻辑
-  routes/            React Router 薄入口与 layout
-  shared/api/        统一 API 出口、客户端和请求策略
-    endpoints/       按接口领域组织的请求函数、schema 与类型
   app.css            Tailwind 入口和全局设计 token
   root.tsx           HTML shell、全局资源和顶层错误边界
   routes.ts          React Router framework route manifest
 public/              构建时原样复制、且必须登记来源的公开静态文件
 docs/                工程决策与资产来源记录
 tests/unit/           单元与组件测试
+  layouts/            按 app/layouts 归属管理的 layout 测试
   pages/              按 app/pages 层级集中管理的页面测试
   components/         按 app/components 层级管理的共享组件测试
   i18n/               国际化配置与行为测试
-  shared/api/         共享 API 策略与端点测试
+  lib/                按 app/lib 归属管理的基础设施与工具测试
 tests/e2e/            浏览器流程与可访问性冒烟测试
 ```
 
 边界约定：
 
-- 页面实现和数据编排放在 `app/pages/`，并按真实页面层级分类；`app/routes/` 只保留路由入口、参数适配和 metadata。
+- `app/routes.ts` 使用类型化配置直接建立 URL、layout 与 `app/pages/` 页面模块的关系，不为单纯转发、metadata 或参数适配创建额外 route 文件。
+- 页面实现和数据编排放在 `app/pages/`，并按真实 URL 与业务层级分类；被路由配置引用的页面模块同时负责 default component、metadata 和路由参数。
+- 路由 layout 统一定义在 `app/layouts/`。
 - 复杂页面的入口文件只保留页面流程编排；页面专用 UI 放入本页 `components/`，页面专用请求状态与浏览器缓存放入本页 `hooks/`，纯草稿类型、格式化与校验放入聚焦的 `*-model.ts`。内部文件直接导入，不建立页面级 barrel。
 - 单元测试统一放入 `tests/unit/` 并镜像 `app/` 的职责层级，使用 `~/...` 导入实现；不要把测试散落在页面入口、组件、Hook 或共享模块旁边。
 - `components/ui/` 只承载可复用的基础原语；跨页面业务组件应在 `app/components/` 下按领域组织。
-- 所有请求函数、schema 和 API 类型统一定义在 `app/shared/api/endpoints/`，经 `~/shared/api` 出口调用。页面不得直接使用 `fetch`、`apiClient`、API 内部子路径或页面本地 `api.ts`。
+- 所有请求函数、schema 和 API 类型统一定义在 `app/lib/api/endpoints/`，经 `~/lib/api` 出口调用。页面不得直接使用 `fetch`、`apiClient`、API 内部子路径或页面本地 `api.ts`。
 - 不再使用 `app/features/`；新增页面必须进入 `app/pages/` 对应层级。
 - `public/` 不接收私有 Legacy 资产。新增文件必须有明确用途、来源和许可状态，并登记在 [资产来源记录](docs/ASSET_PROVENANCE.md) 中。
 - Hono 路由与服务端领域逻辑不进入本仓库；接口契约的源头仍是上游 `apps/api`。
@@ -100,7 +103,7 @@ tests/e2e/            浏览器流程与可访问性冒烟测试
 
 前端按同源部署设计。API 方法应使用 `/api/...`、`/eventchronicle/...` 等相对 URL，由本地代理或生产边缘路由转发到 Hono，不在浏览器中配置跨域后端地址。
 
-`app/shared/api/` 对每个请求设置 `credentials: "same-origin"`，登录会话 Cookie 的签发、校验和失效仍由 Hono 负责。不要把会话 token 复制到 `localStorage`，也不要在页面中直接读取认证 Cookie。
+`app/lib/api/` 对每个请求设置 `credentials: "same-origin"`，登录会话 Cookie 的签发、校验和失效仍由 Hono 负责。不要把会话 token 复制到 `localStorage`，也不要在页面中直接读取认证 Cookie。
 
 需要 Hono CSRF 保护的写请求必须显式附加 `withCsrf()` 元数据。客户端会在发送前读取当前 `csrf_token` Cookie，并写入 `X-CSRFToken` 请求头；缺少 Cookie 时请求会在浏览器端失败。`same-origin` Cookie 策略不能替代 CSRF 标记，新增写接口时必须同时核对 Hono 的中间件要求。
 

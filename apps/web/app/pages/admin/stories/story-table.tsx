@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table"
-import type { WikiAdminStory } from "~/shared/api"
+import type { WikiAdminStory } from "~/lib/api"
 
 export function StoryTable({
   stories,
@@ -68,7 +68,9 @@ export function StoryTable({
                     <Badge variant="outline">{linkCount} 个来源</Badge>
                   ) : null}
                 </div>
-                <p className="mt-2 font-medium wrap-break-word">{story.cardName}</p>
+                <p className="mt-2 font-medium wrap-break-word">
+                  {story.cardName}
+                </p>
                 {story.subtitle ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {story.subtitle}

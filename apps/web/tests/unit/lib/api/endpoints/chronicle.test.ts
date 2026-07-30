@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   chronicleActivitySchema,
   chronicleActivitySummarySchema,
-} from "~/shared/api/endpoints/chronicle"
+} from "~/lib/api/endpoints/chronicle"
 
 describe("chronicle API contracts", () => {
   it("accepts the public activity summary returned by Hono", () => {

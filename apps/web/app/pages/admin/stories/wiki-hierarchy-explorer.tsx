@@ -24,11 +24,7 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { cn } from "~/lib/utils"
-import type {
-  WikiAdminAgency,
-  WikiAdminGroup,
-  WikiAdminIdol,
-} from "~/shared/api"
+import type { WikiAdminAgency, WikiAdminGroup, WikiAdminIdol } from "~/lib/api"
 
 export function WikiHierarchyExplorer({
   agency,

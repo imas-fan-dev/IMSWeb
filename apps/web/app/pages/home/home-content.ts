@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
-import { seriesWallItems } from "~/shared/series-wall"
+import { seriesWallItems } from "~/lib/series-wall"
 
 export type SeriesItem = (typeof seriesWallItems)[number]
 

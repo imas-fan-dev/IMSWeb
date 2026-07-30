@@ -45,8 +45,8 @@ import {
   getNamecardReactions,
   NAMECARD_REACTIONS,
   uploadNamecard,
-} from "~/shared/api"
-import type { Namecard, NamecardPage, NamecardReactions } from "~/shared/api"
+} from "~/lib/api"
+import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const SESSION_REACTION_LIMIT = 10

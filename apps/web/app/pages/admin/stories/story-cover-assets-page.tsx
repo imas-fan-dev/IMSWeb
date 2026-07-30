@@ -58,7 +58,7 @@ import {
   isApiError,
   type WikiAdminAgency,
   type WikiStoryCoverAsset,
-} from "~/shared/api"
+} from "~/lib/api"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
@@ -67,6 +67,10 @@ function errorMessage(error: unknown) {
 function positiveId(value: string | null) {
   const id = Number(value)
   return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
+export function meta() {
+  return [{ title: "企划剧情封面素材库 | IMSWeb" }]
 }
 
 export function StoryCoverAssetsPage() {
@@ -378,3 +382,5 @@ export function StoryCoverAssetsPage() {
     </div>
   )
 }
+
+export default StoryCoverAssetsPage

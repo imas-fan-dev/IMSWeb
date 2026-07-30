@@ -27,6 +27,7 @@ const navigation = [
   },
   { to: "/live", label: "navigation.live", end: false },
   { to: "/community", label: "navigation.community", end: true },
+  { to: "/about", label: "navigation.about", end: true }
 ] as const
 
 function desktopLinkClass({ isActive }: { isActive: boolean }) {

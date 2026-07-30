@@ -38,7 +38,7 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip"
 import { cn } from "~/lib/utils"
-import { getAdminSession, isApiError, logoutAdmin } from "~/shared/api"
+import { getAdminSession, isApiError, logoutAdmin } from "~/lib/api"
 
 const navigation: Array<{
   to: string

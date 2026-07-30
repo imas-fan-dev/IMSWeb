@@ -12,12 +12,9 @@ import {
   CardTitle,
 } from "~/components/ui/card"
 import { getWorkEntry } from "~/pages/works/works-content"
+import type { Route } from "./+types/work-detail-page"
 
-interface WorkDetailProps {
-  params: { workSlug: string }
-}
-
-export function meta({ params }: WorkDetailProps) {
+export function meta({ params }: Route.MetaArgs) {
   const entry = getWorkEntry(params.workSlug)
   return [{ title: `${entry?.title ?? "作品专题"} | IMSWeb` }]
 }
@@ -256,7 +253,7 @@ function FranchiseDetail({
   )
 }
 
-export default function WorkDetailPage({ params }: WorkDetailProps) {
+export default function WorkDetailPage({ params }: Route.ComponentProps) {
   const entry = getWorkEntry(params.workSlug)
 
   if (!entry) {

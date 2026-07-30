@@ -20,17 +20,13 @@ import { Link, useSearchParams } from "react-router"
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { wikiEntryKindLabel } from "~/components/wiki/wiki-entry-kind"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
-import {
-  getWikiCatalog,
-  getWikiRandomBackground,
-  isApiError,
-} from "~/shared/api"
+import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
 import type {
   WikiImageTransform,
   WikiPublicCatalog,
   WikiPublicIdol,
   WikiRandomBackground,
-} from "~/shared/api"
+} from "~/lib/api"
 
 import "./classic-wiki-index.css"
 
@@ -41,6 +37,16 @@ function classicErrorMessage(error: unknown) {
 interface BackgroundLayers {
   current: WikiRandomBackground | null
   previous: WikiRandomBackground | null
+}
+
+export function meta() {
+  return [
+    { title: "经典剧情导航 | IMSWeb" },
+    {
+      name: "description",
+      content: "保留原 Wiki 模板信息层级与交互方式的经典剧情导航。",
+    },
+  ]
 }
 
 export function ClassicWikiPage() {
@@ -401,6 +407,8 @@ export function ClassicWikiPage() {
     </main>
   )
 }
+
+export default ClassicWikiPage
 
 function ClassicIdolSection({
   agency,

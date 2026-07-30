@@ -31,7 +31,7 @@ import type {
   WikiAdminStories,
   WikiAdminStory,
   WikiAdminStoryCard,
-} from "~/shared/api"
+} from "~/lib/api"
 
 type StoryCard = WikiAdminStoryCard & {
   category: string

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { seriesWallItems } from "~/shared/series-wall"
+import { seriesWallItems } from "~/lib/series-wall"
 
 const seriesColors = [
   { token: "franchise-765", value: "#f34e6c" },

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AboutManager } from "~/pages/admin/about/about-manager"
-import type { AboutPageContent } from "~/shared/api"
+import type { AboutPageContent } from "~/lib/api"
 
 function aboutContent(): AboutPageContent {
   return {

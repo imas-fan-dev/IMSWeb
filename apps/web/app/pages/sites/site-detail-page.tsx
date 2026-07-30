@@ -16,7 +16,8 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
-import { getPublicSitePackage } from "~/shared/api"
+import { getPublicSitePackage } from "~/lib/api"
+import type { Route } from "./+types/site-detail-page"
 
 function SiteDetailLoading() {
   return (
@@ -38,20 +39,14 @@ function formatPublishedDate(timestamp: number) {
   }).format(new Date(timestamp))
 }
 
-export default function SiteDetailPage({
-  siteSlug,
-}: {
-  siteSlug: string
-}) {
+export default function SiteDetailPage({ params }: Route.ComponentProps) {
+  const { siteSlug } = params
   const { data, loading, error } = useRequest(() =>
     getPublicSitePackage(siteSlug)
   )
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-4xl px-6 py-16"
-    >
+    <main id="main-content" className="mx-auto w-full max-w-4xl px-6 py-16">
       {loading ? <SiteDetailLoading /> : null}
 
       {error ? (
@@ -69,9 +64,7 @@ export default function SiteDetailPage({
               <GlobeIcon aria-hidden="true" />
             </EmptyMedia>
             <EmptyTitle>站点包不存在</EmptyTitle>
-            <EmptyDescription>
-              该站点包尚未发布或不存在。
-            </EmptyDescription>
+            <EmptyDescription>该站点包尚未发布或不存在。</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : null}

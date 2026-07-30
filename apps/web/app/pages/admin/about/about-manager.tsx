@@ -47,13 +47,13 @@ import {
   getAdminAboutPageContent,
   uploadAboutHeroImage,
   updateAdminAboutPageContent,
-} from "~/shared/api"
+} from "~/lib/api"
 import type {
   AboutAdminSnapshot,
   AboutGroup,
   AboutPageContent,
   AboutPerson,
-} from "~/shared/api"
+} from "~/lib/api"
 
 function editorId(prefix: string): string {
   return `${prefix}-${globalThis.crypto.randomUUID()}`
@@ -897,6 +897,10 @@ function GroupEditor({
   )
 }
 
+export function meta() {
+  return [{ title: "关于页配置 | IMSWeb" }]
+}
+
 export function AboutManager() {
   const {
     loading,
@@ -1266,3 +1270,5 @@ export function AboutManager() {
     </form>
   )
 }
+
+export default AboutManager

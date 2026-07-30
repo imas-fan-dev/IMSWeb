@@ -29,7 +29,7 @@ import {
   type ProducerMapCommunity,
   type ProducerMapRegion,
   type ProducerMapSeries,
-} from "~/shared/api"
+} from "~/lib/api"
 
 const chinaCommunityMapModule =
   import("~/pages/producer-map/components/china-community-map")

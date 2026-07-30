@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { InformationDocumentFrame } from "~/pages/information/components/information-document-frame"
-import { getHomeInformationDetail, isApiError } from "~/shared/api"
+import { getHomeInformationDetail, isApiError } from "~/lib/api"
 
 export function meta() {
   return [{ title: "活动内容 | IMSWeb" }]

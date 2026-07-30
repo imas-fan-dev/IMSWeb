@@ -19,7 +19,7 @@ import {
   isApiError,
   updateWikiCategory,
   type WikiAdminStories,
-} from "~/shared/api"
+} from "~/lib/api"
 
 type WikiAdminCategory = WikiAdminStories["categories"][number]
 

@@ -22,13 +22,13 @@ import {
   getAdminInformation,
   updateInformation,
   uploadInformationAsset,
-} from "~/shared/api"
+} from "~/lib/api"
 import type {
   AdminInformationCard,
   InformationCategory,
   InformationContentType,
   InformationSubmission,
-} from "~/shared/api"
+} from "~/lib/api"
 import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
 import {
   AdminField,
@@ -48,6 +48,10 @@ import {
   emptyInformationSubmission,
   informationErrorMessage,
 } from "./information-model"
+
+export function meta() {
+  return [{ title: "活动内容管理 | IMSWeb" }]
+}
 
 export function InformationManager() {
   const {
@@ -389,3 +393,5 @@ export function InformationManager() {
     </div>
   )
 }
+
+export default InformationManager

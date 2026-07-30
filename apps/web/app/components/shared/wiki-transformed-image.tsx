@@ -1,10 +1,7 @@
 import { useState, type ComponentProps } from "react"
 
 import { cn } from "~/lib/utils"
-import {
-  defaultWikiImageTransform,
-  type WikiImageTransform,
-} from "~/shared/api"
+import { defaultWikiImageTransform, type WikiImageTransform } from "~/lib/api"
 
 type WikiTransformedImageProps = Omit<ComponentProps<"img">, "style"> & {
   transform?: WikiImageTransform

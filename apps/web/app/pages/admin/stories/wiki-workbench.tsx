@@ -85,7 +85,7 @@ import {
   getAdminWikiStories,
   getWikiStorySourceCatalog,
   isApiError,
-} from "~/shared/api"
+} from "~/lib/api"
 import type {
   WikiAdminAgency,
   WikiAdminCatalog,
@@ -95,7 +95,7 @@ import type {
   WikiAdminStoryCard,
   WikiStorySourceCatalog,
   WikiStoryCoverAsset,
-} from "~/shared/api"
+} from "~/lib/api"
 
 type StoriesRequest = {
   key: string

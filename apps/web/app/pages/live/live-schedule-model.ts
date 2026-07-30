@@ -1,4 +1,4 @@
-import type { LiveEvent } from "~/shared/api"
+import type { LiveEvent } from "~/lib/api"
 
 export const LIVE_ARCHIVE_START_MONTH = "2020-08"
 export const LIVE_PAGE_SIZE = 10

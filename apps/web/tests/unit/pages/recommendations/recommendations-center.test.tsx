@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { RecommendationsCenter } from "~/pages/recommendations/recommendations-center"
-import { cacheRecommendationFeed, parseRecommendationPage } from "~/shared/api"
-import type { Recommendation } from "~/shared/api"
+import { cacheRecommendationFeed, parseRecommendationPage } from "~/lib/api"
+import type { Recommendation } from "~/lib/api"
 
 const { virtualizerOptions } = vi.hoisted(() => ({
   virtualizerOptions: vi.fn(),

@@ -7,7 +7,7 @@ import {
   defaultWikiImageTransform,
   type WikiAdminAgency,
   type WikiAdminIdol,
-} from "~/shared/api"
+} from "~/lib/api"
 
 function idol(id: number, name: string, groupIds: number[]): WikiAdminIdol {
   return {

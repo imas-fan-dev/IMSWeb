@@ -19,8 +19,8 @@ import {
   getRecommendations,
   isApiError,
   parseBilibiliStoryUrl,
-} from "~/shared/api"
-import type { AdminRecommendation } from "~/shared/api"
+} from "~/lib/api"
+import type { AdminRecommendation } from "~/lib/api"
 import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
 import {
   AdminEmptyState,
@@ -32,6 +32,10 @@ import { RecommendationRow } from "./components/recommendation-row"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
+}
+
+export function meta() {
+  return [{ title: "向您推荐管理 | IMSWeb" }]
 }
 
 export function RecommendationManager() {
@@ -258,3 +262,5 @@ export function RecommendationManager() {
     </div>
   )
 }
+
+export default RecommendationManager
