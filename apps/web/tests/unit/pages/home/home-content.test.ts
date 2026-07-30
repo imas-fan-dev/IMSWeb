@@ -45,6 +45,7 @@ describe("home content", () => {
       "/recommendations",
       "/live",
       "/community",
+      "/wiki",
       "/community/cards",
       "/producer-map",
       "/works",

@@ -6,6 +6,7 @@ import {
   HistoryIcon,
   IdCardIcon,
   InfoIcon,
+  LibraryBigIcon,
   MapPinnedIcon,
   RadioTowerIcon,
 } from "lucide-react"
@@ -60,6 +61,13 @@ export const portalItems: PortalItem[] = [
     href: "/community",
     icon: ContactRoundIcon,
     accent: "bg-franchise-ml",
+  },
+  {
+    title: "剧情站",
+    description: "查阅偶像剧情档案与中文资料",
+    href: "/wiki",
+    icon: LibraryBigIcon,
+    accent: "bg-franchise-sc",
   },
   {
     title: "制作人名片墙",

@@ -62,7 +62,7 @@ export const resources = {
         works: "作品",
         chronicle: "编年史",
         about: "关于",
-        runningGame: "板板大暴走",
+        storySite: "剧情站",
         open: "打开导航",
       },
       footer: {
@@ -151,7 +151,7 @@ export const resources = {
         works: "Works",
         chronicle: "Chronicle",
         about: "About",
-        runningGame: "Running Idol",
+        storySite: "Story Archive",
         open: "Open navigation",
       },
       footer: {
