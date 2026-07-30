@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { StoryPage } from "~/pages/wiki/story-page"
+import { StoryPage } from "~/pages/wiki/modern/story-page"
 
 function storyPayload(withCards = true, includeSourcelessCard = false) {
   return {
@@ -57,7 +57,7 @@ function storyPayload(withCards = true, includeSourcelessCard = false) {
                     {
                       id: 402,
                       name: "【来源待补】",
-                      img: "/image/story-pending.webp",
+                      img: "",
                       subtitle: "待编辑",
                       links: [],
                     },
@@ -221,7 +221,7 @@ describe("StoryPage", () => {
     expect(target).not.toHaveClass("ring-primary", "ring-offset-3")
   })
 
-  it("fades only cards without sources and keeps them interactive", async () => {
+  it("keeps cards without covers or sources visually normal and interactive", async () => {
     vi.stubGlobal(
       "fetch",
       vi
@@ -239,9 +239,20 @@ describe("StoryPage", () => {
       name: "【来源待补】，暂无来源",
     })
     expect(sourcedCard).toHaveAttribute("data-source-state", "available")
+    expect(sourcedCard).toHaveClass("border")
     expect(sourcedCard).not.toHaveClass("opacity-45")
     expect(sourcelessCard).toHaveAttribute("data-source-state", "empty")
-    expect(sourcelessCard).toHaveClass("opacity-45", "saturate-50")
+    expect(sourcelessCard).toHaveClass("border")
+    expect(sourcelessCard).not.toHaveClass("border-2")
+    expect(sourcelessCard.style.borderColor).toBe("")
+    expect(sourcelessCard.style.color).toBe("")
+    expect(sourcelessCard.style.backgroundColor).toBe("")
+    expect(sourcelessCard).not.toHaveClass(
+      "opacity-45",
+      "saturate-50",
+      "hover:opacity-70",
+      "focus-visible:opacity-70"
+    )
 
     await user.click(sourcelessCard)
     expect(screen.getByRole("dialog")).toBeVisible()

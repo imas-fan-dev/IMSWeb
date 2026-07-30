@@ -9,8 +9,9 @@ const seriesIcons = [
   { src: "/brand/series/gakuen.png", width: 659, height: 609 },
 ] as const
 
-const motifCount = 12
+const motifCount = 18
 const animationFrameDuration = 1000 / 30
+const mobileBreakpoint = 640
 
 type MovingMotif = {
   element: HTMLImageElement
@@ -38,15 +39,27 @@ export function SeriesIconBackground() {
 
       const icon = seriesIcons[index % seriesIcons.length]
       const aspectRatio = icon.width / icon.height
-      const size = 30 + Math.random() * 70
+      const compactViewport = window.innerWidth < mobileBreakpoint
+      const size = compactViewport
+        ? 40 + Math.random() * 68
+        : 52 + Math.random() * 96
       const estimatedWidth = size
       const estimatedHeight = size / aspectRatio
-      const x = Math.random() * Math.max(0, window.innerWidth - estimatedWidth)
+      const columnCount = compactViewport ? 3 : 6
+      const rowCount = Math.ceil(motifCount / columnCount)
+      const column = index % columnCount
+      const row = Math.floor(index / columnCount)
+      const cellWidth = window.innerWidth / columnCount
+      const cellHeight = window.innerHeight / rowCount
+      const x =
+        column * cellWidth +
+        Math.random() * Math.max(0, cellWidth - estimatedWidth)
       const y =
-        Math.random() * Math.max(0, window.innerHeight - estimatedHeight)
+        row * cellHeight +
+        Math.random() * Math.max(0, cellHeight - estimatedHeight)
 
       element.style.width = `${size}px`
-      element.style.opacity = `${0.22 + Math.random() * 0.38}`
+      element.style.opacity = `${0.3 + Math.random() * 0.42}`
 
       return [
         {

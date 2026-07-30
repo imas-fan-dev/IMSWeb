@@ -56,9 +56,9 @@ describe("SiteHeader", () => {
       within(navigation)
         .getAllByRole("link")
         .map((link) => link.textContent)
-    ).toEqual(["首页", "活动", "推荐", "Live", "社区"])
+    ).toEqual(["首页", "活动", "推荐", "Live", "社区", "关于"])
 
-    for (const secondaryLabel of ["名片墙", "地图", "作品", "编年史", "关于"]) {
+    for (const secondaryLabel of ["名片墙", "地图", "作品", "编年史"]) {
       expect(
         within(navigation).queryByRole("link", { name: secondaryLabel })
       ).not.toBeInTheDocument()

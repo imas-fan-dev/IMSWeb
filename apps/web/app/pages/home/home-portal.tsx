@@ -1,5 +1,3 @@
-import { SeriesIconBackground } from "~/components/shared/series-icon-background"
-
 import { ActivityHighlights } from "./components/activity-highlights"
 import { BirthdayCalendar } from "./components/birthday-calendar"
 import { HomeFeed } from "./components/home-feed"
@@ -23,7 +21,6 @@ export function HomePortal() {
   return (
     <main id="main-content" className="relative isolate overflow-clip">
       <HomeBrowserBrand />
-      <SeriesIconBackground />
       <div className="relative z-10">
         <SeriesWall />
         <TodayBirthdayNotice />

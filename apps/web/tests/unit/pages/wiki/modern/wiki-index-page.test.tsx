@@ -3,10 +3,18 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { WikiIndexPage } from "~/pages/wiki/wiki-index-page"
+import { WikiIndexPage } from "~/pages/wiki/modern/wiki-index-page"
 
 function response(payload: unknown) {
   return Promise.resolve(Response.json(payload))
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
 }
 
 function agency(
@@ -189,6 +197,50 @@ describe("WikiIndexPage", () => {
 
     await user.type(screen.getByLabelText("搜索内容页"), "不存在")
     expect(await screen.findByText("没有匹配的内容页")).toBeVisible()
+  })
+
+  it("keeps the agency rail stable while the next agency loads", async () => {
+    const nextCatalog = deferred<Response>()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        if (url.pathname === "/api/wiki/random_bg") {
+          return response({ url: "" })
+        }
+        if (url.searchParams.get("agency") === "765PRO") {
+          return nextCatalog.promise
+        }
+        return response(catalogPayload("闪耀色彩"))
+      })
+    )
+    const user = userEvent.setup()
+
+    renderWiki()
+
+    expect(await screen.findByRole("link", { name: /樱木真乃/ })).toBeVisible()
+    const agencyTabs = screen.getByTestId("wiki-agency-tabs")
+    const targetAgency = within(agencyTabs).getByRole("tab", {
+      name: /765PRO/,
+    })
+    expect(within(agencyTabs).getAllByRole("tab")).toHaveLength(2)
+
+    await user.click(targetAgency)
+
+    expect(agencyTabs).toHaveAttribute("aria-busy", "true")
+    expect(within(agencyTabs).getAllByRole("tab")).toHaveLength(2)
+    expect(targetAgency).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      "agency=765PRO"
+    )
+
+    nextCatalog.resolve(Response.json(catalogPayload("765PRO")))
+
+    expect(await screen.findByRole("link", { name: /天海春香/ })).toBeVisible()
+    expect(agencyTabs).toHaveAttribute("aria-busy", "false")
   })
 
   it("renders a cross-group idol in every group but counts them once", async () => {

@@ -220,6 +220,7 @@
 }
 
 .series-icon-motif {
+  --series-icon-accent: var(--franchise-765);
   position: absolute;
   top: 0;
   left: 0;
@@ -227,13 +228,45 @@
   max-width: none;
   height: auto;
   opacity: 0;
-  filter: saturate(0.92);
+  filter: saturate(1.38) brightness(1.06) contrast(1.08)
+    drop-shadow(
+      0 0 9px color-mix(in oklch, var(--series-icon-accent) 55%, transparent)
+    )
+    drop-shadow(
+      0 0 22px color-mix(in oklch, var(--series-icon-accent) 28%, transparent)
+    );
   transform-origin: center;
   will-change: transform;
 }
 
+.series-icon-motif:nth-child(6n + 2) {
+  --series-icon-accent: var(--franchise-cg);
+}
+
+.series-icon-motif:nth-child(6n + 3) {
+  --series-icon-accent: var(--franchise-ml);
+}
+
+.series-icon-motif:nth-child(6n + 4) {
+  --series-icon-accent: var(--franchise-sidem);
+}
+
+.series-icon-motif:nth-child(6n + 5) {
+  --series-icon-accent: var(--franchise-sc);
+}
+
+.series-icon-motif:nth-child(6n) {
+  --series-icon-accent: var(--franchise-gk);
+}
+
 .dark .series-icon-motif {
-  filter: saturate(0.92) brightness(1.3);
+  filter: saturate(1.5) brightness(1.25) contrast(1.1)
+    drop-shadow(
+      0 0 10px color-mix(in oklch, var(--series-icon-accent) 68%, transparent)
+    )
+    drop-shadow(
+      0 0 24px color-mix(in oklch, var(--series-icon-accent) 36%, transparent)
+    );
 }
 
 @media (prefers-reduced-motion: reduce) {
