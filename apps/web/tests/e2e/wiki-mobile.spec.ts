@@ -92,6 +92,51 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   await expect(navigationButton).toHaveAttribute("aria-expanded", "true")
   await expect(sidebar).toHaveClass(/is-open/)
   await expect(agencyRail).toBeVisible()
+  const navigationLayout = await sidebar.evaluate((element) => {
+    const sidebarRect = element.getBoundingClientRect()
+    const agencyButtons = Array.from(
+      element.querySelectorAll<HTMLElement>(
+        ".wiki-classic-agency-button[role='tab']"
+      )
+    )
+    const secondaryButtons = Array.from(
+      element.querySelectorAll<HTMLElement>(
+        ".wiki-classic-agency-button.is-secondary"
+      )
+    )
+
+    return {
+      overflowingLabels: [...agencyButtons, ...secondaryButtons]
+        .filter((button) => {
+          const rect = button.getBoundingClientRect()
+          return rect.left < sidebarRect.left || rect.right > sidebarRect.right
+        })
+        .map((button) => button.textContent?.trim()),
+      agencyButtons: agencyButtons.map((button) => {
+        const style = getComputedStyle(button)
+        return {
+          borderRadius: style.borderRadius,
+          borderRightWidth: style.borderRightWidth,
+        }
+      }),
+      secondaryButtons: secondaryButtons.map((button) => ({
+        borderRadius: getComputedStyle(button).borderRadius,
+        borderRightWidth: getComputedStyle(button).borderRightWidth,
+      })),
+    }
+  })
+  expect(navigationLayout.overflowingLabels).toEqual([])
+  expect(navigationLayout.agencyButtons).toHaveLength(7)
+  expect(navigationLayout.agencyButtons).toEqual(
+    Array.from({ length: 7 }, () => ({
+      borderRadius: "14px",
+      borderRightWidth: "2px",
+    }))
+  )
+  expect(navigationLayout.secondaryButtons).toEqual([
+    { borderRadius: "14px", borderRightWidth: "0px" },
+    { borderRadius: "14px", borderRightWidth: "0px" },
+  ])
   const millionLive = agencyRail.getByRole("tab", { name: /百万现场/ })
   await millionLive.click()
   await expect(navigationButton).toHaveAttribute("aria-expanded", "false")
@@ -313,6 +358,9 @@ test("classic Wiki styles survive returning from a story", async ({
       const activeAgency = getComputedStyle(
         document.querySelector(".wiki-classic-agency-button.is-active")!
       )
+      const secondaryAgency = getComputedStyle(
+        document.querySelector(".wiki-classic-agency-button.is-secondary")!
+      )
 
       return {
         pattern: {
@@ -334,6 +382,10 @@ test("classic Wiki styles survive returning from a story", async ({
           borderRightWidth: activeAgency.borderRightWidth,
           gridTemplateColumns: activeAgency.gridTemplateColumns,
           padding: activeAgency.padding,
+        },
+        secondaryAgency: {
+          borderRadius: secondaryAgency.borderRadius,
+          borderRightWidth: secondaryAgency.borderRightWidth,
         },
       }
     })
@@ -359,4 +411,8 @@ test("classic Wiki styles survive returning from a story", async ({
   expect(directStyles.sidebar.position).toBe("fixed")
   expect(directStyles.activeAgency.backgroundColor).toBe("rgb(243, 152, 0)")
   expect(directStyles.activeAgency.borderRightWidth).toBe("0px")
+  expect(directStyles.secondaryAgency).toEqual({
+    borderRadius: "14px 0px 0px 14px",
+    borderRightWidth: "0px",
+  })
 })

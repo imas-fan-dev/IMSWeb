@@ -448,7 +448,7 @@
     min-height: 56px;
     margin: 0 0 10px;
     padding: 10px 12px;
-    border-right-width: 2px;
+    border: 2px solid var(--agency-color);
     border-radius: 14px;
     transform: none;
   }
@@ -456,6 +456,8 @@
   .wiki-classic-agency-button.is-secondary {
     display: grid;
     min-height: 44px;
+    border: 0;
+    border-radius: 14px;
   }
 
   .wiki-classic-banner {
