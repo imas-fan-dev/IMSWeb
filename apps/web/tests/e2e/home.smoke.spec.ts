@@ -54,7 +54,7 @@ for (const route of publicRoutes) {
       const background = page.getByTestId("series-icon-background")
       await expect(background).toBeVisible()
       await expect(background).toHaveCount(1)
-      await expect(background.locator(".series-icon-motif")).toHaveCount(18)
+      await expect(background.locator(".series-icon-motif")).toHaveCount(12)
     }
 
     expect(consoleErrors, "the page should not log console errors").toEqual([])
@@ -176,17 +176,38 @@ test("work detail loads its character and font directly from R2", async ({
   expect(legacyAssetRequests).toEqual([])
 })
 
-test("work detail carries the homepage moving series background", async ({
+test("work detail carries the lightweight global series background", async ({
   page,
+  isMobile,
 }) => {
   await page.goto("/works/sc")
 
   const background = page.getByTestId("series-icon-background")
   const motifs = background.locator(".series-icon-motif")
   await expect(background).toBeVisible()
-  await expect(motifs).toHaveCount(18)
+  await expect(motifs).toHaveCount(12)
+  await expect(motifs.filter({ visible: true })).toHaveCount(isMobile ? 8 : 12)
+
+  const visibleWidths = await motifs.evaluateAll((elements) =>
+    elements
+      .filter((element) => !(element as HTMLElement).hidden)
+      .map((element) => Number.parseFloat(getComputedStyle(element).width))
+  )
+  const [minimumWidth, maximumWidth] = isMobile ? [50, 98] : [68, 136]
+  expect(
+    visibleWidths.every(
+      (width) => width >= minimumWidth && width <= maximumWidth
+    )
+  ).toBe(true)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth
+    )
+  ).toBe(true)
 
   const firstMotif = motifs.first()
+  await expect(firstMotif).toHaveCSS("filter", "none")
+  await expect(firstMotif).toHaveCSS("will-change", "transform")
   const initialTransform = await firstMotif.evaluate(
     (element) => element.style.transform
   )
@@ -369,8 +390,9 @@ test("home exposes current discovery and birthday interactions", async ({
 
   const brandBackground = page.getByTestId("series-icon-background")
   await expect(brandBackground).toBeVisible()
-  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(18)
+  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(12)
   const firstMotif = brandBackground.locator(".series-icon-motif").first()
+  await expect(firstMotif).toHaveCSS("filter", "none")
   const initialTransform = await firstMotif.evaluate(
     (element) => element.style.transform
   )
