@@ -19,7 +19,10 @@ describe("SeriesIconBackground", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.75)
     vi.stubGlobal("innerWidth", 800)
     vi.stubGlobal("innerHeight", 600)
-    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }))
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query === "(pointer: fine)" }))
+    )
     vi.stubGlobal(
       "requestAnimationFrame",
       vi.fn((callback: FrameRequestCallback) => {
@@ -31,35 +34,36 @@ describe("SeriesIconBackground", () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
-  it("renders six-series motifs and advances them per frame", () => {
+  it("moves a reduced set of six-series motifs across the viewport", () => {
     const { container } = render(<SeriesIconBackground />)
     const background = screen.getByTestId("series-icon-background")
     const motifs = container.querySelectorAll("img.series-icon-motif")
     const firstMotif = motifs[0]
 
     expect(background).toHaveAttribute("aria-hidden", "true")
-    expect(motifs).toHaveLength(18)
+    expect(motifs).toHaveLength(12)
     expect(firstMotif).toHaveAttribute("src", "/brand/series/765pro.png")
     expect(firstMotif).toHaveAttribute("width", "193")
     expect(firstMotif).toHaveAttribute("height", "150")
-    expect(firstMotif).toHaveStyle({ width: "124px", opacity: "0.615" })
+    expect(firstMotif).toHaveStyle({ width: "119px", opacity: "0.370" })
 
     const [initialX, initialY, initialRotation] = readTransform(firstMotif)
     act(() => nextFrame?.(16))
     const [nextX, nextY, nextRotation] = readTransform(firstMotif)
 
-    expect(nextX - initialX).toBeCloseTo(0.2)
-    expect(nextY - initialY).toBeCloseTo(0.2)
-    expect(nextRotation - initialRotation).toBeCloseTo(0.1)
+    expect(nextX - initialX).toBeCloseTo(0.3)
+    expect(nextY - initialY).toBeCloseTo(0.3)
+    expect(nextRotation - initialRotation).toBeCloseTo(0.16)
 
     act(() => nextFrame?.(24))
     expect(readTransform(firstMotif)).toEqual([nextX, nextY, nextRotation])
   })
 
-  it("repels a nearby motif from the pointer", () => {
+  it("repels a nearby motif without allowing unbounded acceleration", () => {
     const { container } = render(<SeriesIconBackground />)
     const firstMotif = container.querySelector(".series-icon-motif")
     if (!firstMotif) throw new Error("Expected a background motif")
@@ -72,11 +76,29 @@ describe("SeriesIconBackground", () => {
     act(() => nextFrame?.(16))
     const [repelledX] = readTransform(firstMotif)
 
-    expect(repelledX - initialX).toBeGreaterThan(0.2)
+    expect(repelledX - initialX).toBeGreaterThan(0.3)
+    expect(repelledX - initialX).toBeLessThanOrEqual(0.96)
+  })
+
+  it("keeps four motifs inactive on compact viewports", () => {
+    vi.stubGlobal("innerWidth", 390)
+
+    const { container } = render(<SeriesIconBackground />)
+    const motifs = [...container.querySelectorAll(".series-icon-motif")]
+
+    expect(
+      motifs.filter((motif) => (motif as HTMLElement).hidden)
+    ).toHaveLength(4)
+    expect(motifs[0]).toHaveStyle({ width: "86px" })
   })
 
   it("keeps the motifs static when reduced motion is preferred", () => {
-    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }))
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+      }))
+    )
 
     const { container } = render(<SeriesIconBackground />)
     const firstMotif = container.querySelector(".series-icon-motif")
