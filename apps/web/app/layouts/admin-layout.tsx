@@ -8,6 +8,7 @@ import {
   HistoryIcon,
   HomeIcon,
   InfoIcon,
+  LayoutDashboardIcon,
   LoaderCircleIcon,
   LogInIcon,
   LogOutIcon,
@@ -63,6 +64,13 @@ const navigation: Array<{
     description: "公开活动发布",
     icon: MegaphoneIcon,
     accent: "bg-franchise-765",
+  },
+  {
+    to: "/admin/homepage",
+    label: "首页板块",
+    description: "导航、友链与站点支持",
+    icon: LayoutDashboardIcon,
+    accent: "bg-franchise-sc",
   },
   {
     to: "/admin/information",

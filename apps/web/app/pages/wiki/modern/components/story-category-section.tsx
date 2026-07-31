@@ -99,6 +99,8 @@ export function StoryCategorySection({
                 textOnly
                   ? "flex min-h-13 items-center justify-center rounded-lg border bg-card px-4 py-3 text-center text-[15px] font-bold shadow-sm transition-all duration-500 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                   : "overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-[box-shadow,filter,opacity,transform] duration-500 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                !hasSources &&
+                  "opacity-60 grayscale hover:opacity-80 focus-visible:opacity-80",
                 "scroll-mt-24",
                 isTargetCard && "shadow-lg ring-3 ring-primary ring-offset-3"
               )}

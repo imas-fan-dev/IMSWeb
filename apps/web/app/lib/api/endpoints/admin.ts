@@ -264,6 +264,14 @@ export function deleteInformation(id: string) {
   )
 }
 
+export function reorderInformation(ids: string[]) {
+  return apiClient.Put<{ success: true }, unknown>(
+    "/api/admin/information/order",
+    { ids },
+    { meta: withCsrf() }
+  )
+}
+
 export function deleteInformationAsset(url: string) {
   return apiClient.Delete<{ success: true }, unknown>(
     "/api/admin/information/assets",

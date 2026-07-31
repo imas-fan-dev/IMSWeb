@@ -29,12 +29,7 @@ export function RootDocumentLayout({ children }: { children: ReactNode }) {
 
 export function RootAppLayout() {
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ImageLoadingIndicator />
       <ThemeColorSync />
       <Outlet />

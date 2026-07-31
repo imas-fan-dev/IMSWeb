@@ -6,6 +6,7 @@ import { SeriesWall, TodayBirthdayNotice } from "./components/home-hero"
 import { FriendLinks, PortalDirectory } from "./components/home-navigation"
 import { RandomIdol } from "./components/random-idol"
 import { SiteSupport } from "./components/site-support"
+import { HomepageLinksProvider } from "./hooks/use-homepage-links"
 
 export function meta() {
   return [
@@ -21,17 +22,19 @@ export function HomePortal() {
   return (
     <main id="main-content" className="relative isolate overflow-clip">
       <HomeBrowserBrand />
-      <div className="relative z-10">
-        <SeriesWall />
-        <TodayBirthdayNotice />
-        <PortalDirectory />
-        <HomeFeed />
-        <BirthdayCalendar />
-        <ActivityHighlights />
-        <RandomIdol />
-        <FriendLinks />
-        <SiteSupport />
-      </div>
+      <HomepageLinksProvider>
+        <div className="relative z-10">
+          <SeriesWall />
+          <TodayBirthdayNotice />
+          <PortalDirectory />
+          <HomeFeed />
+          <BirthdayCalendar />
+          <ActivityHighlights />
+          <RandomIdol />
+          <FriendLinks />
+          <SiteSupport />
+        </div>
+      </HomepageLinksProvider>
     </main>
   )
 }

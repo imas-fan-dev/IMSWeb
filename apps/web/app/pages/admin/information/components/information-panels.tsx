@@ -20,6 +20,7 @@ import {
   AdminPanel,
   AdminStatus,
 } from "~/pages/admin/components/admin-ui"
+import { SortableList } from "~/pages/admin/components/sortable-list"
 import type { AdminInformationCard, InformationSubmission } from "~/lib/api"
 
 import {
@@ -40,7 +41,7 @@ function InformationRow({
   deleting: boolean
 }) {
   return (
-    <article className="grid grid-cols-[6rem_minmax(0,1fr)] gap-4 border-b py-5 last:border-b-0 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
+    <article className="grid grid-cols-[6rem_minmax(0,1fr)] gap-4 py-5 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
       <CoverImagePreview
         src={card.image}
         alt={`${card.title}封面`}
@@ -178,15 +179,19 @@ export function PublishedInformationPanel({
   deletingId,
   error,
   loading,
+  reordering,
   onDelete,
   onEdit,
+  onReorder,
 }: {
   cards: AdminInformationCard[]
   deletingId: string | null
   error: unknown
   loading: boolean
+  reordering: boolean
   onDelete: (card: AdminInformationCard) => void
   onEdit: (card: AdminInformationCard) => void
+  onReorder: (cards: AdminInformationCard[]) => void
 }) {
   return (
     <AdminPanel
@@ -203,17 +208,20 @@ export function PublishedInformationPanel({
       ) : loading ? (
         <p className="py-6 text-sm text-muted-foreground">正在加载内容</p>
       ) : cards.length ? (
-        <div>
-          {cards.map((card) => (
+        <SortableList
+          items={cards}
+          disabled={reordering}
+          getLabel={(card) => card.title}
+          renderItem={(card) => (
             <InformationRow
-              key={card.id}
               card={card}
               deleting={deletingId === card.id}
               onEdit={() => onEdit(card)}
               onDelete={() => onDelete(card)}
             />
-          ))}
-        </div>
+          )}
+          onReorder={onReorder}
+        />
       ) : (
         <AdminEmptyState
           icon={CalendarDaysIcon}

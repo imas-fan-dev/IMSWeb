@@ -1,0 +1,36 @@
+import type { Context } from 'hono';
+import type { AppEnvironment } from '@/app';
+import { writeAudit } from '@/domains/audit/hono-service';
+import {
+    publicHomepageLink,
+    validateHomepageLinkSubmission
+} from '@/domains/homepage-links/data';
+import { homepageLinkRepository } from '@/domains/homepage-links/handler-support';
+import { randomHex } from '@/utils/crypto/random';
+import { messageFromError, statusFromError } from '@/utils/http/error-response';
+
+export async function handleCreateHomepageLink(c: Context<AppEnvironment>): Promise<Response> {
+    try {
+        const submission = validateHomepageLinkSubmission(await c.req.json(), {
+            includeSection: true
+        });
+        const now = Date.now();
+        const created = await homepageLinkRepository(c).createHomepageLink({
+            id: `home-${now.toString(36)}-${randomHex(6)}`,
+            section: submission.section!,
+            title: submission.title,
+            description: submission.description,
+            href: submission.href,
+            icon: submission.icon,
+            accent: submission.accent,
+            createdAt: now
+        });
+        await writeAudit(c, '新增首页链接', `${created.section}:${created.title}`);
+        return c.json({ success: true, link: publicHomepageLink(created) }, 201);
+    } catch (error) {
+        const status = statusFromError(error);
+        if (status >= 500) console.error('Failed to create homepage link', error);
+        return c.json({ error: status >= 500 ? '首页链接保存失败' : messageFromError(error) },
+            status as 400 | 500);
+    }
+}

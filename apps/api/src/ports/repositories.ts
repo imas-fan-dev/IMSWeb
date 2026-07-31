@@ -260,6 +260,59 @@ export interface SitePackageRepository {
     ): Promise<boolean>;
 }
 
+export const HOMEPAGE_LINK_SECTIONS = ['navigation', 'friend', 'support'] as const;
+
+export type HomepageLinkSection = typeof HOMEPAGE_LINK_SECTIONS[number];
+
+export interface HomepageLinkRecord {
+    id: string;
+    section: HomepageLinkSection;
+    title: string;
+    description: string;
+    href: string;
+    icon: string;
+    accent: string;
+    display_order: number;
+    created_at: number;
+    updated_at: number;
+}
+
+export interface NewHomepageLinkInput {
+    id: string;
+    section: HomepageLinkSection;
+    title: string;
+    description: string;
+    href: string;
+    icon: string;
+    accent: string;
+    createdAt: number;
+}
+
+export interface HomepageLinkUpdateInput {
+    title: string;
+    description: string;
+    href: string;
+    icon: string;
+    accent: string;
+    updatedAt: number;
+}
+
+export interface HomepageLinkRepository {
+    listHomepageLinks(section?: HomepageLinkSection): Promise<HomepageLinkRecord[]>;
+    findHomepageLinkById(id: string): Promise<HomepageLinkRecord | null>;
+    createHomepageLink(input: NewHomepageLinkInput): Promise<HomepageLinkRecord>;
+    updateHomepageLink(
+        id: string,
+        input: HomepageLinkUpdateInput
+    ): Promise<HomepageLinkRecord | null>;
+    deleteHomepageLink(id: string): Promise<boolean>;
+    reorderHomepageLinks(
+        section: HomepageLinkSection,
+        ids: readonly string[],
+        updatedAt: number
+    ): Promise<boolean>;
+}
+
 export interface AgencyRecord {
     id: number;
     code: string;
@@ -848,6 +901,7 @@ export interface RepositoryServices {
     events: EventRepository;
     namecards: NamecardRepository;
     reactions: ReactionRepository;
+    homepageLinks: HomepageLinkRepository;
     sitePackages: SitePackageRepository;
     story: StoryRepository;
 }

@@ -3,7 +3,7 @@ import type {
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
 
-export const REQUIRED_POSTGRESQL_SCHEMA_VERSION = '0018_wiki_story_cover_presentation';
+export const REQUIRED_POSTGRESQL_SCHEMA_VERSION = '0019_homepage_links';
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();

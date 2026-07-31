@@ -4,6 +4,7 @@ import {
   CalendarDaysIcon,
   HistoryIcon,
   InfoIcon,
+  LayoutDashboardIcon,
   MapPinnedIcon,
   NewspaperIcon,
   PackageOpenIcon,
@@ -23,6 +24,14 @@ import { cn } from "~/lib/utils"
 import { AdminPageHeader } from "~/pages/admin/components/admin-ui"
 
 const workspaces = [
+  {
+    title: "首页板块",
+    description: "维护首页导航、友情链接与网站支持",
+    to: "/admin/homepage",
+    icon: LayoutDashboardIcon,
+    accent: "bg-franchise-sc",
+    scope: ["站点导航", "友情链接", "网站支持"],
+  },
   {
     title: "关于本站",
     description: "站点介绍、宣言与贡献名单",

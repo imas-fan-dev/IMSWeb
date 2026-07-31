@@ -80,6 +80,20 @@ const SQLITE_CORE_SCHEMA = `
         UNIQUE(card_id, emoji),
         FOREIGN KEY(card_id) REFERENCES cards(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS homepage_links (
+        id TEXT PRIMARY KEY,
+        section TEXT NOT NULL CHECK (section IN ('navigation', 'friend', 'support')),
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 80),
+        description TEXT NOT NULL DEFAULT '' CHECK (length(description) <= 200),
+        href TEXT NOT NULL CHECK (length(href) BETWEEN 1 AND 2048),
+        icon TEXT NOT NULL,
+        accent TEXT NOT NULL,
+        display_order INTEGER NOT NULL CHECK (display_order >= 0),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_homepage_links_section_order
+        ON homepage_links(section, display_order, id);
     CREATE TABLE IF NOT EXISTS site_packages (
         id TEXT PRIMARY KEY,
         slug TEXT NOT NULL UNIQUE CHECK (

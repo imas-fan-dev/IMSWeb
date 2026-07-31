@@ -60,6 +60,10 @@ const adminRoutes = [
   { path: "events", file: "pages/admin/events/admin-events-page.tsx" },
   { path: "about", file: "pages/admin/about/about-manager.tsx" },
   {
+    path: "homepage",
+    file: "pages/admin/homepage/homepage-link-manager.tsx",
+  },
+  {
     path: "producer-map",
     file: "pages/admin/producer-map/producer-map-manager.tsx",
   },

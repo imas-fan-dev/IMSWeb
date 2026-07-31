@@ -133,6 +133,7 @@ Web 公开资产必须登记来源和许可状态，见
 ## 文档索引
 
 - [贡献指南](CONTRIBUTING.md)
+- [静态站点包编写与调试规范](docs/static-site-package-authoring-guide.md)
 - [AI 开发环境指南](docs/ai-development-environment.md)
 - [数据库配置](docs/database-configuration.md)
 - [数据库架构与 PostgreSQL 迁移边界](docs/database-architecture.md)
