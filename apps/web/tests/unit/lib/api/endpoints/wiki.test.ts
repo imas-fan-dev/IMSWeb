@@ -713,6 +713,7 @@ describe("Wiki admin API", () => {
       agencyId: 6,
       name: "共用主线封面",
       imageUrl: "/api/wiki/story-cover-assets/12.webp?v=0",
+      presentationPolicy: "contain" as const,
       displayOrder: 0,
       isActive: true,
       revision: 0,
@@ -743,11 +744,13 @@ describe("Wiki admin API", () => {
       agencyId: 6,
       name: " 共用主线封面 ",
       image,
+      presentationPolicy: "contain",
     }).send()
     await updateWikiStoryCoverAsset({
       assetId: 12,
       name: " 共用封面改 ",
       isActive: false,
+      presentationPolicy: "inherit",
       expectedRevision: 0,
     }).send()
     await deleteWikiStoryCoverAsset(12).send()
@@ -769,10 +772,12 @@ describe("Wiki admin API", () => {
     ])
     const createForm = requests[1]?.body as FormData
     expect(createForm.get("name")).toBe("共用主线封面")
+    expect(createForm.get("presentation_policy")).toBe("contain")
     expect(createForm.get("image")).toBe(image)
     const updateForm = requests[2]?.body as FormData
     expect(updateForm.get("name")).toBe("共用封面改")
     expect(updateForm.get("is_active")).toBe("false")
+    expect(updateForm.get("presentation_policy")).toBe("inherit")
     expect(updateForm.get("expected_revision")).toBe("0")
     expect(updateForm.get("image")).toBeNull()
     for (const request of requests.slice(1)) {

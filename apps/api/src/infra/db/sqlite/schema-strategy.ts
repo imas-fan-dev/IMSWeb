@@ -388,6 +388,8 @@ const SQLITE_NORMALIZED_STORY_SCHEMA = `
         agency_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         object_key TEXT NOT NULL UNIQUE,
+        presentation_policy TEXT NOT NULL DEFAULT 'inherit'
+            CHECK (presentation_policy IN ('inherit', 'contain')),
         display_order INTEGER NOT NULL CHECK (display_order >= 0),
         is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
         revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
@@ -746,6 +748,8 @@ export class SqliteSchemaStrategy implements SqlSchemaStrategy {
         await this.ensureColumn(database, 'wiki_story_cards', 'image_media_revision',
             'INTEGER NOT NULL DEFAULT 0 CHECK (image_media_revision >= 0)');
         await this.ensureColumn(database, 'wiki_story_cards', 'cover_asset_id', 'INTEGER');
+        await this.ensureColumn(database, 'wiki_story_cover_assets', 'presentation_policy',
+            "TEXT NOT NULL DEFAULT 'inherit' CHECK (presentation_policy IN ('inherit', 'contain'))");
         await this.ensureColumn(database, 'wiki_story_cards', 'deleted_at', 'TEXT');
         await this.ensureColumn(database, 'wiki_story_links', 'content_type_id',
             'INTEGER NOT NULL DEFAULT 1');

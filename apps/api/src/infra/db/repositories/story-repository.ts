@@ -68,7 +68,9 @@ const STORY_MEDIA_COLUMNS = `cards.id AS card_id, cards.image_fit,
     (SELECT object_key FROM wiki_story_cover_assets
      WHERE id=cards.cover_asset_id) AS cover_asset_object_key,
     (SELECT revision FROM wiki_story_cover_assets
-     WHERE id=cards.cover_asset_id) AS cover_asset_revision`;
+     WHERE id=cards.cover_asset_id) AS cover_asset_revision,
+    (SELECT presentation_policy FROM wiki_story_cover_assets
+     WHERE id=cards.cover_asset_id) AS cover_asset_presentation_policy`;
 const STORY_COLUMNS = `COALESCE(links.legacy_id, links.id) AS id,
     cards.idol_id, categories.name AS category, cards.card_name,
     COALESCE(links.up_name, '') AS up_name,
@@ -847,13 +849,15 @@ export class SqlStoryRepository implements StoryRepository {
     listStoryCoverAssets(agencyId: number): Promise<WikiStoryCoverAssetRecord[]> {
         return queryAll<WikiStoryCoverAssetRecord>(this.database,
             `SELECT assets.id, assets.agency_id, assets.name, assets.object_key,
-                    assets.display_order, assets.is_active, assets.revision,
+                    assets.presentation_policy, assets.display_order,
+                    assets.is_active, assets.revision,
                     COUNT(cards.id) AS usage_count
              FROM wiki_story_cover_assets assets
              LEFT JOIN wiki_story_cards cards ON cards.cover_asset_id=assets.id
              WHERE assets.agency_id=?
              GROUP BY assets.id, assets.agency_id, assets.name, assets.object_key,
-                      assets.display_order, assets.is_active, assets.revision
+                      assets.presentation_policy, assets.display_order,
+                      assets.is_active, assets.revision
              ORDER BY assets.display_order, assets.id`,
             [agencyId]
         ).then((rows) => rows.map((row) => ({
@@ -866,13 +870,15 @@ export class SqlStoryRepository implements StoryRepository {
     async findStoryCoverAssetById(id: number): Promise<WikiStoryCoverAssetRecord | null> {
         const row = await queryOne<WikiStoryCoverAssetRecord>(this.database,
             `SELECT assets.id, assets.agency_id, assets.name, assets.object_key,
-                    assets.display_order, assets.is_active, assets.revision,
+                    assets.presentation_policy, assets.display_order,
+                    assets.is_active, assets.revision,
                     COUNT(cards.id) AS usage_count
              FROM wiki_story_cover_assets assets
              LEFT JOIN wiki_story_cards cards ON cards.cover_asset_id=assets.id
              WHERE assets.id=?
              GROUP BY assets.id, assets.agency_id, assets.name, assets.object_key,
-                      assets.display_order, assets.is_active, assets.revision`,
+                      assets.presentation_policy, assets.display_order,
+                      assets.is_active, assets.revision`,
             [id]
         );
         return row ? {
@@ -887,15 +893,16 @@ export class SqlStoryRepository implements StoryRepository {
     ): Promise<WikiStoryCoverAssetRecord> {
         const row = await queryOne<WikiStoryCoverAssetRecord>(this.database,
             `INSERT INTO wiki_story_cover_assets
-                (agency_id, name, object_key, display_order)
-             SELECT id, ?, ?, COALESCE((
+                (agency_id, name, object_key, presentation_policy, display_order)
+             SELECT id, ?, ?, ?, COALESCE((
                  SELECT MAX(display_order) + 1 FROM wiki_story_cover_assets
                  WHERE agency_id=?
              ), 0)
              FROM agencies WHERE id=?
-             RETURNING id, agency_id, name, object_key, display_order,
+             RETURNING id, agency_id, name, object_key, presentation_policy, display_order,
                        is_active, revision, 0 AS usage_count`,
-            [input.name, input.objectKey, input.agencyId, input.agencyId]
+            [input.name, input.objectKey, input.presentationPolicy,
+                input.agencyId, input.agencyId]
         );
         if (!row) throw httpError('企划不存在', 404);
         return { ...row, is_active: booleanValue(row.is_active) };
@@ -908,9 +915,10 @@ export class SqlStoryRepository implements StoryRepository {
         if (!previous || previous.agency_id !== input.agencyId) return null;
         const updated = await queryOne<{ id: number }>(this.database,
             `UPDATE wiki_story_cover_assets
-             SET name=?, object_key=?, is_active=?, revision=revision+1
+             SET name=?, object_key=?, presentation_policy=?, is_active=?,
+                 revision=revision+1
              WHERE id=? AND agency_id=? AND revision=? RETURNING id`,
-            [input.name, input.objectKey, input.isActive, input.id,
+            [input.name, input.objectKey, input.presentationPolicy, input.isActive, input.id,
                 input.agencyId, input.expectedRevision]
         );
         if (!updated) {
@@ -1182,11 +1190,16 @@ export class SqlStoryRepository implements StoryRepository {
                ON categories.id=cards.category_id AND categories.agency_id=cards.agency_id
              JOIN agencies agencies ON agencies.id=cards.agency_id
              JOIN idols idols ON idols.id=cards.idol_id AND idols.agency_id=cards.agency_id
+             LEFT JOIN wiki_story_cover_assets cover_assets
+               ON cover_assets.id=cards.cover_asset_id
+              AND cover_assets.agency_id=cards.agency_id
              WHERE agencies.wiki_enabled=TRUE AND idols.wiki_enabled=TRUE
                AND idols.deleted_at IS NULL
                AND cards.deleted_at IS NULL AND links.deleted_at IS NULL
                AND categories.background_eligible=TRUE
                AND (cards.image_file IS NOT NULL OR cards.cover_asset_id IS NOT NULL)
+               AND (cards.cover_asset_id IS NULL
+                    OR cover_assets.presentation_policy='inherit')
              ORDER BY RANDOM() LIMIT 1`
         );
     }

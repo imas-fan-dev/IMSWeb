@@ -16,7 +16,10 @@ import {
     validateAndConvertStoryImage,
     versionedStoryCoverAssetObjectKey
 } from '@/domains/wiki/service';
-import type { WikiStoryCoverAssetRecord } from '@/ports/repositories';
+import type {
+    WikiStoryCoverAssetRecord,
+    WikiStoryCoverPresentationPolicy
+} from '@/ports/repositories';
 import { requirePublicObjectUrl } from '@/utils/storage/public-object-url';
 
 function positiveId(value: string | undefined, label: string): number {
@@ -42,6 +45,15 @@ function booleanField(value: string | undefined, fallback: boolean): boolean {
     throw Object.assign(new Error('启用状态无效'), { status: 400 });
 }
 
+function presentationPolicy(
+    value: string | undefined,
+    fallback: WikiStoryCoverPresentationPolicy = 'inherit'
+): WikiStoryCoverPresentationPolicy {
+    if (value === undefined || value === '') return fallback;
+    if (value === 'inherit' || value === 'contain') return value;
+    throw Object.assign(new Error('展示方式无效'), { status: 400 });
+}
+
 async function serializeAsset(
     services: Awaited<ReturnType<WikiServicesResolver<Env>>>,
     asset: WikiStoryCoverAssetRecord,
@@ -56,6 +68,7 @@ async function serializeAsset(
         agencyId: asset.agency_id,
         name: asset.name,
         imageUrl: `${url}${url.includes('?') ? '&' : '?'}v=${asset.revision}`,
+        presentationPolicy: asset.presentation_policy,
         displayOrder: asset.display_order,
         isActive: asset.is_active,
         revision: asset.revision,
@@ -110,6 +123,8 @@ export function createHandleCreateWikiStoryCoverAsset<E extends Env>(
             if (!file?.filename) {
                 return wikiJson(wikiErrorBody('请选择要上传的封面图片'), 400);
             }
+            const name = assetName(upload.fields.name);
+            const policy = presentationPolicy(upload.fields.presentation_policy);
             const converted = await validateAndConvertStoryImage(file, services.images!);
             createdKey = versionedStoryCoverAssetObjectKey(
                 agency.code,
@@ -122,8 +137,9 @@ export function createHandleCreateWikiStoryCoverAsset<E extends Env>(
             const publicUrl = await requirePublicObjectUrl(services.storage!, createdKey);
             const asset = await services.story!.createStoryCoverAsset({
                 agencyId,
-                name: assetName(upload.fields.name),
-                objectKey: createdKey
+                name,
+                objectKey: createdKey,
+                presentationPolicy: policy
             });
             return wikiJson({
                 status: 'success',
@@ -162,6 +178,11 @@ export function createHandleUpdateWikiStoryCoverAsset<E extends Env>(
             if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
                 return wikiJson(wikiErrorBody('缺少有效的素材版本'), 400);
             }
+            const name = assetName(upload.fields.name ?? current.name);
+            const policy = presentationPolicy(
+                upload.fields.presentation_policy,
+                current.presentation_policy
+            );
             const file = singleWikiFile(upload, 'image');
             let objectKey = current.object_key;
             if (file?.filename) {
@@ -180,8 +201,9 @@ export function createHandleUpdateWikiStoryCoverAsset<E extends Env>(
             const result = await services.story!.updateStoryCoverAsset({
                 id: assetId,
                 agencyId: agency.id,
-                name: assetName(upload.fields.name ?? current.name),
+                name,
                 objectKey,
+                presentationPolicy: policy,
                 isActive: booleanField(upload.fields.is_active, current.is_active),
                 expectedRevision
             });

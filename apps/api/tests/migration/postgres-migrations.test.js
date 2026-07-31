@@ -30,7 +30,8 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0014_wiki_story_source_catalogs', phase: 'post-data' },
             { version: '0015_wiki_story_cover_assets', phase: 'post-data' },
             { version: '0016_wiki_soft_deletion', phase: 'post-data' },
-            { version: '0017_wiki_entry_types', phase: 'post-data' }
+            { version: '0017_wiki_entry_types', phase: 'post-data' },
+            { version: '0018_wiki_story_cover_presentation', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -92,6 +93,11 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(entryTypes.sql, /ADD COLUMN entry_subtype TEXT/);
     assert.match(entryTypes.sql, /groups\.code = 'sidem-units'/);
     assert.match(entryTypes.sql, /groups\.code = 'sidem-special'/);
+    const coverPresentation = migrations.find(
+        ({ version }) => version === '0018_wiki_story_cover_presentation'
+    );
+    assert.match(coverPresentation.sql, /ADD COLUMN presentation_policy TEXT/);
+    assert.match(coverPresentation.sql, /presentation_policy IN \('inherit', 'contain'\)/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -150,7 +156,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0014_wiki_story_source_catalogs',
         '0015_wiki_story_cover_assets',
         '0016_wiki_soft_deletion',
-        '0017_wiki_entry_types'
+        '0017_wiki_entry_types',
+        '0018_wiki_story_cover_presentation'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

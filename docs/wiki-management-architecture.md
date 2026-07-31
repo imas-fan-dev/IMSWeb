@@ -6,7 +6,7 @@ Wiki 的企划、栏目、内容页、栏目归档关系、剧情分类、剧情
 数据库驱动。React 不维护企划或内容页名单，也不根据名称重建栏目关系；Hono 通过
 `StoryRepository` 读取和修改业务数据，通过 `ObjectStorage` 保存图片字节。
 
-当前 PostgreSQL 最低 schema 版本为 `0017_wiki_entry_types`。`0011` 至 `0017` 已在
+当前 PostgreSQL 最低 schema 版本为 `0018_wiki_story_cover_presentation`。`0011` 至 `0018` 已在
 代码、SQLite 等价 schema 和测试夹具中落地，但代码合入或本地迁移成功不代表生产数据库已完成
 迁移，生产边界见“迁移与发布”。
 
@@ -104,6 +104,10 @@ Agency
 `cover_asset_id` 复用其中一张封面。共享素材和卡片自己的 `image_file` 互斥；素材只能被同企划卡片
 引用，仍有引用时不能删除。素材替换只更新一个版本化对象键，引用它的全部卡片会在下次读取时使用
 新图，而每张卡片仍保留自己的构图参数。
+
+`0018_wiki_story_cover_presentation` 为共享封面增加 `inherit` 与 `contain` 两种展示策略。默认
+`inherit` 继续使用每张卡片自己的构图；`contain` 在公开剧情卡片中强制居中完整显示，并从需要
+铺满画布的 Wiki 随机背景候选中排除。策略切换不会覆盖卡片原有构图。
 
 `0016_wiki_soft_deletion` 为内容页、剧情卡片和剧情来源增加 `deleted_at`。删除内容页时，三层记录在
 同一事务中标记为已删除，并从公开与管理读取中隐藏；栏目成员、分类关联、页面图片、剧情图片及
@@ -264,7 +268,7 @@ pnpm dev
 pnpm run migration:postgresql
 ```
 
-API 启动会检查 `ims_schema_migrations` 是否包含 `0017_wiki_entry_types`；缺失时拒绝启动并
+API 启动会检查 `ims_schema_migrations` 是否包含 `0018_wiki_story_cover_presentation`；缺失时拒绝启动并
 提示迁移。已经执行的 migration 不得修改或删除。
 
 ### 生产环境
@@ -272,7 +276,7 @@ API 启动会检查 `ims_schema_migrations` 是否包含 `0017_wiki_entry_types`
 生产迁移是独立发布操作，不由代码合入、本地测试或 `pnpm dev` 代替。执行前必须确认生产数据库
 URL、备份、维护窗口和对象存储目标；执行后保存以下证据：
 
-1. `0011` 至 `0017` 均记录在 `ims_schema_migrations`，checksum 无漂移。
+1. `0011` 至 `0018` 均记录在 `ims_schema_migrations`，checksum 无漂移。
 2. `0012` 的历史行数、卡片数和双向投影检查全部通过。
 3. 企划、栏目、内容页、页面类型及多栏目归档关系可从管理 catalog 回读。
 4. 非空媒体逻辑键可从目标 S3/MinIO 回读，上传替换不会遗留新对象。

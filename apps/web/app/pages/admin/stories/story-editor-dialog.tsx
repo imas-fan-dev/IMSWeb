@@ -792,19 +792,34 @@ export function StoryEditorDialog({
                       </Select>
                     </Field>
                     {selectedCoverAsset ? (
-                      <ImageCompositionEditor
-                        id="wiki-story-shared-image"
-                        file={null}
-                        currentUrl={selectedCoverAsset.imageUrl}
-                        transform={form.imageTransform}
-                        previewRatio="story"
-                        disabled={saving}
-                        showFileInput={false}
-                        onFileChange={() => undefined}
-                        onTransformChange={(imageTransform) =>
-                          setValue("imageTransform", imageTransform)
-                        }
-                      />
+                      selectedCoverAsset.presentationPolicy === "contain" ? (
+                        <div className="overflow-hidden rounded-lg border bg-muted/30">
+                          <div className="aspect-16/10">
+                            <img
+                              src={selectedCoverAsset.imageUrl}
+                              alt={`${selectedCoverAsset.name}预览`}
+                              className="size-full object-contain"
+                            />
+                          </div>
+                          <p className="border-t bg-background px-3 py-2 text-xs text-muted-foreground">
+                            该共享素材始终完整显示，卡片不会单独裁切。
+                          </p>
+                        </div>
+                      ) : (
+                        <ImageCompositionEditor
+                          id="wiki-story-shared-image"
+                          file={null}
+                          currentUrl={selectedCoverAsset.imageUrl}
+                          transform={form.imageTransform}
+                          previewRatio="story"
+                          disabled={saving}
+                          showFileInput={false}
+                          onFileChange={() => undefined}
+                          onTransformChange={(imageTransform) =>
+                            setValue("imageTransform", imageTransform)
+                          }
+                        />
+                      )
                     ) : (
                       <FieldDescription>
                         当前企划没有可用素材，请先前往企划素材库上传。

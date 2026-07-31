@@ -24,6 +24,11 @@ export const defaultWikiImageTransform: WikiImageTransform = {
   rotation: 0,
 }
 
+export const wikiStoryCoverPresentationPolicySchema = z.enum([
+  "inherit",
+  "contain",
+])
+
 export const wikiEntryKindSchema = z.enum(["idol", "unit", "story", "other"])
 export const wikiStoryEntrySubtypeSchema = z.enum([
   "main",
@@ -157,6 +162,7 @@ const wikiStoryCoverAssetSchema = z.object({
   agencyId: z.coerce.number().int().positive(),
   name: z.string(),
   imageUrl: z.string(),
+  presentationPolicy: wikiStoryCoverPresentationPolicySchema.default("inherit"),
   displayOrder: z.coerce.number().int().nonnegative(),
   isActive: z.boolean(),
   revision: z.coerce.number().int().nonnegative(),
@@ -339,6 +345,9 @@ export type WikiAdminStories = z.infer<typeof wikiAdminStoriesSchema>
 export type WikiAdminStoryCard = z.infer<typeof wikiAdminStoryCardSchema>
 export type WikiAdminStory = z.infer<typeof wikiAdminStorySchema>
 export type WikiStoryCoverAsset = z.infer<typeof wikiStoryCoverAssetSchema>
+export type WikiStoryCoverPresentationPolicy = z.infer<
+  typeof wikiStoryCoverPresentationPolicySchema
+>
 export type WikiStoryCoverAssets = z.infer<typeof wikiStoryCoverAssetsSchema>
 export type WikiStoryContentType = z.infer<typeof wikiStoryContentTypeSchema>
 export type WikiStorySourcePlatform = z.infer<
@@ -555,9 +564,11 @@ export function createWikiStoryCoverAsset(input: {
   agencyId: number
   name: string
   image: File
+  presentationPolicy: WikiStoryCoverPresentationPolicy
 }) {
   const form = new FormData()
   form.append("name", input.name.trim())
+  form.append("presentation_policy", input.presentationPolicy)
   form.append("image", input.image)
   return apiClient.Post<
     z.infer<typeof wikiStoryCoverAssetMutationSchema>,
@@ -572,12 +583,14 @@ export function updateWikiStoryCoverAsset(input: {
   assetId: number
   name: string
   isActive: boolean
+  presentationPolicy: WikiStoryCoverPresentationPolicy
   expectedRevision: number
   image?: File | null
 }) {
   const form = new FormData()
   form.append("name", input.name.trim())
   form.append("is_active", String(input.isActive))
+  form.append("presentation_policy", input.presentationPolicy)
   form.append("expected_revision", String(input.expectedRevision))
   if (input.image) form.append("image", input.image)
   return apiClient.Patch<
