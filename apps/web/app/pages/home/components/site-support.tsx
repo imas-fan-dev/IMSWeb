@@ -1,9 +1,15 @@
 import { ExternalLinkIcon } from "lucide-react"
 
+import { homepageLinkAccentClasses } from "~/components/homepage/homepage-link-options"
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { Skeleton } from "~/components/ui/skeleton"
 import { cn } from "~/lib/utils"
-import { supportLinks } from "../home-content"
+import { useHomepageLinks } from "../hooks/use-homepage-links"
 
 export function SiteSupport() {
+  const { data, loading, error } = useHomepageLinks()
+  const items = data.sections.support
+
   return (
     <section className="border-t" aria-labelledby="support-heading">
       <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -13,32 +19,54 @@ export function SiteSupport() {
             网站支持
           </h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          {supportLinks.map((link) => (
-            <a
-              key={link.title}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              className="group flex min-h-24 items-center gap-4 rounded-md border bg-card px-5 py-4 transition-colors hover:bg-muted/35 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-              <span
-                className={cn("h-9 w-1 shrink-0 rounded-full", link.accent)}
-                aria-hidden="true"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{link.title}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  {link.description}
+        {loading ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {[0, 1, 2].map((item) => (
+              <Skeleton key={item} className="h-24 w-full rounded-md" />
+            ))}
+          </div>
+        ) : error ? (
+          <Alert>
+            <AlertTitle>网站支持暂时不可用</AlertTitle>
+            <AlertDescription>稍后刷新即可重新获取。</AlertDescription>
+          </Alert>
+        ) : items.length ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {items.map((link) => (
+              <a
+                key={link.id}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex min-h-24 items-center gap-4 rounded-md border bg-card px-5 py-4 transition-colors hover:bg-muted/35 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <span
+                  className={cn(
+                    "h-9 w-1 shrink-0 rounded-full",
+                    homepageLinkAccentClasses[link.accent]
+                  )}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">
+                    {link.title}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {link.description}
+                  </span>
                 </span>
-              </span>
-              <ExternalLinkIcon
-                className="size-4 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </a>
-          ))}
-        </div>
+                <ExternalLinkIcon
+                  className="size-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="border-y py-8 text-sm text-muted-foreground">
+            当前没有网站支持信息。
+          </p>
+        )}
       </div>
     </section>
   )

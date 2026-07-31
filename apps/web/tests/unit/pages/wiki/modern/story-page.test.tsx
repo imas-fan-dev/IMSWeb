@@ -221,7 +221,7 @@ describe("StoryPage", () => {
     expect(target).not.toHaveClass("ring-primary", "ring-offset-3")
   })
 
-  it("keeps cards without covers or sources visually normal and interactive", async () => {
+  it("grays cards without sources while keeping them interactive", async () => {
     vi.stubGlobal(
       "fetch",
       vi
@@ -240,18 +240,18 @@ describe("StoryPage", () => {
     })
     expect(sourcedCard).toHaveAttribute("data-source-state", "available")
     expect(sourcedCard).toHaveClass("border")
-    expect(sourcedCard).not.toHaveClass("opacity-45")
+    expect(sourcedCard).not.toHaveClass("grayscale", "opacity-60")
     expect(sourcelessCard).toHaveAttribute("data-source-state", "empty")
     expect(sourcelessCard).toHaveClass("border")
     expect(sourcelessCard).not.toHaveClass("border-2")
     expect(sourcelessCard.style.borderColor).toBe("")
     expect(sourcelessCard.style.color).toBe("")
     expect(sourcelessCard.style.backgroundColor).toBe("")
-    expect(sourcelessCard).not.toHaveClass(
-      "opacity-45",
-      "saturate-50",
-      "hover:opacity-70",
-      "focus-visible:opacity-70"
+    expect(sourcelessCard).toHaveClass(
+      "grayscale",
+      "opacity-60",
+      "hover:opacity-80",
+      "focus-visible:opacity-80"
     )
 
     await user.click(sourcelessCard)

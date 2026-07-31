@@ -347,8 +347,53 @@ test("theme toggle persists the selected color scheme", async ({ page }) => {
   })
 
   await expect(root).not.toHaveClass(/dark/)
+  await page.evaluate(() => {
+    const root = document.documentElement
+    const observer = new MutationObserver(() => {
+      if (root.dataset.themeTransition !== "circle") return
+
+      root.dataset.themeTransitionObserved = "circle"
+      observer.disconnect()
+
+      const captureReveal = () => {
+        const animation = document.getAnimations().find((candidate) => {
+          const effect = candidate.effect
+          return (
+            effect instanceof KeyframeEffect &&
+            effect.pseudoElement === "::view-transition-new(root)"
+          )
+        })
+        const effect = animation?.effect
+
+        if (!(effect instanceof KeyframeEffect)) {
+          requestAnimationFrame(captureReveal)
+          return
+        }
+
+        const keyframes = effect.getKeyframes()
+        root.dataset.themeTransitionDuration = String(
+          effect.getTiming().duration
+        )
+        root.dataset.themeTransitionStart = String(keyframes[0]?.clipPath)
+        root.dataset.themeTransitionEnd = String(keyframes.at(-1)?.clipPath)
+      }
+      requestAnimationFrame(captureReveal)
+    })
+    observer.observe(root, { attributes: true })
+  })
   await toggle.click()
   await expect(root).toHaveClass(/dark/)
+  await expect(root).toHaveAttribute("data-theme-transition-observed", "circle")
+  await expect(root).toHaveAttribute("data-theme-transition-duration", "500")
+  await expect(root).toHaveAttribute(
+    "data-theme-transition-start",
+    /circle\(0px at [\d.]+px [\d.]+px\)/
+  )
+  await expect(root).toHaveAttribute(
+    "data-theme-transition-end",
+    /circle\([\d.]+px at [\d.]+px [\d.]+px\)/
+  )
+  await expect(root).not.toHaveAttribute("data-theme-transition")
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("theme")))
     .toBe("dark")

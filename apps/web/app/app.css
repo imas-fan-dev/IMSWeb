@@ -203,6 +203,33 @@
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme-transition="circle"]::view-transition-old(root),
+  html[data-theme-transition="circle"]::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  html[data-theme-transition="circle"]::view-transition-old(root) {
+    z-index: 1;
+  }
+
+  html[data-theme-transition="circle"]::view-transition-new(root) {
+    z-index: 2;
+  }
+
+  html[data-theme-transition="fade"],
+  html[data-theme-transition="fade"] *,
+  html[data-theme-transition="fade"] *::before,
+  html[data-theme-transition="fade"] *::after {
+    transition-duration: 300ms !important;
+    transition-property:
+      background-color, border-color, box-shadow, color, fill, opacity,
+      outline-color, stroke, text-decoration-color, transform !important;
+    transition-timing-function: ease-in-out !important;
+  }
+}
+
 @keyframes image-loading-shimmer {
   to {
     background-position: -200% 0;

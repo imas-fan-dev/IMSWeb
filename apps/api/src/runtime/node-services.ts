@@ -8,6 +8,7 @@ import type {
     AuditRepository,
     AuthRepository,
     EventRepository,
+    HomepageLinkRepository,
     NamecardRepository,
     NewsRepository,
     ReactionRepository,
@@ -79,6 +80,7 @@ interface CoreRepositoryAdapter extends
     EventRepository,
     NamecardRepository,
     ReactionRepository,
+    HomepageLinkRepository,
     SitePackageRepository {}
 
 interface StoryRepositoryAdapter extends InitializableResource, StoryRepository {}
@@ -247,6 +249,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             events: core,
             namecards: core,
             reactions: core,
+            homepageLinks: core,
             sitePackages: core,
             story,
             ...objectStorageInfrastructure,

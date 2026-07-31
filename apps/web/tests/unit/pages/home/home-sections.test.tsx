@@ -6,6 +6,46 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ActivityHighlights } from "~/pages/home/components/activity-highlights"
 import { RandomIdol } from "~/pages/home/components/random-idol"
 import { SiteSupport } from "~/pages/home/components/site-support"
+import { HomepageLinksProvider } from "~/pages/home/hooks/use-homepage-links"
+
+const homepageLinks = {
+  sections: {
+    navigation: [],
+    friend: [],
+    support: [
+      {
+        id: "support-1",
+        section: "support",
+        title: "本站由雨云提供计算服务",
+        description: "IMSWeb 当前站点支持",
+        href: "https://app.rainyun.com/",
+        icon: "external-link",
+        accent: "info",
+        displayOrder: 0,
+      },
+      {
+        id: "support-2",
+        section: "support",
+        title: "雨云，新一代云服务提供商",
+        description: "云计算服务入口",
+        href: "https://app.rainyun.com/",
+        icon: "external-link",
+        accent: "success",
+        displayOrder: 1,
+      },
+      {
+        id: "support-3",
+        section: "support",
+        title: "国内自主云计算平台",
+        description: "服务商官方网站",
+        href: "https://app.rainyun.com/",
+        icon: "external-link",
+        accent: "warning",
+        displayOrder: 2,
+      },
+    ],
+  },
+}
 
 function randomIdolPayload(
   name = "天海春香",
@@ -49,7 +89,9 @@ function stubInformation(
     const payload =
       url.pathname === "/api/wiki/random_idol"
         ? randomIdols[Math.min(randomRequest++, randomIdols.length - 1)]
-        : { cards }
+        : url.pathname === "/api/homepage-links"
+          ? homepageLinks
+          : { cards }
     return new Response(JSON.stringify(payload), {
       headers: { "content-type": "application/json" },
     })
@@ -61,9 +103,11 @@ function stubInformation(
 function HomeSections() {
   return (
     <MemoryRouter>
-      <ActivityHighlights />
-      <RandomIdol />
-      <SiteSupport />
+      <HomepageLinksProvider>
+        <ActivityHighlights />
+        <RandomIdol />
+        <SiteSupport />
+      </HomepageLinksProvider>
     </MemoryRouter>
   )
 }

@@ -236,9 +236,7 @@ test("classic text-only story cards do not render nested frames", async ({
   })
 })
 
-test("new story cards without covers or sources keep normal colors", async ({
-  page,
-}) => {
+test("new story cards without sources render in gray", async ({ page }) => {
   await page.goto(
     "/story?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
   )
@@ -249,28 +247,13 @@ test("new story cards without covers or sources keep normal colors", async ({
     .first()
   await expect(imageCard).toBeVisible()
   await expect(textOnlyCard).toBeVisible()
-  await expect(textOnlyCard).toHaveCSS("opacity", "1")
-  await expect(textOnlyCard).toHaveCSS("filter", "none")
+  await expect(imageCard).toHaveCSS("opacity", "0.6")
+  await expect(imageCard).toHaveCSS("filter", "grayscale(1)")
+  await expect(textOnlyCard).toHaveCSS("opacity", "0.6")
+  await expect(textOnlyCard).toHaveCSS("filter", "grayscale(1)")
 
-  const [imageBorder, textOnlyBorder] = await Promise.all([
-    imageCard.evaluate((element) => {
-      const style = getComputedStyle(element)
-      return {
-        borderColor: style.borderColor,
-        borderWidth: style.borderWidth,
-        textColor: style.color,
-      }
-    }),
-    textOnlyCard.evaluate((element) => {
-      const style = getComputedStyle(element)
-      return {
-        borderColor: style.borderColor,
-        borderWidth: style.borderWidth,
-        textColor: style.color,
-      }
-    }),
-  ])
-  expect(textOnlyBorder).toEqual(imageBorder)
+  await expect(imageCard).toHaveAttribute("data-source-state", "empty")
+  await expect(textOnlyCard).toHaveAttribute("data-source-state", "empty")
 
   await textOnlyCard.click()
   await expect(page.getByRole("dialog")).toBeVisible()

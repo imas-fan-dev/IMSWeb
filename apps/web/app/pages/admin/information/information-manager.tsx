@@ -20,6 +20,7 @@ import {
   deleteInformation,
   deleteInformationAsset,
   getAdminInformation,
+  reorderInformation,
   updateInformation,
   uploadInformationAsset,
 } from "~/lib/api"
@@ -73,6 +74,17 @@ export function InformationManager() {
   const [bodyImageUploading, setBodyImageUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [assetDeleting, setAssetDeleting] = useState<string | null>(null)
+  const [cardOrder, setCardOrder] = useState<string[] | null>(null)
+  const [reordering, setReordering] = useState(false)
+
+  const orderedCards = useMemo(() => {
+    if (!cardOrder) return data.cards
+    const byId = new Map(data.cards.map((card) => [card.id, card]))
+    return cardOrder.flatMap((id) => {
+      const card = byId.get(id)
+      return card ? [card] : []
+    })
+  }, [cardOrder, data.cards])
 
   const previewDocument = useMemo(
     () => buildInformationHtmlDocument(submission.title, submission.html),
@@ -173,6 +185,24 @@ export function InformationManager() {
       toast.error(informationErrorMessage(deleteError))
     } finally {
       setAssetDeleting(null)
+    }
+  }
+
+  async function reorderCards(next: AdminInformationCard[]) {
+    const ids = next.map((card) => card.id)
+    setCardOrder(ids)
+    setReordering(true)
+    try {
+      await reorderInformation(ids).send()
+      await refresh()
+      setCardOrder(null)
+      toast.success("活动内容顺序已更新")
+    } catch (reorderError) {
+      setCardOrder(null)
+      toast.error(informationErrorMessage(reorderError))
+      await refresh()
+    } finally {
+      setReordering(false)
     }
   }
 
@@ -377,12 +407,14 @@ export function InformationManager() {
       </div>
 
       <PublishedInformationPanel
-        cards={data.cards}
+        cards={orderedCards}
         deletingId={deletingId}
         error={error}
         loading={loading}
+        reordering={reordering}
         onEdit={editCard}
         onDelete={(card) => void removeCard(card)}
+        onReorder={(cards) => void reorderCards(cards)}
       />
 
       <InformationAssetsPanel

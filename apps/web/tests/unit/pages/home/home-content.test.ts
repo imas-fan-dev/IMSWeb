@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  friendLinks,
-  portalItems,
-  seriesItems,
-  supportLinks,
-} from "~/pages/home/home-content"
+import { seriesItems } from "~/pages/home/home-content"
 
 describe("home content", () => {
   it("links every series band to its optimized wall image", () => {
@@ -37,30 +32,5 @@ describe("home content", () => {
       "/works/sc",
       "/works/gakuen",
     ])
-  })
-
-  it("uses only current React destinations", () => {
-    expect(portalItems.map((item) => item.href)).toEqual([
-      "/events",
-      "/recommendations",
-      "/live",
-      "/community",
-      "/wiki",
-      "/community/cards",
-      "/producer-map",
-      "/works",
-      "/chronicle",
-      "/about",
-    ])
-  })
-
-  it("imports all friend links", () => {
-    expect(friendLinks).toHaveLength(6)
-    expect(friendLinks[0]?.href).toBe("https://sp.idolmaster.top/")
-    expect(friendLinks[5]?.href).toContain("space.bilibili.com/41356186")
-  })
-
-  it("keeps site-support entries as static site configuration", () => {
-    expect(supportLinks).toHaveLength(3)
   })
 })

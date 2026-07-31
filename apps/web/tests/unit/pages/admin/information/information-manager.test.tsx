@@ -46,6 +46,9 @@ describe("InformationManager", () => {
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     expect(screen.getByText("1 个对象")).toBeVisible()
+    expect(
+      screen.getByRole("button", { name: "拖动排序：夏日活动" })
+    ).toBeVisible()
 
     await user.click(screen.getByRole("button", { name: "编辑" }))
 

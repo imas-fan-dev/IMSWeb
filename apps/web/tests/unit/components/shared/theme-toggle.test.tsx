@@ -34,10 +34,15 @@ describe("theme controls", () => {
 
   afterEach(() => {
     cleanup()
+    delete document.documentElement.dataset.themeTransition
+    document.documentElement.classList.remove("dark")
+    Reflect.deleteProperty(document, "startViewTransition")
+    Reflect.deleteProperty(document.documentElement, "animate")
     document.head.querySelector('meta[name="theme-color"]')?.remove()
+    vi.unstubAllGlobals()
   })
 
-  it("switches from light to dark and back", async () => {
+  it("falls back to a global fade when view transitions are unavailable", async () => {
     const user = userEvent.setup()
     const { rerender } = render(<ThemeToggle />, {
       wrapper: TestI18nProvider,
@@ -48,16 +53,116 @@ describe("theme controls", () => {
 
     await user.click(toggle)
     expect(themeState.setTheme).toHaveBeenCalledWith("dark")
+    expect(document.documentElement).toHaveAttribute(
+      "data-theme-transition",
+      "fade"
+    )
 
     themeState.resolvedTheme = "dark"
     rerender(<ThemeToggle />)
     await user.click(toggle)
     expect(themeState.setTheme).toHaveBeenLastCalledWith("light")
+    expect(document.documentElement).toHaveAttribute(
+      "data-theme-transition",
+      "fade"
+    )
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveAttribute(
+        "data-theme-transition"
+      )
+    })
 
     await i18n.changeLanguage("en")
     expect(
       screen.getByRole("button", { name: "Toggle light or dark mode" })
     ).toBeInTheDocument()
+  })
+
+  it("reveals the new theme from the center of the toggle", async () => {
+    let finishAnimation: () => void = () => {}
+    const animationFinished = new Promise<void>((resolve) => {
+      finishAnimation = resolve
+    })
+    const animate = vi.fn().mockReturnValue({ finished: animationFinished })
+    const skipTransition = vi.fn()
+    const startViewTransition = vi.fn((update: () => void | Promise<void>) => {
+      const updateCallbackDone = Promise.resolve(update())
+      return {
+        finished: animationFinished,
+        ready: updateCallbackDone,
+        skipTransition,
+        types: new Set<string>(),
+        updateCallbackDone,
+      }
+    })
+
+    Object.defineProperty(document.documentElement, "animate", {
+      configurable: true,
+      value: animate,
+    })
+    Object.defineProperty(document, "startViewTransition", {
+      configurable: true,
+      value: startViewTransition,
+    })
+    themeState.setTheme.mockImplementation((theme: string) => {
+      document.documentElement.classList.toggle("dark", theme === "dark")
+    })
+
+    const user = userEvent.setup()
+    render(<ThemeToggle />, { wrapper: TestI18nProvider })
+    const toggle = screen.getByRole("button", {
+      name: "切换亮色或暗色模式",
+    })
+    vi.spyOn(toggle, "getBoundingClientRect").mockReturnValue({
+      bottom: 72,
+      height: 32,
+      left: 100,
+      right: 132,
+      top: 40,
+      width: 32,
+      x: 100,
+      y: 40,
+      toJSON: () => undefined,
+    })
+
+    await user.click(toggle)
+
+    await waitFor(() => expect(animate).toHaveBeenCalledOnce())
+    expect(startViewTransition).toHaveBeenCalledOnce()
+    expect(document.documentElement).toHaveAttribute(
+      "data-theme-transition",
+      "circle"
+    )
+    const [keyframes, options] = animate.mock.calls[0] as [
+      { clipPath: string[] },
+      KeyframeAnimationOptions,
+    ]
+    expect(keyframes.clipPath[0]).toBe("circle(0px at 116px 56px)")
+    expect(keyframes.clipPath[1]).toMatch(/^circle\([\d.]+px at 116px 56px\)$/)
+    expect(options).toMatchObject({
+      duration: 500,
+      pseudoElement: "::view-transition-new(root)",
+    })
+
+    finishAnimation()
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveAttribute(
+        "data-theme-transition"
+      )
+    })
+  })
+
+  it("switches instantly when reduced motion is requested", async () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }))
+    const user = userEvent.setup()
+    render(<ThemeToggle />, { wrapper: TestI18nProvider })
+
+    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
+
+    expect(themeState.setTheme).toHaveBeenCalledWith("dark")
+    expect(document.documentElement).not.toHaveAttribute(
+      "data-theme-transition"
+    )
   })
 
   it("keeps the browser theme color in sync", async () => {
