@@ -142,6 +142,7 @@ function cardFromStory(row: StoryRecord | StoryCardRecord): StoryCardRecord {
         cover_asset_name: row.cover_asset_name,
         cover_asset_object_key: row.cover_asset_object_key,
         cover_asset_revision: row.cover_asset_revision,
+        cover_asset_presentation_policy: row.cover_asset_presentation_policy,
         image_fit: row.image_fit,
         image_focal_x: row.image_focal_x,
         image_focal_y: row.image_focal_y,
@@ -763,6 +764,7 @@ export class MemoryStoryRepository implements StoryRepository {
             agency_id: input.agencyId,
             name: input.name,
             object_key: input.objectKey,
+            presentation_policy: input.presentationPolicy,
             display_order: this.coverAssets.filter((candidate) =>
                 candidate.agency_id === input.agencyId
             ).length,
@@ -787,6 +789,7 @@ export class MemoryStoryRepository implements StoryRepository {
         Object.assign(asset, {
             name: input.name,
             object_key: input.objectKey,
+            presentation_policy: input.presentationPolicy,
             is_active: input.isActive,
             revision: asset.revision + 1
         });
@@ -796,6 +799,7 @@ export class MemoryStoryRepository implements StoryRepository {
             card.cover_asset_name = asset.name;
             card.cover_asset_object_key = asset.object_key;
             card.cover_asset_revision = asset.revision;
+            card.cover_asset_presentation_policy = asset.presentation_policy;
         }
         for (const story of this.stories.filter((candidate) =>
             candidate.cover_asset_id === asset.id
@@ -827,6 +831,7 @@ export class MemoryStoryRepository implements StoryRepository {
     async sampleWikiBackground() {
         for (const [agencyCode, story] of this.samples) {
             if (!story) continue;
+            if (story.cover_asset_presentation_policy === 'contain') continue;
             const agency = this.agencies.find((row) => row.code === agencyCode);
             const idol = this.idols.find((row) => row.id === story.idol_id);
             if (agency && idol && !this.deletedIdolIds.has(idol.id)) {
@@ -908,6 +913,9 @@ export class MemoryStoryRepository implements StoryRepository {
             cover_asset_revision: this.coverAssets.find((asset) =>
                 asset.id === input.coverAssetId
             )?.revision ?? null,
+            cover_asset_presentation_policy: this.coverAssets.find((asset) =>
+                asset.id === input.coverAssetId
+            )?.presentation_policy ?? null,
             image_fit: input.imageTransform.fit,
             image_focal_x: input.imageTransform.focalX,
             image_focal_y: input.imageTransform.focalY,
@@ -1052,6 +1060,8 @@ export class MemoryStoryRepository implements StoryRepository {
             cardRow.cover_asset_name = coverAsset?.name ?? null;
             cardRow.cover_asset_object_key = coverAsset?.object_key ?? null;
             cardRow.cover_asset_revision = coverAsset?.revision ?? null;
+            cardRow.cover_asset_presentation_policy =
+                coverAsset?.presentation_policy ?? null;
             cardRow.image_fit = input.imageTransform.fit;
             cardRow.image_focal_x = input.imageTransform.focalX;
             cardRow.image_focal_y = input.imageTransform.focalY;
@@ -1199,6 +1209,8 @@ export class MemoryStoryRepository implements StoryRepository {
             cover_asset_name: input.cover_asset_name ?? null,
             cover_asset_object_key: input.cover_asset_object_key ?? null,
             cover_asset_revision: input.cover_asset_revision ?? null,
+            cover_asset_presentation_policy:
+                input.cover_asset_presentation_policy ?? null,
             image_fit: input.image_fit ?? COVER_TRANSFORM.fit,
             image_focal_x: input.image_focal_x ?? COVER_TRANSFORM.focalX,
             image_focal_y: input.image_focal_y ?? COVER_TRANSFORM.focalY,
@@ -1247,6 +1259,8 @@ export class MemoryStoryRepository implements StoryRepository {
         card.cover_asset_name = coverAsset?.name ?? null;
         card.cover_asset_object_key = coverAsset?.object_key ?? null;
         card.cover_asset_revision = coverAsset?.revision ?? null;
+        card.cover_asset_presentation_policy =
+            coverAsset?.presentation_policy ?? null;
         card.image_fit = input.imageTransform.fit;
         card.image_focal_x = input.imageTransform.focalX;
         card.image_focal_y = input.imageTransform.focalY;

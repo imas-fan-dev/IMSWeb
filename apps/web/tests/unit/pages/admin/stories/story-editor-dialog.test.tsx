@@ -370,6 +370,7 @@ describe("StoryEditorDialog", () => {
             agencyId: 6,
             name: "共用主线封面",
             imageUrl: "/api/wiki/story-cover-assets/12.webp?v=0",
+            presentationPolicy: "contain",
             displayOrder: 0,
             isActive: true,
             revision: 0,
@@ -384,6 +385,10 @@ describe("StoryEditorDialog", () => {
 
     await user.click(screen.getByRole("button", { name: "共享素材" }))
     expect(screen.getByRole("combobox", { name: "共享素材" })).toBeVisible()
+    expect(
+      screen.getByText("该共享素材始终完整显示，卡片不会单独裁切。")
+    ).toBeVisible()
+    expect(screen.queryByLabelText("图片适配方式")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "保存修改" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))

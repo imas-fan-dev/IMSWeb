@@ -288,9 +288,14 @@ export function StoryCoverAssetsPage() {
                   {asset.usageCount} 张卡片正在使用
                 </CardDescription>
                 <CardAction>
-                  <Badge variant={asset.isActive ? "secondary" : "outline"}>
-                    {asset.isActive ? "启用" : "停用"}
-                  </Badge>
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    {asset.presentationPolicy === "contain" ? (
+                      <Badge variant="outline">完整显示</Badge>
+                    ) : null}
+                    <Badge variant={asset.isActive ? "secondary" : "outline"}>
+                      {asset.isActive ? "启用" : "停用"}
+                    </Badge>
+                  </div>
                 </CardAction>
               </CardHeader>
               <CardContent className="flex gap-2">

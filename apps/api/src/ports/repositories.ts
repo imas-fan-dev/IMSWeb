@@ -475,6 +475,7 @@ export interface StoryRecord {
     cover_asset_name?: string | null;
     cover_asset_object_key?: string | null;
     cover_asset_revision?: number | null;
+    cover_asset_presentation_policy?: WikiStoryCoverPresentationPolicy | null;
     image_fit: 'cover' | 'contain';
     image_focal_x: number;
     image_focal_y: number;
@@ -494,6 +495,7 @@ export interface StoryCardRecord {
     cover_asset_name?: string | null;
     cover_asset_object_key?: string | null;
     cover_asset_revision?: number | null;
+    cover_asset_presentation_policy?: WikiStoryCoverPresentationPolicy | null;
     image_fit: 'cover' | 'contain';
     image_focal_x: number;
     image_focal_y: number;
@@ -627,11 +629,14 @@ export type WikiStoryCardSaveResult =
     | { status: 'saved'; revision: number }
     | { status: 'conflict'; revision: number };
 
+export type WikiStoryCoverPresentationPolicy = 'inherit' | 'contain';
+
 export interface WikiStoryCoverAssetRecord {
     id: number;
     agency_id: number;
     name: string;
     object_key: string;
+    presentation_policy: WikiStoryCoverPresentationPolicy;
     display_order: number;
     is_active: boolean;
     revision: number;
@@ -642,6 +647,7 @@ export interface CreateWikiStoryCoverAssetInput {
     agencyId: number;
     name: string;
     objectKey: string;
+    presentationPolicy: WikiStoryCoverPresentationPolicy;
 }
 
 export interface UpdateWikiStoryCoverAssetInput {
@@ -649,6 +655,7 @@ export interface UpdateWikiStoryCoverAssetInput {
     agencyId: number;
     name: string;
     objectKey: string;
+    presentationPolicy: WikiStoryCoverPresentationPolicy;
     isActive: boolean;
     expectedRevision: number;
 }

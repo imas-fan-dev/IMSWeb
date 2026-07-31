@@ -318,11 +318,32 @@ describe('Wiki agency story cover asset contract', () => {
         assert.equal(upload.status, 200);
         const uploaded = await upload.json() as any;
         assert.equal(uploaded.asset.name, '共用主线封面');
+        assert.equal(uploaded.asset.presentationPolicy, 'inherit');
         assert.match(uploaded.asset.imageUrl, /^https:\/\/cdn\.example\.test\//);
         assert.doesNotMatch(uploaded.asset.imageUrl, /\/api\/wiki\/story-cover-assets\//);
         assert.match(
             fixture.story.coverAssets[0]!.object_key,
             /^wiki\/agencies\/sc\/story-cover-assets\/[0-9a-f-]+\.webp$/
+        );
+
+        const policyUpdate = await patchMultipart(
+            fixture,
+            `/api/admin/wiki/story-cover-assets/${uploaded.asset.id}`,
+            {
+                fields: {
+                    name: '共用主线封面',
+                    presentation_policy: 'contain',
+                    is_active: 'true',
+                    expected_revision: '0'
+                },
+                files: {}
+            },
+            headers
+        );
+        assert.equal(policyUpdate.status, 200);
+        assert.equal(
+            (await policyUpdate.json() as any).asset.presentationPolicy,
+            'contain'
         );
 
         const created = await postMultipart(fixture, '/api/wiki/add_story', {
@@ -362,6 +383,13 @@ describe('Wiki agency story cover asset contract', () => {
             .flatMap((category: any) => category.cards)
             .find((card: any) => card.name === '【共享素材卡片】');
         assert.ok(publicCard);
+        assert.deepEqual(publicCard.imageTransform, {
+            fit: 'contain',
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0
+        });
         assert.match(publicCard.img, /^https:\/\/cdn\.example\.test\//);
         assert.doesNotMatch(publicCard.img, /\/api\/wiki\/story-cover-assets\//);
 
@@ -413,6 +441,28 @@ describe('Wiki agency story cover asset contract', () => {
 
         assert.equal(response.status, 503);
         assert.match((await response.json() as any).msg, /公开对象读取地址/);
+        assert.equal(fixture.story.coverAssets.length, 0);
+        assert.equal(fixture.storage.objects.size, 0);
+    });
+
+    test('asset upload rejects an unknown presentation policy', async () => {
+        const fixture = createWikiFixture();
+        fixture.storage.publicReadUrlBase = 'https://cdn.example.test';
+        const response = await postMultipart(
+            fixture,
+            '/api/admin/wiki/agencies/6/story-cover-assets',
+            {
+                fields: {
+                    name: '错误展示策略',
+                    presentation_policy: 'stretch'
+                },
+                files: { image: uploadedPng('shared-cover', 'shared.png') }
+            },
+            await fixture.authHeaders('editor')
+        );
+
+        assert.equal(response.status, 400);
+        assert.match((await response.json() as any).msg, /展示方式无效/);
         assert.equal(fixture.story.coverAssets.length, 0);
         assert.equal(fixture.storage.objects.size, 0);
     });

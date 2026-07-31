@@ -167,6 +167,21 @@ export function storyImageTransform(
   };
 }
 
+export function storyPresentationTransform(
+  record: StoryRecord | StoryCardRecord,
+): WikiImageTransform {
+  if (record.cover_asset_presentation_policy === "contain") {
+    return {
+      fit: "contain",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
+    };
+  }
+  return storyImageTransform(record);
+}
+
 export function storyObjectKey(
   code: string,
   folderName: string,
@@ -296,7 +311,7 @@ export function aggregateStories(
       name: row.card_name,
       img: wikiStoryImageUrl(agency, idol, row.image_file),
       subtitle: row.subtitle ?? "",
-      imageTransform: storyImageTransform(row),
+      imageTransform: storyPresentationTransform(row),
       links: [],
     });
   }
@@ -313,7 +328,7 @@ export function aggregateStories(
         name: row.card_name,
         img: wikiStoryImageUrl(agency, idol, row.image_file),
         subtitle: row.subtitle ?? "",
-        imageTransform: storyImageTransform(row),
+        imageTransform: storyPresentationTransform(row),
         links: [],
       };
       cards.set(row.card_name, card);

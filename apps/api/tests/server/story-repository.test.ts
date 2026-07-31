@@ -71,6 +71,7 @@ test('SQLite story lookup selects the requested row within its agency and idol',
         cover_asset_name: null,
         cover_asset_object_key: null,
         cover_asset_revision: null,
+        cover_asset_presentation_policy: null,
         image_fit: 'contain',
         image_focal_x: 0.25,
         image_focal_y: 0.75,
@@ -962,8 +963,10 @@ test('SQLite story cover assets are agency scoped, versioned, and protected in u
     const asset = await repository.createStoryCoverAsset({
         agencyId: agency.id,
         name: '通用主线封面',
-        objectKey: 'wiki/agencies/shared/story-cover-assets/one.webp'
+        objectKey: 'wiki/agencies/shared/story-cover-assets/one.webp',
+        presentationPolicy: 'contain'
     });
+    assert.equal(asset.presentation_policy, 'contain');
     const [storyId] = await repository.insertStoryBatchReturningIds({
         agencyCode: agency.code,
         idolId: idol.id,
@@ -984,7 +987,12 @@ test('SQLite story cover assets are agency scoped, versioned, and protected in u
     assert.equal(story?.cover_asset_id, asset.id);
     assert.equal(story?.cover_asset_name, '通用主线封面');
     assert.equal(story?.cover_asset_object_key, asset.object_key);
+    assert.equal(story?.cover_asset_presentation_policy, 'contain');
     assert.equal((await repository.listStoryCoverAssets(agency.id))[0]?.usage_count, 1);
+    await database.prepare(
+        'UPDATE wiki_categories SET background_eligible=TRUE WHERE id=?'
+    ).bind(category.id).run();
+    assert.equal(await repository.sampleWikiBackground(), null);
     assert.deepEqual(await repository.deleteStoryCoverAsset(asset.id), {
         status: 'in-use',
         usageCount: 1
@@ -995,10 +1003,21 @@ test('SQLite story cover assets are agency scoped, versioned, and protected in u
         agencyId: agency.id,
         name: '通用主线封面改',
         objectKey: 'wiki/agencies/shared/story-cover-assets/two.webp',
+        presentationPolicy: 'inherit',
         isActive: false,
         expectedRevision: 0
     });
     assert.equal(updatedAsset?.status, 'saved');
+    assert.equal(
+        (await repository.findStoryCoverAssetById(asset.id))?.presentation_policy,
+        'inherit'
+    );
+    assert.equal(
+        (await repository.findStoryById(agency.code, idol.id, storyId!))
+            ?.cover_asset_presentation_policy,
+        'inherit'
+    );
+    assert.equal((await repository.sampleWikiBackground())?.card_id, story?.card_id);
     assert.deepEqual(await repository.updateStoryCard({
         agencyCode: agency.code,
         idolId: idol.id,
@@ -1070,6 +1089,7 @@ test('SQLite legacy story IDs survive backfill and new IDs start above them', as
             cover_asset_name: null,
             cover_asset_object_key: null,
             cover_asset_revision: null,
+            cover_asset_presentation_policy: null,
             image_fit: 'cover',
             image_focal_x: 0.5,
             image_focal_y: 0.5,
@@ -1096,6 +1116,7 @@ test('SQLite legacy story IDs survive backfill and new IDs start above them', as
             cover_asset_name: null,
             cover_asset_object_key: null,
             cover_asset_revision: null,
+            cover_asset_presentation_policy: null,
             image_fit: 'cover',
             image_focal_x: 0.5,
             image_focal_y: 0.5,
