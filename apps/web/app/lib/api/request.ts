@@ -1,9 +1,15 @@
 import { ApiError } from "./api-error"
 import { readCookie } from "./cookies"
-import type { ApiMethodMeta } from "./types"
+import type { ApiAuthRealm, ApiMethodMeta } from "./types"
 
-export const CSRF_COOKIE_NAME = "csrf_token"
+export const BACKOFFICE_CSRF_COOKIE_NAME = "csrf_token"
 export const CSRF_HEADER_NAME = "X-CSRFToken"
+
+interface ApiRequestPolicyOptions {
+  authRealm?: ApiAuthRealm
+  csrfCookieName?: string
+  cookieSource?: string
+}
 
 interface ApiRequestPolicyTarget {
   config: {
@@ -31,15 +37,25 @@ function setHeader(
 
 export function applyApiRequestPolicy(
   request: ApiRequestPolicyTarget,
-  cookieSource?: string
+  options: ApiRequestPolicyOptions = {}
 ): void {
   request.config.credentials = "same-origin"
+
+  if (request.meta?.authRealm && request.meta.authRealm !== options.authRealm) {
+    throw new Error(
+      `${request.meta.authRealm} request cannot use the ${options.authRealm ?? "public"} API client`
+    )
+  }
 
   if (!request.meta?.csrf) {
     return
   }
 
-  const csrfToken = readCookie(CSRF_COOKIE_NAME, cookieSource)
+  if (!options.csrfCookieName) {
+    throw new Error("CSRF request requires an authentication realm")
+  }
+
+  const csrfToken = readCookie(options.csrfCookieName, options.cookieSource)
   if (!csrfToken) {
     throw new ApiError("登录会话缺少 CSRF 令牌，请刷新页面后重试", {
       kind: "csrf",

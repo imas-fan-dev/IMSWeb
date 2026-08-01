@@ -105,7 +105,11 @@ tests/e2e/            浏览器流程与可访问性冒烟测试
 
 `app/lib/api/` 对每个请求设置 `credentials: "same-origin"`，登录会话 Cookie 的签发、校验和失效仍由 Hono 负责。不要把会话 token 复制到 `localStorage`，也不要在页面中直接读取认证 Cookie。
 
-需要 Hono CSRF 保护的写请求必须显式附加 `withCsrf()` 元数据。客户端会在发送前读取当前 `csrf_token` Cookie，并写入 `X-CSRFToken` 请求头；缺少 Cookie 时请求会在浏览器端失败。`same-origin` Cookie 策略不能替代 CSRF 标记，新增写接口时必须同时核对 Hono 的中间件要求。
+需要 Hono 后台 CSRF 保护的写请求必须使用 `adminApiClient`，并显式附加
+`withBackofficeCsrf()` 元数据。客户端会在发送前读取当前后台身份域的 `csrf_token`
+Cookie，并写入 `X-CSRFToken` 请求头；缺少 Cookie 时请求会在浏览器端失败。
+`same-origin` Cookie 策略不能替代 CSRF 标记，新增写接口时必须同时核对 Hono 的
+中间件要求。公开请求继续使用 `apiClient`，不得触发后台 refresh。
 
 ## 路由所有权
 
