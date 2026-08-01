@@ -38,3 +38,15 @@ export function withBackofficeCsrf(
 ): ApiMethodMeta {
   return { ...meta, authRealm: "backoffice", csrf: true }
 }
+
+export function withPlatformAuth(
+  meta: Omit<ApiMethodMeta, "authRealm"> = {}
+): ApiMethodMeta {
+  return { ...meta, authRealm: "platform" }
+}
+
+export function withPlatformCsrf(
+  meta: Omit<ApiMethodMeta, "authRealm" | "csrf"> = {}
+): ApiMethodMeta {
+  return { ...meta, authRealm: "platform", csrf: true }
+}

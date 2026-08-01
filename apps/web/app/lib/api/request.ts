@@ -4,6 +4,7 @@ import type { ApiAuthRealm, ApiMethodMeta } from "./types"
 
 export const BACKOFFICE_CSRF_COOKIE_NAME = "ims_admin_csrf"
 export const LEGACY_BACKOFFICE_CSRF_COOKIE_NAME = "csrf_token"
+export const PLATFORM_CSRF_COOKIE_NAME = "ims_platform_csrf"
 export const CSRF_HEADER_NAME = "X-CSRFToken"
 
 interface ApiRequestPolicyOptions {

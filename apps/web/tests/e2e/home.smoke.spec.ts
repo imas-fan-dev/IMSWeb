@@ -257,9 +257,17 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
   })
 
   await page.goto("/")
-  await page.getByRole("button", { name: /打开导航|Open navigation/ }).click()
+  const trigger = page.getByRole("button", {
+    name: /打开导航|Open navigation/,
+  })
+  await expect(trigger).toBeEnabled()
+  await trigger.click()
 
-  const navigation = page.getByRole("navigation", {
+  const dialog = page.getByRole("dialog", {
+    name: /站点导航|Site navigation/,
+  })
+  await expect(dialog).toBeVisible()
+  const navigation = dialog.getByRole("navigation", {
     name: /移动端主导航|Mobile navigation/,
   })
   const eventsLink = navigation.getByRole("link", {
@@ -288,14 +296,20 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   await page.goto("/")
 
   if (isMobile) {
-    await page.getByRole("button", { name: /打开导航|Open navigation/ }).click()
+    const trigger = page.getByRole("button", {
+      name: /打开导航|Open navigation/,
+    })
+    await expect(trigger).toBeEnabled()
+    await trigger.click()
   }
 
-  const navigation = page.getByRole("navigation", {
-    name: isMobile
-      ? /移动端主导航|Mobile navigation/
-      : /主导航|Main navigation/,
-  })
+  const navigation = isMobile
+    ? page
+        .getByRole("dialog", { name: /站点导航|Site navigation/ })
+        .getByRole("navigation", {
+          name: /移动端主导航|Mobile navigation/,
+        })
+    : page.getByRole("navigation", { name: /主导航|Main navigation/ })
   await expect(navigation.locator("a")).toHaveCount(isMobile ? 7 : 6)
 
   for (const primaryHref of [
