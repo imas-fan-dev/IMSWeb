@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { PUBLIC_QUERY_CACHE_FOR } from "../cache-policy"
 import { apiClient } from "../client"
 
 export const liveEventSchema = z.object({
@@ -23,6 +24,7 @@ export function getLiveEvents(months: string[]) {
   return apiClient.Get<LiveEvent[], unknown>(
     `/api/live-schedule?${search.toString()}`,
     {
+      cacheFor: PUBLIC_QUERY_CACHE_FOR,
       transform: (payload) => z.array(liveEventSchema).parse(payload),
     }
   )

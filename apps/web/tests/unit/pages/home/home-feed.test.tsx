@@ -11,12 +11,21 @@ function NewsProbe({ onSuccess }: { onSuccess: (data: unknown) => void }) {
     data,
     error,
     onSuccess: onRequestSuccess,
-  } = useRequest(getHomeNews(), { initialData: [] })
+  } = useRequest(getHomeNews(), {
+    initialData: {
+      items: [],
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: null,
+      },
+    },
+  })
   onRequestSuccess((event) => onSuccess(event.data))
 
   if (loading) return <p>loading</p>
   if (error) return <p>error: {error.message}</p>
-  return <p>{data.map((item) => item.title).join(", ") || "empty"}</p>
+  return <p>{data.items.map((item) => item.title).join(", ") || "empty"}</p>
 }
 
 describe("home feed alova integration", () => {
@@ -46,9 +55,14 @@ describe("home feed alova integration", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
     await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce())
-    expect(onSuccess.mock.calls[0]?.[0]).toEqual([
-      expect.objectContaining({ title: "测试资讯" }),
-    ])
+    expect(onSuccess.mock.calls[0]?.[0]).toEqual({
+      items: [expect.objectContaining({ title: "测试资讯" })],
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: null,
+      },
+    })
     expect(await screen.findByText("测试资讯")).toBeVisible()
   })
 

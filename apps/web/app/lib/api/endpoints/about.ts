@@ -1,5 +1,9 @@
 import { z } from "zod"
 
+import {
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  STABLE_CONTENT_CACHE_FOR,
+} from "../cache-policy"
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
 
@@ -62,6 +66,8 @@ export type AboutAdminSnapshot = z.infer<typeof aboutAdminSnapshotSchema>
 
 export function getAboutPageContent() {
   return apiClient.Get<AboutPageContent, unknown>("/api/about", {
+    cacheFor: STABLE_CONTENT_CACHE_FOR,
+    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
     transform: (payload) => aboutPageContentSchema.parse(payload),
   })
 }
@@ -81,6 +87,7 @@ export function updateAdminAboutPageContent(
     { content, revision },
     {
       meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
       transform: (payload) => aboutAdminUpdateSchema.parse(payload),
     }
   )
@@ -94,6 +101,7 @@ export function uploadAboutHeroImage(file: File) {
     form,
     {
       meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
       transform: (payload) => aboutHeroImageUploadSchema.parse(payload),
     }
   )

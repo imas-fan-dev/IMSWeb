@@ -1,5 +1,9 @@
 import { z } from "zod"
 
+import {
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  STABLE_CONTENT_CACHE_FOR,
+} from "../cache-policy"
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
 
@@ -66,6 +70,8 @@ export const emptyHomepageLinks: HomepageLinks = {
 
 export function getHomepageLinks() {
   return apiClient.Get<HomepageLinks, unknown>("/api/homepage-links", {
+    cacheFor: STABLE_CONTENT_CACHE_FOR,
+    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.homepageLinks,
     transform: (payload) => homepageLinksSchema.parse(payload),
   })
 }
@@ -80,7 +86,10 @@ export function createHomepageLink(submission: HomepageLinkSubmission) {
   return apiClient.Post<{ success: true; link: HomepageLink }, unknown>(
     "/api/admin/homepage-links",
     submission,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.homepageLinks,
+    }
   )
 }
 
@@ -91,7 +100,10 @@ export function updateHomepageLink(
   return apiClient.Put<{ success: true; link: HomepageLink }, unknown>(
     `/api/admin/homepage-links/${encodeURIComponent(id)}`,
     submission,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.homepageLinks,
+    }
   )
 }
 
@@ -99,7 +111,10 @@ export function deleteHomepageLink(id: string) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/api/admin/homepage-links/${encodeURIComponent(id)}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.homepageLinks,
+    }
   )
 }
 
@@ -110,6 +125,9 @@ export function reorderHomepageLinks(
   return apiClient.Put<{ success: true }, unknown>(
     `/api/admin/homepage-links/${section}/order`,
     { ids },
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.homepageLinks,
+    }
   )
 }
