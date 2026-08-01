@@ -23,8 +23,8 @@ const publicRoutes = [
     path: "works/:workSlug",
     file: "pages/works/work-detail-page.tsx",
   },
-  { path: "wiki", file: "pages/wiki/modern/wiki-index-page.tsx" },
-  { path: "story", file: "pages/wiki/modern/story-page.tsx" },
+  { path: "wiki/modern", file: "pages/wiki/modern/wiki-index-page.tsx" },
+  { path: "story/modern", file: "pages/wiki/modern/story-page.tsx" },
   {
     path: "information/:contentId",
     file: "pages/information/information-content-page.tsx",
@@ -44,6 +44,16 @@ const publicRoutes = [
 ] satisfies RouteConfigEntry[]
 
 const standaloneRoutes = [
+  {
+    id: "pages/wiki/classic/classic-wiki-default",
+    path: "wiki",
+    file: "pages/wiki/classic/classic-wiki-page.tsx",
+  },
+  {
+    id: "pages/wiki/classic/classic-story-default",
+    path: "story",
+    file: "pages/wiki/classic/classic-story-page.tsx",
+  },
   {
     path: "wiki/classic",
     file: "pages/wiki/classic/classic-wiki-page.tsx",

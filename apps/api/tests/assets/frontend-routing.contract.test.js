@@ -95,6 +95,12 @@ test('[FRT-02] real prerendered documents and selective SPA routes use build/cli
         'works/gakuen',
         'works/games',
         'works/wows',
+        'wiki',
+        'wiki/modern',
+        'wiki/classic',
+        'story',
+        'story/modern',
+        'story/classic',
         'chronicle'
     ]) {
         await assertFileResponse(`/${route}`, path.join(FRONTEND_ROOT, route, 'index.html'));

@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
 
 import { ImageLoadingIndicator } from "~/components/shared/image-loading-indicator"
+import { SeriesBrowserIcon } from "~/components/shared/series-browser-icon"
 import { ThemeColorSync } from "~/components/shared/theme-toggle"
 import { Toaster } from "~/components/ui/sonner"
 import { I18nProvider } from "~/i18n/provider"
@@ -31,6 +32,7 @@ export function RootAppLayout() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ImageLoadingIndicator />
+      <SeriesBrowserIcon />
       <ThemeColorSync />
       <Outlet />
       <Toaster position="top-right" richColors closeButton />

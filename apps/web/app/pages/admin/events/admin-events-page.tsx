@@ -32,7 +32,7 @@ export function meta() {
 }
 
 async function loadEvents() {
-  return (await getEventPage({ limit: 50 }).send()).items
+  return (await getEventPage({ limit: 50 }).send(true)).items
 }
 
 export default function AdminEventsPage() {

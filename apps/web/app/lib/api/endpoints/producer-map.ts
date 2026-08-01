@@ -1,6 +1,9 @@
 import { z } from "zod"
 
-import { PUBLIC_QUERY_CACHE_FOR } from "../cache-policy"
+import {
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  STABLE_CONTENT_CACHE_FOR,
+} from "../cache-policy"
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
 
@@ -79,7 +82,7 @@ export function getProducerMapGeometry() {
   return apiClient.Get<ProducerMapGeometry, unknown>(
     "/maps/china-provinces.json",
     {
-      cacheFor: PUBLIC_QUERY_CACHE_FOR,
+      cacheFor: STABLE_CONTENT_CACHE_FOR,
       transform: (payload) => producerMapGeometrySchema.parse(payload),
     }
   )
@@ -87,7 +90,8 @@ export function getProducerMapGeometry() {
 
 export function getProducerMapContent() {
   return apiClient.Get<ProducerMapContent, unknown>("/api/producer-map", {
-    cacheFor: PUBLIC_QUERY_CACHE_FOR,
+    cacheFor: STABLE_CONTENT_CACHE_FOR,
+    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
     transform: (payload) => producerMapContentSchema.parse(payload),
   })
 }
@@ -110,6 +114,7 @@ export function updateAdminProducerMapContent(
     { content, revision },
     {
       meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
       transform: (payload) => producerMapAdminUpdateSchema.parse(payload),
     }
   )

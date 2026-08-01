@@ -1,5 +1,9 @@
 import { z } from "zod"
 
+import {
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  PUBLIC_QUERY_CACHE_FOR,
+} from "../cache-policy"
 import { apiClient } from "../client"
 
 export const NAMECARD_REACTIONS = [
@@ -78,6 +82,8 @@ export type NamecardReactions = z.infer<typeof reactionSchema>
 
 export function getNamecardPage(page = 1, size = 12) {
   return apiClient.Get<NamecardPage, unknown>("/api/cards", {
+    cacheFor: PUBLIC_QUERY_CACHE_FOR,
+    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
     params: { page, size },
     transform: (payload) => namecardPageSchema.parse(payload),
   })

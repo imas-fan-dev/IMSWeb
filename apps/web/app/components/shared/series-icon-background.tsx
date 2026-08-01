@@ -1,13 +1,12 @@
 import { useEffect, useRef } from "react"
 
-const seriesIcons = [
-  { src: "/brand/series/765pro.png", width: 193, height: 150 },
-  { src: "/brand/series/cinderella-girls.png", width: 193, height: 150 },
-  { src: "/brand/series/million-live.png", width: 193, height: 150 },
-  { src: "/brand/series/sidem.png", width: 193, height: 150 },
-  { src: "/brand/series/shiny-colors.png", width: 193, height: 150 },
-  { src: "/brand/series/gakuen.png", width: 659, height: 609 },
-] as const
+import { seriesWallItems } from "~/lib/series-wall"
+
+const seriesIcons = seriesWallItems.map((series) => ({
+  src: series.icon,
+  width: series.iconWidth,
+  height: series.iconHeight,
+}))
 
 const motifCount = 12
 const mobileMotifCount = 8

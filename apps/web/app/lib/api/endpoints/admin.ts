@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
 
@@ -241,7 +242,10 @@ export function createInformation(submission: InformationSubmission) {
   return apiClient.Post<{ success: true; card: AdminInformationCard }, unknown>(
     "/api/admin/information",
     submission,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
+    }
   )
 }
 
@@ -252,7 +256,10 @@ export function updateInformation(
   return apiClient.Put<{ success: true; card: AdminInformationCard }, unknown>(
     `/api/admin/information/${encodeURIComponent(id)}`,
     submission,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
+    }
   )
 }
 
@@ -260,7 +267,10 @@ export function deleteInformation(id: string) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/api/admin/information/${encodeURIComponent(id)}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
+    }
   )
 }
 
@@ -268,7 +278,10 @@ export function reorderInformation(ids: string[]) {
   return apiClient.Put<{ success: true }, unknown>(
     "/api/admin/information/order",
     { ids },
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
+    }
   )
 }
 
@@ -276,7 +289,10 @@ export function deleteInformationAsset(url: string) {
   return apiClient.Delete<{ success: true }, unknown>(
     "/api/admin/information/assets",
     { url },
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
+    }
   )
 }
 
@@ -290,6 +306,7 @@ export function getRecommendations() {
 export function createRecommendation(form: FormData) {
   return apiClient.Post<{ success: true }, unknown>("/api/admin/news", form, {
     meta: withCsrf(),
+    name: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,
   })
 }
 
@@ -297,7 +314,10 @@ export function deleteRecommendation(id: number) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/api/admin/news/${id}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,
+    }
   )
 }
 
@@ -315,7 +335,10 @@ export function uploadIdolMedia(agency: string, idol: string, file: File) {
   return apiClient.Post<{ status: "success"; url: string }, unknown>(
     "/api/wiki/idol-media",
     form,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
+    }
   )
 }
 
@@ -323,7 +346,10 @@ export function deleteIdolMedia(agency: string, idol: string) {
   return apiClient.Delete<{ status: "success" }, unknown>(
     "/api/wiki/idol-media",
     { agency, idol },
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
+    }
   )
 }
 
@@ -345,7 +371,10 @@ export function approveChronicleMedia(activityId: string, filename: string) {
   return apiClient.Post<{ success: true }, unknown>(
     `/eventchronicle/admin/approve/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
+    }
   )
 }
 
@@ -361,7 +390,10 @@ export function deleteUsedChronicleMedia(activityId: string, filename: string) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/eventchronicle/admin/delete-used/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
+    }
   )
 }
 
@@ -379,7 +411,10 @@ export function approveAdminNamecard(id: number) {
   return apiClient.Post<{ success: true }, unknown>(
     `/api/admin/cards/approve/${id}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    }
   )
 }
 
@@ -387,7 +422,10 @@ export function deleteAdminNamecard(id: number) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/api/admin/cards/${id}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    }
   )
 }
 
@@ -395,7 +433,10 @@ export function createAdminEvent(form: FormData) {
   return apiClient.Post<{ success: true; id: number }, unknown>(
     "/api/events",
     form,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
+    }
   )
 }
 
@@ -403,6 +444,9 @@ export function deleteAdminEvent(id: string) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/api/events/${encodeURIComponent(id)}`,
     undefined,
-    { meta: withCsrf() }
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
+    }
   )
 }

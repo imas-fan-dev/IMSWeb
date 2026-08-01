@@ -16,7 +16,14 @@ export function HomeFeed() {
   } = useWatcher(() => getHomeNews(summaryCount), [summaryCount], {
     immediate: true,
     abortLast: true,
-    initialData: [],
+    initialData: {
+      items: [],
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: false,
+        snapshotAt: null,
+      },
+    },
   })
   onNewsError(() => undefined)
   const {
@@ -38,7 +45,7 @@ export function HomeFeed() {
   })
   onEventsError(() => undefined)
   const visibleEvents = eventsData.items.slice(0, summaryCount)
-  const visibleNews = newsData.slice(0, summaryCount)
+  const visibleNews = newsData.items.slice(0, summaryCount)
 
   return (
     <section className="border-t bg-muted/25" aria-labelledby="latest-heading">

@@ -1,8 +1,9 @@
-import { HouseIcon, LayoutGridIcon, XIcon } from "lucide-react"
+import { HouseIcon, XIcon } from "lucide-react"
 import { type CSSProperties } from "react"
 import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import type { WikiPublicCatalog } from "~/lib/api"
 import { contrastingWikiText, safeWikiColor } from "~/pages/wiki/wiki-model"
 
@@ -11,6 +12,7 @@ interface ClassicAgencyNavigationProps {
   requestedAgency: string
   requestIsCurrent: boolean
   navigationOpen: boolean
+  modernWikiHref: string
   onClose: () => void
   onSelectAgency: (agency: string) => void
 }
@@ -20,6 +22,7 @@ export function ClassicAgencyNavigation({
   requestedAgency,
   requestIsCurrent,
   navigationOpen,
+  modernWikiHref,
   onClose,
   onSelectAgency,
 }: ClassicAgencyNavigationProps) {
@@ -107,8 +110,11 @@ export function ClassicAgencyNavigation({
             )
           })}
         </div>
-        <Link to="/wiki" className="wiki-classic-agency-button is-secondary">
-          <LayoutGridIcon />
+        <Link
+          to={modernWikiHref}
+          className="wiki-classic-agency-button is-secondary"
+        >
+          <WikiViewSwitchIcon tone="dark" className="size-4.5" />
           <span>新版视图</span>
         </Link>
         <Link to="/" className="wiki-classic-agency-button is-secondary">

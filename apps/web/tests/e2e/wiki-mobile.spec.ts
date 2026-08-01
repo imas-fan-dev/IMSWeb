@@ -6,7 +6,13 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
 }) => {
   test.skip(!isMobile, "mobile-only Wiki interaction")
 
-  await page.goto("/wiki")
+  await page.goto("/wiki/modern")
+
+  const firstIdolCard = page
+    .locator('a[aria-label][href^="/story/modern?"]')
+    .first()
+  await expect(firstIdolCard).toBeVisible()
+  await expect(firstIdolCard.locator('[data-slot="badge"]')).toHaveCount(0)
 
   const agencyRail = page.getByTestId("wiki-agency-tabs")
   const targetAgency = agencyRail.getByRole("tab", { name: /百万现场/ })
@@ -50,7 +56,7 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   test.skip(!isMobile, "mobile-only classic Wiki layout")
 
   await page.setViewportSize({ width: 320, height: 844 })
-  await page.goto("/wiki/classic")
+  await page.goto("/wiki")
 
   const navigationButton = page.getByRole("button", {
     name: "打开企划导航",
@@ -61,23 +67,43 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   const inlineSearch = page.getByRole("textbox", {
     name: "搜索当前企划内容页",
   })
+  const groupFilter = page.getByRole("region", { name: "组合与分类筛选" })
   const firstGroup = page.locator(".wiki-classic-group").first()
   await expect(navigationButton).toHaveAttribute("aria-expanded", "false")
   await expect(sidebar).not.toHaveClass(/is-open/)
   await expect(banner).toBeVisible()
   await expect(inlineSearch).toBeVisible()
+  await expect(groupFilter).toBeVisible()
   await expect(firstGroup).toBeVisible()
+  await expect(page.locator(".wiki-classic-idol-kind")).toHaveCount(0)
 
-  const [bannerBox, searchBox, groupBox] = await Promise.all([
+  const [bannerBox, searchBox, filterBox, groupBox] = await Promise.all([
     banner.boundingBox(),
     inlineSearch.boundingBox(),
+    groupFilter.boundingBox(),
     firstGroup.boundingBox(),
   ])
   expect(bannerBox).not.toBeNull()
   expect(searchBox).not.toBeNull()
+  expect(filterBox).not.toBeNull()
   expect(groupBox).not.toBeNull()
   expect(bannerBox!.y).toBeLessThan(searchBox!.y)
-  expect(searchBox!.y).toBeLessThan(groupBox!.y)
+  expect(searchBox!.y).toBeLessThan(filterBox!.y)
+  expect(filterBox!.y).toBeLessThan(groupBox!.y)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth
+    )
+  ).toBe(true)
+
+  const groupOption = groupFilter
+    .locator('[role="tab"][aria-selected="false"]')
+    .first()
+  await expect(groupOption).toBeVisible()
+  await groupOption.click()
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("group"))
+    .not.toBeNull()
 
   const columnCount = await page
     .locator(".wiki-classic-idol-grid")
@@ -238,7 +264,7 @@ test("classic text-only story cards do not render nested frames", async ({
 
 test("new story cards without sources render in gray", async ({ page }) => {
   await page.goto(
-    "/story?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
+    "/story/modern?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
   )
 
   const imageCard = page.locator('[id^="story-card-"]:has(img)').first()
@@ -375,9 +401,9 @@ test("classic Wiki styles survive returning from a story", async ({
 
   const directStyles = await readLayoutStyles()
   await page.locator(".wiki-classic-idol-card").first().click()
-  await expect(page).toHaveURL(/\/story\/classic/)
+  await expect(page).toHaveURL(/\/story\?/)
   await page.getByRole("link", { name: "返回上一页", exact: true }).click()
-  await expect(page).toHaveURL(/\/wiki\/classic/)
+  await expect(page).toHaveURL(/\/wiki\?/)
   await expect(
     page.getByRole("heading", {
       level: 1,

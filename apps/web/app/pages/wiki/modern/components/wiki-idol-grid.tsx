@@ -2,7 +2,6 @@ import { ArrowUpRightIcon } from "lucide-react"
 import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
-import { WikiEntryKindBadge } from "~/components/wiki/wiki-entry-kind"
 import type {
   WikiImageTransform,
   WikiPublicCatalog,
@@ -104,7 +103,7 @@ function IdolSection({
         {idols.map((idol) => (
           <Link
             key={idol.id}
-            to={`/story?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
+            to={`/story/modern?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
             aria-label={idol.name}
             className="group overflow-hidden rounded-lg border bg-card shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             style={{ borderTopColor: safeWikiColor(idol.color) }}
@@ -121,17 +120,10 @@ function IdolSection({
                 />
               ) : null}
             </div>
-            <div className="flex min-h-18 items-center justify-between gap-2 border-t px-3 py-2.5">
-              <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
-                <span className="min-w-0 text-sm font-medium wrap-break-word">
-                  {idol.name}
-                </span>
-                <WikiEntryKindBadge
-                  kind={idol.entryKind}
-                  subtype={idol.entrySubtype}
-                  variant="secondary"
-                />
-              </div>
+            <div className="flex min-h-14 items-center justify-between gap-2 border-t px-3 py-2.5">
+              <span className="min-w-0 flex-1 text-sm font-medium wrap-break-word">
+                {idol.name}
+              </span>
               <ArrowUpRightIcon className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
             </div>
           </Link>

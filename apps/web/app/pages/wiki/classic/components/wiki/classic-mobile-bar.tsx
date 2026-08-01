@@ -1,13 +1,17 @@
-import { LayoutGridIcon, MenuIcon } from "lucide-react"
+import { MenuIcon } from "lucide-react"
 import { Link } from "react-router"
+
+import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 
 interface ClassicMobileBarProps {
   navigationOpen: boolean
+  modernWikiHref: string
   onOpenNavigation: () => void
 }
 
 export function ClassicMobileBar({
   navigationOpen,
+  modernWikiHref,
   onOpenNavigation,
 }: ClassicMobileBarProps) {
   return (
@@ -25,12 +29,12 @@ export function ClassicMobileBar({
       </button>
       <strong>剧情导航站</strong>
       <Link
-        to="/wiki"
+        to={modernWikiHref}
         className="wiki-classic-icon-button"
         aria-label="切换到新版视图"
         title="切换到新版视图"
       >
-        <LayoutGridIcon />
+        <WikiViewSwitchIcon tone="light" className="size-5" />
       </Link>
     </div>
   )

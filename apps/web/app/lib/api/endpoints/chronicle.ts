@@ -1,5 +1,9 @@
 import { z } from "zod"
 
+import {
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  PUBLIC_QUERY_CACHE_FOR,
+} from "../cache-policy"
 import { apiClient } from "../client"
 
 const activityIdSchema = z.string().trim().min(1).max(120)
@@ -34,6 +38,8 @@ export function getChronicleActivities() {
   return apiClient.Get<ChronicleActivitySummary[], unknown>(
     "/eventchronicle/activities",
     {
+      cacheFor: PUBLIC_QUERY_CACHE_FOR,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
       transform: (payload) =>
         z.array(chronicleActivitySummarySchema).parse(payload),
     }
@@ -44,6 +50,8 @@ export function getChronicleActivity(activityId: string) {
   return apiClient.Get<ChronicleActivity, unknown>(
     `/eventchronicle/activities/${encodeURIComponent(activityId)}`,
     {
+      cacheFor: PUBLIC_QUERY_CACHE_FOR,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
       transform: (payload) => chronicleActivitySchema.parse(payload),
     }
   )

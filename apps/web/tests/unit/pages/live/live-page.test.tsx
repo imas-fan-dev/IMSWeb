@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import Live from "~/pages/live/live-page"
 
+const FIXED_TODAY = new Date(2026, 7, 20, 12)
+
 function jsonResponse(value: unknown) {
   return new Response(JSON.stringify(value), {
     headers: { "content-type": "application/json" },
@@ -55,9 +57,13 @@ function archiveEvents() {
 }
 
 describe("Live", () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
 
   it("shows the next two weeks, monthly archives, and ten-item pages", async () => {
+    vi.setSystemTime(FIXED_TODAY)
     const initialEvents = [
       ...archiveEvents(),
       liveEvent("later", shiftedDate(8), "稍后公演", "VA-LIV"),

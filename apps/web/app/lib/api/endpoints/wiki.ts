@@ -1,5 +1,10 @@
 import { z } from "zod"
 
+import {
+  NO_CLIENT_CACHE,
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  WIKI_PUBLIC_CACHE,
+} from "../cache-policy"
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
 
@@ -468,8 +473,17 @@ export type WikiStoryGroup = {
   cardName: string
 }
 
+function wikiMutationConfig() {
+  return {
+    name: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
+    meta: withCsrf(),
+  } as const
+}
+
 export function getWikiCatalog(agency?: string) {
   return apiClient.Get<WikiPublicCatalog, unknown>("/api/wiki/catalog", {
+    cacheFor: WIKI_PUBLIC_CACHE,
+    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
     params: agency ? { agency } : undefined,
     transform: (payload) => wikiPublicCatalogSchema.parse(payload),
   })
@@ -477,6 +491,8 @@ export function getWikiCatalog(agency?: string) {
 
 export function getWikiStories(agency: string, idol: string) {
   return apiClient.Get<WikiPublicStories, unknown>("/api/wiki/stories", {
+    cacheFor: WIKI_PUBLIC_CACHE,
+    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
     params: { agency, idol },
     transform: (payload) => wikiPublicStoriesSchema.parse(payload),
   })
@@ -484,12 +500,14 @@ export function getWikiStories(agency: string, idol: string) {
 
 export function getWikiRandomBackground() {
   return apiClient.Get<WikiRandomBackground, unknown>("/api/wiki/random_bg", {
+    cacheFor: NO_CLIENT_CACHE,
     transform: (payload) => wikiRandomBackgroundSchema.parse(payload),
   })
 }
 
 export function getWikiRandomIdol() {
   return apiClient.Get<WikiRandomIdol, unknown>("/api/wiki/random_idol", {
+    cacheFor: NO_CLIENT_CACHE,
     transform: (payload) => wikiRandomIdolSchema.parse(payload),
   })
 }
@@ -574,7 +592,7 @@ export function createWikiStoryCoverAsset(input: {
     z.infer<typeof wikiStoryCoverAssetMutationSchema>,
     unknown
   >(`/api/admin/wiki/agencies/${input.agencyId}/story-cover-assets`, form, {
-    meta: withCsrf(),
+    ...wikiMutationConfig(),
     transform: (payload) => wikiStoryCoverAssetMutationSchema.parse(payload),
   })
 }
@@ -597,7 +615,7 @@ export function updateWikiStoryCoverAsset(input: {
     z.infer<typeof wikiStoryCoverAssetMutationSchema>,
     unknown
   >(`/api/admin/wiki/story-cover-assets/${input.assetId}`, form, {
-    meta: withCsrf(),
+    ...wikiMutationConfig(),
     transform: (payload) => wikiStoryCoverAssetMutationSchema.parse(payload),
   })
 }
@@ -607,7 +625,7 @@ export function deleteWikiStoryCoverAsset(assetId: number) {
     `/api/admin/wiki/story-cover-assets/${assetId}`,
     undefined,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -636,7 +654,7 @@ export function createWikiStoryContentType(
     "/api/admin/wiki/story-content-types",
     submission,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => contentTypeMutationSchema.parse(payload),
     }
   )
@@ -651,7 +669,7 @@ export function updateWikiStoryContentType(
     `/api/admin/wiki/story-content-types/${optionId}`,
     { ...submission, expectedRevision },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => contentTypeMutationSchema.parse(payload),
     }
   )
@@ -662,7 +680,7 @@ export function deleteWikiStoryContentType(optionId: number) {
     `/api/admin/wiki/story-content-types/${optionId}`,
     undefined,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -675,7 +693,7 @@ export function createWikiStorySourcePlatform(
     "/api/admin/wiki/story-source-platforms",
     submission,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => sourcePlatformMutationSchema.parse(payload),
     }
   )
@@ -690,7 +708,7 @@ export function updateWikiStorySourcePlatform(
     `/api/admin/wiki/story-source-platforms/${optionId}`,
     { ...submission, expectedRevision },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => sourcePlatformMutationSchema.parse(payload),
     }
   )
@@ -701,7 +719,7 @@ export function deleteWikiStorySourcePlatform(optionId: number) {
     `/api/admin/wiki/story-source-platforms/${optionId}`,
     undefined,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -712,7 +730,7 @@ export function createWikiAgency(submission: WikiAgencySubmission) {
     z.infer<typeof wikiAgencyMutationResultSchema>,
     unknown
   >("/api/admin/wiki/agencies", submission, {
-    meta: withCsrf(),
+    ...wikiMutationConfig(),
     transform: (payload) => wikiAgencyMutationResultSchema.parse(payload),
   })
 }
@@ -725,7 +743,7 @@ export function updateWikiAgency(
     z.infer<typeof wikiAgencyMutationResultSchema>,
     unknown
   >(`/api/admin/wiki/agencies/${agencyId}`, submission, {
-    meta: withCsrf(),
+    ...wikiMutationConfig(),
     transform: (payload) => wikiAgencyMutationResultSchema.parse(payload),
   })
 }
@@ -738,7 +756,7 @@ export function createWikiGroup(
     `/api/admin/wiki/agencies/${agencyId}/groups`,
     submission,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiGroupMutationResultSchema.parse(payload),
     }
   )
@@ -752,7 +770,7 @@ export function updateWikiGroup(
     z.infer<typeof wikiGroupMutationResultSchema>,
     unknown
   >(`/api/admin/wiki/groups/${groupId}`, submission, {
-    meta: withCsrf(),
+    ...wikiMutationConfig(),
     transform: (payload) => wikiGroupMutationResultSchema.parse(payload),
   })
 }
@@ -762,7 +780,7 @@ export function deleteWikiGroup(groupId: number, expectedRevision: number) {
     `/api/admin/wiki/groups/${groupId}`,
     { expectedRevision },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -776,7 +794,7 @@ export function createWikiIdol(
     `/api/admin/wiki/agencies/${agencyId}/idols`,
     submission,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiIdolMutationResultSchema.parse(payload),
     }
   )
@@ -790,7 +808,7 @@ export function updateWikiIdol(
     `/api/admin/wiki/idols/${idolId}`,
     submission,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiIdolMutationResultSchema.parse(payload),
     }
   )
@@ -825,7 +843,7 @@ export function saveWikiEntityImage(input: {
     wikiEntityImagePath[input.kind](input.id),
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiEntityImageResultSchema.parse(payload),
     }
   )
@@ -839,7 +857,7 @@ export function uploadWikiAgencyIcon(agency: string, file: File) {
     "/api/wiki/agency-icon",
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiAgencyIconResultSchema.parse(payload),
     }
   )
@@ -850,7 +868,7 @@ export function deleteWikiAgencyIcon(agency: string) {
     "/api/wiki/agency-icon",
     { agency },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -865,7 +883,7 @@ export function saveWikiLayout(
     `/api/admin/wiki/agencies/${agencyId}/layout`,
     { expectedRevision, groups },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiLayoutResultSchema.parse(payload),
     }
   )
@@ -878,7 +896,7 @@ export function createWikiStory(submission: WikiStorySubmission) {
     "/api/wiki/add_story",
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -914,7 +932,7 @@ export function createWikiStoryBatch(submission: WikiStoryBatchSubmission) {
     "/api/wiki/add_story",
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -939,7 +957,7 @@ export function createWikiStorySources(
       })),
     },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -964,7 +982,7 @@ export function deleteWikiStoryLink(input: {
       idol: input.idol,
       expectedRevision: input.expectedRevision,
     },
-    meta: withCsrf(),
+    ...wikiMutationConfig(),
     transform: (payload) => wikiStoryLinkDeleteResultSchema.parse(payload),
   })
 }
@@ -974,7 +992,7 @@ export function deleteWikiIdol(idolId: number, expectedRevision: number) {
     `/api/admin/wiki/idols/${idolId}`,
     { expectedRevision },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiIdolDeleteResultSchema.parse(payload),
     }
   )
@@ -996,7 +1014,7 @@ export function updateWikiCategory(input: {
       expectedName: input.expectedName,
     },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -1011,7 +1029,7 @@ export function createWikiCategory(input: {
     `/api/admin/wiki/agencies/${input.agencyId}/idols/${input.idolId}/categories`,
     { name: input.name.trim() },
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -1039,7 +1057,7 @@ export function updateWikiStoryCard(
     `/api/admin/wiki/cards/${cardId}`,
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -1059,7 +1077,7 @@ export function updateWikiStory(
     "/api/wiki/edit_story",
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -1072,7 +1090,7 @@ export function deleteWikiStoryGroup(group: WikiStoryGroup) {
     "/api/wiki/delete_story",
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )
@@ -1087,7 +1105,7 @@ export function deleteWikiCategory(group: Omit<WikiStoryGroup, "cardName">) {
     "/api/wiki/delete_category",
     form,
     {
-      meta: withCsrf(),
+      ...wikiMutationConfig(),
       transform: (payload) => wikiMutationResultSchema.parse(payload),
     }
   )

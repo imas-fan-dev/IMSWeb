@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ClassicStoryPage } from "~/pages/wiki/classic/classic-story-page"
@@ -16,6 +16,11 @@ function deferred<T>() {
     resolve = complete
   })
   return { promise, resolve }
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location-search">{location.search}</output>
 }
 
 const agencies = [
@@ -258,11 +263,33 @@ describe("classic Wiki pages", () => {
     const illuminationSection = screen
       .getByRole("heading", { name: "illumination STARS" })
       .closest("section")!
-    expect(
-      within(illuminationSection).getByRole("link", { name: /樱木真乃/ })
-    ).toHaveAttribute(
+    const manoLink = within(illuminationSection).getByRole("link", {
+      name: /樱木真乃/,
+    })
+    expect(manoLink).toHaveAttribute(
       "href",
-      "/story/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+    )
+    expect(within(manoLink).queryByText("其他")).not.toBeInTheDocument()
+    const desktopViewSwitch = screen.getByRole("link", { name: "新版视图" })
+    expect(desktopViewSwitch).toHaveAttribute(
+      "href",
+      "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+    )
+    expect(desktopViewSwitch.querySelector("img")).toHaveAttribute(
+      "src",
+      "/brand/wiki-view-switch.png"
+    )
+    const mobileViewSwitch = screen.getByRole("link", {
+      name: "切换到新版视图",
+    })
+    expect(mobileViewSwitch).toHaveAttribute(
+      "href",
+      "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+    )
+    expect(mobileViewSwitch.querySelector("img")).toHaveAttribute(
+      "src",
+      "/brand/wiki-view-switch.png"
     )
 
     await user.click(screen.getByRole("button", { name: "搜索内容页" }))
@@ -384,6 +411,12 @@ describe("classic Wiki pages", () => {
       "aria-busy",
       "true"
     )
+    const pendingGroupTabs = screen.getByRole("tablist", {
+      name: "按组合或分类筛选",
+    })
+    for (const tab of within(pendingGroupTabs).getAllByRole("tab")) {
+      expect(tab).toBeDisabled()
+    }
 
     nextCatalog.resolve(Response.json(catalogPayload("765PRO")))
 
@@ -394,6 +427,11 @@ describe("classic Wiki pages", () => {
       "aria-busy",
       "false"
     )
+    expect(
+      within(
+        screen.getByRole("tablist", { name: "按组合或分类筛选" })
+      ).getByRole("tab", { name: /全部/ })
+    ).toBeEnabled()
   })
 
   it("keeps a cross-group idol in both classic groups without inflating the total", async () => {
@@ -435,6 +473,73 @@ describe("classic Wiki pages", () => {
     expect(within(banner).getByText("2 个内容页")).toBeVisible()
   })
 
+  it("filters the classic directory from the group bar", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response(catalogPayload("闪耀色彩", false, true))
+      })
+    )
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={["/wiki?agency=闪耀色彩&group=999"]}>
+        <ClassicWikiPage />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    const banner = (
+      await screen.findByRole("heading", { name: "283 Production" })
+    ).closest("header")!
+    const groupTabs = screen.getByRole("tablist", {
+      name: "按组合或分类筛选",
+    })
+    const filterBar = groupTabs.closest("section")!
+    const allTab = within(groupTabs).getByRole("tab", { name: /全部/ })
+    const straylightTab = within(groupTabs).getByRole("tab", {
+      name: /Straylight/,
+    })
+
+    expect(allTab).toHaveAttribute("aria-selected", "true")
+    expect(
+      banner.compareDocumentPosition(filterBar) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0)
+
+    await user.click(straylightTab)
+
+    expect(straylightTab).toHaveAttribute("aria-selected", "true")
+    expect(
+      screen.queryByRole("heading", { name: "illumination STARS" })
+    ).toBeNull()
+    expect(screen.getByRole("heading", { name: "Straylight" })).toBeVisible()
+    expect(screen.getByRole("link", { name: /芹泽朝日/ })).toBeVisible()
+    expect(screen.getByTestId("location-search")).toHaveTextContent("group=32")
+
+    await user.click(within(groupTabs).getByRole("tab", { name: /未归档/ }))
+
+    expect(screen.queryByRole("heading", { name: "Straylight" })).toBeNull()
+    expect(screen.getByRole("heading", { name: "未归档" })).toBeVisible()
+    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
+
+    await user.click(allTab)
+
+    expect(
+      screen.getByRole("heading", { name: "illumination STARS" })
+    ).toBeVisible()
+    expect(screen.getByRole("heading", { name: "Straylight" })).toBeVisible()
+    expect(screen.getByTestId("location-search")).not.toHaveTextContent(
+      "group="
+    )
+  })
+
   it("places ungrouped idols after every configured classic group", async () => {
     vi.stubGlobal(
       "fetch",
@@ -459,7 +564,9 @@ describe("classic Wiki pages", () => {
       name: "Straylight",
     })
     const ungroupedHeading = screen.getByRole("heading", { name: "未归档" })
-    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
+    const toruLink = screen.getByRole("link", { name: /浅仓透/ })
+    expect(toruLink).toBeVisible()
+    expect(within(toruLink).queryByText("其他")).not.toBeInTheDocument()
     expect(
       straylightHeading.compareDocumentPosition(ungroupedHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
@@ -484,6 +591,17 @@ describe("classic Wiki pages", () => {
     expect(
       await screen.findByRole("heading", { name: "樱木真乃" })
     ).toBeVisible()
+    expect(screen.getByText("SC ARCHIVE")).toBeVisible()
+    expect(screen.queryByText("其他")).not.toBeInTheDocument()
+    const modernViewLink = screen.getByRole("link", { name: "新版视图" })
+    expect(modernViewLink).toHaveAttribute(
+      "href",
+      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+    )
+    expect(modernViewLink.querySelector("img")).toHaveAttribute(
+      "src",
+      "/brand/wiki-view-switch.png"
+    )
     await user.click(screen.getByRole("button", { name: /enza主线/ }))
     expect(screen.queryByRole("heading", { name: /特殊剧情/ })).toBeNull()
 

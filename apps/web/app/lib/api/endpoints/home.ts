@@ -1,9 +1,13 @@
 import { z } from "zod"
 
+import {
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  PUBLIC_QUERY_CACHE_FOR,
+} from "../cache-policy"
 import { apiClient } from "../client"
 import { getEventPage } from "./events"
 import type { EventListItem, EventPage } from "./events"
-import { parseRecommendationPage } from "./recommendations"
+import { getRecommendationPage } from "./recommendations"
 import type { Recommendation } from "./recommendations"
 
 const homeInformationCardSchema = z.object({
@@ -31,11 +35,7 @@ export type HomeInformationCard = z.infer<typeof homeInformationCardSchema>
 export type HomeInformationDetail = z.infer<typeof homeInformationDetailSchema>
 
 export function getHomeNews(limit = 4) {
-  return apiClient.Get<HomeNews[], unknown>("/api/news", {
-    params: { limit },
-    transform: (payload) =>
-      parseRecommendationPage(payload).items.slice(0, limit),
-  })
+  return getRecommendationPage({ limit })
 }
 
 export function getHomeEvents(limit = 4) {
@@ -45,13 +45,21 @@ export function getHomeEvents(limit = 4) {
 export function getHomeInformation() {
   return apiClient.Get<z.infer<typeof homeInformationListSchema>, unknown>(
     "/api/information",
-    { transform: (payload) => homeInformationListSchema.parse(payload) }
+    {
+      cacheFor: PUBLIC_QUERY_CACHE_FOR,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
+      transform: (payload) => homeInformationListSchema.parse(payload),
+    }
   )
 }
 
 export function getHomeInformationDetail(id: string) {
   return apiClient.Get<HomeInformationDetail, unknown>(
     `/api/information/${encodeURIComponent(id)}`,
-    { transform: (payload) => homeInformationDetailSchema.parse(payload) }
+    {
+      cacheFor: PUBLIC_QUERY_CACHE_FOR,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
+      transform: (payload) => homeInformationDetailSchema.parse(payload),
+    }
   )
 }

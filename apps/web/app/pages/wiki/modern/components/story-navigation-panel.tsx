@@ -1,6 +1,7 @@
-import { ArrowLeftIcon, HistoryIcon, HouseIcon, SearchIcon } from "lucide-react"
+import { ArrowLeftIcon, HouseIcon, SearchIcon } from "lucide-react"
 import { Link } from "react-router"
 
+import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import { buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { cn } from "~/lib/utils"
@@ -19,9 +20,9 @@ export function StoryNavigationPanel({
   onQueryChange: (value: string) => void
   onNavigate?: () => void
 }) {
-  const agencyHref = `/wiki?agency=${encodeURIComponent(stories.agency.name)}`
+  const agencyHref = `/wiki/modern?agency=${encodeURIComponent(stories.agency.name)}`
   const classicHref =
-    `/story/classic?agency=${encodeURIComponent(stories.agency.name)}` +
+    `/story?agency=${encodeURIComponent(stories.agency.name)}` +
     `&idol=${encodeURIComponent(stories.idol.name)}`
 
   return (
@@ -59,7 +60,7 @@ export function StoryNavigationPanel({
           "w-full"
         )}
       >
-        <HistoryIcon data-icon="inline-start" />
+        <WikiViewSwitchIcon data-icon="inline-start" />
         经典视图
       </Link>
 

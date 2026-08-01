@@ -2,7 +2,6 @@ import { type CSSProperties } from "react"
 import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
-import { wikiEntryKindLabel } from "~/components/wiki/wiki-entry-kind"
 import type { WikiImageTransform, WikiPublicIdol } from "~/lib/api"
 import {
   contrastingWikiText,
@@ -60,7 +59,7 @@ export function ClassicIdolSection({
         {idols.map((idol) => (
           <Link
             key={idol.id}
-            to={`/story/classic?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
+            to={`/story?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
             aria-label={idol.name}
             className="wiki-classic-idol-card"
             style={
@@ -88,9 +87,6 @@ export function ClassicIdolSection({
             <span className="wiki-classic-idol-name" title={idol.name}>
               {idol.name}
             </span>
-            <small className="wiki-classic-idol-kind">
-              {wikiEntryKindLabel(idol.entryKind, idol.entrySubtype)}
-            </small>
           </Link>
         ))}
       </div>

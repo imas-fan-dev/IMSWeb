@@ -1,7 +1,10 @@
 import { setCache } from "alova"
 import { z } from "zod"
 
-import { PUBLIC_QUERY_CACHE_FOR } from "../cache-policy"
+import {
+  PUBLIC_CACHE_INVALIDATION_SOURCE,
+  PUBLIC_QUERY_CACHE_FOR,
+} from "../cache-policy"
 import { apiClient } from "../client"
 
 const eventIdSchema = z
@@ -44,6 +47,7 @@ export function getEventPage({ limit = 20, cursor }: EventPageRequest = {}) {
 
   return apiClient.Get<EventPage, unknown>("/api/events", {
     cacheFor: PUBLIC_QUERY_CACHE_FOR,
+    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
     params,
     transform: (payload) => eventPageSchema.parse(payload),
   })
