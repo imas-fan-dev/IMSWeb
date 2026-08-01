@@ -18,6 +18,10 @@ import {
   type ClassicBackgroundLayers,
   ClassicWikiBackground,
 } from "./components/wiki/classic-wiki-background"
+import {
+  CLASSIC_UNGROUPED_FILTER,
+  type ClassicGroupFilterValue,
+} from "./components/wiki/classic-group-filter"
 import { ClassicWikiContent } from "./components/wiki/classic-wiki-content"
 import { ClassicWikiTools } from "./components/wiki/classic-wiki-tools"
 import "./components/wiki/classic-wiki.css"
@@ -39,6 +43,7 @@ export function meta() {
 export function ClassicWikiPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedAgency = searchParams.get("agency")?.trim() ?? ""
+  const requestedGroup = searchParams.get("group")?.trim() ?? ""
   const [catalogRequest, setCatalogRequest] = useState<{
     key: string
     data: WikiPublicCatalog | null
@@ -110,25 +115,44 @@ export function ClassicWikiPage() {
     (agency) => agency.name === requestedAgency
   )
   const accent = safeWikiColor(pendingAgency?.color ?? selection?.agency.color)
+  const requestedGroupId = Number(requestedGroup)
+  const selectedGroup = selection?.groups.find(
+    (group) =>
+      Number.isInteger(requestedGroupId) && group.id === requestedGroupId
+  )
+  const showUngroupedOnly = Boolean(
+    selection?.ungroupedIdols.length &&
+    requestedGroup === CLASSIC_UNGROUPED_FILTER
+  )
+  const groupFilterValue: ClassicGroupFilterValue = selectedGroup
+    ? selectedGroup.id
+    : showUngroupedOnly
+      ? CLASSIC_UNGROUPED_FILTER
+      : null
   const groups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || !normalized) return selection?.groups ?? []
-    return selection.groups
+    if (!selection || showUngroupedOnly) return []
+    const visibleGroups = selectedGroup ? [selectedGroup] : selection.groups
+    if (!normalized) return visibleGroups
+    return visibleGroups
       .map((group) => ({
         ...group,
-        idols: group.idols.filter((idol) =>
-          idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
-        ),
+        idols: group.name.toLocaleLowerCase("zh-CN").includes(normalized)
+          ? group.idols
+          : group.idols.filter((idol) =>
+              idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+            ),
       }))
       .filter((group) => group.idols.length)
-  }, [deferredQuery, selection])
+  }, [deferredQuery, selectedGroup, selection, showUngroupedOnly])
   const ungroupedIdols = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || !normalized) return selection?.ungroupedIdols ?? []
+    if (!selection || selectedGroup) return []
+    if (!normalized) return selection.ungroupedIdols
     return selection.ungroupedIdols.filter((idol) =>
       idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
     )
-  }, [deferredQuery, selection])
+  }, [deferredQuery, selectedGroup, selection])
   const contentPageCount = selection
     ? new Set(
         [
@@ -149,6 +173,15 @@ export function ClassicWikiPage() {
     setQuery("")
     setNavigationOpen(false)
     setSearchParams({ agency }, { preventScrollReset: true })
+  }
+
+  function selectGroup(value: ClassicGroupFilterValue) {
+    if (!selection || !requestIsCurrent) return
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set("agency", selection.agency.name)
+    if (value === null) nextSearchParams.delete("group")
+    else nextSearchParams.set("group", String(value))
+    setSearchParams(nextSearchParams, { preventScrollReset: true })
   }
 
   return (
@@ -177,8 +210,11 @@ export function ClassicWikiPage() {
           selection={selection}
           contentPageCount={contentPageCount}
           query={query}
+          groupFilterValue={groupFilterValue}
+          groupFilterDisabled={!requestIsCurrent}
           groups={groups}
           ungroupedIdols={ungroupedIdols}
+          onGroupFilterChange={selectGroup}
           onQueryChange={setQuery}
           onRetry={() => setRefreshVersion((current) => current + 1)}
         />

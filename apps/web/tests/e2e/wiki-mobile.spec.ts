@@ -67,24 +67,43 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   const inlineSearch = page.getByRole("textbox", {
     name: "搜索当前企划内容页",
   })
+  const groupFilter = page.getByRole("region", { name: "组合与分类筛选" })
   const firstGroup = page.locator(".wiki-classic-group").first()
   await expect(navigationButton).toHaveAttribute("aria-expanded", "false")
   await expect(sidebar).not.toHaveClass(/is-open/)
   await expect(banner).toBeVisible()
   await expect(inlineSearch).toBeVisible()
+  await expect(groupFilter).toBeVisible()
   await expect(firstGroup).toBeVisible()
   await expect(page.locator(".wiki-classic-idol-kind")).toHaveCount(0)
 
-  const [bannerBox, searchBox, groupBox] = await Promise.all([
+  const [bannerBox, searchBox, filterBox, groupBox] = await Promise.all([
     banner.boundingBox(),
     inlineSearch.boundingBox(),
+    groupFilter.boundingBox(),
     firstGroup.boundingBox(),
   ])
   expect(bannerBox).not.toBeNull()
   expect(searchBox).not.toBeNull()
+  expect(filterBox).not.toBeNull()
   expect(groupBox).not.toBeNull()
   expect(bannerBox!.y).toBeLessThan(searchBox!.y)
-  expect(searchBox!.y).toBeLessThan(groupBox!.y)
+  expect(searchBox!.y).toBeLessThan(filterBox!.y)
+  expect(filterBox!.y).toBeLessThan(groupBox!.y)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth
+    )
+  ).toBe(true)
+
+  const groupOption = groupFilter
+    .locator('[role="tab"][aria-selected="false"]')
+    .first()
+  await expect(groupOption).toBeVisible()
+  await groupOption.click()
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("group"))
+    .not.toBeNull()
 
   const columnCount = await page
     .locator(".wiki-classic-idol-grid")

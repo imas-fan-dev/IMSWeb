@@ -2,6 +2,10 @@ import { AlertCircleIcon, SearchIcon } from "lucide-react"
 
 import type { WikiPublicCatalog, WikiPublicIdol } from "~/lib/api"
 
+import {
+  ClassicGroupFilter,
+  type ClassicGroupFilterValue,
+} from "./classic-group-filter"
 import { ClassicIdolSection } from "./classic-idol-section"
 
 type ClassicSelection = NonNullable<WikiPublicCatalog["selection"]>
@@ -13,8 +17,11 @@ interface ClassicWikiContentProps {
   selection: WikiPublicCatalog["selection"] | null
   contentPageCount: number
   query: string
+  groupFilterValue: ClassicGroupFilterValue
+  groupFilterDisabled: boolean
   groups: ClassicSelection["groups"]
   ungroupedIdols: WikiPublicIdol[]
+  onGroupFilterChange: (value: ClassicGroupFilterValue) => void
   onQueryChange: (query: string) => void
   onRetry: () => void
 }
@@ -26,8 +33,11 @@ export function ClassicWikiContent({
   selection,
   contentPageCount,
   query,
+  groupFilterValue,
+  groupFilterDisabled,
   groups,
   ungroupedIdols,
+  onGroupFilterChange,
   onQueryChange,
   onRetry,
 }: ClassicWikiContentProps) {
@@ -69,6 +79,16 @@ export function ClassicWikiContent({
               placeholder="搜索偶像、组合或剧情..."
             />
           </label>
+
+          <ClassicGroupFilter
+            groups={selection.groups}
+            ungroupedCount={selection.ungroupedIdols.length}
+            totalCount={contentPageCount}
+            value={groupFilterValue}
+            agencyColor={selection.agency.color}
+            disabled={groupFilterDisabled}
+            onValueChange={onGroupFilterChange}
+          />
 
           <div className="wiki-classic-groups">
             {groups.length || ungroupedIdols.length ? (
