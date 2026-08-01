@@ -3,7 +3,6 @@ import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
-import { wikiEntryKindLabel } from "~/components/wiki/wiki-entry-kind"
 import type { WikiPublicStories } from "~/lib/api"
 
 interface ClassicStoryProfileProps {
@@ -18,8 +17,7 @@ export function ClassicStoryProfile({
   return (
     <aside className="wiki-classic-story-profile">
       <p className="wiki-classic-story-project">
-        {stories.agency.code.toUpperCase()} ARCHIVE ·{" "}
-        {wikiEntryKindLabel(stories.idol.entryKind, stories.idol.entrySubtype)}
+        {stories.agency.code.toUpperCase()} ARCHIVE
       </p>
       <h1>{stories.idol.name}</h1>
       <div className="wiki-classic-story-avatar">

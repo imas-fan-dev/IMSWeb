@@ -165,12 +165,12 @@ describe("WikiIndexPage", () => {
     renderWiki()
 
     expect(screen.getByLabelText("正在加载内容目录")).toBeVisible()
-    expect(
-      await screen.findByRole("link", { name: /樱木真乃/ })
-    ).toHaveAttribute(
+    const manoLink = await screen.findByRole("link", { name: /樱木真乃/ })
+    expect(manoLink).toHaveAttribute(
       "href",
       "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
+    expect(within(manoLink).queryByText("偶像")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "查看对应卡片" })).toHaveAttribute(
       "href",
       "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83#story-card-401"
@@ -414,8 +414,9 @@ describe("WikiIndexPage", () => {
       level: 3,
       name: "未归档",
     })
-    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
-    expect(screen.getByText("活动")).toBeVisible()
+    const toruLink = screen.getByRole("link", { name: /浅仓透/ })
+    expect(toruLink).toBeVisible()
+    expect(within(toruLink).queryByText("活动")).not.toBeInTheDocument()
     expect(
       groupedHeading.compareDocumentPosition(ungroupedHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING

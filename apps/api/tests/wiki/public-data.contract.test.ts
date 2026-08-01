@@ -80,7 +80,7 @@ describe("Wiki public dynamic data contract", () => {
     assert.deepEqual(fixture.storage.lists, []);
   });
 
-  test("random idol excludes 765PRO and samples enabled Wiki idols with resolved artwork", async () => {
+  test("random idol samples only enabled Wiki idol entries with resolved artwork", async () => {
     const fixture = createWikiFixture();
     fixture.storage.publicReadUrlBase = "https://cdn.example.test";
     for (const idol of fixture.story.idols) {
@@ -89,6 +89,7 @@ describe("Wiki public dynamic data contract", () => {
     }
     fixture.story.idols[0]!.entry_kind = "idol";
     fixture.story.idols[0]!.entry_subtype = null;
+    fixture.story.idols[0]!.wiki_enabled = false;
     fixture.story.idols[1]!.entry_kind = "idol";
     fixture.story.idols[1]!.entry_subtype = null;
     fixture.story.agencies[1]!.wiki_enabled = false;

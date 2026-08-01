@@ -258,12 +258,14 @@ describe("classic Wiki pages", () => {
     const illuminationSection = screen
       .getByRole("heading", { name: "illumination STARS" })
       .closest("section")!
-    expect(
-      within(illuminationSection).getByRole("link", { name: /樱木真乃/ })
-    ).toHaveAttribute(
+    const manoLink = within(illuminationSection).getByRole("link", {
+      name: /樱木真乃/,
+    })
+    expect(manoLink).toHaveAttribute(
       "href",
       "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
+    expect(within(manoLink).queryByText("其他")).not.toBeInTheDocument()
     const desktopViewSwitch = screen.getByRole("link", { name: "新版视图" })
     expect(desktopViewSwitch).toHaveAttribute(
       "href",
@@ -479,7 +481,9 @@ describe("classic Wiki pages", () => {
       name: "Straylight",
     })
     const ungroupedHeading = screen.getByRole("heading", { name: "未归档" })
-    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
+    const toruLink = screen.getByRole("link", { name: /浅仓透/ })
+    expect(toruLink).toBeVisible()
+    expect(within(toruLink).queryByText("其他")).not.toBeInTheDocument()
     expect(
       straylightHeading.compareDocumentPosition(ungroupedHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
@@ -504,6 +508,8 @@ describe("classic Wiki pages", () => {
     expect(
       await screen.findByRole("heading", { name: "樱木真乃" })
     ).toBeVisible()
+    expect(screen.getByText("SC ARCHIVE")).toBeVisible()
+    expect(screen.queryByText("其他")).not.toBeInTheDocument()
     const modernViewLink = screen.getByRole("link", { name: "新版视图" })
     expect(modernViewLink).toHaveAttribute(
       "href",

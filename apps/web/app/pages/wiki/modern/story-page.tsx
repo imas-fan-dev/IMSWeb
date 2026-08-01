@@ -12,7 +12,6 @@ import { Link, useLocation, useSearchParams } from "react-router"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
-import { WikiEntryKindBadge } from "~/components/wiki/wiki-entry-kind"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import {
@@ -227,16 +226,9 @@ export function StoryPage() {
                   <ArrowLeftIcon className="size-4 shrink-0" />
                   <span className="truncate">{stories.agency.name}</span>
                 </Link>
-                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 sm:mt-3">
-                  <h1 className="min-w-0 text-2xl font-semibold wrap-break-word sm:text-3xl">
-                    {stories.idol.name}
-                  </h1>
-                  <WikiEntryKindBadge
-                    kind={stories.idol.entryKind}
-                    subtype={stories.idol.entrySubtype}
-                    variant="secondary"
-                  />
-                </div>
+                <h1 className="mt-2 min-w-0 text-2xl font-semibold wrap-break-word sm:mt-3 sm:text-3xl">
+                  {stories.idol.name}
+                </h1>
                 <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground sm:mt-3 sm:gap-x-5 sm:text-sm">
                   <span>{visibleCategories.length} 个分类</span>
                   <span>{cardCount ?? 0} 张卡片</span>

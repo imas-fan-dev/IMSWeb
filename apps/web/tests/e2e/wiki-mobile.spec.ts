@@ -8,6 +8,12 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
 
   await page.goto("/wiki/modern")
 
+  const firstIdolCard = page
+    .locator('a[aria-label][href^="/story/modern?"]')
+    .first()
+  await expect(firstIdolCard).toBeVisible()
+  await expect(firstIdolCard.locator('[data-slot="badge"]')).toHaveCount(0)
+
   const agencyRail = page.getByTestId("wiki-agency-tabs")
   const targetAgency = agencyRail.getByRole("tab", { name: /百万现场/ })
   await agencyRail.scrollIntoViewIfNeeded()
@@ -67,6 +73,7 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   await expect(banner).toBeVisible()
   await expect(inlineSearch).toBeVisible()
   await expect(firstGroup).toBeVisible()
+  await expect(page.locator(".wiki-classic-idol-kind")).toHaveCount(0)
 
   const [bannerBox, searchBox, groupBox] = await Promise.all([
     banner.boundingBox(),

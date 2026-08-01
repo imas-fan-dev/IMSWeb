@@ -223,15 +223,6 @@
     transform 300ms ease;
 }
 
-.wiki-classic-idol-kind {
-  display: block;
-  width: fit-content;
-  margin: 5px auto 0;
-  color: #77747a;
-  font-size: 10px;
-  font-weight: 700;
-}
-
 .wiki-classic-idol-card:hover .wiki-classic-idol-image,
 .wiki-classic-idol-card:focus-visible .wiki-classic-idol-image {
   box-shadow: 0 12px 25px color-mix(in srgb, var(--idol-color) 62%, transparent);

@@ -104,6 +104,7 @@ describe("StoryPage", () => {
       "grid-cols-[6.5rem_minmax(0,1fr)]",
       "items-start"
     )
+    expect(within(profile).queryByText("其他")).not.toBeInTheDocument()
     expect(
       within(profile).getByRole("link", { name: "闪耀色彩" })
     ).toHaveAttribute(

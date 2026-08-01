@@ -474,8 +474,6 @@ export async function randomIdol(
     (idol) =>
       enabledAgencyIds.has(idol.agency_id) &&
       idol.wiki_enabled &&
-      // TODO: Replace this temporary 765PRO exclusion with admin-managed random idol eligibility.
-      idol.agency_code !== "765" &&
       idol.entry_kind === "idol",
   );
   if (!eligibleIdols.length) {
