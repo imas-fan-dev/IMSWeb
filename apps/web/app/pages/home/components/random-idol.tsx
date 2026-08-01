@@ -127,7 +127,13 @@ export function RandomIdol() {
                   />
                   <span className="truncate">{selectedIdol.agency.name}</span>
                 </p>
-                <h3 className="mt-2 text-2xl font-semibold wrap-break-word">
+                <h3 className="mt-2 text-2xl font-semibold wrap-break-word"
+                  style={{
+                    color: safeWikiColor(
+                      selectedIdol.color ?? selectedIdol.agency.color
+                    ),
+                  }}
+                >
                   {selectedIdol.name}
                 </h3>
                 <p className="mt-3 text-xs text-muted-foreground">
