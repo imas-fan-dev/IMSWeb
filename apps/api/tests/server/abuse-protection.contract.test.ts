@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
-import { JSON_BODY_MAX_BYTES } from '@/middleware/json-body-limit';
-import type { AuthRepository, ReactionRepository } from '@/ports/repositories';
+import type { BackofficeAuthRepository, ReactionRepository } from '@/ports/repositories';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { assertAbuseProtectionContract } from '../contracts/runtime-contracts.js';
@@ -31,9 +30,9 @@ test('[SECURITY] shared JSON and abuse limits use the Node memory limiter', asyn
         async listReactions() {
             return [];
         }
-    } as unknown as AuthRepository & ReactionRepository;
+    } as unknown as BackofficeAuthRepository & ReactionRepository;
     const runtime: RuntimeServices = {
-        auth: core,
+        backofficeAuth: core,
         reactions: core,
         compensation: {
             async enqueue() { return 'unused'; },

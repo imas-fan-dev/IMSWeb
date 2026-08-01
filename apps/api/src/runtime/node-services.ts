@@ -6,7 +6,7 @@ import type { NodeObjectStorageConfig } from '@/config/object-storage';
 import type {
     AdminAccountRepository,
     AuditRepository,
-    AuthRepository,
+    BackofficeAuthRepository,
     EventRepository,
     HomepageLinkRepository,
     NamecardRepository,
@@ -60,7 +60,7 @@ import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
 import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
 import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
 import { BcryptPasswordVerifier } from '@/infra/security/bcrypt/password-verifier';
-import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 
 interface InitializableResource {
     initialize(): Promise<void>;
@@ -69,7 +69,7 @@ interface InitializableResource {
 
 interface CoreRepositoryAdapter extends
     InitializableResource,
-    AuthRepository,
+    BackofficeAuthRepository,
     AdminAccountRepository,
     AuditRepository,
     NewsRepository,
@@ -159,14 +159,16 @@ export async function initializeNodeRepositories(
 }
 
 async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
-    const auth = services.auth as (AuthRepository & Partial<InitializableResource>) | undefined;
+    const backofficeAuth = services.backofficeAuth as (
+        BackofficeAuthRepository & Partial<InitializableResource>
+    ) | undefined;
     const story = services.story as (StoryRepository & Partial<InitializableResource>) | undefined;
     const results = await Promise.allSettled([
         services.storage?.close
             ? Promise.resolve().then(() => services.storage?.close?.())
             : undefined,
         story?.close?.(),
-        auth?.close?.()
+        backofficeAuth?.close?.()
     ].filter((operation): operation is Promise<void> => Boolean(operation)));
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
     if (failures.length) throw new AggregateError(failures.map((result) => result.reason), 'Failed to close Node services');
@@ -229,7 +231,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             connection
         );
         return {
-            auth: core,
+            backofficeAuth: core,
             adminAccounts: core,
             audit: core,
             news: core,
@@ -254,7 +256,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 }
             },
             passwords: new BcryptPasswordVerifier(),
-            tokens: new HmacTokenService(SECRET_KEY),
+            backofficeTokens: new HmacBackofficeTokenService(SECRET_KEY),
             fetch: globalThis.fetch,
             config: {
                 cookieSecure: COOKIE_OPTIONS.secure,

@@ -2,10 +2,9 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { PostgresConnection } from '@/infra/db/postgresql/connection';
-import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
-import { queryOne } from '@/infra/db/sql/query';
-import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import { SqliteConnection } from '@/infra/db/sqlite/connection';
+import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { AdminRole } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { createPostgresTestDatabase } from './postgres-test-database';
@@ -16,7 +15,7 @@ interface Fixture {
     app: ReturnType<typeof createHonoApp>;
     connection: PostgresConnection;
     repository: SqlCoreRepository;
-    tokens: HmacTokenService;
+    tokens: HmacBackofficeTokenService;
     ids: { superAdmin: number; admin: number; editor: number };
     close(): Promise<void>;
 }
@@ -45,16 +44,16 @@ async function createFixture(t: TestContext): Promise<Fixture> {
         admin: await insertAccount(connection, 'regular-operator', 'op', 'admin'),
         editor: await insertAccount(connection, 'wiki-editor', 'editor', null)
     };
-    const tokens = new HmacTokenService(SECRET);
+    const tokens = new HmacBackofficeTokenService(SECRET);
     const services: RuntimeServices = {
-        auth: repository,
+        backofficeAuth: repository,
         adminAccounts: repository,
         audit: repository,
         passwords: {
             async verify() { return false; },
             async hash(value) { return `hashed:${value}`; }
         },
-        tokens,
+        backofficeTokens: tokens,
         config: { cookieSecure: false }
     };
     return {

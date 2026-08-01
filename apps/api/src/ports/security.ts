@@ -1,4 +1,4 @@
-export interface JwtClaims {
+export interface BackofficeJwtClaims {
     id: number;
     username: string;
     producername: string;
@@ -10,9 +10,12 @@ export interface JwtClaims {
     [key: string]: unknown;
 }
 
-export interface TokenService {
-    sign(claims: Omit<JwtClaims, 'iat' | 'exp'>, expiresInSeconds: number): Promise<string>;
-    verify(token: string): Promise<JwtClaims>;
+export interface BackofficeTokenService {
+    sign(
+        claims: Omit<BackofficeJwtClaims, 'iat' | 'exp'>,
+        expiresInSeconds: number
+    ): Promise<string>;
+    verify(token: string): Promise<BackofficeJwtClaims>;
 }
 
 export interface PasswordVerifier {
@@ -22,5 +25,5 @@ export interface PasswordVerifier {
 
 export interface SecurityServices {
     passwords: PasswordVerifier;
-    tokens: TokenService;
+    backofficeTokens: BackofficeTokenService;
 }

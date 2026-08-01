@@ -1,6 +1,6 @@
 export type AdminRole = 'admin' | 'super_admin';
 
-export interface UserRecord {
+export interface BackofficeAccountRecord {
     id: number;
     username: string;
     password: string;
@@ -22,7 +22,7 @@ export interface NewAdminAccountInput {
     producername: string;
 }
 
-export interface RefreshSessionRecord {
+export interface BackofficeRefreshSessionRecord {
     id: string;
     user_id: number;
     token_hash: string;
@@ -34,7 +34,7 @@ export interface RefreshSessionRecord {
     revoked_at: number | null;
 }
 
-export interface NewRefreshSessionInput {
+export interface NewBackofficeRefreshSessionInput {
     id: string;
     userId: number;
     tokenHash: string;
@@ -43,11 +43,11 @@ export interface NewRefreshSessionInput {
     createdAt: number;
 }
 
-export interface AuthRepository {
-    findUserByUsername(username: string): Promise<UserRecord | null>;
-    findUserById(id: number): Promise<UserRecord | null>;
-    createRefreshSession(input: NewRefreshSessionInput): Promise<void>;
-    findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSessionRecord | null>;
+export interface BackofficeAuthRepository {
+    findUserByUsername(username: string): Promise<BackofficeAccountRecord | null>;
+    findUserById(id: number): Promise<BackofficeAccountRecord | null>;
+    createRefreshSession(input: NewBackofficeRefreshSessionInput): Promise<void>;
+    findRefreshSessionByTokenHash(tokenHash: string): Promise<BackofficeRefreshSessionRecord | null>;
     rotateRefreshSession(input: {
         id: string;
         currentTokenHash: string;
@@ -903,7 +903,7 @@ export interface StoryRepository {
 }
 
 export interface RepositoryServices {
-    auth: AuthRepository;
+    backofficeAuth: BackofficeAuthRepository;
     adminAccounts: AdminAccountRepository;
     audit: AuditRepository;
     news: NewsRepository;

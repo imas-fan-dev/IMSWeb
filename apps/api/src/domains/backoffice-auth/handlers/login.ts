@@ -2,15 +2,15 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { randomHex } from '@/utils/crypto/random';
 import {
-    ACCESS_TOKEN_TTL_SECONDS,
-    REFRESH_TOKEN_TTL_SECONDS,
-    accessTokenClaims,
-    hashAuthSecret,
-    setAuthenticationCookies
-} from '@/domains/auth/auth-session';
+    BACKOFFICE_ACCESS_TOKEN_TTL_SECONDS,
+    BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
+    backofficeAccessTokenClaims,
+    hashBackofficeAuthSecret,
+    setBackofficeAuthenticationCookies
+} from '@/domains/backoffice-auth/backoffice-auth-session';
 import {
     auditRepository,
-    authRepository,
+    backofficeAuthRepository,
     getClientAddress,
     services
 } from '@/middleware/hono-context';
@@ -38,8 +38,10 @@ async function login(
         return c.json({ success: false, message: '用户名或密码格式错误' }, 400);
     }
     const runtime = services(c);
-    if (!runtime.passwords || !runtime.tokens) throw new Error('Authentication services unavailable');
-    const user = await authRepository(c).findUserByUsername(username);
+    if (!runtime.passwords || !runtime.backofficeTokens) {
+        throw new Error('Backoffice authentication services unavailable');
+    }
+    const user = await backofficeAuthRepository(c).findUserByUsername(username);
     if (!user || !await runtime.passwords.verify(password, user.password)) {
         return c.json({ success: false, message: '用户名或密码错误' }, 401);
     }
@@ -52,22 +54,22 @@ async function login(
     const csrfSecret = randomHex(32);
     const refreshToken = randomHex(32);
     const now = Math.floor(Date.now() / 1000);
-    const token = await runtime.tokens.sign(
-        accessTokenClaims(user, csrfSecret),
-        ACCESS_TOKEN_TTL_SECONDS
+    const token = await runtime.backofficeTokens.sign(
+        backofficeAccessTokenClaims(user, csrfSecret),
+        BACKOFFICE_ACCESS_TOKEN_TTL_SECONDS
     );
     const [tokenHash, csrfHash] = await Promise.all([
-        hashAuthSecret(refreshToken),
-        hashAuthSecret(csrfSecret)
+        hashBackofficeAuthSecret(refreshToken),
+        hashBackofficeAuthSecret(csrfSecret)
     ]);
-    const repository = authRepository(c);
+    const repository = backofficeAuthRepository(c);
     await repository.deleteExpiredRefreshSessions(now);
     await repository.createRefreshSession({
         id: randomHex(16),
         userId: user.id,
         tokenHash,
         csrfHash,
-        expiresAt: now + REFRESH_TOKEN_TTL_SECONDS,
+        expiresAt: now + BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
         createdAt: now
     });
     try {
@@ -82,7 +84,7 @@ async function login(
     } catch (error) {
         console.error(error);
     }
-    setAuthenticationCookies(c, { accessToken: token, refreshToken, csrfSecret });
+    setBackofficeAuthenticationCookies(c, { accessToken: token, refreshToken, csrfSecret });
     return c.json({
         success: true,
         token,
@@ -93,10 +95,10 @@ async function login(
     });
 }
 
-export function handleLogin(c: Context<AppEnvironment>): Promise<Response> {
+export function handleBackofficeLogin(c: Context<AppEnvironment>): Promise<Response> {
     return login(c);
 }
 
-export function handleAdminLogin(c: Context<AppEnvironment>): Promise<Response> {
+export function handleBackofficeAdminLogin(c: Context<AppEnvironment>): Promise<Response> {
     return login(c, 'op');
 }

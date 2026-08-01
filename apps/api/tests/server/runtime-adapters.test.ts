@@ -93,7 +93,7 @@ test('early close does not poison a later Node service and concurrent close is i
     const lifecycle = createNodeServiceLifecycle(async () => {
         creates += 1;
         return {
-            auth: { close: async () => { coreCloses += 1; } },
+            backofficeAuth: { close: async () => { coreCloses += 1; } },
             story: { close: async () => { storyCloses += 1; } },
             storage: { close: () => { storageCloses += 1; } }
         } as unknown as RuntimeServices;

@@ -87,7 +87,7 @@ const portContracts = new Map([
     ['media.ts', ['ImageProcessor', 'MediaServices']],
     ['object-storage.ts', ['ObjectStorage', 'CompensationService', 'ObjectStorageServices']],
     ['repositories.ts', [
-        'AuthRepository',
+        'BackofficeAuthRepository',
         'AuditRepository',
         'NewsRepository',
         'EventRepository',
@@ -98,7 +98,11 @@ const portContracts = new Map([
         'RepositoryServices'
     ]],
     ['runtime-services.ts', ['RuntimeServices', 'NodeRuntimeServices']],
-    ['security.ts', ['PasswordVerifier', 'TokenService', 'SecurityServices']]
+    ['security.ts', [
+        'BackofficeTokenService',
+        'PasswordVerifier',
+        'SecurityServices'
+    ]]
 ]);
 for (const [name, contracts] of portContracts) {
     const file = path.join(portRoot, name);

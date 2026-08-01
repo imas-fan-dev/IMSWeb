@@ -1,15 +1,18 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
-import { adminAccountRepository, authRepository } from '@/middleware/hono-context';
+import {
+    adminAccountRepository,
+    backofficeAuthRepository
+} from '@/middleware/hono-context';
 
 export async function handleDeleteAdminAccount(c: Context<AppEnvironment>): Promise<Response> {
     const id = Number(c.req.param('id'));
     if (!Number.isSafeInteger(id) || id <= 0) {
         return c.json({ success: false, message: '管理员账号 ID 无效' }, 400);
     }
-    const actor = c.get('user')!;
-    const target = await authRepository(c).findUserById(id);
+    const actor = c.get('backofficeUser')!;
+    const target = await backofficeAuthRepository(c).findUserById(id);
     if (!target || target.dept !== 'op') {
         return c.json({ success: false, message: '管理员账号不存在' }, 404);
     }

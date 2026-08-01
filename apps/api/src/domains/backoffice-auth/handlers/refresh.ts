@@ -1,33 +1,33 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import {
-    ACCESS_TOKEN_TTL_SECONDS,
-    REFRESH_TOKEN_TTL_SECONDS,
-    accessTokenClaims,
-    clearAuthenticationCookies,
-    hashAuthSecret,
-    hasValidRefreshCsrf,
-    refreshTokenCookie,
-    setAuthenticationCookies
-} from '@/domains/auth/auth-session';
-import { authRepository, services } from '@/middleware/hono-context';
+    BACKOFFICE_ACCESS_TOKEN_TTL_SECONDS,
+    BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
+    backofficeAccessTokenClaims,
+    clearBackofficeAuthenticationCookies,
+    hashBackofficeAuthSecret,
+    hasValidBackofficeRefreshCsrf,
+    backofficeRefreshTokenCookie,
+    setBackofficeAuthenticationCookies
+} from '@/domains/backoffice-auth/backoffice-auth-session';
+import { backofficeAuthRepository, services } from '@/middleware/hono-context';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
 import { randomHex } from '@/utils/crypto/random';
 
 function rejectRefresh(c: Context<AppEnvironment>, message: string): Response {
-    clearAuthenticationCookies(c);
+    clearBackofficeAuthenticationCookies(c);
     return c.json({ success: false, message }, 401);
 }
 
-export async function handleRefresh(c: Context<AppEnvironment>): Promise<Response> {
-    const refreshToken = refreshTokenCookie(c);
+export async function handleBackofficeRefresh(c: Context<AppEnvironment>): Promise<Response> {
+    const refreshToken = backofficeRefreshTokenCookie(c);
     if (!refreshToken) return rejectRefresh(c, '刷新令牌无效');
 
-    const repository = authRepository(c);
-    const tokenHash = await hashAuthSecret(refreshToken);
+    const repository = backofficeAuthRepository(c);
+    const tokenHash = await hashBackofficeAuthSecret(refreshToken);
     const session = await repository.findRefreshSessionByTokenHash(tokenHash);
     if (!session) return rejectRefresh(c, '刷新令牌无效');
-    if (!await hasValidRefreshCsrf(c, session)) {
+    if (!await hasValidBackofficeRefreshCsrf(c, session)) {
         return c.json({ success: false, message: 'CSRF token invalid' }, 403);
     }
 
@@ -47,18 +47,23 @@ export async function handleRefresh(c: Context<AppEnvironment>): Promise<Respons
     }
 
     const runtime = services(c);
-    if (!runtime.tokens) throw new Error('Authentication services unavailable');
+    if (!runtime.backofficeTokens) {
+        throw new Error('Backoffice authentication services unavailable');
+    }
     const csrfSecret = c.req.header('x-csrftoken') || c.req.header('x-csrf-token') || '';
     const nextRefreshToken = randomHex(32);
     const [accessToken, nextTokenHash] = await Promise.all([
-        runtime.tokens.sign(accessTokenClaims(user, csrfSecret), ACCESS_TOKEN_TTL_SECONDS),
-        hashAuthSecret(nextRefreshToken)
+        runtime.backofficeTokens.sign(
+            backofficeAccessTokenClaims(user, csrfSecret),
+            BACKOFFICE_ACCESS_TOKEN_TTL_SECONDS
+        ),
+        hashBackofficeAuthSecret(nextRefreshToken)
     ]);
     const rotated = await repository.rotateRefreshSession({
         id: session.id,
         currentTokenHash: tokenHash,
         nextTokenHash,
-        nextExpiresAt: now + REFRESH_TOKEN_TTL_SECONDS,
+        nextExpiresAt: now + BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
         updatedAt: now
     });
     if (!rotated) {
@@ -66,7 +71,7 @@ export async function handleRefresh(c: Context<AppEnvironment>): Promise<Respons
         return rejectRefresh(c, '刷新令牌已失效');
     }
 
-    setAuthenticationCookies(c, {
+    setBackofficeAuthenticationCookies(c, {
         accessToken,
         refreshToken: nextRefreshToken,
         csrfSecret

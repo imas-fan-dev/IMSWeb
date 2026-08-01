@@ -38,11 +38,13 @@ export async function authorizeWikiRead<E extends Env>(
     context: Context<E>,
     services: RuntimeServices
 ): Promise<Response | null> {
-    if (!services.tokens) throw new Error('Wiki token service is not configured');
+    if (!services.backofficeTokens) {
+        throw new Error('Wiki backoffice token service is not configured');
+    }
     const token = getCookie(context, 'token');
     if (!token) return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
     try {
-        const claims = await services.tokens.verify(token);
+        const claims = await services.backofficeTokens.verify(token);
         if (!['op', 'editor'].includes(claims.dept)) {
             return wikiJson(wikiErrorBody('无权限执行此操作'), 403);
         }
@@ -67,12 +69,14 @@ export async function authorizeWikiWrite<E extends Env>(
     context: Context<E>,
     services: RuntimeServices
 ): Promise<Response | null> {
-    if (!services.tokens) throw new Error('Wiki token service is not configured');
+    if (!services.backofficeTokens) {
+        throw new Error('Wiki backoffice token service is not configured');
+    }
     const token = getCookie(context, 'token');
     if (!token) return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
     let claims;
     try {
-        claims = await services.tokens.verify(token);
+        claims = await services.backofficeTokens.verify(token);
     } catch {
         return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
     }

@@ -4,7 +4,7 @@ import type { AppEnvironment } from '@/app';
 import type {
     AdminAccountRepository,
     AuditRepository,
-    AuthRepository,
+    BackofficeAuthRepository,
     EventRepository,
     NamecardRepository,
     NewsRepository,
@@ -26,8 +26,10 @@ function requireRepository<Key extends keyof RuntimeServices>(
     return repository as NonNullable<RuntimeServices[Key]>;
 }
 
-export function authRepository(c: Context<AppEnvironment>): AuthRepository {
-    return requireRepository(c, 'auth');
+export function backofficeAuthRepository(
+    c: Context<AppEnvironment>
+): BackofficeAuthRepository {
+    return requireRepository(c, 'backofficeAuth');
 }
 
 export function adminAccountRepository(c: Context<AppEnvironment>): AdminAccountRepository {

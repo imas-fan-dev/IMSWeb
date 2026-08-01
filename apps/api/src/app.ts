@@ -9,13 +9,13 @@ import {
     validatedRequestPath
 } from '@/middleware/rate-limit';
 import type { RuntimeServices, ResolveServices } from '@/ports/runtime-services';
-import type { JwtClaims } from '@/ports/security';
+import type { BackofficeJwtClaims } from '@/ports/security';
 import { requestCompletionLogger } from '@/middleware/request-observability';
 import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
 import { registerAuditRoutes } from '@/domains/audit/routes';
 import { registerAdminAccountRoutes } from '@/domains/admin-accounts/routes';
 import { registerAboutRoutes } from '@/domains/about/routes';
-import { registerAuthRoutes } from '@/domains/auth/routes';
+import { registerBackofficeAuthRoutes } from '@/domains/backoffice-auth/routes';
 import { registerBrandAssetRoutes } from '@/domains/brand-assets/routes';
 import { registerChronicleRoutes } from '@/domains/chronicle/routes';
 import { registerEventRoutes } from '@/domains/events/routes';
@@ -35,8 +35,8 @@ export interface AppEnvironment {
     Bindings: object;
     Variables: RequestIdVariables & {
         services: RuntimeServices;
-        user?: JwtClaims;
-        authSource?: 'authorization' | 'cookie';
+        backofficeUser?: BackofficeJwtClaims;
+        backofficeAuthSource?: 'authorization' | 'cookie';
     };
 }
 
@@ -144,7 +144,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);
     registerBrandAssetRoutes(app);
-    registerAuthRoutes(app);
+    registerBackofficeAuthRoutes(app);
     registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);

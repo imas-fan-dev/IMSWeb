@@ -3,7 +3,9 @@ import type {
     AdminAccountRepository,
     AuditLogInput,
     AuditRepository,
-    AuthRepository,
+    BackofficeAccountRecord,
+    BackofficeAuthRepository,
+    BackofficeRefreshSessionRecord,
     CardMediaRecord,
     EventRepository,
     EventInput,
@@ -14,20 +16,18 @@ import type {
     NamecardRepository,
     NewAdminAccountInput,
     NewHomepageLinkInput,
-    NewRefreshSessionInput,
+    NewBackofficeRefreshSessionInput,
     NewSitePackageInput,
     NewSitePackageRevisionInput,
     NewsRepository,
     NewsInput,
     PendingCardInput,
     ReactionRepository,
-    RefreshSessionRecord,
     SitePackageRecord,
     SitePackagePublicationResult,
     SitePackageRepository,
     SitePackageRevisionRecord,
-    SitePackageWithRevisions,
-    UserRecord
+    SitePackageWithRevisions
 } from '@/ports/repositories';
 import type {
     ManagedSqlDatabase,
@@ -36,7 +36,7 @@ import type {
 import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/query';
 
 export class SqlCoreRepository implements
-    AuthRepository,
+    BackofficeAuthRepository,
     AdminAccountRepository,
     AuditRepository,
     NewsRepository,
@@ -61,12 +61,20 @@ export class SqlCoreRepository implements
         return this.database.close();
     }
 
-    findUserByUsername(username: string): Promise<UserRecord | null> {
-        return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE username=?', [username]);
+    findUserByUsername(username: string): Promise<BackofficeAccountRecord | null> {
+        return queryOne<BackofficeAccountRecord>(
+            this.database,
+            'SELECT * FROM users WHERE username=?',
+            [username]
+        );
     }
 
-    findUserById(id: number): Promise<UserRecord | null> {
-        return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE id=?', [id]);
+    findUserById(id: number): Promise<BackofficeAccountRecord | null> {
+        return queryOne<BackofficeAccountRecord>(
+            this.database,
+            'SELECT * FROM users WHERE id=?',
+            [id]
+        );
     }
 
     async ensureSuperAdmin(username?: string): Promise<void> {
@@ -130,7 +138,7 @@ export class SqlCoreRepository implements
         return result.meta.changes === 1;
     }
 
-    async createRefreshSession(input: NewRefreshSessionInput): Promise<void> {
+    async createRefreshSession(input: NewBackofficeRefreshSessionInput): Promise<void> {
         await executeSql(this.database,
             `INSERT INTO auth_refresh_sessions
              (id, user_id, token_hash, previous_token_hash, csrf_hash,
@@ -148,8 +156,10 @@ export class SqlCoreRepository implements
         );
     }
 
-    findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSessionRecord | null> {
-        return queryOne<RefreshSessionRecord>(this.database,
+    findRefreshSessionByTokenHash(
+        tokenHash: string
+    ): Promise<BackofficeRefreshSessionRecord | null> {
+        return queryOne<BackofficeRefreshSessionRecord>(this.database,
             `SELECT * FROM auth_refresh_sessions
              WHERE token_hash=? OR previous_token_hash=?
              ORDER BY CASE WHEN token_hash=? THEN 0 ELSE 1 END

@@ -1,15 +1,18 @@
 import { sign, verify } from 'hono/utils/jwt/jwt';
-import type { JwtClaims, TokenService } from '@/ports/security';
+import type { BackofficeJwtClaims, BackofficeTokenService } from '@/ports/security';
 
-export class HmacTokenService implements TokenService {
+export class HmacBackofficeTokenService implements BackofficeTokenService {
     constructor(private readonly secret: string) {}
 
-    async sign(claims: Omit<JwtClaims, 'iat' | 'exp'>, expiresInSeconds: number): Promise<string> {
+    async sign(
+        claims: Omit<BackofficeJwtClaims, 'iat' | 'exp'>,
+        expiresInSeconds: number
+    ): Promise<string> {
         const iat = Math.floor(Date.now() / 1000);
         return sign({ ...claims, iat, exp: iat + expiresInSeconds }, this.secret, 'HS256');
     }
 
-    async verify(token: string): Promise<JwtClaims> {
+    async verify(token: string): Promise<BackofficeJwtClaims> {
         const payload = await verify(token, this.secret, 'HS256');
         if (
             typeof payload.id !== 'number' || typeof payload.username !== 'string' ||
@@ -22,6 +25,6 @@ export class HmacTokenService implements TokenService {
         ) {
             throw new Error('Invalid JWT claims');
         }
-        return payload as JwtClaims;
+        return payload as BackofficeJwtClaims;
     }
 }
