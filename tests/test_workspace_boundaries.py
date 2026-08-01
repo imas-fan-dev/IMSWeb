@@ -272,6 +272,32 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("non-official tarball", result.stderr)
 
+    def test_npmmirror_registry_is_allowed(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / ".npmrc").write_text(
+                "registry=https://registry.npmmirror.com/\n"
+                "disturl=https://npmmirror.com/mirrors/node\n",
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_unapproved_registry_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / ".npmrc").write_text(
+                "registry=https://packages.example.test/\n",
+                encoding="utf-8",
+            )
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("every configured registry must be one of", result.stderr)
+
     def test_nested_web_repository_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)
