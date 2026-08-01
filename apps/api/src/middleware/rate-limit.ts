@@ -110,7 +110,9 @@ function requestSpecificLimit(
 ): RateLimitOptions | null {
   if (
     method === "POST" &&
-    (pathname === "/api/login" || pathname === "/api/admin/login")
+    ["/api/login", "/api/admin/login", "/api/admin/auth/login"].includes(
+      pathname,
+    )
   ) {
     return AUTH_LOGIN_LIMIT;
   }

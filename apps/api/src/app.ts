@@ -36,7 +36,7 @@ export interface AppEnvironment {
     Variables: RequestIdVariables & {
         services: RuntimeServices;
         backofficeUser?: BackofficeJwtClaims;
-        backofficeAuthSource?: 'authorization' | 'cookie';
+        backofficeAuthSource?: 'authorization' | 'cookie' | 'legacy-cookie';
     };
 }
 

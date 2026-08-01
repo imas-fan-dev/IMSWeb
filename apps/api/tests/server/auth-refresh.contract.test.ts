@@ -233,7 +233,14 @@ test('logout revokes the refresh session and clears all authentication cookies',
     assert.equal(logout.status, 200);
     assert.deepEqual(
         setCookies(logout).map((cookie) => cookie.split('=', 1)[0]).sort(),
-        ['csrf_token', 'refresh_token', 'token']
+        [
+            'csrf_token',
+            'ims_admin_access',
+            'ims_admin_csrf',
+            'ims_admin_refresh',
+            'refresh_token',
+            'token'
+        ]
     );
     for (const cookie of setCookies(logout)) assert.match(cookie, /Max-Age=0/i);
 

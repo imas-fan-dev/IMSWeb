@@ -6,6 +6,7 @@ import { apiClient } from "~/lib/api/client"
 import { readCookie } from "~/lib/api/cookies"
 import {
   getAdminSession,
+  hasBackofficeSessionHint,
   loginAdmin,
   logoutAdmin,
 } from "~/lib/api/endpoints/admin"
@@ -13,19 +14,24 @@ import {
   applyApiRequestPolicy,
   BACKOFFICE_CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
+  LEGACY_BACKOFFICE_CSRF_COOKIE_NAME,
 } from "~/lib/api/request"
 import { handleApiResponse } from "~/lib/api/response"
 import { withBackofficeAuth, withBackofficeCsrf } from "~/lib/api/types"
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
   document.cookie = "csrf_token=; Max-Age=0; path=/"
 })
 
 describe("API request policy", () => {
   it("decodes cookie values without truncating embedded equals signs", () => {
     expect(
-      readCookie("csrf_token", "theme=dark; csrf_token=a%2Fb%3D%3D; other=1")
+      readCookie(
+        "ims_admin_csrf",
+        "theme=dark; ims_admin_csrf=a%2Fb%3D%3D; other=1"
+      )
     ).toBe("a/b==")
   })
 
@@ -43,7 +49,8 @@ describe("API request policy", () => {
     applyApiRequestPolicy(request, {
       authRealm: "backoffice",
       csrfCookieName: BACKOFFICE_CSRF_COOKIE_NAME,
-      cookieSource: "csrf_token=fresh-token",
+      csrfFallbackCookieNames: [LEGACY_BACKOFFICE_CSRF_COOKIE_NAME],
+      cookieSource: "csrf_token=legacy-token; ims_admin_csrf=fresh-token",
     })
 
     expect(request.config.credentials).toBe("same-origin")
@@ -51,6 +58,32 @@ describe("API request policy", () => {
       Accept: "application/json",
       [CSRF_HEADER_NAME]: "fresh-token",
     })
+  })
+
+  it("falls back to the legacy Backoffice CSRF cookie during rolling upgrades", () => {
+    const request = {
+      config: { headers: {} as Record<string, unknown> },
+      meta: withBackofficeCsrf({ authRole: "refreshToken" }),
+      type: "POST",
+      url: "/api/admin/auth/refresh",
+    }
+
+    applyApiRequestPolicy(request, {
+      authRealm: "backoffice",
+      csrfCookieName: BACKOFFICE_CSRF_COOKIE_NAME,
+      csrfFallbackCookieNames: [LEGACY_BACKOFFICE_CSRF_COOKIE_NAME],
+      cookieSource: "csrf_token=legacy-upgrade-token",
+    })
+
+    expect(request.config.headers).toEqual({
+      [CSRF_HEADER_NAME]: "legacy-upgrade-token",
+    })
+  })
+
+  it("uses a legacy CSRF cookie as a Backoffice session hint during upgrades", () => {
+    document.cookie = "csrf_token=legacy-session-hint; path=/"
+
+    expect(hasBackofficeSessionHint()).toBe(true)
   })
 
   it("fails before sending a protected request when the CSRF cookie is missing", () => {
@@ -84,7 +117,7 @@ describe("API request policy", () => {
         config: { headers: {} },
         meta: withBackofficeAuth(),
         type: "GET",
-        url: "/api/check",
+        url: "/api/admin/auth/session",
       })
     ).toThrowError(/backoffice request cannot use the public API client/)
   })
@@ -175,7 +208,7 @@ describe("Alova access-token refresh", () => {
   it("uses the role-gated admin endpoint without refreshing a failed login", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       expect(new URL(String(input), "http://ims.test").pathname).toBe(
-        "/api/admin/login"
+        "/api/admin/auth/login"
       )
       return Response.json(
         {
@@ -217,10 +250,10 @@ describe("Alova access-token refresh", () => {
   })
 
   it("does not refresh or replay a failed admin logout", async () => {
-    document.cookie = "csrf_token=logout-csrf; path=/"
+    document.cookie = "ims_admin_csrf=logout-csrf; path=/"
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       expect(new URL(String(input), "http://ims.test").pathname).toBe(
-        "/api/logout"
+        "/api/admin/auth/logout"
       )
       return Response.json(
         { success: false, message: "session expired" },
@@ -237,8 +270,24 @@ describe("Alova access-token refresh", () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
+  it("sends the legacy CSRF cookie to the canonical logout during an upgrade", async () => {
+    document.cookie = "csrf_token=legacy-logout-csrf; path=/"
+    let logoutHeaders: Headers | undefined
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        logoutHeaders = new Headers(init?.headers)
+        return Response.json({ success: true })
+      }
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(logoutAdmin().send()).resolves.toEqual({ success: true })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(logoutHeaders?.get(CSRF_HEADER_NAME)).toBe("legacy-logout-csrf")
+  })
+
   it("settles every request when a concurrent admin refresh fails", async () => {
-    document.cookie = "csrf_token=expired-refresh-csrf; path=/"
+    document.cookie = "ims_admin_csrf=expired-refresh-csrf; path=/"
     let checkRequests = 0
     let refreshRequests = 0
     let releaseInitialChecks!: () => void
@@ -250,14 +299,14 @@ describe("Alova access-token refresh", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const pathname = new URL(String(input), "http://ims.test").pathname
-        if (pathname === "/api/refresh") {
+        if (pathname === "/api/admin/auth/refresh") {
           refreshRequests += 1
           return Response.json(
             { success: false, message: "refresh expired" },
             { status: 401 }
           )
         }
-        if (pathname === "/api/check") {
+        if (pathname === "/api/admin/auth/session") {
           checkRequests += 1
           if (checkRequests <= 2) {
             if (checkRequests === 2) releaseInitialChecks()
@@ -275,7 +324,7 @@ describe("Alova access-token refresh", () => {
     const requests = [
       getAdminSession().send(),
       adminApiClient
-        .Get("/api/check?request=second", {
+        .Get("/api/admin/auth/session?request=second", {
           meta: withBackofficeAuth(),
         })
         .send(),
@@ -301,7 +350,7 @@ describe("Alova access-token refresh", () => {
   })
 
   it("coalesces concurrent 401 responses and replays both requests", async () => {
-    document.cookie = "csrf_token=alova-refresh-csrf; path=/"
+    document.cookie = "ims_admin_csrf=alova-refresh-csrf; path=/"
     let checkRequests = 0
     let refreshRequests = 0
     let refreshHeaders: Headers | undefined
@@ -314,12 +363,12 @@ describe("Alova access-token refresh", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const pathname = new URL(String(input), "http://ims.test").pathname
-        if (pathname === "/api/refresh") {
+        if (pathname === "/api/admin/auth/refresh") {
           refreshRequests += 1
           refreshHeaders = new Headers(init?.headers)
           return Response.json({ success: true })
         }
-        if (pathname === "/api/check") {
+        if (pathname === "/api/admin/auth/session") {
           checkRequests += 1
           if (checkRequests <= 2) {
             if (checkRequests === 2) releaseInitialChecks()
@@ -350,7 +399,7 @@ describe("Alova access-token refresh", () => {
         .Get<{
           success: true
           user: { username: string }
-        }>("/api/check?request=second", {
+        }>("/api/admin/auth/session?request=second", {
           meta: withBackofficeAuth(),
         })
         .send(),

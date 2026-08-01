@@ -4,7 +4,11 @@ import adapterFetch from "alova/fetch"
 import ReactHook from "alova/react"
 
 import { normalizeRequestError } from "./api-error"
-import { applyApiRequestPolicy, BACKOFFICE_CSRF_COOKIE_NAME } from "./request"
+import {
+  applyApiRequestPolicy,
+  BACKOFFICE_CSRF_COOKIE_NAME,
+  LEGACY_BACKOFFICE_CSRF_COOKIE_NAME,
+} from "./request"
 import { handleApiResponse } from "./response"
 import { withBackofficeCsrf } from "./types"
 
@@ -28,7 +32,7 @@ const backofficeAuthentication = createServerTokenAuthentication<
     },
     handler: async (_response, method) => {
       try {
-        await method.context.Post("/api/refresh", undefined, {
+        await method.context.Post("/api/admin/auth/refresh", undefined, {
           meta: withBackofficeCsrf({ authRole: "refreshToken" }),
         })
       } catch {
@@ -55,6 +59,7 @@ export const adminApiClient = createAlova({
     applyApiRequestPolicy(method, {
       authRealm: "backoffice",
       csrfCookieName: BACKOFFICE_CSRF_COOKIE_NAME,
+      csrfFallbackCookieNames: [LEGACY_BACKOFFICE_CSRF_COOKIE_NAME],
     })
   }),
   responded: onResponseRefreshToken({

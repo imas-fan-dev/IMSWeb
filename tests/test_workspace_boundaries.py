@@ -21,7 +21,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             ".npmrc": "registry=https://registry.npmjs.org/\n",
             ".nvmrc": "22.13.0\n",
             "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
-            "apps/api/.env.example": "IMS_JWT_SECRET=\n",
+            "apps/api/.env.example": "IMS_BACKOFFICE_JWT_SECRET=\n",
             "apps/web/.env.example": "IMS_API_ORIGIN=http://127.0.0.1:3000\n",
             "deploy/.env.example": "IMS_POSTGRES_IMAGE=postgres:18.4-alpine\n",
             "apps/api/package.json": (

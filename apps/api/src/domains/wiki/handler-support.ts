@@ -3,6 +3,11 @@ import { getCookie } from 'hono/cookie';
 import type { ParsedUpload, UploadedFile } from '@/ports/http';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import type { NewStoryLinkInput, StoryRepository } from '@/ports/repositories';
+import {
+    BACKOFFICE_ACCESS_TOKEN_COOKIE,
+    LEGACY_BACKOFFICE_ACCESS_TOKEN_COOKIE,
+    type BackofficeCookieSource
+} from '@/domains/backoffice-auth/backoffice-auth-session';
 import { DEFAULT_STORY_UPLOAD_MAX_BYTES, toWikiAgency, toWikiIdolFromRecord } from '@/domains/wiki/service';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
@@ -34,6 +39,15 @@ export function wikiMessageOf(error: unknown, fallback: string): string {
     return error instanceof Error && error.message ? error.message : fallback;
 }
 
+function wikiBackofficeAccessToken<E extends Env>(
+    context: Context<E>
+): { source: BackofficeCookieSource; value: string } | undefined {
+    const canonical = getCookie(context, BACKOFFICE_ACCESS_TOKEN_COOKIE);
+    if (canonical) return { source: 'canonical', value: canonical };
+    const legacy = getCookie(context, LEGACY_BACKOFFICE_ACCESS_TOKEN_COOKIE);
+    return legacy ? { source: 'legacy', value: legacy } : undefined;
+}
+
 export async function authorizeWikiRead<E extends Env>(
     context: Context<E>,
     services: RuntimeServices
@@ -41,10 +55,15 @@ export async function authorizeWikiRead<E extends Env>(
     if (!services.backofficeTokens) {
         throw new Error('Wiki backoffice token service is not configured');
     }
-    const token = getCookie(context, 'token');
+    const token = wikiBackofficeAccessToken(context);
     if (!token) return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
     try {
-        const claims = await services.backofficeTokens.verify(token);
+        const claims = token.source === 'legacy'
+            ? await (
+                services.backofficeTokens.verifyLegacyCookie?.(token.value) ??
+                services.backofficeTokens.verify(token.value)
+            )
+            : await services.backofficeTokens.verify(token.value);
         if (!['op', 'editor'].includes(claims.dept)) {
             return wikiJson(wikiErrorBody('无权限执行此操作'), 403);
         }
@@ -72,11 +91,16 @@ export async function authorizeWikiWrite<E extends Env>(
     if (!services.backofficeTokens) {
         throw new Error('Wiki backoffice token service is not configured');
     }
-    const token = getCookie(context, 'token');
+    const token = wikiBackofficeAccessToken(context);
     if (!token) return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
     let claims;
     try {
-        claims = await services.backofficeTokens.verify(token);
+        claims = token.source === 'legacy'
+            ? await (
+                services.backofficeTokens.verifyLegacyCookie?.(token.value) ??
+                services.backofficeTokens.verify(token.value)
+            )
+            : await services.backofficeTokens.verify(token.value);
     } catch {
         return wikiJson(wikiErrorBody('未登录，请先登录'), 401);
     }

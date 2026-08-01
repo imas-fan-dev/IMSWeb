@@ -164,6 +164,82 @@ test('[RUN-01] invalid story upload byte limits fail before Node startup', () =>
     }
 });
 
+test('[SEC-01] production requires the dedicated Backoffice JWT secret', () => {
+    const environmentEntry = path.join(PROJECT_ROOT, 'dist/server/config/env.js');
+    const backofficeSecret = 'backoffice-secret-with-at-least-thirty-two-bytes';
+    const legacySecret = 'legacy-secret-with-at-least-thirty-two-bytes';
+    const platformSecret = 'platform-secret-with-at-least-thirty-two-bytes';
+    const legacyOnly = runIsolated(
+        `require(${JSON.stringify(environmentEntry)});`,
+        {
+            env: {
+                NODE_ENV: 'production',
+                IMS_SITE_ORIGIN: 'https://ims.example.test',
+                IMS_JWT_SECRET: legacySecret,
+                IMS_BACKOFFICE_JWT_SECRET: ''
+            }
+        }
+    );
+    assert.notEqual(legacyOnly.status, 0);
+    assert.match(legacyOnly.stderr, /IMS_BACKOFFICE_JWT_SECRET.*required/i);
+
+    const dedicatedOnly = runIsolated(
+        `require(${JSON.stringify(environmentEntry)});`,
+        {
+            env: {
+                NODE_ENV: 'production',
+                IMS_SITE_ORIGIN: 'https://ims.example.test',
+                IMS_JWT_SECRET: '',
+                IMS_BACKOFFICE_JWT_SECRET: backofficeSecret
+            }
+        }
+    );
+    assert.equal(dedicatedOnly.status, 0, dedicatedOnly.stderr);
+
+    const shortLegacy = runIsolated(
+        `require(${JSON.stringify(environmentEntry)});`,
+        {
+            env: {
+                NODE_ENV: 'production',
+                IMS_SITE_ORIGIN: 'https://ims.example.test',
+                IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
+                IMS_JWT_SECRET: 'too-short'
+            }
+        }
+    );
+    assert.notEqual(shortLegacy.status, 0);
+    assert.match(shortLegacy.stderr, /IMS_JWT_SECRET.*at least 32 UTF-8 bytes/i);
+
+    for (const [label, environment] of [
+        ['current', {
+            IMS_BACKOFFICE_JWT_SECRET: platformSecret,
+            IMS_JWT_SECRET: legacySecret
+        }],
+        ['legacy', {
+            IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
+            IMS_JWT_SECRET: platformSecret
+        }]
+    ]) {
+        const sharedRealmSecret = runIsolated(
+            `require(${JSON.stringify(environmentEntry)});`,
+            {
+                env: {
+                    NODE_ENV: 'production',
+                    IMS_SITE_ORIGIN: 'https://ims.example.test',
+                    IMS_PLATFORM_JWT_SECRET: platformSecret,
+                    ...environment
+                }
+            }
+        );
+        assert.notEqual(sharedRealmSecret.status, 0, label);
+        assert.match(
+            sharedRealmSecret.stderr,
+            /Backoffice JWT verification secrets.*IMS_PLATFORM_JWT_SECRET.*different/i,
+            label
+        );
+    }
+});
+
 test('[ARC-01 RUN-01 NODE-01] compiled entry exposes separate Hono and Node surfaces', () => {
     const script = `
         (async () => {
@@ -284,7 +360,7 @@ test('[SEC-01] shared app adds security headers to early 413 and 429 responses',
 
             const bodyLimitedApp = entry.createHonoApp(() => ({}));
             const tooLarge = await bodyLimitedApp.request(new Request(
-                'http://ims.test/api/login',
+                'http://ims.test/api/admin/auth/login',
                 {
                     method: 'POST',
                     headers: {

@@ -1,6 +1,11 @@
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { AppEnvironment } from '@/app';
+import {
+    BACKOFFICE_CSRF_TOKEN_COOKIE,
+    LEGACY_BACKOFFICE_CSRF_TOKEN_COOKIE,
+    backofficeAccessTokenCookie
+} from '@/domains/backoffice-auth/backoffice-auth-session';
 import { backofficeAuthRepository, services } from '@/middleware/hono-context';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
 
@@ -8,15 +13,24 @@ export async function authenticateBackofficeRequest(
     c: Context<AppEnvironment>
 ): Promise<Response | null> {
     const authorization = (c.req.header('authorization') || '').trim();
+    const cookie = authorization ? undefined : backofficeAccessTokenCookie(c);
     const token = authorization
         ? authorization.replace(/^Bearer\s+/i, '')
-        : getCookie(c, 'token');
+        : cookie?.value;
     if (!token) return c.json({ success: false, message: '未登录' }, 401);
     const tokenService = services(c).backofficeTokens;
     if (!tokenService) return c.json({ success: false, message: 'token无效' }, 401);
     try {
-        c.set('backofficeUser', await tokenService.verify(token));
-        c.set('backofficeAuthSource', authorization ? 'authorization' : 'cookie');
+        const claims = cookie?.source === 'legacy'
+            ? await (tokenService.verifyLegacyCookie?.(token) ?? tokenService.verify(token))
+            : await tokenService.verify(token);
+        c.set('backofficeUser', claims);
+        c.set(
+            'backofficeAuthSource',
+            authorization ? 'authorization' : cookie?.source === 'legacy'
+                ? 'legacy-cookie'
+                : 'cookie'
+        );
     } catch {
         return c.json({ success: false, message: 'token无效' }, 401);
     }
@@ -66,7 +80,12 @@ export async function protectBackofficeCsrf(
         return;
     }
     const header = c.req.header('x-csrftoken') || c.req.header('x-csrf-token') || '';
-    const cookie = getCookie(c, 'csrf_token');
+    const cookie = getCookie(
+        c,
+        c.get('backofficeAuthSource') === 'legacy-cookie'
+            ? LEGACY_BACKOFFICE_CSRF_TOKEN_COOKIE
+            : BACKOFFICE_CSRF_TOKEN_COOKIE
+    );
     if (!constantTimeEqual(header, cookie) || !constantTimeEqual(header, c.get('backofficeUser')?.csrfSecret)) {
         return c.json({ success: false, message: 'CSRF token invalid' }, 403);
     }

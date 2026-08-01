@@ -5,29 +5,56 @@ import {
     BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
     backofficeAccessTokenClaims,
     clearBackofficeAuthenticationCookies,
+    clearLegacyBackofficeAuthenticationCookies,
     hashBackofficeAuthSecret,
+    hasLegacyBackofficeAuthenticationCookie,
     hasValidBackofficeRefreshCsrf,
     backofficeRefreshTokenCookie,
-    setBackofficeAuthenticationCookies
+    legacyBackofficeRefreshTokenCookie,
+    setBackofficeAuthenticationCookies,
+    setLegacyBackofficeAuthenticationCookies
 } from '@/domains/backoffice-auth/backoffice-auth-session';
 import { backofficeAuthRepository, services } from '@/middleware/hono-context';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
 import { randomHex } from '@/utils/crypto/random';
 
-function rejectRefresh(c: Context<AppEnvironment>, message: string): Response {
-    clearBackofficeAuthenticationCookies(c);
+function rejectRefresh(
+    c: Context<AppEnvironment>,
+    message: string,
+    legacyRoute: boolean,
+    legacyCookie = false
+): Response {
+    if (legacyRoute) clearLegacyBackofficeAuthenticationCookies(c);
+    else {
+        clearBackofficeAuthenticationCookies(c);
+        if (legacyCookie) clearLegacyBackofficeAuthenticationCookies(c);
+    }
     return c.json({ success: false, message }, 401);
 }
 
-export async function handleBackofficeRefresh(c: Context<AppEnvironment>): Promise<Response> {
-    const refreshToken = backofficeRefreshTokenCookie(c);
-    if (!refreshToken) return rejectRefresh(c, '刷新令牌无效');
+async function refreshBackoffice(
+    c: Context<AppEnvironment>,
+    legacyRoute: boolean
+): Promise<Response> {
+    const hadLegacyCookies = hasLegacyBackofficeAuthenticationCookie(c);
+    const refreshCookie = legacyRoute
+        ? legacyBackofficeRefreshTokenCookie(c)
+        : backofficeRefreshTokenCookie(c);
+    if (!refreshCookie) return rejectRefresh(c, '刷新令牌无效', legacyRoute);
+    const refreshToken = refreshCookie.value;
 
     const repository = backofficeAuthRepository(c);
     const tokenHash = await hashBackofficeAuthSecret(refreshToken);
     const session = await repository.findRefreshSessionByTokenHash(tokenHash);
-    if (!session) return rejectRefresh(c, '刷新令牌无效');
-    if (!await hasValidBackofficeRefreshCsrf(c, session)) {
+    if (!session) {
+        return rejectRefresh(
+            c,
+            '刷新令牌无效',
+            legacyRoute,
+            refreshCookie.source === 'legacy'
+        );
+    }
+    if (!await hasValidBackofficeRefreshCsrf(c, session, refreshCookie.source)) {
         return c.json({ success: false, message: 'CSRF token invalid' }, 403);
     }
 
@@ -37,13 +64,23 @@ export async function handleBackofficeRefresh(c: Context<AppEnvironment>): Promi
         !constantTimeEqual(session.token_hash, tokenHash)
     ) {
         await repository.revokeRefreshSession(session.id, now);
-        return rejectRefresh(c, '刷新令牌已失效');
+        return rejectRefresh(
+            c,
+            '刷新令牌已失效',
+            legacyRoute,
+            refreshCookie.source === 'legacy'
+        );
     }
 
     const user = await repository.findUserById(session.account_id);
     if (!user) {
         await repository.revokeRefreshSession(session.id, now);
-        return rejectRefresh(c, '刷新令牌无效');
+        return rejectRefresh(
+            c,
+            '刷新令牌无效',
+            legacyRoute,
+            refreshCookie.source === 'legacy'
+        );
     }
 
     const runtime = services(c);
@@ -68,14 +105,25 @@ export async function handleBackofficeRefresh(c: Context<AppEnvironment>): Promi
     });
     if (!rotated) {
         await repository.revokeRefreshSession(session.id, now);
-        return rejectRefresh(c, '刷新令牌已失效');
+        return rejectRefresh(
+            c,
+            '刷新令牌已失效',
+            legacyRoute,
+            refreshCookie.source === 'legacy'
+        );
     }
 
-    setBackofficeAuthenticationCookies(c, {
+    const setAuthenticationCookies = legacyRoute
+        ? setLegacyBackofficeAuthenticationCookies
+        : setBackofficeAuthenticationCookies;
+    setAuthenticationCookies(c, {
         accessToken,
         refreshToken: nextRefreshToken,
         csrfSecret
     });
+    if (!legacyRoute && hadLegacyCookies) {
+        clearLegacyBackofficeAuthenticationCookies(c);
+    }
     return c.json({
         success: true,
         user: {
@@ -86,4 +134,14 @@ export async function handleBackofficeRefresh(c: Context<AppEnvironment>): Promi
             adminRole: user.admin_role
         }
     });
+}
+
+export function handleBackofficeRefresh(c: Context<AppEnvironment>): Promise<Response> {
+    return refreshBackoffice(c, false);
+}
+
+export function handleLegacyBackofficeRefresh(
+    c: Context<AppEnvironment>
+): Promise<Response> {
+    return refreshBackoffice(c, true);
 }

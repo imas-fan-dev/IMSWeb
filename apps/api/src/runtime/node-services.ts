@@ -29,10 +29,11 @@ import {
     ensureRuntimeDirectories
 } from '@/config/paths';
 import {
+    BACKOFFICE_JWT_SECRET,
     CLIENT_ADDRESS_SOURCE,
     COOKIE_OPTIONS,
     IS_PRODUCTION,
-    SECRET_KEY,
+    LEGACY_BACKOFFICE_JWT_SECRET,
     SITE_PACKAGE_MAX_UPLOAD_BYTES,
     STORY_MAX_UPLOAD_BYTES,
     SUPER_ADMIN_USERNAME
@@ -269,7 +270,10 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 }
             },
             passwords: new BcryptPasswordVerifier(),
-            backofficeTokens: new HmacBackofficeTokenService(SECRET_KEY),
+            backofficeTokens: new HmacBackofficeTokenService(
+                BACKOFFICE_JWT_SECRET,
+                LEGACY_BACKOFFICE_JWT_SECRET
+            ),
             fetch: globalThis.fetch,
             config: {
                 cookieSecure: COOKIE_OPTIONS.secure,

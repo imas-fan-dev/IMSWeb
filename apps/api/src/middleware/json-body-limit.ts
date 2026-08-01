@@ -22,6 +22,7 @@ function routeParsesJson(method: string, pathname: string): boolean {
     if (normalizedMethod === 'POST') {
         return pathname === '/api/login' ||
             pathname === '/api/admin/login' ||
+            pathname === '/api/admin/auth/login' ||
             pathname === '/api/emojis' ||
             pathname === '/api/reactions' ||
             pathname === '/api/wiki/parse_bilibili';

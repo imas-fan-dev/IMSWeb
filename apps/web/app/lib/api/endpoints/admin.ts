@@ -3,7 +3,10 @@ import { z } from "zod"
 import { adminApiClient } from "../admin-client"
 import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
 import { readCookie } from "../cookies"
-import { BACKOFFICE_CSRF_COOKIE_NAME } from "../request"
+import {
+  BACKOFFICE_CSRF_COOKIE_NAME,
+  LEGACY_BACKOFFICE_CSRF_COOKIE_NAME,
+} from "../request"
 import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
 const adminRoleSchema = z.enum(["admin", "super_admin"])
@@ -165,12 +168,15 @@ export type InformationSubmission = {
 }
 
 export function hasBackofficeSessionHint() {
-  return Boolean(readCookie(BACKOFFICE_CSRF_COOKIE_NAME))
+  return Boolean(
+    readCookie(BACKOFFICE_CSRF_COOKIE_NAME) ||
+    readCookie(LEGACY_BACKOFFICE_CSRF_COOKIE_NAME)
+  )
 }
 
 export function getAdminSession() {
   return adminApiClient.Get<z.infer<typeof adminSessionSchema>, unknown>(
-    "/api/check",
+    "/api/admin/auth/session",
     {
       meta: withBackofficeAuth(),
       transform: (payload) => adminSessionSchema.parse(payload),
@@ -180,7 +186,7 @@ export function getAdminSession() {
 
 export function loginAdmin(username: string, password: string) {
   return adminApiClient.Post<z.infer<typeof loginSchema>, unknown>(
-    "/api/admin/login",
+    "/api/admin/auth/login",
     { username, password },
     {
       meta: withBackofficeAuth({ authRole: "login" }),
@@ -191,7 +197,7 @@ export function loginAdmin(username: string, password: string) {
 
 export function logoutAdmin() {
   return adminApiClient.Post<{ success: true }, unknown>(
-    "/api/logout",
+    "/api/admin/auth/logout",
     undefined,
     {
       meta: withBackofficeCsrf({ authRole: "logout" }),

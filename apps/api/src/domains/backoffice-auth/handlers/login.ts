@@ -6,7 +6,8 @@ import {
     BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
     backofficeAccessTokenClaims,
     hashBackofficeAuthSecret,
-    setBackofficeAuthenticationCookies
+    setBackofficeAuthenticationCookies,
+    setLegacyBackofficeAuthenticationCookies
 } from '@/domains/backoffice-auth/backoffice-auth-session';
 import {
     auditRepository,
@@ -17,7 +18,7 @@ import {
 
 async function login(
     c: Context<AppEnvironment>,
-    requiredDepartment?: string
+    options: { requiredDepartment?: string; legacyCookies?: boolean } = {}
 ): Promise<Response> {
     let body: Record<string, unknown>;
     try {
@@ -45,7 +46,7 @@ async function login(
     if (!user || !await runtime.passwords.verify(password, user.password)) {
         return c.json({ success: false, message: '用户名或密码错误' }, 401);
     }
-    if (requiredDepartment && user.dept !== requiredDepartment) {
+    if (options.requiredDepartment && user.dept !== options.requiredDepartment) {
         return c.json({
             success: false,
             message: '当前账号没有管理工作台权限'
@@ -84,7 +85,10 @@ async function login(
     } catch (error) {
         console.error(error);
     }
-    setBackofficeAuthenticationCookies(c, { accessToken: token, refreshToken, csrfSecret });
+    const setAuthenticationCookies = options.legacyCookies
+        ? setLegacyBackofficeAuthenticationCookies
+        : setBackofficeAuthenticationCookies;
+    setAuthenticationCookies(c, { accessToken: token, refreshToken, csrfSecret });
     return c.json({
         success: true,
         token,
@@ -96,9 +100,15 @@ async function login(
 }
 
 export function handleBackofficeLogin(c: Context<AppEnvironment>): Promise<Response> {
-    return login(c);
+    return login(c, { legacyCookies: true });
 }
 
 export function handleBackofficeAdminLogin(c: Context<AppEnvironment>): Promise<Response> {
-    return login(c, 'op');
+    return login(c, { requiredDepartment: 'op', legacyCookies: true });
+}
+
+export function handleCanonicalBackofficeLogin(
+    c: Context<AppEnvironment>
+): Promise<Response> {
+    return login(c);
 }

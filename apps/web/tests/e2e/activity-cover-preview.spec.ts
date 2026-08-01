@@ -24,7 +24,7 @@ async function expectFullPageGlass(
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/check", async (route) => {
+  await page.route("**/api/admin/auth/session", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({

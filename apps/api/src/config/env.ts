@@ -55,24 +55,77 @@ function envFlag(name: string, fallback: boolean): boolean {
     return !['0', 'false', 'no', 'off'].includes(value.toLowerCase());
 }
 
-function getJwtSecret(): string {
-    const configuredSecret = process.env.IMS_JWT_SECRET;
-    if (configuredSecret) {
-        if (IS_PRODUCTION && Buffer.byteLength(configuredSecret, 'utf8') < 32) {
-            throw new Error('IMS_JWT_SECRET must be at least 32 UTF-8 bytes in production');
-        }
-        return configuredSecret;
-    }
-    if (IS_PRODUCTION) {
-        throw new Error('IMS_JWT_SECRET is required when NODE_ENV=production');
-    }
-    console.warn(
-        '[SECURITY WARNING] IMS_JWT_SECRET is not set; using an insecure development-only secret.'
-    );
-    return DEVELOPMENT_SECRET;
+export interface BackofficeJwtSecretConfig {
+    secret: string;
+    legacySecret?: string;
 }
 
-export const SECRET_KEY = getJwtSecret();
+export function parseBackofficeJwtSecrets(
+    environment: NodeJS.ProcessEnv = process.env
+): BackofficeJwtSecretConfig {
+    const mode = String(environment.NODE_ENV || 'development').trim().toLowerCase();
+    const production = mode === 'production';
+    const configuredSecret = environment.IMS_BACKOFFICE_JWT_SECRET;
+    const legacySecret = environment.IMS_JWT_SECRET;
+    const platformSecret = environment.IMS_PLATFORM_JWT_SECRET;
+
+    if (production) {
+        if (!configuredSecret) {
+            throw new Error(
+                'IMS_BACKOFFICE_JWT_SECRET is required in production and must be at least ' +
+                '32 UTF-8 bytes; legacy IMS_JWT_SECRET is required only during the ' +
+                'Backoffice compatibility window'
+            );
+        }
+        if (Buffer.byteLength(configuredSecret, 'utf8') < 32) {
+            throw new Error(
+                'IMS_BACKOFFICE_JWT_SECRET must be at least 32 UTF-8 bytes in production'
+            );
+        }
+        if (legacySecret && Buffer.byteLength(legacySecret, 'utf8') < 32) {
+            throw new Error(
+                'IMS_JWT_SECRET must be at least 32 UTF-8 bytes in production while ' +
+                'legacy Backoffice verification is enabled'
+            );
+        }
+        if (
+            platformSecret &&
+            (configuredSecret === platformSecret || legacySecret === platformSecret)
+        ) {
+            throw new Error(
+                'Backoffice JWT verification secrets and IMS_PLATFORM_JWT_SECRET must be ' +
+                'different in production'
+            );
+        }
+        return {
+            secret: configuredSecret,
+            ...(legacySecret ? { legacySecret } : {})
+        };
+    }
+
+    if (configuredSecret) {
+        return {
+            secret: configuredSecret,
+            ...(legacySecret ? { legacySecret } : {})
+        };
+    }
+    if (legacySecret) {
+        console.warn(
+            '[SECURITY WARNING] IMS_JWT_SECRET is deprecated; set ' +
+            'IMS_BACKOFFICE_JWT_SECRET instead.'
+        );
+        return { secret: legacySecret, legacySecret };
+    }
+    console.warn(
+        '[SECURITY WARNING] IMS_BACKOFFICE_JWT_SECRET is not set; using an insecure ' +
+        'development-only secret.'
+    );
+    return { secret: DEVELOPMENT_SECRET };
+}
+
+const backofficeJwtSecrets = parseBackofficeJwtSecrets();
+export const BACKOFFICE_JWT_SECRET = backofficeJwtSecrets.secret;
+export const LEGACY_BACKOFFICE_JWT_SECRET = backofficeJwtSecrets.legacySecret;
 export const STORY_MAX_UPLOAD_BYTES = parseStoryMaxUploadBytes(
     process.env.IMS_STORY_MAX_UPLOAD_BYTES
 );

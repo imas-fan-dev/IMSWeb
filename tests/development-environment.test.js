@@ -138,6 +138,7 @@ test("development configuration isolates an explicit R2 test runtime", async () 
     environment: {
       PATH: "/test/bin",
       IMS_SUPER_ADMIN_USERNAME: "production-admin",
+      IMS_BACKOFFICE_JWT_SECRET: "production-backoffice-secret",
       IMS_JWT_SECRET: "production-secret",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
     },
@@ -166,9 +167,10 @@ test("development configuration isolates an explicit R2 test runtime", async () 
     "test-access-key",
   );
   assert.equal(
-    configuration.apiEnvironment.IMS_JWT_SECRET,
+    configuration.apiEnvironment.IMS_BACKOFFICE_JWT_SECRET,
     "imsweb-local-development-secret",
   );
+  assert.equal("IMS_JWT_SECRET" in configuration.apiEnvironment, false);
   assert.equal(
     configuration.apiEnvironment.DATABASE_URL.includes("127.0.0.1"),
     true,

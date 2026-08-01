@@ -2,12 +2,14 @@ import { ApiError } from "./api-error"
 import { readCookie } from "./cookies"
 import type { ApiAuthRealm, ApiMethodMeta } from "./types"
 
-export const BACKOFFICE_CSRF_COOKIE_NAME = "csrf_token"
+export const BACKOFFICE_CSRF_COOKIE_NAME = "ims_admin_csrf"
+export const LEGACY_BACKOFFICE_CSRF_COOKIE_NAME = "csrf_token"
 export const CSRF_HEADER_NAME = "X-CSRFToken"
 
 interface ApiRequestPolicyOptions {
   authRealm?: ApiAuthRealm
   csrfCookieName?: string
+  csrfFallbackCookieNames?: readonly string[]
   cookieSource?: string
 }
 
@@ -55,7 +57,14 @@ export function applyApiRequestPolicy(
     throw new Error("CSRF request requires an authentication realm")
   }
 
-  const csrfToken = readCookie(options.csrfCookieName, options.cookieSource)
+  const csrfToken = [
+    options.csrfCookieName,
+    ...(options.csrfFallbackCookieNames ?? []),
+  ].reduce<string | undefined>(
+    (token, cookieName) =>
+      token ?? readCookie(cookieName, options.cookieSource),
+    undefined
+  )
   if (!csrfToken) {
     throw new ApiError("登录会话缺少 CSRF 令牌，请刷新页面后重试", {
       kind: "csrf",

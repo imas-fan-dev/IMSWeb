@@ -415,7 +415,7 @@ export function resolveDevelopmentConfiguration({
     PORT: String(options.apiPort),
     IMS_ENV_FILE: "",
     IMS_PROJECT_ROOT: repositoryRoot,
-    IMS_JWT_SECRET: "imsweb-local-development-secret",
+    IMS_BACKOFFICE_JWT_SECRET: "imsweb-local-development-secret",
     IMS_COOKIE_SECURE: "false",
     IMS_CLIENT_ADDRESS_SOURCE: "direct",
     DATABASE_URL: databaseUrl,

@@ -1,4 +1,7 @@
 export interface BackofficeJwtClaims {
+    iss?: 'imsweb';
+    aud?: 'ims-backoffice';
+    kind?: 'backoffice';
     id: number;
     username: string;
     producername: string;
@@ -10,12 +13,18 @@ export interface BackofficeJwtClaims {
     [key: string]: unknown;
 }
 
+export type BackofficeAccessTokenInput = Omit<
+    BackofficeJwtClaims,
+    'iss' | 'aud' | 'kind' | 'iat' | 'exp'
+>;
+
 export interface BackofficeTokenService {
     sign(
-        claims: Omit<BackofficeJwtClaims, 'iat' | 'exp'>,
+        claims: BackofficeAccessTokenInput,
         expiresInSeconds: number
     ): Promise<string>;
     verify(token: string): Promise<BackofficeJwtClaims>;
+    verifyLegacyCookie?(token: string): Promise<BackofficeJwtClaims>;
 }
 
 export interface PasswordVerifier {
