@@ -64,7 +64,7 @@ export class SqlCoreRepository implements
     findUserByUsername(username: string): Promise<BackofficeAccountRecord | null> {
         return queryOne<BackofficeAccountRecord>(
             this.database,
-            'SELECT * FROM users WHERE username=?',
+            `SELECT * FROM ${this.backofficeAccountsTable} WHERE username=?`,
             [username]
         );
     }
@@ -72,7 +72,7 @@ export class SqlCoreRepository implements
     findUserById(id: number): Promise<BackofficeAccountRecord | null> {
         return queryOne<BackofficeAccountRecord>(
             this.database,
-            'SELECT * FROM users WHERE id=?',
+            `SELECT * FROM ${this.backofficeAccountsTable} WHERE id=?`,
             [id]
         );
     }
@@ -80,7 +80,8 @@ export class SqlCoreRepository implements
     async ensureSuperAdmin(username?: string): Promise<void> {
         const current = await queryAll<AdminAccountRecord>(this.database,
             `SELECT id, username, producername, admin_role
-             FROM users WHERE dept='op' AND admin_role='super_admin'`
+             FROM ${this.backofficeAccountsTable}
+             WHERE dept='op' AND admin_role='super_admin'`
         );
         if (current.length > 1) throw new Error('Multiple super administrators are configured');
         if (current.length === 1) {
@@ -101,7 +102,7 @@ export class SqlCoreRepository implements
             throw new Error('IMS_SUPER_ADMIN_USERNAME must identify an existing op account');
         }
         const result = await executeSql(this.database,
-            `UPDATE users SET admin_role='super_admin'
+            `UPDATE ${this.backofficeAccountsTable} SET admin_role='super_admin'
              WHERE id=? AND dept='op' AND admin_role='admin'`,
             [target.id]
         );
@@ -113,7 +114,7 @@ export class SqlCoreRepository implements
     listAdminAccounts(): Promise<AdminAccountRecord[]> {
         return queryAll<AdminAccountRecord>(this.database,
             `SELECT id, username, producername, admin_role
-             FROM users
+             FROM ${this.backofficeAccountsTable}
              WHERE dept='op' AND admin_role IN ('admin', 'super_admin')
              ORDER BY CASE admin_role WHEN 'super_admin' THEN 0 ELSE 1 END, id`
         );
@@ -121,7 +122,8 @@ export class SqlCoreRepository implements
 
     async createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord> {
         const created = await queryOne<AdminAccountRecord>(this.database,
-            `INSERT INTO users (username, password, dept, producername, admin_role)
+            `INSERT INTO ${this.backofficeAccountsTable}
+             (username, password, dept, producername, admin_role)
              VALUES (?, ?, 'op', ?, 'admin')
              RETURNING id, username, producername, admin_role`,
             [input.username, input.passwordHash, input.producername]
@@ -132,7 +134,8 @@ export class SqlCoreRepository implements
 
     async deleteAdminAccount(id: number): Promise<boolean> {
         const result = await executeSql(this.database,
-            `DELETE FROM users WHERE id=? AND dept='op' AND admin_role='admin'`,
+            `DELETE FROM ${this.backofficeAccountsTable}
+             WHERE id=? AND dept='op' AND admin_role='admin'`,
             [id]
         );
         return result.meta.changes === 1;
@@ -140,13 +143,14 @@ export class SqlCoreRepository implements
 
     async createRefreshSession(input: NewBackofficeRefreshSessionInput): Promise<void> {
         await executeSql(this.database,
-            `INSERT INTO auth_refresh_sessions
-             (id, user_id, token_hash, previous_token_hash, csrf_hash,
+            `INSERT INTO ${this.backofficeRefreshSessionsTable}
+             (id, ${this.backofficeRefreshAccountIdColumn}, token_hash,
+              previous_token_hash, csrf_hash,
               expires_at, created_at, updated_at, revoked_at)
              VALUES (?, ?, ?, NULL, ?, ?, ?, ?, NULL)`,
             [
                 input.id,
-                input.userId,
+                input.accountId,
                 input.tokenHash,
                 input.csrfHash,
                 input.expiresAt,
@@ -160,7 +164,10 @@ export class SqlCoreRepository implements
         tokenHash: string
     ): Promise<BackofficeRefreshSessionRecord | null> {
         return queryOne<BackofficeRefreshSessionRecord>(this.database,
-            `SELECT * FROM auth_refresh_sessions
+            `SELECT id, ${this.backofficeRefreshAccountIdColumn} AS account_id,
+                    token_hash, previous_token_hash, csrf_hash, expires_at,
+                    created_at, updated_at, revoked_at
+             FROM ${this.backofficeRefreshSessionsTable}
              WHERE token_hash=? OR previous_token_hash=?
              ORDER BY CASE WHEN token_hash=? THEN 0 ELSE 1 END
              LIMIT 1`,
@@ -176,7 +183,7 @@ export class SqlCoreRepository implements
         updatedAt: number;
     }): Promise<boolean> {
         const result = await executeSql(this.database,
-            `UPDATE auth_refresh_sessions
+            `UPDATE ${this.backofficeRefreshSessionsTable}
              SET previous_token_hash=token_hash, token_hash=?, expires_at=?, updated_at=?
              WHERE id=? AND token_hash=? AND revoked_at IS NULL AND expires_at>?`,
             [
@@ -193,7 +200,7 @@ export class SqlCoreRepository implements
 
     async revokeRefreshSession(id: string, revokedAt: number): Promise<void> {
         await executeSql(this.database,
-            `UPDATE auth_refresh_sessions
+            `UPDATE ${this.backofficeRefreshSessionsTable}
              SET revoked_at=COALESCE(revoked_at, ?), updated_at=?
              WHERE id=?`,
             [revokedAt, revokedAt, id]
@@ -203,9 +210,22 @@ export class SqlCoreRepository implements
     async deleteExpiredRefreshSessions(now: number): Promise<void> {
         await executeSql(
             this.database,
-            'DELETE FROM auth_refresh_sessions WHERE expires_at<=?',
+            `DELETE FROM ${this.backofficeRefreshSessionsTable} WHERE expires_at<=?`,
             [now]
         );
+    }
+
+    private get backofficeAccountsTable(): 'backoffice_accounts' {
+        return 'backoffice_accounts';
+    }
+
+    private get backofficeRefreshSessionsTable():
+        'auth_refresh_sessions' | 'backoffice_refresh_sessions' {
+        return 'backoffice_refresh_sessions';
+    }
+
+    private get backofficeRefreshAccountIdColumn(): 'account_id' {
+        return 'account_id';
     }
 
     async insertAuditLog(input: AuditLogInput): Promise<void> {

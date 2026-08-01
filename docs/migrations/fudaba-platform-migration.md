@@ -101,8 +101,11 @@ Backoffice 覆盖所有现有后台工作身份，包括 `editor`、普通 `op`�
 - 删除帐号必须撤销刷新会话；已签发 access token 的最长残留时间需要在 UI 和运维文档中明示。
 
 物理改名必须使用新的 post-data migration，并为上一个 release 提供只读和写入兼容面。PostgreSQL
-可在重命名后保留单表可更新 compatibility view；SQLite 必须使用等价的表迁移或显式触发器。不能只
-改 PostgreSQL 表名而让共享 repository SQL 在 SQLite 测试中失效。
+在重命名后保留单表可更新 compatibility view。SQLite 兼容模式分两阶段：上一个 release 的观察期内，
+`users/auth_refresh_sessions` 仍是唯一物理写入源，`backoffice_*` 是只读新命名视图，新 repository 按
+SQLite dialect 定向旧物理表；观察期结束后，再用独立 forward migration 完成 SQLite 物理改名。
+这是因为 SQLite `INSTEAD OF` view trigger 不保留旧 repository 依赖的 `RETURNING` 与受影响行数
+语义。不能提前重命名 SQLite 物理表，导致普通代码回滚时 refresh CAS、帐号创建或删除误判失败。
 
 ### 3.2 Platform 身份域
 
@@ -387,9 +390,9 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
    - 建立 `adminApiClient`；只有管理员请求可以触发管理员 refresh；
    - 匿名 API client 不再把所有 401 解释为后台会话过期。
 4. `refactor(auth): migrate backoffice persistence names`
-   - 新 forward migration 将 `users/auth_refresh_sessions` 迁到
-     `backoffice_accounts/backoffice_refresh_sessions`；
-   - 保留 ID、editor/op 语义、兼容视图、session FK 和新增 `account_id` 索引；
+   - PostgreSQL forward migration 将 `users/auth_refresh_sessions` 迁到
+     `backoffice_accounts/backoffice_refresh_sessions`；SQLite 进入第 3.1 节的两阶段兼容窗口；
+   - 保留 ID、editor/op 语义、兼容命名面、session FK 和新增 `account_id` 索引；
    - 更新 SQLite strategy、导入/对账/运维脚本和 schema sentinel。
 5. `refactor(auth): isolate backoffice routes cookies and jwt audience`
    - 增加 `/api/admin/auth/*`、`ims_admin_*` Cookie、Backoffice issuer/audience；
@@ -604,7 +607,8 @@ start/callback、对象读取、一次受控写入和 Backoffice moderation。�
 ### 12.2 回滚原则
 
 - schema migration 采用 additive/forward-only；普通代码回滚不删除新表、列、兼容 view 或对象；
-- Backoffice 物理改名必须保证前一个 release 仍可通过 compatibility view 读写；
+- Backoffice 物理改名必须保证前一个 release 仍可读写：PostgreSQL 使用 compatibility view，
+  SQLite 在观察期保留旧物理表，不能用 view trigger 模拟 `RETURNING` 或受影响行数；
 - Backoffice Cookie 迁移期先读新 Cookie，再在旧管理端点兼容旧 Cookie并重新签发新会话；Platform
   永远不读旧 Cookie；
 - OAuth 切换失败时关闭 Platform auth/write，恢复旧 callback 和旧站单写源；不能让两个站同时写；

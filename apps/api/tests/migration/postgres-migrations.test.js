@@ -33,7 +33,8 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0017_wiki_entry_types', phase: 'post-data' },
             { version: '0018_wiki_story_cover_presentation', phase: 'post-data' },
             { version: '0019_homepage_links', phase: 'post-data' },
-            { version: '0020_platform_accounts', phase: 'pre-data' }
+            { version: '0020_platform_accounts', phase: 'pre-data' },
+            { version: '0021_backoffice_persistence_names', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -127,6 +128,19 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(platformAccounts.sql, /UNIQUE \(account_id, provider_code\)/);
     assert.match(platformAccounts.sql, /platform_refresh_sessions_account_idx/);
     assert.match(platformAccounts.sql, /algorithm IN \('pbkdf2-sha256', 'bcrypt'\)/);
+    const backofficeNames = migrations.find(
+        ({ version }) => version === '0021_backoffice_persistence_names'
+    );
+    assert.match(backofficeNames.sql, /ALTER TABLE public\.users RENAME TO backoffice_accounts/);
+    assert.match(backofficeNames.sql, /RENAME COLUMN user_id TO account_id/);
+    assert.match(backofficeNames.sql, /users_id_not_null TO backoffice_accounts_id_not_null/);
+    assert.match(
+        backofficeNames.sql,
+        /auth_refresh_sessions_user_id_not_null[\s\S]+backoffice_refresh_sessions_account_id_not_null/
+    );
+    assert.match(backofficeNames.sql, /backoffice_refresh_sessions_account_idx/);
+    assert.match(backofficeNames.sql, /CREATE VIEW public\.users AS/);
+    assert.match(backofficeNames.sql, /CREATE VIEW public\.auth_refresh_sessions AS/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -188,7 +202,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0017_wiki_entry_types',
         '0018_wiki_story_cover_presentation',
         '0019_homepage_links',
-        '0020_platform_accounts'
+        '0020_platform_accounts',
+        '0021_backoffice_persistence_names'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

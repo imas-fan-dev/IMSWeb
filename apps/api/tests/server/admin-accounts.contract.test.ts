@@ -181,7 +181,7 @@ test('super administrator deletes a regular op and revokes its refresh sessions'
     t.after(() => fixture.close());
     await fixture.repository.createRefreshSession({
         id: 'regular-session',
-        userId: fixture.ids.admin,
+        accountId: fixture.ids.admin,
         tokenHash: 'a'.repeat(64),
         csrfHash: 'b'.repeat(64),
         expiresAt: Math.floor(Date.now() / 1000) + 3600,

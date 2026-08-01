@@ -66,7 +66,7 @@ async function login(
     await repository.deleteExpiredRefreshSessions(now);
     await repository.createRefreshSession({
         id: randomHex(16),
-        userId: user.id,
+        accountId: user.id,
         tokenHash,
         csrfHash,
         expiresAt: now + BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,

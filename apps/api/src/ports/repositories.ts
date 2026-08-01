@@ -24,7 +24,7 @@ export interface NewAdminAccountInput {
 
 export interface BackofficeRefreshSessionRecord {
     id: string;
-    user_id: number;
+    account_id: number;
     token_hash: string;
     previous_token_hash: string | null;
     csrf_hash: string;
@@ -36,7 +36,7 @@ export interface BackofficeRefreshSessionRecord {
 
 export interface NewBackofficeRefreshSessionInput {
     id: string;
-    userId: number;
+    accountId: number;
     tokenHash: string;
     csrfHash: string;
     expiresAt: number;

@@ -40,7 +40,7 @@ export async function handleBackofficeRefresh(c: Context<AppEnvironment>): Promi
         return rejectRefresh(c, '刷新令牌已失效');
     }
 
-    const user = await repository.findUserById(session.user_id);
+    const user = await repository.findUserById(session.account_id);
     if (!user) {
         await repository.revokeRefreshSession(session.id, now);
         return rejectRefresh(c, '刷新令牌无效');
