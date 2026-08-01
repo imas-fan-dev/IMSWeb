@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test"
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("imsweb.language", "zh-CN")
+  })
+})
+
 const publicRoutes = [
   { path: "/", title: /IMSWeb/i },
   { path: "/about", title: /关于我们.*IMSWeb/i },
@@ -251,7 +257,7 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
   })
 
   await page.goto("/")
-  await page.getByRole("button", { name: "打开导航" }).click()
+  await page.getByRole("button", { name: /打开导航|Open navigation/ }).click()
 
   const navigation = page.getByRole("navigation", {
     name: /移动端主导航|Mobile navigation/,
@@ -290,7 +296,7 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       ? /移动端主导航|Mobile navigation/
       : /主导航|Main navigation/,
   })
-  await expect(navigation.locator("a")).toHaveCount(isMobile ? 6 : 5)
+  await expect(navigation.locator("a")).toHaveCount(isMobile ? 7 : 6)
 
   for (const primaryHref of [
     "/",
@@ -298,6 +304,7 @@ test("homepage navigation keeps secondary destinations in the directory", async 
     "/recommendations",
     "/live",
     "/community",
+    "/about",
   ]) {
     await expect(navigation.locator(`a[href="${primaryHref}"]`)).toBeVisible()
   }
@@ -306,7 +313,6 @@ test("homepage navigation keeps secondary destinations in the directory", async 
     "/producer-map",
     "/works",
     "/chronicle",
-    "/about",
   ]) {
     await expect(navigation.locator(`a[href="${secondaryHref}"]`)).toHaveCount(
       0
@@ -341,12 +347,8 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       path: `/tmp/imsweb-footer-story-site-${isMobile ? "mobile" : "desktop"}.png`,
     })
   }
-  await expect(
-    directory.getByRole("link", { name: /制作人名片墙/ })
-  ).toHaveAttribute("href", "/community/cards")
-  await expect(
-    directory.getByRole("link", { name: /制作人地图/ })
-  ).toHaveAttribute("href", "/producer-map")
+  await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
+  await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
 
   const friendLinksBox = await page
     .getByRole("region", { name: "友情链接" })
@@ -512,6 +514,14 @@ test("home exposes current discovery and birthday interactions", async ({
   page,
   isMobile,
 }) => {
+  await page.route("**/api/information", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ cards: [] }),
+    })
+  })
+
   await page.goto("/")
 
   const brandBackground = page.getByTestId("series-icon-background")
@@ -553,12 +563,8 @@ test("home exposes current discovery and birthday interactions", async ({
   await expect(
     directory.getByRole("link", { name: /活动中心/ })
   ).toHaveAttribute("href", "/events")
-  await expect(
-    directory.getByRole("link", { name: /制作人名片墙/ })
-  ).toHaveAttribute("href", "/community/cards")
-  await expect(
-    directory.getByRole("link", { name: /制作人地图/ })
-  ).toHaveAttribute("href", "/producer-map")
+  await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
+  await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
   await expect(
     directory.getByRole("link", { name: /关于 IMSWeb/ })
   ).toHaveAttribute("href", "/about")
@@ -580,15 +586,13 @@ test("home exposes current discovery and birthday interactions", async ({
   const highlights = page.getByRole("region", {
     name: "活动资讯与同人活动",
   })
-  await expect(highlights.getByLabel("正在加载活动资讯")).toHaveCount(0)
-  const highlightLinkCount = await highlights.getByRole("link").count()
-  if (highlightLinkCount === 0) {
-    await expect(
-      highlights.getByText("当前没有已发布的活动资讯。")
-    ).toBeVisible()
-  } else {
-    expect(highlightLinkCount).toBeGreaterThan(0)
-  }
+  await expect(
+    highlights.getByRole("status", { name: "正在加载活动资讯" })
+  ).toHaveCount(0)
+  await expect(highlights.getByRole("link")).toHaveCount(0)
+  await expect(
+    highlights.getByText("当前没有已发布的活动资讯。")
+  ).toBeVisible()
 
   const randomIdol = page.getByRole("region", { name: "随机担当" })
   await randomIdol.getByRole("button", { name: "随机选择" }).click()

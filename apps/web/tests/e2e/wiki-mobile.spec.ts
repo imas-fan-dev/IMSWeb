@@ -32,8 +32,10 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
     return rail.scrollLeft
   })
   await expect(targetAgency).toBeVisible()
-  await page.evaluate(() => window.scrollBy(0, 80))
-  const verticalScrollBefore = await page.evaluate(() => window.scrollY)
+  const verticalScrollBefore = await page.evaluate(() => {
+    window.scrollBy({ top: 80, behavior: "instant" })
+    return window.scrollY
+  })
 
   await targetAgency.click()
 

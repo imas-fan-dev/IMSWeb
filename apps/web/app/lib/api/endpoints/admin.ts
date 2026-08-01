@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import { adminApiClient } from "../admin-client"
 import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
+import { readCookie } from "../cookies"
+import { BACKOFFICE_CSRF_COOKIE_NAME } from "../request"
 import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
 const adminRoleSchema = z.enum(["admin", "super_admin"])
@@ -160,6 +162,10 @@ export type InformationSubmission = {
   externalUrl: string
   html: string
   image: string
+}
+
+export function hasBackofficeSessionHint() {
+  return Boolean(readCookie(BACKOFFICE_CSRF_COOKIE_NAME))
 }
 
 export function getAdminSession() {
