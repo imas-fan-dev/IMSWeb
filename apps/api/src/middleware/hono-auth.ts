@@ -6,7 +6,18 @@ import {
     LEGACY_BACKOFFICE_CSRF_TOKEN_COOKIE,
     backofficeAccessTokenCookie
 } from '@/domains/backoffice-auth/backoffice-auth-session';
-import { backofficeAuthRepository, services } from '@/middleware/hono-context';
+import {
+    PLATFORM_ACCESS_TOKEN_COOKIE,
+    PLATFORM_CSRF_TOKEN_COOKIE,
+    clearPlatformAuthenticationCookies,
+    hashPlatformAuthSecret,
+    platformSecurityEvent
+} from '@/domains/platform-auth/platform-auth-session';
+import {
+    backofficeAuthRepository,
+    platformAccountRepository,
+    services
+} from '@/middleware/hono-context';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
 
 export async function authenticateBackofficeRequest(
@@ -37,11 +48,96 @@ export async function authenticateBackofficeRequest(
     return null;
 }
 
+function invalidPlatformSession(c: Context<AppEnvironment>): Response {
+    return c.json({ success: false, code: 'PLATFORM_SESSION_INVALID' }, 401);
+}
+
+export async function authenticatePlatformRequest(
+    c: Context<AppEnvironment>
+): Promise<Response | null> {
+    const authorization = (c.req.header('authorization') || '').trim();
+    const cookie = authorization ? undefined : getCookie(c, PLATFORM_ACCESS_TOKEN_COOKIE);
+    const token = authorization
+        ? authorization.replace(/^Bearer\s+/i, '')
+        : cookie;
+    const runtime = services(c);
+    if (!token || !runtime.platformTokens || !runtime.platformAccounts) {
+        return invalidPlatformSession(c);
+    }
+    let claims;
+    try {
+        claims = await runtime.platformTokens.verify(token);
+    } catch {
+        return invalidPlatformSession(c);
+    }
+    const repository = platformAccountRepository(c);
+    const [session, identity] = await Promise.all([
+        repository.findRefreshSessionById(claims.sessionId),
+        repository.findAccountWithProfileById(claims.id)
+    ]);
+    const now = Date.now();
+    if (
+        !session || !identity || session.account_id !== claims.id ||
+        session.revoked_at !== null || session.expires_at <= now
+    ) {
+        return invalidPlatformSession(c);
+    }
+    if (identity.account.token_version !== claims.tokenVersion) {
+        await repository.revokeRefreshSession({
+            id: session.id,
+            accountId: identity.account.id,
+            revokedAt: now,
+            event: platformSecurityEvent(
+                c,
+                identity.account.id,
+                'auth.account_blocked',
+                'token_version_changed'
+            )
+        });
+        clearPlatformAuthenticationCookies(c);
+        return invalidPlatformSession(c);
+    }
+    if (
+        identity.account.status === 'suspended' ||
+        identity.account.status === 'deleted'
+    ) {
+        const code = identity.account.status === 'suspended'
+            ? 'PLATFORM_ACCOUNT_SUSPENDED'
+            : 'PLATFORM_ACCOUNT_UNAVAILABLE';
+        await repository.revokeRefreshSession({
+            id: session.id,
+            accountId: identity.account.id,
+            revokedAt: now,
+            event: platformSecurityEvent(
+                c,
+                identity.account.id,
+                'auth.account_blocked',
+                identity.account.status
+            )
+        });
+        clearPlatformAuthenticationCookies(c);
+        return c.json({ success: false, code }, 403);
+    }
+    c.set('platformUser', claims);
+    c.set('platformAccount', identity);
+    c.set('platformAuthSource', authorization ? 'authorization' : 'cookie');
+    return null;
+}
+
 export async function authenticateBackoffice(
     c: Context<AppEnvironment>,
     next: Next
 ): Promise<Response | void> {
     const failure = await authenticateBackofficeRequest(c);
+    if (failure) return failure;
+    await next();
+}
+
+export async function authenticatePlatform(
+    c: Context<AppEnvironment>,
+    next: Next
+): Promise<Response | void> {
+    const failure = await authenticatePlatformRequest(c);
     if (failure) return failure;
     await next();
 }
@@ -92,7 +188,37 @@ export async function protectBackofficeCsrf(
     await next();
 }
 
+export async function protectPlatformCsrf(
+    c: Context<AppEnvironment>,
+    next: Next
+): Promise<Response | void> {
+    if (
+        ['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) ||
+        c.get('platformAuthSource') === 'authorization'
+    ) {
+        await next();
+        return;
+    }
+    const claims = c.get('platformUser');
+    const header = c.req.header('x-csrftoken') || c.req.header('x-csrf-token') || '';
+    const cookie = getCookie(c, PLATFORM_CSRF_TOKEN_COOKIE) || '';
+    const session = claims
+        ? await platformAccountRepository(c).findRefreshSessionById(claims.sessionId)
+        : null;
+    const storedHash = session?.csrf_hash;
+    if (
+        !constantTimeEqual(header, cookie) ||
+        !constantTimeEqual(header, claims?.csrfSecret) ||
+        !constantTimeEqual(await hashPlatformAuthSecret(header), storedHash)
+    ) {
+        return c.json({ success: false, code: 'PLATFORM_CSRF_INVALID' }, 403);
+    }
+    await next();
+}
+
 export const backofficeAuth: MiddlewareHandler<AppEnvironment> = authenticateBackoffice;
+export const platformAuth: MiddlewareHandler<AppEnvironment> = authenticatePlatform;
 export const opOnly: MiddlewareHandler<AppEnvironment> = requireOp;
 export const superAdminOnly: MiddlewareHandler<AppEnvironment> = requireSuperAdmin;
 export const backofficeCsrf: MiddlewareHandler<AppEnvironment> = protectBackofficeCsrf;
+export const platformCsrf: MiddlewareHandler<AppEnvironment> = protectPlatformCsrf;

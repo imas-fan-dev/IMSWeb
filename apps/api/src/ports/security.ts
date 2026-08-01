@@ -27,6 +27,33 @@ export interface BackofficeTokenService {
     verifyLegacyCookie?(token: string): Promise<BackofficeJwtClaims>;
 }
 
+export interface PlatformJwtClaims {
+    iss: 'imsweb';
+    aud: 'ims-platform';
+    kind: 'platform';
+    id: string;
+    tokenVersion: number;
+    sessionId: string;
+    csrfSecret: string;
+    jti: string;
+    iat: number;
+    exp: number;
+    [key: string]: unknown;
+}
+
+export type PlatformAccessTokenInput = Omit<
+    PlatformJwtClaims,
+    'iss' | 'aud' | 'kind' | 'jti' | 'iat' | 'exp'
+>;
+
+export interface PlatformTokenService {
+    sign(
+        claims: PlatformAccessTokenInput,
+        expiresInSeconds: number
+    ): Promise<string>;
+    verify(token: string): Promise<PlatformJwtClaims>;
+}
+
 export interface PasswordVerifier {
     verify(value: string, digest: string): Promise<boolean>;
     hash?(value: string): Promise<string>;
@@ -35,4 +62,5 @@ export interface PasswordVerifier {
 export interface SecurityServices {
     passwords: PasswordVerifier;
     backofficeTokens: BackofficeTokenService;
+    platformTokens: PlatformTokenService;
 }

@@ -190,7 +190,8 @@ test('[SEC-01] production requires the dedicated Backoffice JWT secret', () => {
                 NODE_ENV: 'production',
                 IMS_SITE_ORIGIN: 'https://ims.example.test',
                 IMS_JWT_SECRET: '',
-                IMS_BACKOFFICE_JWT_SECRET: backofficeSecret
+                IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
+                IMS_PLATFORM_JWT_SECRET: platformSecret
             }
         }
     );
@@ -203,7 +204,8 @@ test('[SEC-01] production requires the dedicated Backoffice JWT secret', () => {
                 NODE_ENV: 'production',
                 IMS_SITE_ORIGIN: 'https://ims.example.test',
                 IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
-                IMS_JWT_SECRET: 'too-short'
+                IMS_JWT_SECRET: 'too-short',
+                IMS_PLATFORM_JWT_SECRET: platformSecret
             }
         }
     );
@@ -238,6 +240,59 @@ test('[SEC-01] production requires the dedicated Backoffice JWT secret', () => {
             label
         );
     }
+});
+
+test('[SEC-01] production requires an independent high-entropy Platform JWT secret', () => {
+    const environmentEntry = path.join(PROJECT_ROOT, 'dist/server/config/env.js');
+    const backofficeSecret = 'backoffice-secret-with-at-least-thirty-two-bytes';
+    const validPlatformSecret = 'platform-secret-with-at-least-thirty-two-bytes';
+    for (const [label, platformSecret, pattern] of [
+        ['missing', '', /IMS_PLATFORM_JWT_SECRET.*required/i],
+        ['short', 'too-short', /IMS_PLATFORM_JWT_SECRET.*at least 32 UTF-8 bytes/i]
+    ]) {
+        const result = runIsolated(
+            `require(${JSON.stringify(environmentEntry)});`,
+            {
+                env: {
+                    NODE_ENV: 'production',
+                    IMS_SITE_ORIGIN: 'https://ims.example.test',
+                    IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
+                    IMS_JWT_SECRET: '',
+                    IMS_PLATFORM_JWT_SECRET: platformSecret
+                }
+            }
+        );
+        assert.notEqual(result.status, 0, label);
+        assert.match(result.stderr, pattern, label);
+    }
+
+    const utf8 = runIsolated(
+        `require(${JSON.stringify(environmentEntry)});`,
+        {
+            env: {
+                NODE_ENV: 'production',
+                IMS_SITE_ORIGIN: 'https://ims.example.test',
+                IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
+                IMS_JWT_SECRET: '',
+                IMS_PLATFORM_JWT_SECRET: '平台'.repeat(6)
+            }
+        }
+    );
+    assert.equal(utf8.status, 0, utf8.stderr);
+
+    const valid = runIsolated(
+        `require(${JSON.stringify(environmentEntry)});`,
+        {
+            env: {
+                NODE_ENV: 'production',
+                IMS_SITE_ORIGIN: 'https://ims.example.test',
+                IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
+                IMS_JWT_SECRET: '',
+                IMS_PLATFORM_JWT_SECRET: validPlatformSecret
+            }
+        }
+    );
+    assert.equal(valid.status, 0, valid.stderr);
 });
 
 test('[ARC-01 RUN-01 NODE-01] compiled entry exposes separate Hono and Node surfaces', () => {

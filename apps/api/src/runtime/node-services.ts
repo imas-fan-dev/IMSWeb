@@ -34,6 +34,7 @@ import {
     COOKIE_OPTIONS,
     IS_PRODUCTION,
     LEGACY_BACKOFFICE_JWT_SECRET,
+    PLATFORM_JWT_SECRET,
     SITE_PACKAGE_MAX_UPLOAD_BYTES,
     STORY_MAX_UPLOAD_BYTES,
     SUPER_ADMIN_USERNAME
@@ -64,6 +65,7 @@ import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
 import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
 import { BcryptPasswordVerifier } from '@/infra/security/bcrypt/password-verifier';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+import { HmacPlatformTokenService } from '@/infra/security/hmac/platform-token-service';
 
 interface InitializableResource {
     initialize(): Promise<void>;
@@ -274,6 +276,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 BACKOFFICE_JWT_SECRET,
                 LEGACY_BACKOFFICE_JWT_SECRET
             ),
+            platformTokens: new HmacPlatformTokenService(PLATFORM_JWT_SECRET),
             fetch: globalThis.fetch,
             config: {
                 cookieSecure: COOKIE_OPTIONS.secure,

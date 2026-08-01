@@ -69,7 +69,8 @@ pnpm dev --api-port 3100 --web-port 5174
 ```
 
 启动器会把实际 API 地址传给 Web，并把实际 Web 地址传给 API，不需要手工同步两个 origin。
-本地数据库、对象存储和开发 JWT 配置由启动器注入，不需要先创建 `apps/api/.env`。统一入口
+本地数据库、对象存储和相互独立的 Backoffice/Platform 开发 JWT 配置由启动器注入，不需要
+先创建 `apps/api/.env`。统一入口
 设置空的 `IMS_ENV_FILE`，并在启动 API/Web 前移除继承的 `IMS_*`、数据库和 AWS 凭据，再只
 注入本地所需值；生产 `.env` 或 shell 配置不会污染本地 API。细粒度 API 入口仍按原契约读取
 `apps/api/.env`。

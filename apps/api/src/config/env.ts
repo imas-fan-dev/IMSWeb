@@ -20,6 +20,7 @@ if (!['development', 'test', 'production'].includes(runtimeEnvironment)) {
 export const RUNTIME_ENV = runtimeEnvironment as RuntimeEnvironment;
 export const IS_PRODUCTION = RUNTIME_ENV === 'production';
 const DEVELOPMENT_SECRET = 'dev-only-insecure-change-me';
+const DEVELOPMENT_PLATFORM_SECRET = 'dev-only-insecure-platform-secret-change-me';
 const DEFAULT_STORY_MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const DEFAULT_SITE_PACKAGE_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -123,9 +124,47 @@ export function parseBackofficeJwtSecrets(
     return { secret: DEVELOPMENT_SECRET };
 }
 
+export function parsePlatformJwtSecret(
+    environment: NodeJS.ProcessEnv = process.env
+): string {
+    const mode = String(environment.NODE_ENV || 'development').trim().toLowerCase();
+    const production = mode === 'production';
+    const platformSecret = environment.IMS_PLATFORM_JWT_SECRET;
+    if (production) {
+        if (!platformSecret) {
+            throw new Error(
+                'IMS_PLATFORM_JWT_SECRET is required in production and must be at least ' +
+                '32 UTF-8 bytes'
+            );
+        }
+        if (Buffer.byteLength(platformSecret, 'utf8') < 32) {
+            throw new Error(
+                'IMS_PLATFORM_JWT_SECRET must be at least 32 UTF-8 bytes in production'
+            );
+        }
+        if (
+            platformSecret === environment.IMS_BACKOFFICE_JWT_SECRET ||
+            platformSecret === environment.IMS_JWT_SECRET
+        ) {
+            throw new Error(
+                'IMS_PLATFORM_JWT_SECRET must be different from all Backoffice JWT ' +
+                'verification secrets in production'
+            );
+        }
+        return platformSecret;
+    }
+    if (platformSecret) return platformSecret;
+    console.warn(
+        '[SECURITY WARNING] IMS_PLATFORM_JWT_SECRET is not set; using an insecure ' +
+        'development-only Platform secret.'
+    );
+    return DEVELOPMENT_PLATFORM_SECRET;
+}
+
 const backofficeJwtSecrets = parseBackofficeJwtSecrets();
 export const BACKOFFICE_JWT_SECRET = backofficeJwtSecrets.secret;
 export const LEGACY_BACKOFFICE_JWT_SECRET = backofficeJwtSecrets.legacySecret;
+export const PLATFORM_JWT_SECRET = parsePlatformJwtSecret();
 export const STORY_MAX_UPLOAD_BYTES = parseStoryMaxUploadBytes(
     process.env.IMS_STORY_MAX_UPLOAD_BYTES
 );

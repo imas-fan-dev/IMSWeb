@@ -61,7 +61,7 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | --- | --- | --- |
 | `IMS_BACKOFFICE_JWT_SECRET` | Backoffice JWT 签名密钥 | 生产必填，至少 32 UTF-8 字节 |
 | `IMS_JWT_SECRET` | 上一版本 Backoffice JWT 签名密钥 | 只在滚动兼容/回滚窗口保留 |
-| `IMS_PLATFORM_JWT_SECRET` | Platform JWT 签名密钥 | 启用 Platform auth 时必填，且不得与当前或兼容期 Backoffice 密钥相同 |
+| `IMS_PLATFORM_JWT_SECRET` | Platform JWT 签名密钥 | 生产必填，至少 32 UTF-8 字节，且不得与当前或兼容期 Backoffice 密钥相同 |
 | `IMS_SUPER_ADMIN_USERNAME` | 最高管理员用户名 | 首次启用时填写一个现有 `op` 用户名 |
 | `NODE_ENV` | 运行模式 | 生产使用 `production` |
 | `HOST`、`PORT` | Hono 监听地址 | 建议 `127.0.0.1:3000` |
@@ -84,6 +84,14 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 `0010_admin_roles` 已写入 `ims_schema_migrations`。首次启用管理员角色时，将
 `IMS_SUPER_ADMIN_USERNAME` 设为一个现有 `op` 账号；服务会把该账号提升为唯一最高管理员。
 角色完成初始化后可以移除该变量，后续启动会从数据库确认最高管理员。
+
+Platform 会话独立使用 `ims_platform_access`、`ims_platform_refresh` 和
+`ims_platform_csrf`。其 access JWT 固定为 `iss=imsweb`、`aud=ims-platform`、
+`kind=platform`，每次请求同时检查帐号状态、`token_version` 和数据库中的 session family；
+退出后旧 access token 会立即失效。Platform refresh Cookie 只发送到
+`/api/platform/auth`，refresh token 与 CSRF secret 只以 SHA-256 摘要保存。刷新通过
+`/api/platform/auth/refresh` 完成 30 天滑动轮换；previous token 重放只撤销对应 family，
+不会影响同一帐号的其他设备或 Backoffice 会话。
 
 ### Backoffice 会话滚动迁移
 

@@ -9,7 +9,8 @@ import {
     validatedRequestPath
 } from '@/middleware/rate-limit';
 import type { RuntimeServices, ResolveServices } from '@/ports/runtime-services';
-import type { BackofficeJwtClaims } from '@/ports/security';
+import type { BackofficeJwtClaims, PlatformJwtClaims } from '@/ports/security';
+import type { PlatformAccountWithProfile } from '@/ports/repositories';
 import { requestCompletionLogger } from '@/middleware/request-observability';
 import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
 import { registerAuditRoutes } from '@/domains/audit/routes';
@@ -26,6 +27,7 @@ import { registerMediaRoutes } from '@/domains/media/routes';
 import { registerNamecardRoutes } from '@/domains/namecards/routes';
 import { registerNewsRoutes } from '@/domains/news/routes';
 import { registerProducerMapRoutes } from '@/domains/producer-map/routes';
+import { registerPlatformAuthRoutes } from '@/domains/platform-auth/routes';
 import { registerReactionRoutes } from '@/domains/reactions/routes';
 import { registerSiteRoutes } from '@/domains/site/routes';
 import { registerSitePackageRoutes } from '@/domains/site-packages/routes';
@@ -37,6 +39,9 @@ export interface AppEnvironment {
         services: RuntimeServices;
         backofficeUser?: BackofficeJwtClaims;
         backofficeAuthSource?: 'authorization' | 'cookie' | 'legacy-cookie';
+        platformUser?: PlatformJwtClaims;
+        platformAccount?: PlatformAccountWithProfile;
+        platformAuthSource?: 'authorization' | 'cookie';
     };
 }
 
@@ -145,6 +150,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     registerProducerMapRoutes(app);
     registerBrandAssetRoutes(app);
     registerBackofficeAuthRoutes(app);
+    registerPlatformAuthRoutes(app);
     registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);

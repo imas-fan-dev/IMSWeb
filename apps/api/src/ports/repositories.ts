@@ -109,12 +109,80 @@ export interface NewPlatformAccountInput {
     };
 }
 
+export interface PlatformRefreshSessionRecord {
+    id: string;
+    account_id: string;
+    token_hash: string;
+    previous_token_hash: string | null;
+    csrf_hash: string;
+    expires_at: number;
+    created_at: number;
+    updated_at: number;
+    revoked_at: number | null;
+}
+
+export type PlatformSecurityEventType =
+    | 'auth.session.created'
+    | 'auth.refresh.succeeded'
+    | 'auth.refresh.replay'
+    | 'auth.logout'
+    | 'auth.account_blocked';
+
+export interface PlatformSecurityEventInput {
+    id: string;
+    accountId: string;
+    eventType: PlatformSecurityEventType;
+    requestId: string | null;
+    ipAddress: string | null;
+    userAgent: string | null;
+    metadataJson: string;
+    createdAt: number;
+}
+
+export interface NewPlatformRefreshSessionInput {
+    id: string;
+    accountId: string;
+    tokenHash: string;
+    csrfHash: string;
+    expiresAt: number;
+    createdAt: number;
+    event: PlatformSecurityEventInput;
+}
+
 export interface PlatformAccountRepository {
     createAccountWithProfile(
         input: NewPlatformAccountInput
     ): Promise<PlatformAccountWithProfile>;
     findAccountById(id: string): Promise<PlatformAccountRecord | null>;
     findAccountWithProfileById(id: string): Promise<PlatformAccountWithProfile | null>;
+    createRefreshSession(input: NewPlatformRefreshSessionInput): Promise<void>;
+    findRefreshSessionById(id: string): Promise<PlatformRefreshSessionRecord | null>;
+    findRefreshSessionByTokenHash(
+        tokenHash: string
+    ): Promise<PlatformRefreshSessionRecord | null>;
+    rotateRefreshSession(input: {
+        id: string;
+        currentTokenHash: string;
+        nextTokenHash: string;
+        nextCsrfHash: string;
+        nextExpiresAt: number;
+        updatedAt: number;
+        event: PlatformSecurityEventInput;
+    }): Promise<boolean>;
+    revokeRefreshSession(input: {
+        id: string;
+        accountId: string;
+        revokedAt: number;
+        event: PlatformSecurityEventInput;
+    }): Promise<boolean>;
+    revokeRefreshSessionForReplay(input: {
+        id: string;
+        accountId: string;
+        replayedTokenHash: string;
+        revokedAt: number;
+        event: PlatformSecurityEventInput;
+    }): Promise<boolean>;
+    deleteExpiredRefreshSessions(now: number): Promise<void>;
 }
 
 export interface AuditLogInput {

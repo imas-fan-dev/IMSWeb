@@ -1,15 +1,20 @@
 import type {
+    NewPlatformRefreshSessionInput,
     NewPlatformAccountInput,
     PlatformAccountRecord,
     PlatformAccountRepository,
     PlatformAccountWithProfile,
-    PlatformProfileRecord
+    PlatformProfileRecord,
+    PlatformRefreshSessionRecord,
+    PlatformSecurityEventInput
 } from '@/ports/repositories';
 import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
-import { queryOne, sqlStatement } from '@/infra/db/sql/query';
+import { executeSql, queryOne, sqlStatement } from '@/infra/db/sql/query';
 
 const ACCOUNT_COLUMNS = `id, status, token_version, created_at, updated_at,
     deleted_at`;
+const REFRESH_SESSION_COLUMNS = `id, account_id, token_hash, previous_token_hash,
+    csrf_hash, expires_at, created_at, updated_at, revoked_at`;
 
 interface PlatformAccountProfileRow extends PlatformAccountRecord {
     profile_account_id: string;
@@ -42,8 +47,41 @@ function accountWithProfile(row: PlatformAccountProfileRow): PlatformAccountWith
     return { account, profile };
 }
 
+function securityEventValues(event: PlatformSecurityEventInput): unknown[] {
+    return [
+        event.id,
+        event.accountId,
+        event.eventType,
+        event.requestId,
+        event.ipAddress,
+        event.userAgent,
+        event.metadataJson,
+        event.createdAt
+    ];
+}
+
+function conditionalSecurityEventValues(event: PlatformSecurityEventInput): unknown[] {
+    return [
+        event.id,
+        event.eventType,
+        event.requestId,
+        event.ipAddress,
+        event.userAgent,
+        event.metadataJson,
+        event.createdAt
+    ];
+}
+
+function securityEventInsertSql(): string {
+    return `INSERT INTO platform_security_events
+        (id, account_id, event_type, request_id, ip_address, user_agent,
+         metadata_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+}
+
 export class SqlPlatformAccountRepository implements PlatformAccountRepository {
     private initialized?: Promise<void>;
+    private writeTail: Promise<void> = Promise.resolve();
 
     constructor(
         private readonly database: ManagedSqlDatabase,
@@ -59,10 +97,16 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository {
         return this.database.close();
     }
 
+    private serializeWrite<Value>(operation: () => Promise<Value>): Promise<Value> {
+        const result = this.writeTail.then(operation, operation);
+        this.writeTail = result.then(() => undefined, () => undefined);
+        return result;
+    }
+
     async createAccountWithProfile(
         input: NewPlatformAccountInput
     ): Promise<PlatformAccountWithProfile> {
-        await this.database.batch([
+        await this.serializeWrite(() => this.database.batch([
             sqlStatement(
                 this.database,
                 `INSERT INTO platform_accounts
@@ -93,7 +137,7 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository {
                     input.profile.updatedAt
                 ]
             )
-        ]);
+        ]));
         const created = await this.findAccountWithProfileById(input.id);
         if (!created) throw new Error('Platform account was not created');
         return created;
@@ -127,5 +171,189 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository {
             [id]
         );
         return row ? accountWithProfile(row) : null;
+    }
+
+    async createRefreshSession(input: NewPlatformRefreshSessionInput): Promise<void> {
+        await this.serializeWrite(() => this.database.batch([
+            sqlStatement(
+                this.database,
+                `INSERT INTO platform_refresh_sessions
+                    (id, account_id, token_hash, previous_token_hash, csrf_hash,
+                     expires_at, created_at, updated_at, revoked_at)
+                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?, NULL)`,
+                [
+                    input.id,
+                    input.accountId,
+                    input.tokenHash,
+                    input.csrfHash,
+                    input.expiresAt,
+                    input.createdAt,
+                    input.createdAt
+                ]
+            ),
+            sqlStatement(
+                this.database,
+                securityEventInsertSql(),
+                securityEventValues(input.event)
+            )
+        ]));
+    }
+
+    findRefreshSessionById(id: string): Promise<PlatformRefreshSessionRecord | null> {
+        return queryOne<PlatformRefreshSessionRecord>(
+            this.database,
+            `SELECT ${REFRESH_SESSION_COLUMNS}
+             FROM platform_refresh_sessions WHERE id=?`,
+            [id]
+        );
+    }
+
+    findRefreshSessionByTokenHash(
+        tokenHash: string
+    ): Promise<PlatformRefreshSessionRecord | null> {
+        return queryOne<PlatformRefreshSessionRecord>(
+            this.database,
+            `SELECT ${REFRESH_SESSION_COLUMNS}
+             FROM platform_refresh_sessions
+             WHERE token_hash=? OR previous_token_hash=?
+             ORDER BY CASE WHEN token_hash=? THEN 0 ELSE 1 END
+             LIMIT 1`,
+            [tokenHash, tokenHash, tokenHash]
+        );
+    }
+
+    async rotateRefreshSession(input: {
+        id: string;
+        currentTokenHash: string;
+        nextTokenHash: string;
+        nextCsrfHash: string;
+        nextExpiresAt: number;
+        updatedAt: number;
+        event: PlatformSecurityEventInput;
+    }): Promise<boolean> {
+        const results = await this.serializeWrite(() => this.database.batch([
+            sqlStatement(
+                this.database,
+                `UPDATE platform_refresh_sessions
+                 SET previous_token_hash=token_hash, token_hash=?, csrf_hash=?,
+                     expires_at=?, updated_at=?
+                 WHERE id=? AND token_hash=? AND revoked_at IS NULL AND expires_at>?`,
+                [
+                    input.nextTokenHash,
+                    input.nextCsrfHash,
+                    input.nextExpiresAt,
+                    input.updatedAt,
+                    input.id,
+                    input.currentTokenHash,
+                    input.updatedAt
+                ]
+            ),
+            sqlStatement(
+                this.database,
+                `INSERT INTO platform_security_events
+                    (id, account_id, event_type, request_id, ip_address, user_agent,
+                     metadata_json, created_at)
+                 SELECT ?, account_id, ?, ?, ?, ?, ?, ?
+                 FROM platform_refresh_sessions
+                 WHERE id=? AND account_id=? AND token_hash=?
+                   AND previous_token_hash=? AND csrf_hash=? AND expires_at=?
+                   AND updated_at=? AND revoked_at IS NULL`,
+                [
+                    ...conditionalSecurityEventValues(input.event),
+                    input.id,
+                    input.event.accountId,
+                    input.nextTokenHash,
+                    input.currentTokenHash,
+                    input.nextCsrfHash,
+                    input.nextExpiresAt,
+                    input.updatedAt
+                ]
+            )
+        ]));
+        return results[0]?.meta.changes === 1;
+    }
+
+    async revokeRefreshSession(input: {
+        id: string;
+        accountId: string;
+        revokedAt: number;
+        event: PlatformSecurityEventInput;
+    }): Promise<boolean> {
+        const results = await this.serializeWrite(() => this.database.batch([
+            sqlStatement(
+                this.database,
+                `INSERT INTO platform_security_events
+                    (id, account_id, event_type, request_id, ip_address, user_agent,
+                     metadata_json, created_at)
+                 SELECT ?, account_id, ?, ?, ?, ?, ?, ?
+                 FROM platform_refresh_sessions
+                 WHERE id=? AND account_id=? AND revoked_at IS NULL`,
+                [
+                    ...conditionalSecurityEventValues(input.event),
+                    input.id,
+                    input.accountId
+                ]
+            ),
+            sqlStatement(
+                this.database,
+                `UPDATE platform_refresh_sessions
+                 SET revoked_at=?, updated_at=?
+                 WHERE id=? AND account_id=? AND revoked_at IS NULL`,
+                [input.revokedAt, input.revokedAt, input.id, input.accountId]
+            )
+        ]));
+        return results[1]?.meta.changes === 1;
+    }
+
+    async revokeRefreshSessionForReplay(input: {
+        id: string;
+        accountId: string;
+        replayedTokenHash: string;
+        revokedAt: number;
+        event: PlatformSecurityEventInput;
+    }): Promise<boolean> {
+        const results = await this.serializeWrite(() => this.database.batch([
+            sqlStatement(
+                this.database,
+                `INSERT INTO platform_security_events
+                    (id, account_id, event_type, request_id, ip_address, user_agent,
+                     metadata_json, created_at)
+                 SELECT ?, account_id, ?, ?, ?, ?, ?, ?
+                 FROM platform_refresh_sessions
+                 WHERE id=? AND account_id=? AND previous_token_hash=?
+                   AND revoked_at IS NULL`,
+                [
+                    ...conditionalSecurityEventValues(input.event),
+                    input.id,
+                    input.accountId,
+                    input.replayedTokenHash
+                ]
+            ),
+            sqlStatement(
+                this.database,
+                `UPDATE platform_refresh_sessions
+                 SET revoked_at=?, updated_at=?
+                 WHERE id=? AND account_id=? AND previous_token_hash=?
+                   AND revoked_at IS NULL`,
+                [
+                    input.revokedAt,
+                    input.revokedAt,
+                    input.id,
+                    input.accountId,
+                    input.replayedTokenHash
+                ]
+            )
+        ]));
+        return results[1]?.meta.changes === 1;
+    }
+
+    async deleteExpiredRefreshSessions(now: number): Promise<void> {
+        await this.serializeWrite(async () => {
+            await executeSql(
+                this.database,
+                'DELETE FROM platform_refresh_sessions WHERE expires_at<=?',
+                [now]
+            );
+        });
     }
 }

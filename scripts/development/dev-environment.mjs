@@ -416,6 +416,7 @@ export function resolveDevelopmentConfiguration({
     IMS_ENV_FILE: "",
     IMS_PROJECT_ROOT: repositoryRoot,
     IMS_BACKOFFICE_JWT_SECRET: "imsweb-local-development-secret",
+    IMS_PLATFORM_JWT_SECRET: "imsweb-local-development-platform-secret",
     IMS_COOKIE_SECURE: "false",
     IMS_CLIENT_ADDRESS_SOURCE: "direct",
     DATABASE_URL: databaseUrl,

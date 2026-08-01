@@ -8,6 +8,7 @@ import type {
     EventRepository,
     NamecardRepository,
     NewsRepository,
+    PlatformAccountRepository,
     ReactionRepository,
     SitePackageRepository
 } from '@/ports/repositories';
@@ -34,6 +35,12 @@ export function backofficeAuthRepository(
 
 export function adminAccountRepository(c: Context<AppEnvironment>): AdminAccountRepository {
     return requireRepository(c, 'adminAccounts');
+}
+
+export function platformAccountRepository(
+    c: Context<AppEnvironment>
+): PlatformAccountRepository {
+    return requireRepository(c, 'platformAccounts');
 }
 
 export function auditRepository(c: Context<AppEnvironment>): AuditRepository {

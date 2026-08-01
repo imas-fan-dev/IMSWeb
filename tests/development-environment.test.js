@@ -9,6 +9,17 @@ const scriptUrl = pathToFileURL(
 ).href;
 const launcher = import(scriptUrl);
 
+function assertIsolatedPlatformSecret(configuration) {
+  const platformSecret = configuration.apiEnvironment.IMS_PLATFORM_JWT_SECRET;
+  assert.equal(typeof platformSecret, "string");
+  assert.equal(Buffer.byteLength(platformSecret, "utf8") >= 32, true);
+  assert.notEqual(
+    platformSecret,
+    configuration.apiEnvironment.IMS_BACKOFFICE_JWT_SECRET,
+  );
+  assert.notEqual(platformSecret, "production-platform-secret");
+}
+
 const r2TestEnvironment = Object.freeze({
   IMS_OBJECT_STORAGE: "s3",
   IMS_S3_BUCKET: "imsweb-media-public-test",
@@ -80,6 +91,7 @@ test("development configuration derives a fully local runtime", async () => {
       PATH: "/test/bin",
       IMS_ENV_FILE: "/production/api.env",
       IMS_SUPER_ADMIN_USERNAME: "production-admin",
+      IMS_PLATFORM_JWT_SECRET: "production-platform-secret",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
       AWS_SESSION_TOKEN: "production-session-token",
     },
@@ -111,6 +123,7 @@ test("development configuration derives a fully local runtime", async () => {
   assert.equal(configuration.apiEnvironment.IMS_PROJECT_ROOT, repositoryRoot);
   assert.equal("IMS_DATABASE" in configuration.apiEnvironment, false);
   assert.equal(configuration.apiEnvironment.IMS_OBJECT_STORAGE, "s3");
+  assertIsolatedPlatformSecret(configuration);
   assert.equal(
     configuration.apiEnvironment.IMS_S3_ENDPOINT,
     "http://127.0.0.1:9900",
@@ -139,6 +152,7 @@ test("development configuration isolates an explicit R2 test runtime", async () 
       PATH: "/test/bin",
       IMS_SUPER_ADMIN_USERNAME: "production-admin",
       IMS_BACKOFFICE_JWT_SECRET: "production-backoffice-secret",
+      IMS_PLATFORM_JWT_SECRET: "production-platform-secret",
       IMS_JWT_SECRET: "production-secret",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
     },
@@ -170,6 +184,7 @@ test("development configuration isolates an explicit R2 test runtime", async () 
     configuration.apiEnvironment.IMS_BACKOFFICE_JWT_SECRET,
     "imsweb-local-development-secret",
   );
+  assertIsolatedPlatformSecret(configuration);
   assert.equal("IMS_JWT_SECRET" in configuration.apiEnvironment, false);
   assert.equal(
     configuration.apiEnvironment.DATABASE_URL.includes("127.0.0.1"),

@@ -22,6 +22,12 @@ export const AUTH_LOGIN_LIMIT = {
   windowSeconds: 15 * 60,
 } as const;
 
+export const PLATFORM_AUTH_REFRESH_LIMIT = {
+  bucket: "platform-auth-refresh",
+  limit: 120,
+  windowSeconds: 15 * 60,
+} as const;
+
 export const REACTION_LIMIT = {
   bucket: "reactions",
   limit: 300,
@@ -108,6 +114,12 @@ function requestSpecificLimit(
   method: string,
   pathname: string,
 ): RateLimitOptions | null {
+  if (
+    method === "POST" &&
+    pathname === "/api/platform/auth/refresh"
+  ) {
+    return PLATFORM_AUTH_REFRESH_LIMIT;
+  }
   if (
     method === "POST" &&
     ["/api/login", "/api/admin/login", "/api/admin/auth/login"].includes(

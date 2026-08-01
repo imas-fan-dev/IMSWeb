@@ -1,6 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const {
     applyMigrations,
@@ -8,6 +11,25 @@ const {
     parseArguments,
     readMigrations
 } = require('../../scripts/migration/postgres-migrations');
+
+test('released Platform account migrations remain byte-for-byte immutable', () => {
+    const expected = new Map([
+        ['core/0011_platform_accounts.sql',
+            '26f13cd59482e7d08c97262fc8aa0ec41a03b45a2479d59e3959ca3f10fbd8ad'],
+        ['postgresql/0020_platform_accounts.sql',
+            'b7a67b066fd49fa3191a3ecc9c05881a753ca8c83950056bc3ac63d0d9e9734f']
+    ]);
+    for (const [relativePath, checksum] of expected) {
+        const contents = fs.readFileSync(
+            path.join(__dirname, '../../migrations', relativePath)
+        );
+        assert.equal(
+            crypto.createHash('sha256').update(contents).digest('hex'),
+            checksum,
+            `${relativePath} changed after its release`
+        );
+    }
+});
 
 test('PostgreSQL migrations are ordered and split around the data import', () => {
     const migrations = readMigrations();
