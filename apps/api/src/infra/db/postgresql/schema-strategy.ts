@@ -3,7 +3,7 @@ import type {
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
 
-export const REQUIRED_POSTGRESQL_SCHEMA_VERSION = '0021_backoffice_persistence_names';
+export const REQUIRED_POSTGRESQL_SCHEMA_VERSION = '0022_fudaba_domain';
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();
@@ -41,6 +41,10 @@ export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     }
 
     initializePlatform(database: ManagedSqlDatabase): Promise<void> {
+        return this.verify(database);
+    }
+
+    initializeFudaba(database: ManagedSqlDatabase): Promise<void> {
         return this.verify(database);
     }
 

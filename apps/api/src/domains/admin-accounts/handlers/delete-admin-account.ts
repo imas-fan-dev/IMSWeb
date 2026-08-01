@@ -22,7 +22,14 @@ export async function handleDeleteAdminAccount(c: Context<AppEnvironment>): Prom
     if (target.admin_role === 'super_admin') {
         return c.json({ success: false, message: '不能删除最高管理员' }, 409);
     }
-    if (!await adminAccountRepository(c).deleteAdminAccount(id)) {
+    const deletion = await adminAccountRepository(c).deleteAdminAccount(id);
+    if (deletion === 'moderation-history') {
+        return c.json({
+            success: false,
+            message: '该管理员已有 Fudaba 审核记录，不能删除'
+        }, 409);
+    }
+    if (deletion !== 'deleted') {
         return c.json({ success: false, message: '管理员账号状态已发生变化' }, 409);
     }
     await writeAudit(c, '删除管理员', target.username);

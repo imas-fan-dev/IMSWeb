@@ -8,6 +8,7 @@ import type {
     AuditRepository,
     BackofficeAuthRepository,
     EventRepository,
+    FudabaRepository,
     HomepageLinkRepository,
     NamecardRepository,
     NewsRepository,
@@ -46,6 +47,7 @@ import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
@@ -90,10 +92,13 @@ interface PlatformAccountRepositoryAdapter extends
     InitializableResource,
     PlatformAccountRepository {}
 
+interface FudabaRepositoryAdapter extends InitializableResource, FudabaRepository {}
+
 interface NodeRepositories {
     database: ManagedSqlDatabase;
     core: CoreRepositoryAdapter;
     platform: PlatformAccountRepositoryAdapter;
+    fudaba: FudabaRepositoryAdapter;
     story: StoryRepositoryAdapter;
 }
 
@@ -104,6 +109,7 @@ function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
         database,
         core: new SqlCoreRepository(database, schema),
         platform: new SqlPlatformAccountRepository(database, schema),
+        fudaba: new SqlFudabaRepository(database, schema),
         story: new SqlStoryRepository(database, schema)
     };
 }
@@ -177,11 +183,15 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
     const platform = services.platformAccounts as (
         PlatformAccountRepository & Partial<InitializableResource>
     ) | undefined;
+    const fudaba = services.fudaba as (
+        FudabaRepository & Partial<InitializableResource>
+    ) | undefined;
     const results = await Promise.allSettled([
         services.storage?.close
             ? Promise.resolve().then(() => services.storage?.close?.())
             : undefined,
         story?.close?.(),
+        fudaba?.close?.(),
         platform?.close?.(),
         backofficeAuth?.close?.()
     ].filter((operation): operation is Promise<void> => Boolean(operation)));
@@ -228,9 +238,9 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
     const objectStorage = parseNodeObjectStorageConfig();
     const database = parseNodeDatabaseConfig(process.env);
     ensureRuntimeDirectories(objectStorage.type === 'filesystem');
-    const { database: connection, core, platform, story } = createNodeRepositories(database);
+    const { database: connection, core, platform, fudaba, story } = createNodeRepositories(database);
     try {
-        await initializeNodeRepositories(core, platform, story);
+        await initializeNodeRepositories(core, platform, fudaba, story);
         if (IS_PRODUCTION || SUPER_ADMIN_USERNAME) {
             await core.ensureSuperAdmin(SUPER_ADMIN_USERNAME);
         }
@@ -249,6 +259,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             backofficeAuth: core,
             adminAccounts: core,
             platformAccounts: platform,
+            fudaba,
             audit: core,
             news: core,
             events: core,
@@ -286,7 +297,12 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             }
         };
     } catch (error) {
-        await Promise.allSettled([story.close(), platform.close(), core.close()]);
+        await Promise.allSettled([
+            story.close(),
+            fudaba.close(),
+            platform.close(),
+            core.close()
+        ]);
         throw error;
     }
 }

@@ -63,8 +63,13 @@ export interface AdminAccountRepository {
     ensureSuperAdmin(username?: string): Promise<void>;
     listAdminAccounts(): Promise<AdminAccountRecord[]>;
     createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord>;
-    deleteAdminAccount(id: number): Promise<boolean>;
+    deleteAdminAccount(id: number): Promise<DeleteAdminAccountResult>;
 }
+
+export type DeleteAdminAccountResult =
+    | 'deleted'
+    | 'moderation-history'
+    | 'not-deletable';
 
 export type PlatformAccountStatus = 'active' | 'restricted' | 'suspended' | 'deleted';
 
@@ -183,6 +188,216 @@ export interface PlatformAccountRepository {
         event: PlatformSecurityEventInput;
     }): Promise<boolean>;
     deleteExpiredRefreshSessions(now: number): Promise<void>;
+}
+
+export type FudabaOfficeStatus = 'active' | 'hidden' | 'archived';
+export type FudabaCardPublicationStatus =
+    | 'draft'
+    | 'pending'
+    | 'published'
+    | 'hidden'
+    | 'rejected';
+export type FudabaMediaRightsStatus = 'unknown' | 'approved' | 'denied';
+export type FudabaExchangeStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+export type FudabaModerationResourceKind =
+    | 'account'
+    | 'office'
+    | 'card'
+    | 'message'
+    | 'exchange';
+export type FudabaModerationState =
+    | 'open'
+    | 'reviewing'
+    | 'resolved'
+    | 'dismissed'
+    | 'appealed';
+
+export interface FudabaOfficeRecord {
+    id: string;
+    owner_account_id: string;
+    slug: string;
+    name: string;
+    intro: string;
+    city: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    accent: string;
+    cover_object_key: string | null;
+    is_open: boolean;
+    visitor_count: number;
+    status: FudabaOfficeStatus;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+    archived_at: string | null;
+}
+
+export interface NewFudabaOfficeInput {
+    id: string;
+    ownerAccountId: string;
+    slug: string;
+    name: string;
+    intro: string;
+    city: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    accent: string;
+    coverObjectKey: string | null;
+    isOpen: boolean;
+    visitorCount: number;
+    status: FudabaOfficeStatus;
+    revision: number;
+    createdAt: string;
+    updatedAt: string;
+    archivedAt: string | null;
+    seriesCodes: string[];
+}
+
+export interface FudabaCardRecord {
+    id: string;
+    owner_account_id: string;
+    producer_name: string;
+    display_name: string;
+    series_code: string;
+    favorite_idol: string;
+    front_object_key: string;
+    back_object_key: string;
+    accent: string;
+    bio: string;
+    trade_note: string;
+    available: boolean;
+    source_url: string | null;
+    source_label: string | null;
+    source_credit: string | null;
+    media_rights_status: FudabaMediaRightsStatus;
+    publication_status: FudabaCardPublicationStatus;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+    deleted_at: string | null;
+}
+
+export interface NewFudabaCardInput {
+    id: string;
+    ownerAccountId: string;
+    producerName: string;
+    displayName: string;
+    seriesCode: string;
+    favoriteIdol: string;
+    frontObjectKey: string;
+    backObjectKey: string;
+    accent: string;
+    bio: string;
+    tradeNote: string;
+    available: boolean;
+    sourceUrl: string | null;
+    sourceLabel: string | null;
+    sourceCredit: string | null;
+    mediaRightsStatus: FudabaMediaRightsStatus;
+    publicationStatus: FudabaCardPublicationStatus;
+    revision: number;
+    createdAt: string;
+    updatedAt: string;
+    deletedAt: string | null;
+}
+
+export interface FudabaExchangeRequestRecord {
+    id: string;
+    office_id: string;
+    requester_account_id: string;
+    recipient_account_id: string;
+    wanted_card_id: string;
+    offered_card_id: string | null;
+    note: string;
+    status: FudabaExchangeStatus;
+    version: number;
+    created_at: string;
+    updated_at: string;
+    resolved_at: string | null;
+}
+
+export interface NewFudabaModerationCaseInput {
+    id: string;
+    resourceKind: FudabaModerationResourceKind;
+    resourceId: string;
+    reporterAccountId: string | null;
+    reason: string;
+    details: string;
+    state: FudabaModerationState;
+    backofficeActorId: number | null;
+    resolution: string;
+    createdAt: string;
+    updatedAt: string;
+    resolvedAt: string | null;
+}
+
+export interface FudabaModerationCaseRecord {
+    id: string;
+    resource_kind: FudabaModerationResourceKind;
+    resource_id: string;
+    reporter_account_id: string | null;
+    reason: string;
+    details: string;
+    state: FudabaModerationState;
+    backoffice_actor_id: number | null;
+    resolution: string;
+    created_at: string;
+    updated_at: string;
+    resolved_at: string | null;
+}
+
+export interface FudabaRepository {
+    createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
+    findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
+    updateOfficeStatusForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        status: FudabaOfficeStatus;
+        archivedAt: string | null;
+        updatedAt: string;
+        expectedRevision: number;
+    }): Promise<boolean>;
+    createCard(input: NewFudabaCardInput): Promise<FudabaCardRecord>;
+    findCardById(id: string): Promise<FudabaCardRecord | null>;
+    placeOwnedCard(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        pinnedAt: string;
+        positionX: number;
+        positionY: number;
+        rotation: number;
+        zIndex: number;
+    }): Promise<boolean>;
+    createMessage(input: {
+        id: string;
+        officeId: string;
+        authorAccountId: string;
+        content: string;
+        createdAt: string;
+    }): Promise<boolean>;
+    createExchangeRequest(input: {
+        id: string;
+        officeId: string;
+        requesterAccountId: string;
+        recipientAccountId: string;
+        wantedCardId: string;
+        offeredCardId: string | null;
+        note: string;
+        createdAt: string;
+    }): Promise<FudabaExchangeRequestRecord | null>;
+    setCardInteraction(input: {
+        kind: 'like' | 'favorite';
+        cardId: string;
+        accountId: string;
+        active: boolean;
+        createdAt: string;
+    }): Promise<boolean>;
+    createModerationCase(
+        input: NewFudabaModerationCaseInput
+    ): Promise<FudabaModerationCaseRecord>;
 }
 
 export interface AuditLogInput {
@@ -1025,6 +1240,7 @@ export interface RepositoryServices {
     backofficeAuth: BackofficeAuthRepository;
     adminAccounts: AdminAccountRepository;
     platformAccounts: PlatformAccountRepository;
+    fudaba: FudabaRepository;
     audit: AuditRepository;
     news: NewsRepository;
     events: EventRepository;

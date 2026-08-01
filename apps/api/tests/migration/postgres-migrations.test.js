@@ -12,12 +12,16 @@ const {
     readMigrations
 } = require('../../scripts/migration/postgres-migrations');
 
-test('released Platform account migrations remain byte-for-byte immutable', () => {
+test('released Platform and Fudaba migrations remain byte-for-byte immutable', () => {
     const expected = new Map([
         ['core/0011_platform_accounts.sql',
             '26f13cd59482e7d08c97262fc8aa0ec41a03b45a2479d59e3959ca3f10fbd8ad'],
         ['postgresql/0020_platform_accounts.sql',
-            'b7a67b066fd49fa3191a3ecc9c05881a753ca8c83950056bc3ac63d0d9e9734f']
+            'b7a67b066fd49fa3191a3ecc9c05881a753ca8c83950056bc3ac63d0d9e9734f'],
+        ['core/0013_fudaba_domain.sql',
+            '54b28982af30f4513b9a860caab1462dd90679bf4f3714273bdbcfbba0804f95'],
+        ['postgresql/0022_fudaba_domain.sql',
+            '718e476b3db6828130a75fd4e10933c1ceac765ea203495ba0eb9320b78d905a']
     ]);
     for (const [relativePath, checksum] of expected) {
         const contents = fs.readFileSync(
@@ -56,7 +60,8 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0018_wiki_story_cover_presentation', phase: 'post-data' },
             { version: '0019_homepage_links', phase: 'post-data' },
             { version: '0020_platform_accounts', phase: 'pre-data' },
-            { version: '0021_backoffice_persistence_names', phase: 'post-data' }
+            { version: '0021_backoffice_persistence_names', phase: 'post-data' },
+            { version: '0022_fudaba_domain', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -163,6 +168,51 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(backofficeNames.sql, /backoffice_refresh_sessions_account_idx/);
     assert.match(backofficeNames.sql, /CREATE VIEW public\.users AS/);
     assert.match(backofficeNames.sql, /CREATE VIEW public\.auth_refresh_sessions AS/);
+    const fudabaDomain = migrations.find(
+        ({ version }) => version === '0022_fudaba_domain'
+    );
+    for (const table of [
+        'fudaba_offices',
+        'fudaba_series_tags',
+        'fudaba_office_series_tags',
+        'fudaba_cards',
+        'fudaba_office_cards',
+        'fudaba_messages',
+        'fudaba_exchange_requests',
+        'fudaba_card_likes',
+        'fudaba_card_favorites',
+        'fudaba_moderation_cases'
+    ]) {
+        assert.match(fudabaDomain.sql, new RegExp(`CREATE TABLE public\\.${table}`));
+    }
+    for (const seriesCode of [
+        '765as',
+        'cinderella',
+        'million-live',
+        'sidem',
+        'shiny-colors',
+        'gakuen',
+        'valiv'
+    ]) {
+        assert.match(fudabaDomain.sql, new RegExp(`\\('${seriesCode}',`));
+    }
+    assert.match(fudabaDomain.sql, /REFERENCES public\.platform_accounts\(id\)/);
+    assert.match(fudabaDomain.sql, /REFERENCES public\.backoffice_accounts\(id\)/);
+    assert.match(
+        fudabaDomain.sql,
+        /FOREIGN KEY \(wanted_card_id, recipient_account_id\)[\s\S]+REFERENCES public\.fudaba_cards\(id, owner_account_id\)/
+    );
+    assert.match(
+        fudabaDomain.sql,
+        /publication_status <> 'published' OR media_rights_status = 'approved'/
+    );
+    assert.match(fudabaDomain.sql, /CREATE UNIQUE INDEX fudaba_exchange_requests_pending_idx/);
+    assert.match(fudabaDomain.sql, /CREATE FUNCTION public\.fudaba_require_active_office\(\)/);
+    assert.match(fudabaDomain.sql, /CREATE FUNCTION public\.fudaba_validate_exchange_ownership\(\)/);
+    assert.match(fudabaDomain.sql, /CREATE FUNCTION public\.fudaba_validate_exchange_transition\(\)/);
+    assert.match(fudabaDomain.sql, /FUDABA_OFFICE_ARCHIVED/);
+    assert.match(fudabaDomain.sql, /FUDABA_OFFERED_CARD_NOT_OWNED/);
+    assert.match(fudabaDomain.sql, /FUDABA_EXCHANGE_INVALID_TRANSITION/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -225,7 +275,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0018_wiki_story_cover_presentation',
         '0019_homepage_links',
         '0020_platform_accounts',
-        '0021_backoffice_persistence_names'
+        '0021_backoffice_persistence_names',
+        '0022_fudaba_domain'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

@@ -42,22 +42,29 @@ test('Node repository initialization closes every constructed resource after par
         async close() { calls.push('core:close'); }
     };
     const platform = {
-        async initialize() { calls.push('platform:init'); throw new Error('platform init failed'); },
+        async initialize() { calls.push('platform:init'); },
         async close() { calls.push('platform:close'); }
     };
+    const fudaba = {
+        async initialize() { calls.push('fudaba:init'); },
+        async close() { calls.push('fudaba:close'); }
+    };
     const story = {
-        async initialize() { calls.push('story:init'); },
+        async initialize() { calls.push('story:init'); throw new Error('story init failed'); },
         async close() { calls.push('story:close'); }
     };
 
     await assert.rejects(
-        initializeNodeRepositories(core, platform, story),
-        /platform init failed/
+        initializeNodeRepositories(core, platform, fudaba, story),
+        /story init failed/
     );
     assert.deepEqual(calls, [
         'core:init',
         'platform:init',
+        'fudaba:init',
+        'story:init',
         'story:close',
+        'fudaba:close',
         'platform:close',
         'core:close'
     ]);
@@ -102,6 +109,7 @@ test('early close does not poison a later Node service and concurrent close is i
     let creates = 0;
     let coreCloses = 0;
     let platformCloses = 0;
+    let fudabaCloses = 0;
     let storyCloses = 0;
     let storageCloses = 0;
     const lifecycle = createNodeServiceLifecycle(async () => {
@@ -109,6 +117,7 @@ test('early close does not poison a later Node service and concurrent close is i
         return {
             backofficeAuth: { close: async () => { coreCloses += 1; } },
             platformAccounts: { close: async () => { platformCloses += 1; } },
+            fudaba: { close: async () => { fudabaCloses += 1; } },
             story: { close: async () => { storyCloses += 1; } },
             storage: { close: () => { storageCloses += 1; } }
         } as unknown as RuntimeServices;
@@ -118,11 +127,12 @@ test('early close does not poison a later Node service and concurrent close is i
     await lifecycle.resolve();
     await Promise.all([lifecycle.close(), lifecycle.close()]);
     assert.deepEqual(
-        { creates, coreCloses, platformCloses, storyCloses, storageCloses },
+        { creates, coreCloses, platformCloses, fudabaCloses, storyCloses, storageCloses },
         {
             creates: 1,
             coreCloses: 1,
             platformCloses: 1,
+            fudabaCloses: 1,
             storyCloses: 1,
             storageCloses: 1
         }
@@ -131,11 +141,12 @@ test('early close does not poison a later Node service and concurrent close is i
     await lifecycle.resolve();
     await lifecycle.close();
     assert.deepEqual(
-        { creates, coreCloses, platformCloses, storyCloses, storageCloses },
+        { creates, coreCloses, platformCloses, fudabaCloses, storyCloses, storageCloses },
         {
             creates: 2,
             coreCloses: 2,
             platformCloses: 2,
+            fudabaCloses: 2,
             storyCloses: 2,
             storageCloses: 2
         }

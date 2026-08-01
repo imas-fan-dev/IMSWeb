@@ -35,10 +35,14 @@ async function insertAccount(
     return result.id;
 }
 
-async function createFixture(t: TestContext): Promise<Fixture> {
-    const connection = await createPostgresTestDatabase(t, 'admin-accounts');
-    const repository = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
+async function createFixture(): Promise<Fixture> {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-admin-accounts-'));
+    const connection = new SqliteConnection(path.join(root, 'core.sqlite'));
+    const schema = new SqliteSchemaStrategy();
+    const repository = new SqlCoreRepository(connection, schema);
     await repository.initialize();
+    await schema.initializePlatform(connection);
+    await schema.initializeFudaba(connection);
     const ids = {
         superAdmin: await insertAccount(connection, 'super-operator', 'op', 'super_admin'),
         admin: await insertAccount(connection, 'regular-operator', 'op', 'admin'),
@@ -215,4 +219,77 @@ test('super administrator deletes a regular op and revokes its refresh sessions'
         await fixture.repository.findRefreshSessionByTokenHash('a'.repeat(64)),
         null
     );
+});
+
+test('administrator deletion preserves resolved Fudaba moderation actors', async (t) => {
+    const fixture = await createFixture();
+    t.after(() => fixture.close());
+    const createdAt = '2026-08-02T00:00:00.000Z';
+    await fixture.connection.prepare(
+        `INSERT INTO fudaba_moderation_cases
+            (id, resource_kind, resource_id, reporter_account_id, reason,
+             details, state, backoffice_actor_id, resolution, created_at,
+             updated_at, resolved_at)
+         VALUES ('retained-actor-case', 'office', 'office-1', NULL,
+                 'Policy review', '', 'resolved', ?, 'Retained', ?, ?, ?)`
+    ).bind(
+        fixture.ids.admin,
+        createdAt,
+        createdAt,
+        createdAt
+    ).run();
+    const headers = await authHeaders(fixture, {
+        id: fixture.ids.superAdmin,
+        username: 'super-operator',
+        dept: 'op',
+        role: 'super_admin'
+    });
+
+    const response = await fixture.app.request(
+        `http://ims.test/api/admin/accounts/${fixture.ids.admin}`,
+        { method: 'DELETE', headers }
+    );
+
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), {
+        success: false,
+        message: '该管理员已有 Fudaba 审核记录，不能删除'
+    });
+    assert.ok(await fixture.repository.findUserById(fixture.ids.admin));
+});
+
+test('legacy SQLite op accounts are backfilled and bootstrap selects one explicit super', async (t) => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-admin-bootstrap-'));
+    const connection = new SqliteConnection(path.join(root, 'legacy.sqlite'));
+    t.after(async () => {
+        await connection.close();
+        await fs.rm(root, { recursive: true, force: true });
+    });
+    await connection.exec(`
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            dept TEXT,
+            producername TEXT
+        );
+        INSERT INTO users (username, password, dept, producername) VALUES
+            ('legacy-op', 'digest', 'op', 'Legacy Operator'),
+            ('legacy-editor', 'digest', 'editor', 'Legacy Editor');
+    `);
+    const repository = new SqlCoreRepository(connection, new SqliteSchemaStrategy());
+    await repository.initialize();
+    assert.equal((await repository.findUserByUsername('legacy-op'))?.admin_role, 'admin');
+    assert.equal((await repository.findUserByUsername('legacy-editor'))?.admin_role, null);
+    await assert.rejects(repository.ensureSuperAdmin(), /IMS_SUPER_ADMIN_USERNAME/);
+    await assert.rejects(
+        repository.ensureSuperAdmin('legacy-editor'),
+        /existing op account/
+    );
+    await repository.ensureSuperAdmin('legacy-op');
+    assert.equal(
+        (await repository.findUserByUsername('legacy-op'))?.admin_role,
+        'super_admin'
+    );
+    await repository.ensureSuperAdmin('legacy-op');
 });

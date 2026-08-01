@@ -71,6 +71,7 @@ const databaseLayout = new Map([
     ['postgresql', ['connection.ts', 'schema-strategy.ts']],
     ['repositories', [
         'core-repository.ts',
+        'fudaba-repository.ts',
         'platform-account-repository.ts',
         'story-repository.ts'
     ]],
@@ -93,6 +94,7 @@ const portContracts = new Map([
     ['repositories.ts', [
         'BackofficeAuthRepository',
         'PlatformAccountRepository',
+        'FudabaRepository',
         'AuditRepository',
         'NewsRepository',
         'EventRepository',
@@ -337,6 +339,7 @@ for (const implementation of [
     'FilesystemIdempotencyStore',
     'MemoryRateLimiter',
     'PostgresConnection',
+    'SqlFudabaRepository',
     'FilesystemObjectStorage',
     'S3ObjectStorage',
     'StreamingUploadParser',

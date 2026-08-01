@@ -7,6 +7,7 @@ import type {
     BackofficeAuthRepository,
     BackofficeRefreshSessionRecord,
     CardMediaRecord,
+    DeleteAdminAccountResult,
     EventRepository,
     EventInput,
     HomepageLinkRecord,
@@ -132,13 +133,29 @@ export class SqlCoreRepository implements
         return created;
     }
 
-    async deleteAdminAccount(id: number): Promise<boolean> {
-        const result = await executeSql(this.database,
-            `DELETE FROM ${this.backofficeAccountsTable}
-             WHERE id=? AND dept='op' AND admin_role='admin'`,
-            [id]
-        );
-        return result.meta.changes === 1;
+    async deleteAdminAccount(id: number): Promise<DeleteAdminAccountResult> {
+        try {
+            const result = await executeSql(this.database,
+                `DELETE FROM ${this.backofficeAccountsTable}
+                 WHERE id=? AND dept='op' AND admin_role='admin'`,
+                [id]
+            );
+            return result.meta.changes === 1 ? 'deleted' : 'not-deletable';
+        } catch (error) {
+            if (this.isModerationActorReference(error)) return 'moderation-history';
+            throw error;
+        }
+    }
+
+    private isModerationActorReference(error: unknown): boolean {
+        if (!(error instanceof Error)) return false;
+        const databaseError = error as Error & { code?: string; constraint?: string };
+        if (databaseError.code === '23001' || databaseError.code === '23503') {
+            return databaseError.constraint ===
+                'fudaba_moderation_cases_backoffice_actor_fk';
+        }
+        return databaseError.code?.startsWith('SQLITE_CONSTRAINT') === true &&
+            /FOREIGN KEY constraint failed/i.test(databaseError.message);
     }
 
     async createRefreshSession(input: NewBackofficeRefreshSessionInput): Promise<void> {

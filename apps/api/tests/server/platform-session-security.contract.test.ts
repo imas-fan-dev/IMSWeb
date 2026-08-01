@@ -70,6 +70,7 @@ interface Fixture {
 const initializedPostgresSchema: SqlSchemaStrategy = {
     initializeCore: async () => undefined,
     initializePlatform: async () => undefined,
+    initializeFudaba: async () => undefined,
     initializeStory: async () => undefined
 };
 

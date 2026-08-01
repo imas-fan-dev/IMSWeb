@@ -6,6 +6,7 @@ import type {
     AuditRepository,
     BackofficeAuthRepository,
     EventRepository,
+    FudabaRepository,
     NamecardRepository,
     NewsRepository,
     PlatformAccountRepository,
@@ -41,6 +42,10 @@ export function platformAccountRepository(
     c: Context<AppEnvironment>
 ): PlatformAccountRepository {
     return requireRepository(c, 'platformAccounts');
+}
+
+export function fudabaRepository(c: Context<AppEnvironment>): FudabaRepository {
+    return requireRepository(c, 'fudaba');
 }
 
 export function auditRepository(c: Context<AppEnvironment>): AuditRepository {
