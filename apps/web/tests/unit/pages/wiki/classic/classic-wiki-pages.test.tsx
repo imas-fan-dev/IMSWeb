@@ -262,7 +262,27 @@ describe("classic Wiki pages", () => {
       within(illuminationSection).getByRole("link", { name: /樱木真乃/ })
     ).toHaveAttribute(
       "href",
-      "/story/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+    )
+    const desktopViewSwitch = screen.getByRole("link", { name: "新版视图" })
+    expect(desktopViewSwitch).toHaveAttribute(
+      "href",
+      "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+    )
+    expect(desktopViewSwitch.querySelector("img")).toHaveAttribute(
+      "src",
+      "/brand/wiki-view-switch.png"
+    )
+    const mobileViewSwitch = screen.getByRole("link", {
+      name: "切换到新版视图",
+    })
+    expect(mobileViewSwitch).toHaveAttribute(
+      "href",
+      "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+    )
+    expect(mobileViewSwitch.querySelector("img")).toHaveAttribute(
+      "src",
+      "/brand/wiki-view-switch.png"
     )
 
     await user.click(screen.getByRole("button", { name: "搜索内容页" }))
@@ -484,6 +504,15 @@ describe("classic Wiki pages", () => {
     expect(
       await screen.findByRole("heading", { name: "樱木真乃" })
     ).toBeVisible()
+    const modernViewLink = screen.getByRole("link", { name: "新版视图" })
+    expect(modernViewLink).toHaveAttribute(
+      "href",
+      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+    )
+    expect(modernViewLink.querySelector("img")).toHaveAttribute(
+      "src",
+      "/brand/wiki-view-switch.png"
+    )
     await user.click(screen.getByRole("button", { name: /enza主线/ }))
     expect(screen.queryByRole("heading", { name: /特殊剧情/ })).toBeNull()
 

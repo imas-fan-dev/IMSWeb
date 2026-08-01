@@ -1,6 +1,7 @@
-import { ArrowUpRightIcon, HistoryIcon, RefreshCwIcon } from "lucide-react"
+import { ArrowUpRightIcon, RefreshCwIcon } from "lucide-react"
 import { Link } from "react-router"
 
+import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import { Button } from "~/components/ui/button"
 import type { WikiRandomBackground } from "~/lib/api"
 
@@ -20,7 +21,7 @@ export function WikiHero({
     .join(" · ")
   const cardHref =
     background?.card_id && background.agency_name && background.idol_name
-      ? `/story?agency=${encodeURIComponent(background.agency_name)}&idol=${encodeURIComponent(background.idol_name)}#story-card-${background.card_id}`
+      ? `/story/modern?agency=${encodeURIComponent(background.agency_name)}&idol=${encodeURIComponent(background.idol_name)}#story-card-${background.card_id}`
       : null
 
   return (
@@ -68,7 +69,7 @@ export function WikiHero({
               to={classicHref}
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/35 bg-black/30 px-2.5 text-sm font-medium text-white transition-colors hover:bg-white/15 focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none"
             >
-              <HistoryIcon className="size-4" />
+              <WikiViewSwitchIcon tone="light" />
               经典视图
             </Link>
             <Button

@@ -40,8 +40,10 @@ const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map([
   ["/works/games", "works/games/index.html"],
   ["/works/wows", "works/wows/index.html"],
   ["/wiki", "wiki/index.html"],
+  ["/wiki/modern", "wiki/modern/index.html"],
   ["/wiki/classic", "wiki/classic/index.html"],
   ["/story", "story/index.html"],
+  ["/story/modern", "story/modern/index.html"],
   ["/story/classic", "story/classic/index.html"],
   ["/chronicle", "chronicle/index.html"],
 ] as const);

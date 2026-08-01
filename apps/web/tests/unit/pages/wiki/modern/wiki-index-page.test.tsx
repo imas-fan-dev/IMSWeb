@@ -118,7 +118,7 @@ function catalogPayload(
   }
 }
 
-function renderWiki(initialEntry = "/wiki?agency=闪耀色彩") {
+function renderWiki(initialEntry = "/wiki/modern?agency=闪耀色彩") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <WikiIndexPage />
@@ -169,11 +169,20 @@ describe("WikiIndexPage", () => {
       await screen.findByRole("link", { name: /樱木真乃/ })
     ).toHaveAttribute(
       "href",
-      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
     expect(screen.getByRole("link", { name: "查看对应卡片" })).toHaveAttribute(
       "href",
-      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83#story-card-401"
+      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83#story-card-401"
+    )
+    const classicViewLink = screen.getByRole("link", { name: "经典视图" })
+    expect(classicViewLink).toHaveAttribute(
+      "href",
+      "/wiki?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+    )
+    expect(classicViewLink.querySelector("img")).toHaveAttribute(
+      "src",
+      "/brand/wiki-view-switch.png"
     )
     expect(
       screen.getByRole("heading", { name: "illumination STARS" })
@@ -363,7 +372,7 @@ describe("WikiIndexPage", () => {
     )
     const user = userEvent.setup()
 
-    renderWiki("/wiki?agency=闪耀色彩&group=999")
+    renderWiki("/wiki/modern?agency=闪耀色彩&group=999")
 
     const groupTabs = await screen.findByRole("tablist", {
       name: "按组合或分类筛选",

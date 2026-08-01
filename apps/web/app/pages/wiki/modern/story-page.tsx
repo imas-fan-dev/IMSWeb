@@ -2,7 +2,6 @@ import {
   AlertCircleIcon,
   ArrowLeftIcon,
   BookOpenIcon,
-  HistoryIcon,
   Link2Icon,
   ListFilterIcon,
   SearchIcon,
@@ -12,6 +11,7 @@ import { Link, useLocation, useSearchParams } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import { WikiEntryKindBadge } from "~/components/wiki/wiki-entry-kind"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -152,7 +152,7 @@ export function StoryPage() {
           剧情地址缺少企划或内容页信息。
         </p>
         <Link
-          to="/wiki"
+          to="/wiki/modern"
           className={cn(buttonVariants({ variant: "default" }), "mt-6")}
         >
           返回剧情档案
@@ -180,7 +180,7 @@ export function StoryPage() {
                   重新加载
                 </Button>
                 <Link
-                  to={`/wiki?agency=${encodeURIComponent(agencyName)}`}
+                  to={`/wiki/modern?agency=${encodeURIComponent(agencyName)}`}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   返回内容目录
@@ -221,7 +221,7 @@ export function StoryPage() {
               </div>
               <div className="min-w-0">
                 <Link
-                  to={`/wiki?agency=${encodeURIComponent(stories.agency.name)}`}
+                  to={`/wiki/modern?agency=${encodeURIComponent(stories.agency.name)}`}
                   className="inline-flex max-w-full items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
                 >
                   <ArrowLeftIcon className="size-4 shrink-0" />
@@ -243,13 +243,13 @@ export function StoryPage() {
                   <span>{linkCount ?? 0} 个内容来源</span>
                 </p>
                 <Link
-                  to={`/story/classic?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
+                  to={`/story?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
                     "mt-3 sm:mt-4"
                   )}
                 >
-                  <HistoryIcon data-icon="inline-start" />
+                  <WikiViewSwitchIcon data-icon="inline-start" />
                   经典视图
                 </Link>
               </div>

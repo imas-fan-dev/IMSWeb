@@ -137,6 +137,12 @@ export function ClassicWikiPage() {
         ].map((idol) => idol.id)
       ).size
     : 0
+  const modernWikiAgency = requestIsCurrent
+    ? selection?.agency.name
+    : requestedAgency
+  const modernWikiHref = modernWikiAgency
+    ? `/wiki/modern?agency=${encodeURIComponent(modernWikiAgency)}`
+    : "/wiki/modern"
   const style = { "--classic-accent": accent } as CSSProperties
 
   function selectAgency(agency: string) {
@@ -150,6 +156,7 @@ export function ClassicWikiPage() {
       <ClassicWikiBackground layers={backgroundLayers} />
       <ClassicMobileBar
         navigationOpen={navigationOpen}
+        modernWikiHref={modernWikiHref}
         onOpenNavigation={() => setNavigationOpen(true)}
       />
 
@@ -159,6 +166,7 @@ export function ClassicWikiPage() {
           requestedAgency={requestedAgency}
           requestIsCurrent={requestIsCurrent}
           navigationOpen={navigationOpen}
+          modernWikiHref={modernWikiHref}
           onClose={() => setNavigationOpen(false)}
           onSelectAgency={selectAgency}
         />

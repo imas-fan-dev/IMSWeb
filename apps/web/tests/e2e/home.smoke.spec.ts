@@ -9,7 +9,8 @@ const publicRoutes = [
   { path: "/community", title: /制作人社区.*IMSWeb/i },
   { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
   { path: "/works", title: /同人作品.*IMSWeb/i },
-  { path: "/wiki", title: /剧情档案.*IMSWeb/i },
+  { path: "/wiki", title: /经典剧情导航.*IMSWeb/i },
+  { path: "/wiki/modern", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i },
   { path: "/works/sc", title: /SHINY COLORS.*IMSWeb/i },
   { path: "/chronicle", title: /活动编年史.*IMSWeb/i },
@@ -45,7 +46,7 @@ for (const route of publicRoutes) {
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN")
     await expect(page.locator("main#main-content")).toBeVisible()
     await expect(page.locator("main#main-content")).not.toBeEmpty()
-    if (route.path === "/wiki/classic") {
+    if (route.path === "/wiki" || route.path === "/wiki/classic") {
       await expect(page.getByTestId("series-icon-background")).toHaveCount(0)
     } else {
       await expect(
@@ -406,7 +407,7 @@ test("wiki hero gives story artwork an expanded frame", async ({
   page,
   isMobile,
 }) => {
-  await page.goto("/wiki")
+  await page.goto("/wiki/modern")
 
   const hero = page.getByRole("region", { name: "剧情档案视觉" })
   await expect(hero).toBeVisible()
@@ -414,12 +415,17 @@ test("wiki hero gives story artwork an expanded frame", async ({
   expect(heroBox).not.toBeNull()
   expect(heroBox!.height).toBeGreaterThanOrEqual(isMobile ? 448 : 480)
 
-  const artwork = hero.locator("img")
+  const artwork = hero.getByRole("img")
   if ((await artwork.count()) > 0) {
     await expect(artwork).toHaveCSS("opacity", "1")
     await expect(artwork).toHaveCSS("object-fit", "cover")
     await expect(artwork).toHaveCSS("object-position", "50% 25%")
   }
+  await expect(
+    hero
+      .getByRole("link", { name: "经典视图" })
+      .locator('img[src="/brand/wiki-view-switch.png"]')
+  ).toHaveCount(1)
 
   const hasHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth

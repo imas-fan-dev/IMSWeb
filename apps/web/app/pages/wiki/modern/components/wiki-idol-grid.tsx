@@ -104,7 +104,7 @@ function IdolSection({
         {idols.map((idol) => (
           <Link
             key={idol.id}
-            to={`/story?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
+            to={`/story/modern?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
             aria-label={idol.name}
             className="group overflow-hidden rounded-lg border bg-card shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             style={{ borderTopColor: safeWikiColor(idol.color) }}
