@@ -66,6 +66,57 @@ export interface AdminAccountRepository {
     deleteAdminAccount(id: number): Promise<boolean>;
 }
 
+export type PlatformAccountStatus = 'active' | 'restricted' | 'suspended' | 'deleted';
+
+export interface PlatformAccountRecord {
+    id: string;
+    status: PlatformAccountStatus;
+    token_version: number;
+    created_at: number;
+    updated_at: number;
+    deleted_at: number | null;
+}
+
+export interface PlatformProfileRecord {
+    account_id: string;
+    display_name: string;
+    avatar_object_key: string | null;
+    avatar_external_url: string | null;
+    home_city: string | null;
+    bio: string;
+    updated_at: number;
+}
+
+export interface PlatformAccountWithProfile {
+    account: PlatformAccountRecord;
+    profile: PlatformProfileRecord;
+}
+
+export interface NewPlatformAccountInput {
+    id: string;
+    status: PlatformAccountStatus;
+    tokenVersion: number;
+    createdAt: number;
+    updatedAt: number;
+    deletedAt: number | null;
+    profile: {
+        displayName: string;
+        avatarObjectKey: string | null;
+        avatarExternalUrl: string | null;
+        homeCity: string | null;
+        bio: string;
+        updatedAt: number;
+    };
+}
+
+export interface PlatformAccountRepository {
+    createAccountWithProfile(
+        input: NewPlatformAccountInput
+    ): Promise<PlatformAccountWithProfile>;
+    findAccountById(id: string): Promise<PlatformAccountRecord | null>;
+    findAccountWithProfileById(id: string): Promise<PlatformAccountWithProfile | null>;
+}
+
 export interface AuditLogInput {
     username: string;
     producername: string;
@@ -905,6 +956,7 @@ export interface StoryRepository {
 export interface RepositoryServices {
     backofficeAuth: BackofficeAuthRepository;
     adminAccounts: AdminAccountRepository;
+    platformAccounts: PlatformAccountRepository;
     audit: AuditRepository;
     news: NewsRepository;
     events: EventRepository;

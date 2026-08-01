@@ -69,7 +69,11 @@ for (const entry of fs.readdirSync(infraRoot, { withFileTypes: true })) {
 
 const databaseLayout = new Map([
     ['postgresql', ['connection.ts', 'schema-strategy.ts']],
-    ['repositories', ['core-repository.ts', 'story-repository.ts']],
+    ['repositories', [
+        'core-repository.ts',
+        'platform-account-repository.ts',
+        'story-repository.ts'
+    ]],
     ['sql', ['database.ts', 'query.ts']]
 ]);
 for (const [directory, requiredFiles] of databaseLayout) {
@@ -88,6 +92,7 @@ const portContracts = new Map([
     ['object-storage.ts', ['ObjectStorage', 'CompensationService', 'ObjectStorageServices']],
     ['repositories.ts', [
         'BackofficeAuthRepository',
+        'PlatformAccountRepository',
         'AuditRepository',
         'NewsRepository',
         'EventRepository',

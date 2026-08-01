@@ -41,13 +41,26 @@ test('Node repository initialization closes every constructed resource after par
         async initialize() { calls.push('core:init'); },
         async close() { calls.push('core:close'); }
     };
+    const platform = {
+        async initialize() { calls.push('platform:init'); throw new Error('platform init failed'); },
+        async close() { calls.push('platform:close'); }
+    };
     const story = {
-        async initialize() { calls.push('story:init'); throw new Error('story init failed'); },
+        async initialize() { calls.push('story:init'); },
         async close() { calls.push('story:close'); }
     };
 
-    await assert.rejects(initializeNodeRepositories(core, story), /story init failed/);
-    assert.deepEqual(calls, ['core:init', 'story:init', 'story:close', 'core:close']);
+    await assert.rejects(
+        initializeNodeRepositories(core, platform, story),
+        /platform init failed/
+    );
+    assert.deepEqual(calls, [
+        'core:init',
+        'platform:init',
+        'story:close',
+        'platform:close',
+        'core:close'
+    ]);
 });
 
 test('graceful shutdown stops HTTP acceptance before closing runtime services', async () => {
@@ -88,12 +101,14 @@ test('Node trusts proxy address headers only when Nginx is explicit', () => {
 test('early close does not poison a later Node service and concurrent close is idempotent', async () => {
     let creates = 0;
     let coreCloses = 0;
+    let platformCloses = 0;
     let storyCloses = 0;
     let storageCloses = 0;
     const lifecycle = createNodeServiceLifecycle(async () => {
         creates += 1;
         return {
             backofficeAuth: { close: async () => { coreCloses += 1; } },
+            platformAccounts: { close: async () => { platformCloses += 1; } },
             story: { close: async () => { storyCloses += 1; } },
             storage: { close: () => { storageCloses += 1; } }
         } as unknown as RuntimeServices;
@@ -103,15 +118,27 @@ test('early close does not poison a later Node service and concurrent close is i
     await lifecycle.resolve();
     await Promise.all([lifecycle.close(), lifecycle.close()]);
     assert.deepEqual(
-        { creates, coreCloses, storyCloses, storageCloses },
-        { creates: 1, coreCloses: 1, storyCloses: 1, storageCloses: 1 }
+        { creates, coreCloses, platformCloses, storyCloses, storageCloses },
+        {
+            creates: 1,
+            coreCloses: 1,
+            platformCloses: 1,
+            storyCloses: 1,
+            storageCloses: 1
+        }
     );
 
     await lifecycle.resolve();
     await lifecycle.close();
     assert.deepEqual(
-        { creates, coreCloses, storyCloses, storageCloses },
-        { creates: 2, coreCloses: 2, storyCloses: 2, storageCloses: 2 }
+        { creates, coreCloses, platformCloses, storyCloses, storageCloses },
+        {
+            creates: 2,
+            coreCloses: 2,
+            platformCloses: 2,
+            storyCloses: 2,
+            storageCloses: 2
+        }
     );
 });
 

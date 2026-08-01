@@ -3,8 +3,7 @@ import type {
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
 
-export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20260805090000_wiki_story_content_type_icons';
+export const REQUIRED_POSTGRESQL_SCHEMA_VERSION = '0020_platform_accounts';
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();
@@ -38,6 +37,10 @@ export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     }
 
     initializeCore(database: ManagedSqlDatabase): Promise<void> {
+        return this.verify(database);
+    }
+
+    initializePlatform(database: ManagedSqlDatabase): Promise<void> {
         return this.verify(database);
     }
 

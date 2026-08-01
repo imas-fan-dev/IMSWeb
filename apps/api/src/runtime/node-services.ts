@@ -11,6 +11,7 @@ import type {
     HomepageLinkRepository,
     NamecardRepository,
     NewsRepository,
+    PlatformAccountRepository,
     ReactionRepository,
     SitePackageRepository,
     StoryRepository
@@ -43,6 +44,7 @@ import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
@@ -81,9 +83,14 @@ interface CoreRepositoryAdapter extends
 
 interface StoryRepositoryAdapter extends InitializableResource, StoryRepository {}
 
+interface PlatformAccountRepositoryAdapter extends
+    InitializableResource,
+    PlatformAccountRepository {}
+
 interface NodeRepositories {
     database: ManagedSqlDatabase;
     core: CoreRepositoryAdapter;
+    platform: PlatformAccountRepositoryAdapter;
     story: StoryRepositoryAdapter;
 }
 
@@ -93,6 +100,7 @@ function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
     return {
         database,
         core: new SqlCoreRepository(database, schema),
+        platform: new SqlPlatformAccountRepository(database, schema),
         story: new SqlStoryRepository(database, schema)
     };
 }
@@ -146,14 +154,14 @@ async function createNodeObjectStorage(
 }
 
 export async function initializeNodeRepositories(
-    core: InitializableResource,
-    story: InitializableResource
+    ...repositories: InitializableResource[]
 ): Promise<void> {
     try {
-        await core.initialize();
-        await story.initialize();
+        for (const repository of repositories) await repository.initialize();
     } catch (error) {
-        await Promise.allSettled([story.close(), core.close()]);
+        await Promise.allSettled(
+            [...repositories].reverse().map((repository) => repository.close())
+        );
         throw error;
     }
 }
@@ -163,11 +171,15 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
         BackofficeAuthRepository & Partial<InitializableResource>
     ) | undefined;
     const story = services.story as (StoryRepository & Partial<InitializableResource>) | undefined;
+    const platform = services.platformAccounts as (
+        PlatformAccountRepository & Partial<InitializableResource>
+    ) | undefined;
     const results = await Promise.allSettled([
         services.storage?.close
             ? Promise.resolve().then(() => services.storage?.close?.())
             : undefined,
         story?.close?.(),
+        platform?.close?.(),
         backofficeAuth?.close?.()
     ].filter((operation): operation is Promise<void> => Boolean(operation)));
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
@@ -213,9 +225,9 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
     const objectStorage = parseNodeObjectStorageConfig();
     const database = parseNodeDatabaseConfig(process.env);
     ensureRuntimeDirectories(objectStorage.type === 'filesystem');
-    const { database: connection, core, story } = createNodeRepositories(database);
+    const { database: connection, core, platform, story } = createNodeRepositories(database);
     try {
-        await initializeNodeRepositories(core, story);
+        await initializeNodeRepositories(core, platform, story);
         if (IS_PRODUCTION || SUPER_ADMIN_USERNAME) {
             await core.ensureSuperAdmin(SUPER_ADMIN_USERNAME);
         }
@@ -233,6 +245,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         return {
             backofficeAuth: core,
             adminAccounts: core,
+            platformAccounts: platform,
             audit: core,
             news: core,
             events: core,
@@ -266,7 +279,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             }
         };
     } catch (error) {
-        await Promise.allSettled([story.close(), core.close()]);
+        await Promise.allSettled([story.close(), platform.close(), core.close()]);
         throw error;
     }
 }

@@ -30,5 +30,6 @@ export interface ManagedSqlDatabase extends SqlDatabase {
 
 export interface SqlSchemaStrategy {
     initializeCore(database: ManagedSqlDatabase): Promise<void>;
+    initializePlatform(database: ManagedSqlDatabase): Promise<void>;
     initializeStory(database: ManagedSqlDatabase): Promise<void>;
 }

@@ -33,11 +33,7 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0017_wiki_entry_types', phase: 'post-data' },
             { version: '0018_wiki_story_cover_presentation', phase: 'post-data' },
             { version: '0019_homepage_links', phase: 'post-data' },
-            { version: '20260804095901_wiki_idol_url', phase: 'post-data' },
-            {
-                version: '20260805090000_wiki_story_content_type_icons',
-                phase: 'post-data'
-            }
+            { version: '0020_platform_accounts', phase: 'pre-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -110,19 +106,27 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(homepageLinks.sql, /CREATE TABLE public\.homepage_links/);
     assert.match(homepageLinks.sql, /INSERT INTO public\.homepage_links/);
     assert.match(homepageLinks.sql, /'navigation-events'/);
-    const idolWikiUrl = migrations.find(
-        ({ version }) => version === '20260804095901_wiki_idol_url'
+    const platformAccounts = migrations.find(
+        ({ version }) => version === '0020_platform_accounts'
     );
-    assert.match(idolWikiUrl.sql, /ADD COLUMN wiki_url TEXT/);
-    assert.match(idolWikiUrl.sql, /idols_wiki_url_http_check/);
-    assert.match(idolWikiUrl.sql, /length\(wiki_url\) BETWEEN 1 AND 2048/);
-    assert.match(idolWikiUrl.sql, /wiki_url ~\* '\^https\?:\/\/'/);
-    const storyContentTypeIcons = migrations.find(
-        ({ version }) => version === '20260805090000_wiki_story_content_type_icons'
-    );
-    assert.match(storyContentTypeIcons.sql, /ADD COLUMN icon_name TEXT/);
-    assert.match(storyContentTypeIcons.sql, /WHEN '剧情' THEN 'book-open-text'/);
-    assert.match(storyContentTypeIcons.sql, /wiki_story_content_types_icon_name_check/);
+    for (const table of [
+        'platform_accounts',
+        'platform_profiles',
+        'platform_oauth_providers',
+        'platform_oauth_identities',
+        'platform_oauth_states',
+        'platform_refresh_sessions',
+        'platform_email_credentials',
+        'platform_security_events'
+    ]) {
+        assert.match(platformAccounts.sql, new RegExp(`CREATE TABLE public\\.${table}`));
+    }
+    assert.match(platformAccounts.sql, /status IN \('active', 'restricted', 'suspended', 'deleted'\)/);
+    assert.match(platformAccounts.sql, /\('google', 'Google', TRUE\)/);
+    assert.match(platformAccounts.sql, /\('github', 'GitHub', TRUE\)/);
+    assert.match(platformAccounts.sql, /UNIQUE \(account_id, provider_code\)/);
+    assert.match(platformAccounts.sql, /platform_refresh_sessions_account_idx/);
+    assert.match(platformAccounts.sql, /algorithm IN \('pbkdf2-sha256', 'bcrypt'\)/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -184,8 +188,7 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0017_wiki_entry_types',
         '0018_wiki_story_cover_presentation',
         '0019_homepage_links',
-        '20260804095901_wiki_idol_url',
-        '20260805090000_wiki_story_content_type_icons'
+        '0020_platform_accounts'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);
