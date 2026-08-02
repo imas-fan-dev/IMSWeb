@@ -33,6 +33,7 @@ import {
     BACKOFFICE_JWT_SECRET,
     CLIENT_ADDRESS_SOURCE,
     COOKIE_OPTIONS,
+    FUDABA_PUBLIC_READ_ENABLED,
     IS_PRODUCTION,
     LEGACY_BACKOFFICE_JWT_SECRET,
     PLATFORM_JWT_SECRET,
@@ -100,6 +101,25 @@ interface NodeRepositories {
     platform: PlatformAccountRepositoryAdapter;
     fudaba: FudabaRepositoryAdapter;
     story: StoryRepositoryAdapter;
+}
+
+export function validateFudabaPublicReadStorage(
+    enabled: boolean,
+    config: NodeObjectStorageConfig
+): void {
+    if (!enabled) return;
+    if (config.type !== 's3') {
+        throw new Error(
+            'IMS_OBJECT_STORAGE=s3 is required when ' +
+            'IMS_FUDABA_PUBLIC_READ_ENABLED=true'
+        );
+    }
+    if (!config.publicReadUrlBase) {
+        throw new Error(
+            'IMS_PUBLIC_READ_URL_BASE is required when ' +
+            'IMS_FUDABA_PUBLIC_READ_ENABLED=true'
+        );
+    }
 }
 
 function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
@@ -236,6 +256,7 @@ export function createNodeServiceLifecycle<Services extends RuntimeServices>(
 
 export async function createNodeServices(): Promise<NodeRuntimeServices> {
     const objectStorage = parseNodeObjectStorageConfig();
+    validateFudabaPublicReadStorage(FUDABA_PUBLIC_READ_ENABLED, objectStorage);
     const database = parseNodeDatabaseConfig(process.env);
     ensureRuntimeDirectories(objectStorage.type === 'filesystem');
     const { database: connection, core, platform, fudaba, story } = createNodeRepositories(database);
@@ -293,7 +314,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 cookieSecure: COOKIE_OPTIONS.secure,
                 storyMaxUploadBytes: STORY_MAX_UPLOAD_BYTES,
                 sitePackageMaxUploadBytes: SITE_PACKAGE_MAX_UPLOAD_BYTES,
-                clientAddressSource: CLIENT_ADDRESS_SOURCE
+                clientAddressSource: CLIENT_ADDRESS_SOURCE,
+                fudabaPublicReadEnabled: FUDABA_PUBLIC_READ_ENABLED
             }
         };
     } catch (error) {

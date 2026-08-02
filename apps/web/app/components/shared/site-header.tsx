@@ -26,7 +26,7 @@ const navigation = [
     end: false,
   },
   { to: "/live", label: "navigation.live", end: false },
-  { to: "/community", label: "navigation.community", end: true },
+  { to: "/community", label: "navigation.community", end: false },
   { to: "/about", label: "navigation.about", end: true },
 ] as const
 
@@ -61,7 +61,7 @@ export function SiteHeader() {
           className="flex min-w-0 items-center gap-3"
           aria-label={t("brand.homeLabel")}
         >
-          <BrandWordmark className="h-7 sm:h-9" />
+          <BrandWordmark className="h-7 sm:h-9" alt="" />
           <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
             {t("brand.name")}
           </span>

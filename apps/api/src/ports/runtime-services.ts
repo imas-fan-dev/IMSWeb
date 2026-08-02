@@ -10,6 +10,7 @@ export interface NodeRuntimeConfig {
     storyMaxUploadBytes: number;
     sitePackageMaxUploadBytes: number;
     clientAddressSource: 'direct' | 'nginx';
+    fudabaPublicReadEnabled: boolean;
 }
 
 export interface RuntimeHealth {

@@ -24,9 +24,14 @@ import type { ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import {
     createNodeServiceLifecycle,
-    initializeNodeRepositories
+    initializeNodeRepositories,
+    validateFudabaPublicReadStorage
 } from '@/runtime/node-services';
-import { parseClientAddressSource, parseStoryMaxUploadBytes } from '@/config/env';
+import {
+    parseClientAddressSource,
+    parseFudabaPublicReadEnabled,
+    parseStoryMaxUploadBytes
+} from '@/config/env';
 import { parseNodeDatabaseConfig } from '@/config/database';
 import { parseNodeObjectStorageConfig } from '@/config/object-storage';
 import { shutdownServer } from '@/main';
@@ -102,6 +107,51 @@ test('Node trusts proxy address headers only when Nginx is explicit', () => {
     assert.throws(
         () => parseClientAddressSource('automatic'),
         /IMS_CLIENT_ADDRESS_SOURCE must be direct or nginx/
+    );
+});
+
+test('Fudaba public reads require an explicit boolean feature flag', () => {
+    assert.equal(parseFudabaPublicReadEnabled(undefined), false);
+    assert.equal(parseFudabaPublicReadEnabled(' true '), true);
+    assert.equal(parseFudabaPublicReadEnabled('0'), false);
+    assert.throws(
+        () => parseFudabaPublicReadEnabled('enabled'),
+        /IMS_FUDABA_PUBLIC_READ_ENABLED must be true or false/
+    );
+});
+
+test('Fudaba public reads require S3 public object URL configuration', () => {
+    assert.doesNotThrow(() => validateFudabaPublicReadStorage(false, {
+        type: 's3',
+        bucket: 'imsweb-media',
+        region: 'us-east-1',
+        forcePathStyle: false,
+        prefix: '',
+        readUrlTtlSeconds: 300
+    }));
+    assert.doesNotThrow(() => validateFudabaPublicReadStorage(true, {
+        type: 's3',
+        bucket: 'imsweb-media',
+        publicReadUrlBase: 'https://media.example.test',
+        region: 'us-east-1',
+        forcePathStyle: false,
+        prefix: '',
+        readUrlTtlSeconds: 300
+    }));
+    assert.throws(
+        () => validateFudabaPublicReadStorage(true, { type: 'filesystem' }),
+        /IMS_OBJECT_STORAGE=s3 is required/
+    );
+    assert.throws(
+        () => validateFudabaPublicReadStorage(true, {
+            type: 's3',
+            bucket: 'imsweb-media',
+            region: 'us-east-1',
+            forcePathStyle: false,
+            prefix: '',
+            readUrlTtlSeconds: 300
+        }),
+        /IMS_PUBLIC_READ_URL_BASE is required/
     );
 });
 

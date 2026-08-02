@@ -3,7 +3,14 @@ import type {
     FudabaExchangeRequestRecord,
     FudabaModerationCaseRecord,
     FudabaOfficeRecord,
+    FudabaPublicCardRecord,
+    FudabaPublicOfficeDetailRecord,
+    FudabaPublicOfficeRecord,
+    FudabaPublicPlacedCardRecord,
+    FudabaPublicSeriesRecord,
     FudabaRepository,
+    ListFudabaPublicCardsInput,
+    ListFudabaPublicOfficesInput,
     NewFudabaCardInput,
     NewFudabaModerationCaseInput,
     NewFudabaOfficeInput
@@ -14,6 +21,7 @@ import type {
 } from '@/infra/db/sql/database';
 import {
     executeSql,
+    queryAll,
     queryOne,
     sqlStatement
 } from '@/infra/db/sql/query';
@@ -32,6 +40,32 @@ const EXCHANGE_COLUMNS = `id, office_id, requester_account_id,
 const MODERATION_COLUMNS = `id, resource_kind, resource_id,
     reporter_account_id, reason, details, state, backoffice_actor_id,
     resolution, created_at, updated_at, resolved_at`;
+const PUBLIC_OFFICE_COLUMNS = `office.id, office.slug, office.name, office.intro,
+    office.city, office.accent, office.cover_object_key, office.is_open,
+    office.visitor_count`;
+const PUBLIC_CARD_COLUMNS = `card.id, card.producer_name, card.display_name,
+    card.series_code, card.favorite_idol, card.front_object_key,
+    card.back_object_key, card.accent, card.bio, card.trade_note, card.available,
+    card.source_url, card.source_label, card.source_credit, card.created_at,
+    (SELECT COUNT(*) FROM fudaba_card_likes card_like
+     WHERE card_like.card_id=card.id) AS like_count,
+    (SELECT COUNT(*) FROM fudaba_card_favorites card_favorite
+     WHERE card_favorite.card_id=card.id) AS favorite_count,
+    EXISTS (
+        SELECT 1 FROM fudaba_card_likes viewer_like
+        WHERE viewer_like.card_id=card.id AND viewer_like.account_id=?
+    ) AS viewer_liked,
+    EXISTS (
+        SELECT 1 FROM fudaba_card_favorites viewer_favorite
+        WHERE viewer_favorite.card_id=card.id AND viewer_favorite.account_id=?
+    ) AS viewer_favorited`;
+const PUBLIC_OFFICE_ELIGIBILITY = `office.status='active'
+    AND office_owner.status IN ('active', 'restricted')
+    AND office_owner.deleted_at IS NULL`;
+const PUBLIC_CARD_ELIGIBILITY = `card.publication_status='published'
+    AND card.media_rights_status='approved' AND card.deleted_at IS NULL
+    AND card_owner.status IN ('active', 'restricted')
+    AND card_owner.deleted_at IS NULL`;
 
 type TimestampValue = string | Date;
 
@@ -76,6 +110,52 @@ type FudabaModerationCaseRow = Omit<
     created_at: TimestampValue;
     updated_at: TimestampValue;
     resolved_at: TimestampValue | null;
+};
+
+type FudabaPublicSeriesRow = Omit<
+    FudabaPublicSeriesRecord,
+    'display_order' | 'active_office_count'
+> & {
+    display_order: number | string;
+    active_office_count: number | string;
+};
+
+type FudabaPublicOfficeRow = Omit<
+    FudabaPublicOfficeRecord,
+    'is_open' | 'visitor_count' | 'series_codes'
+> & {
+    is_open: boolean | number | string;
+    visitor_count: number | string;
+};
+
+type FudabaOfficeSeriesRow = {
+    office_id: string;
+    series_code: string;
+};
+
+type FudabaPublicCardRow = Omit<
+    FudabaPublicCardRecord,
+    | 'available'
+    | 'created_at'
+    | 'like_count'
+    | 'favorite_count'
+    | 'viewer_liked'
+    | 'viewer_favorited'
+> & {
+    available: boolean | number | string;
+    created_at: TimestampValue;
+    like_count: number | string;
+    favorite_count: number | string;
+    viewer_liked: boolean | number | string;
+    viewer_favorited: boolean | number | string;
+};
+
+type FudabaPublicPlacedCardRow = FudabaPublicCardRow & {
+    pinned_at: TimestampValue;
+    position_x: number | string;
+    position_y: number | string;
+    rotation: number | string;
+    z_index: number | string;
 };
 
 function booleanValue(value: boolean | number | string): boolean {
@@ -137,6 +217,70 @@ function moderationRecord(row: FudabaModerationCaseRow): FudabaModerationCaseRec
     };
 }
 
+function publicSeriesRecord(row: FudabaPublicSeriesRow): FudabaPublicSeriesRecord {
+    return {
+        code: row.code,
+        display_name: row.display_name,
+        display_order: Number(row.display_order),
+        active_office_count: Number(row.active_office_count)
+    };
+}
+
+function publicOfficeRecord(
+    row: FudabaPublicOfficeRow,
+    seriesCodes: string[]
+): FudabaPublicOfficeRecord {
+    return {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        intro: row.intro,
+        city: row.city,
+        accent: row.accent,
+        cover_object_key: row.cover_object_key,
+        is_open: booleanValue(row.is_open),
+        visitor_count: Number(row.visitor_count),
+        series_codes: seriesCodes
+    };
+}
+
+function publicCardRecord(row: FudabaPublicCardRow): FudabaPublicCardRecord {
+    return {
+        id: row.id,
+        producer_name: row.producer_name,
+        display_name: row.display_name,
+        series_code: row.series_code,
+        favorite_idol: row.favorite_idol,
+        front_object_key: row.front_object_key,
+        back_object_key: row.back_object_key,
+        accent: row.accent,
+        bio: row.bio,
+        trade_note: row.trade_note,
+        available: booleanValue(row.available),
+        source_url: row.source_url,
+        source_label: row.source_label,
+        source_credit: row.source_credit,
+        created_at: timestampValue(row.created_at),
+        like_count: Number(row.like_count),
+        favorite_count: Number(row.favorite_count),
+        viewer_liked: booleanValue(row.viewer_liked),
+        viewer_favorited: booleanValue(row.viewer_favorited)
+    };
+}
+
+function publicPlacedCardRecord(
+    row: FudabaPublicPlacedCardRow
+): FudabaPublicPlacedCardRecord {
+    return {
+        ...publicCardRecord(row),
+        pinned_at: timestampValue(row.pinned_at),
+        position_x: Number(row.position_x),
+        position_y: Number(row.position_y),
+        rotation: Number(row.rotation),
+        z_index: Number(row.z_index)
+    };
+}
+
 export class SqlFudabaRepository implements FudabaRepository {
     private initialized?: Promise<void>;
     private writeTail: Promise<void> = Promise.resolve();
@@ -163,6 +307,199 @@ export class SqlFudabaRepository implements FudabaRepository {
 
     private bindBoolean(value: boolean): boolean {
         return value;
+    }
+
+    private async attachOfficeSeries(
+        rows: FudabaPublicOfficeRow[]
+    ): Promise<FudabaPublicOfficeRecord[]> {
+        if (rows.length === 0) return [];
+        const seriesByOffice = new Map<string, string[]>(
+            rows.map((row) => [row.id, []])
+        );
+        const placeholders = rows.map(() => '?').join(', ');
+        const seriesRows = await queryAll<FudabaOfficeSeriesRow>(
+            this.database,
+            `SELECT office_id, series_code
+             FROM fudaba_office_series_tags office_series
+             JOIN fudaba_series_tags series
+               ON series.code=office_series.series_code AND series.enabled
+             WHERE office_id IN (${placeholders})
+             ORDER BY office_id, office_series.display_order, series_code`,
+            rows.map((row) => row.id)
+        );
+        for (const series of seriesRows) {
+            seriesByOffice.get(series.office_id)?.push(series.series_code);
+        }
+        return rows.map((row) => publicOfficeRecord(
+            row,
+            seriesByOffice.get(row.id) ?? []
+        ));
+    }
+
+    async listPublicSeries(): Promise<FudabaPublicSeriesRecord[]> {
+        const rows = await queryAll<FudabaPublicSeriesRow>(
+            this.database,
+            `SELECT series.code, series.display_name, series.display_order,
+                    COUNT(office_owner.id) AS active_office_count
+             FROM fudaba_series_tags series
+             LEFT JOIN fudaba_office_series_tags office_series
+               ON office_series.series_code=series.code
+             LEFT JOIN fudaba_offices office
+               ON office.id=office_series.office_id AND office.status='active'
+             LEFT JOIN platform_accounts office_owner
+               ON office_owner.id=office.owner_account_id
+              AND office_owner.status IN ('active', 'restricted')
+              AND office_owner.deleted_at IS NULL
+             WHERE series.enabled=?
+             GROUP BY series.code, series.display_name, series.display_order
+             ORDER BY series.display_order, series.code`,
+            [this.bindBoolean(true)]
+        );
+        return rows.map(publicSeriesRecord);
+    }
+
+    async listPublicOffices(
+        input: ListFudabaPublicOfficesInput
+    ): Promise<FudabaPublicOfficeRecord[]> {
+        const conditions = [PUBLIC_OFFICE_ELIGIBILITY];
+        const parameters: unknown[] = [];
+        if (input.city !== undefined) {
+            conditions.push('office.city=?');
+            parameters.push(input.city);
+        }
+        if (input.seriesCode !== undefined) {
+            conditions.push(`EXISTS (
+                SELECT 1 FROM fudaba_office_series_tags series_filter
+                JOIN fudaba_series_tags series
+                  ON series.code=series_filter.series_code AND series.enabled
+                WHERE series_filter.office_id=office.id
+                  AND series_filter.series_code=?
+            )`);
+            parameters.push(input.seriesCode);
+        }
+        if (input.isOpen !== undefined) {
+            conditions.push('office.is_open=?');
+            parameters.push(this.bindBoolean(input.isOpen));
+        }
+        if (input.after) {
+            conditions.push(`(
+                office.visitor_count<? OR (
+                    office.visitor_count=? AND office.id>?
+                )
+            )`);
+            parameters.push(
+                input.after.visitorCount,
+                input.after.visitorCount,
+                input.after.id
+            );
+        }
+        parameters.push(input.limit);
+        const rows = await queryAll<FudabaPublicOfficeRow>(
+            this.database,
+            `SELECT ${PUBLIC_OFFICE_COLUMNS}
+             FROM fudaba_offices office
+             JOIN platform_accounts office_owner
+               ON office_owner.id=office.owner_account_id
+             WHERE ${conditions.join(' AND ')}
+             ORDER BY office.visitor_count DESC, office.id ASC
+             LIMIT ?`,
+            parameters
+        );
+        return this.attachOfficeSeries(rows);
+    }
+
+    async findPublicOfficeBySlug(
+        slug: string,
+        viewerAccountId: string | null
+    ): Promise<FudabaPublicOfficeDetailRecord | null> {
+        const row = await queryOne<FudabaPublicOfficeRow>(
+            this.database,
+            `SELECT ${PUBLIC_OFFICE_COLUMNS}
+             FROM fudaba_offices office
+             JOIN platform_accounts office_owner
+               ON office_owner.id=office.owner_account_id
+             WHERE office.slug=? AND ${PUBLIC_OFFICE_ELIGIBILITY}`,
+            [slug]
+        );
+        if (!row) return null;
+        const [office] = await this.attachOfficeSeries([row]);
+        const cardRows = await queryAll<FudabaPublicPlacedCardRow>(
+            this.database,
+            `SELECT ${PUBLIC_CARD_COLUMNS}, placement.pinned_at,
+                    placement.position_x, placement.position_y,
+                    placement.rotation, placement.z_index
+             FROM fudaba_office_cards placement
+             JOIN fudaba_cards card ON card.id=placement.card_id
+             JOIN platform_accounts card_owner
+               ON card_owner.id=card.owner_account_id
+             JOIN fudaba_series_tags card_series
+               ON card_series.code=card.series_code AND card_series.enabled
+             WHERE placement.office_id=? AND ${PUBLIC_CARD_ELIGIBILITY}
+             ORDER BY placement.z_index ASC, placement.pinned_at ASC, card.id ASC`,
+            [viewerAccountId, viewerAccountId, row.id]
+        );
+        return {
+            ...office,
+            cards: cardRows.map(publicPlacedCardRecord)
+        };
+    }
+
+    async listPublicCards(
+        input: ListFudabaPublicCardsInput
+    ): Promise<FudabaPublicCardRecord[]> {
+        const conditions = [PUBLIC_CARD_ELIGIBILITY];
+        const parameters: unknown[] = [
+            input.viewerAccountId,
+            input.viewerAccountId
+        ];
+        if (input.seriesCode !== undefined) {
+            conditions.push('card.series_code=?');
+            parameters.push(input.seriesCode);
+        }
+        if (input.available !== undefined) {
+            conditions.push('card.available=?');
+            parameters.push(this.bindBoolean(input.available));
+        }
+        if (input.officeSlug !== undefined) {
+            conditions.push(`EXISTS (
+                SELECT 1 FROM fudaba_office_cards office_card
+                JOIN fudaba_offices office ON office.id=office_card.office_id
+                JOIN platform_accounts office_filter_owner
+                  ON office_filter_owner.id=office.owner_account_id
+                WHERE office_card.card_id=card.id AND office.slug=?
+                  AND office.status='active'
+                  AND office_filter_owner.status IN ('active', 'restricted')
+                  AND office_filter_owner.deleted_at IS NULL
+            )`);
+            parameters.push(input.officeSlug);
+        }
+        if (input.after) {
+            conditions.push(`(
+                card.created_at<? OR (
+                    card.created_at=? AND card.id<?
+                )
+            )`);
+            parameters.push(
+                input.after.createdAt,
+                input.after.createdAt,
+                input.after.id
+            );
+        }
+        parameters.push(input.limit);
+        const rows = await queryAll<FudabaPublicCardRow>(
+            this.database,
+            `SELECT ${PUBLIC_CARD_COLUMNS}
+             FROM fudaba_cards card
+             JOIN platform_accounts card_owner
+               ON card_owner.id=card.owner_account_id
+             JOIN fudaba_series_tags card_series
+               ON card_series.code=card.series_code AND card_series.enabled
+             WHERE ${conditions.join(' AND ')}
+             ORDER BY card.created_at DESC, card.id DESC
+             LIMIT ?`,
+            parameters
+        );
+        return rows.map(publicCardRecord);
     }
 
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord> {

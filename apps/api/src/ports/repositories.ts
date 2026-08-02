@@ -348,7 +348,99 @@ export interface FudabaModerationCaseRecord {
     resolved_at: string | null;
 }
 
+export interface FudabaPublicSeriesRecord {
+    code: string;
+    display_name: string;
+    display_order: number;
+    active_office_count: number;
+}
+
+export interface FudabaPublicOfficeRecord {
+    id: string;
+    slug: string;
+    name: string;
+    intro: string;
+    city: string;
+    accent: string;
+    cover_object_key: string | null;
+    is_open: boolean;
+    visitor_count: number;
+    series_codes: string[];
+}
+
+export interface FudabaPublicOfficeCursor {
+    visitorCount: number;
+    id: string;
+}
+
+export interface ListFudabaPublicOfficesInput {
+    city?: string;
+    seriesCode?: string;
+    isOpen?: boolean;
+    limit: number;
+    after?: FudabaPublicOfficeCursor;
+}
+
+export interface FudabaPublicCardRecord {
+    id: string;
+    producer_name: string;
+    display_name: string;
+    series_code: string;
+    favorite_idol: string;
+    front_object_key: string;
+    back_object_key: string;
+    accent: string;
+    bio: string;
+    trade_note: string;
+    available: boolean;
+    source_url: string | null;
+    source_label: string | null;
+    source_credit: string | null;
+    created_at: string;
+    like_count: number;
+    favorite_count: number;
+    viewer_liked: boolean;
+    viewer_favorited: boolean;
+}
+
+export interface FudabaPublicPlacedCardRecord extends FudabaPublicCardRecord {
+    pinned_at: string;
+    position_x: number;
+    position_y: number;
+    rotation: number;
+    z_index: number;
+}
+
+export interface FudabaPublicOfficeDetailRecord extends FudabaPublicOfficeRecord {
+    cards: FudabaPublicPlacedCardRecord[];
+}
+
+export interface FudabaPublicCardCursor {
+    createdAt: string;
+    id: string;
+}
+
+export interface ListFudabaPublicCardsInput {
+    seriesCode?: string;
+    available?: boolean;
+    officeSlug?: string;
+    viewerAccountId: string | null;
+    limit: number;
+    after?: FudabaPublicCardCursor;
+}
+
 export interface FudabaRepository {
+    listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
+    listPublicOffices(
+        input: ListFudabaPublicOfficesInput
+    ): Promise<FudabaPublicOfficeRecord[]>;
+    findPublicOfficeBySlug(
+        slug: string,
+        viewerAccountId: string | null
+    ): Promise<FudabaPublicOfficeDetailRecord | null>;
+    listPublicCards(
+        input: ListFudabaPublicCardsInput
+    ): Promise<FudabaPublicCardRecord[]>;
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
     findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
     updateOfficeStatusForOwner(input: {

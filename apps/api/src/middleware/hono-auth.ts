@@ -142,6 +142,21 @@ export async function authenticatePlatform(
     await next();
 }
 
+export async function authenticateOptionalPlatform(
+    c: Context<AppEnvironment>,
+    next: Next
+): Promise<Response | void> {
+    const authorization = (c.req.header('authorization') || '').trim();
+    const cookie = getCookie(c, PLATFORM_ACCESS_TOKEN_COOKIE);
+    if (!authorization && !cookie) {
+        await next();
+        return;
+    }
+    const failure = await authenticatePlatformRequest(c);
+    if (failure) return failure;
+    await next();
+}
+
 export async function requireOp(c: Context<AppEnvironment>, next: Next): Promise<Response | void> {
     const claims = c.get('backofficeUser');
     if (claims?.dept !== 'op') {
@@ -218,6 +233,8 @@ export async function protectPlatformCsrf(
 
 export const backofficeAuth: MiddlewareHandler<AppEnvironment> = authenticateBackoffice;
 export const platformAuth: MiddlewareHandler<AppEnvironment> = authenticatePlatform;
+export const optionalPlatformAuth: MiddlewareHandler<AppEnvironment> =
+    authenticateOptionalPlatform;
 export const opOnly: MiddlewareHandler<AppEnvironment> = requireOp;
 export const superAdminOnly: MiddlewareHandler<AppEnvironment> = requireSuperAdmin;
 export const backofficeCsrf: MiddlewareHandler<AppEnvironment> = protectBackofficeCsrf;

@@ -223,7 +223,7 @@ test("namecard images show a shimmer until the network response completes", asyn
 
   try {
     await expect(image).toHaveAttribute("data-image-state", "loading")
-    await expect(image).toHaveAttribute("aria-busy", "true")
+    await expect(image).not.toHaveAttribute("aria-busy")
     await expect(image).toHaveCSS("animation-name", "image-loading-shimmer")
     await expect(image).toHaveCSS("background-image", /linear-gradient/)
 

@@ -256,6 +256,10 @@ Fudaba 仓库的 `seed.sql` 含合成用户、演示事务所、演示留言、�
 生产 `visitor_count` 只有在能够证明它来自真实计数规则时才迁移；seed 值和无法说明口径的值归零，
 并在 report 中保存原值，不能作为主站真实指标展示。
 
+来源仓库没有独立的 visit/check-in 表、用户到访写路由或去重规则；`visitor_count` 只是事务所上的
+展示与排序字段。因此地图选点创建事务所属于迁移范围，用户到访打卡、印章或排行属于新增产品
+能力，必须另行定义位置证明、幂等、防刷、撤销、隐私与审核合同，不能把静态访问量冒充打卡记录。
+
 ## 6. 媒体与素材授权门禁
 
 ### 6.1 代码许可
@@ -329,7 +333,7 @@ Platform 是身份 namespace，Community Exchange 是业务 namespace。Fudaba �
 | `GET /api/me/offices` | `GET /api/community/exchange/me/offices` | Fudaba 业务视图 |
 | `PUT /api/me/cards/:id` | `PUT /api/community/exchange/me/cards/:id` | owner 条件写 |
 | `GET /api/offices` | `GET /api/community/exchange/offices` | 避免与 producer-map 混淆 |
-| `GET /api/offices/:id` | `GET /api/community/exchange/offices/:id` | 事务所详情聚合 |
+| `GET /api/offices/:id` | `GET /api/community/exchange/offices/:officeSlug` | 事务所详情聚合；公开路径使用稳定 slug |
 | office 创建、更新、封面、归档、恢复、留言 | `/api/community/exchange/offices/*` | 逐个保留 HTTP 方法和资源语义 |
 | `PUT /api/uploads/:side` | `PUT /api/community/exchange/uploads/:side` | 走 IMS ObjectStorage，不直写 R2 binding |
 | `POST /api/cards` | `POST /api/community/exchange/cards` | 不占用现有 `POST/GET /api/cards` |
@@ -341,12 +345,38 @@ Platform 是身份 namespace，Community Exchange 是业务 namespace。Fudaba �
 所有 endpoint schema、调用、CSRF 和响应解析只能位于 `apps/web/app/lib/api/`。页面不得直接
 `fetch`，也不得从 Fudaba 复制 page-local API client。
 
-### 7.2 Web 路由
+### 7.2 首批公开读合同
+
+首批只读实现注册 `GET /api/community/exchange/series`、`offices`、`offices/:officeSlug` 和
+`cards`。所有路由由 `IMS_FUDABA_PUBLIC_READ_ENABLED` 统一控制，默认 `false`；关闭时返回 404，
+不能只在 Web 隐藏入口。该阶段不注册任何 Fudaba mutation。
+
+公开查询必须同时满足以下约束：
+
+- 事务所为 `active`，名片为 `published`、素材授权为 `approved` 且未删除；
+- owner 帐号为 `active` 或 `restricted`；`suspended/deleted` owner 的资源 fail-closed；
+- disabled series 不出现在系列、事务所标签或名片结果中；
+- 未携带 Platform 凭据时按匿名读取；一旦携带凭据就完整验证 realm、session、帐号状态和 token
+  version，失败不得降级为匿名；Backoffice Cookie 不参与 Platform viewer 判定；
+- repository 可以持有逻辑 object key，但 HTTP 响应只能返回经 `ObjectStorage` 验证的公开 URL；
+- 开启读取开关时必须使用 S3-compatible storage 并配置 `IMS_PUBLIC_READ_URL_BASE`，否则应用启动
+  失败；filesystem 兼容适配器不提供逻辑对象键的公开读取能力；
+- 响应不包含 owner ID、精确地址、经纬度、逻辑 object key 或审核字段，并使用
+  `Cache-Control: private, no-store`；
+- office/card 游标绑定筛选条件并使用确定性 tie-break。事务所当前按可变的 `visitor_count` 排序，
+  因此游标不提供跨请求快照一致性；地图上线前应改用快照游标或不可变排序键。
+
+当前 schema 只有精确地址和坐标，不能直接支持符合隐私要求的地图。地图提交必须先通过新的
+forward migration 增加审核后的公开位置或明确坐标模糊化规则。metadata importer 还会把迁移名片
+固定写为 `draft`、媒体固定写为 `ready/private`，所以仅开启 read flag 不会公开迁移内容；只有完成
+逐项授权、发布和 reconciliation 后才能开放。
+
+### 7.3 Web 路由
 
 | 目标路径 | 页面责任 |
 | --- | --- |
-| `/community` | 保留社区 hub，增加“名片交换地图”入口 |
-| `/community/exchange` | Fudaba 地图与事务所发现主页面 |
+| `/community` | 保留社区 hub，按服务端开关增加“名片交换事务所”入口 |
+| `/community/exchange` | 按城市、企划和开放状态发现事务所与公开名片；不读取精确坐标 |
 | `/community/exchange/offices/:officeSlug` | 可分享、可回退的事务所详情 |
 | `/community/exchange/me` | 平台资料、我的名片、事务所、收藏和交换请求 |
 | `/community/exchange/auth/callback` | 只呈现 callback 结果；真正 OAuth callback 仍由 API 处理 |
@@ -364,10 +394,12 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
 实现顺序：
 
 1. 先移植信息架构、状态模型和交互流程，不复制全局 CSS；
-2. 地图作为 `/community/exchange` 的主工作面，筛选、聚合点、选中事务所和详情抽屉使用稳定尺寸；
+2. 首批以目录发现作为 `/community/exchange` 的主工作面；地图必须等审核后的公开位置或坐标
+   模糊化 migration、隐私规则和 tile 许可全部落地后再启用；
 3. 名片墙、详情翻面、上传、放置、收藏和交换使用 IMSWeb 组件与焦点管理；
 4. 登录、空状态、错误、受限帐号、审核中、已归档和网络重试都要有真实页面状态；
-5. 移动端至少验证地图、事务所详情、名片上传、帐号入口和交换确认；
+5. 移动端首批验证目录筛选、事务所详情与公开名片；后续写入阶段再验证地图、名片上传、
+   帐号入口和交换确认；
 6. 所有可见素材先通过第 6 节门禁，再加入页面和截图。
 
 若继续使用 MapLibre，应把依赖加入 `@imsweb/web` workspace，并把地图样式、第三方 tile/字体许可、
@@ -427,7 +459,8 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
     - offices、office detail、公开 card wall 和 platform-aware interaction state；
     - 不启用 mutation。
 13. `feat(web): add community exchange discovery`
-    - 社区入口、地图、筛选、聚合、事务所详情和分享路径；
+    - 社区入口、城市/企划/开放状态筛选、公开名片、事务所详情和分享路径；
+    - 不伪造地图或公开精确坐标，地图继续受第 7.2 节的 forward migration 门禁约束；
     - 补齐 loading/error/empty、无障碍与桌面/移动截图。
 
 ### D. Fudaba 写入、审核与完整功能

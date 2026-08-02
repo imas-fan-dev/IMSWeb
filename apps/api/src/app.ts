@@ -20,6 +20,7 @@ import { registerBackofficeAuthRoutes } from '@/domains/backoffice-auth/routes';
 import { registerBrandAssetRoutes } from '@/domains/brand-assets/routes';
 import { registerChronicleRoutes } from '@/domains/chronicle/routes';
 import { registerEventRoutes } from '@/domains/events/routes';
+import { registerFudabaRoutes } from '@/domains/fudaba/routes';
 import { registerInformationRoutes } from '@/domains/information/routes';
 import { registerHomepageLinkRoutes } from '@/domains/homepage-links/routes';
 import { registerLiveScheduleRoutes } from '@/domains/live-schedule/routes';
@@ -154,6 +155,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);
+    registerFudabaRoutes(app);
     registerNewsRoutes(app);
     registerHomepageLinkRoutes(app);
     registerInformationRoutes(app);

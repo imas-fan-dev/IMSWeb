@@ -13,6 +13,7 @@ const publicRoutes = [
   { path: "/recommendations", title: /向您推荐.*IMSWeb/i },
   { path: "/live", title: /Live.*IMSWeb/i },
   { path: "/community", title: /制作人社区.*IMSWeb/i },
+  { path: "/community/exchange", title: /名片交换事务所.*IMSWeb/i },
   { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
   { path: "/works", title: /系列作品.*IMSWeb/i },
   { path: "/wiki", title: /剧情档案.*IMSWeb/i },

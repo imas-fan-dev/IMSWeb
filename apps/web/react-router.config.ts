@@ -11,6 +11,7 @@ export default {
     "/recommendations",
     "/live",
     "/community",
+    "/community/exchange",
     "/community/cards",
     "/producer-map",
     "/works",
