@@ -203,11 +203,22 @@ export function parseFudabaPublicReadEnabled(value: string | undefined): boolean
     throw new Error('IMS_FUDABA_PUBLIC_READ_ENABLED must be true or false');
 }
 
+export function parseFudabaWriteEnabled(value: string | undefined): boolean {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) return false;
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+    throw new Error('IMS_FUDABA_WRITE_ENABLED must be true or false');
+}
+
 export const CLIENT_ADDRESS_SOURCE = parseClientAddressSource(
     process.env.IMS_CLIENT_ADDRESS_SOURCE
 );
 export const FUDABA_PUBLIC_READ_ENABLED = parseFudabaPublicReadEnabled(
     process.env.IMS_FUDABA_PUBLIC_READ_ENABLED
+);
+export const FUDABA_WRITE_ENABLED = parseFudabaWriteEnabled(
+    process.env.IMS_FUDABA_WRITE_ENABLED
 );
 const COOKIE_SECURE = envFlag('IMS_COOKIE_SECURE', IS_PRODUCTION);
 

@@ -4,15 +4,20 @@ import type {
     PlatformAccountRecord,
     PlatformAccountRepository,
     PlatformAccountWithProfile,
+    PlatformProfileSaveResult,
     PlatformProfileRecord,
     PlatformRefreshSessionRecord,
-    PlatformSecurityEventInput
+    PlatformSecurityEventInput,
+    UpdatePlatformProfileAvatarInput,
+    UpdatePlatformProfileTextInput
 } from '@/ports/repositories';
 import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
 import { executeSql, queryOne, sqlStatement } from '@/infra/db/sql/query';
 
 const ACCOUNT_COLUMNS = `id, status, token_version, created_at, updated_at,
     deleted_at`;
+const PROFILE_COLUMNS = `account_id, display_name, avatar_object_key,
+    avatar_external_url, home_city, bio, updated_at`;
 const REFRESH_SESSION_COLUMNS = `id, account_id, token_hash, previous_token_hash,
     csrf_hash, expires_at, created_at, updated_at, revoked_at`;
 
@@ -171,6 +176,111 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository {
             [id]
         );
         return row ? accountWithProfile(row) : null;
+    }
+
+    private findActiveProfileById(
+        accountId: string
+    ): Promise<PlatformProfileRecord | null> {
+        return queryOne<PlatformProfileRecord>(
+            this.database,
+            `SELECT ${PROFILE_COLUMNS}
+             FROM platform_profiles
+             WHERE account_id=? AND EXISTS (
+                 SELECT 1 FROM platform_accounts account
+                 WHERE account.id=platform_profiles.account_id
+                   AND account.status='active' AND account.deleted_at IS NULL
+             )`,
+            [accountId]
+        );
+    }
+
+    private profileWriteFailure(
+        current: PlatformProfileRecord | null,
+        expectedUpdatedAt: number
+    ): PlatformProfileSaveResult {
+        if (!current) return { status: 'unavailable' };
+        if (current.updated_at !== expectedUpdatedAt) {
+            return { status: 'conflict', updatedAt: current.updated_at };
+        }
+        return { status: 'unavailable' };
+    }
+
+    updateProfileTextForOwner(
+        input: UpdatePlatformProfileTextInput
+    ): Promise<PlatformProfileSaveResult> {
+        return this.serializeWrite(async () => {
+            const current = await this.findActiveProfileById(input.accountId);
+            if (!current || current.updated_at !== input.expectedUpdatedAt) {
+                return this.profileWriteFailure(current, input.expectedUpdatedAt);
+            }
+            const result = await this.database.prepare(
+                `UPDATE platform_profiles
+                 SET display_name=?, home_city=?, bio=?, updated_at=?
+                 WHERE account_id=? AND updated_at=? AND EXISTS (
+                     SELECT 1 FROM platform_accounts account
+                     WHERE account.id=platform_profiles.account_id
+                       AND account.status='active' AND account.deleted_at IS NULL
+                 )
+                 RETURNING ${PROFILE_COLUMNS}`
+            ).bind(
+                input.displayName,
+                input.homeCity,
+                input.bio,
+                input.updatedAt,
+                input.accountId,
+                input.expectedUpdatedAt
+            ).run<PlatformProfileRecord>();
+            const saved = result.results[0];
+            if (saved) {
+                return {
+                    status: 'saved',
+                    profile: saved,
+                    previousAvatarObjectKey: current.avatar_object_key
+                };
+            }
+            return this.profileWriteFailure(
+                await this.findActiveProfileById(input.accountId),
+                input.expectedUpdatedAt
+            );
+        });
+    }
+
+    updateProfileAvatarForOwner(
+        input: UpdatePlatformProfileAvatarInput
+    ): Promise<PlatformProfileSaveResult> {
+        return this.serializeWrite(async () => {
+            const current = await this.findActiveProfileById(input.accountId);
+            if (!current || current.updated_at !== input.expectedUpdatedAt) {
+                return this.profileWriteFailure(current, input.expectedUpdatedAt);
+            }
+            const result = await this.database.prepare(
+                `UPDATE platform_profiles
+                 SET avatar_object_key=?, avatar_external_url=NULL, updated_at=?
+                 WHERE account_id=? AND updated_at=? AND EXISTS (
+                     SELECT 1 FROM platform_accounts account
+                     WHERE account.id=platform_profiles.account_id
+                       AND account.status='active' AND account.deleted_at IS NULL
+                 )
+                 RETURNING ${PROFILE_COLUMNS}`
+            ).bind(
+                input.avatarObjectKey,
+                input.updatedAt,
+                input.accountId,
+                input.expectedUpdatedAt
+            ).run<PlatformProfileRecord>();
+            const saved = result.results[0];
+            if (saved) {
+                return {
+                    status: 'saved',
+                    profile: saved,
+                    previousAvatarObjectKey: current.avatar_object_key
+                };
+            }
+            return this.profileWriteFailure(
+                await this.findActiveProfileById(input.accountId),
+                input.expectedUpdatedAt
+            );
+        });
     }
 
     async createRefreshSession(input: NewPlatformRefreshSessionInput): Promise<void> {

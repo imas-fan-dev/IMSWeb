@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
+import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { PlatformAccountMenu } from "~/components/platform/platform-account-menu"
@@ -18,9 +19,11 @@ vi.mock("~/components/platform/platform-session-provider", () => ({
 
 function renderMenu() {
   return render(
-    <I18nextProvider i18n={i18n}>
-      <PlatformAccountMenu />
-    </I18nextProvider>
+    <MemoryRouter>
+      <I18nextProvider i18n={i18n}>
+        <PlatformAccountMenu />
+      </I18nextProvider>
+    </MemoryRouter>
   )
 }
 

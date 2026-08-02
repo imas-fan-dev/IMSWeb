@@ -46,6 +46,18 @@ export const CHRONICLE_UPLOAD_WRITE_LIMIT = {
   windowSeconds: 60 * 60,
 } as const;
 
+export const FUDABA_UPLOAD_ATTEMPT_LIMIT = {
+  bucket: "fudaba-upload-attempt",
+  limit: 60,
+  windowSeconds: 60 * 60,
+} as const;
+
+export const FUDABA_WRITE_ATTEMPT_LIMIT = {
+  bucket: "fudaba-write-attempt",
+  limit: 240,
+  windowSeconds: 60 * 60,
+} as const;
+
 export function chronicleUploadIdempotencyKey(request: Request): string | null {
   if (!request.headers.has("Idempotency-Key")) return null;
   const key = request.headers.get("Idempotency-Key") ?? "";
@@ -114,6 +126,20 @@ function requestSpecificLimit(
   method: string,
   pathname: string,
 ): RateLimitOptions | null {
+  if (
+    (method === "PUT" &&
+      pathname.startsWith("/api/community/exchange/uploads/")) ||
+    (method === "POST" && pathname === "/api/community/exchange/cards")
+  ) {
+    return FUDABA_UPLOAD_ATTEMPT_LIMIT;
+  }
+  if (
+    ["POST", "PUT", "DELETE"].includes(method) &&
+    (pathname === "/api/platform/me" ||
+      pathname.startsWith("/api/community/exchange/"))
+  ) {
+    return FUDABA_WRITE_ATTEMPT_LIMIT;
+  }
   if (
     method === "POST" &&
     pathname === "/api/platform/auth/refresh"

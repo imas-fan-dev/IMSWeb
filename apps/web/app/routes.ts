@@ -15,6 +15,10 @@ const publicRoutes = [
     file: "pages/community/exchange/community-exchange-page.tsx",
   },
   {
+    path: "community/exchange/me",
+    file: "pages/community/exchange/me/community-exchange-me-page.tsx",
+  },
+  {
     path: "community/exchange/offices/:officeSlug",
     file: "pages/community/exchange/community-office-page.tsx",
   },

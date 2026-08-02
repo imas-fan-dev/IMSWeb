@@ -1,23 +1,27 @@
 import { z } from "zod"
 
 import { platformApiClient } from "../platform-client"
-import { withPlatformAuth } from "../types"
+import { withPlatformAuth, withPlatformCsrf } from "../types"
 
 const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
 const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i)
 const publicMediaUrlSchema = z.string().trim().min(1)
 const timestampSchema = z.string().datetime({ offset: true })
 
-export const fudabaSeriesSchema = z.object({
-  code: seriesCodeSchema,
-  displayName: z.string().trim().min(1),
-  displayOrder: z.number().int().nonnegative(),
-  activeOfficeCount: z.number().int().nonnegative(),
-})
+export const fudabaSeriesSchema = z
+  .object({
+    code: seriesCodeSchema,
+    displayName: z.string().trim().min(1),
+    displayOrder: z.number().int().nonnegative(),
+    activeOfficeCount: z.number().int().nonnegative(),
+  })
+  .strict()
 
-export const fudabaSeriesListSchema = z.object({
-  items: z.array(fudabaSeriesSchema),
-})
+export const fudabaSeriesListSchema = z
+  .object({
+    items: z.array(fudabaSeriesSchema),
+  })
+  .strict()
 
 export const fudabaOfficeSchema = z.object({
   id: z.string().min(1),
@@ -100,7 +104,127 @@ export const fudabaOfficeDetailSchema = z.object({
   }),
 })
 
+function hasAsciiControl(value: string) {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0)
+    return code <= 31 || code === 127
+  })
+}
+
+const ownerCardIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine(
+    (value) =>
+      !hasAsciiControl(value) && !value.includes("/") && !value.includes("\\")
+  )
+
+const ownerCardTextSchema = (maximum: number, required = false) =>
+  z
+    .string()
+    .trim()
+    .min(required ? 1 : 0)
+    .max(maximum)
+    .refine((value) => !hasAsciiControl(value))
+
+const fudabaRevisionSchema = z.number().int().safe().nonnegative()
+
+const fileSchema = z.custom<File>(
+  (value) => typeof File !== "undefined" && value instanceof File,
+  "image must be a File"
+)
+
+export const fudabaOwnerCardSchema = z
+  .object({
+    id: ownerCardIdSchema,
+    producerName: ownerCardTextSchema(80, true),
+    displayName: ownerCardTextSchema(120, true),
+    seriesCode: seriesCodeSchema.max(64),
+    favoriteIdol: ownerCardTextSchema(200),
+    frontImageUrl: publicMediaUrlSchema,
+    backImageUrl: publicMediaUrlSchema,
+    accent: accentSchema,
+    bio: ownerCardTextSchema(2000),
+    tradeNote: ownerCardTextSchema(1000),
+    available: z.boolean(),
+    mediaRightsStatus: z.enum(["unknown", "approved", "denied"]),
+    publicationStatus: z.enum([
+      "draft",
+      "pending",
+      "published",
+      "hidden",
+      "rejected",
+    ]),
+    revision: fudabaRevisionSchema,
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+  })
+  .strict()
+
+export const fudabaOwnerCardListSchema = z
+  .object({
+    items: z.array(fudabaOwnerCardSchema),
+  })
+  .strict()
+
+export const fudabaOwnerCardDetailSchema = z
+  .object({
+    card: fudabaOwnerCardSchema,
+  })
+  .strict()
+
+export const fudabaCardMutationResponseSchema = z
+  .object({
+    success: z.literal(true),
+    card: fudabaOwnerCardSchema,
+  })
+  .strict()
+
+export const fudabaCardDeleteResponseSchema = z
+  .object({
+    success: z.literal(true),
+    revision: fudabaRevisionSchema,
+  })
+  .strict()
+
+export const fudabaCardFieldsSchema = z
+  .object({
+    producerName: ownerCardTextSchema(80, true),
+    displayName: ownerCardTextSchema(120, true),
+    seriesCode: seriesCodeSchema.max(64),
+    favoriteIdol: ownerCardTextSchema(200),
+    accent: accentSchema,
+    bio: ownerCardTextSchema(2000),
+    tradeNote: ownerCardTextSchema(1000),
+    available: z.boolean(),
+  })
+  .strict()
+
+export const fudabaCardCreateSchema = fudabaCardFieldsSchema
+  .extend({
+    front: fileSchema,
+    back: fileSchema,
+  })
+  .strict()
+
+export const fudabaCardUpdateSchema = fudabaCardFieldsSchema
+  .extend({
+    expectedRevision: fudabaRevisionSchema,
+  })
+  .strict()
+
+export const fudabaCardMediaUploadSchema = z
+  .object({
+    cardId: ownerCardIdSchema,
+    side: z.enum(["front", "back"]),
+    image: fileSchema,
+    expectedRevision: fudabaRevisionSchema,
+  })
+  .strict()
+
 export type FudabaSeries = z.infer<typeof fudabaSeriesSchema>
+export type FudabaSeriesList = z.infer<typeof fudabaSeriesListSchema>
 export type FudabaOffice = z.infer<typeof fudabaOfficeSchema>
 export type FudabaCard = z.infer<typeof fudabaCardSchema>
 export type FudabaPlacedCard = z.infer<typeof fudabaPlacedCardSchema>
@@ -109,6 +233,21 @@ export type FudabaCardPage = z.infer<typeof fudabaCardPageSchema>
 export type FudabaOfficeDetail = z.infer<
   typeof fudabaOfficeDetailSchema
 >["office"]
+export type FudabaOwnerCard = z.infer<typeof fudabaOwnerCardSchema>
+export type FudabaOwnerCardList = z.infer<typeof fudabaOwnerCardListSchema>
+export type FudabaOwnerCardDetail = z.infer<typeof fudabaOwnerCardDetailSchema>
+export type FudabaCardMutationResponse = z.infer<
+  typeof fudabaCardMutationResponseSchema
+>
+export type FudabaCardDeleteResponse = z.infer<
+  typeof fudabaCardDeleteResponseSchema
+>
+export type FudabaCardFields = z.input<typeof fudabaCardFieldsSchema>
+export type CreateFudabaCardInput = z.input<typeof fudabaCardCreateSchema>
+export type UpdateFudabaCardInput = z.input<typeof fudabaCardUpdateSchema>
+export type FudabaCardMediaSide = z.infer<
+  typeof fudabaCardMediaUploadSchema
+>["side"]
 
 export interface FudabaOfficePageRequest {
   city?: string
@@ -166,6 +305,16 @@ export function getFudabaSeries() {
   )
 }
 
+export function getFudabaOwnerSeries() {
+  return platformApiClient.Get<FudabaSeriesList, unknown>(
+    "/api/community/exchange/me/series",
+    {
+      meta: withPlatformAuth(),
+      transform: (payload) => fudabaSeriesListSchema.parse(payload),
+    }
+  )
+}
+
 export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
   return platformApiClient.Get<FudabaOfficePage, unknown>(
     "/api/community/exchange/offices",
@@ -194,6 +343,103 @@ export function getFudabaCardPage(input: FudabaCardPageRequest = {}) {
       meta: withPlatformAuth(),
       params: cardPageParams(input),
       transform: (payload) => fudabaCardPageSchema.parse(payload),
+    }
+  )
+}
+
+export function getFudabaOwnerCards() {
+  return platformApiClient.Get<FudabaOwnerCardList, unknown>(
+    "/api/community/exchange/me/cards",
+    {
+      meta: withPlatformAuth(),
+      transform: (payload) => fudabaOwnerCardListSchema.parse(payload),
+    }
+  )
+}
+
+export function getFudabaOwnerCard(cardId: string) {
+  return platformApiClient.Get<FudabaOwnerCardDetail, unknown>(
+    `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
+    {
+      meta: withPlatformAuth(),
+      transform: (payload) => fudabaOwnerCardDetailSchema.parse(payload),
+    }
+  )
+}
+
+function appendCardFields(form: FormData, fields: FudabaCardFields) {
+  form.append("producerName", fields.producerName)
+  form.append("displayName", fields.displayName)
+  form.append("seriesCode", fields.seriesCode)
+  form.append("favoriteIdol", fields.favoriteIdol)
+  form.append("accent", fields.accent)
+  form.append("bio", fields.bio)
+  form.append("tradeNote", fields.tradeNote)
+  form.append("available", String(fields.available))
+}
+
+export function createFudabaCard(input: CreateFudabaCardInput) {
+  const { front, back, ...fields } = fudabaCardCreateSchema.parse(input)
+  const form = new FormData()
+  appendCardFields(form, fields)
+  form.append("front", front)
+  form.append("back", back)
+  return platformApiClient.Post<FudabaCardMutationResponse, unknown>(
+    "/api/community/exchange/cards",
+    form,
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) => fudabaCardMutationResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function updateFudabaCard(cardId: string, input: UpdateFudabaCardInput) {
+  const submission = fudabaCardUpdateSchema.parse(input)
+  return platformApiClient.Put<FudabaCardMutationResponse, unknown>(
+    `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
+    submission,
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) => fudabaCardMutationResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function uploadFudabaCardMedia(
+  cardId: string,
+  side: FudabaCardMediaSide,
+  image: File,
+  expectedRevision: number
+) {
+  const upload = fudabaCardMediaUploadSchema.parse({
+    cardId,
+    side,
+    image,
+    expectedRevision,
+  })
+  const form = new FormData()
+  form.append("image", upload.image)
+  form.append("cardId", upload.cardId)
+  form.append("expectedRevision", String(upload.expectedRevision))
+  return platformApiClient.Put<FudabaCardMutationResponse, unknown>(
+    `/api/community/exchange/uploads/${upload.side}`,
+    form,
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) => fudabaCardMutationResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function deleteFudabaCard(cardId: string, expectedRevision: number) {
+  const revision = fudabaRevisionSchema.parse(expectedRevision)
+  return platformApiClient.Delete<FudabaCardDeleteResponse, unknown>(
+    `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
+    { expectedRevision: revision },
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) => fudabaCardDeleteResponseSchema.parse(payload),
     }
   )
 }

@@ -118,6 +118,8 @@ test('[FRT-02] real prerendered documents and selective SPA routes use build/cli
         '/information/info-example-001',
         '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
         '/chronicle/activity-1/',
+        '/community/exchange/me',
+        '/community/exchange/me/',
         '/community/exchange/offices/shanghai-weekend',
         '/community/exchange/offices/shanghai-weekend/'
     ]) {
@@ -188,6 +190,7 @@ test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', asy
         '/community/exchange/offices/one%2Ftwo',
         '/community/exchange/offices/one%5Ctwo',
         '/community/exchange/offices//',
+        '/community/exchange/me/extra',
         '/chro%6Eicle/activity-1',
         '/admin%2Flogin',
         '/ad%6Din/login',
@@ -223,6 +226,7 @@ test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', asy
         '/recommendations',
         '/information/info-example-001',
         '/chronicle/activity-1',
+        '/community/exchange/me',
         '/community/exchange/offices/shanghai-weekend'
     ]) {
         assert.deepEqual(

@@ -114,6 +114,31 @@ export interface NewPlatformAccountInput {
     };
 }
 
+export interface UpdatePlatformProfileTextInput {
+    accountId: string;
+    displayName: string;
+    homeCity: string | null;
+    bio: string;
+    expectedUpdatedAt: number;
+    updatedAt: number;
+}
+
+export interface UpdatePlatformProfileAvatarInput {
+    accountId: string;
+    avatarObjectKey: string | null;
+    expectedUpdatedAt: number;
+    updatedAt: number;
+}
+
+export type PlatformProfileSaveResult =
+    | {
+        status: 'saved';
+        profile: PlatformProfileRecord;
+        previousAvatarObjectKey: string | null;
+    }
+    | { status: 'conflict'; updatedAt: number }
+    | { status: 'unavailable' };
+
 export interface PlatformRefreshSessionRecord {
     id: string;
     account_id: string;
@@ -160,6 +185,12 @@ export interface PlatformAccountRepository {
     ): Promise<PlatformAccountWithProfile>;
     findAccountById(id: string): Promise<PlatformAccountRecord | null>;
     findAccountWithProfileById(id: string): Promise<PlatformAccountWithProfile | null>;
+    updateProfileTextForOwner(
+        input: UpdatePlatformProfileTextInput
+    ): Promise<PlatformProfileSaveResult>;
+    updateProfileAvatarForOwner(
+        input: UpdatePlatformProfileAvatarInput
+    ): Promise<PlatformProfileSaveResult>;
     createRefreshSession(input: NewPlatformRefreshSessionInput): Promise<void>;
     findRefreshSessionById(id: string): Promise<PlatformRefreshSessionRecord | null>;
     findRefreshSessionByTokenHash(
@@ -302,6 +333,63 @@ export interface NewFudabaCardInput {
     updatedAt: string;
     deletedAt: string | null;
 }
+
+export interface CreateOwnedFudabaCardInput {
+    id: string;
+    ownerAccountId: string;
+    producerName: string;
+    displayName: string;
+    seriesCode: string;
+    favoriteIdol: string;
+    frontObjectKey: string;
+    backObjectKey: string;
+    accent: string;
+    bio: string;
+    tradeNote: string;
+    available: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface UpdateOwnedFudabaCardMetadataInput {
+    cardId: string;
+    ownerAccountId: string;
+    producerName: string;
+    displayName: string;
+    seriesCode: string;
+    favoriteIdol: string;
+    accent: string;
+    bio: string;
+    tradeNote: string;
+    available: boolean;
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+export interface UpdateOwnedFudabaCardMediaInput {
+    cardId: string;
+    ownerAccountId: string;
+    side: 'front' | 'back';
+    objectKey: string;
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+export interface SoftDeleteOwnedFudabaCardInput {
+    cardId: string;
+    ownerAccountId: string;
+    expectedRevision: number;
+    deletedAt: string;
+}
+
+export type FudabaCardMutationResult =
+    | {
+        status: 'saved';
+        card: FudabaCardRecord;
+        previousObjectKey: string | null;
+    }
+    | { status: 'conflict'; revision: number }
+    | { status: 'unavailable' };
 
 export interface FudabaExchangeRequestRecord {
     id: string;
@@ -453,6 +541,23 @@ export interface FudabaRepository {
     }): Promise<boolean>;
     createCard(input: NewFudabaCardInput): Promise<FudabaCardRecord>;
     findCardById(id: string): Promise<FudabaCardRecord | null>;
+    listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]>;
+    findCardForOwner(
+        cardId: string,
+        ownerAccountId: string
+    ): Promise<FudabaCardRecord | null>;
+    createCardForOwner(
+        input: CreateOwnedFudabaCardInput
+    ): Promise<FudabaCardMutationResult>;
+    updateCardMetadataForOwner(
+        input: UpdateOwnedFudabaCardMetadataInput
+    ): Promise<FudabaCardMutationResult>;
+    updateCardMediaForOwner(
+        input: UpdateOwnedFudabaCardMediaInput
+    ): Promise<FudabaCardMutationResult>;
+    softDeleteCardForOwner(
+        input: SoftDeleteOwnedFudabaCardInput
+    ): Promise<FudabaCardMutationResult>;
     placeOwnedCard(input: {
         officeId: string;
         cardId: string;

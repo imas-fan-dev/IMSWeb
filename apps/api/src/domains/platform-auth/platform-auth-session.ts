@@ -147,7 +147,7 @@ export async function platformSessionPayload(
     if (!avatarUrl && profile.avatar_object_key) {
         avatarUrl = await services(c).storage?.createPublicReadUrl?.(
             profile.avatar_object_key
-        ) ?? null;
+        ) ?? '/api/platform/me/avatar';
     }
     return {
         success: true,

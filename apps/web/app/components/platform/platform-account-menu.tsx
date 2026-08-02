@@ -1,16 +1,18 @@
 import {
   CircleAlertIcon,
+  CreditCardIcon,
   CircleUserRoundIcon,
   LoaderCircleIcon,
   LogOutIcon,
   RefreshCwIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
+import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Popover,
   PopoverContent,
@@ -133,6 +135,17 @@ export function PlatformAccountMenu() {
                 )}
               </div>
             </div>
+            <Link
+              to="/community/exchange/me"
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "w-full",
+              })}
+            >
+              <CreditCardIcon data-icon="inline-start" aria-hidden="true" />
+              {t("platformAccount.myCards")}
+            </Link>
             <Button
               type="button"
               variant="outline"

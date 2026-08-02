@@ -94,6 +94,14 @@ export function fudabaAccountAvatarObjectKey(
         `avatar.${fudabaImageExtension(extension)}`;
 }
 
+export function fudabaAccountAvatarVersionObjectKey(
+    accountId: string,
+    version: string
+): string {
+    return `community/fudaba/accounts/${fudabaEntitySegment(accountId)}/` +
+        `avatars/${fudabaEntitySegment(version)}.webp`;
+}
+
 export function fudabaOfficeCoverObjectKey(
     officeId: string,
     extension: string
@@ -116,6 +124,15 @@ export function fudabaCardBackObjectKey(
 ): string {
     return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
         `back.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaCardSideVersionObjectKey(
+    cardId: string,
+    side: 'front' | 'back',
+    version: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `versions/${fudabaEntitySegment(version)}/${side}.webp`;
 }
 
 export function publicMediaObjectKey(value: string): string {

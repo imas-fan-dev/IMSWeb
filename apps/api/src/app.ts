@@ -29,6 +29,7 @@ import { registerNamecardRoutes } from '@/domains/namecards/routes';
 import { registerNewsRoutes } from '@/domains/news/routes';
 import { registerProducerMapRoutes } from '@/domains/producer-map/routes';
 import { registerPlatformAuthRoutes } from '@/domains/platform-auth/routes';
+import { registerPlatformProfileRoutes } from '@/domains/platform-profile/routes';
 import { registerReactionRoutes } from '@/domains/reactions/routes';
 import { registerSiteRoutes } from '@/domains/site/routes';
 import { registerSitePackageRoutes } from '@/domains/site-packages/routes';
@@ -152,6 +153,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     registerBrandAssetRoutes(app);
     registerBackofficeAuthRoutes(app);
     registerPlatformAuthRoutes(app);
+    registerPlatformProfileRoutes(app);
     registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);

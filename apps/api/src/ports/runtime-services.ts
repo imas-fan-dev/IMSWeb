@@ -11,6 +11,7 @@ export interface NodeRuntimeConfig {
     sitePackageMaxUploadBytes: number;
     clientAddressSource: 'direct' | 'nginx';
     fudabaPublicReadEnabled: boolean;
+    fudabaWriteEnabled: boolean;
 }
 
 export interface RuntimeHealth {

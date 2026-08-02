@@ -1,11 +1,21 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  createFudabaCard,
+  deleteFudabaCard,
   fudabaCardPageSchema,
+  fudabaCardUpdateSchema,
   fudabaOfficeDetailSchema,
   fudabaOfficePageSchema,
+  fudabaOwnerCardListSchema,
   fudabaSeriesListSchema,
+  getFudabaOwnerCard,
+  getFudabaOwnerCards,
+  getFudabaOwnerSeries,
+  updateFudabaCard,
+  uploadFudabaCardMedia,
 } from "~/lib/api/endpoints/fudaba"
+import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
 const card = {
   id: "card-1",
@@ -41,6 +51,41 @@ const office = {
   visitorCount: 12,
   seriesCodes: ["765as", "cinderella"],
 }
+
+const ownerCard = {
+  id: "owner-card",
+  producerName: "春香P",
+  displayName: "交换会用名片",
+  seriesCode: "765as",
+  favoriteIdol: "天海春香",
+  frontImageUrl: "/api/community/exchange/me/cards/owner-card/media/front?v=1",
+  backImageUrl: "/api/community/exchange/me/cards/owner-card/media/back?v=1",
+  accent: "#f34e6c",
+  bio: "周末参加线下活动",
+  tradeNote: "希望交换同系列名片",
+  available: true,
+  mediaRightsStatus: "unknown" as const,
+  publicationStatus: "pending" as const,
+  revision: 1,
+  createdAt: "2026-08-02T08:00:00.000Z",
+  updatedAt: "2026-08-02T08:00:00.000Z",
+}
+
+const cardFields = {
+  producerName: "春香P",
+  displayName: "交换会用名片",
+  seriesCode: "765as",
+  favoriteIdol: "天海春香",
+  accent: "#f34e6c",
+  bio: "周末参加线下活动",
+  tradeNote: "希望交换同系列名片",
+  available: true,
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
+})
 
 describe("Fudaba Web API contracts", () => {
   it("accepts the public discovery responses", () => {
@@ -136,5 +181,144 @@ describe("Fudaba Web API contracts", () => {
         pageInfo: { hasNextPage: true, nextCursor: null },
       })
     ).toThrow(/pagination state is inconsistent/)
+  })
+
+  it("accepts only the exact owner card projection and mutation fields", () => {
+    expect(
+      fudabaOwnerCardListSchema.parse({ items: [ownerCard] }).items[0]
+        ?.publicationStatus
+    ).toBe("pending")
+
+    expect(() =>
+      fudabaOwnerCardListSchema.parse({
+        items: [{ ...ownerCard, frontObjectKey: "protected/front.webp" }],
+      })
+    ).toThrow()
+    expect(() =>
+      fudabaCardUpdateSchema.parse({
+        ...cardFields,
+        expectedRevision: 1,
+        publicationStatus: "published",
+      })
+    ).toThrow()
+  })
+
+  it("uses authenticated owner reads and URL-encodes card IDs", async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const encodedCardId = "owner%20card%3F%23"
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const pathname = new URL(String(input), "http://ims.test").pathname
+        requests.push({ url: pathname, init })
+        if (pathname.endsWith("/me/series")) {
+          return Response.json({
+            items: [
+              {
+                code: "765as",
+                displayName: "本家 / 765AS",
+                displayOrder: 0,
+                activeOfficeCount: 1,
+              },
+            ],
+          })
+        }
+        if (pathname.endsWith("/me/cards")) {
+          return Response.json({ items: [ownerCard] })
+        }
+        if (pathname.endsWith(`/${encodedCardId}`)) {
+          return Response.json({
+            card: { ...ownerCard, id: "owner card?#" },
+          })
+        }
+        throw new Error(`Unexpected request: ${pathname}`)
+      })
+    )
+
+    await expect(getFudabaOwnerSeries().send()).resolves.toMatchObject({
+      items: [{ code: "765as" }],
+    })
+    await expect(getFudabaOwnerCards().send()).resolves.toMatchObject({
+      items: [{ id: "owner-card" }],
+    })
+    await expect(
+      getFudabaOwnerCard("owner card?#").send()
+    ).resolves.toMatchObject({ card: { id: "owner card?#" } })
+
+    expect(requests.map(({ url, init }) => [url, init?.method])).toEqual([
+      ["/api/community/exchange/me/series", "GET"],
+      ["/api/community/exchange/me/cards", "GET"],
+      [`/api/community/exchange/me/cards/${encodedCardId}`, "GET"],
+    ])
+    for (const request of requests) {
+      expect(
+        new Headers(request.init?.headers).get(CSRF_HEADER_NAME)
+      ).toBeNull()
+    }
+  })
+
+  it("uses strict JSON and multipart bodies with Platform CSRF for writes", async () => {
+    document.cookie = "ims_platform_csrf=owner-write-csrf; path=/"
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const pathname = new URL(String(input), "http://ims.test").pathname
+        requests.push({ url: pathname, init })
+        if (init?.method === "DELETE") {
+          return Response.json({ success: true, revision: 2 })
+        }
+        return Response.json({ success: true, card: ownerCard })
+      })
+    )
+    const front = new File(["front"], "front.png", { type: "image/png" })
+    const back = new File(["back"], "back.png", { type: "image/png" })
+    const replacement = new File(["next"], "next.png", {
+      type: "image/png",
+    })
+
+    await createFudabaCard({ ...cardFields, front, back }).send()
+    await updateFudabaCard("owner card?#", {
+      ...cardFields,
+      displayName: "  Updated card  ",
+      expectedRevision: 1,
+    }).send()
+    await uploadFudabaCardMedia("owner card?#", "front", replacement, 1).send()
+    await deleteFudabaCard("owner card?#", 1).send()
+
+    expect(requests.map(({ url, init }) => [url, init?.method])).toEqual([
+      ["/api/community/exchange/cards", "POST"],
+      ["/api/community/exchange/me/cards/owner%20card%3F%23", "PUT"],
+      ["/api/community/exchange/uploads/front", "PUT"],
+      ["/api/community/exchange/me/cards/owner%20card%3F%23", "DELETE"],
+    ])
+    for (const request of requests) {
+      expect(new Headers(request.init?.headers).get(CSRF_HEADER_NAME)).toBe(
+        "owner-write-csrf"
+      )
+    }
+
+    expect(requests[0]?.init?.body).toBeInstanceOf(FormData)
+    const create = requests[0]?.init?.body as FormData
+    expect(create.get("front")).toBe(front)
+    expect(create.get("back")).toBe(back)
+    expect(create.get("available")).toBe("true")
+    expect(create.get("displayName")).toBe(cardFields.displayName)
+
+    expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
+      ...cardFields,
+      displayName: "Updated card",
+      expectedRevision: 1,
+    })
+
+    expect(requests[2]?.init?.body).toBeInstanceOf(FormData)
+    const media = requests[2]?.init?.body as FormData
+    expect(media.get("image")).toBe(replacement)
+    expect(media.get("cardId")).toBe("owner card?#")
+    expect(media.get("expectedRevision")).toBe("1")
+
+    expect(JSON.parse(String(requests[3]?.init?.body))).toEqual({
+      expectedRevision: 1,
+    })
   })
 })

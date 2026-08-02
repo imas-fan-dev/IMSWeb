@@ -371,7 +371,23 @@ forward migration 增加审核后的公开位置或明确坐标模糊化规则�
 固定写为 `draft`、媒体固定写为 `ready/private`，所以仅开启 read flag 不会公开迁移内容；只有完成
 逐项授权、发布和 reconciliation 后才能开放。
 
-### 7.3 Web 路由
+### 7.3 Platform 资料与名片写合同
+
+帐号资料与名片管理不能依赖公开读取开关。`GET /api/platform/me` 和本人名片读取要求有效的
+Platform session；`PUT /api/platform/me`、名片 mutation 和
+`PUT /api/community/exchange/uploads/:side` 还要求 `active` 帐号、Platform CSRF、IP/帐号双维度
+限流以及 `IMS_FUDABA_WRITE_ENABLED=true`。`restricted` 帐号可以继续读取，但不能写入。
+
+`POST /api/community/exchange/cards` 使用一个 multipart 请求作为事务边界：只接收一张 `front`、
+一张 `back` 和名片字段，依次校验扩展名、声明 MIME 与解码内容，转换为 WebP 并写入受保护对象，
+然后创建 owner-scoped 记录。`uploads/:side` 只允许 `avatar`、`front`、`back`，并在同一请求内使用
+`expectedUpdatedAt` 或 `expectedRevision` 替换已有资源；它不是通用预上传或 raw object key 认领接口。
+
+运行期替换始终生成唯一 object key。owner/CAS 写入失败时只能删除本请求创建的对象；成功时先提交
+数据库引用，再通过补偿机制删除旧对象。客户端不得提交 owner ID、逻辑 object key、来源证明、授权
+状态、发布状态或服务端时间；用户新建或修改的名片固定进入 `pending/unknown`，等待 Backoffice 审核。
+
+### 7.4 Web 路由
 
 | 目标路径 | 页面责任 |
 | --- | --- |
@@ -468,9 +484,10 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
 14. `feat(api): add fudaba profile card and upload workflows`
     - profile、名片 CRUD、front/back/avatar 上传、owner 条件写、MIME sniff 和对象补偿。
 15. `feat(web): add producer profile and card workflows`
-    - 平台资料、我的名片、上传/编辑、墙面放置与响应式 QA。
+    - 平台资料、我的名片、上传/编辑、冲突恢复与响应式 QA；
+    - 墙面放置依赖事务所 owner API、归档阻断和 CAS，因此纳入下一提交，不在 Web 层伪造。
 16. `feat(api): add fudaba office and message workflows`
-    - 创建/更新/归档/恢复、封面、系列标签、留言、地点搜索代理与限流。
+    - 创建/更新/归档/恢复、封面、系列标签、名片放置/移动/移除、留言、地点搜索代理与限流。
 17. `feat(api): add fudaba interactions and exchange state machine`
     - like/favorite、请求创建、接受/拒绝/取消、幂等与并发 fencing；
     - 联系方式只在双方确认后按隐私合同披露。

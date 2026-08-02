@@ -30,6 +30,7 @@ import {
 import {
     parseClientAddressSource,
     parseFudabaPublicReadEnabled,
+    parseFudabaWriteEnabled,
     parseStoryMaxUploadBytes
 } from '@/config/env';
 import { parseNodeDatabaseConfig } from '@/config/database';
@@ -117,6 +118,16 @@ test('Fudaba public reads require an explicit boolean feature flag', () => {
     assert.throws(
         () => parseFudabaPublicReadEnabled('enabled'),
         /IMS_FUDABA_PUBLIC_READ_ENABLED must be true or false/
+    );
+});
+
+test('Fudaba writes use an independent explicit boolean feature flag', () => {
+    assert.equal(parseFudabaWriteEnabled(undefined), false);
+    assert.equal(parseFudabaWriteEnabled(' yes '), true);
+    assert.equal(parseFudabaWriteEnabled('off'), false);
+    assert.throws(
+        () => parseFudabaWriteEnabled('enabled'),
+        /IMS_FUDABA_WRITE_ENABLED must be true or false/
     );
 });
 

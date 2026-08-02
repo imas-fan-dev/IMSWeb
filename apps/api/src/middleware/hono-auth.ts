@@ -222,11 +222,25 @@ export async function protectPlatformCsrf(
         : null;
     const storedHash = session?.csrf_hash;
     if (
+        !claims || !session || session.account_id !== claims.id ||
+        session.revoked_at !== null || session.expires_at <= Date.now() ||
         !constantTimeEqual(header, cookie) ||
         !constantTimeEqual(header, claims?.csrfSecret) ||
         !constantTimeEqual(await hashPlatformAuthSecret(header), storedHash)
     ) {
         return c.json({ success: false, code: 'PLATFORM_CSRF_INVALID' }, 403);
+    }
+    await next();
+}
+
+export async function requireActivePlatformMutation(
+    c: Context<AppEnvironment>,
+    next: Next
+): Promise<Response | void> {
+    const account = c.get('platformAccount')?.account;
+    if (!account) return invalidPlatformSession(c);
+    if (account.status !== 'active') {
+        return c.json({ success: false, code: 'PLATFORM_ACCOUNT_RESTRICTED' }, 403);
     }
     await next();
 }
@@ -239,3 +253,5 @@ export const opOnly: MiddlewareHandler<AppEnvironment> = requireOp;
 export const superAdminOnly: MiddlewareHandler<AppEnvironment> = requireSuperAdmin;
 export const backofficeCsrf: MiddlewareHandler<AppEnvironment> = protectBackofficeCsrf;
 export const platformCsrf: MiddlewareHandler<AppEnvironment> = protectPlatformCsrf;
+export const activePlatformMutation: MiddlewareHandler<AppEnvironment> =
+    requireActivePlatformMutation;

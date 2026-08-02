@@ -34,6 +34,7 @@ import {
     CLIENT_ADDRESS_SOURCE,
     COOKIE_OPTIONS,
     FUDABA_PUBLIC_READ_ENABLED,
+    FUDABA_WRITE_ENABLED,
     IS_PRODUCTION,
     LEGACY_BACKOFFICE_JWT_SECRET,
     PLATFORM_JWT_SECRET,
@@ -315,7 +316,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 storyMaxUploadBytes: STORY_MAX_UPLOAD_BYTES,
                 sitePackageMaxUploadBytes: SITE_PACKAGE_MAX_UPLOAD_BYTES,
                 clientAddressSource: CLIENT_ADDRESS_SOURCE,
-                fudabaPublicReadEnabled: FUDABA_PUBLIC_READ_ENABLED
+                fudabaPublicReadEnabled: FUDABA_PUBLIC_READ_ENABLED,
+                fudabaWriteEnabled: FUDABA_WRITE_ENABLED
             }
         };
     } catch (error) {

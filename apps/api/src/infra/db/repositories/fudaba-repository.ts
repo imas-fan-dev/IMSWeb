@@ -1,5 +1,7 @@
 import type {
+    CreateOwnedFudabaCardInput,
     FudabaCardRecord,
+    FudabaCardMutationResult,
     FudabaExchangeRequestRecord,
     FudabaModerationCaseRecord,
     FudabaOfficeRecord,
@@ -13,7 +15,10 @@ import type {
     ListFudabaPublicOfficesInput,
     NewFudabaCardInput,
     NewFudabaModerationCaseInput,
-    NewFudabaOfficeInput
+    NewFudabaOfficeInput,
+    SoftDeleteOwnedFudabaCardInput,
+    UpdateOwnedFudabaCardMediaInput,
+    UpdateOwnedFudabaCardMetadataInput
 } from '@/ports/repositories';
 import type {
     ManagedSqlDatabase,
@@ -633,6 +638,254 @@ export class SqlFudabaRepository implements FudabaRepository {
             [id]
         );
         return row ? cardRecord(row) : null;
+    }
+
+    async listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]> {
+        const rows = await queryAll<FudabaCardRow>(
+            this.database,
+            `SELECT ${CARD_COLUMNS}
+             FROM fudaba_cards
+             WHERE owner_account_id=? AND deleted_at IS NULL
+             ORDER BY created_at DESC, id DESC`,
+            [ownerAccountId]
+        );
+        return rows.map(cardRecord);
+    }
+
+    async findCardForOwner(
+        cardId: string,
+        ownerAccountId: string
+    ): Promise<FudabaCardRecord | null> {
+        const row = await queryOne<FudabaCardRow>(
+            this.database,
+            `SELECT ${CARD_COLUMNS}
+             FROM fudaba_cards
+             WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
+            [cardId, ownerAccountId]
+        );
+        return row ? cardRecord(row) : null;
+    }
+
+    private async findActiveCardForOwner(
+        cardId: string,
+        ownerAccountId: string
+    ): Promise<FudabaCardRecord | null> {
+        const row = await queryOne<FudabaCardRow>(
+            this.database,
+            `SELECT ${CARD_COLUMNS}
+             FROM fudaba_cards
+             WHERE id=? AND owner_account_id=? AND deleted_at IS NULL
+               AND EXISTS (
+                   SELECT 1 FROM platform_accounts account
+                   WHERE account.id=fudaba_cards.owner_account_id
+                     AND account.status='active' AND account.deleted_at IS NULL
+               )`,
+            [cardId, ownerAccountId]
+        );
+        return row ? cardRecord(row) : null;
+    }
+
+    private cardWriteFailure(
+        current: FudabaCardRecord | null,
+        expectedRevision: number
+    ): FudabaCardMutationResult {
+        if (!current) return { status: 'unavailable' };
+        if (current.revision !== expectedRevision) {
+            return { status: 'conflict', revision: current.revision };
+        }
+        return { status: 'unavailable' };
+    }
+
+    private savedCardResult(
+        row: FudabaCardRow,
+        previousObjectKey: string | null
+    ): FudabaCardMutationResult {
+        return {
+            status: 'saved',
+            card: cardRecord(row),
+            previousObjectKey
+        };
+    }
+
+    createCardForOwner(
+        input: CreateOwnedFudabaCardInput
+    ): Promise<FudabaCardMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await this.database.prepare(
+                `INSERT INTO fudaba_cards
+                    (id, owner_account_id, producer_name, display_name,
+                     series_code, favorite_idol, front_object_key, back_object_key,
+                     accent, bio, trade_note, available, source_url, source_label,
+                     source_credit, media_rights_status, publication_status,
+                     revision, created_at, updated_at, deleted_at)
+                 SELECT ?, account.id, ?, ?, series.code, ?, ?, ?, ?, ?, ?, ?,
+                        NULL, NULL, NULL, 'unknown', 'pending', 0, ?, ?, NULL
+                 FROM platform_accounts account
+                 JOIN fudaba_series_tags series
+                   ON series.code=? AND series.enabled=?
+                 WHERE account.id=? AND account.status='active'
+                   AND account.deleted_at IS NULL
+                 ON CONFLICT(id) DO NOTHING
+                 RETURNING ${CARD_COLUMNS}`
+            ).bind(
+                input.id,
+                input.producerName,
+                input.displayName,
+                input.favoriteIdol,
+                input.frontObjectKey,
+                input.backObjectKey,
+                input.accent,
+                input.bio,
+                input.tradeNote,
+                this.bindBoolean(input.available),
+                input.createdAt,
+                input.updatedAt,
+                input.seriesCode,
+                this.bindBoolean(true),
+                input.ownerAccountId
+            ).run<FudabaCardRow>();
+            const saved = result.results[0];
+            return saved
+                ? this.savedCardResult(saved, null)
+                : { status: 'unavailable' };
+        });
+    }
+
+    updateCardMetadataForOwner(
+        input: UpdateOwnedFudabaCardMetadataInput
+    ): Promise<FudabaCardMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await this.database.prepare(
+                `UPDATE fudaba_cards
+                 SET producer_name=?, display_name=?, series_code=?, favorite_idol=?,
+                     accent=?, bio=?, trade_note=?, available=?,
+                     media_rights_status='unknown', publication_status='pending',
+                     revision=revision+1, updated_at=?
+                 WHERE id=? AND owner_account_id=? AND revision=?
+                   AND deleted_at IS NULL
+                   AND EXISTS (
+                       SELECT 1 FROM platform_accounts account
+                       WHERE account.id=fudaba_cards.owner_account_id
+                         AND account.status='active' AND account.deleted_at IS NULL
+                   )
+                   AND EXISTS (
+                       SELECT 1 FROM fudaba_series_tags series
+                       WHERE series.code=? AND series.enabled=?
+                   )
+                 RETURNING ${CARD_COLUMNS}`
+            ).bind(
+                input.producerName,
+                input.displayName,
+                input.seriesCode,
+                input.favoriteIdol,
+                input.accent,
+                input.bio,
+                input.tradeNote,
+                this.bindBoolean(input.available),
+                input.updatedAt,
+                input.cardId,
+                input.ownerAccountId,
+                input.expectedRevision,
+                input.seriesCode,
+                this.bindBoolean(true)
+            ).run<FudabaCardRow>();
+            const saved = result.results[0];
+            if (saved) return this.savedCardResult(saved, null);
+            return this.cardWriteFailure(
+                await this.findActiveCardForOwner(
+                    input.cardId,
+                    input.ownerAccountId
+                ),
+                input.expectedRevision
+            );
+        });
+    }
+
+    updateCardMediaForOwner(
+        input: UpdateOwnedFudabaCardMediaInput
+    ): Promise<FudabaCardMutationResult> {
+        return this.serializeWrite(async () => {
+            const current = await this.findActiveCardForOwner(
+                input.cardId,
+                input.ownerAccountId
+            );
+            if (!current || current.revision !== input.expectedRevision) {
+                return this.cardWriteFailure(current, input.expectedRevision);
+            }
+            const objectKeyColumn = input.side === 'front'
+                ? 'front_object_key'
+                : 'back_object_key';
+            const result = await this.database.prepare(
+                `UPDATE fudaba_cards
+                 SET ${objectKeyColumn}=?, media_rights_status='unknown',
+                     publication_status='pending', revision=revision+1, updated_at=?
+                 WHERE id=? AND owner_account_id=? AND revision=?
+                   AND deleted_at IS NULL
+                   AND EXISTS (
+                       SELECT 1 FROM platform_accounts account
+                       WHERE account.id=fudaba_cards.owner_account_id
+                         AND account.status='active' AND account.deleted_at IS NULL
+                   )
+                 RETURNING ${CARD_COLUMNS}`
+            ).bind(
+                input.objectKey,
+                input.updatedAt,
+                input.cardId,
+                input.ownerAccountId,
+                input.expectedRevision
+            ).run<FudabaCardRow>();
+            const saved = result.results[0];
+            if (saved) {
+                return this.savedCardResult(
+                    saved,
+                    input.side === 'front'
+                        ? current.front_object_key
+                        : current.back_object_key
+                );
+            }
+            return this.cardWriteFailure(
+                await this.findActiveCardForOwner(
+                    input.cardId,
+                    input.ownerAccountId
+                ),
+                input.expectedRevision
+            );
+        });
+    }
+
+    softDeleteCardForOwner(
+        input: SoftDeleteOwnedFudabaCardInput
+    ): Promise<FudabaCardMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await this.database.prepare(
+                `UPDATE fudaba_cards
+                 SET deleted_at=?, updated_at=?, media_rights_status='unknown',
+                     publication_status='pending', revision=revision+1
+                 WHERE id=? AND owner_account_id=? AND revision=?
+                   AND deleted_at IS NULL
+                   AND EXISTS (
+                       SELECT 1 FROM platform_accounts account
+                       WHERE account.id=fudaba_cards.owner_account_id
+                         AND account.status='active' AND account.deleted_at IS NULL
+                   )
+                 RETURNING ${CARD_COLUMNS}`
+            ).bind(
+                input.deletedAt,
+                input.deletedAt,
+                input.cardId,
+                input.ownerAccountId,
+                input.expectedRevision
+            ).run<FudabaCardRow>();
+            const saved = result.results[0];
+            if (saved) return this.savedCardResult(saved, null);
+            return this.cardWriteFailure(
+                await this.findActiveCardForOwner(
+                    input.cardId,
+                    input.ownerAccountId
+                ),
+                input.expectedRevision
+            );
+        });
     }
 
     placeOwnedCard(input: {
