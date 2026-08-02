@@ -35,6 +35,68 @@ export const platformSessionSchema = z
   })
   .strict()
 
+const utf8Encoder = new TextEncoder()
+const platformRegistrationEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email()
+  .max(320)
+
+export const platformLoginEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(254)
+  .regex(/^\S+@\S+\.\S+$/)
+
+export const platformLoginPasswordSchema = z
+  .string()
+  .trim()
+  .refine((value) => {
+    const characters = Array.from(value).length
+    return characters >= 1 && characters <= 128
+  })
+  .refine((value) => utf8Encoder.encode(value).byteLength <= 1024)
+
+export const platformPasswordSchema = z
+  .string()
+  .trim()
+  .min(8)
+  .refine((value) => utf8Encoder.encode(value).byteLength <= 72, {
+    message: "Password must not exceed 72 UTF-8 bytes",
+  })
+
+export const platformLoginInputSchema = z
+  .object({
+    email: platformLoginEmailSchema,
+    password: platformLoginPasswordSchema,
+  })
+  .strict()
+
+export const platformRegisterInputSchema = z
+  .object({
+    email: platformRegistrationEmailSchema,
+    password: platformPasswordSchema,
+    displayName: z.string().trim().min(1).max(80),
+    code: z.string().regex(/^\d{6}$/),
+  })
+  .strict()
+
+export const platformRegistrationVerificationInputSchema = z
+  .object({
+    email: platformRegistrationEmailSchema,
+  })
+  .strict()
+
+export const platformRegistrationVerificationResponseSchema = z
+  .object({
+    success: z.literal(true),
+    retryAfterSeconds: z.number().int().positive(),
+  })
+  .strict()
+
 export const platformProfileResponseSchema = z
   .object({
     success: z.literal(true),
@@ -82,6 +144,14 @@ export const platformAvatarUploadSchema = z
   .strict()
 
 export type PlatformSession = z.infer<typeof platformSessionSchema>
+export type PlatformLoginInput = z.input<typeof platformLoginInputSchema>
+export type PlatformRegisterInput = z.input<typeof platformRegisterInputSchema>
+export type PlatformRegistrationVerificationInput = z.input<
+  typeof platformRegistrationVerificationInputSchema
+>
+export type PlatformRegistrationVerificationResponse = z.infer<
+  typeof platformRegistrationVerificationResponseSchema
+>
 export type PlatformProfile = z.infer<typeof platformProfileSchema>
 export type PlatformProfileResponse = z.infer<
   typeof platformProfileResponseSchema
@@ -101,6 +171,44 @@ export function getPlatformSession() {
     "/api/platform/auth/session",
     {
       meta: withPlatformAuth(),
+      transform: (payload) => platformSessionSchema.parse(payload),
+    }
+  )
+}
+
+export function loginPlatform(input: PlatformLoginInput) {
+  const submission = platformLoginInputSchema.parse(input)
+  return platformApiClient.Post<PlatformSession, unknown>(
+    "/api/platform/auth/login",
+    submission,
+    {
+      meta: withPlatformAuth({ authRole: "login" }),
+      transform: (payload) => platformSessionSchema.parse(payload),
+    }
+  )
+}
+
+export function sendPlatformRegistrationVerificationCode(
+  input: PlatformRegistrationVerificationInput
+) {
+  const submission = platformRegistrationVerificationInputSchema.parse(input)
+  return platformApiClient.Post<
+    PlatformRegistrationVerificationResponse,
+    unknown
+  >("/api/platform/auth/register/verification-code", submission, {
+    meta: withPlatformAuth({ authRole: "login" }),
+    transform: (payload) =>
+      platformRegistrationVerificationResponseSchema.parse(payload),
+  })
+}
+
+export function registerPlatform(input: PlatformRegisterInput) {
+  const submission = platformRegisterInputSchema.parse(input)
+  return platformApiClient.Post<PlatformSession, unknown>(
+    "/api/platform/auth/register",
+    submission,
+    {
+      meta: withPlatformAuth({ authRole: "login" }),
       transform: (payload) => platformSessionSchema.parse(payload),
     }
   )

@@ -79,6 +79,8 @@ test('[FRT-01] root and index.html use the React document', async () => {
 
 test('[FRT-02] real prerendered documents and selective SPA routes use build/client', async () => {
     for (const route of [
+        'account/login',
+        'account/register',
         'about',
         'events',
         'recommendations',

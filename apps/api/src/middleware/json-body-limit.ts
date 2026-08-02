@@ -23,6 +23,9 @@ function routeParsesJson(method: string, pathname: string): boolean {
         return pathname === '/api/login' ||
             pathname === '/api/admin/login' ||
             pathname === '/api/admin/auth/login' ||
+            pathname === '/api/platform/auth/login' ||
+            pathname === '/api/platform/auth/register' ||
+            pathname === '/api/platform/auth/register/verification-code' ||
             pathname === '/api/emojis' ||
             pathname === '/api/reactions' ||
             pathname === '/api/wiki/parse_bilibili';

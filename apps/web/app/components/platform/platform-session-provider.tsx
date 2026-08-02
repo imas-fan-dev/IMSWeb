@@ -31,6 +31,7 @@ interface PlatformSessionState {
 }
 
 interface PlatformSessionContextValue extends PlatformSessionState {
+  acceptSession: (session: PlatformSession) => void
   reload: () => Promise<void>
   logout: () => Promise<void>
 }
@@ -64,6 +65,11 @@ function rejectedSessionState(error: unknown): PlatformSessionState {
 export function PlatformSessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PlatformSessionState>(anonymousState)
   const requestGeneration = useRef(0)
+
+  const acceptSession = useCallback((session: PlatformSession) => {
+    requestGeneration.current += 1
+    setState(resolvedSessionState(session))
+  }, [])
 
   const reload = useCallback(async () => {
     const generation = ++requestGeneration.current
@@ -116,8 +122,8 @@ export function PlatformSessionProvider({ children }: { children: ReactNode }) {
   }, [reload])
 
   const value = useMemo<PlatformSessionContextValue>(
-    () => ({ ...state, reload, logout }),
-    [logout, reload, state]
+    () => ({ ...state, acceptSession, reload, logout }),
+    [acceptSession, logout, reload, state]
   )
 
   return (

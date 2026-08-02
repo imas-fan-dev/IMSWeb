@@ -3,8 +3,10 @@ import {
   CreditCardIcon,
   CircleUserRoundIcon,
   LoaderCircleIcon,
+  LogInIcon,
   LogOutIcon,
   RefreshCwIcon,
+  UserPlusIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router"
@@ -80,9 +82,35 @@ export function PlatformAccountMenu() {
       <PopoverContent align="end" sideOffset={8} className="w-64">
         <PopoverTitle>{t("platformAccount.title")}</PopoverTitle>
         {platform.status === "anonymous" ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            {t("platformAccount.anonymous")}
-          </p>
+          <div className="mt-3 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {t("platformAccount.anonymous")}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                to="/account/login"
+                className={buttonVariants({
+                  variant: "default",
+                  size: "sm",
+                  className: "w-full",
+                })}
+              >
+                <LogInIcon data-icon="inline-start" aria-hidden="true" />
+                {t("platformAccount.login")}
+              </Link>
+              <Link
+                to="/account/register"
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "sm",
+                  className: "w-full",
+                })}
+              >
+                <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
+                {t("platformAccount.register")}
+              </Link>
+            </div>
+          </div>
         ) : platform.status === "loading" ? (
           <p className="mt-3 text-sm text-muted-foreground" aria-live="polite">
             {t("platformAccount.loading")}

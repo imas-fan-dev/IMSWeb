@@ -30,9 +30,14 @@ test("anonymous header stays compact and does not probe Platform auth", async ({
   await expect(trigger).toBeFocused()
   await page.keyboard.press("Enter")
   await expect(page.getByText("未登录", { exact: true })).toBeVisible()
-  await expect(
-    page.getByRole("button", { name: "登录", exact: true })
-  ).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "登录" })).toHaveAttribute(
+    "href",
+    "/account/login"
+  )
+  await expect(page.getByRole("link", { name: "注册" })).toHaveAttribute(
+    "href",
+    "/account/register"
+  )
   const accessibility = await new AxeBuilder({ page })
     .setLegacyMode()
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

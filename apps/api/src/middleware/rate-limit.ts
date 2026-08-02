@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
 import type { AppEnvironment } from "@/app";
 import type { RateLimitIdentity } from "@/ports/cache";
@@ -8,6 +9,7 @@ export interface RateLimitOptions {
   limit: number;
   windowSeconds: number;
   identity?: RateLimitIdentity;
+  rateLimitKey?: string;
 }
 
 export const GLOBAL_REQUEST_LIMIT = {
@@ -26,6 +28,42 @@ export const PLATFORM_AUTH_REFRESH_LIMIT = {
   bucket: "platform-auth-refresh",
   limit: 120,
   windowSeconds: 15 * 60,
+} as const;
+
+export const PLATFORM_AUTH_LOGIN_LIMIT = {
+  bucket: "platform-auth-login",
+  limit: 20,
+  windowSeconds: 15 * 60,
+} as const;
+
+export const PLATFORM_AUTH_LOGIN_ACCOUNT_LIMIT = {
+  bucket: "platform-auth-login-account",
+  limit: 50,
+  windowSeconds: 15 * 60,
+} as const;
+
+const PLATFORM_LOGIN_ACCOUNT_KEY_DOMAIN =
+  "imsweb:platform-auth:login-account:v1\0";
+
+export function platformLoginAccountRateLimitKey(
+  normalizedEmail: string,
+): string {
+  return createHash("sha256")
+    .update(PLATFORM_LOGIN_ACCOUNT_KEY_DOMAIN)
+    .update(normalizedEmail)
+    .digest("hex");
+}
+
+export const PLATFORM_AUTH_REGISTER_LIMIT = {
+  bucket: "platform-auth-register",
+  limit: 10,
+  windowSeconds: 60 * 60,
+} as const;
+
+export const PLATFORM_AUTH_EMAIL_VERIFICATION_LIMIT = {
+  bucket: "platform-auth-email-verification",
+  limit: 10,
+  windowSeconds: 60 * 60,
 } as const;
 
 export const REACTION_LIMIT = {
@@ -121,7 +159,7 @@ export async function enforceRateLimit(
   if (!limiter) return null;
   const result = await limiter.consume(
     options.bucket,
-    getClientAddress(c),
+    options.rateLimitKey ?? getClientAddress(c),
     options.limit,
     options.windowSeconds,
     options.identity,
@@ -176,6 +214,18 @@ function requestSpecificLimit(
     pathname === "/api/platform/auth/refresh"
   ) {
     return PLATFORM_AUTH_REFRESH_LIMIT;
+  }
+  if (method === "POST" && pathname === "/api/platform/auth/login") {
+    return PLATFORM_AUTH_LOGIN_LIMIT;
+  }
+  if (method === "POST" && pathname === "/api/platform/auth/register") {
+    return PLATFORM_AUTH_REGISTER_LIMIT;
+  }
+  if (
+    method === "POST" &&
+    pathname === "/api/platform/auth/register/verification-code"
+  ) {
+    return PLATFORM_AUTH_EMAIL_VERIFICATION_LIMIT;
   }
   if (
     method === "POST" &&

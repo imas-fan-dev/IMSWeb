@@ -24,6 +24,7 @@ function filesUnder(directory) {
 const infraCategories = new Set([
     'cache',
     'db',
+    'email',
     'http',
     'media',
     'oss',
@@ -32,6 +33,7 @@ const infraCategories = new Set([
 const infraMiddleware = new Map([
     ['cache', new Set(['filesystem', 'memory', 'sql'])],
     ['db', new Set(['postgresql', 'repositories', 'sql'])],
+    ['email', new Set(['cloudflare'])],
     ['http', new Set(['busboy', 'filesystem'])],
     ['media', new Set(['sharp'])],
     ['oss', new Set(['filesystem', 's3'])],
@@ -88,6 +90,7 @@ for (const [directory, requiredFiles] of databaseLayout) {
 
 const portContracts = new Map([
     ['cache.ts', ['IdempotencyStore', 'RateLimiter', 'CacheServices']],
+    ['email.ts', ['PlatformEmailSender', 'EmailServices']],
     ['http.ts', ['StaticAssets', 'UploadParser', 'HttpServices']],
     ['media.ts', ['ImageProcessor', 'MediaServices']],
     ['object-storage.ts', ['ObjectStorage', 'CompensationService', 'ObjectStorageServices']],

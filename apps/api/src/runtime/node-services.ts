@@ -46,6 +46,7 @@ import {
 } from '@/config/env';
 import { parseNodeObjectStorageConfig } from '@/config/object-storage';
 import { parseNodeDatabaseConfig } from '@/config/database';
+import { parsePlatformEmailConfig } from '@/config/platform-email';
 import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
 import { SqlFudabaRateLimiter } from '@/infra/cache/sql/fudaba-rate-limiter';
@@ -71,6 +72,7 @@ import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
 import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
 import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
 import { BcryptPasswordVerifier } from '@/infra/security/bcrypt/password-verifier';
+import { createPlatformEmailSender } from '@/infra/email/cloudflare/platform-email-sender';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import { HmacPlatformTokenService } from '@/infra/security/hmac/platform-token-service';
 
@@ -262,6 +264,10 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
     const objectStorage = parseNodeObjectStorageConfig();
     validateFudabaPublicReadStorage(FUDABA_PUBLIC_READ_ENABLED, objectStorage);
     const database = parseNodeDatabaseConfig(process.env);
+    const platformEmailSender = createPlatformEmailSender(
+        parsePlatformEmailConfig(),
+        globalThis.fetch
+    );
     ensureRuntimeDirectories(objectStorage.type === 'filesystem');
     const { database: connection, core, platform, fudaba, story } = createNodeRepositories(database);
     try {
@@ -308,6 +314,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 }
             },
             passwords: new BcryptPasswordVerifier(),
+            platformEmailSender,
             backofficeTokens: new HmacBackofficeTokenService(
                 BACKOFFICE_JWT_SECRET,
                 LEGACY_BACKOFFICE_JWT_SECRET

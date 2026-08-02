@@ -111,6 +111,11 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
             c.header('X-Frame-Options', 'SAMEORIGIN');
         }
     });
+    app.use('/api/platform/auth/*', async (c, next) => {
+        await next();
+        c.header('Cache-Control', 'private, no-store');
+        c.header('Vary', 'Authorization, Cookie', { append: true });
+    });
     app.use('*', requestRateLimit());
     app.use('*', jsonBodyLimit());
     app.use('*', async (c, next) => {

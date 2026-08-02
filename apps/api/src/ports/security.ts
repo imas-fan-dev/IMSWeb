@@ -57,6 +57,11 @@ export interface PlatformTokenService {
 export interface PasswordVerifier {
     verify(value: string, digest: string): Promise<boolean>;
     hash?(value: string): Promise<string>;
+    verifyPbkdf2Sha256?(
+        value: string,
+        salt: string,
+        digest: string
+    ): Promise<boolean>;
 }
 
 export interface SecurityServices {

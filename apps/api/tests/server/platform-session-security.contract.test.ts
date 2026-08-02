@@ -57,6 +57,7 @@ interface Fixture {
     database: ManagedSqlDatabase;
     databaseUrl?: string;
     platformTokens: TestPlatformTokenService;
+    repository: SqlPlatformAccountRepository;
     seedSession(options?: {
         accountId?: string;
         sessionId?: string;
@@ -210,6 +211,7 @@ async function createFixture(
         database,
         ...(databaseUrl ? { databaseUrl } : {}),
         platformTokens,
+        repository,
         async seedSession(options = {}) {
             const now = Date.now();
             const accountId = options.accountId ?? `platform-${randomUUID()}`;
@@ -402,6 +404,68 @@ test('Platform session authenticates active and restricted accounts through a li
          SET created_at=?, updated_at=?, expires_at=? WHERE id=?`
     ).bind(past - 60_000, past - 60_000, past, expired.sessionId).run();
     assert.equal((await sessionRequest(fixture, expired.cookies)).status, 401);
+});
+
+test('refresh-session writes fence the current account token version atomically', async (t) => {
+    const fixture = await createFixture(t);
+    const seeded = await fixture.seedSession({ accountId: 'platform-version-fence' });
+    const now = Date.now();
+    const event = (id: string) => ({
+        id: `event-${id}`,
+        accountId: seeded.accountId,
+        eventType: 'auth.session.created' as const,
+        requestId: null,
+        ipAddress: null,
+        userAgent: null,
+        metadataJson: '{}',
+        createdAt: now
+    });
+    assert.equal(await fixture.repository.createRefreshSession({
+        id: 'version-fence-rejected',
+        accountId: seeded.accountId,
+        accountTokenVersion: 1,
+        tokenHash: 'a'.repeat(64),
+        csrfHash: 'b'.repeat(64),
+        expiresAt: now + 60_000,
+        createdAt: now,
+        event: event('rejected')
+    }), false);
+    assert.equal(await fixture.repository.findRefreshSessionById(
+        'version-fence-rejected'
+    ), null);
+
+    assert.equal(await fixture.repository.createRefreshSession({
+        id: 'version-fence-created',
+        accountId: seeded.accountId,
+        accountTokenVersion: 0,
+        tokenHash: 'c'.repeat(64),
+        csrfHash: 'd'.repeat(64),
+        expiresAt: now + 60_000,
+        createdAt: now,
+        event: event('created')
+    }), true);
+    await fixture.database.prepare(
+        'UPDATE platform_accounts SET token_version=1, updated_at=? WHERE id=?'
+    ).bind(now + 1, seeded.accountId).run();
+    assert.equal(await fixture.repository.rotateRefreshSession({
+        id: 'version-fence-created',
+        accountTokenVersion: 0,
+        currentTokenHash: 'c'.repeat(64),
+        nextTokenHash: 'e'.repeat(64),
+        nextCsrfHash: 'f'.repeat(64),
+        nextExpiresAt: now + 120_000,
+        updatedAt: now + 1,
+        event: {
+            ...event('rotate'),
+            eventType: 'auth.refresh.succeeded'
+        }
+    }), false);
+    assert.equal(
+        (await fixture.repository.findRefreshSessionById(
+            'version-fence-created'
+        ))?.token_hash,
+        'c'.repeat(64)
+    );
 });
 
 test('Platform and Backoffice reject each other even when their test secret is shared', async (t) => {

@@ -10,6 +10,10 @@ import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 import { SqliteConnection } from '@/infra/db/sqlite/connection';
 import {
+    PLATFORM_AUTH_LOGIN_ACCOUNT_LIMIT,
+    platformLoginAccountRateLimitKey
+} from '@/middleware/rate-limit';
+import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
@@ -64,12 +68,16 @@ async function createFixture(
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-rate-limit-'));
     const databasePath = path.join(root, 'rate-limit.sqlite');
     const database = new SqliteConnection(databasePath);
+    const siblingDatabase = new SqliteConnection(databasePath);
     t.after(async () => {
+        await siblingDatabase.close();
         await database.close();
         await fs.rm(root, { recursive: true, force: true });
     });
+    await database.run('PRAGMA busy_timeout=5000');
+    await siblingDatabase.run('PRAGMA busy_timeout=5000');
     await database.executeScript(RATE_LIMIT_SCHEMA);
-    return { database, siblingDatabase: database };
+    return { database, siblingDatabase };
 }
 
 async function assertPersistentRateLimiterContract(
@@ -150,6 +158,63 @@ test('PostgreSQL shares hashed Fudaba windows atomically across limiter instance
     await assertPersistentRateLimiterContract(t, 'postgresql');
 });
 
+async function assertPlatformLoginAccountLimiterContract(
+    t: TestContext,
+    dialect: 'sqlite' | 'postgresql'
+): Promise<void> {
+    const fixture = await createFixture(t, dialect);
+    const first = new SqlFudabaRateLimiter(fixture.database, new MemoryRateLimiter());
+    const sibling = new SqlFudabaRateLimiter(
+        fixture.siblingDatabase,
+        new MemoryRateLimiter()
+    );
+    const normalizedEmail = 'targeted-producer@example.test';
+    const accountKey = platformLoginAccountRateLimitKey(normalizedEmail);
+    const options = PLATFORM_AUTH_LOGIN_ACCOUNT_LIMIT;
+
+    const attempts = await Promise.all(Array.from({ length: options.limit + 30 }, (_, index) =>
+        (index % 2 ? first : sibling).consume(
+            options.bucket,
+            accountKey,
+            options.limit,
+            options.windowSeconds
+        )
+    ));
+    assert.equal(attempts.filter((result) => result.allowed).length, options.limit);
+    assert.equal(attempts.filter((result) => !result.allowed).length, 30);
+
+    const stored = await fixture.database.prepare(
+        `SELECT bucket, key_hash, hits, window_seconds
+         FROM fudaba_rate_limit_windows
+         WHERE bucket=?`
+    ).bind(options.bucket).first<{
+        bucket: string;
+        key_hash: string;
+        hits: number;
+        window_seconds: number;
+    }>();
+    assert.ok(stored);
+    assert.deepEqual(stored, {
+        bucket: options.bucket,
+        key_hash: crypto.createHash('sha256').update(accountKey).digest('hex'),
+        hits: options.limit,
+        window_seconds: options.windowSeconds
+    });
+    assert.match(accountKey, /^[a-f0-9]{64}$/);
+    assert.doesNotMatch(JSON.stringify(stored), new RegExp(normalizedEmail, 'i'));
+    assert.notEqual(stored.key_hash, accountKey);
+}
+
+test('SQLite shares the platform login account bucket without storing email PII', async (t) => {
+    await assertPlatformLoginAccountLimiterContract(t, 'sqlite');
+});
+
+test('PostgreSQL shares the platform login account bucket without storing email PII', {
+    skip: !postgresIntegrationEnabled()
+}, async (t) => {
+    await assertPlatformLoginAccountLimiterContract(t, 'postgresql');
+});
+
 test('only selected buckets without identities use persistent windows', async (t) => {
     const fixture = await createFixture(t, 'sqlite');
     const first = new SqlFudabaRateLimiter(fixture.database, new MemoryRateLimiter());
@@ -160,6 +225,10 @@ test('only selected buckets without identities use persistent windows', async (t
 
     for (const bucket of [
         'fudaba-location-account',
+        'platform-auth-email-verification',
+        'platform-auth-login',
+        'platform-auth-login-account',
+        'platform-auth-register',
         'platform-write-account',
         'platform-upload-account'
     ]) {
@@ -190,7 +259,7 @@ test('only selected buckets without identities use persistent windows', async (t
         await fixture.database.prepare(
             `SELECT COUNT(*) AS count FROM fudaba_rate_limit_windows`
         ).first<number>('count'),
-        3
+        7
     );
 });
 

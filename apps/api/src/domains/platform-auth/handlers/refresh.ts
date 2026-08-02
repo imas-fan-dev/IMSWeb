@@ -111,6 +111,7 @@ export async function handlePlatformRefresh(c: Context<AppEnvironment>): Promise
     ]);
     const rotated = await repository.rotateRefreshSession({
         id: session.id,
+        accountTokenVersion: identity.account.token_version,
         currentTokenHash: tokenHash,
         nextTokenHash,
         nextCsrfHash,

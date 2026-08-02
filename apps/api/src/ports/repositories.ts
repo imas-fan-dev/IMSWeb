@@ -97,6 +97,23 @@ export interface PlatformAccountWithProfile {
     profile: PlatformProfileRecord;
 }
 
+export type PlatformEmailCredentialAlgorithm = 'pbkdf2-sha256' | 'bcrypt';
+
+export interface PlatformEmailCredentialRecord {
+    normalized_email: string;
+    account_id: string;
+    algorithm: PlatformEmailCredentialAlgorithm;
+    parameters_json: string;
+    salt: string | null;
+    password_hash: string;
+    created_at: number;
+    updated_at: number;
+}
+
+export interface PlatformEmailIdentity extends PlatformAccountWithProfile {
+    credential: PlatformEmailCredentialRecord;
+}
+
 export interface NewPlatformAccountInput {
     id: string;
     status: PlatformAccountStatus;
@@ -113,6 +130,48 @@ export interface NewPlatformAccountInput {
         updatedAt: number;
     };
 }
+
+export interface NewPlatformEmailAccountInput extends NewPlatformAccountInput {
+    credential: {
+        normalizedEmail: string;
+        algorithm: 'bcrypt';
+        parametersJson: string;
+        passwordHash: string;
+        createdAt: number;
+        updatedAt: number;
+    };
+}
+
+export type CreatePlatformEmailAccountResult =
+    | { status: 'created'; identity: PlatformAccountWithProfile }
+    | { status: 'email-conflict' };
+
+export interface PlatformEmailVerificationInput {
+    normalizedEmail: string;
+    deliveryToken: string;
+    codeHash: string;
+    expiresAt: number;
+    resendAfter: number;
+    attemptsRemaining: number;
+    createdAt: number;
+}
+
+export type IssuePlatformEmailVerificationResult =
+    | { status: 'issued' }
+    | { status: 'cooldown'; retryAfterMs: number };
+
+export interface NewVerifiedPlatformEmailAccountInput
+    extends NewPlatformEmailAccountInput {
+    verification: {
+        codeHash: string;
+        consumedToken: string;
+        verifiedAt: number;
+    };
+}
+
+export type CreateVerifiedPlatformEmailAccountResult =
+    | CreatePlatformEmailAccountResult
+    | { status: 'verification-invalid' };
 
 export interface UpdatePlatformProfileTextInput {
     accountId: string;
@@ -172,6 +231,7 @@ export interface PlatformSecurityEventInput {
 export interface NewPlatformRefreshSessionInput {
     id: string;
     accountId: string;
+    accountTokenVersion: number;
     tokenHash: string;
     csrfHash: string;
     expiresAt: number;
@@ -185,19 +245,47 @@ export interface PlatformAccountRepository {
     ): Promise<PlatformAccountWithProfile>;
     findAccountById(id: string): Promise<PlatformAccountRecord | null>;
     findAccountWithProfileById(id: string): Promise<PlatformAccountWithProfile | null>;
+    createEmailAccount(
+        input: NewPlatformEmailAccountInput
+    ): Promise<CreatePlatformEmailAccountResult>;
+    issueEmailVerification(
+        input: PlatformEmailVerificationInput
+    ): Promise<IssuePlatformEmailVerificationResult>;
+    completeEmailVerificationDelivery(
+        normalizedEmail: string,
+        deliveryToken: string
+    ): Promise<boolean>;
+    revokeEmailVerification(
+        normalizedEmail: string,
+        deliveryToken: string
+    ): Promise<void>;
+    createVerifiedEmailAccount(
+        input: NewVerifiedPlatformEmailAccountInput
+    ): Promise<CreateVerifiedPlatformEmailAccountResult>;
+    findEmailIdentity(normalizedEmail: string): Promise<PlatformEmailIdentity | null>;
+    upgradeEmailCredentialToBcrypt(input: {
+        normalizedEmail: string;
+        expectedAlgorithm: 'pbkdf2-sha256';
+        expectedPasswordHash: string;
+        expectedUpdatedAt: number;
+        passwordHash: string;
+        parametersJson: string;
+        updatedAt: number;
+    }): Promise<boolean>;
     updateProfileTextForOwner(
         input: UpdatePlatformProfileTextInput
     ): Promise<PlatformProfileSaveResult>;
     updateProfileAvatarForOwner(
         input: UpdatePlatformProfileAvatarInput
     ): Promise<PlatformProfileSaveResult>;
-    createRefreshSession(input: NewPlatformRefreshSessionInput): Promise<void>;
+    createRefreshSession(input: NewPlatformRefreshSessionInput): Promise<boolean>;
     findRefreshSessionById(id: string): Promise<PlatformRefreshSessionRecord | null>;
     findRefreshSessionByTokenHash(
         tokenHash: string
     ): Promise<PlatformRefreshSessionRecord | null>;
     rotateRefreshSession(input: {
         id: string;
+        accountTokenVersion: number;
         currentTokenHash: string;
         nextTokenHash: string;
         nextCsrfHash: string;

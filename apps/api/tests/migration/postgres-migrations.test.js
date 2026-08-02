@@ -21,7 +21,11 @@ test('released Platform and Fudaba migrations remain byte-for-byte immutable', (
         ['core/0013_fudaba_domain.sql',
             '54b28982af30f4513b9a860caab1462dd90679bf4f3714273bdbcfbba0804f95'],
         ['postgresql/0022_fudaba_domain.sql',
-            '718e476b3db6828130a75fd4e10933c1ceac765ea203495ba0eb9320b78d905a']
+            '718e476b3db6828130a75fd4e10933c1ceac765ea203495ba0eb9320b78d905a'],
+        ['core/0016_platform_email_verification.sql',
+            'c3f2db65ec8c2ac514ed39e027c14164163a4cc8b64929855ae18a0c893c8938'],
+        ['postgresql/0025_platform_email_verification.sql',
+            '987e277a19c4637244737480a28eb8cc04d156039dfe4115855c1b879a6cf2bd']
     ]);
     for (const [relativePath, checksum] of expected) {
         const contents = fs.readFileSync(
@@ -63,7 +67,9 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0021_backoffice_persistence_names', phase: 'post-data' },
             { version: '0022_fudaba_domain', phase: 'post-data' },
             { version: '0023_fudaba_public_locations', phase: 'post-data' },
-            { version: '0024_fudaba_office_workflows', phase: 'post-data' }
+            { version: '0024_fudaba_office_workflows', phase: 'post-data' },
+            { version: '0025_platform_email_verification', phase: 'post-data' },
+            { version: '0026_platform_email_verification_delivery', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -339,6 +345,50 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     );
     assert.match(officeWorkflows.sql, /request_hash ~ '\^\[0-9a-f\]\{64\}\$'/);
     assert.doesNotMatch(officeWorkflows.sql, /raw_(?:query|key|body)/i);
+    const emailVerification = migrations.find(
+        ({ version }) => version === '0025_platform_email_verification'
+    );
+    assert.match(
+        emailVerification.sql,
+        /CREATE TABLE public\.platform_email_verification_codes/
+    );
+    assert.match(
+        emailVerification.sql,
+        /normalized_email TEXT PRIMARY KEY[\s\S]+normalized_email = lower\(btrim\(normalized_email\)\)/
+    );
+    assert.match(
+        emailVerification.sql,
+        /code_hash TEXT NOT NULL CHECK \(code_hash ~ '\^\[a-f0-9\]\{64\}\$'\)/
+    );
+    assert.match(emailVerification.sql, /attempts_remaining BETWEEN 0 AND 5/);
+    assert.match(
+        emailVerification.sql,
+        /consumed_token IS NULL OR consumed_token ~ '\^\[a-f0-9\]\{64\}\$'/
+    );
+    assert.match(emailVerification.sql, /CHECK \(expires_at > created_at\)/);
+    assert.match(
+        emailVerification.sql,
+        /resend_after >= created_at AND resend_after <= expires_at/
+    );
+    assert.match(
+        emailVerification.sql,
+        /CREATE INDEX platform_email_verification_expiry_idx[\s\S]+platform_email_verification_codes\(expires_at\)/
+    );
+    const emailVerificationDelivery = migrations.find(
+        ({ version }) => version === '0026_platform_email_verification_delivery'
+    );
+    assert.match(
+        emailVerificationDelivery.sql,
+        /ADD COLUMN pending_token TEXT[\s\S]+ADD COLUMN delivery_token TEXT/
+    );
+    assert.match(
+        emailVerificationDelivery.sql,
+        /platform_email_verification_pending_candidate_ck[\s\S]+pending_expires_at > pending_created_at/
+    );
+    assert.match(
+        emailVerificationDelivery.sql,
+        /delivery_token ~ '\^\[a-f0-9\]\{64\}\$'/
+    );
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -404,7 +454,9 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0021_backoffice_persistence_names',
         '0022_fudaba_domain',
         '0023_fudaba_public_locations',
-        '0024_fudaba_office_workflows'
+        '0024_fudaba_office_workflows',
+        '0025_platform_email_verification',
+        '0026_platform_email_verification_delivery'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

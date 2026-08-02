@@ -1,4 +1,5 @@
 import type { CacheServices } from '@/ports/cache';
+import type { EmailServices } from '@/ports/email';
 import type { HttpServices } from '@/ports/http';
 import type { MediaServices } from '@/ports/media';
 import type { ObjectStorageServices } from '@/ports/object-storage';
@@ -22,6 +23,7 @@ export interface RuntimeHealth {
 
 export interface RuntimeServices extends
     Partial<CacheServices>,
+    Partial<EmailServices>,
     Partial<HttpServices>,
     Partial<MediaServices>,
     Partial<ObjectStorageServices>,
@@ -34,6 +36,7 @@ export interface RuntimeServices extends
 
 export interface NodeRuntimeServices extends
     CacheServices,
+    EmailServices,
     HttpServices,
     MediaServices,
     ObjectStorageServices,

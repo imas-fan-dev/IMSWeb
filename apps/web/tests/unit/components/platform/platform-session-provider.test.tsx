@@ -35,6 +35,12 @@ function SessionProbe() {
       <button type="button" onClick={() => void session.reload()}>
         reload
       </button>
+      <button
+        type="button"
+        onClick={() => session.acceptSession(activeSession)}
+      >
+        accept
+      </button>
       <button type="button" onClick={() => void session.logout()}>
         logout
       </button>
@@ -116,6 +122,21 @@ describe("PlatformSessionProvider", () => {
         "restricted"
       )
     )
+  })
+
+  it("accepts a returned login session without requesting it again", async () => {
+    apiMocks.hasSessionHint.mockReturnValue(false)
+
+    renderProvider()
+    await userEvent.click(screen.getByRole("button", { name: "accept" }))
+
+    expect(screen.getByLabelText("session-status")).toHaveTextContent(
+      "authenticated"
+    )
+    expect(screen.getByLabelText("display-name")).toHaveTextContent(
+      "Platform Producer"
+    )
+    expect(apiMocks.getSessionSend).not.toHaveBeenCalled()
   })
 
   it("drops rejected sessions but surfaces unexpected failures", async () => {

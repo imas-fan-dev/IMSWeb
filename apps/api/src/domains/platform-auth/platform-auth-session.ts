@@ -169,7 +169,7 @@ export async function establishPlatformSession(
     refreshToken: string;
     csrfSecret: string;
     sessionId: string;
-}> {
+} | null> {
     if (!['active', 'restricted'].includes(identity.account.status)) {
         throw new Error('Platform account cannot establish a session');
     }
@@ -191,9 +191,10 @@ export async function establishPlatformSession(
         hashPlatformAuthSecret(refreshToken),
         hashPlatformAuthSecret(csrfSecret)
     ]);
-    await platformAccountRepository(c).createRefreshSession({
+    const created = await platformAccountRepository(c).createRefreshSession({
         id: sessionId,
         accountId: identity.account.id,
+        accountTokenVersion: identity.account.token_version,
         tokenHash,
         csrfHash,
         expiresAt: createdAt + PLATFORM_REFRESH_TOKEN_TTL_MS,
@@ -205,6 +206,7 @@ export async function establishPlatformSession(
             'platform_session_established'
         )
     });
+    if (!created) return null;
     setPlatformAuthenticationCookies(c, { accessToken, refreshToken, csrfSecret });
     return { accessToken, refreshToken, csrfSecret, sessionId };
 }

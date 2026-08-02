@@ -12,6 +12,10 @@ interface RateLimitWindowRow {
 }
 
 const PERSISTENT_BUCKETS = new Set([
+    'platform-auth-email-verification',
+    'platform-auth-login',
+    'platform-auth-login-account',
+    'platform-auth-register',
     'platform-write-account',
     'platform-upload-account'
 ]);

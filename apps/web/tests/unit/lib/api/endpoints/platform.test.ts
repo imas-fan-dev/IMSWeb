@@ -2,8 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   getPlatformProfile,
+  loginPlatform,
+  platformLoginInputSchema,
+  platformLoginPasswordSchema,
+  platformPasswordSchema,
   platformProfileResponseSchema,
   platformProfileUpdateSchema,
+  platformRegistrationVerificationInputSchema,
+  platformRegisterInputSchema,
+  registerPlatform,
+  sendPlatformRegistrationVerificationCode,
   updatePlatformProfile,
   uploadPlatformAvatar,
 } from "~/lib/api/endpoints/platform"
@@ -23,6 +31,159 @@ afterEach(() => {
 })
 
 describe("Platform profile API contracts", () => {
+  it("strictly normalizes Platform login and registration inputs", () => {
+    expect(
+      platformLoginInputSchema.parse({
+        email: "  Producer@Example.COM ",
+        password: "correct-horse-battery",
+      })
+    ).toEqual({
+      email: "producer@example.com",
+      password: "correct-horse-battery",
+    })
+    expect(
+      platformRegisterInputSchema.parse({
+        email: "NEW@Example.com",
+        password: "correct-horse-battery",
+        displayName: "  新制作人  ",
+        code: "012345",
+      })
+    ).toEqual({
+      email: "new@example.com",
+      password: "correct-horse-battery",
+      displayName: "新制作人",
+      code: "012345",
+    })
+    expect(
+      platformLoginInputSchema.parse({
+        email: " Legacy@@Example.COM ",
+        password: " legacy-password ",
+      })
+    ).toEqual({
+      email: "legacy@@example.com",
+      password: "legacy-password",
+    })
+    expect(
+      platformRegisterInputSchema.safeParse({
+        email: "legacy@@example.com",
+        password: "legacy-password",
+        displayName: "Legacy Producer",
+        code: "012345",
+      }).success
+    ).toBe(false)
+    expect(() =>
+      platformLoginInputSchema.parse({
+        email: "producer@example.com",
+        password: "too-short",
+        extra: true,
+      })
+    ).toThrow()
+    expect(() =>
+      platformRegisterInputSchema.parse({
+        email: "producer@example.com",
+        password: "correct-horse-battery",
+        displayName: "Producer",
+        code: "12345a",
+      })
+    ).toThrow()
+  })
+
+  it("limits new passwords without blocking migrated PBKDF2 credentials", () => {
+    expect(platformPasswordSchema.safeParse("12345678").success).toBe(true)
+    expect(platformPasswordSchema.safeParse("1234567").success).toBe(false)
+    expect(platformPasswordSchema.safeParse("a".repeat(72)).success).toBe(true)
+    expect(platformPasswordSchema.safeParse("a".repeat(73)).success).toBe(false)
+    expect(platformPasswordSchema.safeParse("密".repeat(24)).success).toBe(true)
+    expect(platformPasswordSchema.safeParse("密".repeat(25)).success).toBe(
+      false
+    )
+    expect(platformLoginPasswordSchema.parse(" legacy ")).toBe("legacy")
+    expect(platformLoginPasswordSchema.safeParse("x").success).toBe(true)
+    expect(platformLoginPasswordSchema.safeParse("密".repeat(25)).success).toBe(
+      true
+    )
+    expect(platformLoginPasswordSchema.safeParse("x".repeat(129)).success).toBe(
+      false
+    )
+  })
+
+  it("posts normalized login, verification, and registration inputs", async () => {
+    const requests: Array<{ path: string; body: unknown }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = new URL(String(input), "http://ims.test").pathname
+        requests.push({
+          path,
+          body: JSON.parse(String(init?.body)),
+        })
+        if (path.endsWith("verification-code")) {
+          return Response.json(
+            { success: true, retryAfterSeconds: 60 },
+            { status: 202 }
+          )
+        }
+        return Response.json(
+          {
+            success: true,
+            account: { id: "platform-owner", status: "active" },
+            profile: {
+              displayName: path.endsWith("register") ? "新制作人" : "制作人",
+              avatarUrl: null,
+              homeCity: null,
+              bio: "",
+            },
+          },
+          { status: path.endsWith("register") ? 201 : 200 }
+        )
+      })
+    )
+
+    await loginPlatform({
+      email: "  Producer@Example.com ",
+      password: "correct-horse-battery",
+    }).send()
+    await sendPlatformRegistrationVerificationCode({
+      email: "  New@Example.com ",
+    }).send()
+    await registerPlatform({
+      email: "  New@Example.com ",
+      password: "correct-horse-battery",
+      displayName: "  新制作人  ",
+      code: "012345",
+    }).send()
+
+    expect(requests).toEqual([
+      {
+        path: "/api/platform/auth/login",
+        body: {
+          email: "producer@example.com",
+          password: "correct-horse-battery",
+        },
+      },
+      {
+        path: "/api/platform/auth/register/verification-code",
+        body: {
+          email: "new@example.com",
+        },
+      },
+      {
+        path: "/api/platform/auth/register",
+        body: {
+          email: "new@example.com",
+          password: "correct-horse-battery",
+          displayName: "新制作人",
+          code: "012345",
+        },
+      },
+    ])
+    expect(
+      platformRegistrationVerificationInputSchema.parse({
+        email: " Producer@Example.COM ",
+      })
+    ).toEqual({ email: "producer@example.com" })
+  })
+
   it("parses the exact owner profile projection and normalizes submissions", () => {
     expect(
       platformProfileResponseSchema.parse({

@@ -9,6 +9,7 @@ import { i18n } from "~/i18n/config"
 
 const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
+  acceptSession: vi.fn(),
   reload: vi.fn(),
   logout: vi.fn(),
 }))
@@ -49,6 +50,7 @@ function sessionState(
           }
         : null,
     error: status === "error" ? new Error("offline") : null,
+    acceptSession: sessionMocks.acceptSession,
     reload: sessionMocks.reload,
     logout: sessionMocks.logout,
   }
@@ -60,7 +62,7 @@ describe("PlatformAccountMenu", () => {
     await i18n.changeLanguage("zh-CN")
   })
 
-  it("shows an anonymous account entry without a fake login action", async () => {
+  it("links anonymous visitors to login and registration", async () => {
     sessionMocks.usePlatformSession.mockReturnValue(sessionState("anonymous"))
     renderMenu()
 
@@ -69,9 +71,14 @@ describe("PlatformAccountMenu", () => {
     await userEvent.click(trigger)
 
     expect(screen.getByText("未登录")).toBeVisible()
-    expect(
-      screen.queryByRole("button", { name: "登录" })
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "登录" })).toHaveAttribute(
+      "href",
+      "/account/login"
+    )
+    expect(screen.getByRole("link", { name: "注册" })).toHaveAttribute(
+      "href",
+      "/account/register"
+    )
   })
 
   it("keeps the same trigger size while the session is loading", async () => {
