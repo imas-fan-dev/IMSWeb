@@ -8,7 +8,13 @@ import test from 'node:test';
 import { ZipFile } from 'yazl';
 import { createHonoApp } from '@/app';
 import type { SitePackageRepository } from '@/ports/repositories';
-import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
+import type {
+    ListedObject,
+    ObjectReadUrlOptions,
+    ObjectStorage,
+    PutObjectOptions,
+    StoredObject
+} from '@/ports/object-storage';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqliteConnection } from '@/infra/db/sqlite/connection';
 import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
@@ -31,10 +37,21 @@ async function createArchive(): Promise<Buffer> {
 class MemoryStorage implements ObjectStorage {
     readonly objects = new Map<string, StoredObject>();
     reads: string[] = [];
+    readUrls: Array<{ key: string; method?: 'GET' | 'HEAD' }> = [];
 
     async get(key: string): Promise<StoredObject | null> {
         this.reads.push(key);
         return this.objects.get(key) || null;
+    }
+
+    async createReadUrl(key: string, options: ObjectReadUrlOptions = {}) {
+        this.readUrls.push({ key, method: options.method });
+        return this.objects.has(key)
+            ? {
+                url: `https://assets.example.test/${key}`,
+                visibility: 'public' as const
+            }
+            : null;
     }
 
     async put(
@@ -130,6 +147,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     const publishedManifest = {
         'index.html': `${publishedPrefix}/files/index.html`,
         'fonts.css': `${publishedPrefix}/files/fonts.css`,
+        'hero.webp': `${publishedPrefix}/files/hero.webp`,
         'email_template.txt': `${publishedPrefix}/files/email_template.txt`,
         'leak.txt': `${publishedPrefix}/source.zip`
     };
@@ -153,7 +171,10 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         previewId,
         'b'.repeat(64),
         'isolated-script',
-        { 'index.html': `${previewPrefix}/files/index.html` },
+        {
+            'index.html': `${previewPrefix}/files/index.html`,
+            'preview.webp': `${previewPrefix}/files/preview.webp`
+        },
         2_000
     ));
     await repository.publishSitePackageRevision(packageId, publishedId, 1, 3_000);
@@ -181,6 +202,11 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         { contentType: 'text/plain; charset=utf-8' }
     );
     await storage.put(
+        `${publishedPrefix}/files/hero.webp`,
+        new Uint8Array([0x52, 0x49, 0x46, 0x46]),
+        { contentType: 'image/webp' }
+    );
+    await storage.put(
         `${publishedPrefix}/source.zip`,
         new Uint8Array([0x50, 0x4b]),
         { contentType: 'application/zip' }
@@ -191,6 +217,11 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
             '<!doctype html><html><body><script>document.body.dataset.ok="1"</script></body></html>'
         ),
         { contentType: 'text/html; charset=utf-8' }
+    );
+    await storage.put(
+        `${previewPrefix}/files/preview.webp`,
+        new Uint8Array([0x52, 0x49, 0x46, 0x46]),
+        { contentType: 'image/webp' }
     );
 
     const runtimeServices = {
@@ -434,6 +465,10 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     assert.equal(published.headers.get('x-frame-options'), null);
     assert.match(published.headers.get('content-security-policy') || '', /script-src 'none'/);
     assert.match(published.headers.get('content-security-policy') || '', /frame-ancestors http:\/\/main\.test/);
+    assert.match(
+        published.headers.get('content-security-policy') || '',
+        /img-src 'self' data: https:\/\/assets\.example\.test/
+    );
 
     const stylesheet = await app.request(
         `http://main.test/site-content/hiro-2026/${publishedId}/fonts.css`
@@ -453,6 +488,24 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(textAsset.status, 200);
     assert.equal(await textAsset.text(), 'hello');
+
+    const readsBeforeDirectAsset = storage.reads.length;
+    const directAssetUrl =
+        `http://main.test/site-content/hiro-2026/${publishedId}/hero.webp`;
+    const directAsset = await app.request(directAssetUrl);
+    assert.equal(directAsset.status, 307);
+    assert.equal(
+        directAsset.headers.get('location'),
+        `https://assets.example.test/${publishedPrefix}/files/hero.webp`
+    );
+    assert.equal(
+        directAsset.headers.get('cache-control'),
+        'public, max-age=31536000, immutable'
+    );
+    assert.equal(storage.reads.length, readsBeforeDirectAsset);
+    const directAssetHead = await app.request(directAssetUrl, { method: 'HEAD' });
+    assert.equal(directAssetHead.status, 307);
+    assert.deepEqual(storage.readUrls.slice(-2).map((call) => call.method), ['GET', 'HEAD']);
 
     const readsBeforeDenials = storage.reads.length;
     for (const pathname of [
@@ -475,6 +528,12 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     assert.match(previewCsp, /script-src 'self' 'unsafe-inline'/);
     assert.match(previewCsp, /sandbox allow-scripts/);
     assert.doesNotMatch(previewCsp, /allow-same-origin|allow-forms|allow-top-navigation/);
+    const previewAsset = await app.request(
+        `http://main.test/site-content/_preview/${'b'.repeat(64)}/preview.webp`
+    );
+    assert.equal(previewAsset.status, 200);
+    assert.equal(previewAsset.headers.get('cache-control'), 'private, no-store');
+    assert.equal(previewAsset.headers.get('location'), null);
 
     const rotated = await app.request(
         `http://main.test/api/admin/site-packages/${packageId}/revisions/${previewId}/preview-token`,

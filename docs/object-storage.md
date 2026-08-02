@@ -324,15 +324,19 @@ site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 `source.zip` 和内部 manifest 只用于审计与恢复，不直接公开。公开和预览请求先从 PostgreSQL
 读取版本记录，再按 `manifest_json` 的精确 `archivePath -> objectKey` 映射读取对象；映射目标
 还必须等于该版本 `files/` 下的预期键，因此不能借伪造 manifest 访问 ZIP 或其他版本。站点包
-响应始终由 Hono `storage.get()` 代理，不使用 S3 签名重定向，避免 HTML、CSS 和 ES module 的
-相对路径落到对象存储物理键。
+入口 HTML、CSS、JavaScript、SVG、XML 和文本响应继续由 Hono `storage.get()` 代理，避免其
+相对路径落到对象存储物理键。已发布版本的图片和字体先完成相同的版本、manifest 与对象键
+校验，再由 Hono 返回 `307` 到 `IMS_PUBLIC_READ_URL_BASE` 下的公开直连地址；未配置公开基址时
+使用短期签名读取地址。filesystem 开发模式没有对象直连能力时仍回退为 Hono 响应。
 
 源 ZIP 的 SHA-256 同时进入版本元数据和对象写入校验。预览 URL 中的随机 bearer token 只在
 创建版本或管理员主动旋转时返回一次，数据库只保存 SHA-256；旧 token 在旋转后立即失效。
 
 公开内容 URL 只接受 `site_packages.published_revision_id` 当前指向的版本。入口 HTML 使用
 `public, max-age=0, must-revalidate`，避免发布切换后缓存继续提供旧页面；版本化静态资源使用
-长期 immutable 缓存。运行时会删除入口 HTML 中阻塞渲染的 `fonts.css` import，并从独立 CSS
+长期 immutable 缓存。入口文档的 CSP 只额外允许实际对象直连地址的精确 origin 用于图片、
+字体和媒体，不会放宽脚本、样式或网络连接来源。运行时会删除入口 HTML 中阻塞渲染的
+`fonts.css` import，并从独立 CSS
 响应中移除 CSP 必然拒绝的远程字体声明。历史版本的直接 URL 返回 404，但仍可通过该版本的
 预览 bearer 查看；预览使用 `private, no-store`。浏览器公开入口
 固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳；页面包本体也从主站
