@@ -7,6 +7,16 @@ const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
 const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i)
 const publicMediaUrlSchema = z.string().trim().min(1)
 const timestampSchema = z.string().datetime({ offset: true })
+const regionalCoordinateSchema = (minimum: number, maximum: number) =>
+  z
+    .number()
+    .finite()
+    .min(minimum)
+    .max(maximum)
+    .refine(
+      (value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8,
+      "regional coordinates must use the 0.1 degree grid"
+    )
 
 export const fudabaSeriesSchema = z
   .object({
@@ -103,6 +113,55 @@ export const fudabaOfficeDetailSchema = z.object({
     cards: z.array(fudabaPlacedCardSchema),
   }),
 })
+
+export const fudabaMapOfficeSchema = z
+  .object({
+    id: z.string().min(1),
+    slug: z.string().min(1),
+    name: z.string().trim().min(1),
+    city: z.string().trim().min(1),
+    accent: accentSchema,
+    isOpen: z.boolean(),
+    seriesCodes: z.array(seriesCodeSchema),
+    location: z
+      .object({
+        latitude: regionalCoordinateSchema(-60, 60),
+        longitude: regionalCoordinateSchema(-180, 180),
+        precision: z.literal("regional"),
+      })
+      .strict(),
+  })
+  .strict()
+
+export const fudabaMapOfficeListSchema = z
+  .object({
+    items: z.array(fudabaMapOfficeSchema),
+    truncated: z.boolean(),
+  })
+  .strict()
+
+export const fudabaMapConfigSchema = z
+  .object({
+    styleUrl: z
+      .string()
+      .refine(
+        (value) => !hasAsciiControl(value),
+        "map style URL must not contain ASCII control characters"
+      )
+      .transform((value) => value.trim())
+      .refine(
+        (value) =>
+          value.length > 0 &&
+          value.length <= 2048 &&
+          value.startsWith("/") &&
+          !value.includes("//") &&
+          !value.includes("\\") &&
+          !value.includes("?") &&
+          !value.includes("#"),
+        "map style URL must be a same-origin absolute path without query or hash"
+      ),
+  })
+  .strict()
 
 function hasAsciiControl(value: string) {
   return Array.from(value).some((character) => {
@@ -233,6 +292,9 @@ export type FudabaCardPage = z.infer<typeof fudabaCardPageSchema>
 export type FudabaOfficeDetail = z.infer<
   typeof fudabaOfficeDetailSchema
 >["office"]
+export type FudabaMapOffice = z.infer<typeof fudabaMapOfficeSchema>
+export type FudabaMapOfficeList = z.infer<typeof fudabaMapOfficeListSchema>
+export type FudabaMapConfig = z.infer<typeof fudabaMapConfigSchema>
 export type FudabaOwnerCard = z.infer<typeof fudabaOwnerCardSchema>
 export type FudabaOwnerCardList = z.infer<typeof fudabaOwnerCardListSchema>
 export type FudabaOwnerCardDetail = z.infer<typeof fudabaOwnerCardDetailSchema>
@@ -265,6 +327,21 @@ export interface FudabaCardPageRequest {
   cursor?: string
 }
 
+export type FudabaMapBounds = readonly [
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+]
+
+export interface FudabaMapOfficeRequest {
+  bbox: FudabaMapBounds
+  city?: string
+  series?: string
+  open?: boolean
+  limit?: number
+}
+
 function officePageParams({
   city,
   series,
@@ -292,6 +369,39 @@ function cardPageParams({
   if (available !== undefined) params.available = String(available)
   if (office) params.office = office
   if (cursor) params.cursor = cursor
+  return params
+}
+
+function mapOfficeParams({
+  bbox,
+  city,
+  series,
+  open,
+  limit = 200,
+}: FudabaMapOfficeRequest) {
+  const [west, south, east, north] = bbox
+  if (
+    !bbox.every(Number.isFinite) ||
+    west < -180 ||
+    east > 180 ||
+    south < -90 ||
+    north > 90 ||
+    west >= east ||
+    south >= north
+  ) {
+    throw new Error("Fudaba map bounds are invalid")
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+    throw new Error("Fudaba map limit must be between 1 and 500")
+  }
+
+  const params: Record<string, string | number> = {
+    bbox: bbox.join(","),
+    limit,
+  }
+  if (city?.trim()) params.city = city.trim()
+  if (series) params.series = series
+  if (open !== undefined) params.open = String(open)
   return params
 }
 
@@ -332,6 +442,27 @@ export function getFudabaOffice(officeSlug: string) {
     {
       meta: withPlatformAuth(),
       transform: (payload) => fudabaOfficeDetailSchema.parse(payload).office,
+    }
+  )
+}
+
+export function getFudabaMapConfig() {
+  return platformApiClient.Get<FudabaMapConfig, unknown>(
+    "/api/community/exchange/map/config",
+    {
+      meta: withPlatformAuth(),
+      transform: (payload) => fudabaMapConfigSchema.parse(payload),
+    }
+  )
+}
+
+export function getFudabaMapOffices(input: FudabaMapOfficeRequest) {
+  return platformApiClient.Get<FudabaMapOfficeList, unknown>(
+    "/api/community/exchange/map/offices",
+    {
+      meta: withPlatformAuth(),
+      params: mapOfficeParams(input),
+      transform: (payload) => fudabaMapOfficeListSchema.parse(payload),
     }
   )
 }

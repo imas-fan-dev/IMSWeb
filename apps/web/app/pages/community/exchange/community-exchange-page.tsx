@@ -1,6 +1,8 @@
 import {
   Building2Icon,
+  ListIcon,
   LoaderCircleIcon,
+  MapIcon,
   MapPinnedIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -39,6 +41,7 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { Skeleton } from "~/components/ui/skeleton"
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import {
   getFudabaCardPage,
   getFudabaOfficePage,
@@ -51,6 +54,7 @@ import {
   type FudabaSeries,
 } from "~/lib/api"
 import { ExchangeCard, OfficeCard } from "./exchange-components"
+import { CommunityExchangeMapSection } from "./community-exchange-map-section"
 
 type DiscoveryPhase = "loading" | "ready" | "closed" | "error"
 
@@ -102,6 +106,7 @@ export default function CommunityExchangePage() {
   const city = searchParams.get("city")?.trim() ?? ""
   const seriesCode = searchParams.get("series")?.trim() ?? ""
   const openOnly = searchParams.get("open") === "true"
+  const view = searchParams.get("view") === "map" ? "map" : "directory"
   const [cityDraft, setCityDraft] = useState(city)
   const [state, setState] = useState<DiscoveryState>(initialState)
   const [loadingMoreOffices, setLoadingMoreOffices] = useState(false)
@@ -163,6 +168,13 @@ export default function CommunityExchangePage() {
   }, [city])
 
   useEffect(() => {
+    if (!searchParams.has("bbox")) return
+    const next = new URLSearchParams(searchParams)
+    next.delete("bbox")
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
     void loadFirstPage()
     return () => {
       requestGeneration.current += 1
@@ -188,7 +200,17 @@ export default function CommunityExchangePage() {
 
   function resetFilters() {
     setCityDraft("")
-    setSearchParams({}, { replace: true })
+    const next = new URLSearchParams()
+    if (view === "map") next.set("view", "map")
+    setSearchParams(next, { replace: true })
+  }
+
+  function updateView(nextView: string) {
+    const next = new URLSearchParams(searchParams)
+    if (nextView === "map") next.set("view", "map")
+    else next.delete("view")
+    next.delete("bbox")
+    setSearchParams(next, { replace: true })
   }
 
   const loadMoreOffices = useCallback(async () => {
@@ -293,7 +315,11 @@ export default function CommunityExchangePage() {
           </div>
           {state.phase === "ready" ? (
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>{state.offices.length} 个事务所</span>
+              <span>
+                {view === "map"
+                  ? "区域地图模式"
+                  : `${state.offices.length} 个事务所`}
+              </span>
               <span>{state.cards.length} 张可交换名片</span>
               <Button
                 type="button"
@@ -444,7 +470,7 @@ export default function CommunityExchangePage() {
             ) : null}
 
             <section aria-labelledby="exchange-offices-title">
-              <div className="flex items-end justify-between gap-4 border-b pb-4">
+              <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
                 <div>
                   <h2
                     id="exchange-offices-title"
@@ -456,9 +482,30 @@ export default function CommunityExchangePage() {
                     {hasFilters ? "当前筛选结果" : "按访问热度排列"}
                   </p>
                 </div>
+                <Tabs value={view} onValueChange={updateView}>
+                  <TabsList aria-label="事务所浏览方式">
+                    <TabsTrigger value="directory">
+                      <ListIcon aria-hidden="true" />
+                      名录
+                    </TabsTrigger>
+                    <TabsTrigger value="map">
+                      <MapIcon aria-hidden="true" />
+                      地图
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
 
-              {state.offices.length ? (
+              {view === "map" ? (
+                <div className="mt-5">
+                  <CommunityExchangeMapSection
+                    city={city || undefined}
+                    series={seriesCode || undefined}
+                    open={openOnly ? true : undefined}
+                    onSwitchDirectory={() => updateView("directory")}
+                  />
+                </div>
+              ) : state.offices.length ? (
                 <>
                   <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {state.offices.map((office) => (

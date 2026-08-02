@@ -258,6 +258,52 @@ test('administrator deletion preserves resolved Fudaba moderation actors', async
     assert.ok(await fixture.repository.findUserById(fixture.ids.admin));
 });
 
+test('administrator deletion preserves Fudaba public-location reviewers', async (t) => {
+    const fixture = await createFixture();
+    t.after(() => fixture.close());
+    const submittedAt = '2026-08-03T01:00:00.000Z';
+    const reviewedAt = '2026-08-03T02:00:00.000Z';
+    await fixture.connection.prepare(
+        `INSERT INTO platform_accounts
+            (id, status, token_version, created_at, updated_at, deleted_at)
+         VALUES ('reviewed-location-owner', 'active', 0, 1700000000000,
+                 1700000000000, NULL)`
+    ).run();
+    await fixture.connection.prepare(
+        `INSERT INTO fudaba_offices
+            (id, owner_account_id, slug, name, city, address, latitude, longitude,
+             created_at, updated_at)
+         VALUES ('reviewed-location-office', 'reviewed-location-owner',
+                 'reviewed-location-office', 'Reviewed office', 'Shanghai',
+                 'Private exact address', 31.2304, 121.4737, ?, ?)`
+    ).bind(submittedAt, submittedAt).run();
+    await fixture.connection.prepare(
+        `INSERT INTO fudaba_office_public_locations
+            (office_id, latitude_e1, longitude_e1, review_state, revision,
+             submitted_at, reviewed_at, reviewed_by, review_audit_id, review_note)
+         VALUES ('reviewed-location-office', 312, 1215, 'published', 1,
+                 ?, ?, ?, '00000000-0000-4000-8000-000000000004', '')`
+    ).bind(submittedAt, reviewedAt, fixture.ids.admin).run();
+    const headers = await authHeaders(fixture, {
+        id: fixture.ids.superAdmin,
+        username: 'super-operator',
+        dept: 'op',
+        role: 'super_admin'
+    });
+
+    const response = await fixture.app.request(
+        `http://ims.test/api/admin/accounts/${fixture.ids.admin}`,
+        { method: 'DELETE', headers }
+    );
+
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), {
+        success: false,
+        message: '该管理员已有 Fudaba 审核记录，不能删除'
+    });
+    assert.ok(await fixture.repository.findUserById(fixture.ids.admin));
+});
+
 test('legacy SQLite op accounts are backfilled and bootstrap selects one explicit super', async (t) => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-admin-bootstrap-'));
     const connection = new SqliteConnection(path.join(root, 'legacy.sqlite'));

@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "~/lib/api"
@@ -15,6 +15,8 @@ const apiMocks = vi.hoisted(() => ({
   sendCards: vi.fn(),
 }))
 
+const mapSectionMock = vi.hoisted(() => ({ renders: vi.fn() }))
+
 vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
@@ -24,6 +26,22 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getFudabaCardPage: apiMocks.getFudabaCardPage,
   }
 })
+
+vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
+  CommunityExchangeMapSection: (props: {
+    city?: string
+    series?: string
+    open?: boolean
+    onSwitchDirectory: () => void
+  }) => {
+    mapSectionMock.renders(props)
+    return (
+      <button type="button" onClick={props.onSwitchDirectory}>
+        模拟地图内容
+      </button>
+    )
+  },
+}))
 
 const office = {
   id: "office-1",
@@ -66,6 +84,11 @@ function deferred<T>() {
     resolve = resolvePromise
   })
   return { promise, resolve }
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output aria-label="current search">{location.search}</output>
 }
 
 describe("CommunityExchangePage", () => {
@@ -113,6 +136,7 @@ describe("CommunityExchangePage", () => {
       open: undefined,
       limit: 12,
     })
+    expect(mapSectionMock.renders).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole("checkbox", { name: "仅看开放事务所" }))
 
@@ -124,6 +148,51 @@ describe("CommunityExchangePage", () => {
         limit: 12,
       })
     })
+  })
+
+  it("controls the map view in the URL without persisting viewport bounds", async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/community/exchange?view=map&city=%E4%B8%8A%E6%B5%B7&bbox=100,20,130,45",
+        ]}
+      >
+        <CommunityExchangePage />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("button", { name: "模拟地图内容" })
+    ).toBeVisible()
+    await waitFor(() => {
+      const search = new URLSearchParams(
+        screen.getByLabelText("current search").textContent ?? ""
+      )
+      expect(search.get("view")).toBe("map")
+      expect(search.get("city")).toBe("上海")
+      expect(search.has("bbox")).toBe(false)
+    })
+    expect(mapSectionMock.renders).toHaveBeenLastCalledWith(
+      expect.objectContaining({ city: "上海" })
+    )
+
+    await user.click(screen.getByRole("button", { name: "清除筛选" }))
+    await waitFor(() => {
+      const search = new URLSearchParams(
+        screen.getByLabelText("current search").textContent ?? ""
+      )
+      expect([...search.entries()]).toEqual([["view", "map"]])
+    })
+
+    await user.click(screen.getByRole("tab", { name: "名录" }))
+    await waitFor(() => {
+      expect(screen.getByLabelText("current search")).toHaveTextContent("")
+    })
+    expect(
+      screen.queryByRole("button", { name: "模拟地图内容" })
+    ).not.toBeInTheDocument()
   })
 
   it("shows the neutral closed state for the server feature flag", async () => {

@@ -58,6 +58,18 @@ export const FUDABA_WRITE_ATTEMPT_LIMIT = {
   windowSeconds: 60 * 60,
 } as const;
 
+export const FUDABA_MAP_READ_LIMIT = {
+  bucket: "fudaba-map-ip",
+  limit: 300,
+  windowSeconds: 15 * 60,
+} as const;
+
+export const FUDABA_LOCATION_WRITE_LIMIT = {
+  bucket: "fudaba-location-ip",
+  limit: 60,
+  windowSeconds: 60 * 60,
+} as const;
+
 export function chronicleUploadIdempotencyKey(request: Request): string | null {
   if (!request.headers.has("Idempotency-Key")) return null;
   const key = request.headers.get("Idempotency-Key") ?? "";
@@ -126,6 +138,21 @@ function requestSpecificLimit(
   method: string,
   pathname: string,
 ): RateLimitOptions | null {
+  if (
+    method === "GET" &&
+    (pathname === "/api/community/exchange/map/config" ||
+      pathname === "/api/community/exchange/map/offices")
+  ) {
+    return FUDABA_MAP_READ_LIMIT;
+  }
+  if (
+    ["PUT", "DELETE"].includes(method) &&
+    /^\/api\/community\/exchange\/me\/offices\/[^/]+\/location$/.test(
+      pathname,
+    )
+  ) {
+    return FUDABA_LOCATION_WRITE_LIMIT;
+  }
   if (
     (method === "PUT" &&
       pathname.startsWith("/api/community/exchange/uploads/")) ||

@@ -151,8 +151,10 @@ export class SqlCoreRepository implements
         if (!(error instanceof Error)) return false;
         const databaseError = error as Error & { code?: string; constraint?: string };
         if (databaseError.code === '23001' || databaseError.code === '23503') {
-            return databaseError.constraint ===
-                'fudaba_moderation_cases_backoffice_actor_fk';
+            return new Set([
+                'fudaba_moderation_cases_backoffice_actor_fk',
+                'fudaba_office_public_locations_reviewed_by_fkey'
+            ]).has(databaseError.constraint ?? '');
         }
         return databaseError.code?.startsWith('SQLITE_CONSTRAINT') === true &&
             /FOREIGN KEY constraint failed/i.test(databaseError.message);

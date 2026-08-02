@@ -12,6 +12,8 @@ export interface NodeRuntimeConfig {
     clientAddressSource: 'direct' | 'nginx';
     fudabaPublicReadEnabled: boolean;
     fudabaWriteEnabled: boolean;
+    fudabaMapEnabled: boolean;
+    fudabaMapStyleUrl: string;
 }
 
 export interface RuntimeHealth {

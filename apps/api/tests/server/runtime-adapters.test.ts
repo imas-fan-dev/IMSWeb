@@ -29,6 +29,9 @@ import {
 } from '@/runtime/node-services';
 import {
     parseClientAddressSource,
+    parseFudabaMapConfig,
+    parseFudabaMapEnabled,
+    parseFudabaMapStyleUrl,
     parseFudabaPublicReadEnabled,
     parseFudabaWriteEnabled,
     parseStoryMaxUploadBytes
@@ -129,6 +132,57 @@ test('Fudaba writes use an independent explicit boolean feature flag', () => {
         () => parseFudabaWriteEnabled('enabled'),
         /IMS_FUDABA_WRITE_ENABLED must be true or false/
     );
+});
+
+test('Fudaba map configuration is disabled by default and strictly parsed', () => {
+    assert.deepEqual(parseFudabaMapConfig({}), {
+        enabled: false,
+        styleUrl: ''
+    });
+    assert.equal(parseFudabaMapEnabled(' true '), true);
+    assert.equal(parseFudabaMapEnabled('FALSE'), false);
+    for (const value of ['1', '0', 'yes', 'on', 'enabled']) {
+        assert.throws(
+            () => parseFudabaMapEnabled(value),
+            /IMS_FUDABA_MAP_ENABLED must be true or false/
+        );
+    }
+    assert.deepEqual(parseFudabaMapConfig({
+        IMS_FUDABA_MAP_ENABLED: 'true',
+        IMS_FUDABA_MAP_STYLE_URL: ' /api/community/exchange/map/style.json '
+    }), {
+        enabled: true,
+        styleUrl: '/api/community/exchange/map/style.json'
+    });
+    assert.throws(
+        () => parseFudabaMapConfig({ IMS_FUDABA_MAP_ENABLED: 'true' }),
+        /IMS_FUDABA_MAP_STYLE_URL is required when IMS_FUDABA_MAP_ENABLED=true/
+    );
+});
+
+test('Fudaba map style accepts only a same-origin absolute path', () => {
+    assert.equal(parseFudabaMapStyleUrl(undefined), '');
+    assert.equal(parseFudabaMapStyleUrl('   '), '');
+    assert.equal(
+        parseFudabaMapStyleUrl('/api/community/exchange/map/style.json'),
+        '/api/community/exchange/map/style.json'
+    );
+    for (const value of [
+        'style.json',
+        'https://tiles.example.test/style.json',
+        '//tiles.example.test/style.json',
+        '/styles//map.json',
+        '/styles\\map.json',
+        '/styles/map.json?key=secret',
+        '/styles/map.json#layer',
+        '/styles/map\n.json',
+        `/styles/${'x'.repeat(2048)}`
+    ]) {
+        assert.throws(
+            () => parseFudabaMapStyleUrl(value),
+            /IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path/
+        );
+    }
 });
 
 test('Fudaba public reads require S3 public object URL configuration', () => {

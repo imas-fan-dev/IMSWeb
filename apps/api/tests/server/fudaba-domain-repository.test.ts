@@ -198,8 +198,10 @@ test('SQLite initializes all Fudaba tables and the canonical series catalog', as
         'fudaba_messages',
         'fudaba_moderation_cases',
         'fudaba_office_cards',
+        'fudaba_office_public_locations',
         'fudaba_office_series_tags',
         'fudaba_offices',
+        'fudaba_rate_limit_windows',
         'fudaba_series_tags'
     ]);
     const series = await fixture.database.prepare(

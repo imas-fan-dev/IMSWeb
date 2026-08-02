@@ -30,7 +30,7 @@ const infraCategories = new Set([
     'security'
 ]);
 const infraMiddleware = new Map([
-    ['cache', new Set(['filesystem', 'memory'])],
+    ['cache', new Set(['filesystem', 'memory', 'sql'])],
     ['db', new Set(['postgresql', 'repositories', 'sql'])],
     ['http', new Set(['busboy', 'filesystem'])],
     ['media', new Set(['sharp'])],

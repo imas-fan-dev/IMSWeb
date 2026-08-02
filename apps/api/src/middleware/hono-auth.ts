@@ -165,6 +165,26 @@ export async function requireOp(c: Context<AppEnvironment>, next: Next): Promise
     await next();
 }
 
+export async function requireCurrentBackofficeOp(
+    c: Context<AppEnvironment>,
+    next: Next
+): Promise<Response | void> {
+    const claims = c.get('backofficeUser');
+    if (!claims) return c.json({ success: false, message: '未登录' }, 401);
+    const current = await backofficeAuthRepository(c).findUserById(claims.id);
+    if (!current || current.dept !== 'op') {
+        return c.json({ message: '无权限（仅op可访问）' }, 403);
+    }
+    c.set('backofficeUser', {
+        ...claims,
+        username: current.username,
+        producername: current.producername || '',
+        dept: current.dept,
+        adminRole: current.admin_role
+    });
+    await next();
+}
+
 export async function requireSuperAdmin(
     c: Context<AppEnvironment>,
     next: Next
@@ -250,6 +270,8 @@ export const platformAuth: MiddlewareHandler<AppEnvironment> = authenticatePlatf
 export const optionalPlatformAuth: MiddlewareHandler<AppEnvironment> =
     authenticateOptionalPlatform;
 export const opOnly: MiddlewareHandler<AppEnvironment> = requireOp;
+export const currentBackofficeOp: MiddlewareHandler<AppEnvironment> =
+    requireCurrentBackofficeOp;
 export const superAdminOnly: MiddlewareHandler<AppEnvironment> = requireSuperAdmin;
 export const backofficeCsrf: MiddlewareHandler<AppEnvironment> = protectBackofficeCsrf;
 export const platformCsrf: MiddlewareHandler<AppEnvironment> = protectPlatformCsrf;

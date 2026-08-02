@@ -33,6 +33,8 @@ import {
     BACKOFFICE_JWT_SECRET,
     CLIENT_ADDRESS_SOURCE,
     COOKIE_OPTIONS,
+    FUDABA_MAP_ENABLED,
+    FUDABA_MAP_STYLE_URL,
     FUDABA_PUBLIC_READ_ENABLED,
     FUDABA_WRITE_ENABLED,
     IS_PRODUCTION,
@@ -46,6 +48,7 @@ import { parseNodeObjectStorageConfig } from '@/config/object-storage';
 import { parseNodeDatabaseConfig } from '@/config/database';
 import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import { SqlFudabaRateLimiter } from '@/infra/cache/sql/fudaba-rate-limiter';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
@@ -298,7 +301,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             ),
             uploads: new StreamingUploadParser(),
             idempotency: new FilesystemIdempotencyStore(IDEMPOTENCY_DIR),
-            rateLimiter: new MemoryRateLimiter(),
+            rateLimiter: new SqlFudabaRateLimiter(connection, new MemoryRateLimiter()),
             health: {
                 async check() {
                     await connection.prepare('SELECT 1 AS ready').first('ready');
@@ -317,7 +320,9 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 sitePackageMaxUploadBytes: SITE_PACKAGE_MAX_UPLOAD_BYTES,
                 clientAddressSource: CLIENT_ADDRESS_SOURCE,
                 fudabaPublicReadEnabled: FUDABA_PUBLIC_READ_ENABLED,
-                fudabaWriteEnabled: FUDABA_WRITE_ENABLED
+                fudabaWriteEnabled: FUDABA_WRITE_ENABLED,
+                fudabaMapEnabled: FUDABA_MAP_ENABLED,
+                fudabaMapStyleUrl: FUDABA_MAP_STYLE_URL
             }
         };
     } catch (error) {

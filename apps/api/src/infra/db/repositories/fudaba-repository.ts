@@ -1,17 +1,23 @@
 import type {
+    AuditLogInput,
     CreateOwnedFudabaCardInput,
     FudabaCardRecord,
     FudabaCardMutationResult,
     FudabaExchangeRequestRecord,
     FudabaModerationCaseRecord,
+    FudabaOfficeLocationMutationResult,
+    FudabaOfficeLocationReviewRecord,
+    FudabaOfficePublicLocationRecord,
     FudabaOfficeRecord,
     FudabaPublicCardRecord,
     FudabaPublicOfficeDetailRecord,
+    FudabaPublicMapOfficeRecord,
     FudabaPublicOfficeRecord,
     FudabaPublicPlacedCardRecord,
     FudabaPublicSeriesRecord,
     FudabaRepository,
     ListFudabaPublicCardsInput,
+    ListFudabaPublicMapOfficesInput,
     ListFudabaPublicOfficesInput,
     NewFudabaCardInput,
     NewFudabaModerationCaseInput,
@@ -48,6 +54,18 @@ const MODERATION_COLUMNS = `id, resource_kind, resource_id,
 const PUBLIC_OFFICE_COLUMNS = `office.id, office.slug, office.name, office.intro,
     office.city, office.accent, office.cover_object_key, office.is_open,
     office.visitor_count`;
+const OFFICE_PUBLIC_LOCATION_COLUMNS = `office_id, latitude_e1, longitude_e1,
+    review_state, revision, submitted_at, reviewed_at, reviewed_by, review_note`;
+const QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS = `location.office_id,
+    location.latitude_e1, location.longitude_e1, location.review_state,
+    location.revision, location.submitted_at, location.reviewed_at,
+    location.reviewed_by, location.review_note`;
+const PUBLIC_MAP_OFFICE_COLUMNS = `office.id, office.slug, office.name,
+    office.city, office.accent, office.is_open, location.latitude_e1,
+    location.longitude_e1`;
+const OFFICE_LOCATION_REVIEW_COLUMNS = `${QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS},
+    office.name AS office_name, office.city AS office_city,
+    office.owner_account_id`;
 const PUBLIC_CARD_COLUMNS = `card.id, card.producer_name, card.display_name,
     card.series_code, card.favorite_idol, card.front_object_key,
     card.back_object_key, card.accent, card.bio, card.trade_note, card.available,
@@ -136,6 +154,38 @@ type FudabaPublicOfficeRow = Omit<
 type FudabaOfficeSeriesRow = {
     office_id: string;
     series_code: string;
+};
+
+type FudabaOfficePublicLocationRow = Omit<
+    FudabaOfficePublicLocationRecord,
+    | 'latitude_e1'
+    | 'longitude_e1'
+    | 'revision'
+    | 'submitted_at'
+    | 'reviewed_at'
+    | 'reviewed_by'
+> & {
+    latitude_e1: number | string;
+    longitude_e1: number | string;
+    revision: number | string;
+    submitted_at: TimestampValue;
+    reviewed_at: TimestampValue | null;
+    reviewed_by: number | string | null;
+};
+
+type FudabaPublicMapOfficeRow = Omit<
+    FudabaPublicMapOfficeRecord,
+    'is_open' | 'series_codes' | 'latitude_e1' | 'longitude_e1'
+> & {
+    is_open: boolean | number | string;
+    latitude_e1: number | string;
+    longitude_e1: number | string;
+};
+
+type FudabaOfficeLocationReviewRow = FudabaOfficePublicLocationRow & {
+    office_name: string;
+    office_city: string;
+    owner_account_id: string;
 };
 
 type FudabaPublicCardRow = Omit<
@@ -249,6 +299,48 @@ function publicOfficeRecord(
     };
 }
 
+function officePublicLocationRecord(
+    row: FudabaOfficePublicLocationRow
+): FudabaOfficePublicLocationRecord {
+    return {
+        ...row,
+        latitude_e1: Number(row.latitude_e1),
+        longitude_e1: Number(row.longitude_e1),
+        revision: Number(row.revision),
+        submitted_at: timestampValue(row.submitted_at),
+        reviewed_at: nullableTimestampValue(row.reviewed_at),
+        reviewed_by: row.reviewed_by === null ? null : Number(row.reviewed_by)
+    };
+}
+
+function publicMapOfficeRecord(
+    row: FudabaPublicMapOfficeRow,
+    seriesCodes: string[]
+): FudabaPublicMapOfficeRecord {
+    return {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        city: row.city,
+        accent: row.accent,
+        is_open: booleanValue(row.is_open),
+        series_codes: seriesCodes,
+        latitude_e1: Number(row.latitude_e1),
+        longitude_e1: Number(row.longitude_e1)
+    };
+}
+
+function officeLocationReviewRecord(
+    row: FudabaOfficeLocationReviewRow
+): FudabaOfficeLocationReviewRecord {
+    return {
+        ...officePublicLocationRecord(row),
+        office_name: row.office_name,
+        office_city: row.office_city,
+        owner_account_id: row.owner_account_id
+    };
+}
+
 function publicCardRecord(row: FudabaPublicCardRow): FudabaPublicCardRecord {
     return {
         id: row.id,
@@ -341,6 +433,33 @@ export class SqlFudabaRepository implements FudabaRepository {
         ));
     }
 
+    private async attachMapOfficeSeries(
+        rows: FudabaPublicMapOfficeRow[]
+    ): Promise<FudabaPublicMapOfficeRecord[]> {
+        if (rows.length === 0) return [];
+        const seriesByOffice = new Map<string, string[]>(
+            rows.map((row) => [row.id, []])
+        );
+        const placeholders = rows.map(() => '?').join(', ');
+        const seriesRows = await queryAll<FudabaOfficeSeriesRow>(
+            this.database,
+            `SELECT office_id, series_code
+             FROM fudaba_office_series_tags office_series
+             JOIN fudaba_series_tags series
+               ON series.code=office_series.series_code AND series.enabled
+             WHERE office_id IN (${placeholders})
+             ORDER BY office_id, office_series.display_order, series_code`,
+            rows.map((row) => row.id)
+        );
+        for (const series of seriesRows) {
+            seriesByOffice.get(series.office_id)?.push(series.series_code);
+        }
+        return rows.map((row) => publicMapOfficeRecord(
+            row,
+            seriesByOffice.get(row.id) ?? []
+        ));
+    }
+
     async listPublicSeries(): Promise<FudabaPublicSeriesRecord[]> {
         const rows = await queryAll<FudabaPublicSeriesRow>(
             this.database,
@@ -411,6 +530,69 @@ export class SqlFudabaRepository implements FudabaRepository {
             parameters
         );
         return this.attachOfficeSeries(rows);
+    }
+
+    async listPublicMapOffices(
+        input: ListFudabaPublicMapOfficesInput
+    ): Promise<FudabaPublicMapOfficeRecord[]> {
+        const conditions = [
+            `location.review_state='published'`,
+            PUBLIC_OFFICE_ELIGIBILITY,
+            `EXISTS (
+                SELECT 1 FROM fudaba_office_series_tags eligible_office_series
+                JOIN fudaba_series_tags eligible_series
+                  ON eligible_series.code=eligible_office_series.series_code
+                 AND eligible_series.enabled
+                WHERE eligible_office_series.office_id=office.id
+            )`
+        ];
+        const parameters: unknown[] = [];
+        conditions.push(
+            'location.longitude_e1>=?',
+            'location.longitude_e1<=?',
+            'location.latitude_e1>=?',
+            'location.latitude_e1<=?'
+        );
+        parameters.push(
+            input.bbox.westE1,
+            input.bbox.eastE1,
+            input.bbox.southE1,
+            input.bbox.northE1
+        );
+        if (input.city !== undefined) {
+            conditions.push('office.city=?');
+            parameters.push(input.city);
+        }
+        if (input.seriesCode !== undefined) {
+            conditions.push(`EXISTS (
+                SELECT 1 FROM fudaba_office_series_tags map_series_filter
+                JOIN fudaba_series_tags map_series
+                  ON map_series.code=map_series_filter.series_code
+                 AND map_series.enabled
+                WHERE map_series_filter.office_id=office.id
+                  AND map_series_filter.series_code=?
+            )`);
+            parameters.push(input.seriesCode);
+        }
+        if (input.isOpen !== undefined) {
+            conditions.push('office.is_open=?');
+            parameters.push(this.bindBoolean(input.isOpen));
+        }
+        parameters.push(input.limit);
+        const rows = await queryAll<FudabaPublicMapOfficeRow>(
+            this.database,
+            `SELECT ${PUBLIC_MAP_OFFICE_COLUMNS}
+             FROM fudaba_office_public_locations location
+             JOIN fudaba_offices office ON office.id=location.office_id
+             JOIN platform_accounts office_owner
+               ON office_owner.id=office.owner_account_id
+             WHERE ${conditions.join(' AND ')}
+             ORDER BY location.latitude_e1 ASC,
+                      location.longitude_e1 ASC, office.id ASC
+             LIMIT ?`,
+            parameters
+        );
+        return this.attachMapOfficeSeries(rows);
     }
 
     async findPublicOfficeBySlug(
@@ -587,6 +769,264 @@ export class SqlFudabaRepository implements FudabaRepository {
                 ]
             );
             return result.meta.changes === 1;
+        });
+    }
+
+    async findOfficePublicLocationForOwner(
+        officeId: string,
+        ownerAccountId: string
+    ): Promise<FudabaOfficePublicLocationRecord | null> {
+        const row = await queryOne<FudabaOfficePublicLocationRow>(
+            this.database,
+            `SELECT ${QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS}
+             FROM fudaba_office_public_locations location
+             JOIN fudaba_offices office ON office.id=location.office_id
+             WHERE location.office_id=? AND office.owner_account_id=?`,
+            [officeId, ownerAccountId]
+        );
+        return row ? officePublicLocationRecord(row) : null;
+    }
+
+    private async findWritableOfficePublicLocationForOwner(
+        officeId: string,
+        ownerAccountId: string,
+        requireActiveOffice: boolean
+    ): Promise<FudabaOfficePublicLocationRecord | null> {
+        const activeOfficeCondition = requireActiveOffice
+            ? `AND office.status='active'`
+            : '';
+        const row = await queryOne<FudabaOfficePublicLocationRow>(
+            this.database,
+            `SELECT ${QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS}
+             FROM fudaba_office_public_locations location
+             JOIN fudaba_offices office ON office.id=location.office_id
+             JOIN platform_accounts account ON account.id=office.owner_account_id
+             WHERE location.office_id=? AND office.owner_account_id=?
+               ${activeOfficeCondition}
+               AND account.status='active' AND account.deleted_at IS NULL`,
+            [officeId, ownerAccountId]
+        );
+        return row ? officePublicLocationRecord(row) : null;
+    }
+
+    private async officeLocationWriteFailure(
+        officeId: string,
+        ownerAccountId: string,
+        requireActiveOffice: boolean
+    ): Promise<FudabaOfficeLocationMutationResult> {
+        const current = await this.findWritableOfficePublicLocationForOwner(
+            officeId,
+            ownerAccountId,
+            requireActiveOffice
+        );
+        return current
+            ? { status: 'conflict', revision: current.revision }
+            : { status: 'unavailable' };
+    }
+
+    saveOfficePublicLocationForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        latitudeE1: number;
+        longitudeE1: number;
+        expectedRevision: number | null;
+        submittedAt: string;
+    }): Promise<FudabaOfficeLocationMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await this.database.prepare(
+                `INSERT INTO fudaba_office_public_locations
+                    (office_id, latitude_e1, longitude_e1, review_state,
+                     revision, submitted_at, reviewed_at, reviewed_by, review_note,
+                     review_audit_id)
+                 SELECT office.id, ?, ?, 'pending', 0, ?, NULL, NULL, '', NULL
+                 FROM fudaba_offices office
+                 JOIN platform_accounts account ON account.id=office.owner_account_id
+                 WHERE office.id=? AND office.owner_account_id=?
+                   AND office.status='active'
+                   AND account.status='active' AND account.deleted_at IS NULL
+                   AND (COALESCE(?, -1)=-1 OR EXISTS (
+                       SELECT 1 FROM fudaba_office_public_locations existing
+                       WHERE existing.office_id=office.id
+                   ))
+                 ON CONFLICT (office_id) DO UPDATE SET
+                    latitude_e1=excluded.latitude_e1,
+                    longitude_e1=excluded.longitude_e1,
+                    review_state='pending',
+                    revision=fudaba_office_public_locations.revision+1,
+                    submitted_at=excluded.submitted_at,
+                    reviewed_at=NULL,
+                    reviewed_by=NULL,
+                    review_note='',
+                    review_audit_id=NULL
+                 WHERE COALESCE(?, -1)>=0
+                   AND fudaba_office_public_locations.revision=?
+                   AND EXISTS (
+                       SELECT 1 FROM fudaba_offices writable_office
+                       JOIN platform_accounts writable_account
+                         ON writable_account.id=writable_office.owner_account_id
+                       WHERE writable_office.id=
+                             fudaba_office_public_locations.office_id
+                         AND writable_office.owner_account_id=?
+                         AND writable_office.status='active'
+                         AND writable_account.status='active'
+                         AND writable_account.deleted_at IS NULL
+                   )
+                 RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`
+            ).bind(
+                input.latitudeE1,
+                input.longitudeE1,
+                input.submittedAt,
+                input.officeId,
+                input.ownerAccountId,
+                input.expectedRevision,
+                input.expectedRevision,
+                input.expectedRevision,
+                input.ownerAccountId
+            ).run<FudabaOfficePublicLocationRow>();
+            const saved = result.results[0];
+            if (saved) {
+                return {
+                    status: 'saved',
+                    location: officePublicLocationRecord(saved)
+                };
+            }
+            return this.officeLocationWriteFailure(
+                input.officeId,
+                input.ownerAccountId,
+                true
+            );
+        });
+    }
+
+    withdrawOfficePublicLocationForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+    }): Promise<FudabaOfficeLocationMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await this.database.prepare(
+                `DELETE FROM fudaba_office_public_locations
+                 WHERE office_id=? AND revision=?
+                   AND EXISTS (
+                       SELECT 1 FROM fudaba_offices office
+                       JOIN platform_accounts account
+                         ON account.id=office.owner_account_id
+                       WHERE office.id=fudaba_office_public_locations.office_id
+                         AND office.owner_account_id=?
+                         AND account.status='active'
+                         AND account.deleted_at IS NULL
+                   )
+                 RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`
+            ).bind(
+                input.officeId,
+                input.expectedRevision,
+                input.ownerAccountId
+            ).run<FudabaOfficePublicLocationRow>();
+            const removed = result.results[0];
+            if (removed) {
+                return {
+                    status: 'saved',
+                    location: officePublicLocationRecord(removed)
+                };
+            }
+            return this.officeLocationWriteFailure(
+                input.officeId,
+                input.ownerAccountId,
+                false
+            );
+        });
+    }
+
+    async listOfficeLocationReviews(input: {
+        reviewState?: FudabaOfficeLocationReviewRecord['review_state'];
+        limit: number;
+    }): Promise<FudabaOfficeLocationReviewRecord[]> {
+        const conditions: string[] = [];
+        const parameters: unknown[] = [];
+        if (input.reviewState !== undefined) {
+            conditions.push('location.review_state=?');
+            parameters.push(input.reviewState);
+        }
+        parameters.push(input.limit);
+        const rows = await queryAll<FudabaOfficeLocationReviewRow>(
+            this.database,
+            `SELECT ${OFFICE_LOCATION_REVIEW_COLUMNS}
+             FROM fudaba_office_public_locations location
+             JOIN fudaba_offices office ON office.id=location.office_id
+             ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+             ORDER BY CASE location.review_state
+                          WHEN 'pending' THEN 0
+                          WHEN 'published' THEN 1
+                          ELSE 2
+                      END ASC,
+                      location.submitted_at ASC, location.office_id ASC
+             LIMIT ?`,
+            parameters
+        );
+        return rows.map(officeLocationReviewRecord);
+    }
+
+    reviewOfficePublicLocation(input: {
+        officeId: string;
+        decision: 'publish' | 'reject';
+        expectedRevision: number;
+        reviewedAt: string;
+        reviewedBy: number;
+        reviewNote: string;
+        reviewOperationId: string;
+        audit: AuditLogInput;
+    }): Promise<FudabaOfficeLocationMutationResult> {
+        return this.serializeWrite(async () => {
+            const [result] = await this.database.batch<FudabaOfficePublicLocationRow>([
+                this.database.prepare(
+                    `UPDATE fudaba_office_public_locations
+                     SET review_state=?, revision=revision+1, reviewed_at=?,
+                         reviewed_by=?, review_note=?, review_audit_id=?
+                     WHERE office_id=? AND revision=?
+                     RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`
+                ).bind(
+                    input.decision === 'publish' ? 'published' : 'rejected',
+                    input.reviewedAt,
+                    input.reviewedBy,
+                    input.reviewNote,
+                    input.reviewOperationId,
+                    input.officeId,
+                    input.expectedRevision
+                ),
+                this.database.prepare(
+                    `INSERT INTO logs
+                        (username, producername, action, target, ip, time)
+                     SELECT ?, ?, ?, ?, ?, ?
+                     FROM fudaba_office_public_locations
+                     WHERE office_id=? AND review_audit_id=?`
+                ).bind(
+                    input.audit.username,
+                    input.audit.producername,
+                    input.audit.action,
+                    input.audit.target,
+                    input.audit.ip,
+                    input.audit.time,
+                    input.officeId,
+                    input.reviewOperationId
+                )
+            ]);
+            const saved = result?.results[0];
+            if (saved) {
+                return {
+                    status: 'saved',
+                    location: officePublicLocationRecord(saved)
+                };
+            }
+            const current = await queryOne<FudabaOfficePublicLocationRow>(
+                this.database,
+                `SELECT ${OFFICE_PUBLIC_LOCATION_COLUMNS}
+                 FROM fudaba_office_public_locations
+                 WHERE office_id=?`,
+                [input.officeId]
+            );
+            return current
+                ? { status: 'conflict', revision: Number(current.revision) }
+                : { status: 'unavailable' };
         });
     }
 

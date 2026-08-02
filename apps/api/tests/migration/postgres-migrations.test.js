@@ -61,7 +61,8 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0019_homepage_links', phase: 'post-data' },
             { version: '0020_platform_accounts', phase: 'pre-data' },
             { version: '0021_backoffice_persistence_names', phase: 'post-data' },
-            { version: '0022_fudaba_domain', phase: 'post-data' }
+            { version: '0022_fudaba_domain', phase: 'post-data' },
+            { version: '0023_fudaba_public_locations', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -213,6 +214,83 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(fudabaDomain.sql, /FUDABA_OFFICE_ARCHIVED/);
     assert.match(fudabaDomain.sql, /FUDABA_OFFERED_CARD_NOT_OWNED/);
     assert.match(fudabaDomain.sql, /FUDABA_EXCHANGE_INVALID_TRANSITION/);
+    const publicLocations = migrations.find(
+        ({ version }) => version === '0023_fudaba_public_locations'
+    );
+    assert.match(
+        publicLocations.sql,
+        /CREATE TABLE public\.fudaba_office_public_locations/
+    );
+    assert.match(
+        publicLocations.sql,
+        /office_id TEXT PRIMARY KEY[\s\S]+REFERENCES public\.fudaba_offices\(id\) ON DELETE CASCADE/
+    );
+    assert.match(publicLocations.sql, /latitude_e1 BETWEEN -600 AND 600/);
+    assert.doesNotMatch(publicLocations.sql, /latitude_e1 BETWEEN -900 AND 900/);
+    assert.match(publicLocations.sql, /longitude_e1 BETWEEN -1800 AND 1800/);
+    assert.match(
+        publicLocations.sql,
+        /review_state IN \('pending', 'published', 'rejected'\)/
+    );
+    assert.match(
+        publicLocations.sql,
+        /REFERENCES public\.backoffice_accounts\(id\) ON DELETE RESTRICT/
+    );
+    assert.match(publicLocations.sql, /review_audit_id UUID UNIQUE/);
+    assert.match(
+        publicLocations.sql,
+        /reviewed_at IS NULL OR reviewed_at >= submitted_at/
+    );
+    assert.match(
+        publicLocations.sql,
+        /review_state = 'pending'[\s\S]+reviewed_at IS NULL[\s\S]+reviewed_by IS NULL[\s\S]+review_audit_id IS NULL[\s\S]+review_note = ''/
+    );
+    assert.match(
+        publicLocations.sql,
+        /review_state IN \('published', 'rejected'\)[\s\S]+reviewed_at IS NOT NULL[\s\S]+reviewed_by IS NOT NULL[\s\S]+review_audit_id IS NOT NULL/
+    );
+    assert.match(publicLocations.sql, /length\(review_note\) <= 1000/);
+    assert.match(
+        publicLocations.sql,
+        /review_state <> 'rejected'[\s\S]+length\(btrim\(review_note, E' \\t\\n\\v\\f\\r'\)\) BETWEEN 1 AND 1000/
+    );
+    assert.match(
+        publicLocations.sql,
+        /fudaba_office_public_locations_public_idx[\s\S]+latitude_e1, longitude_e1, office_id[\s\S]+WHERE review_state = 'published'/
+    );
+    assert.match(
+        publicLocations.sql,
+        /fudaba_office_public_locations_review_queue_idx[\s\S]+review_state, submitted_at, office_id[\s\S]+\);/
+    );
+    const reviewQueueIndex = publicLocations.sql.match(
+        /CREATE INDEX fudaba_office_public_locations_review_queue_idx[\s\S]+?;/
+    )?.[0];
+    assert.ok(reviewQueueIndex);
+    assert.doesNotMatch(reviewQueueIndex, /WHERE/);
+    assert.match(
+        publicLocations.sql,
+        /fudaba_office_public_locations_reviewer_idx[\s\S]+reviewed_by, reviewed_at DESC, office_id[\s\S]+WHERE reviewed_by IS NOT NULL/
+    );
+    assert.match(
+        publicLocations.sql,
+        /CREATE TABLE public\.fudaba_rate_limit_windows \([\s\S]+bucket TEXT NOT NULL[\s\S]+key_hash TEXT NOT NULL[\s\S]+hits INTEGER NOT NULL[\s\S]+window_seconds INTEGER NOT NULL[\s\S]+reset_at BIGINT NOT NULL/
+    );
+    assert.match(
+        publicLocations.sql,
+        /length\(bucket\) BETWEEN 1 AND 128[\s\S]+length\(btrim\(bucket, E' \\t\\n\\v\\f\\r'\)\) = length\(bucket\)/
+    );
+    assert.match(publicLocations.sql, /key_hash ~ '\^\[0-9a-f\]\{64\}\$'/);
+    assert.match(publicLocations.sql, /hits INTEGER NOT NULL CHECK \(hits > 0\)/);
+    assert.match(
+        publicLocations.sql,
+        /window_seconds INTEGER NOT NULL CHECK \(window_seconds > 0\)/
+    );
+    assert.match(publicLocations.sql, /reset_at BIGINT NOT NULL CHECK \(reset_at > 0\)/);
+    assert.match(publicLocations.sql, /PRIMARY KEY \(bucket, key_hash\)/);
+    assert.match(
+        publicLocations.sql,
+        /CREATE INDEX fudaba_rate_limit_windows_reset_at_idx[\s\S]+fudaba_rate_limit_windows\(reset_at\)/
+    );
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -276,7 +354,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0019_homepage_links',
         '0020_platform_accounts',
         '0021_backoffice_persistence_names',
-        '0022_fudaba_domain'
+        '0022_fudaba_domain',
+        '0023_fudaba_public_locations'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

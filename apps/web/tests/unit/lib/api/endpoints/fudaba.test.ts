@@ -5,6 +5,8 @@ import {
   deleteFudabaCard,
   fudabaCardPageSchema,
   fudabaCardUpdateSchema,
+  fudabaMapConfigSchema,
+  fudabaMapOfficeListSchema,
   fudabaOfficeDetailSchema,
   fudabaOfficePageSchema,
   fudabaOwnerCardListSchema,
@@ -12,6 +14,8 @@ import {
   getFudabaOwnerCard,
   getFudabaOwnerCards,
   getFudabaOwnerSeries,
+  getFudabaMapConfig,
+  getFudabaMapOffices,
   updateFudabaCard,
   uploadFudabaCardMedia,
 } from "~/lib/api/endpoints/fudaba"
@@ -157,6 +161,123 @@ describe("Fudaba Web API contracts", () => {
         },
       })
     ).toThrow()
+  })
+
+  it("accepts only regional map DTOs and same-origin style paths", () => {
+    const mapOffice = {
+      id: office.id,
+      slug: office.slug,
+      name: office.name,
+      city: office.city,
+      accent: office.accent,
+      isOpen: office.isOpen,
+      seriesCodes: office.seriesCodes,
+      location: {
+        latitude: 31.2,
+        longitude: 121.5,
+        precision: "regional" as const,
+      },
+    }
+
+    expect(
+      fudabaMapOfficeListSchema.parse({
+        items: [mapOffice],
+        truncated: false,
+      }).items[0]?.location.precision
+    ).toBe("regional")
+    expect(() =>
+      fudabaMapOfficeListSchema.parse({
+        items: [{ ...mapOffice, intro: "private precision leak" }],
+        truncated: false,
+      })
+    ).toThrow()
+    expect(() =>
+      fudabaMapOfficeListSchema.parse({
+        items: [
+          {
+            ...mapOffice,
+            location: { ...mapOffice.location, latitude: 31.25 },
+          },
+        ],
+        truncated: false,
+      })
+    ).toThrow(/0.1 degree grid/)
+    for (const latitude of [-60.1, 60.1]) {
+      expect(() =>
+        fudabaMapOfficeListSchema.parse({
+          items: [
+            {
+              ...mapOffice,
+              location: { ...mapOffice.location, latitude },
+            },
+          ],
+          truncated: false,
+        })
+      ).toThrow()
+    }
+
+    expect(
+      fudabaMapConfigSchema.parse({
+        styleUrl: " /api/community/exchange/map/style.json ",
+      }).styleUrl
+    ).toBe("/api/community/exchange/map/style.json")
+    for (const styleUrl of [
+      "",
+      "style.json",
+      "https://maps.example/style",
+      "//maps.example/style",
+      "/styles//map.json",
+      "/styles\\map.json",
+      "/styles/map.json?key=secret",
+      "/styles/map.json#layer",
+      "/styles/map\n.json",
+      `/styles/${"x".repeat(2048)}`,
+    ]) {
+      expect(() => fudabaMapConfigSchema.parse({ styleUrl })).toThrow()
+    }
+  })
+
+  it("requests map config and bounded offices with Platform auth", async () => {
+    const requests: Array<{ url: URL; init?: RequestInit }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input), "http://ims.test")
+        requests.push({ url, init })
+        if (url.pathname.endsWith("/map/config")) {
+          return Response.json({
+            styleUrl: "/api/community/exchange/map/style.json",
+          })
+        }
+        return Response.json({ items: [], truncated: false })
+      })
+    )
+
+    await getFudabaMapConfig().send()
+    await getFudabaMapOffices({
+      bbox: [100, 20, 130, 45],
+      city: " 上海 ",
+      series: "765as",
+      open: true,
+      limit: 200,
+    }).send()
+
+    expect(requests.map(({ url }) => url.pathname)).toEqual([
+      "/api/community/exchange/map/config",
+      "/api/community/exchange/map/offices",
+    ])
+    const query = requests[1]?.url.searchParams
+    expect(query?.get("bbox")).toBe("100,20,130,45")
+    expect(query?.get("city")).toBe("上海")
+    expect(query?.get("series")).toBe("765as")
+    expect(query?.get("open")).toBe("true")
+    expect(query?.get("limit")).toBe("200")
+    for (const request of requests) {
+      expect(request.init?.credentials).toBe("same-origin")
+      expect(
+        new Headers(request.init?.headers).get(CSRF_HEADER_NAME)
+      ).toBeNull()
+    }
   })
 
   it("strips privacy-only fields and rejects inconsistent pagination", () => {

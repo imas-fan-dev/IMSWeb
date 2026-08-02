@@ -1,0 +1,294 @@
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import test, { type TestContext } from 'node:test';
+import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import { SqlFudabaRateLimiter } from '@/infra/cache/sql/fudaba-rate-limiter';
+import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
+import { SqliteConnection } from '@/infra/db/sqlite/connection';
+import {
+    createPostgresTestHarness,
+    postgresIntegrationEnabled
+} from '../integration/postgres-harness';
+
+interface Fixture {
+    database: ManagedSqlDatabase;
+    siblingDatabase: ManagedSqlDatabase;
+}
+
+async function typescriptFiles(directory: string): Promise<string[]> {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    const files = await Promise.all(entries.map(async (entry) => {
+        const absolute = path.join(directory, entry.name);
+        if (entry.isDirectory()) return typescriptFiles(absolute);
+        return /\.tsx?$/.test(entry.name) ? [absolute] : [];
+    }));
+    return files.flat();
+}
+
+const RATE_LIMIT_SCHEMA = `
+    CREATE TABLE IF NOT EXISTS fudaba_rate_limit_windows (
+        bucket TEXT NOT NULL,
+        key_hash TEXT NOT NULL,
+        hits INTEGER NOT NULL,
+        window_seconds INTEGER NOT NULL,
+        reset_at BIGINT NOT NULL,
+        PRIMARY KEY (bucket, key_hash)
+    )`;
+
+async function createFixture(
+    t: TestContext,
+    dialect: 'sqlite' | 'postgresql'
+): Promise<Fixture> {
+    if (dialect === 'postgresql') {
+        const harness = await createPostgresTestHarness();
+        const siblingDatabase = PostgresConnection.create({
+            connectionString: harness.databaseUrl,
+            maxConnections: 4,
+            idleTimeoutMs: 5_000,
+            connectionTimeoutMs: 5_000,
+            statementTimeoutMs: 30_000,
+            idleInTransactionTimeoutMs: 30_000
+        });
+        t.after(async () => {
+            await siblingDatabase.close();
+            await harness.close();
+        });
+        await harness.connection.executeScript(RATE_LIMIT_SCHEMA);
+        return { database: harness.connection, siblingDatabase };
+    }
+
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-rate-limit-'));
+    const databasePath = path.join(root, 'rate-limit.sqlite');
+    const database = new SqliteConnection(databasePath);
+    t.after(async () => {
+        await database.close();
+        await fs.rm(root, { recursive: true, force: true });
+    });
+    await database.executeScript(RATE_LIMIT_SCHEMA);
+    return { database, siblingDatabase: database };
+}
+
+async function assertPersistentRateLimiterContract(
+    t: TestContext,
+    dialect: 'sqlite' | 'postgresql'
+): Promise<void> {
+    const fixture = await createFixture(t, dialect);
+    let now = 1_800_000_000_000;
+    const clock = (): number => now;
+    const first = new SqlFudabaRateLimiter(
+        fixture.database,
+        new MemoryRateLimiter(),
+        clock
+    );
+    const sibling = new SqlFudabaRateLimiter(
+        fixture.siblingDatabase,
+        new MemoryRateLimiter(),
+        clock
+    );
+    const key = '203.0.113.42';
+    const limit = 20;
+
+    const attempts = await Promise.all(Array.from({ length: 80 }, (_, index) =>
+        (index % 2 ? first : sibling).consume('fudaba-map-ip', key, limit, 60)
+    ));
+    assert.equal(attempts.filter((result) => result.allowed).length, limit);
+    assert.equal(attempts.filter((result) => !result.allowed).length, 80 - limit);
+
+    const stored = await fixture.database.prepare(
+        `SELECT key_hash, hits, window_seconds, reset_at
+         FROM fudaba_rate_limit_windows
+         WHERE bucket='fudaba-map-ip'`
+    ).first<{
+        key_hash: string;
+        hits: number;
+        window_seconds: number;
+        reset_at: number;
+    }>();
+    assert.deepEqual(stored, {
+        key_hash: crypto.createHash('sha256').update(key).digest('hex'),
+        hits: limit,
+        window_seconds: 60,
+        reset_at: now + 60_000
+    });
+    assert.notEqual(stored?.key_hash, key);
+
+    const reconstructed = new SqlFudabaRateLimiter(
+        fixture.database,
+        new MemoryRateLimiter(),
+        clock
+    );
+    const stillBlocked = await reconstructed.consume('fudaba-map-ip', key, limit, 60);
+    assert.deepEqual(stillBlocked, {
+        allowed: false,
+        remaining: 0,
+        resetAt: now + 60_000
+    });
+
+    now += 60_000;
+    assert.deepEqual(
+        await sibling.consume('fudaba-map-ip', key, limit, 60),
+        { allowed: true, remaining: limit - 1, resetAt: now + 60_000 }
+    );
+    now += 1;
+    assert.deepEqual(
+        await first.consume('fudaba-map-ip', key, limit, 120),
+        { allowed: true, remaining: limit - 1, resetAt: now + 120_000 }
+    );
+}
+
+test('SQLite shares hashed Fudaba windows atomically across limiter instances', async (t) => {
+    await assertPersistentRateLimiterContract(t, 'sqlite');
+});
+
+test('PostgreSQL shares hashed Fudaba windows atomically across limiter instances', {
+    skip: !postgresIntegrationEnabled()
+}, async (t) => {
+    await assertPersistentRateLimiterContract(t, 'postgresql');
+});
+
+test('only selected buckets without identities use persistent windows', async (t) => {
+    const fixture = await createFixture(t, 'sqlite');
+    const first = new SqlFudabaRateLimiter(fixture.database, new MemoryRateLimiter());
+    const sibling = new SqlFudabaRateLimiter(
+        fixture.siblingDatabase,
+        new MemoryRateLimiter()
+    );
+
+    for (const bucket of [
+        'fudaba-location-account',
+        'platform-write-account',
+        'platform-upload-account'
+    ]) {
+        assert.equal((await first.consume(bucket, 'account-1', 1, 60)).allowed, true);
+        assert.equal((await sibling.consume(bucket, 'account-1', 1, 60)).allowed, false);
+    }
+
+    assert.equal((await first.consume('global', 'shared-ip', 1, 60)).allowed, true);
+    assert.equal((await sibling.consume('global', 'shared-ip', 1, 60)).allowed, true);
+
+    const identity = { operation: 'fudaba:upload', identity: 'request-1' };
+    assert.equal(
+        (await first.consume('fudaba-upload-write', 'account-2', 1, 60, identity)).allowed,
+        true
+    );
+    assert.equal(
+        (await first.consume('fudaba-upload-write', 'account-2', 1, 60, identity)).allowed,
+        true
+    );
+    assert.equal(
+        (await first.consume('fudaba-upload-write', 'account-2', 1, 60, {
+            ...identity,
+            identity: 'request-2'
+        })).allowed,
+        false
+    );
+    assert.equal(
+        await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM fudaba_rate_limit_windows`
+        ).first<number>('count'),
+        3
+    );
+});
+
+test('expired windows are cleaned at most once per limiter every five minutes', async (t) => {
+    const fixture = await createFixture(t, 'sqlite');
+    let now = 1_800_000_000_000;
+    const limiter = new SqlFudabaRateLimiter(
+        fixture.database,
+        new MemoryRateLimiter(),
+        () => now
+    );
+    const insertExpiredWindow = (keyHash: string) => fixture.database.prepare(
+        `INSERT INTO fudaba_rate_limit_windows
+            (bucket, key_hash, hits, window_seconds, reset_at)
+         VALUES ('fudaba-map-ip', ?, 1, 60, ?)`
+    ).bind(keyHash, now - 1).run();
+    const storedWindow = (keyHash: string) => fixture.database.prepare(
+        `SELECT COUNT(*) AS count FROM fudaba_rate_limit_windows
+         WHERE key_hash=?`
+    ).bind(keyHash).first<number>('count');
+
+    const staleBeforeCleanup = 'a'.repeat(64);
+    await insertExpiredWindow(staleBeforeCleanup);
+    assert.deepEqual(
+        await limiter.consume('fudaba-map-ip', 'current-1', 2, 60),
+        { allowed: true, remaining: 1, resetAt: now + 60_000 }
+    );
+    assert.equal(await storedWindow(staleBeforeCleanup), 0);
+
+    const staleDuringThrottle = 'b'.repeat(64);
+    await insertExpiredWindow(staleDuringThrottle);
+    assert.equal(
+        (await limiter.consume('fudaba-map-ip', 'current-2', 2, 60)).allowed,
+        true
+    );
+    assert.equal(await storedWindow(staleDuringThrottle), 1);
+
+    now += 5 * 60 * 1000;
+    assert.equal(
+        (await limiter.consume('fudaba-map-ip', 'current-3', 2, 60)).allowed,
+        true
+    );
+    assert.equal(await storedWindow(staleDuringThrottle), 0);
+});
+
+test('cleanup database failures fail closed and are retried', async (t) => {
+    const fixture = await createFixture(t, 'sqlite');
+    const now = 1_800_000_000_000;
+    const limiter = new SqlFudabaRateLimiter(
+        fixture.database,
+        new MemoryRateLimiter(),
+        () => now
+    );
+    await fixture.database.prepare(
+        `INSERT INTO fudaba_rate_limit_windows
+            (bucket, key_hash, hits, window_seconds, reset_at)
+         VALUES ('fudaba-map-ip', ?, 1, 60, ?)`
+    ).bind('c'.repeat(64), now - 1).run();
+    await fixture.database.executeScript(
+        `CREATE TRIGGER fail_rate_limit_cleanup
+         BEFORE DELETE ON fudaba_rate_limit_windows
+         BEGIN
+             SELECT RAISE(ABORT, 'injected cleanup failure');
+         END`
+    );
+
+    await assert.rejects(
+        limiter.consume('fudaba-map-ip', 'current-key', 2, 60),
+        /injected cleanup failure/
+    );
+    assert.equal(
+        await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM fudaba_rate_limit_windows
+             WHERE bucket='fudaba-map-ip'`
+        ).first<number>('count'),
+        1
+    );
+
+    await fixture.database.executeScript('DROP TRIGGER fail_rate_limit_cleanup');
+    assert.deepEqual(
+        await limiter.consume('fudaba-map-ip', 'current-key', 2, 60),
+        { allowed: true, remaining: 1, resetAt: now + 60_000 }
+    );
+});
+
+test('domain and middleware code cannot depend on the SQL rate limiter', async () => {
+    const sourceRoot = path.resolve(__dirname, '../../src');
+    const files = (
+        await Promise.all(['domains', 'middleware'].map((directory) =>
+            typescriptFiles(path.join(sourceRoot, directory))
+        ))
+    ).flat();
+    for (const file of files) {
+        const source = await fs.readFile(file, 'utf8');
+        assert.doesNotMatch(
+            source,
+            /['"]@\/infra\/cache\/sql\/fudaba-rate-limiter['"]/,
+            `${path.relative(sourceRoot, file)} must depend on the RateLimiter port`
+        );
+    }
+});

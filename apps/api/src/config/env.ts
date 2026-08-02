@@ -211,6 +211,58 @@ export function parseFudabaWriteEnabled(value: string | undefined): boolean {
     throw new Error('IMS_FUDABA_WRITE_ENABLED must be true or false');
 }
 
+export interface FudabaMapConfig {
+    enabled: boolean;
+    styleUrl: string;
+}
+
+export function parseFudabaMapEnabled(value: string | undefined): boolean {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) return false;
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+    throw new Error('IMS_FUDABA_MAP_ENABLED must be true or false');
+}
+
+export function parseFudabaMapStyleUrl(value: string | undefined): string {
+    if (value === undefined || value === '') return '';
+    if (/[\0-\x1f\x7f]/.test(value)) {
+        throw new Error(
+            'IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path ' +
+            'without query or hash'
+        );
+    }
+    const normalized = value.trim();
+    if (!normalized) return '';
+    if (
+        normalized.length > 2048 ||
+        !normalized.startsWith('/') ||
+        normalized.includes('//') ||
+        normalized.includes('\\') ||
+        normalized.includes('?') ||
+        normalized.includes('#')
+    ) {
+        throw new Error(
+            'IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path ' +
+            'without query or hash'
+        );
+    }
+    return normalized;
+}
+
+export function parseFudabaMapConfig(
+    environment: NodeJS.ProcessEnv = process.env
+): FudabaMapConfig {
+    const enabled = parseFudabaMapEnabled(environment.IMS_FUDABA_MAP_ENABLED);
+    const styleUrl = parseFudabaMapStyleUrl(environment.IMS_FUDABA_MAP_STYLE_URL);
+    if (enabled && !styleUrl) {
+        throw new Error(
+            'IMS_FUDABA_MAP_STYLE_URL is required when IMS_FUDABA_MAP_ENABLED=true'
+        );
+    }
+    return { enabled, styleUrl };
+}
+
 export const CLIENT_ADDRESS_SOURCE = parseClientAddressSource(
     process.env.IMS_CLIENT_ADDRESS_SOURCE
 );
@@ -220,6 +272,9 @@ export const FUDABA_PUBLIC_READ_ENABLED = parseFudabaPublicReadEnabled(
 export const FUDABA_WRITE_ENABLED = parseFudabaWriteEnabled(
     process.env.IMS_FUDABA_WRITE_ENABLED
 );
+export const FUDABA_MAP_CONFIG = parseFudabaMapConfig();
+export const FUDABA_MAP_ENABLED = FUDABA_MAP_CONFIG.enabled;
+export const FUDABA_MAP_STYLE_URL = FUDABA_MAP_CONFIG.styleUrl;
 const COOKIE_SECURE = envFlag('IMS_COOKIE_SECURE', IS_PRODUCTION);
 
 export const COOKIE_OPTIONS: CookieOptions = {

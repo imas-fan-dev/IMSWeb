@@ -27,3 +27,4 @@ function limiter(
 
 export const platformWriteRateLimit = limiter('platform-write-account', 120);
 export const platformUploadRateLimit = limiter('platform-upload-account', 30);
+export const platformLocationRateLimit = limiter('fudaba-location-account', 12);

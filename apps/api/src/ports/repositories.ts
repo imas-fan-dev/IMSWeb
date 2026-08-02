@@ -469,6 +469,57 @@ export interface ListFudabaPublicOfficesInput {
     after?: FudabaPublicOfficeCursor;
 }
 
+export type FudabaLocationReviewState = 'pending' | 'published' | 'rejected';
+
+export interface FudabaOfficePublicLocationRecord {
+    office_id: string;
+    latitude_e1: number;
+    longitude_e1: number;
+    review_state: FudabaLocationReviewState;
+    revision: number;
+    submitted_at: string;
+    reviewed_at: string | null;
+    reviewed_by: number | null;
+    review_note: string;
+}
+
+export interface FudabaPublicMapOfficeRecord {
+    id: string;
+    slug: string;
+    name: string;
+    city: string;
+    accent: string;
+    is_open: boolean;
+    series_codes: string[];
+    latitude_e1: number;
+    longitude_e1: number;
+}
+
+export interface ListFudabaPublicMapOfficesInput {
+    bbox: {
+        westE1: number;
+        southE1: number;
+        eastE1: number;
+        northE1: number;
+    };
+    city?: string;
+    seriesCode?: string;
+    isOpen?: boolean;
+    limit: number;
+}
+
+export interface FudabaOfficeLocationReviewRecord
+    extends FudabaOfficePublicLocationRecord {
+    office_name: string;
+    office_city: string;
+    owner_account_id: string;
+}
+
+export type FudabaOfficeLocationMutationResult =
+    | { status: 'saved'; location: FudabaOfficePublicLocationRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'unavailable' };
+
 export interface FudabaPublicCardRecord {
     id: string;
     producer_name: string;
@@ -522,6 +573,9 @@ export interface FudabaRepository {
     listPublicOffices(
         input: ListFudabaPublicOfficesInput
     ): Promise<FudabaPublicOfficeRecord[]>;
+    listPublicMapOffices(
+        input: ListFudabaPublicMapOfficesInput
+    ): Promise<FudabaPublicMapOfficeRecord[]>;
     findPublicOfficeBySlug(
         slug: string,
         viewerAccountId: string | null
@@ -539,6 +593,37 @@ export interface FudabaRepository {
         updatedAt: string;
         expectedRevision: number;
     }): Promise<boolean>;
+    findOfficePublicLocationForOwner(
+        officeId: string,
+        ownerAccountId: string
+    ): Promise<FudabaOfficePublicLocationRecord | null>;
+    saveOfficePublicLocationForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        latitudeE1: number;
+        longitudeE1: number;
+        expectedRevision: number | null;
+        submittedAt: string;
+    }): Promise<FudabaOfficeLocationMutationResult>;
+    withdrawOfficePublicLocationForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+    }): Promise<FudabaOfficeLocationMutationResult>;
+    listOfficeLocationReviews(input: {
+        reviewState?: FudabaLocationReviewState;
+        limit: number;
+    }): Promise<FudabaOfficeLocationReviewRecord[]>;
+    reviewOfficePublicLocation(input: {
+        officeId: string;
+        decision: 'publish' | 'reject';
+        expectedRevision: number;
+        reviewedAt: string;
+        reviewedBy: number;
+        reviewNote: string;
+        reviewOperationId: string;
+        audit: AuditLogInput;
+    }): Promise<FudabaOfficeLocationMutationResult>;
     createCard(input: NewFudabaCardInput): Promise<FudabaCardRecord>;
     findCardById(id: string): Promise<FudabaCardRecord | null>;
     listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]>;

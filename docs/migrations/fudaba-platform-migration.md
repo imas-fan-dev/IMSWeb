@@ -366,12 +366,38 @@ Platform 是身份 namespace，Community Exchange 是业务 namespace。Fudaba �
 - office/card 游标绑定筛选条件并使用确定性 tie-break。事务所当前按可变的 `visitor_count` 排序，
   因此游标不提供跨请求快照一致性；地图上线前应改用快照游标或不可变排序键。
 
-当前 schema 只有精确地址和坐标，不能直接支持符合隐私要求的地图。地图提交必须先通过新的
-forward migration 增加审核后的公开位置或明确坐标模糊化规则。metadata importer 还会把迁移名片
-固定写为 `draft`、媒体固定写为 `ready/private`，所以仅开启 read flag 不会公开迁移内容；只有完成
-逐项授权、发布和 reconciliation 后才能开放。
+精确地址和坐标不能直接用于公开地图；它们只留在 owner/Backoffice 数据面。metadata importer
+还会把迁移名片固定写为 `draft`、媒体固定写为 `ready/private`，所以仅开启 read flag 不会公开
+迁移内容；只有完成逐项授权、发布和 reconciliation 后才能开放。
 
-### 7.3 Platform 资料与名片写合同
+### 7.3 审核后的区域地图合同
+
+公开地图使用独立的 `fudaba_office_public_locations` 投影，不从事务所精确坐标自动回填。owner
+显式提交后由 Backoffice 审核；公开 DTO 只能返回 0.1 度网格位置、`precision='regional'` 和公开
+事务所摘要，不得返回 owner、reviewer、审核说明、精确地址或精确坐标。
+
+首版区域投影只接受纬度 `-60..60`。这是隐私边界，不是地图引擎限制：纬度越接近极点，0.1 度
+经度对应的物理距离越小，若允许到 `±90` 就会把“区域位置”退化为近似精确位置。超出此范围的
+事务所仍可使用目录与精确 owner 管理面，但不能提交公开地图点。未来扩展全球范围必须改用固定
+物理尺寸网格并重新做隐私评审，不能只放宽数据库 check。
+
+地图端点为 `GET /api/community/exchange/map/config` 和
+`GET /api/community/exchange/map/offices?bbox=...`：
+
+- 必须同时开启 `IMS_FUDABA_PUBLIC_READ_ENABLED` 和 `IMS_FUDABA_MAP_ENABLED`；任一关闭均返回 404；
+- `bbox` 必填、V1 拒绝跨日期变更线单框，客户端拆成两个请求；服务端先量化为整数边界再查询；
+- 样式 URL 只能是无 query/hash、反斜杠、控制字符或双斜杠的同源绝对路径；样式、tile、glyph 和
+  sprite 均由部署方在同源托管，代码不得硬编码第三方 provider 或密钥；
+- 公开点只来自 `published` 审核状态；owner 重提恢复为 `pending`，撤回会立即删除公开投影；
+- 审核 CAS 与 Backoffice audit log 必须在同一数据库事务提交，且每次请求重新确认当前操作员仍
+  存在并属于 `op`，不能只信任 access token 中的旧 `dept`；
+- 地图 IP、位置写入 IP 和位置写入帐号限流使用 PostgreSQL/SQLite 持久窗口；生产多副本不得退回
+  进程内 `Map` 计数。
+
+此处的“地图点”是事务所发现和选点，不是用户到访打卡。visit/check-in、印章与排行仍受第 5.2
+节的独立产品合同约束。
+
+### 7.4 Platform 资料与名片写合同
 
 帐号资料与名片管理不能依赖公开读取开关。`GET /api/platform/me` 和本人名片读取要求有效的
 Platform session；`PUT /api/platform/me`、名片 mutation 和
@@ -387,7 +413,7 @@ Platform session；`PUT /api/platform/me`、名片 mutation 和
 数据库引用，再通过补偿机制删除旧对象。客户端不得提交 owner ID、逻辑 object key、来源证明、授权
 状态、发布状态或服务端时间；用户新建或修改的名片固定进入 `pending/unknown`，等待 Backoffice 审核。
 
-### 7.4 Web 路由
+### 7.5 Web 路由
 
 | 目标路径 | 页面责任 |
 | --- | --- |
@@ -410,8 +436,8 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
 实现顺序：
 
 1. 先移植信息架构、状态模型和交互流程，不复制全局 CSS；
-2. 首批以目录发现作为 `/community/exchange` 的主工作面；地图必须等审核后的公开位置或坐标
-   模糊化 migration、隐私规则和 tile 许可全部落地后再启用；
+2. 首批以目录发现作为 `/community/exchange` 的默认工作面；区域地图独立懒加载，并且只有在
+   第 7.3 节的 migration、审核、隐私、持久限流和同源 tile 门禁全部满足后才启用；
 3. 名片墙、详情翻面、上传、放置、收藏和交换使用 IMSWeb 组件与焦点管理；
 4. 登录、空状态、错误、受限帐号、审核中、已归档和网络重试都要有真实页面状态；
 5. 移动端首批验证目录筛选、事务所详情与公开名片；后续写入阶段再验证地图、名片上传、
@@ -476,7 +502,7 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
     - 不启用 mutation。
 13. `feat(web): add community exchange discovery`
     - 社区入口、城市/企划/开放状态筛选、公开名片、事务所详情和分享路径；
-    - 不伪造地图或公开精确坐标，地图继续受第 7.2 节的 forward migration 门禁约束；
+    - 不伪造地图或公开精确坐标，地图继续受第 7.3 节的区域投影门禁约束；
     - 补齐 loading/error/empty、无障碍与桌面/移动截图。
 
 ### D. Fudaba 写入、审核与完整功能
@@ -486,37 +512,43 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
 15. `feat(web): add producer profile and card workflows`
     - 平台资料、我的名片、上传/编辑、冲突恢复与响应式 QA；
     - 墙面放置依赖事务所 owner API、归档阻断和 CAS，因此纳入下一提交，不在 Web 层伪造。
-16. `feat(api): add fudaba office and message workflows`
+16. `feat(api): add reviewed fudaba map locations`
+    - 增加隐私区域投影、owner 提交/重提/撤回、Backoffice 审核、原子审计、持久限流和双开关；
+    - 不自动从精确坐标回填，不把 `visitor_count` 或地图点解释为到访打卡。
+17. `feat(web): add regional office map`
+    - 按需加载 MapLibre、区域聚合点、筛选、桌面侧栏、移动 Sheet、替代列表与失败降级；
+    - 样式和所有地图资源只走同源部署面，默认目录不会下载地图代码。
+18. `feat(api): add fudaba office and message workflows`
     - 创建/更新/归档/恢复、封面、系列标签、名片放置/移动/移除、留言、地点搜索代理与限流。
-17. `feat(api): add fudaba interactions and exchange state machine`
+19. `feat(api): add fudaba interactions and exchange state machine`
     - like/favorite、请求创建、接受/拒绝/取消、幂等与并发 fencing；
     - 联系方式只在双方确认后按隐私合同披露。
-18. `feat(web): complete community exchange workflows`
+20. `feat(web): complete community exchange workflows`
     - 事务所管理、留言、收藏和交换收件箱；覆盖冲突与失败恢复。
-19. `feat(admin): add fudaba moderation workflows`
+21. `feat(admin): add fudaba moderation workflows`
     - 举报、图片审核、帐号限制、地点隐藏、删除/申诉与 Backoffice 审计；
     - Platform 资源 owner 和 Backoffice actor 必须是不同字段和 realm。
 
 ### E. OAuth、邮箱兼容与切流
 
-20. `feat(api): add platform oauth provider ports and state persistence`
+22. `feat(api): add platform oauth provider ports and state persistence`
     - provider registry、state/PKCE、return path 校验和 linking contract；
     - 使用 provider port，domain 不导入具体 SDK。
-21. `feat(api): add google and github platform oauth`
+23. `feat(api): add google and github platform oauth`
     - Google/GitHub adapter、callback、最小 scope、identity resolution 和安全事件；
     - provider tokens 不落库。
-22. `feat(web): add platform oauth and account linking ui`
+24. `feat(web): add platform oauth and account linking ui`
     - 登录、callback 结果、账号连接/冲突、登出和会话管理。
-23. `feat(auth): add fudaba email credential compatibility`
+25. `feat(auth): add fudaba email credential compatibility`
     - PBKDF2 legacy verifier、首次登录重哈希、验证码发送、重置和去重；
     - 若不迁移密码，则此提交改为强制 reset 流程并保留可验证通知证据。
-24. `feat(migration): import fudaba production data`
+26. `feat(migration): import fudaba production data`
     - 只提交迁移代码、固定清单摘要和非敏感 reconciliation evidence；
     - 实际数据库、用户资料、hash、上传和完整 manifest 留在受控存储，不进入 Git。
-25. `ops: cut over fudaba to imsweb`
+27. `ops: cut over fudaba to imsweb`
     - feature flag、OAuth callback、旧服务只读、监控、回滚演练和最终切流证据。
 
-不能把 9 至 19 压成一个“copy Fudaba”提交。每个提交必须能从 diff 看出业务边界，且测试与实现
+不能把 9 至 21 压成一个“copy Fudaba”提交。每个提交必须能从 diff 看出业务边界，且测试与实现
 同时落地。
 
 ## 10. 数据迁移执行步骤
@@ -692,10 +724,11 @@ start/callback、对象读取、一次受控写入和 Backoffice moderation。�
 
 ### 12.1 发布闸门
 
-至少使用三个独立开关：
+至少使用四个独立开关：
 
 - Platform auth：先对内部测试帐号开放；
 - Fudaba read：数据和素材完成对账后开放；
+- Fudaba map：区域位置审核、持久限流、同源地图资源和隐私 QA 完成后开放；
 - Fudaba write：审核、举报、限流、备份和回滚演练全部通过后开放。
 
 路由可以随代码部署，但导航和 mutation 必须受 server-controlled capability 控制，不能只靠前端隐藏。
