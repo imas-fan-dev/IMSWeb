@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   createFudabaCard,
+  createFudabaOffice,
   deleteFudabaCard,
   fudabaCardPageSchema,
   fudabaCardUpdateSchema,
@@ -10,14 +11,22 @@ import {
   fudabaOfficeDetailSchema,
   fudabaOfficePageSchema,
   fudabaOwnerCardListSchema,
+  fudabaOwnerLocationDetailSchema,
+  fudabaOwnerOfficeListSchema,
   fudabaSeriesListSchema,
+  getFudabaOwnerLocation,
+  getFudabaOwnerOffice,
+  getFudabaOwnerOffices,
   getFudabaOwnerCard,
   getFudabaOwnerCards,
   getFudabaOwnerSeries,
   getFudabaMapConfig,
   getFudabaMapOffices,
   updateFudabaCard,
+  updateFudabaOwnerOffice,
   uploadFudabaCardMedia,
+  saveFudabaOwnerLocation,
+  withdrawFudabaOwnerLocation,
 } from "~/lib/api/endpoints/fudaba"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
@@ -73,6 +82,46 @@ const ownerCard = {
   revision: 1,
   createdAt: "2026-08-02T08:00:00.000Z",
   updatedAt: "2026-08-02T08:00:00.000Z",
+}
+
+const ownerOffice = {
+  id: "owner-office",
+  slug: "shanghai-owner-office",
+  name: "上海制作人交换事务所",
+  intro: "周末线下交换",
+  city: "上海",
+  address: "西岸艺术中心入口",
+  location: {
+    latitude: 31.18452,
+    longitude: 121.45678,
+    precision: "exact" as const,
+  },
+  accent: "#2581c7",
+  coverUrl: null,
+  pendingCoverUrl: null,
+  pendingCoverSubmittedAt: null,
+  isOpen: true,
+  visitorCount: 12,
+  status: "active" as const,
+  revision: 3,
+  seriesCodes: ["765as"],
+  createdAt: "2026-08-02T08:00:00.000Z",
+  updatedAt: "2026-08-02T09:00:00.000Z",
+  archivedAt: null,
+}
+
+const ownerLocation = {
+  officeId: ownerOffice.id,
+  location: {
+    latitude: 31.2,
+    longitude: 121.5,
+    precision: "regional" as const,
+  },
+  reviewState: "published" as const,
+  revision: 2,
+  submittedAt: "2026-08-02T09:00:00.000Z",
+  reviewedAt: "2026-08-02T10:00:00.000Z",
+  reviewNote: "区域范围合适",
 }
 
 const cardFields = {
@@ -324,6 +373,34 @@ describe("Fudaba Web API contracts", () => {
     ).toThrow()
   })
 
+  it("keeps exact owner office data separate from regional public locations", () => {
+    expect(
+      fudabaOwnerOfficeListSchema.parse({ items: [ownerOffice] }).items[0]
+        ?.location
+    ).toEqual({
+      latitude: 31.18452,
+      longitude: 121.45678,
+      precision: "exact",
+    })
+    expect(
+      fudabaOwnerLocationDetailSchema.parse({ location: ownerLocation })
+        .location?.location
+    ).toEqual({ latitude: 31.2, longitude: 121.5, precision: "regional" })
+    expect(() =>
+      fudabaOwnerLocationDetailSchema.parse({
+        location: {
+          ...ownerLocation,
+          location: { ...ownerLocation.location, latitude: 31.25 },
+        },
+      })
+    ).toThrow(/0.1 degree grid/)
+    expect(() =>
+      fudabaOwnerOfficeListSchema.parse({
+        items: [{ ...ownerOffice, ownerAccountId: "private-owner" }],
+      })
+    ).toThrow()
+  })
+
   it("uses authenticated owner reads and URL-encodes card IDs", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = []
     const encodedCardId = "owner%20card%3F%23"
@@ -440,6 +517,99 @@ describe("Fudaba Web API contracts", () => {
 
     expect(JSON.parse(String(requests[3]?.init?.body))).toEqual({
       expectedRevision: 1,
+    })
+  })
+
+  it("uses owner office CAS, idempotency, and independent location endpoints", async () => {
+    document.cookie = "ims_platform_csrf=owner-office-csrf; path=/"
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const pathname = new URL(String(input), "http://ims.test").pathname
+        requests.push({ url: pathname, init })
+        if (init?.method === "DELETE") return Response.json({ success: true })
+        if (pathname.endsWith("/location") && init?.method === "PUT") {
+          return Response.json({
+            success: true,
+            officeLocation: {
+              ...ownerLocation,
+              reviewState: "pending",
+              revision: 3,
+              reviewedAt: null,
+              reviewNote: "",
+            },
+          })
+        }
+        if (pathname.endsWith("/location")) {
+          return Response.json({ location: ownerLocation })
+        }
+        if (pathname.endsWith("/me/offices") && init?.method === "GET") {
+          return Response.json({ items: [ownerOffice] })
+        }
+        if (pathname.endsWith("/owner-office") && init?.method === "GET") {
+          return Response.json({ office: ownerOffice })
+        }
+        return Response.json({ success: true, office: ownerOffice })
+      })
+    )
+    const fields = {
+      name: ownerOffice.name,
+      intro: ownerOffice.intro,
+      city: ownerOffice.city,
+      address: ownerOffice.address,
+      latitude: ownerOffice.location.latitude,
+      longitude: ownerOffice.location.longitude,
+      accent: ownerOffice.accent,
+      isOpen: ownerOffice.isOpen,
+      seriesCodes: ownerOffice.seriesCodes,
+    }
+
+    await getFudabaOwnerOffices().send()
+    await getFudabaOwnerOffice(ownerOffice.id).send()
+    await getFudabaOwnerLocation(ownerOffice.id).send()
+    await createFudabaOffice(fields, "office-create-1").send()
+    await updateFudabaOwnerOffice(ownerOffice.id, {
+      ...fields,
+      expectedRevision: 3,
+    }).send()
+    await saveFudabaOwnerLocation(ownerOffice.id, {
+      latitude: 31.2,
+      longitude: 121.5,
+      expectedRevision: 2,
+    }).send()
+    await withdrawFudabaOwnerLocation(ownerOffice.id, 3).send()
+
+    expect(requests.map(({ url, init }) => [url, init?.method])).toEqual([
+      ["/api/community/exchange/me/offices", "GET"],
+      ["/api/community/exchange/me/offices/owner-office", "GET"],
+      ["/api/community/exchange/me/offices/owner-office/location", "GET"],
+      ["/api/community/exchange/offices", "POST"],
+      ["/api/community/exchange/me/offices/owner-office", "PUT"],
+      ["/api/community/exchange/me/offices/owner-office/location", "PUT"],
+      ["/api/community/exchange/me/offices/owner-office/location", "DELETE"],
+    ])
+
+    for (const [index, request] of requests.entries()) {
+      expect(new Headers(request.init?.headers).get(CSRF_HEADER_NAME)).toBe(
+        index < 3 ? null : "owner-office-csrf"
+      )
+    }
+    expect(new Headers(requests[3]?.init?.headers).get("Idempotency-Key")).toBe(
+      "office-create-1"
+    )
+    expect(JSON.parse(String(requests[4]?.init?.body))).toMatchObject({
+      expectedRevision: 3,
+      latitude: 31.18452,
+      longitude: 121.45678,
+    })
+    expect(JSON.parse(String(requests[5]?.init?.body))).toEqual({
+      latitude: 31.2,
+      longitude: 121.5,
+      expectedRevision: 2,
+    })
+    expect(JSON.parse(String(requests[6]?.init?.body))).toEqual({
+      expectedRevision: 3,
     })
   })
 })

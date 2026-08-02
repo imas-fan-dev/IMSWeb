@@ -188,6 +188,28 @@ const ownerCardTextSchema = (maximum: number, required = false) =>
     .refine((value) => !hasAsciiControl(value))
 
 const fudabaRevisionSchema = z.number().int().safe().nonnegative()
+const ownerOfficeTextSchema = (maximum: number, required = false) =>
+  z
+    .string()
+    .trim()
+    .min(required ? 1 : 0)
+    .max(maximum)
+    .refine((value) => !hasAsciiControl(value))
+const exactCoordinateSchema = (minimum: number, maximum: number) =>
+  z.number().finite().min(minimum).max(maximum)
+const ownerOfficeSeriesCodesSchema = z
+  .array(seriesCodeSchema.max(40))
+  .min(1)
+  .max(8)
+  .refine((codes) => new Set(codes).size === codes.length)
+const idempotencyKeySchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine(
+    (value) => value === value.trim() && !hasAsciiControl(value),
+    "idempotency key is invalid"
+  )
 
 const fileSchema = z.custom<File>(
   (value) => typeof File !== "undefined" && value instanceof File,
@@ -282,6 +304,110 @@ export const fudabaCardMediaUploadSchema = z
   })
   .strict()
 
+export const fudabaOwnerOfficeSchema = z
+  .object({
+    id: ownerCardIdSchema,
+    slug: z.string().trim().min(1),
+    name: ownerOfficeTextSchema(80, true),
+    intro: ownerOfficeTextSchema(2000),
+    city: ownerOfficeTextSchema(100, true),
+    address: ownerOfficeTextSchema(240, true),
+    location: z
+      .object({
+        latitude: exactCoordinateSchema(-90, 90),
+        longitude: exactCoordinateSchema(-180, 180),
+        precision: z.literal("exact"),
+      })
+      .strict(),
+    accent: accentSchema,
+    coverUrl: publicMediaUrlSchema.nullable(),
+    pendingCoverUrl: publicMediaUrlSchema.nullable(),
+    pendingCoverSubmittedAt: timestampSchema.nullable(),
+    isOpen: z.boolean(),
+    visitorCount: z.number().int().nonnegative(),
+    status: z.enum(["active", "hidden", "archived"]),
+    revision: fudabaRevisionSchema,
+    seriesCodes: ownerOfficeSeriesCodesSchema,
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+    archivedAt: timestampSchema.nullable(),
+  })
+  .strict()
+
+export const fudabaOwnerOfficeListSchema = z
+  .object({ items: z.array(fudabaOwnerOfficeSchema) })
+  .strict()
+
+export const fudabaOwnerOfficeDetailSchema = z
+  .object({ office: fudabaOwnerOfficeSchema })
+  .strict()
+
+export const fudabaOfficeFieldsSchema = z
+  .object({
+    name: ownerOfficeTextSchema(80, true),
+    intro: ownerOfficeTextSchema(2000),
+    city: ownerOfficeTextSchema(100, true),
+    address: ownerOfficeTextSchema(240, true),
+    latitude: exactCoordinateSchema(-90, 90),
+    longitude: exactCoordinateSchema(-180, 180),
+    accent: accentSchema.transform((value) => value.toLowerCase()),
+    isOpen: z.boolean(),
+    seriesCodes: ownerOfficeSeriesCodesSchema,
+  })
+  .strict()
+
+export const fudabaOfficeUpdateSchema = fudabaOfficeFieldsSchema
+  .extend({ expectedRevision: fudabaRevisionSchema })
+  .strict()
+
+export const fudabaOfficeMutationResponseSchema = z
+  .object({
+    success: z.literal(true),
+    office: fudabaOwnerOfficeSchema,
+  })
+  .strict()
+
+export const fudabaOwnerLocationSchema = z
+  .object({
+    officeId: ownerCardIdSchema,
+    location: z
+      .object({
+        latitude: regionalCoordinateSchema(-60, 60),
+        longitude: regionalCoordinateSchema(-180, 180),
+        precision: z.literal("regional"),
+      })
+      .strict(),
+    reviewState: z.enum(["pending", "published", "rejected"]),
+    revision: fudabaRevisionSchema,
+    submittedAt: timestampSchema,
+    reviewedAt: timestampSchema.nullable(),
+    reviewNote: z.string().max(1000),
+  })
+  .strict()
+
+export const fudabaOwnerLocationDetailSchema = z
+  .object({ location: fudabaOwnerLocationSchema.nullable() })
+  .strict()
+
+export const fudabaOwnerLocationSubmissionSchema = z
+  .object({
+    latitude: regionalCoordinateSchema(-60, 60),
+    longitude: regionalCoordinateSchema(-180, 180),
+    expectedRevision: fudabaRevisionSchema.nullable(),
+  })
+  .strict()
+
+export const fudabaOwnerLocationMutationResponseSchema = z
+  .object({
+    success: z.literal(true),
+    officeLocation: fudabaOwnerLocationSchema,
+  })
+  .strict()
+
+export const fudabaOwnerLocationWithdrawalResponseSchema = z
+  .object({ success: z.literal(true) })
+  .strict()
+
 export type FudabaSeries = z.infer<typeof fudabaSeriesSchema>
 export type FudabaSeriesList = z.infer<typeof fudabaSeriesListSchema>
 export type FudabaOffice = z.infer<typeof fudabaOfficeSchema>
@@ -310,6 +436,21 @@ export type UpdateFudabaCardInput = z.input<typeof fudabaCardUpdateSchema>
 export type FudabaCardMediaSide = z.infer<
   typeof fudabaCardMediaUploadSchema
 >["side"]
+export type FudabaOwnerOffice = z.infer<typeof fudabaOwnerOfficeSchema>
+export type FudabaOwnerOfficeList = z.infer<typeof fudabaOwnerOfficeListSchema>
+export type FudabaOfficeFields = z.input<typeof fudabaOfficeFieldsSchema>
+export type CreateFudabaOfficeInput = FudabaOfficeFields
+export type UpdateFudabaOfficeInput = z.input<typeof fudabaOfficeUpdateSchema>
+export type FudabaOfficeMutationResponse = z.infer<
+  typeof fudabaOfficeMutationResponseSchema
+>
+export type FudabaOwnerLocation = z.infer<typeof fudabaOwnerLocationSchema>
+export type FudabaOwnerLocationDetail = z.infer<
+  typeof fudabaOwnerLocationDetailSchema
+>
+export type SaveFudabaOwnerLocationInput = z.input<
+  typeof fudabaOwnerLocationSubmissionSchema
+>
 
 export interface FudabaOfficePageRequest {
   city?: string
@@ -494,6 +635,106 @@ export function getFudabaOwnerCard(cardId: string) {
     {
       meta: withPlatformAuth(),
       transform: (payload) => fudabaOwnerCardDetailSchema.parse(payload),
+    }
+  )
+}
+
+export function getFudabaOwnerOffices() {
+  return platformApiClient.Get<FudabaOwnerOfficeList, unknown>(
+    "/api/community/exchange/me/offices",
+    {
+      meta: withPlatformAuth(),
+      transform: (payload) => fudabaOwnerOfficeListSchema.parse(payload),
+    }
+  )
+}
+
+export function getFudabaOwnerOffice(officeId: string) {
+  return platformApiClient.Get<
+    z.infer<typeof fudabaOwnerOfficeDetailSchema>,
+    unknown
+  >(`/api/community/exchange/me/offices/${encodeURIComponent(officeId)}`, {
+    meta: withPlatformAuth(),
+    transform: (payload) => fudabaOwnerOfficeDetailSchema.parse(payload),
+  })
+}
+
+export function createFudabaOffice(
+  input: CreateFudabaOfficeInput,
+  idempotencyKey: string
+) {
+  const submission = fudabaOfficeFieldsSchema.parse(input)
+  const key = idempotencyKeySchema.parse(idempotencyKey)
+  return platformApiClient.Post<FudabaOfficeMutationResponse, unknown>(
+    "/api/community/exchange/offices",
+    submission,
+    {
+      headers: { "Idempotency-Key": key },
+      meta: withPlatformCsrf(),
+      transform: (payload) => fudabaOfficeMutationResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function updateFudabaOwnerOffice(
+  officeId: string,
+  input: UpdateFudabaOfficeInput
+) {
+  const submission = fudabaOfficeUpdateSchema.parse(input)
+  return platformApiClient.Put<FudabaOfficeMutationResponse, unknown>(
+    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}`,
+    submission,
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) => fudabaOfficeMutationResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function getFudabaOwnerLocation(officeId: string) {
+  return platformApiClient.Get<FudabaOwnerLocationDetail, unknown>(
+    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
+    {
+      meta: withPlatformAuth(),
+      transform: (payload) => fudabaOwnerLocationDetailSchema.parse(payload),
+    }
+  )
+}
+
+export function saveFudabaOwnerLocation(
+  officeId: string,
+  input: SaveFudabaOwnerLocationInput
+) {
+  const submission = fudabaOwnerLocationSubmissionSchema.parse(input)
+  return platformApiClient.Put<
+    z.infer<typeof fudabaOwnerLocationMutationResponseSchema>,
+    unknown
+  >(
+    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
+    submission,
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) =>
+        fudabaOwnerLocationMutationResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function withdrawFudabaOwnerLocation(
+  officeId: string,
+  expectedRevision: number
+) {
+  const revision = fudabaRevisionSchema.parse(expectedRevision)
+  return platformApiClient.Delete<
+    z.infer<typeof fudabaOwnerLocationWithdrawalResponseSchema>,
+    unknown
+  >(
+    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
+    { expectedRevision: revision },
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) =>
+        fudabaOwnerLocationWithdrawalResponseSchema.parse(payload),
     }
   )
 }

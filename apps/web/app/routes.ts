@@ -10,6 +10,11 @@ const publicRoutes = [
   },
   { path: "live", file: "pages/live/live-page.tsx" },
   { path: "community", file: "pages/community/community-page.tsx" },
+  { path: "account/login", file: "pages/account/login/account-login-page.tsx" },
+  {
+    path: "account/register",
+    file: "pages/account/register/account-register-page.tsx",
+  },
   {
     path: "community/exchange",
     file: "pages/community/exchange/community-exchange-page.tsx",
@@ -88,6 +93,10 @@ const adminRoutes = [
   {
     path: "producer-map",
     file: "pages/admin/producer-map/producer-map-manager.tsx",
+  },
+  {
+    path: "community/exchange",
+    file: "pages/admin/community/exchange/admin-community-exchange-page.tsx",
   },
   {
     path: "information",

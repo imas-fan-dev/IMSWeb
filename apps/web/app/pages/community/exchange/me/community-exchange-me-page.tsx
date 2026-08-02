@@ -31,6 +31,7 @@ import {
 } from "~/lib/api"
 import { CardWorkspace } from "./card-workspace"
 import { apiMessage, isFeatureClosed } from "./exchange-me-model"
+import { OfficeLocationWorkspace } from "./office-location-workspace"
 import { ProfileEditor } from "./profile-editor"
 
 type WorkspacePhase = "idle" | "loading" | "ready" | "closed" | "error"
@@ -398,6 +399,12 @@ export default function CommunityExchangeMePage() {
           />
         </section>
       </div>
+      <OfficeLocationWorkspace
+        series={state.series}
+        homeCity={state.profile.homeCity}
+        readOnly={readOnly}
+        onWriteClosed={closeWrites}
+      />
     </main>
   )
 }
