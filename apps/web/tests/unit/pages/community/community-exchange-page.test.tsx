@@ -117,7 +117,7 @@ describe("CommunityExchangePage", () => {
     })
   })
 
-  it("renders public discovery and reapplies the open filter", async () => {
+  it("opens on the map and keeps both public directories reachable", async () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter initialEntries={["/community/exchange"]}>
@@ -125,18 +125,45 @@ describe("CommunityExchangePage", () => {
       </MemoryRouter>
     )
 
-    expect(await screen.findByText("上海周末交换事务所")).toBeVisible()
-    expect(screen.getByText("交换会用名片")).toBeVisible()
-    expect(screen.getByLabelText("21 次访问")).toBeVisible()
-    expect(screen.getByLabelText("2 次点赞")).toBeVisible()
-    expect(screen.getByLabelText("1 次收藏")).toBeVisible()
+    const map = await screen.findByRole("button", { name: "模拟地图内容" })
+    expect(map).toBeVisible()
     expect(apiMocks.getFudabaOfficePage).toHaveBeenCalledWith({
       city: undefined,
       series: undefined,
       open: undefined,
       limit: 12,
     })
-    expect(mapSectionMock.renders).not.toHaveBeenCalled()
+    expect(mapSectionMock.renders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        city: undefined,
+        series: undefined,
+        open: undefined,
+      })
+    )
+    expect(
+      screen.getByRole("complementary", { name: "交换发现栏" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { name: "名片交换信号地图" })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "全部企划" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+
+    await user.click(map)
+    expect((await screen.findAllByText("上海周末交换事务所"))[0]).toBeVisible()
+    expect(screen.getByLabelText("21 次访问")).toBeVisible()
+    await user.click(screen.getByRole("tab", { name: "名片" }))
+    expect(await screen.findByText("交换会用名片")).toBeVisible()
+    expect(screen.getByLabelText("2 次点赞")).toBeVisible()
+    expect(screen.getByLabelText("1 次收藏")).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "关闭" }))
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "公开交换名录" })
+      ).not.toBeInTheDocument()
+    })
 
     await user.click(screen.getByRole("checkbox", { name: "仅看开放事务所" }))
 
@@ -150,7 +177,7 @@ describe("CommunityExchangePage", () => {
     })
   })
 
-  it("controls the map view in the URL without persisting viewport bounds", async () => {
+  it("keeps only filters in the URL and opens the directory escape hatch", async () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter
@@ -170,7 +197,7 @@ describe("CommunityExchangePage", () => {
       const search = new URLSearchParams(
         screen.getByLabelText("current search").textContent ?? ""
       )
-      expect(search.get("view")).toBe("map")
+      expect(search.has("view")).toBe(false)
       expect(search.get("city")).toBe("上海")
       expect(search.has("bbox")).toBe(false)
     })
@@ -183,16 +210,12 @@ describe("CommunityExchangePage", () => {
       const search = new URLSearchParams(
         screen.getByLabelText("current search").textContent ?? ""
       )
-      expect([...search.entries()]).toEqual([["view", "map"]])
+      expect([...search.entries()]).toEqual([])
     })
 
-    await user.click(screen.getByRole("tab", { name: "名录" }))
-    await waitFor(() => {
-      expect(screen.getByLabelText("current search")).toHaveTextContent("")
-    })
-    expect(
-      screen.queryByRole("button", { name: "模拟地图内容" })
-    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "模拟地图内容" }))
+    expect((await screen.findAllByText("上海周末交换事务所"))[0]).toBeVisible()
+    expect(screen.getByRole("heading", { name: "公开交换名录" })).toBeVisible()
   })
 
   it("shows the neutral closed state for the server feature flag", async () => {
@@ -276,11 +299,27 @@ describe("CommunityExchangePage", () => {
     )
 
     await user.click(
-      await screen.findByRole("button", { name: "加载更多事务所" })
+      await screen.findByRole("button", { name: "模拟地图内容" })
     )
+    await user.click(screen.getByRole("button", { name: "加载更多事务所" }))
+    await user.click(screen.getByRole("button", { name: "关闭" }))
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "公开交换名录" })
+      ).not.toBeInTheDocument()
+    })
     await user.click(screen.getByRole("checkbox", { name: "仅看开放事务所" }))
 
-    expect(await screen.findByText("筛选后的开放事务所")).toBeVisible()
+    await waitFor(() => {
+      expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith({
+        city: undefined,
+        series: undefined,
+        open: true,
+        limit: 12,
+      })
+    })
+    await user.click(screen.getByRole("button", { name: "模拟地图内容" }))
+    expect((await screen.findAllByText("筛选后的开放事务所"))[0]).toBeVisible()
     await user.click(screen.getByRole("button", { name: "加载更多事务所" }))
 
     expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith({
@@ -321,6 +360,6 @@ describe("CommunityExchangePage", () => {
       await currentPage.promise
     })
 
-    expect(screen.getByText("当前筛选的下一页事务所")).toBeVisible()
+    expect(screen.getAllByText("当前筛选的下一页事务所")[0]).toBeVisible()
   })
 })

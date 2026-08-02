@@ -24,17 +24,28 @@ const seriesColors: Readonly<Record<string, string>> = {
   gakuen: "var(--franchise-gk)",
 }
 
-export function resolveSameOriginMapResourceUrl(
+const openFreeMapOrigin = "https://tiles.openfreemap.org"
+
+export function resolveAllowedMapResourceUrl(
   value: string,
   siteOrigin: string
 ) {
   const currentSite = new URL(siteOrigin)
   const resource = new URL(value, currentSite)
+  const isHttp = ["http:", "https:"].includes(resource.protocol)
+  const isCurrentOrigin = isHttp && resource.origin === currentSite.origin
+  const isOpenFreeMap =
+    resource.protocol === "https:" &&
+    resource.hostname === "tiles.openfreemap.org" &&
+    resource.port === "" &&
+    resource.origin === openFreeMapOrigin
+
   if (
-    !["http:", "https:"].includes(resource.protocol) ||
-    resource.origin !== currentSite.origin
+    (!isCurrentOrigin && !isOpenFreeMap) ||
+    resource.username ||
+    resource.password
   ) {
-    throw new Error("地图资源必须使用当前站点的 HTTP(S) 地址")
+    throw new Error("地图资源仅允许当前站点或 OpenFreeMap 官方 HTTPS 地址")
   }
   return resource.href
 }
@@ -78,10 +89,13 @@ export function splitViewportBounds({
   }
   if (boundedWest === boundedEast) return []
 
-  return [
+  const splitBounds: FudabaMapBounds[] = [
     [boundedWest, boundedSouth, 180, boundedNorth],
     [-180, boundedSouth, boundedEast, boundedNorth],
   ]
+  return splitBounds.filter(
+    ([requestWest, , requestEast]) => requestWest < requestEast
+  )
 }
 
 export function mergeMapOfficeResponses(

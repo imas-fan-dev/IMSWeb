@@ -30,12 +30,28 @@ vi.mock("~/pages/community/exchange/exchange-office-map", () => {
     ) => {
       mapModule.renders(props.styleUrl)
       return (
-        <button
-          type="button"
-          onClick={() => props.onViewportChange([[100, 20, 130, 45]] as const)}
-        >
-          模拟地图移动
-        </button>
+        <div>
+          <button
+            type="button"
+            onClick={() =>
+              props.onViewportChange([[100, 20, 130, 45]] as const)
+            }
+          >
+            模拟地图移动
+          </button>
+          {props.groups.map((group) => (
+            <button
+              key={group.key}
+              type="button"
+              aria-label={`${group.offices
+                .map((office) => office.name)
+                .join("、")}，${group.offices.length} 个事务所`}
+              onClick={() => props.onSelectGroup(group.key)}
+            >
+              模拟区域点
+            </button>
+          ))}
+        </div>
       )
     },
   }
@@ -140,7 +156,7 @@ describe("CommunityExchangeMapSection", () => {
     await user.click(regions[0]!)
     expect(screen.getAllByText("上海周末交换事务所")[0]).toBeVisible()
     expect(screen.getAllByText("同区域交换事务所")[0]).toBeVisible()
-    expect(screen.getByText("当前范围内事务所较多")).toBeVisible()
+    expect(screen.getByText(/当前范围结果较多/)).toBeVisible()
   })
 
   it("discards a stale viewport response after filters change", async () => {

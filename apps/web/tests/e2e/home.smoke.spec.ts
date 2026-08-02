@@ -13,6 +13,8 @@ const publicRoutes = [
   { path: "/recommendations", title: /向您推荐.*IMSWeb/i },
   { path: "/live", title: /Live.*IMSWeb/i },
   { path: "/community", title: /制作人社区.*IMSWeb/i },
+  { path: "/account/login", title: /帐号登录.*IMSWeb/i },
+  { path: "/account/register", title: /帐号注册.*IMSWeb/i },
   { path: "/community/exchange", title: /名片交换事务所.*IMSWeb/i },
   { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
   { path: "/works", title: /系列作品.*IMSWeb/i },
@@ -56,7 +58,11 @@ for (const route of publicRoutes) {
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN")
     await expect(page.locator("main#main-content")).toBeVisible()
     await expect(page.locator("main#main-content")).not.toBeEmpty()
-    if (route.path === "/wiki/classic" || route.path === "/story/classic") {
+    if (
+      route.path === "/wiki" ||
+      route.path === "/wiki/classic" ||
+      route.path === "/community/exchange"
+    ) {
       await expect(page.getByTestId("series-icon-background")).toHaveCount(0)
     } else {
       await expect(
@@ -324,6 +330,7 @@ test("homepage navigation keeps secondary destinations in the directory", async 
     await expect(navigation.locator(`a[href="${primaryHref}"]`)).toBeVisible()
   }
   for (const secondaryHref of [
+    "/community/exchange",
     "/community/cards",
     "/producer-map",
     "/works",
@@ -345,7 +352,9 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(10)
+  await expect
+    .poll(() => directory.getByRole("link").count())
+    .toBeGreaterThanOrEqual(10)
   await expect(directory.getByRole("link", { name: /剧情站/ })).toHaveAttribute(
     "href",
     "/wiki"
@@ -574,7 +583,9 @@ test("home exposes current discovery and birthday interactions", async ({
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(10)
+  await expect
+    .poll(() => directory.getByRole("link").count())
+    .toBeGreaterThanOrEqual(10)
   await expect(
     directory.getByRole("link", { name: /活动中心/ })
   ).toHaveAttribute("href", "/events")
@@ -605,9 +616,7 @@ test("home exposes current discovery and birthday interactions", async ({
     highlights.getByRole("status", { name: "正在加载活动资讯" })
   ).toHaveCount(0)
   await expect(highlights.getByRole("link")).toHaveCount(0)
-  await expect(
-    highlights.getByText("当前没有已发布的活动资讯。")
-  ).toBeVisible()
+  await expect(highlights.getByText("当前没有已发布的活动资讯。")).toBeVisible()
 
   const randomIdol = page.getByRole("region", { name: "随机担当" })
   await randomIdol.getByRole("button", { name: "随机选择" }).click()

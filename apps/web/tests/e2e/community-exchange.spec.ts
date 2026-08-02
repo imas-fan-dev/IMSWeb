@@ -115,12 +115,24 @@ test("discovers an exchange office and preserves the detail deep link", async ({
   await expect(
     page.getByRole("heading", { name: "名片交换事务所", exact: true })
   ).toBeVisible()
-  await expect(page.getByText("上海周末交换事务所")).toBeVisible()
-  await expect(page.getByText("周末交换会名片")).toBeVisible()
 
+  if (isMobile) {
+    await page.getByRole("button", { name: "打开筛选" }).click()
+  }
   await page.getByRole("checkbox", { name: "仅看开放事务所" }).click()
   await expect(page).toHaveURL(/open=true/)
+  if (isMobile) await page.keyboard.press("Escape")
+
+  await page
+    .getByRole("button", {
+      name: isMobile ? "打开事务所名录" : "事务所",
+      exact: true,
+    })
+    .click()
   await expect(page.getByText("上海周末交换事务所")).toBeVisible()
+  await page.getByRole("tab", { name: "名片" }).click()
+  await expect(page.getByText("周末交换会名片")).toBeVisible()
+  await page.getByRole("tab", { name: "事务所" }).click()
 
   const mainOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth

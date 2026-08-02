@@ -4,6 +4,7 @@ import {
   MapIcon,
   MapPinOffIcon,
   RefreshCwIcon,
+  XIcon,
 } from "lucide-react"
 import {
   useCallback,
@@ -80,6 +81,7 @@ function useNarrowMapLayout() {
   const [isNarrow, setIsNarrow] = useState(false)
 
   useEffect(() => {
+    if (!window.matchMedia) return
     const media = window.matchMedia("(max-width: 1023px)")
     const update = () => setIsNarrow(media.matches)
     update()
@@ -111,7 +113,11 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
       </div>
       <div className="divide-y border-y">
         {group.offices.map((office) => (
-          <article key={office.id} className="py-4 first:pt-3 last:pb-3">
+          <article
+            key={office.id}
+            className="border-l-2 py-4 pl-3 first:pt-3 last:pb-3"
+            style={{ borderLeftColor: office.accent }}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h4 className="font-medium wrap-break-word">{office.name}</h4>
@@ -137,65 +143,6 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
   )
 }
 
-function OfficeGroupList({
-  groups,
-  selectedGroupKey,
-  onSelect,
-}: {
-  groups: FudabaMapOfficeGroup[]
-  selectedGroupKey: string | null
-  onSelect: (groupKey: string) => void
-}) {
-  if (!groups.length) {
-    return (
-      <p className="py-3 text-sm text-muted-foreground">
-        当前地图范围内没有公开事务所。
-      </p>
-    )
-  }
-
-  return (
-    <div className="divide-y border-y">
-      {groups.map((group) => (
-        <button
-          key={group.key}
-          type="button"
-          aria-pressed={selectedGroupKey === group.key}
-          aria-label={`${group.offices
-            .map((office) => office.name)
-            .join("、")}，${group.offices.length} 个事务所`}
-          className="flex w-full items-center gap-3 py-3 text-left outline-none hover:bg-muted/45 focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:bg-muted/60"
-          onClick={() => onSelect(group.key)}
-        >
-          <span
-            className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background text-sm font-semibold"
-            aria-hidden="true"
-          >
-            {group.offices.length}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">
-              {group.offices[0]?.name}
-            </span>
-            <span className="block text-xs text-muted-foreground">
-              {group.offices[0]?.city} · {group.offices.length} 个事务所
-            </span>
-          </span>
-          <span className="flex h-5 w-2 shrink-0 flex-col overflow-hidden rounded-sm">
-            {group.colors.slice(0, 6).map((color) => (
-              <span
-                key={color}
-                className="min-h-px flex-1"
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function MapUnavailable({
   message,
   onRetry,
@@ -206,7 +153,7 @@ function MapUnavailable({
   onSwitchDirectory: () => void
 }) {
   return (
-    <Empty className="absolute inset-0 bg-muted/25 px-5">
+    <Empty className="absolute inset-0 bg-[#e8f2f4] px-5">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <MapPinOffIcon aria-hidden="true" />
@@ -286,9 +233,7 @@ export function CommunityExchangeMapSection({
         if (active) setMapComponent(() => module.ExchangeOfficeMap)
       })
       .catch((error) => {
-        if (active) {
-          setModuleError(errorMessage(error, "地图模块无法加载"))
-        }
+        if (active) setModuleError(errorMessage(error, "地图模块无法加载"))
       })
     return () => {
       active = false
@@ -355,6 +300,14 @@ export function CommunityExchangeMapSection({
     }
   }, [selectedGroup, selectedGroupKey])
 
+  useEffect(() => {
+    if (!isNarrow) {
+      setMobileSheetOpen(false)
+      return
+    }
+    if (selectedGroupKey) setMobileSheetOpen(true)
+  }, [isNarrow, selectedGroupKey])
+
   const selectGroup = useCallback(
     (groupKey: string) => {
       setSelectedGroupKey(groupKey)
@@ -377,149 +330,136 @@ export function CommunityExchangeMapSection({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
-      <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-        <div className="flex items-center gap-2 text-sm">
-          <MapIcon aria-hidden="true" className="size-4 text-primary" />
-          <span className="font-medium">区域地图</span>
-          {data.phase === "loading" ? (
-            <span
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-              aria-live="polite"
-            >
+    <section
+      className="relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]"
+      aria-label="区域地图"
+    >
+      {config.phase === "loading" ||
+      (config.phase === "ready" && !MapComponent && !moduleError) ? (
+        <div
+          className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground"
+          aria-live="polite"
+        >
+          <LoaderCircleIcon
+            className="animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
+          正在准备区域地图
+        </div>
+      ) : null}
+
+      {config.phase === "ready" && MapComponent ? (
+        <MapComponent
+          styleUrl={config.styleUrl}
+          groups={groups}
+          selectedGroupKey={selectedGroupKey}
+          onSelectGroup={selectGroup}
+          onViewportChange={(bounds) => void loadBounds(bounds)}
+          onFatalError={handleFatalError}
+        />
+      ) : null}
+
+      {mapFailure ? (
+        <MapUnavailable
+          message={mapFailure}
+          onRetry={retryMap}
+          onSwitchDirectory={onSwitchDirectory}
+        />
+      ) : null}
+
+      {!mapFailure && data.phase !== "error" ? (
+        <div
+          className="pointer-events-none absolute bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))] left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
+          aria-live="polite"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            {data.phase === "loading" ? (
               <LoaderCircleIcon
-                aria-hidden="true"
                 className="size-3.5 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
               />
-              更新中
+            ) : (
+              <MapIcon className="size-3.5 text-primary" aria-hidden="true" />
+            )}
+            {data.phase === "idle"
+              ? "等待地图范围"
+              : data.phase === "loading"
+                ? "正在更新地图结果"
+                : groups.length
+                  ? `${groups.length} 个区域点`
+                  : "当前范围内没有公开事务所"}
+          </span>
+          {data.truncated ? (
+            <span className="mt-1 block text-warning-foreground">
+              当前范围结果较多，请放大地图或收窄筛选。
             </span>
           ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          位置已按约 0.1° 区域显示
-        </p>
-      </div>
+      ) : null}
 
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="relative h-120 min-h-96 bg-muted/35 sm:h-136 lg:h-144">
-          {config.phase === "loading" ||
-          (config.phase === "ready" && !MapComponent && !moduleError) ? (
-            <div
-              className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground"
-              aria-live="polite"
-            >
-              <LoaderCircleIcon
-                className="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-              正在准备区域地图
-            </div>
-          ) : null}
-          {config.phase === "ready" && MapComponent ? (
-            <MapComponent
-              styleUrl={config.styleUrl}
-              groups={groups}
-              selectedGroupKey={selectedGroupKey}
-              onSelectGroup={selectGroup}
-              onViewportChange={(bounds) => void loadBounds(bounds)}
-              onFatalError={handleFatalError}
-            />
-          ) : null}
-          {mapFailure ? (
-            <MapUnavailable
-              message={mapFailure}
-              onRetry={retryMap}
-              onSwitchDirectory={onSwitchDirectory}
-            />
-          ) : null}
-          {data.phase === "error" && !mapFailure ? (
-            <Alert className="absolute inset-x-3 top-3 z-10 bg-background/95">
-              <RefreshCwIcon aria-hidden="true" />
-              <AlertTitle>地图数据更新失败</AlertTitle>
-              <AlertDescription>
-                {data.error}。已保留上次成功结果。
-              </AlertDescription>
-              <div className="col-start-2 mt-2 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const bounds = lastBoundsRef.current
-                    if (bounds) void loadBounds(bounds)
-                  }}
-                >
-                  重试
-                </Button>
-                <Button type="button" size="sm" onClick={onSwitchDirectory}>
-                  查看名录
-                </Button>
-              </div>
-            </Alert>
-          ) : null}
-        </div>
-
-        <aside className="hidden min-h-144 border-l p-4 lg:block">
-          {selectedGroup ? (
-            <OfficeGroupDetails group={selectedGroup} />
-          ) : (
-            <>
-              <h3 className="font-semibold">当前地图中的事务所</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                选择区域点查看事务所。
-              </p>
-              <div className="mt-4 max-h-116 overflow-y-auto pr-1">
-                <OfficeGroupList
-                  groups={groups}
-                  selectedGroupKey={selectedGroupKey}
-                  onSelect={selectGroup}
-                />
-              </div>
-            </>
-          )}
-        </aside>
-      </div>
-
-      {data.truncated ? (
-        <Alert className="rounded-none border-x-0 border-b-0">
-          <MapIcon aria-hidden="true" />
-          <AlertTitle>当前范围内事务所较多</AlertTitle>
+      {data.phase === "error" && !mapFailure ? (
+        <Alert className="absolute inset-x-3 bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))] z-10 bg-background/95 shadow-sm sm:left-auto sm:w-96">
+          <RefreshCwIcon aria-hidden="true" />
+          <AlertTitle>地图数据更新失败</AlertTitle>
           <AlertDescription>
-            请放大地图或收窄筛选条件以查看完整结果。
+            {data.error}。已保留上次成功结果。
           </AlertDescription>
+          <div className="col-start-2 mt-2 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const bounds = lastBoundsRef.current
+                if (bounds) void loadBounds(bounds)
+              }}
+            >
+              重试
+            </Button>
+            <Button type="button" size="sm" onClick={onSwitchDirectory}>
+              查看名录
+            </Button>
+          </div>
         </Alert>
       ) : null}
 
-      <div className="border-t p-3 lg:hidden">
-        <h3 className="text-sm font-semibold">地图中的事务所列表</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          列表与地图使用相同的区域结果。
-        </p>
-        <div className="mt-2 max-h-40 overflow-y-auto pr-1">
-          <OfficeGroupList
-            groups={groups}
-            selectedGroupKey={selectedGroupKey}
-            onSelect={selectGroup}
-          />
-        </div>
-      </div>
+      {selectedGroup ? (
+        <aside className="absolute top-3 right-3 z-10 hidden max-h-[calc(100%-1.5rem)] w-80 overflow-y-auto rounded-lg border bg-background/97 p-4 shadow-md backdrop-blur-sm lg:block">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-2 right-2"
+            aria-label="关闭区域详情"
+            onClick={() => setSelectedGroupKey(null)}
+          >
+            <XIcon aria-hidden="true" />
+          </Button>
+          <div className="pr-8">
+            <OfficeGroupDetails group={selectedGroup} />
+          </div>
+        </aside>
+      ) : null}
 
       <Sheet
         open={isNarrow && mobileSheetOpen && Boolean(selectedGroup)}
         onOpenChange={setMobileSheetOpen}
       >
-        <SheetContent side="bottom" className="max-h-[78dvh] overflow-y-auto">
+        <SheetContent
+          side="bottom"
+          className="max-h-[78dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]"
+        >
           <SheetHeader className="border-b pr-14">
             <SheetTitle>区域交换事务所</SheetTitle>
             <SheetDescription>地图仅展示约 0.1° 的区域位置。</SheetDescription>
           </SheetHeader>
-          <div className="px-4 pb-5">
+          <div className="px-4 pb-2">
             {selectedGroup ? (
               <OfficeGroupDetails group={selectedGroup} />
             ) : null}
           </div>
         </SheetContent>
       </Sheet>
-    </div>
+    </section>
   )
 }

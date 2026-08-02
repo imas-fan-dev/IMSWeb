@@ -95,4 +95,59 @@ describe("PublicLayout", () => {
       "max-md:hidden"
     )
   })
+
+  it.each(["/community/exchange", "/community/exchange/"])(
+    "uses the full-screen map shell for %s",
+    (initialEntry) => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <MemoryRouter initialEntries={[initialEntry]}>
+            <Routes>
+              <Route element={<PublicLayout />}>
+                <Route
+                  path="community/exchange/*"
+                  element={<main>交换地图内容</main>}
+                />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </I18nextProvider>
+      )
+
+      const shell = screen.getByTestId(
+        "platform-session-boundary"
+      ).firstElementChild
+      expect(shell).toHaveClass("h-dvh", "min-h-0", "overflow-hidden")
+      expect(
+        screen.queryByTestId("series-icon-background")
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText("站点页脚")).not.toBeInTheDocument()
+      expect(screen.getByText("交换地图内容")).toBeVisible()
+    }
+  )
+
+  it("keeps nested exchange pages in the normal public layout", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/community/exchange/me"]}>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route
+                path="community/exchange/*"
+                element={<main>交换帐号内容</main>}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    const shell = screen.getByTestId(
+      "platform-session-boundary"
+    ).firstElementChild
+    expect(shell).not.toHaveClass("h-dvh", "overflow-hidden")
+    expect(screen.getByTestId("series-icon-background")).toBeVisible()
+    expect(screen.getByText("站点页脚")).toBeVisible()
+    expect(screen.getByText("交换帐号内容")).toBeVisible()
+  })
 })

@@ -4,7 +4,7 @@ import type { FudabaMapOffice } from "~/lib/api"
 import {
   groupMapOffices,
   mergeMapOfficeResponses,
-  resolveSameOriginMapResourceUrl,
+  resolveAllowedMapResourceUrl,
   splitViewportBounds,
 } from "~/pages/community/exchange/exchange-map-model"
 
@@ -24,29 +24,46 @@ const office: FudabaMapOffice = {
 }
 
 describe("exchange map model", () => {
-  it("allows only same-origin HTTP(S) map resources", () => {
+  it("allows same-origin and official OpenFreeMap HTTPS resources", () => {
     expect(
-      resolveSameOriginMapResourceUrl(
+      resolveAllowedMapResourceUrl(
         "/api/community/exchange/map/style.json",
         "https://ims.test"
       )
     ).toBe("https://ims.test/api/community/exchange/map/style.json")
     expect(
-      resolveSameOriginMapResourceUrl(
+      resolveAllowedMapResourceUrl(
         "https://ims.test/assets/map/tile.pbf",
         "https://ims.test"
       )
     ).toBe("https://ims.test/assets/map/tile.pbf")
+    expect(
+      resolveAllowedMapResourceUrl(
+        "https://tiles.openfreemap.org/planet/20260726/3/6/3.pbf",
+        "https://ims.test"
+      )
+    ).toBe("https://tiles.openfreemap.org/planet/20260726/3/6/3.pbf")
+    expect(
+      resolveAllowedMapResourceUrl(
+        "https://tiles.openfreemap.org:443/fonts/Noto%20Sans/0-255.pbf",
+        "https://ims.test"
+      )
+    ).toBe("https://tiles.openfreemap.org/fonts/Noto%20Sans/0-255.pbf")
 
     for (const resource of [
       "https://tiles.example.test/map.pbf",
+      "http://tiles.openfreemap.org/map.pbf",
+      "https://tiles.openfreemap.org:444/map.pbf",
+      "https://tiles.openfreemap.org.example.test/map.pbf",
+      "https://tiles.openfreemap.org./map.pbf",
+      "https://user@tiles.openfreemap.org/map.pbf",
       "data:application/json,%7B%7D",
       "mapbox://styles/example/style",
       "file:///tmp/map.json",
     ]) {
       expect(() =>
-        resolveSameOriginMapResourceUrl(resource, "https://ims.test")
-      ).toThrow(/HTTP\(S\)/)
+        resolveAllowedMapResourceUrl(resource, "https://ims.test")
+      ).toThrow(/OpenFreeMap/)
     }
   })
 
@@ -56,19 +73,19 @@ describe("exchange map model", () => {
     ).toEqual([[100, 20, 130, 45]])
   })
 
-  it("splits an antimeridian viewport into two non-wrapping requests", () => {
-    expect(
-      splitViewportBounds({ west: 170, south: -20, east: 190, north: 20 })
-    ).toEqual([
-      [170, -20, 180, 20],
-      [-180, -20, -170, 20],
-    ])
+  it("splits an antimeridian viewport into non-empty requests", () => {
     expect(
       splitViewportBounds({ west: 170, south: -20, east: -170, north: 20 })
     ).toEqual([
       [170, -20, 180, 20],
       [-180, -20, -170, 20],
     ])
+    expect(
+      splitViewportBounds({ west: 170, south: -20, east: -180, north: 20 })
+    ).toEqual([[170, -20, 180, 20]])
+    expect(
+      splitViewportBounds({ west: 180, south: -20, east: -170, north: 20 })
+    ).toEqual([[-180, -20, -170, 20]])
   })
 
   it("uses one world request and rejects invalid vertical bounds", () => {
