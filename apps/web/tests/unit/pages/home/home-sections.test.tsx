@@ -50,7 +50,10 @@ const homepageLinks = {
 function randomIdolPayload(
   name = "天海春香",
   agency = "765PRO",
-  imageUrl = "/image/765PRO/天海春香/icon.webp"
+  imageUrl = "/image/765PRO/天海春香/icon.webp",
+  agencyIconUrl = name === "天海春香"
+    ? "/icon/agencies/1.webp"
+    : "/icon/agencies/6.webp"
 ) {
   return {
     status: "success",
@@ -73,6 +76,14 @@ function randomIdolPayload(
         code: name === "天海春香" ? "765pro" : "sc",
         name: agency,
         color: name === "天海春香" ? "#f34f6d" : "#8dbbff",
+        iconUrl: agencyIconUrl,
+        imageTransform: {
+          fit: "contain",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
+        },
       },
     },
   }
@@ -176,6 +187,20 @@ describe("home supporting sections", () => {
       objectPosition: "35% 40%",
       transform: "rotate(0deg) scale(1.25)",
     })
+    expect(screen.getByTestId("random-idol-avatar")).toHaveClass(
+      "aspect-square"
+    )
+    expect(screen.getByTestId("random-idol-avatar")).not.toHaveClass(
+      "aspect-4/5"
+    )
+    const initialAgencyIcon = screen
+      .getByTestId("random-idol-agency-marker")
+      .querySelector("img")
+    expect(initialAgencyIcon).toHaveAttribute("src", "/icon/agencies/1.webp")
+    expect(initialAgencyIcon).toHaveStyle({
+      objectFit: "contain",
+      objectPosition: "50% 50%",
+    })
     expect(screen.getByText("Wiki 收录 · 345 位可抽取偶像")).toBeVisible()
     expect(screen.getByRole("link", { name: "查看剧情档案" })).toHaveAttribute(
       "href",
@@ -189,6 +214,9 @@ describe("home supporting sections", () => {
       "src",
       "/image/闪耀色彩/樱木真乃/icon.webp"
     )
+    expect(
+      screen.getByTestId("random-idol-agency-marker").querySelector("img")
+    ).toHaveAttribute("src", "/icon/agencies/6.webp")
     expect(screen.getByRole("link", { name: "查看剧情档案" })).toHaveAttribute(
       "href",
       "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"

@@ -411,6 +411,14 @@ describe("Wiki admin API", () => {
             code: "sc",
             name: "闪耀色彩",
             color: "#8dbbff",
+            iconUrl: "/icon/agencies/6.webp",
+            imageTransform: {
+              fit: "contain",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
           },
         },
       })
@@ -422,6 +430,8 @@ describe("Wiki admin API", () => {
     expect(result.eligibleCount).toBe(345)
     expect(result.idol?.name).toBe("樱木真乃")
     expect(result.idol?.imageTransform.zoom).toBe(1.25)
+    expect(result.idol?.agency.iconUrl).toBe("/icon/agencies/6.webp")
+    expect(result.idol?.agency.imageTransform.fit).toBe("contain")
     const request = new URL(
       requestDetails(fetchMock.mock.calls[0] ?? []).url,
       window.location.origin

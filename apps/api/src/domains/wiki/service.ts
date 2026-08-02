@@ -486,6 +486,23 @@ export async function randomIdol(
   );
   const row = eligibleIdols[sampledIndex]!;
   const idol = toWikiIdol(row);
+  const agency = agencies.find((candidate) => candidate.id === row.agency_id)!;
+  const [imageUrl, iconUrl] = await Promise.all([
+    row.avatar_object_key
+      ? resolvePublicObjectUrl(
+          storage,
+          row.avatar_object_key,
+          idol.avatarUrl ?? "",
+        )
+      : "",
+    agency.icon_object_key
+      ? resolvePublicObjectUrl(
+          storage,
+          agency.icon_object_key,
+          agencyIconUrl(agency.id),
+        )
+      : null,
+  ]);
   return {
     status: "success",
     eligibleCount: eligibleIdols.length,
@@ -494,19 +511,15 @@ export async function randomIdol(
       name: idol.name,
       color: idol.color,
       textColor: idol.textColor ?? "#ffffff",
-      imageUrl: row.avatar_object_key
-        ? await resolvePublicObjectUrl(
-            storage,
-            row.avatar_object_key,
-            idol.avatarUrl ?? "",
-          )
-        : "",
+      imageUrl,
       imageTransform: idol.avatarTransform!,
       agency: {
         id: idol.agencyId,
         code: idol.agencyCode,
         name: idol.agencyName,
         color: idol.agencyColor,
+        iconUrl,
+        imageTransform: agencyImageTransform(agency),
       },
     },
   };

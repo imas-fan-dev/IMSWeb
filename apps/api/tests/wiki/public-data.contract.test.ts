@@ -101,7 +101,11 @@ describe("Wiki public dynamic data contract", () => {
     selected.avatar_focal_x = 0.35;
     selected.avatar_focal_y = 0.4;
     selected.avatar_zoom = 1.25;
+    const selectedAgency = fixture.story.agencies[5]!;
+    selectedAgency.icon_object_key =
+      "wiki/agencies/sc/branding/icon.webp";
     fixture.storage.seed(selected.avatar_object_key);
+    fixture.storage.seed(selectedAgency.icon_object_key);
 
     const response = await fixture.app.request("/api/wiki/random_idol");
 
@@ -128,6 +132,9 @@ describe("Wiki public dynamic data contract", () => {
           code: "sc",
           name: "闪耀色彩",
           color: "#8dbbff",
+          iconUrl:
+            "https://cdn.example.test/wiki/agencies/sc/branding/icon.webp",
+          imageTransform: CONTAIN_TRANSFORM,
         },
       },
     });

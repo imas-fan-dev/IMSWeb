@@ -535,3 +535,35 @@ test("home exposes current discovery and birthday interactions", async ({
   expect(siteSupportBox).not.toBeNull()
   expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
 })
+
+test("home random idol uses a square portrait and agency marker", async ({
+  page,
+}) => {
+  await page.goto("/")
+
+  const randomIdol = page.getByRole("region", { name: "随机担当" })
+  const avatar = randomIdol.getByTestId("random-idol-avatar")
+  const agencyMarker = randomIdol.getByTestId("random-idol-agency-marker")
+  const archiveLink = randomIdol.getByRole("link", { name: "查看剧情档案" })
+
+  await expect(avatar).toBeVisible()
+  await expect(agencyMarker).toBeVisible()
+  await expect(archiveLink).toBeVisible()
+  await expect
+    .poll(async () => {
+      const box = await avatar.boundingBox()
+      return box ? Math.abs(box.width - box.height) : Number.POSITIVE_INFINITY
+    })
+    .toBeLessThanOrEqual(1)
+  await expect
+    .poll(async () => {
+      const [avatarBox, linkBox] = await Promise.all([
+        avatar.boundingBox(),
+        archiveLink.boundingBox(),
+      ])
+      return avatarBox && linkBox
+        ? linkBox.y - (avatarBox.y + avatarBox.height)
+        : Number.POSITIVE_INFINITY
+    })
+    .toBeLessThanOrEqual(24)
+})
