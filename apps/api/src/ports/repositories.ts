@@ -255,6 +255,8 @@ export interface FudabaOfficeRecord {
     longitude: number;
     accent: string;
     cover_object_key: string | null;
+    pending_cover_object_key: string | null;
+    pending_cover_submitted_at: string | null;
     is_open: boolean;
     visitor_count: number;
     status: FudabaOfficeStatus;
@@ -262,6 +264,10 @@ export interface FudabaOfficeRecord {
     created_at: string;
     updated_at: string;
     archived_at: string | null;
+}
+
+export interface FudabaOwnerOfficeRecord extends FudabaOfficeRecord {
+    series_codes: string[];
 }
 
 export interface NewFudabaOfficeInput {
@@ -285,6 +291,47 @@ export interface NewFudabaOfficeInput {
     archivedAt: string | null;
     seriesCodes: string[];
 }
+
+export interface CreateOwnedFudabaOfficeInput extends NewFudabaOfficeInput {
+    idempotencyKeyHash: string;
+    requestHash: string;
+    receiptCreatedAt: number;
+}
+
+export interface UpdateOwnedFudabaOfficeInput {
+    officeId: string;
+    ownerAccountId: string;
+    name: string;
+    intro: string;
+    city: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    accent: string;
+    isOpen: boolean;
+    seriesCodes: string[];
+    expectedRevision: number;
+    updatedAt: string;
+}
+
+export type FudabaOfficeMutationResult =
+    | {
+        status: 'saved';
+        office: FudabaOwnerOfficeRecord;
+        previousPendingObjectKey: string | null;
+    }
+    | { status: 'conflict'; revision: number }
+    | { status: 'pending-exists'; revision: number }
+    | {
+        status: 'state-conflict';
+        revision: number;
+        officeStatus: FudabaOfficeStatus;
+    }
+    | { status: 'unavailable' };
+
+export type FudabaOfficeCreateResult =
+    | FudabaOfficeMutationResult
+    | { status: 'idempotency-conflict' };
 
 export interface FudabaCardRecord {
     id: string;
@@ -585,6 +632,43 @@ export interface FudabaRepository {
     ): Promise<FudabaPublicCardRecord[]>;
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
     findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
+    listOfficesForOwner(ownerAccountId: string): Promise<FudabaOwnerOfficeRecord[]>;
+    findOfficeForOwner(
+        officeId: string,
+        ownerAccountId: string
+    ): Promise<FudabaOwnerOfficeRecord | null>;
+    createOfficeForOwner(
+        input: CreateOwnedFudabaOfficeInput
+    ): Promise<FudabaOfficeCreateResult>;
+    updateOfficeForOwner(
+        input: UpdateOwnedFudabaOfficeInput
+    ): Promise<FudabaOfficeMutationResult>;
+    archiveOfficeForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+        archivedAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
+    restoreOfficeForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+        restoredAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
+    reservePendingOfficeCoverForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        objectKey: string;
+        expectedRevision: number;
+        submittedAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
+    clearPendingOfficeCoverForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        objectKey: string;
+        expectedRevision: number;
+        updatedAt: string;
+    }): Promise<FudabaOfficeMutationResult>;
     updateOfficeStatusForOwner(input: {
         officeId: string;
         ownerAccountId: string;

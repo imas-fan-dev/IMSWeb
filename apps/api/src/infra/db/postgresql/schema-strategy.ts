@@ -3,7 +3,7 @@ import type {
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
 
-export const REQUIRED_POSTGRESQL_SCHEMA_VERSION = '0023_fudaba_public_locations';
+export const REQUIRED_POSTGRESQL_SCHEMA_VERSION = '0024_fudaba_office_workflows';
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();

@@ -57,6 +57,8 @@ function officeRecord(
         longitude: 121.4737,
         accent: '#ef5b6c',
         cover_object_key: null,
+        pending_cover_object_key: null,
+        pending_cover_submitted_at: null,
         is_open: true,
         visitor_count: 0,
         status,

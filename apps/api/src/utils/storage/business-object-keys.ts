@@ -110,6 +110,14 @@ export function fudabaOfficeCoverObjectKey(
         `cover.${fudabaImageExtension(extension)}`;
 }
 
+export function fudabaOfficeCoverVersionObjectKey(
+    officeId: string,
+    version: string
+): string {
+    return `community/fudaba/offices/${fudabaEntitySegment(officeId)}/` +
+        `covers/${fudabaEntitySegment(version)}.webp`;
+}
+
 export function fudabaCardFrontObjectKey(
     cardId: string,
     extension: string

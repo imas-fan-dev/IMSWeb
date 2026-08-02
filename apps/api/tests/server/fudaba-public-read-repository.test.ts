@@ -362,7 +362,13 @@ async function assertPublicReadModels(
         'deleted-owner'
     );
     await placeCard(fixture, 'office-b-open', 'card-disabled-series', 10);
+    await fixture.database.prepare(
+        "UPDATE fudaba_offices SET status='active' WHERE id='office-hidden'"
+    ).run();
     await placeCard(fixture, 'office-hidden', 'card-hidden-office', 1);
+    await fixture.database.prepare(
+        "UPDATE fudaba_offices SET status='hidden' WHERE id='office-hidden'"
+    ).run();
     await placeCard(
         fixture,
         'office-suspended-owner',

@@ -1266,6 +1266,10 @@ function validateTargetOperation(operation) {
         if (row.cover_object_key !== null) {
             assertText(row.cover_object_key, 'office cover object key', 1, 1024);
         }
+        if (row.pending_cover_object_key !== null ||
+            row.pending_cover_submitted_at !== null) {
+            throw new Error('imported office cannot carry a pending cover');
+        }
         if (BigInt(row.visitor_count) < 0n || BigInt(row.visitor_count) > 9007199254740991n) {
             throw new Error('office visitor_count is outside valid range');
         }
@@ -1318,12 +1322,18 @@ function validateTargetOperation(operation) {
             row.z_index < 1 || row.z_index > 999) {
             throw new Error('office card placement is outside target constraints');
         }
+        if (row.revision !== 0 || row.updated_at !== row.pinned_at) {
+            throw new Error('imported office card has invalid initial revision');
+        }
         break;
     case 'fudaba_messages':
         assertText(row.id, 'message id', 1, 128);
         assertText(row.office_id, 'message office id', 1, 128);
         assertText(row.author_account_id, 'message author id', 1, 128);
         assertText(row.content, 'message content', 1, 280, true);
+        if (row.hidden_at !== null || row.hidden_by_account_id !== null) {
+            throw new Error('imported message cannot be hidden');
+        }
         break;
     case 'fudaba_exchange_requests':
         assertText(row.id, 'exchange id', 1, 128);
@@ -1702,6 +1712,8 @@ function operationForRow(table, row, descriptor, context) {
                     false,
                     context.consumedMedia
                 ).objectKey,
+            pending_cover_object_key: null,
+            pending_cover_submitted_at: null,
             is_open: integerBoolean(row.is_open, 'offices is_open'),
             visitor_count: String(visitorCount),
             status: archived ? 'archived' : 'active',
@@ -1774,20 +1786,26 @@ function operationForRow(table, row, descriptor, context) {
             series_code: mapSeries(row.series_tag).code,
             display_order: exactInteger(row.sort_order, 'office_series_tags sort_order')
         })];
-    case 'office_cards':
+    case 'office_cards': {
         context.requireIncluded('offices', row.office_id);
         context.requireIncluded('cards', row.card_id);
+        const pinnedAt = created
+            ? created.iso
+            : parseTimestamp(row.pinned_at, 'office_cards pinned_at').iso;
         return [targetOperation(table, sourceKey, 'fudaba_office_cards', [
             'office_id', 'card_id'
         ], {
             office_id: row.office_id,
             card_id: row.card_id,
-            pinned_at: created ? created.iso : parseTimestamp(row.pinned_at, 'office_cards pinned_at').iso,
+            pinned_at: pinnedAt,
             position_x: finiteNumber(row.position_x, 'office_cards position_x'),
             position_y: finiteNumber(row.position_y, 'office_cards position_y'),
             rotation: finiteNumber(row.rotation, 'office_cards rotation'),
-            z_index: exactInteger(row.z_index, 'office_cards z_index')
+            z_index: exactInteger(row.z_index, 'office_cards z_index'),
+            revision: 0,
+            updated_at: pinnedAt
         })];
+    }
     case 'messages':
         context.requireIncluded('offices', row.office_id);
         context.requireIncluded('users', row.author_id);
@@ -1797,7 +1815,8 @@ function operationForRow(table, row, descriptor, context) {
             author_account_id: context.accountId(row.author_id),
             content: row.content,
             created_at: created.iso,
-            hidden_at: null
+            hidden_at: null,
+            hidden_by_account_id: null
         })];
     case 'exchange_requests': {
         context.requireIncluded('offices', row.office_id);

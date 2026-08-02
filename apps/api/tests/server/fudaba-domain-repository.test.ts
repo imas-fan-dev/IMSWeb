@@ -10,7 +10,10 @@ import type {
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
 import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SQLITE_FUDABA_SCHEMA } from '@/infra/db/sqlite/fudaba-schema';
+import {
+    SQLITE_FUDABA_SCHEMA,
+    SQLITE_FUDABA_WORKFLOW_SCHEMA
+} from '@/infra/db/sqlite/fudaba-schema';
 import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type {
     NewFudabaCardInput,
@@ -172,13 +175,49 @@ async function placeCard(
     });
 }
 
-test('runtime SQLite schema stays aligned with the forward migration', async () => {
-    const migration = await fs.readFile(
+test('runtime SQLite schema stays aligned with the forward migrations', async () => {
+    const domainMigration = await fs.readFile(
         path.join(__dirname, '../../migrations/core/0013_fudaba_domain.sql'),
         'utf8'
     );
-    const fingerprint = (sql: string) => sql.replace(/\s+/g, '');
-    assert.equal(fingerprint(SQLITE_FUDABA_SCHEMA), fingerprint(migration));
+    const workflowMigration = await fs.readFile(
+        path.join(__dirname, '../../migrations/core/0015_fudaba_office_workflows.sql'),
+        'utf8'
+    );
+    for (const table of [
+        'fudaba_offices',
+        'fudaba_cards',
+        'fudaba_office_cards',
+        'fudaba_messages',
+        'fudaba_exchange_requests'
+    ]) {
+        assert.ok(domainMigration.includes(`CREATE TABLE IF NOT EXISTS ${table}`));
+        assert.ok(SQLITE_FUDABA_SCHEMA.includes(`CREATE TABLE IF NOT EXISTS ${table}`));
+    }
+    for (const fragment of [
+        'pending_cover_object_key',
+        'pending_cover_submitted_at',
+        'revision INTEGER NOT NULL DEFAULT 0',
+        'hidden_by_account_id'
+    ]) {
+        assert.ok(workflowMigration.includes(fragment));
+        assert.ok(SQLITE_FUDABA_SCHEMA.includes(fragment));
+    }
+    for (const fragment of [
+        'fudaba_geocoder_cache',
+        'fudaba_mutation_receipts'
+    ]) {
+        assert.ok(workflowMigration.includes(fragment));
+        assert.ok(SQLITE_FUDABA_WORKFLOW_SCHEMA.includes(fragment));
+    }
+    for (const trigger of [
+        'fudaba_offices_pending_cover_update_check',
+        'fudaba_office_cards_transition_update',
+        'fudaba_messages_hidden_update_check'
+    ]) {
+        assert.ok(workflowMigration.includes(trigger));
+        assert.ok(SQLITE_FUDABA_WORKFLOW_SCHEMA.includes(trigger));
+    }
 });
 
 test('SQLite initializes all Fudaba tables and the canonical series catalog', async (t) => {
@@ -195,8 +234,10 @@ test('SQLite initializes all Fudaba tables and the canonical series catalog', as
         'fudaba_card_likes',
         'fudaba_cards',
         'fudaba_exchange_requests',
+        'fudaba_geocoder_cache',
         'fudaba_messages',
         'fudaba_moderation_cases',
+        'fudaba_mutation_receipts',
         'fudaba_office_cards',
         'fudaba_office_public_locations',
         'fudaba_office_series_tags',

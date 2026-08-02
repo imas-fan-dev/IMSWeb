@@ -62,7 +62,8 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0020_platform_accounts', phase: 'pre-data' },
             { version: '0021_backoffice_persistence_names', phase: 'post-data' },
             { version: '0022_fudaba_domain', phase: 'post-data' },
-            { version: '0023_fudaba_public_locations', phase: 'post-data' }
+            { version: '0023_fudaba_public_locations', phase: 'post-data' },
+            { version: '0024_fudaba_office_workflows', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -291,6 +292,53 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
         publicLocations.sql,
         /CREATE INDEX fudaba_rate_limit_windows_reset_at_idx[\s\S]+fudaba_rate_limit_windows\(reset_at\)/
     );
+    const officeWorkflows = migrations.find(
+        ({ version }) => version === '0024_fudaba_office_workflows'
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /ADD COLUMN pending_cover_object_key TEXT[\s\S]+pending_cover_submitted_at TIMESTAMPTZ/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /pending_cover_submitted_at >= created_at[\s\S]+pending_cover_object_key IS DISTINCT FROM cover_object_key/
+    );
+    assert.match(officeWorkflows.sql, /fudaba_offices_pending_cover_idx/);
+    assert.match(
+        officeWorkflows.sql,
+        /ADD COLUMN revision INTEGER NOT NULL DEFAULT 0[\s\S]+ADD COLUMN updated_at TIMESTAMPTZ/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /UPDATE public\.fudaba_office_cards SET updated_at = pinned_at/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /fudaba_validate_placement_transition[\s\S]+NEW\.updated_at := COALESCE\(NEW\.updated_at, NEW\.pinned_at\)[\s\S]+FUDABA_PLACEMENT_STALE_UPDATE/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /hidden_by_account_id TEXT[\s\S]+REFERENCES public\.platform_accounts\(id\) ON DELETE RESTRICT/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /\(hidden_at IS NULL\) = \(hidden_by_account_id IS NULL\)/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /SELECT status INTO office_status[\s\S]+FOR NO KEY UPDATE[\s\S]+office_status IS DISTINCT FROM 'active'/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /CREATE TABLE public\.fudaba_geocoder_cache[\s\S]+PRIMARY KEY \(provider, query_hash\)/
+    );
+    assert.match(officeWorkflows.sql, /octet_length\(response_json\) BETWEEN 2 AND 65536/);
+    assert.match(
+        officeWorkflows.sql,
+        /CREATE TABLE public\.fudaba_mutation_receipts[\s\S]+PRIMARY KEY \(scope, account_id, key_hash\)/
+    );
+    assert.match(officeWorkflows.sql, /request_hash ~ '\^\[0-9a-f\]\{64\}\$'/);
+    assert.doesNotMatch(officeWorkflows.sql, /raw_(?:query|key|body)/i);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -355,7 +403,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0020_platform_accounts',
         '0021_backoffice_persistence_names',
         '0022_fudaba_domain',
-        '0023_fudaba_public_locations'
+        '0023_fudaba_public_locations',
+        '0024_fudaba_office_workflows'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

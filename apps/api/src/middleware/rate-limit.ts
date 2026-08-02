@@ -154,8 +154,12 @@ function requestSpecificLimit(
     return FUDABA_LOCATION_WRITE_LIMIT;
   }
   if (
-    (method === "PUT" &&
-      pathname.startsWith("/api/community/exchange/uploads/")) ||
+    (method === "PUT" && (
+      pathname.startsWith("/api/community/exchange/uploads/") ||
+      /^\/api\/community\/exchange\/me\/offices\/[^/]+\/cover$/.test(
+        pathname,
+      )
+    )) ||
     (method === "POST" && pathname === "/api/community/exchange/cards")
   ) {
     return FUDABA_UPLOAD_ATTEMPT_LIMIT;

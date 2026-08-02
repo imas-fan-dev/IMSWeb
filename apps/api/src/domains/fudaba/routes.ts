@@ -2,12 +2,16 @@ import type { Context, Next } from 'hono';
 import type { AppEnvironment, ImsHonoApp } from '@/app';
 import { handleGetFudabaPublicOffice } from '@/domains/fudaba/handlers/get-public-office';
 import { handleCreateFudabaCard } from '@/domains/fudaba/handlers/create-card';
+import { handleCreateFudabaOffice } from '@/domains/fudaba/handlers/create-office';
 import { handleDeleteFudabaCard } from '@/domains/fudaba/handlers/delete-card';
+import { handleArchiveFudabaOwnerOffice } from '@/domains/fudaba/handlers/archive-owner-office';
 import { handleGetFudabaOwnerCard } from '@/domains/fudaba/handlers/get-owner-card';
+import { handleGetFudabaOwnerOffice } from '@/domains/fudaba/handlers/get-owner-office';
 import { handleListFudabaPublicCards } from '@/domains/fudaba/handlers/list-public-cards';
 import { handleListFudabaPublicOffices } from '@/domains/fudaba/handlers/list-public-offices';
 import { handleListFudabaPublicSeries } from '@/domains/fudaba/handlers/list-public-series';
 import { handleListFudabaOwnerCards } from '@/domains/fudaba/handlers/list-owner-cards';
+import { handleListFudabaOwnerOffices } from '@/domains/fudaba/handlers/list-owner-offices';
 import { handleGetFudabaMapConfig } from '@/domains/fudaba/handlers/get-map-config';
 import { handleGetFudabaOwnerLocation } from '@/domains/fudaba/handlers/get-owner-location';
 import { handleListFudabaLocationReviews } from '@/domains/fudaba/handlers/list-location-reviews';
@@ -15,8 +19,16 @@ import { handleListFudabaMapOffices } from '@/domains/fudaba/handlers/list-map-o
 import { handleReviewFudabaLocation } from '@/domains/fudaba/handlers/review-location';
 import { handleSaveFudabaOwnerLocation } from '@/domains/fudaba/handlers/save-owner-location';
 import { handleServeFudabaOwnerCardMedia } from '@/domains/fudaba/handlers/serve-owner-card-media';
+import {
+    handleServeFudabaOwnerOfficeCover,
+    handleServeFudabaOwnerOfficePendingCover
+} from '@/domains/fudaba/handlers/serve-owner-office-media';
+import { handleRestoreFudabaOwnerOffice } from '@/domains/fudaba/handlers/restore-owner-office';
 import { handleUpdateFudabaCard } from '@/domains/fudaba/handlers/update-card';
+import { handleUpdateFudabaOwnerOffice } from '@/domains/fudaba/handlers/update-owner-office';
+import { handleUploadFudabaOfficeCover } from '@/domains/fudaba/handlers/upload-office-cover';
 import { handleUploadFudabaOwnedMedia } from '@/domains/fudaba/handlers/upload-owned-media';
+import { handleWithdrawFudabaOfficeCover } from '@/domains/fudaba/handlers/withdraw-office-cover';
 import { handleWithdrawFudabaOwnerLocation } from '@/domains/fudaba/handlers/withdraw-owner-location';
 import {
     activePlatformMutation,
@@ -130,6 +142,16 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         handleGetFudabaOwnerCard
     );
     app.get(
+        '/api/community/exchange/me/offices',
+        platformAuth,
+        handleListFudabaOwnerOffices
+    );
+    app.get(
+        '/api/community/exchange/me/offices/:officeId',
+        platformAuth,
+        handleGetFudabaOwnerOffice
+    );
+    app.get(
         '/api/community/exchange/me/offices/:officeId/location',
         platformAuth,
         handleGetFudabaOwnerLocation
@@ -144,6 +166,28 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         '/api/community/exchange/me/cards/:cardId/media/:side',
         platformAuth,
         handleServeFudabaOwnerCardMedia
+    );
+    app.get(
+        '/api/community/exchange/me/offices/:officeId/media/cover',
+        platformAuth,
+        handleServeFudabaOwnerOfficeCover
+    );
+    app.on(
+        'HEAD',
+        '/api/community/exchange/me/offices/:officeId/media/cover',
+        platformAuth,
+        handleServeFudabaOwnerOfficeCover
+    );
+    app.get(
+        '/api/community/exchange/me/offices/:officeId/media/pending-cover',
+        platformAuth,
+        handleServeFudabaOwnerOfficePendingCover
+    );
+    app.on(
+        'HEAD',
+        '/api/community/exchange/me/offices/:officeId/media/pending-cover',
+        platformAuth,
+        handleServeFudabaOwnerOfficePendingCover
     );
     const write = [
         requireFudabaWrite,
@@ -170,6 +214,11 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         platformWriteRateLimit,
         handleCreateFudabaCard
     );
+    app.post(
+        '/api/community/exchange/offices',
+        ...write,
+        handleCreateFudabaOffice
+    );
     app.put(
         '/api/community/exchange/me/cards/:cardId',
         ...write,
@@ -179,6 +228,36 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         '/api/community/exchange/me/cards/:cardId',
         ...write,
         handleDeleteFudabaCard
+    );
+    app.put(
+        '/api/community/exchange/me/offices/:officeId',
+        ...write,
+        handleUpdateFudabaOwnerOffice
+    );
+    app.delete(
+        '/api/community/exchange/me/offices/:officeId',
+        ...write,
+        handleArchiveFudabaOwnerOffice
+    );
+    app.post(
+        '/api/community/exchange/me/offices/:officeId/restore',
+        ...write,
+        handleRestoreFudabaOwnerOffice
+    );
+    app.put(
+        '/api/community/exchange/me/offices/:officeId/cover',
+        requireFudabaWrite,
+        platformAuth,
+        activePlatformMutation,
+        platformCsrf,
+        platformUploadRateLimit,
+        platformWriteRateLimit,
+        handleUploadFudabaOfficeCover
+    );
+    app.delete(
+        '/api/community/exchange/me/offices/:officeId/cover/pending',
+        ...write,
+        handleWithdrawFudabaOfficeCover
     );
     app.put(
         '/api/community/exchange/me/offices/:officeId/location',

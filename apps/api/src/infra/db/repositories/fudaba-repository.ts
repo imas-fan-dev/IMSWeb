@@ -1,5 +1,6 @@
 import type {
     AuditLogInput,
+    CreateOwnedFudabaOfficeInput,
     CreateOwnedFudabaCardInput,
     FudabaCardRecord,
     FudabaCardMutationResult,
@@ -7,8 +8,11 @@ import type {
     FudabaModerationCaseRecord,
     FudabaOfficeLocationMutationResult,
     FudabaOfficeLocationReviewRecord,
+    FudabaOfficeCreateResult,
+    FudabaOfficeMutationResult,
     FudabaOfficePublicLocationRecord,
     FudabaOfficeRecord,
+    FudabaOwnerOfficeRecord,
     FudabaPublicCardRecord,
     FudabaPublicOfficeDetailRecord,
     FudabaPublicMapOfficeRecord,
@@ -23,6 +27,7 @@ import type {
     NewFudabaModerationCaseInput,
     NewFudabaOfficeInput,
     SoftDeleteOwnedFudabaCardInput,
+    UpdateOwnedFudabaOfficeInput,
     UpdateOwnedFudabaCardMediaInput,
     UpdateOwnedFudabaCardMetadataInput
 } from '@/ports/repositories';
@@ -38,8 +43,15 @@ import {
 } from '@/infra/db/sql/query';
 
 const OFFICE_COLUMNS = `id, owner_account_id, slug, name, intro, city, address,
-    latitude, longitude, accent, cover_object_key, is_open, visitor_count,
-    status, revision, created_at, updated_at, archived_at`;
+    latitude, longitude, accent, cover_object_key, pending_cover_object_key,
+    pending_cover_submitted_at, is_open, visitor_count, status, revision,
+    created_at, updated_at, archived_at`;
+const OWNER_OFFICE_COLUMNS = `office.id, office.owner_account_id, office.slug,
+    office.name, office.intro, office.city, office.address, office.latitude,
+    office.longitude, office.accent, office.cover_object_key,
+    office.pending_cover_object_key, office.pending_cover_submitted_at,
+    office.is_open, office.visitor_count, office.status, office.revision,
+    office.created_at, office.updated_at, office.archived_at`;
 const CARD_COLUMNS = `id, owner_account_id, producer_name, display_name,
     series_code, favorite_idol, front_object_key, back_object_key, accent, bio,
     trade_note, available, source_url, source_label, source_credit,
@@ -94,7 +106,13 @@ type TimestampValue = string | Date;
 
 type FudabaOfficeRow = Omit<
     FudabaOfficeRecord,
-    'is_open' | 'visitor_count' | 'revision' | 'created_at' | 'updated_at' | 'archived_at'
+    | 'is_open'
+    | 'visitor_count'
+    | 'revision'
+    | 'created_at'
+    | 'updated_at'
+    | 'archived_at'
+    | 'pending_cover_submitted_at'
 > & {
     is_open: boolean | number | string;
     visitor_count: number | string;
@@ -102,6 +120,7 @@ type FudabaOfficeRow = Omit<
     created_at: TimestampValue;
     updated_at: TimestampValue;
     archived_at: TimestampValue | null;
+    pending_cover_submitted_at: TimestampValue | null;
 };
 
 type FudabaCardRow = Omit<
@@ -154,6 +173,15 @@ type FudabaPublicOfficeRow = Omit<
 type FudabaOfficeSeriesRow = {
     office_id: string;
     series_code: string;
+};
+
+type FudabaOwnerOfficeSeriesRow = FudabaOfficeRow & {
+    series_code: string | null;
+};
+
+type FudabaMutationReceiptRow = {
+    request_hash: string;
+    resource_id: string;
 };
 
 type FudabaOfficePublicLocationRow = Omit<
@@ -235,7 +263,10 @@ function officeRecord(row: FudabaOfficeRow): FudabaOfficeRecord {
         revision: Number(row.revision),
         created_at: timestampValue(row.created_at),
         updated_at: timestampValue(row.updated_at),
-        archived_at: nullableTimestampValue(row.archived_at)
+        archived_at: nullableTimestampValue(row.archived_at),
+        pending_cover_submitted_at: nullableTimestampValue(
+            row.pending_cover_submitted_at
+        )
     };
 }
 
@@ -431,6 +462,71 @@ export class SqlFudabaRepository implements FudabaRepository {
             row,
             seriesByOffice.get(row.id) ?? []
         ));
+    }
+
+    private ownerOfficesFromJoinedRows(
+        rows: FudabaOwnerOfficeSeriesRow[]
+    ): FudabaOwnerOfficeRecord[] {
+        const offices = new Map<string, FudabaOwnerOfficeRecord>();
+        for (const row of rows) {
+            let office = offices.get(row.id);
+            if (!office) {
+                office = { ...officeRecord(row), series_codes: [] };
+                offices.set(row.id, office);
+            }
+            if (row.series_code !== null) office.series_codes.push(row.series_code);
+        }
+        return [...offices.values()];
+    }
+
+    private async enabledOfficeSeriesAvailable(seriesCodes: string[]): Promise<boolean> {
+        if (seriesCodes.length === 0) return false;
+        const placeholders = seriesCodes.map(() => '?').join(', ');
+        const row = await queryOne<{ count: number | string }>(
+            this.database,
+            `SELECT COUNT(*) AS count FROM fudaba_series_tags
+             WHERE enabled=? AND code IN (${placeholders})`,
+            [this.bindBoolean(true), ...seriesCodes]
+        );
+        return Number(row?.count ?? 0) === seriesCodes.length;
+    }
+
+    private findMutationReceipt(
+        scope: string,
+        accountId: string,
+        keyHash: string
+    ): Promise<FudabaMutationReceiptRow | null> {
+        return queryOne<FudabaMutationReceiptRow>(
+            this.database,
+            `SELECT request_hash, resource_id FROM fudaba_mutation_receipts
+             WHERE scope=? AND account_id=? AND key_hash=?`,
+            [scope, accountId, keyHash]
+        );
+    }
+
+    private async officeMutationFailure(
+        officeId: string,
+        ownerAccountId: string,
+        expectedRevision: number,
+        stateAllowed?: (office: FudabaOwnerOfficeRecord) => boolean,
+        rejectPending = false
+    ): Promise<FudabaOfficeMutationResult> {
+        const current = await this.findOfficeForOwner(officeId, ownerAccountId);
+        if (!current) return { status: 'unavailable' };
+        if (current.revision !== expectedRevision) {
+            return { status: 'conflict', revision: current.revision };
+        }
+        if (stateAllowed && !stateAllowed(current)) {
+            return {
+                status: 'state-conflict',
+                revision: current.revision,
+                officeStatus: current.status
+            };
+        }
+        if (rejectPending && current.pending_cover_object_key) {
+            return { status: 'pending-exists', revision: current.revision };
+        }
+        return { status: 'unavailable' };
     }
 
     private async attachMapOfficeSeries(
@@ -743,6 +839,471 @@ export class SqlFudabaRepository implements FudabaRepository {
             [id]
         );
         return row ? officeRecord(row) : null;
+    }
+
+    async listOfficesForOwner(
+        ownerAccountId: string
+    ): Promise<FudabaOwnerOfficeRecord[]> {
+        const rows = await queryAll<FudabaOwnerOfficeSeriesRow>(
+            this.database,
+            `SELECT ${OWNER_OFFICE_COLUMNS}, office_series.series_code
+             FROM fudaba_offices office
+             LEFT JOIN fudaba_office_series_tags office_series
+               ON office_series.office_id=office.id
+             WHERE office.owner_account_id=?
+             ORDER BY CASE office.status WHEN 'archived' THEN 1 ELSE 0 END,
+                      office.updated_at DESC, office.id ASC,
+                      office_series.display_order, office_series.series_code`,
+            [ownerAccountId]
+        );
+        return this.ownerOfficesFromJoinedRows(rows);
+    }
+
+    async findOfficeForOwner(
+        officeId: string,
+        ownerAccountId: string
+    ): Promise<FudabaOwnerOfficeRecord | null> {
+        const rows = await queryAll<FudabaOwnerOfficeSeriesRow>(
+            this.database,
+            `SELECT ${OWNER_OFFICE_COLUMNS}, office_series.series_code
+             FROM fudaba_offices office
+             LEFT JOIN fudaba_office_series_tags office_series
+               ON office_series.office_id=office.id
+             WHERE office.id=? AND office.owner_account_id=?
+             ORDER BY office_series.display_order, office_series.series_code`,
+            [officeId, ownerAccountId]
+        );
+        return this.ownerOfficesFromJoinedRows(rows)[0] ?? null;
+    }
+
+    createOfficeForOwner(
+        input: CreateOwnedFudabaOfficeInput
+    ): Promise<FudabaOfficeCreateResult> {
+        return this.serializeWrite(async () => {
+            const ownerAccountLockClause = ' FOR UPDATE';
+            const statements = [
+                sqlStatement(
+                    this.database,
+                    `SELECT account.id FROM platform_accounts account
+                     WHERE account.id=? AND account.status='active'
+                       AND account.deleted_at IS NULL${ownerAccountLockClause}`,
+                    [input.ownerAccountId]
+                ),
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO fudaba_mutation_receipts
+                        (scope, account_id, key_hash, request_hash,
+                         resource_id, created_at)
+                     SELECT 'office-create', account.id, ?, ?, ?, ?
+                     FROM platform_accounts account
+                     WHERE account.id=? AND account.status='active'
+                       AND account.deleted_at IS NULL
+                     ON CONFLICT(scope, account_id, key_hash) DO NOTHING`,
+                    [
+                        input.idempotencyKeyHash,
+                        input.requestHash,
+                        input.id,
+                        input.receiptCreatedAt,
+                        input.ownerAccountId
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO fudaba_offices
+                        (id, owner_account_id, slug, name, intro, city, address,
+                         latitude, longitude, accent, cover_object_key,
+                         pending_cover_object_key, pending_cover_submitted_at,
+                         is_open, visitor_count, status, revision, created_at,
+                         updated_at, archived_at)
+                     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL,
+                            ?, ?, ?, ?, ?, ?, ?
+                     FROM platform_accounts account
+                     JOIN fudaba_mutation_receipts receipt
+                       ON receipt.scope='office-create'
+                      AND receipt.account_id=account.id
+                      AND receipt.key_hash=?
+                     WHERE account.id=? AND account.status='active'
+                       AND account.deleted_at IS NULL
+                       AND receipt.request_hash=? AND receipt.resource_id=?`,
+                    [
+                        input.id,
+                        input.ownerAccountId,
+                        input.slug,
+                        input.name,
+                        input.intro,
+                        input.city,
+                        input.address,
+                        input.latitude,
+                        input.longitude,
+                        input.accent,
+                        input.coverObjectKey,
+                        this.bindBoolean(input.isOpen),
+                        input.visitorCount,
+                        input.status,
+                        input.revision,
+                        input.createdAt,
+                        input.updatedAt,
+                        input.archivedAt,
+                        input.idempotencyKeyHash,
+                        input.ownerAccountId,
+                        input.requestHash,
+                        input.id
+                    ]
+                ),
+                ...input.seriesCodes.map((seriesCode, displayOrder) => sqlStatement(
+                    this.database,
+                    `INSERT INTO fudaba_office_series_tags
+                        (office_id, series_code, display_order)
+                     SELECT office.id, (
+                         SELECT series.code FROM fudaba_series_tags series
+                         WHERE series.code=? AND series.enabled=?
+                     ), ?
+                     FROM fudaba_offices office
+                     WHERE office.id=? AND office.owner_account_id=?`,
+                    [
+                        seriesCode,
+                        this.bindBoolean(true),
+                        displayOrder,
+                        input.id,
+                        input.ownerAccountId
+                    ]
+                ))
+            ];
+            try {
+                await this.database.batch(statements);
+            } catch (error) {
+                if (!await this.enabledOfficeSeriesAvailable(input.seriesCodes)) {
+                    return { status: 'unavailable' };
+                }
+                throw error;
+            }
+            const receipt = await this.findMutationReceipt(
+                'office-create',
+                input.ownerAccountId,
+                input.idempotencyKeyHash
+            );
+            if (!receipt) return { status: 'unavailable' };
+            if (receipt.request_hash !== input.requestHash) {
+                return { status: 'idempotency-conflict' };
+            }
+            const created = await this.findOfficeForOwner(
+                receipt.resource_id,
+                input.ownerAccountId
+            );
+            if (!created) {
+                throw new Error('Fudaba office receipt references a missing office');
+            }
+            return {
+                status: 'saved',
+                office: created,
+                previousPendingObjectKey: null
+            };
+        });
+    }
+
+    updateOfficeForOwner(
+        input: UpdateOwnedFudabaOfficeInput
+    ): Promise<FudabaOfficeMutationResult> {
+        return this.serializeWrite(async () => {
+            const ownerRevisionGuard = `office.id=?
+                AND office.owner_account_id=? AND office.revision=?
+                AND office.status='active'
+                AND EXISTS (
+                    SELECT 1 FROM platform_accounts account
+                    WHERE account.id=office.owner_account_id
+                      AND account.status='active' AND account.deleted_at IS NULL
+                )`;
+            const statements = [
+                sqlStatement(
+                    this.database,
+                    `UPDATE fudaba_offices AS office SET revision=revision
+                     WHERE ${ownerRevisionGuard}`,
+                    [input.officeId, input.ownerAccountId, input.expectedRevision]
+                ),
+                sqlStatement(
+                    this.database,
+                    `DELETE FROM fudaba_office_public_locations
+                     WHERE office_id=? AND EXISTS (
+                         SELECT 1 FROM fudaba_offices office
+                         WHERE ${ownerRevisionGuard}
+                           AND (
+                               office.latitude<>? OR office.longitude<>?
+                               OR office.city<>? OR office.address<>?
+                           )
+                     )`,
+                    [
+                        input.officeId,
+                        input.officeId,
+                        input.ownerAccountId,
+                        input.expectedRevision,
+                        input.latitude,
+                        input.longitude,
+                        input.city,
+                        input.address
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `DELETE FROM fudaba_office_series_tags
+                     WHERE office_id=? AND EXISTS (
+                         SELECT 1 FROM fudaba_offices office
+                         WHERE ${ownerRevisionGuard}
+                     )`,
+                    [
+                        input.officeId,
+                        input.officeId,
+                        input.ownerAccountId,
+                        input.expectedRevision
+                    ]
+                ),
+                ...input.seriesCodes.map((seriesCode, displayOrder) => sqlStatement(
+                    this.database,
+                    `INSERT INTO fudaba_office_series_tags
+                        (office_id, series_code, display_order)
+                     SELECT office.id, (
+                         SELECT series.code FROM fudaba_series_tags series
+                         WHERE series.code=? AND series.enabled=?
+                     ), ?
+                     FROM fudaba_offices office
+                     WHERE ${ownerRevisionGuard}`,
+                    [
+                        seriesCode,
+                        this.bindBoolean(true),
+                        displayOrder,
+                        input.officeId,
+                        input.ownerAccountId,
+                        input.expectedRevision
+                    ]
+                )),
+                sqlStatement(
+                    this.database,
+                    `UPDATE fudaba_offices AS office
+                     SET name=?, intro=?, city=?, address=?, latitude=?,
+                         longitude=?, accent=?, is_open=?, updated_at=?,
+                         revision=revision+1
+                     WHERE ${ownerRevisionGuard}`,
+                    [
+                        input.name,
+                        input.intro,
+                        input.city,
+                        input.address,
+                        input.latitude,
+                        input.longitude,
+                        input.accent,
+                        this.bindBoolean(input.isOpen),
+                        input.updatedAt,
+                        input.officeId,
+                        input.ownerAccountId,
+                        input.expectedRevision
+                    ]
+                )
+            ];
+            let results;
+            try {
+                results = await this.database.batch(statements);
+            } catch (error) {
+                if (!await this.enabledOfficeSeriesAvailable(input.seriesCodes)) {
+                    return { status: 'unavailable' };
+                }
+                throw error;
+            }
+            const first = results[0]?.meta.changes ?? 0;
+            const final = results.at(-1)?.meta.changes ?? 0;
+            if (first !== 1 || final !== 1) {
+                return this.officeMutationFailure(
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                    (office) => office.status === 'active'
+                );
+            }
+            const office = await this.findOfficeForOwner(
+                input.officeId,
+                input.ownerAccountId
+            );
+            if (!office) throw new Error('Updated Fudaba office is unavailable');
+            return { status: 'saved', office, previousPendingObjectKey: null };
+        });
+    }
+
+    archiveOfficeForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+        archivedAt: string;
+    }): Promise<FudabaOfficeMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await executeSql(
+                this.database,
+                `UPDATE fudaba_offices AS office
+                 SET status='archived', archived_at=?, updated_at=?,
+                     revision=revision+1
+                 WHERE office.id=? AND office.owner_account_id=?
+                   AND office.revision=? AND office.status='active'
+                   AND EXISTS (
+                       SELECT 1 FROM platform_accounts account
+                       WHERE account.id=office.owner_account_id
+                         AND account.status='active' AND account.deleted_at IS NULL
+                   )`,
+                [
+                    input.archivedAt,
+                    input.archivedAt,
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision
+                ]
+            );
+            if (result.meta.changes !== 1) {
+                return this.officeMutationFailure(
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                    (office) => office.status === 'active'
+                );
+            }
+            const office = await this.findOfficeForOwner(
+                input.officeId,
+                input.ownerAccountId
+            );
+            if (!office) throw new Error('Archived Fudaba office is unavailable');
+            return { status: 'saved', office, previousPendingObjectKey: null };
+        });
+    }
+
+    restoreOfficeForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+        restoredAt: string;
+    }): Promise<FudabaOfficeMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await executeSql(
+                this.database,
+                `UPDATE fudaba_offices AS office
+                 SET status='active', archived_at=NULL, updated_at=?,
+                     revision=revision+1
+                 WHERE office.id=? AND office.owner_account_id=?
+                   AND office.revision=? AND office.status='archived'
+                   AND EXISTS (
+                       SELECT 1 FROM platform_accounts account
+                       WHERE account.id=office.owner_account_id
+                         AND account.status='active' AND account.deleted_at IS NULL
+                   )`,
+                [
+                    input.restoredAt,
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision
+                ]
+            );
+            if (result.meta.changes !== 1) {
+                return this.officeMutationFailure(
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                    (office) => office.status === 'archived'
+                );
+            }
+            const office = await this.findOfficeForOwner(
+                input.officeId,
+                input.ownerAccountId
+            );
+            if (!office) throw new Error('Restored Fudaba office is unavailable');
+            return { status: 'saved', office, previousPendingObjectKey: null };
+        });
+    }
+
+    reservePendingOfficeCoverForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        objectKey: string;
+        expectedRevision: number;
+        submittedAt: string;
+    }): Promise<FudabaOfficeMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await executeSql(
+                this.database,
+                `UPDATE fudaba_offices AS office
+                 SET pending_cover_object_key=?, pending_cover_submitted_at=?,
+                     updated_at=?, revision=revision+1
+                 WHERE office.id=? AND office.owner_account_id=?
+                   AND office.revision=? AND office.status='active'
+                   AND office.pending_cover_object_key IS NULL
+                   AND EXISTS (
+                       SELECT 1 FROM platform_accounts account
+                       WHERE account.id=office.owner_account_id
+                         AND account.status='active' AND account.deleted_at IS NULL
+                   )`,
+                [
+                    input.objectKey,
+                    input.submittedAt,
+                    input.submittedAt,
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision
+                ]
+            );
+            if (result.meta.changes !== 1) {
+                return this.officeMutationFailure(
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                    (office) => office.status === 'active',
+                    true
+                );
+            }
+            const office = await this.findOfficeForOwner(
+                input.officeId,
+                input.ownerAccountId
+            );
+            if (!office) throw new Error('Reserved Fudaba cover is unavailable');
+            return { status: 'saved', office, previousPendingObjectKey: null };
+        });
+    }
+
+    clearPendingOfficeCoverForOwner(input: {
+        officeId: string;
+        ownerAccountId: string;
+        objectKey: string;
+        expectedRevision: number;
+        updatedAt: string;
+    }): Promise<FudabaOfficeMutationResult> {
+        return this.serializeWrite(async () => {
+            const result = await executeSql(
+                this.database,
+                `UPDATE fudaba_offices AS office
+                 SET pending_cover_object_key=NULL,
+                     pending_cover_submitted_at=NULL, updated_at=?,
+                     revision=revision+1
+                 WHERE office.id=? AND office.owner_account_id=?
+                   AND office.revision=? AND office.pending_cover_object_key=?`,
+                [
+                    input.updatedAt,
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                    input.objectKey
+                ]
+            );
+            if (result.meta.changes !== 1) {
+                return this.officeMutationFailure(
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                    (office) => office.pending_cover_object_key !== null
+                );
+            }
+            const office = await this.findOfficeForOwner(
+                input.officeId,
+                input.ownerAccountId
+            );
+            if (!office) throw new Error('Withdrawn Fudaba cover is unavailable');
+            return {
+                status: 'saved',
+                office,
+                previousPendingObjectKey: input.objectKey
+            };
+        });
     }
 
     updateOfficeStatusForOwner(input: {
@@ -1343,11 +1904,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                 this.database,
                 `INSERT INTO fudaba_office_cards
                     (office_id, card_id, pinned_at, position_x, position_y,
-                     rotation, z_index)
-                 SELECT office.id, card.id, ?, ?, ?, ?, ?
+                     rotation, z_index, revision, updated_at)
+                 SELECT office.id, card.id, ?, ?, ?, ?, ?, 0, ?
                  FROM fudaba_offices office
                  JOIN fudaba_cards card ON card.id=?
-                 WHERE office.id=? AND office.status<>'archived'
+                 WHERE office.id=? AND office.status='active'
                    AND card.owner_account_id=? AND card.deleted_at IS NULL
                  ON CONFLICT(office_id, card_id) DO NOTHING`,
                 [
@@ -1356,6 +1917,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.positionY,
                     input.rotation,
                     input.zIndex,
+                    input.pinnedAt,
                     input.cardId,
                     input.officeId,
                     input.ownerAccountId
