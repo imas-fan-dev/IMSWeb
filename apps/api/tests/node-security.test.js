@@ -1218,7 +1218,6 @@ test('production JWT secret length is measured in UTF-8 bytes', () => {
         ...process.env,
         NODE_ENV: 'production',
         IMS_JWT_SECRET: '😀'.repeat(8),
-        IMS_SITE_ORIGIN: 'https://www.example.com',
         IMS_SQLITE_PATH: path.join(tempDir, 'utf8-secret.db'),
         IMS_EVENT_BASE_DIR: path.join(tempDir, 'utf8-secret-events')
     };

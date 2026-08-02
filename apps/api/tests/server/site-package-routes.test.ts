@@ -243,7 +243,6 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
             }
         },
         config: {
-            siteOrigin: 'http://main.test',
             clientAddressSource: 'direct' as const
         }
     };
@@ -252,7 +251,6 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         ...runtimeServices,
         config: {
             ...runtimeServices.config,
-            siteOrigin: 'http://main.test:8080',
             clientAddressSource: 'nginx' as const
         }
     }));
@@ -306,6 +304,33 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(forwardedContent.status, 200);
     assert.equal(forwardedContent.headers.get('location'), null);
+    assert.match(
+        forwardedContent.headers.get('content-security-policy') || '',
+        /frame-ancestors http:\/\/main\.test:8080/
+    );
+    const forwardedShell = await nginxApp.request(
+        'http://upstream.test/sites/hiro-2026',
+        { headers: forwardedHeaders }
+    );
+    assert.match(
+        await forwardedShell.text(),
+        new RegExp(`src="http://main\\.test:8080/site-content/hiro-2026/${publishedId}/"`)
+    );
+    const forwardedMetadata = await nginxApp.request(
+        'http://upstream.test/api/site-packages/hiro-2026',
+        { headers: forwardedHeaders }
+    );
+    assert.deepEqual(await forwardedMetadata.json(), {
+        slug: 'hiro-2026',
+        title: 'Hiro 2026',
+        description: 'Independent package',
+        revisionId: publishedId,
+        revisionNumber: 1,
+        runtimeMode: 'safe',
+        publishedAt: 3_000,
+        siteUrl: 'http://main.test:8080/sites/hiro-2026',
+        contentUrl: `http://main.test:8080/site-content/hiro-2026/${publishedId}/`
+    });
     assert.equal((await nginxApp.request('http://upstream.test/api/wiki/test', {
         headers: forwardedHeaders
     })).status, 200);
@@ -442,7 +467,13 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
 
     const metadata = await app.request('http://main.test/api/site-packages/hiro-2026');
     assert.equal(metadata.status, 200);
-    assert.equal((await metadata.json()).revisionId, publishedId);
+    const metadataBody = await metadata.json();
+    assert.equal(metadataBody.revisionId, publishedId);
+    assert.equal(metadataBody.siteUrl, 'http://main.test/sites/hiro-2026');
+    assert.equal(
+        metadataBody.contentUrl,
+        `http://main.test/site-content/hiro-2026/${publishedId}/`
+    );
     const stable = await app.request('http://main.test/sites/hiro-2026');
     assert.equal(stable.status, 200);
     assert.match(

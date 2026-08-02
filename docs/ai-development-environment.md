@@ -83,7 +83,7 @@ pnpm run dev:r2
 
 该模式继续启动本地 PostgreSQL 和应用 migrations，但不启动或初始化 MinIO。启动器从
 `apps/api/.env` 中仅提取 `IMS_OBJECT_STORAGE`、`IMS_S3_*`、公开读取基址和 AWS 凭据；
-`NODE_ENV`、JWT、站点 origin、数据库和本地数据目录仍由开发启动器隔离注入。为防止本地热更新
+`NODE_ENV`、JWT、数据库和本地数据目录仍由开发启动器隔离注入。为防止本地热更新
 误写生产对象，bucket 名必须明确包含独立的 `test` 段，region 必须为 `auto`，endpoint 必须是
 无凭据、无路径的 Cloudflare R2 HTTPS S3 API 地址。需要使用另一个被忽略的配置文件时设置
 `IMS_DEV_R2_ENV_FILE`。

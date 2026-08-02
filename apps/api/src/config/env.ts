@@ -23,42 +23,6 @@ const DEVELOPMENT_SECRET = 'dev-only-insecure-change-me';
 const DEFAULT_STORY_MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const DEFAULT_SITE_PACKAGE_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
-export interface SiteOriginConfig {
-    siteOrigin: string;
-}
-
-function absoluteOrigin(name: string, value: string): string {
-    let parsed: URL;
-    try {
-        parsed = new URL(value);
-    } catch {
-        throw new Error(`${name} must be an absolute HTTP(S) origin`);
-    }
-    if (
-        !['http:', 'https:'].includes(parsed.protocol) ||
-        parsed.username || parsed.password || parsed.pathname !== '/' ||
-        parsed.search || parsed.hash
-    ) {
-        throw new Error(`${name} must be an absolute HTTP(S) origin without a path`);
-    }
-    return parsed.origin;
-}
-
-export function parseSiteOrigins(
-    environment: NodeJS.ProcessEnv = process.env
-): SiteOriginConfig {
-    const mode = String(environment.NODE_ENV || 'development').trim().toLowerCase();
-    const production = mode === 'production';
-    if (production && !environment.IMS_SITE_ORIGIN) {
-        throw new Error('IMS_SITE_ORIGIN is required in production');
-    }
-    const siteOrigin = absoluteOrigin(
-        'IMS_SITE_ORIGIN',
-        environment.IMS_SITE_ORIGIN || 'http://127.0.0.1:5173'
-    );
-    return { siteOrigin };
-}
-
 export function parseSitePackageMaxUploadBytes(value: string | undefined): number {
     if (value === undefined) return DEFAULT_SITE_PACKAGE_MAX_UPLOAD_BYTES;
     const parsed = Number(value);
@@ -115,7 +79,6 @@ export const STORY_MAX_UPLOAD_BYTES = parseStoryMaxUploadBytes(
 export const SITE_PACKAGE_MAX_UPLOAD_BYTES = parseSitePackageMaxUploadBytes(
     process.env.IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES
 );
-export const SITE_ORIGINS = parseSiteOrigins();
 
 export function parseSuperAdminUsername(value: string | undefined): string | undefined {
     const username = value?.trim();

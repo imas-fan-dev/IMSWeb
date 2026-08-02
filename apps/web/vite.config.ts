@@ -45,7 +45,7 @@ export default defineConfig({
         "/site-content",
         "/sites",
         "/uploads",
-      ].map((path) => [path, { target: honoOrigin, changeOrigin: true }])
+      ].map((path) => [path, { target: honoOrigin, changeOrigin: false }])
     ),
   },
 })

@@ -125,10 +125,7 @@ test("development configuration derives a fully local runtime", async () => {
   );
   assert.equal(configuration.apiEnvironment.IMS_S3_PUBLIC_BUCKET, "");
   assert.equal(configuration.apiEnvironment.IMS_UPLOADS_DIR, "data/uploads");
-  assert.equal(
-    configuration.apiEnvironment.IMS_SITE_ORIGIN,
-    "http://127.0.0.1:5180",
-  );
+  assert.equal("IMS_SITE_ORIGIN" in configuration.apiEnvironment, false);
   assert.equal(
     configuration.webEnvironment.IMS_API_ORIGIN,
     "http://127.0.0.1:3100",

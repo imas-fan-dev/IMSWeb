@@ -9,7 +9,6 @@ export interface NodeRuntimeConfig {
     cookieSecure: boolean;
     storyMaxUploadBytes: number;
     sitePackageMaxUploadBytes: number;
-    siteOrigin: string;
     clientAddressSource: 'direct' | 'nginx';
 }
 

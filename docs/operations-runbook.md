@@ -74,7 +74,6 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_EVENT_BASE_DIR` | 编年史状态目录 | release 外绝对目录 |
 | `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
 | `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
-| `IMS_SITE_ORIGIN` | 主站 origin | 生产必填，无路径 |
 
 管理员会话使用 15 分钟的 access JWT 和 30 天滑动有效期的 refresh token。两者都只写入
 `HttpOnly`、`SameSite=Lax` Cookie；refresh token 只保存 SHA-256 摘要，并在每次刷新时轮换。
