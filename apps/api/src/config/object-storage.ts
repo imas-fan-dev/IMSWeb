@@ -107,8 +107,7 @@ export function parseNodeObjectStorageConfig(
 
     const genericPublicReadUrlBase = parsePublicReadUrlBase(
         'IMS_PUBLIC_READ_URL_BASE',
-        optionalValue(environment, 'IMS_PUBLIC_READ_URL_BASE') ||
-            (type === 'filesystem' ? optionalValue(environment, 'IMS_SITE_ORIGIN') : undefined)
+        optionalValue(environment, 'IMS_PUBLIC_READ_URL_BASE')
     );
     if (type === 'filesystem') {
         return {

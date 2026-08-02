@@ -1,35 +1,47 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parseSitePackageMaxUploadBytes } from '@/config/env';
 import {
-    parseSiteOrigins,
-    parseSitePackageMaxUploadBytes
-} from '@/config/env';
-import { sitePackageFrameAncestorOrigins } from '@/domains/site-packages/site-package-support';
+    sitePackageFrameAncestorOrigins,
+    sitePackageRequestOrigin
+} from '@/domains/site-packages/site-package-support';
 
-test('site-package content uses the explicit main-site origin', () => {
-    assert.deepEqual(parseSiteOrigins({ NODE_ENV: 'development', PORT: '4100' }), {
-        siteOrigin: 'http://127.0.0.1:5173'
+test('site-package content uses the current request origin', () => {
+    const forwarded = new Request('http://upstream.test/sites/hiro-2026', {
+        headers: {
+            'x-forwarded-proto': 'https',
+            'x-forwarded-host': 'preview.idol-master.top'
+        }
     });
-    assert.deepEqual(parseSiteOrigins({
-        NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://www.example.com'
-    }), {
-        siteOrigin: 'https://www.example.com'
-    });
-    assert.throws(
-        () => parseSiteOrigins({ NODE_ENV: 'production' }),
-        /required in production/
+    assert.equal(sitePackageRequestOrigin(forwarded, 'direct'), 'http://upstream.test');
+    assert.equal(
+        sitePackageRequestOrigin(forwarded, 'nginx'),
+        'https://preview.idol-master.top'
     );
-    assert.deepEqual(parseSiteOrigins({
-        NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://www.example.co.uk'
-    }), {
-        siteOrigin: 'https://www.example.co.uk'
-    });
-    assert.throws(() => parseSiteOrigins({
-        NODE_ENV: 'production',
-        IMS_SITE_ORIGIN: 'https://www.example.com/path'
-    }), /without a path/);
+    assert.equal(sitePackageRequestOrigin(new Request('http://upstream.test', {
+        headers: {
+            'x-forwarded-proto': 'http',
+            'x-forwarded-host': 'main.test',
+            'x-forwarded-port': '8080'
+        }
+    }), 'nginx'), 'http://main.test:8080');
+
+    const invalidForwardedHeaders: Array<Record<string, string>> = [
+        { 'x-forwarded-proto': 'javascript', 'x-forwarded-host': 'main.test' },
+        { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'main.test/path' },
+        { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'main.test,evil.test' },
+        {
+            'x-forwarded-proto': 'https',
+            'x-forwarded-host': 'main.test',
+            'x-forwarded-port': '70000'
+        }
+    ];
+    for (const headers of invalidForwardedHeaders) {
+        assert.equal(
+            sitePackageRequestOrigin(new Request('http://upstream.test', { headers }), 'nginx'),
+            'http://upstream.test'
+        );
+    }
 });
 
 test('site-package frame ancestors accept loopback aliases only for local development', () => {

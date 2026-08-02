@@ -105,14 +105,6 @@ test('Node object storage defaults to S3 and requires explicit filesystem compat
     }), { type: 'filesystem' });
     assert.deepEqual(parseNodeObjectStorageConfig({
         IMS_OBJECT_STORAGE: 'filesystem',
-        IMS_SITE_ORIGIN: 'https://www.example.test/'
-    }), {
-        type: 'filesystem',
-        publicReadUrlBase: 'https://www.example.test'
-    });
-    assert.deepEqual(parseNodeObjectStorageConfig({
-        IMS_OBJECT_STORAGE: 'filesystem',
-        IMS_SITE_ORIGIN: 'https://www.example.test',
         IMS_PUBLIC_READ_URL_BASE: 'https://media.example.test/assets/'
     }), {
         type: 'filesystem',

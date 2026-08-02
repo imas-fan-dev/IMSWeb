@@ -43,9 +43,12 @@ NODE_ENV=production
 HOST=127.0.0.1
 PORT=3000
 IMS_CLIENT_ADDRESS_SOURCE=nginx
-IMS_SITE_ORIGIN=https://www.example.com
 IMS_COOKIE_SECURE=true
 ```
+
+站点包 URL 与 iframe CSP 使用当前请求的同源 origin。启用 `nginx` 地址来源后，Hono 会读取
+由受信 Nginx 覆盖写入的 `X-Forwarded-Proto`、`X-Forwarded-Host` 和可选
+`X-Forwarded-Port`；不要把该模式用于可被客户端绕过代理直接访问的监听地址。
 
 同机 MinIO 使用 path-style S3 地址。公开对象基址必须包含 bucket，S3 endpoint 则不能包含
 bucket：

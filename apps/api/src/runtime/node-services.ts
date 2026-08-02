@@ -33,7 +33,6 @@ import {
     COOKIE_OPTIONS,
     IS_PRODUCTION,
     SECRET_KEY,
-    SITE_ORIGINS,
     SITE_PACKAGE_MAX_UPLOAD_BYTES,
     STORY_MAX_UPLOAD_BYTES,
     SUPER_ADMIN_USERNAME
@@ -268,7 +267,6 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 cookieSecure: COOKIE_OPTIONS.secure,
                 storyMaxUploadBytes: STORY_MAX_UPLOAD_BYTES,
                 sitePackageMaxUploadBytes: SITE_PACKAGE_MAX_UPLOAD_BYTES,
-                siteOrigin: SITE_ORIGINS.siteOrigin,
                 clientAddressSource: CLIENT_ADDRESS_SOURCE
             }
         };
