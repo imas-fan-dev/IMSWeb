@@ -92,6 +92,10 @@ test("development configuration derives a fully local runtime", async () => {
       IMS_ENV_FILE: "/production/api.env",
       IMS_SUPER_ADMIN_USERNAME: "production-admin",
       IMS_PLATFORM_JWT_SECRET: "production-platform-secret",
+      IMS_FUDABA_PUBLIC_READ_ENABLED: "true",
+      IMS_FUDABA_WRITE_ENABLED: "true",
+      IMS_FUDABA_MAP_ENABLED: "true",
+      IMS_FUDABA_MAP_STYLE_URL: "https://production.invalid/style.json",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
       AWS_SESSION_TOKEN: "production-session-token",
     },
@@ -125,6 +129,13 @@ test("development configuration derives a fully local runtime", async () => {
   assert.equal(configuration.apiEnvironment.IMS_OBJECT_STORAGE, "s3");
   assertIsolatedPlatformSecret(configuration);
   assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_PUBLIC_READ_ENABLED,
+    "false",
+  );
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "false");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "false");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL, "");
+  assert.equal(
     configuration.apiEnvironment.IMS_S3_ENDPOINT,
     "http://127.0.0.1:9900",
   );
@@ -143,6 +154,69 @@ test("development configuration derives a fully local runtime", async () => {
     configuration.webEnvironment.IMS_API_ORIGIN,
     "http://127.0.0.1:3100",
   );
+});
+
+test("development configuration translates explicit Fudaba gates", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+  const environment = {
+    IMS_DEV_FUDABA_PUBLIC_READ_ENABLED: " TRUE ",
+    IMS_DEV_FUDABA_WRITE_ENABLED: "true",
+    IMS_DEV_FUDABA_MAP_ENABLED: "true",
+    IMS_DEV_FUDABA_MAP_STYLE_URL: " /maps/exchange-style.json ",
+  };
+  const configuration = resolveDevelopmentConfiguration({
+    environment,
+    deployEnvironment: {},
+    options: parseArguments([], environment),
+  });
+
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_PUBLIC_READ_ENABLED,
+    "true",
+  );
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "true");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "true");
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
+    "/maps/exchange-style.json",
+  );
+  for (const name of Object.keys(environment)) {
+    assert.equal(name in configuration.apiEnvironment, false);
+    assert.equal(name in configuration.webEnvironment, false);
+  }
+});
+
+test("development configuration rejects unsafe Fudaba overrides", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+  const resolve = (environment) =>
+    resolveDevelopmentConfiguration({
+      environment,
+      deployEnvironment: {},
+      options: parseArguments([], environment),
+    });
+
+  for (const name of [
+    "IMS_DEV_FUDABA_PUBLIC_READ_ENABLED",
+    "IMS_DEV_FUDABA_WRITE_ENABLED",
+    "IMS_DEV_FUDABA_MAP_ENABLED",
+  ]) {
+    assert.throws(() => resolve({ [name]: "yes" }), new RegExp(`${name} must`));
+  }
+  assert.throws(
+    () => resolve({ IMS_DEV_FUDABA_MAP_ENABLED: "true" }),
+    /IMS_DEV_FUDABA_MAP_STYLE_URL is required/,
+  );
+  for (const styleUrl of [
+    "https://tiles.example.com/style.json",
+    "//tiles.example.com/style.json",
+    "/maps/exchange-style.json?token=secret",
+    "/maps/exchange-style.json#fragment",
+  ]) {
+    assert.throws(
+      () => resolve({ IMS_DEV_FUDABA_MAP_STYLE_URL: styleUrl }),
+      /must be a same-origin absolute path/,
+    );
+  }
 });
 
 test("development configuration isolates an explicit R2 test runtime", async () => {
