@@ -12,6 +12,7 @@ const {
     FUDABA_MIGRATIONS,
     SERIES_MAPPINGS,
     buildImportPlan,
+    canonicalHash,
     extractSnapshot,
     importSnapshot,
     mapSeries,
@@ -226,6 +227,7 @@ const VERIFIER_CANARY = 'DO_NOT_LEAK_CODE_VERIFIER';
 const PASSWORD_CANARY = 'a'.repeat(64);
 const SALT_CANARY = 'DO_NOT_LEAK_PASSWORD_SALT';
 const SERIES = [...SERIES_MAPPINGS.keys()];
+const TARGET_BUCKET = 'imsweb-media-test';
 
 function open(filename) {
     return new sqlite3.Database(filename);
@@ -265,6 +267,7 @@ function mediaEntry(kind, id, slot, sourceReference) {
         card: `community/fudaba/cards/${id}/${slot}.${extension}`
     };
     const digest = sha256(`${kind}:${id}:${slot}`);
+    const bindingSha256 = sha256(`binding:${kind}:${id}:${slot}`);
     return {
         entityKind: kind,
         entityId: id,
@@ -272,6 +275,15 @@ function mediaEntry(kind, id, slot, sourceReference) {
         sourceReference,
         logicalObjectKey: bases[kind],
         state: 'ready',
+        disposition: 'store-protected',
+        storageScope: 'private',
+        targetBucket: 'imsweb-media-test',
+        objectId: `object-${kind}-${id}-${slot}`,
+        physicalObjectKey: `test/__protected/${bases[kind]}`,
+        targetEtag: `etag-${kind}-${id}-${slot}`,
+        bytes: 128,
+        contentType: 'image/png',
+        bindingSha256,
         sha256: digest,
         readbackSha256: digest
     };
@@ -284,9 +296,48 @@ function snapshotConfirmations(directory) {
         confirmSourceSha256: source.sourceExport.sha256,
         confirmSourceManifestSha256: sha256File(path.join(directory, 'source.json')),
         confirmRowsSha256: sha256File(path.join(directory, 'rows-manifest.json')),
+        confirmMediaPlanSha256: sha256File(path.join(directory, 'media-plan.json')),
         confirmMediaSha256: sha256File(path.join(directory, 'media-manifest.json')),
-        confirmRightsSha256: sha256File(path.join(directory, 'rights-manifest.json'))
+        confirmRightsSha256: sha256File(path.join(directory, 'rights-manifest.json')),
+        confirmTargetBucket: TARGET_BUCKET
     };
+}
+
+async function seedMediaControlPlane(pool, directory) {
+    await pool.query('DELETE FROM public.s3_object_index');
+    await pool.query('DELETE FROM public.s3_object_versions');
+    const media = readJson(path.join(directory, 'media-manifest.json'));
+    const entries = media.entries.filter((entry) => entry.disposition === 'store-protected');
+    for (const entry of entries) {
+        await pool.query(
+            `INSERT INTO public.s3_object_versions
+                (object_id, physical_key, storage_scope, byte_size, content_type,
+                 sha256, etag, owner_token, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8)`,
+            [
+                entry.objectId,
+                entry.physicalObjectKey,
+                entry.storageScope,
+                entry.bytes,
+                entry.contentType,
+                entry.sha256,
+                entry.targetEtag,
+                Date.parse('2026-07-17T00:00:00.000Z')
+            ]
+        );
+        await pool.query(
+            `INSERT INTO public.s3_object_index
+                (logical_key, object_id, state, incarnation, operation_id, updated_at)
+             VALUES ($1, $2, $3, 1, NULL, $4)`,
+            [
+                entry.logicalObjectKey,
+                entry.objectId,
+                entry.state,
+                Date.parse('2026-07-17T00:00:00.000Z')
+            ]
+        );
+    }
+    return entries;
 }
 
 async function createSourceFixture(t, options = {}) {
@@ -298,7 +349,8 @@ async function createSourceFixture(t, options = {}) {
     const created = '2026-07-15T01:02:03.000Z';
     const updated = '2026-07-16T02:03:04.000Z';
     await run(database, `INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, ?)`, [
-        'account-a', 'Alice', '/media/account-a.png', '上海', created, 'Alice bio', updated
+        'account-a', 'Alice', options.externalAvatar || '/media/account-a.png',
+        '上海', created, 'Alice bio', updated
     ]);
     await run(database, `INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, ?)`, [
         'account-b', 'Bob', options.emptyAvatar ? '' : '/media/account-b.png',
@@ -399,7 +451,10 @@ async function createApprovedSnapshot(t, options = {}) {
     writeJson(path.join(directory, 'rows-manifest.json'), rowsManifest);
 
     const entries = [
-        mediaEntry('account', 'account-a', 'avatar', '/media/account-a.png'),
+        mediaEntry(
+            'account', 'account-a', 'avatar',
+            options.externalAvatar || '/media/account-a.png'
+        ),
         ...(options.emptyAvatar
             ? []
             : [mediaEntry('account', 'account-b', 'avatar', '/media/account-b.png')]),
@@ -409,20 +464,121 @@ async function createApprovedSnapshot(t, options = {}) {
         mediaEntry('card', 'card-offered', 'front', '/media/card-offered-front.png'),
         mediaEntry('card', 'card-offered', 'back', '/media/card-offered-back.png')
     ];
-    const identity = {
-        schemaVersion: 1,
+    const sourceInventorySha256 = sha256('fixture-source-inventory');
+    if (options.externalAvatar) {
+        const avatar = entries.find((entry) =>
+            entry.entityKind === 'account' && entry.entityId === 'account-a' &&
+            entry.slot === 'avatar');
+        Object.assign(avatar, {
+            logicalObjectKey: null,
+            state: 'external',
+            disposition: 'retain-external',
+            storageScope: null,
+            targetBucket: null,
+            objectId: null,
+            physicalObjectKey: null,
+            targetEtag: null,
+            bytes: null,
+            contentType: null,
+            sha256: null,
+            readbackSha256: null,
+            externalUrl: options.externalAvatar
+        });
+    }
+    if (options.omitOfficeCover) {
+        const cover = entries.find((entry) =>
+            entry.entityKind === 'office' && entry.entityId === 'office-a' &&
+            entry.slot === 'cover');
+        Object.assign(cover, {
+            state: 'omitted',
+            disposition: 'omit',
+            storageScope: null,
+            targetBucket: null,
+            objectId: null,
+            physicalObjectKey: null,
+            targetEtag: null,
+            readbackSha256: null
+        });
+    }
+    const planEntries = entries.map((entry) => {
+        const external = entry.state === 'external';
+        const required = entry.entityKind === 'card';
+        const planned = {
+            entityKind: entry.entityKind,
+            entityId: entry.entityId,
+            slot: entry.slot,
+            required,
+            sourceReference: entry.sourceReference,
+            sourceType: external ? 'external' : 'r2',
+            requestedAction: external ? 'retain-external' : 'store-protected',
+            logicalObjectKey: entry.logicalObjectKey,
+            sourceObject: external ? null : {
+                key: entry.sourceReference.replace(/^\/media\//, ''),
+                versionId: null,
+                etag: `source-${entry.entityKind}-${entry.entityId}-${entry.slot}`,
+                bytes: entry.bytes,
+                contentType: entry.contentType,
+                sha256: entry.sha256,
+                metadataSha256: sha256(
+                    `metadata:${entry.entityKind}:${entry.entityId}:${entry.slot}`
+                )
+            },
+            image: external ? null : {
+                format: 'png',
+                width: 8,
+                height: 8,
+                contentType: entry.contentType
+            },
+            blocker: null
+        };
+        const bindingSha256 = canonicalHash(planned);
+        entry.bindingSha256 = bindingSha256;
+        return { ...planned, bindingSha256 };
+    });
+    const mediaPlan = {
+        schemaVersion: 2,
         snapshotId: rowsManifest.snapshotId,
-        sourceSha256: rowsManifest.sourceSha256
+        sourceSha256: rowsManifest.sourceSha256,
+        sourceCommit: FUDABA_COMMIT,
+        sourceBucket: 'imas-world-card-images',
+        sourceInventorySha256,
+        entries: planEntries
     };
-    writeJson(path.join(directory, 'media-manifest.json'), { ...identity, entries });
+    writeJson(path.join(directory, 'media-plan.json'), mediaPlan);
+    const mediaPlanSha256 = sha256File(path.join(directory, 'media-plan.json'));
+    const identity = {
+        schemaVersion: 2,
+        snapshotId: rowsManifest.snapshotId,
+        sourceSha256: rowsManifest.sourceSha256,
+        version: 1,
+        mediaPlanSha256
+    };
+    writeJson(path.join(directory, 'media-manifest.json'), {
+        ...identity,
+        sourceInventorySha256,
+        entries
+    });
     writeJson(path.join(directory, 'rights-manifest.json'), {
         ...identity,
         approvals: entries.map((entry) => ({
             entityKind: entry.entityKind,
             entityId: entry.entityId,
             slot: entry.slot,
+            sourceReference: entry.sourceReference,
             logicalObjectKey: entry.logicalObjectKey,
-            status: 'approved'
+            bindingSha256: entry.bindingSha256,
+            sourceSha256: entry.sha256,
+            bytes: entry.bytes,
+            contentType: entry.contentType,
+            status: entry.state === 'omitted' ? 'denied' : 'approved',
+            action: entry.state === 'omitted'
+                ? 'omit'
+                : entry.state === 'external'
+                    ? 'retain-external'
+                    : 'store-protected',
+            reviewedBy: 'fixture-reviewer',
+            reviewedAt: '2026-07-16T03:04:05.000Z',
+            evidenceSha256: sha256(`evidence:${entry.bindingSha256}`)
         }))
     });
     return { ...fixture, directory, sourceHashBefore };
@@ -553,6 +709,73 @@ test('planning handles source-null update times and empty optional avatars exact
     assert.equal(profile.row.avatar_object_key, null);
     assert.equal(profile.row.avatar_external_url, null);
     assert.equal(office.row.updated_at, office.row.created_at);
+});
+
+test('planning consumes explicitly retained external avatars and denied optional covers', async (t) => {
+    const externalAvatar = 'https://images.example/alice-retained.png';
+    const snapshot = await createApprovedSnapshot(t, {
+        snapshotId: 'optional-media-dispositions',
+        externalAvatar,
+        omitOfficeCover: true
+    });
+    const plan = await buildImportPlan(snapshot.directory);
+    assert.equal(plan.summary.failed, 0);
+    const profile = plan.operations.find(({ table, row }) =>
+        table === 'platform_profiles' && row.account_id === 'account-a');
+    const office = plan.operations.find(({ table }) => table === 'fudaba_offices');
+    assert.equal(profile.row.avatar_object_key, null);
+    assert.equal(profile.row.avatar_external_url, externalAvatar);
+    assert.equal(office.row.cover_object_key, null);
+});
+
+test('planning rejects public media and a manifest detached from its media plan', async (t) => {
+    const publicSnapshot = await createApprovedSnapshot(t, {
+        snapshotId: 'public-media-rejected'
+    });
+    const publicFile = path.join(publicSnapshot.directory, 'media-manifest.json');
+    const publicManifest = readJson(publicFile);
+    const publicEntry = publicManifest.entries.find((entry) =>
+        entry.entityKind === 'card' && entry.entityId === 'card-wanted' &&
+        entry.slot === 'back');
+    publicEntry.storageScope = 'public';
+    writeJson(publicFile, publicManifest);
+    const publicPlan = await buildImportPlan(publicSnapshot.directory);
+    assert.equal(publicPlan.summary.failed > 0, true);
+    assert.equal(publicPlan.blockers.some(({ reason }) =>
+        reason.includes('Media is not verified ready')), true);
+
+    const detachedSnapshot = await createApprovedSnapshot(t, {
+        snapshotId: 'detached-media-plan'
+    });
+    const detachedFile = path.join(detachedSnapshot.directory, 'media-manifest.json');
+    const detachedManifest = readJson(detachedFile);
+    detachedManifest.entries[0].bindingSha256 = sha256('tampered-binding');
+    writeJson(detachedFile, detachedManifest);
+    await assert.rejects(
+        () => buildImportPlan(detachedSnapshot.directory),
+        /media manifest entry does not match the media plan/
+    );
+});
+
+test('planning recomputes every media-plan binding after a plan reseal', async (t) => {
+    const snapshot = await createApprovedSnapshot(t, {
+        snapshotId: 'recomputed-media-binding'
+    });
+    const planFile = path.join(snapshot.directory, 'media-plan.json');
+    const plan = readJson(planFile);
+    plan.entries[0].image.width += 1;
+    writeJson(planFile, plan);
+    const resealedPlanSha256 = sha256File(planFile);
+    for (const filename of ['media-manifest.json', 'rights-manifest.json']) {
+        const artifactFile = path.join(snapshot.directory, filename);
+        const artifact = readJson(artifactFile);
+        artifact.mediaPlanSha256 = resealedPlanSha256;
+        writeJson(artifactFile, artifact);
+    }
+    await assert.rejects(
+        () => buildImportPlan(snapshot.directory),
+        /media plan binding SHA-256 is invalid/
+    );
 });
 
 test('extract rejects schema drift and classification keys absent from the source', async (t) => {
@@ -701,6 +924,7 @@ test('apply confirmation seals source.json independently from the source export'
     await assert.rejects(() => importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: 'postgresql://unused:unused@127.0.0.1:1/unused',
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...confirmations
     }), /confirm-source-manifest-sha256/);
@@ -757,9 +981,12 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
         await harness.close();
     });
     const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-apply' });
+    pool = poolFor(harness.databaseUrl);
+    await seedMediaControlPlane(pool, snapshot.directory);
     const dryRun = await importSnapshot({
         snapshotDirectory: snapshot.directory,
-        connectionString: harness.databaseUrl
+        connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET
     });
     assert.equal(dryRun.committed, false);
     assert.equal(dryRun.summary.missing, 15);
@@ -767,17 +994,18 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
     assert.deepEqual(dryRun.artifactSha256, {
         source: sha256File(path.join(snapshot.directory, 'source.json')),
         rows: sha256File(path.join(snapshot.directory, 'rows-manifest.json')),
+        mediaPlan: sha256File(path.join(snapshot.directory, 'media-plan.json')),
         media: sha256File(path.join(snapshot.directory, 'media-manifest.json')),
         rights: sha256File(path.join(snapshot.directory, 'rights-manifest.json'))
     });
 
-    pool = poolFor(harness.databaseUrl);
     assert.equal(Number((await pool.query('SELECT COUNT(*) FROM platform_accounts')).rows[0].count), 0);
 
     const confirmations = snapshotConfirmations(snapshot.directory);
     await assert.rejects(() => importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         confirmSnapshotId: confirmations.confirmSnapshotId,
         confirmSourceSha256: confirmations.confirmSourceSha256
@@ -785,6 +1013,7 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
     const applied = await importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...confirmations
     });
@@ -793,6 +1022,7 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
     const repeated = await importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...confirmations
     });
@@ -801,6 +1031,7 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
     const reconciled = await reconcileSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         write: false
     });
     assert.equal(reconciled.status, 'passed');
@@ -826,6 +1057,7 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
     const drift = await reconcileSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         write: false
     });
     assert.equal(drift.status, 'failed');
@@ -835,6 +1067,124 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
             .differentColumns,
         ['content']
     );
+});
+
+test('real PostgreSQL blocks missing or drifted media control-plane state', {
+    skip: !postgresIntegrationEnabled()
+}, async (t) => {
+    const harness = await createPostgresTestHarness();
+    const pool = poolFor(harness.databaseUrl);
+    t.after(async () => {
+        await pool.end();
+        await harness.close();
+    });
+    const snapshot = await createApprovedSnapshot(t, {
+        snapshotId: 'postgres-media-control-plane'
+    });
+    const cases = [
+        {
+            name: 'missing',
+            column: 'logicalObjectKey',
+            mutate: (entry) => pool.query(
+                'DELETE FROM public.s3_object_index WHERE logical_key=$1',
+                [entry.logicalObjectKey]
+            )
+        },
+        {
+            name: 'public',
+            column: 'storageScope',
+            mutate: (entry) => pool.query(
+                "UPDATE public.s3_object_versions SET storage_scope='public' WHERE object_id=$1",
+                [entry.objectId]
+            )
+        },
+        {
+            name: 'pending',
+            column: 'state',
+            mutate: (entry) => pool.query(
+                "UPDATE public.s3_object_index SET state='pending' WHERE logical_key=$1",
+                [entry.logicalObjectKey]
+            )
+        },
+        {
+            name: 'object-id',
+            column: 'objectId',
+            async mutate(entry) {
+                await pool.query(
+                    `INSERT INTO public.s3_object_versions
+                        (object_id, physical_key, storage_scope, byte_size, content_type,
+                         sha256, etag, owner_token, created_at)
+                     SELECT $1, physical_key || '-drift', storage_scope, byte_size,
+                            content_type, sha256, etag, owner_token, created_at
+                     FROM public.s3_object_versions WHERE object_id=$2`,
+                    ['drift-object-id', entry.objectId]
+                );
+                await pool.query(
+                    'UPDATE public.s3_object_index SET object_id=$1 WHERE logical_key=$2',
+                    ['drift-object-id', entry.logicalObjectKey]
+                );
+            }
+        },
+        {
+            name: 'physical-key',
+            column: 'physicalObjectKey',
+            mutate: (entry) => pool.query(
+                "UPDATE public.s3_object_versions SET physical_key=physical_key || '-drift' WHERE object_id=$1",
+                [entry.objectId]
+            )
+        },
+        {
+            name: 'byte-size',
+            column: 'byteSize',
+            mutate: (entry) => pool.query(
+                'UPDATE public.s3_object_versions SET byte_size=byte_size + 1 WHERE object_id=$1',
+                [entry.objectId]
+            )
+        },
+        {
+            name: 'content-type',
+            column: 'contentType',
+            mutate: (entry) => pool.query(
+                "UPDATE public.s3_object_versions SET content_type='image/webp' WHERE object_id=$1",
+                [entry.objectId]
+            )
+        },
+        {
+            name: 'sha256',
+            column: 'sha256',
+            mutate: (entry) => pool.query(
+                'UPDATE public.s3_object_versions SET sha256=$1 WHERE object_id=$2',
+                ['f'.repeat(64), entry.objectId]
+            )
+        },
+        {
+            name: 'etag',
+            column: 'etag',
+            mutate: (entry) => pool.query(
+                "UPDATE public.s3_object_versions SET etag=etag || '-drift' WHERE object_id=$1",
+                [entry.objectId]
+            )
+        }
+    ];
+    for (const scenario of cases) {
+        const [entry] = await seedMediaControlPlane(pool, snapshot.directory);
+        await scenario.mutate(entry);
+        await assert.rejects(() => importSnapshot({
+            snapshotDirectory: snapshot.directory,
+            connectionString: harness.databaseUrl,
+            targetBucket: TARGET_BUCKET
+        }), (error) => {
+            assert.match(error.message, /media target conflict/);
+            assert.equal(error.report.summary.mediaConflicts, 1, scenario.name);
+            const target = error.report.mediaTargets.find((candidate) =>
+                candidate.logicalObjectKey === entry.logicalObjectKey);
+            assert.ok(target.differentColumns.includes(scenario.column), scenario.name);
+            return true;
+        });
+    }
+    assert.equal(Number((await pool.query(
+        'SELECT COUNT(*) FROM platform_accounts'
+    )).rows[0].count), 0);
 });
 
 test('real PostgreSQL reports alternate unique-key conflicts before writing', {
@@ -847,6 +1197,7 @@ test('real PostgreSQL reports alternate unique-key conflicts before writing', {
         await harness.close();
     });
     const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-unique-conflict' });
+    await seedMediaControlPlane(pool, snapshot.directory);
     await pool.query(`
         INSERT INTO platform_accounts
             (id, status, token_version, created_at, updated_at, deleted_at)
@@ -864,7 +1215,8 @@ test('real PostgreSQL reports alternate unique-key conflicts before writing', {
     `);
     await assert.rejects(() => importSnapshot({
         snapshotDirectory: snapshot.directory,
-        connectionString: harness.databaseUrl
+        connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET
     }), (error) => {
         const conflict = error.report.targets.find(({ table, state }) =>
             table === 'fudaba_offices' && state === 'conflict');
@@ -890,9 +1242,11 @@ test('real PostgreSQL imports historical children before restoring an archived o
         snapshotId: 'postgres-archived-office',
         archivedOffice: true
     });
+    await seedMediaControlPlane(pool, snapshot.directory);
     const applied = await importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...snapshotConfirmations(snapshot.directory)
     });
@@ -908,6 +1262,7 @@ test('real PostgreSQL imports historical children before restoring an archived o
     const repeated = await importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...snapshotConfirmations(snapshot.directory)
     });
@@ -916,6 +1271,7 @@ test('real PostgreSQL imports historical children before restoring an archived o
     const reconciliation = await reconcileSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         write: false
     });
     assert.equal(reconciliation.status, 'passed');
@@ -933,9 +1289,11 @@ test('real PostgreSQL reconciles a lost commit acknowledgement before reporting 
     const snapshot = await createApprovedSnapshot(t, {
         snapshotId: 'postgres-commit-acknowledgement'
     });
+    await seedMediaControlPlane(pool, snapshot.directory);
     const recovered = await importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...snapshotConfirmations(snapshot.directory),
         afterCommitSent() {
@@ -958,9 +1316,13 @@ test('real PostgreSQL serializes concurrent identical applies into one exact dat
     const harness = await createPostgresTestHarness();
     t.after(() => harness.close());
     const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-concurrent' });
+    const seedPool = poolFor(harness.databaseUrl);
+    await seedMediaControlPlane(seedPool, snapshot.directory);
+    await seedPool.end();
     const options = {
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...snapshotConfirmations(snapshot.directory)
     };
@@ -991,6 +1353,7 @@ test('real PostgreSQL rolls back the entire import after a late write failure', 
         await pool.end();
         await harness.close();
     });
+    await seedMediaControlPlane(pool, snapshot.directory);
     await pool.query(`
         CREATE FUNCTION fail_fudaba_like_import() RETURNS trigger AS $$
         BEGIN
@@ -1004,6 +1367,7 @@ test('real PostgreSQL rolls back the entire import after a late write failure', 
     await assert.rejects(() => importSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
+        targetBucket: TARGET_BUCKET,
         apply: true,
         ...snapshotConfirmations(snapshot.directory)
     }), /late import failure/);

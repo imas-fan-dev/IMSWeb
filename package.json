@@ -41,6 +41,7 @@
     "migration:fudaba:extract": "pnpm --filter @imsweb/api run migration:fudaba:extract",
     "migration:fudaba:import": "pnpm --filter @imsweb/api run migration:fudaba:import",
     "migration:fudaba:reconcile": "pnpm --filter @imsweb/api run migration:fudaba:reconcile",
+    "media:fudaba:sync": "pnpm --filter @imsweb/api run migration:fudaba-media",
     "migration:object-keys": "pnpm --filter @imsweb/api run migration:object-keys",
     "media:information:sync": "pnpm --filter @imsweb/api run migration:information-media",
     "media:brand-assets:sync": "pnpm --filter @imsweb/api run migration:brand-assets",

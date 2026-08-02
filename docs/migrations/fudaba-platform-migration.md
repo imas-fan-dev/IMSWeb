@@ -501,6 +501,52 @@ rights-manifest.json
 reconciliation.json
 ```
 
+媒体导入额外使用同目录下的 `source-r2-inventory.json`、`media-plan.json` 和
+`media-reconciliation.json`。`source-r2-inventory.json` 必须来自一次完整、冻结的 R2 导出，按
+UTF-8 字节序列出每个对象的 key、version/ETag、字节数、Content-Type、custom metadata、
+SHA-256 和本地导出相对路径；导出目录不得包含 inventory 未声明的文件、符号链接或缺失对象。
+inventory、源文件和所有 snapshot artifact 都留在受控且被 Git 忽略的存储中。
+
+`media:fudaba:sync` 第一次 dry-run 会完整解码引用图片，生成稳定 plan，并把 v2 rights manifest
+初始化为 `unknown`。人工审批必须逐项绑定 entity/slot、原 locator、来源对象身份、内容摘要、
+目标逻辑 key 和证据摘要。再次 dry-run 归零 blocker 后，才可使用输出报告中的精确摘要执行：
+
+```sh
+pnpm run media:fudaba:sync -- \
+  --snapshot data/migration/fudaba/<snapshot-id> \
+  --source-root /controlled/fudaba-r2-export
+
+pnpm run media:fudaba:sync -- \
+  --snapshot data/migration/fudaba/<snapshot-id> \
+  --source-root /controlled/fudaba-r2-export \
+  --apply \
+  --confirm-snapshot-id <snapshot-id> \
+  --confirm-source-sha256 <sha256> \
+  --confirm-source-manifest-sha256 <sha256> \
+  --confirm-rows-sha256 <sha256> \
+  --confirm-inventory-sha256 <sha256> \
+  --confirm-plan-sha256 <sha256> \
+  --confirm-rights-sha256 <sha256> \
+  --confirm-media-sha256 <sha256> \
+  --confirm-source-bucket imas-world-card-images \
+  --confirm-target-bucket <IMS_S3_BUCKET>
+```
+
+apply 只通过 IMSWeb 对象状态机写入 `ready/private` 版本并进行字节、MIME、SHA-256 和控制面
+回读；不会发布对象、删除来源 R2 或写 Fudaba 业务表。目标已有 public、非 ready 或内容不同的
+同逻辑 key 时整批写入前阻断。批次中途失败时只按本次 owner token 或精确 object ID 补偿，不能
+裸删逻辑 key。无真实 D1/R2 export 时只能验收工具契约和本地 MinIO 行为，不能声称生产媒体已
+发现、获授权或迁移。
+
+metadata apply 会重新读取 `media-plan.json`，核对其文件 SHA-256、snapshot/source identity、
+inventory 绑定及每一项 media/rights binding；执行时还必须提供同一个
+`--confirm-plan-sha256 <sha256>`，不能只信任 media/rights manifest 内声明的 plan 摘要。
+`migration:fudaba:import` 和 `migration:fudaba:reconcile` 还必须通过 `--target-bucket` 或
+`IMS_S3_BUCKET` 指定与 media manifest 相同的目标 bucket；apply 额外要求
+`--confirm-target-bucket <IMS_S3_BUCKET>`。业务数据写入前，import 会在同一 PostgreSQL
+事务内锁定并核对 S3 控制面中的逻辑 key、状态、object ID、物理 key、scope、字节数、MIME、
+SHA-256 和 ETag，任何缺失或漂移都会阻断整个事务。
+
 ### 10.2 演练导入
 
 1. 在空 PostgreSQL/MinIO 环境应用全部 migration；

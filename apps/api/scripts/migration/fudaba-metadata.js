@@ -749,11 +749,26 @@ function buildRowsManifest(
 }
 
 function emptyMediaManifest(snapshotId, sourceSha256) {
-    return { schemaVersion: 1, snapshotId, sourceSha256, version: 1, entries: [] };
+    return {
+        schemaVersion: 2,
+        snapshotId,
+        sourceSha256,
+        version: 1,
+        mediaPlanSha256: null,
+        sourceInventorySha256: null,
+        entries: []
+    };
 }
 
 function emptyRightsManifest(snapshotId, sourceSha256) {
-    return { schemaVersion: 1, snapshotId, sourceSha256, version: 1, approvals: [] };
+    return {
+        schemaVersion: 2,
+        snapshotId,
+        sourceSha256,
+        version: 1,
+        mediaPlanSha256: null,
+        approvals: []
+    };
 }
 
 async function extractSnapshot(options) {
@@ -1009,11 +1024,14 @@ function indexManifestEntries(entries, label) {
 }
 
 function mediaObjectKey(entry) {
-    return entry.logicalObjectKey || entry.logical_object_key || entry.targetLogicalKey;
+    if (Object.hasOwn(entry, 'logicalObjectKey')) return entry.logicalObjectKey;
+    if (Object.hasOwn(entry, 'logical_object_key')) return entry.logical_object_key;
+    return entry.targetLogicalKey;
 }
 
 function sourceReference(entry) {
-    return entry.sourceReference || entry.source_reference || entry.sourceUrl || entry.sourceKey;
+    if (Object.hasOwn(entry, 'sourceReference')) return entry.sourceReference;
+    return entry.source_reference || entry.sourceUrl || entry.sourceKey;
 }
 
 function assertLogicalMediaKey(kind, id, slot, logicalKey) {
@@ -1036,10 +1054,11 @@ function assertLogicalMediaKey(kind, id, slot, logicalKey) {
     }
 }
 
-function resolveMedia(mediaIndex, rightsIndex, kind, id, slot, source) {
+function resolveMedia(mediaIndex, rightsIndex, kind, id, slot, source, consumed = null) {
     const identity = mediaIdentity(kind, id, slot);
     const media = mediaIndex.get(identity);
     const rights = rightsIndex.get(identity);
+    consumed?.add(identity);
     if (!media) throw new Error(`Media is unresolved: ${identity}`);
     if (sourceReference(media) !== source) {
         throw new Error(`Media source mismatch: ${identity}`);
@@ -1049,14 +1068,84 @@ function resolveMedia(mediaIndex, rightsIndex, kind, id, slot, source) {
     const state = media.state || media.status || media.writeStatus;
     const digest = media.sha256 || media.sourceSha256;
     const readback = media.readbackSha256 || media.readback_sha256;
-    if (state !== 'ready' || !SHA256_PATTERN.test(digest || '') || digest !== readback) {
+    const binding = media.bindingSha256;
+    const expectedExtension = {
+        'image/avif': 'avif',
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp'
+    }[media.contentType];
+    if (state !== 'ready' || media.disposition !== 'store-protected' ||
+        media.storageScope !== 'private' ||
+        typeof media.targetBucket !== 'string' || !media.targetBucket ||
+        typeof media.objectId !== 'string' || !media.objectId ||
+        typeof media.physicalObjectKey !== 'string' || !media.physicalObjectKey ||
+        !/(^|\/)__protected\//.test(media.physicalObjectKey) ||
+        typeof media.targetEtag !== 'string' || !media.targetEtag ||
+        !Number.isSafeInteger(media.bytes) || media.bytes < 1 ||
+        !expectedExtension || !logicalKey.endsWith(`.${expectedExtension}`) ||
+        !SHA256_PATTERN.test(binding || '') ||
+        !SHA256_PATTERN.test(digest || '') || digest !== readback) {
         throw new Error(`Media is not verified ready: ${identity}`);
     }
     const approval = rights?.approvalStatus || rights?.rightsStatus || rights?.status;
-    if (approval !== 'approved' || mediaObjectKey(rights) !== logicalKey) {
+    if (approval !== 'approved' || rights?.action !== 'store-protected' ||
+        mediaObjectKey(rights) !== logicalKey || rights?.bindingSha256 !== binding ||
+        rights?.sourceReference !== source || rights?.sourceSha256 !== digest ||
+        rights?.bytes !== media.bytes || rights?.contentType !== media.contentType ||
+        !SHA256_PATTERN.test(rights?.evidenceSha256 || '') ||
+        typeof rights?.reviewedBy !== 'string' || !rights.reviewedBy.trim() ||
+        parseTimestamp(rights?.reviewedAt, 'media rights reviewedAt').milliseconds < 0) {
         throw new Error(`Media rights are not approved: ${identity}`);
     }
     return logicalKey;
+}
+
+function resolveOptionalMedia(
+    mediaIndex,
+    rightsIndex,
+    kind,
+    id,
+    slot,
+    source,
+    allowExternal = false,
+    consumed = null
+) {
+    const identity = mediaIdentity(kind, id, slot);
+    const media = mediaIndex.get(identity);
+    const rights = rightsIndex.get(identity);
+    consumed?.add(identity);
+    if (!media || !rights || sourceReference(media) !== source ||
+        rights.sourceReference !== source ||
+        !SHA256_PATTERN.test(media.bindingSha256 || '') ||
+        rights.bindingSha256 !== media.bindingSha256) {
+        throw new Error(`Optional media is unresolved: ${identity}`);
+    }
+    const state = media.state || media.status || media.writeStatus;
+    const approval = rights.approvalStatus || rights.rightsStatus || rights.status;
+    if (state === 'omitted' && media.disposition === 'omit' &&
+        approval === 'denied' && rights.action === 'omit' &&
+        mediaObjectKey(media) === mediaObjectKey(rights) &&
+        SHA256_PATTERN.test(rights.evidenceSha256 || '') &&
+        typeof rights.reviewedBy === 'string' && rights.reviewedBy.trim()) {
+        parseTimestamp(rights.reviewedAt, 'media rights reviewedAt');
+        return { externalUrl: null, objectKey: null };
+    }
+    if (state === 'external' && media.disposition === 'retain-external' &&
+        allowExternal && approval === 'approved' && rights.action === 'retain-external' &&
+        mediaObjectKey(media) === null && mediaObjectKey(rights) === null &&
+        media.externalUrl === source && /^https:\/\//.test(source) &&
+        SHA256_PATTERN.test(rights.evidenceSha256 || '') &&
+        typeof rights.reviewedBy === 'string' && rights.reviewedBy.trim()) {
+        parseTimestamp(rights.reviewedAt, 'media rights reviewedAt');
+        return { externalUrl: source, objectKey: null };
+    }
+    return {
+        externalUrl: null,
+        objectKey: resolveMedia(
+            mediaIndex, rightsIndex, kind, id, slot, source, consumed
+        )
+    };
 }
 
 function targetOperation(
@@ -1269,6 +1358,56 @@ function verifyArtifactIdentity(manifest, sourceJson, label) {
     }
 }
 
+function verifyMediaPlan(
+    planArtifact,
+    sourceJson,
+    mediaManifest,
+    rightsManifest
+) {
+    const plan = planArtifact.value;
+    if (plan.schemaVersion !== 2 || plan.sourceCommit !== FUDABA_COMMIT ||
+        plan.sourceBucket !== FUDABA_R2_BUCKET ||
+        plan.sourceInventorySha256 !== mediaManifest.sourceInventorySha256 ||
+        planArtifact.sha256 !== mediaManifest.mediaPlanSha256 ||
+        planArtifact.sha256 !== rightsManifest.mediaPlanSha256 ||
+        !Array.isArray(plan.entries)) {
+        throw new Error('media plan identity or artifact SHA-256 is invalid');
+    }
+    verifyArtifactIdentity(plan, sourceJson, 'media plan');
+    for (const entry of plan.entries) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
+            !SHA256_PATTERN.test(entry.bindingSha256 || '')) {
+            throw new Error('media plan has an invalid binding SHA-256');
+        }
+        const { bindingSha256, ...bound } = entry;
+        if (canonicalHash(bound) !== bindingSha256) {
+            throw new Error(
+                `media plan binding SHA-256 is invalid: ` +
+                mediaIdentity(entityKind(entry), entityId(entry), entitySlot(entry))
+            );
+        }
+    }
+    const planEntries = indexManifestEntries(plan.entries, 'media plan');
+    for (const [manifest, property, label] of [
+        [mediaManifest, 'entries', 'media manifest'],
+        [rightsManifest, 'approvals', 'rights manifest']
+    ]) {
+        const entries = indexManifestEntries(manifestEntries(manifest, property), label);
+        if (entries.size !== planEntries.size) {
+            throw new Error(`${label} entry count does not match the media plan`);
+        }
+        for (const [identity, planned] of planEntries) {
+            const entry = entries.get(identity);
+            if (!entry || entry.bindingSha256 !== planned.bindingSha256 ||
+                sourceReference(entry) !== sourceReference(planned) ||
+                mediaObjectKey(entry) !== mediaObjectKey(planned)) {
+                throw new Error(`${label} entry does not match the media plan: ${identity}`);
+            }
+        }
+    }
+    return plan;
+}
+
 async function loadSnapshot(snapshotDirectory) {
     const directory = path.resolve(snapshotDirectory);
     const sourceArtifact = readJsonArtifact(
@@ -1313,13 +1452,39 @@ async function loadSnapshot(snapshotDirectory) {
     const rowsManifest = rowsArtifact.value;
     const mediaManifest = mediaArtifact.value;
     const rightsManifest = rightsArtifact.value;
+    if (rowsManifest.schemaVersion !== 1) {
+        throw new Error('rows manifest has unsupported schemaVersion');
+    }
+    if (mediaManifest.schemaVersion !== 2 || rightsManifest.schemaVersion !== 2) {
+        throw new Error('media and rights manifests must use schemaVersion 2');
+    }
     for (const [manifest, label] of [
         [rowsManifest, 'rows manifest'],
         [mediaManifest, 'media manifest'],
         [rightsManifest, 'rights manifest']
-    ]) {
-        if (manifest.schemaVersion !== 1) throw new Error(`${label} has unsupported schemaVersion`);
-        verifyArtifactIdentity(manifest, sourceJson, label);
+    ]) verifyArtifactIdentity(manifest, sourceJson, label);
+    const mediaEntries = manifestEntries(mediaManifest, 'entries');
+    const rightsApprovals = manifestEntries(rightsManifest, 'approvals');
+    const hasMediaPlan = mediaManifest.mediaPlanSha256 !== null ||
+        rightsManifest.mediaPlanSha256 !== null;
+    let mediaPlanArtifact = null;
+    let mediaPlan = null;
+    if (mediaEntries.length || rightsApprovals.length || hasMediaPlan) {
+        if (!SHA256_PATTERN.test(mediaManifest.mediaPlanSha256 || '') ||
+            mediaManifest.mediaPlanSha256 !== rightsManifest.mediaPlanSha256 ||
+            !SHA256_PATTERN.test(mediaManifest.sourceInventorySha256 || '')) {
+            throw new Error('media and rights manifests are not bound to one verified media plan');
+        }
+        mediaPlanArtifact = readJsonArtifact(
+            path.join(directory, 'media-plan.json'),
+            'media plan'
+        );
+        mediaPlan = verifyMediaPlan(
+            mediaPlanArtifact,
+            sourceJson,
+            mediaManifest,
+            rightsManifest
+        );
     }
     const rows = await readSourceRows(databaseFile);
     for (const table of NON_IMPORTED_TABLES) {
@@ -1341,11 +1506,13 @@ async function loadSnapshot(snapshotDirectory) {
         databaseFile,
         sourceJson,
         rowsManifest,
+        mediaPlan,
         mediaManifest,
         rightsManifest,
         artifactSha256: {
             source: sourceArtifact.sha256,
             rows: rowsArtifact.sha256,
+            mediaPlan: mediaPlanArtifact?.sha256 || null,
             media: mediaArtifact.sha256,
             rights: rightsArtifact.sha256
         },
@@ -1412,14 +1579,16 @@ function operationForRow(table, row, descriptor, context) {
             ? created
             : parseTimestamp(row.updated_at, 'users updated_at');
         const avatar = row.avatar_url === ''
-            ? null
-            : resolveMedia(
+            ? { externalUrl: null, objectKey: null }
+            : resolveOptionalMedia(
                 context.mediaIndex,
                 context.rightsIndex,
                 'account',
                 row.id,
                 'avatar',
-                row.avatar_url
+                row.avatar_url,
+                true,
+                context.consumedMedia
             );
         return [
             targetOperation(table, sourceKey, 'platform_accounts', ['id'], {
@@ -1433,8 +1602,8 @@ function operationForRow(table, row, descriptor, context) {
             targetOperation(table, sourceKey, 'platform_profiles', ['account_id'], {
                 account_id: row.id,
                 display_name: row.display_name,
-                avatar_object_key: avatar,
-                avatar_external_url: null,
+                avatar_object_key: avatar.objectKey,
+                avatar_external_url: avatar.externalUrl,
                 home_city: row.home_city,
                 bio: row.bio,
                 updated_at: String(updated.milliseconds)
@@ -1523,14 +1692,16 @@ function operationForRow(table, row, descriptor, context) {
             accent: row.accent,
             cover_object_key: row.cover_image === ''
                 ? null
-                : resolveMedia(
+                : resolveOptionalMedia(
                     context.mediaIndex,
                     context.rightsIndex,
                     'office',
                     row.id,
                     'cover',
-                    row.cover_image
-                ),
+                    row.cover_image,
+                    false,
+                    context.consumedMedia
+                ).objectKey,
             is_open: integerBoolean(row.is_open, 'offices is_open'),
             visitor_count: String(visitorCount),
             status: archived ? 'archived' : 'active',
@@ -1571,10 +1742,12 @@ function operationForRow(table, row, descriptor, context) {
             series_code: mapping.code,
             favorite_idol: row.favorite_idol,
             front_object_key: resolveMedia(
-                context.mediaIndex, context.rightsIndex, 'card', row.id, 'front', row.front_image
+                context.mediaIndex, context.rightsIndex, 'card', row.id, 'front',
+                row.front_image, context.consumedMedia
             ),
             back_object_key: resolveMedia(
-                context.mediaIndex, context.rightsIndex, 'card', row.id, 'back', row.back_image
+                context.mediaIndex, context.rightsIndex, 'card', row.id, 'back',
+                row.back_image, context.consumedMedia
             ),
             accent: row.accent,
             bio: row.bio,
@@ -1728,6 +1901,7 @@ async function buildImportPlan(snapshotDirectory) {
     const reportsByIdentity = new Map();
     const includedRows = new Set();
     const accountMappings = new Map();
+    const consumedMedia = new Set();
     const sourceCounts = Object.fromEntries(
         Object.entries(snapshot.rows).map(([table, rows]) => [
             table,
@@ -1811,6 +1985,7 @@ async function buildImportPlan(snapshotDirectory) {
     const context = {
         mediaIndex,
         rightsIndex,
+        consumedMedia,
         reportsByIdentity,
         exportedAt: parseTimestamp(
             snapshot.sourceJson.source.exportedAt,
@@ -1884,6 +2059,14 @@ async function buildImportPlan(snapshotDirectory) {
                 includedRows.delete(identity);
             }
         }
+    }
+    const unusedMedia = [...mediaIndex.keys()].filter((identity) => !consumedMedia.has(identity));
+    const unusedRights = [...rightsIndex.keys()].filter((identity) => !consumedMedia.has(identity));
+    if (unusedMedia.length || unusedRights.length) {
+        throw new Error(
+            `Media manifests contain unconsumed entries; media=${unusedMedia.join(',')}; ` +
+            `rights=${unusedRights.join(',')}`
+        );
     }
 
     const normalizedEmails = new Map();
@@ -1967,6 +2150,27 @@ async function buildImportPlan(snapshotDirectory) {
     const usableOperations = [...targetRows.values()].filter(
         (operation) => operation.sourceReport.outcome === 'included'
     );
+    const mediaTargets = manifestEntries(snapshot.mediaManifest, 'entries')
+        .filter((entry) =>
+            entry.state === 'ready' && entry.disposition === 'store-protected'
+        )
+        .map((entry) => ({
+            identity: mediaIdentity(entityKind(entry), entityId(entry), entitySlot(entry)),
+            logicalObjectKey: mediaObjectKey(entry),
+            state: 'ready',
+            objectId: entry.objectId,
+            physicalObjectKey: entry.physicalObjectKey,
+            storageScope: 'private',
+            byteSize: entry.bytes,
+            contentType: entry.contentType,
+            sha256: entry.sha256,
+            etag: entry.targetEtag,
+            targetBucket: entry.targetBucket
+        }));
+    const targetBuckets = new Set(mediaTargets.map((target) => target.targetBucket));
+    if (targetBuckets.size > 1) {
+        throw new Error('Fudaba media manifest spans more than one target bucket');
+    }
     const sourceTables = sourceTableConservation(reports, sourceCounts);
     const summary = summarizeSourceTables(sourceTables);
     return {
@@ -1975,6 +2179,8 @@ async function buildImportPlan(snapshotDirectory) {
             sourceJson: snapshot.sourceJson,
             artifactSha256: snapshot.artifactSha256
         },
+        mediaTargetBucket: mediaTargets[0]?.targetBucket || null,
+        mediaTargets,
         operations: usableOperations,
         rows: reports,
         sourceCounts,
@@ -2065,6 +2271,71 @@ function targetTableSummary(operations, targets) {
             (summary[target.table].states[target.state] || 0) + 1;
     }
     return summary;
+}
+
+function projectedMediaTarget(target) {
+    return {
+        state: target.state,
+        objectId: target.objectId,
+        physicalObjectKey: target.physicalObjectKey,
+        storageScope: target.storageScope,
+        byteSize: Number(target.byteSize),
+        contentType: target.contentType,
+        sha256: target.sha256,
+        etag: target.etag
+    };
+}
+
+async function inspectMediaControlPlane(client, expected, lock = false) {
+    const result = await client.query(
+        `SELECT i.state, v.object_id, v.physical_key, v.storage_scope,
+                v.byte_size, v.content_type, v.sha256, v.etag
+         FROM public.s3_object_index AS i
+         JOIN public.s3_object_versions AS v ON v.object_id=i.object_id
+         WHERE i.logical_key=$1${lock ? ' FOR SHARE OF i, v' : ''}`,
+        [expected.logicalObjectKey]
+    );
+    const expectedProjection = projectedMediaTarget(expected);
+    const expectedTargetSha256 = canonicalHash(expectedProjection);
+    if (!result.rows.length) {
+        return {
+            state: 'missing',
+            differentColumns: ['logicalObjectKey'],
+            expectedTargetSha256,
+            actualTargetSha256: null
+        };
+    }
+    const row = result.rows[0];
+    const actualProjection = projectedMediaTarget({
+        state: row.state,
+        objectId: row.object_id,
+        physicalObjectKey: row.physical_key,
+        storageScope: row.storage_scope,
+        byteSize: row.byte_size,
+        contentType: row.content_type,
+        sha256: row.sha256,
+        etag: row.etag
+    });
+    const differentColumns = Object.keys(expectedProjection).filter((column) =>
+        canonicalHash(actualProjection[column]) !== canonicalHash(expectedProjection[column])
+    );
+    return {
+        state: differentColumns.length ? 'different' : 'ready',
+        differentColumns,
+        expectedTargetSha256,
+        actualTargetSha256: canonicalHash(actualProjection)
+    };
+}
+
+function assertMediaTargetBucket(plan, options) {
+    if (!plan.mediaTargets.length) return;
+    if (options.targetBucket !== plan.mediaTargetBucket) {
+        throw new MigrationBlockedError('Import requires exact --target-bucket', {
+            snapshotId: plan.snapshot.sourceJson.snapshotId,
+            sourceSha256: plan.snapshot.sourceJson.sourceExport.sha256,
+            expectedTargetBucket: plan.mediaTargetBucket
+        });
+    }
 }
 
 async function inspectOperation(client, operation) {
@@ -2196,10 +2467,19 @@ async function compareOrImport(plan, options = {}) {
         commitAttempted: false,
         commitOutcome: apply ? 'not-attempted' : 'not-applicable',
         outcomeUnknown: false,
-        summary: { ...plan.summary, missing: 0, unchanged: 0, inserted: 0, conflicts: 0 },
+        summary: {
+            ...plan.summary,
+            mediaReady: 0,
+            mediaConflicts: 0,
+            missing: 0,
+            unchanged: 0,
+            inserted: 0,
+            conflicts: 0
+        },
         rows: plan.rows,
         sourceTables: plan.sourceTables,
         targetTables: targetTableSummary(plan.operations, []),
+        mediaTargets: [],
         targets: []
     };
     if (plan.blockers.length) {
@@ -2233,6 +2513,25 @@ async function compareOrImport(plan, options = {}) {
             ? 'BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE'
             : 'BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY');
         transactionOpen = true;
+        for (const expected of plan.mediaTargets) {
+            const inspection = await inspectMediaControlPlane(client, expected, apply);
+            report.mediaTargets.push({
+                identity: expected.identity,
+                logicalObjectKey: expected.logicalObjectKey,
+                state: inspection.state,
+                differentColumns: inspection.differentColumns,
+                expectedTargetSha256: inspection.expectedTargetSha256,
+                actualTargetSha256: inspection.actualTargetSha256
+            });
+            if (inspection.state === 'ready') report.summary.mediaReady += 1;
+            else report.summary.mediaConflicts += 1;
+        }
+        if (report.summary.mediaConflicts) {
+            throw new MigrationBlockedError(
+                `Fudaba import found ${report.summary.mediaConflicts} media target conflict(s)`,
+                report
+            );
+        }
         for (const operation of plan.operations) {
             const inspection = await inspectOperation(client, operation);
             const target = {
@@ -2396,6 +2695,7 @@ async function compareOrImport(plan, options = {}) {
 
 async function importSnapshot(options) {
     const plan = await buildImportPlan(options.snapshotDirectory);
+    assertMediaTargetBucket(plan, options);
     if (options.apply) {
         if (options.confirmSnapshotId !== plan.snapshot.sourceJson.snapshotId) {
             throw new MigrationBlockedError('Apply requires exact --confirm-snapshot-id', {
@@ -2413,16 +2713,30 @@ async function importSnapshot(options) {
             ['source', options.confirmSourceManifestSha256,
                 '--confirm-source-manifest-sha256'],
             ['rows', options.confirmRowsSha256, '--confirm-rows-sha256'],
+            ['mediaPlan', options.confirmMediaPlanSha256, '--confirm-plan-sha256'],
             ['media', options.confirmMediaSha256, '--confirm-media-sha256'],
             ['rights', options.confirmRightsSha256, '--confirm-rights-sha256']
         ]) {
-            if (value !== plan.snapshot.artifactSha256[name]) {
+            const expected = plan.snapshot.artifactSha256[name];
+            if (expected === null) continue;
+            if (value !== expected) {
                 throw new MigrationBlockedError(`Apply requires exact ${option}`, {
                     snapshotId: plan.snapshot.sourceJson.snapshotId,
                     sourceSha256: plan.snapshot.sourceJson.sourceExport.sha256,
                     artifactSha256: plan.snapshot.artifactSha256
                 });
             }
+        }
+        if (plan.mediaTargets.length &&
+            options.confirmTargetBucket !== plan.mediaTargetBucket) {
+            throw new MigrationBlockedError(
+                'Apply requires exact --confirm-target-bucket',
+                {
+                    snapshotId: plan.snapshot.sourceJson.snapshotId,
+                    sourceSha256: plan.snapshot.sourceJson.sourceExport.sha256,
+                    expectedTargetBucket: plan.mediaTargetBucket
+                }
+            );
         }
     }
     try {
@@ -2436,6 +2750,7 @@ async function importSnapshot(options) {
             const reconciliation = await reconcileSnapshot({
                 snapshotDirectory: options.snapshotDirectory,
                 connectionString: options.connectionString,
+                targetBucket: options.targetBucket,
                 write: false
             });
             error.report.reconciliation = reconciliation;
@@ -2454,6 +2769,7 @@ async function importSnapshot(options) {
 
 async function reconcileSnapshot(options) {
     const plan = await buildImportPlan(options.snapshotDirectory);
+    assertMediaTargetBucket(plan, options);
     const report = {
         schemaVersion: 1,
         snapshotId: plan.snapshot.sourceJson.snapshotId,
@@ -2465,11 +2781,15 @@ async function reconcileSnapshot(options) {
             expectedTargets: plan.operations.length,
             unchanged: 0,
             missing: 0,
-            different: 0
+            different: 0,
+            mediaReady: 0,
+            mediaMissing: 0,
+            mediaDifferent: 0
         },
         rows: plan.rows,
         sourceTables: plan.sourceTables,
         targetTables: targetTableSummary(plan.operations, []),
+        mediaTargets: [],
         targets: []
     };
     if (!plan.blockers.length) {
@@ -2483,6 +2803,16 @@ async function reconcileSnapshot(options) {
             advisoryLocked = true;
             await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY');
             transactionOpen = true;
+            for (const expected of plan.mediaTargets) {
+                const inspection = await inspectMediaControlPlane(client, expected);
+                report.summary[`media${inspection.state[0].toUpperCase()}${inspection.state.slice(1)}`]
+                    += 1;
+                report.mediaTargets.push({
+                    identity: expected.identity,
+                    logicalObjectKey: expected.logicalObjectKey,
+                    ...inspection
+                });
+            }
             for (const operation of plan.operations) {
                 const inspection = await inspectOperation(client, operation);
                 const state = inspection.state === 'conflict' ? 'different' : inspection.state;
@@ -2512,7 +2842,8 @@ async function reconcileSnapshot(options) {
             await pool.end();
         }
     }
-    report.status = plan.blockers.length || report.summary.missing || report.summary.different
+    report.status = plan.blockers.length || report.summary.missing || report.summary.different ||
+        report.summary.mediaMissing || report.summary.mediaDifferent
         ? 'failed'
         : 'passed';
     report.targetTables = targetTableSummary(plan.operations, report.targets);
@@ -2570,8 +2901,11 @@ function parseCliOptions(argv) {
             '--confirm-source-sha256': 'confirmSourceSha256',
             '--confirm-source-manifest-sha256': 'confirmSourceManifestSha256',
             '--confirm-rows-sha256': 'confirmRowsSha256',
+            '--confirm-plan-sha256': 'confirmMediaPlanSha256',
             '--confirm-media-sha256': 'confirmMediaSha256',
-            '--confirm-rights-sha256': 'confirmRightsSha256'
+            '--confirm-rights-sha256': 'confirmRightsSha256',
+            '--target-bucket': 'targetBucket',
+            '--confirm-target-bucket': 'confirmTargetBucket'
         };
         const name = names[argument];
         if (!name) throw new Error(`Unknown option: ${argument}`);
@@ -2597,15 +2931,17 @@ function extractHelp() {
 
 function importHelp() {
     return 'Usage: fudaba-import.js (--snapshot DIRECTORY | --snapshot-id ID) ' +
-        '[--database-url URL] [--apply --confirm-snapshot-id ID ' +
+        '[--database-url URL] --target-bucket BUCKET ' +
+        '[--apply --confirm-snapshot-id ID ' +
         '--confirm-source-sha256 SHA256 --confirm-source-manifest-sha256 SHA256 ' +
-        '--confirm-rows-sha256 SHA256 ' +
-        '--confirm-media-sha256 SHA256 --confirm-rights-sha256 SHA256]';
+        '--confirm-rows-sha256 SHA256 --confirm-plan-sha256 SHA256 ' +
+        '--confirm-media-sha256 SHA256 --confirm-rights-sha256 SHA256 ' +
+        '--confirm-target-bucket BUCKET]';
 }
 
 function reconcileHelp() {
     return 'Usage: fudaba-reconcile.js (--snapshot DIRECTORY | --snapshot-id ID) ' +
-        '[--database-url URL] [--no-write]';
+        '[--database-url URL] --target-bucket BUCKET [--no-write]';
 }
 
 async function runMain(action, help, argv, environment) {
@@ -2620,6 +2956,12 @@ async function runMain(action, help, argv, environment) {
         } else {
             options.snapshotDirectory = resolveSnapshotDirectory(options);
             options.connectionString = options.connectionString || environment.DATABASE_URL;
+            const configuredBucket = environment.IMS_S3_BUCKET?.trim();
+            if (configuredBucket && options.targetBucket &&
+                configuredBucket !== options.targetBucket) {
+                throw new Error('--target-bucket differs from IMS_S3_BUCKET');
+            }
+            options.targetBucket = configuredBucket || options.targetBucket;
         }
         const report = await action(options);
         process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -2648,7 +2990,9 @@ function reconcileMain(argv = process.argv.slice(2), environment = process.env) 
 module.exports = {
     DEFAULT_SNAPSHOT_ROOT,
     FUDABA_COMMIT,
+    FUDABA_D1_DATABASE_ID,
     FUDABA_MIGRATIONS,
+    FUDABA_R2_BUCKET,
     FUDABA_REPOSITORY,
     INCLUDED_CLASSIFICATIONS,
     IMPORT_TABLE_ORDER,
@@ -2678,6 +3022,7 @@ module.exports = {
     reconcileMain,
     reconcileSnapshot,
     resolveMedia,
+    resolveOptionalMedia,
     sha256,
     sha256File,
     sourceManifestKey,
