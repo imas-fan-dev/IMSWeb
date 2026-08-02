@@ -255,7 +255,18 @@ export function WikiIndexPage() {
             <Skeleton className="mt-5 h-10 w-full max-w-md" />
             <div className="mt-6 grid grid-cols-3 gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {Array.from({ length: 12 }, (_, index) => (
-                <Skeleton key={index} className="aspect-4/5 rounded-lg" />
+                <div
+                  key={index}
+                  className="overflow-hidden rounded-lg border bg-card"
+                >
+                  <Skeleton
+                    data-testid="wiki-idol-avatar-skeleton"
+                    className="aspect-square w-full rounded-none"
+                  />
+                  <div className="flex min-h-14 items-center px-3 py-2.5">
+                    <Skeleton className="h-4 w-2/3" />
+                  </div>
+                </div>
               ))}
             </div>
           </div>

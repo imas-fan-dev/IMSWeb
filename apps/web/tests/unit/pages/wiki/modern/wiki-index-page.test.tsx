@@ -164,13 +164,29 @@ describe("WikiIndexPage", () => {
 
     renderWiki()
 
-    expect(screen.getByLabelText("正在加载内容目录")).toBeVisible()
+    const loadingDirectory = screen.getByLabelText("正在加载内容目录")
+    expect(loadingDirectory).toBeVisible()
+    expect(
+      within(loadingDirectory).getAllByTestId("wiki-idol-avatar-skeleton")
+    ).toHaveLength(12)
+    for (const skeleton of within(loadingDirectory).getAllByTestId(
+      "wiki-idol-avatar-skeleton"
+    )) {
+      expect(skeleton).toHaveClass("aspect-square")
+      expect(skeleton).not.toHaveClass("aspect-4/5")
+    }
     const manoLink = await screen.findByRole("link", { name: /樱木真乃/ })
     expect(manoLink).toHaveAttribute(
       "href",
       "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
     expect(within(manoLink).queryByText("偶像")).not.toBeInTheDocument()
+    expect(within(manoLink).getByTestId("wiki-idol-avatar")).toHaveClass(
+      "aspect-square"
+    )
+    expect(within(manoLink).getByTestId("wiki-idol-avatar")).not.toHaveClass(
+      "aspect-4/5"
+    )
     expect(screen.getByRole("link", { name: "查看对应卡片" })).toHaveAttribute(
       "href",
       "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83#story-card-401"

@@ -12,6 +12,13 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
     .locator('a[aria-label][href^="/story/modern?"]')
     .first()
   await expect(firstIdolCard).toBeVisible()
+  const firstIdolAvatar = firstIdolCard.getByTestId("wiki-idol-avatar")
+  await expect
+    .poll(async () => {
+      const box = await firstIdolAvatar.boundingBox()
+      return box ? Math.abs(box.width - box.height) : Number.POSITIVE_INFINITY
+    })
+    .toBeLessThanOrEqual(1)
   await expect(firstIdolCard.locator('[data-slot="badge"]')).toHaveCount(0)
 
   const agencyRail = page.getByTestId("wiki-agency-tabs")

@@ -68,13 +68,13 @@ export function RandomIdol() {
         </div>
 
         <div
-          className="flex min-h-72 flex-col justify-between rounded-lg border bg-card p-4 sm:p-5"
+          className="flex min-h-56 flex-col justify-between rounded-lg border bg-card p-4 sm:p-5"
           aria-live="polite"
           aria-busy={request.loading}
         >
           {request.loading && !selectedIdol ? (
             <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
-              <Skeleton className="aspect-4/5 w-full" />
+              <Skeleton className="aspect-square w-full" />
               <div className="space-y-3 py-2">
                 <Skeleton className="h-4 w-24" />
                 <Skeleton className="h-8 w-40 max-w-full" />
@@ -93,7 +93,7 @@ export function RandomIdol() {
             <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-5">
               <div
                 data-testid="random-idol-avatar"
-                className="aspect-4/5 overflow-hidden rounded-md border bg-muted"
+                className="aspect-square overflow-hidden rounded-md border bg-muted"
                 style={{
                   borderColor: safeWikiColor(
                     selectedIdol.color ?? selectedIdol.agency.color
@@ -117,17 +117,36 @@ export function RandomIdol() {
                 )}
               </div>
               <div className="flex min-w-0 flex-col justify-center">
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <p className="flex items-center gap-2.5 text-sm text-muted-foreground">
                   <span
-                    className="size-2 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: safeWikiColor(selectedIdol.agency.color),
-                    }}
-                    aria-hidden="true"
-                  />
+                    data-testid="random-idol-agency-marker"
+                    className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40"
+                  >
+                    <span
+                      className="size-2 rounded-full"
+                      style={{
+                        backgroundColor: safeWikiColor(
+                          selectedIdol.agency.color
+                        ),
+                      }}
+                      aria-hidden="true"
+                    />
+                    {selectedIdol.agency.iconUrl ? (
+                      <WikiTransformedImage
+                        src={selectedIdol.agency.iconUrl}
+                        alt=""
+                        transform={selectedIdol.agency.imageTransform}
+                        className="absolute inset-0 bg-background p-1"
+                        onError={(event) => {
+                          event.currentTarget.hidden = true
+                        }}
+                      />
+                    ) : null}
+                  </span>
                   <span className="truncate">{selectedIdol.agency.name}</span>
                 </p>
-                <h3 className="mt-2 text-2xl font-semibold wrap-break-word"
+                <h3
+                  className="mt-2 text-2xl font-semibold wrap-break-word"
                   style={{
                     color: safeWikiColor(
                       selectedIdol.color ?? selectedIdol.agency.color

@@ -108,7 +108,10 @@ function IdolSection({
             className="group overflow-hidden rounded-lg border bg-card shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             style={{ borderTopColor: safeWikiColor(idol.color) }}
           >
-            <div className="aspect-4/5 overflow-hidden bg-muted">
+            <div
+              data-testid="wiki-idol-avatar"
+              className="aspect-square overflow-hidden bg-muted"
+            >
               {idol.imageUrl ? (
                 <WikiTransformedImage
                   src={idol.imageUrl}

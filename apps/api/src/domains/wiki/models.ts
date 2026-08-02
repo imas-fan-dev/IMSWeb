@@ -96,6 +96,8 @@ export interface WikiRandomIdol {
       code: string;
       name: string;
       color: string;
+      iconUrl: string | null;
+      imageTransform: WikiImageTransform;
     };
   } | null;
 }

@@ -337,6 +337,10 @@ const wikiRandomIdolSchema = z.object({
         code: z.string(),
         name: z.string(),
         color: z.string(),
+        iconUrl: z.string().nullable().default(null),
+        imageTransform: wikiImageTransformSchema.default(
+          defaultWikiImageTransform
+        ),
       }),
     })
     .nullable(),
