@@ -14,11 +14,17 @@ import {
   storyCardGap,
 } from "~/pages/wiki/wiki-model"
 
+import {
+  ClassicSCardCastFilter,
+  type ClassicSCardCastFilterProps,
+} from "./classic-s-card-cast-filter"
+
 interface ClassicStoryContentProps {
   stories: WikiPublicStories
   categories: WikiPublicStoryCategory[]
   selectedCategory: string
   cardCount: number
+  castFilter: ClassicSCardCastFilterProps | null
   onSelectCategory: (category: string) => void
   onSelectCard: (
     category: WikiPublicStoryCategory,
@@ -31,38 +37,45 @@ export function ClassicStoryContent({
   categories,
   selectedCategory,
   cardCount,
+  castFilter,
   onSelectCategory,
   onSelectCard,
 }: ClassicStoryContentProps) {
   return (
     <section className="wiki-classic-story-content">
-      <div className="wiki-classic-story-tabs">
-        <div>
-          <Layers3Icon />
-          <strong>分类筛选</strong>
-        </div>
-        <nav aria-label="剧情分类">
-          <button
-            type="button"
-            className={selectedCategory === "all" ? "is-active" : ""}
-            onClick={() => onSelectCategory("all")}
-          >
-            全部展开
-            <small>{cardCount}</small>
-          </button>
-          {stories.categories.map((category) => (
+      {castFilter ? (
+        <ClassicSCardCastFilter {...castFilter} />
+      ) : (
+        <div className="wiki-classic-story-tabs">
+          <div>
+            <Layers3Icon />
+            <strong>分类筛选</strong>
+          </div>
+          <nav aria-label="剧情分类">
             <button
-              key={category.name}
               type="button"
-              className={selectedCategory === category.name ? "is-active" : ""}
-              onClick={() => onSelectCategory(category.name)}
+              className={selectedCategory === "all" ? "is-active" : ""}
+              onClick={() => onSelectCategory("all")}
             >
-              {category.name}
-              <small>{category.cards.length}</small>
+              全部展开
+              <small>{cardCount}</small>
             </button>
-          ))}
-        </nav>
-      </div>
+            {stories.categories.map((category) => (
+              <button
+                key={category.name}
+                type="button"
+                className={
+                  selectedCategory === category.name ? "is-active" : ""
+                }
+                onClick={() => onSelectCategory(category.name)}
+              >
+                {category.name}
+                <small>{category.cards.length}</small>
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
 
       <div className="wiki-classic-story-categories">
         {categories.map((category) => (

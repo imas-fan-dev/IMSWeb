@@ -216,6 +216,55 @@ function storyPayload(
   }
 }
 
+function gakumasSCardPayload() {
+  return {
+    status: "success",
+    agency: {
+      id: 7,
+      code: "gk",
+      name: "学园偶像大师",
+      color: "#f39800",
+    },
+    idol: {
+      id: 42,
+      name: "S卡",
+      folderName: "s_card",
+      color: "#f39800",
+      imageUrl: "/image/s-card.webp",
+      imageFit: "cover",
+      textColor: "#ffffff",
+    },
+    categories: [
+      {
+        name: "S卡",
+        cards: [
+          {
+            id: 501,
+            name: "咲季与手毬登场",
+            img: "",
+            subtitle: "出场：咲季, 手毬",
+            links: [],
+          },
+          {
+            id: 502,
+            name: "只有手毬登场",
+            img: "",
+            subtitle: "出场：手毬",
+            links: [],
+          },
+          {
+            id: 503,
+            name: "尚未登记人物",
+            img: "",
+            subtitle: "",
+            links: [],
+          },
+        ],
+      },
+    ],
+  }
+}
+
 describe("classic Wiki pages", () => {
   afterEach(() => vi.unstubAllGlobals())
 
@@ -593,6 +642,9 @@ describe("classic Wiki pages", () => {
     ).toBeVisible()
     expect(screen.getByText("SC ARCHIVE")).toBeVisible()
     expect(screen.queryByText("其他")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("region", { name: "出场偶像快速筛选" })
+    ).not.toBeInTheDocument()
     const modernViewLink = screen.getByRole("link", { name: "新版视图" })
     expect(modernViewLink).toHaveAttribute(
       "href",
@@ -612,6 +664,47 @@ describe("classic Wiki pages", () => {
       "https://www.bilibili.com/video/BV1xx411c7mD"
     )
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
+  })
+
+  it("temporarily filters Gakumas S cards by cast encoded in subtitles", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json(gakumasSCardPayload()))
+    )
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={["/story?agency=学园偶像大师&idol=S卡"]}>
+        <ClassicStoryPage />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("region", { name: "出场偶像快速筛选" })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("navigation", { name: "剧情分类" })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "花海咲季" }))
+    expect(screen.getByText("咲季与手毬登场")).toBeVisible()
+    expect(screen.queryByText("只有手毬登场")).not.toBeInTheDocument()
+    expect(screen.queryByText("尚未登记人物")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "全部显示" }))
+    expect(screen.getByText("只有手毬登场")).toBeVisible()
+    expect(screen.getByText("尚未登记人物")).toBeVisible()
+
+    const toggle = screen.getByRole("button", {
+      name: /出场偶像快速筛选/,
+    })
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(
+      screen.queryByRole("button", { name: "花海咲季" })
+    ).not.toBeInTheDocument()
   })
 
   it("derives readable classic story colors from a pale idol accent", async () => {

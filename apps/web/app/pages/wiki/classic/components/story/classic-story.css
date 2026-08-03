@@ -1,2 +1,115 @@
 @layer classic-story-base;
 @import "../styles/classic-base.css" layer(classic-story-base);
+
+.wiki-classic-s-card-filter {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  overflow: hidden;
+  border: 1px dashed color-mix(in srgb, var(--classic-story-color) 42%, white);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 95%);
+  box-shadow: 0 10px 24px rgb(62 43 50 / 10%);
+  backdrop-filter: blur(14px);
+}
+
+.wiki-classic-s-card-filter-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  color: var(--classic-story-ink);
+  background: color-mix(in srgb, var(--classic-story-color) 7%, white);
+  font-size: 14px;
+  text-align: left;
+}
+
+.wiki-classic-s-card-filter-toggle > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.wiki-classic-s-card-filter-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: #77747a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wiki-classic-s-card-filter-toggle > span svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wiki-classic-s-card-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 14px 16px 16px;
+}
+
+.wiki-classic-s-card-filter-options button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border: 2px solid #ece9ed;
+  border-radius: 999px;
+  color: #626066;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.wiki-classic-s-card-filter-options button:hover {
+  border-color: color-mix(in srgb, var(--classic-story-color) 55%, white);
+  transform: translateY(-1px);
+}
+
+.wiki-classic-s-card-filter-options button.is-active {
+  border-color: var(--classic-story-color);
+  color: var(--classic-story-on-color);
+  background: var(--classic-story-color);
+}
+
+.wiki-classic-s-card-filter-options button:focus-visible,
+.wiki-classic-s-card-filter-toggle:focus-visible {
+  outline: 3px solid
+    color-mix(in srgb, var(--classic-story-color) 28%, transparent);
+  outline-offset: -3px;
+}
+
+.wiki-classic-s-card-filter-options svg {
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 800px) {
+  .wiki-classic-s-card-filter {
+    top: 8px;
+  }
+
+  .wiki-classic-s-card-filter-options {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .wiki-classic-s-card-filter-options button {
+    min-height: 36px;
+    padding-inline: 14px;
+    font-size: 12px;
+  }
+}
