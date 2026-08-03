@@ -1,11 +1,14 @@
 import { RefreshCwIcon, SearchIcon, XIcon } from "lucide-react"
 import { Link } from "react-router"
 
+import { WikiGlobalSearchResults } from "~/components/wiki/wiki-global-search-results"
 import type { WikiRandomBackground } from "~/lib/api"
+import type { WikiPublicSearchEntry } from "~/lib/api"
 
 interface ClassicWikiToolsProps {
   background: WikiRandomBackground | null
   query: string
+  searchEntries: WikiPublicSearchEntry[]
   searchOpen: boolean
   onQueryChange: (query: string) => void
   onRefreshBackground: () => void
@@ -15,6 +18,7 @@ interface ClassicWikiToolsProps {
 export function ClassicWikiTools({
   background,
   query,
+  searchEntries,
   searchOpen,
   onQueryChange,
   onRefreshBackground,
@@ -47,26 +51,35 @@ export function ClassicWikiTools({
       <button
         type="button"
         className="wiki-classic-search-button"
-        aria-label="搜索内容页"
-        title="搜索内容页"
+        aria-label="全局搜索内容页"
+        title="全局搜索内容页"
         aria-expanded={searchOpen}
         onClick={onToggleSearch}
       >
         {searchOpen ? <XIcon /> : <SearchIcon />}
       </button>
-      <label
+      <div
         className={
           searchOpen ? "wiki-classic-search is-open" : "wiki-classic-search"
         }
       >
-        <SearchIcon />
-        <span className="sr-only">搜索内容页</span>
-        <input
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="搜索偶像、组合或剧情..."
+        <label className="wiki-classic-search-field">
+          <SearchIcon />
+          <span className="sr-only">全局搜索内容页</span>
+          <input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="搜索全站偶像或内容页"
+          />
+        </label>
+        <WikiGlobalSearchResults
+          entries={searchEntries}
+          query={query}
+          view="classic"
+          className="wiki-classic-global-search-results"
+          onNavigate={() => onQueryChange("")}
         />
-      </label>
+      </div>
     </>
   )
 }

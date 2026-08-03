@@ -134,17 +134,24 @@
 .wiki-classic-banner {
   min-height: 88px;
   padding: 22px 150px;
-  border: 2px solid color-mix(in srgb, var(--classic-accent) 68%, #292a2f);
+  border: 1px solid color-mix(in srgb, var(--classic-accent) 52%, white);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--classic-accent) 66%, #33343a);
+  color: var(--classic-ink);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--classic-accent) 86%, white) 0%,
+    color-mix(in srgb, var(--classic-accent) 60%, white) 44%,
+    color-mix(in srgb, var(--classic-accent) 18%, white) 100%
+  );
   box-shadow:
-    inset -180px 0 0 #202126,
-    0 8px 22px rgb(40 28 34 / 14%);
+    inset 0 1px 0 rgb(255 255 255 / 36%),
+    0 7px 18px color-mix(in srgb, var(--classic-accent) 14%, transparent);
 }
 
 .wiki-classic-banner p,
 .wiki-classic-banner span {
   top: 14px;
+  color: color-mix(in srgb, var(--classic-ink) 74%, transparent);
   font-weight: 700;
 }
 
@@ -450,13 +457,36 @@
   transition: top 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+.wiki-classic-search-field {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 16px;
+}
+
 .wiki-classic-search.is-open {
   top: 25px;
   transform: translateX(-50%);
 }
 
+.wiki-classic-mobile-search-wrap,
 .wiki-classic-mobile-search {
   display: none;
+}
+
+.wiki-classic-global-search-results {
+  border-color: color-mix(in srgb, var(--classic-accent) 40%, #dedce0);
+  color: var(--classic-ink);
+  background: rgb(255 255 255 / 98%);
+}
+
+.wiki-classic-back-to-top {
+  right: 31px;
+  bottom: 170px;
+  border: 3px solid #fff;
+  color: #fff;
+  background: var(--classic-accent);
 }
 
 @keyframes wiki-classic-background-in {
@@ -616,13 +646,19 @@
     padding-top: 20px;
   }
 
+  .wiki-classic-mobile-search-wrap {
+    position: relative;
+    display: block;
+    margin-top: 16px;
+  }
+
   .wiki-classic-mobile-search {
     display: flex;
     width: 100%;
     min-height: 44px;
     align-items: center;
     gap: 9px;
-    margin-top: 16px;
+    margin-top: 0;
     padding: 8px 13px;
     border: 2px solid color-mix(in srgb, var(--classic-accent) 45%, #fff);
     border-radius: 12px;
@@ -669,6 +705,11 @@
     display: none;
   }
 
+  .wiki-classic-back-to-top {
+    right: 16px;
+    bottom: 16px;
+  }
+
   .wiki-classic-background-button {
     right: auto;
     bottom: 16px;
@@ -697,6 +738,7 @@
   .wiki-classic-background-source,
   .wiki-classic-background-button,
   .wiki-classic-search-button,
+  .wiki-classic-back-to-top,
   .wiki-classic-idol-image,
   .wiki-classic-idol-name,
   .wiki-classic-group-filter-button {

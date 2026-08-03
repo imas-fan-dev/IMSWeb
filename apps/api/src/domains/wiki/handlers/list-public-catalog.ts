@@ -49,6 +49,25 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
         entryCount: counts.get(agency.id) ?? 0,
         imageTransform: toWikiAgency(agency).imageTransform,
       })));
+    const agenciesById = new Map(
+      agencies.map((agency) => [agency.id, agency] as const),
+    );
+    const searchEntries = idolRows.flatMap((row) => {
+      if (!row.wiki_enabled) return [];
+      const agency = agenciesById.get(row.agency_id);
+      if (!agency) return [];
+      const idol = toWikiIdol(row);
+      return [{
+        id: idol.id,
+        name: idol.name,
+        agencyId: agency.id,
+        agencyCode: agency.code,
+        agencyName: agency.name,
+        agencyColor: agency.color,
+        entryKind: idol.entryKind,
+        entrySubtype: idol.entrySubtype,
+      }];
+    });
     const requestedAgency = (context.req.query("agency") ?? "").trim();
     const selectedAgency = requestedAgency
       ? agencies.find(
@@ -60,7 +79,12 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
       return wikiJson(wikiErrorBody("企划不存在"), 404);
     }
     if (!selectedAgency) {
-      return wikiJson({ status: "success", agencies, selection: null });
+      return wikiJson({
+        status: "success",
+        agencies,
+        searchEntries,
+        selection: null,
+      });
     }
     const selectedRows = idolRows.filter(
       (idol) =>
@@ -133,6 +157,7 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
     return wikiJson({
       status: "success",
       agencies,
+      searchEntries,
       selection: {
         agency: selectedAgency,
         layoutRevision: selectedAgencyRow.layout_revision,

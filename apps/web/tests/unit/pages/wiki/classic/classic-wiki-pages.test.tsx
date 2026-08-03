@@ -126,6 +126,48 @@ function catalogPayload(
   return {
     status: "success",
     agencies,
+    searchEntries: [
+      {
+        id: 1,
+        name: "天海春香",
+        agencyId: agencies[0]!.id,
+        agencyCode: agencies[0]!.code,
+        agencyName: agencies[0]!.name,
+        agencyColor: agencies[0]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+      {
+        id: 6,
+        name: "樱木真乃",
+        agencyId: agencies[1]!.id,
+        agencyCode: agencies[1]!.code,
+        agencyName: agencies[1]!.name,
+        agencyColor: agencies[1]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+      {
+        id: 91,
+        name: "同名偶像",
+        agencyId: agencies[0]!.id,
+        agencyCode: agencies[0]!.code,
+        agencyName: agencies[0]!.name,
+        agencyColor: agencies[0]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+      {
+        id: 92,
+        name: "同名偶像",
+        agencyId: agencies[1]!.id,
+        agencyCode: agencies[1]!.code,
+        agencyName: agencies[1]!.name,
+        agencyColor: agencies[1]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+    ],
     selection: {
       agency,
       layoutRevision: 0,
@@ -341,12 +383,14 @@ describe("classic Wiki pages", () => {
       "/brand/wiki-view-switch.png"
     )
 
-    await user.click(screen.getByRole("button", { name: "搜索内容页" }))
+    await user.click(screen.getByRole("button", { name: "全局搜索内容页" }))
     expect(
-      screen.getByRole("textbox", { name: "搜索内容页" }).closest("label")
+      screen
+        .getByRole("textbox", { name: "全局搜索内容页" })
+        .closest(".wiki-classic-search")
     ).toHaveClass("is-open")
     await user.type(
-      screen.getByRole("textbox", { name: "搜索内容页" }),
+      screen.getByRole("textbox", { name: "全局搜索内容页" }),
       "芹泽朝日"
     )
     expect(
@@ -371,7 +415,7 @@ describe("classic Wiki pages", () => {
       .getByRole("heading", { name: "283 Production" })
       .closest("header")!
     const mobileSearch = screen.getByRole("textbox", {
-      name: "搜索当前企划内容页",
+      name: "移动端全局搜索内容页",
     })
     const firstGroup = screen
       .getByRole("heading", { name: "Straylight" })
@@ -407,6 +451,48 @@ describe("classic Wiki pages", () => {
       mobileSearch.compareDocumentPosition(firstGroup) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0)
+  })
+
+  it("lists duplicate names from every agency in the classic global search", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response(catalogPayload())
+      })
+    )
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={["/wiki?agency=闪耀色彩"]}>
+        <ClassicWikiPage />
+      </MemoryRouter>
+    )
+    await screen.findByRole("link", { name: /樱木真乃/ })
+    await user.click(screen.getByRole("button", { name: "全局搜索内容页" }))
+    await user.type(
+      screen.getByRole("textbox", { name: "全局搜索内容页" }),
+      "同名偶像"
+    )
+
+    const results = screen.getAllByRole("navigation", {
+      name: "全局搜索结果",
+    })[0]!
+    const links = within(results).getAllByRole("link")
+    expect(links).toHaveLength(2)
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "/story?agency=765PRO&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+    )
+    expect(links[1]).toHaveAttribute(
+      "href",
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+    )
   })
 
   it("keeps the current series visible while the next catalog loads", async () => {
@@ -663,6 +749,8 @@ describe("classic Wiki pages", () => {
       "href",
       "https://www.bilibili.com/video/BV1xx411c7mD"
     )
+    expect(screen.getByLabelText("剧情来源")).toBeVisible()
+    expect(screen.getByLabelText("语音来源")).toBeVisible()
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
   })
 

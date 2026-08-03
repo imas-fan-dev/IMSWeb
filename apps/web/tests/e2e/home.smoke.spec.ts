@@ -523,7 +523,7 @@ test("home exposes current discovery and birthday interactions", async ({
     randomIdol.getByRole("link", { name: "查看剧情档案" })
   ).toHaveAttribute("href", /^\/story\?agency=.+&idol=.+/)
   await expect(
-    randomIdol.getByText(/Wiki 收录 · \d+ 位可抽取偶像/)
+    randomIdol.getByText(/剧情站收录 · \d+ 位可抽取偶像/)
   ).toBeVisible()
 
   const siteSupport = page.getByRole("region", { name: "网站支持" })
