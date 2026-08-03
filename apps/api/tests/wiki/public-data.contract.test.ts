@@ -47,6 +47,17 @@ describe("Wiki public dynamic data contract", () => {
       entryCount: 1,
       imageTransform: CONTAIN_TRANSFORM,
     });
+    assert.equal(body.searchEntries.length, 7);
+    assert.deepEqual(body.searchEntries[5], {
+      id: 6,
+      name: "樱木真乃",
+      agencyId: 6,
+      agencyCode: "sc",
+      agencyName: "闪耀色彩",
+      agencyColor: "#8dbbff",
+      entryKind: "idol",
+      entrySubtype: null,
+    });
     assert.deepEqual(body.selection, {
       agency: body.agencies[5],
       layoutRevision: 0,

@@ -12,6 +12,8 @@ import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
+import { WikiBackToTop } from "~/components/wiki/wiki-back-to-top"
+import { WikiGlobalSearchResults } from "~/components/wiki/wiki-global-search-results"
 import {
   UNGROUPED_FILTER,
   WikiGroupFilter,
@@ -286,16 +288,24 @@ export function WikiIndexPage() {
                   {contentPageCount} 个内容页
                 </p>
               </div>
-              <label className="relative block w-full sm:max-w-sm">
-                <span className="sr-only">搜索内容页</span>
-                <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索偶像、组合或剧情"
-                  className="pl-9"
+              <div className="relative w-full sm:max-w-sm">
+                <label className="relative block">
+                  <span className="sr-only">全局搜索内容页</span>
+                  <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="搜索全站偶像或内容页"
+                    className="pl-9"
+                  />
+                </label>
+                <WikiGlobalSearchResults
+                  entries={availableCatalog?.searchEntries ?? []}
+                  query={query}
+                  view="modern"
+                  onNavigate={() => setQuery("")}
                 />
-              </label>
+              </div>
             </div>
 
             <WikiGroupFilter
@@ -334,6 +344,7 @@ export function WikiIndexPage() {
           </div>
         )}
       </section>
+      <WikiBackToTop variant="modern" />
     </main>
   )
 }

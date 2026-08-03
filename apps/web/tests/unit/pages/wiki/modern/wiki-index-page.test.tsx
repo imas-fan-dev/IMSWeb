@@ -94,6 +94,48 @@ function catalogPayload(
   return {
     status: "success",
     agencies,
+    searchEntries: [
+      {
+        id: 1,
+        name: "天海春香",
+        agencyId: agencies[0]!.id,
+        agencyCode: agencies[0]!.code,
+        agencyName: agencies[0]!.name,
+        agencyColor: agencies[0]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+      {
+        id: 6,
+        name: "樱木真乃",
+        agencyId: agencies[1]!.id,
+        agencyCode: agencies[1]!.code,
+        agencyName: agencies[1]!.name,
+        agencyColor: agencies[1]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+      {
+        id: 91,
+        name: "同名偶像",
+        agencyId: agencies[0]!.id,
+        agencyCode: agencies[0]!.code,
+        agencyName: agencies[0]!.name,
+        agencyColor: agencies[0]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+      {
+        id: 92,
+        name: "同名偶像",
+        agencyId: agencies[1]!.id,
+        agencyCode: agencies[1]!.code,
+        agencyName: agencies[1]!.name,
+        agencyColor: agencies[1]!.color,
+        entryKind: "idol",
+        entrySubtype: null,
+      },
+    ],
     selection: {
       agency: selectedAgency,
       layoutRevision: 0,
@@ -220,8 +262,42 @@ describe("WikiIndexPage", () => {
       screen.getByRole("heading", { level: 3, name: "765PRO" })
     ).toBeVisible()
 
-    await user.type(screen.getByLabelText("搜索内容页"), "不存在")
+    await user.type(screen.getByLabelText("全局搜索内容页"), "不存在")
     expect(await screen.findByText("没有匹配的内容页")).toBeVisible()
+  })
+
+  it("lists every cross-agency match as an independent modern story link", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response(catalogPayload())
+      })
+    )
+    const user = userEvent.setup()
+
+    renderWiki()
+    await screen.findByRole("link", { name: /樱木真乃/ })
+    await user.type(screen.getByLabelText("全局搜索内容页"), "同名偶像")
+
+    const results = screen.getByRole("navigation", {
+      name: "全局搜索结果",
+    })
+    const links = within(results).getAllByRole("link")
+    expect(links).toHaveLength(2)
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "/story/modern?agency=765PRO&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+    )
+    expect(links[1]).toHaveAttribute(
+      "href",
+      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+    )
   })
 
   it("keeps the agency rail stable while the next agency loads", async () => {
@@ -350,7 +426,7 @@ describe("WikiIndexPage", () => {
       "agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&group=7"
     )
 
-    const searchInput = screen.getByLabelText("搜索内容页")
+    const searchInput = screen.getByLabelText("全局搜索内容页")
     await user.type(searchInput, "不存在")
     expect(await screen.findByText("没有匹配的内容页")).toBeVisible()
     await user.clear(searchInput)

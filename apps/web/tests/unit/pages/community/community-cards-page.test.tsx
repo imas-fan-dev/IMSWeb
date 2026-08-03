@@ -205,4 +205,47 @@ describe("CommunityCardsPage", () => {
       screen.getByRole("img", { name: "制作人名片 42 背面" })
     ).toBeVisible()
   })
+
+  it("jumps to a specified page", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue({
+      list: [
+        {
+          id: 42,
+          image1_url: "/uploads/front.webp",
+          image2_url: "/uploads/back.webp",
+          status: "approved",
+          created_at: null,
+        },
+      ],
+      total: 80,
+      totalPage: 7,
+    })
+
+    render(
+      <MemoryRouter>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    await screen.findByRole("combobox", { name: "每页显示" })
+    expect(apiMocks.getNamecardPage).toHaveBeenCalledWith(1, 12)
+
+    await user.clear(screen.getByRole("spinbutton", { name: "跳至" }))
+    await user.type(screen.getByRole("spinbutton", { name: "跳至" }), "3")
+    await user.click(screen.getByRole("button", { name: "跳转" }))
+
+    await waitFor(() => {
+      expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(3, 12)
+    })
+    expect(screen.getByText("第 3 / 7 页，共 80 张")).toBeVisible()
+
+    apiMocks.getNamecardPage.mockClear()
+    await user.clear(screen.getByRole("spinbutton", { name: "跳至" }))
+    await user.type(screen.getByRole("spinbutton", { name: "跳至" }), "8")
+    await user.click(screen.getByRole("button", { name: "跳转" }))
+
+    expect(toastMocks.error).toHaveBeenCalledWith("请输入 1 到 7 之间的页码")
+    expect(apiMocks.getNamecardPage).not.toHaveBeenCalled()
+  })
 })

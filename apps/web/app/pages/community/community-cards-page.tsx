@@ -32,12 +32,21 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
+import { Input } from "~/components/ui/input"
 import {
   Popover,
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
 } from "~/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   addNamecardReaction,
@@ -50,6 +59,7 @@ import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const SESSION_REACTION_LIMIT = 10
+const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
 
 export function meta() {
   return [{ title: "制作人名片墙 | IMSWeb" }]
@@ -187,6 +197,8 @@ function NamecardItem({ card }: { card: Namecard }) {
 
 export default function CommunityCardsPage() {
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(NAMECARD_PAGE_SIZES[0])
+  const [targetPage, setTargetPage] = useState("1")
   const [result, setResult] = useState<NamecardPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -196,7 +208,7 @@ export default function CommunityCardsPage() {
 
   useEffect(() => {
     let active = true
-    void getNamecardPage(page)
+    void getNamecardPage(page, pageSize)
       .send()
       .then((next) => {
         if (active) setResult(next)
@@ -210,12 +222,35 @@ export default function CommunityCardsPage() {
     return () => {
       active = false
     }
-  }, [page])
+  }, [page, pageSize])
 
   function changePage(nextPage: number) {
+    setTargetPage(String(nextPage))
+    if (nextPage === page) return
     setLoading(true)
     setError(false)
     setPage(nextPage)
+  }
+
+  function changePageSize(value: unknown) {
+    const nextPageSize = Number(value)
+    if (!NAMECARD_PAGE_SIZES.some((size) => size === nextPageSize)) return
+    setLoading(true)
+    setError(false)
+    setPage(1)
+    setTargetPage("1")
+    setPageSize(nextPageSize)
+  }
+
+  function jumpToPage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const totalPages = Math.max(result?.totalPage ?? 0, 1)
+    const nextPage = Number(targetPage)
+    if (!Number.isInteger(nextPage) || nextPage < 1 || nextPage > totalPages) {
+      toast.error(`请输入 1 到 ${totalPages} 之间的页码`)
+      return
+    }
+    changePage(nextPage)
   }
 
   function chooseFile(file: File | null, side: "front" | "back") {
@@ -317,29 +352,94 @@ export default function CommunityCardsPage() {
                 <NamecardItem key={card.id} card={card} />
               ))}
             </div>
-            <div className="mt-6 flex items-center justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={page <= 1}
-                onClick={() => changePage(page - 1)}
-              >
-                <ArrowLeftIcon data-icon="inline-start" />
-                上一页
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                第 {page} / {Math.max(result.totalPage, 1)} 页，共{" "}
-                {result.total} 张
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={page >= result.totalPage}
-                onClick={() => changePage(page + 1)}
-              >
-                下一页
-                <ArrowRightIcon data-icon="inline-end" />
-              </Button>
+            <div className="mt-6 flex flex-col gap-4 border-t pt-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  <FieldLabel
+                    htmlFor="namecard-page-size"
+                    className="shrink-0 font-normal text-muted-foreground"
+                  >
+                    每页显示
+                  </FieldLabel>
+                  <Select
+                    items={NAMECARD_PAGE_SIZES.map((size) => ({
+                      label: `${size} 张`,
+                      value: String(size),
+                    }))}
+                    value={String(pageSize)}
+                    onValueChange={changePageSize}
+                  >
+                    <SelectTrigger id="namecard-page-size" className="w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start" alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {NAMECARD_PAGE_SIZES.map((size) => (
+                          <SelectItem key={size} value={String(size)}>
+                            {size} 张
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <span
+                  className="text-sm text-muted-foreground"
+                  aria-live="polite"
+                >
+                  第 {page} / {Math.max(result.totalPage, 1)} 页，共{" "}
+                  {result.total} 张
+                </span>
+
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={jumpToPage}
+                  noValidate
+                >
+                  <FieldLabel
+                    htmlFor="namecard-target-page"
+                    className="shrink-0 font-normal text-muted-foreground"
+                  >
+                    跳至
+                  </FieldLabel>
+                  <Input
+                    id="namecard-target-page"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={Math.max(result.totalPage, 1)}
+                    value={targetPage}
+                    className="w-20"
+                    onChange={(event) => setTargetPage(event.target.value)}
+                  />
+                  <span className="text-sm text-muted-foreground">页</span>
+                  <Button type="submit" variant="secondary">
+                    跳转
+                  </Button>
+                </form>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={page <= 1}
+                  onClick={() => changePage(page - 1)}
+                >
+                  <ArrowLeftIcon data-icon="inline-start" />
+                  上一页
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={page >= result.totalPage}
+                  onClick={() => changePage(page + 1)}
+                >
+                  下一页
+                  <ArrowRightIcon data-icon="inline-end" />
+                </Button>
+              </div>
             </div>
           </>
         ) : null}

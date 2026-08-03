@@ -158,7 +158,7 @@
   padding: 22px 120px;
   border: 3px solid color-mix(in srgb, var(--classic-accent) 65%, #2f3034);
   border-radius: 22px;
-  color: #fff;
+  color: var(--classic-banner-ink, #fff);
   background: linear-gradient(110deg, var(--classic-accent), #17181c 88%);
   box-shadow: 0 12px 28px rgb(40 28 34 / 15%);
   text-align: center;
@@ -169,7 +169,7 @@
   position: absolute;
   top: 12px;
   margin: 0;
-  color: rgb(255 255 255 / 70%);
+  color: color-mix(in srgb, var(--classic-banner-ink, #fff) 72%, transparent);
   font-size: 10px;
   font-weight: 800;
 }
@@ -984,7 +984,7 @@
 
 .wiki-classic-story-card-body {
   display: grid;
-  min-height: 94px;
+  min-height: 76px;
   align-content: start;
   gap: 5px;
   padding: 13px;
@@ -1012,7 +1012,7 @@
 }
 
 .wiki-classic-story-card-body span {
-  margin-top: auto;
+  margin-top: 2px;
   color: var(--classic-story-ink);
   font-weight: 800;
 }
@@ -1155,7 +1155,7 @@
 
 .wiki-classic-story-dialog-links a {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
   min-height: 60px;
   align-items: center;
   gap: 10px;
@@ -1177,6 +1177,22 @@
   width: 18px;
   height: 18px;
   color: #858288;
+}
+
+.wiki-classic-story-dialog-links [role="img"] {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--classic-story-ink, #a51f3c);
+  background: color-mix(
+    in srgb,
+    var(--classic-story-color, #f34f6d) 10%,
+    white
+  );
+}
+
+.wiki-classic-story-dialog-links [role="img"] svg {
+  color: currentcolor;
 }
 
 .wiki-classic-story-dialog-links span {
@@ -1302,7 +1318,7 @@
   }
 
   .wiki-classic-story-card-body {
-    min-height: 86px;
+    min-height: 68px;
     padding: 10px;
   }
 

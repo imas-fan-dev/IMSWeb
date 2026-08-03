@@ -63,7 +63,7 @@ export function RandomIdol() {
             随机担当
           </h2>
           <p className="mt-4 max-w-xl text-sm/6 text-muted-foreground">
-            从 Wiki 角色档案中邂逅一位新的担当。
+            从剧情站角色档案中邂逅一位新的担当。
           </p>
         </div>
 
@@ -156,7 +156,7 @@ export function RandomIdol() {
                   {selectedIdol.name}
                 </h3>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Wiki 收录 · {request.data?.eligibleCount ?? 0} 位可抽取偶像
+                  剧情站收录 · {request.data?.eligibleCount ?? 0} 位可抽取偶像
                 </p>
               </div>
             </div>
@@ -165,7 +165,7 @@ export function RandomIdol() {
               <UserRoundIcon className="size-7 text-muted-foreground" />
               <p className="mt-3 font-medium">暂时没有可抽取的偶像</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                可在 Wiki 管理中启用偶像角色。
+                可在剧情站管理中启用偶像角色。
               </p>
             </div>
           )}

@@ -141,6 +141,8 @@ describe("StoryPage", () => {
       "https://www.bilibili.com/video/BV1xx411c7mD"
     )
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
+    expect(screen.getByLabelText("剧情来源")).toBeVisible()
+    expect(screen.getByLabelText("语音来源")).toBeVisible()
 
     await user.type(screen.getByTestId("story-primary-search"), "不存在")
     expect(await screen.findByText("没有匹配的剧情")).toBeVisible()

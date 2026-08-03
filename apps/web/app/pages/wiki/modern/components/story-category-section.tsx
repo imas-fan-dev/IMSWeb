@@ -1,9 +1,10 @@
-import { ExternalLinkIcon, UserRoundIcon } from "lucide-react"
+import { ExternalLinkIcon } from "lucide-react"
 import type { CSSProperties } from "react"
 import { useState } from "react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { Badge } from "~/components/ui/badge"
+import { WikiStorySourceIcon } from "~/components/wiki/wiki-story-source-icon"
 import {
   Dialog,
   DialogContent,
@@ -173,7 +174,10 @@ export function StoryCategorySection({
                     rel="noreferrer"
                     className="group/link flex min-h-12 items-center gap-3 rounded-md border px-3 py-2 transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                   >
-                    <UserRoundIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <WikiStorySourceIcon
+                      contentType={link.contentType}
+                      className="size-8 rounded-full bg-muted text-muted-foreground [&_svg]:size-4"
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="mb-1 flex flex-wrap gap-1.5">
                         <Badge variant="secondary">{link.contentType}</Badge>

@@ -8,9 +8,10 @@ import {
 } from "react"
 import { useSearchParams } from "react-router"
 
+import { WikiBackToTop } from "~/components/wiki/wiki-back-to-top"
 import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
 import type { WikiPublicCatalog } from "~/lib/api"
-import { safeWikiColor } from "~/pages/wiki/wiki-model"
+import { contrastingWikiText, safeWikiColor } from "~/pages/wiki/wiki-model"
 
 import { ClassicAgencyNavigation } from "./components/wiki/classic-agency-navigation"
 import { ClassicMobileBar } from "./components/wiki/classic-mobile-bar"
@@ -167,7 +168,10 @@ export function ClassicWikiPage() {
   const modernWikiHref = modernWikiAgency
     ? `/wiki/modern?agency=${encodeURIComponent(modernWikiAgency)}`
     : "/wiki/modern"
-  const style = { "--classic-accent": accent } as CSSProperties
+  const style = {
+    "--classic-accent": accent,
+    "--classic-banner-ink": contrastingWikiText(accent),
+  } as CSSProperties
 
   function selectAgency(agency: string) {
     setQuery("")
@@ -214,6 +218,7 @@ export function ClassicWikiPage() {
           groupFilterDisabled={!requestIsCurrent}
           groups={groups}
           ungroupedIdols={ungroupedIdols}
+          searchEntries={catalog?.searchEntries ?? []}
           onGroupFilterChange={selectGroup}
           onQueryChange={setQuery}
           onRetry={() => setRefreshVersion((current) => current + 1)}
@@ -223,6 +228,7 @@ export function ClassicWikiPage() {
       <ClassicWikiTools
         background={background}
         query={query}
+        searchEntries={catalog?.searchEntries ?? []}
         searchOpen={searchOpen}
         onQueryChange={setQuery}
         onRefreshBackground={() =>
@@ -230,6 +236,7 @@ export function ClassicWikiPage() {
         }
         onToggleSearch={() => setSearchOpen((current) => !current)}
       />
+      <WikiBackToTop variant="classic" />
     </main>
   )
 }

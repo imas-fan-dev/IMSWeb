@@ -1,6 +1,11 @@
 import { AlertCircleIcon, SearchIcon } from "lucide-react"
 
-import type { WikiPublicCatalog, WikiPublicIdol } from "~/lib/api"
+import { WikiGlobalSearchResults } from "~/components/wiki/wiki-global-search-results"
+import type {
+  WikiPublicCatalog,
+  WikiPublicIdol,
+  WikiPublicSearchEntry,
+} from "~/lib/api"
 
 import {
   ClassicGroupFilter,
@@ -21,6 +26,7 @@ interface ClassicWikiContentProps {
   groupFilterDisabled: boolean
   groups: ClassicSelection["groups"]
   ungroupedIdols: WikiPublicIdol[]
+  searchEntries: WikiPublicSearchEntry[]
   onGroupFilterChange: (value: ClassicGroupFilterValue) => void
   onQueryChange: (query: string) => void
   onRetry: () => void
@@ -37,6 +43,7 @@ export function ClassicWikiContent({
   groupFilterDisabled,
   groups,
   ungroupedIdols,
+  searchEntries,
   onGroupFilterChange,
   onQueryChange,
   onRetry,
@@ -70,15 +77,24 @@ export function ClassicWikiContent({
             <span>{contentPageCount} 个内容页</span>
           </header>
 
-          <label className="wiki-classic-mobile-search">
-            <SearchIcon />
-            <span className="sr-only">搜索当前企划内容页</span>
-            <input
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="搜索偶像、组合或剧情..."
+          <div className="wiki-classic-mobile-search-wrap">
+            <label className="wiki-classic-mobile-search">
+              <SearchIcon />
+              <span className="sr-only">移动端全局搜索内容页</span>
+              <input
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+                placeholder="搜索全站偶像或内容页"
+              />
+            </label>
+            <WikiGlobalSearchResults
+              entries={searchEntries}
+              query={query}
+              view="classic"
+              className="wiki-classic-global-search-results"
+              onNavigate={() => onQueryChange("")}
             />
-          </label>
+          </div>
 
           <ClassicGroupFilter
             groups={selection.groups}

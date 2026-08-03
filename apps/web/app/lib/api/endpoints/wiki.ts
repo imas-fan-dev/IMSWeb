@@ -253,6 +253,17 @@ const wikiPublicIdolSchema = z.object({
   imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
 })
 
+const wikiPublicSearchEntrySchema = z.object({
+  id: z.coerce.number().int().positive(),
+  name: z.string(),
+  agencyId: z.coerce.number().int().positive(),
+  agencyCode: z.string(),
+  agencyName: z.string(),
+  agencyColor: z.string(),
+  entryKind: wikiEntryKindSchema.default("idol"),
+  entrySubtype: wikiStoryEntrySubtypeSchema.nullable().default(null),
+})
+
 const wikiPublicGroupSchema = z.object({
   id: z.coerce.number().int().positive(),
   code: z.string(),
@@ -266,6 +277,7 @@ const wikiPublicGroupSchema = z.object({
 const wikiPublicCatalogSchema = z.object({
   status: z.literal("success"),
   agencies: z.array(wikiPublicAgencySchema),
+  searchEntries: z.array(wikiPublicSearchEntrySchema).default([]),
   selection: z
     .object({
       agency: wikiPublicAgencySchema,
@@ -371,6 +383,7 @@ export type WikiStoryEntrySubtype = z.infer<typeof wikiStoryEntrySubtypeSchema>
 export type BilibiliParseResult = z.infer<typeof bilibiliResultSchema>
 export type WikiPublicAgency = z.infer<typeof wikiPublicAgencySchema>
 export type WikiPublicIdol = z.infer<typeof wikiPublicIdolSchema>
+export type WikiPublicSearchEntry = z.infer<typeof wikiPublicSearchEntrySchema>
 export type WikiPublicCatalog = z.infer<typeof wikiPublicCatalogSchema>
 export type WikiPublicStories = z.infer<typeof wikiPublicStoriesSchema>
 export type WikiPublicStoryCategory = WikiPublicStories["categories"][number]

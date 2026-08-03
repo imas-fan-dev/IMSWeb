@@ -1,4 +1,4 @@
-import { ExternalLinkIcon, UserRoundIcon } from "lucide-react"
+import { ExternalLinkIcon } from "lucide-react"
 import { type CSSProperties } from "react"
 
 import {
@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { WikiStorySourceIcon } from "~/components/wiki/wiki-story-source-icon"
 import type { WikiPublicStoryCard, WikiPublicStoryCategory } from "~/lib/api"
 import { safeExternalStoryUrl } from "~/pages/wiki/wiki-model"
 
@@ -46,7 +47,7 @@ export function ClassicStoryDialog({
               const href = safeExternalStoryUrl(link.url)
               return href ? (
                 <a key={link.id} href={href} target="_blank" rel="noreferrer">
-                  <UserRoundIcon />
+                  <WikiStorySourceIcon contentType={link.contentType} />
                   <span>
                     <strong>{link.title || "查看剧情"}</strong>
                     <small>{link.up || "未知投稿者"}</small>

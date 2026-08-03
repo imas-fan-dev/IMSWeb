@@ -72,7 +72,7 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   const agencyRail = page.getByRole("tablist", { name: "偶像大师企划" })
   const banner = page.locator(".wiki-classic-banner")
   const inlineSearch = page.getByRole("textbox", {
-    name: "搜索当前企划内容页",
+    name: "移动端全局搜索内容页",
   })
   const groupFilter = page.getByRole("region", { name: "组合与分类筛选" })
   const firstGroup = page.locator(".wiki-classic-group").first()
