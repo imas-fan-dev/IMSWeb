@@ -14,6 +14,12 @@ import {
   safeWikiColor,
 } from "~/pages/wiki/wiki-model"
 
+import {
+  GAKUMAS_S_CARD_ALL_CAST,
+  gakumasSCardMatchesCast,
+  type GakumasSCardCastFilter,
+  isGakumasSCardStories,
+} from "./components/story/classic-s-card-cast-filter"
 import { ClassicStoryContent } from "./components/story/classic-story-content"
 import { ClassicStoryDialog } from "./components/story/classic-story-dialog"
 import { ClassicStoryProfile } from "./components/story/classic-story-profile"
@@ -49,10 +55,23 @@ export function ClassicStoryPage() {
   }>({ key: "", data: null, error: null })
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState("all")
+  const [castFilterState, setCastFilterState] = useState<{
+    key: string
+    selectedCast: GakumasSCardCastFilter
+    collapsed: boolean
+  }>({ key: "", selectedCast: GAKUMAS_S_CARD_ALL_CAST, collapsed: false })
   const [selectedCard, setSelectedCard] = useState<SelectedStoryCard | null>(
     null
   )
+  const storyTargetKey = `${agencyName}\u0000${idolName}`
   const requestKey = `${agencyName}\u0000${idolName}\u0000${refreshVersion}`
+  const castFilterIsCurrent = castFilterState.key === storyTargetKey
+  const selectedCast = castFilterIsCurrent
+    ? castFilterState.selectedCast
+    : GAKUMAS_S_CARD_ALL_CAST
+  const castFilterCollapsed = castFilterIsCurrent
+    ? castFilterState.collapsed
+    : false
 
   useEffect(() => {
     if (!agencyName || !idolName) return
@@ -76,14 +95,27 @@ export function ClassicStoryPage() {
   const storiesError = requestIsCurrent ? storyRequest.error : null
   const loading = hasTarget && !requestIsCurrent
   const accent = safeWikiColor(stories?.idol.color ?? stories?.agency.color)
+  const showsCastFilter = Boolean(stories && isGakumasSCardStories(stories))
   const categories = useMemo(() => {
     if (!stories) return []
-    return selectedCategory === "all"
-      ? stories.categories
-      : stories.categories.filter(
-          (category) => category.name === selectedCategory
-        )
-  }, [selectedCategory, stories])
+    const selectedCategories =
+      selectedCategory === "all"
+        ? stories.categories
+        : stories.categories.filter(
+            (category) => category.name === selectedCategory
+          )
+
+    if (!showsCastFilter || selectedCast === GAKUMAS_S_CARD_ALL_CAST) {
+      return selectedCategories
+    }
+
+    return selectedCategories.map((category) => ({
+      ...category,
+      cards: category.cards.filter((card) =>
+        gakumasSCardMatchesCast(card, selectedCast)
+      ),
+    }))
+  }, [selectedCast, selectedCategory, showsCastFilter, stories])
   const cardCount =
     stories?.categories.reduce(
       (sum, category) => sum + category.cards.length,
@@ -152,6 +184,26 @@ export function ClassicStoryPage() {
             categories={categories}
             selectedCategory={selectedCategory}
             cardCount={cardCount}
+            castFilter={
+              showsCastFilter
+                ? {
+                    collapsed: castFilterCollapsed,
+                    selectedCast,
+                    onSelectCast: (cast) =>
+                      setCastFilterState({
+                        key: storyTargetKey,
+                        selectedCast: cast,
+                        collapsed: castFilterCollapsed,
+                      }),
+                    onToggleCollapsed: () =>
+                      setCastFilterState({
+                        key: storyTargetKey,
+                        selectedCast,
+                        collapsed: !castFilterCollapsed,
+                      }),
+                  }
+                : null
+            }
             onSelectCategory={setSelectedCategory}
             onSelectCard={(category, card) =>
               setSelectedCard({ category, card })
