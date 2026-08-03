@@ -86,12 +86,15 @@ test.beforeEach(async ({ page }) => {
             cards: [
               {
                 ...card,
+                viewerOwned: false,
                 placement: {
                   pinnedAt: "2026-08-02T09:00:00.000Z",
                   x: 46,
                   y: 51,
                   rotation: -3,
                   zIndex: 2,
+                  revision: 0,
+                  updatedAt: "2026-08-02T09:00:00.000Z",
                 },
               },
             ],
@@ -113,7 +116,10 @@ test("discovers an exchange office and preserves the detail deep link", async ({
 
   await expect(page).toHaveURL(/\/community\/exchange$/)
   await expect(
-    page.getByRole("heading", { name: "名片交换事务所", exact: true })
+    page.getByRole("heading", {
+      name: isMobile ? "名片交换事务所" : "名片交换信号地图",
+      exact: true,
+    })
   ).toBeVisible()
 
   if (isMobile) {
@@ -129,7 +135,9 @@ test("discovers an exchange office and preserves the detail deep link", async ({
       exact: true,
     })
     .click()
-  await expect(page.getByText("上海周末交换事务所")).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "上海周末交换事务所" })
+  ).toBeVisible()
   await page.getByRole("tab", { name: "名片" }).click()
   await expect(page.getByText("周末交换会名片")).toBeVisible()
   await page.getByRole("tab", { name: "事务所" }).click()
@@ -216,24 +224,30 @@ test("keeps boundary card placements inside the visible wall", async ({
                 ...card,
                 id: "card-north-west",
                 displayName: "左上边界名片",
+                viewerOwned: false,
                 placement: {
                   pinnedAt: "2026-08-02T09:00:00.000Z",
                   x: 0,
                   y: 0,
                   rotation: -12,
                   zIndex: 1,
+                  revision: 0,
+                  updatedAt: "2026-08-02T09:00:00.000Z",
                 },
               },
               {
                 ...card,
                 id: "card-south-east",
                 displayName: "右下边界名片",
+                viewerOwned: false,
                 placement: {
                   pinnedAt: "2026-08-02T09:01:00.000Z",
                   x: 100,
                   y: 100,
                   rotation: 12,
                   zIndex: 2,
+                  revision: 0,
+                  updatedAt: "2026-08-02T09:01:00.000Z",
                 },
               },
             ],
@@ -265,6 +279,314 @@ test("keeps boundary card placements inside the visible wall", async ({
   }
 })
 
+test("lets a card owner arrange and persist the free-placement wall", async ({
+  context,
+  page,
+}, testInfo) => {
+  await context.addCookies([
+    {
+      name: "ims_platform_csrf",
+      value: "card-wall-csrf",
+      domain: "127.0.0.1",
+      path: "/",
+    },
+  ])
+
+  const ownerCards = [
+    {
+      id: "card-1",
+      producerName: "春香P",
+      displayName: "周末交换会名片",
+      seriesCode: "765as",
+      favoriteIdol: "天海春香",
+      frontImageUrl: "/brand/series/wall/765pro.webp",
+      backImageUrl: "/brand/series/wall/cinderella-girls.webp",
+      accent: "#f34e6c",
+      bio: "上海地区制作人",
+      tradeNote: "现场交换同系列名片",
+      available: true,
+      mediaRightsStatus: "approved",
+      publicationStatus: "published",
+      revision: 2,
+      createdAt: "2026-08-02T08:00:00.000Z",
+      updatedAt: "2026-08-02T09:00:00.000Z",
+    },
+    {
+      id: "card-2",
+      producerName: "春香P",
+      displayName: "第二张公开名片",
+      seriesCode: "765as",
+      favoriteIdol: "天海春香",
+      frontImageUrl: "/brand/series/wall/cinderella-girls.webp",
+      backImageUrl: "/brand/series/wall/765pro.webp",
+      accent: "#2581c7",
+      bio: "自由摆放测试",
+      tradeNote: "也欢迎交换",
+      available: true,
+      mediaRightsStatus: "approved",
+      publicationStatus: "published",
+      revision: 1,
+      createdAt: "2026-08-02T08:10:00.000Z",
+      updatedAt: "2026-08-02T09:10:00.000Z",
+    },
+  ]
+  const placements = new Map([
+    [
+      "card-1",
+      {
+        pinnedAt: "2026-08-02T09:00:00.000Z",
+        x: 32,
+        y: 55,
+        rotation: -3,
+        zIndex: 2,
+        revision: 3,
+        updatedAt: "2026-08-02T09:00:00.000Z",
+      },
+    ],
+  ])
+  const placementWrites: Array<{
+    cardId: string
+    method: string
+    body: Record<string, unknown>
+  }> = []
+
+  function publicCard(ownerCard: (typeof ownerCards)[number]) {
+    return {
+      id: ownerCard.id,
+      producerName: ownerCard.producerName,
+      displayName: ownerCard.displayName,
+      seriesCode: ownerCard.seriesCode,
+      favoriteIdol: ownerCard.favoriteIdol,
+      frontImageUrl: ownerCard.frontImageUrl,
+      backImageUrl: ownerCard.backImageUrl,
+      accent: ownerCard.accent,
+      bio: ownerCard.bio,
+      tradeNote: ownerCard.tradeNote,
+      available: ownerCard.available,
+      source: null,
+      createdAt: ownerCard.createdAt,
+      interactions: {
+        likes: 0,
+        favorites: 0,
+        viewerLiked: false,
+        viewerFavorited: false,
+      },
+      viewerOwned: true,
+      placement: placements.get(ownerCard.id),
+    }
+  }
+
+  await page.route("**/api/platform/auth/session", async (route) => {
+    await route.fulfill({
+      json: {
+        success: true,
+        account: { id: "platform-wall-owner", status: "active" },
+        profile: {
+          displayName: "春香P",
+          avatarUrl: null,
+          homeCity: "上海",
+          bio: "上海地区制作人",
+        },
+      },
+    })
+  })
+  await page.route("**/api/platform/me", async (route) => {
+    await route.fulfill({
+      json: {
+        success: true,
+        account: { id: "platform-wall-owner", status: "active" },
+        capabilities: { fudabaWrite: true },
+        profile: {
+          displayName: "春香P",
+          avatarUrl: null,
+          homeCity: "上海",
+          bio: "上海地区制作人",
+          updatedAt: 1,
+        },
+      },
+    })
+  })
+  await page.route("**/api/community/exchange/me/cards", async (route) => {
+    await route.fulfill({ json: { items: ownerCards } })
+  })
+  await page.route(
+    "**/api/community/exchange/offices/shanghai-weekend",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          office: {
+            ...office,
+            cards: ownerCards
+              .filter((ownerCard) => placements.has(ownerCard.id))
+              .map(publicCard),
+          },
+        },
+      })
+    }
+  )
+  await page.route(
+    /\/api\/community\/exchange\/offices\/office-1\/cards\/[^/]+\/placement$/,
+    async (route) => {
+      const request = route.request()
+      const cardId = new URL(request.url()).pathname.split("/").at(-2)!
+      const body = request.postDataJSON() as Record<string, unknown>
+      placementWrites.push({ cardId, method: request.method(), body })
+
+      if (request.method() === "DELETE") {
+        placements.delete(cardId)
+        await route.fulfill({
+          json: {
+            success: true,
+            revision: Number(body.expectedRevision) + 1,
+          },
+        })
+        return
+      }
+
+      const previous = placements.get(cardId)
+      const revision = previous ? previous.revision + 1 : 0
+      const next = {
+        pinnedAt: previous?.pinnedAt ?? "2026-08-02T10:00:00.000Z",
+        x: Number(body.x),
+        y: Number(body.y),
+        rotation: Number(body.rotation),
+        zIndex: Number(body.zIndex),
+        revision,
+        updatedAt: `2026-08-02T10:0${revision}:00.000Z`,
+      }
+      placements.set(cardId, next)
+      await route.fulfill({
+        status: previous ? 200 : 201,
+        json: { success: true, placement: next },
+      })
+    }
+  )
+
+  await page.goto("/community/exchange/offices/shanghai-weekend")
+  await page.getByRole("button", { name: "布置名片墙" }).click()
+  await page.getByRole("button", { name: "放到墙上" }).click()
+
+  await expect(
+    page.getByRole("button", { name: "移动第二张公开名片" })
+  ).toBeVisible()
+  expect(placementWrites[0]).toMatchObject({
+    cardId: "card-2",
+    method: "PUT",
+    body: { expectedRevision: null, x: 50, y: 50, rotation: 0 },
+  })
+
+  const moveHandle = page.getByRole("button", {
+    name: "移动第二张公开名片",
+  })
+  await focusCardWallForScreenshot(page)
+  await moveHandle.scrollIntoViewIfNeeded()
+  const handleBox = await moveHandle.boundingBox()
+  expect(handleBox).not.toBeNull()
+  await page.mouse.move(
+    handleBox!.x + handleBox!.width / 2,
+    handleBox!.y + handleBox!.height / 2
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    handleBox!.x + handleBox!.width / 2 + 52,
+    handleBox!.y + handleBox!.height / 2 + 28,
+    { steps: 4 }
+  )
+  await page.mouse.up()
+
+  await expect.poll(() => placementWrites.length).toBe(2)
+  expect(placementWrites[1]).toMatchObject({
+    cardId: "card-2",
+    method: "PUT",
+    body: { expectedRevision: 0 },
+  })
+  const draggedPlacement = placements.get("card-2")!
+  expect(draggedPlacement.x).toBeGreaterThan(50)
+  expect(draggedPlacement.y).toBeGreaterThan(50)
+
+  await page.reload()
+  const placedCard = page.locator('[data-card-id="card-2"]')
+  await expect(placedCard).toHaveAttribute(
+    "data-placement-x",
+    String(draggedPlacement.x)
+  )
+
+  await page.getByRole("button", { name: "布置名片墙" }).click()
+  await focusCardWallForScreenshot(page)
+  await page.getByRole("button", { name: "移动第二张公开名片" }).focus()
+  await page.getByRole("button", { name: "向右旋转名片" }).click()
+  await expect.poll(() => placementWrites.length).toBe(3)
+  expect(placementWrites[2]).toMatchObject({
+    cardId: "card-2",
+    method: "PUT",
+    body: { expectedRevision: 1, rotation: 2 },
+  })
+
+  await page.getByRole("button", { name: "翻转选中名片" }).click()
+  await expect(
+    page.getByRole("button", { name: "查看第二张公开名片背面" })
+  ).toBeVisible()
+
+  await page.getByRole("tab", { name: "墙面" }).focus()
+  await page.keyboard.press("Escape")
+  await page.mouse.move(0, 0)
+  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
+  const accessibility = await new AxeBuilder({ page }).analyze()
+  expect(accessibility.violations).toEqual([])
+
+  const viewportGeometry = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    scrollX: window.scrollX,
+    overflowingElements: Array.from(document.querySelectorAll("body *"))
+      .map((element) => {
+        const bounds = element.getBoundingClientRect()
+        return {
+          tag: element.tagName,
+          className: element.getAttribute("class"),
+          label: element.getAttribute("aria-label"),
+          left: Math.round(bounds.left),
+          right: Math.round(bounds.right),
+          width: Math.round(bounds.width),
+        }
+      })
+      .filter(
+        (element) =>
+          element.width > 0 &&
+          (element.left < -1 ||
+            element.right > document.documentElement.clientWidth + 1)
+      )
+      .slice(0, 12),
+  }))
+  expect(viewportGeometry.scrollX).toBe(0)
+  expect(viewportGeometry.overflowingElements).toEqual([])
+  expect(viewportGeometry.scrollWidth).toBeLessThanOrEqual(
+    viewportGeometry.clientWidth
+  )
+
+  if (process.env.CAPTURE_FUDABA_QA === "1") {
+    await focusCardWallForScreenshot(page)
+    await page.screenshot({
+      path: `/tmp/imsweb-fudaba-card-wall-editor-${testInfo.project.name}.png`,
+    })
+  }
+
+  await page.getByRole("button", { name: "从名片墙移除" }).click()
+  await page.getByRole("button", { name: "移除" }).click()
+  await expect.poll(() => placementWrites.length).toBe(4)
+  expect(placementWrites[3]).toMatchObject({
+    cardId: "card-2",
+    method: "DELETE",
+    body: { expectedRevision: 2 },
+  })
+  await expect(
+    page.getByRole("button", { name: "查看第二张公开名片背面" })
+  ).toHaveCount(0)
+
+  await page.reload()
+  await expect(page.locator('[data-card-id="card-2"]')).toHaveCount(0)
+})
+
 async function focusCardWallForScreenshot(
   page: import("@playwright/test").Page
 ) {
@@ -274,7 +596,11 @@ async function focusCardWallForScreenshot(
       const top = section.getBoundingClientRect().top + window.scrollY
       const previousBehavior = document.documentElement.style.scrollBehavior
       document.documentElement.style.scrollBehavior = "auto"
-      window.scrollTo({ top: Math.max(0, top - 80), behavior: "auto" })
+      window.scrollTo({
+        left: 0,
+        top: Math.max(0, top - 80),
+        behavior: "auto",
+      })
       document.documentElement.style.scrollBehavior = previousBehavior
     })
   await page.evaluate(

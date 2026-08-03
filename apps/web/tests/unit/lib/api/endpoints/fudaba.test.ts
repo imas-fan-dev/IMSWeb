@@ -4,6 +4,11 @@ import {
   createFudabaCard,
   createFudabaOffice,
   deleteFudabaCard,
+  deleteFudabaCardPlacement,
+  fudabaCardPlacementDeleteResponseSchema,
+  fudabaCardPlacementDeleteSchema,
+  fudabaCardPlacementSaveResponseSchema,
+  fudabaCardPlacementSaveSchema,
   fudabaCardPageSchema,
   fudabaCardUpdateSchema,
   fudabaMapConfigSchema,
@@ -26,6 +31,7 @@ import {
   updateFudabaOwnerOffice,
   uploadFudabaCardMedia,
   saveFudabaOwnerLocation,
+  saveFudabaCardPlacement,
   withdrawFudabaOwnerLocation,
 } from "~/lib/api/endpoints/fudaba"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
@@ -63,6 +69,16 @@ const office = {
   isOpen: true,
   visitorCount: 12,
   seriesCodes: ["765as", "cinderella"],
+}
+
+const placement = {
+  pinnedAt: "2026-08-02T09:00:00.000Z",
+  x: 55,
+  y: 42,
+  rotation: -4,
+  zIndex: 8,
+  revision: 3,
+  updatedAt: "2026-08-02T10:00:00.000Z",
 }
 
 const ownerCard = {
@@ -171,25 +187,75 @@ describe("Fudaba Web API contracts", () => {
   })
 
   it("accepts placement metadata only within the public wall bounds", () => {
-    expect(
-      fudabaOfficeDetailSchema.parse({
-        office: {
-          ...office,
-          cards: [
-            {
-              ...card,
-              placement: {
-                pinnedAt: "2026-08-02T09:00:00.000Z",
-                x: 55,
-                y: 42,
-                rotation: -4,
-                zIndex: 8,
+    const parsed = fudabaOfficeDetailSchema.parse({
+      office: {
+        ...office,
+        cards: [{ ...card, viewerOwned: true, placement }],
+      },
+    })
+    expect(parsed.office.cards[0]).toMatchObject({
+      viewerOwned: true,
+      placement,
+    })
+
+    for (const boundaryPlacement of [
+      {
+        ...placement,
+        x: 0,
+        y: 100,
+        rotation: -12,
+        zIndex: 1,
+        revision: 0,
+      },
+      {
+        ...placement,
+        x: 100,
+        y: 0,
+        rotation: 12,
+        zIndex: 999,
+        revision: Number.MAX_SAFE_INTEGER,
+      },
+    ]) {
+      expect(() =>
+        fudabaOfficeDetailSchema.parse({
+          office: {
+            ...office,
+            cards: [
+              { ...card, viewerOwned: false, placement: boundaryPlacement },
+            ],
+          },
+        })
+      ).not.toThrow()
+    }
+
+    for (const invalidPlacement of [
+      { ...placement, x: -0.01 },
+      { ...placement, x: 100.01 },
+      { ...placement, y: Number.POSITIVE_INFINITY },
+      { ...placement, rotation: -12.01 },
+      { ...placement, rotation: 12.01 },
+      { ...placement, zIndex: 1.5 },
+      { ...placement, zIndex: 0 },
+      { ...placement, zIndex: 1000 },
+      { ...placement, revision: -1 },
+      { ...placement, revision: Number.MAX_SAFE_INTEGER + 1 },
+      { ...placement, updatedAt: "not-a-timestamp" },
+    ]) {
+      expect(() =>
+        fudabaOfficeDetailSchema.parse({
+          office: {
+            ...office,
+            cards: [
+              {
+                ...card,
+                viewerOwned: true,
+                placement: invalidPlacement,
               },
-            },
-          ],
-        },
-      }).office.cards[0]?.placement.x
-    ).toBe(55)
+            ],
+          },
+        })
+      ).toThrow()
+    }
 
     expect(() =>
       fudabaOfficeDetailSchema.parse({
@@ -198,16 +264,65 @@ describe("Fudaba Web API contracts", () => {
           cards: [
             {
               ...card,
-              placement: {
-                pinnedAt: "2026-08-02T09:00:00.000Z",
-                x: 101,
-                y: 42,
-                rotation: -4,
-                zIndex: 8,
-              },
+              placement,
             },
           ],
         },
+      })
+    ).toThrow()
+  })
+
+  it("uses strict placement mutation input and response contracts", () => {
+    const saveInput = {
+      x: 0,
+      y: 100,
+      rotation: 12,
+      zIndex: 999,
+      expectedRevision: null,
+    }
+    expect(fudabaCardPlacementSaveSchema.parse(saveInput)).toEqual(saveInput)
+    expect(
+      fudabaCardPlacementDeleteSchema.parse({ expectedRevision: 0 })
+    ).toEqual({ expectedRevision: 0 })
+    expect(
+      fudabaCardPlacementSaveResponseSchema.parse({
+        success: true,
+        placement,
+      }).placement.revision
+    ).toBe(3)
+    expect(
+      fudabaCardPlacementDeleteResponseSchema.parse({
+        success: true,
+        revision: Number.MAX_SAFE_INTEGER,
+      }).revision
+    ).toBe(Number.MAX_SAFE_INTEGER)
+
+    for (const input of [
+      { ...saveInput, x: Number.NaN },
+      { ...saveInput, y: -1 },
+      { ...saveInput, rotation: 13 },
+      { ...saveInput, zIndex: 2.5 },
+      { ...saveInput, expectedRevision: -1 },
+      { ...saveInput, unexpected: true },
+    ]) {
+      expect(() => fudabaCardPlacementSaveSchema.parse(input)).toThrow()
+    }
+    expect(() =>
+      fudabaCardPlacementDeleteSchema.parse({
+        expectedRevision: 1,
+        unexpected: true,
+      })
+    ).toThrow()
+    expect(() =>
+      fudabaCardPlacementSaveResponseSchema.parse({
+        success: true,
+        placement: { ...placement, privateOwnerId: "owner-1" },
+      })
+    ).toThrow()
+    expect(() =>
+      fudabaCardPlacementDeleteResponseSchema.parse({
+        success: true,
+        revision: 1.5,
       })
     ).toThrow()
   })
@@ -518,6 +633,102 @@ describe("Fudaba Web API contracts", () => {
     expect(JSON.parse(String(requests[3]?.init?.body))).toEqual({
       expectedRevision: 1,
     })
+  })
+
+  it("saves and deletes encoded wall placements with Platform CSRF", async () => {
+    document.cookie = "ims_platform_csrf=wall-write-csrf; path=/"
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const pathname = new URL(String(input), "http://ims.test").pathname
+        requests.push({ url: pathname, init })
+        if (init?.method === "DELETE") {
+          return Response.json({ success: true, revision: 4 })
+        }
+        return Response.json({ success: true, placement })
+      })
+    )
+
+    const saved = await saveFudabaCardPlacement("office ?#", "card ?#", {
+      x: 20,
+      y: 80,
+      rotation: 4,
+      zIndex: 7,
+      expectedRevision: null,
+    }).send()
+    const deleted = await deleteFudabaCardPlacement(
+      "office ?#",
+      "card ?#",
+      3
+    ).send()
+
+    expect(saved.placement).toEqual(placement)
+    expect(deleted).toEqual({ success: true, revision: 4 })
+    expect(requests.map(({ url, init }) => [url, init?.method])).toEqual([
+      [
+        "/api/community/exchange/offices/office%20%3F%23/cards/card%20%3F%23/placement",
+        "PUT",
+      ],
+      [
+        "/api/community/exchange/offices/office%20%3F%23/cards/card%20%3F%23/placement",
+        "DELETE",
+      ],
+    ])
+    for (const request of requests) {
+      expect(new Headers(request.init?.headers).get(CSRF_HEADER_NAME)).toBe(
+        "wall-write-csrf"
+      )
+    }
+    expect(JSON.parse(String(requests[0]?.init?.body))).toEqual({
+      x: 20,
+      y: 80,
+      rotation: 4,
+      zIndex: 7,
+      expectedRevision: null,
+    })
+    expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
+      expectedRevision: 3,
+    })
+  })
+
+  it("rejects invalid placement paths and values before requesting", () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    const validInput = {
+      x: 20,
+      y: 80,
+      rotation: 4,
+      zIndex: 7,
+      expectedRevision: 0,
+    }
+
+    for (const invalidId of [
+      "",
+      "bad/id",
+      "bad\\id",
+      "bad\nid",
+      "x".repeat(129),
+    ]) {
+      expect(() =>
+        saveFudabaCardPlacement(invalidId, "card-1", validInput)
+      ).toThrow()
+      expect(() =>
+        saveFudabaCardPlacement("office-1", invalidId, validInput)
+      ).toThrow()
+      expect(() => deleteFudabaCardPlacement(invalidId, "card-1", 0)).toThrow()
+      expect(() =>
+        deleteFudabaCardPlacement("office-1", invalidId, 0)
+      ).toThrow()
+    }
+    expect(() =>
+      saveFudabaCardPlacement("office-1", "card-1", {
+        ...validInput,
+        x: 101,
+      })
+    ).toThrow()
+    expect(() => deleteFudabaCardPlacement("office-1", "card-1", -1)).toThrow()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it("uses owner office CAS, idempotency, and independent location endpoints", async () => {

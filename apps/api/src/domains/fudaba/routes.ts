@@ -17,6 +17,8 @@ import { handleGetFudabaOwnerLocation } from '@/domains/fudaba/handlers/get-owne
 import { handleListFudabaLocationReviews } from '@/domains/fudaba/handlers/list-location-reviews';
 import { handleListFudabaMapOffices } from '@/domains/fudaba/handlers/list-map-offices';
 import { handleReviewFudabaLocation } from '@/domains/fudaba/handlers/review-location';
+import { handleRemoveFudabaCardPlacement } from '@/domains/fudaba/handlers/remove-card-placement';
+import { handleSaveFudabaCardPlacement } from '@/domains/fudaba/handlers/save-card-placement';
 import { handleSaveFudabaOwnerLocation } from '@/domains/fudaba/handlers/save-owner-location';
 import { handleServeFudabaOwnerCardMedia } from '@/domains/fudaba/handlers/serve-owner-card-media';
 import {
@@ -228,6 +230,16 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         '/api/community/exchange/me/cards/:cardId',
         ...write,
         handleDeleteFudabaCard
+    );
+    app.put(
+        '/api/community/exchange/offices/:officeId/cards/:cardId/placement',
+        ...write,
+        handleSaveFudabaCardPlacement
+    );
+    app.delete(
+        '/api/community/exchange/offices/:officeId/cards/:cardId/placement',
+        ...write,
+        handleRemoveFudabaCardPlacement
     );
     app.put(
         '/api/community/exchange/me/offices/:officeId',

@@ -7,6 +7,10 @@ const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
 const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i)
 const publicMediaUrlSchema = z.string().trim().min(1)
 const timestampSchema = z.string().datetime({ offset: true })
+const fudabaRevisionSchema = z.number().int().safe().nonnegative()
+const wallCoordinateSchema = z.number().finite().min(0).max(100)
+const wallRotationSchema = z.number().finite().min(-12).max(12)
+const wallZIndexSchema = z.number().int().min(1).max(999)
 const regionalCoordinateSchema = (minimum: number, maximum: number) =>
   z
     .number()
@@ -74,14 +78,21 @@ export const fudabaCardSchema = z.object({
   }),
 })
 
-export const fudabaPlacedCardSchema = fudabaCardSchema.extend({
-  placement: z.object({
+export const fudabaCardPlacementSchema = z
+  .object({
     pinnedAt: timestampSchema,
-    x: z.number().min(0).max(100),
-    y: z.number().min(0).max(100),
-    rotation: z.number().min(-12).max(12),
-    zIndex: z.number().int().min(1).max(999),
-  }),
+    x: wallCoordinateSchema,
+    y: wallCoordinateSchema,
+    rotation: wallRotationSchema,
+    zIndex: wallZIndexSchema,
+    revision: fudabaRevisionSchema,
+    updatedAt: timestampSchema,
+  })
+  .strict()
+
+export const fudabaPlacedCardSchema = fudabaCardSchema.extend({
+  viewerOwned: z.boolean(),
+  placement: fudabaCardPlacementSchema,
 })
 
 export const fudabaPageInfoSchema = z
@@ -187,7 +198,6 @@ const ownerCardTextSchema = (maximum: number, required = false) =>
     .max(maximum)
     .refine((value) => !hasAsciiControl(value))
 
-const fudabaRevisionSchema = z.number().int().safe().nonnegative()
 const ownerOfficeTextSchema = (maximum: number, required = false) =>
   z
     .string()
@@ -408,10 +418,46 @@ export const fudabaOwnerLocationWithdrawalResponseSchema = z
   .object({ success: z.literal(true) })
   .strict()
 
+export const fudabaCardPlacementSaveSchema = z
+  .object({
+    x: wallCoordinateSchema,
+    y: wallCoordinateSchema,
+    rotation: wallRotationSchema,
+    zIndex: wallZIndexSchema,
+    expectedRevision: fudabaRevisionSchema.nullable(),
+  })
+  .strict()
+
+export const fudabaCardPlacementDeleteSchema = z
+  .object({ expectedRevision: fudabaRevisionSchema })
+  .strict()
+
+export const fudabaCardPlacementSaveResponseSchema = z
+  .object({
+    success: z.literal(true),
+    placement: fudabaCardPlacementSchema,
+  })
+  .strict()
+
+export const fudabaCardPlacementDeleteResponseSchema = z
+  .object({
+    success: z.literal(true),
+    revision: fudabaRevisionSchema,
+  })
+  .strict()
+
+const fudabaCardPlacementPathSchema = z
+  .object({
+    officeId: ownerCardIdSchema,
+    cardId: ownerCardIdSchema,
+  })
+  .strict()
+
 export type FudabaSeries = z.infer<typeof fudabaSeriesSchema>
 export type FudabaSeriesList = z.infer<typeof fudabaSeriesListSchema>
 export type FudabaOffice = z.infer<typeof fudabaOfficeSchema>
 export type FudabaCard = z.infer<typeof fudabaCardSchema>
+export type FudabaCardPlacement = z.infer<typeof fudabaCardPlacementSchema>
 export type FudabaPlacedCard = z.infer<typeof fudabaPlacedCardSchema>
 export type FudabaOfficePage = z.infer<typeof fudabaOfficePageSchema>
 export type FudabaCardPage = z.infer<typeof fudabaCardPageSchema>
@@ -450,6 +496,18 @@ export type FudabaOwnerLocationDetail = z.infer<
 >
 export type SaveFudabaOwnerLocationInput = z.input<
   typeof fudabaOwnerLocationSubmissionSchema
+>
+export type SaveFudabaCardPlacementInput = z.input<
+  typeof fudabaCardPlacementSaveSchema
+>
+export type DeleteFudabaCardPlacementInput = z.input<
+  typeof fudabaCardPlacementDeleteSchema
+>
+export type FudabaCardPlacementSaveResponse = z.infer<
+  typeof fudabaCardPlacementSaveResponseSchema
+>
+export type FudabaCardPlacementDeleteResponse = z.infer<
+  typeof fudabaCardPlacementDeleteResponseSchema
 >
 
 export interface FudabaOfficePageRequest {
@@ -812,6 +870,44 @@ export function deleteFudabaCard(cardId: string, expectedRevision: number) {
     {
       meta: withPlatformCsrf(),
       transform: (payload) => fudabaCardDeleteResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function saveFudabaCardPlacement(
+  officeId: string,
+  cardId: string,
+  input: SaveFudabaCardPlacementInput
+) {
+  const path = fudabaCardPlacementPathSchema.parse({ officeId, cardId })
+  const submission = fudabaCardPlacementSaveSchema.parse(input)
+  return platformApiClient.Put<FudabaCardPlacementSaveResponse, unknown>(
+    `/api/community/exchange/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`,
+    submission,
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) =>
+        fudabaCardPlacementSaveResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function deleteFudabaCardPlacement(
+  officeId: string,
+  cardId: string,
+  expectedRevision: number
+) {
+  const path = fudabaCardPlacementPathSchema.parse({ officeId, cardId })
+  const submission = fudabaCardPlacementDeleteSchema.parse({
+    expectedRevision,
+  })
+  return platformApiClient.Delete<FudabaCardPlacementDeleteResponse, unknown>(
+    `/api/community/exchange/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`,
+    submission,
+    {
+      meta: withPlatformCsrf(),
+      transform: (payload) =>
+        fudabaCardPlacementDeleteResponseSchema.parse(payload),
     }
   )
 }

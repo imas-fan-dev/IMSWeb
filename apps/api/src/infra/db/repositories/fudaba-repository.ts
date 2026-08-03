@@ -2,6 +2,9 @@ import type {
     AuditLogInput,
     CreateOwnedFudabaOfficeInput,
     CreateOwnedFudabaCardInput,
+    FudabaCardPlacementRecord,
+    FudabaCardPlacementRemovalResult,
+    FudabaCardPlacementSaveResult,
     FudabaCardRecord,
     FudabaCardMutationResult,
     FudabaExchangeRequestRecord,
@@ -94,9 +97,13 @@ const PUBLIC_CARD_COLUMNS = `card.id, card.producer_name, card.display_name,
         SELECT 1 FROM fudaba_card_favorites viewer_favorite
         WHERE viewer_favorite.card_id=card.id AND viewer_favorite.account_id=?
     ) AS viewer_favorited`;
+const CARD_PLACEMENT_COLUMNS = `office_id, card_id, pinned_at, position_x,
+    position_y, rotation, z_index, revision, updated_at`;
 const PUBLIC_OFFICE_ELIGIBILITY = `office.status='active'
     AND office_owner.status IN ('active', 'restricted')
     AND office_owner.deleted_at IS NULL`;
+const OPEN_OFFICE_CARD_WALL_ELIGIBILITY = `${PUBLIC_OFFICE_ELIGIBILITY}
+    AND office.is_open`;
 const PUBLIC_CARD_ELIGIBILITY = `card.publication_status='published'
     AND card.media_rights_status='approved' AND card.deleted_at IS NULL
     AND card_owner.status IN ('active', 'restricted')
@@ -239,6 +246,28 @@ type FudabaPublicPlacedCardRow = FudabaPublicCardRow & {
     position_y: number | string;
     rotation: number | string;
     z_index: number | string;
+    revision: number | string;
+    updated_at: TimestampValue;
+    viewer_owned: boolean | number | string;
+};
+
+type FudabaCardPlacementRow = Omit<
+    FudabaCardPlacementRecord,
+    | 'pinned_at'
+    | 'position_x'
+    | 'position_y'
+    | 'rotation'
+    | 'z_index'
+    | 'revision'
+    | 'updated_at'
+> & {
+    pinned_at: TimestampValue;
+    position_x: number | string;
+    position_y: number | string;
+    rotation: number | string;
+    z_index: number | string;
+    revision: number | string;
+    updated_at: TimestampValue;
 };
 
 function booleanValue(value: boolean | number | string): boolean {
@@ -405,7 +434,26 @@ function publicPlacedCardRecord(
         position_x: Number(row.position_x),
         position_y: Number(row.position_y),
         rotation: Number(row.rotation),
-        z_index: Number(row.z_index)
+        z_index: Number(row.z_index),
+        revision: Number(row.revision),
+        updated_at: timestampValue(row.updated_at),
+        viewer_owned: booleanValue(row.viewer_owned)
+    };
+}
+
+function cardPlacementRecord(
+    row: FudabaCardPlacementRow
+): FudabaCardPlacementRecord {
+    return {
+        office_id: row.office_id,
+        card_id: row.card_id,
+        pinned_at: timestampValue(row.pinned_at),
+        position_x: Number(row.position_x),
+        position_y: Number(row.position_y),
+        rotation: Number(row.rotation),
+        z_index: Number(row.z_index),
+        revision: Number(row.revision),
+        updated_at: timestampValue(row.updated_at)
     };
 }
 
@@ -710,7 +758,9 @@ export class SqlFudabaRepository implements FudabaRepository {
             this.database,
             `SELECT ${PUBLIC_CARD_COLUMNS}, placement.pinned_at,
                     placement.position_x, placement.position_y,
-                    placement.rotation, placement.z_index
+                    placement.rotation, placement.z_index,
+                    placement.revision, placement.updated_at,
+                    COALESCE(card.owner_account_id=?, FALSE) AS viewer_owned
              FROM fudaba_office_cards placement
              JOIN fudaba_cards card ON card.id=placement.card_id
              JOIN platform_accounts card_owner
@@ -719,7 +769,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON card_series.code=card.series_code AND card_series.enabled
              WHERE placement.office_id=? AND ${PUBLIC_CARD_ELIGIBILITY}
              ORDER BY placement.z_index ASC, placement.pinned_at ASC, card.id ASC`,
-            [viewerAccountId, viewerAccountId, row.id]
+            [viewerAccountId, viewerAccountId, viewerAccountId, row.id]
         );
         return {
             ...office,
@@ -1924,6 +1974,220 @@ export class SqlFudabaRepository implements FudabaRepository {
                 ]
             );
             return result.meta.changes === 1;
+        });
+    }
+
+    private async cardPlacementSaveFailure(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+    }): Promise<FudabaCardPlacementSaveResult> {
+        const current = await queryOne<{ revision: number | string }>(
+            this.database,
+            `SELECT placement.revision
+             FROM fudaba_office_cards placement
+             JOIN fudaba_offices office ON office.id=placement.office_id
+             JOIN platform_accounts office_owner
+               ON office_owner.id=office.owner_account_id
+             JOIN fudaba_cards card ON card.id=placement.card_id
+             JOIN platform_accounts account ON account.id=card.owner_account_id
+             JOIN fudaba_series_tags series ON series.code=card.series_code
+             WHERE placement.office_id=? AND placement.card_id=?
+               AND card.owner_account_id=?
+               AND account.status='active' AND account.deleted_at IS NULL
+               AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
+               AND card.publication_status='published'
+               AND card.media_rights_status='approved'
+               AND card.deleted_at IS NULL AND series.enabled`,
+            [input.officeId, input.cardId, input.ownerAccountId]
+        );
+        return current
+            ? { status: 'conflict', revision: Number(current.revision) }
+            : { status: 'unavailable' };
+    }
+
+    private async cardPlacementRemovalFailure(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+    }): Promise<FudabaCardPlacementRemovalResult> {
+        const current = await queryOne<{
+            revision: number | string;
+            in_use: boolean | number | string;
+        }>(
+            this.database,
+            `SELECT placement.revision, EXISTS (
+                 SELECT 1 FROM fudaba_exchange_requests exchange_request
+                 WHERE exchange_request.office_id=placement.office_id
+                   AND exchange_request.wanted_card_id=placement.card_id
+             ) AS in_use
+             FROM fudaba_office_cards placement
+             JOIN fudaba_cards card ON card.id=placement.card_id
+             JOIN platform_accounts account ON account.id=card.owner_account_id
+             WHERE placement.office_id=? AND placement.card_id=?
+               AND card.owner_account_id=?
+               AND account.status='active' AND account.deleted_at IS NULL`,
+            [input.officeId, input.cardId, input.ownerAccountId]
+        );
+        if (!current) return { status: 'unavailable' };
+        const revision = Number(current.revision);
+        if (revision !== input.expectedRevision) {
+            return { status: 'conflict', revision };
+        }
+        return booleanValue(current.in_use)
+            ? { status: 'in-use', revision }
+            : { status: 'conflict', revision };
+    }
+
+    saveCardPlacementForOwner(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        positionX: number;
+        positionY: number;
+        rotation: number;
+        zIndex: number;
+        expectedRevision: number | null;
+        updatedAt: string;
+    }): Promise<FudabaCardPlacementSaveResult> {
+        return this.serializeWrite(async () => {
+            let row: FudabaCardPlacementRow | undefined;
+            if (input.expectedRevision === null) {
+                const result = await this.database.prepare(
+                    `INSERT INTO fudaba_office_cards
+                        (office_id, card_id, pinned_at, position_x, position_y,
+                         rotation, z_index, revision, updated_at)
+                     SELECT office.id, card.id, ?, ?, ?, ?, ?, 0, ?
+                     FROM fudaba_offices office
+                     JOIN platform_accounts office_owner
+                       ON office_owner.id=office.owner_account_id
+                     JOIN fudaba_cards card ON card.id=?
+                     JOIN platform_accounts account
+                       ON account.id=card.owner_account_id
+                     JOIN fudaba_series_tags series
+                       ON series.code=card.series_code
+                     WHERE office.id=?
+                       AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
+                       AND card.owner_account_id=?
+                       AND card.publication_status='published'
+                       AND card.media_rights_status='approved'
+                       AND card.deleted_at IS NULL AND series.enabled
+                       AND account.status='active' AND account.deleted_at IS NULL
+                     ON CONFLICT (office_id, card_id) DO NOTHING
+                     RETURNING ${CARD_PLACEMENT_COLUMNS}`
+                ).bind(
+                    input.updatedAt,
+                    input.positionX,
+                    input.positionY,
+                    input.rotation,
+                    input.zIndex,
+                    input.updatedAt,
+                    input.cardId,
+                    input.officeId,
+                    input.ownerAccountId
+                ).run<FudabaCardPlacementRow>();
+                row = result.results[0];
+            } else {
+                const result = await this.database.prepare(
+                    `UPDATE fudaba_office_cards AS placement
+                     SET position_x=?, position_y=?, rotation=?, z_index=?,
+                         revision=placement.revision+1, updated_at=?
+                     WHERE placement.office_id=? AND placement.card_id=?
+                       AND placement.revision=?
+                       AND EXISTS (
+                           SELECT 1
+                           FROM fudaba_offices office
+                           JOIN platform_accounts office_owner
+                             ON office_owner.id=office.owner_account_id
+                           JOIN fudaba_cards card ON card.id=placement.card_id
+                           JOIN platform_accounts account
+                             ON account.id=card.owner_account_id
+                           JOIN fudaba_series_tags series
+                             ON series.code=card.series_code
+                           WHERE office.id=placement.office_id
+                             AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
+                             AND card.owner_account_id=?
+                             AND card.publication_status='published'
+                             AND card.media_rights_status='approved'
+                             AND card.deleted_at IS NULL AND series.enabled
+                             AND account.status='active'
+                             AND account.deleted_at IS NULL
+                       )
+                     RETURNING ${CARD_PLACEMENT_COLUMNS}`
+                ).bind(
+                    input.positionX,
+                    input.positionY,
+                    input.rotation,
+                    input.zIndex,
+                    input.updatedAt,
+                    input.officeId,
+                    input.cardId,
+                    input.expectedRevision,
+                    input.ownerAccountId
+                ).run<FudabaCardPlacementRow>();
+                row = result.results[0];
+            }
+            if (row) {
+                return {
+                    status: 'saved',
+                    placement: cardPlacementRecord(row),
+                    created: input.expectedRevision === null
+                };
+            }
+            return this.cardPlacementSaveFailure({
+                officeId: input.officeId,
+                cardId: input.cardId,
+                ownerAccountId: input.ownerAccountId
+            });
+        });
+    }
+
+    removeCardPlacementForOwner(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+    }): Promise<FudabaCardPlacementRemovalResult> {
+        return this.serializeWrite(async () => {
+            const result = await this.database.prepare(
+                `DELETE FROM fudaba_office_cards AS placement
+                 WHERE placement.office_id=? AND placement.card_id=?
+                   AND placement.revision=?
+                   AND EXISTS (
+                       SELECT 1 FROM fudaba_cards card
+                       JOIN platform_accounts account
+                         ON account.id=card.owner_account_id
+                       WHERE card.id=placement.card_id
+                         AND card.owner_account_id=?
+                         AND account.status='active'
+                         AND account.deleted_at IS NULL
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM fudaba_exchange_requests exchange_request
+                       WHERE exchange_request.office_id=placement.office_id
+                         AND exchange_request.wanted_card_id=placement.card_id
+                   )
+                 RETURNING revision`
+            ).bind(
+                input.officeId,
+                input.cardId,
+                input.expectedRevision,
+                input.ownerAccountId
+            ).run<{ revision: number | string }>();
+            const removed = result.results[0];
+            if (removed) {
+                return {
+                    status: 'removed',
+                    revision: Number(removed.revision) + 1
+                };
+            }
+            return this.cardPlacementRemovalFailure({
+                officeId: input.officeId,
+                cardId: input.cardId,
+                ownerAccountId: input.ownerAccountId,
+                expectedRevision: input.expectedRevision
+            });
         });
     }
 

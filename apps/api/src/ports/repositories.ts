@@ -683,7 +683,37 @@ export interface FudabaPublicPlacedCardRecord extends FudabaPublicCardRecord {
     position_y: number;
     rotation: number;
     z_index: number;
+    revision: number;
+    updated_at: string;
+    viewer_owned: boolean;
 }
+
+export interface FudabaCardPlacementRecord {
+    office_id: string;
+    card_id: string;
+    pinned_at: string;
+    position_x: number;
+    position_y: number;
+    rotation: number;
+    z_index: number;
+    revision: number;
+    updated_at: string;
+}
+
+export type FudabaCardPlacementSaveResult =
+    | {
+        status: 'saved';
+        placement: FudabaCardPlacementRecord;
+        created: boolean;
+    }
+    | { status: 'conflict'; revision: number }
+    | { status: 'unavailable' };
+
+export type FudabaCardPlacementRemovalResult =
+    | { status: 'removed'; revision: number }
+    | { status: 'conflict'; revision: number }
+    | { status: 'in-use'; revision: number }
+    | { status: 'unavailable' };
 
 export interface FudabaPublicOfficeDetailRecord extends FudabaPublicOfficeRecord {
     cards: FudabaPublicPlacedCardRecord[];
@@ -825,6 +855,23 @@ export interface FudabaRepository {
         rotation: number;
         zIndex: number;
     }): Promise<boolean>;
+    saveCardPlacementForOwner(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        positionX: number;
+        positionY: number;
+        rotation: number;
+        zIndex: number;
+        expectedRevision: number | null;
+        updatedAt: string;
+    }): Promise<FudabaCardPlacementSaveResult>;
+    removeCardPlacementForOwner(input: {
+        officeId: string;
+        cardId: string;
+        ownerAccountId: string;
+        expectedRevision: number;
+    }): Promise<FudabaCardPlacementRemovalResult>;
     createMessage(input: {
         id: string;
         officeId: string;

@@ -128,7 +128,10 @@ class PublicFudabaFixture {
                     position_x: 50,
                     position_y: 40,
                     rotation: 2,
-                    z_index: 3
+                    z_index: 3,
+                    revision: 4,
+                    updated_at: CREATED_AT,
+                    viewer_owned: viewerAccountId === 'platform-viewer'
                 }]
             };
         },
@@ -283,6 +286,30 @@ test('valid Platform auth adds viewer flags while Backoffice remains anonymous',
         viewerFavorited: true
     });
     assert.equal(JSON.stringify(body).includes('object_key'), false);
+
+    const office = await app.request(
+        'http://ims.test/api/community/exchange/offices/上海-office-a',
+        { headers: { authorization: 'Bearer valid-platform' } }
+    );
+    assert.equal(office.status, 200);
+    const officeBody = await office.json() as {
+        office: {
+            cards: Array<{
+                viewerOwned: boolean;
+                placement: Record<string, unknown>;
+            }>;
+        };
+    };
+    assert.equal(officeBody.office.cards[0]?.viewerOwned, true);
+    assert.deepEqual(officeBody.office.cards[0]?.placement, {
+        pinnedAt: CREATED_AT,
+        x: 50,
+        y: 40,
+        rotation: 2,
+        zIndex: 3,
+        revision: 4,
+        updatedAt: CREATED_AT
+    });
 });
 
 test('invalid or blocked Platform credentials never downgrade to anonymous', async () => {

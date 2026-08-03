@@ -4,7 +4,6 @@ import {
   EyeIcon,
   HeartIcon,
   MapPinIcon,
-  Repeat2Icon,
 } from "lucide-react"
 import { Link } from "react-router"
 
@@ -18,13 +17,10 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card"
-import type {
-  FudabaCard,
-  FudabaOffice,
-  FudabaPlacedCard,
-  FudabaSeries,
-} from "~/lib/api"
+import type { FudabaCard, FudabaOffice, FudabaSeries } from "~/lib/api"
 import { cn } from "~/lib/utils"
+
+export { PlacedCardWall } from "./exchange-card-wall"
 
 const seriesTone: Record<string, string> = {
   "765as": "border-franchise-765/45 bg-franchise-765/12",
@@ -216,40 +212,5 @@ export function ExchangeCard({
         </span>
       </CardFooter>
     </Card>
-  )
-}
-
-export function PlacedCardWall({ cards }: { cards: FudabaPlacedCard[] }) {
-  return (
-    <div
-      className="relative min-h-96 overflow-hidden border bg-muted/40 sm:aspect-video sm:min-h-0"
-      aria-label="名片墙放置区域"
-    >
-      <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
-      {cards.map((card) => (
-        <div
-          key={card.id}
-          className="absolute w-[clamp(7rem,18vw,13rem)] [--wall-x-inset:4.5rem] [--wall-y-inset:3.5rem] sm:[--wall-x-inset:7.5rem] sm:[--wall-y-inset:6rem]"
-          style={{
-            left: `clamp(var(--wall-x-inset), ${card.placement.x}%, calc(100% - var(--wall-x-inset)))`,
-            top: `clamp(var(--wall-y-inset), ${card.placement.y}%, calc(100% - var(--wall-y-inset)))`,
-            zIndex: card.placement.zIndex,
-            transform: `translate(-50%, -50%) rotate(${card.placement.rotation}deg)`,
-          }}
-        >
-          <CoverImagePreview
-            src={card.frontImageUrl}
-            alt={`${card.displayName}正面`}
-            previewLabel="名片"
-            className="aspect-3/2 w-full border bg-card shadow-sm"
-            imageClassName="object-contain"
-          />
-        </div>
-      ))}
-      <div className="pointer-events-none absolute right-3 bottom-3 flex items-center gap-1.5 border bg-background/90 px-2 py-1 text-xs text-muted-foreground">
-        <Repeat2Icon className="size-3.5" aria-hidden="true" />
-        {cards.length} 张名片
-      </div>
-    </div>
   )
 }

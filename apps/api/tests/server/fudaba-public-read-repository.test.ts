@@ -428,7 +428,18 @@ async function assertPublicReadModels(
     assert.equal(likedCard.favorite_count, 1);
     assert.equal(likedCard.viewer_liked, true);
     assert.equal(likedCard.viewer_favorited, true);
+    assert.equal(likedCard.viewer_owned, false);
+    assert.equal(likedCard.revision, 0);
+    assert.equal(likedCard.updated_at, CARD_OLD_AT);
     assert.equal('owner_account_id' in likedCard, false);
+    const ownerDetail = await fixture.repository.findPublicOfficeBySlug(
+        'office-b-open',
+        'owner'
+    );
+    assert.equal(
+        ownerDetail?.cards.find((item) => item.id === 'card-z-new')?.viewer_owned,
+        true
+    );
     assert.equal(await fixture.repository.findPublicOfficeBySlug(
         'office-hidden',
         null

@@ -326,12 +326,15 @@ export async function fudabaPublicPlacedCardView(
 ): Promise<Record<string, unknown>> {
     return {
         ...await fudabaPublicCardView(storage, card),
+        viewerOwned: card.viewer_owned,
         placement: {
             pinnedAt: card.pinned_at,
             x: card.position_x,
             y: card.position_y,
             rotation: card.rotation,
-            zIndex: card.z_index
+            zIndex: card.z_index,
+            revision: card.revision,
+            updatedAt: card.updated_at
         }
     };
 }
