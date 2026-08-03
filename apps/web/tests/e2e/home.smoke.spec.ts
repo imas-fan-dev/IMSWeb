@@ -337,6 +337,59 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
 })
 
+test("homepage directory uses compact responsive columns", async ({ page }) => {
+  await page.goto("/")
+
+  const directory = page.getByRole("region", { name: "站点导航" })
+  const grid = directory.getByTestId("portal-directory-grid")
+  const description = directory.getByText("浏览近期活动与公开信息", {
+    exact: true,
+  })
+
+  await expect(grid.getByRole("link")).toHaveCount(10)
+
+  for (const viewport of [
+    { width: 320, expectedColumns: 2, descriptionVisible: false },
+    { width: 375, expectedColumns: 2, descriptionVisible: false },
+    { width: 430, expectedColumns: 2, descriptionVisible: false },
+    { width: 640, expectedColumns: 2, descriptionVisible: true },
+    { width: 1024, expectedColumns: 3, descriptionVisible: true },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: 900 })
+
+    const layout = await grid.evaluate((element) => {
+      const columns = getComputedStyle(element)
+        .gridTemplateColumns.split(" ")
+        .filter(Boolean).length
+      const descriptionElement = element.querySelector(
+        'a[href="/events"] [data-testid="portal-link-description"]'
+      )
+      const descriptionBox = descriptionElement?.getBoundingClientRect()
+
+      return {
+        columns,
+        descriptionVisible: Boolean(
+          descriptionBox &&
+          descriptionBox.width > 1 &&
+          descriptionBox.height > 1
+        ),
+        overflowing: element.scrollWidth > element.clientWidth,
+        pageOverflowing:
+          document.documentElement.scrollWidth > window.innerWidth,
+      }
+    })
+
+    expect(layout, `${viewport.width}px directory layout`).toEqual({
+      columns: viewport.expectedColumns,
+      descriptionVisible: viewport.descriptionVisible,
+      overflowing: false,
+      pageOverflowing: false,
+    })
+  }
+
+  await expect(description).toHaveText("浏览近期活动与公开信息")
+})
+
 test("theme toggle persists the selected color scheme", async ({ page }) => {
   await page.goto("/")
   await page.evaluate(() => localStorage.setItem("theme", "light"))

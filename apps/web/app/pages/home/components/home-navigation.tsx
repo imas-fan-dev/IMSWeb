@@ -23,7 +23,7 @@ function PortalLink({ item }: { item: HomepageLink }) {
       href={item.href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
-      className="group relative flex min-h-24 items-center gap-4 overflow-hidden rounded-md border bg-card px-5 py-4 transition-colors hover:border-foreground/25 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="group relative flex min-h-16 items-center gap-3 overflow-hidden rounded-md border bg-card p-3 transition-colors hover:border-foreground/25 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:min-h-24 sm:gap-4 sm:px-5 sm:py-4"
     >
       <span
         className={cn(
@@ -32,12 +32,17 @@ function PortalLink({ item }: { item: HomepageLink }) {
         )}
         aria-hidden="true"
       />
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground sm:size-10">
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-medium">{item.title}</span>
-        <span className="mt-1 block text-sm text-muted-foreground">
+        <span className="block text-sm/5 font-medium wrap-break-word sm:text-base">
+          {item.title}
+        </span>
+        <span
+          className="mt-1 block text-sm text-muted-foreground max-sm:sr-only"
+          data-testid="portal-link-description"
+        >
           {item.description}
         </span>
       </span>
@@ -48,7 +53,7 @@ function PortalLink({ item }: { item: HomepageLink }) {
         />
       ) : (
         <ArrowRightIcon
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+          className="hidden size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:block"
           aria-hidden="true"
         />
       )}
@@ -102,23 +107,29 @@ export function PortalDirectory() {
 
   return (
     <section aria-labelledby="portal-heading">
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mb-7">
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+        <div className="mb-5 sm:mb-7">
           <p className="text-xs font-semibold text-primary">DIRECTORY</p>
-          <h2 id="portal-heading" className="mt-2 text-2xl font-semibold">
+          <h2
+            id="portal-heading"
+            className="mt-2 text-xl font-semibold sm:text-2xl"
+          >
             站点导航
           </h2>
         </div>
         {loading ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
             {[0, 1, 2, 3, 4, 5].map((item) => (
-              <Skeleton key={item} className="h-24 w-full rounded-md" />
+              <Skeleton key={item} className="h-16 w-full rounded-md sm:h-24" />
             ))}
           </div>
         ) : error ? (
           <LinkSectionError />
         ) : items.length ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3"
+            data-testid="portal-directory-grid"
+          >
             {items.map((item) => (
               <PortalLink key={item.id} item={item} />
             ))}
