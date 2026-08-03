@@ -28,6 +28,7 @@ import {
   LiveBrandLogo,
 } from "~/pages/live/components/live-brand-logo"
 import {
+  eventDate,
   eventsForMonth,
   LIVE_ARCHIVE_START_MONTH,
   livePage,
@@ -42,6 +43,10 @@ export function meta() {
   return [{ title: "Live 日程 | IMSWeb" }]
 }
 
+const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  weekday: "short",
+})
+
 function LiveLoading({ label, rows = 3 }: { label: string; rows?: number }) {
   return (
     <div className="space-y-4" aria-label={label}>
@@ -53,33 +58,57 @@ function LiveLoading({ label, rows = 3 }: { label: string; rows?: number }) {
 }
 
 function LiveCard({ event }: { event: LiveEvent }) {
+  const weekday = WEEKDAY_FORMATTER.format(eventDate(event))
+  const dateTime = [event.year, event.month, event.day]
+    .map((value, index) =>
+      index === 0 ? String(value) : String(value).padStart(2, "0")
+    )
+    .join("-")
+
   return (
-    <Card className="overflow-hidden transition-colors hover:border-foreground/15">
-      <CardContent className="flex gap-4 p-5">
-        <div className="flex w-16 shrink-0 flex-col items-center justify-center rounded-lg border bg-muted/50 py-2">
-          <span className="text-xs text-muted-foreground">{event.month}月</span>
-          <span className="text-2xl font-bold tabular-nums">{event.day}</span>
-        </div>
+    <Card className="overflow-hidden transition-colors hover:border-foreground/20">
+      <CardContent className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-start gap-x-4 gap-y-3 p-4 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:gap-x-5 sm:p-5">
+        <time
+          dateTime={dateTime}
+          aria-label={`${event.year}年${event.month}月${event.day}日 ${weekday}`}
+          className="flex h-20 w-17 shrink-0 flex-col items-center overflow-hidden rounded-md border bg-muted/30 text-center sm:h-24 sm:w-20"
+        >
+          <span className="flex h-7 w-full shrink-0 items-center justify-center border-b bg-muted/60 text-[0.6875rem] font-semibold text-muted-foreground">
+            {event.month}月
+          </span>
+          <span className="flex flex-1 items-center text-[1.75rem]/none font-semibold tabular-nums">
+            {event.day}
+          </span>
+          <span className="pb-1.5 text-[0.6875rem] font-medium text-muted-foreground sm:pb-2">
+            {weekday}
+          </span>
+        </time>
 
         <div className="min-w-0 flex-1">
           <h3 className="text-base/snug font-semibold">{event.title}</h3>
 
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
             {event.time ? (
-              <span className="inline-flex items-center gap-1">
-                <ClockIcon className="size-3.5" aria-hidden="true" />
-                {event.time}
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <ClockIcon
+                  className="size-4 shrink-0 text-primary/70"
+                  aria-hidden="true"
+                />
+                <span className="tabular-nums">{event.time}</span>
               </span>
             ) : null}
             {event.location ? (
-              <span className="inline-flex items-center gap-1">
-                <MapPinIcon className="size-3.5" aria-hidden="true" />
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <MapPinIcon
+                  className="size-4 shrink-0 text-primary/70"
+                  aria-hidden="true"
+                />
                 {event.location}
               </span>
             ) : null}
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
             {event.franchises.map((franchise, index) => {
               const code = event.brandCodes[index] ?? "OTHER"
               return (
@@ -112,7 +141,7 @@ function LiveCard({ event }: { event: LiveEvent }) {
           <img
             src={event.image}
             alt=""
-            className="hidden size-20 shrink-0 rounded-lg object-cover sm:block"
+            className="hidden size-20 shrink-0 rounded-md object-cover sm:block"
             loading="lazy"
           />
         ) : null}
