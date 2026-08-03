@@ -36,7 +36,7 @@ export function ActivityHighlights() {
         </div>
         {loading ? (
           <div
-            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid grid-cols-2 gap-4 lg:grid-cols-3"
             aria-label="正在加载活动资讯"
           >
             {[0, 1, 2].map((item) => (
@@ -55,7 +55,7 @@ export function ActivityHighlights() {
             <AlertDescription>稍后刷新即可重新获取。</AlertDescription>
           </Alert>
         ) : items.length ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
             {items.map((item) => {
               const external = isExternalLink(item.href)
               return (
