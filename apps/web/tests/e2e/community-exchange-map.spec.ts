@@ -4,15 +4,35 @@ import { expect, test } from "@playwright/test"
 const series = {
   items: [
     {
-      code: "765as",
-      displayName: "本家 / 765AS",
+      id: 1,
+      code: "765",
+      displayName: "765PRO",
+      color: "#f34f6d",
+      iconUrl: "/brand/series/765pro.png",
+      imageTransform: {
+        fit: "contain",
+        focalX: 0.5,
+        focalY: 0.5,
+        zoom: 1,
+        rotation: 0,
+      },
       displayOrder: 0,
       activeOfficeCount: 2,
     },
     {
-      code: "cinderella",
+      id: 3,
+      code: "cg",
       displayName: "灰姑娘女孩",
-      displayOrder: 1,
+      color: "#2681c8",
+      iconUrl: null,
+      imageTransform: {
+        fit: "contain",
+        focalX: 0.5,
+        focalY: 0.5,
+        zoom: 1,
+        rotation: 0,
+      },
+      displayOrder: 2,
       activeOfficeCount: 1,
     },
   ],
@@ -28,7 +48,7 @@ const directoryOffice = {
   coverUrl: null,
   isOpen: true,
   visitorCount: 21,
-  seriesCodes: ["765as"],
+  seriesCodes: ["765"],
 }
 
 const mapOffices = [
@@ -39,7 +59,7 @@ const mapOffices = [
     city: "上海",
     accent: "#f34e6c",
     isOpen: true,
-    seriesCodes: ["765as"],
+    seriesCodes: ["765"],
     location: {
       latitude: 31.2,
       longitude: 121.5,
@@ -53,7 +73,7 @@ const mapOffices = [
     city: "上海",
     accent: "#2581c7",
     isOpen: false,
-    seriesCodes: ["cinderella"],
+    seriesCodes: ["cg"],
     location: {
       latitude: 31.2,
       longitude: 121.5,
@@ -66,7 +86,7 @@ const card = {
   id: "card-1",
   producerName: "春香P",
   displayName: "周末交换会名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
@@ -217,6 +237,23 @@ test("fills the public workspace with a responsive map and keeps both directorie
   await expect
     .poll(() => requests.some((url) => url.includes("maplibre-gl-worker")))
     .toBe(true)
+
+  if (!isMobile) {
+    const agencyChannel = page.getByRole("button", { name: /765PRO/ })
+    await expect(agencyChannel.locator("img")).toHaveAttribute(
+      "src",
+      "/brand/series/765pro.png"
+    )
+    await agencyChannel.click()
+    await expect(page).toHaveURL(/series=765/)
+    await expect
+      .poll(() =>
+        requests
+          .filter((url) => url.includes("/api/community/exchange/map/offices?"))
+          .some((url) => new URL(url).searchParams.get("series") === "765")
+      )
+      .toBe(true)
+  }
 
   const groupMarker = page
     .getByLabel("区域事务所地图工作面", { exact: true })
@@ -454,19 +491,16 @@ test("fills the public workspace with a responsive map and keeps both directorie
   await page.getByRole("checkbox", { name: "仅看开放事务所" }).click()
   await expect(page).toHaveURL(/open=true/)
   await expect
-    .poll(
-      () =>
-        requests
-          .filter((url) =>
-            url.includes("/api/community/exchange/map/offices?")
-          )
-          .some((url) => new URL(url).searchParams.get("open") === "true")
+    .poll(() =>
+      requests
+        .filter((url) => url.includes("/api/community/exchange/map/offices?"))
+        .some((url) => new URL(url).searchParams.get("open") === "true")
     )
     .toBe(true)
   expect(
-    requests
-      .filter((url) => url.includes("/api/community/exchange/map/offices?"))
-      .length
+    requests.filter((url) =>
+      url.includes("/api/community/exchange/map/offices?")
+    ).length
   ).toBeGreaterThan(mapRequestCount)
   for (const url of requests.filter((url) =>
     url.includes("/api/community/exchange/map/offices?")

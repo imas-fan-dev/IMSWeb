@@ -154,7 +154,7 @@ class LocationRouteFixture {
             city: 'Shanghai',
             accent: '#ef5b6c',
             is_open: true,
-            series_codes: ['765as'],
+            series_codes: ['765'],
             latitude_e1: 312,
             longitude_e1: 1215
         },
@@ -165,7 +165,7 @@ class LocationRouteFixture {
             city: 'Beijing',
             accent: '#336699',
             is_open: false,
-            series_codes: ['cinderella'],
+            series_codes: ['cg'],
             latitude_e1: -32,
             longitude_e1: -456
         }
@@ -445,7 +445,7 @@ test('map config and offices require both flags and expose strict regional DTOs'
 
     const response = await fixture.app.request(
         'http://ims.test/api/community/exchange/map/offices?' +
-        'bbox=121.41,31.11,121.59,31.29&city=Shanghai&series=765as&open=true&limit=1'
+        'bbox=121.41,31.11,121.59,31.29&city=Shanghai&series=765&open=true&limit=1'
     );
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
@@ -456,7 +456,7 @@ test('map config and offices require both flags and expose strict regional DTOs'
             city: 'Shanghai',
             accent: '#ef5b6c',
             isOpen: true,
-            seriesCodes: ['765as'],
+            seriesCodes: ['765'],
             location: {
                 latitude: 31.2,
                 longitude: 121.5,
@@ -468,7 +468,7 @@ test('map config and offices require both flags and expose strict regional DTOs'
     assert.deepEqual(fixture.mapInputs.at(-1), {
         bbox: { westE1: 1215, southE1: 312, eastE1: 1215, northE1: 312 },
         city: 'Shanghai',
-        seriesCode: '765as',
+        seriesCode: '765',
         isOpen: true,
         limit: 2
     });

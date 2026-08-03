@@ -21,6 +21,7 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const CREATED_AT = '2026-08-02T03:00:00.000Z';
 const UPDATED_AT = '2026-08-02T03:01:00.000Z';
@@ -58,6 +59,7 @@ async function createFixture(
         );
         t.after(() => harness.close());
         await Promise.all([platform.initialize(), fudaba.initialize()]);
+        await seedCanonicalFudabaAgencies(harness.connection);
         return {
             database: harness.connection,
             platform,
@@ -77,6 +79,7 @@ async function createFixture(
     });
     await schema.initializeCore(database);
     await Promise.all([platform.initialize(), fudaba.initialize()]);
+    await seedCanonicalFudabaAgencies(database);
     return { database, platform, fudaba, dialect };
 }
 
@@ -106,7 +109,7 @@ function account(
 function ownedCard(
     id: string,
     ownerAccountId: string,
-    seriesCode = '765as'
+    seriesCode = '765'
 ): CreateOwnedFudabaCardInput {
     return {
         id,
@@ -222,12 +225,12 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
         restrictedId
     )), { status: 'unavailable' });
     await fixture.database.prepare(
-        "UPDATE fudaba_series_tags SET enabled=FALSE WHERE code='valiv'"
+        "UPDATE agencies SET wiki_enabled=FALSE WHERE code='876'"
     ).run();
     assert.deepEqual(await fixture.fudaba.createCardForOwner(ownedCard(
         `${fixture.dialect}-disabled-series-card`,
         ownerId,
-        'valiv'
+        '876'
     )), { status: 'unavailable' });
 
     const cardId = `${fixture.dialect}-owned-card`;
@@ -253,7 +256,7 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
         ownerAccountId: otherId,
         producerName: 'Intruder',
         displayName: 'Intruder',
-        seriesCode: '765as',
+        seriesCode: '765',
         favoriteIdol: '',
         accent: '#ffffff',
         bio: '',
@@ -269,14 +272,14 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
          WHERE id=?`
     ).bind(cardId).run();
     await fixture.database.prepare(
-        "UPDATE fudaba_series_tags SET enabled=FALSE WHERE code='cinderella'"
+        "UPDATE agencies SET wiki_enabled=FALSE WHERE code='cg'"
     ).run();
     const metadataInput = {
         cardId,
         ownerAccountId: ownerId,
         producerName: 'Updated Producer',
         displayName: 'Updated Card',
-        seriesCode: 'cinderella',
+        seriesCode: 'cg',
         favoriteIdol: 'Uzuki',
         accent: '#ef5b6c',
         bio: 'Updated bio',
@@ -290,14 +293,14 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
         { status: 'unavailable' }
     );
     await fixture.database.prepare(
-        "UPDATE fudaba_series_tags SET enabled=TRUE WHERE code='cinderella'"
+        "UPDATE agencies SET wiki_enabled=TRUE WHERE code='cg'"
     ).run();
 
     const metadataSaved = await fixture.fudaba.updateCardMetadataForOwner(metadataInput);
     assert.equal(metadataSaved.status, 'saved');
     if (metadataSaved.status !== 'saved') return;
     assert.equal(metadataSaved.card.revision, 1);
-    assert.equal(metadataSaved.card.series_code, 'cinderella');
+    assert.equal(metadataSaved.card.series_code, 'cg');
     assert.equal(metadataSaved.card.media_rights_status, 'unknown');
     assert.equal(metadataSaved.card.publication_status, 'pending');
     assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
@@ -414,7 +417,7 @@ async function assertCrossInstanceCas(fixture: Fixture): Promise<void> {
         cardId,
         ownerAccountId: accountId,
         producerName: 'CAS Producer',
-        seriesCode: '765as',
+        seriesCode: '765',
         favoriteIdol: '',
         accent: '#4f64dd',
         bio: '',

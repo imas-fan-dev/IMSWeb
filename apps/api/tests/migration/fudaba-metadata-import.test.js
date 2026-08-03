@@ -593,8 +593,9 @@ test('timestamp and series conversion accept only the locked source contract', (
         parseTimestamp('2026-07-15 01:02:03', 'created_at').iso,
         '2026-07-15T01:02:03.000Z'
     );
-    assert.equal(mapSeries('vα-liv').code, 'valiv');
-    assert.equal(mapSeries('本家 / 765AS').code, '765as');
+    assert.equal(mapSeries('vα-liv').code, null);
+    assert.notEqual(mapSeries('vα-liv').code, '876');
+    assert.equal(mapSeries('本家 / 765AS').code, '765');
     assert.throws(() => mapSeries('  SideM  '), /Unknown Fudaba series/);
     assert.throws(() => parseTimestamp('2026-02-31T00:00:00Z', 'created_at'), /invalid/);
     assert.throws(() => parseTimestamp(' 2026-02-01T00:00:00Z', 'created_at'), /invalid/);
@@ -676,7 +677,7 @@ test('planning preserves count provenance and excludes ephemeral auth state', as
     for (const table of Object.values(plan.sourceTables)) {
         assert.equal(table.source, table.included + table.excluded + table.failed);
     }
-    assert.equal(plan.operations.length, 22);
+    assert.equal(plan.operations.length, 21);
     assert.equal(plan.operations.some(({ table }) =>
         ['platform_oauth_states', 'platform_refresh_sessions'].includes(table)), false);
     const office = plan.rows.find(({ sourceTable }) => sourceTable === 'offices');
@@ -990,7 +991,7 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
     });
     assert.equal(dryRun.committed, false);
     assert.equal(dryRun.summary.missing, 15);
-    assert.equal(dryRun.summary.unchanged, 7);
+    assert.equal(dryRun.summary.unchanged, 6);
     assert.deepEqual(dryRun.artifactSha256, {
         source: sha256File(path.join(snapshot.directory, 'source.json')),
         rows: sha256File(path.join(snapshot.directory, 'rows-manifest.json')),
@@ -1027,7 +1028,7 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
         ...confirmations
     });
     assert.equal(repeated.summary.inserted, 0);
-    assert.equal(repeated.summary.unchanged, 22);
+    assert.equal(repeated.summary.unchanged, 21);
     const reconciled = await reconcileSnapshot({
         snapshotDirectory: snapshot.directory,
         connectionString: harness.databaseUrl,
@@ -1266,7 +1267,7 @@ test('real PostgreSQL imports historical children before restoring an archived o
         apply: true,
         ...snapshotConfirmations(snapshot.directory)
     });
-    assert.equal(repeated.summary.unchanged, 22);
+    assert.equal(repeated.summary.unchanged, 21);
     assert.equal(repeated.summary.inserted, 0);
     const reconciliation = await reconcileSnapshot({
         snapshotDirectory: snapshot.directory,
@@ -1330,7 +1331,10 @@ test('real PostgreSQL serializes concurrent identical applies into one exact dat
         importSnapshot(options),
         importSnapshot(options)
     ]);
-    assert.deepEqual(reports.map(({ summary }) => summary.inserted).sort((a, b) => a - b), [0, 15]);
+    assert.deepEqual(
+        reports.map(({ summary }) => summary.inserted).sort((a, b) => a - b),
+        [0, 15]
+    );
     assert.equal(reports.every(({ committed }) => committed), true);
 
     const pool = poolFor(harness.databaseUrl);

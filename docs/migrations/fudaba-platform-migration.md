@@ -186,7 +186,7 @@ Fudaba 业务表统一使用 `fudaba_*` 前缀，避免与 IMSWeb 旧 Core 表�
 | 目标表 | 所有者与关键约束 |
 | --- | --- |
 | `fudaba_offices` | owner FK 指向 `platform_accounts`；slug 唯一；坐标范围、状态与归档时间受约束 |
-| `fudaba_series_tags` | 稳定 code 为主键，显示名和排序可配置；不把多语言显示名作为 FK |
+| `agencies` | Wiki 与 Fudaba 共享的唯一企划目录；稳定 code、名称、颜色、排序、启用状态、图标和裁切参数统一维护 |
 | `fudaba_office_series_tags` | `(office_id, series_code) PK`，保存排序 |
 | `fudaba_cards` | owner FK 指向 platform；正反面保存对象逻辑键；保留来源、可交换状态与软删除时间 |
 | `fudaba_office_cards` | `(office_id, card_id) PK`，保存 pinned time、x/y、rotation、z-index |
@@ -212,7 +212,7 @@ Backoffice 审核权限。
 | `oauth_states` | 不迁移 | 临时 state 不跨系统、不跨部署恢复 |
 | `email_credentials` | `platform_email_credentials` | 标记 `pbkdf2-sha256`、100000 iterations；首次成功登录后重哈希为目标算法 |
 | `offices` | `fudaba_offices` | 保留 ID/slug；INTEGER boolean 转 BOOLEAN；ISO 时间转 `TIMESTAMPTZ`；媒体 URL 经 manifest 映射 |
-| `series_tags` | `fudaba_series_tags` | 先生成稳定 code 与显示名映射；未知值阻断导入 |
+| `series_tags` | `agencies` 对账输入 | 只用于把来源显示名解析到 canonical agency code；不再落独立运行时目录表 |
 | `office_series_tags` | `fudaba_office_series_tags` | series display name 转稳定 code，保留 sort order |
 | `cards` | `fudaba_cards` | 保留 ID/owner/source 字段；媒体 URL 转对象逻辑键；无授权媒体不得进入公开状态 |
 | `office_cards` | `fudaba_office_cards` | 保留位置；x/y 必须在 0..100，rotation 和 z-index 使用目标约束 |
@@ -232,13 +232,13 @@ slugify：
 
 | 来源显示名 | 目标 code |
 | --- | --- |
-| `本家 / 765AS` | `765as` |
-| `灰姑娘女孩` | `cinderella` |
-| `百万现场` | `million-live` |
+| `本家 / 765AS` | `765` |
+| `灰姑娘女孩` | `cg` |
+| `百万现场` | `ml` |
 | `SideM` | `sidem` |
-| `闪耀色彩` | `shiny-colors` |
-| `学园偶像大师` | `gakuen` |
-| `vα-liv` | `valiv` |
+| `闪耀色彩` | `sc` |
+| `学园偶像大师` | `gk` |
+| `vα-liv` | 无自动映射；有关联数据时阻断并人工对账，绝不能映射为 `876` |
 
 时间转换必须拒绝非法值；不能以“当前时间”替代损坏时间。ID、slug、邮箱、provider subject、
 对象 key 和来源 URL 均按原值生成映射清单，冲突必须进入 reconciliation report，不能自动加后缀。

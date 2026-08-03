@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { platformApiClient } from "../platform-client"
 import { withPlatformAuth, withPlatformCsrf } from "../types"
+import { defaultWikiImageTransform, wikiImageTransformSchema } from "./wiki"
 
 const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
 const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i)
@@ -24,8 +25,12 @@ const regionalCoordinateSchema = (minimum: number, maximum: number) =>
 
 export const fudabaSeriesSchema = z
   .object({
+    id: z.number().int().positive(),
     code: seriesCodeSchema,
     displayName: z.string().trim().min(1),
+    color: accentSchema,
+    iconUrl: publicMediaUrlSchema.nullable(),
+    imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
     displayOrder: z.number().int().nonnegative(),
     activeOfficeCount: z.number().int().nonnegative(),
   })

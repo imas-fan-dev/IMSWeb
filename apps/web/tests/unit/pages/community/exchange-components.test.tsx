@@ -9,7 +9,7 @@ const baseCard: FudabaPlacedCard = {
   id: "card-start",
   producerName: "春香P",
   displayName: "边界名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",

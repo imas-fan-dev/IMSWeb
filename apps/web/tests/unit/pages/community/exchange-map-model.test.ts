@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { FudabaMapOffice } from "~/lib/api"
+import type { FudabaMapOffice, FudabaSeries } from "~/lib/api"
 import {
   groupMapOffices,
   mergeMapOfficeResponses,
@@ -15,13 +15,80 @@ const office: FudabaMapOffice = {
   city: "上海",
   accent: "#f34e6c",
   isOpen: true,
-  seriesCodes: ["765as"],
+  seriesCodes: ["765"],
   location: {
     latitude: 31.2,
     longitude: 121.5,
     precision: "regional",
   },
 }
+
+const seriesCatalog: FudabaSeries[] = [
+  {
+    id: 1,
+    code: "765",
+    displayName: "765PRO",
+    color: "#f34f6d",
+    iconUrl: "/icon/agencies/1.webp",
+    imageTransform: {
+      fit: "contain",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
+    },
+    displayOrder: 0,
+    activeOfficeCount: 1,
+  },
+  {
+    id: 3,
+    code: "cg",
+    displayName: "灰姑娘女孩",
+    color: "#2681c8",
+    iconUrl: null,
+    imageTransform: {
+      fit: "contain",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
+    },
+    displayOrder: 2,
+    activeOfficeCount: 1,
+  },
+  {
+    id: 4,
+    code: "ml",
+    displayName: "百万现场",
+    color: "#ffc30b",
+    iconUrl: null,
+    imageTransform: {
+      fit: "contain",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
+    },
+    displayOrder: 3,
+    activeOfficeCount: 0,
+  },
+  {
+    id: 6,
+    code: "sc",
+    displayName: "闪耀色彩",
+    color: "#8dbbff",
+    iconUrl: null,
+    imageTransform: {
+      fit: "contain",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
+    },
+    displayOrder: 5,
+    activeOfficeCount: 0,
+  },
+]
 
 describe("exchange map model", () => {
   it("allows same-origin and official OpenFreeMap HTTPS resources", () => {
@@ -114,9 +181,9 @@ describe("exchange map model", () => {
       slug: "same-grid",
       name: "同区域事务所",
       accent: "#2581c7",
-      seriesCodes: ["cinderella"],
+      seriesCodes: ["cg"],
     }
-    const groups = groupMapOffices([office, sameGridOffice])
+    const groups = groupMapOffices([office, sameGridOffice], seriesCatalog)
 
     expect(groups).toHaveLength(1)
     expect(groups[0]).toMatchObject({
@@ -124,17 +191,15 @@ describe("exchange map model", () => {
       latitude: 31.2,
       longitude: 121.5,
       offices: [office, sameGridOffice],
-      colors: ["var(--franchise-765)", "var(--franchise-cg)"],
+      colors: ["#f34f6d", "#2681c8"],
     })
   })
 
-  it("maps the exact Million Live and Shiny Colors series codes", () => {
-    const groups = groupMapOffices([
-      { ...office, seriesCodes: ["million-live", "shiny-colors"] },
-    ])
-    expect(groups[0]?.colors).toEqual([
-      "var(--franchise-ml)",
-      "var(--franchise-sc)",
-    ])
+  it("uses the catalog colors for canonical agency codes", () => {
+    const groups = groupMapOffices(
+      [{ ...office, seriesCodes: ["ml", "sc"] }],
+      seriesCatalog
+    )
+    expect(groups[0]?.colors).toEqual(["#ffc30b", "#8dbbff"])
   })
 })

@@ -40,7 +40,7 @@ const card = {
   id: "card-1",
   producerName: "春香P",
   displayName: "交换会用名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/media/card-1-front.webp",
   backImageUrl: "/media/card-1-back.webp",
@@ -68,7 +68,7 @@ const office = {
   coverUrl: null,
   isOpen: true,
   visitorCount: 12,
-  seriesCodes: ["765as", "cinderella"],
+  seriesCodes: ["765", "cg"],
 }
 
 const placement = {
@@ -85,7 +85,7 @@ const ownerCard = {
   id: "owner-card",
   producerName: "春香P",
   displayName: "交换会用名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/api/community/exchange/me/cards/owner-card/media/front?v=1",
   backImageUrl: "/api/community/exchange/me/cards/owner-card/media/back?v=1",
@@ -120,7 +120,7 @@ const ownerOffice = {
   visitorCount: 12,
   status: "active" as const,
   revision: 3,
-  seriesCodes: ["765as"],
+  seriesCodes: ["765"],
   createdAt: "2026-08-02T08:00:00.000Z",
   updatedAt: "2026-08-02T09:00:00.000Z",
   archivedAt: null,
@@ -143,7 +143,7 @@ const ownerLocation = {
 const cardFields = {
   producerName: "春香P",
   displayName: "交换会用名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   accent: "#f34e6c",
   bio: "周末参加线下活动",
@@ -158,18 +158,43 @@ afterEach(() => {
 
 describe("Fudaba Web API contracts", () => {
   it("accepts the public discovery responses", () => {
-    expect(
+    const parsedSeries = fudabaSeriesListSchema.parse({
+      items: [
+        {
+          id: 1,
+          code: "765",
+          displayName: "765PRO",
+          color: "#f34f6d",
+          iconUrl: "https://assets.example.test/icon/765.webp",
+          imageTransform: {
+            fit: "contain",
+            focalX: 0.4,
+            focalY: 0.6,
+            zoom: 1.2,
+            rotation: 0,
+          },
+          displayOrder: 0,
+          activeOfficeCount: 1,
+        },
+      ],
+    })
+    expect(parsedSeries.items[0]).toMatchObject({
+      id: 1,
+      code: "765",
+      color: "#f34f6d",
+      iconUrl: "https://assets.example.test/icon/765.webp",
+      imageTransform: { fit: "contain", focalX: 0.4, focalY: 0.6 },
+    })
+    expect(() =>
       fudabaSeriesListSchema.parse({
         items: [
           {
-            code: "765as",
-            displayName: "本家 / 765AS",
-            displayOrder: 0,
-            activeOfficeCount: 1,
+            ...parsedSeries.items[0],
+            color: "red",
           },
         ],
-      }).items[0]?.code
-    ).toBe("765as")
+      })
+    ).toThrow()
 
     expect(
       fudabaOfficePageSchema.parse({
@@ -421,7 +446,7 @@ describe("Fudaba Web API contracts", () => {
     await getFudabaMapOffices({
       bbox: [100, 20, 130, 45],
       city: " 上海 ",
-      series: "765as",
+      series: "765",
       open: true,
       limit: 200,
     }).send()
@@ -433,7 +458,7 @@ describe("Fudaba Web API contracts", () => {
     const query = requests[1]?.url.searchParams
     expect(query?.get("bbox")).toBe("100,20,130,45")
     expect(query?.get("city")).toBe("上海")
-    expect(query?.get("series")).toBe("765as")
+    expect(query?.get("series")).toBe("765")
     expect(query?.get("open")).toBe("true")
     expect(query?.get("limit")).toBe("200")
     for (const request of requests) {
@@ -528,8 +553,18 @@ describe("Fudaba Web API contracts", () => {
           return Response.json({
             items: [
               {
-                code: "765as",
-                displayName: "本家 / 765AS",
+                id: 1,
+                code: "765",
+                displayName: "765PRO",
+                color: "#f34f6d",
+                iconUrl: "https://assets.example.test/icon/765.webp",
+                imageTransform: {
+                  fit: "contain",
+                  focalX: 0.5,
+                  focalY: 0.5,
+                  zoom: 1,
+                  rotation: 0,
+                },
                 displayOrder: 0,
                 activeOfficeCount: 1,
               },
@@ -549,7 +584,7 @@ describe("Fudaba Web API contracts", () => {
     )
 
     await expect(getFudabaOwnerSeries().send()).resolves.toMatchObject({
-      items: [{ code: "765as" }],
+      items: [{ code: "765" }],
     })
     await expect(getFudabaOwnerCards().send()).resolves.toMatchObject({
       items: [{ id: "owner-card" }],

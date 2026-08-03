@@ -13,7 +13,7 @@ const card = {
   id: "card-1",
   producerName: "浏览器制作人",
   displayName: "浏览器交换名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
@@ -44,7 +44,7 @@ const office = {
   visitorCount: 12,
   status: "active",
   revision: 3,
-  seriesCodes: ["765as"],
+  seriesCodes: ["765"],
   createdAt: "2026-08-02T08:00:00.000Z",
   updatedAt: "2026-08-02T09:00:00.000Z",
   archivedAt: null,
@@ -125,8 +125,18 @@ test.beforeEach(async ({ context, page }) => {
       json: {
         items: [
           {
-            code: "765as",
-            displayName: "本家 / 765AS",
+            id: 1,
+            code: "765",
+            displayName: "765PRO",
+            color: "#f34f6d",
+            iconUrl: "/brand/series/765pro.png",
+            imageTransform: {
+              fit: "contain",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
             displayOrder: 0,
             activeOfficeCount: 1,
           },

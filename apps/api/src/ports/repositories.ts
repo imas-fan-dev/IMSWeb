@@ -572,9 +572,13 @@ export interface FudabaModerationCaseRecord {
 }
 
 export interface FudabaPublicSeriesRecord {
+    id: number;
     code: string;
     display_name: string;
+    color: string;
     display_order: number;
+    icon_object_key: string | null;
+    image_transform: WikiImageTransform;
     active_office_count: number;
 }
 

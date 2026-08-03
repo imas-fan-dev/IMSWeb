@@ -19,6 +19,7 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const SUBMITTED_AT = '2026-08-03T01:00:00.000Z';
 const RESUBMITTED_AT = '2026-08-03T02:00:00.000Z';
@@ -52,6 +53,7 @@ async function createFixture(
         );
         t.after(() => harness.close());
         await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
         return { database: harness.connection, repository, dialect };
     }
 
@@ -66,6 +68,7 @@ async function createFixture(
         await fs.rm(root, { recursive: true, force: true });
     });
     await repository.initialize();
+    await seedCanonicalFudabaAgencies(database);
     return { database, repository, dialect };
 }
 
@@ -105,7 +108,7 @@ function office(
         createdAt: SUBMITTED_AT,
         updatedAt: SUBMITTED_AT,
         archivedAt: null,
-        seriesCodes: ['765as'],
+        seriesCodes: ['765'],
         ...overrides
     };
 }
@@ -398,7 +401,7 @@ async function assertLocationRepository(
     ), null);
 
     await fixture.database.prepare(
-        "UPDATE fudaba_series_tags SET enabled=? WHERE code='sidem'"
+        "UPDATE agencies SET wiki_enabled=? WHERE code='sidem'"
     ).bind(dialect === 'sqlite' ? 0 : false).run();
     const publicInputs = [
         office('map-negative', ownerId, { city: 'Beijing', isOpen: false }),
@@ -456,7 +459,7 @@ async function assertLocationRepository(
     assert.deepEqual(await fixture.repository.listPublicMapOffices({
         bbox: { westE1: 1215, southE1: 312, eastE1: 1215, northE1: 312 },
         city: 'Shanghai',
-        seriesCode: '765as',
+        seriesCode: '765',
         isOpen: true,
         limit: 20
     }).then((rows) => rows.map(({ id }) => id)), ['map-positive']);

@@ -38,6 +38,7 @@ import {
   getFudabaMapOffices,
   type FudabaMapBounds,
   type FudabaMapOffice,
+  type FudabaSeries,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import {
@@ -178,11 +179,13 @@ function MapUnavailable({
 export function CommunityExchangeMapSection({
   city,
   series,
+  seriesCatalog = [],
   open,
   onSwitchDirectory,
 }: {
   city?: string
   series?: string
+  seriesCatalog?: readonly FudabaSeries[]
   open?: boolean
   onSwitchDirectory: () => void
 }) {
@@ -289,7 +292,10 @@ export function CommunityExchangeMapSection({
     }
   }, [loadBounds])
 
-  const groups = useMemo(() => groupMapOffices(data.items), [data.items])
+  const groups = useMemo(
+    () => groupMapOffices(data.items, seriesCatalog),
+    [data.items, seriesCatalog]
+  )
   const selectedGroup =
     groups.find((group) => group.key === selectedGroupKey) ?? null
 

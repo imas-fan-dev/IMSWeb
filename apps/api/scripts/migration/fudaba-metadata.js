@@ -33,13 +33,13 @@ const INCLUDED_CLASSIFICATIONS = new Set([
     'owner-approved-reference'
 ]);
 const SERIES_MAPPINGS = new Map([
-    ['本家 / 765AS', { code: '765as', order: 0 }],
-    ['灰姑娘女孩', { code: 'cinderella', order: 1 }],
-    ['百万现场', { code: 'million-live', order: 2 }],
+    ['本家 / 765AS', { code: '765', order: 0 }],
+    ['灰姑娘女孩', { code: 'cg', order: 1 }],
+    ['百万现场', { code: 'ml', order: 2 }],
     ['SideM', { code: 'sidem', order: 3 }],
-    ['闪耀色彩', { code: 'shiny-colors', order: 4 }],
-    ['学园偶像大师', { code: 'gakuen', order: 5 }],
-    ['vα-liv', { code: 'valiv', order: 6 }]
+    ['闪耀色彩', { code: 'sc', order: 4 }],
+    ['学园偶像大师', { code: 'gk', order: 5 }],
+    ['vα-liv', { code: null, order: 6 }]
 ]);
 const DEFAULT_SNAPSHOT_ROOT = path.resolve(__dirname, '../../../../data/migration/fudaba');
 const SNAPSHOT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -1278,12 +1278,8 @@ function validateTargetOperation(operation) {
             throw new Error('office archived_at precedes created_at');
         }
         break;
-    case 'fudaba_series_tags':
-        assertText(row.code, 'series code', 1, 40);
-        assertText(row.display_name, 'series display name', 1, 80, true);
-        if (!Number.isSafeInteger(row.display_order) || row.display_order < 0) {
-            throw new Error('series display order is invalid');
-        }
+    case 'agencies':
+        assertText(row.code, 'agency code', 1, 40);
         break;
     case 'fudaba_cards':
         assertText(row.id, 'card id', 1, 128);
@@ -1733,18 +1729,26 @@ function operationForRow(table, row, descriptor, context) {
     }
     case 'series_tags': {
         const mapping = mapSeries(row.name);
-        return [targetOperation(table, sourceKey, 'fudaba_series_tags', ['code'], {
-            code: mapping.code,
-            display_name: row.name,
-            display_order: mapping.order,
-            enabled: true,
-            created_at: context.exportedAt,
-            updated_at: context.exportedAt
-        }, ['code', 'display_name', 'display_order', 'enabled'])];
+        if (mapping.code === null) return [];
+        return [targetOperation(
+            table,
+            sourceKey,
+            'agencies',
+            ['code'],
+            { code: mapping.code },
+            ['code'],
+            true
+        )];
     }
     case 'cards': {
         context.requireIncluded('users', row.owner_id);
         const mapping = mapSeries(row.series);
+        if (mapping.code === null) {
+            throw new Error(
+                'FUDABA_VALIV_AGENCY_RECONCILIATION_REQUIRED: ' +
+                'vα-liv is not 876PRO and cannot be mapped automatically'
+            );
+        }
         context.requireIncluded('series_tags', row.series);
         return [targetOperation(table, sourceKey, 'fudaba_cards', ['id'], {
             id: row.id,
@@ -1779,6 +1783,12 @@ function operationForRow(table, row, descriptor, context) {
     case 'office_series_tags':
         context.requireIncluded('offices', row.office_id);
         context.requireIncluded('series_tags', row.series_tag);
+        if (mapSeries(row.series_tag).code === null) {
+            throw new Error(
+                'FUDABA_VALIV_AGENCY_RECONCILIATION_REQUIRED: ' +
+                'vα-liv is not 876PRO and cannot be mapped automatically'
+            );
+        }
         return [targetOperation(table, sourceKey, 'fudaba_office_series_tags', [
             'office_id', 'series_code'
         ], {
@@ -2265,8 +2275,6 @@ function alternativeUniqueKeys(operation) {
         return [['account_id']];
     case 'fudaba_offices':
         return [['slug']];
-    case 'fudaba_series_tags':
-        return [['display_name'], ['display_order']];
     case 'fudaba_cards':
         return [['front_object_key'], ['back_object_key']];
     case 'fudaba_exchange_requests':

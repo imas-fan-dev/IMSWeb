@@ -52,7 +52,7 @@ function officeRecord(
         created_at: CREATED_AT,
         updated_at: CREATED_AT,
         archived_at: null,
-        series_codes: ['765as'],
+        series_codes: ['765'],
         ...overrides
     };
 }
@@ -67,7 +67,7 @@ function officeBody(overrides: Record<string, unknown> = {}): Record<string, unk
         longitude: 121.4737,
         accent: '#ef5b6c',
         isOpen: true,
-        seriesCodes: ['765as'],
+        seriesCodes: ['765'],
         ...overrides
     };
 }

@@ -53,14 +53,14 @@ const office = {
   coverUrl: null,
   isOpen: true,
   visitorCount: 21,
-  seriesCodes: ["765as"],
+  seriesCodes: ["765"],
 }
 
 const card = {
   id: "card-1",
   producerName: "春香P",
   displayName: "交换会用名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
@@ -100,10 +100,36 @@ describe("CommunityExchangePage", () => {
     apiMocks.sendSeries.mockResolvedValue({
       items: [
         {
-          code: "765as",
-          displayName: "本家 / 765AS",
+          id: 1,
+          code: "765",
+          displayName: "765PRO",
+          color: "#f34f6d",
+          iconUrl: "/icon/agencies/1.webp",
+          imageTransform: {
+            fit: "contain",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
           displayOrder: 0,
           activeOfficeCount: 1,
+        },
+        {
+          id: 3,
+          code: "cg",
+          displayName: "灰姑娘女孩",
+          color: "#2681c8",
+          iconUrl: null,
+          imageTransform: {
+            fit: "contain",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
+          displayOrder: 2,
+          activeOfficeCount: 0,
         },
       ],
     })
@@ -150,6 +176,20 @@ describe("CommunityExchangePage", () => {
       "aria-pressed",
       "true"
     )
+    const agencyButton = screen.getByRole("button", { name: /765PRO/ })
+    expect(agencyButton.querySelector("img")).toHaveAttribute(
+      "src",
+      "/icon/agencies/1.webp"
+    )
+    const agencyWithoutIcon = screen.getByRole("button", {
+      name: /灰姑娘女孩/,
+    })
+    expect(agencyWithoutIcon.querySelector("img")).toBeNull()
+    expect(agencyWithoutIcon.querySelector("[aria-hidden='true']")).toHaveStyle(
+      {
+        backgroundColor: "#2681c8",
+      }
+    )
 
     await user.click(map)
     expect((await screen.findAllByText("上海周末交换事务所"))[0]).toBeVisible()
@@ -174,6 +214,39 @@ describe("CommunityExchangePage", () => {
         open: true,
         limit: 12,
       })
+    })
+  })
+
+  it("uses the canonical agency code for every discovery request", async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={["/community/exchange"]}>
+        <CommunityExchangePage />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    await user.click(await screen.findByRole("button", { name: /765PRO/ }))
+
+    await waitFor(() => {
+      const search = new URLSearchParams(
+        screen.getByLabelText("current search").textContent ?? ""
+      )
+      expect(search.get("series")).toBe("765")
+      expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith({
+        city: undefined,
+        series: "765",
+        open: undefined,
+        limit: 12,
+      })
+      expect(apiMocks.getFudabaCardPage).toHaveBeenLastCalledWith({
+        series: "765",
+        available: true,
+        limit: 8,
+      })
+      expect(mapSectionMock.renders).toHaveBeenLastCalledWith(
+        expect.objectContaining({ series: "765" })
+      )
     })
   })
 

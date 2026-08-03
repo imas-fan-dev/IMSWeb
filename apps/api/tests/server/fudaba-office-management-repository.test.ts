@@ -22,6 +22,7 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const CREATED_AT = '2026-08-03T01:00:00.000Z';
 const UPDATED_AT = '2026-08-03T02:00:00.000Z';
@@ -130,6 +131,7 @@ async function createFixture(
         );
         t.after(() => harness.close());
         await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
         return { database: harness.connection, repository, dialect };
     }
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-office-owner-'));
@@ -143,6 +145,7 @@ async function createFixture(
         await fs.rm(root, { recursive: true, force: true });
     });
     await repository.initialize();
+    await seedCanonicalFudabaAgencies(database);
     return { database, repository, dialect };
 }
 
@@ -182,7 +185,7 @@ function office(
         createdAt: CREATED_AT,
         updatedAt: CREATED_AT,
         archivedAt: null,
-        seriesCodes: ['765as'],
+        seriesCodes: ['765'],
         idempotencyKeyHash: hash(`key:${id}`),
         requestHash: hash(`request:${id}`),
         receiptCreatedAt: 1_775_100_000_000,
@@ -271,7 +274,7 @@ function updateInput(
         longitude: 121.4737,
         accent: '#4f64dd',
         isOpen: false,
-        seriesCodes: ['cinderella', '765as'],
+        seriesCodes: ['cg', '765'],
         expectedRevision,
         updatedAt: UPDATED_AT,
         ...overrides
@@ -292,10 +295,10 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     )), { status: 'unavailable' });
 
     await fixture.database.prepare(
-        "UPDATE fudaba_series_tags SET enabled=FALSE WHERE code='valiv'"
+        "UPDATE agencies SET wiki_enabled=FALSE WHERE code='876'"
     ).run();
     const disabled = office(`${fixture.dialect}-disabled-office`, ownerId, {
-        seriesCodes: ['valiv']
+        seriesCodes: ['876']
     });
     assert.deepEqual(
         await fixture.repository.createOfficeForOwner(disabled),
@@ -310,14 +313,14 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
 
     const officeId = `${fixture.dialect}-managed-office`;
     const create = office(officeId, ownerId, {
-        seriesCodes: ['765as', 'cinderella']
+        seriesCodes: ['765', 'cg']
     });
     const created = await fixture.repository.createOfficeForOwner(create);
     assert.equal(created.status, 'saved');
     if (created.status !== 'saved') return;
     assert.equal(created.office.revision, 0);
     assert.equal(created.office.pending_cover_object_key, null);
-    assert.deepEqual(created.office.series_codes, ['765as', 'cinderella']);
+    assert.deepEqual(created.office.series_codes, ['765', 'cg']);
 
     const replayed = await fixture.repository.createOfficeForOwner({
         ...create,
@@ -350,7 +353,7 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     assert.equal(metadata.status, 'saved');
     if (metadata.status !== 'saved') return;
     assert.equal(metadata.office.revision, 1);
-    assert.deepEqual(metadata.office.series_codes, ['cinderella', '765as']);
+    assert.deepEqual(metadata.office.series_codes, ['cg', '765']);
     assert.ok(await fixture.repository.findOfficePublicLocationForOwner(
         officeId,
         ownerId
@@ -369,7 +372,7 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     ), null, 'city or address changes must withdraw public location review');
 
     await fixture.database.prepare(
-        "UPDATE fudaba_series_tags SET enabled=FALSE WHERE code='sidem'"
+        "UPDATE agencies SET wiki_enabled=FALSE WHERE code='sidem'"
     ).run();
     assert.deepEqual(await fixture.repository.updateOfficeForOwner(updateInput(
         officeId,
@@ -379,9 +382,9 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     )), { status: 'unavailable' });
     const afterRollback = await fixture.repository.findOfficeForOwner(officeId, ownerId);
     assert.equal(afterRollback?.revision, 2);
-    assert.deepEqual(afterRollback?.series_codes, ['cinderella', '765as']);
+    assert.deepEqual(afterRollback?.series_codes, ['cg', '765']);
     await fixture.database.prepare(
-        "UPDATE fudaba_series_tags SET enabled=TRUE WHERE code='sidem'"
+        "UPDATE agencies SET wiki_enabled=TRUE WHERE code='sidem'"
     ).run();
 
     const sibling = new SqlFudabaRepository(
@@ -391,12 +394,12 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     await sibling.initialize();
     const first = updateInput(officeId, ownerId, 2, {
         name: 'First writer',
-        seriesCodes: ['765as'],
+        seriesCodes: ['765'],
         updatedAt: LATER_AT
     });
     const second = updateInput(officeId, ownerId, 2, {
         name: 'Second writer',
-        seriesCodes: ['cinderella', 'sidem'],
+        seriesCodes: ['cg', 'sidem'],
         updatedAt: LATER_AT
     });
     const casResults = fixture.dialect === 'postgresql'
@@ -415,10 +418,10 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     const afterCas = await fixture.repository.findOfficeForOwner(officeId, ownerId);
     assert.equal(afterCas?.revision, 3);
     if (afterCas?.name === 'First writer') {
-        assert.deepEqual(afterCas.series_codes, ['765as']);
+        assert.deepEqual(afterCas.series_codes, ['765']);
     } else {
         assert.equal(afterCas?.name, 'Second writer');
-        assert.deepEqual(afterCas?.series_codes, ['cinderella', 'sidem']);
+        assert.deepEqual(afterCas?.series_codes, ['cg', 'sidem']);
     }
 
     const pendingKey = `community/fudaba/offices/${officeId}/covers/pending.webp`;
@@ -589,7 +592,7 @@ async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<v
     const created = await fixture.repository.createOfficeForOwner(office(
         officeId,
         ownerId,
-        { name: 'Version zero', seriesCodes: ['765as'] }
+        { name: 'Version zero', seriesCodes: ['765'] }
     ));
     assert.equal(created.status, 'saved');
 
@@ -601,7 +604,7 @@ async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<v
                 officeId,
                 ownerId,
                 0,
-                { name: 'Version one', seriesCodes: ['cinderella'] }
+                { name: 'Version one', seriesCodes: ['cg'] }
             ));
             assert.equal(updated.status, 'saved');
         }),
@@ -612,7 +615,7 @@ async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<v
     assert.equal(firstInterleaved, true);
     assert.deepEqual(
         [firstSnapshot?.revision, firstSnapshot?.name, firstSnapshot?.series_codes],
-        [0, 'Version zero', ['765as']]
+        [0, 'Version zero', ['765']]
     );
 
     let secondInterleaved = false;
@@ -634,7 +637,7 @@ async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<v
     assert.equal(secondInterleaved, true);
     assert.deepEqual(
         [listedSnapshot?.revision, listedSnapshot?.name, listedSnapshot?.series_codes],
-        [1, 'Version one', ['cinderella']]
+        [1, 'Version one', ['cg']]
     );
     const current = await fixture.repository.findOfficeForOwner(officeId, ownerId);
     assert.deepEqual(

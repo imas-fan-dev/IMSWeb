@@ -54,7 +54,7 @@ function publicCard(overrides: Partial<FudabaPublicCardRecord> = {}): FudabaPubl
         id: 'card-a',
         producer_name: 'Producer A',
         display_name: 'Card A',
-        series_code: '765as',
+        series_code: '765',
         favorite_idol: 'Haruka',
         front_object_key: 'public/cards/card-a/front.webp',
         back_object_key: 'public/cards/card-a/back.webp',
@@ -85,7 +85,7 @@ function publicOffice(): FudabaPublicOfficeRecord {
         cover_object_key: 'public/offices/office-a/cover.webp',
         is_open: true,
         visitor_count: 7,
-        series_codes: ['765as']
+        series_codes: ['765']
     };
 }
 
@@ -97,9 +97,19 @@ class PublicFudabaFixture {
 
     readonly repository = {
         listPublicSeries: async () => [{
-            code: '765as',
-            display_name: '本家 / 765AS',
+            id: 1,
+            code: '765',
+            display_name: '765PRO',
+            color: '#f34f6d',
             display_order: 0,
+            icon_object_key: 'public/agencies/765.webp',
+            image_transform: {
+                fit: 'contain' as const,
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0 as const
+            },
             active_office_count: 1
         }],
         listPublicOffices: async (input: ListFudabaPublicOfficesInput) => {
@@ -227,9 +237,48 @@ test('Fudaba public read feature gate hides every route by default', async () =>
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
 });
 
+test('Fudaba public series fails closed when icon storage is unavailable',
+    async () => {
+        const fudaba = new PublicFudabaFixture();
+        const app = createHonoApp(() => ({
+            ...runtime(fudaba),
+            storage: undefined
+        }));
+
+        const response = await app.request(
+            'http://ims.test/api/community/exchange/series'
+        );
+        assert.equal(response.status, 503);
+        assert.deepEqual(await response.json(), {
+            error: 'Internal server error'
+        });
+    });
+
 test('anonymous Fudaba discovery exposes only public projections and stable cursors', async () => {
     const fudaba = new PublicFudabaFixture();
     const app = createHonoApp(() => runtime(fudaba));
+    const seriesResponse = await app.request(
+        'http://ims.test/api/community/exchange/series'
+    );
+    assert.equal(seriesResponse.status, 200);
+    assert.deepEqual(await seriesResponse.json(), {
+        items: [{
+            id: 1,
+            code: '765',
+            displayName: '765PRO',
+            displayOrder: 0,
+            color: '#f34f6d',
+            iconUrl: 'https://media.example.test/public/agencies/765.webp',
+            imageTransform: {
+                fit: 'contain',
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0
+            },
+            activeOfficeCount: 1
+        }]
+    });
     const response = await app.request(
         'http://ims.test/api/community/exchange/offices?city=Shanghai&limit=1',
         { headers: { cookie: 'ims_admin_access=backoffice-token' } }
@@ -370,7 +419,7 @@ test('Fudaba public queries reject duplicate, out-of-range, and mismatched curso
     }
 
     const firstPage = await app.request(
-        'http://ims.test/api/community/exchange/cards?series=765as&limit=1'
+        'http://ims.test/api/community/exchange/cards?series=765&limit=1'
     );
     assert.equal(firstPage.status, 200);
     const body = await firstPage.json() as {
@@ -379,7 +428,7 @@ test('Fudaba public queries reject duplicate, out-of-range, and mismatched curso
     assert.ok(body.pageInfo.nextCursor);
     const mismatch = await app.request(
         'http://ims.test/api/community/exchange/cards' +
-        `?series=cinderella&limit=1&cursor=${body.pageInfo.nextCursor}`
+        `?series=cg&limit=1&cursor=${body.pageInfo.nextCursor}`
     );
     assert.equal(mismatch.status, 400);
 });

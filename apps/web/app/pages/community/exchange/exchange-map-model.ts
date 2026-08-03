@@ -1,4 +1,4 @@
-import type { FudabaMapBounds, FudabaMapOffice } from "~/lib/api"
+import type { FudabaMapBounds, FudabaMapOffice, FudabaSeries } from "~/lib/api"
 
 export interface MapViewportBounds {
   west: number
@@ -13,15 +13,6 @@ export interface FudabaMapOfficeGroup {
   longitude: number
   offices: FudabaMapOffice[]
   colors: string[]
-}
-
-const seriesColors: Readonly<Record<string, string>> = {
-  "765as": "var(--franchise-765)",
-  cinderella: "var(--franchise-cg)",
-  "million-live": "var(--franchise-ml)",
-  sidem: "var(--franchise-sidem)",
-  "shiny-colors": "var(--franchise-sc)",
-  gakuen: "var(--franchise-gk)",
 }
 
 const openFreeMapOrigin = "https://tiles.openfreemap.org"
@@ -116,9 +107,11 @@ export function mergeMapOfficeResponses(
 }
 
 export function groupMapOffices(
-  offices: readonly FudabaMapOffice[]
+  offices: readonly FudabaMapOffice[],
+  series: readonly FudabaSeries[] = []
 ): FudabaMapOfficeGroup[] {
   const groups = new Map<string, FudabaMapOfficeGroup>()
+  const seriesColors = new Map(series.map((item) => [item.code, item.color]))
 
   for (const office of offices) {
     const { latitude, longitude } = office.location
@@ -133,7 +126,7 @@ export function groupMapOffices(
     group.offices.push(office)
 
     for (const seriesCode of office.seriesCodes) {
-      const color = seriesColors[seriesCode]
+      const color = seriesColors.get(seriesCode)
       if (color && !group.colors.includes(color)) group.colors.push(color)
     }
     if (!group.colors.length && !group.colors.includes(office.accent)) {

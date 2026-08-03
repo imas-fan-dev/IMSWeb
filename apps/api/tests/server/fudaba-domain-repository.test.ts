@@ -23,6 +23,7 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const CREATED_AT = '2026-08-02T00:00:00.000Z';
 const UPDATED_AT = '2026-08-02T00:01:00.000Z';
@@ -65,7 +66,7 @@ function office(
         createdAt: CREATED_AT,
         updatedAt: CREATED_AT,
         archivedAt: null,
-        seriesCodes: ['765as'],
+        seriesCodes: ['765'],
         ...overrides
     };
 }
@@ -80,7 +81,7 @@ function card(
         ownerAccountId,
         producerName: `Producer ${ownerAccountId}`,
         displayName: `Card ${id}`,
-        seriesCode: '765as',
+        seriesCode: '765',
         favoriteIdol: '',
         frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
         backObjectKey: `community/fudaba/cards/${id}/back.webp`,
@@ -113,6 +114,7 @@ async function createFixture(
         );
         t.after(() => harness.close());
         await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
         return { database: harness.connection, repository, dialect };
     }
 
@@ -127,6 +129,7 @@ async function createFixture(
         await fs.rm(root, { recursive: true, force: true });
     });
     await repository.initialize();
+    await seedCanonicalFudabaAgencies(database);
     return { database, repository, dialect };
 }
 
@@ -242,21 +245,20 @@ test('SQLite initializes all Fudaba tables and the canonical series catalog', as
         'fudaba_office_public_locations',
         'fudaba_office_series_tags',
         'fudaba_offices',
-        'fudaba_rate_limit_windows',
-        'fudaba_series_tags'
+        'fudaba_rate_limit_windows'
     ]);
     const series = await fixture.database.prepare(
-        `SELECT code, display_order, enabled
-         FROM fudaba_series_tags ORDER BY display_order`
-    ).all<{ code: string; display_order: number; enabled: number }>();
+        `SELECT code, display_order, wiki_enabled
+         FROM agencies ORDER BY display_order`
+    ).all<{ code: string; display_order: number; wiki_enabled: number }>();
     assert.deepEqual(series.results, [
-        { code: '765as', display_order: 0, enabled: 1 },
-        { code: 'cinderella', display_order: 1, enabled: 1 },
-        { code: 'million-live', display_order: 2, enabled: 1 },
-        { code: 'sidem', display_order: 3, enabled: 1 },
-        { code: 'shiny-colors', display_order: 4, enabled: 1 },
-        { code: 'gakuen', display_order: 5, enabled: 1 },
-        { code: 'valiv', display_order: 6, enabled: 1 }
+        { code: '765', display_order: 0, wiki_enabled: 1 },
+        { code: '876', display_order: 1, wiki_enabled: 1 },
+        { code: 'cg', display_order: 2, wiki_enabled: 1 },
+        { code: 'ml', display_order: 3, wiki_enabled: 1 },
+        { code: 'sidem', display_order: 4, wiki_enabled: 1 },
+        { code: 'sc', display_order: 5, wiki_enabled: 1 },
+        { code: 'gk', display_order: 6, wiki_enabled: 1 }
     ]);
 });
 
@@ -267,7 +269,7 @@ test('office creation and series assignment are atomic', async (t) => {
     await assert.rejects(fixture.repository.createOffice(office(
         'rolled-back-office',
         'office-owner',
-        { seriesCodes: ['765as', 'not-a-series'] }
+        { seriesCodes: ['765', 'not-a-series'] }
     )));
     assert.equal(await fixture.repository.findOfficeById('rolled-back-office'), null);
     assert.equal(await fixture.database.prepare(
@@ -277,23 +279,23 @@ test('office creation and series assignment are atomic', async (t) => {
     const created = await fixture.repository.createOffice(office(
         'atomic-office',
         'office-owner',
-        { slug: '上海-事务所', seriesCodes: ['765as', 'cinderella'] }
+        { slug: '上海-事务所', seriesCodes: ['765', 'cg'] }
     ));
     assert.equal(created.owner_account_id, 'office-owner');
     assert.equal(created.slug, '上海-事务所');
     await fixture.database.prepare(
         `INSERT INTO fudaba_office_series_tags
             (office_id, series_code, display_order)
-         VALUES (?, 'million-live', 1)`
+         VALUES (?, 'ml', 1)`
     ).bind(created.id).run();
     const assigned = await fixture.database.prepare(
         `SELECT series_code, display_order FROM fudaba_office_series_tags
          WHERE office_id=? ORDER BY display_order, series_code`
     ).bind(created.id).all<{ series_code: string; display_order: number }>();
     assert.deepEqual(assigned.results, [
-        { series_code: '765as', display_order: 0 },
-        { series_code: 'cinderella', display_order: 1 },
-        { series_code: 'million-live', display_order: 1 }
+        { series_code: '765', display_order: 0 },
+        { series_code: 'cg', display_order: 1 },
+        { series_code: 'ml', display_order: 1 }
     ]);
 });
 

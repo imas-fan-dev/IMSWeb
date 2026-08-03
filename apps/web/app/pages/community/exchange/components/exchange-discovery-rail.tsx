@@ -3,31 +3,24 @@ import {
   ChevronRightIcon,
   CreditCardIcon,
   EyeIcon,
+  LayoutGridIcon,
   MapPinIcon,
   RadioTowerIcon,
   RefreshCwIcon,
   SearchIcon,
   UserRoundCogIcon,
 } from "lucide-react"
-import type { FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { Link } from "react-router"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
+import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import type { FudabaOffice, FudabaSeries } from "~/lib/api"
 import { cn } from "~/lib/utils"
-
-const seriesSwatches: Readonly<Record<string, string>> = {
-  "765as": "var(--franchise-765)",
-  cinderella: "var(--franchise-cg)",
-  "million-live": "var(--franchise-ml)",
-  sidem: "var(--franchise-sidem)",
-  "shiny-colors": "var(--franchise-sc)",
-  gakuen: "var(--franchise-gk)",
-}
 
 interface ExchangeDiscoveryRailProps {
   cityDraft: string
@@ -47,6 +40,44 @@ interface ExchangeDiscoveryRailProps {
   onRefresh: () => void
   onOpenOffices: () => void
   onOpenCards: () => void
+}
+
+function SeriesChannelIcon({ series }: { series: FudabaSeries }) {
+  return (
+    <StatefulSeriesChannelIcon
+      key={`${series.code}:${series.iconUrl ?? ""}`}
+      series={series}
+    />
+  )
+}
+
+function StatefulSeriesChannelIcon({ series }: { series: FudabaSeries }) {
+  const [failed, setFailed] = useState(false)
+  const showIcon = Boolean(series.iconUrl) && !failed
+
+  return (
+    <span
+      className={cn(
+        "flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-sm",
+        showIcon && "border bg-background p-0.5"
+      )}
+      style={{
+        backgroundColor: showIcon ? undefined : series.color,
+        borderColor: showIcon ? series.color : undefined,
+      }}
+      aria-hidden="true"
+    >
+      {showIcon ? (
+        <WikiTransformedImage
+          src={series.iconUrl ?? undefined}
+          alt=""
+          transform={series.imageTransform}
+          draggable={false}
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+    </span>
+  )
 }
 
 function officeSeriesLabel(
@@ -182,7 +213,7 @@ export function ExchangeDiscoveryRail({
             aria-pressed={!seriesCode}
             onClick={() => onSeriesChange(null)}
           >
-            <span className="size-2.5 shrink-0 rounded-sm bg-foreground/70" />
+            <LayoutGridIcon className="size-4 shrink-0" aria-hidden="true" />
             <span className="truncate">全部企划</span>
           </Button>
           {series.map((item) => (
@@ -195,14 +226,7 @@ export function ExchangeDiscoveryRail({
               aria-pressed={seriesCode === item.code}
               onClick={() => onSeriesChange(item.code)}
             >
-              <span
-                className="size-2.5 shrink-0 rounded-sm"
-                style={{
-                  backgroundColor:
-                    seriesSwatches[item.code] ?? "var(--muted-foreground)",
-                }}
-                aria-hidden="true"
-              />
+              <SeriesChannelIcon series={item} />
               <span className="min-w-0 flex-1 truncate text-left">
                 {item.displayName}
               </span>

@@ -661,6 +661,7 @@ export default function CommunityExchangePage() {
               <CommunityExchangeMapSection
                 city={city || undefined}
                 series={seriesCode || undefined}
+                seriesCatalog={state.series}
                 open={openOnly ? true : undefined}
                 onSwitchDirectory={() => openDirectory("offices")}
               />

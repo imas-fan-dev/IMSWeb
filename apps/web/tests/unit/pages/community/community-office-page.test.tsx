@@ -53,7 +53,7 @@ const placedCard = {
   id: "card-1",
   producerName: "春香P",
   displayName: "交换会用名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
@@ -167,8 +167,18 @@ describe("CommunityOfficePage", () => {
     apiMocks.sendSeries.mockResolvedValue({
       items: [
         {
-          code: "765as",
-          displayName: "本家 / 765AS",
+          id: 1,
+          code: "765",
+          displayName: "765PRO",
+          color: "#f34f6d",
+          iconUrl: "/icon/agencies/1.webp",
+          imageTransform: {
+            fit: "contain",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
           displayOrder: 0,
           activeOfficeCount: 1,
         },
@@ -184,7 +194,7 @@ describe("CommunityOfficePage", () => {
       coverUrl: null,
       isOpen: true,
       visitorCount: 21,
-      seriesCodes: ["765as"],
+      seriesCodes: ["765"],
       cards: [placedCard],
     })
     apiMocks.sendOwnerCards.mockResolvedValue({ items: [ownerCard] })
@@ -246,7 +256,7 @@ describe("CommunityOfficePage", () => {
     expect(
       await screen.findByRole("heading", { name: "上海周末交换事务所" })
     ).toBeVisible()
-    expect(screen.getByText("765as")).toBeVisible()
+    expect(screen.getByText("765")).toBeVisible()
     expect(screen.queryByText("事务所暂时无法加载")).not.toBeInTheDocument()
   })
 

@@ -22,15 +22,6 @@ import { cn } from "~/lib/utils"
 
 export { PlacedCardWall } from "./exchange-card-wall"
 
-const seriesTone: Record<string, string> = {
-  "765as": "border-franchise-765/45 bg-franchise-765/12",
-  cinderella: "border-franchise-cg/45 bg-franchise-cg/12",
-  "million-live": "border-franchise-ml/55 bg-franchise-ml/15",
-  sidem: "border-franchise-sidem/45 bg-franchise-sidem/12",
-  "shiny-colors": "border-franchise-sc/55 bg-franchise-sc/15",
-  gakuen: "border-franchise-gk/55 bg-franchise-gk/15",
-}
-
 export function SeriesBadge({
   code,
   series,
@@ -38,12 +29,21 @@ export function SeriesBadge({
   code: string
   series: ReadonlyMap<string, FudabaSeries>
 }) {
+  const catalogSeries = series.get(code)
   return (
     <Badge
       variant="outline"
-      className={cn("max-w-full", seriesTone[code] ?? "bg-muted")}
+      className={cn("max-w-full", !catalogSeries && "bg-muted")}
+      style={
+        catalogSeries
+          ? {
+              borderColor: catalogSeries.color,
+              backgroundColor: `color-mix(in srgb, ${catalogSeries.color} 12%, transparent)`,
+            }
+          : undefined
+      }
     >
-      <span className="truncate">{series.get(code)?.displayName ?? code}</span>
+      <span className="truncate">{catalogSeries?.displayName ?? code}</span>
     </Badge>
   )
 }

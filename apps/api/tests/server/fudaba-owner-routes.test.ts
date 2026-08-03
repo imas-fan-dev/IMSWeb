@@ -65,7 +65,7 @@ function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCardRecord 
         owner_account_id: ACCOUNT_ID,
         producer_name: 'Owner Producer',
         display_name: 'Owner Card',
-        series_code: '765as',
+        series_code: '765',
         favorite_idol: 'Haruka',
         front_object_key: 'protected/fudaba/cards/owner-card/front.webp',
         back_object_key: 'protected/fudaba/cards/owner-card/back.webp',
@@ -90,7 +90,7 @@ function cardFields(): Record<string, string> {
     return {
         producerName: 'New Producer',
         displayName: 'New Card',
-        seriesCode: '765as',
+        seriesCode: '765',
         favoriteIdol: 'Chihaya',
         accent: '#336699',
         bio: 'New bio',
@@ -470,9 +470,19 @@ class OwnerRouteFixture {
 
     readonly fudaba = {
         listPublicSeries: async () => [{
-            code: '765as',
-            display_name: '本家 / 765AS',
+            id: 1,
+            code: '765',
+            display_name: '765PRO',
+            color: '#f34f6d',
             display_order: 0,
+            icon_object_key: null,
+            image_transform: {
+                fit: 'contain' as const,
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0 as const
+            },
             active_office_count: 0
         }],
         listPublicOffices: async () => [],
@@ -696,7 +706,7 @@ function metadataBody(expectedRevision: number): Record<string, unknown> {
     return {
         producerName: 'Updated Producer',
         displayName: 'Updated Card',
-        seriesCode: '765as',
+        seriesCode: '765',
         favoriteIdol: 'Miki',
         accent: '#112233',
         bio: 'Updated card bio',
@@ -755,9 +765,19 @@ test('Fudaba public-read and owner-write flags remain independent', async () => 
     assert.equal(ownerSeries.status, 200);
     assert.deepEqual(await ownerSeries.json(), {
         items: [{
-            code: '765as',
-            displayName: '本家 / 765AS',
+            id: 1,
+            code: '765',
+            displayName: '765PRO',
             displayOrder: 0,
+            color: '#f34f6d',
+            iconUrl: null,
+            imageTransform: {
+                fit: 'contain',
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0
+            },
             activeOfficeCount: 0
         }]
     });

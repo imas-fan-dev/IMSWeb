@@ -19,6 +19,7 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const CREATED_AT = '2026-08-03T00:00:00.000Z';
 const UPDATED_AT = '2026-08-03T00:01:00.000Z';
@@ -49,6 +50,7 @@ async function createFixture(
         );
         t.after(() => harness.close());
         await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
         return { database: harness.connection, repository, dialect };
     }
 
@@ -63,6 +65,7 @@ async function createFixture(
         await fs.rm(root, { recursive: true, force: true });
     });
     await repository.initialize();
+    await seedCanonicalFudabaAgencies(database);
     return { database, repository, dialect };
 }
 
@@ -102,7 +105,7 @@ function office(
         createdAt: CREATED_AT,
         updatedAt: CREATED_AT,
         archivedAt: null,
-        seriesCodes: ['765as'],
+        seriesCodes: ['765'],
         ...overrides
     };
 }
@@ -117,7 +120,7 @@ function card(
         ownerAccountId,
         producerName: `Producer ${ownerAccountId}`,
         displayName: `Card ${id}`,
-        seriesCode: '765as',
+        seriesCode: '765',
         favoriteIdol: 'Haruka',
         frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
         backObjectKey: `community/fudaba/cards/${id}/back.webp`,
@@ -301,7 +304,7 @@ async function assertCardPlacementRepository(
     );
 
     await fixture.database.prepare(
-        'UPDATE fudaba_series_tags SET enabled=? WHERE code=?'
+        'UPDATE agencies SET wiki_enabled=? WHERE code=?'
     ).bind(dialect === 'sqlite' ? 0 : false, 'sidem').run();
     for (const unavailable of [
         placementInput(officeId, `${dialect}-other-card`, ownerId, null),

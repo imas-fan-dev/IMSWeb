@@ -65,8 +65,18 @@ const profile = {
 }
 
 const series = {
-  code: "765as",
-  displayName: "本家 / 765AS",
+  id: 1,
+  code: "765",
+  displayName: "765PRO",
+  color: "#f34f6d",
+  iconUrl: "/icon/agencies/1.webp",
+  imageTransform: {
+    fit: "contain" as const,
+    focalX: 0.5,
+    focalY: 0.5,
+    zoom: 1,
+    rotation: 0 as const,
+  },
   displayOrder: 0,
   activeOfficeCount: 1,
 }
@@ -75,7 +85,7 @@ const card = {
   id: "card-1",
   producerName: "春香P",
   displayName: "周末交换名片",
-  seriesCode: "765as",
+  seriesCode: "765",
   favoriteIdol: "天海春香",
   frontImageUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
   backImageUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
@@ -266,7 +276,7 @@ describe("CommunityExchangeMePage", () => {
       expect(apiMocks.createFudabaCard).toHaveBeenCalledWith(
         expect.objectContaining({
           displayName: "新交换名片",
-          seriesCode: "765as",
+          seriesCode: "765",
           front: expect.any(File),
           back: expect.any(File),
         })

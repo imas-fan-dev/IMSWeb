@@ -64,7 +64,7 @@ const office = {
   city: "上海",
   accent: "#f34e6c",
   isOpen: true,
-  seriesCodes: ["765as"],
+  seriesCodes: ["765"],
   location: {
     latitude: 31.2,
     longitude: 121.5,
@@ -126,7 +126,7 @@ describe("CommunityExchangeMapSection", () => {
           id: "office-2",
           slug: "same-region",
           name: "同区域交换事务所",
-          seriesCodes: ["cinderella"],
+          seriesCodes: ["cg"],
           accent: "#2581c7",
         },
       ],

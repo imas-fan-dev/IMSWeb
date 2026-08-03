@@ -69,7 +69,8 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0023_fudaba_public_locations', phase: 'post-data' },
             { version: '0024_fudaba_office_workflows', phase: 'post-data' },
             { version: '0025_platform_email_verification', phase: 'post-data' },
-            { version: '0026_platform_email_verification_delivery', phase: 'post-data' }
+            { version: '0026_platform_email_verification_delivery', phase: 'post-data' },
+            { version: '0027_fudaba_agency_catalog', phase: 'post-data' }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -389,6 +390,42 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
         emailVerificationDelivery.sql,
         /delivery_token ~ '\^\[a-f0-9\]\{64\}\$'/
     );
+    const fudabaAgencyCatalog = migrations.find(
+        ({ version }) => version === '0027_fudaba_agency_catalog'
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /FUDABA_VALIV_AGENCY_RECONCILIATION_REQUIRED/
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /FUDABA_CANONICAL_AGENCY_MISSING/
+    );
+    for (const [sourceCode, agencyCode] of [
+        ['765as', '765'],
+        ['cinderella', 'cg'],
+        ['million-live', 'ml'],
+        ['sidem', 'sidem'],
+        ['shiny-colors', 'sc'],
+        ['gakuen', 'gk']
+    ]) {
+        assert.match(
+            fudabaAgencyCatalog.sql,
+            new RegExp(`WHEN '${sourceCode}' THEN '${agencyCode}'`)
+        );
+    }
+    assert.doesNotMatch(
+        fudabaAgencyCatalog.sql,
+        /WHEN 'valiv' THEN '876'/
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /REFERENCES public\.agencies\(code\) ON DELETE RESTRICT/
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /DROP TABLE public\.fudaba_series_tags/
+    );
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -456,7 +493,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0023_fudaba_public_locations',
         '0024_fudaba_office_workflows',
         '0025_platform_email_verification',
-        '0026_platform_email_verification_delivery'
+        '0026_platform_email_verification_delivery',
+        '0027_fudaba_agency_catalog'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

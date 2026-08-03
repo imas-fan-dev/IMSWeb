@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { Pool } from 'pg';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import { seedCanonicalFudabaAgencies } from './fudaba-agency-fixture';
 
 const require = createRequire(__filename);
 const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as {
@@ -20,6 +21,11 @@ export interface PostgresTestHarness {
     close(): Promise<void>;
 }
 
+export interface PostgresTestHarnessOptions {
+    migrationsPath?: string;
+    seedCanonicalAgencies?: boolean;
+}
+
 function quotedIdentifier(value: string): string {
     if (!/^[a-z][a-z0-9_]+$/.test(value)) {
         throw new Error(`Unsafe PostgreSQL test database identifier: ${value}`);
@@ -31,7 +37,9 @@ export function postgresIntegrationEnabled(): boolean {
     return Boolean(process.env.IMS_TEST_POSTGRES_ADMIN_URL?.trim());
 }
 
-export async function createPostgresTestHarness(): Promise<PostgresTestHarness> {
+export async function createPostgresTestHarness(
+    options: PostgresTestHarnessOptions = {}
+): Promise<PostgresTestHarness> {
     const adminValue = process.env.IMS_TEST_POSTGRES_ADMIN_URL?.trim();
     if (!adminValue) {
         throw new Error(
@@ -82,7 +90,13 @@ export async function createPostgresTestHarness(): Promise<PostgresTestHarness> 
     });
     let closed = false;
     try {
-        await migratePostgres({ connectionString: databaseUrl.toString() });
+        await migratePostgres({
+            connectionString: databaseUrl.toString(),
+            migrationsPath: options.migrationsPath
+        });
+        if (options.seedCanonicalAgencies !== false) {
+            await seedCanonicalFudabaAgencies(connection);
+        }
     } catch (error) {
         await connection.close().catch(() => undefined);
         await admin.query(`DROP DATABASE IF EXISTS ${identifier} WITH (FORCE)`)

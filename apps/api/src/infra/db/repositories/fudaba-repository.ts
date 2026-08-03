@@ -163,9 +163,15 @@ type FudabaModerationCaseRow = Omit<
 
 type FudabaPublicSeriesRow = Omit<
     FudabaPublicSeriesRecord,
-    'display_order' | 'active_office_count'
+    'id' | 'display_order' | 'image_transform' | 'active_office_count'
 > & {
+    id: number | string;
     display_order: number | string;
+    icon_fit: 'cover' | 'contain';
+    icon_focal_x: number | string;
+    icon_focal_y: number | string;
+    icon_zoom: number | string;
+    icon_rotation: 0 | 90 | 180 | 270 | string;
     active_office_count: number | string;
 };
 
@@ -334,9 +340,19 @@ function moderationRecord(row: FudabaModerationCaseRow): FudabaModerationCaseRec
 
 function publicSeriesRecord(row: FudabaPublicSeriesRow): FudabaPublicSeriesRecord {
     return {
+        id: Number(row.id),
         code: row.code,
         display_name: row.display_name,
+        color: row.color,
         display_order: Number(row.display_order),
+        icon_object_key: row.icon_object_key,
+        image_transform: {
+            fit: row.icon_fit,
+            focalX: Number(row.icon_focal_x),
+            focalY: Number(row.icon_focal_y),
+            zoom: Number(row.icon_zoom),
+            rotation: Number(row.icon_rotation) as 0 | 90 | 180 | 270
+        },
         active_office_count: Number(row.active_office_count)
     };
 }
@@ -497,8 +513,8 @@ export class SqlFudabaRepository implements FudabaRepository {
             this.database,
             `SELECT office_id, series_code
              FROM fudaba_office_series_tags office_series
-             JOIN fudaba_series_tags series
-               ON series.code=office_series.series_code AND series.enabled
+             JOIN agencies series
+               ON series.code=office_series.series_code AND series.wiki_enabled
              WHERE office_id IN (${placeholders})
              ORDER BY office_id, office_series.display_order, series_code`,
             rows.map((row) => row.id)
@@ -532,8 +548,8 @@ export class SqlFudabaRepository implements FudabaRepository {
         const placeholders = seriesCodes.map(() => '?').join(', ');
         const row = await queryOne<{ count: number | string }>(
             this.database,
-            `SELECT COUNT(*) AS count FROM fudaba_series_tags
-             WHERE enabled=? AND code IN (${placeholders})`,
+            `SELECT COUNT(*) AS count FROM agencies
+             WHERE wiki_enabled=? AND code IN (${placeholders})`,
             [this.bindBoolean(true), ...seriesCodes]
         );
         return Number(row?.count ?? 0) === seriesCodes.length;
@@ -589,8 +605,8 @@ export class SqlFudabaRepository implements FudabaRepository {
             this.database,
             `SELECT office_id, series_code
              FROM fudaba_office_series_tags office_series
-             JOIN fudaba_series_tags series
-               ON series.code=office_series.series_code AND series.enabled
+             JOIN agencies series
+               ON series.code=office_series.series_code AND series.wiki_enabled
              WHERE office_id IN (${placeholders})
              ORDER BY office_id, office_series.display_order, series_code`,
             rows.map((row) => row.id)
@@ -607,9 +623,12 @@ export class SqlFudabaRepository implements FudabaRepository {
     async listPublicSeries(): Promise<FudabaPublicSeriesRecord[]> {
         const rows = await queryAll<FudabaPublicSeriesRow>(
             this.database,
-            `SELECT series.code, series.display_name, series.display_order,
+            `SELECT series.id, series.code, series.name_cn AS display_name,
+                    series.color, series.display_order, series.icon_object_key,
+                    series.icon_fit, series.icon_focal_x, series.icon_focal_y,
+                    series.icon_zoom, series.icon_rotation,
                     COUNT(office_owner.id) AS active_office_count
-             FROM fudaba_series_tags series
+             FROM agencies series
              LEFT JOIN fudaba_office_series_tags office_series
                ON office_series.series_code=series.code
              LEFT JOIN fudaba_offices office
@@ -618,8 +637,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON office_owner.id=office.owner_account_id
               AND office_owner.status IN ('active', 'restricted')
               AND office_owner.deleted_at IS NULL
-             WHERE series.enabled=?
-             GROUP BY series.code, series.display_name, series.display_order
+             WHERE series.wiki_enabled=?
+             GROUP BY series.id, series.code, series.name_cn, series.color,
+                      series.display_order, series.icon_object_key,
+                      series.icon_fit, series.icon_focal_x, series.icon_focal_y,
+                      series.icon_zoom, series.icon_rotation
              ORDER BY series.display_order, series.code`,
             [this.bindBoolean(true)]
         );
@@ -638,8 +660,8 @@ export class SqlFudabaRepository implements FudabaRepository {
         if (input.seriesCode !== undefined) {
             conditions.push(`EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags series_filter
-                JOIN fudaba_series_tags series
-                  ON series.code=series_filter.series_code AND series.enabled
+                JOIN agencies series
+                  ON series.code=series_filter.series_code AND series.wiki_enabled
                 WHERE series_filter.office_id=office.id
                   AND series_filter.series_code=?
             )`);
@@ -684,9 +706,9 @@ export class SqlFudabaRepository implements FudabaRepository {
             PUBLIC_OFFICE_ELIGIBILITY,
             `EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags eligible_office_series
-                JOIN fudaba_series_tags eligible_series
+                JOIN agencies eligible_series
                   ON eligible_series.code=eligible_office_series.series_code
-                 AND eligible_series.enabled
+                 AND eligible_series.wiki_enabled
                 WHERE eligible_office_series.office_id=office.id
             )`
         ];
@@ -710,9 +732,9 @@ export class SqlFudabaRepository implements FudabaRepository {
         if (input.seriesCode !== undefined) {
             conditions.push(`EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags map_series_filter
-                JOIN fudaba_series_tags map_series
+                JOIN agencies map_series
                   ON map_series.code=map_series_filter.series_code
-                 AND map_series.enabled
+                 AND map_series.wiki_enabled
                 WHERE map_series_filter.office_id=office.id
                   AND map_series_filter.series_code=?
             )`);
@@ -765,8 +787,8 @@ export class SqlFudabaRepository implements FudabaRepository {
              JOIN fudaba_cards card ON card.id=placement.card_id
              JOIN platform_accounts card_owner
                ON card_owner.id=card.owner_account_id
-             JOIN fudaba_series_tags card_series
-               ON card_series.code=card.series_code AND card_series.enabled
+             JOIN agencies card_series
+               ON card_series.code=card.series_code AND card_series.wiki_enabled
              WHERE placement.office_id=? AND ${PUBLIC_CARD_ELIGIBILITY}
              ORDER BY placement.z_index ASC, placement.pinned_at ASC, card.id ASC`,
             [viewerAccountId, viewerAccountId, viewerAccountId, row.id]
@@ -825,8 +847,8 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM fudaba_cards card
              JOIN platform_accounts card_owner
                ON card_owner.id=card.owner_account_id
-             JOIN fudaba_series_tags card_series
-               ON card_series.code=card.series_code AND card_series.enabled
+             JOIN agencies card_series
+               ON card_series.code=card.series_code AND card_series.wiki_enabled
              WHERE ${conditions.join(' AND ')}
              ORDER BY card.created_at DESC, card.id DESC
              LIMIT ?`,
@@ -1005,8 +1027,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                     `INSERT INTO fudaba_office_series_tags
                         (office_id, series_code, display_order)
                      SELECT office.id, (
-                         SELECT series.code FROM fudaba_series_tags series
-                         WHERE series.code=? AND series.enabled=?
+                         SELECT series.code FROM agencies series
+                         WHERE series.code=? AND series.wiki_enabled=?
                      ), ?
                      FROM fudaba_offices office
                      WHERE office.id=? AND office.owner_account_id=?`,
@@ -1111,8 +1133,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                     `INSERT INTO fudaba_office_series_tags
                         (office_id, series_code, display_order)
                      SELECT office.id, (
-                         SELECT series.code FROM fudaba_series_tags series
-                         WHERE series.code=? AND series.enabled=?
+                         SELECT series.code FROM agencies series
+                         WHERE series.code=? AND series.wiki_enabled=?
                      ), ?
                      FROM fudaba_offices office
                      WHERE ${ownerRevisionGuard}`,
@@ -1772,8 +1794,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                  SELECT ?, account.id, ?, ?, series.code, ?, ?, ?, ?, ?, ?, ?,
                         NULL, NULL, NULL, 'unknown', 'pending', 0, ?, ?, NULL
                  FROM platform_accounts account
-                 JOIN fudaba_series_tags series
-                   ON series.code=? AND series.enabled=?
+                 JOIN agencies series
+                   ON series.code=? AND series.wiki_enabled=?
                  WHERE account.id=? AND account.status='active'
                    AND account.deleted_at IS NULL
                  ON CONFLICT(id) DO NOTHING
@@ -1820,8 +1842,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                          AND account.status='active' AND account.deleted_at IS NULL
                    )
                    AND EXISTS (
-                       SELECT 1 FROM fudaba_series_tags series
-                       WHERE series.code=? AND series.enabled=?
+                       SELECT 1 FROM agencies series
+                       WHERE series.code=? AND series.wiki_enabled=?
                    )
                  RETURNING ${CARD_COLUMNS}`
             ).bind(
@@ -1991,14 +2013,14 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON office_owner.id=office.owner_account_id
              JOIN fudaba_cards card ON card.id=placement.card_id
              JOIN platform_accounts account ON account.id=card.owner_account_id
-             JOIN fudaba_series_tags series ON series.code=card.series_code
+             JOIN agencies series ON series.code=card.series_code
              WHERE placement.office_id=? AND placement.card_id=?
                AND card.owner_account_id=?
                AND account.status='active' AND account.deleted_at IS NULL
                AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
                AND card.publication_status='published'
                AND card.media_rights_status='approved'
-               AND card.deleted_at IS NULL AND series.enabled`,
+               AND card.deleted_at IS NULL AND series.wiki_enabled`,
             [input.officeId, input.cardId, input.ownerAccountId]
         );
         return current
@@ -2065,14 +2087,14 @@ export class SqlFudabaRepository implements FudabaRepository {
                      JOIN fudaba_cards card ON card.id=?
                      JOIN platform_accounts account
                        ON account.id=card.owner_account_id
-                     JOIN fudaba_series_tags series
+                     JOIN agencies series
                        ON series.code=card.series_code
                      WHERE office.id=?
                        AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
                        AND card.owner_account_id=?
                        AND card.publication_status='published'
                        AND card.media_rights_status='approved'
-                       AND card.deleted_at IS NULL AND series.enabled
+                       AND card.deleted_at IS NULL AND series.wiki_enabled
                        AND account.status='active' AND account.deleted_at IS NULL
                      ON CONFLICT (office_id, card_id) DO NOTHING
                      RETURNING ${CARD_PLACEMENT_COLUMNS}`
@@ -2103,14 +2125,14 @@ export class SqlFudabaRepository implements FudabaRepository {
                            JOIN fudaba_cards card ON card.id=placement.card_id
                            JOIN platform_accounts account
                              ON account.id=card.owner_account_id
-                           JOIN fudaba_series_tags series
+                           JOIN agencies series
                              ON series.code=card.series_code
                            WHERE office.id=placement.office_id
                              AND ${OPEN_OFFICE_CARD_WALL_ELIGIBILITY}
                              AND card.owner_account_id=?
                              AND card.publication_status='published'
                              AND card.media_rights_status='approved'
-                             AND card.deleted_at IS NULL AND series.enabled
+                             AND card.deleted_at IS NULL AND series.wiki_enabled
                              AND account.status='active'
                              AND account.deleted_at IS NULL
                        )

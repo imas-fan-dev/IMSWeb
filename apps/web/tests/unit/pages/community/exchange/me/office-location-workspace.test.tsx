@@ -48,8 +48,18 @@ vi.mock("~/lib/api", async (importOriginal) => {
 
 const series = [
   {
-    code: "765as",
-    displayName: "本家 / 765AS",
+    id: 1,
+    code: "765",
+    displayName: "765PRO",
+    color: "#f34f6d",
+    iconUrl: "/icon/agencies/1.webp",
+    imageTransform: {
+      fit: "contain" as const,
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0 as const,
+    },
     displayOrder: 0,
     activeOfficeCount: 1,
   },
@@ -71,7 +81,7 @@ const office: FudabaOwnerOffice = {
   visitorCount: 12,
   status: "active",
   revision: 3,
-  seriesCodes: ["765as"],
+  seriesCodes: ["765"],
   createdAt: "2026-08-02T08:00:00.000Z",
   updatedAt: "2026-08-02T09:00:00.000Z",
   archivedAt: null,
@@ -353,7 +363,7 @@ describe("OfficeLocationWorkspace", () => {
           address: "场馆入口",
           latitude: 31.2,
           longitude: 121.5,
-          seriesCodes: ["765as"],
+          seriesCodes: ["765"],
         }),
         expect.stringMatching(/^fudaba-office-/)
       )

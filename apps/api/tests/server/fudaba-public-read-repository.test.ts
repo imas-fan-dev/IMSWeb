@@ -19,6 +19,7 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 
 const OFFICE_CREATED_AT = '2026-08-02T00:00:00.000Z';
 const OFFICE_UPDATED_AT = '2026-08-02T00:01:00.000Z';
@@ -52,6 +53,7 @@ async function createFixture(
         );
         t.after(() => harness.close());
         await repository.initialize();
+        await seedCanonicalFudabaAgencies(harness.connection);
         return { database: harness.connection, repository, dialect };
     }
 
@@ -66,6 +68,7 @@ async function createFixture(
         await fs.rm(root, { recursive: true, force: true });
     });
     await repository.initialize();
+    await seedCanonicalFudabaAgencies(database);
     return { database, repository, dialect };
 }
 
@@ -92,7 +95,7 @@ function office(
         createdAt: OFFICE_CREATED_AT,
         updatedAt: OFFICE_CREATED_AT,
         archivedAt: null,
-        seriesCodes: ['765as'],
+        seriesCodes: ['765'],
         ...overrides
     };
 }
@@ -106,7 +109,7 @@ function card(
         ownerAccountId: 'owner',
         producerName: `Producer ${id}`,
         displayName: `Card ${id}`,
-        seriesCode: '765as',
+        seriesCode: '765',
         favoriteIdol: 'Haruka',
         frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
         backObjectKey: `community/fudaba/cards/${id}/back.webp`,
@@ -189,7 +192,7 @@ async function assertPublicReadModels(
     await seedAccount(fixture, 'deleted-owner', 'deleted');
 
     await fixture.database.prepare(
-        'UPDATE fudaba_series_tags SET enabled=?, updated_at=CURRENT_TIMESTAMP WHERE code=?'
+        'UPDATE agencies SET wiki_enabled=? WHERE code=?'
     ).bind(
         dialect === 'sqlite' ? 0 : false,
         'sidem'
@@ -198,28 +201,28 @@ async function assertPublicReadModels(
     await fixture.repository.createOffice(office('office-a-closed', {
         isOpen: false,
         visitorCount: 100,
-        seriesCodes: ['765as', 'cinderella']
+        seriesCodes: ['765', 'cg']
     }));
     await fixture.repository.createOffice(office('office-b-open', {
         visitorCount: 100,
-        seriesCodes: ['765as', 'cinderella', 'sidem']
+        seriesCodes: ['765', 'cg', 'sidem']
     }));
     await fixture.repository.createOffice(office('office-c-beijing', {
         city: 'Beijing',
         visitorCount: 50,
-        seriesCodes: ['million-live']
+        seriesCodes: ['ml']
     }));
     await fixture.repository.createOffice(office('office-hidden', {
         status: 'hidden',
         visitorCount: 999,
-        seriesCodes: ['cinderella']
+        seriesCodes: ['cg']
     }));
     await fixture.repository.createOffice(office('office-archived', {
         status: 'archived',
         archivedAt: OFFICE_UPDATED_AT,
         updatedAt: OFFICE_UPDATED_AT,
         visitorCount: 998,
-        seriesCodes: ['765as']
+        seriesCodes: ['765']
     }));
     await fixture.repository.createOffice(office('office-d-restricted', {
         ownerAccountId: 'restricted-owner',
@@ -239,11 +242,27 @@ async function assertPublicReadModels(
     assert.deepEqual(
         series.slice(0, 3).map((item) => [item.code, item.active_office_count]),
         [
-            ['765as', 3],
-            ['cinderella', 2],
-            ['million-live', 1]
+            ['765', 3],
+            ['876', 0],
+            ['cg', 2]
         ]
     );
+    assert.deepEqual(series[0], {
+        id: 1,
+        code: '765',
+        display_name: '765PRO',
+        color: '#f34f6d',
+        display_order: 0,
+        icon_object_key: 'wiki/shared/static/icon/765pro.webp',
+        image_transform: {
+            fit: 'contain',
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0
+        },
+        active_office_count: 3
+    });
 
     const firstOfficePage = await fixture.repository.listPublicOffices({
         limit: 1
@@ -261,7 +280,7 @@ async function assertPublicReadModels(
     );
     assert.deepEqual(await fixture.repository.listPublicOffices({
         city: 'Shanghai',
-        seriesCode: 'cinderella',
+        seriesCode: 'cg',
         isOpen: true,
         limit: 10
     }).then((items) => items.map((item) => item.id)), ['office-b-open']);
@@ -287,7 +306,7 @@ async function assertPublicReadModels(
             updatedAt: CARD_OLD_AT
         }),
         card('card-cinderella-old', {
-            seriesCode: 'cinderella',
+            seriesCode: 'cg',
             createdAt: CARD_OLDEST_AT,
             updatedAt: CARD_OLDEST_AT
         }),
@@ -408,7 +427,7 @@ async function assertPublicReadModels(
     );
     assert.ok(detail);
     assertOfficePrivacy(detail as unknown as Record<string, unknown>);
-    assert.deepEqual(detail.series_codes, ['765as', 'cinderella']);
+    assert.deepEqual(detail.series_codes, ['765', 'cg']);
     assert.deepEqual(
         detail.cards.map((item) => item.id),
         [
@@ -500,7 +519,7 @@ async function assertPublicReadModels(
         ['card-y-new', 'card-unavailable']
     );
     assert.deepEqual(await fixture.repository.listPublicCards({
-        seriesCode: '765as',
+        seriesCode: '765',
         available: true,
         officeSlug: 'office-b-open',
         viewerAccountId: 'viewer',
@@ -511,7 +530,7 @@ async function assertPublicReadModels(
         'card-restricted-owner'
     ]);
     assert.deepEqual(await fixture.repository.listPublicCards({
-        seriesCode: 'cinderella',
+        seriesCode: 'cg',
         viewerAccountId: null,
         limit: 10
     }).then((items) => items.map((item) => item.id)), ['card-cinderella-old']);
