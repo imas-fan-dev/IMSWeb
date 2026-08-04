@@ -188,7 +188,7 @@ export function StoryCategorySection({
                         {label}
                       </span>
                       <span className="block text-xs wrap-break-word text-muted-foreground">
-                        {link.up || "未知发布者"}
+                        来源：{link.up || "未知发布者"}
                       </span>
                     </span>
                     <ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground group-hover/link:text-foreground" />
@@ -204,7 +204,7 @@ export function StoryCategorySection({
                     </span>
                     <span className="block text-sm font-medium">{label}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {link.up || "未知发布者"} · 链接不可用
+                      来源：{link.up || "未知发布者"} · 链接不可用
                     </span>
                   </div>
                 )

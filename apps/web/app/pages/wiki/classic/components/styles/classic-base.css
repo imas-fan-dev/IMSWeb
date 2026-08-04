@@ -1199,6 +1199,28 @@
   min-width: 0;
 }
 
+.wiki-classic-story-link-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.wiki-classic-story-link-meta > span {
+  display: inline-flex;
+  min-height: 18px;
+  align-items: center;
+  padding: 1px 5px;
+  border: 1px solid
+    color-mix(in srgb, var(--classic-story-color, #f34f6d) 34%, #dedce0);
+  border-radius: 4px;
+  color: var(--classic-story-ink, #a51f3c);
+  background: color-mix(in srgb, var(--classic-story-color, #f34f6d) 7%, white);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .wiki-classic-story-dialog-links strong,
 .wiki-classic-story-dialog-links small {
   display: block;

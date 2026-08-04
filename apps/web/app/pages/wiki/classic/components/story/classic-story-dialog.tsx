@@ -49,14 +49,18 @@ export function ClassicStoryDialog({
                 <a key={link.id} href={href} target="_blank" rel="noreferrer">
                   <WikiStorySourceIcon contentType={link.contentType} />
                   <span>
+                    <span className="wiki-classic-story-link-meta">
+                      <span>{link.contentType}</span>
+                      <span>{link.sourcePlatform}</span>
+                    </span>
                     <strong>{link.title || "查看剧情"}</strong>
-                    <small>{link.up || "未知投稿者"}</small>
+                    <small>来源：{link.up || "未知投稿者"}</small>
                   </span>
                   <ExternalLinkIcon />
                 </a>
               ) : (
                 <div key={link.id} className="is-unavailable">
-                  链接不可用
+                  来源：{link.up || "未知投稿者"} · 链接不可用
                 </div>
               )
             })

@@ -773,6 +773,13 @@ describe("classic Wiki pages", () => {
     expect(screen.getByLabelText("剧情来源")).toBeVisible()
     expect(screen.getByLabelText("语音来源")).toBeVisible()
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
+    expect(screen.getByText("剧情", { selector: "span" })).toBeVisible()
+    expect(screen.getByText("语音", { selector: "span" })).toBeVisible()
+    expect(screen.getAllByText("Bilibili", { selector: "span" })).toHaveLength(
+      2
+    )
+    expect(screen.getByText("来源：投稿者一")).toBeVisible()
+    expect(screen.getByText("来源：投稿者二")).toBeVisible()
   })
 
   it("shows the configured external Wiki link in the classic profile", async () => {
