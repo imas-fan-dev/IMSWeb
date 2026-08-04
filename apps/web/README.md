@@ -117,7 +117,8 @@ React Router 当前拥有以下页面：
 
 - 预渲染公开页面：`/`、`/about`、`/events`、`/recommendations`、`/live`、
   `/community`、`/community/cards`、`/works`、`/works/:workSlug`
-  的已登记专题、`/wiki`、`/wiki/classic`、`/story`、`/story/classic`、`/chronicle`
+  的已登记专题、新版 `/wiki`、`/story` 及其 `/modern` 兼容入口、经典版
+  `/wiki/classic`、`/story/classic`、`/chronicle`
 - 动态前端页面：`/information/:contentId`、`/chronicle/:activityId`
 - 后台页面：`/admin`、`/admin/login`、`/admin/events`、`/admin/cards`、
   `/admin/chronicle` 与其他 `/admin/*` 业务页
