@@ -20,9 +20,9 @@ export function StoryNavigationPanel({
   onQueryChange: (value: string) => void
   onNavigate?: () => void
 }) {
-  const agencyHref = `/wiki/modern?agency=${encodeURIComponent(stories.agency.name)}`
+  const agencyHref = `/wiki?agency=${encodeURIComponent(stories.agency.name)}`
   const classicHref =
-    `/story?agency=${encodeURIComponent(stories.agency.name)}` +
+    `/story/classic?agency=${encodeURIComponent(stories.agency.name)}` +
     `&idol=${encodeURIComponent(stories.idol.name)}`
 
   return (

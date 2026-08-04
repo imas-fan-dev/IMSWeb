@@ -21,7 +21,7 @@ export function WikiHero({
     .join(" · ")
   const cardHref =
     background?.card_id && background.agency_name && background.idol_name
-      ? `/story/modern?agency=${encodeURIComponent(background.agency_name)}&idol=${encodeURIComponent(background.idol_name)}#story-card-${background.card_id}`
+      ? `/story?agency=${encodeURIComponent(background.agency_name)}&idol=${encodeURIComponent(background.idol_name)}#story-card-${background.card_id}`
       : null
 
   return (

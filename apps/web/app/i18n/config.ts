@@ -1,12 +1,7 @@
 import { createInstance } from "i18next"
 import { initReactI18next } from "react-i18next"
 
-import {
-  defaultLanguage,
-  defaultNamespace,
-  resources,
-  supportedLanguages,
-} from "./resources"
+import { defaultLanguage, defaultNamespace, resources } from "./resources"
 
 export const i18n = createInstance()
 
@@ -21,7 +16,7 @@ void i18n.use(initReactI18next).init({
   load: "currentOnly",
   ns: [defaultNamespace],
   resources,
-  supportedLngs: supportedLanguages,
+  supportedLngs: [defaultLanguage],
   react: {
     useSuspense: false,
   },

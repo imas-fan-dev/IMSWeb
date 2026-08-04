@@ -38,12 +38,14 @@ export function ClassicStoryProfile({
         </div>
       </dl>
       <nav className="wiki-classic-story-actions" aria-label="页面操作">
-        <Link to={`/wiki?agency=${encodeURIComponent(stories.agency.name)}`}>
+        <Link
+          to={`/wiki/classic?agency=${encodeURIComponent(stories.agency.name)}`}
+        >
           <ArrowLeftIcon />
           返回上一页
         </Link>
         <Link
-          to={`/story/modern?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
+          to={`/story?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
         >
           <WikiViewSwitchIcon tone="dark" />
           新版视图

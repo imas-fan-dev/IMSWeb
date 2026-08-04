@@ -73,7 +73,7 @@ export function WikiGlobalSearchResults({
             return (
               <li key={`${entry.agencyId}\u0000${entry.id}`}>
                 <Link
-                  to={`${view === "modern" ? "/story/modern" : "/story"}?${searchParams}`}
+                  to={`${view === "modern" ? "/story" : "/story/classic"}?${searchParams}`}
                   className="group/result grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-3 py-2 hover:bg-accent focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   aria-label={`跳转到 ${entry.name} · ${entry.agencyName}`}
                   onClick={onNavigate}

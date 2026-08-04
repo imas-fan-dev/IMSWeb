@@ -81,7 +81,7 @@ describe("AdminImageUploadField", () => {
     expect(screen.getByText("上传中")).toBeVisible()
   })
 
-  it("updates upload copy and accessible labels when the language changes", async () => {
+  it("keeps upload copy in Chinese when another language is requested", async () => {
     const file = new File([new Uint8Array(1536)], "profile.png", {
       type: "image/png",
     })
@@ -101,18 +101,16 @@ describe("AdminImageUploadField", () => {
 
     await act(() => i18n.changeLanguage("en"))
 
+    expect(screen.getByRole("group", { name: "图片文件选择" })).toBeVisible()
+    expect(screen.getByText("图片 · 1.5 KiB")).toBeVisible()
+    expect(screen.getByText("已选择")).toBeVisible()
+    expect(screen.getByRole("button", { name: "更换" })).toBeVisible()
     expect(
-      screen.getByRole("group", { name: "Image file picker" })
-    ).toBeVisible()
-    expect(screen.getByText("Image · 1.5 KiB")).toBeVisible()
-    expect(screen.getByText("Selected")).toBeVisible()
-    expect(screen.getByRole("button", { name: "Change" })).toBeVisible()
-    expect(
-      screen.getByRole("button", { name: "Remove profile.png" })
-    ).toHaveAttribute("title", "Remove selected file")
+      screen.getByRole("button", { name: "移除 profile.png" })
+    ).toHaveAttribute("title", "移除已选择的文件")
   })
 
-  it("localizes the empty and uploading states", async () => {
+  it("keeps empty and uploading states in Chinese", async () => {
     const { rerender } = render(
       <AdminImageUploadField
         id="localized-empty-image"
@@ -125,9 +123,9 @@ describe("AdminImageUploadField", () => {
 
     await act(() => i18n.changeLanguage("en"))
 
-    expect(screen.getByText("Choose an image")).toBeVisible()
-    expect(screen.getByText("PNG, JPEG, WebP, or AVIF")).toBeVisible()
-    expect(screen.getByRole("button", { name: "Choose file" })).toBeVisible()
+    expect(screen.getByText("选择一张图片")).toBeVisible()
+    expect(screen.getByText("PNG、JPEG、WebP 或 AVIF")).toBeVisible()
+    expect(screen.getByRole("button", { name: "选择文件" })).toBeVisible()
 
     rerender(
       <AdminImageUploadField
@@ -139,10 +137,8 @@ describe("AdminImageUploadField", () => {
       />
     )
 
-    expect(screen.getByText("Uploading Image")).toBeVisible()
-    expect(
-      screen.getByText("Keep this page open until the upload is complete")
-    ).toBeVisible()
-    expect(screen.getByText("Uploading")).toBeVisible()
+    expect(screen.getByText("正在上传图片")).toBeVisible()
+    expect(screen.getByText("上传完成前请勿关闭页面")).toBeVisible()
+    expect(screen.getByText("上传中")).toBeVisible()
   })
 })

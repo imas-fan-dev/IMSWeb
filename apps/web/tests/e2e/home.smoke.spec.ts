@@ -9,9 +9,12 @@ const publicRoutes = [
   { path: "/community", title: /制作人社区.*IMSWeb/i },
   { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
   { path: "/works", title: /同人作品.*IMSWeb/i },
-  { path: "/wiki", title: /经典剧情导航.*IMSWeb/i },
+  { path: "/wiki", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/modern", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i },
+  { path: "/story", title: /剧情详情.*IMSWeb/i },
+  { path: "/story/modern", title: /剧情详情.*IMSWeb/i },
+  { path: "/story/classic", title: /经典剧情详情.*IMSWeb/i },
   { path: "/works/sc", title: /SHINY COLORS.*IMSWeb/i },
   { path: "/chronicle", title: /活动编年史.*IMSWeb/i },
 ]
@@ -46,7 +49,7 @@ for (const route of publicRoutes) {
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN")
     await expect(page.locator("main#main-content")).toBeVisible()
     await expect(page.locator("main#main-content")).not.toBeEmpty()
-    if (route.path === "/wiki" || route.path === "/wiki/classic") {
+    if (route.path === "/wiki/classic" || route.path === "/story/classic") {
       await expect(page.getByTestId("series-icon-background")).toHaveCount(0)
     } else {
       await expect(
@@ -62,6 +65,25 @@ for (const route of publicRoutes) {
     expect(pageErrors, "the page should not raise uncaught errors").toEqual([])
   })
 }
+
+test("the interface stays Chinese when an English preference is stored", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("imsweb.language", "en")
+  })
+  await page.goto("/")
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN")
+  await expect(
+    page.locator(
+      'button[aria-label*="切换至"], button[aria-label^="Switch to"]'
+    )
+  ).toHaveCount(0)
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("imsweb.language")))
+    .toBe("zh-CN")
+})
 
 test("work detail content stays below the sticky site header", async ({
   page,

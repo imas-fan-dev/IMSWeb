@@ -25,7 +25,7 @@ describe("SiteHeader", () => {
     await i18n.changeLanguage(defaultLanguage)
   })
 
-  it("labels the story archive across languages and removes the game", async () => {
+  it("keeps the story archive in Chinese and hides language switching", async () => {
     render(<SiteHeader />, { wrapper: TestProviders })
 
     const storySiteLink = screen.getByRole("link", { name: "剧情站" })
@@ -40,9 +40,10 @@ describe("SiteHeader", () => {
 
     await act(() => i18n.changeLanguage("en"))
 
-    expect(screen.getByRole("link", { name: "Story Archive" })).toBe(
-      storySiteLink
-    )
+    expect(screen.getByRole("link", { name: "剧情站" })).toBe(storySiteLink)
+    expect(
+      screen.queryByRole("button", { name: /切换至|Switch to/ })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("link", { name: "Running Idol" })
     ).not.toBeInTheDocument()

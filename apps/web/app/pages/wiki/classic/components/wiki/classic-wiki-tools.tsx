@@ -28,7 +28,7 @@ export function ClassicWikiTools({
     <>
       {background?.url ? (
         <Link
-          to={`/story?agency=${encodeURIComponent(background.agency_name ?? "")}&idol=${encodeURIComponent(background.idol_name ?? "")}`}
+          to={`/story/classic?agency=${encodeURIComponent(background.agency_name ?? "")}&idol=${encodeURIComponent(background.idol_name ?? "")}`}
           className="wiki-classic-background-source"
         >
           <SearchIcon />

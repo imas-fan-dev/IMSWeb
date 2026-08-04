@@ -377,13 +377,13 @@ describe("classic Wiki pages", () => {
     })
     expect(manoLink).toHaveAttribute(
       "href",
-      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+      "/story/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
     expect(within(manoLink).queryByText("其他")).not.toBeInTheDocument()
     const desktopViewSwitch = screen.getByRole("link", { name: "新版视图" })
     expect(desktopViewSwitch).toHaveAttribute(
       "href",
-      "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+      "/wiki?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
     )
     expect(desktopViewSwitch.querySelector("img")).toHaveAttribute(
       "src",
@@ -394,7 +394,7 @@ describe("classic Wiki pages", () => {
     })
     expect(mobileViewSwitch).toHaveAttribute(
       "href",
-      "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+      "/wiki?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
     )
     expect(mobileViewSwitch.querySelector("img")).toHaveAttribute(
       "src",
@@ -487,7 +487,7 @@ describe("classic Wiki pages", () => {
     const user = userEvent.setup()
 
     render(
-      <MemoryRouter initialEntries={["/wiki?agency=闪耀色彩"]}>
+      <MemoryRouter initialEntries={["/wiki/classic?agency=闪耀色彩"]}>
         <ClassicWikiPage />
       </MemoryRouter>
     )
@@ -505,11 +505,11 @@ describe("classic Wiki pages", () => {
     expect(links).toHaveLength(2)
     expect(links[0]).toHaveAttribute(
       "href",
-      "/story?agency=765PRO&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+      "/story/classic?agency=765PRO&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
     )
     expect(links[1]).toHaveAttribute(
       "href",
-      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+      "/story/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
     )
   })
 
@@ -642,7 +642,9 @@ describe("classic Wiki pages", () => {
     const user = userEvent.setup()
 
     render(
-      <MemoryRouter initialEntries={["/wiki?agency=闪耀色彩&group=999"]}>
+      <MemoryRouter
+        initialEntries={["/wiki/classic?agency=闪耀色彩&group=999"]}
+      >
         <ClassicWikiPage />
         <LocationProbe />
       </MemoryRouter>
@@ -752,7 +754,7 @@ describe("classic Wiki pages", () => {
     const modernViewLink = screen.getByRole("link", { name: "新版视图" })
     expect(modernViewLink).toHaveAttribute(
       "href",
-      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
     expect(modernViewLink.querySelector("img")).toHaveAttribute(
       "src",
@@ -825,7 +827,9 @@ describe("classic Wiki pages", () => {
     const user = userEvent.setup()
 
     render(
-      <MemoryRouter initialEntries={["/story?agency=学园偶像大师&idol=S卡"]}>
+      <MemoryRouter
+        initialEntries={["/story/classic?agency=学园偶像大师&idol=S卡"]}
+      >
         <ClassicStoryPage />
       </MemoryRouter>
     )

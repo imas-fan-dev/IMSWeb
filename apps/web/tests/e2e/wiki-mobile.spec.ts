@@ -6,11 +6,9 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
 }) => {
   test.skip(!isMobile, "mobile-only Wiki interaction")
 
-  await page.goto("/wiki/modern")
+  await page.goto("/wiki")
 
-  const firstIdolCard = page
-    .locator('a[aria-label][href^="/story/modern?"]')
-    .first()
+  const firstIdolCard = page.locator('a[aria-label][href^="/story?"]').first()
   await expect(firstIdolCard).toBeVisible()
   const firstIdolAvatar = firstIdolCard.getByTestId("wiki-idol-avatar")
   await expect
@@ -63,7 +61,7 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   test.skip(!isMobile, "mobile-only classic Wiki layout")
 
   await page.setViewportSize({ width: 320, height: 844 })
-  await page.goto("/wiki")
+  await page.goto("/wiki/classic")
 
   const navigationButton = page.getByRole("button", {
     name: "打开企划导航",
@@ -220,7 +218,7 @@ test("story source labels stay visible in both mobile views", async ({
     "agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
 
   for (const route of [
-    `/story/modern?${storyTarget}`,
+    `/story?${storyTarget}`,
     `/story/classic?${storyTarget}`,
   ]) {
     await page.goto(route)
@@ -305,7 +303,7 @@ test("new story cards without story sources render in gray", async ({
   page,
 }) => {
   await page.goto(
-    "/story/modern?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
+    "/story?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
   )
 
   const imageCard = page.locator('[id^="story-card-"]:has(img)').first()
@@ -442,7 +440,7 @@ test("classic Wiki styles survive returning from a story", async ({
 
   const directStyles = await readLayoutStyles()
   await page.locator(".wiki-classic-idol-card").first().click()
-  await expect(page).toHaveURL(/\/story\?/)
+  await expect(page).toHaveURL(/\/story\/classic\?/)
   await page.getByRole("link", { name: "返回上一页", exact: true }).click()
   await expect(page).toHaveURL(/\/wiki\?/)
   await expect(

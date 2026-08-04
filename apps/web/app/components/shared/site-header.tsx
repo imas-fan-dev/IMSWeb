@@ -3,7 +3,6 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, NavLink } from "react-router"
 
-import { LanguageSwitcher } from "~/components/shared/language-switcher"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { Button } from "~/components/ui/button"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
@@ -27,7 +26,7 @@ const navigation = [
   },
   { to: "/live", label: "navigation.live", end: false },
   { to: "/community", label: "navigation.community", end: true },
-  { to: "/about", label: "navigation.about", end: true }
+  { to: "/about", label: "navigation.about", end: true },
 ] as const
 
 function desktopLinkClass({ isActive }: { isActive: boolean }) {
@@ -80,7 +79,6 @@ export function SiteHeader() {
           <BookOpenTextIcon aria-hidden="true" className="size-3.5" />
         </Link>
 
-        <LanguageSwitcher />
         <ThemeToggle className="ml-auto lg:ml-0" />
 
         <Sheet

@@ -59,7 +59,7 @@ export function ClassicIdolSection({
         {idols.map((idol) => (
           <Link
             key={idol.id}
-            to={`/story?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
+            to={`/story/classic?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
             aria-label={idol.name}
             className="wiki-classic-idol-card"
             style={
