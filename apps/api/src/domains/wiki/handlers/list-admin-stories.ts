@@ -138,6 +138,7 @@ export function createHandleListAdminWikiStories<E extends Env>(
         name: idol.name_cn,
         folderName: idol.folder_name,
         color: idol.color,
+        wikiUrl: idol.wiki_url,
         textColor: idol.text_color,
         displayOrder: idol.display_order,
         imageUrl: idolImageUrl,

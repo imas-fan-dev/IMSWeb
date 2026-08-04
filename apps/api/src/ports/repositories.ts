@@ -344,6 +344,7 @@ export interface IdolRecord {
     wiki_enabled: boolean;
     display_order: number;
     text_color: string;
+    wiki_url: string | null;
     avatar_object_key: string | null;
     avatar_fit: 'cover' | 'contain';
     avatar_focal_x: number;
@@ -447,6 +448,7 @@ export interface CreateWikiIdolInput {
     folderName: string;
     color: string | null;
     textColor: string;
+    wikiUrl?: string | null;
     imageFit: 'cover' | 'contain';
     wikiEnabled: boolean;
     groupIds: number[];
@@ -459,6 +461,7 @@ export interface UpdateWikiIdolInput {
     name: string;
     color: string | null;
     textColor: string;
+    wikiUrl?: string | null;
     imageFit: 'cover' | 'contain';
     wikiEnabled: boolean;
     groupIds: number[];

@@ -10,6 +10,10 @@ vi.mock("~/components/shared/admin-return-shortcut", () => ({
   AdminReturnShortcut: () => null,
 }))
 
+vi.mock("~/components/shared/back-to-top", () => ({
+  BackToTop: () => <button type="button">返回顶部</button>,
+}))
+
 vi.mock("~/components/shared/series-icon-background", () => ({
   SeriesIconBackground: () => <div data-testid="series-icon-background" />,
 }))
@@ -40,5 +44,6 @@ describe("PublicLayout", () => {
     expect(screen.getByText("活动中心内容")).toBeVisible()
     expect(screen.getByText("站点导航")).toBeVisible()
     expect(screen.getByText("站点页脚")).toBeVisible()
+    expect(screen.getByRole("button", { name: "返回顶部" })).toBeVisible()
   })
 })

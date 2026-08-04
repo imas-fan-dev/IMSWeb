@@ -5,6 +5,7 @@ export const resources = {
   "zh-CN": {
     common: {
       accessibility: {
+        backToTop: "返回顶部",
         skipToContent: "跳到主要内容",
       },
       brand: {
@@ -94,6 +95,7 @@ export const resources = {
   en: {
     common: {
       accessibility: {
+        backToTop: "Back to top",
         skipToContent: "Skip to main content",
       },
       brand: {

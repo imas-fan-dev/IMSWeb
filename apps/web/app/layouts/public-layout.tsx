@@ -2,6 +2,7 @@ import { Outlet } from "react-router"
 import { useTranslation } from "react-i18next"
 
 import { AdminReturnShortcut } from "~/components/shared/admin-return-shortcut"
+import { BackToTop } from "~/components/shared/back-to-top"
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { SiteFooter } from "~/components/shared/site-footer"
 import { SiteHeader } from "~/components/shared/site-header"
@@ -25,7 +26,10 @@ export default function PublicLayout() {
       <div className="relative z-10">
         <SiteFooter />
       </div>
-      <AdminReturnShortcut />
+      <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 sm:right-6 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <BackToTop className="static" />
+        <AdminReturnShortcut className="static" />
+      </div>
     </div>
   )
 }

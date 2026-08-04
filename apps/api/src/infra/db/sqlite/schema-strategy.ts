@@ -255,6 +255,12 @@ function sqliteStorySchema(): string {
             wiki_enabled INTEGER NOT NULL DEFAULT 1,
             display_order INTEGER NOT NULL DEFAULT 0,
             text_color TEXT NOT NULL DEFAULT '#ffffff',
+            wiki_url TEXT CHECK (
+                wiki_url IS NULL OR (
+                    length(wiki_url) BETWEEN 1 AND 2048
+                    AND (wiki_url LIKE 'http://%' OR wiki_url LIKE 'https://%')
+                )
+            ),
             avatar_object_key TEXT,
             avatar_fit TEXT NOT NULL DEFAULT 'cover' CHECK (avatar_fit IN ('cover', 'contain')),
             avatar_focal_x REAL NOT NULL DEFAULT 0.5 CHECK (avatar_focal_x BETWEEN 0 AND 1),
@@ -681,6 +687,7 @@ export class SqliteSchemaStrategy implements SqlSchemaStrategy {
         await this.ensureColumn(database, 'idols', 'wiki_enabled', 'INTEGER NOT NULL DEFAULT 1');
         await this.ensureColumn(database, 'idols', 'display_order', 'INTEGER NOT NULL DEFAULT 0');
         await this.ensureColumn(database, 'idols', 'text_color', "TEXT NOT NULL DEFAULT '#ffffff'");
+        await this.ensureColumn(database, 'idols', 'wiki_url', 'TEXT');
         await this.ensureColumn(database, 'idols', 'avatar_object_key', 'TEXT');
         await this.ensureColumn(database, 'idols', 'avatar_fit', "TEXT NOT NULL DEFAULT 'cover'");
         await this.ensureColumn(database, 'idols', 'avatar_focal_x',

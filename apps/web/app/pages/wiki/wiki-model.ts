@@ -135,6 +135,12 @@ export function safeExternalStoryUrl(value: string) {
   }
 }
 
+export function hasStorySource(links: WikiPublicStoryCard["links"]) {
+  return links.some(
+    (link) => link.contentType.normalize("NFKC").trim() === "剧情"
+  )
+}
+
 export function storyCardMatches(
   category: WikiPublicStoryCategory,
   card: WikiPublicStoryCard,

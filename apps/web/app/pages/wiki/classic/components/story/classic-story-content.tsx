@@ -9,6 +9,7 @@ import type {
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import {
+  hasStorySource,
   storyCardAspectRatio,
   storyCardColumns,
   storyCardGap,
@@ -104,7 +105,7 @@ export function ClassicStoryContent({
               >
                 {category.cards.map((card) => {
                   const textOnly = !card.img
-                  const hasSources = card.links.length > 0
+                  const hasStory = hasStorySource(card.links)
                   return (
                     <button
                       key={`${category.name}\u0000${card.name}`}
@@ -113,9 +114,9 @@ export function ClassicStoryContent({
                         "wiki-classic-story-card",
                         textOnly && "is-text-only"
                       )}
-                      data-source-state={hasSources ? "available" : "empty"}
+                      data-story-state={hasStory ? "available" : "unavailable"}
                       aria-label={
-                        !hasSources ? `${card.name}，暂无来源` : undefined
+                        !hasStory ? `${card.name}，暂无剧情来源` : undefined
                       }
                       onClick={() => onSelectCard(category, card)}
                     >

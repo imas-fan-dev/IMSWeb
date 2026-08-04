@@ -2,6 +2,7 @@ import {
   AlertCircleIcon,
   ArrowLeftIcon,
   BookOpenIcon,
+  ExternalLinkIcon,
   Link2Icon,
   ListFilterIcon,
   SearchIcon,
@@ -234,16 +235,30 @@ export function StoryPage() {
                   <span>{cardCount ?? 0} 张卡片</span>
                   <span>{linkCount ?? 0} 个内容来源</span>
                 </p>
-                <Link
-                  to={`/story?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "mt-3 sm:mt-4"
-                  )}
-                >
-                  <WikiViewSwitchIcon data-icon="inline-start" />
-                  经典视图
-                </Link>
+                <div className="mt-3 flex flex-wrap gap-2 sm:mt-4">
+                  <Link
+                    to={`/story?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
+                    className={cn(
+                      buttonVariants({ variant: "outline", size: "sm" })
+                    )}
+                  >
+                    <WikiViewSwitchIcon data-icon="inline-start" />
+                    经典视图
+                  </Link>
+                  {stories.idol.wikiUrl ? (
+                    <a
+                      href={stories.idol.wikiUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" })
+                      )}
+                    >
+                      <ExternalLinkIcon data-icon="inline-start" />
+                      查看 Wiki
+                    </a>
+                  ) : null}
+                </div>
               </div>
             </div>
           </section>

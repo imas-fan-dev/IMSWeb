@@ -23,6 +23,8 @@ describe("Wiki public dynamic data contract", () => {
     fixture.storage.publicReadUrlBase = "https://cdn.example.test";
     fixture.story.idols[5]!.avatar_object_key =
       "wiki/agencies/sc/idols/sc_idol/avatar.webp";
+    fixture.story.idols[5]!.wiki_url =
+      "https://wiki.example.test/idols/sakuragi-mano";
     fixture.story.agencies[5]!.icon_object_key =
       "wiki/agencies/sc/branding/icon.webp";
     fixture.storage.seed("wiki/agencies/sc/idols/sc_idol/avatar.webp");
@@ -75,6 +77,7 @@ describe("Wiki public dynamic data contract", () => {
               name: "樱木真乃",
               folderName: "sc_idol",
               color: "#8dbbff",
+              wikiUrl: "https://wiki.example.test/idols/sakuragi-mano",
               imageUrl:
                 "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/avatar.webp",
               imageFit: "cover",
@@ -199,6 +202,8 @@ describe("Wiki public dynamic data contract", () => {
     const fixture = createWikiFixture();
     fixture.storage.seed("wiki/agencies/sc/idols/sc_idol/avatar.webp");
     fixture.storage.publicReadUrlBase = "https://cdn.example.test";
+    fixture.story.idols[5]!.wiki_url =
+      "https://wiki.example.test/idols/sakuragi-mano";
     fixture.story.seedStory({
       idol_id: 6,
       category: "enzaP卡",
@@ -230,6 +235,10 @@ describe("Wiki public dynamic data contract", () => {
     const body = (await response.json()) as any;
     assert.equal(body.agency.code, "sc");
     assert.equal(body.idol.name, "樱木真乃");
+    assert.equal(
+      body.idol.wikiUrl,
+      "https://wiki.example.test/idols/sakuragi-mano",
+    );
     assert.equal(body.idol.imageFit, "cover");
     const category = body.categories.find(
       (item: { name: string }) => item.name === "enzaP卡",

@@ -11,7 +11,7 @@ export const STABLE_CONTENT_CACHE_FOR = CLIENT_CACHE_DURATION.stableContent
 export const WIKI_PUBLIC_CACHE = {
   expire: CLIENT_CACHE_DURATION.wiki,
   mode: "restore",
-  tag: "wiki-public-v1",
+  tag: "wiki-public-v2-url",
 } as const
 
 export const PUBLIC_CACHE_INVALIDATION_SOURCE = {

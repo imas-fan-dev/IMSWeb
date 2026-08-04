@@ -269,7 +269,9 @@ test("classic text-only story cards do not render nested frames", async ({
   })
 })
 
-test("new story cards without sources render in gray", async ({ page }) => {
+test("new story cards without story sources render in gray", async ({
+  page,
+}) => {
   await page.goto(
     "/story/modern?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
   )
@@ -285,8 +287,8 @@ test("new story cards without sources render in gray", async ({ page }) => {
   await expect(textOnlyCard).toHaveCSS("opacity", "0.6")
   await expect(textOnlyCard).toHaveCSS("filter", "grayscale(1)")
 
-  await expect(imageCard).toHaveAttribute("data-source-state", "empty")
-  await expect(textOnlyCard).toHaveAttribute("data-source-state", "empty")
+  await expect(imageCard).toHaveAttribute("data-story-state", "unavailable")
+  await expect(textOnlyCard).toHaveAttribute("data-story-state", "unavailable")
 
   await textOnlyCard.click()
   await expect(page.getByRole("dialog")).toBeVisible()

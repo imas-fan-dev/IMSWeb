@@ -8,7 +8,7 @@ import {
 } from "react"
 import { useSearchParams } from "react-router"
 
-import { WikiBackToTop } from "~/components/wiki/wiki-back-to-top"
+import { BackToTop } from "~/components/shared/back-to-top"
 import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
 import type { WikiPublicCatalog } from "~/lib/api"
 import { contrastingWikiText, safeWikiColor } from "~/pages/wiki/wiki-model"
@@ -236,7 +236,7 @@ export function ClassicWikiPage() {
         }
         onToggleSearch={() => setSearchOpen((current) => !current)}
       />
-      <WikiBackToTop variant="classic" />
+      <BackToTop className="wiki-classic-back-to-top" />
     </main>
   )
 }
