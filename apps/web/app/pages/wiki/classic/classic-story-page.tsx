@@ -2,6 +2,7 @@ import { AlertCircleIcon, Layers3Icon } from "lucide-react"
 import { type CSSProperties, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router"
 
+import { BackToTop } from "~/components/shared/back-to-top"
 import { getWikiStories, isApiError } from "~/lib/api"
 import type {
   WikiPublicStories,
@@ -217,6 +218,7 @@ export function ClassicStoryPage() {
         style={style}
         onClose={() => setSelectedCard(null)}
       />
+      <BackToTop />
     </main>
   )
 }

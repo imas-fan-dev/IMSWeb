@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { StoryPage } from "~/pages/wiki/modern/story-page"
 
-function storyPayload(withCards = true, includeSourcelessCard = false) {
+function storyPayload(
+  withCards = true,
+  includeCardsWithoutStory = false,
+  wikiUrl: string | null = null
+) {
   return {
     status: "success",
     agency: {
@@ -19,6 +23,7 @@ function storyPayload(withCards = true, includeSourcelessCard = false) {
       name: "樱木真乃",
       folderName: "sakuragi_mano",
       color: "#f1b0c9",
+      wikiUrl,
       imageUrl: "/image/mano.webp",
       imageFit: "cover",
       textColor: "#ffffff",
@@ -52,10 +57,26 @@ function storyPayload(withCards = true, includeSourcelessCard = false) {
                   },
                 ],
               },
-              ...(includeSourcelessCard
+              ...(includeCardsWithoutStory
                 ? [
                     {
                       id: 402,
+                      name: "【仅语音】",
+                      img: "/image/audio.webp",
+                      subtitle: "语音收录",
+                      links: [
+                        {
+                          id: 23,
+                          up: "投稿者三",
+                          title: "语音试听",
+                          url: "https://www.bilibili.com/video/BV1xx411c7mF",
+                          contentType: "语音",
+                          sourcePlatform: "Bilibili",
+                        },
+                      ],
+                    },
+                    {
+                      id: 403,
                       name: "【来源待补】",
                       img: "",
                       subtitle: "待编辑",
@@ -122,6 +143,9 @@ describe("StoryPage", () => {
       "src",
       "/brand/wiki-view-switch.png"
     )
+    expect(
+      within(profile).queryByRole("link", { name: "查看 Wiki" })
+    ).not.toBeInTheDocument()
     expect(screen.getByTestId("story-search-bar")).not.toHaveClass("sticky")
     const sidebar = screen.getByTestId("story-navigation-sidebar")
     expect(sidebar).toHaveClass("sticky", "top-20", "lg:block")
@@ -148,6 +172,32 @@ describe("StoryPage", () => {
     expect(await screen.findByText("没有匹配的剧情")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "清除搜索词" }))
     expect(await screen.findByText("【花风Smiley】")).toBeVisible()
+  })
+
+  it("shows the configured external Wiki link in the profile", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          Response.json(
+            storyPayload(
+              true,
+              false,
+              "https://wiki.example.test/idols/sakuragi-mano"
+            )
+          )
+        )
+    )
+
+    renderStory()
+
+    const link = await screen.findByRole("link", { name: "查看 Wiki" })
+    expect(link).toHaveAttribute(
+      "href",
+      "https://wiki.example.test/idols/sakuragi-mano"
+    )
+    expect(link).toHaveAttribute("target", "_blank")
   })
 
   it("shows the dynamic empty state when no cards are available", async () => {
@@ -237,7 +287,7 @@ describe("StoryPage", () => {
     expect(target).not.toHaveClass("ring-primary", "ring-offset-3")
   })
 
-  it("grays cards without sources while keeping them interactive", async () => {
+  it("only keeps cards with story sources in full color", async () => {
     vi.stubGlobal(
       "fetch",
       vi
@@ -251,13 +301,18 @@ describe("StoryPage", () => {
     const sourcedCard = await screen.findByRole("button", {
       name: /【花风Smiley】/,
     })
-    const sourcelessCard = screen.getByRole("button", {
-      name: "【来源待补】，暂无来源",
+    const audioOnlyCard = screen.getByRole("button", {
+      name: "【仅语音】，暂无剧情来源",
     })
-    expect(sourcedCard).toHaveAttribute("data-source-state", "available")
+    const sourcelessCard = screen.getByRole("button", {
+      name: "【来源待补】，暂无剧情来源",
+    })
+    expect(sourcedCard).toHaveAttribute("data-story-state", "available")
     expect(sourcedCard).toHaveClass("border")
     expect(sourcedCard).not.toHaveClass("grayscale", "opacity-60")
-    expect(sourcelessCard).toHaveAttribute("data-source-state", "empty")
+    expect(audioOnlyCard).toHaveAttribute("data-story-state", "unavailable")
+    expect(audioOnlyCard).toHaveClass("grayscale", "opacity-60")
+    expect(sourcelessCard).toHaveAttribute("data-story-state", "unavailable")
     expect(sourcelessCard).toHaveClass("border")
     expect(sourcelessCard).not.toHaveClass("border-2")
     expect(sourcelessCard.style.borderColor).toBe("")
@@ -270,9 +325,9 @@ describe("StoryPage", () => {
       "focus-visible:opacity-80"
     )
 
-    await user.click(sourcelessCard)
+    await user.click(audioOnlyCard)
     expect(screen.getByRole("dialog")).toBeVisible()
-    expect(screen.getByText("暂无可用剧情来源")).toBeVisible()
+    expect(screen.getByRole("link", { name: /语音试听/ })).toBeVisible()
   })
 
   it("opens the mobile navigation and closes it after selection", async () => {

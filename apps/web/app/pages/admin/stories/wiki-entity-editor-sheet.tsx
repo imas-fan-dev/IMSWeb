@@ -77,6 +77,7 @@ type EntityForm = {
   name: string
   bannerTitle: string
   folderName: string
+  wikiUrl: string
   color: string
   textColor: string
   wikiEnabled: boolean
@@ -92,6 +93,7 @@ function initialForm(target: WikiEntityEditorTarget): EntityForm {
       name: target.entity?.name ?? "",
       bannerTitle: target.entity?.bannerTitle ?? "",
       folderName: "",
+      wikiUrl: "",
       color: target.entity?.color ?? "#777777",
       textColor: "#ffffff",
       wikiEnabled: target.entity?.wikiEnabled ?? true,
@@ -106,6 +108,7 @@ function initialForm(target: WikiEntityEditorTarget): EntityForm {
       name: target.entity?.name ?? "",
       bannerTitle: "",
       folderName: "",
+      wikiUrl: "",
       color: target.entity?.color ?? target.agency.color ?? "#777777",
       textColor: "#ffffff",
       wikiEnabled: true,
@@ -119,6 +122,7 @@ function initialForm(target: WikiEntityEditorTarget): EntityForm {
     name: target.entity?.name ?? "",
     bannerTitle: "",
     folderName: target.entity?.folderName ?? "",
+    wikiUrl: target.entity?.wikiUrl ?? "",
     color: target.entity?.color ?? target.agency.color ?? "#777777",
     textColor: target.entity?.textColor ?? "#ffffff",
     wikiEnabled: target.entity?.wikiEnabled ?? true,
@@ -247,6 +251,7 @@ function WikiEntityEditorDialogContent({
           name: form.name.trim(),
           color: form.color || null,
           textColor: form.textColor,
+          wikiUrl: form.wikiUrl.trim() || null,
           wikiEnabled: form.wikiEnabled,
           groupIds: form.groupIds,
           entryKind: form.entryKind,
@@ -471,6 +476,28 @@ function WikiEntityEditorDialogContent({
                     />
                     <FieldDescription>
                       用于对象存储路径，创建后不可修改。
+                    </FieldDescription>
+                  </Field>
+                ) : null}
+
+                {target.kind === "idol" ? (
+                  <Field>
+                    <FieldLabel htmlFor="wiki-entity-wiki-url">
+                      Wiki 链接（可选）
+                    </FieldLabel>
+                    <Input
+                      id="wiki-entity-wiki-url"
+                      type="url"
+                      inputMode="url"
+                      maxLength={2048}
+                      placeholder="https://example.com/wiki/..."
+                      value={form.wikiUrl}
+                      onChange={(event) =>
+                        update("wikiUrl", event.target.value)
+                      }
+                    />
+                    <FieldDescription>
+                      配置后，公开内容页会显示跳转到外部 Wiki 的按钮。
                     </FieldDescription>
                   </Field>
                 ) : null}

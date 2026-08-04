@@ -47,6 +47,7 @@ const wikiAdminIdolSchema = z.object({
   name: z.string(),
   folderName: z.string(),
   color: z.string().nullable(),
+  wikiUrl: z.string().nullable().default(null),
   textColor: z.string(),
   displayOrder: z.coerce.number().int().nonnegative(),
   imageUrl: z.string(),
@@ -245,6 +246,7 @@ const wikiPublicIdolSchema = z.object({
   name: z.string(),
   folderName: z.string(),
   color: z.string().nullable(),
+  wikiUrl: z.string().nullable().default(null),
   imageUrl: z.string(),
   imageFit: z.enum(["contain", "cover"]),
   textColor: z.string(),
@@ -477,6 +479,7 @@ export type WikiIdolSubmission = {
   folderName: string
   color: string | null
   textColor: string
+  wikiUrl: string | null
   wikiEnabled: boolean
   groupIds: number[]
   entryKind?: WikiEntryKind

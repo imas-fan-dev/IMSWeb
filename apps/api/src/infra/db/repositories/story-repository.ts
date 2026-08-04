@@ -54,7 +54,7 @@ const AGENCY_COLUMNS = `id, code, name_cn, color, wiki_enabled, display_order,
     icon_zoom, icon_rotation, icon_media_revision, fallback_artwork_object_key,
     layout_revision`;
 const IDOL_COLUMNS = `id, agency_id, name_cn, folder_name, color, wiki_enabled,
-    display_order, text_color, avatar_object_key, avatar_fit, avatar_focal_x,
+    display_order, text_color, wiki_url, avatar_object_key, avatar_fit, avatar_focal_x,
     avatar_focal_y, avatar_zoom, avatar_rotation, avatar_media_revision,
     entry_kind, entry_subtype`;
 const GROUP_COLUMNS = `id, agency_id, code, name, color, icon_object_key,
@@ -185,6 +185,7 @@ export class SqlStoryRepository implements StoryRepository {
         const rows = await queryAll<IdolWithAgencyRecord>(this.database,
             `SELECT i.id, i.agency_id, i.name_cn, i.folder_name, i.color,
                     i.wiki_enabled, i.display_order, i.text_color,
+                    i.wiki_url,
                     i.avatar_object_key, i.avatar_fit, i.avatar_focal_x,
                     i.avatar_focal_y, i.avatar_zoom, i.avatar_rotation,
                     i.avatar_media_revision, i.entry_kind, i.entry_subtype,
@@ -418,11 +419,12 @@ export class SqlStoryRepository implements StoryRepository {
         const statements = [sqlStatement(this.database,
             `INSERT INTO idols
                 (agency_id, name_cn, folder_name, color, wiki_enabled, display_order,
-                 text_color, avatar_fit, entry_kind, entry_subtype)
-             SELECT ?, ?, ?, ?, ?, COALESCE(MAX(display_order) + 1, 0), ?, ?, ?, ?
+                 text_color, wiki_url, avatar_fit, entry_kind, entry_subtype)
+             SELECT ?, ?, ?, ?, ?, COALESCE(MAX(display_order) + 1, 0), ?, ?, ?, ?, ?
              FROM idols WHERE agency_id=?`,
             [input.agencyId, input.name, input.folderName, input.color, input.wikiEnabled,
-                input.textColor, input.imageFit, input.entryKind ?? 'idol',
+                input.textColor, input.wikiUrl ?? null, input.imageFit,
+                input.entryKind ?? 'idol',
                 input.entryKind === 'story' ? input.entrySubtype ?? 'other' : null,
                 input.agencyId]
         )];
@@ -483,10 +485,12 @@ export class SqlStoryRepository implements StoryRepository {
             sqlStatement(this.database,
                 `UPDATE idols
                  SET name_cn=?, color=?, text_color=?, avatar_fit=?, wiki_enabled=?,
-                     entry_kind=?, entry_subtype=?
+                     wiki_url=?, entry_kind=?, entry_subtype=?
                  WHERE id=?`,
                 [input.name, input.color, input.textColor, input.imageFit,
-                    input.wikiEnabled, input.entryKind ?? idol.entry_kind,
+                    input.wikiEnabled,
+                    input.wikiUrl === undefined ? idol.wiki_url : input.wikiUrl,
+                    input.entryKind ?? idol.entry_kind,
                     (input.entryKind ?? idol.entry_kind) === 'story'
                         ? input.entrySubtype ?? idol.entry_subtype ?? 'other'
                         : null,

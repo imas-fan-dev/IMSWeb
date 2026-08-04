@@ -15,6 +15,7 @@ function idol(id: number, name: string, groupIds: number[]): WikiAdminIdol {
     name,
     folderName: `idol_${id}`,
     color: "#8dbbff",
+    wikiUrl: null,
     textColor: "#ffffff",
     displayOrder: id,
     imageUrl: "",

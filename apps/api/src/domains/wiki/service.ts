@@ -84,6 +84,7 @@ export function toWikiIdol(record: IdolWithAgencyRecord): WikiIdol {
     name: record.name_cn,
     folderName: record.folder_name,
     color: record.color,
+    wikiUrl: record.wiki_url,
     avatarUrl: record.avatar_object_key
       ? idolMediaUrl(record.agency_name, record.name_cn)
       : "",
@@ -110,6 +111,7 @@ export function toWikiIdolFromRecord(
     name: record.name_cn,
     folderName: record.folder_name,
     color: record.color,
+    wikiUrl: record.wiki_url,
     avatarUrl: record.avatar_object_key
       ? idolMediaUrl(agency.name, record.name_cn)
       : "",

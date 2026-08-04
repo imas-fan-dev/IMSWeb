@@ -171,6 +171,10 @@ describe("WikiEntityEditorDialog", () => {
 
     await user.type(screen.getByLabelText("名称"), "周年活动")
     await user.type(screen.getByLabelText("素材目录"), "anniversary_event")
+    await user.type(
+      screen.getByLabelText("Wiki 链接（可选）"),
+      "https://wiki.example.test/events/anniversary"
+    )
     await user.click(screen.getByRole("button", { name: "剧情专题" }))
     await user.click(screen.getByRole("button", { name: "活动" }))
     await user.click(screen.getByRole("button", { name: "保存" }))
@@ -184,6 +188,7 @@ describe("WikiEntityEditorDialog", () => {
     expect(JSON.parse(String(request.body))).toMatchObject({
       name: "周年活动",
       folderName: "anniversary_event",
+      wikiUrl: "https://wiki.example.test/events/anniversary",
       entryKind: "story",
       entrySubtype: "event",
     })
@@ -266,6 +271,7 @@ describe("WikiEntityEditorDialog", () => {
       folderName: "sakuragi_mano",
       color: "#f1b0c9",
       textColor: "#ffffff",
+      wikiUrl: null,
       displayOrder: 0,
       imageUrl: "",
       imageFit: "cover",

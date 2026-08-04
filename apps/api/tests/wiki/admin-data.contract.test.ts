@@ -175,6 +175,7 @@ describe('Wiki admin dynamic data contract', () => {
                 wiki_enabled: false,
                 display_order: 0,
                 text_color: '#ffffff',
+                wiki_url: null,
                 avatar_object_key: null,
                 avatar_fit: 'cover',
                 avatar_focal_x: 0.5,
@@ -211,6 +212,7 @@ describe('Wiki admin dynamic data contract', () => {
                 name: '樱木真乃',
                 folderName: 'sc_idol',
                 color: '#8dbbff',
+                wikiUrl: null,
                 wikiEnabled: true,
                 textColor: '#ffffff',
                 displayOrder: 0,
@@ -241,6 +243,7 @@ describe('Wiki admin dynamic data contract', () => {
                     name: '樱木真乃',
                     folderName: 'sc_idol',
                     color: '#8dbbff',
+                    wikiUrl: null,
                     wikiEnabled: true,
                     textColor: '#ffffff',
                     displayOrder: 0,
@@ -316,6 +319,7 @@ describe('Wiki admin dynamic data contract', () => {
                     name: '未来偶像',
                     folderName: 'future_idol',
                     color: '#fedcba',
+                    wikiUrl: ' https://wiki.example.test/idols/future ',
                     entryKind: 'unit',
                     entrySubtype: null,
                     groupIds: [fallback.id, group.id]
@@ -327,6 +331,7 @@ describe('Wiki admin dynamic data contract', () => {
         assert.deepEqual(idol.groupIds, [fallback.id, group.id]);
         assert.equal(idol.entryKind, 'unit');
         assert.equal(idol.entrySubtype, null);
+        assert.equal(idol.wikiUrl, 'https://wiki.example.test/idols/future');
 
         const catalog = await fixture.app.request('/api/admin/wiki/catalog', {
             headers: await cookieFor(fixture)
@@ -354,6 +359,7 @@ describe('Wiki admin dynamic data contract', () => {
             headers,
             body: JSON.stringify({
                 name: '未来偶像 改',
+                wikiUrl: '',
                 entryKind: 'story',
                 entrySubtype: 'special',
                 groupIds: [group.id]
@@ -364,6 +370,23 @@ describe('Wiki admin dynamic data contract', () => {
         assert.deepEqual(updatedIdol.groupIds, [group.id]);
         assert.equal(updatedIdol.entryKind, 'story');
         assert.equal(updatedIdol.entrySubtype, 'special');
+        assert.equal(updatedIdol.wikiUrl, null);
+
+        const invalidWikiUrl = await fixture.app.request(
+            `/api/admin/wiki/agencies/${agencyId}/idols`,
+            {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    name: '危险链接',
+                    folderName: 'unsafe_link',
+                    wikiUrl: 'javascript:alert(1)',
+                    groupIds: []
+                })
+            }
+        );
+        assert.equal(invalidWikiUrl.status, 400);
+        assert.match((await invalidWikiUrl.json() as any).msg, /HTTP 或 HTTPS/);
 
         const updateGroup = await fixture.app.request(`/api/admin/wiki/groups/${group.id}`, {
             method: 'PATCH',

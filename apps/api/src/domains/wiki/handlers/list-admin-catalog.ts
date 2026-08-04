@@ -39,6 +39,7 @@ export function createHandleListAdminWikiCatalog<E extends Env>(
                 name: idol.name_cn,
                 folderName: idol.folder_name,
                 color: idol.color,
+                wikiUrl: idol.wiki_url,
                 wikiEnabled: idol.wiki_enabled,
                 textColor: idol.text_color,
                 displayOrder: idol.display_order,

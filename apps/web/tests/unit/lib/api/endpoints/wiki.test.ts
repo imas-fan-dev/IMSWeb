@@ -123,6 +123,7 @@ describe("Wiki admin API", () => {
             name: "天海春香",
             folderName: "amami_haruka",
             color: "#e22b30",
+            wikiUrl: "https://wiki.example.test/idols/amami-haruka",
             textColor: "#ffffff",
             displayOrder: 0,
             imageUrl: "",
@@ -195,6 +196,9 @@ describe("Wiki admin API", () => {
       defaultWikiImageTransform
     )
     expect(stories.idol.imageTransform).toEqual(defaultWikiImageTransform)
+    expect(stories.idol.wikiUrl).toBe(
+      "https://wiki.example.test/idols/amami-haruka"
+    )
     expect(stories.stories[0]?.imageTransform).toEqual(
       defaultWikiImageTransform
     )
@@ -291,6 +295,7 @@ describe("Wiki admin API", () => {
             name: "樱木真乃",
             folderName: "sakuragi_mano",
             color: "#f1b0c9",
+            wikiUrl: "https://wiki.example.test/idols/sakuragi-mano",
             imageUrl: "/image/mano.webp",
             imageFit: "cover",
             textColor: "#ffffff",
@@ -365,6 +370,9 @@ describe("Wiki admin API", () => {
       rotation: 270,
     })
     expect(stories.idol.imageTransform).toEqual(defaultWikiImageTransform)
+    expect(stories.idol.wikiUrl).toBe(
+      "https://wiki.example.test/idols/sakuragi-mano"
+    )
     expect(stories.categories[0]?.cards[0]?.imageTransform).toEqual({
       fit: "contain",
       focalX: 0.1,
@@ -925,6 +933,7 @@ describe("Wiki admin API", () => {
       folderName: "future_idol",
       color: "#112233",
       textColor: "#ffffff",
+      wikiUrl: "https://wiki.example.test/idols/future",
       wikiEnabled: true,
       groupIds: [31, 32],
     }
@@ -932,6 +941,7 @@ describe("Wiki admin API", () => {
       name: "未来偶像 改",
       color: null,
       textColor: "#111111",
+      wikiUrl: null,
       wikiEnabled: false,
       groupIds: [32],
     }

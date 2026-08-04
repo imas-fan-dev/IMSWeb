@@ -12,7 +12,6 @@ import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Skeleton } from "~/components/ui/skeleton"
-import { WikiBackToTop } from "~/components/wiki/wiki-back-to-top"
 import { WikiGlobalSearchResults } from "~/components/wiki/wiki-global-search-results"
 import {
   UNGROUPED_FILTER,
@@ -344,7 +343,6 @@ export function WikiIndexPage() {
           </div>
         )}
       </section>
-      <WikiBackToTop variant="modern" />
     </main>
   )
 }

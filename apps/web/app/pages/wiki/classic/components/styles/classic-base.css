@@ -950,13 +950,13 @@
     opacity 160ms ease;
 }
 
-.wiki-classic-story-card[data-source-state="empty"] {
-  filter: saturate(0.5);
+.wiki-classic-story-card[data-story-state="unavailable"] {
+  filter: grayscale(1);
   opacity: 0.45;
 }
 
-.wiki-classic-story-card[data-source-state="empty"]:hover,
-.wiki-classic-story-card[data-source-state="empty"]:focus-visible {
+.wiki-classic-story-card[data-story-state="unavailable"]:hover,
+.wiki-classic-story-card[data-story-state="unavailable"]:focus-visible {
   opacity: 0.7;
 }
 
@@ -1279,7 +1279,7 @@
   }
 
   .wiki-classic-story-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   }
 
   .wiki-classic-story-tabs {

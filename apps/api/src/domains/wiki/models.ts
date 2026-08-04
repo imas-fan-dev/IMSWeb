@@ -28,6 +28,7 @@ export interface WikiIdol {
   name: string;
   folderName: string;
   color: string | null;
+  wikiUrl: string | null;
   avatarUrl?: string;
   avatarFit?: WikiMediaFit;
   avatarTransform?: WikiImageTransform;

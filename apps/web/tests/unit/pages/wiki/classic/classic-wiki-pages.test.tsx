@@ -191,9 +191,10 @@ function catalogPayload(
 }
 
 function storyPayload(
-  includeSourcelessCard = false,
+  includeCardsWithoutStory = false,
   idolColor = "#f1b0c9",
-  textColor = "#ffffff"
+  textColor = "#ffffff",
+  wikiUrl: string | null = null
 ) {
   return {
     status: "success",
@@ -208,6 +209,7 @@ function storyPayload(
       name: "樱木真乃",
       folderName: "sakuragi_mano",
       color: idolColor,
+      wikiUrl,
       imageUrl: "/image/mano.webp",
       imageFit: "cover",
       textColor,
@@ -240,10 +242,26 @@ function storyPayload(
               },
             ],
           },
-          ...(includeSourcelessCard
+          ...(includeCardsWithoutStory
             ? [
                 {
                   id: 402,
+                  name: "【仅语音】",
+                  img: "/image/audio.webp",
+                  subtitle: "语音收录",
+                  links: [
+                    {
+                      id: 3,
+                      up: "投稿者三",
+                      title: "语音试听",
+                      url: "https://www.bilibili.com/video/BV1xx411c7mF",
+                      contentType: "语音",
+                      sourcePlatform: "Bilibili",
+                    },
+                  ],
+                },
+                {
+                  id: 403,
                   name: "【来源待补】",
                   img: "",
                   subtitle: "待编辑",
@@ -740,6 +758,9 @@ describe("classic Wiki pages", () => {
       "src",
       "/brand/wiki-view-switch.png"
     )
+    expect(
+      screen.queryByRole("link", { name: "查看 Wiki" })
+    ).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /enza主线/ }))
     expect(screen.queryByRole("heading", { name: /特殊剧情/ })).toBeNull()
 
@@ -752,6 +773,39 @@ describe("classic Wiki pages", () => {
     expect(screen.getByLabelText("剧情来源")).toBeVisible()
     expect(screen.getByLabelText("语音来源")).toBeVisible()
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
+  })
+
+  it("shows the configured external Wiki link in the classic profile", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          Response.json(
+            storyPayload(
+              false,
+              "#f1b0c9",
+              "#ffffff",
+              "https://wiki.example.test/idols/sakuragi-mano"
+            )
+          )
+        )
+    )
+
+    render(
+      <MemoryRouter
+        initialEntries={["/story/classic?agency=闪耀色彩&idol=樱木真乃"]}
+      >
+        <ClassicStoryPage />
+      </MemoryRouter>
+    )
+
+    const link = await screen.findByRole("link", { name: "查看 Wiki" })
+    expect(link).toHaveAttribute(
+      "href",
+      "https://wiki.example.test/idols/sakuragi-mano"
+    )
+    expect(link).toHaveAttribute("target", "_blank")
   })
 
   it("temporarily filters Gakumas S cards by cast encoded in subtitles", async () => {
@@ -830,7 +884,7 @@ describe("classic Wiki pages", () => {
     )
   })
 
-  it("marks only source-free classic cards as faded and keeps them openable", async () => {
+  it("only keeps classic cards with story sources in full color", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload(true)))
@@ -848,18 +902,22 @@ describe("classic Wiki pages", () => {
     const sourcedCard = await screen.findByRole("button", {
       name: /W\.I\.N\.G/,
     })
-    const sourcelessCard = screen.getByRole("button", {
-      name: "【来源待补】，暂无来源",
+    const audioOnlyCard = screen.getByRole("button", {
+      name: "【仅语音】，暂无剧情来源",
     })
-    expect(sourcedCard).toHaveAttribute("data-source-state", "available")
-    expect(sourcelessCard).toHaveAttribute("data-source-state", "empty")
+    const sourcelessCard = screen.getByRole("button", {
+      name: "【来源待补】，暂无剧情来源",
+    })
+    expect(sourcedCard).toHaveAttribute("data-story-state", "available")
+    expect(audioOnlyCard).toHaveAttribute("data-story-state", "unavailable")
+    expect(sourcelessCard).toHaveAttribute("data-story-state", "unavailable")
     expect(sourcelessCard).toHaveClass(
       "wiki-classic-story-card",
       "is-text-only"
     )
 
-    await user.click(sourcelessCard)
+    await user.click(audioOnlyCard)
     expect(screen.getByRole("dialog")).toBeVisible()
-    expect(screen.getByText("暂无可用剧情来源")).toBeVisible()
+    expect(screen.getByRole("link", { name: /语音试听/ })).toBeVisible()
   })
 })

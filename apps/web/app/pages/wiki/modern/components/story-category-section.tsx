@@ -20,6 +20,7 @@ import type {
 } from "~/lib/api"
 
 import {
+  hasStorySource,
   isPortraitStoryCategory,
   safeExternalStoryUrl,
   safeWikiColor,
@@ -89,7 +90,7 @@ export function StoryCategorySection({
         {category.cards.map((card) => {
           const cardKey = `${category.name}\u0000${card.name}`
           const textOnly = !card.img
-          const hasSources = card.links.length > 0
+          const hasStory = hasStorySource(card.links)
           const isTargetCard = card.id === highlightedCardId
           return (
             <button
@@ -100,14 +101,14 @@ export function StoryCategorySection({
                 textOnly
                   ? "flex min-h-13 items-center justify-center rounded-lg border bg-card px-4 py-3 text-center text-[15px] font-bold shadow-sm transition-all duration-500 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                   : "overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-[box-shadow,filter,opacity,transform] duration-500 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-                !hasSources &&
+                !hasStory &&
                   "opacity-60 grayscale hover:opacity-80 focus-visible:opacity-80",
                 "scroll-mt-24",
                 isTargetCard && "shadow-lg ring-3 ring-primary ring-offset-3"
               )}
-              data-source-state={hasSources ? "available" : "empty"}
+              data-story-state={hasStory ? "available" : "unavailable"}
               data-cover-target={isTargetCard ? "true" : undefined}
-              aria-label={!hasSources ? `${card.name}，暂无来源` : undefined}
+              aria-label={!hasStory ? `${card.name}，暂无剧情来源` : undefined}
               onClick={() => setSelectedCard(card)}
             >
               {textOnly ? (

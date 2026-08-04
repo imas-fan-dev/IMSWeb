@@ -94,6 +94,34 @@ function booleanValue(body: JsonObject, key: string, fallback: boolean): boolean
     return value;
 }
 
+function optionalHttpUrlValue(
+    body: JsonObject,
+    key: string,
+    fallback: string | null = null
+): string | null {
+    const value = body[key] === undefined ? fallback : body[key];
+    if (value === null) return null;
+    if (typeof value !== 'string') {
+        throw Object.assign(new Error('Wiki 链接必须是有效的 HTTP 或 HTTPS 地址'), {
+            status: 400
+        });
+    }
+    const normalized = value.trim();
+    if (!normalized) return null;
+    if (normalized.length > 2048) {
+        throw Object.assign(new Error('Wiki 链接不能超过 2048 个字符'), { status: 400 });
+    }
+    try {
+        const url = new URL(normalized);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error();
+        return url.href;
+    } catch {
+        throw Object.assign(new Error('Wiki 链接必须是有效的 HTTP 或 HTTPS 地址'), {
+            status: 400
+        });
+    }
+}
+
 function groupIdsValue(body: JsonObject): number[] {
     if (!Array.isArray(body.groupIds)) {
         throw Object.assign(new Error('栏目列表必须是数组'), { status: 400 });
@@ -178,6 +206,7 @@ function idolResponse(idol: IdolRecord, groupIds: number[]) {
         name: idol.name_cn,
         folderName: idol.folder_name,
         color: idol.color,
+        wikiUrl: idol.wiki_url,
         wikiEnabled: idol.wiki_enabled,
         displayOrder: idol.display_order,
         textColor: idol.text_color,
@@ -354,6 +383,7 @@ export function createHandleCreateWikiIdol<E extends Env>(
                 folderName: slugValue(body, 'folderName', '目录标识'),
                 color: colorValue(body, 'color', '内容页颜色', null, true),
                 textColor: colorValue(body, 'textColor', '文字颜色', '#ffffff')!,
+                wikiUrl: optionalHttpUrlValue(body, 'wikiUrl'),
                 imageFit: imageFitValue(body, 'cover'),
                 wikiEnabled: booleanValue(body, 'wikiEnabled', true),
                 groupIds,
@@ -388,6 +418,7 @@ export function createHandleUpdateWikiIdol<E extends Env>(
                 name: textValue(body, 'name', '内容页名称', existing.name_cn),
                 color: colorValue(body, 'color', '内容页颜色', existing.color, true),
                 textColor: colorValue(body, 'textColor', '文字颜色', existing.text_color)!,
+                wikiUrl: optionalHttpUrlValue(body, 'wikiUrl', existing.wiki_url),
                 imageFit: imageFitValue(body, existing.avatar_fit),
                 wikiEnabled: booleanValue(body, 'wikiEnabled', existing.wiki_enabled),
                 groupIds,

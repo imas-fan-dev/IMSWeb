@@ -89,6 +89,7 @@ export function createHandleListPublicWikiStories<E extends Env>(
         name: idol.name,
         folderName: idol.folderName,
         color: idol.color,
+        wikiUrl: idol.wikiUrl,
         imageUrl: idolRecord.avatar_object_key
           ? await resolvePublicObjectUrl(
               services.storage!,

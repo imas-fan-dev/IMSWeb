@@ -13,6 +13,7 @@ const stories: WikiAdminStories = {
     name: "樱木真乃",
     folderName: "sakuragi_mano",
     color: "#f1b0c9",
+    wikiUrl: null,
     textColor: "#ffffff",
     displayOrder: 0,
     imageUrl: "",

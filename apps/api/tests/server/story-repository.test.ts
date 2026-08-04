@@ -198,10 +198,15 @@ test('SQLite catalog CRUD supports dynamic agencies and multi-group idols', asyn
         folderName: 'future_idol',
         color: null,
         textColor: '#ffffff',
+        wikiUrl: 'https://wiki.example.test/idols/future',
         imageFit: 'cover',
         wikiEnabled: true,
         groupIds: [fallback.id, group.id]
     });
+    assert.equal(
+        (await repository.findIdolById(idol.id))?.wiki_url,
+        'https://wiki.example.test/idols/future'
+    );
     assert.deepEqual(
         (await repository.listWikiGroupMembers(agency.id))
             .filter((member) => member.idol_id === idol.id)
@@ -228,6 +233,7 @@ test('SQLite catalog CRUD supports dynamic agencies and multi-group idols', asyn
         name: '未来偶像 元数据更新',
         color: '#fedcba',
         textColor: '#111111',
+        wikiUrl: 'https://wiki.example.test/idols/future-updated',
         imageFit: 'contain',
         wikiEnabled: true,
         groupIds: [fallback.id, group.id]
@@ -239,6 +245,10 @@ test('SQLite catalog CRUD supports dynamic agencies and multi-group idols', asyn
     assert.equal(
         (await repository.findAgencyById(agency.id))?.layout_revision,
         revisionBeforeMetadataUpdate
+    );
+    assert.equal(
+        (await repository.findIdolById(idol.id))?.wiki_url,
+        'https://wiki.example.test/idols/future-updated'
     );
 
     const mediaTransform = {
