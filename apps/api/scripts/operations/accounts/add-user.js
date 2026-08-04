@@ -1,15 +1,10 @@
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcrypt');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 
 const username = process.env.IMS_NEW_USER_USERNAME;
 const password = process.env.IMS_NEW_USER_PASSWORD;
 const dept = process.env.IMS_NEW_USER_DEPT || 'editor';
 const producername = process.env.IMS_NEW_USER_PRODUCER_NAME;
-const packageRoot = path.resolve(__dirname, '../../..');
-const projectRoot = path.resolve(packageRoot, '../..');
-const configuredDbPath = process.env.IMS_SQLITE_PATH;
 
 if (!username || !password || !producername) {
     console.error(
@@ -18,61 +13,48 @@ if (!username || !password || !producername) {
     process.exit(1);
 }
 
-if (!configuredDbPath) {
-    console.error('Set IMS_SQLITE_PATH explicitly to the authoritative SQLite database.');
-    process.exit(1);
-}
-
-const dbPath = path.resolve(projectRoot, configuredDbPath);
-if (!fs.existsSync(dbPath) || !fs.statSync(dbPath).isFile()) {
-    console.error(`IMS_SQLITE_PATH is not an existing database file: ${dbPath}`);
-    process.exit(1);
-}
-
 if (!['editor', 'op'].includes(dept)) {
     console.error('IMS_NEW_USER_DEPT must be either editor or op.');
     process.exit(1);
 }
 
-async function addUser() {
-    const db = new sqlite3.Database(dbPath);
-    db.get(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='users'",
-        async (schemaError, table) => {
-            if (schemaError || !table) {
-                console.error(schemaError?.message || 'Target database has no users table.');
-                process.exitCode = 1;
-                return db.close();
-            }
+function databaseUrl(environment = process.env) {
+    const value = environment.DATABASE_URL?.trim();
+    if (!value) throw new Error('DATABASE_URL is required for PostgreSQL');
+    let parsed;
+    try {
+        parsed = new URL(value);
+    } catch {
+        throw new Error('DATABASE_URL must be a valid PostgreSQL URL');
+    }
+    if (!['postgres:', 'postgresql:'].includes(parsed.protocol) ||
+        !parsed.hostname || parsed.pathname === '/') {
+        throw new Error('DATABASE_URL must be a valid PostgreSQL URL');
+    }
+    return value;
+}
 
-            try {
-                const passwordHash = await bcrypt.hash(password, 12);
-                db.run(
-                    `INSERT INTO users
-                     (username, password, dept, producername, admin_role)
-                     VALUES (?, ?, ?, ?, ?)`,
-                    [username, passwordHash, dept, producername, dept === 'op' ? 'admin' : null],
-                    function onInsert(err) {
-                        if (err) {
-                            if (err.code === 'SQLITE_CONSTRAINT') {
-                                console.error(`Username ${username} already exists.`);
-                            } else {
-                                console.error(err.message);
-                            }
-                            process.exitCode = 1;
-                        } else {
-                            console.log(`User created with ID ${this.lastID}.`);
-                        }
-                        db.close();
-                    }
-                );
-            } catch (error) {
-                console.error(error.message);
-                process.exitCode = 1;
-                db.close();
-            }
+async function addUser() {
+    const connectionString = databaseUrl();
+    const pool = new Pool({ connectionString, application_name: 'imsweb-ops-add-user' });
+    try {
+        const hashed = await bcrypt.hash(password, 12);
+        const result = await pool.query(
+            `INSERT INTO users (username, password, dept, producername, admin_role)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (username) DO NOTHING
+             RETURNING id`,
+            [username, hashed, dept, producername, dept === 'op' ? 'admin' : null]
+        );
+        if (result.rowCount === 0) {
+            console.error(`Username ${username} already exists.`);
+            process.exitCode = 1;
+        } else {
+            console.log(`User created with ID ${result.rows[0].id}.`);
         }
-    );
+    } finally {
+        await pool.end();
+    }
 }
 
 addUser().catch((err) => {

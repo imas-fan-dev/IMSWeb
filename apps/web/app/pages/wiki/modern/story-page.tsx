@@ -24,6 +24,13 @@ import {
   SheetTrigger,
 } from "~/components/ui/sheet"
 import { Skeleton } from "~/components/ui/skeleton"
+import {
+  GAKUMAS_S_CARD_ALL_CAST,
+  gakumasSCardMatchesCast,
+  type GakumasSCardCastFilter,
+  isGakumasSCardStories,
+} from "~/pages/wiki/gakumas-s-card-cast-model"
+import { SCardCastFilter } from "~/pages/wiki/modern/components/s-card-cast-filter"
 import { StoryCategorySection } from "~/pages/wiki/modern/components/story-category-section"
 import { StoryNavigationPanel } from "~/pages/wiki/modern/components/story-navigation-panel"
 import { safeWikiColor, storyCardMatches } from "~/pages/wiki/wiki-model"
@@ -59,12 +66,25 @@ export function StoryPage() {
   }>({ key: "", data: null, error: null })
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [query, setQuery] = useState("")
+  const [castFilterState, setCastFilterState] = useState<{
+    key: string
+    selectedCast: GakumasSCardCastFilter
+    expanded: boolean
+  }>({ key: "", selectedCast: GAKUMAS_S_CARD_ALL_CAST, expanded: true })
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
   const [highlightedCardId, setHighlightedCardId] = useState<number | null>(
     null
   )
   const deferredQuery = useDeferredValue(query)
+  const storyTargetKey = `${agencyName}\u0000${idolName}`
   const requestKey = `${agencyName}\u0000${idolName}\u0000${refreshVersion}`
+  const castFilterIsCurrent = castFilterState.key === storyTargetKey
+  const selectedCast = castFilterIsCurrent
+    ? castFilterState.selectedCast
+    : GAKUMAS_S_CARD_ALL_CAST
+  const castFilterExpanded = castFilterIsCurrent
+    ? castFilterState.expanded
+    : true
   const targetCardIdMatch = /^#story-card-(\d+)$/.exec(location.hash)
   const targetCardId = targetCardIdMatch ? Number(targetCardIdMatch[1]) : null
 
@@ -120,15 +140,21 @@ export function StoryPage() {
   const stories = requestIsCurrent ? storyRequest.data : null
   const storiesError = requestIsCurrent ? storyRequest.error : null
   const loading = hasTarget && !requestIsCurrent
+  const showsCastFilter = Boolean(stories && isGakumasSCardStories(stories))
   const visibleCategories = useMemo(() => {
     if (!stories) return []
     return stories.categories.flatMap((category) => {
-      const cards = category.cards.filter((card) =>
-        storyCardMatches(category, card, deferredQuery)
+      const cards = category.cards.filter(
+        (card) =>
+          storyCardMatches(category, card, deferredQuery) &&
+          (!showsCastFilter || gakumasSCardMatchesCast(card, selectedCast))
       )
       return cards.length ? [{ ...category, cards }] : []
     })
-  }, [deferredQuery, stories])
+  }, [deferredQuery, selectedCast, showsCastFilter, stories])
+  const hasActiveFilters = Boolean(
+    query || (showsCastFilter && selectedCast !== GAKUMAS_S_CARD_ALL_CAST)
+  )
   const cardCount = stories?.categories.reduce(
     (sum, category) => sum + category.cards.length,
     0
@@ -263,6 +289,29 @@ export function StoryPage() {
             </div>
           </section>
 
+          {showsCastFilter ? (
+            <SCardCastFilter
+              selectedCast={selectedCast}
+              expanded={castFilterExpanded}
+              onSelectCast={(cast) =>
+                setCastFilterState((current) => ({
+                  key: storyTargetKey,
+                  selectedCast: cast,
+                  expanded: castFilterIsCurrent ? current.expanded : true,
+                }))
+              }
+              onExpandedChange={(expanded) =>
+                setCastFilterState((current) => ({
+                  key: storyTargetKey,
+                  selectedCast: castFilterIsCurrent
+                    ? current.selectedCast
+                    : GAKUMAS_S_CARD_ALL_CAST,
+                  expanded,
+                }))
+              }
+            />
+          ) : null}
+
           <div
             data-testid="story-search-bar"
             className="border-b bg-background/95 backdrop-blur-sm"
@@ -314,15 +363,22 @@ export function StoryPage() {
                 <div className="rounded-lg border border-dashed px-6 py-16 text-center">
                   <Link2Icon className="mx-auto size-7 text-muted-foreground" />
                   <p className="mt-4 font-medium">
-                    {query ? "没有匹配的剧情" : "当前没有已收录剧情"}
+                    {hasActiveFilters ? "没有匹配的剧情" : "当前没有已收录剧情"}
                   </p>
-                  {query ? (
+                  {hasActiveFilters ? (
                     <button
                       type="button"
-                      onClick={() => setQuery("")}
+                      onClick={() => {
+                        setQuery("")
+                        setCastFilterState({
+                          key: storyTargetKey,
+                          selectedCast: GAKUMAS_S_CARD_ALL_CAST,
+                          expanded: true,
+                        })
+                      }}
                       className="mt-2 text-sm font-medium text-primary hover:underline"
                     >
-                      清除搜索词
+                      清除筛选
                     </button>
                   ) : null}
                 </div>

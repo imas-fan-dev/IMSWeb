@@ -91,6 +91,55 @@ function storyPayload(
   }
 }
 
+function gakumasSCardPayload() {
+  return {
+    status: "success",
+    agency: {
+      id: 27,
+      code: "gk",
+      name: "学园偶像大师",
+      color: "#f39800",
+    },
+    idol: {
+      id: 170,
+      name: "S卡",
+      folderName: "s_card",
+      color: "#f39800",
+      imageUrl: "/image/gakumas-s-card.webp",
+      imageFit: "cover",
+      textColor: "#ffffff",
+    },
+    categories: [
+      {
+        name: "S卡",
+        cards: [
+          {
+            id: 701,
+            name: "【咲季与手毬】",
+            img: "",
+            subtitle: "出场：咲季，手毬",
+            links: [],
+          },
+          {
+            id: 702,
+            name: "【只有手毬】",
+            img: "",
+            subtitle: "出场：手毬",
+            links: [],
+          },
+          {
+            id: 703,
+            name: "【待补元数据】",
+            img: "",
+            subtitle: "",
+            links: [],
+          },
+        ],
+      },
+    ],
+  }
+}
+
 function renderStory(
   initialEntry = "/story/modern?agency=闪耀色彩&idol=樱木真乃"
 ) {
@@ -170,7 +219,7 @@ describe("StoryPage", () => {
 
     await user.type(screen.getByTestId("story-primary-search"), "不存在")
     expect(await screen.findByText("没有匹配的剧情")).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "清除搜索词" }))
+    await user.click(screen.getByRole("button", { name: "清除筛选" }))
     expect(await screen.findByText("【花风Smiley】")).toBeVisible()
   })
 
@@ -198,6 +247,60 @@ describe("StoryPage", () => {
       "https://wiki.example.test/idols/sakuragi-mano"
     )
     expect(link).toHaveAttribute("target", "_blank")
+  })
+
+  it("filters Gakumas S-card stories by cast in the modern view", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json(gakumasSCardPayload()))
+    )
+    const user = userEvent.setup()
+
+    renderStory("/story/modern?agency=学园偶像大师&idol=S卡")
+
+    const filter = await screen.findByRole("region", {
+      name: "按登场人物筛选",
+    })
+    const allButton = within(filter).getByRole("button", {
+      name: "全部显示",
+    })
+    expect(filter).toHaveAttribute(
+      "data-temporary-compatibility",
+      "subtitle-cast-filter"
+    )
+    expect(allButton).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByText("【咲季与手毬】")).toBeVisible()
+    expect(screen.getByText("【只有手毬】")).toBeVisible()
+    expect(screen.getByText("【待补元数据】")).toBeVisible()
+
+    const sakiButton = within(filter).getByRole("button", {
+      name: "花海咲季",
+    })
+    await user.click(sakiButton)
+
+    expect(sakiButton).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByText("【咲季与手毬】")).toBeVisible()
+    expect(screen.queryByText("【只有手毬】")).not.toBeInTheDocument()
+    expect(screen.queryByText("【待补元数据】")).not.toBeInTheDocument()
+
+    await user.type(screen.getByTestId("story-primary-search"), "不存在")
+    expect(await screen.findByText("没有匹配的剧情")).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "清除筛选" }))
+
+    expect(allButton).toHaveAttribute("aria-pressed", "true")
+    expect(await screen.findByText("【只有手毬】")).toBeVisible()
+    expect(screen.getByText("【待补元数据】")).toBeVisible()
+
+    const collapseButton = within(filter).getByRole("button", {
+      name: "收起登场人物筛选",
+    })
+    expect(collapseButton).toHaveAttribute("aria-expanded", "true")
+    await user.click(collapseButton)
+    expect(
+      within(filter).getByRole("button", { name: "展开登场人物筛选" })
+    ).toHaveAttribute("aria-expanded", "false")
   })
 
   it("shows the dynamic empty state when no cards are available", async () => {

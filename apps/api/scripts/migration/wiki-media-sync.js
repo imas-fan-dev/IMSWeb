@@ -1,10 +1,8 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const sqlite3 = require('sqlite3');
 
 const DEFAULT_SOURCE_ORIGIN = 'https://idol-master.top';
 const DEFAULT_PAGE_CONCURRENCY = 4;
@@ -48,8 +46,6 @@ function parseArguments(argv, environment = process.env) {
     const projectRoot = path.resolve(__dirname, '../../../..');
     const options = {
         sourceOrigin: DEFAULT_SOURCE_ORIGIN,
-        database: environment.IMS_SQLITE_PATH ||
-            path.join(projectRoot, 'data/imsweb.db'),
         stagingDir: path.join(projectRoot, 'data/migration/wiki-import'),
         manifest: undefined,
         pageConcurrency: DEFAULT_PAGE_CONCURRENCY,
@@ -67,7 +63,6 @@ function parseArguments(argv, environment = process.env) {
             return value;
         };
         if (argument === '--source-origin') options.sourceOrigin = next();
-        else if (argument === '--database') options.database = next();
         else if (argument === '--staging-dir') options.stagingDir = next();
         else if (argument === '--manifest') options.manifest = next();
         else if (argument === '--page-concurrency') options.pageConcurrency = next();
@@ -81,7 +76,6 @@ function parseArguments(argv, environment = process.env) {
         else throw new Error(`Unknown argument: ${argument}`);
     }
     options.sourceOrigin = normalizeOrigin(options.sourceOrigin);
-    options.database = path.resolve(options.database);
     options.stagingDir = path.resolve(options.stagingDir);
     options.manifest = path.resolve(options.manifest || path.join(options.stagingDir, 'manifest.json'));
     options.pageConcurrency = positiveInteger(
@@ -103,7 +97,6 @@ function helpText() {
         '',
         'Options:',
         '  --source-origin <url>       Wiki origin (default: https://idol-master.top)',
-        '  --database <path>           Unified SQLite database used for agency/idol mapping',
         '  --staging-dir <path>        Local page and asset staging directory',
         '  --manifest <path>           Output manifest path',
         '  --page-concurrency <n>      Concurrent story page requests (default: 4)',
@@ -117,28 +110,15 @@ function helpText() {
     ].join('\n');
 }
 
-function loadIdolRows(database) {
-    if (!fs.existsSync(database)) throw new Error(`Unified database does not exist: ${database}`);
-    return new Promise((resolve, reject) => {
-        const connection = new sqlite3.Database(database, sqlite3.OPEN_READONLY, (openError) => {
-            if (openError) {
-                reject(openError);
-                return;
-            }
-            connection.all(
-                `SELECT a.code AS agency_code, a.name_cn AS agency_name,
-                        i.name_cn AS idol_name, i.folder_name
-                   FROM idols i
-                   JOIN agencies a ON a.id = i.agency_id
-               ORDER BY a.id, i.id`,
-                (queryError, rows) => {
-                    connection.close(() => undefined);
-                    if (queryError) reject(queryError);
-                    else resolve(rows);
-                }
-            );
-        });
-    });
+function loadIdolRowsFromPostgres(storyRepository) {
+    return storyRepository.listIdolsWithAgencies().then((rows) =>
+        rows.map((row) => ({
+            agency_code: row.agency_code,
+            agency_name: row.agency_name,
+            idol_name: row.name_cn,
+            folder_name: row.folder_name
+        }))
+    );
 }
 
 function buildIdolIndex(rows) {
@@ -453,7 +433,6 @@ function storyIdentity(story, idolIndex) {
 }
 
 async function objectStorage(environment = process.env) {
-    require('../../src/config/load-environment.ts');
     if (environment.IMS_OBJECT_STORAGE?.trim().toLowerCase() !== 's3') {
         throw new Error('--upload requires IMS_OBJECT_STORAGE=s3');
     }
@@ -499,7 +478,7 @@ async function uploadManifestDocument(storage, sourceOrigin, manifest) {
     });
 }
 
-async function uploadExistingManifest(options) {
+async function uploadExistingManifest(options, idolIndex) {
     const parsed = JSON.parse(await fsp.readFile(options.manifest, 'utf8'));
     if (parsed.version !== 1 || parsed.complete !== true || !Array.isArray(parsed.assets)) {
         throw new Error('Existing Wiki manifest must be a complete version 1 document');
@@ -508,7 +487,6 @@ async function uploadExistingManifest(options) {
         throw new Error('Existing Wiki manifest source origin does not match --source-origin');
     }
     if (parsed.errors?.length) throw new Error('Existing Wiki manifest contains errors');
-    const idolIndex = buildIdolIndex(await loadIdolRows(options.database));
     const objectKeys = new Set();
     await mapConcurrent(parsed.assets, options.assetConcurrency, async (asset) => {
         if (
@@ -553,17 +531,15 @@ async function uploadExistingManifest(options) {
     return parsed;
 }
 
-async function syncWikiMedia(options) {
+async function syncWikiMedia(options, idolIndex) {
     const { parse } = await import('parse5');
-    const rows = await loadIdolRows(options.database);
-    const idolIndex = buildIdolIndex(rows);
     await fsp.mkdir(options.stagingDir, { recursive: true });
 
     const manifest = {
         version: 1,
         sourceOrigin: options.sourceOrigin,
         generatedAt: new Date().toISOString(),
-        databaseIdolCount: rows.length,
+        databaseIdolCount: idolIndex.size,
         complete: false,
         pages: [],
         assets: [],
@@ -606,7 +582,7 @@ async function syncWikiMedia(options) {
         manifest.summary = {
             pageCount: manifest.pages.length,
             remoteStoryCount: remoteStories.length,
-            databaseIdolCount: rows.length,
+            databaseIdolCount: idolIndex.size,
             assetCount: 0,
             errorCount: manifest.errors.length
         };
@@ -753,7 +729,7 @@ async function syncWikiMedia(options) {
         pageCount: manifest.pages.length,
         storyPageCount: manifest.pages.filter((page) => page.type === 'story').length,
         remoteStoryCount: remoteStories.length,
-        databaseIdolCount: rows.length,
+        databaseIdolCount: idolIndex.size,
         assetCount: manifest.assets.length,
         storyMediaCount: manifest.assets.filter((asset) => asset.kind === 'story-media').length,
         staticAssetCount: manifest.assets.filter((asset) => asset.kind === 'wiki-static').length,
@@ -779,20 +755,26 @@ async function main() {
         process.stdout.write(`${helpText()}\n`);
         return;
     }
+
+    require('../../src/config/load-environment.ts');
+    const { resolveNodeServices, closeNodeServices } = require('../../src/runtime/node-services.ts');
+
     try {
+        const services = await resolveNodeServices();
+        const idolIndex = buildIdolIndex(
+            await loadIdolRowsFromPostgres(services.story)
+        );
+
         const manifest = options.uploadExisting
-            ? await uploadExistingManifest(options)
-            : await syncWikiMedia(options);
+            ? await uploadExistingManifest(options, idolIndex)
+            : await syncWikiMedia(options, idolIndex);
         process.stdout.write(`${JSON.stringify({
             manifest: options.manifest,
             complete: manifest.complete,
             ...manifest.summary
         }, null, 2)}\n`);
     } finally {
-        if (options.upload) {
-            const { closeNodeServices } = require('../../src/runtime/node-services.ts');
-            await closeNodeServices();
-        }
+        await closeNodeServices();
     }
 }
 
