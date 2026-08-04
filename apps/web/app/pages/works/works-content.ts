@@ -225,5 +225,5 @@ export function getWorkEntry(slug: string) {
 export function getWorkDestination(entry: WorkEntry) {
   if (!entry.wikiAgencyName) return `/works/${entry.slug}`
 
-  return `/wiki/modern?agency=${encodeURIComponent(entry.wikiAgencyName)}`
+  return `/wiki?agency=${encodeURIComponent(entry.wikiAgencyName)}`
 }

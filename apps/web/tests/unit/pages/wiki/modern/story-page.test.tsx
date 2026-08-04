@@ -140,9 +140,7 @@ function gakumasSCardPayload() {
   }
 }
 
-function renderStory(
-  initialEntry = "/story/modern?agency=闪耀色彩&idol=樱木真乃"
-) {
+function renderStory(initialEntry = "/story?agency=闪耀色彩&idol=樱木真乃") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <StoryPage />
@@ -179,14 +177,14 @@ describe("StoryPage", () => {
       within(profile).getByRole("link", { name: "闪耀色彩" })
     ).toHaveAttribute(
       "href",
-      "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+      "/wiki?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
     )
     const classicViewLink = within(profile).getByRole("link", {
       name: "经典视图",
     })
     expect(classicViewLink).toHaveAttribute(
       "href",
-      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+      "/story/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
     expect(classicViewLink.querySelector("img")).toHaveAttribute(
       "src",
@@ -260,7 +258,7 @@ describe("StoryPage", () => {
     )
     const user = userEvent.setup()
 
-    renderStory("/story/modern?agency=学园偶像大师&idol=S卡")
+    renderStory("/story?agency=学园偶像大师&idol=S卡")
 
     const filter = await screen.findByRole("region", {
       name: "按登场人物筛选",
@@ -370,7 +368,7 @@ describe("StoryPage", () => {
       vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
     )
 
-    renderStory("/story/modern?agency=闪耀色彩&idol=樱木真乃#story-card-401")
+    renderStory("/story?agency=闪耀色彩&idol=樱木真乃#story-card-401")
 
     const target = await screen.findByRole("button", {
       name: /【花风Smiley】/,

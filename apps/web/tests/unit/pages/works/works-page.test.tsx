@@ -19,8 +19,8 @@ describe("Works page", () => {
     expect(storyArchiveLinks).toHaveLength(6)
     expect(storyArchiveLinks.map((link) => link.getAttribute("href"))).toEqual(
       expect.arrayContaining([
-        "/wiki/modern?agency=765PRO",
-        "/wiki/modern?agency=%E7%81%B0%E5%A7%91%E5%A8%98%E5%A5%B3%E5%AD%A9",
+        "/wiki?agency=765PRO",
+        "/wiki?agency=%E7%81%B0%E5%A7%91%E5%A8%98%E5%A5%B3%E5%AD%A9",
       ])
     )
     expect(

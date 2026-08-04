@@ -158,7 +158,7 @@ export function WikiIndexPage() {
       <WikiHero
         background={backgroundRequest.data}
         loading={backgroundLoading}
-        classicHref={`/wiki${requestedAgency ? `?agency=${encodeURIComponent(requestedAgency)}` : ""}`}
+        classicHref={`/wiki/classic${requestedAgency ? `?agency=${encodeURIComponent(requestedAgency)}` : ""}`}
         onRefresh={() => setBackgroundVersion((current) => current + 1)}
       />
 

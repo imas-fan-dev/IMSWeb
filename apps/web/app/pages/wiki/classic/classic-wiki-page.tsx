@@ -166,8 +166,8 @@ export function ClassicWikiPage() {
     ? selection?.agency.name
     : requestedAgency
   const modernWikiHref = modernWikiAgency
-    ? `/wiki/modern?agency=${encodeURIComponent(modernWikiAgency)}`
-    : "/wiki/modern"
+    ? `/wiki?agency=${encodeURIComponent(modernWikiAgency)}`
+    : "/wiki"
   const style = {
     "--classic-accent": accent,
     "--classic-banner-ink": contrastingWikiText(accent),

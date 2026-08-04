@@ -1,9 +1,7 @@
-import userEvent from "@testing-library/user-event"
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { useTranslation } from "react-i18next"
 import { beforeEach, describe, expect, it } from "vitest"
 
-import { LanguageSwitcher } from "~/components/shared/language-switcher"
 import { i18n } from "~/i18n/config"
 import { languageStorageKey } from "~/i18n/language"
 import { I18nProvider } from "~/i18n/provider"
@@ -22,21 +20,15 @@ describe("I18nProvider", () => {
     await i18n.changeLanguage(defaultLanguage)
   })
 
-  it("restores, switches, and persists the selected language", async () => {
-    const user = userEvent.setup()
+  it("ignores stored and requested languages while Chinese is fixed", async () => {
     window.localStorage.setItem(languageStorageKey, "en")
+    await i18n.changeLanguage("en")
 
     render(
       <I18nProvider>
-        <LanguageSwitcher />
         <TranslationProbe />
       </I18nProvider>
     )
-
-    expect(await screen.findByText("Home")).toBeInTheDocument()
-    expect(document.documentElement.lang).toBe("en")
-
-    await user.click(screen.getByRole("button", { name: "Switch to 简体中文" }))
 
     expect(await screen.findByText("首页")).toBeInTheDocument()
     await waitFor(() => {
@@ -44,5 +36,10 @@ describe("I18nProvider", () => {
       expect(window.localStorage.getItem(languageStorageKey)).toBe("zh-CN")
       expect(document.documentElement.lang).toBe("zh-CN")
     })
+
+    await act(() => i18n.changeLanguage("en"))
+
+    expect(screen.getByText("首页")).toBeInTheDocument()
+    await waitFor(() => expect(i18n.language).toBe("zh-CN"))
   })
 })

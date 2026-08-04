@@ -160,7 +160,7 @@ function catalogPayload(
   }
 }
 
-function renderWiki(initialEntry = "/wiki/modern?agency=闪耀色彩") {
+function renderWiki(initialEntry = "/wiki?agency=闪耀色彩") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <WikiIndexPage />
@@ -220,7 +220,7 @@ describe("WikiIndexPage", () => {
     const manoLink = await screen.findByRole("link", { name: /樱木真乃/ })
     expect(manoLink).toHaveAttribute(
       "href",
-      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
     )
     expect(within(manoLink).queryByText("偶像")).not.toBeInTheDocument()
     expect(within(manoLink).getByTestId("wiki-idol-avatar")).toHaveClass(
@@ -231,12 +231,12 @@ describe("WikiIndexPage", () => {
     )
     expect(screen.getByRole("link", { name: "查看对应卡片" })).toHaveAttribute(
       "href",
-      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83#story-card-401"
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83#story-card-401"
     )
     const classicViewLink = screen.getByRole("link", { name: "经典视图" })
     expect(classicViewLink).toHaveAttribute(
       "href",
-      "/wiki?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+      "/wiki/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
     )
     expect(classicViewLink.querySelector("img")).toHaveAttribute(
       "src",
@@ -292,11 +292,11 @@ describe("WikiIndexPage", () => {
     expect(links).toHaveLength(2)
     expect(links[0]).toHaveAttribute(
       "href",
-      "/story/modern?agency=765PRO&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+      "/story?agency=765PRO&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
     )
     expect(links[1]).toHaveAttribute(
       "href",
-      "/story/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
+      "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E5%90%8C%E5%90%8D%E5%81%B6%E5%83%8F"
     )
   })
 
@@ -464,7 +464,7 @@ describe("WikiIndexPage", () => {
     )
     const user = userEvent.setup()
 
-    renderWiki("/wiki/modern?agency=闪耀色彩&group=999")
+    renderWiki("/wiki?agency=闪耀色彩&group=999")
 
     const groupTabs = await screen.findByRole("tablist", {
       name: "按组合或分类筛选",

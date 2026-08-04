@@ -74,7 +74,7 @@ describe("theme controls", () => {
 
     await i18n.changeLanguage("en")
     expect(
-      screen.getByRole("button", { name: "Toggle light or dark mode" })
+      screen.getByRole("button", { name: "切换亮色或暗色模式" })
     ).toBeInTheDocument()
   })
 

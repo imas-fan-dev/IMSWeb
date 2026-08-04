@@ -143,7 +143,7 @@ export function ClassicStoryPage() {
           <Layers3Icon />
           <h1>请选择一个内容页</h1>
           <p>剧情地址缺少企划或内容页信息。</p>
-          <Link to="/wiki">返回经典剧情导航</Link>
+          <Link to="/wiki/classic">返回经典剧情导航</Link>
         </div>
       </main>
     )
@@ -163,7 +163,7 @@ export function ClassicStoryPage() {
             >
               重新加载
             </button>
-            <Link to={`/wiki?agency=${encodeURIComponent(agencyName)}`}>
+            <Link to={`/wiki/classic?agency=${encodeURIComponent(agencyName)}`}>
               返回内容目录
             </Link>
           </div>
