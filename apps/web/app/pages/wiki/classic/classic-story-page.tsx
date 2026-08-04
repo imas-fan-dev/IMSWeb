@@ -20,7 +20,7 @@ import {
   gakumasSCardMatchesCast,
   type GakumasSCardCastFilter,
   isGakumasSCardStories,
-} from "./components/story/classic-s-card-cast-filter"
+} from "~/pages/wiki/gakumas-s-card-cast-model"
 import { ClassicStoryContent } from "./components/story/classic-story-content"
 import { ClassicStoryDialog } from "./components/story/classic-story-dialog"
 import { ClassicStoryProfile } from "./components/story/classic-story-profile"

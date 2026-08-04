@@ -16,7 +16,7 @@ const defaultApiPort = 3000;
 const defaultWebPort = 5173;
 const loopbackHost = "127.0.0.1";
 const readinessTimeoutMs = 90_000;
-const supportedPlatforms = new Set(["darwin", "linux"]);
+const supportedPlatforms = new Set(["darwin", "linux", "win32"]);
 
 const localInfrastructureDefaults = Object.freeze({
   IMS_POSTGRES_PORT: "5432",
@@ -553,11 +553,13 @@ function printableCommand(specification) {
 
 function runCommand(label, specification, { quiet = false } = {}) {
   process.stdout.write(`[dev] ${label}\n`);
+  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
   const result = spawnSync(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
     stdio: quiet ? "ignore" : "inherit",
     timeout: specification.timeout,
+    shell: useShell,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -566,12 +568,14 @@ function runCommand(label, specification, { quiet = false } = {}) {
 }
 
 function probeCommand(specification) {
+  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
   const result = spawnSync(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
     encoding: "utf8",
     stdio: "pipe",
     timeout: 10_000,
+    shell: useShell,
   });
   return {
     ok: !result.error && result.status === 0,
@@ -854,11 +858,13 @@ function startWatchProcess(label, specification) {
   process.stdout.write(
     `[dev] Starting ${label}: ${printableCommand(specification)}\n`,
   );
+  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
   return spawn(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
     stdio: "inherit",
     detached: process.platform !== "win32",
+    shell: useShell,
   });
 }
 
