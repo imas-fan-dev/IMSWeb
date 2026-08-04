@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card"
-import { getWorkEntry } from "~/pages/works/works-content"
+import { getWorkDestination, getWorkEntry } from "~/pages/works/works-content"
 import type { Route } from "./+types/work-detail-page"
 
 export function meta({ params }: Route.MetaArgs) {
@@ -23,7 +23,10 @@ function WorkNavCard({
 }: {
   entry: NonNullable<ReturnType<typeof getWorkEntry>>
 }) {
-  const hasNav = (entry.navLinks?.length ?? 0) > 0
+  const navLinks = entry.wikiAgencyName
+    ? [{ label: "剧情站", href: getWorkDestination(entry) }]
+    : (entry.navLinks ?? [])
+  const hasNav = navLinks.length > 0
   const hasLinks = (entry.links?.length ?? 0) > 0
 
   if (!hasNav && !hasLinks) return null
@@ -40,7 +43,7 @@ function WorkNavCard({
           <CardDescription className="text-xs">相关入口与资源</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5">
-          {entry.navLinks?.map((navLink) => (
+          {navLinks.map((navLink) => (
             <Button
               key={navLink.href}
               variant="ghost"
@@ -82,7 +85,7 @@ function WorkNavCard({
 
       {/* Smaller viewports: give navigation its own full-width row. */}
       <div className="flex w-full basis-full flex-wrap gap-2 2xl:hidden">
-        {entry.navLinks?.map((navLink) => (
+        {navLinks.map((navLink) => (
           <Button
             key={navLink.href}
             variant="outline"

@@ -18,6 +18,8 @@ export type WorkEntry = {
   /** 企划概要 — the original franchise overview paragraph from the legacy site */
   description: string[]
   accent: string
+  /** Wiki agency name used by the public project page. */
+  wikiAgencyName?: string
   /** Franchise intro banner — displayed as hero image in the detail page header */
   heroImage?: string
   /** Character standing illustration (立绘) — displayed alongside the description */
@@ -50,11 +52,7 @@ export const workEntries: WorkEntry[] = [
       "迄今为止，「偶像大师」系列已在包括主机游戏、电视动画、广播、移动端内容以及演唱会等多种渠道实现了跨媒体展开。",
     ],
     accent: "bg-franchise-765",
-    navLinks: [
-      { label: "📖 剧情浏览", href: "/story" },
-      { label: "📅 活动一览", href: "/events" },
-      { label: "📰 资料库", href: "/wiki" },
-    ],
+    wikiAgencyName: "765PRO",
   },
   {
     slug: "cg",
@@ -79,11 +77,7 @@ export const workEntries: WorkEntry[] = [
       "通过演出、训练、各式各样的工作与交流，让超过190名性格丰富的偶像闪耀光芒，朝着顶尖偶像的目标成长吧！",
     ],
     accent: "bg-franchise-cg",
-    navLinks: [
-      { label: "📖 剧情浏览", href: "/story" },
-      { label: "🃏 制作人名片", href: "/community/cards" },
-      { label: "📰 资料库", href: "/wiki" },
-    ],
+    wikiAgencyName: "灰姑娘女孩",
   },
   {
     slug: "ml",
@@ -108,10 +102,7 @@ export const workEntries: WorkEntry[] = [
       "通过演出、工作与交流与偶像们互动，培育她们，引导她们成长为顶尖偶像吧！",
     ],
     accent: "bg-franchise-ml",
-    navLinks: [
-      { label: "📖 剧情浏览", href: "/story" },
-      { label: "🃏 制作人名片", href: "/community/cards" },
-    ],
+    wikiAgencyName: "百万现场",
   },
   {
     slug: "sidem",
@@ -136,10 +127,7 @@ export const workEntries: WorkEntry[] = [
       "玩家成为制作人后，将会培育性格丰富的男性偶像，诸如医生、自由职业者和自卫官等社会人，或是学生。通过营业、训练、演出等工作来培育偶像，以顶尖偶像为目标迈进。",
     ],
     accent: "bg-franchise-sidem",
-    navLinks: [
-      { label: "📖 剧情浏览", href: "/story" },
-      { label: "📰 资料库", href: "/wiki" },
-    ],
+    wikiAgencyName: "SideM",
   },
   {
     slug: "sc",
@@ -164,10 +152,7 @@ export const workEntries: WorkEntry[] = [
       "今后也请继续支持这些展翅翱翔的偶像们！",
     ],
     accent: "bg-franchise-sc",
-    navLinks: [
-      { label: "📖 剧情浏览", href: "/story" },
-      { label: "🃏 制作人名片", href: "/community/cards" },
-    ],
+    wikiAgencyName: "闪耀色彩",
   },
   {
     slug: "gakuen",
@@ -192,7 +177,7 @@ export const workEntries: WorkEntry[] = [
       "在全新的舞台上与偶像们所共同描绘的学园生活，请尽情享受！",
     ],
     accent: "bg-franchise-gk",
-    navLinks: [{ label: "📖 剧情浏览", href: "/story" }],
+    wikiAgencyName: "学园偶像大师",
   },
   {
     slug: "games",
@@ -235,4 +220,10 @@ export const workEntries: WorkEntry[] = [
 
 export function getWorkEntry(slug: string) {
   return workEntries.find((entry) => entry.slug === slug)
+}
+
+export function getWorkDestination(entry: WorkEntry) {
+  if (!entry.wikiAgencyName) return `/works/${entry.slug}`
+
+  return `/wiki/modern?agency=${encodeURIComponent(entry.wikiAgencyName)}`
 }

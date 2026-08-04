@@ -2,7 +2,7 @@ import { Link } from "react-router"
 
 import { Card, CardContent } from "~/components/ui/card"
 import { cn } from "~/lib/utils"
-import { workEntries } from "./works-content"
+import { getWorkDestination, workEntries } from "./works-content"
 
 export function meta() {
   return [{ title: "同人作品 | IMSWeb" }]
@@ -20,8 +20,13 @@ export default function Works() {
         {workEntries.map((entry) => (
           <Link
             key={entry.slug}
-            to={`/works/${entry.slug}`}
-            className="focus-visible:ring-3 block rounded-md focus-visible:ring-ring/50 focus-visible:outline-none"
+            to={getWorkDestination(entry)}
+            aria-label={
+              entry.wikiAgencyName
+                ? "进入剧情站"
+                : `查看 ${entry.title} 作品专题`
+            }
+            className="block rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             <Card className="group h-full transition-colors hover:border-foreground/25 hover:bg-muted/30">
               <div
@@ -33,7 +38,7 @@ export default function Works() {
                   {entry.eyebrow}
                 </p>
                 <h2 className="mt-1 text-lg font-semibold">{entry.title}</h2>
-                <p className="mt-2 text-sm text-muted-foreground line-clamp-3">
+                <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
                   {entry.summary}
                 </p>
               </CardContent>
