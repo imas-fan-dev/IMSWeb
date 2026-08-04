@@ -4,7 +4,11 @@ import {
   IDOL_FONT_URL,
   WORK_CHARACTER_IMAGE_URLS,
 } from "~/pages/works/brand-assets"
-import { getWorkEntry, workEntries } from "~/pages/works/works-content"
+import {
+  getWorkDestination,
+  getWorkEntry,
+  workEntries,
+} from "~/pages/works/works-content"
 
 describe("works content", () => {
   it("keeps every migrated legacy destination unique", () => {
@@ -25,6 +29,27 @@ describe("works content", () => {
   it("resolves known works and rejects unknown slugs", () => {
     expect(getWorkEntry("sc")?.title).toBe("SHINY COLORS")
     expect(getWorkEntry("unknown")).toBeUndefined()
+  })
+
+  it("routes franchises to their Wiki project pages", () => {
+    expect(
+      workEntries.map((entry) => [entry.slug, getWorkDestination(entry)])
+    ).toEqual([
+      ["765", "/wiki/modern?agency=765PRO"],
+      [
+        "cg",
+        "/wiki/modern?agency=%E7%81%B0%E5%A7%91%E5%A8%98%E5%A5%B3%E5%AD%A9",
+      ],
+      ["ml", "/wiki/modern?agency=%E7%99%BE%E4%B8%87%E7%8E%B0%E5%9C%BA"],
+      ["sidem", "/wiki/modern?agency=SideM"],
+      ["sc", "/wiki/modern?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"],
+      [
+        "gakuen",
+        "/wiki/modern?agency=%E5%AD%A6%E5%9B%AD%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88",
+      ],
+      ["games", "/works/games"],
+      ["wows", "/works/wows"],
+    ])
   })
 
   it("keeps Unity outside the React asset bundle", () => {

@@ -210,6 +210,38 @@ test("classic story portrait cards use two readable mobile columns", async ({
   expect(Number.parseFloat(columns[0])).toBeGreaterThan(120)
 })
 
+test("story source labels stay visible in both mobile views", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "mobile-only story source labels")
+
+  const storyTarget =
+    "agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
+
+  for (const route of [
+    `/story/modern?${storyTarget}`,
+    `/story/classic?${storyTarget}`,
+  ]) {
+    await page.goto(route)
+
+    const sourcedCard = page.locator('[data-story-state="available"]').first()
+    await expect(sourcedCard).toBeVisible()
+    await sourcedCard.click()
+
+    const dialog = page.getByRole("dialog")
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByText("剧情", { exact: true })).toBeVisible()
+    await expect(dialog.getByText("Bilibili", { exact: true })).toBeVisible()
+    await expect(dialog.getByText(/^来源：/).first()).toBeVisible()
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth
+      )
+    ).toBe(true)
+  }
+})
+
 test("classic text-only story cards do not render nested frames", async ({
   page,
   isMobile,
