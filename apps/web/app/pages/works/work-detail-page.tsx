@@ -279,7 +279,7 @@ export default function WorkDetailPage({ params }: Route.ComponentProps) {
     )
   }
 
-  const isFranchise = entry.gradient !== ""
+  const isFranchise = entry.category === "official"
 
   return (
     <main

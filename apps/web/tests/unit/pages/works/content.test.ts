@@ -8,9 +8,32 @@ import {
   getWorkDestination,
   getWorkEntry,
   workEntries,
+  officialEntries,
+  fanEntries,
 } from "~/pages/works/works-content"
 
 describe("works content", () => {
+  it("assigns every entry a category", () => {
+    const categories = workEntries.map((entry) => [entry.slug, entry.category])
+    expect(categories).toEqual([
+      ["765", "official"],
+      ["cg", "official"],
+      ["ml", "official"],
+      ["sidem", "official"],
+      ["sc", "official"],
+      ["gakuen", "official"],
+      ["games", "fan"],
+      ["wows", "fan"],
+    ])
+  })
+
+  it("splits entries into official and fan groups", () => {
+    expect(officialEntries).toHaveLength(6)
+    expect(fanEntries).toHaveLength(2)
+    expect(officialEntries.every((e) => e.category === "official")).toBe(true)
+    expect(fanEntries.every((e) => e.category === "fan")).toBe(true)
+  })
+
   it("keeps every migrated legacy destination unique", () => {
     const slugs = workEntries.map((entry) => entry.slug)
     expect(new Set(slugs).size).toBe(slugs.length)

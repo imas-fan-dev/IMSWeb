@@ -26,9 +26,11 @@ export type WorkEntry = {
   characterImage?: string
   links?: Array<{ label: string; href: string }>
   navLinks?: Array<{ label: string; href: string }>
+  /** 作品分类：官方企划 或 同人/社区作品 */
+  category: "official" | "fan"
 }
 
-export const workEntries: WorkEntry[] = [
+export const officialEntries: WorkEntry[] = [
   {
     slug: "765",
     title: "765PRO ALLSTARS",
@@ -53,6 +55,7 @@ export const workEntries: WorkEntry[] = [
     ],
     accent: "bg-franchise-765",
     wikiAgencyName: "765PRO",
+    category: "official",
   },
   {
     slug: "cg",
@@ -78,6 +81,7 @@ export const workEntries: WorkEntry[] = [
     ],
     accent: "bg-franchise-cg",
     wikiAgencyName: "灰姑娘女孩",
+    category: "official",
   },
   {
     slug: "ml",
@@ -103,6 +107,7 @@ export const workEntries: WorkEntry[] = [
     ],
     accent: "bg-franchise-ml",
     wikiAgencyName: "百万现场",
+    category: "official",
   },
   {
     slug: "sidem",
@@ -128,6 +133,7 @@ export const workEntries: WorkEntry[] = [
     ],
     accent: "bg-franchise-sidem",
     wikiAgencyName: "SideM",
+    category: "official",
   },
   {
     slug: "sc",
@@ -153,6 +159,7 @@ export const workEntries: WorkEntry[] = [
     ],
     accent: "bg-franchise-sc",
     wikiAgencyName: "闪耀色彩",
+    category: "official",
   },
   {
     slug: "gakuen",
@@ -178,7 +185,12 @@ export const workEntries: WorkEntry[] = [
     ],
     accent: "bg-franchise-gk",
     wikiAgencyName: "学园偶像大师",
+    category: "official",
   },
+]
+
+// TODO: 同人作品与官方作品后续需重新设计业务逻辑（审核流程、展示优先级等）
+export const fanEntries: WorkEntry[] = [
   {
     slug: "games",
     title: "社区游戏与工具",
@@ -195,6 +207,7 @@ export const workEntries: WorkEntry[] = [
       "如果你有作品想加入本页，欢迎联系管理团队。",
     ],
     accent: "bg-info",
+    category: "fan",
     links: [{ label: "打开板板大冒险", href: "/runninggame/" }],
     navLinks: [{ label: "📰 资料库", href: "/wiki" }],
   },
@@ -214,9 +227,12 @@ export const workEntries: WorkEntry[] = [
       "历史图片和社群信息需要完成有效性与授权复核后再逐项恢复展示。",
     ],
     accent: "bg-warning",
+    category: "fan",
     navLinks: [{ label: "📰 资料库", href: "/wiki" }],
   },
 ]
+
+export const workEntries = [...officialEntries, ...fanEntries]
 
 export function getWorkEntry(slug: string) {
   return workEntries.find((entry) => entry.slug === slug)
