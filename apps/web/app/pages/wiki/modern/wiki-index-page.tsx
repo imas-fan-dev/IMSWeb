@@ -246,7 +246,15 @@ export function WikiIndexPage() {
                     { preventScrollReset: true }
                   )
                 }}
-                className="relative flex h-12 shrink-0 items-center gap-2.5 rounded-md border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className={[
+                  "relative flex shrink-0 items-center rounded-md border bg-background font-medium",
+                  "transition-colors hover:bg-muted",
+                  "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                  "h-11 w-11 gap-0 px-0 justify-center text-xs",
+                  "sm:h-10 sm:w-auto sm:gap-1.5 sm:px-2.5 sm:justify-start sm:text-sm",
+                  "md:h-12 md:gap-2.5 md:px-3",
+                ].join(" ")}
+                aria-label={agency.name}
                 style={
                   active
                     ? {
@@ -256,7 +264,7 @@ export function WikiIndexPage() {
                     : undefined
                 }
               >
-                <span className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+                <span className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40 size-8 sm:size-7 md:size-8">
                   <span
                     className="size-2 rounded-full"
                     style={{ backgroundColor: agency.color }}
@@ -274,8 +282,8 @@ export function WikiIndexPage() {
                     />
                   ) : null}
                 </span>
-                {agency.name}
-                <span className="text-xs text-muted-foreground">
+                <span className="hidden sm:inline">{agency.name}</span>
+                <span className="hidden sm:inline text-xs text-muted-foreground">
                   {agency.entryCount ?? agency.idolCount}
                 </span>
               </button>
@@ -283,9 +291,9 @@ export function WikiIndexPage() {
           })}
           {loading ? (
             <>
-              <Skeleton className="h-12 w-32 shrink-0" />
-              <Skeleton className="h-12 w-36 shrink-0" />
-              <Skeleton className="h-12 w-32 shrink-0" />
+              <Skeleton className="h-11 w-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
+              <Skeleton className="h-11 w-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
+              <Skeleton className="h-11 w-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
             </>
           ) : null}
         </div>

@@ -90,9 +90,9 @@ export function WikiGroupFilter({
                 label={group.name}
                 onClick={() => toggle(group.id)}
               >
-                <span className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background size-6 md:size-7">
+                <span className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background size-8 sm:size-6 md:size-7">
                   <span
-                    className="size-1.5 md:size-2 rounded-full"
+                    className="size-2 sm:size-1.5 md:size-2 rounded-full"
                     style={{ backgroundColor: safeWikiColor(group.color) }}
                     aria-hidden="true"
                   />
@@ -120,7 +120,7 @@ export function WikiGroupFilter({
                 onClick={() => toggle(UNGROUPED_FILTER)}
               >
                 <span
-                  className="size-1.5 md:size-2 shrink-0 rounded-full bg-muted-foreground"
+                  className="size-2 sm:size-1.5 md:size-2 shrink-0 rounded-full bg-muted-foreground"
                   aria-hidden="true"
                 />
               </FilterButton>
@@ -174,7 +174,7 @@ function FilterButton({
         "inline-flex shrink-0 items-center rounded-md border bg-background font-medium",
         "transition-colors hover:bg-muted",
         "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-        "h-8 w-8 gap-0 px-0 justify-center text-xs",
+        "h-11 w-11 gap-0 px-0 justify-center text-xs",
         "sm:h-9 sm:w-auto sm:gap-1.5 sm:px-2.5 sm:justify-start sm:text-sm",
         "md:h-10 md:px-3",
       ].join(" ")}

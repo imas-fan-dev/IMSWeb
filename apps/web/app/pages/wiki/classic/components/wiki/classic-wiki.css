@@ -236,7 +236,7 @@
   outline-offset: 2px;
 }
 
-.wiki-classic-group-filter-button[aria-selected="true"] {
+.wiki-classic-group-filter-button[aria-pressed="true"] {
   border-color: var(--filter-color);
   color: var(--filter-on-color);
   background: var(--filter-color);
@@ -290,7 +290,7 @@
   text-align: center;
 }
 
-.wiki-classic-group-filter-button[aria-selected="true"]
+.wiki-classic-group-filter-button[aria-pressed="true"]
   .wiki-classic-group-filter-count {
   background: rgb(255 255 255 / 22%);
 }
@@ -688,7 +688,7 @@
     font-size: 0;
   }
 
-  .wiki-classic-group-filter-button[aria-selected="true"] {
+  .wiki-classic-group-filter-button[aria-pressed="true"] {
     box-shadow: 0 5px 12px
       color-mix(in srgb, var(--filter-color) 38%, transparent);
   }
