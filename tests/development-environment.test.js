@@ -88,10 +88,10 @@ test("development configuration derives a fully local runtime", async () => {
       IMS_POSTGRES_DB: "ims/web",
       IMS_POSTGRES_USER: "dev user",
       IMS_POSTGRES_PASSWORD: "p@ss/word",
-      IMS_MINIO_API_PORT: "9900",
-      IMS_MINIO_ROOT_USER: "minio-user",
-      IMS_MINIO_ROOT_PASSWORD: "minio-password",
-      IMS_MINIO_BUCKET: "imsweb-test",
+      IMS_RUSTFS_API_PORT: "9900",
+      IMS_RUSTFS_ACCESS_KEY: "rustfs-user",
+      IMS_RUSTFS_SECRET_KEY: "rustfs-password",
+      IMS_RUSTFS_BUCKET: "imsweb-test",
     },
     options: parseArguments(["--api-port", "3100", "--web-port", "5180"], {}),
   });
@@ -212,16 +212,16 @@ test("development command plan orders local infrastructure before hot reload", a
     "up",
     "-d",
     "postgres",
-    "minio",
+    "rustfs",
   ]);
   assert.deepEqual(plan.composeRuntime.args.slice(-2), ["ps", "--quiet"]);
   assert.equal(plan.infrastructure.env, configuration.composeEnvironment);
   assert.equal(plan.down.env, configuration.composeEnvironment);
-  assert.deepEqual(plan.minioInit.args.slice(-4), [
+  assert.deepEqual(plan.rustfsInit.args.slice(-4), [
     "run",
     "--rm",
     "--no-deps",
-    "minio-init",
+    "rustfs-init",
   ]);
   assert.deepEqual(plan.migrate.args, [
     "--filter",
@@ -250,8 +250,8 @@ test("development command plan orders local infrastructure before hot reload", a
   assert.equal(plan.web.args.includes("--"), false);
   assert.deepEqual(plan.down.args.slice(-4), [
     "stop",
-    "minio-init",
-    "minio",
+    "rustfs-init",
+    "rustfs",
     "postgres",
   ]);
   assert.equal(plan.down.args.includes("--volumes"), false);
@@ -267,7 +267,7 @@ test("development command plan orders local infrastructure before hot reload", a
   );
 });
 
-test("R2 command plan starts PostgreSQL without MinIO", async () => {
+test("R2 command plan starts PostgreSQL without RustFS", async () => {
   const { buildCommandPlan, parseArguments, resolveDevelopmentConfiguration } =
     await launcher;
   const configuration = resolveDevelopmentConfiguration({
@@ -283,8 +283,8 @@ test("R2 command plan starts PostgreSQL without MinIO", async () => {
     "-d",
     "postgres",
   ]);
-  assert.equal(plan.infrastructure.args.includes("minio"), false);
-  assert.equal(plan.minioInit, undefined);
+  assert.equal(plan.infrastructure.args.includes("rustfs"), false);
+  assert.equal(plan.rustfsInit, undefined);
   assert.deepEqual(plan.down.args.slice(-2), ["stop", "postgres"]);
 });
 
@@ -451,15 +451,15 @@ test("development preparation waits for dependencies before migration", async ()
 
   assert.deepEqual(events, [
     "Validating local Compose configuration",
-    "Starting PostgreSQL and MinIO",
+    "Starting PostgreSQL and RustFS",
     "Waiting for PostgreSQL",
-    "MinIO:http://127.0.0.1:9000/minio/health/live",
-    "Initializing the local MinIO bucket",
+    "RustFS:http://127.0.0.1:9000/health",
+    "Initializing the local RustFS bucket",
     "Applying PostgreSQL migrations",
   ]);
 });
 
-test("R2 development preparation skips MinIO", async () => {
+test("R2 development preparation skips RustFS", async () => {
   const {
     buildCommandPlan,
     parseArguments,
@@ -485,7 +485,7 @@ test("R2 development preparation skips MinIO", async () => {
         events.push(label);
       },
       async waitForUrl() {
-        events.push("unexpected MinIO wait");
+        events.push("unexpected RustFS wait");
       },
     },
   );
@@ -525,14 +525,14 @@ test("development preparation stops before migration when readiness fails", asyn
           throw new Error("database unavailable");
         },
         async waitForUrl() {
-          events.push("unexpected MinIO wait");
+          events.push("unexpected RustFS wait");
         },
       },
     ),
     /database unavailable/,
   );
   assert.equal(events.includes("Applying PostgreSQL migrations"), false);
-  assert.equal(events.includes("unexpected MinIO wait"), false);
+  assert.equal(events.includes("unexpected RustFS wait"), false);
 });
 
 test("development launcher help and dry-run have no runtime prerequisites", () => {

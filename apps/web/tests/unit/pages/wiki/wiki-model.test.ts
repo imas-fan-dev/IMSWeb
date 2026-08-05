@@ -13,6 +13,7 @@ function storyLink(contentType: string) {
     title: "来源",
     url: "https://example.com/story",
     contentType,
+    contentTypeIcon: "book-open-text",
     sourcePlatform: "测试平台",
   }
 }

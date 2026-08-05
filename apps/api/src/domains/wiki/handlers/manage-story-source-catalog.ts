@@ -1,6 +1,7 @@
 import type { Env, Handler } from 'hono';
 import type {
     WikiStoryCatalogOptionInput,
+    WikiStoryContentTypeInput,
     WikiStorySourcePlatformInput
 } from '@/ports/repositories';
 import {
@@ -63,6 +64,14 @@ function catalogInput(body: JsonObject): WikiStoryCatalogOptionInput {
     };
 }
 
+function contentTypeInput(body: JsonObject): WikiStoryContentTypeInput {
+    const iconName = requiredText(body.iconName, '图标', 80);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(iconName)) {
+        throw Object.assign(new Error('图标无效'), { status: 400 });
+    }
+    return { ...catalogInput(body), iconName };
+}
+
 function sourcePlatformInput(body: JsonObject): WikiStorySourcePlatformInput {
     const homepageUrl = optionalText(body.homepageUrl, '主页链接', 2048);
     if (homepageUrl) {
@@ -79,14 +88,16 @@ function sourcePlatformInput(body: JsonObject): WikiStorySourcePlatformInput {
     return { ...catalogInput(body), homepageUrl };
 }
 
-function publicContentType(option: {
+type PublicCatalogOptionRecord = {
     id: number;
     name: string;
     description: string;
     display_order: number;
     is_active: boolean;
     revision: number;
-}) {
+};
+
+function publicCatalogOption(option: PublicCatalogOptionRecord) {
     return {
         id: option.id,
         name: option.name,
@@ -97,17 +108,18 @@ function publicContentType(option: {
     };
 }
 
-function publicSourcePlatform(option: {
-    id: number;
-    name: string;
+function publicContentType(option: PublicCatalogOptionRecord & { icon_name: string }) {
+    return {
+        ...publicCatalogOption(option),
+        iconName: option.icon_name
+    };
+}
+
+function publicSourcePlatform(option: PublicCatalogOptionRecord & {
     homepage_url: string;
-    description: string;
-    display_order: number;
-    is_active: boolean;
-    revision: number;
 }) {
     return {
-        ...publicContentType(option),
+        ...publicCatalogOption(option),
         homepageUrl: option.homepage_url
     };
 }
@@ -154,7 +166,7 @@ export function createHandleCreateWikiStoryCatalogOption<E extends Env>(
             const body = await context.req.json<JsonObject>();
             const option = kind === 'content-type'
                 ? publicContentType(await services.story!.createStoryContentType(
-                    catalogInput(body)
+                    contentTypeInput(body)
                 ))
                 : publicSourcePlatform(await services.story!.createStorySourcePlatform(
                     sourcePlatformInput(body)
@@ -184,7 +196,7 @@ export function createHandleUpdateWikiStoryCatalogOption<E extends Env>(
                 ? await services.story!.updateStoryContentType(
                     id,
                     expectedRevision(body.expectedRevision),
-                    catalogInput(body)
+                    contentTypeInput(body)
                 )
                 : await services.story!.updateStorySourcePlatform(
                     id,

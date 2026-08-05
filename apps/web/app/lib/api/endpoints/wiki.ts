@@ -119,7 +119,7 @@ export const wikiAdminStorySchema = wikiAdminStoryCardSchema.extend({
   sourcePlatformName: z.string(),
 })
 
-const wikiStoryContentTypeSchema = z.object({
+const wikiStoryCatalogOptionSchema = z.object({
   id: z.coerce.number().int().positive(),
   name: z.string(),
   description: z.string(),
@@ -128,7 +128,11 @@ const wikiStoryContentTypeSchema = z.object({
   revision: z.coerce.number().int().nonnegative(),
 })
 
-const wikiStorySourcePlatformSchema = wikiStoryContentTypeSchema.extend({
+const wikiStoryContentTypeSchema = wikiStoryCatalogOptionSchema.extend({
+  iconName: z.string().default("link-2"),
+})
+
+const wikiStorySourcePlatformSchema = wikiStoryCatalogOptionSchema.extend({
   homepageUrl: z.string(),
 })
 
@@ -296,6 +300,7 @@ const wikiPublicStoryLinkSchema = z.object({
   title: z.string(),
   url: z.string(),
   contentType: z.string(),
+  contentTypeIcon: z.string().default("link-2"),
   sourcePlatform: z.string(),
 })
 
@@ -419,14 +424,17 @@ export type WikiStorySourceSubmission = {
 
 export type WikiStoryCatalogOptionSubmission = {
   name: string
+  iconName: string
   description: string
   isActive: boolean
 }
 
-export type WikiStorySourcePlatformSubmission =
-  WikiStoryCatalogOptionSubmission & {
-    homepageUrl: string
-  }
+export type WikiStorySourcePlatformSubmission = Omit<
+  WikiStoryCatalogOptionSubmission,
+  "iconName"
+> & {
+  homepageUrl: string
+}
 
 export type WikiStoryBatchSubmission = {
   agency: string

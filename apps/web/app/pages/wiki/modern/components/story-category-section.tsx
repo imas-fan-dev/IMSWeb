@@ -177,6 +177,7 @@ export function StoryCategorySection({
                   >
                     <WikiStorySourceIcon
                       contentType={link.contentType}
+                      iconName={link.contentTypeIcon}
                       className="size-8 rounded-full bg-muted text-muted-foreground [&_svg]:size-4"
                     />
                     <span className="min-w-0 flex-1">

@@ -11,7 +11,7 @@ PostgreSQL。
 
 S3 模式采用控制面与数据面分离：业务 URL 仍保持 `/uploads/*`、`/image/*` 等稳定路径。
 Hono 完成数据库映射、对象存在性检查和受保护资源鉴权后，公开对象返回单一 bucket 的 CDN
-地址，受保护对象返回短期签名 URL；浏览器随后直接从 MinIO、R2 或其他 S3-compatible 服务获取
+地址，受保护对象返回短期签名 URL；浏览器随后直接从 RustFS、R2、MinIO 或其他 S3-compatible 服务获取
 对象字节。上传、MIME/尺寸校验、格式转换、数据库提交和失败补偿始终由 Hono 执行。动态
 `/api/thumbnail` 需要后端转换图片，是唯一保留后端读取对象正文的图片接口。
 
@@ -69,28 +69,28 @@ pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
 | --- | --- |
 | `IMS_OBJECT_STORAGE` | `filesystem` 或 `s3`，默认 `s3`；filesystem 仅用于兼容流程 |
 | `IMS_S3_BUCKET` | S3 模式必填；普通 bucket 名称 |
-| `IMS_PUBLIC_READ_URL_BASE` | 可选；filesystem 使用的公开站点前缀，或单一 bucket 的 MinIO/R2 公开基址 |
+| `IMS_PUBLIC_READ_URL_BASE` | 可选；filesystem 使用的公开站点前缀，或单一 bucket 的 RustFS/R2 公开基址 |
 | `IMS_S3_PUBLIC_READ_URL_BASE` | `IMS_PUBLIC_READ_URL_BASE` 的 S3 兼容别名；新配置应使用通用名称 |
 | `IMS_S3_REGION` | S3 模式必填；未设置时读取 `AWS_REGION` |
 | `IMS_S3_PREFIX` | 可选；同一 bucket 内的隔离前缀，不含开头/结尾 `/` |
 | `IMS_S3_ENDPOINT` | S3-compatible 服务可选；无凭据的 HTTP(S) URL |
-| `IMS_S3_FORCE_PATH_STYLE` | 默认 `false`；MinIO 等服务通常使用 `true` |
+| `IMS_S3_FORCE_PATH_STYLE` | 默认 `false`；RustFS、MinIO 等服务通常使用 `true` |
 | `IMS_S3_READ_URL_TTL_SECONDS` | 签名读取 URL 有效期，默认 `300`，允许 `30..3600` 秒 |
 
 `IMS_S3_PREFIX` 可以完全留空，也可以是 `tenant/site-a` 这样的多段值。最终物理路径固定为
 `bucket/<IMS_S3_PREFIX>/<业务语义目录>/objects/<object-id>/<文件名>`；受保护对象在 prefix 后
 额外增加 `__protected/`。留空时 bucket 后直接接业务语义目录。
 `IMS_PUBLIC_READ_URL_BASE` 标识公开入口：filesystem 会在此前缀后拼接现有公开路由，
-S3/R2 会拼接版本化物理对象键。MinIO path-style URL 应
+S3/R2 会拼接版本化物理对象键。RustFS path-style URL 应
 包含 bucket，例如 `https://objects.example.com/imsweb-media-prod`；R2 自定义域名已绑定
 bucket，因此只填写 `https://media.example.com`。两者都会继续拼接相同的 prefix 与物理路径。
 
 `IMS_S3_ENDPOINT` 会进入私有签名 URL，因此必须是浏览器可访问且由后端也能连接的地址。生产
-MinIO 应使用独立 HTTPS 域名或对象入口，不要把容器内 DNS 名或回环地址签发给远端浏览器。
-MinIO 与 Hono 位于同一宿主机时，可使用 [`deploy/nginx/`](../deploy/nginx/README.md) 的双域名
-模板：主域名代理完整 Web/API，独立对象域名在保留 Host 和 URI 的情况下代理 MinIO S3 API。
+RustFS 应使用独立 HTTPS 域名或对象入口，不要把容器内 DNS 名或回环地址签发给远端浏览器。
+RustFS 与 Hono 位于同一宿主机时，可使用 [`deploy/nginx/`](../deploy/nginx/README.md) 的双域名
+模板：主域名代理完整 Web/API，独立对象域名在保留 Host 和 URI 的情况下代理 RustFS S3 API。
 R2 S3 endpoint 始终需要签名；待审核名片和编年史图片只在 Hono 鉴权通过后获得短期 URL。
-R2 自定义域名及本地 MinIO 匿名策略必须阻断所有包含 `/__protected/` 的路径，避免绕过 Hono。
+R2 自定义域名及本地 RustFS 匿名策略必须阻断所有包含 `/__protected/` 的路径，避免绕过 Hono。
 
 公开访问由对象生命周期决定，而不是业务目录白名单或调用方选择。普通 ready 写入默认公开；
 延迟发布写入和业务 pending 名片显式使用受保护访问，审核通过后才由 `publish()` 移到公开路径。
@@ -180,16 +180,16 @@ pnpm run test:r2:brand-assets
 版本、PostgreSQL 状态索引、R2 审计能力和独立备份，不把 MinIO/AWS 的 bucket 设置命令照搬到
 R2。R2 S3 凭据只授予该业务 bucket 的对象操作权限。
 
-## 本地 MinIO 联调
+## 本地 RustFS 联调
 
-MinIO 是 Compose 中的本地 S3 兼容服务；同一 Compose 也可启动 API，但不包含反向代理：
+RustFS 是 Compose 中的本地 S3 兼容服务；同一 Compose 也可启动 API，但不包含反向代理：
 
 ```sh
-pnpm run dev:minio:up
-docker compose -f deploy/compose.yaml ps minio minio-init
+pnpm run dev:rustfs:up
+docker compose -f deploy/compose.yaml ps rustfs rustfs-init
 ```
 
-Compose 会在回环地址启动 MinIO，并由一次性 `minio-init` 服务创建一个启用版本控制的
+Compose 会在回环地址启动 RustFS，并由一次性 `rustfs-init` 服务创建一个启用版本控制的
 `imsweb-media-local` bucket。匿名策略允许读取公开对象，但显式拒绝 `__protected/` 路径。
 Hono Node 使用以下配置连接：
 
@@ -200,20 +200,32 @@ export IMS_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
 export IMS_S3_REGION=us-east-1
 export IMS_S3_ENDPOINT=http://127.0.0.1:9000
 export IMS_S3_FORCE_PATH_STYLE=true
-export IMS_S3_PREFIX=local
+export IMS_S3_PREFIX=
 export IMS_S3_READ_URL_TTL_SECONDS=300
 export AWS_ACCESS_KEY_ID=imsweb-local
 export AWS_SECRET_ACCESS_KEY=imsweb-local-password
 ```
 
 默认 S3 API 为 `http://127.0.0.1:9000`，控制台为 `http://127.0.0.1:9001`。这些默认凭据
-仅限本机开发，不能复用于共享或生产环境。停止服务使用 `pnpm run dev:minio:down`；该命令
+仅限本机开发，不能复用于共享或生产环境。停止服务使用 `pnpm run dev:rustfs:down`；该命令
 保留命名卷，避免意外删除联调素材。
+
+将线上 R2 测试桶同步到本地 RustFS 时，先使用默认只读模式确认源/目标对象数和字节数，再
+显式写入：
+
+```sh
+pnpm run dev:rustfs:sync-r2
+pnpm run dev:rustfs:sync-r2 -- --apply
+```
+
+源配置默认读取 Git 忽略的 `deploy/.env.r2-test`，并强制要求 Cloudflare R2 S3 endpoint、
+`auto` region、关闭 path-style 且 bucket 名包含独立的 `test` 段。同步不删除目标独有对象；
+若发现此类对象会拒绝继续。完成后重新列举两端并精确比较对象键与字节数。
 
 ### 本地上传媒体同步
 
 数据库中的活动、推荐资讯和名片记录继续使用稳定的 `/uploads/...` URL，但设置 S3 变量不会
-自动把 `IMS_UPLOADS_DIR` 里的旧文件写入 MinIO。切换后先执行只读对账，再显式导入：
+自动把 `IMS_UPLOADS_DIR` 里的旧文件写入 RustFS。切换后先执行只读对账，再显式导入：
 
 ```sh
 pnpm run media:uploads:sync
@@ -229,7 +241,7 @@ Legacy 名片需要同时迁移关系数据、表情计数和双面原图，不�
 迁移器从 Legacy 同源 API 建立快照，把每一面规范化为
 `card-{id}-{front|back}.{ext}`，数据库保存稳定的 `/uploads/namecard/original/...` URL，
 对象存储则使用 `community/namecards/assets/.../image.{ext}` 逻辑键。默认命令只下载到被 Git
-忽略的 staging、校验图片解码与 Legacy MD5，并对账 PostgreSQL/MinIO：
+忽略的 staging、校验图片解码与 Legacy MD5，并对账 PostgreSQL/S3-compatible 存储：
 
 ```sh
 pnpm run media:namecards:sync -- \

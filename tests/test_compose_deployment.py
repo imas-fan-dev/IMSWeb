@@ -14,12 +14,16 @@ class ComposeDeploymentTests(unittest.TestCase):
         services_source = compose.split("\nvolumes:\n", maxsplit=1)[0]
         services = re.findall(r"^  ([a-z0-9][a-z0-9-]*):$", services_source, re.MULTILINE)
 
-        self.assertEqual(services, ["postgres", "minio", "minio-init", "api"])
+        self.assertEqual(services, ["postgres", "rustfs", "rustfs-init", "api"])
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
-        self.assertIn("image: ${IMS_MINIO_IMAGE:-minio/minio:", compose)
+        self.assertIn(
+            "image: ${IMS_RUSTFS_IMAGE:-rustfs/rustfs:1.0.0-beta.12}",
+            compose,
+        )
+        self.assertIn("image: ${IMS_S3_CLIENT_IMAGE:-minio/mc:", compose)
         self.assertEqual(compose.count("      - local-storage"), 2)
         self.assertIn("postgresql-data:/var/lib/postgresql", compose)
-        self.assertIn("minio-data:/data", compose)
+        self.assertIn("rustfs-data:/data", compose)
         self.assertIn("image: ${IMS_API_IMAGE:-imsweb-api:local}", compose)
         self.assertIn("dockerfile: apps/api/Dockerfile", compose)
         self.assertIn('127.0.0.1:${IMS_API_PORT:-3000}:3000', compose)
@@ -38,9 +42,9 @@ class ComposeDeploymentTests(unittest.TestCase):
             "IMS_S3_BUCKET: ${IMS_S3_BUCKET:-imsweb-media-local}",
             "IMS_PUBLIC_READ_URL_BASE: ${IMS_PUBLIC_READ_URL_BASE:-",
             "IMS_S3_REGION: ${IMS_S3_REGION:-us-east-1}",
-            "IMS_S3_ENDPOINT: ${IMS_S3_ENDPOINT:-http://minio:9000}",
+            "IMS_S3_ENDPOINT: ${IMS_S3_ENDPOINT:-http://rustfs:9000}",
             "IMS_S3_FORCE_PATH_STYLE: ${IMS_S3_FORCE_PATH_STYLE:-true}",
-            "IMS_S3_PREFIX: ${IMS_S3_PREFIX-local}",
+            "IMS_S3_PREFIX: ${IMS_S3_PREFIX-}",
             "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-imsweb-local}",
             "AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-imsweb-local-password}",
             "IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}",
@@ -67,15 +71,15 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("USER node", dockerfile)
         self.assertIn('CMD ["node", "apps/api/dist/server/main.js"]', dockerfile)
 
-    def test_minio_creates_one_public_bucket_with_a_protected_prefix(self):
+    def test_rustfs_creates_one_public_bucket_with_a_protected_prefix(self):
         compose = COMPOSE_PATH.read_text(encoding="utf-8")
-        policy = (PROJECT_ROOT / "deploy/minio-public-policy.json").read_text(
+        policy = (PROJECT_ROOT / "deploy/rustfs-public-policy.json").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn("IMS_MINIO_PUBLIC_BUCKET", compose)
+        self.assertNotIn("IMS_RUSTFS_PUBLIC_BUCKET", compose)
         self.assertNotRegex(compose, r"(?m)^\s+sed\s")
         self.assertIn('mc anonymous set-json /tmp/policy.json', compose)
-        self.assertIn('mc version enable "local/$${IMS_MINIO_BUCKET}"', compose)
+        self.assertIn('mc version enable "local/$${IMS_RUSTFS_BUCKET}"', compose)
         self.assertIn("/__protected/*", policy)
         self.assertIn("/*/__protected/*", policy)
 
@@ -91,7 +95,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertFalse((PROJECT_ROOT / "compose.emergency.yaml").exists())
         self.assertFalse((PROJECT_ROOT / "apps/legacy").exists())
 
-    def test_host_nginx_config_keeps_application_and_minio_private(self):
+    def test_host_nginx_config_keeps_application_and_rustfs_private(self):
         config = (
             PROJECT_ROOT / "deploy/nginx/imsweb.conf.example"
         ).read_text(encoding="utf-8")
@@ -102,7 +106,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("server_name __IMS_APP_DOMAIN__;", config)
         self.assertIn("server_name __IMS_S3_DOMAIN__;", config)
         self.assertIn("proxy_pass http://imsweb_node;", config)
-        self.assertIn("proxy_pass http://imsweb_minio;", config)
+        self.assertIn("proxy_pass http://imsweb_rustfs;", config)
         self.assertIn("proxy_set_header X-Forwarded-For $remote_addr;", config)
         self.assertIn("proxy_set_header Host $http_host;", config)
         self.assertIn("proxy_request_buffering off;", config)

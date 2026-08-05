@@ -57,6 +57,7 @@ export interface WikiStoryLink {
   title: string;
   url: string;
   contentType: string;
+  contentTypeIcon: string;
   sourcePlatform: string;
 }
 

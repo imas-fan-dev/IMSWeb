@@ -22,7 +22,7 @@ pnpm install --frozen-lockfile
 AI coding agents must follow `docs/ai-development-environment.md` for workspace
 preflight, local data configuration, service startup, and validation evidence.
 
-- `pnpm dev`: start PostgreSQL, MinIO, migrations, Hono, and Web with hot reload.
+- `pnpm dev`: start PostgreSQL, RustFS, migrations, Hono, and Web with hot reload.
 - `pnpm run dev:doctor`: diagnose local prerequisites without changing state.
 - `pnpm run dev:down`: stop local data services without deleting their volumes.
 - `pnpm run dev:node`: watch only the Hono Node server.

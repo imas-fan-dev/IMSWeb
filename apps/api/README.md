@@ -1,7 +1,7 @@
 # @imsweb/api
 
 IMSWeb 后端已迁移为 TypeScript + Hono。当前唯一运行入口是 Hono Node，活动运行时统一使用
-PostgreSQL 与 MinIO/S3，并提供 Sharp 和流式 multipart，监听 `127.0.0.1:3000`。SQLite 与
+PostgreSQL 与 RustFS/S3，并提供 Sharp 和流式 multipart，监听 `127.0.0.1:3000`。SQLite 与
 filesystem 适配器只保留给显式迁移、测试和离线兼容流程。
 
 原 Express 与 Flask 路由均由 Hono 实现；Flask、Jinja、Gunicorn 和 uWSGI 不属于公开仓库
@@ -73,7 +73,7 @@ pnpm run test
 pnpm dev
 ```
 
-该入口会启动并等待 PostgreSQL/MinIO、幂等迁移 schema，再同时启动 API 与 Web 热更新进程；
+该入口会启动并等待 PostgreSQL/RustFS、幂等迁移 schema，再同时启动 API 与 Web 热更新进程；
 它会禁用 `apps/api/.env` 并注入完整的隔离本地配置。API 默认监听
 `http://127.0.0.1:3000`。需要只调试 API 时，可按 [`.env.example`](.env.example)
 配置 `apps/api/.env`，手动启动依赖和 migration 后运行 `pnpm run dev:node`；API 会自动读取并
@@ -98,7 +98,7 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 
 ## 部署入口
 
-`deploy/compose.yaml` 可以构建并启动 Hono API、本地 PostgreSQL 和 MinIO，但不提供反向代理
+`deploy/compose.yaml` 可以构建并启动 Hono API、本地 PostgreSQL 和 RustFS，但不提供反向代理
 或 TLS。API 镜像包含 Web 发布物，Compose 启动时会先幂等应用 PostgreSQL migrations。由外部
 受信 Nginx 接入时，将 `IMS_CLIENT_ADDRESS_SOURCE=nginx` 注入 Hono，并确保入口覆盖客户端
 提供的转发头。直接访问 Hono 时保留默认 `direct`，不要信任代理头。

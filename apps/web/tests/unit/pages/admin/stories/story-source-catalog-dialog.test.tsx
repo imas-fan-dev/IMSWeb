@@ -8,6 +8,7 @@ const contentTypes = [
   {
     id: 1,
     name: "剧情",
+    iconName: "book-open-text",
     description: "剧情内容",
     displayOrder: 0,
     isActive: true,
@@ -44,6 +45,7 @@ describe("StorySourceCatalogDialog", () => {
         option: {
           id: 3,
           name: "电话",
+          iconName: "phone",
           description: "游戏内电话",
           displayOrder: 1,
           isActive: true,
@@ -66,6 +68,12 @@ describe("StorySourceCatalogDialog", () => {
     )
 
     await user.type(screen.getByLabelText("名称"), "电话")
+    await user.click(screen.getByRole("button", { name: "图标：link-2" }))
+    await user.type(
+      screen.getByRole("textbox", { name: "搜索 Lucide 图标" }),
+      "phone"
+    )
+    await user.click(screen.getByRole("button", { name: "选择 phone 图标" }))
     await user.type(screen.getByLabelText("说明"), "游戏内电话")
     await user.click(screen.getByRole("button", { name: "新增目录项" }))
 
@@ -80,6 +88,7 @@ describe("StorySourceCatalogDialog", () => {
     )
     expect(JSON.parse(String(init?.body))).toEqual({
       name: "电话",
+      iconName: "phone",
       description: "游戏内电话",
       isActive: true,
     })

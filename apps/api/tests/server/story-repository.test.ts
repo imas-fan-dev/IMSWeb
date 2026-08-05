@@ -80,6 +80,7 @@ test('SQLite story lookup selects the requested row within its agency and idol',
         image_media_revision: 0,
         content_type_id: 1,
         content_type_name: '剧情',
+        content_type_icon_name: 'book-open-text',
         source_platform_id: 2,
         source_platform_name: '其他来源'
     });
@@ -108,25 +109,35 @@ test('SQLite story lookup selects the requested row within its agency and idol',
     assert.equal(updated?.image_zoom, 2);
     assert.equal(updated?.image_rotation, 180);
     assert.equal(updated?.image_media_revision, 1);
+    assert.equal(updated?.content_type_icon_name, 'book-open-text');
     assert.deepEqual(await repository.deleteStoryContentType(1), { status: 'in-use' });
     assert.deepEqual(await repository.deleteStorySourcePlatform(2), { status: 'in-use' });
 
     const column = await repository.createStoryContentType({
         name: '特别节目',
+        iconName: 'radio',
         description: '回归测试',
         isActive: true
     });
     assert.equal(column.name, '特别节目');
     assert.deepEqual(await repository.updateStoryContentType(column.id, 0, {
         name: '特别节目',
+        iconName: 'podcast',
         description: '暂停新增',
         isActive: false
     }), {
         status: 'saved',
-        option: { ...column, description: '暂停新增', is_active: false, revision: 1 }
+        option: {
+            ...column,
+            icon_name: 'podcast',
+            description: '暂停新增',
+            is_active: false,
+            revision: 1
+        }
     });
     assert.deepEqual(await repository.updateStoryContentType(column.id, 0, {
         name: '过期更新',
+        iconName: 'radio',
         description: '',
         isActive: true
     }), { status: 'conflict', revision: 1 });
@@ -1108,6 +1119,7 @@ test('SQLite legacy story IDs survive backfill and new IDs start above them', as
             image_media_revision: 0,
             content_type_id: 1,
             content_type_name: '剧情',
+            content_type_icon_name: 'book-open-text',
             source_platform_id: 2,
             source_platform_name: '其他来源'
         },
@@ -1135,6 +1147,7 @@ test('SQLite legacy story IDs survive backfill and new IDs start above them', as
             image_media_revision: 0,
             content_type_id: 1,
             content_type_name: '剧情',
+            content_type_icon_name: 'book-open-text',
             source_platform_id: 2,
             source_platform_name: '其他来源'
         }

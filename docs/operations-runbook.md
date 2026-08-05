@@ -187,11 +187,11 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 
 ## 7. 入口与 TLS
 
-`deploy/compose.yaml` 可运行构建后的 Hono API、本地 PostgreSQL 和 MinIO，但不运行 Nginx、
-TLS 或其他正式入口。API 容器会在启动前幂等应用 migrations；MinIO 初始化服务创建一个
+`deploy/compose.yaml` 可运行构建后的 Hono API、本地 PostgreSQL 和 RustFS，但不运行 Nginx、
+TLS 或其他正式入口。API 容器会在启动前幂等应用 migrations；RustFS 初始化服务创建一个
 bucket，并通过匿名读取策略拒绝 `__protected/`，用于验证签名读取和公开 CDN 路径语义。
 宿主机部署可使用 [`deploy/nginx/`](../deploy/nginx/README.md) 中的 Nginx 模板：主域名整体代理
-到 Hono，使 Web 与 API 同源；同机 MinIO 使用独立对象域名代理到回环 S3 API，且不暴露
+到 Hono，使 Web 与 API 同源；同机 RustFS 使用独立对象域名代理到回环 S3 API，且不暴露
 Console。
 
 生产入口必须在切流前确认：

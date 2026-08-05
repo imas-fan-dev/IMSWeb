@@ -30,30 +30,35 @@ services:
         max-size: 10m
         max-file: "3"
 
-  minio:
-    image: ${IMS_MINIO_IMAGE:-minio/minio:RELEASE.2025-09-07T16-13-09Z}
+  rustfs:
+    image: ${IMS_RUSTFS_IMAGE:-rustfs/rustfs:1.0.0-beta.12}
     profiles:
       - local-storage
-    command: server /data --console-address ":9001"
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${IMS_MINIO_ROOT_USER:-imsweb-local}
-      MINIO_ROOT_PASSWORD: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${IMS_RUSTFS_ACCESS_KEY:-imsweb-local}
+      RUSTFS_SECRET_KEY: ${IMS_RUSTFS_SECRET_KEY:-imsweb-local-password}
     ports:
-      - "127.0.0.1:${IMS_MINIO_API_PORT:-9000}:9000"
-      - "127.0.0.1:${IMS_MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${IMS_RUSTFS_API_PORT:-9000}:9000"
+      - "127.0.0.1:${IMS_RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - minio-data:/data
+      - rustfs-data:/data
     healthcheck:
       test:
         - CMD
         - curl
         - --fail
-        - http://127.0.0.1:9000/minio/health/live
+        - --silent
+        - --show-error
+        - http://127.0.0.1:9000/health
       interval: 5s
       timeout: 3s
-      retries: 12
-      start_period: 5s
+      retries: 24
+      start_period: 10s
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 10s
@@ -63,25 +68,25 @@ services:
         max-size: 10m
         max-file: "3"
 
-  minio-init:
-    image: ${IMS_MINIO_IMAGE:-minio/minio:RELEASE.2025-09-07T16-13-09Z}
+  rustfs-init:
+    image: ${IMS_S3_CLIENT_IMAGE:-minio/mc:RELEASE.2025-08-13T08-35-41Z}
     profiles:
       - local-storage
     depends_on:
-      minio:
+      rustfs:
         condition: service_healthy
     restart: "no"
     environment:
-      MINIO_ROOT_USER: ${IMS_MINIO_ROOT_USER:-imsweb-local}
-      MINIO_ROOT_PASSWORD: ${IMS_MINIO_ROOT_PASSWORD:-imsweb-local-password}
-      IMS_MINIO_BUCKET: ${IMS_MINIO_BUCKET:-imsweb-media-local}
+      RUSTFS_ACCESS_KEY: ${IMS_RUSTFS_ACCESS_KEY:-imsweb-local}
+      RUSTFS_SECRET_KEY: ${IMS_RUSTFS_SECRET_KEY:-imsweb-local-password}
+      IMS_RUSTFS_BUCKET: ${IMS_RUSTFS_BUCKET:-imsweb-media-local}
     entrypoint:
       - /bin/sh
       - -ec
     command:
       - |
-        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
-        mc mb --ignore-existing "local/$${IMS_MINIO_BUCKET}"
+        mc alias set local http://rustfs:9000 "$${RUSTFS_ACCESS_KEY}" "$${RUSTFS_SECRET_KEY}"
+        mc mb --ignore-existing "local/$${IMS_RUSTFS_BUCKET}"
         cat > /tmp/policy.json <<POLICY_EOF
         {
           "Version": "2012-10-17",
@@ -90,22 +95,22 @@ services:
               "Effect": "Allow",
               "Principal": { "AWS": ["*"] },
               "Action": ["s3:GetObject"],
-              "Resource": ["arn:aws:s3:::$${IMS_MINIO_BUCKET}/*"]
+              "Resource": ["arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/*"]
             },
             {
               "Effect": "Deny",
               "Principal": { "AWS": ["*"] },
               "Action": ["s3:GetObject"],
               "Resource": [
-                "arn:aws:s3:::$${IMS_MINIO_BUCKET}/__protected/*",
-                "arn:aws:s3:::$${IMS_MINIO_BUCKET}/*/__protected/*"
+                "arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/__protected/*",
+                "arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/*/__protected/*"
               ]
             }
           ]
         }
         POLICY_EOF
-        mc anonymous set-json /tmp/policy.json "local/$${IMS_MINIO_BUCKET}"
-        mc version enable "local/$${IMS_MINIO_BUCKET}"
+        mc anonymous set-json /tmp/policy.json "local/$${IMS_RUSTFS_BUCKET}"
+        mc version enable "local/$${IMS_RUSTFS_BUCKET}"
 
   api:
     image: ${IMS_API_IMAGE:-imsweb-api:local}
@@ -116,7 +121,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio-init:
+      rustfs-init:
         condition: service_completed_successfully
         required: false
     environment:
@@ -140,9 +145,9 @@ services:
       IMS_S3_PUBLIC_READ_URL_BASE: ${IMS_S3_PUBLIC_READ_URL_BASE:-}
       IMS_PUBLIC_READ_URL_BASE: ${IMS_PUBLIC_READ_URL_BASE:-}
       IMS_S3_REGION: ${IMS_S3_REGION:-us-east-1}
-      IMS_S3_ENDPOINT: ${IMS_S3_ENDPOINT:-http://minio:9000}
+      IMS_S3_ENDPOINT: ${IMS_S3_ENDPOINT:-http://rustfs:9000}
       IMS_S3_FORCE_PATH_STYLE: ${IMS_S3_FORCE_PATH_STYLE:-true}
-      IMS_S3_PREFIX: ${IMS_S3_PREFIX-local}
+      IMS_S3_PREFIX: ${IMS_S3_PREFIX-}
       IMS_S3_READ_URL_TTL_SECONDS: ${IMS_S3_READ_URL_TTL_SECONDS:-300}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-imsweb-local}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-imsweb-local-password}
@@ -191,7 +196,7 @@ services:
 volumes:
   postgresql-data:
     name: imsweb-postgresql_postgresql-data
-  minio-data:
-    name: imsweb-minio_minio-data
+  rustfs-data:
+    name: imsweb-rustfs_rustfs-data
   api-data:
     name: imsweb-api_api-data

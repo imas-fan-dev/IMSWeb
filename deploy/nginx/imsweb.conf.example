@@ -1,4 +1,4 @@
-# Host-installed Nginx ingress for IMSWeb and a same-host MinIO service.
+# Host-installed Nginx ingress for IMSWeb and a same-host RustFS service.
 # Replace __IMS_APP_DOMAIN__, __IMS_S3_DOMAIN__, and __IMS_CERT_NAME__ before use.
 
 upstream imsweb_node {
@@ -6,7 +6,7 @@ upstream imsweb_node {
     keepalive 32;
 }
 
-upstream imsweb_minio {
+upstream imsweb_rustfs {
     server 127.0.0.1:9000;
     keepalive 16;
 }
@@ -52,7 +52,7 @@ server {
     }
 }
 
-# Use a separate hostname for MinIO even when it runs on the application host.
+# Use a separate hostname for RustFS even when it runs on the application host.
 # S3 SigV4 covers the host and path, so both are forwarded without rewriting.
 server {
     listen 443 ssl;
@@ -69,7 +69,7 @@ server {
     client_max_body_size 64m;
 
     location / {
-        proxy_pass http://imsweb_minio;
+        proxy_pass http://imsweb_rustfs;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header Host $http_host;

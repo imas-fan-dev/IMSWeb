@@ -1,7 +1,7 @@
 # Compose 部署
 
 `deploy/compose.yaml` 用于启动 PostgreSQL 和 IMSWeb Hono API。本地开发还会通过
-`local-storage` profile 启动 MinIO；生产可以关闭该 profile，让 API 直接连接 Cloudflare R2。
+`local-storage` profile 启动 RustFS；生产可以关闭该 profile，让 API 直接连接 Cloudflare R2。
 API 镜像包含构建后的 Web 静态资源，并在启动前幂等应用 PostgreSQL migrations。Compose
 不包含反向代理或 TLS 入口；宿主机 Nginx 的参考配置位于
 [`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。
@@ -13,7 +13,7 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/compose.yaml config
 ```
 
-日常源码开发优先运行根目录 `pnpm dev`。它会复用本 Compose 文件启动并等待 PostgreSQL/MinIO，
+日常源码开发优先运行根目录 `pnpm dev`。它会复用本 Compose 文件启动并等待 PostgreSQL/RustFS，
 初始化 bucket、应用 migration，再启动宿主机上的 API/Web 热更新进程；无需先复制
 `deploy/.env`。如需调整本地依赖端口或凭据，再从模板创建该文件。停止依赖且保留数据卷使用
 `pnpm run dev:down`。启动和停止前可运行 `pnpm run dev:doctor`；统一入口仅允许 Unix socket、
@@ -23,22 +23,22 @@ Windows named pipe 或回环地址上的本机 Docker/Podman endpoint，远程 c
 
 ```sh
 pnpm run dev:api:up
-docker compose -f deploy/compose.yaml ps postgres minio minio-init api
+docker compose -f deploy/compose.yaml ps postgres rustfs rustfs-init api
 curl --fail http://127.0.0.1:3000/api/wiki/test
 ```
 
 `dev:api:up` 是容器集成预览入口：它会构建 API 镜像，并按健康依赖顺序启动 PostgreSQL、
-MinIO 初始化任务和 API，但不提供源码热更新。
+RustFS 初始化任务和 API，但不提供源码热更新。
 只需要依赖服务或需要 Hono 源码热更新时，仍可分别运行：
 
 ```sh
 pnpm run dev:postgresql:up
-pnpm run dev:minio:up
+pnpm run dev:rustfs:up
 pnpm run dev:node
 ```
 
 API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问数据库；本地 profile 通过
-`minio:9000` 访问对象存储，生产 R2 则使用配置的外部 S3 API endpoint。
+`rustfs:9000` 访问对象存储，生产 R2 则使用配置的外部 S3 API endpoint。
 `api-data` 卷保存 Hono 的本地运行状态，停止单个 API 容器不会删除该卷。不要把
 `deploy/.env.example` 中的本地默认凭据用于共享或生产环境；共享或生产环境的数据库、对象
 存储和应用秘密必须由目标平台或密钥管理服务注入。
@@ -56,5 +56,5 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml config
 docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --build postgres api
 ```
 
-未启用 `local-storage` profile 时，Compose 不启动 MinIO；API 只使用配置的 R2 bucket。
+未启用 `local-storage` profile 时，Compose 不启动 RustFS；API 只使用配置的 R2 bucket。
 `deploy/.env` 被 Git 忽略，但仍应保持 `0600` 权限并通过目标主机的密钥管理流程传递。

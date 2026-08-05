@@ -9,7 +9,8 @@ const API_ROOT = path.resolve(__dirname, '../..');
 const REPOSITORY_ROOT = path.resolve(API_ROOT, '../..');
 const COMPOSE_FILE = path.join(REPOSITORY_ROOT, 'deploy/compose.yaml');
 const ARCHIVE_ROOT = 'imsweb-development-data';
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
+const LEGACY_FORMAT_VERSION = 1;
 const MAX_CAPTURE_BYTES = 128 * 1024 * 1024;
 
 function usage() {
@@ -112,10 +113,10 @@ function readComposeConfig() {
         label: 'reading Docker Compose configuration'
     });
     const config = JSON.parse(source);
-    const bucket = config.services?.['minio-init']?.environment
-        ?.IMS_MINIO_BUCKET;
+    const bucket = config.services?.['rustfs-init']?.environment
+        ?.IMS_RUSTFS_BUCKET;
     if (!bucket) {
-        throw new Error('IMS_MINIO_BUCKET is missing from minio-init');
+        throw new Error('IMS_RUSTFS_BUCKET is missing from rustfs-init');
     }
     return { bucket };
 }
@@ -126,9 +127,9 @@ function startDataServices() {
     ], { label: 'checking development data containers' }).split('\n'));
     const services = [];
     if (!running.has('postgres')) services.push('postgres');
-    if (!running.has('minio')) services.push('minio', 'minio-init');
+    if (!running.has('rustfs')) services.push('rustfs', 'rustfs-init');
     if (services.length === 0) {
-        console.log('PostgreSQL and MinIO development containers are running.');
+        console.log('PostgreSQL and RustFS development containers are running.');
         return;
     }
 
@@ -158,7 +159,7 @@ function postgresMetadata() {
     return { database, serverVersion, tableCount };
 }
 
-function minioRunArguments(shellSource, mount) {
+function rustfsRunArguments(shellSource, mount) {
     const args = ['run', '--rm', '-T', '--no-deps'];
     if (mount) {
         const suffix = mount.readOnly ? ':ro' : '';
@@ -168,42 +169,42 @@ function minioRunArguments(shellSource, mount) {
         );
     }
     args.push(
-        '--entrypoint', '/bin/sh', 'minio-init', '-ec', shellSource
+        '--entrypoint', '/bin/sh', 'rustfs-init', '-ec', shellSource
     );
     return args;
 }
 
-function captureMinio(shellSource, options = {}) {
-    return captureCompose(minioRunArguments(shellSource, options.mount), {
-        label: options.label || 'querying MinIO'
+function captureRustfs(shellSource, options = {}) {
+    return captureCompose(rustfsRunArguments(shellSource, options.mount), {
+        label: options.label || 'querying RustFS'
     });
 }
 
-function runMinio(shellSource, options = {}) {
-    return runCompose(minioRunArguments(shellSource, options.mount), {
-        label: options.label || 'running MinIO data operation',
+function runRustfs(shellSource, options = {}) {
+    return runCompose(rustfsRunArguments(shellSource, options.mount), {
+        label: options.label || 'running RustFS data operation',
         stdio: options.quietOutput
             ? ['ignore', 'ignore', 'inherit']
             : 'inherit'
     });
 }
 
-const MINIO_ALIAS = [
-    'mc alias set development http://minio:9000',
-    '"$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null'
+const RUSTFS_ALIAS = [
+    'mc alias set development http://rustfs:9000',
+    '"$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" >/dev/null'
 ].join(' ');
 
-function minioUsage() {
-    const source = captureMinio([
-        MINIO_ALIAS,
-        'mc du --json "development/$IMS_MINIO_BUCKET"'
-    ].join('\n'), { label: 'reading MinIO bucket usage' });
+function rustfsUsage() {
+    const source = captureRustfs([
+        RUSTFS_ALIAS,
+        'mc du --json "development/$IMS_RUSTFS_BUCKET"'
+    ].join('\n'), { label: 'reading RustFS bucket usage' });
     const line = source.split('\n').filter(Boolean).at(-1);
     const usage = JSON.parse(line);
     if (usage.status !== 'success' ||
         !Number.isInteger(usage.objects) ||
         !Number.isInteger(usage.size)) {
-        throw new Error('MinIO returned invalid bucket usage data');
+        throw new Error('RustFS returned invalid bucket usage data');
     }
     return { objects: usage.objects, bytes: usage.size };
 }
@@ -240,15 +241,15 @@ function validatePostgresDump(dumpPath) {
     }
 }
 
-function exportMinio(destination) {
-    console.log('Exporting current MinIO bucket objects...');
-    runMinio([
-        MINIO_ALIAS,
-        'mc stat "development/$IMS_MINIO_BUCKET" >/dev/null',
+function exportRustfs(destination) {
+    console.log('Exporting current RustFS bucket objects...');
+    runRustfs([
+        RUSTFS_ALIAS,
+        'mc stat "development/$IMS_RUSTFS_BUCKET" >/dev/null',
         'mc mirror --quiet --preserve ' +
-            '"development/$IMS_MINIO_BUCKET" /export'
+            '"development/$IMS_RUSTFS_BUCKET" /export'
     ].join('\n'), {
-        label: 'exporting MinIO bucket',
+        label: 'exporting RustFS bucket',
         mount: { hostPath: destination, containerPath: '/export' },
         quietOutput: true
     });
@@ -360,13 +361,26 @@ function readArchiveEntries(archivePath) {
     return entries;
 }
 
+function snapshotStorage(manifest) {
+    if (manifest?.formatVersion === FORMAT_VERSION) {
+        return { directoryName: 'rustfs', storage: manifest.rustfs };
+    }
+    if (manifest?.formatVersion === LEGACY_FORMAT_VERSION) {
+        return { directoryName: 'minio', storage: manifest.minio };
+    }
+    throw new Error(
+        `Unsupported snapshot format version: ${manifest?.formatVersion}`
+    );
+}
+
 function validateManifest(manifest) {
-    if (manifest?.formatVersion !== FORMAT_VERSION) {
+    if (![FORMAT_VERSION, LEGACY_FORMAT_VERSION].includes(manifest?.formatVersion)) {
         throw new Error(
             `Unsupported snapshot format version: ${manifest?.formatVersion}`
         );
     }
-    const bucket = manifest.minio?.bucket;
+    const { directoryName, storage } = snapshotStorage(manifest);
+    const bucket = storage?.bucket;
     if (manifest.archiveRoot !== ARCHIVE_ROOT ||
         manifest.postgresql?.file !== 'postgresql.dump' ||
         !Number.isInteger(manifest.postgresql?.publicTables) ||
@@ -375,13 +389,14 @@ function validateManifest(manifest) {
         manifest.postgresql.bytes <= 0 ||
         typeof bucket !== 'string' ||
         !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket) ||
-        manifest.minio.directory !== `minio/${bucket}` ||
-        !Number.isInteger(manifest.minio?.objects) ||
-        manifest.minio.objects < 0 ||
-        !Number.isInteger(manifest.minio?.bytes) ||
-        manifest.minio.bytes < 0) {
+        storage.directory !== `${directoryName}/${bucket}` ||
+        !Number.isInteger(storage?.objects) ||
+        storage.objects < 0 ||
+        !Number.isInteger(storage?.bytes) ||
+        storage.bytes < 0) {
         throw new Error('Snapshot manifest is incomplete or invalid');
     }
+    return storage;
 }
 
 function sha256File(filePath) {
@@ -415,15 +430,15 @@ function snapshotReadme(manifest) {
 
 Created: ${manifest.createdAt}
 PostgreSQL database: ${manifest.postgresql.database}
-MinIO bucket: ${manifest.minio.bucket}
+RustFS bucket: ${manifest.rustfs.bucket}
 
 Restore from the IMSWeb repository root:
   pnpm run dev:data:restore -- <archive.tar.gz>
 
 The restore command refuses non-empty targets unless --force is supplied.
 The archive contains application data and password hashes. Keep it private.
-PostgreSQL and MinIO are captured separately, not as one cross-system atomic
-transaction. MinIO version history and delete markers are not included.
+PostgreSQL and RustFS are captured separately, not as one cross-system atomic
+transaction. RustFS version history and delete markers are not included.
 `;
 }
 
@@ -441,28 +456,28 @@ async function exportSnapshot(options) {
     startDataServices();
     const workingDirectory = makeWorkingDirectory('.dev-data-export-');
     const snapshotDirectory = path.join(workingDirectory, ARCHIVE_ROOT);
-    const minioDirectory = path.join(
+    const rustfsDirectory = path.join(
         snapshotDirectory,
-        'minio',
+        'rustfs',
         config.bucket
     );
     const dumpPath = path.join(snapshotDirectory, 'postgresql.dump');
     const partialArchive = `${output}.partial-${process.pid}`;
 
     try {
-        fs.mkdirSync(minioDirectory, { recursive: true, mode: 0o700 });
+        fs.mkdirSync(rustfsDirectory, { recursive: true, mode: 0o700 });
         const postgres = postgresMetadata();
-        const minioBefore = minioUsage();
+        const rustfsBefore = rustfsUsage();
         dumpPostgres(dumpPath);
-        exportMinio(minioDirectory);
-        const minioAfter = minioUsage();
-        const exportedMinio = summarizeDirectory(minioDirectory);
-        if (minioBefore.objects !== minioAfter.objects ||
-            minioBefore.bytes !== minioAfter.bytes ||
-            minioAfter.objects !== exportedMinio.objects ||
-            minioAfter.bytes !== exportedMinio.bytes) {
+        exportRustfs(rustfsDirectory);
+        const rustfsAfter = rustfsUsage();
+        const exportedRustfs = summarizeDirectory(rustfsDirectory);
+        if (rustfsBefore.objects !== rustfsAfter.objects ||
+            rustfsBefore.bytes !== rustfsAfter.bytes ||
+            rustfsAfter.objects !== exportedRustfs.objects ||
+            rustfsAfter.bytes !== exportedRustfs.bytes) {
             throw new Error(
-                'MinIO changed during export or the mirrored data is incomplete; retry'
+                'RustFS changed during export or the mirrored data is incomplete; retry'
             );
         }
 
@@ -470,7 +485,7 @@ async function exportSnapshot(options) {
             formatVersion: FORMAT_VERSION,
             archiveRoot: ARCHIVE_ROOT,
             createdAt: new Date().toISOString(),
-            consistency: 'PostgreSQL and MinIO component snapshots are not atomic together',
+            consistency: 'PostgreSQL and RustFS component snapshots are not atomic together',
             postgresql: {
                 file: 'postgresql.dump',
                 format: 'pg_dump-custom',
@@ -479,11 +494,11 @@ async function exportSnapshot(options) {
                 publicTables: postgres.tableCount,
                 bytes: fs.statSync(dumpPath).size
             },
-            minio: {
-                directory: `minio/${config.bucket}`,
+            rustfs: {
+                directory: `rustfs/${config.bucket}`,
                 bucket: config.bucket,
-                objects: exportedMinio.objects,
-                bytes: exportedMinio.bytes,
+                objects: exportedRustfs.objects,
+                bytes: exportedRustfs.bytes,
                 includesVersions: false
             }
         };
@@ -522,8 +537,8 @@ async function exportSnapshot(options) {
         console.log(`Checksum: ${checksumPath}`);
         console.log(
             `PostgreSQL tables: ${postgres.tableCount}; ` +
-            `MinIO objects: ${exportedMinio.objects}; ` +
-            `MinIO bytes: ${exportedMinio.bytes}`
+            `RustFS objects: ${exportedRustfs.objects}; ` +
+            `RustFS bytes: ${exportedRustfs.bytes}`
         );
         return { output, checksumPath, manifest };
     } finally {
@@ -559,17 +574,17 @@ function restorePostgres(dumpPath) {
     }
 }
 
-function restoreMinio(source) {
-    console.log('Restoring MinIO bucket objects...');
-    runMinio([
-        MINIO_ALIAS,
-        'mc mb --ignore-existing "development/$IMS_MINIO_BUCKET" >/dev/null',
-        'mc anonymous set none "development/$IMS_MINIO_BUCKET" >/dev/null',
-        'mc version enable "development/$IMS_MINIO_BUCKET" >/dev/null',
+function restoreRustfs(source) {
+    console.log('Restoring RustFS bucket objects...');
+    runRustfs([
+        RUSTFS_ALIAS,
+        'mc mb --ignore-existing "development/$IMS_RUSTFS_BUCKET" >/dev/null',
+        'mc anonymous set none "development/$IMS_RUSTFS_BUCKET" >/dev/null',
+        'mc version enable "development/$IMS_RUSTFS_BUCKET" >/dev/null',
         'mc mirror --quiet --preserve --overwrite --remove ' +
-            '/import "development/$IMS_MINIO_BUCKET"'
+            '/import "development/$IMS_RUSTFS_BUCKET"'
     ].join('\n'), {
-        label: 'restoring MinIO bucket',
+        label: 'restoring RustFS bucket',
         mount: {
             hostPath: source,
             containerPath: '/import',
@@ -588,9 +603,9 @@ async function restoreSnapshot(options) {
     const config = readComposeConfig();
     startDataServices();
     const currentPostgres = postgresMetadata();
-    const currentMinio = minioUsage();
+    const currentRustfs = rustfsUsage();
     if (!options.force &&
-        (currentPostgres.tableCount > 0 || currentMinio.objects > 0)) {
+        (currentPostgres.tableCount > 0 || currentRustfs.objects > 0)) {
         throw new Error(
             'Restore target is not empty. Re-run with --force to replace ' +
             `database ${currentPostgres.database} and bucket ${config.bucket}.`
@@ -610,35 +625,35 @@ async function restoreSnapshot(options) {
             path.join(snapshotDirectory, 'manifest.json'),
             'utf8'
         ));
-        validateManifest(manifest);
+        const storage = validateManifest(manifest);
         const dumpPath = path.join(snapshotDirectory, manifest.postgresql.file);
-        const minioDirectory = path.join(
+        const rustfsDirectory = path.join(
             snapshotDirectory,
-            manifest.minio.directory
+            storage.directory
         );
         validatePostgresDumpFile(dumpPath);
         if (fs.statSync(dumpPath).size !== manifest.postgresql.bytes) {
             throw new Error('Extracted PostgreSQL dump does not match the manifest');
         }
-        const localMinio = summarizeDirectory(minioDirectory);
-        if (localMinio.objects !== manifest.minio.objects ||
-            localMinio.bytes !== manifest.minio.bytes) {
-            throw new Error('Extracted MinIO data does not match the manifest');
+        const localRustfs = summarizeDirectory(rustfsDirectory);
+        if (localRustfs.objects !== storage.objects ||
+            localRustfs.bytes !== storage.bytes) {
+            throw new Error('Extracted object data does not match the manifest');
         }
 
         validatePostgresDump(dumpPath);
         restorePostgres(dumpPath);
-        restoreMinio(minioDirectory);
+        restoreRustfs(rustfsDirectory);
         const restoredPostgres = postgresMetadata();
-        const restoredMinio = minioUsage();
+        const restoredRustfs = rustfsUsage();
         if (restoredPostgres.tableCount !== manifest.postgresql.publicTables) {
             throw new Error(
                 'Restored PostgreSQL table count does not match the manifest'
             );
         }
-        if (restoredMinio.objects !== manifest.minio.objects ||
-            restoredMinio.bytes !== manifest.minio.bytes) {
-            throw new Error('Restored MinIO usage does not match the manifest');
+        if (restoredRustfs.objects !== storage.objects ||
+            restoredRustfs.bytes !== storage.bytes) {
+            throw new Error('Restored RustFS usage does not match the manifest');
         }
         console.log(
             `Restored ${archivePath} into database ${restoredPostgres.database} ` +

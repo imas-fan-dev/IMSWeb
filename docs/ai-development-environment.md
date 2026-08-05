@@ -55,12 +55,12 @@ pnpm dev
 1. 检查平台、Node/pnpm 版本、workspace 依赖、API/Web 端口和 Compose 运行时，不会终止
    占用端口的未知进程。
 2. 解析当前 Docker/Podman endpoint；只有 Unix socket、named pipe 或回环地址才允许继续。
-3. 从 `deploy/compose.yaml` 启动 PostgreSQL 与 MinIO，并等待数据库和 S3 API 就绪。
-4. 幂等初始化 MinIO bucket、公开读取策略与版本控制，再应用全部 PostgreSQL migrations。
+3. 从 `deploy/compose.yaml` 启动 PostgreSQL 与 RustFS，并等待数据库和 S3 API 就绪。
+4. 幂等初始化 RustFS bucket、公开读取策略与版本控制，再应用全部 PostgreSQL migrations。
 5. 启动 Hono `tsx watch`，等待真实 API 请求成功后启动 React Router Web。
 6. 通过 Web 开发代理再次探测 API，最后报告实际可访问地址。
 
-默认 Web 为 `http://127.0.0.1:5173`，API 为 `http://127.0.0.1:3000`，MinIO S3 API 为
+默认 Web 为 `http://127.0.0.1:5173`，API 为 `http://127.0.0.1:3000`，RustFS S3 API 为
 `http://127.0.0.1:9000`，控制台为 `http://127.0.0.1:9001`。需要避开已有端口时使用：
 
 ```sh
@@ -81,7 +81,7 @@ pnpm run dev:r2
 # 同样支持：pnpm run dev:r2 --api-port 3100 --web-port 5180
 ```
 
-该模式继续启动本地 PostgreSQL 和应用 migrations，但不启动或初始化 MinIO。启动器从
+该模式继续启动本地 PostgreSQL 和应用 migrations，但不启动或初始化 RustFS。启动器从
 `apps/api/.env` 中仅提取 `IMS_OBJECT_STORAGE`、`IMS_S3_*`、公开读取基址和 AWS 凭据；
 `NODE_ENV`、JWT、数据库和本地数据目录仍由开发启动器隔离注入。为防止本地热更新
 误写生产对象，bucket 名必须明确包含独立的 `test` 段，region 必须为 `auto`，endpoint 必须是
@@ -94,7 +94,7 @@ connection 指向非回环主机，`pnpm dev` 和 `pnpm run dev:down` 都会在�
 Docker 与 Podman 目标变量混用时也会逐项校验，避免本地地址掩盖实际的远端目标。先切回本机
 context，不要通过远程 context 运行本地开发入口。
 
-`Ctrl+C` 只停止本次创建的 API/Web 热更新进程，保留 PostgreSQL、MinIO 和数据卷；确认不再
+`Ctrl+C` 只停止本次创建的 API/Web 热更新进程，保留 PostgreSQL、RustFS 和数据卷；确认不再
 使用后执行 `pnpm run dev:down`。该命令同样不会删除卷。
 
 ## 4. 定制本地数据
@@ -108,25 +108,37 @@ pnpm dev
 ```
 
 启动器会让宿主机 API 配置自动对齐 `deploy/.env` 中的 `IMS_POSTGRES_*` 和
-`IMS_MINIO_*`，并把同一组解析后的字面值传给 Compose；不要在该文件中嵌套 `${...}` 引用。
+`IMS_RUSTFS_*`，并把同一组解析后的字面值传给 Compose；不要在该文件中嵌套 `${...}` 引用。
 API 独立启动时自动读取 `apps/api/.env`，已有 shell 或进程管理器变量优先；
 `migration:postgresql` 也读取同一文件。`apps/api/.env.example` 是生产和高级配置模板，不能在
 未填写必需值时原样用于开发。
 
-本地运行统一使用 PostgreSQL 与 S3 兼容的 MinIO，不再把 SQLite 或文件系统作为隐式默认值。
+本地运行统一使用 PostgreSQL 与 S3 兼容的 RustFS，不再把 SQLite 或文件系统作为隐式默认值。
 需要绕过统一启动器排障时，可以分别启动依赖：
 
 ```sh
 pnpm run dev:postgresql:up
-pnpm run dev:minio:up
-docker compose -f deploy/compose.yaml ps postgres minio minio-init
+pnpm run dev:rustfs:up
+docker compose -f deploy/compose.yaml ps postgres rustfs rustfs-init
 ```
 
-MinIO S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
-`http://127.0.0.1:9001`。`pnpm run dev:minio:down` 默认保留 `minio-data` 卷；只有明确
+RustFS S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
+`http://127.0.0.1:9001`。`pnpm run dev:rustfs:down` 默认保留 `rustfs-data` 卷；只有明确
 需要清空测试对象时才可另外执行带 `--volumes` 的 Compose 清理。
 `imsweb-media-local` 对公开对象开放下载，但匿名策略拒绝包含 `__protected/` 的路径；本地公开
 URL 由该 bucket 的 path-style 基址继续拼接可选 `IMS_S3_PREFIX` 和业务语义物理路径。
+
+需要把线上 R2 测试桶复制到本地 RustFS 时，将只读/对象读取凭据保存在 Git 忽略的
+`deploy/.env.r2-test`。先做只读盘点，再显式同步；同步命令拒绝非测试桶，也不会删除 RustFS
+中的目标独有对象：
+
+```sh
+pnpm run dev:rustfs:sync-r2
+pnpm run dev:rustfs:sync-r2 -- --apply
+```
+
+写入结束后命令会重新列举源和目标，要求对象键集合与逐对象字节数完全一致。本地默认
+`IMS_S3_PREFIX` 为空，因此从测试桶复制下来的物理键可直接由同构的数据库对象索引引用。
 
 `data/` 被 Git 忽略，不得把数据库、上传或日志移动到 `public/`，也不得提交。
 数据库职责、PostgreSQL 选项、生产路径和完整性检查见
@@ -138,7 +150,7 @@ URL 由该 bucket 的 path-style 基址继续拼接可选 `IMS_S3_PREFIX` 和业
 post-data migration。该 Compose 密码仅限回环地址上的本地开发。
 
 如果 PostgreSQL 里的活动、资讯或名片记录沿用 `/uploads/...` 地址，还必须先对账并把本地上传
-同步到 MinIO；设置 `IMS_OBJECT_STORAGE=s3` 本身不会搬迁文件：
+同步到 RustFS；设置 `IMS_OBJECT_STORAGE=s3` 本身不会搬迁文件：
 
 ```sh
 pnpm run media:uploads:sync
@@ -150,16 +162,16 @@ pnpm run wiki:metadata:audit
 pnpm run wiki:metadata:audit -- --apply --strict
 ```
 
-每组的第二条命令才会写入，且会通过当前对象状态机维护 PostgreSQL 索引并从 MinIO 回读核对。
+每组的第二条命令才会写入，且会通过当前对象状态机维护 PostgreSQL 索引并从 RustFS 回读核对。
 前一组迁移 Event、News 和名片上传，后一组迁移首页活动资讯索引及其 6 张历史原图。
 Wiki 媒体先按清单同步，再由元数据审计关联数据库逻辑键；活动数据报告未归零时不得切换 Wiki
 读模型。`--apply` 不创建业务实体，只关联已经存在且可回读的企划图标和偶像头像。
-已有 S3/MinIO bucket 的旧逻辑 key 使用 `pnpm run migration:object-keys` 盘点，再以
+已有 S3-compatible bucket 的旧逻辑 key 使用 `pnpm run migration:object-keys` 盘点，再以
 `--apply --delete-source --confirm-bucket <bucket>` 一次性切换；运行时不提供旧路径双读。
 已有受保护但应公开的 ready 媒体使用 `pnpm run migration:public-objects` 生成位置报告；只有在
 停写窗口精确确认当前单一 bucket 后才执行 `--apply`。
 
-需要打包并私下分享当前开发容器的 PostgreSQL 与 MinIO 数据时，使用 API workspace 提供的
+需要打包并私下分享当前开发容器的 PostgreSQL 与 RustFS 数据时，使用 API workspace 提供的
 逻辑快照命令。默认产物和 SHA-256 sidecar 位于 Git 忽略的 `data/exports/`：
 
 ```sh
@@ -180,7 +192,7 @@ curl --fail --silent --show-error \
   http://127.0.0.1:3000/api/wiki/test >/dev/null
 ```
 
-该容器集成预览路径会等待 PostgreSQL 与 MinIO 就绪、创建 bucket、幂等应用 migrations，再
+该容器集成预览路径会等待 PostgreSQL 与 RustFS 就绪、创建 bucket、幂等应用 migrations，再
 启动 API，但不提供源码热更新；本地变量见 `deploy/.env.example`。
 
 需要让本地 Compose API 直接测试 Cloudflare R2 时，在被 Git 忽略的 `apps/api/.env` 中配置
@@ -193,7 +205,7 @@ curl --fail --silent --show-error \
   http://127.0.0.1:3000/api/wiki/test >/dev/null
 ```
 
-该入口继续使用 Compose 内的本地 PostgreSQL、开发模式和 3000 端口，但不启用或依赖 MinIO；
+该入口继续使用 Compose 内的本地 PostgreSQL、开发模式和 3000 端口，但不启用或依赖 RustFS；
 R2 凭据不会写入命令、Compose 文件或 Git。R2 使用 `auto` region、S3 API endpoint 和关闭
 path-style 寻址，公开读取基址应使用绑定到该 bucket 的自定义域名。优先为本地测试使用独立
 bucket 或限制到目标 bucket 的凭据，避免测试写入污染其他环境。
@@ -257,7 +269,7 @@ pnpm run test
 - 运行 `pnpm dev` 或 `pnpm run dev:down` 前保留容器 endpoint 的本机校验；不要对远程 context
   放宽或绕过该保护。
 - `deploy/compose.yaml` 保存 PostgreSQL 和构建后的 Hono API；本地 `local-storage` profile
-  额外启动 MinIO，生产可关闭该 profile 并直接配置 R2。Compose 不包含反向代理或 TLS 入口；
+  额外启动 RustFS，生产可关闭该 profile 并直接配置 R2。Compose 不包含反向代理或 TLS 入口；
   `deploy/nginx/` 仅保存宿主机入口模板，不由开发 Compose 启动。
 - Cloudflare R2 仅作为 S3-compatible 对象存储与自定义域名 CDN；本计划不部署 Worker 或 D1。
 - 不使用破坏性 Git、数据库或文件清理命令，除非用户明确授权并已核对目标。

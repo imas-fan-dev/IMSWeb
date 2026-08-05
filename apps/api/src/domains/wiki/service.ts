@@ -341,6 +341,7 @@ export function aggregateStories(
       title: row.video_title,
       url: row.url,
       contentType: row.content_type_name,
+      contentTypeIcon: row.content_type_icon_name,
       sourcePlatform: row.source_platform_name,
     });
   }

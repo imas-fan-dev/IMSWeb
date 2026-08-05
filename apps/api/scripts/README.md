@@ -8,7 +8,8 @@
 | --- | --- | --- | --- |
 | 构建 | `build/` | 构建 `dist/server` 并打包已验证的 Web 静态资源 | `pnpm run build` |
 | 检查 | `checks/` | 只读架构边界 | `pnpm run check` |
-| 开发数据快照 | `development/container-data.js` | 导出或恢复本地 PostgreSQL + MinIO | `pnpm run dev:data:export` / `pnpm run dev:data:restore` |
+| 开发数据快照 | `development/container-data.js` | 导出或恢复本地 PostgreSQL + RustFS | `pnpm run dev:data:export` / `pnpm run dev:data:restore` |
+| 测试桶同步 | `development/sync-r2-to-rustfs.js` | 默认只读盘点；`--apply` 从 R2 测试桶复制到 RustFS | `pnpm run dev:rustfs:sync-r2` |
 | SQLite 合并 | `migration/merge-sqlite-databases.js` | 从两个历史源生成一个新目标 | `pnpm run migration:sqlite:merge` |
 | PostgreSQL schema | `migration/postgres-migrations.js` | 对一个 PostgreSQL 数据库执行版本化 migration | `pnpm run migration:postgresql` |
 | PostgreSQL 导入 | `migration/sqlite-to-postgresql.js` | 从统一 SQLite 只读导入一个空 PostgreSQL | `pnpm run migration:postgresql:import-sqlite` |
@@ -20,8 +21,8 @@
 
 ## 开发容器数据快照
 
-从 monorepo 根执行一键导出。命令会启动仓库 Compose 的 PostgreSQL、MinIO 和 bucket 初始化
-任务，生成 PostgreSQL 自定义格式逻辑 dump，镜像 MinIO 当前 bucket，并打包 manifest、恢复说明
+从 monorepo 根执行一键导出。命令会启动仓库 Compose 的 PostgreSQL、RustFS 和 bucket 初始化
+任务，生成 PostgreSQL 自定义格式逻辑 dump，镜像 RustFS 当前 bucket，并打包 manifest、恢复说明
 和 SHA-256 sidecar：
 
 ```sh
@@ -30,8 +31,8 @@ pnpm run dev:data:export -- --output data/exports/team-snapshot.tar.gz
 ```
 
 默认归档位于 Git 忽略的 `data/exports/`。归档包含业务数据、用户资料和密码哈希，必须通过私有
-渠道分享，不能提交到 Git。PostgreSQL 与 MinIO 分别生成一致快照，并不构成跨存储原子事务；
-MinIO 归档只包含当前对象，不包含历史版本和删除标记。
+渠道分享，不能提交到 Git。PostgreSQL 与 RustFS 分别生成一致快照，并不构成跨存储原子事务；
+RustFS 归档只包含当前对象，不包含历史版本和删除标记。恢复仍兼容旧版 MinIO 快照格式。
 
 在新的空开发容器中恢复：
 
@@ -41,7 +42,7 @@ pnpm run dev:data:restore -- data/exports/team-snapshot.tar.gz
 
 同目录存在 `.sha256` sidecar 时会先校验整个归档。数据库已有 `public` 表或 bucket 已有对象时，
 恢复默认拒绝覆盖；确认只针对本仓库开发容器后显式使用 `--force`，该选项会重建 PostgreSQL
-`public` schema，并让当前 MinIO bucket 的可见对象与归档完全一致：
+`public` schema，并让当前 RustFS bucket 的可见对象与归档完全一致：
 
 ```sh
 pnpm run dev:data:restore -- data/exports/team-snapshot.tar.gz --force
@@ -95,7 +96,7 @@ SHA-256 记录 `ims_data_migrations`，同一快照重复执行只做计数核�
 ## 首页活动资讯
 
 旧首页的 6 条“活动资讯与同人活动”曾同时存在于 API 和 React 常量中。当前运行时不再提供代码
-兜底；首次准备新的 PostgreSQL + MinIO 环境时先执行只读审计，再显式写入：
+兜底；首次准备新的 PostgreSQL + RustFS 环境时先执行只读审计，再显式写入：
 
 ```sh
 pnpm run media:information:sync
@@ -109,7 +110,7 @@ pnpm run media:information:sync -- --apply
 
 ## 本地上传媒体
 
-切换到 MinIO/S3 后，数据库中的 `/uploads/...` 地址不会自动搬运对应文件。先在已经设置
+切换到 S3-compatible 存储后，数据库中的 `/uploads/...` 地址不会自动搬运对应文件。先在已经设置
 PostgreSQL、`IMS_UPLOADS_DIR` 和 S3 变量的 shell 中执行只读对账：
 
 ```sh

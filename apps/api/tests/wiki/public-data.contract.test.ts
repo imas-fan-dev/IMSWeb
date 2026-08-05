@@ -247,6 +247,10 @@ describe("Wiki public dynamic data contract", () => {
     assert.equal(category.cards.length, 1);
     assert.equal(category.cards[0].id, fixture.story.cards[0]!.card_id);
     assert.equal(category.cards[0].links.length, 2);
+    assert.deepEqual(
+      category.cards[0].links.map((link: any) => link.contentTypeIcon),
+      ["book-open-text", "book-open-text"],
+    );
     assert.equal(
       category.cards[0].img,
       "https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/" +

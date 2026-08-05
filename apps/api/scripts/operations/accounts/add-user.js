@@ -1,23 +1,6 @@
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 
-const username = process.env.IMS_NEW_USER_USERNAME;
-const password = process.env.IMS_NEW_USER_PASSWORD;
-const dept = process.env.IMS_NEW_USER_DEPT || 'editor';
-const producername = process.env.IMS_NEW_USER_PRODUCER_NAME;
-
-if (!username || !password || !producername) {
-    console.error(
-        'Set IMS_NEW_USER_USERNAME, IMS_NEW_USER_PASSWORD, and IMS_NEW_USER_PRODUCER_NAME.'
-    );
-    process.exit(1);
-}
-
-if (!['editor', 'op'].includes(dept)) {
-    console.error('IMS_NEW_USER_DEPT must be either editor or op.');
-    process.exit(1);
-}
-
 function databaseUrl(environment = process.env) {
     const value = environment.DATABASE_URL?.trim();
     if (!value) throw new Error('DATABASE_URL is required for PostgreSQL');
@@ -35,6 +18,20 @@ function databaseUrl(environment = process.env) {
 }
 
 async function addUser() {
+    const username = process.env.IMS_NEW_USER_USERNAME;
+    const password = process.env.IMS_NEW_USER_PASSWORD;
+    const dept = process.env.IMS_NEW_USER_DEPT || 'editor';
+    const producername = process.env.IMS_NEW_USER_PRODUCER_NAME;
+
+    if (!username || !password || !producername) {
+        throw new Error(
+            'Set IMS_NEW_USER_USERNAME, IMS_NEW_USER_PASSWORD, and IMS_NEW_USER_PRODUCER_NAME.'
+        );
+    }
+    if (!['editor', 'op'].includes(dept)) {
+        throw new Error('IMS_NEW_USER_DEPT must be either editor or op.');
+    }
+
     const connectionString = databaseUrl();
     const pool = new Pool({ connectionString, application_name: 'imsweb-ops-add-user' });
     try {
@@ -57,7 +54,11 @@ async function addUser() {
     }
 }
 
-addUser().catch((err) => {
-    console.error(err.message);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    addUser().catch((err) => {
+        console.error(err.message);
+        process.exitCode = 1;
+    });
+}
+
+module.exports = { databaseUrl };
