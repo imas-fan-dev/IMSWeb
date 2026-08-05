@@ -23,6 +23,7 @@ Cloudflare Worker，不读取 Worker binding，也不使用 D1。
 S3 adapter 对业务保存与现有 `ObjectStorage` 端口相同的逻辑 key：
 
 - `editorial/{news,events,information}/`：资讯、活动与首页活动内容；
+- `editorial/about/`：关于页配置、首屏主视觉与成员头像；
 - `community/namecards/`：用户投稿名片；
 - `brand/{works,fonts}/`：系列介绍角色立绘与标题字体；
 - `chronicle/{media,metadata,trash}/`：编年史审核流；
