@@ -291,9 +291,9 @@ export function WikiIndexPage() {
           })}
           {loading ? (
             <>
-              <Skeleton className="h-11 w-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
-              <Skeleton className="h-11 w-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
-              <Skeleton className="h-11 w-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
+              <Skeleton className="size-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
+              <Skeleton className="size-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
+              <Skeleton className="size-11 sm:h-10 sm:w-32 md:h-12 md:w-36 shrink-0" />
             </>
           ) : null}
         </div>
