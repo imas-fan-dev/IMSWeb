@@ -1,4 +1,3 @@
-import { LayoutGridIcon } from "lucide-react"
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
@@ -9,17 +8,14 @@ type PublicGroup = NonNullable<WikiPublicCatalog["selection"]>["groups"][number]
 
 export const CLASSIC_UNGROUPED_FILTER = "ungrouped" as const
 
-export type ClassicGroupFilterValue =
-  | number
-  | typeof CLASSIC_UNGROUPED_FILTER
-  | null
+export type ClassicGroupFilterValue = Set<
+  number | typeof CLASSIC_UNGROUPED_FILTER
+>
 
 interface ClassicGroupFilterProps {
   groups: PublicGroup[]
   ungroupedCount: number
-  totalCount: number
   value: ClassicGroupFilterValue
-  agencyColor: string
   disabled: boolean
   onValueChange: (value: ClassicGroupFilterValue) => void
 }
@@ -27,9 +23,7 @@ interface ClassicGroupFilterProps {
 export function ClassicGroupFilter({
   groups,
   ungroupedCount,
-  totalCount,
   value,
-  agencyColor,
   disabled,
   onValueChange,
 }: ClassicGroupFilterProps) {
@@ -38,10 +32,21 @@ export function ClassicGroupFilter({
   useEffect(() => {
     if (disabled) return
     const activeTab = tabsRef.current?.querySelector<HTMLElement>(
-      '[role="tab"][aria-selected="true"]'
+      '[aria-pressed="true"]'
     )
     activeTab?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
   }, [disabled, value])
+
+  function toggle(id: number | typeof CLASSIC_UNGROUPED_FILTER) {
+    if (disabled) return
+    const next = new Set(value)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    onValueChange(next)
+  }
 
   return (
     <section className="wiki-classic-group-filter" aria-label="组合与分类筛选">
@@ -49,31 +54,18 @@ export function ClassicGroupFilter({
       <div
         ref={tabsRef}
         className="wiki-classic-group-filter-tabs"
-        role="tablist"
+        role="group"
         aria-label="按组合或分类筛选"
       >
-        <ClassicFilterButton
-          active={value === null}
-          color={agencyColor}
-          count={totalCount}
-          label="全部"
-          disabled={disabled}
-          onClick={() => onValueChange(null)}
-        >
-          <span className="wiki-classic-group-filter-icon">
-            <LayoutGridIcon aria-hidden="true" />
-          </span>
-        </ClassicFilterButton>
-
         {groups.map((group) => (
           <ClassicFilterButton
             key={group.id}
-            active={value === group.id}
+            active={value.has(group.id)}
             color={group.color}
             count={group.idols.length}
             label={group.name}
             disabled={disabled}
-            onClick={() => onValueChange(group.id)}
+            onClick={() => toggle(group.id)}
           >
             <span className="wiki-classic-group-filter-icon">
               <span
@@ -97,12 +89,12 @@ export function ClassicGroupFilter({
 
         {ungroupedCount ? (
           <ClassicFilterButton
-            active={value === CLASSIC_UNGROUPED_FILTER}
+            active={value.has(CLASSIC_UNGROUPED_FILTER)}
             color="#6b7280"
             count={ungroupedCount}
             label="未归档"
             disabled={disabled}
-            onClick={() => onValueChange(CLASSIC_UNGROUPED_FILTER)}
+            onClick={() => toggle(CLASSIC_UNGROUPED_FILTER)}
           >
             <span className="wiki-classic-group-filter-icon">
               <span
@@ -139,8 +131,7 @@ function ClassicFilterButton({
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
       className="wiki-classic-group-filter-button"

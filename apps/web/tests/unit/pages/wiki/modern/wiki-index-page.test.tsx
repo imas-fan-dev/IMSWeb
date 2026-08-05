@@ -404,18 +404,18 @@ describe("WikiIndexPage", () => {
 
     renderWiki()
 
-    const groupTabs = await screen.findByRole("tablist", {
+    const groupFilter = await screen.findByRole("group", {
       name: "按组合或分类筛选",
     })
-    const allTab = within(groupTabs).getByRole("tab", { name: /全部/ })
-    const luminousTab = within(groupTabs).getByRole("tab", {
+    const luminousBtn = within(groupFilter).getByRole("button", {
       name: /Project Luminous/,
     })
-    expect(allTab).toHaveAttribute("aria-selected", "true")
+    expect(luminousBtn).toHaveAttribute("aria-pressed", "false")
 
-    await user.click(luminousTab)
+    // Toggle first group on
+    await user.click(luminousBtn)
 
-    expect(luminousTab).toHaveAttribute("aria-selected", "true")
+    expect(luminousBtn).toHaveAttribute("aria-pressed", "true")
     expect(
       screen.queryByRole("heading", { name: "illumination STARS" })
     ).toBeNull()
@@ -434,12 +434,21 @@ describe("WikiIndexPage", () => {
       await screen.findByRole("heading", { name: "Project Luminous" })
     ).toBeVisible()
 
-    await user.click(allTab)
+    // Toggle off — all groups shown again
+    await user.click(luminousBtn)
+    expect(luminousBtn).toHaveAttribute("aria-pressed", "false")
     expect(screen.getByTestId("location-search")).not.toHaveTextContent(
       "group="
     )
+    expect(
+      screen.getByRole("heading", { name: "illumination STARS" })
+    ).toBeVisible()
 
-    await user.click(luminousTab)
+    // Toggle back on
+    await user.click(luminousBtn)
+    expect(luminousBtn).toHaveAttribute("aria-pressed", "true")
+
+    // Switching agency clears group filter
     const agencyTabs = screen.getByRole("tablist", { name: "偶像大师企划" })
     await user.click(within(agencyTabs).getByRole("tab", { name: /765PRO/ }))
 
@@ -464,17 +473,21 @@ describe("WikiIndexPage", () => {
     )
     const user = userEvent.setup()
 
+    // Invalid group ID is filtered out — all content shown
     renderWiki("/wiki?agency=闪耀色彩&group=999")
 
-    const groupTabs = await screen.findByRole("tablist", {
+    const groupFilter = await screen.findByRole("group", {
       name: "按组合或分类筛选",
     })
-    expect(
-      within(groupTabs).getByRole("tab", { name: /全部/ })
-    ).toHaveAttribute("aria-selected", "true")
+    // No button selected after invalid IDs are dropped
+    const ungroupedBtn = within(groupFilter).getByRole("button", {
+      name: /未归档/,
+    })
+    expect(ungroupedBtn).toHaveAttribute("aria-pressed", "false")
 
-    await user.click(within(groupTabs).getByRole("tab", { name: /未归档/ }))
+    await user.click(ungroupedBtn)
 
+    expect(ungroupedBtn).toHaveAttribute("aria-pressed", "true")
     expect(
       screen.queryByRole("heading", { name: "illumination STARS" })
     ).toBeNull()

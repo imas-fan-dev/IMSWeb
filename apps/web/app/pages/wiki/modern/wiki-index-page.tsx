@@ -40,7 +40,6 @@ export function meta() {
 export function WikiIndexPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedAgency = searchParams.get("agency")?.trim() ?? ""
-  const requestedGroup = searchParams.get("group")?.trim() ?? ""
   const [catalogRequest, setCatalogRequest] = useState<{
     key: string
     data: WikiPublicCatalog | null
@@ -98,23 +97,62 @@ export function WikiIndexPage() {
   const loading = !requestIsCurrent
   const backgroundLoading = backgroundRequest.key !== backgroundKey
   const selection = catalog?.selection ?? null
-  const requestedGroupId = Number(requestedGroup)
-  const selectedGroup = selection?.groups.find(
-    (group) =>
-      Number.isInteger(requestedGroupId) && group.id === requestedGroupId
-  )
-  const showUngroupedOnly = Boolean(
-    selection?.ungroupedIdols.length && requestedGroup === UNGROUPED_FILTER
-  )
-  const groupFilterValue: WikiGroupFilterValue = selectedGroup
-    ? selectedGroup.id
-    : showUngroupedOnly
-      ? UNGROUPED_FILTER
-      : null
+  const groupFilterValue = useMemo<WikiGroupFilterValue>(() => {
+    const raw = searchParams.get("group")?.trim() ?? ""
+    if (!raw) return new Set()
+    const parsed = new Set<number | typeof UNGROUPED_FILTER>()
+    for (const part of raw.split(",")) {
+      const trimmed = part.trim()
+      if (!trimmed) continue
+      if (trimmed === UNGROUPED_FILTER) {
+        parsed.add(UNGROUPED_FILTER)
+        continue
+      }
+      const num = Number(trimmed)
+      if (Number.isInteger(num)) parsed.add(num)
+    }
+    if (parsed.size === 0 || !selection) return parsed
+
+    // Drop IDs that don't match any known group
+    const knownGroupIds = new Set(selection.groups.map((g) => g.id))
+    const valid = new Set<number | typeof UNGROUPED_FILTER>()
+    if (parsed.has(UNGROUPED_FILTER)) valid.add(UNGROUPED_FILTER)
+    for (const id of parsed) {
+      if (typeof id === "number" && knownGroupIds.has(id)) valid.add(id)
+    }
+    if (valid.size === 0) return valid
+
+    // All-selected is equivalent to no filter
+    const allIds = [
+      ...selection.groups.map((g) => g.id),
+      ...(selection.ungroupedIdols.length > 0 ? [UNGROUPED_FILTER] : []),
+    ]
+    if (
+      allIds.length > 0 &&
+      allIds.every((id) => {
+        if (typeof id === "number") return valid.has(id)
+        return valid.has(UNGROUPED_FILTER)
+      })
+    ) {
+      return new Set()
+    }
+    return valid
+  }, [searchParams, selection])
+
+  const hasActiveFilter = groupFilterValue.size > 0
   const visibleGroups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || showUngroupedOnly) return []
-    const groups = selectedGroup ? [selectedGroup] : selection.groups
+    if (!selection) return []
+
+    const selectedIds = new Set(
+      [...groupFilterValue].filter(
+        (v): v is number => typeof v === "number"
+      )
+    )
+    const groups = hasActiveFilter
+      ? selection.groups.filter((g) => selectedIds.has(g.id))
+      : selection.groups
+
     if (!normalized) return groups
     return groups
       .map((group) => ({
@@ -126,15 +164,19 @@ export function WikiIndexPage() {
             ),
       }))
       .filter((group) => group.idols.length)
-  }, [deferredQuery, selectedGroup, selection, showUngroupedOnly])
+  }, [deferredQuery, groupFilterValue, hasActiveFilter, selection])
+
+  const showUngrouped =
+    !hasActiveFilter || groupFilterValue.has(UNGROUPED_FILTER)
+
   const visibleUngroupedIdols = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || selectedGroup) return []
+    if (!selection || !showUngrouped) return []
     if (!normalized) return selection.ungroupedIdols
     return selection.ungroupedIdols.filter((idol) =>
       idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
     )
-  }, [deferredQuery, selectedGroup, selection])
+  }, [deferredQuery, selection, showUngrouped])
   const contentPageCount = selection
     ? new Set(
         [
@@ -148,8 +190,24 @@ export function WikiIndexPage() {
     if (!selection) return
     const nextSearchParams = new URLSearchParams(searchParams)
     nextSearchParams.set("agency", selection.agency.name)
-    if (value === null) nextSearchParams.delete("group")
-    else nextSearchParams.set("group", String(value))
+
+    // All-selected is equivalent to no filter
+    const allIds = [
+      ...selection.groups.map((g) => g.id),
+      ...(selection.ungroupedIdols.length > 0 ? [UNGROUPED_FILTER] : []),
+    ]
+    const isAllSelected =
+      allIds.length > 0 &&
+      allIds.every((id) => {
+        if (typeof id === "number") return value.has(id)
+        return value.has(UNGROUPED_FILTER)
+      })
+
+    if (value.size === 0 || isAllSelected) {
+      nextSearchParams.delete("group")
+    } else {
+      nextSearchParams.set("group", [...value].join(","))
+    }
     setSearchParams(nextSearchParams, { preventScrollReset: true })
   }
 
@@ -310,9 +368,7 @@ export function WikiIndexPage() {
             <WikiGroupFilter
               groups={selection.groups}
               ungroupedCount={selection.ungroupedIdols.length}
-              totalCount={contentPageCount}
               value={groupFilterValue}
-              agencyColor={selection.agency.color}
               onValueChange={selectGroup}
             />
 
@@ -329,7 +385,7 @@ export function WikiIndexPage() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     {query
                       ? "清除搜索词后可查看当前范围内的完整目录。"
-                      : groupFilterValue !== null
+                      : hasActiveFilter
                         ? "当前组合或分类还没有可展示的内容页。"
                         : "当前企划还没有可展示的内容页。"}
                   </p>

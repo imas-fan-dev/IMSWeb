@@ -44,7 +44,6 @@ export function meta() {
 export function ClassicWikiPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedAgency = searchParams.get("agency")?.trim() ?? ""
-  const requestedGroup = searchParams.get("group")?.trim() ?? ""
   const [catalogRequest, setCatalogRequest] = useState<{
     key: string
     data: WikiPublicCatalog | null
@@ -116,24 +115,64 @@ export function ClassicWikiPage() {
     (agency) => agency.name === requestedAgency
   )
   const accent = safeWikiColor(pendingAgency?.color ?? selection?.agency.color)
-  const requestedGroupId = Number(requestedGroup)
-  const selectedGroup = selection?.groups.find(
-    (group) =>
-      Number.isInteger(requestedGroupId) && group.id === requestedGroupId
-  )
-  const showUngroupedOnly = Boolean(
-    selection?.ungroupedIdols.length &&
-    requestedGroup === CLASSIC_UNGROUPED_FILTER
-  )
-  const groupFilterValue: ClassicGroupFilterValue = selectedGroup
-    ? selectedGroup.id
-    : showUngroupedOnly
-      ? CLASSIC_UNGROUPED_FILTER
-      : null
+  const groupFilterValue = useMemo<ClassicGroupFilterValue>(() => {
+    const raw = searchParams.get("group")?.trim() ?? ""
+    if (!raw) return new Set()
+    const parsed = new Set<number | typeof CLASSIC_UNGROUPED_FILTER>()
+    for (const part of raw.split(",")) {
+      const trimmed = part.trim()
+      if (!trimmed) continue
+      if (trimmed === CLASSIC_UNGROUPED_FILTER) {
+        parsed.add(CLASSIC_UNGROUPED_FILTER)
+        continue
+      }
+      const num = Number(trimmed)
+      if (Number.isInteger(num)) parsed.add(num)
+    }
+    if (parsed.size === 0 || !selection) return parsed
+
+    // Drop IDs that don't match any known group
+    const knownGroupIds = new Set(selection.groups.map((g) => g.id))
+    const valid = new Set<number | typeof CLASSIC_UNGROUPED_FILTER>()
+    if (parsed.has(CLASSIC_UNGROUPED_FILTER)) valid.add(CLASSIC_UNGROUPED_FILTER)
+    for (const id of parsed) {
+      if (typeof id === "number" && knownGroupIds.has(id)) valid.add(id)
+    }
+    if (valid.size === 0) return valid
+
+    // All-selected is equivalent to no filter
+    const allIds = [
+      ...selection.groups.map((g) => g.id),
+      ...(selection.ungroupedIdols.length > 0
+        ? [CLASSIC_UNGROUPED_FILTER]
+        : []),
+    ]
+    if (
+      allIds.length > 0 &&
+      allIds.every((id) => {
+        if (typeof id === "number") return valid.has(id)
+        return valid.has(CLASSIC_UNGROUPED_FILTER)
+      })
+    ) {
+      return new Set()
+    }
+    return valid
+  }, [searchParams, selection])
+
+  const hasActiveFilter = groupFilterValue.size > 0
   const groups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || showUngroupedOnly) return []
-    const visibleGroups = selectedGroup ? [selectedGroup] : selection.groups
+    if (!selection) return []
+
+    const selectedIds = new Set(
+      [...groupFilterValue].filter(
+        (v): v is number => typeof v === "number"
+      )
+    )
+    const visibleGroups = hasActiveFilter
+      ? selection.groups.filter((g) => selectedIds.has(g.id))
+      : selection.groups
+
     if (!normalized) return visibleGroups
     return visibleGroups
       .map((group) => ({
@@ -145,15 +184,19 @@ export function ClassicWikiPage() {
             ),
       }))
       .filter((group) => group.idols.length)
-  }, [deferredQuery, selectedGroup, selection, showUngroupedOnly])
+  }, [deferredQuery, groupFilterValue, hasActiveFilter, selection])
+
+  const showUngrouped =
+    !hasActiveFilter || groupFilterValue.has(CLASSIC_UNGROUPED_FILTER)
+
   const ungroupedIdols = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || selectedGroup) return []
+    if (!selection || !showUngrouped) return []
     if (!normalized) return selection.ungroupedIdols
     return selection.ungroupedIdols.filter((idol) =>
       idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
     )
-  }, [deferredQuery, selectedGroup, selection])
+  }, [deferredQuery, selection, showUngrouped])
   const contentPageCount = selection
     ? new Set(
         [
@@ -183,8 +226,26 @@ export function ClassicWikiPage() {
     if (!selection || !requestIsCurrent) return
     const nextSearchParams = new URLSearchParams(searchParams)
     nextSearchParams.set("agency", selection.agency.name)
-    if (value === null) nextSearchParams.delete("group")
-    else nextSearchParams.set("group", String(value))
+
+    // All-selected is equivalent to no filter
+    const allIds = [
+      ...selection.groups.map((g) => g.id),
+      ...(selection.ungroupedIdols.length > 0
+        ? [CLASSIC_UNGROUPED_FILTER]
+        : []),
+    ]
+    const isAllSelected =
+      allIds.length > 0 &&
+      allIds.every((id) => {
+        if (typeof id === "number") return value.has(id)
+        return value.has(CLASSIC_UNGROUPED_FILTER)
+      })
+
+    if (value.size === 0 || isAllSelected) {
+      nextSearchParams.delete("group")
+    } else {
+      nextSearchParams.set("group", [...value].join(","))
+    }
     setSearchParams(nextSearchParams, { preventScrollReset: true })
   }
 

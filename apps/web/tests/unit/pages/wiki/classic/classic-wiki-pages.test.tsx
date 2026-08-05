@@ -564,11 +564,11 @@ describe("classic Wiki pages", () => {
       "aria-busy",
       "true"
     )
-    const pendingGroupTabs = screen.getByRole("tablist", {
+    const pendingGroupFilter = screen.getByRole("group", {
       name: "按组合或分类筛选",
     })
-    for (const tab of within(pendingGroupTabs).getAllByRole("tab")) {
-      expect(tab).toBeDisabled()
+    for (const btn of within(pendingGroupFilter).getAllByRole("button")) {
+      expect(btn).toBeDisabled()
     }
 
     nextCatalog.resolve(Response.json(catalogPayload("765PRO")))
@@ -582,8 +582,8 @@ describe("classic Wiki pages", () => {
     )
     expect(
       within(
-        screen.getByRole("tablist", { name: "按组合或分类筛选" })
-      ).getByRole("tab", { name: /全部/ })
+        screen.getByRole("group", { name: "按组合或分类筛选" })
+      ).getByRole("button", { name: /765PRO/ })
     ).toBeEnabled()
   })
 
@@ -653,24 +653,24 @@ describe("classic Wiki pages", () => {
     const banner = (
       await screen.findByRole("heading", { name: "283 Production" })
     ).closest("header")!
-    const groupTabs = screen.getByRole("tablist", {
+    const groupFilter = screen.getByRole("group", {
       name: "按组合或分类筛选",
     })
-    const filterBar = groupTabs.closest("section")!
-    const allTab = within(groupTabs).getByRole("tab", { name: /全部/ })
-    const straylightTab = within(groupTabs).getByRole("tab", {
+    const filterBar = groupFilter.closest("section")!
+    const straylightBtn = within(groupFilter).getByRole("button", {
       name: /Straylight/,
     })
 
-    expect(allTab).toHaveAttribute("aria-selected", "true")
+    // Invalid group ID is filtered out — nothing selected
+    expect(straylightBtn).toHaveAttribute("aria-pressed", "false")
     expect(
       banner.compareDocumentPosition(filterBar) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0)
 
-    await user.click(straylightTab)
+    await user.click(straylightBtn)
 
-    expect(straylightTab).toHaveAttribute("aria-selected", "true")
+    expect(straylightBtn).toHaveAttribute("aria-pressed", "true")
     expect(
       screen.queryByRole("heading", { name: "illumination STARS" })
     ).toBeNull()
@@ -678,13 +678,22 @@ describe("classic Wiki pages", () => {
     expect(screen.getByRole("link", { name: /芹泽朝日/ })).toBeVisible()
     expect(screen.getByTestId("location-search")).toHaveTextContent("group=32")
 
-    await user.click(within(groupTabs).getByRole("tab", { name: /未归档/ }))
+    // Toggle Straylight off, then toggle ungrouped on
+    await user.click(straylightBtn)
+    expect(straylightBtn).toHaveAttribute("aria-pressed", "false")
 
+    const ungroupedBtn = within(groupFilter).getByRole("button", {
+      name: /未归档/,
+    })
+    await user.click(ungroupedBtn)
+
+    expect(ungroupedBtn).toHaveAttribute("aria-pressed", "true")
     expect(screen.queryByRole("heading", { name: "Straylight" })).toBeNull()
     expect(screen.getByRole("heading", { name: "未归档" })).toBeVisible()
     expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
 
-    await user.click(allTab)
+    // Toggle ungrouped off — back to showing all
+    await user.click(ungroupedBtn)
 
     expect(
       screen.getByRole("heading", { name: "illumination STARS" })

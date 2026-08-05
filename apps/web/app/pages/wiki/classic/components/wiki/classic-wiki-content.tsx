@@ -99,9 +99,7 @@ export function ClassicWikiContent({
           <ClassicGroupFilter
             groups={selection.groups}
             ungroupedCount={selection.ungroupedIdols.length}
-            totalCount={contentPageCount}
             value={groupFilterValue}
-            agencyColor={selection.agency.color}
             disabled={groupFilterDisabled}
             onValueChange={onGroupFilterChange}
           />
