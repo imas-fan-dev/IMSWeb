@@ -167,9 +167,9 @@ for (const file of filesUnder(sourceRoot)) {
     if (relativeInternalImport.test(source)) {
         failures.push(`${path.relative(root, file)}: internal imports must use the @ root alias`);
     }
-    const relative = path.relative(sourceRoot, file);
+    const relative = path.relative(sourceRoot, file).replace(/\\/g, '/');
     if (relative.startsWith('infra/')) {
-        const [, category, middleware] = relative.split(path.sep);
+        const [, category, middleware] = relative.split('/');
         for (const match of source.matchAll(
             /['"]@\/infra\/([a-z-]+)\/([a-z0-9-]+)\/([a-z0-9-]+)/g
         )) {

@@ -5,12 +5,19 @@ import { describe, expect, it } from "vitest"
 import Works from "~/pages/works/works-page"
 
 describe("Works page", () => {
-  it("links franchises to project pages and preserves community topics", () => {
+  it("renders section headers and links", () => {
     render(
       <MemoryRouter>
         <Works />
       </MemoryRouter>
     )
+
+    expect(
+      screen.getByRole("heading", { name: "系列主要作品" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { name: "同人作品" })
+    ).toBeInTheDocument()
 
     const storyArchiveLinks = screen.getAllByRole("link", {
       name: "进入剧情站",
