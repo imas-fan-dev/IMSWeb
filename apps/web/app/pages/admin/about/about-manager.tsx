@@ -46,6 +46,7 @@ import {
 import {
   getAdminAboutPageContent,
   uploadAboutHeroImage,
+  uploadAboutMemberAvatar,
   updateAdminAboutPageContent,
 } from "~/lib/api"
 import type {
@@ -683,12 +684,20 @@ function HeroCompositionPreview({
 function PersonEditor({
   groupId,
   person,
+  avatarFile,
+  avatarUploading,
+  uploadDisabled,
   onChange,
+  onAvatarUpload,
   onRemove,
 }: {
   groupId: string
   person: AboutPerson
+  avatarFile: File | null
+  avatarUploading: boolean
+  uploadDisabled: boolean
   onChange: (person: AboutPerson) => void
+  onAvatarUpload: (file: File | null) => void
   onRemove: () => void
 }) {
   const prefix = `${groupId}-${person.id}`
@@ -764,13 +773,30 @@ function PersonEditor({
             />
           </div>
         </AdminField>
-        <ImageUrlEditor
-          id={`${prefix}-avatar`}
-          label="头像"
-          value={person.avatarUrl}
-          alt={`${person.name || "新成员"}头像预览`}
-          onChange={(value) => update("avatarUrl", value)}
-        />
+        <div className="flex items-start gap-4 sm:col-span-2">
+          <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+            {person.avatarUrl ? (
+              <img
+                src={person.avatarUrl}
+                alt={`${person.name || "新成员"}头像预览`}
+                className="size-full object-cover"
+              />
+            ) : (
+              <ImageIcon className="size-5 text-muted-foreground" aria-hidden />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <AdminImageUploadField
+              id={`${prefix}-avatar-upload`}
+              label="上传头像"
+              description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB；上传后请保存更改以发布。"
+              file={avatarFile}
+              disabled={uploadDisabled}
+              uploading={avatarUploading}
+              onSelect={onAvatarUpload}
+            />
+          </div>
+        </div>
       </div>
       <AdminField
         label="简介"
@@ -792,12 +818,18 @@ function PersonEditor({
 function GroupEditor({
   group,
   canRemove,
+  avatarUploads,
+  uploadDisabled,
   onChange,
+  onAvatarUpload,
   onRemove,
 }: {
   group: AboutGroup
   canRemove: boolean
+  avatarUploads: Record<string, MemberAvatarUploadState | undefined>
+  uploadDisabled: boolean
   onChange: (group: AboutGroup) => void
+  onAvatarUpload: (groupId: string, personId: string, file: File | null) => void
   onRemove: () => void
 }) {
   function updatePerson(index: number, person: AboutPerson) {
@@ -874,7 +906,17 @@ function GroupEditor({
           key={person.id}
           groupId={group.id}
           person={person}
+          avatarFile={
+            avatarUploads[memberAvatarUploadKey(group.id, person.id)]?.file ||
+            null
+          }
+          avatarUploading={
+            avatarUploads[memberAvatarUploadKey(group.id, person.id)]
+              ?.uploading || false
+          }
+          uploadDisabled={uploadDisabled}
           onChange={(next) => updatePerson(index, next)}
+          onAvatarUpload={(file) => onAvatarUpload(group.id, person.id, file)}
           onRemove={() =>
             onChange({
               ...group,
@@ -901,6 +943,15 @@ export function meta() {
   return [{ title: "关于页配置 | IMSWeb" }]
 }
 
+interface MemberAvatarUploadState {
+  file: File
+  uploading: boolean
+}
+
+function memberAvatarUploadKey(groupId: string, personId: string): string {
+  return `${groupId}/${personId}`
+}
+
 export function AboutManager() {
   const {
     loading,
@@ -916,12 +967,19 @@ export function AboutManager() {
   const [saving, setSaving] = useState(false)
   const [heroFile, setHeroFile] = useState<File | null>(null)
   const [uploadingHero, setUploadingHero] = useState(false)
+  const [memberAvatarUploads, setMemberAvatarUploads] = useState<
+    Record<string, MemberAvatarUploadState | undefined>
+  >({})
+  const uploadingMemberAvatar = Object.values(memberAvatarUploads).some(
+    (upload) => upload?.uploading
+  )
 
   onSuccess((event) => {
     const snapshot = event.data as AboutAdminSnapshot
     setDraft(snapshot.content)
     setRevision(snapshot.revision)
     setDirty(false)
+    setMemberAvatarUploads({})
   })
 
   function change(update: (content: AboutPageContent) => AboutPageContent) {
@@ -931,7 +989,7 @@ export function AboutManager() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!draft || uploadingHero) return
+    if (!draft || uploadingHero || uploadingMemberAvatar) return
     setSaving(true)
     try {
       const result = await updateAdminAboutPageContent(draft, revision).send()
@@ -965,6 +1023,58 @@ export function AboutManager() {
       )
     } finally {
       setUploadingHero(false)
+    }
+  }
+
+  async function uploadMemberAvatar(
+    groupId: string,
+    personId: string,
+    file: File | null
+  ) {
+    const uploadKey = memberAvatarUploadKey(groupId, personId)
+    if (!file) {
+      setMemberAvatarUploads((current) => {
+        const next = { ...current }
+        delete next[uploadKey]
+        return next
+      })
+      return
+    }
+    setMemberAvatarUploads((current) => ({
+      ...current,
+      [uploadKey]: { file, uploading: true },
+    }))
+    try {
+      const result = await uploadAboutMemberAvatar(file).send()
+      change((content) => ({
+        ...content,
+        groups: content.groups.map((group) =>
+          group.id === groupId
+            ? {
+                ...group,
+                people: group.people.map((person) =>
+                  person.id === personId
+                    ? { ...person, avatarUrl: result.url }
+                    : person
+                ),
+              }
+            : group
+        ),
+      }))
+      setMemberAvatarUploads((current) => {
+        const next = { ...current }
+        delete next[uploadKey]
+        return next
+      })
+      toast.success("成员头像已上传，请保存更改")
+    } catch (uploadError) {
+      setMemberAvatarUploads((current) => ({
+        ...current,
+        [uploadKey]: { file, uploading: false },
+      }))
+      toast.error(
+        uploadError instanceof Error ? uploadError.message : "成员头像上传失败"
+      )
     }
   }
 
@@ -1003,13 +1113,20 @@ export function AboutManager() {
             <Button
               type="button"
               variant="outline"
-              disabled={loading || saving || uploadingHero}
+              disabled={
+                loading || saving || uploadingHero || uploadingMemberAvatar
+              }
               onClick={() => refresh()}
             >
               <RefreshCwIcon data-icon="inline-start" />
               重新读取
             </Button>
-            <Button type="submit" disabled={!dirty || saving || uploadingHero}>
+            <Button
+              type="submit"
+              disabled={
+                !dirty || saving || uploadingHero || uploadingMemberAvatar
+              }
+            >
               {saving ? (
                 <LoaderCircleIcon
                   className="animate-spin"
@@ -1228,12 +1345,17 @@ export function AboutManager() {
           key={group.id}
           group={group}
           canRemove={draft.groups.length > 1}
+          avatarUploads={memberAvatarUploads}
+          uploadDisabled={saving || uploadingHero}
           onChange={(next) =>
             change((content) => {
               const groups = [...content.groups]
               groups[index] = next
               return { ...content, groups }
             })
+          }
+          onAvatarUpload={(groupId, personId, file) =>
+            void uploadMemberAvatar(groupId, personId, file)
           }
           onRemove={() =>
             change((content) => ({

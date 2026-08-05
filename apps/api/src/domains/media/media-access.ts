@@ -47,7 +47,7 @@ export function publicUploadKey(pathname: string): string | null {
     const fourSegmentPrefix = lower.slice(0, 3).join('/');
     if (segments.length === 4 && [
         'uploads/news/original', 'uploads/news/thumb', 'uploads/event/original',
-        'uploads/information', 'uploads/about/hero'
+        'uploads/information', 'uploads/about/hero', 'uploads/about/member-avatars'
     ].includes(fourSegmentPrefix)) {
         return publicMediaObjectKey(segments.join('/'));
     }

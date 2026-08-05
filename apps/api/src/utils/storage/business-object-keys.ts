@@ -48,6 +48,11 @@ export function aboutHeroObjectKey(filename: string): string {
     return `editorial/about/assets/${file.stem}/hero.${file.extension}`;
 }
 
+export function aboutMemberAvatarObjectKey(filename: string): string {
+    const file = fileParts(filename);
+    return `editorial/about/assets/${file.stem}/member-avatar.${file.extension}`;
+}
+
 export function informationAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `editorial/information/assets/${file.stem}/cover.${file.extension}`;
@@ -86,6 +91,8 @@ export function publicMediaObjectKey(value: string): string {
             return informationAssetObjectKey(filename);
         case 'uploads/about/hero':
             return aboutHeroObjectKey(filename);
+        case 'uploads/about/member-avatars':
+            return aboutMemberAvatarObjectKey(filename);
         case 'uploads/namecard/original':
             return namecardImageObjectKey(filename);
         case 'uploads/producer-map':

@@ -61,8 +61,10 @@ describe("AboutManager", () => {
     const original = aboutContent()
     document.cookie = "csrf_token=about-manager-test; path=/"
     let savedBody: unknown
-    let uploadedFileName: string | null = null
-    let uploadCsrf: string | null = null
+    let uploadedHeroFileName: string | null = null
+    let heroUploadCsrf: string | null = null
+    let uploadedAvatarFileName: string | null = null
+    let avatarUploadCsrf: string | null = null
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockImplementation(async (input, init) => {
@@ -75,8 +77,16 @@ describe("AboutManager", () => {
           if (!(form instanceof FormData))
             throw new Error("missing upload form")
           const image = form.get("image")
-          uploadedFileName = image instanceof File ? image.name : null
-          uploadCsrf = request.headers.get("x-csrftoken")
+          if (new URL(request.url).pathname.endsWith("/member-avatar")) {
+            uploadedAvatarFileName = image instanceof File ? image.name : null
+            avatarUploadCsrf = request.headers.get("x-csrftoken")
+            return jsonResponse({
+              success: true,
+              url: "/uploads/about/member-avatars/producer-a.webp",
+            })
+          }
+          uploadedHeroFileName = image instanceof File ? image.name : null
+          heroUploadCsrf = request.headers.get("x-csrftoken")
           return jsonResponse({
             success: true,
             url: "/uploads/about/hero/new-hero.webp",
@@ -141,7 +151,9 @@ describe("AboutManager", () => {
     expect(screen.getByLabelText("水平偏移")).toHaveValue("0")
     expect(screen.getByLabelText("垂直偏移")).toHaveValue("0")
     expect(screen.getByLabelText("渐变起始色十六进制值")).toHaveValue("#B4E04B")
-    expect(screen.getByLabelText("头像")).toHaveValue(
+    expect(screen.queryByLabelText("头像链接")).not.toBeInTheDocument()
+    expect(screen.getByAltText("制作人A头像预览")).toHaveAttribute(
+      "src",
       "/brand/about/staff/producer-a.webp"
     )
     const heroUpload = screen.getByLabelText("上传角色主视觉图")
@@ -151,8 +163,8 @@ describe("AboutManager", () => {
         type: "image/png",
       })
     )
-    await waitFor(() => expect(uploadedFileName).toBe("new-hero.png"))
-    expect(uploadCsrf).toBe("about-manager-test")
+    await waitFor(() => expect(uploadedHeroFileName).toBe("new-hero.png"))
+    expect(heroUploadCsrf).toBe("about-manager-test")
     await waitFor(() => {
       expect(screen.getByLabelText("角色主视觉图链接")).toHaveValue(
         "/uploads/about/hero/new-hero.webp"
@@ -162,6 +174,23 @@ describe("AboutManager", () => {
       "src",
       "/uploads/about/hero/new-hero.webp"
     )
+    const avatarUpload = screen.getByLabelText("上传头像")
+    await user.upload(
+      avatarUpload,
+      new File([Uint8Array.of(4, 5, 6)], "member-avatar.png", {
+        type: "image/png",
+      })
+    )
+    await waitFor(() =>
+      expect(uploadedAvatarFileName).toBe("member-avatar.png")
+    )
+    expect(avatarUploadCsrf).toBe("about-manager-test")
+    await waitFor(() => {
+      expect(screen.getByAltText("制作人A头像预览")).toHaveAttribute(
+        "src",
+        "/uploads/about/member-avatars/producer-a.webp"
+      )
+    })
     vi.spyOn(compositionPreview, "getBoundingClientRect").mockReturnValue({
       bottom: 600,
       height: 600,
@@ -209,6 +238,15 @@ describe("AboutManager", () => {
         heroImageOffsetY: 10,
         heroImageScale: 120,
         welcome: "欢迎来到更新后的交流站！",
+        groups: [
+          {
+            people: [
+              {
+                avatarUrl: "/uploads/about/member-avatars/producer-a.webp",
+              },
+            ],
+          },
+        ],
       },
     })
     await waitFor(() => expect(screen.getByText(/最近保存/)).toBeVisible())

@@ -278,6 +278,50 @@ test('about hero uploads are authenticated, audited, and publicly readable', asy
     );
 });
 
+test('about member avatar uploads are authenticated, audited, and publicly readable', async () => {
+    const { request, audit } = fixture();
+    const unauthorizedForm = new FormData();
+    unauthorizedForm.append(
+        'image',
+        new Blob([Uint8Array.of(1)], { type: 'image/png' }),
+        'member.png'
+    );
+    const unauthorized = await request('/api/admin/about/member-avatar', {
+        method: 'POST',
+        body: unauthorizedForm
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const form = new FormData();
+    form.append(
+        'image',
+        new Blob([Uint8Array.of(4, 5, 6)], { type: 'image/png' }),
+        'member.png'
+    );
+    const response = await request('/api/admin/about/member-avatar', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer about-token' },
+        body: form
+    });
+    assert.equal(response.status, 200);
+    const uploaded = await response.json() as { success: true; url: string };
+    assert.equal(uploaded.success, true);
+    assert.match(
+        uploaded.url,
+        /^\/uploads\/about\/member-avatars\/member-\d+-[a-f0-9]{12}\.webp$/
+    );
+    assert.equal(audit.at(-1)?.action, '上传关于页成员头像');
+    assert.equal(audit.at(-1)?.target, uploaded.url);
+
+    const publicResponse = await request(uploaded.url);
+    assert.equal(publicResponse.status, 200);
+    assert.equal(publicResponse.headers.get('content-type'), 'image/webp');
+    assert.deepEqual(
+        new Uint8Array(await publicResponse.arrayBuffer()),
+        Uint8Array.of(0x52, 0x49, 0x46, 0x46, 4, 5, 6)
+    );
+});
+
 test('about page rejects unsafe profile links before persistence', async () => {
     const { request } = fixture();
     const content = defaultAboutPageContent();

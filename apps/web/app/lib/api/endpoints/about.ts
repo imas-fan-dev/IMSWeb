@@ -54,7 +54,7 @@ const aboutAdminUpdateSchema = aboutAdminSnapshotSchema.extend({
   success: z.literal(true),
 })
 
-const aboutHeroImageUploadSchema = z.object({
+const aboutImageUploadSchema = z.object({
   success: z.literal(true),
   url: z.string().min(1),
 })
@@ -96,13 +96,27 @@ export function updateAdminAboutPageContent(
 export function uploadAboutHeroImage(file: File) {
   const form = new FormData()
   form.append("image", file)
-  return apiClient.Post<z.infer<typeof aboutHeroImageUploadSchema>, unknown>(
+  return apiClient.Post<z.infer<typeof aboutImageUploadSchema>, unknown>(
     "/api/admin/about/hero-image",
     form,
     {
       meta: withCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
-      transform: (payload) => aboutHeroImageUploadSchema.parse(payload),
+      transform: (payload) => aboutImageUploadSchema.parse(payload),
+    }
+  )
+}
+
+export function uploadAboutMemberAvatar(file: File) {
+  const form = new FormData()
+  form.append("image", file)
+  return apiClient.Post<z.infer<typeof aboutImageUploadSchema>, unknown>(
+    "/api/admin/about/member-avatar",
+    form,
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
+      transform: (payload) => aboutImageUploadSchema.parse(payload),
     }
   )
 }
