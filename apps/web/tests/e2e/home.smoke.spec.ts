@@ -8,7 +8,7 @@ const publicRoutes = [
   { path: "/live", title: /Live.*IMSWeb/i },
   { path: "/community", title: /制作人社区.*IMSWeb/i },
   { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
-  { path: "/works", title: /同人作品.*IMSWeb/i },
+  { path: "/works", title: /系列作品.*IMSWeb/i },
   { path: "/wiki", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/modern", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i },
