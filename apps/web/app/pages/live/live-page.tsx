@@ -4,6 +4,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ExternalLinkIcon,
+  InfoIcon,
   MapPinIcon,
   RadioIcon,
   ClockIcon,
@@ -211,6 +212,10 @@ export default function Live() {
         <p className="mt-4 text-base/7 text-muted-foreground">
           查看各企划已公布的演出安排与线上活动信息。
         </p>
+        <Alert className="mt-4">
+          <InfoIcon aria-hidden="true" />
+          <AlertDescription>跳转链接为外网需启动VPN</AlertDescription>
+        </Alert>
       </div>
 
       <section className="mt-10" aria-labelledby="featured-live-title">
