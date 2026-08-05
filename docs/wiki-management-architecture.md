@@ -136,7 +136,7 @@ API 不向浏览器暴露对象存储 key。
 来源共享所选图片与构图。
 
 公开页和后台预览都通过 `ObjectStorage.createPublicReadUrl` 把数据库中的逻辑对象键解析为
-OSS、R2 或本地 MinIO 的公开直链，并复用同一组 `imageTransform`，因此裁满/完整显示、焦点、
+OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`，因此裁满/完整显示、焦点、
 缩放和旋转在编辑预览与 Wiki 展示中的层级和效果一致。读取不经 Hono 转发图片字节；上传、替换、
 删除和构图保存仍只允许通过鉴权后的管理 API 完成。
 
@@ -254,7 +254,7 @@ OSS、R2 或本地 MinIO 的公开直链，并复用同一组 `imageTransform`�
 
 ### 本地开发
 
-先执行只读诊断，再使用统一开发入口；`pnpm dev` 会启动本地 PostgreSQL/MinIO、幂等应用全部
+先执行只读诊断，再使用统一开发入口；`pnpm dev` 会启动本地 PostgreSQL/RustFS、幂等应用全部
 migration，然后启动 API 和 Web：
 
 ```sh
@@ -279,7 +279,7 @@ URL、备份、维护窗口和对象存储目标；执行后保存以下证据�
 1. `0011` 至 `0018` 均记录在 `ims_schema_migrations`，checksum 无漂移。
 2. `0012` 的历史行数、卡片数和双向投影检查全部通过。
 3. 企划、栏目、内容页、页面类型及多栏目归档关系可从管理 catalog 回读。
-4. 非空媒体逻辑键可从目标 S3/MinIO 回读，上传替换不会遗留新对象。
+4. 非空媒体逻辑键可从目标 S3-compatible 存储回读，上传替换不会遗留新对象。
 5. 公开 catalog/stories 与后台工作台完成实际 HTTP 和浏览器检查。
 
 本次 schema 不删除七张历史剧情表，因此可保留迁移证据；但回滚旧代码前必须确认旧版本不会继续

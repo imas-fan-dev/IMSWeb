@@ -5,15 +5,15 @@
       "Effect": "Allow",
       "Principal": { "AWS": ["*"] },
       "Action": ["s3:GetObject"],
-      "Resource": ["arn:aws:s3:::{{BUCKET}}/*"]
+      "Resource": ["arn:aws:s3:::imsweb-media-local/*"]
     },
     {
       "Effect": "Deny",
       "Principal": { "AWS": ["*"] },
       "Action": ["s3:GetObject"],
       "Resource": [
-        "arn:aws:s3:::{{BUCKET}}/__protected/*",
-        "arn:aws:s3:::{{BUCKET}}/*/__protected/*"
+        "arn:aws:s3:::imsweb-media-local/__protected/*",
+        "arn:aws:s3:::imsweb-media-local/*/__protected/*"
       ]
     }
   ]

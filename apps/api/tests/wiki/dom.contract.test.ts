@@ -92,6 +92,7 @@ describe("WIKI-01 database-associated media and story object paths", () => {
       url: "#",
       content_type_id: 1,
       content_type_name: "剧情",
+      content_type_icon_name: "book-open-text",
       source_platform_id: 2,
       source_platform_name: "其他来源",
       subtitle: "",

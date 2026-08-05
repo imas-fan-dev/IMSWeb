@@ -33,7 +33,7 @@ import type {
     WikiGroupRecord,
     WikiImageTransform,
     WikiLayoutInput,
-    WikiStoryCatalogOptionInput,
+    WikiStoryContentTypeInput,
     WikiStoryContentTypeRecord,
     WikiStoryCoverAssetRecord,
     WikiStorySourcePlatformInput,
@@ -174,6 +174,7 @@ export class MemoryStoryRepository implements StoryRepository {
         {
             id: 1,
             name: '剧情',
+            icon_name: 'book-open-text',
             description: '卡片剧情、活动剧情或相关视频内容',
             display_order: 0,
             is_active: true,
@@ -182,6 +183,7 @@ export class MemoryStoryRepository implements StoryRepository {
         {
             id: 2,
             name: '语音',
+            icon_name: 'mic-2',
             description: '语音、广播或音频内容',
             display_order: 1,
             is_active: true,
@@ -654,10 +656,11 @@ export class MemoryStoryRepository implements StoryRepository {
     async listStorySourcePlatforms() {
         return this.sourcePlatforms.map((option) => ({ ...option }));
     }
-    async createStoryContentType(input: WikiStoryCatalogOptionInput) {
+    async createStoryContentType(input: WikiStoryContentTypeInput) {
         const option: WikiStoryContentTypeRecord = {
             id: Math.max(0, ...this.contentTypes.map((candidate) => candidate.id)) + 1,
             name: input.name,
+            icon_name: input.iconName,
             description: input.description,
             display_order: this.contentTypes.length,
             is_active: input.isActive,
@@ -669,7 +672,7 @@ export class MemoryStoryRepository implements StoryRepository {
     async updateStoryContentType(
         id: number,
         expectedRevision: number,
-        input: WikiStoryCatalogOptionInput
+        input: WikiStoryContentTypeInput
     ) {
         const option = this.contentTypes.find((candidate) => candidate.id === id);
         if (!option) return null;
@@ -678,6 +681,7 @@ export class MemoryStoryRepository implements StoryRepository {
         }
         Object.assign(option, {
             name: input.name,
+            icon_name: input.iconName,
             description: input.description,
             is_active: input.isActive,
             revision: option.revision + 1
@@ -937,6 +941,9 @@ export class MemoryStoryRepository implements StoryRepository {
             content_type_name: this.contentTypes.find((option) =>
                 option.id === link.contentTypeId
             )?.name ?? '',
+            content_type_icon_name: this.contentTypes.find((option) =>
+                option.id === link.contentTypeId
+            )?.icon_name ?? 'link-2',
             source_platform_id: link.sourcePlatformId,
             source_platform_name: this.sourcePlatforms.find((option) =>
                 option.id === link.sourcePlatformId
@@ -972,6 +979,9 @@ export class MemoryStoryRepository implements StoryRepository {
             content_type_name: this.contentTypes.find((option) =>
                 option.id === link.contentTypeId
             )?.name ?? '',
+            content_type_icon_name: this.contentTypes.find((option) =>
+                option.id === link.contentTypeId
+            )?.icon_name ?? 'link-2',
             source_platform_id: link.sourcePlatformId,
             source_platform_name: this.sourcePlatforms.find((option) =>
                 option.id === link.sourcePlatformId
@@ -1204,6 +1214,7 @@ export class MemoryStoryRepository implements StoryRepository {
             url: input.url ?? 'https://www.bilibili.com/video/BV1xx411c7mD',
             content_type_id: input.content_type_id ?? 1,
             content_type_name: input.content_type_name ?? '剧情',
+            content_type_icon_name: input.content_type_icon_name ?? 'book-open-text',
             source_platform_id: input.source_platform_id ?? 1,
             source_platform_name: input.source_platform_name ?? 'Bilibili',
             subtitle: input.subtitle ?? '',
@@ -1282,6 +1293,9 @@ export class MemoryStoryRepository implements StoryRepository {
         row.content_type_name = this.contentTypes.find((option) =>
             option.id === input.contentTypeId
         )?.name ?? '';
+        row.content_type_icon_name = this.contentTypes.find((option) =>
+            option.id === input.contentTypeId
+        )?.icon_name ?? 'link-2';
         row.source_platform_id = input.sourcePlatformId;
         row.source_platform_name = this.sourcePlatforms.find((option) =>
             option.id === input.sourcePlatformId

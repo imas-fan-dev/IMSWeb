@@ -21,6 +21,8 @@ import {
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
+import { LucideIconPicker } from "~/components/lucide-icon-picker"
+import { ConfigurableLucideIcon } from "~/components/lucide-icon"
 import {
   Dialog,
   DialogClose,
@@ -62,6 +64,7 @@ type DeleteTarget = {
 
 type OptionForm = {
   name: string
+  iconName: string
   homepageUrl: string
   description: string
   isActive: boolean
@@ -69,6 +72,7 @@ type OptionForm = {
 
 const emptyForm: OptionForm = {
   name: "",
+  iconName: "link-2",
   homepageUrl: "",
   description: "",
   isActive: true,
@@ -239,6 +243,7 @@ function CatalogPanel<Option extends CatalogOption>({
     setEditing(option)
     setForm({
       name: option.name,
+      iconName: "iconName" in option ? option.iconName : "link-2",
       homepageUrl: "homepageUrl" in option ? option.homepageUrl : "",
       description: option.description,
       isActive: option.isActive,
@@ -269,6 +274,7 @@ function CatalogPanel<Option extends CatalogOption>({
       } else {
         const submission = {
           name: form.name,
+          iconName: form.iconName,
           description: form.description,
           isActive: form.isActive,
         }
@@ -351,7 +357,18 @@ function CatalogPanel<Option extends CatalogOption>({
                   }
                 />
               </Field>
-            ) : null}
+            ) : (
+              <Field>
+                <FieldLabel htmlFor={`${kind}-icon`}>图标</FieldLabel>
+                <LucideIconPicker
+                  id={`${kind}-icon`}
+                  value={form.iconName}
+                  onValueChange={(iconName) =>
+                    setForm((current) => ({ ...current, iconName }))
+                  }
+                />
+              </Field>
+            )}
           </div>
           <Field>
             <FieldLabel htmlFor={`${kind}-description`}>说明</FieldLabel>
@@ -404,6 +421,15 @@ function CatalogPanel<Option extends CatalogOption>({
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
+                {"iconName" in option ? (
+                  <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+                    <ConfigurableLucideIcon
+                      name={option.iconName}
+                      aria-hidden="true"
+                      className="size-4"
+                    />
+                  </span>
+                ) : null}
                 <p className="font-medium">{option.name}</p>
                 <Badge variant={option.isActive ? "secondary" : "outline"}>
                   {option.isActive ? "启用" : "停用"}

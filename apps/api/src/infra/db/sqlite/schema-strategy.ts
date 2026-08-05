@@ -375,18 +375,19 @@ const SQLITE_NORMALIZED_STORY_SCHEMA = `
     CREATE TABLE IF NOT EXISTS wiki_story_content_types (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
+        icon_name TEXT NOT NULL DEFAULT 'link-2',
         description TEXT NOT NULL DEFAULT '',
         display_order INTEGER NOT NULL CHECK (display_order >= 0),
         is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
         revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0)
     );
     INSERT OR IGNORE INTO wiki_story_content_types
-        (id, name, description, display_order)
+        (id, name, icon_name, description, display_order)
     VALUES
-        (1, '剧情', '卡片剧情、活动剧情或相关视频内容', 0),
-        (2, '语音', '语音、广播或音频内容', 1),
-        (3, '电话', '游戏内电话与通话内容', 2),
-        (4, '文本专栏', '访谈、专栏、翻译与文字资料', 3);
+        (1, '剧情', 'book-open-text', '卡片剧情、活动剧情或相关视频内容', 0),
+        (2, '语音', 'mic-2', '语音、广播或音频内容', 1),
+        (3, '电话', 'phone', '游戏内电话与通话内容', 2),
+        (4, '文本专栏', 'notebook-tabs', '访谈、专栏、翻译与文字资料', 3);
 
     CREATE TABLE IF NOT EXISTS wiki_story_source_platforms (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -774,6 +775,19 @@ export class SqliteSchemaStrategy implements SqlSchemaStrategy {
         await this.ensureColumn(database, 'wiki_story_cards', 'deleted_at', 'TEXT');
         await this.ensureColumn(database, 'wiki_story_links', 'content_type_id',
             'INTEGER NOT NULL DEFAULT 1');
+        await this.ensureColumn(database, 'wiki_story_content_types', 'icon_name',
+            "TEXT NOT NULL DEFAULT 'link-2'");
+        await database.prepare(
+            `UPDATE wiki_story_content_types
+             SET icon_name=CASE name
+                 WHEN '剧情' THEN 'book-open-text'
+                 WHEN '语音' THEN 'mic-2'
+                 WHEN '电话' THEN 'phone'
+                 WHEN '文本专栏' THEN 'notebook-tabs'
+                 ELSE icon_name
+             END
+             WHERE icon_name='link-2'`
+        ).run();
         await this.ensureColumn(database, 'wiki_story_links', 'source_platform_id',
             'INTEGER NOT NULL DEFAULT 2');
         await this.ensureColumn(database, 'wiki_story_links', 'deleted_at', 'TEXT');

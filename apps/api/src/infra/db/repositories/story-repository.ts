@@ -37,8 +37,8 @@ import type {
     WikiCategorySaveResult,
     WikiStoryCardSaveResult,
     WikiStoryCatalogDeleteResult,
-    WikiStoryCatalogOptionInput,
     WikiStoryCatalogSaveResult,
+    WikiStoryContentTypeInput,
     WikiStoryContentTypeRecord,
     WikiStoryCoverAssetDeleteResult,
     WikiStoryCoverAssetRecord,
@@ -78,6 +78,8 @@ const STORY_COLUMNS = `COALESCE(links.legacy_id, links.id) AS id,
     COALESCE(links.url, '') AS url, links.content_type_id,
     COALESCE((SELECT name FROM wiki_story_content_types
               WHERE id=links.content_type_id), '') AS content_type_name,
+    COALESCE((SELECT icon_name FROM wiki_story_content_types
+              WHERE id=links.content_type_id), 'link-2') AS content_type_icon_name,
     links.source_platform_id,
     COALESCE((SELECT name FROM wiki_story_source_platforms
               WHERE id=links.source_platform_id), '') AS source_platform_name,
@@ -93,6 +95,8 @@ const STORY_CLEANUP_COLUMNS = `COALESCE(links.legacy_id, links.id) AS id,
     COALESCE(links.url, '') AS url, links.content_type_id,
     COALESCE((SELECT name FROM wiki_story_content_types
               WHERE id=links.content_type_id), '') AS content_type_name,
+    COALESCE((SELECT icon_name FROM wiki_story_content_types
+              WHERE id=links.content_type_id), 'link-2') AS content_type_icon_name,
     links.source_platform_id,
     COALESCE((SELECT name FROM wiki_story_source_platforms
               WHERE id=links.source_platform_id), '') AS source_platform_name,
@@ -832,7 +836,7 @@ export class SqlStoryRepository implements StoryRepository {
 
     listStoryContentTypes(): Promise<WikiStoryContentTypeRecord[]> {
         return queryAll<WikiStoryContentTypeRecord>(this.database,
-            `SELECT id, name, description, display_order, is_active, revision
+            `SELECT id, name, icon_name, description, display_order, is_active, revision
              FROM wiki_story_content_types ORDER BY display_order, id`
         ).then((rows) => rows.map((row) => ({
             ...row,
@@ -962,15 +966,15 @@ export class SqlStoryRepository implements StoryRepository {
     }
 
     async createStoryContentType(
-        input: WikiStoryCatalogOptionInput
+        input: WikiStoryContentTypeInput
     ): Promise<WikiStoryContentTypeRecord> {
         const option = await queryOne<WikiStoryContentTypeRecord>(this.database,
             `INSERT INTO wiki_story_content_types
-                (name, description, display_order, is_active)
-             VALUES (?, ?, COALESCE((SELECT MAX(display_order) + 1
-                                      FROM wiki_story_content_types), 0), ?)
-             RETURNING id, name, description, display_order, is_active, revision`,
-            [input.name, input.description, input.isActive]
+                (name, icon_name, description, display_order, is_active)
+             VALUES (?, ?, ?, COALESCE((SELECT MAX(display_order) + 1
+                                        FROM wiki_story_content_types), 0), ?)
+             RETURNING id, name, icon_name, description, display_order, is_active, revision`,
+            [input.name, input.iconName, input.description, input.isActive]
         );
         if (!option) throw new Error('Wiki story content type was not created');
         return { ...option, is_active: booleanValue(option.is_active) };
@@ -979,14 +983,14 @@ export class SqlStoryRepository implements StoryRepository {
     async updateStoryContentType(
         id: number,
         expectedRevision: number,
-        input: WikiStoryCatalogOptionInput
+        input: WikiStoryContentTypeInput
     ): Promise<WikiStoryCatalogSaveResult<WikiStoryContentTypeRecord> | null> {
         const option = await queryOne<WikiStoryContentTypeRecord>(this.database,
             `UPDATE wiki_story_content_types
-             SET name=?, description=?, is_active=?, revision=revision+1
+             SET name=?, icon_name=?, description=?, is_active=?, revision=revision+1
              WHERE id=? AND revision=?
-             RETURNING id, name, description, display_order, is_active, revision`,
-            [input.name, input.description, input.isActive, id, expectedRevision]
+             RETURNING id, name, icon_name, description, display_order, is_active, revision`,
+            [input.name, input.iconName, input.description, input.isActive, id, expectedRevision]
         );
         if (option) {
             return {

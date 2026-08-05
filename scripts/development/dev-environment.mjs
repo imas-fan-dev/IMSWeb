@@ -23,11 +23,11 @@ const localInfrastructureDefaults = Object.freeze({
   IMS_POSTGRES_DB: "imsweb",
   IMS_POSTGRES_USER: "imsweb",
   IMS_POSTGRES_PASSWORD: "imsweb-local-password",
-  IMS_MINIO_API_PORT: "9000",
-  IMS_MINIO_CONSOLE_PORT: "9001",
-  IMS_MINIO_ROOT_USER: "imsweb-local",
-  IMS_MINIO_ROOT_PASSWORD: "imsweb-local-password",
-  IMS_MINIO_BUCKET: "imsweb-media-local",
+  IMS_RUSTFS_API_PORT: "9000",
+  IMS_RUSTFS_CONSOLE_PORT: "9001",
+  IMS_RUSTFS_ACCESS_KEY: "imsweb-local",
+  IMS_RUSTFS_SECRET_KEY: "imsweb-local-password",
+  IMS_RUSTFS_BUCKET: "imsweb-media-local",
 });
 
 function usage() {
@@ -44,7 +44,7 @@ Options:
   --web-port PORT  React Router port (default: ${defaultWebPort})
   --r2             Use the R2 test bucket configured in apps/api/.env
   --doctor         Check prerequisites without changing local state
-  --down           Stop local PostgreSQL and MinIO without deleting data
+  --down           Stop local PostgreSQL and RustFS without deleting data
   --dry-run        Print the startup plan without executing it
   -h, --help       Show this help
 
@@ -340,20 +340,20 @@ export function resolveDevelopmentConfiguration({
     infrastructure.IMS_POSTGRES_PORT,
     "IMS_POSTGRES_PORT",
   );
-  const minioPort = parsePort(
-    infrastructure.IMS_MINIO_API_PORT,
-    "IMS_MINIO_API_PORT",
+  const rustfsPort = parsePort(
+    infrastructure.IMS_RUSTFS_API_PORT,
+    "IMS_RUSTFS_API_PORT",
   );
-  const minioConsolePort = parsePort(
-    infrastructure.IMS_MINIO_CONSOLE_PORT,
-    "IMS_MINIO_CONSOLE_PORT",
+  const rustfsConsolePort = parsePort(
+    infrastructure.IMS_RUSTFS_CONSOLE_PORT,
+    "IMS_RUSTFS_CONSOLE_PORT",
   );
   const database = infrastructure.IMS_POSTGRES_DB;
   const username = infrastructure.IMS_POSTGRES_USER;
   const password = infrastructure.IMS_POSTGRES_PASSWORD;
-  const minioUsername = infrastructure.IMS_MINIO_ROOT_USER;
-  const minioPassword = infrastructure.IMS_MINIO_ROOT_PASSWORD;
-  const bucket = infrastructure.IMS_MINIO_BUCKET;
+  const rustfsAccessKey = infrastructure.IMS_RUSTFS_ACCESS_KEY;
+  const rustfsSecretKey = infrastructure.IMS_RUSTFS_SECRET_KEY;
+  const bucket = infrastructure.IMS_RUSTFS_BUCKET;
 
   const requiredInfrastructure = {
     IMS_POSTGRES_DB: database,
@@ -361,9 +361,9 @@ export function resolveDevelopmentConfiguration({
     IMS_POSTGRES_PASSWORD: password,
     ...(!options.r2
       ? {
-          IMS_MINIO_ROOT_USER: minioUsername,
-          IMS_MINIO_ROOT_PASSWORD: minioPassword,
-          IMS_MINIO_BUCKET: bucket,
+          IMS_RUSTFS_ACCESS_KEY: rustfsAccessKey,
+          IMS_RUSTFS_SECRET_KEY: rustfsSecretKey,
+          IMS_RUSTFS_BUCKET: bucket,
         }
       : {}),
   };
@@ -373,8 +373,8 @@ export function resolveDevelopmentConfiguration({
 
   const apiOrigin = `http://${loopbackHost}:${options.apiPort}`;
   const webOrigin = `http://${loopbackHost}:${options.webPort}`;
-  const minioOrigin = `http://${loopbackHost}:${minioPort}`;
-  const minioConsoleOrigin = `http://${loopbackHost}:${minioConsolePort}`;
+  const rustfsOrigin = `http://${loopbackHost}:${rustfsPort}`;
+  const rustfsConsoleOrigin = `http://${loopbackHost}:${rustfsConsolePort}`;
   const databaseUrl = encodedPostgresUrl({
     host: loopbackHost,
     port: postgresPort,
@@ -397,16 +397,16 @@ export function resolveDevelopmentConfiguration({
     : {
         IMS_OBJECT_STORAGE: "s3",
         IMS_S3_BUCKET: bucket,
-        IMS_PUBLIC_READ_URL_BASE: `${minioOrigin}/${bucket}`,
-        IMS_S3_PUBLIC_READ_URL_BASE: `${minioOrigin}/${bucket}`,
+        IMS_PUBLIC_READ_URL_BASE: `${rustfsOrigin}/${bucket}`,
+        IMS_S3_PUBLIC_READ_URL_BASE: `${rustfsOrigin}/${bucket}`,
         IMS_S3_PUBLIC_BUCKET: "",
         IMS_S3_REGION: "us-east-1",
-        IMS_S3_ENDPOINT: minioOrigin,
+        IMS_S3_ENDPOINT: rustfsOrigin,
         IMS_S3_FORCE_PATH_STYLE: "true",
-        IMS_S3_PREFIX: "local",
+        IMS_S3_PREFIX: "",
         IMS_S3_READ_URL_TTL_SECONDS: "300",
-        AWS_ACCESS_KEY_ID: minioUsername,
-        AWS_SECRET_ACCESS_KEY: minioPassword,
+        AWS_ACCESS_KEY_ID: rustfsAccessKey,
+        AWS_SECRET_ACCESS_KEY: rustfsSecretKey,
       };
   const apiEnvironment = {
     ...applicationEnvironment,
@@ -434,16 +434,16 @@ export function resolveDevelopmentConfiguration({
     ...options,
     apiOrigin,
     webOrigin,
-    minioOrigin,
-    minioConsoleOrigin,
+    rustfsOrigin,
+    rustfsConsoleOrigin,
     databaseUrl,
     postgresPort,
-    minioPort,
+    rustfsPort,
     database,
     username,
     bucket: apiEnvironment.IMS_S3_BUCKET,
     publicReadUrlBase: apiEnvironment.IMS_PUBLIC_READ_URL_BASE,
-    storageMode: options.r2 ? "r2" : "minio",
+    storageMode: options.r2 ? "r2" : "rustfs",
     composeArguments,
     composeEnvironment: {
       ...environment,
@@ -459,7 +459,7 @@ export function resolveDevelopmentConfiguration({
 
 export function buildCommandPlan(configuration) {
   const compose = configuration.composeArguments;
-  const usesMinio = configuration.storageMode === "minio";
+  const usesRustfs = configuration.storageMode === "rustfs";
   return {
     composeConfig: {
       command: "docker",
@@ -478,7 +478,7 @@ export function buildCommandPlan(configuration) {
         "up",
         "-d",
         "postgres",
-        ...(usesMinio ? ["minio"] : []),
+        ...(usesRustfs ? ["rustfs"] : []),
       ],
       env: configuration.composeEnvironment,
     },
@@ -497,10 +497,10 @@ export function buildCommandPlan(configuration) {
       ],
       env: configuration.composeEnvironment,
     },
-    minioInit: usesMinio
+    rustfsInit: usesRustfs
       ? {
           command: "docker",
-          args: [...compose, "run", "--rm", "--no-deps", "minio-init"],
+          args: [...compose, "run", "--rm", "--no-deps", "rustfs-init"],
           env: configuration.composeEnvironment,
         }
       : undefined,
@@ -535,7 +535,7 @@ export function buildCommandPlan(configuration) {
       args: [
         ...compose,
         "stop",
-        ...(usesMinio ? ["minio-init", "minio"] : []),
+        ...(usesRustfs ? ["rustfs-init", "rustfs"] : []),
         "postgres",
       ],
       env: configuration.composeEnvironment,
@@ -991,7 +991,7 @@ async function supervise(configuration, plan) {
       );
     } else {
       process.stdout.write(
-        `[dev] MinIO console: ${configuration.minioConsoleOrigin}\n`,
+        `[dev] RustFS console: ${configuration.rustfsConsoleOrigin}\n`,
       );
     }
     process.stdout.write(
@@ -1135,11 +1135,11 @@ function printPlan(configuration, plan) {
     [
       configuration.storageMode === "r2"
         ? "Start PostgreSQL"
-        : "Start PostgreSQL and MinIO",
+        : "Start PostgreSQL and RustFS",
       plan.infrastructure,
     ],
     ["Wait for PostgreSQL", plan.postgresReady],
-    ...(plan.minioInit ? [["Initialize MinIO bucket", plan.minioInit]] : []),
+    ...(plan.rustfsInit ? [["Initialize RustFS bucket", plan.rustfsInit]] : []),
     ["Apply PostgreSQL migrations", plan.migrate],
     ["Start Hono API", plan.api],
     ["Start React Web", plan.web],
@@ -1171,21 +1171,21 @@ export async function prepareDevelopmentEnvironment(
   operations.runCommand(
     configuration.storageMode === "r2"
       ? "Starting PostgreSQL"
-      : "Starting PostgreSQL and MinIO",
+      : "Starting PostgreSQL and RustFS",
     plan.infrastructure,
   );
   await operations.waitForCommand("Waiting for PostgreSQL", plan.postgresReady);
-  if (plan.minioInit) {
-    process.stdout.write("[dev] Waiting for MinIO\n");
+  if (plan.rustfsInit) {
+    process.stdout.write("[dev] Waiting for RustFS\n");
     await operations.waitForUrl(
-      "MinIO",
-      `${configuration.minioOrigin}/minio/health/live`,
+      "RustFS",
+      `${configuration.rustfsOrigin}/health`,
       undefined,
       60_000,
     );
     operations.runCommand(
-      "Initializing the local MinIO bucket",
-      plan.minioInit,
+      "Initializing the local RustFS bucket",
+      plan.rustfsInit,
     );
   }
   operations.runCommand("Applying PostgreSQL migrations", plan.migrate);
@@ -1215,7 +1215,7 @@ export async function main(argv = process.argv.slice(2)) {
   );
   assertLocalContainerTarget(containerTarget);
   if (options.down) {
-    runCommand("Stopping local PostgreSQL and MinIO", plan.down);
+    runCommand("Stopping local PostgreSQL and RustFS", plan.down);
     process.stdout.write("[dev] Local data volumes were preserved.\n");
     return 0;
   }

@@ -59,6 +59,7 @@ describe('Wiki admin dynamic data contract', () => {
                 headers,
                 body: JSON.stringify({
                     name: '电话',
+                    iconName: 'phone',
                     description: '游戏内电话',
                     isActive: true
                 })
@@ -67,6 +68,7 @@ describe('Wiki admin dynamic data contract', () => {
         assert.equal(createType.status, 201);
         const contentType = (await createType.json() as any).option;
         assert.equal(contentType.name, '电话');
+        assert.equal(contentType.iconName, 'phone');
 
         const createPlatform = await fixture.app.request(
             '/api/admin/wiki/story-source-platforms',

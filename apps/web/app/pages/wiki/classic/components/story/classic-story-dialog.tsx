@@ -47,7 +47,10 @@ export function ClassicStoryDialog({
               const href = safeExternalStoryUrl(link.url)
               return href ? (
                 <a key={link.id} href={href} target="_blank" rel="noreferrer">
-                  <WikiStorySourceIcon contentType={link.contentType} />
+                  <WikiStorySourceIcon
+                    contentType={link.contentType}
+                    iconName={link.contentTypeIcon}
+                  />
                   <span>
                     <span className="wiki-classic-story-link-meta">
                       <span>{link.contentType}</span>

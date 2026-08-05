@@ -18,6 +18,7 @@ const contentTypes = [
   {
     id: 1,
     name: "剧情",
+    iconName: "book-open-text",
     description: "剧情内容",
     displayOrder: 0,
     isActive: true,

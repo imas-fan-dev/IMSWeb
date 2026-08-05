@@ -58,10 +58,10 @@ class OperationsDocumentationTests(unittest.TestCase):
             "pnpm dev",
             "pnpm run dev:down",
             "PostgreSQL",
-            "MinIO",
+            "RustFS",
             "自动读取 `apps/api/.env`",
             "pnpm run dev:postgresql:up",
-            "pnpm run dev:minio:up",
+            "pnpm run dev:rustfs:up",
             "pnpm run dev:node",
             "pnpm run dev:web",
             "curl --fail",
@@ -149,7 +149,7 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "pnpm run dev:api:r2:config",
             "pnpm run dev:api:r2:up",
-            "不启用或依赖 MinIO",
+            "不启用或依赖 RustFS",
             "`auto` region",
         ):
             self.assertIn(token, self.ai_guide)
@@ -176,8 +176,8 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "COMPOSE_PROFILES=local-storage",
             "IMS_POSTGRES_IMAGE",
-            "IMS_MINIO_IMAGE",
-            "IMS_MINIO_BUCKET",
+            "IMS_RUSTFS_IMAGE",
+            "IMS_RUSTFS_BUCKET",
             "IMS_S3_ENDPOINT",
             "IMS_PUBLIC_READ_URL_BASE",
             "AWS_ACCESS_KEY_ID",

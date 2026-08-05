@@ -20,7 +20,7 @@ IMSWeb 是一个 pnpm monorepo：
 | `apps/api/` | `@imsweb/api` | Hono + TypeScript Node API              |
 | `apps/web/` | `@imsweb/web` | React Router 7 + React 19 Web 应用      |
 | `data/`     | -             | 被 Git 忽略的本地数据库、上传和迁移输入 |
-| `deploy/`   | -             | 本地 PostgreSQL 与 MinIO 编排           |
+| `deploy/`   | -             | 本地 PostgreSQL 与 RustFS 编排          |
 | `scripts/`  | -             | 边界检查、迁移、发布与运维工具          |
 | `tests/`    | -             | 仓库级基础设施和部署契约测试            |
 
@@ -50,12 +50,12 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-该命令会检查本机环境，启动 PostgreSQL 和 MinIO，等待依赖就绪，幂等应用数据库迁移，再启动
+该命令会检查本机环境，启动 PostgreSQL 和 RustFS，等待依赖就绪，幂等应用数据库迁移，再启动
 支持热更新的 Hono API 与 React Web。默认地址如下：
 
 - Web：`http://127.0.0.1:5173`
 - API：`http://127.0.0.1:3000`
-- MinIO 控制台：`http://127.0.0.1:9001`
+- RustFS 控制台：`http://127.0.0.1:9001`
 
 需要让同一套 API/Web 热更新环境连接 Cloudflare R2 测试桶时，在被 Git 忽略的
 `apps/api/.env` 中填写测试桶配置后运行：
@@ -64,11 +64,11 @@ pnpm dev
 pnpm run dev:r2
 ```
 
-该入口继续使用本地 PostgreSQL，但不会启动或初始化 MinIO。启动器只读取 R2 存储字段和 AWS
+该入口继续使用本地 PostgreSQL，但不会启动或初始化 RustFS。启动器只读取 R2 存储字段和 AWS
 凭据，并拒绝名称未明确标记为 `test` 的 bucket；API 的 JWT、站点地址和数据库仍使用隔离的
 本地开发配置。
 
-首次启动可能需要拉取容器镜像。`Ctrl+C` 只停止本次启动的 API 和 Web，PostgreSQL、MinIO
+首次启动可能需要拉取容器镜像。`Ctrl+C` 只停止本次启动的 API 和 Web，PostgreSQL、RustFS
 及数据卷会保留，以便下次快速启动；不再使用时运行：
 
 ```sh
@@ -87,7 +87,8 @@ pnpm run dev:down
 | `pnpm dev`                  | 一键启动本地依赖、迁移、API 与 Web 热更新环境      |
 | `pnpm run dev:r2`           | 使用 R2 测试桶启动 API 与 Web 热更新环境           |
 | `pnpm run dev:doctor`       | 只读检查 Node、pnpm、依赖、容器运行时和端口        |
-| `pnpm run dev:down`         | 停止本地 PostgreSQL 与 MinIO，保留数据卷           |
+| `pnpm run dev:down`         | 停止本地 PostgreSQL 与 RustFS，保留数据卷          |
+| `pnpm run dev:rustfs:sync-r2` | 盘点 R2 测试桶；增加 `-- --apply` 后同步到 RustFS |
 | `pnpm run dev:node`         | 热重载启动 Hono Node API（源码和 `apps/api/.env`） |
 | `pnpm run dev:web`          | 启动 React Router 开发服务器                       |
 | `pnpm run build`            | 构建 Web、API 和可发布客户端                       |
@@ -102,7 +103,7 @@ pnpm run dev:down
 - API 业务代码依赖 `apps/api/src/ports/`，具体数据库、存储和媒体实现由 `runtime` 组合。
 - Web 构建产物经 manifest 和逐文件内容校验后复制到 `apps/api/dist/client` 与
   `apps/api/dist/node-client`；不要手工维护 API 静态目录。
-- PostgreSQL 是活动运行时的唯一权威数据库，MinIO/S3 是可变媒体的统一存储。SQLite 与
+- PostgreSQL 是活动运行时的唯一权威数据库，RustFS/S3 是可变媒体的统一存储。SQLite 与
   filesystem 适配器仅保留给显式迁移、测试和离线兼容流程。
 - `data/` 只保存本地运行状态和迁移输入，除 `.gitignore` 外不会进入版本控制。
 

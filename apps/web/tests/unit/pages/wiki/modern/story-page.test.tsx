@@ -45,6 +45,7 @@ function storyPayload(
                     title: "卡片剧情",
                     url: "https://www.bilibili.com/video/BV1xx411c7mD",
                     contentType: "剧情",
+                    contentTypeIcon: "phone",
                     sourcePlatform: "Bilibili",
                   },
                   {
@@ -53,6 +54,7 @@ function storyPayload(
                     title: "另一视角",
                     url: "https://www.bilibili.com/video/BV1xx411c7mE",
                     contentType: "语音",
+                    contentTypeIcon: "mic-2",
                     sourcePlatform: "Bilibili",
                   },
                 ],
@@ -71,6 +73,7 @@ function storyPayload(
                           title: "语音试听",
                           url: "https://www.bilibili.com/video/BV1xx411c7mF",
                           contentType: "语音",
+                          contentTypeIcon: "mic-2",
                           sourcePlatform: "Bilibili",
                         },
                       ],
@@ -214,6 +217,13 @@ describe("StoryPage", () => {
     expect(screen.getByRole("link", { name: /另一视角/ })).toBeVisible()
     expect(screen.getByLabelText("剧情来源")).toBeVisible()
     expect(screen.getByLabelText("语音来源")).toBeVisible()
+    await waitFor(() => {
+      expect(
+        screen
+          .getByLabelText("剧情来源")
+          .querySelector('[data-lucide-icon="phone"]')
+      ).toBeInTheDocument()
+    })
     expect(screen.getByText("来源：投稿者一")).toBeVisible()
     expect(screen.getByText("来源：投稿者二")).toBeVisible()
 

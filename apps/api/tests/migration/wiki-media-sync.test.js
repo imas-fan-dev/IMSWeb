@@ -26,12 +26,12 @@ test('Wiki media sync accepts pnpm forwarded argument separators', () => {
     assert.equal(options.help, true);
 });
 
-test('Wiki media sync defaults to the unified SQLite database', () => {
+test('Wiki media sync leaves database ownership to runtime services', () => {
     const options = parseArguments([], {
         IMS_SQLITE_PATH: '/tmp/imsweb.db',
         IMS_STORY_DB_PATH: '/tmp/legacy-story.db'
     });
-    assert.equal(options.database, '/tmp/imsweb.db');
+    assert.equal('database' in options, false);
 });
 
 test('Wiki media sync maps source paths to stable business object keys', () => {

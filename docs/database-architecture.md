@@ -19,7 +19,7 @@ SQLite 使用 `IMS_SQLITE_PATH` 指向统一的 `data/imsweb.db`；PostgreSQL �
 
 旧 `news.db` 和 `idol_data.db` 仅作为合并与对账输入，不再被 Hono 运行时读取。
 当前应用运行时与默认验收只有 Node，不包含 Worker 或 D1。对象存储可以通过同一个 S3 adapter
-选择 MinIO、Cloudflare R2 或其他兼容 provider；R2 不引入新的应用运行时。
+选择 RustFS、MinIO、Cloudflare R2 或其他兼容 provider；R2 不引入新的应用运行时。
 
 ## 统一表结构
 
@@ -63,7 +63,7 @@ runtime/node-services.ts -> infra/db/sqlite/{connection,schema-strategy}
 runtime/node-services.ts -> infra/oss/filesystem or infra/oss/s3
                          -> injected ManagedSqlDatabase lifecycle state
                          -> private signed URL or public CDN URL
-                         -> browser -> MinIO/S3/R2
+                         -> browser -> RustFS/MinIO/R2
 ```
 
 - 路由按能力依赖 `AuthRepository`、`NewsRepository`、`EventRepository` 等端口以及

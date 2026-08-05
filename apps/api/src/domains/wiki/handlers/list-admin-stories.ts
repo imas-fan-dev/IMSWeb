@@ -159,6 +159,7 @@ export function createHandleListAdminWikiStories<E extends Env>(
       contentTypes: contentTypes.map((option) => ({
         id: option.id,
         name: option.name,
+        iconName: option.icon_name,
         description: option.description,
         displayOrder: option.display_order,
         isActive: option.is_active,

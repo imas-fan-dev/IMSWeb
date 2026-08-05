@@ -523,6 +523,7 @@ export interface StoryRecord {
     url: string;
     content_type_id: number;
     content_type_name: string;
+    content_type_icon_name: string;
     source_platform_id: number;
     source_platform_name: string;
     subtitle: string | null;
@@ -587,6 +588,7 @@ export interface NewStoryLinkInput {
 export interface WikiStoryContentTypeRecord {
     id: number;
     name: string;
+    icon_name: string;
     description: string;
     display_order: number;
     is_active: boolean;
@@ -607,6 +609,10 @@ export interface WikiStoryCatalogOptionInput {
     name: string;
     description: string;
     isActive: boolean;
+}
+
+export interface WikiStoryContentTypeInput extends WikiStoryCatalogOptionInput {
+    iconName: string;
 }
 
 export interface WikiStorySourcePlatformInput extends WikiStoryCatalogOptionInput {
@@ -772,12 +778,12 @@ export interface StoryRepository {
     ): Promise<WikiStoryCoverAssetSaveResult | null>;
     deleteStoryCoverAsset(id: number): Promise<WikiStoryCoverAssetDeleteResult>;
     createStoryContentType(
-        input: WikiStoryCatalogOptionInput
+        input: WikiStoryContentTypeInput
     ): Promise<WikiStoryContentTypeRecord>;
     updateStoryContentType(
         id: number,
         expectedRevision: number,
-        input: WikiStoryCatalogOptionInput
+        input: WikiStoryContentTypeInput
     ): Promise<WikiStoryCatalogSaveResult<WikiStoryContentTypeRecord> | null>;
     deleteStoryContentType(id: number): Promise<WikiStoryCatalogDeleteResult>;
     createStorySourcePlatform(

@@ -4,10 +4,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
-const sqlite3 = require('sqlite3').verbose();
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const REPOSITORY_ROOT = path.resolve(PROJECT_ROOT, '../..');
 const ADD_USER_SCRIPT = path.join(
     PROJECT_ROOT,
     'scripts/operations/accounts/add-user.js'
@@ -28,70 +26,23 @@ const {
     validateArchiveEntryTypes,
     validateManifest
 } = require(CONTAINER_DATA_SCRIPT);
+const { databaseUrl } = require(ADD_USER_SCRIPT);
+const {
+    compareInventories,
+    parseArguments: parseRustfsSyncArguments,
+    resolveTargetEnvironment,
+    summarizeInventory,
+    validateSourceEnvironment
+} = require('../scripts/development/sync-r2-to-rustfs.js');
 
-function run(db, sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, err => err ? reject(err) : resolve());
-    });
-}
-
-function get(db, sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
-    });
-}
-
-function close(db) {
-    return new Promise((resolve, reject) => {
-        db.close(err => err ? reject(err) : resolve());
-    });
-}
-
-test('categorized add-user script resolves project-relative database paths', async () => {
-    const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-ops-test-'));
-    const databasePath = path.join(temporaryDirectory, 'accounts.db');
-    const database = new sqlite3.Database(databasePath);
-    await run(database, `CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password TEXT,
-        dept TEXT,
-        producername TEXT,
-        admin_role TEXT
-    )`);
-    await close(database);
-
-    try {
-        const result = spawnSync(process.execPath, [ADD_USER_SCRIPT], {
-            cwd: temporaryDirectory,
-            env: {
-                ...process.env,
-                IMS_SQLITE_PATH: path.relative(REPOSITORY_ROOT, databasePath),
-                IMS_NEW_USER_USERNAME: 'categorized-script-test',
-                IMS_NEW_USER_PASSWORD: 'temporary-test-password',
-                IMS_NEW_USER_DEPT: 'editor',
-                IMS_NEW_USER_PRODUCER_NAME: 'Script Test'
-            },
-            encoding: 'utf8'
-        });
-        assert.equal(result.status, 0, result.stderr);
-
-        const verificationDatabase = new sqlite3.Database(databasePath);
-        const user = await get(
-            verificationDatabase,
-            `SELECT username, dept, producername, password, admin_role
-             FROM users WHERE username = ?`,
-            ['categorized-script-test']
-        );
-        await close(verificationDatabase);
-        assert.equal(user.username, 'categorized-script-test');
-        assert.equal(user.dept, 'editor');
-        assert.equal(user.producername, 'Script Test');
-        assert.equal(user.admin_role, null);
-        assert.match(user.password, /^\$2[aby]\$/);
-    } finally {
-        fs.rmSync(temporaryDirectory, { recursive: true, force: true });
-    }
+test('categorized add-user script validates PostgreSQL connection URLs', () => {
+    const connectionString = 'postgresql://imsweb:secret@127.0.0.1:5432/imsweb';
+    assert.equal(databaseUrl({ DATABASE_URL: connectionString }), connectionString);
+    assert.throws(() => databaseUrl({}), /DATABASE_URL is required/);
+    assert.throws(
+        () => databaseUrl({ DATABASE_URL: 'sqlite:///tmp/imsweb.db' }),
+        /valid PostgreSQL URL/
+    );
 });
 
 test('categorized password helper emits a bcrypt hash without database access', () => {
@@ -134,7 +85,7 @@ test('development data script rejects archive traversal and invalid manifests', 
         `${ARCHIVE_ROOT}/`,
         `${ARCHIVE_ROOT}/manifest.json`,
         `${ARCHIVE_ROOT}/postgresql.dump`,
-        `${ARCHIVE_ROOT}/minio/imsweb-media-local/object.jpg`
+        `${ARCHIVE_ROOT}/rustfs/imsweb-media-local/object.jpg`
     ]));
     assert.throws(
         () => validateArchiveEntries([
@@ -155,14 +106,14 @@ test('development data script rejects archive traversal and invalid manifests', 
     );
     assert.throws(
         () => validateManifest({
-            formatVersion: 1,
+            formatVersion: 2,
             archiveRoot: ARCHIVE_ROOT,
             postgresql: {
                 file: 'postgresql.dump',
                 publicTables: 1,
                 bytes: 1
             },
-            minio: {
+            rustfs: {
                 bucket: 'imsweb-media-local',
                 directory: '../outside',
                 objects: 0,
@@ -171,6 +122,21 @@ test('development data script rejects archive traversal and invalid manifests', 
         }),
         /manifest is incomplete or invalid/
     );
+    assert.doesNotThrow(() => validateManifest({
+        formatVersion: 1,
+        archiveRoot: ARCHIVE_ROOT,
+        postgresql: {
+            file: 'postgresql.dump',
+            publicTables: 1,
+            bytes: 1
+        },
+        minio: {
+            bucket: 'imsweb-media-local',
+            directory: 'minio/imsweb-media-local',
+            objects: 0,
+            bytes: 0
+        }
+    }));
 });
 
 test('development data script recognizes only non-empty regular files', () => {
@@ -189,4 +155,57 @@ test('development data script recognizes only non-empty regular files', () => {
     } finally {
         fs.rmSync(temporaryDirectory, { recursive: true, force: true });
     }
+});
+
+test('RustFS sync validates isolated R2 source and local target settings', () => {
+    const source = validateSourceEnvironment({
+        IMS_OBJECT_STORAGE: 's3',
+        IMS_S3_BUCKET: 'imsweb-media-public-test',
+        IMS_S3_REGION: 'auto',
+        IMS_S3_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+        IMS_S3_FORCE_PATH_STYLE: 'false',
+        AWS_ACCESS_KEY_ID: 'access-key',
+        AWS_SECRET_ACCESS_KEY: 'secret-key'
+    });
+    assert.equal(source.bucket, 'imsweb-media-public-test');
+    assert.equal(source.region, 'auto');
+    assert.throws(
+        () => validateSourceEnvironment({
+            IMS_OBJECT_STORAGE: 's3',
+            IMS_S3_BUCKET: 'imsweb-media-prod',
+            IMS_S3_REGION: 'auto',
+            IMS_S3_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+            IMS_S3_FORCE_PATH_STYLE: 'false',
+            AWS_ACCESS_KEY_ID: 'access-key',
+            AWS_SECRET_ACCESS_KEY: 'secret-key'
+        }),
+        /distinct test segment/
+    );
+    assert.deepEqual(resolveTargetEnvironment({}), {
+        bucket: 'imsweb-media-local',
+        endpoint: 'http://127.0.0.1:9000',
+        region: 'us-east-1',
+        accessKeyId: 'imsweb-local',
+        secretAccessKey: 'imsweb-local-password'
+    });
+});
+
+test('RustFS sync reports exact inventory differences and parses apply mode', () => {
+    const source = new Map([
+        ['objects/a', 12],
+        ['objects/b', 20]
+    ]);
+    const target = new Map([
+        ['objects/a', 11],
+        ['objects/c', 30]
+    ]);
+    assert.deepEqual(compareInventories(source, target), {
+        missing: ['objects/b'],
+        mismatched: ['objects/a'],
+        extra: ['objects/c']
+    });
+    assert.deepEqual(summarizeInventory(source), { objects: 2, bytes: 32 });
+    const options = parseRustfsSyncArguments(['--apply']);
+    assert.equal(options.apply, true);
+    assert.equal(options.help, false);
 });
