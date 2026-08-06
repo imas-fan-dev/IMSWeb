@@ -11,7 +11,11 @@ vi.mock("~/components/shared/admin-return-shortcut", () => ({
 }))
 
 vi.mock("~/components/shared/back-to-top", () => ({
-  BackToTop: () => <button type="button">返回顶部</button>,
+  BackToTop: ({ className }: { className?: string }) => (
+    <button type="button" className={className}>
+      返回顶部
+    </button>
+  ),
 }))
 
 vi.mock("~/components/shared/series-icon-background", () => ({
@@ -45,5 +49,40 @@ describe("PublicLayout", () => {
     expect(screen.getByText("站点导航")).toBeVisible()
     expect(screen.getByText("站点页脚")).toBeVisible()
     expect(screen.getByRole("button", { name: "返回顶部" })).toBeVisible()
+    expect(screen.getByRole("main").parentElement).toHaveClass("z-10")
+  })
+
+  it("keeps modern story floating controls above the site footer", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/story"]}>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route path="story" element={<main>剧情详情</main>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    expect(screen.getByRole("main").parentElement).toHaveClass("z-20")
+  })
+
+  it("hides back to top on mobile Wiki catalogs", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/wiki"]}>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route path="wiki" element={<main>Wiki 内容</main>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    expect(screen.getByRole("button", { name: "返回顶部" })).toHaveClass(
+      "max-md:hidden"
+    )
   })
 })

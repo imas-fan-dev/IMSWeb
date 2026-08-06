@@ -105,7 +105,6 @@ export function ClassicAgencyNavigation({
                   ) : null}
                 </span>
                 <span>{agency.name}</span>
-                <small>{agency.idolCount}</small>
               </button>
             )
           })}

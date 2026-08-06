@@ -18,7 +18,7 @@ function liveArticle(overrides: Record<string, unknown> = {}) {
     return {
         _id: 'live-1',
         title: 'THE IDOLM@STER TEST LIVE',
-        event_startdate: Date.UTC(2026, 6, 28) / 1000,
+        event_startdate: Date.UTC(2026, 6, 27, 15) / 1000,
         event_dspdate: '17:00 开演',
         event_url: '/live_event/test/',
         brand: [{ code: 'IDOLMASTER' }],
@@ -69,6 +69,28 @@ test('normalizes only live events and preserves brand identity', () => {
     assert.equal(normalizeLiveScheduleArticle(liveArticle({
         event_startdate: Date.UTC(2026, 6, 27, 15) / 1000
     }))?.day, 28);
+});
+
+test('uses the official Japanese date across the UTC and month boundaries', () => {
+    assert.deepEqual(normalizeLiveScheduleArticle(liveArticle({
+        _id: '',
+        event_startdate: Date.UTC(2026, 6, 31, 15) / 1000
+    })), {
+        id: [
+            'THE IDOLM@STER TEST LIVE',
+            '2026-08-01',
+            'https://idolmaster-official.jp/live_event/test/'
+        ].join('|'),
+        year: 2026,
+        month: 8,
+        day: 1,
+        title: 'THE IDOLM@STER TEST LIVE',
+        time: '17:00 开演',
+        location: '',
+        detailUrl: 'https://idolmaster-official.jp/live_event/test/',
+        franchises: ['765PRO ALLSTARS'],
+        brandCodes: ['IDOLMASTER']
+    });
 });
 
 test('loads requested months, deduplicates records, and caches each month', async () => {

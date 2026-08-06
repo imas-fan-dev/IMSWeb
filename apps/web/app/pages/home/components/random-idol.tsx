@@ -155,9 +155,6 @@ export function RandomIdol() {
                 >
                   {selectedIdol.name}
                 </h3>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  剧情站收录 · {request.data?.eligibleCount ?? 0} 位可抽取偶像
-                </p>
               </div>
             </div>
           ) : (

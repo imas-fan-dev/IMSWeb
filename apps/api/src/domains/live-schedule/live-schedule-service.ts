@@ -2,7 +2,12 @@ const CMS_API_BASE =
     'https://cmsapi-frontend.idolmaster-official.jp/sitern/api/';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const LIVE_CATEGORY = 'ライブ・イベント';
-const JAPAN_OFFSET_MS = 9 * 60 * 60 * 1000;
+const LIVE_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric'
+});
 const REQUEST_TIMEOUT_MS = 30_000;
 export const LIVE_SCHEDULE_START_MONTH = '2020-08';
 
@@ -70,6 +75,12 @@ interface CachedSchedule {
     events: LiveScheduleEvent[];
 }
 
+interface LiveDateParts {
+    year: number;
+    month: number;
+    day: number;
+}
+
 const cache = new Map<string, CachedSchedule>();
 const refreshes = new Map<string, Promise<LiveScheduleEvent[]>>();
 
@@ -81,10 +92,21 @@ function dateText(date: Date): string {
     return date.toISOString().slice(0, 10);
 }
 
-function japanCalendarDate(timestamp: number): Date {
-    // CMS timestamps represent schedule dates in Japan time. Shift to JST
-    // before reading UTC fields so the result is independent of server TZ.
-    return new Date(timestamp * 1000 + JAPAN_OFFSET_MS);
+function liveDateParts(date: Date): LiveDateParts {
+    const parts = new Map(
+        LIVE_DATE_FORMATTER.formatToParts(date).map(({ type, value }) => [type, value])
+    );
+    return {
+        year: Number(parts.get('year')),
+        month: Number(parts.get('month')),
+        day: Number(parts.get('day'))
+    };
+}
+
+function liveDateText(parts: LiveDateParts): string {
+    return [parts.year, parts.month, parts.day]
+        .map((value, index) => index === 0 ? String(value) : String(value).padStart(2, '0'))
+        .join('-');
 }
 
 export function isLiveScheduleMonth(value: string): boolean {
@@ -147,21 +169,20 @@ export function normalizeLiveScheduleArticle(
     if (!isLiveEvent(article)) return null;
     const timestamp = Number(article.event_startdate);
     if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
-    const date = japanCalendarDate(timestamp);
+    const date = new Date(timestamp * 1000);
     if (Number.isNaN(date.getTime())) return null;
+    const eventDate = liveDateParts(date);
     const title = stringValue(article.title) || stringValue(article.event_title);
     if (!title) return null;
     const codes = brandCodes(article);
     const id = stringValue(article._id) || [
         title,
-        dateText(date),
+        liveDateText(eventDate),
         detailUrl(article) || ''
     ].join('|');
     return {
         id,
-        year: date.getUTCFullYear(),
-        month: date.getUTCMonth() + 1,
-        day: date.getUTCDate(),
+        ...eventDate,
         title,
         time: stringValue(article.event_dspdate),
         location: '',

@@ -1,6 +1,7 @@
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  CalendarDaysIcon,
   FileImageIcon,
   ImageUpIcon,
   ImagesIcon,
@@ -60,6 +61,25 @@ import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const SESSION_REACTION_LIMIT = 10
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
+const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Asia/Shanghai",
+})
+
+function namecardCreatedAt(value?: string | null) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.valueOf())) return null
+  return {
+    dateTime: date.toISOString(),
+    label: NAMECARD_DATE_FORMATTER.format(date),
+  }
+}
 
 export function meta() {
   return [{ title: "制作人名片墙 | IMSWeb" }]
@@ -168,6 +188,8 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
 }
 
 function NamecardItem({ card }: { card: Namecard }) {
+  const createdAt = namecardCreatedAt(card.created_at)
+
   return (
     <Card className="h-full">
       <div className="grid grid-cols-2 gap-px bg-border">
@@ -183,9 +205,13 @@ function NamecardItem({ card }: { card: Namecard }) {
         ))}
       </div>
       <CardHeader>
-        <CardTitle>制作人名片 #{card.id}</CardTitle>
-        <CardDescription>
-          {card.created_at ? `提交于 ${card.created_at}` : "社区公开名片"}
+        <CardDescription className="flex items-center gap-1.5 tabular-nums">
+          <CalendarDaysIcon aria-hidden="true" className="size-3.5" />
+          {createdAt ? (
+            <time dateTime={createdAt.dateTime}>提交于 {createdAt.label}</time>
+          ) : (
+            <span>提交时间待补充</span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardFooter className="mt-auto">

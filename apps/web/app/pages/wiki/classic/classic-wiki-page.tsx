@@ -9,8 +9,10 @@ import {
 import { useSearchParams } from "react-router"
 
 import { BackToTop } from "~/components/shared/back-to-top"
+import { WikiMobileSearch } from "~/components/wiki/wiki-mobile-search"
 import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
 import type { WikiPublicCatalog } from "~/lib/api"
+import { WikiAgencyDial } from "~/pages/wiki/modern/components/wiki-agency-dial"
 import { contrastingWikiText, safeWikiColor } from "~/pages/wiki/wiki-model"
 
 import { ClassicAgencyNavigation } from "./components/wiki/classic-agency-navigation"
@@ -19,10 +21,6 @@ import {
   type ClassicBackgroundLayers,
   ClassicWikiBackground,
 } from "./components/wiki/classic-wiki-background"
-import {
-  CLASSIC_UNGROUPED_FILTER,
-  type ClassicGroupFilterValue,
-} from "./components/wiki/classic-group-filter"
 import { ClassicWikiContent } from "./components/wiki/classic-wiki-content"
 import { ClassicWikiTools } from "./components/wiki/classic-wiki-tools"
 import "./components/wiki/classic-wiki.css"
@@ -58,7 +56,6 @@ export function ClassicWikiPage() {
     })
   const [query, setQuery] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
-  const [navigationOpen, setNavigationOpen] = useState(false)
   const deferredQuery = useDeferredValue(query)
   const requestKey = `${requestedAgency}\u0000${refreshVersion}`
 
@@ -115,66 +112,11 @@ export function ClassicWikiPage() {
     (agency) => agency.name === requestedAgency
   )
   const accent = safeWikiColor(pendingAgency?.color ?? selection?.agency.color)
-  const groupFilterValue = useMemo<ClassicGroupFilterValue>(() => {
-    const raw = searchParams.get("group")?.trim() ?? ""
-    if (!raw) return new Set()
-    const parsed = new Set<number | typeof CLASSIC_UNGROUPED_FILTER>()
-    for (const part of raw.split(",")) {
-      const trimmed = part.trim()
-      if (!trimmed) continue
-      if (trimmed === CLASSIC_UNGROUPED_FILTER) {
-        parsed.add(CLASSIC_UNGROUPED_FILTER)
-        continue
-      }
-      const num = Number(trimmed)
-      if (Number.isInteger(num)) parsed.add(num)
-    }
-    if (parsed.size === 0 || !selection) return parsed
-
-    // Drop IDs that don't match any known group
-    const knownGroupIds = new Set(selection.groups.map((g) => g.id))
-    const valid = new Set<number | typeof CLASSIC_UNGROUPED_FILTER>()
-    if (parsed.has(CLASSIC_UNGROUPED_FILTER)) valid.add(CLASSIC_UNGROUPED_FILTER)
-    for (const id of parsed) {
-      if (typeof id === "number" && knownGroupIds.has(id)) valid.add(id)
-    }
-    if (valid.size === 0) return valid
-
-    // All-selected is equivalent to no filter
-    const allIds = [
-      ...selection.groups.map((g) => g.id),
-      ...(selection.ungroupedIdols.length > 0
-        ? [CLASSIC_UNGROUPED_FILTER]
-        : []),
-    ]
-    if (
-      allIds.length > 0 &&
-      allIds.every((id) => {
-        if (typeof id === "number") return valid.has(id)
-        return valid.has(CLASSIC_UNGROUPED_FILTER)
-      })
-    ) {
-      return new Set()
-    }
-    return valid
-  }, [searchParams, selection])
-
-  const hasActiveFilter = groupFilterValue.size > 0
   const groups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
     if (!selection) return []
-
-    const selectedIds = new Set(
-      [...groupFilterValue].filter(
-        (v): v is number => typeof v === "number"
-      )
-    )
-    const visibleGroups = hasActiveFilter
-      ? selection.groups.filter((g) => selectedIds.has(g.id))
-      : selection.groups
-
-    if (!normalized) return visibleGroups
-    return visibleGroups
+    if (!normalized) return selection.groups
+    return selection.groups
       .map((group) => ({
         ...group,
         idols: group.name.toLocaleLowerCase("zh-CN").includes(normalized)
@@ -184,27 +126,16 @@ export function ClassicWikiPage() {
             ),
       }))
       .filter((group) => group.idols.length)
-  }, [deferredQuery, groupFilterValue, hasActiveFilter, selection])
-
-  const showUngrouped =
-    !hasActiveFilter || groupFilterValue.has(CLASSIC_UNGROUPED_FILTER)
+  }, [deferredQuery, selection])
 
   const ungroupedIdols = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
-    if (!selection || !showUngrouped) return []
+    if (!selection) return []
     if (!normalized) return selection.ungroupedIdols
     return selection.ungroupedIdols.filter((idol) =>
       idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
     )
-  }, [deferredQuery, selection, showUngrouped])
-  const contentPageCount = selection
-    ? new Set(
-        [
-          ...selection.groups.flatMap((group) => group.idols),
-          ...selection.ungroupedIdols,
-        ].map((idol) => idol.id)
-      ).size
-    : 0
+  }, [deferredQuery, selection])
   const modernWikiAgency = requestIsCurrent
     ? selection?.agency.name
     : requestedAgency
@@ -218,54 +149,22 @@ export function ClassicWikiPage() {
 
   function selectAgency(agency: string) {
     setQuery("")
-    setNavigationOpen(false)
     setSearchParams({ agency }, { preventScrollReset: true })
-  }
-
-  function selectGroup(value: ClassicGroupFilterValue) {
-    if (!selection || !requestIsCurrent) return
-    const nextSearchParams = new URLSearchParams(searchParams)
-    nextSearchParams.set("agency", selection.agency.name)
-
-    // All-selected is equivalent to no filter
-    const allIds = [
-      ...selection.groups.map((g) => g.id),
-      ...(selection.ungroupedIdols.length > 0
-        ? [CLASSIC_UNGROUPED_FILTER]
-        : []),
-    ]
-    const isAllSelected =
-      allIds.length > 0 &&
-      allIds.every((id) => {
-        if (typeof id === "number") return value.has(id)
-        return value.has(CLASSIC_UNGROUPED_FILTER)
-      })
-
-    if (value.size === 0 || isAllSelected) {
-      nextSearchParams.delete("group")
-    } else {
-      nextSearchParams.set("group", [...value].join(","))
-    }
-    setSearchParams(nextSearchParams, { preventScrollReset: true })
   }
 
   return (
     <main id="main-content" className="wiki-classic-shell" style={style}>
       <ClassicWikiBackground layers={backgroundLayers} />
-      <ClassicMobileBar
-        navigationOpen={navigationOpen}
-        modernWikiHref={modernWikiHref}
-        onOpenNavigation={() => setNavigationOpen(true)}
-      />
+      <ClassicMobileBar modernWikiHref={modernWikiHref} />
 
       <div className="wiki-classic-window">
         <ClassicAgencyNavigation
           catalog={catalog}
           requestedAgency={requestedAgency}
           requestIsCurrent={requestIsCurrent}
-          navigationOpen={navigationOpen}
+          navigationOpen={false}
           modernWikiHref={modernWikiHref}
-          onClose={() => setNavigationOpen(false)}
+          onClose={() => undefined}
           onSelectAgency={selectAgency}
         />
         <ClassicWikiContent
@@ -273,14 +172,9 @@ export function ClassicWikiPage() {
           loading={loading}
           requestIsCurrent={requestIsCurrent}
           selection={selection}
-          contentPageCount={contentPageCount}
-          query={query}
-          groupFilterValue={groupFilterValue}
           groupFilterDisabled={!requestIsCurrent}
           groups={groups}
           ungroupedIdols={ungroupedIdols}
-          searchEntries={catalog?.searchEntries ?? []}
-          onGroupFilterChange={selectGroup}
           onQueryChange={setQuery}
           onRetry={() => setRefreshVersion((current) => current + 1)}
         />
@@ -296,6 +190,18 @@ export function ClassicWikiPage() {
           setBackgroundVersion((current) => current + 1)
         }
         onToggleSearch={() => setSearchOpen((current) => !current)}
+      />
+      <WikiAgencyDial
+        agencies={catalog?.agencies ?? []}
+        selectedAgency={requestedAgency || selection?.agency.name || null}
+        disabled={!requestIsCurrent}
+        visibilityClassName="min-[851px]:hidden"
+        onSelectAgency={selectAgency}
+      />
+      <WikiMobileSearch
+        entries={catalog?.searchEntries ?? []}
+        view="classic"
+        className="min-[851px]:hidden"
       />
       <BackToTop className="wiki-classic-back-to-top" />
     </main>

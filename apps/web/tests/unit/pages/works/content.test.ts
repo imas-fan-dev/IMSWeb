@@ -54,6 +54,12 @@ describe("works content", () => {
     expect(getWorkEntry("unknown")).toBeUndefined()
   })
 
+  it("uses the official Japanese Cinderella Girls title", () => {
+    expect(getWorkEntry("cg")?.japaneseName).toBe(
+      "アイドルマスター シンデレラガールズ 偶像大师灰姑娘女孩"
+    )
+  })
+
   it("routes franchises to their Wiki project pages", () => {
     expect(
       workEntries.map((entry) => [entry.slug, getWorkDestination(entry)])

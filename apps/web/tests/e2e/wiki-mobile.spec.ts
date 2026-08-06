@@ -54,6 +54,325 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
     .toBeLessThanOrEqual(20)
 })
 
+test("modern Wiki windowed dial loops and switches agencies", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "mobile-only Wiki interaction")
+  test.slow()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/wiki?agency=765PRO")
+
+  const trigger = page.getByRole("button", { name: "打开企划拨盘" })
+  const searchButton = page.getByRole("button", { name: "打开全屏搜索" })
+  await expect(trigger).toBeVisible()
+  await expect(searchButton).toBeVisible()
+  await expect(trigger).toHaveCSS("position", "fixed")
+
+  const [triggerBox, searchBox] = await Promise.all([
+    trigger.boundingBox(),
+    searchButton.boundingBox(),
+  ])
+  expect(triggerBox).not.toBeNull()
+  expect(searchBox).not.toBeNull()
+  expect(triggerBox!.x).toBeLessThanOrEqual(17)
+  expect(triggerBox!.width).toBe(56)
+  expect(triggerBox!.x + triggerBox!.width).toBeLessThan(searchBox!.x)
+
+  await trigger.click()
+
+  const dialog = page.getByRole("dialog")
+  const dial = dialog.getByRole("group", { name: "企划拨盘" })
+  const carouselWindow = dialog.getByTestId("wiki-agency-carousel-window")
+  const selectedOption = carouselWindow.locator(
+    'button[aria-label^="预览企划 "][aria-pressed="true"]'
+  )
+  const previewOption = carouselWindow.locator(
+    'button[data-wiki-agency-preview="true"]'
+  )
+  await expect(dialog).toBeVisible()
+  await expect(dial).toBeFocused()
+  await expect(selectedOption).toHaveCount(1)
+  await expect(previewOption).toHaveCount(1)
+  await expect(dialog.locator(".lucide-chevron-down")).toHaveCount(0)
+  const directionIndicator = dialog.locator("[data-wiki-agency-dial-direction]")
+  await expect(directionIndicator).toBeVisible()
+  await expect(directionIndicator).toHaveAttribute("viewBox", "0 0 120 120")
+  await expect(directionIndicator.locator("path")).toHaveCount(3)
+  await expect(
+    directionIndicator.locator(".wiki-agency-dial-direction-arc")
+  ).toHaveAttribute("d", "M 60 16 A 44 44 0 0 1 104 60")
+  await expect(
+    directionIndicator.locator(".wiki-agency-dial-direction-head").first()
+  ).toHaveAttribute("d", "M 66 11 L 60 16 L 66 21")
+  const directionStyles = await directionIndicator.evaluate((element) => {
+    const arc = getComputedStyle(
+      element.querySelector<SVGPathElement>(".wiki-agency-dial-direction-arc")!
+    )
+    const head = getComputedStyle(
+      element.querySelector<SVGPathElement>(".wiki-agency-dial-direction-head")!
+    )
+    return {
+      arcStroke: arc.stroke,
+      headStroke: head.stroke,
+      lineCap: head.strokeLinecap,
+      lineJoin: head.strokeLinejoin,
+      strokeWidth: head.strokeWidth,
+    }
+  })
+  expect(directionStyles.arcStroke).toBe(directionStyles.headStroke)
+  expect(directionStyles.lineCap).toBe("round")
+  expect(directionStyles.lineJoin).toBe("round")
+  expect(directionStyles.strokeWidth).toBe("2.5px")
+  const highlightColors = await dialog.evaluate((element) => ({
+    center: getComputedStyle(
+      element.querySelector<HTMLElement>("[data-wiki-agency-dial-center]")!
+    ).borderTopColor,
+    selected: getComputedStyle(
+      element.querySelector<HTMLElement>(
+        '[aria-label^="预览企划 "][aria-pressed="true"]'
+      )!
+    ).borderTopColor,
+  }))
+  expect(highlightColors.center).not.toBe(highlightColors.selected)
+  await expect(
+    carouselWindow.locator('button[aria-label^="预览企划 "]')
+  ).toHaveCount(5)
+  await expect
+    .poll(async () => (await dial.boundingBox())?.x ?? Number.POSITIVE_INFINITY)
+    .toBeLessThanOrEqual(13)
+  await expect
+    .poll(() =>
+      dialog.evaluate((element) =>
+        element
+          .getAnimations({ subtree: false })
+          .every((animation) => animation.playState === "finished")
+      )
+    )
+    .toBe(true)
+
+  const dialBox = await dial.boundingBox()
+  const expandedCenterBox = await dialog
+    .locator("[data-wiki-agency-dial-center]")
+    .boundingBox()
+  const directionBox = await dialog
+    .locator("[data-wiki-agency-dial-direction]")
+    .boundingBox()
+  const orbitBox = await dialog
+    .locator("[data-wiki-agency-dial-orbit]")
+    .boundingBox()
+  const previewOrbitOptionBox = await previewOption.boundingBox()
+  expect(dialBox).not.toBeNull()
+  expect(expandedCenterBox).not.toBeNull()
+  expect(directionBox).not.toBeNull()
+  expect(orbitBox).not.toBeNull()
+  expect(previewOrbitOptionBox).not.toBeNull()
+  expect(Math.abs(dialBox!.width - dialBox!.height)).toBeLessThanOrEqual(1)
+  expect(directionBox!.width / dialBox!.width).toBeGreaterThan(0.44)
+  expect(directionBox!.width / dialBox!.width).toBeLessThan(0.47)
+  expect(expandedCenterBox!.width).toBe(48)
+  expect(expandedCenterBox!.height).toBe(48)
+  expect(
+    Math.abs(
+      expandedCenterBox!.x +
+        expandedCenterBox!.width / 2 -
+        (triggerBox!.x + triggerBox!.width / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(
+      expandedCenterBox!.y +
+        expandedCenterBox!.height / 2 -
+        (triggerBox!.y + triggerBox!.height / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(
+      directionBox!.x +
+        directionBox!.width / 2 -
+        (dialBox!.x + dialBox!.width / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(
+      directionBox!.y +
+        directionBox!.height / 2 -
+        (dialBox!.y + dialBox!.height / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  const dialCenter = {
+    x: dialBox!.x + dialBox!.width / 2,
+    y: dialBox!.y + dialBox!.height / 2,
+  }
+  const orbitCenter = {
+    x: orbitBox!.x + orbitBox!.width / 2,
+    y: orbitBox!.y + orbitBox!.height / 2,
+  }
+  const previewOrbitOptionCenter = {
+    x: previewOrbitOptionBox!.x + previewOrbitOptionBox!.width / 2,
+    y: previewOrbitOptionBox!.y + previewOrbitOptionBox!.height / 2,
+  }
+  expect(Math.abs(orbitCenter.x - dialCenter.x)).toBeLessThanOrEqual(1)
+  expect(Math.abs(orbitCenter.y - dialCenter.y)).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(
+      Math.hypot(
+        previewOrbitOptionCenter.x - dialCenter.x,
+        previewOrbitOptionCenter.y - dialCenter.y
+      ) -
+        orbitBox!.width / 2
+    )
+  ).toBeLessThanOrEqual(1)
+  const popupMotion = await dialog.evaluate((element) => {
+    const style = getComputedStyle(element)
+    const origin = style.transformOrigin
+      .split(" ")
+      .slice(0, 2)
+      .map(Number.parseFloat)
+    const item = element.querySelector<HTMLElement>(
+      "[data-wiki-agency-dial-item]"
+    )
+    return {
+      animationName: style.animationName,
+      itemAnimationName: item ? getComputedStyle(item).animationName : "",
+      origin,
+    }
+  })
+  expect(popupMotion.animationName).toContain("wiki-agency-dial-popup-in")
+  expect(popupMotion.itemAnimationName).toContain("wiki-agency-dial-item-in")
+  expect(
+    Math.abs(
+      dialBox!.x +
+        popupMotion.origin[0]! -
+        (triggerBox!.x + triggerBox!.width / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(
+      dialBox!.y +
+        popupMotion.origin[1]! -
+        (triggerBox!.y + triggerBox!.height / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  await expect(
+    carouselWindow.locator('[data-wiki-agency-carousel-slot="0"]')
+  ).toHaveCSS("transition-duration", "0s")
+
+  const beforeSelection = await selectedOption.getAttribute("aria-label")
+  const selectedOptionBox = await previewOption.boundingBox()
+  const outgoingEdgeOption = carouselWindow.locator(
+    '[data-wiki-agency-carousel-virtual-slot="-2"] button'
+  )
+  await expect(outgoingEdgeOption).toHaveCount(1)
+  expect(selectedOptionBox).not.toBeNull()
+  const optionCenterX = selectedOptionBox!.x + selectedOptionBox!.width / 2
+  const optionCenterY = selectedOptionBox!.y + selectedOptionBox!.height / 2
+  await page.mouse.move(optionCenterX, optionCenterY)
+  await page.mouse.down()
+  await page.mouse.move(optionCenterX - 8, optionCenterY, { steps: 2 })
+  await expect
+    .poll(async () =>
+      Number(await dial.getAttribute("data-wiki-agency-dial-position"))
+    )
+    .toBeGreaterThan(0.07)
+  await expect(outgoingEdgeOption).toHaveCount(1)
+  const outgoingEdgeBox = await outgoingEdgeOption.boundingBox()
+  expect(outgoingEdgeBox).not.toBeNull()
+  expect(outgoingEdgeBox!.x + outgoingEdgeBox!.width).toBeLessThanOrEqual(0)
+  await page.mouse.move(optionCenterX - 24, optionCenterY, { steps: 4 })
+  await expect(outgoingEdgeOption).toHaveCount(0)
+  const firstContinuousPosition = Number(
+    await dial.getAttribute("data-wiki-agency-dial-position")
+  )
+  await page.mouse.move(optionCenterX - 58, optionCenterY, { steps: 6 })
+  const secondContinuousPosition = Number(
+    await dial.getAttribute("data-wiki-agency-dial-position")
+  )
+  expect(firstContinuousPosition).toBeGreaterThan(0.3)
+  expect(firstContinuousPosition).toBeLessThan(0.4)
+  expect(secondContinuousPosition).toBeGreaterThan(
+    firstContinuousPosition + 0.45
+  )
+  expect(Math.abs(secondContinuousPosition % 1)).toBeGreaterThan(0.1)
+  await page.waitForTimeout(100)
+  await page.mouse.up()
+
+  await expect
+    .poll(() => previewOption.getAttribute("aria-label"))
+    .not.toBe(beforeSelection)
+  await expect(previewOption).toHaveAttribute("aria-pressed", "false")
+  await expect(selectedOption).toHaveAttribute("aria-label", beforeSelection!)
+  await expect(dial).toHaveAttribute("data-wiki-agency-dial-interacted")
+  await expect(dial).not.toHaveAttribute("data-wiki-agency-dial-inertia")
+  const restingPosition = Number(
+    await dial.getAttribute("data-wiki-agency-dial-position")
+  )
+  expect(Math.abs(restingPosition - secondContinuousPosition)).toBeLessThan(
+    0.03
+  )
+  expect(
+    Math.abs(restingPosition - Math.round(restingPosition))
+  ).toBeGreaterThan(0.1)
+  await expect
+    .poll(() =>
+      carouselWindow
+        .locator('[data-wiki-agency-carousel-slot="1"]')
+        .evaluate((element) => getComputedStyle(element).animationName)
+    )
+    .toBe("none")
+
+  const continuousDialBox = await dial.boundingBox()
+  expect(continuousDialBox).not.toBeNull()
+  const flingStartX = continuousDialBox!.x + continuousDialBox!.width * 0.72
+  const flingStartY = continuousDialBox!.y + continuousDialBox!.height * 0.58
+  await page.mouse.move(flingStartX, flingStartY)
+  await page.mouse.down()
+  await page.mouse.move(flingStartX - 84, flingStartY, { steps: 2 })
+  await page.mouse.up()
+  await expect(dial).toHaveAttribute("data-wiki-agency-dial-inertia", "true")
+  const flingReleasePosition = Number(
+    await dial.getAttribute("data-wiki-agency-dial-position")
+  )
+  await expect
+    .poll(async () =>
+      Number(await dial.getAttribute("data-wiki-agency-dial-position"))
+    )
+    .toBeGreaterThan(flingReleasePosition + 0.05)
+  await expect(dial).not.toHaveAttribute("data-wiki-agency-dial-inertia", {
+    timeout: 2000,
+  })
+
+  const previewLabel = await previewOption.getAttribute("aria-label")
+  const previewAgency = previewLabel!.replace("预览企划 ", "")
+
+  expect(new URL(page.url()).searchParams.get("agency")).toBe(
+    beforeSelection!.replace("预览企划 ", "")
+  )
+  await dialog.getByRole("button", { name: `切换到${previewAgency}` }).click()
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("agency"))
+    .toBe(previewAgency)
+  await expect(dialog).not.toBeVisible()
+
+  await page.getByRole("button", { name: "打开企划拨盘" }).click()
+  const directOption = page
+    .getByRole("dialog")
+    .locator('button[aria-label^="预览企划 "][aria-pressed="false"]')
+    .first()
+  await expect(directOption).toBeVisible()
+  const directAgency = (await directOption.getAttribute("aria-label"))!.replace(
+    "预览企划 ",
+    ""
+  )
+  await directOption.click()
+
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("agency"))
+    .toBe(directAgency)
+  await expect(page.getByRole("dialog")).not.toBeVisible()
+})
+
 test("classic Wiki follows the mobile content order without narrow title wraps", async ({
   page,
   isMobile,
@@ -63,52 +382,128 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   await page.setViewportSize({ width: 320, height: 844 })
   await page.goto("/wiki/classic")
 
-  const navigationButton = page.getByRole("button", {
-    name: "打开企划导航",
-  })
+  const homeLink = page
+    .locator(".wiki-classic-mobile-bar")
+    .getByRole("link", { name: "返回首页" })
   const sidebar = page.locator(".wiki-classic-sidebar")
-  const agencyRail = page.getByRole("tablist", { name: "偶像大师企划" })
   const banner = page.locator(".wiki-classic-banner")
-  const inlineSearch = page.getByRole("textbox", {
-    name: "移动端全局搜索内容页",
+  const groupNavigation = page.getByRole("region", {
+    name: "组合与分类导航",
   })
-  const groupFilter = page.getByRole("region", { name: "组合与分类筛选" })
   const firstGroup = page.locator(".wiki-classic-group").first()
-  await expect(navigationButton).toHaveAttribute("aria-expanded", "false")
+  const searchButton = page.getByRole("button", { name: "打开全屏搜索" })
+  const agencyDialTrigger = page.getByRole("button", {
+    name: "打开企划拨盘",
+  })
+  await expect(homeLink).toHaveAttribute("href", "/")
+  await expect(homeLink.locator(".lucide-house")).toHaveCount(1)
   await expect(sidebar).not.toHaveClass(/is-open/)
   await expect(banner).toBeVisible()
-  await expect(inlineSearch).toBeVisible()
-  await expect(groupFilter).toBeVisible()
+  await expect(groupNavigation).toBeVisible()
   await expect(firstGroup).toBeVisible()
+  await expect(searchButton).toBeVisible()
+  await expect(agencyDialTrigger).toBeVisible()
+  await expect(page.getByRole("button", { name: "切换壁纸" })).not.toBeVisible()
+  await expect(page.getByRole("button", { name: "返回顶部" })).toHaveCount(0)
   await expect(page.locator(".wiki-classic-idol-kind")).toHaveCount(0)
 
-  const [bannerBox, searchBox, filterBox, groupBox] = await Promise.all([
+  const [bannerBox, navigationBox, groupBox] = await Promise.all([
     banner.boundingBox(),
-    inlineSearch.boundingBox(),
-    groupFilter.boundingBox(),
+    groupNavigation.boundingBox(),
     firstGroup.boundingBox(),
   ])
   expect(bannerBox).not.toBeNull()
-  expect(searchBox).not.toBeNull()
-  expect(filterBox).not.toBeNull()
+  expect(navigationBox).not.toBeNull()
   expect(groupBox).not.toBeNull()
-  expect(bannerBox!.y).toBeLessThan(searchBox!.y)
-  expect(searchBox!.y).toBeLessThan(filterBox!.y)
-  expect(filterBox!.y).toBeLessThan(groupBox!.y)
+  expect(bannerBox!.y).toBeLessThan(navigationBox!.y)
+  expect(navigationBox!.y).toBeLessThan(groupBox!.y)
+  expect(bannerBox!.x).toBeGreaterThanOrEqual(13)
+  expect(bannerBox!.x).toBeLessThanOrEqual(15)
+  expect(groupBox!.x).toBeGreaterThanOrEqual(13)
+  expect(groupBox!.x).toBeLessThanOrEqual(15)
+  expect(320 - bannerBox!.x - bannerBox!.width).toBeGreaterThanOrEqual(13)
+  expect(320 - bannerBox!.x - bannerBox!.width).toBeLessThanOrEqual(15)
+  expect(320 - groupBox!.x - groupBox!.width).toBeGreaterThanOrEqual(13)
+  expect(320 - groupBox!.x - groupBox!.width).toBeLessThanOrEqual(15)
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth
     )
   ).toBe(true)
 
-  const groupOption = groupFilter
-    .locator('[role="tab"][aria-selected="false"]')
+  await agencyDialTrigger.click()
+  const agencyDialDialog = page.getByRole("dialog")
+  await expect(agencyDialDialog).toBeVisible()
+  await expect(
+    agencyDialDialog.locator("[data-wiki-agency-dial-direction]")
+  ).toBeVisible()
+  await expect(
+    agencyDialDialog.locator('button[aria-label^="预览企划 "]')
+  ).toHaveCount(5)
+  await agencyDialDialog.getByRole("button", { name: "关闭企划拨盘" }).click()
+  await expect(agencyDialDialog).not.toBeVisible()
+
+  await searchButton.click()
+  const searchDialog = page.getByRole("dialog")
+  const mobileSearch = page.getByRole("textbox", {
+    name: "移动端全局搜索内容页",
+  })
+  const searchOverlay = page.locator('[data-slot="dialog-overlay"]')
+  const searchSurface = page.locator(
+    '[data-wiki-mobile-search-surface="classic"]'
+  )
+  const searchPanel = page.locator('[data-wiki-mobile-search-panel="classic"]')
+  await expect(searchDialog).toBeVisible()
+  await expect(searchDialog).toHaveAttribute(
+    "data-wiki-mobile-search-dialog",
+    "classic"
+  )
+  await expect(searchDialog).toHaveCSS("position", "fixed")
+  await expect(searchDialog).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  await expect(searchSurface).toBeVisible()
+  await expect
+    .poll(async () => (await searchPanel.boundingBox())?.y ?? -1)
+    .toBeGreaterThanOrEqual(23)
+  expect(
+    await searchOverlay.evaluate(
+      (element) => getComputedStyle(element).backdropFilter
+    )
+  ).toContain("blur")
+  await expect(mobileSearch).toBeFocused()
+  await expect
+    .poll(async () => {
+      const box = await searchDialog.boundingBox()
+      return box
+        ? {
+            x: Math.round(box.x),
+            y: Math.round(box.y),
+            width: Math.round(box.width),
+            height: Math.round(box.height),
+          }
+        : null
+    })
+    .toEqual({ x: 0, y: 0, width: 320, height: 844 })
+  await mobileSearch.fill("天海春香")
+  await expect(
+    searchPanel.getByRole("navigation", { name: "全局搜索结果" })
+  ).toBeVisible()
+  await page.locator('[data-wiki-mobile-search-dismiss="classic"]').click()
+  await expect(searchDialog).not.toBeVisible()
+
+  const groupOption = groupNavigation
+    .locator('a[href^="#classic-group-"]')
     .first()
   await expect(groupOption).toBeVisible()
+  const groupHref = await groupOption.getAttribute("href")
   await groupOption.click()
+  await expect.poll(() => new URL(page.url()).hash).toBe(groupHref)
   await expect
-    .poll(() => new URL(page.url()).searchParams.get("group"))
-    .not.toBeNull()
+    .poll(async () => (await groupNavigation.boundingBox())?.y ?? -1)
+    .toBeGreaterThanOrEqual(72)
+  await expect
+    .poll(async () => (await groupNavigation.boundingBox())?.y ?? 999)
+    .toBeLessThanOrEqual(76)
+  await expect(page.getByRole("button", { name: "返回顶部" })).not.toBeVisible()
 
   const columnCount = await page
     .locator(".wiki-classic-idol-grid")
@@ -119,59 +514,6 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
     )
   expect(columnCount).toBe(3)
 
-  await navigationButton.click()
-  await expect(navigationButton).toHaveAttribute("aria-expanded", "true")
-  await expect(sidebar).toHaveClass(/is-open/)
-  await expect(agencyRail).toBeVisible()
-  const navigationLayout = await sidebar.evaluate((element) => {
-    const sidebarRect = element.getBoundingClientRect()
-    const agencyButtons = Array.from(
-      element.querySelectorAll<HTMLElement>(
-        ".wiki-classic-agency-button[role='tab']"
-      )
-    )
-    const secondaryButtons = Array.from(
-      element.querySelectorAll<HTMLElement>(
-        ".wiki-classic-agency-button.is-secondary"
-      )
-    )
-
-    return {
-      overflowingLabels: [...agencyButtons, ...secondaryButtons]
-        .filter((button) => {
-          const rect = button.getBoundingClientRect()
-          return rect.left < sidebarRect.left || rect.right > sidebarRect.right
-        })
-        .map((button) => button.textContent?.trim()),
-      agencyButtons: agencyButtons.map((button) => {
-        const style = getComputedStyle(button)
-        return {
-          borderRadius: style.borderRadius,
-          borderRightWidth: style.borderRightWidth,
-        }
-      }),
-      secondaryButtons: secondaryButtons.map((button) => ({
-        borderRadius: getComputedStyle(button).borderRadius,
-        borderRightWidth: getComputedStyle(button).borderRightWidth,
-      })),
-    }
-  })
-  expect(navigationLayout.overflowingLabels).toEqual([])
-  expect(navigationLayout.agencyButtons).toHaveLength(7)
-  expect(navigationLayout.agencyButtons).toEqual(
-    Array.from({ length: 7 }, () => ({
-      borderRadius: "14px",
-      borderRightWidth: "2px",
-    }))
-  )
-  expect(navigationLayout.secondaryButtons).toEqual([
-    { borderRadius: "14px", borderRightWidth: "0px" },
-    { borderRadius: "14px", borderRightWidth: "0px" },
-  ])
-  const millionLive = agencyRail.getByRole("tab", { name: /百万现场/ })
-  await millionLive.click()
-  await expect(navigationButton).toHaveAttribute("aria-expanded", "false")
-  await expect(sidebar).not.toHaveClass(/is-open/)
   await expect(banner).toHaveCSS("padding-left", "18px")
   const title = banner.locator("h1")
   await expect(title).toHaveCSS("word-break", "keep-all")
@@ -183,6 +525,96 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
     ).size
   })
   expect(titleLineCount).toBeLessThanOrEqual(2)
+})
+
+test("modern Wiki keeps group navigation and mobile search fixed", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "mobile-only modern Wiki interaction")
+
+  await page.route("**/api/check", (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        user: {
+          id: 3,
+          username: "operator",
+          producername: "Operator",
+          dept: "op",
+          adminRole: "admin",
+        },
+      },
+    })
+  )
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/wiki?agency=闪耀色彩")
+
+  const groupNavigation = page.getByRole("region", {
+    name: "组合与分类导航",
+  })
+  const groupOption = groupNavigation.locator('a[href^="#wiki-group-"]').first()
+  const searchButton = page.getByRole("button", { name: "打开全屏搜索" })
+  const adminShortcut = page.getByRole("link", { name: "返回管理工作台" })
+  await expect(groupNavigation).toBeVisible()
+  await expect(searchButton).toBeVisible()
+  await expect(adminShortcut).toBeVisible()
+
+  await expect
+    .poll(async () => {
+      const [searchBox, adminBox] = await Promise.all([
+        searchButton.boundingBox(),
+        adminShortcut.boundingBox(),
+      ])
+      return searchBox && adminBox
+        ? adminBox.y - searchBox.y - searchBox.height
+        : -1
+    })
+    .toBeGreaterThanOrEqual(7.5)
+
+  const groupHref = await groupOption.getAttribute("href")
+  await groupOption.click()
+  await expect.poll(() => new URL(page.url()).hash).toBe(groupHref)
+  await expect
+    .poll(async () => (await groupNavigation.boundingBox())?.y ?? -1)
+    .toBeGreaterThanOrEqual(62)
+  await expect
+    .poll(async () => (await groupNavigation.boundingBox())?.y ?? 999)
+    .toBeLessThanOrEqual(66)
+  await expect(page.getByRole("button", { name: "返回顶部" })).not.toBeVisible()
+
+  await searchButton.click()
+  const searchDialog = page.getByRole("dialog")
+  const mobileSearch = page.getByRole("textbox", {
+    name: "移动端全局搜索内容页",
+  })
+  const searchOverlay = page.locator('[data-slot="dialog-overlay"]')
+  const searchSurface = page.locator(
+    '[data-wiki-mobile-search-surface="modern"]'
+  )
+  const searchPanel = page.locator('[data-wiki-mobile-search-panel="modern"]')
+  await expect(searchDialog).toBeVisible()
+  await expect(searchDialog).toHaveAttribute(
+    "data-wiki-mobile-search-dialog",
+    "modern"
+  )
+  await expect(searchDialog).toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+  await expect(searchSurface).toBeVisible()
+  await expect
+    .poll(async () => (await searchPanel.boundingBox())?.y ?? -1)
+    .toBeGreaterThanOrEqual(23)
+  expect(
+    await searchOverlay.evaluate(
+      (element) => getComputedStyle(element).backdropFilter
+    )
+  ).toContain("blur")
+  await expect(mobileSearch).toBeFocused()
+  await mobileSearch.fill("樱木真乃")
+  await expect(
+    searchPanel.getByRole("navigation", { name: "全局搜索结果" })
+  ).toBeVisible()
+  await page.locator('[data-wiki-mobile-search-dismiss="modern"]').click()
+  await expect(searchDialog).not.toBeVisible()
 })
 
 test("classic story portrait cards use two readable mobile columns", async ({
@@ -238,6 +670,43 @@ test("story source labels stay visible in both mobile views", async ({
       )
     ).toBe(true)
   }
+})
+
+test("modern story navigation stays clickable over the mobile footer", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "mobile-only floating navigation")
+
+  await page.goto(
+    "/story?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
+  )
+
+  const trigger = page.getByRole("button", {
+    name: "打开上水流宇宙剧情导航",
+  })
+  const footer = page.getByRole("contentinfo")
+  await expect(trigger).toBeVisible()
+  await footer.scrollIntoViewIfNeeded()
+
+  const footerBox = await footer.boundingBox()
+  const triggerBox = await trigger.boundingBox()
+  expect(footerBox).not.toBeNull()
+  expect(triggerBox).not.toBeNull()
+  expect(triggerBox!.y + triggerBox!.height).toBeGreaterThan(footerBox!.y)
+
+  const triggerOwnsCenterPoint = await trigger.evaluate((element) => {
+    const bounds = element.getBoundingClientRect()
+    const hitTarget = document.elementFromPoint(
+      bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2
+    )
+    return hitTarget === element || element.contains(hitTarget)
+  })
+  expect(triggerOwnsCenterPoint).toBe(true)
+
+  await trigger.click()
+  await expect(page.getByRole("dialog")).toBeVisible()
 })
 
 test("classic text-only story cards do not render nested frames", async ({

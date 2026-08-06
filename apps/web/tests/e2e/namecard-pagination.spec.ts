@@ -62,6 +62,9 @@ test("namecard wall changes page size and jumps to a page", async ({
   await page.getByRole("button", { name: "跳转" }).click()
 
   await expect(page.getByText("第 3 / 4 页，共 80 张")).toBeVisible()
-  await expect(page.getByText("制作人名片 #3")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "查看制作人名片 3 正面" })
+  ).toBeVisible()
+  await expect(page.getByText("制作人名片 #3")).toHaveCount(0)
   expect(consoleErrors).toEqual([])
 })

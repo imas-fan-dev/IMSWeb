@@ -204,7 +204,7 @@ describe("home supporting sections", () => {
     expect(
       screen.getByText("从剧情站角色档案中邂逅一位新的担当。")
     ).toBeVisible()
-    expect(screen.getByText("剧情站收录 · 345 位可抽取偶像")).toBeVisible()
+    expect(screen.queryByText(/剧情站收录/)).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "查看剧情档案" })).toHaveAttribute(
       "href",
       "/story?agency=765PRO&idol=%E5%A4%A9%E6%B5%B7%E6%98%A5%E9%A6%99"
