@@ -597,9 +597,7 @@ test("home exposes current discovery and birthday interactions", async ({
   await expect(
     randomIdol.getByRole("link", { name: "查看剧情档案" })
   ).toHaveAttribute("href", /^\/story\?agency=.+&idol=.+/)
-  await expect(
-    randomIdol.getByText(/剧情站收录 · \d+ 位可抽取偶像/)
-  ).toBeVisible()
+  await expect(randomIdol.getByText(/剧情站收录/)).toHaveCount(0)
 
   const siteSupport = page.getByRole("region", { name: "网站支持" })
   await expect(siteSupport.getByRole("link")).toHaveCount(3)
@@ -624,6 +622,7 @@ test("home random idol uses a square portrait and agency marker", async ({
   await expect(avatar).toBeVisible()
   await expect(agencyMarker).toBeVisible()
   await expect(archiveLink).toBeVisible()
+  await expect(randomIdol.getByText(/剧情站收录/)).toHaveCount(0)
   await expect
     .poll(async () => {
       const box = await avatar.boundingBox()

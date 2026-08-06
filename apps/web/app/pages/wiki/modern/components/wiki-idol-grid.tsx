@@ -68,10 +68,12 @@ function IdolSection({
 }) {
   return (
     <section
-      aria-labelledby={headingId}
+      id={headingId}
+      aria-labelledby={`${headingId}-title`}
+      className="scroll-mt-36"
       style={{ contentVisibility: "auto", containIntrinsicSize: "640px" }}
     >
-      <div className="mb-4 flex items-center justify-between gap-4 border-b pb-3">
+      <div className="mb-4 flex items-center gap-4 border-b pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <span
             className="h-8 w-1 shrink-0 rounded-full"
@@ -90,13 +92,13 @@ function IdolSection({
               }}
             />
           ) : null}
-          <h3 id={headingId} className="text-lg font-semibold wrap-break-word">
+          <h3
+            id={`${headingId}-title`}
+            className="text-lg font-semibold wrap-break-word"
+          >
             {title}
           </h3>
         </div>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {idols.length} 个内容页
-        </span>
       </div>
 
       <div className="grid grid-cols-3 gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">

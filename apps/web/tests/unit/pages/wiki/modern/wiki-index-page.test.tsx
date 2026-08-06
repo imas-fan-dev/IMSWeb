@@ -246,11 +246,21 @@ describe("WikiIndexPage", () => {
       screen.getByRole("heading", { name: "illumination STARS" })
     ).toBeVisible()
     const agencyTabs = screen.getByRole("tablist", { name: "偶像大师企划" })
-    expect(
-      within(agencyTabs)
-        .getByRole("tab", { name: /闪耀色彩/ })
-        .querySelector("img")
-    ).toHaveAttribute("src", "/icon/agencies/6.webp")
+    const selectedAgencyTab = within(agencyTabs).getByRole("tab", {
+      name: /闪耀色彩/,
+    })
+    const selectedAgencyIcon = selectedAgencyTab.querySelector("img")
+    expect(selectedAgencyIcon).toHaveAttribute("src", "/icon/agencies/6.webp")
+    expect(selectedAgencyIcon?.parentElement).not.toHaveClass("border")
+    expect(selectedAgencyTab).toHaveClass("border")
+    const groupNavigation = screen.getByRole("navigation", {
+      name: "跳转到组合或分类",
+    })
+    const groupLink = within(groupNavigation).getByRole("link", {
+      name: "illumination STARS",
+    })
+    expect(groupLink.firstElementChild).not.toHaveClass("border")
+    expect(groupLink).toHaveClass("border")
     await user.click(within(agencyTabs).getByRole("tab", { name: /765PRO/ }))
     expect(await screen.findByRole("link", { name: /天海春香/ })).toBeVisible()
     expect(
@@ -264,6 +274,100 @@ describe("WikiIndexPage", () => {
 
     await user.type(screen.getByLabelText("全局搜索内容页"), "不存在")
     expect(await screen.findByText("没有匹配的内容页")).toBeVisible()
+  })
+
+  it("switches agencies from the mobile rotary dial", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        if (url.pathname === "/api/wiki/random_bg") {
+          return response({ url: "" })
+        }
+        if (url.pathname === "/api/wiki/catalog") {
+          return response(
+            catalogPayload(
+              url.searchParams.get("agency") === "765PRO"
+                ? "765PRO"
+                : "闪耀色彩"
+            )
+          )
+        }
+        return Promise.reject(new Error(`Unexpected request ${url.pathname}`))
+      })
+    )
+    const user = userEvent.setup()
+
+    renderWiki()
+    await screen.findByRole("link", { name: /樱木真乃/ })
+
+    const trigger = screen.getByRole("button", { name: "打开企划拨盘" })
+    expect(trigger).toHaveClass("md:hidden")
+    await user.click(trigger)
+
+    const dialog = screen.getByRole("dialog")
+    const dial = within(dialog).getByRole("group", { name: "企划拨盘" })
+    expect(dial).toHaveAttribute("aria-roledescription", "无限滚动拨盘")
+    expect(
+      within(dialog).getAllByRole("button", { name: /预览企划/ })
+    ).toHaveLength(2)
+    expect(
+      within(dialog).getByRole("button", { name: "预览企划 闪耀色彩" })
+    ).toHaveAttribute("aria-pressed", "true")
+    expect(dialog.querySelector(".lucide-chevron-down")).toBeNull()
+    const directionIndicator = dialog.querySelector(
+      "[data-wiki-agency-dial-direction]"
+    )
+    expect(directionIndicator).toHaveAttribute("viewBox", "0 0 120 120")
+    expect(directionIndicator?.querySelectorAll("path")).toHaveLength(3)
+    expect(
+      directionIndicator?.querySelector(".wiki-agency-dial-direction-arc")
+    ).toHaveAttribute("d", "M 60 16 A 44 44 0 0 1 104 60")
+    expect(
+      directionIndicator?.querySelector(".wiki-agency-dial-direction-head")
+    ).toHaveAttribute("d", "M 66 11 L 60 16 L 66 21")
+    expect(dial).toHaveAttribute("data-wiki-agency-dial-position", "0.000")
+    expect(
+      within(dialog).getByRole("button", { name: "切换到闪耀色彩" })
+    ).toHaveClass("border-foreground/15")
+
+    dial.focus()
+    await user.keyboard("{ArrowRight}")
+
+    expect(
+      within(dialog).getByRole("button", { name: "预览企划 765PRO" })
+    ).toHaveAttribute("aria-pressed", "false")
+    expect(
+      within(dialog).getByRole("button", { name: "预览企划 765PRO" })
+    ).toHaveAttribute("data-wiki-agency-preview", "true")
+    expect(
+      within(dialog).getByRole("button", { name: "预览企划 闪耀色彩" })
+    ).toHaveAttribute("aria-pressed", "true")
+    await user.click(
+      within(dialog).getByRole("button", { name: "切换到765PRO" })
+    )
+
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      "agency=765PRO"
+    )
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: /天海春香/ })).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "打开企划拨盘" }))
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "预览企划 闪耀色彩",
+      })
+    )
+
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      "agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9"
+    )
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: /樱木真乃/ })).toBeVisible()
   })
 
   it("lists every cross-agency match as an independent modern story link", async () => {
@@ -344,7 +448,7 @@ describe("WikiIndexPage", () => {
     expect(agencyTabs).toHaveAttribute("aria-busy", "false")
   })
 
-  it("renders a cross-group idol in every group but counts them once", async () => {
+  it("renders a cross-group idol without exposing public directory counts", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -373,14 +477,22 @@ describe("WikiIndexPage", () => {
       within(luminous).getByRole("link", { name: /樱木真乃/ })
     ).toBeVisible()
 
-    const summary = screen.getByRole("heading", {
-      level: 2,
-      name: "闪耀色彩",
-    }).parentElement!
-    expect(within(summary).getByText("1 个内容页")).toBeVisible()
+    const agencyTabs = screen.getByRole("tablist", { name: "偶像大师企划" })
+    expect(
+      within(agencyTabs).getByRole("tab", { name: "闪耀色彩" })
+    ).toHaveTextContent(/^闪耀色彩$/)
+    const groupNavigation = screen.getByRole("navigation", {
+      name: "跳转到组合或分类",
+    })
+    expect(
+      within(groupNavigation).getByRole("link", {
+        name: "illumination STARS",
+      })
+    ).toHaveTextContent(/^illumination STARS$/)
+    expect(screen.queryByText(/个内容页/)).not.toBeInTheDocument()
   })
 
-  it("filters each agency by group and keeps the selection in the URL", async () => {
+  it("links to each group while keeping the complete directory visible", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -404,27 +516,19 @@ describe("WikiIndexPage", () => {
 
     renderWiki()
 
-    const groupFilter = await screen.findByRole("group", {
-      name: "按组合或分类筛选",
+    const groupNavigation = await screen.findByRole("navigation", {
+      name: "跳转到组合或分类",
     })
-    const luminousBtn = within(groupFilter).getByRole("button", {
-      name: /Project Luminous/,
+    const luminousLink = within(groupNavigation).getByRole("link", {
+      name: "Project Luminous",
     })
-    expect(luminousBtn).toHaveAttribute("aria-pressed", "false")
-
-    // Toggle first group on
-    await user.click(luminousBtn)
-
-    expect(luminousBtn).toHaveAttribute("aria-pressed", "true")
+    expect(luminousLink).toHaveAttribute("href", "#wiki-group-7")
     expect(
-      screen.queryByRole("heading", { name: "illumination STARS" })
-    ).toBeNull()
+      screen.getByRole("heading", { name: "illumination STARS" })
+    ).toBeVisible()
     expect(
       screen.getByRole("heading", { name: "Project Luminous" })
     ).toBeVisible()
-    expect(screen.getByTestId("location-search")).toHaveTextContent(
-      "agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&group=7"
-    )
 
     const searchInput = screen.getByLabelText("全局搜索内容页")
     await user.type(searchInput, "不存在")
@@ -434,21 +538,9 @@ describe("WikiIndexPage", () => {
       await screen.findByRole("heading", { name: "Project Luminous" })
     ).toBeVisible()
 
-    // Toggle off — all groups shown again
-    await user.click(luminousBtn)
-    expect(luminousBtn).toHaveAttribute("aria-pressed", "false")
-    expect(screen.getByTestId("location-search")).not.toHaveTextContent(
-      "group="
-    )
     expect(
       screen.getByRole("heading", { name: "illumination STARS" })
     ).toBeVisible()
-
-    // Toggle back on
-    await user.click(luminousBtn)
-    expect(luminousBtn).toHaveAttribute("aria-pressed", "true")
-
-    // Switching agency clears group filter
     const agencyTabs = screen.getByRole("tablist", { name: "偶像大师企划" })
     await user.click(within(agencyTabs).getByRole("tab", { name: /765PRO/ }))
 
@@ -458,7 +550,7 @@ describe("WikiIndexPage", () => {
     )
   })
 
-  it("filters ungrouped entries and falls back to all for an invalid group", async () => {
+  it("links to ungrouped entries and ignores the legacy group query", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -471,28 +563,21 @@ describe("WikiIndexPage", () => {
           : response(catalogPayload("闪耀色彩", false, true))
       })
     )
-    const user = userEvent.setup()
-
-    // Invalid group ID is filtered out — all content shown
     renderWiki("/wiki?agency=闪耀色彩&group=999")
 
-    const groupFilter = await screen.findByRole("group", {
-      name: "按组合或分类筛选",
+    const groupNavigation = await screen.findByRole("navigation", {
+      name: "跳转到组合或分类",
     })
-    // No button selected after invalid IDs are dropped
-    const ungroupedBtn = within(groupFilter).getByRole("button", {
-      name: /未归档/,
+    const ungroupedLink = within(groupNavigation).getByRole("link", {
+      name: "未归档",
     })
-    expect(ungroupedBtn).toHaveAttribute("aria-pressed", "false")
-
-    await user.click(ungroupedBtn)
-
-    expect(ungroupedBtn).toHaveAttribute("aria-pressed", "true")
+    expect(ungroupedLink).toHaveAttribute("href", "#wiki-group-ungrouped")
     expect(
-      screen.queryByRole("heading", { name: "illumination STARS" })
-    ).toBeNull()
+      screen.getByRole("heading", { name: "illumination STARS" })
+    ).toBeVisible()
     expect(screen.getByRole("heading", { name: "未归档" })).toBeVisible()
     expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
+    expect(screen.getByTestId("location-search")).toHaveTextContent("group=999")
   })
 
   it("renders idols without memberships in a final ungrouped section", async () => {
@@ -526,11 +611,7 @@ describe("WikiIndexPage", () => {
       groupedHeading.compareDocumentPosition(ungroupedHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0)
-    const summary = screen.getByRole("heading", {
-      level: 2,
-      name: "闪耀色彩",
-    }).parentElement!
-    expect(within(summary).getByText("2 个内容页")).toBeVisible()
+    expect(screen.queryByText(/个内容页/)).not.toBeInTheDocument()
   })
 
   it("recovers from an API error", async () => {

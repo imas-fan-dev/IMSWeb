@@ -403,6 +403,23 @@ describe("classic Wiki pages", () => {
       "src",
       "/brand/wiki-view-switch.png"
     )
+    const agencyDialTrigger = screen.getByRole("button", {
+      name: "打开企划拨盘",
+    })
+    expect(agencyDialTrigger).toHaveClass("min-[851px]:hidden")
+    await user.click(agencyDialTrigger)
+    const agencyDialDialog = screen.getByRole("dialog")
+    expect(
+      agencyDialDialog.querySelector("[data-wiki-agency-dial-direction]")
+    ).toBeInTheDocument()
+    expect(
+      within(agencyDialDialog).getAllByRole("button", { name: /预览企划/ })
+    ).toHaveLength(2)
+    await user.click(
+      within(agencyDialDialog).getByRole("button", {
+        name: "关闭企划拨盘",
+      })
+    )
 
     await user.click(screen.getByRole("button", { name: "全局搜索内容页" }))
     expect(
@@ -435,8 +452,8 @@ describe("classic Wiki pages", () => {
     const banner = screen
       .getByRole("heading", { name: "283 Production" })
       .closest("header")!
-    const mobileSearch = screen.getByRole("textbox", {
-      name: "移动端全局搜索内容页",
+    const mobileSearchButton = screen.getByRole("button", {
+      name: "打开全屏搜索",
     })
     const firstGroup = screen
       .getByRole("heading", { name: "Straylight" })
@@ -444,32 +461,56 @@ describe("classic Wiki pages", () => {
     const mobileBar = container.querySelector<HTMLElement>(
       ".wiki-classic-mobile-bar"
     )!
-    const navigationButton = within(mobileBar).getByRole("button", {
-      name: "打开企划导航",
+    const homeLink = within(mobileBar).getByRole("link", {
+      name: "返回首页",
     })
     const sidebar = container.querySelector(".wiki-classic-sidebar")!
-    expect(navigationButton).toHaveAttribute("aria-expanded", "false")
+    expect(homeLink).toHaveAttribute("href", "/")
+    expect(homeLink.querySelector(".lucide-house")).toBeInTheDocument()
     expect(sidebar).not.toHaveClass("is-open")
-    await user.click(navigationButton)
-    expect(navigationButton).toHaveAttribute("aria-expanded", "true")
-    expect(sidebar).toHaveClass("is-open")
+    await user.click(mobileSearchButton)
+    const mobileSearchDialog = screen.getByRole("dialog")
+    expect(mobileSearchDialog).toBeVisible()
+    expect(mobileSearchDialog).toHaveAttribute(
+      "data-wiki-mobile-search-dialog",
+      "classic"
+    )
+    expect(mobileSearchDialog).toHaveClass("bg-transparent")
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass(
+      "supports-backdrop-filter:backdrop-blur-2xl"
+    )
+    await waitFor(() => {
+      expect(
+        screen.getByRole("textbox", { name: "移动端全局搜索内容页" })
+      ).toHaveFocus()
+    })
+    const mobileSearchInput = screen.getByRole("textbox", {
+      name: "移动端全局搜索内容页",
+    })
+    await user.type(mobileSearchInput, "天海春香")
+    const mobileSearchPanel = document.querySelector(
+      '[data-wiki-mobile-search-panel="classic"]'
+    )
+    expect(mobileSearchPanel).toContainElement(
+      screen.getByRole("navigation", { name: "全局搜索结果" })
+    )
+    await user.click(screen.getByRole("button", { name: "清除搜索词" }))
+    expect(mobileSearchInput).toHaveValue("")
+    expect(mobileSearchInput).toHaveFocus()
+    await user.click(
+      document.querySelector(
+        '[data-wiki-mobile-search-dismiss="classic"]'
+      ) as HTMLElement
+    )
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(mobileSearchButton).toHaveFocus()
     expect(
       within(sidebar as HTMLElement).getByRole("link", { name: "返回首页" })
     ).toHaveAttribute("href", "/")
-    await user.click(
-      within(sidebar as HTMLElement).getByRole("button", {
-        name: "关闭企划导航",
-      })
-    )
-    expect(navigationButton).toHaveAttribute("aria-expanded", "false")
     expect(sidebar).not.toHaveClass("is-open")
     expect(agencyTabs).toBeInTheDocument()
     expect(
-      banner.compareDocumentPosition(mobileSearch) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).not.toBe(0)
-    expect(
-      mobileSearch.compareDocumentPosition(firstGroup) &
+      banner.compareDocumentPosition(firstGroup) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0)
   })
@@ -567,11 +608,11 @@ describe("classic Wiki pages", () => {
       "aria-busy",
       "true"
     )
-    const pendingGroupFilter = screen.getByRole("group", {
-      name: "按组合或分类筛选",
+    const pendingGroupNavigation = screen.getByRole("navigation", {
+      name: "跳转到组合或分类",
     })
-    for (const btn of within(pendingGroupFilter).getAllByRole("button")) {
-      expect(btn).toBeDisabled()
+    for (const link of within(pendingGroupNavigation).getAllByRole("link")) {
+      expect(link).toHaveAttribute("aria-disabled", "true")
     }
 
     nextCatalog.resolve(Response.json(catalogPayload("765PRO")))
@@ -584,14 +625,13 @@ describe("classic Wiki pages", () => {
       "false"
     )
     expect(
-      within(screen.getByRole("group", { name: "按组合或分类筛选" })).getByRole(
-        "button",
-        { name: /765PRO/ }
-      )
-    ).toBeEnabled()
+      within(
+        screen.getByRole("navigation", { name: "跳转到组合或分类" })
+      ).getByRole("link", { name: /765PRO/ })
+    ).not.toHaveAttribute("aria-disabled")
   })
 
-  it("keeps a cross-group idol in both classic groups without inflating the total", async () => {
+  it("keeps a cross-group idol without exposing classic directory counts", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -624,13 +664,22 @@ describe("classic Wiki pages", () => {
       within(straylight).getByRole("link", { name: /樱木真乃/ })
     ).toBeVisible()
 
-    const banner = screen
-      .getByRole("heading", { level: 1, name: "283 Production" })
-      .closest("header")!
-    expect(within(banner).getByText("2 个内容页")).toBeVisible()
+    const agencyTabs = screen.getByRole("tablist", { name: "偶像大师企划" })
+    expect(
+      within(agencyTabs).getByRole("tab", { name: "闪耀色彩" })
+    ).toHaveTextContent(/^闪耀色彩$/)
+    const groupNavigation = screen.getByRole("navigation", {
+      name: "跳转到组合或分类",
+    })
+    expect(
+      within(groupNavigation).getByRole("link", {
+        name: "illumination STARS",
+      })
+    ).toHaveTextContent(/^illumination STARS$/)
+    expect(screen.queryByText(/个内容页/)).not.toBeInTheDocument()
   })
 
-  it("filters the classic directory from the group bar", async () => {
+  it("jumps to classic groups without hiding the rest of the directory", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -643,8 +692,6 @@ describe("classic Wiki pages", () => {
           : response(catalogPayload("闪耀色彩", false, true))
       })
     )
-    const user = userEvent.setup()
-
     render(
       <MemoryRouter
         initialEntries={["/wiki/classic?agency=闪耀色彩&group=999"]}
@@ -657,55 +704,31 @@ describe("classic Wiki pages", () => {
     const banner = (
       await screen.findByRole("heading", { name: "283 Production" })
     ).closest("header")!
-    const groupFilter = screen.getByRole("group", {
-      name: "按组合或分类筛选",
+    const groupNavigation = screen.getByRole("navigation", {
+      name: "跳转到组合或分类",
     })
-    const filterBar = groupFilter.closest("section")!
-    const straylightBtn = within(groupFilter).getByRole("button", {
-      name: /Straylight/,
+    const navigationBar = groupNavigation.closest("section")!
+    const straylightLink = within(groupNavigation).getByRole("link", {
+      name: "Straylight",
     })
 
-    // Invalid group ID is filtered out — nothing selected
-    expect(straylightBtn).toHaveAttribute("aria-pressed", "false")
+    expect(straylightLink).toHaveAttribute("href", "#classic-group-32")
     expect(
-      banner.compareDocumentPosition(filterBar) &
+      banner.compareDocumentPosition(navigationBar) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0)
-
-    await user.click(straylightBtn)
-
-    expect(straylightBtn).toHaveAttribute("aria-pressed", "true")
-    expect(
-      screen.queryByRole("heading", { name: "illumination STARS" })
-    ).toBeNull()
-    expect(screen.getByRole("heading", { name: "Straylight" })).toBeVisible()
-    expect(screen.getByRole("link", { name: /芹泽朝日/ })).toBeVisible()
-    expect(screen.getByTestId("location-search")).toHaveTextContent("group=32")
-
-    // Toggle Straylight off, then toggle ungrouped on
-    await user.click(straylightBtn)
-    expect(straylightBtn).toHaveAttribute("aria-pressed", "false")
-
-    const ungroupedBtn = within(groupFilter).getByRole("button", {
-      name: /未归档/,
-    })
-    await user.click(ungroupedBtn)
-
-    expect(ungroupedBtn).toHaveAttribute("aria-pressed", "true")
-    expect(screen.queryByRole("heading", { name: "Straylight" })).toBeNull()
-    expect(screen.getByRole("heading", { name: "未归档" })).toBeVisible()
-    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
-
-    // Toggle ungrouped off — back to showing all
-    await user.click(ungroupedBtn)
-
     expect(
       screen.getByRole("heading", { name: "illumination STARS" })
     ).toBeVisible()
     expect(screen.getByRole("heading", { name: "Straylight" })).toBeVisible()
-    expect(screen.getByTestId("location-search")).not.toHaveTextContent(
-      "group="
-    )
+    expect(screen.getByRole("link", { name: /芹泽朝日/ })).toBeVisible()
+    const ungroupedLink = within(groupNavigation).getByRole("link", {
+      name: "未归档",
+    })
+    expect(ungroupedLink).toHaveAttribute("href", "#classic-group-ungrouped")
+    expect(screen.getByRole("heading", { name: "未归档" })).toBeVisible()
+    expect(screen.getByRole("link", { name: /浅仓透/ })).toBeVisible()
+    expect(screen.getByTestId("location-search")).toHaveTextContent("group=999")
   })
 
   it("places ungrouped idols after every configured classic group", async () => {

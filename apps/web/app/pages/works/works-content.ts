@@ -63,7 +63,7 @@ export const officialEntries: WorkEntry[] = [
     eyebrow: "CINDERELLA GIRLS",
     gradient: "90deg, #006FF9, #5AC3FE",
     introBg: "#EBF7FF",
-    japaneseName: "ァナドルマスタ一 シソデレラガ一ルズ 偶像大师灰姑娘女孩",
+    japaneseName: "アイドルマスター シンデレラガールズ 偶像大师灰姑娘女孩",
     tagline: [
       "可培育的偶像全系列中最多，超过190人！",
       "让这些性格丰富、以成为顶尖偶像为目标的偶像们，",

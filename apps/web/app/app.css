@@ -274,3 +274,15 @@
     display: none;
   }
 }
+
+@media (max-width: 767px) {
+  body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
+    bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 640px) and (max-width: 767px) {
+  body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  }
+}

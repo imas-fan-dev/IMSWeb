@@ -30,6 +30,7 @@ export function ClassicIdolSection({
 }: ClassicIdolSectionProps) {
   return (
     <section
+      id={headingId}
       className="wiki-classic-group"
       style={
         {
@@ -37,7 +38,7 @@ export function ClassicIdolSection({
           "--group-on-color": contrastingWikiText(color),
         } as CSSProperties
       }
-      aria-labelledby={headingId}
+      aria-labelledby={`${headingId}-title`}
     >
       <div className="wiki-classic-group-title">
         {iconUrl && imageTransform ? (
@@ -50,10 +51,9 @@ export function ClassicIdolSection({
             }}
           />
         ) : null}
-        <h2 id={headingId} title={title}>
+        <h2 id={`${headingId}-title`} title={title}>
           {title}
         </h2>
-        <small>{idols.length}</small>
       </div>
       <div className="wiki-classic-idol-grid">
         {idols.map((idol) => (

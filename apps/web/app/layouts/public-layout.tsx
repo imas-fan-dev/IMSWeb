@@ -1,4 +1,4 @@
-import { Outlet } from "react-router"
+import { Outlet, useLocation } from "react-router"
 import { useTranslation } from "react-i18next"
 
 import { AdminReturnShortcut } from "~/components/shared/admin-return-shortcut"
@@ -6,9 +6,13 @@ import { BackToTop } from "~/components/shared/back-to-top"
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { SiteFooter } from "~/components/shared/site-footer"
 import { SiteHeader } from "~/components/shared/site-header"
+import { cn } from "~/lib/utils"
 
 export default function PublicLayout() {
   const { t } = useTranslation()
+  const { pathname } = useLocation()
+  const isWikiCatalog = pathname === "/wiki" || pathname === "/wiki/modern"
+  const isModernStory = pathname === "/story" || pathname === "/story/modern"
 
   return (
     <div className="relative isolate flex min-h-svh flex-col">
@@ -20,14 +24,19 @@ export default function PublicLayout() {
       </a>
       <SeriesIconBackground />
       <SiteHeader />
-      <div className="relative z-10 flex-1 bg-background/75 sm:bg-background/60">
+      <div
+        className={cn(
+          "relative flex-1 bg-background/75 sm:bg-background/60",
+          isModernStory ? "z-20" : "z-10"
+        )}
+      >
         <Outlet />
       </div>
       <div className="relative z-10">
         <SiteFooter />
       </div>
       <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 sm:right-6 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]">
-        <BackToTop className="static" />
+        <BackToTop className={cn("static", isWikiCatalog && "max-md:hidden")} />
         <AdminReturnShortcut className="static" />
       </div>
     </div>

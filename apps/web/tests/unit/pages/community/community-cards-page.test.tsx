@@ -96,6 +96,37 @@ describe("CommunityCardsPage", () => {
     })
   })
 
+  it("hides the public card number and formats the submission time", async () => {
+    apiMocks.sendPage.mockResolvedValue({
+      list: [
+        {
+          id: 459,
+          image1_url: "/uploads/front.webp",
+          image2_url: "/uploads/back.webp",
+          status: "approved",
+          created_at: "2026-08-06T06:30:00.000Z",
+        },
+      ],
+      page: 1,
+      perPage: 12,
+      total: 1,
+      totalPage: 1,
+    })
+
+    render(
+      <MemoryRouter>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    const submissionTime = await screen.findByText("提交于 2026年8月6日 14:30")
+    expect(submissionTime).toHaveAttribute(
+      "datetime",
+      "2026-08-06T06:30:00.000Z"
+    )
+    expect(screen.queryByText("制作人名片 #459")).not.toBeInTheDocument()
+  })
+
   it("opens the complete reaction picker and updates the selected count", async () => {
     const user = userEvent.setup()
     apiMocks.sendPage.mockResolvedValue({

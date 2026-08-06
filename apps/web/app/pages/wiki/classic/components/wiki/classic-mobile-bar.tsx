@@ -1,32 +1,23 @@
-import { MenuIcon } from "lucide-react"
+import { HouseIcon } from "lucide-react"
 import { Link } from "react-router"
 
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 
 interface ClassicMobileBarProps {
-  navigationOpen: boolean
   modernWikiHref: string
-  onOpenNavigation: () => void
 }
 
-export function ClassicMobileBar({
-  navigationOpen,
-  modernWikiHref,
-  onOpenNavigation,
-}: ClassicMobileBarProps) {
+export function ClassicMobileBar({ modernWikiHref }: ClassicMobileBarProps) {
   return (
     <div className="wiki-classic-mobile-bar">
-      <button
-        type="button"
+      <Link
+        to="/"
         className="wiki-classic-icon-button"
-        aria-label="打开企划导航"
-        title="打开企划导航"
-        aria-controls="classic-agency-navigation"
-        aria-expanded={navigationOpen}
-        onClick={onOpenNavigation}
+        aria-label="返回首页"
+        title="返回首页"
       >
-        <MenuIcon />
-      </button>
+        <HouseIcon />
+      </Link>
       <strong>剧情导航站</strong>
       <Link
         to={modernWikiHref}
