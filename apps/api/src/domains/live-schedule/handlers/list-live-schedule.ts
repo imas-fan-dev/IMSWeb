@@ -6,7 +6,8 @@ import {
 } from '@/domains/live-schedule/live-schedule-service';
 
 function currentMonth(): string {
-    return new Date().toISOString().slice(0, 7);
+    const japanNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    return japanNow.toISOString().slice(0, 7);
 }
 
 export async function handleListLiveSchedule(c: Context<AppEnvironment>) {
