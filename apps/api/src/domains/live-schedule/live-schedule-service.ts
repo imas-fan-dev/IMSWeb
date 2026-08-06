@@ -2,6 +2,7 @@ const CMS_API_BASE =
     'https://cmsapi-frontend.idolmaster-official.jp/sitern/api/';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const LIVE_CATEGORY = 'ライブ・イベント';
+const JAPAN_OFFSET_MS = 9 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 30_000;
 export const LIVE_SCHEDULE_START_MONTH = '2020-08';
 
@@ -80,6 +81,12 @@ function dateText(date: Date): string {
     return date.toISOString().slice(0, 10);
 }
 
+function japanCalendarDate(timestamp: number): Date {
+    // CMS timestamps represent schedule dates in Japan time. Shift to JST
+    // before reading UTC fields so the result is independent of server TZ.
+    return new Date(timestamp * 1000 + JAPAN_OFFSET_MS);
+}
+
 export function isLiveScheduleMonth(value: string): boolean {
     if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(value)) return false;
     return value >= LIVE_SCHEDULE_START_MONTH;
@@ -140,7 +147,7 @@ export function normalizeLiveScheduleArticle(
     if (!isLiveEvent(article)) return null;
     const timestamp = Number(article.event_startdate);
     if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
-    const date = new Date(timestamp * 1000);
+    const date = japanCalendarDate(timestamp);
     if (Number.isNaN(date.getTime())) return null;
     const title = stringValue(article.title) || stringValue(article.event_title);
     if (!title) return null;

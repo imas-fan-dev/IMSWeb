@@ -66,6 +66,9 @@ test('normalizes only live events and preserves brand identity', () => {
         brand: [{ code: 'OTHER' }],
         title: 'VA-LIV EVENT'
     }))?.brandCodes, ['VA-LIV']);
+    assert.equal(normalizeLiveScheduleArticle(liveArticle({
+        event_startdate: Date.UTC(2026, 6, 27, 15) / 1000
+    }))?.day, 28);
 });
 
 test('loads requested months, deduplicates records, and caches each month', async () => {
