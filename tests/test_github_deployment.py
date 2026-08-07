@@ -4,6 +4,7 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -158,11 +159,12 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         self.curl_log = self.root / "curl.log"
         write_executable(self.bin_dir / "docker", FAKE_CONTAINER_CLI)
         write_executable(self.bin_dir / "curl", FAKE_CURL)
-        write_executable(self.bin_dir / "stat", FAKE_STAT)
-        write_executable(self.bin_dir / "sha256sum", FAKE_SHA256SUM)
-        write_executable(self.bin_dir / "base64", FAKE_BASE64)
-        write_executable(self.bin_dir / "flock", FAKE_FLOCK)
-        write_executable(self.bin_dir / "mv", FAKE_MV)
+        if sys.platform == "darwin":
+            write_executable(self.bin_dir / "stat", FAKE_STAT)
+            write_executable(self.bin_dir / "sha256sum", FAKE_SHA256SUM)
+            write_executable(self.bin_dir / "base64", FAKE_BASE64)
+            write_executable(self.bin_dir / "flock", FAKE_FLOCK)
+            write_executable(self.bin_dir / "mv", FAKE_MV)
         self.runtime_env.write_text(
             "\n".join(
                 (
