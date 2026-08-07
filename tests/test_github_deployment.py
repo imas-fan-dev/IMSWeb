@@ -100,6 +100,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "workflow_dispatch:",
             "confirm_data_compatibility:",
             "refs/remotes/origin/main",
+            "pnpm/action-setup@",
             "docker/build-push-action@",
             "actions/attest-build-provenance@",
             "gh attestation verify",
