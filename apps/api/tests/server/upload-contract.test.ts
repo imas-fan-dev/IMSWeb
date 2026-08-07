@@ -44,7 +44,7 @@ async function materializedMultipartRequest(form: FormData): Promise<Request> {
 for (const [name, parser] of [
     ['Node streaming', new StreamingUploadParser()]
 ] as const) {
-    test(`${name} multipart parser counts unknown files and enforces part limits without Content-Length`, async () => {
+    test(`${name} multipart parser counts unknown files against the file limit without Content-Length`, async () => {
         const form = new FormData();
         form.append('known', new Blob(['a'], { type: 'text/plain' }), 'a.txt');
         form.append('unknown', new Blob(['b'], { type: 'text/plain' }), 'b.txt');
@@ -57,6 +57,42 @@ for (const [name, parser] of [
             maxFields: 2,
             maxParts: 3
         }), (error: Error & { status?: number }) => error.status === 413);
+    });
+
+    test(`${name} multipart parser accepts exactly the configured part limit`, async () => {
+        const form = new FormData();
+        form.append(
+            'image',
+            new Blob([new Uint8Array(137 * 1024)], { type: 'image/png' }),
+            'avatar.png'
+        );
+        const request = await materializedMultipartRequest(form);
+        const parsed = await parser.parse(request, {
+            maxBytes: 256 * 1024,
+            fileFields: ['image'],
+            maxFiles: 1,
+            maxFields: 0,
+            maxParts: 1
+        });
+        const image = parsed.files.image;
+        assert.ok(image && !Array.isArray(image));
+        assert.equal(image.body.byteLength, 137 * 1024);
+    });
+
+    test(`${name} multipart parser rejects one part beyond the configured limit`, async () => {
+        const form = new FormData();
+        form.append('image', new Blob(['a'], { type: 'image/png' }), 'a.png');
+        form.append('image', new Blob(['b'], { type: 'image/png' }), 'b.png');
+        const request = await materializedMultipartRequest(form);
+        await assert.rejects(parser.parse(request, {
+            maxBytes: 4096,
+            fileFields: ['image'],
+            maxFiles: 2,
+            maxFields: 0,
+            maxParts: 1
+        }), (error: Error & { status?: number }) =>
+            error.status === 413 && error.message === 'multipart parts exceed limit'
+        );
     });
 
     test(`${name} multipart parser rejects raw boundary overhead at maxBytes + 1`, async () => {
