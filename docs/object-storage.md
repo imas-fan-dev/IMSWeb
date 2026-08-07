@@ -113,7 +113,7 @@ export IMS_S3_BUCKET=imsweb-media-prod
 export IMS_S3_REGION=ap-northeast-1
 export IMS_S3_PREFIX=v1
 export IMS_IDEMPOTENCY_DIR=/srv/ims/shared/idempotency
-pnpm run start:node
+pnpm run start
 ```
 
 S3-compatible 示例：
@@ -128,7 +128,7 @@ export IMS_S3_PREFIX=v1
 export IMS_S3_READ_URL_TTL_SECONDS=300
 export AWS_ACCESS_KEY_ID='<access-key>'
 export AWS_SECRET_ACCESS_KEY='<secret-key>'
-pnpm run start:node
+pnpm run start
 ```
 
 Cloudflare R2 示例：
@@ -143,7 +143,7 @@ export IMS_S3_FORCE_PATH_STYLE=false
 export IMS_S3_PREFIX=
 export AWS_ACCESS_KEY_ID='<r2-access-key-id>'
 export AWS_SECRET_ACCESS_KEY='<r2-secret-access-key>'
-pnpm run start:node
+pnpm run start
 ```
 
 制作人地图提供一个真实 R2 的只读外部验收入口。它不会进入默认单元测试，也不会在没有生产

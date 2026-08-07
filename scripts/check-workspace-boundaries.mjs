@@ -14,11 +14,10 @@ const defaultScriptNames = [
   "build",
   "check",
   "test",
-  "test:fast",
   "start",
   "dev:node",
 ];
-const webDefaultScriptNames = new Set(["build", "check", "test", "test:fast"]);
+const webDefaultScriptNames = new Set(["build", "check", "test"]);
 const allowedRootDevDependencies = new Set(["husky"]);
 
 function relative(absolutePath) {

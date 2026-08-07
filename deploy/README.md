@@ -6,6 +6,10 @@ API 镜像包含构建后的 Web 静态资源，并在启动前幂等应用 Post
 不包含反向代理或 TLS 入口；宿主机 Nginx 的参考配置位于
 [`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。
 
+正式环境的默认发布入口是 [GitHub Actions 自动部署](../docs/github-actions-deployment.md)：CI
+构建 API 镜像并推送到 GHCR，目标主机只按不可变 digest 拉取并启动。下面的 `--build` 命令用于
+本地容器集成预览，不是正式服务器上的发布步骤。
+
 从仓库根目录检查配置：
 
 ```sh
@@ -45,16 +49,21 @@ API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问�
 
 ## PostgreSQL + Cloudflare R2
 
-生产配置应将 `COMPOSE_PROFILES` 留空，并设置完整的 `IMS_S3_*`、AWS 凭据、高熵
+生产机的 `/etc/imsweb/production.env` 应将 `COMPOSE_PROFILES` 留空，并设置完整的
+`IMS_S3_*`、AWS 凭据、高熵
 `IMS_JWT_SECRET`、`IMS_API_DATABASE_URL`，并在首次启用管理员角色时将
 `IMS_SUPER_ADMIN_USERNAME` 设为现有 `op` 账号。R2 使用 `auto` region；
 `IMS_S3_ENDPOINT` 是 R2 S3 API 域名，`IMS_PUBLIC_READ_URL_BASE` 是 bucket 自定义域名，
-二者不能互换。渲染配置和启动 API 栈：
+二者不能互换。手工排障时先指定 CI 已记录的不可变镜像，再渲染配置和启动 API 栈：
 
 ```sh
-docker compose --env-file deploy/.env -f deploy/compose.yaml config
-docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --build postgres api
+: "${IMS_API_IMAGE:?set the verified GHCR image@sha256 digest}"
+docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml config --quiet
+docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml pull api
+docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml \
+  up -d --no-build postgres api
 ```
 
 未启用 `local-storage` profile 时，Compose 不启动 RustFS；API 只使用配置的 R2 bucket。
-`deploy/.env` 被 Git 忽略，但仍应保持 `0600` 权限并通过目标主机的密钥管理流程传递。
+手工排障时可以把目标主机的私有环境文件传给 Compose，但不得执行 `--build`；生产镜像必须使用
+CI 记录的 GHCR digest。环境文件应保持 `0600` 权限并通过目标主机的密钥管理流程传递。

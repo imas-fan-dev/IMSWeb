@@ -511,7 +511,7 @@ export function buildCommandPlan(configuration) {
     },
     api: {
       command: process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-      args: ["--filter", "@imsweb/api", "run", "dev:node"],
+      args: ["--filter", "@imsweb/api", "run", "dev"],
       env: configuration.apiEnvironment,
     },
     web: {

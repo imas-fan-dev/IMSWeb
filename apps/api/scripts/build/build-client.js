@@ -98,7 +98,10 @@ function compressedVariants(file) {
 }
 
 if (!fs.statSync(sourceRoot, { throwIfNoEntry: false })?.isDirectory()) {
-    throw new Error(`Web build output is missing: ${sourceRoot}\nRun pnpm run build:web first.`);
+    throw new Error(
+        `Web build output is missing: ${sourceRoot}\n` +
+        'Run pnpm --filter @imsweb/web run build first.',
+    );
 }
 
 const sourceFiles = walk(sourceRoot);

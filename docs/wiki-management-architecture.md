@@ -292,7 +292,7 @@ URL、备份、维护窗口和对象存储目标；执行后保存以下证据�
 
 ```sh
 # schema、Repository、路由与迁移契约
-pnpm --filter @imsweb/api run typecheck:server
+pnpm --filter @imsweb/api run typecheck
 pnpm --filter @imsweb/api run test:migration
 pnpm --filter @imsweb/api run test:wiki
 pnpm --filter @imsweb/api run test:server

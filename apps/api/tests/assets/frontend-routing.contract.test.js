@@ -23,7 +23,7 @@ requireBuild(
 );
 requireBuild(
     path.join(SERVER_ROOT, 'app.js'),
-    'pnpm --filter @imsweb/api run build:server'
+    'pnpm --filter @imsweb/api run build'
 );
 
 const { createHonoApp } = require(path.join(SERVER_ROOT, 'app.js'));
