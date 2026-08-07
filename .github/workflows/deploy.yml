@@ -235,6 +235,10 @@ jobs:
 
   deploy:
     name: Deploy production
+    if: >-
+      always() &&
+      needs.prepare.result == 'success' &&
+      needs.resolve-image.result == 'success'
     needs:
       - prepare
       - resolve-image

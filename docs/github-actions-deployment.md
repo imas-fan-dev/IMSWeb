@@ -64,6 +64,10 @@ job 结束后失效。
 无人值守部署。需要双人审批时再启用 required reviewer；此时 Tag 仍自动启动 Workflow，但部署
 job 会等待审批。
 
+若 `production` 使用自定义 deployment branches and tags，必须同时添加 `main` branch 和
+`v*.*.*` tag。前者允许从默认分支的 Actions 页面手动部署已有 Tag，后者允许稳定版本 Tag 自动
+部署；只配置 tag 会使 `workflow_dispatch` 的 deploy job 无法进入 production Environment。
+
 仓库还应配置：
 
 1. `main` ruleset 要求 `Validate repository` 检查通过；

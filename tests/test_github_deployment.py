@@ -164,6 +164,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
         deploy_job = deployment.split("\n  deploy:\n", maxsplit=1)[1]
         self.assertIn("      packages: read", deploy_job)
+        self.assertIn("needs.prepare.result == 'success'", deploy_job)
+        self.assertIn("needs.resolve-image.result == 'success'", deploy_job)
 
         authenticated_deployment = AUTH_DEPLOY_SCRIPT.read_text(encoding="utf-8")
         for token in (
@@ -188,6 +190,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "DEPLOY_SSH_KNOWN_HOSTS",
             "GITHUB_TOKEN",
             "packages: read",
+            "`main` branch",
+            "`v*.*.*` tag",
             "/etc/imsweb/production.env",
             "IMS_S3_REGION=auto",
             "IMS_S3_FORCE_PATH_STYLE=false",
