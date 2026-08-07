@@ -15,6 +15,9 @@ DEPLOY_WORKFLOW = PROJECT_ROOT / ".github/workflows/deploy.yml"
 DEPLOY_SCRIPT = PROJECT_ROOT / "scripts/deployment/deploy-compose-release.sh"
 COMPOSE = PROJECT_ROOT / "deploy/compose.yaml"
 DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/github-actions-deployment.md"
+PNPM_SETUP_ACTION = (
+    "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10"
+)
 
 
 FAKE_CONTAINER_CLI = r"""#!/usr/bin/env bash
@@ -93,6 +96,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "pnpm install --frozen-lockfile",
             "pnpm run check",
             "pnpm run test",
+            PNPM_SETUP_ACTION,
         ):
             self.assertIn(token, ci)
 
@@ -101,7 +105,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "workflow_dispatch:",
             "confirm_data_compatibility:",
             "refs/remotes/origin/main",
-            "pnpm/action-setup@",
+            PNPM_SETUP_ACTION,
             "docker/build-push-action@",
             "actions/attest-build-provenance@",
             "gh attestation verify",
