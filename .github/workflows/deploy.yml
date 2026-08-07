@@ -315,18 +315,28 @@ jobs:
           port="${DEPLOY_PORT:-22}"
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
           remote_compose="/tmp/imsweb-compose-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.yaml"
+          remote_script="/tmp/imsweb-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+          deployment_log="$RUNNER_TEMP/imsweb-deployment-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.log"
           ssh_options=(-i "$HOME/.ssh/imsweb_deploy" -p "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes)
           scp_options=(-i "$HOME/.ssh/imsweb_deploy" -P "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes)
 
           cleanup() {
-            ssh "${ssh_options[@]}" "$target" "rm -f -- '$remote_compose'" >/dev/null 2>&1 || true
+            ssh "${ssh_options[@]}" "$target" \
+              "rm -f -- '$remote_compose' '$remote_script'" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
           scp "${scp_options[@]}" deploy/compose.yaml "$target:$remote_compose"
+          scp "${scp_options[@]}" scripts/deployment/deploy-compose-release.sh \
+            "$target:$remote_script"
           public_base_url_base64="$(printf '%s' "$PUBLIC_BASE_URL" | base64 | tr -d '\n')"
-          remote_command="bash -s -- '$RELEASE_TAG' '$RELEASE_SHA' '$IMAGE_REF' '$remote_compose' '$DEPLOY_ROOT' '$public_base_url_base64'"
-          ssh "${ssh_options[@]}" "$target" "$remote_command" < scripts/deployment/deploy-compose-release.sh
+          remote_command="test -f '$remote_script' && test ! -L '$remote_script' && bash '$remote_script' '$RELEASE_TAG' '$RELEASE_SHA' '$IMAGE_REF' '$remote_compose' '$DEPLOY_ROOT' '$public_base_url_base64' </dev/null"
+          ssh "${ssh_options[@]}" "$target" "$remote_command" | tee "$deployment_log"
+
+          if ! grep -Fxq "Deployment completed." "$deployment_log"; then
+            echo "Remote deployment did not emit its completion marker." >&2
+            exit 1
+          fi
 
       - name: Verify public deployment from GitHub
         env:

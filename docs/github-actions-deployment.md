@@ -78,6 +78,20 @@ bash, base64, curl, flock, sha256sum, docker compose
 加入 Docker group 通常等同于主机 root 权限，应优先使用 rootless 容器或只允许执行受控部署脚本
 的 sudo 规则。
 
+使用 rootless Docker 时，daemon、Docker CLI context、GHCR 登录和 SSH 部署必须属于同一个
+`DEPLOY_USER`。不要只在 `.bashrc` 中设置 `DOCKER_HOST`，因为 GitHub Actions 使用的非交互
+SSH 不保证读取该文件。安装 rootless Docker 后持久选择对应 context，并从另一台机器验证非交互
+SSH：
+
+```sh
+ssh imsdeploy@prod.example.com 'docker context use rootless'
+ssh imsdeploy@prod.example.com \
+  'docker context show; docker info --format "{{json .SecurityOptions}}"'
+```
+
+结果必须指向部署用户的 `/run/user/<uid>/docker.sock`，且 security options 包含 `rootless`。
+使用 systemd user service 时还应为部署用户启用 linger，确保无人登录时 daemon 仍可用。
+
 创建生产目录和仅部署用户可读的环境文件：
 
 ```sh
@@ -135,11 +149,12 @@ Workflow 会按以下顺序执行：
 2. 安装 frozen dependencies，运行检查和测试；
 3. 构建一次镜像，推送 Tag/SHA 标签并取得 digest；
 4. 进入 `production` Environment 和 `imsweb-production` concurrency group；
-5. 通过 SSH 上传该 release 的 `deploy/compose.yaml`，流式执行
-   `scripts/deployment/deploy-compose-release.sh`；
+5. 通过 SSH 分别上传该 release 的 `deploy/compose.yaml` 与部署脚本，再从远端普通文件执行
+   脚本；脚本 stdin 固定为 `/dev/null`，避免 Compose 子进程消费尚未读取的脚本内容；
 6. 取得发布锁，验证生产配置，启动 PostgreSQL 并创建 custom-format `pg_dump`；
 7. 拉取 digest、重建 API，检查 `/api/wiki/test`、`/api/news` 和首页；
-8. 从生产机和 GitHub-hosted runner 分别验证正式 HTTPS 入口；
+8. 要求远端输出 `Deployment completed.` 完成标记，再从 GitHub-hosted runner 验证正式 HTTPS
+   入口；
 9. 原子更新 `/srv/imsweb/current` 并写入发布记录。
 
 生产状态位于：
@@ -183,6 +198,10 @@ R2 配对恢复、停写或破坏性 migration 的版本不得依赖本自动流
 
 手动部署旧 Tag 等价于代码回滚。若旧版本无法理解当前数据库，不能仅靠勾选确认继续；应先进入
 维护窗口评估兼容转换或配对恢复。
+
+若修复的是部署 Workflow 自身，不要继续 `Re-run jobs` 原 Tag 的历史运行，因为它仍使用历史
+Workflow。应从已包含修复的默认分支进入 `Run workflow`，再输入已有 Tag；这样不会重新构建镜像，
+但会使用修复后的调度步骤部署该 Tag 已有的 digest。
 
 发布后核对 Workflow summary、GitHub Environment deployment history、生产机 release record、
 Nginx/API 日志以及代表性 R2 对象。GitHub runner 的最终公网探测失败时 Workflow 会标红，但目标

@@ -24,7 +24,9 @@ FAKE_CONTAINER_CLI = r"""#!/usr/bin/env bash
 set -euo pipefail
 printf '%s|%s\n' "${IMS_API_IMAGE:-none}" "$*" >> "$FAKE_CONTAINER_LOG"
 joined=" $* "
-if [[ "$joined" == *" exec -T postgres "*"pg_dump "* ]]; then
+if [[ "$joined" == " info " && "${FAKE_FAIL_CONTAINER_INFO:-}" == "true" ]]; then
+    exit 1
+elif [[ "$joined" == *" exec -T postgres "*"pg_dump "* ]]; then
     printf 'PGDMPimsweb-test-backup\n'
 elif [[ "$joined" == *" exec -T postgres "*"pg_restore "* ]]; then
     cat >/dev/null
@@ -118,9 +120,15 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "group: imsweb-production",
             "cancel-in-progress: false",
             "scripts/deployment/deploy-compose-release.sh",
+            'remote_script="/tmp/imsweb-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"',
+            '"$target:$remote_script"',
+            "'$public_base_url_base64' </dev/null",
+            'grep -Fxq "Deployment completed." "$deployment_log"',
         ):
             self.assertIn(token, deployment)
 
+        self.assertNotIn('remote_command="bash -s --', deployment)
+        self.assertNotIn("< scripts/deployment/deploy-compose-release.sh", deployment)
         self.assertNotIn("secrets.IMS_JWT_SECRET", deployment)
         self.assertNotIn("secrets.AWS_SECRET_ACCESS_KEY", deployment)
 
@@ -201,7 +209,12 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         self.compose_source.unlink(missing_ok=True)
         self.temporary.cleanup()
 
-    def environment(self, *, fail_image: str = "") -> dict[str, str]:
+    def environment(
+        self,
+        *,
+        fail_container_info: bool = False,
+        fail_image: str = "",
+    ) -> dict[str, str]:
         environment = os.environ.copy()
         environment.update(
             {
@@ -212,6 +225,7 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
                 "IMS_DEPLOY_PROBE_DELAY_SECONDS": "0",
                 "FAKE_CONTAINER_LOG": str(self.container_log),
                 "FAKE_CURL_LOG": str(self.curl_log),
+                "FAKE_FAIL_CONTAINER_INFO": "true" if fail_container_info else "",
                 "FAKE_FAIL_IMAGE": fail_image,
             }
         )
@@ -223,6 +237,7 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         commit: str,
         image: str,
         *,
+        fail_container_info: bool = False,
         fail_image: str = "",
     ) -> subprocess.CompletedProcess[str]:
         public_origin = "aHR0cHM6Ly93d3cuZXhhbXBsZS5jb20="
@@ -238,7 +253,10 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
                 public_origin,
             ],
             cwd=PROJECT_ROOT,
-            env=self.environment(fail_image=fail_image),
+            env=self.environment(
+                fail_container_info=fail_container_info,
+                fail_image=fail_image,
+            ),
             text=True,
             capture_output=True,
             check=False,
@@ -261,6 +279,7 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertIn(image, records[0].read_text(encoding="utf-8"))
         self.assertIn("/api/news", self.curl_log.read_text(encoding="utf-8"))
+        self.assertIn("Deployment completed.\n", result.stdout)
 
     def test_failed_candidate_restores_previous_image_without_moving_current(self):
         first_image = f"ghcr.io/imas-fan-dev/idol-master-community-api@sha256:{'a' * 64}"
@@ -292,6 +311,19 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must not be readable or writable by group or others", result.stderr)
+        self.assertFalse(self.deploy_root.exists())
+
+    def test_container_daemon_must_be_accessible_to_deployment_user(self):
+        image = f"ghcr.io/imas-fan-dev/idol-master-community-api@sha256:{'a' * 64}"
+        result = self.deploy(
+            "v1.2.3",
+            "1" * 40,
+            image,
+            fail_container_info=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("daemon is not accessible to the deployment user", result.stderr)
         self.assertFalse(self.deploy_root.exists())
 
     def test_managed_deployment_directories_must_not_be_symbolic_links(self):
