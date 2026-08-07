@@ -30,7 +30,8 @@ self-hosted runner。
 
 所有外部 Actions 固定到完整 commit SHA。Workflow 的默认权限是只读；只有发布镜像的 job
 获得 `packages: write`、`attestations: write` 和 `id-token: write`，部署 job 只有
-`contents: read`。
+`contents: read` 和 `packages: read`。部署 job 使用 GitHub 为本次运行自动生成的短期
+`GITHUB_TOKEN` 拉取镜像，不需要创建或保存长期 GHCR PAT。
 
 ## 2. GitHub 仓库设置
 
@@ -54,6 +55,11 @@ self-hosted runner。
 不要在 Workflow 中临时运行 `ssh-keyscan` 并立即信任结果。不要把 JWT、PostgreSQL 或 R2
 凭据保存为 GitHub 部署 secret；它们只存在于生产机的环境文件中。
 
+`GITHUB_TOKEN` 由 GitHub Actions 自动生成，不需要添加到 Environment secrets。部署步骤只把
+它通过 SSH 标准输入发送给目标机，目标机在隔离的临时 Docker/Podman 认证配置中登录 GHCR，
+发布结束或失败后都会删除该配置。Token 不进入 SSH 参数、Compose 环境文件或发布记录，并会在
+job 结束后失效。
+
 若 Tag 创建本身就是发布批准，可以不为 `production` 增加 required reviewer，从而保持 Tag
 无人值守部署。需要双人审批时再启用 required reviewer；此时 Tag 仍自动启动 Workflow，但部署
 job 会等待审批。
@@ -63,25 +69,27 @@ job 会等待审批。
 1. `main` ruleset 要求 `Validate repository` 检查通过；
 2. Tag ruleset 保护 `refs/tags/v*`，限制创建者并禁止更新和删除；
 3. Actions 策略只允许所需来源，并要求完整 commit SHA；
-4. GHCR package 与本仓库关联。私有 package 需要生产机预先配置只读 registry credential；
-   公开 package 不需要生产机登录。
+4. GHCR package 与本仓库关联；若 package 未继承仓库权限，在 package Settings 的
+   `Manage Actions access` 中为本仓库授予 `Read`。私有 package 由本次运行的 `GITHUB_TOKEN`
+   临时登录，生产机不需要预置长期 registry credential；公开 package 也沿用同一受控流程。
 
 ## 3. 生产机准备
 
 目标是 Linux 主机。部署用户需要以下命令：
 
 ```text
-bash, base64, curl, flock, sha256sum, docker compose
+bash, base64, cp, curl, flock, grep, ln, mktemp, rm, sha256sum, docker compose
 ```
 
 也可设置 `IMS_CONTAINER_CLI=podman` 使用 `podman compose`。部署用户必须能操作目标容器运行时；
 加入 Docker group 通常等同于主机 root 权限，应优先使用 rootless 容器或只允许执行受控部署脚本
 的 sudo 规则。
 
-使用 rootless Docker 时，daemon、Docker CLI context、GHCR 登录和 SSH 部署必须属于同一个
-`DEPLOY_USER`。不要只在 `.bashrc` 中设置 `DOCKER_HOST`，因为 GitHub Actions 使用的非交互
-SSH 不保证读取该文件。安装 rootless Docker 后持久选择对应 context，并从另一台机器验证非交互
-SSH：
+使用 rootless Docker 时，daemon、Docker CLI context 和 SSH 部署必须属于同一个
+`DEPLOY_USER`。认证包装脚本会把该用户的 Docker `config.json` 与 `contexts` 复制到隔离的临时
+配置，并只在临时配置中写入 GHCR 凭据；不会改写原始 `~/.docker/config.json`。不要只在
+`.bashrc` 中设置 `DOCKER_HOST`，因为 GitHub Actions 使用的非交互 SSH 不保证读取该文件。
+安装 rootless Docker 后持久选择对应 context，并从另一台机器验证非交互 SSH：
 
 ```sh
 ssh imsdeploy@prod.example.com 'docker context use rootless'
@@ -149,13 +157,17 @@ Workflow 会按以下顺序执行：
 2. 安装 frozen dependencies，运行检查和测试；
 3. 构建一次镜像，推送 Tag/SHA 标签并取得 digest；
 4. 进入 `production` Environment 和 `imsweb-production` concurrency group；
-5. 通过 SSH 分别上传该 release 的 `deploy/compose.yaml` 与部署脚本，再从远端普通文件执行
-   脚本；脚本 stdin 固定为 `/dev/null`，避免 Compose 子进程消费尚未读取的脚本内容；
-6. 取得发布锁，验证生产配置，启动 PostgreSQL 并创建 custom-format `pg_dump`；
-7. 拉取 digest、重建 API，检查 `/api/wiki/test`、`/api/news` 和首页；
-8. 要求远端输出 `Deployment completed.` 完成标记，再从 GitHub-hosted runner 验证正式 HTTPS
+5. 从目标 Tag 检出 `deploy/compose.yaml` 与部署脚本，并从当前 Workflow commit 单独检出认证
+   包装脚本；因此修复后的 Workflow 可以重部署尚未包含包装脚本的旧 Tag；
+6. 通过 SSH 上传上述文件；短期 `GITHUB_TOKEN` 只从 SSH stdin 传给认证包装脚本，并在临时
+   Docker/Podman 配置中登录 GHCR；
+7. 认证包装脚本从远端普通文件执行部署脚本；部署脚本 stdin 固定为 `/dev/null`，避免 Compose
+   子进程消费令牌或尚未读取的脚本内容，退出时删除临时认证配置；
+8. 取得发布锁，验证生产配置，启动 PostgreSQL 并创建 custom-format `pg_dump`；
+9. 拉取 digest、重建 API，检查 `/api/wiki/test`、`/api/news` 和首页；
+10. 要求远端输出 `Deployment completed.` 完成标记，再从 GitHub-hosted runner 验证正式 HTTPS
    入口；
-9. 原子更新 `/srv/imsweb/current` 并写入发布记录。
+11. 原子更新 `/srv/imsweb/current` 并写入发布记录。
 
 生产状态位于：
 

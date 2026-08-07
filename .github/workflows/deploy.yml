@@ -242,6 +242,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      packages: read
     environment:
       name: production
       url: ${{ vars.PUBLIC_BASE_URL }}
@@ -254,6 +255,15 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_sha }}
           persist-credentials: false
+
+      - name: Check out deployment transport
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .deployment-workflow
+          persist-credentials: false
+          sparse-checkout: scripts/deployment/run-authenticated-compose-release.sh
+          sparse-checkout-cone-mode: false
 
       - name: Validate deployment configuration
         env:
@@ -306,6 +316,8 @@ jobs:
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
           DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
           IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
           RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
@@ -316,22 +328,28 @@ jobs:
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
           remote_compose="/tmp/imsweb-compose-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.yaml"
           remote_script="/tmp/imsweb-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+          remote_auth_script="/tmp/imsweb-auth-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
           deployment_log="$RUNNER_TEMP/imsweb-deployment-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.log"
           ssh_options=(-i "$HOME/.ssh/imsweb_deploy" -p "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes)
           scp_options=(-i "$HOME/.ssh/imsweb_deploy" -P "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes)
 
           cleanup() {
             ssh "${ssh_options[@]}" "$target" \
-              "rm -f -- '$remote_compose' '$remote_script'" >/dev/null 2>&1 || true
+              "rm -f -- '$remote_compose' '$remote_script' '$remote_auth_script'" \
+              >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
           scp "${scp_options[@]}" deploy/compose.yaml "$target:$remote_compose"
           scp "${scp_options[@]}" scripts/deployment/deploy-compose-release.sh \
             "$target:$remote_script"
+          scp "${scp_options[@]}" \
+            .deployment-workflow/scripts/deployment/run-authenticated-compose-release.sh \
+            "$target:$remote_auth_script"
           public_base_url_base64="$(printf '%s' "$PUBLIC_BASE_URL" | base64 | tr -d '\n')"
-          remote_command="test -f '$remote_script' && test ! -L '$remote_script' && bash '$remote_script' '$RELEASE_TAG' '$RELEASE_SHA' '$IMAGE_REF' '$remote_compose' '$DEPLOY_ROOT' '$public_base_url_base64' </dev/null"
-          ssh "${ssh_options[@]}" "$target" "$remote_command" | tee "$deployment_log"
+          remote_command="test -f '$remote_auth_script' && test ! -L '$remote_auth_script' && bash '$remote_auth_script' '$GHCR_USERNAME' '$remote_script' '$RELEASE_TAG' '$RELEASE_SHA' '$IMAGE_REF' '$remote_compose' '$DEPLOY_ROOT' '$public_base_url_base64'"
+          printf '%s' "$GHCR_TOKEN" | \
+            ssh "${ssh_options[@]}" "$target" "$remote_command" | tee "$deployment_log"
 
           if ! grep -Fxq "Deployment completed." "$deployment_log"; then
             echo "Remote deployment did not emit its completion marker." >&2

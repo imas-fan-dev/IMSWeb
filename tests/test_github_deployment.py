@@ -13,6 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CI_WORKFLOW = PROJECT_ROOT / ".github/workflows/ci.yml"
 DEPLOY_WORKFLOW = PROJECT_ROOT / ".github/workflows/deploy.yml"
 DEPLOY_SCRIPT = PROJECT_ROOT / "scripts/deployment/deploy-compose-release.sh"
+AUTH_DEPLOY_SCRIPT = (
+    PROJECT_ROOT / "scripts/deployment/run-authenticated-compose-release.sh"
+)
 COMPOSE = PROJECT_ROOT / "deploy/compose.yaml"
 DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/github-actions-deployment.md"
 PNPM_SETUP_ACTION = (
@@ -82,6 +85,31 @@ exec /bin/mv "$@"
 """
 
 
+FAKE_AUTH_DOCKER = r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s|%s\n' "$DOCKER_CONFIG" "$*" >> "$FAKE_AUTH_CONTAINER_LOG"
+[[ "$1" == "login" && "$2" == "ghcr.io" ]]
+[[ -f "$DOCKER_CONFIG/config.json" ]]
+[[ -f "$DOCKER_CONFIG/contexts/rootless-marker" ]]
+token=$(cat)
+[[ "$token" == "$EXPECTED_GHCR_TOKEN" ]]
+printf '%s\n' authenticated > "$DOCKER_CONFIG/auth-created"
+[[ "${FAKE_AUTH_LOGIN_FAIL:-}" != "true" ]]
+"""
+
+
+FAKE_AUTH_DEPLOYMENT = r"""#!/usr/bin/env bash
+set -euo pipefail
+[[ -f "$DOCKER_CONFIG/auth-created" ]]
+if IFS= read -r unexpected; then
+    exit 20
+fi
+printf '%s\n' "$DOCKER_CONFIG" > "$FAKE_AUTH_DEPLOYMENT_LOG"
+printf '%s\n' "$*" >> "$FAKE_AUTH_DEPLOYMENT_LOG"
+printf '%s\n' "Deployment completed."
+"""
+
+
 def write_executable(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
@@ -120,23 +148,46 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "group: imsweb-production",
             "cancel-in-progress: false",
             "scripts/deployment/deploy-compose-release.sh",
+            "scripts/deployment/run-authenticated-compose-release.sh",
+            "ref: ${{ github.workflow_sha }}",
+            "path: .deployment-workflow",
             'remote_script="/tmp/imsweb-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"',
+            'remote_auth_script="/tmp/imsweb-auth-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"',
             '"$target:$remote_script"',
-            "'$public_base_url_base64' </dev/null",
+            'GHCR_TOKEN: ${{ github.token }}',
+            'GHCR_USERNAME: ${{ github.actor }}',
+            'printf \'%s\' "$GHCR_TOKEN"',
+            ".deployment-workflow/scripts/deployment/run-authenticated-compose-release.sh",
             'grep -Fxq "Deployment completed." "$deployment_log"',
         ):
             self.assertIn(token, deployment)
+
+        deploy_job = deployment.split("\n  deploy:\n", maxsplit=1)[1]
+        self.assertIn("      packages: read", deploy_job)
+
+        authenticated_deployment = AUTH_DEPLOY_SCRIPT.read_text(encoding="utf-8")
+        for token in (
+            "--password-stdin",
+            "export DOCKER_CONFIG=$auth_directory",
+            "export REGISTRY_AUTH_FILE=$auth_directory/auth.json",
+            'bash "$deployment_script" "$@" </dev/null',
+            'rm -rf -- "$auth_directory"',
+        ):
+            self.assertIn(token, authenticated_deployment)
 
         self.assertNotIn('remote_command="bash -s --', deployment)
         self.assertNotIn("< scripts/deployment/deploy-compose-release.sh", deployment)
         self.assertNotIn("secrets.IMS_JWT_SECRET", deployment)
         self.assertNotIn("secrets.AWS_SECRET_ACCESS_KEY", deployment)
+        self.assertNotIn("secrets.GHCR_TOKEN", deployment)
 
     def test_deployment_guide_covers_setup_release_and_recovery_boundaries(self):
         guide = DEPLOYMENT_GUIDE.read_text(encoding="utf-8")
         for token in (
             "DEPLOY_SSH_PRIVATE_KEY",
             "DEPLOY_SSH_KNOWN_HOSTS",
+            "GITHUB_TOKEN",
+            "packages: read",
             "/etc/imsweb/production.env",
             "IMS_S3_REGION=auto",
             "IMS_S3_FORCE_PATH_STYLE=false",
@@ -157,6 +208,109 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         for reference in action_references:
             with self.subTest(reference=reference):
                 self.assertRegex(reference, r"^[0-9a-f]{40}$")
+
+
+class AuthenticatedDeploymentWrapperTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="ims-authenticated-deploy-")
+        self.root = Path(self.temporary.name)
+        self.bin_dir = self.root / "bin"
+        self.bin_dir.mkdir()
+        self.home = self.root / "home"
+        self.docker_config = self.home / ".docker"
+        self.contexts = self.docker_config / "contexts"
+        self.contexts.mkdir(parents=True)
+        (self.contexts / "rootless-marker").write_text("rootless\n", encoding="utf-8")
+        self.config_contents = '{"currentContext":"rootless"}\n'
+        (self.docker_config / "config.json").write_text(
+            self.config_contents,
+            encoding="utf-8",
+        )
+        self.container_log = self.root / "container.log"
+        self.deployment_log = self.root / "deployment.log"
+        write_executable(self.bin_dir / "docker", FAKE_AUTH_DOCKER)
+
+        unique = f"{os.getpid()}-{secrets.randbelow(1_000_000_000)}"
+        self.remote_script = Path(f"/tmp/imsweb-deploy-{unique}.sh")
+        write_executable(self.remote_script, FAKE_AUTH_DEPLOYMENT)
+        self.token = f"github-token-{unique}"
+
+    def tearDown(self):
+        self.remote_script.unlink(missing_ok=True)
+        self.temporary.cleanup()
+
+    def environment(self, *, login_failure: bool = False) -> dict[str, str]:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PATH": f"{self.bin_dir}:{environment['PATH']}",
+                "HOME": str(self.home),
+                "DOCKER_CONFIG": str(self.docker_config),
+                "EXPECTED_GHCR_TOKEN": self.token,
+                "FAKE_AUTH_CONTAINER_LOG": str(self.container_log),
+                "FAKE_AUTH_DEPLOYMENT_LOG": str(self.deployment_log),
+                "FAKE_AUTH_LOGIN_FAIL": "true" if login_failure else "",
+            }
+        )
+        return environment
+
+    def run_wrapper(self, *, login_failure: bool = False) -> subprocess.CompletedProcess[str]:
+        image = f"ghcr.io/example/imsweb-api@sha256:{'2' * 64}"
+        return subprocess.run(
+            (
+                str(AUTH_DEPLOY_SCRIPT),
+                "TexasOct",
+                str(self.remote_script),
+                "v1.2.3",
+                "1" * 40,
+                image,
+                "/tmp/imsweb-compose-1-1.yaml",
+                "/srv/imsweb",
+                "aHR0cHM6Ly9leGFtcGxlLmNvbQ==",
+            ),
+            cwd=PROJECT_ROOT,
+            env=self.environment(login_failure=login_failure),
+            input=self.token,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_uses_and_removes_an_isolated_docker_authentication_config(self):
+        result = self.run_wrapper()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Deployment completed.\n", result.stdout)
+        observed_config = Path(self.deployment_log.read_text(encoding="utf-8").splitlines()[0])
+        self.assertNotEqual(observed_config, self.docker_config)
+        self.assertFalse(observed_config.exists())
+        self.assertEqual(
+            (self.docker_config / "config.json").read_text(encoding="utf-8"),
+            self.config_contents,
+        )
+
+    def test_login_failure_cleans_authentication_and_skips_deployment(self):
+        result = self.run_wrapper(login_failure=True)
+
+        self.assertNotEqual(result.returncode, 0)
+        observed_config = Path(
+            self.container_log.read_text(encoding="utf-8").split("|", maxsplit=1)[0]
+        )
+        self.assertFalse(observed_config.exists())
+        self.assertFalse(self.deployment_log.exists())
+
+    def test_external_docker_credential_helpers_are_refused(self):
+        (self.docker_config / "config.json").write_text(
+            '{"credsStore":"secretservice"}\n',
+            encoding="utf-8",
+        )
+
+        result = self.run_wrapper()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("external credential helpers", result.stderr)
+        self.assertFalse(self.container_log.exists())
+        self.assertFalse(self.deployment_log.exists())
 
 
 class ComposeReleaseDeploymentTests(unittest.TestCase):
