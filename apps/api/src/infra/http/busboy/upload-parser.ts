@@ -32,6 +32,7 @@ export class StreamingUploadParser implements UploadParser {
             const fields: Record<string, string> = {};
             const files: ParsedUpload['files'] = {};
             const acceptedFields = new Set(options.fileFields);
+            const maxParts = options.maxParts ?? 48;
             const parser = Busboy({
                 headers: { 'content-type': contentType },
                 limits: {
@@ -39,7 +40,9 @@ export class StreamingUploadParser implements UploadParser {
                     fileSize: options.maxBytes,
                     files: options.maxFiles ?? 10,
                     fields: options.maxFields ?? 32,
-                    parts: options.maxParts ?? 48
+                    // Busboy emits partsLimit when it reaches this value, so
+                    // reserve one sentinel part to keep maxParts inclusive.
+                    parts: maxParts + 1
                 }
             });
             const source = Readable.fromWeb(request.body as NodeReadableStream);
