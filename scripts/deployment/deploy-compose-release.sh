@@ -48,6 +48,10 @@ command -v base64 >/dev/null || fail "base64 is not installed"
 command -v curl >/dev/null || fail "curl is not installed"
 command -v flock >/dev/null || fail "flock is not installed"
 command -v sha256sum >/dev/null || fail "sha256sum is not installed"
+"$container_cli" info >/dev/null 2>&1 || \
+    fail "$container_cli daemon is not accessible to the deployment user"
+"$container_cli" compose version >/dev/null 2>&1 || \
+    fail "$container_cli compose is not available to the deployment user"
 
 [[ -f "$compose_source" && ! -L "$compose_source" ]] || fail "compose source is missing or is a symbolic link"
 [[ -f "$runtime_env" && ! -L "$runtime_env" ]] || fail "production environment file is missing or is a symbolic link"
