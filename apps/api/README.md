@@ -82,8 +82,8 @@ pnpm dev
 构建后运行：
 
 ```sh
-pnpm run build:server
-pnpm run start:node
+pnpm run build
+pnpm run start
 ```
 
 生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度 `IMS_JWT_SECRET`。管理员登录使用

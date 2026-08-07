@@ -163,6 +163,11 @@ SHA-256 后再归档。S3 使用版本化 bucket、对象清单和数据库中�
 /srv/ims/shared/media/
 ```
 
+当前 PostgreSQL + R2 正式环境优先使用
+[GitHub Actions 自动部署](github-actions-deployment.md)：CI 构建一次 GHCR 镜像，生产机按 digest
+运行 Compose，并把 release metadata、数据库恢复点和部署记录保存在 `/srv/imsweb`。以下裸
+Node 目录激活流程保留给未纳入 Compose 的既有安装或迁移排障，不是 GitHub Actions 的默认路径。
+
 准备 staging 并完成安装与验证后设置：
 
 ```sh

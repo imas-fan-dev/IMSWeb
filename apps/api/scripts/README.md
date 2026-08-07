@@ -159,5 +159,4 @@ pnpm run wiki:metadata:audit -- --strict
 并只在受控 shell 中短暂注入 `IMS_NEW_USER_PASSWORD`。真实密钥、密码、数据库、清单和备份不得
 写回仓库。
 
-兼容命令 `pnpm run user:add` 和 `pnpm run password:hash` 暂时保留，分别转发到新的 `ops:*`
-命令。
+账号操作只保留 `pnpm run ops:account:add` 和 `pnpm run ops:password:hash` 两个明确入口。

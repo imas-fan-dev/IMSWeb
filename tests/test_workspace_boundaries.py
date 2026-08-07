@@ -178,7 +178,6 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "build": "pnpm run build:api",
             "check": "pnpm run check:api",
             "test": "pnpm run test:api",
-            "test:fast": "pnpm run test:api",
         }.items():
             with self.subTest(script_name=script_name):
                 with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
@@ -195,6 +194,52 @@ class WorkspaceBoundaryTests(unittest.TestCase):
                     f"default command {script_name} never resolves to @imsweb/web",
                     result.stderr,
                 )
+
+    def test_package_script_surfaces_remain_bounded_without_deprecated_aliases(self):
+        root_scripts = json.loads(
+            (PROJECT_ROOT / "package.json").read_text(encoding="utf-8")
+        )["scripts"]
+        api_scripts = json.loads(
+            (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
+        )["scripts"]
+        web_scripts = json.loads(
+            (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
+        )["scripts"]
+
+        self.assertLessEqual(len(root_scripts), 50)
+        self.assertLessEqual(len(api_scripts), 35)
+        self.assertLessEqual(len(web_scripts), 13)
+        self.assertTrue(
+            {
+                "build",
+                "check",
+                "test",
+                "dev",
+                "start",
+            }.issubset(root_scripts)
+        )
+        for deprecated in (
+            "build:api",
+            "build:server",
+            "start:node",
+            "test:all",
+            "test:fast",
+            "user:add",
+            "password:hash",
+        ):
+            with self.subTest(package="root", deprecated=deprecated):
+                self.assertNotIn(deprecated, root_scripts)
+        for deprecated in (
+            "build:server",
+            "dev:node",
+            "start:node",
+            "test:fast",
+            "typecheck:server",
+            "user:add",
+            "password:hash",
+        ):
+            with self.subTest(package="api", deprecated=deprecated):
+                self.assertNotIn(deprecated, api_scripts)
 
     def test_nested_alias_cannot_hide_legacy_filter(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:

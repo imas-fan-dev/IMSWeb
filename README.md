@@ -20,7 +20,7 @@ IMSWeb 是一个 pnpm monorepo：
 | `apps/api/` | `@imsweb/api` | Hono + TypeScript Node API              |
 | `apps/web/` | `@imsweb/web` | React Router 7 + React 19 Web 应用      |
 | `data/`     | -             | 被 Git 忽略的本地数据库、上传和迁移输入 |
-| `deploy/`   | -             | 本地 PostgreSQL 与 RustFS 编排          |
+| `deploy/`   | -             | PostgreSQL、RustFS 与生产 API 编排       |
 | `scripts/`  | -             | 边界检查、迁移、发布与运维工具          |
 | `tests/`    | -             | 仓库级基础设施和部署契约测试            |
 
@@ -97,6 +97,10 @@ pnpm run dev:down
 | `pnpm run test:web`         | 运行 Web 单元测试与 Playwright 测试                |
 | `pnpm run test:web-routing` | 验证真实前端产物与 Hono 路由所有权                 |
 
+根目录只保留跨 workspace 的日常入口和具有明确安全边界的迁移、媒体及运维命令。只操作单个
+workspace 时使用 `pnpm --filter @imsweb/api run <command>` 或
+`pnpm --filter @imsweb/web run <command>`，不再为同一个动作增加多层转发别名。
+
 ## 架构边界
 
 - Web 页面、组件和浏览器 API 位于 `apps/web/`；请求使用同源相对 URL。
@@ -139,5 +143,6 @@ Web 公开资产必须登记来源和许可状态，见
 - [数据库配置](docs/database-configuration.md)
 - [数据库架构与 PostgreSQL 迁移边界](docs/database-architecture.md)
 - [Node 文件对象存储](docs/object-storage.md)
+- [GitHub Actions 自动部署](docs/github-actions-deployment.md)
 - [部署、备份与回滚](docs/operations-runbook.md)
 - [本地依赖服务](deploy/README.md)

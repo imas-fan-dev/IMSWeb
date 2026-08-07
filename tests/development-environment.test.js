@@ -233,7 +233,7 @@ test("development command plan orders local infrastructure before hot reload", a
     "--filter",
     "@imsweb/api",
     "run",
-    "dev:node",
+    "dev",
   ]);
   assert.deepEqual(plan.web.args, [
     "--filter",

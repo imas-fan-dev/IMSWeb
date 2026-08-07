@@ -128,7 +128,7 @@ class OperationsDocumentationTests(unittest.TestCase):
         package = json.loads(
             (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
         )
-        command = package["scripts"]["dev:node"]
+        command = package["scripts"]["dev"]
         self.assertIn("tsx watch", command)
         self.assertIn("--include .env", command)
         migration_command = package["scripts"]["migration:postgresql"]
