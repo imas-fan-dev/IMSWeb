@@ -21,6 +21,15 @@ DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/github-actions-deployment.md"
 PNPM_SETUP_ACTION = (
     "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10"
 )
+DOCKER_SETUP_BUILDX_ACTION = (
+    "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0"
+)
+DOCKER_LOGIN_ACTION = (
+    "docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0"
+)
+DOCKER_BUILD_PUSH_ACTION = (
+    "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0"
+)
 
 
 FAKE_CONTAINER_CLI = r"""#!/usr/bin/env bash
@@ -136,7 +145,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "confirm_data_compatibility:",
             "refs/remotes/origin/main",
             PNPM_SETUP_ACTION,
-            "docker/build-push-action@",
+            DOCKER_BUILD_PUSH_ACTION,
             "actions/attest-build-provenance@",
             "gh attestation verify",
             "GH_TOKEN: ${{ github.token }}",
@@ -161,6 +170,19 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             'grep -Fxq "Deployment completed." "$deployment_log"',
         ):
             self.assertIn(token, deployment)
+
+        expected_docker_actions = [
+            DOCKER_SETUP_BUILDX_ACTION,
+            DOCKER_LOGIN_ACTION,
+            DOCKER_BUILD_PUSH_ACTION,
+            DOCKER_SETUP_BUILDX_ACTION,
+            DOCKER_LOGIN_ACTION,
+        ]
+        observed_docker_actions = re.findall(
+            r"uses:\s+(docker/[^@\s]+@[0-9a-f]{40}\s+#\s+v[^\s]+)",
+            deployment,
+        )
+        self.assertEqual(observed_docker_actions, expected_docker_actions)
 
         deploy_job = deployment.split("\n  deploy:\n", maxsplit=1)[1]
         self.assertIn("      packages: read", deploy_job)
