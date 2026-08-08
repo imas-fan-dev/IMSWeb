@@ -33,6 +33,10 @@ self-hosted runner。
 `contents: read` 和 `packages: read`。部署 job 使用 GitHub 为本次运行自动生成的短期
 `GITHUB_TOKEN` 拉取镜像，不需要创建或保存长期 GHCR PAT。
 
+Docker 的 Buildx、Registry Login 和 Build/Push Actions 分别使用 v4、v4 和 v7 主版本；这些
+版本声明使用 Node.js 24 Action runtime，并继续固定到完整 release commit SHA。它们要求
+Actions Runner `v2.327.1` 或更高版本，GitHub-hosted `ubuntu-24.04` runner 满足该要求。
+
 ## 2. GitHub 仓库设置
 
 在仓库 Settings -> Environments 创建 `production`。配置以下 Environment variables：
