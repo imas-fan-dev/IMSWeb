@@ -754,5 +754,3 @@ export class SqlCoreRepository implements
         );
     }
 }
-
-export { SqlCoreRepository as SqliteCoreRepository };

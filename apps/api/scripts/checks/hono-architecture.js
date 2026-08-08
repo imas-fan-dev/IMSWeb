@@ -31,7 +31,7 @@ const infraCategories = new Set([
 ]);
 const infraMiddleware = new Map([
     ['cache', new Set(['filesystem', 'memory'])],
-    ['db', new Set(['postgresql', 'repositories', 'sql', 'sqlite'])],
+    ['db', new Set(['postgresql', 'repositories', 'sql'])],
     ['http', new Set(['busboy', 'filesystem'])],
     ['media', new Set(['sharp'])],
     ['oss', new Set(['filesystem', 's3'])],
@@ -70,8 +70,7 @@ for (const entry of fs.readdirSync(infraRoot, { withFileTypes: true })) {
 const databaseLayout = new Map([
     ['postgresql', ['connection.ts', 'schema-strategy.ts']],
     ['repositories', ['core-repository.ts', 'story-repository.ts']],
-    ['sql', ['database.ts', 'query.ts']],
-    ['sqlite', ['connection.ts', 'schema-strategy.ts']]
+    ['sql', ['database.ts', 'query.ts']]
 ]);
 for (const [directory, requiredFiles] of databaseLayout) {
     for (const requiredFile of requiredFiles) {
@@ -160,7 +159,7 @@ for (const entry of fs.readdirSync(routingRoot, { withFileTypes: true })) {
 }
 
 const relativeInternalImport = /\b(?:from\s*|import\s*(?:\(\s*)?)(['"])\.{1,2}\//;
-const concreteMiddlewareImport = /\b(?:from\s*|import\s*(?:\(\s*)?)(['"])(?:@aws-sdk\/|@prisma\/client|@\/generated\/prisma|bcrypt(?:js)?|busboy|pg|sharp|sqlite3)/;
+const concreteMiddlewareImport = /\b(?:from\s*|import\s*(?:\(\s*)?)(['"])(?:@aws-sdk\/|@prisma\/client|@\/generated\/prisma|bcrypt(?:js)?|busboy|pg|sharp)/;
 const concretePlatformType = /\b(?:D1Database|D1PreparedStatement|ImagesBinding|PrismaClient|R2Bucket)\b/;
 for (const file of filesUnder(sourceRoot)) {
     const source = fs.readFileSync(file, 'utf8');
@@ -207,17 +206,13 @@ for (const file of filesUnder(sourceRoot)) {
     if (relative.startsWith('ports/') && /['"]@\/(?:config|domains|infra|runtime)\//.test(source)) {
         failures.push(`${path.relative(root, file)}: ports must not depend on outer layers`);
     }
-    if (![
-        'infra/db/postgresql/connection.ts',
-        'infra/db/sqlite/connection.ts'
-    ].includes(relative) &&
-        /\b(?:sqlite3\.Database|PoolClient)\b/.test(source)) {
+    if (relative !== 'infra/db/postgresql/connection.ts' && /\bPoolClient\b/.test(source)) {
         failures.push(`${path.relative(root, file)}: concrete database type bypasses SqlDatabase`);
     }
 }
 
 const sqlPortSource = fs.readFileSync(path.join(sourceRoot, 'infra/db/sql/database.ts'), 'utf8');
-for (const contract of ['interface SqlDatabase', 'interface SqlStatement', 'SqlDialect', 'batch<']) {
+for (const contract of ['interface SqlDatabase', 'interface SqlStatement', 'transaction<', 'batch<']) {
     if (!sqlPortSource.includes(contract)) {
         failures.push(`src/infra/db/sql/database.ts: missing ${contract} contract`);
     }
@@ -233,8 +228,8 @@ if (bundleTsconfig.extends !== './tsconfig.server.json') {
 }
 
 const forbiddenDomainPatterns = [
-    [/\bfrom\s+['"](?:express|sqlite3|sharp|multer|node:fs|fs)['"]/, 'forbidden runtime import'],
-    [/\brequire\(\s*['"](?:express|sqlite3|sharp|multer|node:fs|fs)['"]\s*\)/, 'forbidden runtime require'],
+    [/\bfrom\s+['"](?:express|sharp|multer|node:fs|fs)['"]/, 'forbidden runtime import'],
+    [/\brequire\(\s*['"](?:express|sharp|multer|node:fs|fs)['"]\s*\)/, 'forbidden runtime require'],
     [/\b(?:from\s*|import\s*(?:\(\s*)?)['"]@\/runtime\//, 'direct runtime import'],
     [/\bprocess\.env\b/, 'direct environment access'],
     [/\b(?:Flask|Pillow)\b/, 'Python web/image runtime reference']
@@ -333,7 +328,6 @@ for (const implementation of [
     'FilesystemIdempotencyStore',
     'MemoryRateLimiter',
     'PostgresConnection',
-    'SqliteConnection',
     'FilesystemObjectStorage',
     'S3ObjectStorage',
     'StreamingUploadParser',

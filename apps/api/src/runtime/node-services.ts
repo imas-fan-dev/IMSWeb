@@ -23,7 +23,6 @@ import {
     EVENT_BASE,
     IDEMPOTENCY_DIR,
     PUBLIC_DIR,
-    SQLITE_DATABASE_PATH,
     STORY_DATA_DIR,
     UPLOADS_DIR,
     ensureRuntimeDirectories
@@ -45,8 +44,6 @@ import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import {
@@ -91,15 +88,8 @@ interface NodeRepositories {
 }
 
 function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
-    let database: ManagedSqlDatabase;
-    let schema: SqlSchemaStrategy;
-    if (config.type === 'postgresql') {
-        database = PostgresConnection.create(config);
-        schema = new PostgresqlSchemaStrategy();
-    } else {
-        database = new SqliteConnection(config.path);
-        schema = new SqliteSchemaStrategy();
-    }
+    const database = PostgresConnection.create(config);
+    const schema = new PostgresqlSchemaStrategy();
     return {
         database,
         core: new SqlCoreRepository(database, schema),
@@ -219,9 +209,7 @@ export function createNodeServiceLifecycle<Services extends RuntimeServices>(
 
 export async function createNodeServices(): Promise<NodeRuntimeServices> {
     const objectStorage = parseNodeObjectStorageConfig();
-    const database = parseNodeDatabaseConfig(process.env, {
-        path: SQLITE_DATABASE_PATH
-    });
+    const database = parseNodeDatabaseConfig(process.env);
     ensureRuntimeDirectories(objectStorage.type === 'filesystem');
     const { database: connection, core, story } = createNodeRepositories(database);
     try {
@@ -260,6 +248,11 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             uploads: new StreamingUploadParser(),
             idempotency: new FilesystemIdempotencyStore(IDEMPOTENCY_DIR),
             rateLimiter: new MemoryRateLimiter(),
+            health: {
+                async check() {
+                    await connection.prepare('SELECT 1 AS ready').first('ready');
+                }
+            },
             passwords: new BcryptPasswordVerifier(),
             tokens: new HmacTokenService(SECRET_KEY),
             fetch: globalThis.fetch,

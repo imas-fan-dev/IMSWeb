@@ -1,12 +1,10 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { executeSql } from '@/infra/db/sql/query';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 function adminRequest(method: string, pathname: string, body?: unknown): Request {
     return new Request(`http://homepage.test${pathname}`, {
@@ -20,14 +18,14 @@ function adminRequest(method: string, pathname: string, body?: unknown): Request
 }
 
 test('homepage links are database-backed and reorder only complete section inventories', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-homepage-links-'));
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    const connection = await createPostgresTestDatabase(t, 'homepage-links');
     const repository = new SqlCoreRepository(
-        new SqliteConnection(path.join(root, 'homepage.sqlite')),
-        new SqliteSchemaStrategy()
+        connection,
+        new PostgresqlSchemaStrategy()
     );
     t.after(() => repository.close());
     await repository.initialize();
+    await executeSql(connection, 'DELETE FROM homepage_links');
 
     const app = createHonoApp(() => ({
         homepageLinks: repository,

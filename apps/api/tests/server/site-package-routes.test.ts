@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import { Readable } from 'node:stream';
 import test from 'node:test';
 import { ZipFile } from 'yazl';
@@ -16,9 +13,9 @@ import type {
     StoredObject
 } from '@/ports/object-storage';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 async function createArchive(): Promise<Buffer> {
     const zip = new ZipFile();
@@ -130,11 +127,9 @@ function revision(
 }
 
 test('site-package routes share the main origin and enforce manifests, CSP, and revisions', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-site-package-routes-'));
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
     const repository = new SqlCoreRepository(
-        new SqliteConnection(path.join(root, 'routes.sqlite')),
-        new SqliteSchemaStrategy()
+        await createPostgresTestDatabase(t, 'site-routes'),
+        new PostgresqlSchemaStrategy()
     );
     t.after(() => repository.close());
     await repository.initialize();

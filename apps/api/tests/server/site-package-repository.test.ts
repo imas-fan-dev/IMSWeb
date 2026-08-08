@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 import crypto from 'node:crypto';
 import type { ManagedSqlDatabase, SqlResult } from '@/infra/db/sql/database';
+import { executeSql } from '@/infra/db/sql/query';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 function revision(packageId: string, id: string, token: string, createdAt: number) {
     const prefix = `site-packages/${packageId}/revisions/${id}`;
@@ -31,11 +29,9 @@ function revision(packageId: string, id: string, token: string, createdAt: numbe
     };
 }
 
-test('SQLite site packages create revisions and atomically switch rollback pointers', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-site-package-db-'));
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
-    const database = new SqliteConnection(path.join(root, 'site-packages.sqlite'));
-    const schema = new SqliteSchemaStrategy();
+test('PostgreSQL site packages create revisions and atomically switch rollback pointers', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'site-package');
+    const schema = new PostgresqlSchemaStrategy();
     const repository = new SqlCoreRepository(database, schema);
     t.after(() => repository.close());
     await repository.initialize();
@@ -53,22 +49,22 @@ test('SQLite site packages create revisions and atomically switch rollback point
     }, revision(packageId, firstId, 'a'.repeat(64), 1_000));
 
     await assert.rejects(
-        database.run('UPDATE site_packages SET slug=? WHERE id=?', ['Bad_Slug', packageId]),
-        /kebab-case|CHECK constraint/
+        executeSql(database, 'UPDATE site_packages SET slug=? WHERE id=?', ['Bad_Slug', packageId]),
+        /check constraint/i
     );
     await assert.rejects(
-        database.run(
+        executeSql(database,
             'UPDATE site_package_revisions SET source_sha256=? WHERE id=?',
             ['C'.repeat(64), firstId]
         ),
-        /lowercase hexadecimal|CHECK constraint/
+        /check constraint/i
     );
     await assert.rejects(
-        database.run(
+        executeSql(database,
             'UPDATE site_package_revisions SET preview_token_hash=? WHERE id=?',
             ['z'.repeat(64), firstId]
         ),
-        /lowercase hexadecimal|CHECK constraint/
+        /check constraint/i
     );
 
     const second = await repository.createSitePackageRevision(
@@ -161,10 +157,10 @@ test('SQLite site packages create revisions and atomically switch rollback point
         createdAt: 7_000
     }, revision(otherPackageId, otherRevisionId, 'd'.repeat(64), 7_000));
     await assert.rejects(
-        database.run(
+        executeSql(database,
             'UPDATE site_packages SET published_revision_id=? WHERE id=?',
             [otherRevisionId, packageId]
         ),
-        /belongs to another site package|FOREIGN KEY constraint/
+        /belongs to another site package|foreign key constraint/i
     );
 });

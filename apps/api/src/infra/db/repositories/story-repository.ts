@@ -108,6 +108,9 @@ function httpError(message: string, status: number): Error {
     return Object.assign(new Error(message), { status });
 }
 
+class WikiLayoutRevisionConflict extends Error {}
+class StoryMediaRevisionConflict extends Error {}
+
 function storyCardHasConflict(
     existing: StoryCardRecord,
     input: NewStoryInput | NewStoryBatchInput
@@ -1097,31 +1100,38 @@ export class SqlStoryRepository implements StoryRepository {
                 status: 400
             });
         }
-        const revisionGuard = `EXISTS (
-            SELECT 1 FROM agencies WHERE id=? AND layout_revision=?
-        )`;
-        const statements = [sqlStatement(this.database,
-            `DELETE FROM wiki_group_members WHERE agency_id=? AND ${revisionGuard}`,
-            [input.agencyId, input.agencyId, input.expectedRevision]
-        )];
-        for (const group of input.groups) {
-            group.idolIds.forEach((idolId, displayOrder) => {
-                statements.push(sqlStatement(this.database,
-                    `INSERT INTO wiki_group_members(agency_id, group_id, idol_id, display_order)
-                     SELECT ?, ?, ?, ? WHERE ${revisionGuard}`,
-                    [input.agencyId, group.id, idolId, displayOrder,
-                        input.agencyId, input.expectedRevision]
+        try {
+            await this.database.transaction(async (database) => {
+                const revisionGuard = `EXISTS (
+                    SELECT 1 FROM agencies WHERE id=? AND layout_revision=?
+                )`;
+                const statements = [sqlStatement(database,
+                    `DELETE FROM wiki_group_members WHERE agency_id=? AND ${revisionGuard}`,
+                    [input.agencyId, input.agencyId, input.expectedRevision]
+                )];
+                for (const group of input.groups) {
+                    group.idolIds.forEach((idolId, displayOrder) => {
+                        statements.push(sqlStatement(database,
+                            `INSERT INTO wiki_group_members
+                                (agency_id, group_id, idol_id, display_order)
+                             SELECT ?, ?, ?, ? WHERE ${revisionGuard}`,
+                            [input.agencyId, group.id, idolId, displayOrder,
+                                input.agencyId, input.expectedRevision]
+                        ));
+                    });
+                }
+                statements.push(sqlStatement(database,
+                    `UPDATE agencies SET layout_revision=layout_revision+1
+                     WHERE id=? AND layout_revision=?`,
+                    [input.agencyId, input.expectedRevision]
                 ));
+                const results = await database.batch(statements);
+                if (!results.at(-1)?.meta.changes) {
+                    throw new WikiLayoutRevisionConflict();
+                }
             });
-        }
-        statements.push(sqlStatement(this.database,
-            `UPDATE agencies SET layout_revision=layout_revision+1
-             WHERE id=? AND layout_revision=?`,
-            [input.agencyId, input.expectedRevision]
-        ));
-        const results = await this.database.batch(statements);
-        const updated = results.at(-1)?.meta.changes ?? 0;
-        if (!updated) {
+        } catch (error) {
+            if (!(error instanceof WikiLayoutRevisionConflict)) throw error;
             const current = await this.findAgencyById(input.agencyId);
             return { status: 'conflict', revision: current?.layout_revision ?? agency.layout_revision };
         }
@@ -1302,7 +1312,7 @@ export class SqlStoryRepository implements StoryRepository {
                            AND cards.image_focal_x=? AND cards.image_focal_y=?
                            AND cards.image_zoom=? AND cards.image_rotation=?
                        ))
-                       AND (? IS NULL OR cards.cover_asset_id=?)
+                       AND (CAST(? AS BIGINT) IS NULL OR cards.cover_asset_id=?)
                    )`,
                 [input.agencyCode, input.idolId, input.category, input.cardName,
                     input.subtitle, input.subtitle, input.imageFile, input.imageFile,
@@ -1331,7 +1341,7 @@ export class SqlStoryRepository implements StoryRepository {
                        AND cards.image_focal_x=? AND cards.image_focal_y=?
                        AND cards.image_zoom=? AND cards.image_rotation=?
                    ))
-                   AND (? IS NULL OR cards.cover_asset_id=?)
+                   AND (CAST(? AS BIGINT) IS NULL OR cards.cover_asset_id=?)
                  RETURNING id`,
                 [link.upName, link.videoTitle, link.url, link.contentTypeId,
                     link.sourcePlatformId, input.agencyCode,
@@ -1662,60 +1672,67 @@ export class SqlStoryRepository implements StoryRepository {
             subtitle: string;
         };
     }): Promise<void> {
-        const results = await this.database.batch([
-            sqlStatement(this.database,
-                `UPDATE wiki_story_links
-                 SET up_name=?, video_title=?, url=?, content_type_id=?,
-                     source_platform_id=?
-                 WHERE id IN (
-                     SELECT links.id
-                     FROM wiki_story_links links
-                     JOIN wiki_story_cards cards
-                       ON cards.id=links.card_id AND cards.agency_id=links.agency_id
-                     JOIN agencies ON agencies.id=cards.agency_id
-                     WHERE agencies.code=? AND cards.idol_id=?
-                       AND COALESCE(links.legacy_id, links.id)=?
-                       AND cards.image_media_revision=?
-                 )`,
-                [input.story.upName, input.story.videoTitle, input.story.url,
-                    input.story.contentTypeId, input.story.sourcePlatformId,
-                    input.story.agencyCode, input.story.idolId, input.story.id,
-                    input.story.expectedMediaRevision]
-            ),
-            sqlStatement(this.database,
-                `UPDATE wiki_story_cards
-                 SET category_id=(
-                         SELECT categories.id
-                         FROM wiki_categories categories
-                         JOIN agencies ON agencies.id=categories.agency_id
-                         JOIN wiki_idol_categories assignments
-                           ON assignments.agency_id=categories.agency_id
-                          AND assignments.category_id=categories.id
-                          AND assignments.idol_id=?
-                         WHERE agencies.code=? AND categories.name=?
-                     ),
-                     card_name=?, subtitle=?, image_file=?, cover_asset_id=?, image_fit=?,
-                     image_focal_x=?, image_focal_y=?, image_zoom=?, image_rotation=?,
-                     image_media_revision=image_media_revision+1
-                 WHERE image_media_revision=? AND id IN (
-                     SELECT links.card_id
-                     FROM wiki_story_links links
-                     JOIN wiki_story_cards selected
-                       ON selected.id=links.card_id AND selected.agency_id=links.agency_id
-                     JOIN agencies ON agencies.id=selected.agency_id
-                     WHERE agencies.code=? AND selected.idol_id=?
-                       AND COALESCE(links.legacy_id, links.id)=?
-                 )`,
-                [input.story.idolId, input.story.agencyCode, input.story.category,
-                    input.story.cardName, input.story.subtitle, input.story.imageFile,
-                    input.story.coverAssetId ?? null,
-                    input.story.imageTransform.fit, input.story.imageTransform.focalX,
-                    input.story.imageTransform.focalY, input.story.imageTransform.zoom,
-                    input.story.imageTransform.rotation, input.story.expectedMediaRevision,
-                    input.story.agencyCode, input.story.idolId, input.story.id]
-            )
-        ]);
-        if (!results[1]?.meta.changes) {
+        try {
+            await this.database.transaction(async (database) => {
+                const results = await database.batch([
+                    sqlStatement(database,
+                        `UPDATE wiki_story_links
+                         SET up_name=?, video_title=?, url=?, content_type_id=?,
+                             source_platform_id=?
+                         WHERE id IN (
+                             SELECT links.id
+                             FROM wiki_story_links links
+                             JOIN wiki_story_cards cards
+                               ON cards.id=links.card_id AND cards.agency_id=links.agency_id
+                             JOIN agencies ON agencies.id=cards.agency_id
+                             WHERE agencies.code=? AND cards.idol_id=?
+                               AND COALESCE(links.legacy_id, links.id)=?
+                               AND cards.image_media_revision=?
+                         )`,
+                        [input.story.upName, input.story.videoTitle, input.story.url,
+                            input.story.contentTypeId, input.story.sourcePlatformId,
+                            input.story.agencyCode, input.story.idolId, input.story.id,
+                            input.story.expectedMediaRevision]
+                    ),
+                    sqlStatement(database,
+                        `UPDATE wiki_story_cards
+                         SET category_id=(
+                                 SELECT categories.id
+                                 FROM wiki_categories categories
+                                 JOIN agencies ON agencies.id=categories.agency_id
+                                 JOIN wiki_idol_categories assignments
+                                   ON assignments.agency_id=categories.agency_id
+                                  AND assignments.category_id=categories.id
+                                  AND assignments.idol_id=?
+                                 WHERE agencies.code=? AND categories.name=?
+                             ),
+                             card_name=?, subtitle=?, image_file=?, cover_asset_id=?, image_fit=?,
+                             image_focal_x=?, image_focal_y=?, image_zoom=?, image_rotation=?,
+                             image_media_revision=image_media_revision+1
+                         WHERE image_media_revision=? AND id IN (
+                             SELECT links.card_id
+                             FROM wiki_story_links links
+                             JOIN wiki_story_cards selected
+                               ON selected.id=links.card_id AND selected.agency_id=links.agency_id
+                             JOIN agencies ON agencies.id=selected.agency_id
+                             WHERE agencies.code=? AND selected.idol_id=?
+                               AND COALESCE(links.legacy_id, links.id)=?
+                         )`,
+                        [input.story.idolId, input.story.agencyCode, input.story.category,
+                            input.story.cardName, input.story.subtitle, input.story.imageFile,
+                            input.story.coverAssetId ?? null,
+                            input.story.imageTransform.fit, input.story.imageTransform.focalX,
+                            input.story.imageTransform.focalY, input.story.imageTransform.zoom,
+                            input.story.imageTransform.rotation, input.story.expectedMediaRevision,
+                            input.story.agencyCode, input.story.idolId, input.story.id]
+                    )
+                ]);
+                if (!results[1]?.meta.changes) {
+                    throw new StoryMediaRevisionConflict();
+                }
+            });
+        } catch (error) {
+            if (!(error instanceof StoryMediaRevisionConflict)) throw error;
             const current = await this.findStoryById(
                 input.story.agencyCode,
                 input.story.idolId,
@@ -1868,5 +1885,3 @@ export class SqlStoryRepository implements StoryRepository {
         );
     }
 }
-
-export { SqlStoryRepository as SqliteStoryRepository };

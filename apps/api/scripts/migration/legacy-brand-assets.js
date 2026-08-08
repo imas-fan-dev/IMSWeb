@@ -302,15 +302,11 @@ function countBy(values, field) {
 
 async function createMigrationStorage(storageConfig) {
     const { parseNodeDatabaseConfig } = require('../../src/config/database.ts');
-    const { SQLITE_DATABASE_PATH } = require('../../src/config/paths.ts');
     const { PostgresConnection } = require('../../src/infra/db/postgresql/connection.ts');
     const { S3CompensationService } = require('../../src/infra/oss/s3/compensation-service.ts');
     const { S3ObjectStorage } = require('../../src/infra/oss/s3/object-storage.ts');
     const { S3UploadStateMachine } = require('../../src/infra/oss/s3/upload-state-machine.ts');
-    const databaseConfig = parseNodeDatabaseConfig(process.env, { path: SQLITE_DATABASE_PATH });
-    if (databaseConfig.type !== 'postgresql') {
-        throw new Error('Legacy brand asset migration requires PostgreSQL');
-    }
+    const databaseConfig = parseNodeDatabaseConfig(process.env);
     const database = PostgresConnection.create(databaseConfig);
     const client = new S3Client({
         region: storageConfig.region,

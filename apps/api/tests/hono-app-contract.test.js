@@ -48,8 +48,7 @@ function isolatedEnvironment(root) {
         NODE_ENV: 'test',
         IMS_ENV_FILE: '',
         IMS_JWT_SECRET: 'hono-contract-test-secret-at-least-32-bytes',
-        IMS_DATABASE: 'sqlite',
-        IMS_SQLITE_PATH: path.join(root, 'imsweb.db'),
+        DATABASE_URL: 'postgresql://imsweb:test@127.0.0.1:5432/imsweb',
         IMS_OBJECT_STORAGE: 'filesystem',
         IMS_STORY_MAX_UPLOAD_BYTES: '52428800',
         IMS_UPLOADS_DIR: path.join(root, 'uploads'),
@@ -126,7 +125,6 @@ test('[ARC-01] default Web assets and mutable data use separate roots', () => {
         process.stdout.write(JSON.stringify({
             PROJECT_ROOT: paths.PROJECT_ROOT,
             PUBLIC_DIR: paths.PUBLIC_DIR,
-            SQLITE_DATABASE_PATH: paths.SQLITE_DATABASE_PATH,
             STORY_DATA_DIR: paths.STORY_DATA_DIR,
             UPLOADS_DIR: paths.UPLOADS_DIR,
             EVENT_BASE: paths.EVENT_BASE
@@ -134,7 +132,7 @@ test('[ARC-01] default Web assets and mutable data use separate roots', () => {
     `;
     const env = { ...process.env, NODE_ENV: 'test' };
     for (const name of [
-        'IMS_PROJECT_ROOT', 'IMS_PUBLIC_DIR', 'IMS_SQLITE_PATH',
+        'IMS_PROJECT_ROOT', 'IMS_PUBLIC_DIR',
         'IMS_STORY_DATA_DIR', 'IMS_UPLOADS_DIR', 'IMS_EVENT_BASE_DIR'
     ]) delete env[name];
     const result = spawnSync(process.execPath, ['-e', script], {
@@ -147,10 +145,6 @@ test('[ARC-01] default Web assets and mutable data use separate roots', () => {
     const paths = JSON.parse(result.stdout);
     assert.equal(paths.PROJECT_ROOT, REPOSITORY_ROOT);
     assert.equal(paths.PUBLIC_DIR, path.join(REPOSITORY_ROOT, 'apps/api/dist/node-client'));
-    assert.equal(
-        paths.SQLITE_DATABASE_PATH,
-        path.join(REPOSITORY_ROOT, 'data/imsweb.db')
-    );
     assert.equal(
         paths.STORY_DATA_DIR,
         path.join(REPOSITORY_ROOT, 'data/story/images')
@@ -310,7 +304,7 @@ test('[SEC-01] shared app adds security headers to early 413 and 429 responses',
                     })
                 }
             }));
-            const rateLimited = await rateLimitedApp.request('http://ims.test/api/wiki/test');
+            const rateLimited = await rateLimitedApp.request('http://ims.test/api/news');
 
             await entry.closeDatabase();
             process.stdout.write(JSON.stringify({
@@ -339,10 +333,10 @@ test('[RUN-01] createHonoApp resolves service dependencies for every request', (
             const seen = [];
             const app = entry.createHonoApp(env => {
                 seen.push(env.requestMarker);
-                return {};
+                return { health: { check: async () => {} } };
             });
-            const first = await app.request('/api/wiki/test', undefined, { requestMarker: 'first' });
-            const second = await app.request('/api/wiki/test', undefined, { requestMarker: 'second' });
+            const first = await app.request('/api/health/ready', undefined, { requestMarker: 'first' });
+            const second = await app.request('/api/health/ready', undefined, { requestMarker: 'second' });
             if (first.status !== 200 || second.status !== 200) {
                 throw new Error('health route did not remain public');
             }

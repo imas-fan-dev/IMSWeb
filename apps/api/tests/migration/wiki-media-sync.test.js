@@ -27,10 +27,7 @@ test('Wiki media sync accepts pnpm forwarded argument separators', () => {
 });
 
 test('Wiki media sync leaves database ownership to runtime services', () => {
-    const options = parseArguments([], {
-        IMS_SQLITE_PATH: '/tmp/imsweb.db',
-        IMS_STORY_DB_PATH: '/tmp/legacy-story.db'
-    });
+    const options = parseArguments([]);
     assert.equal('database' in options, false);
 });
 

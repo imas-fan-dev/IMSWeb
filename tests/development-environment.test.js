@@ -109,7 +109,7 @@ test("development configuration derives a fully local runtime", async () => {
   );
   assert.equal("AWS_SESSION_TOKEN" in configuration.apiEnvironment, false);
   assert.equal(configuration.apiEnvironment.IMS_PROJECT_ROOT, repositoryRoot);
-  assert.equal(configuration.apiEnvironment.IMS_DATABASE, "postgresql");
+  assert.equal("IMS_DATABASE" in configuration.apiEnvironment, false);
   assert.equal(configuration.apiEnvironment.IMS_OBJECT_STORAGE, "s3");
   assert.equal(
     configuration.apiEnvironment.IMS_S3_ENDPOINT,

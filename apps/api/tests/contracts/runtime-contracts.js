@@ -84,19 +84,33 @@ async function assertAbuseProtectionContract(fixture) {
     equal(fixture.compensationCount(), 0,
         `${fixture.runtime} static and OPTIONS requests do not run compensation`);
     await assertJsonResponse(await fixture.request('/api/wiki/test'), 200, { status: 'ok' },
-        `${fixture.runtime} dynamic global rate probe`);
-    equal(await fixture.rateLimitCount('global'), 1,
-        `${fixture.runtime} dynamic API consumes global quota`);
-    equal(fixture.compensationCount(), 1,
-        `${fixture.runtime} accepted dynamic API runs compensation`);
+        `${fixture.runtime} compatibility probe`);
+    equal(await fixture.rateLimitCount('global'), 0,
+        `${fixture.runtime} compatibility probe does not consume global quota`);
+    equal(fixture.compensationCount(), 0,
+        `${fixture.runtime} compatibility probe does not run compensation`);
 
     const beforeEncodedDynamicGlobal = await fixture.rateLimitCount('global');
     const beforeEncodedDynamicCompensation = fixture.compensationCount();
     await assertJsonResponse(await fixture.request('/api/wiki/%74est'), 200, { status: 'ok' },
-        `${fixture.runtime} percent-encoded dynamic route`);
+        `${fixture.runtime} percent-encoded compatibility probe`);
+    equal(await fixture.rateLimitCount('global'), beforeEncodedDynamicGlobal,
+        `${fixture.runtime} encoded compatibility probe does not consume global quota`);
+    equal(fixture.compensationCount(), beforeEncodedDynamicCompensation,
+        `${fixture.runtime} encoded compatibility probe does not run compensation`);
+
+    await assertJsonResponse(await fixture.request(`/api/reactions?id=${fixture.cardId}`), 200, {},
+        `${fixture.runtime} dynamic global rate probe`);
     equal(await fixture.rateLimitCount('global'), beforeEncodedDynamicGlobal + 1,
-        `${fixture.runtime} percent-encoded API consumes global quota`);
+        `${fixture.runtime} dynamic API consumes global quota`);
     equal(fixture.compensationCount(), beforeEncodedDynamicCompensation + 1,
+        `${fixture.runtime} accepted dynamic API runs compensation`);
+
+    await assertJsonResponse(await fixture.request(`/api/%72eactions?id=${fixture.cardId}`), 200, {},
+        `${fixture.runtime} percent-encoded dynamic route`);
+    equal(await fixture.rateLimitCount('global'), beforeEncodedDynamicGlobal + 2,
+        `${fixture.runtime} percent-encoded API consumes global quota`);
+    equal(fixture.compensationCount(), beforeEncodedDynamicCompensation + 2,
         `${fixture.runtime} percent-encoded API runs compensation`);
 
     for (const malformedPath of ['/api/%', '/api/%E0%A4%A']) {

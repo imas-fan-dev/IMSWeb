@@ -437,26 +437,17 @@ async function main() {
     if (!['filesystem', 's3'].includes(objectStorage)) {
         fail('IMS_OBJECT_STORAGE must be filesystem or s3');
     }
-    const database = String(process.env.IMS_DATABASE || 'sqlite').trim().toLowerCase();
-    if (!['sqlite', 'postgres', 'postgresql', 'pgsql'].includes(database)) {
-        fail('IMS_DATABASE must be sqlite or postgresql');
+    let databaseUrl;
+    try {
+        databaseUrl = new URL(process.env.DATABASE_URL || '');
+    } catch {
+        fail('DATABASE_URL must be a valid PostgreSQL URL');
     }
-    if (database !== 'sqlite') {
-        let databaseUrl;
-        try {
-            databaseUrl = new URL(process.env.DATABASE_URL || '');
-        } catch {
-            fail('DATABASE_URL must be a valid PostgreSQL URL');
-        }
-        if (!['postgres:', 'postgresql:'].includes(databaseUrl.protocol) ||
-            !databaseUrl.hostname || !databaseUrl.pathname) {
-            fail('DATABASE_URL must be a valid PostgreSQL URL');
-        }
+    if (!['postgres:', 'postgresql:'].includes(databaseUrl.protocol) ||
+        !databaseUrl.hostname || !databaseUrl.pathname || databaseUrl.pathname === '/') {
+        fail('DATABASE_URL must be a valid PostgreSQL URL');
     }
     const mutableDefinitions = [
-        ...(database === 'sqlite' ? [
-            ['IMS_SQLITE_PATH', 'file']
-        ] : []),
         ['IMS_COMPENSATION_DIR', 'directory'],
         ...(objectStorage === 'filesystem' ? [
             ['IMS_UPLOADS_DIR', 'directory'],

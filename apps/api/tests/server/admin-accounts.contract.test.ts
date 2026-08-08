@@ -1,21 +1,20 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { queryOne } from '@/infra/db/sql/query';
 import { HmacTokenService } from '@/infra/security/hmac/token-service';
 import type { AdminRole } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 const SECRET = 'admin-accounts-contract-secret-at-least-thirty-two-bytes';
 
 interface Fixture {
     app: ReturnType<typeof createHonoApp>;
-    connection: SqliteConnection;
+    connection: PostgresConnection;
     repository: SqlCoreRepository;
     tokens: HmacTokenService;
     ids: { superAdmin: number; admin: number; editor: number };
@@ -23,23 +22,23 @@ interface Fixture {
 }
 
 async function insertAccount(
-    connection: SqliteConnection,
+    connection: PostgresConnection,
     username: string,
     dept: 'op' | 'editor',
     role: AdminRole | null
 ): Promise<number> {
-    const result = await connection.run(
+    const result = await queryOne<{ id: number }>(connection,
         `INSERT INTO users (username, password, dept, producername, admin_role)
-         VALUES (?, 'stored-digest', ?, ?, ?)`,
+         VALUES (?, 'stored-digest', ?, ?, ?) RETURNING id`,
         [username, dept, `${username} P`, role]
     );
-    return result.lastID;
+    if (!result) throw new Error('Test account was not inserted');
+    return result.id;
 }
 
-async function createFixture(): Promise<Fixture> {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-admin-accounts-'));
-    const connection = new SqliteConnection(path.join(root, 'core.sqlite'));
-    const repository = new SqlCoreRepository(connection, new SqliteSchemaStrategy());
+async function createFixture(t: TestContext): Promise<Fixture> {
+    const connection = await createPostgresTestDatabase(t, 'admin-accounts');
+    const repository = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
     await repository.initialize();
     const ids = {
         superAdmin: await insertAccount(connection, 'super-operator', 'op', 'super_admin'),
@@ -66,7 +65,6 @@ async function createFixture(): Promise<Fixture> {
         ids,
         async close() {
             await repository.close();
-            await fs.rm(root, { recursive: true, force: true });
         }
     };
 }
@@ -91,7 +89,7 @@ async function authHeaders(
 }
 
 test('only the super administrator can list op accounts', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const regular = await fixture.app.request('http://ims.test/api/admin/accounts', {
@@ -137,7 +135,7 @@ test('only the super administrator can list op accounts', async (t) => {
 });
 
 test('super administrator creates only regular op accounts and audits the mutation', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
     const headers = await authHeaders(fixture, {
         id: fixture.ids.superAdmin,
@@ -180,7 +178,7 @@ test('super administrator creates only regular op accounts and audits the mutati
 });
 
 test('super administrator deletes a regular op and revokes its refresh sessions', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
     await fixture.repository.createRefreshSession({
         id: 'regular-session',
@@ -218,40 +216,4 @@ test('super administrator deletes a regular op and revokes its refresh sessions'
         await fixture.repository.findRefreshSessionByTokenHash('a'.repeat(64)),
         null
     );
-});
-
-test('legacy SQLite op accounts are backfilled and bootstrap selects one explicit super', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-admin-bootstrap-'));
-    const connection = new SqliteConnection(path.join(root, 'legacy.sqlite'));
-    t.after(async () => {
-        await connection.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
-    await connection.exec(`
-        CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            dept TEXT,
-            producername TEXT
-        );
-        INSERT INTO users (username, password, dept, producername) VALUES
-            ('legacy-op', 'digest', 'op', 'Legacy Operator'),
-            ('legacy-editor', 'digest', 'editor', 'Legacy Editor');
-    `);
-    const repository = new SqlCoreRepository(connection, new SqliteSchemaStrategy());
-    await repository.initialize();
-    assert.equal((await repository.findUserByUsername('legacy-op'))?.admin_role, 'admin');
-    assert.equal((await repository.findUserByUsername('legacy-editor'))?.admin_role, null);
-    await assert.rejects(repository.ensureSuperAdmin(), /IMS_SUPER_ADMIN_USERNAME/);
-    await assert.rejects(
-        repository.ensureSuperAdmin('legacy-editor'),
-        /existing op account/
-    );
-    await repository.ensureSuperAdmin('legacy-op');
-    assert.equal(
-        (await repository.findUserByUsername('legacy-op'))?.admin_role,
-        'super_admin'
-    );
-    await repository.ensureSuperAdmin('legacy-op');
 });

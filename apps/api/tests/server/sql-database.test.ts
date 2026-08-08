@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 import type { QueryResult } from 'pg';
 import {
@@ -11,59 +8,7 @@ import {
 } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
-
-test('SQLite implements the SQL port with returning rows and atomic batches', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-sql-port-'));
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
-
-    const database: ManagedSqlDatabase = new SqliteConnection(path.join(root, 'port.sqlite'));
-    t.after(() => database.close());
-    await database.executeScript(`
-        CREATE TABLE entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE
-        );
-    `);
-
-    const inserted = await database.prepare(
-        'INSERT INTO entries (name) VALUES (?) RETURNING id, name'
-    ).bind('first').first<{ id: number; name: string }>();
-    assert.deepEqual(inserted, { id: 1, name: 'first' });
-
-    await database.batch([
-        database.prepare('INSERT INTO entries (name) VALUES (?)').bind('second'),
-        database.prepare('INSERT INTO entries (name) VALUES (?)').bind('third')
-    ]);
-    assert.equal(
-        await database.prepare('SELECT COUNT(*) FROM entries').first<number>('COUNT(*)'),
-        3
-    );
-
-    await assert.rejects(database.batch([
-        database.prepare('INSERT INTO entries (name) VALUES (?)').bind('rolled-back'),
-        database.prepare('INSERT INTO entries (name) VALUES (?)').bind('first')
-    ]), /UNIQUE constraint failed/);
-    assert.equal(
-        await database.prepare(
-            "SELECT COUNT(*) FROM entries WHERE name='rolled-back'"
-        ).first<number>('COUNT(*)'),
-        0
-    );
-});
-
-test('SQLite close is idempotent for repositories sharing one connection', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-sql-close-'));
-    try {
-        const database = new SqliteConnection(path.join(root, 'shared.sqlite'));
-        await database.executeScript('CREATE TABLE entries (id INTEGER PRIMARY KEY);');
-        await Promise.all([database.close(), database.close()]);
-        await database.close();
-    } finally {
-        await fs.rm(root, { recursive: true, force: true });
-    }
-});
 
 function pgResult(
     rows: Array<Record<string, unknown>> = [],
@@ -147,6 +92,20 @@ test('PostgreSQL implements the SQL port with one short transaction per batch', 
     ]), /forced failure/);
     assert.equal(calls.at(-1)?.sql, 'ROLLBACK');
     assert.equal(releases, 2);
+
+    await assert.rejects(database.transaction(async (transaction) => {
+        await transaction.prepare('UPDATE entries SET name=? WHERE id=?').bind('tx', 42).run();
+        throw new Error('abort callback');
+    }), /abort callback/);
+    assert.deepEqual(
+        calls.slice(-3).map((call) => [call.sql, call.client]),
+        [
+            ['BEGIN', true],
+            ['UPDATE entries SET name=$1 WHERE id=$2', true],
+            ['ROLLBACK', true]
+        ]
+    );
+    assert.equal(releases, 3);
 
     await Promise.all([database.close(), database.close()]);
     assert.equal(closes, 1);

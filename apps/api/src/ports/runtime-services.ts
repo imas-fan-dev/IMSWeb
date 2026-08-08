@@ -12,6 +12,10 @@ export interface NodeRuntimeConfig {
     clientAddressSource: 'direct' | 'nginx';
 }
 
+export interface RuntimeHealth {
+    check(): Promise<void>;
+}
+
 export interface RuntimeServices extends
     Partial<CacheServices>,
     Partial<HttpServices>,
@@ -20,6 +24,7 @@ export interface RuntimeServices extends
     Partial<RepositoryServices>,
     Partial<SecurityServices> {
     fetch?: typeof globalThis.fetch;
+    health?: RuntimeHealth;
     config?: Partial<NodeRuntimeConfig>;
 }
 
@@ -31,6 +36,7 @@ export interface NodeRuntimeServices extends
     RepositoryServices,
     SecurityServices {
     fetch: typeof globalThis.fetch;
+    health: RuntimeHealth;
     config: NodeRuntimeConfig;
 }
 

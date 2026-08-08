@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { requestId, type RequestIdVariables } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
 import { jsonBodyLimit } from '@/middleware/json-body-limit';
 import {
@@ -9,6 +10,7 @@ import {
 } from '@/middleware/rate-limit';
 import type { RuntimeServices, ResolveServices } from '@/ports/runtime-services';
 import type { JwtClaims } from '@/ports/security';
+import { requestCompletionLogger } from '@/middleware/request-observability';
 import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
 import { registerAuditRoutes } from '@/domains/audit/routes';
 import { registerAdminAccountRoutes } from '@/domains/admin-accounts/routes';
@@ -31,7 +33,7 @@ import { registerWikiRoutes } from '@/domains/wiki/index';
 
 export interface AppEnvironment {
     Bindings: object;
-    Variables: {
+    Variables: RequestIdVariables & {
         services: RuntimeServices;
         user?: JwtClaims;
         authSource?: 'authorization' | 'cookie';
@@ -40,13 +42,38 @@ export interface AppEnvironment {
 
 export type ImsHonoApp = Hono<AppEnvironment>;
 
+export interface CreateHonoAppOptions {
+    requestLogging?: boolean;
+}
+
 export function createHonoApp<Bindings extends object = Record<string, unknown>>(
-    resolveServices: ResolveServices<Bindings>
+    resolveServices: ResolveServices<Bindings>,
+    options: CreateHonoAppOptions = {}
 ): ImsHonoApp {
     const app = new Hono<AppEnvironment>();
 
+    app.use('*', requestId({ limitLength: 128 }));
+    app.use('*', requestCompletionLogger(options.requestLogging === true));
     app.use('*', async (c, next) => {
-        const runtime = await resolveServices(c.env as Bindings);
+        if (c.req.path === '/api/health/live' || c.req.path === '/api/wiki/test') {
+            return next();
+        }
+        let runtime: RuntimeServices;
+        try {
+            runtime = await resolveServices(c.env as Bindings);
+        } catch (error) {
+            if (c.req.path === '/api/health/ready') {
+                if (options.requestLogging) {
+                    console.warn(JSON.stringify({
+                        event: 'health_readiness_failed',
+                        requestId: c.get('requestId'),
+                        error: error instanceof Error ? error.message : String(error)
+                    }));
+                }
+                return c.json({ status: 'unavailable' }, 503);
+            }
+            throw error;
+        }
         c.set('services', runtime);
         await next();
     });
@@ -91,7 +118,26 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
         await next();
     });
 
-    // This route intentionally has no service dependency.
+    app.get('/api/health/live', (c) => c.json({ status: 'ok' }));
+    app.get('/api/health/ready', async (c) => {
+        const health = c.get('services').health;
+        if (!health) return c.json({ status: 'unavailable' }, 503);
+        try {
+            await health.check();
+            return c.json({ status: 'ok' });
+        } catch (error) {
+            if (options.requestLogging) {
+                console.warn(JSON.stringify({
+                    event: 'health_readiness_failed',
+                    requestId: c.get('requestId'),
+                    error: error instanceof Error ? error.message : String(error)
+                }));
+            }
+            return c.json({ status: 'unavailable' }, 503);
+        }
+    });
+
+    // Kept as a compatibility probe for existing clients.
     app.get('/api/wiki/test', (c) => c.json({ status: 'ok' }));
 
     registerReactionRoutes(app);
@@ -123,7 +169,17 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
         const status = Number.isInteger(candidate) && candidate >= 400 && candidate <= 599
             ? candidate
             : 500;
-        if (status >= 500) console.error(error);
+        if (status >= 500 && options.requestLogging) {
+            console.error(JSON.stringify({
+                event: 'http_request_error',
+                requestId: c.get('requestId'),
+                method: c.req.method,
+                path: c.req.path,
+                status,
+                error: error.message,
+                stack: error.stack
+            }));
+        }
         return new Response(JSON.stringify({
             error: status >= 500 ? 'Internal server error' : error.message
         }), {

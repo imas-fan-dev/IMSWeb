@@ -113,7 +113,7 @@ API 独立启动时自动读取 `apps/api/.env`，已有 shell 或进程管理�
 `migration:postgresql` 也读取同一文件。`apps/api/.env.example` 是生产和高级配置模板，不能在
 未填写必需值时原样用于开发。
 
-本地运行统一使用 PostgreSQL 与 S3 兼容的 RustFS，不再把 SQLite 或文件系统作为隐式默认值。
+本地运行统一使用 PostgreSQL 与 S3 兼容的 RustFS。
 需要绕过统一启动器排障时，可以分别启动依赖：
 
 ```sh
@@ -145,9 +145,7 @@ pnpm run dev:rustfs:sync-r2 -- --apply
 [数据库配置](database-configuration.md)。
 
 `pnpm dev` 会自动初始化新空库并应用 schema 更新。独立流程可运行
-`pnpm run migration:postgresql`；需要从统一 SQLite 首次导入时直接运行
-`pnpm run migration:postgresql:import-sqlite -- --allow-foreign-key-violations`，不要先应用
-post-data migration。该 Compose 密码仅限回环地址上的本地开发。
+`pnpm run migration:postgresql`。该 Compose 密码仅限回环地址上的本地开发。
 
 如果 PostgreSQL 里的活动、资讯或名片记录沿用 `/uploads/...` 地址，还必须先对账并把本地上传
 同步到 RustFS；设置 `IMS_OBJECT_STORAGE=s3` 本身不会搬迁文件：
@@ -157,7 +155,7 @@ pnpm run media:uploads:sync
 pnpm run media:uploads:sync -- --apply
 pnpm run media:information:sync
 pnpm run media:information:sync -- --apply
-pnpm run wiki:media:sync -- --database "$IMS_SQLITE_PATH" --upload-existing
+pnpm run wiki:media:sync -- --upload-existing
 pnpm run wiki:metadata:audit
 pnpm run wiki:metadata:audit -- --apply --strict
 ```

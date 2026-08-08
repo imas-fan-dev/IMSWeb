@@ -8,8 +8,9 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { after, before, test } = require('node:test');
 const bcrypt = require('bcrypt');
+const { Pool } = require('pg');
 const sharp = require('sharp');
-const sqlite3 = require('sqlite3').verbose();
+const { migratePostgres } = require('../scripts/migration/postgres-migrations.js');
 const {
     assertCoreAuthContract,
     assertMediaRangeContract,
@@ -33,30 +34,27 @@ const PENDING_BACK_URL = `/uploads/namecard/original/${TEST_FILE_PREFIX}-pending
 let baseUrl;
 let closeDatabase;
 let chronicleBase;
-let databasePath;
+let databaseName;
+let databaseUrl;
+let fixturePool;
 let server;
 let tempDir;
 let validPng;
 
 function run(db, sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function onRun(err) {
-            if (err) return reject(err);
-            resolve(this);
-        });
-    });
-}
-
-function close(db) {
-    return new Promise((resolve, reject) => {
-        db.close(err => err ? reject(err) : resolve());
-    });
+    return db.query(translateParameters(sql), params).then((result) => ({
+        changes: result.rowCount,
+        lastID: result.rows[0]?.id
+    }));
 }
 
 function get(db, sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
-    });
+    return db.query(translateParameters(sql), params).then((result) => result.rows[0]);
+}
+
+function translateParameters(sql) {
+    let index = 0;
+    return sql.replace(/\?/g, () => `$${++index}`);
 }
 
 function jwtPart(value) {
@@ -102,8 +100,7 @@ function isolatedServerEnv(label) {
         ...process.env,
         NODE_ENV: 'test',
         IMS_JWT_SECRET: 'test-only-secret-with-sufficient-entropy',
-        IMS_DATABASE: 'sqlite',
-        IMS_SQLITE_PATH: path.join(tempDir, `${label}.db`),
+        DATABASE_URL: databaseUrl,
         IMS_OBJECT_STORAGE: 'filesystem',
         IMS_COMPENSATION_DIR: path.join(tempDir, `${label}-compensation`),
         IMS_UPLOADS_DIR: path.join(tempDir, `${label}-uploads`),
@@ -125,39 +122,22 @@ before(async () => {
     EVENT_DIR = path.join(uploadsDir, 'editorial/events/assets');
     fs.mkdirSync(NAMECARD_DIR, { recursive: true });
     fs.mkdirSync(EVENT_DIR, { recursive: true });
-    databasePath = path.join(tempDir, 'news.db');
-    const seedDb = new sqlite3.Database(databasePath);
+    const adminUrl = process.env.IMS_TEST_DATABASE_URL ||
+        'postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/postgres';
+    databaseName = `ims_security_${process.pid}_${Date.now()}`;
+    const adminPool = new Pool({ connectionString: adminUrl });
+    await adminPool.query(`CREATE DATABASE "${databaseName}"`);
+    await adminPool.end();
+    const parsedDatabaseUrl = new URL(adminUrl);
+    parsedDatabaseUrl.pathname = `/${databaseName}`;
+    databaseUrl = parsedDatabaseUrl.toString();
+    await migratePostgres({ connectionString: databaseUrl });
+    fixturePool = new Pool({ connectionString: databaseUrl, allowExitOnIdle: true });
     const passwordHash = await bcrypt.hash('test-password', 4);
 
-    await run(seedDb, `CREATE TABLE cards (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        image1_url TEXT NOT NULL,
-        image2_url TEXT NOT NULL,
-        hash1 TEXT,
-        hash2 TEXT,
-        ip TEXT,
-        status TEXT DEFAULT 'pending',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`);
-    await run(seedDb, `CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password TEXT,
-        dept TEXT,
-        producername TEXT
-    )`);
-    await run(seedDb, `CREATE TABLE news (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        image TEXT,
-        thumbnail TEXT,
-        content TEXT,
-        date TEXT,
-        author TEXT
-    )`);
     for (let id = 1; id <= 3; id += 1) {
         await run(
-            seedDb,
+            fixturePool,
             `INSERT INTO news (title, image, thumbnail, content, date, author)
              VALUES (?, ?, ?, ?, ?, ?)`,
             [
@@ -171,24 +151,22 @@ before(async () => {
         );
     }
     await run(
-        seedDb,
+        fixturePool,
         `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [APPROVED_FRONT_URL, APPROVED_BACK_URL, 'private-hash-1', 'private-hash-2', '203.0.113.8', 'approved']
     );
     await run(
-        seedDb,
+        fixturePool,
         `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [PENDING_FRONT_URL, PENDING_BACK_URL, 'pending-hash-1', 'pending-hash-2', '198.51.100.9', 'pending']
     );
     await run(
-        seedDb,
+        fixturePool,
         'INSERT INTO users (username, password, dept, producername) VALUES (?, ?, ?, ?)',
         ['security-test-op', passwordHash, 'op', 'Security Test']
     );
-    await close(seedDb);
-
     validPng = await sharp({
         create: {
             width: 2,
@@ -210,8 +188,7 @@ before(async () => {
 
     process.env.NODE_ENV = 'test';
     process.env.IMS_JWT_SECRET = 'test-only-secret-with-sufficient-entropy';
-    process.env.IMS_DATABASE = 'sqlite';
-    process.env.IMS_SQLITE_PATH = databasePath;
+    process.env.DATABASE_URL = databaseUrl;
     process.env.IMS_OBJECT_STORAGE = 'filesystem';
     process.env.IMS_COMPENSATION_DIR = path.join(tempDir, 'compensation');
     process.env.IMS_UPLOADS_DIR = uploadsDir;
@@ -233,6 +210,14 @@ after(async () => {
         });
     }
     if (closeDatabase) await closeDatabase();
+    if (fixturePool) await fixturePool.end();
+    if (databaseName) {
+        const adminUrl = process.env.IMS_TEST_DATABASE_URL ||
+            'postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/postgres';
+        const adminPool = new Pool({ connectionString: adminUrl });
+        await adminPool.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
+        await adminPool.end();
+    }
     for (const filename of fs.readdirSync(NAMECARD_DIR)) {
         if (filename.startsWith(TEST_FILE_PREFIX)) {
             fs.rmSync(path.join(NAMECARD_DIR, filename), { recursive: true, force: true });
@@ -462,16 +447,11 @@ test('compiled Node news route preserves legacy responses and snapshot paginatio
     assert.equal(firstBody.pageInfo.hasNextPage, true);
     assert.equal(firstBody.pageInfo.snapshotAt, '3');
 
-    const fixtureDb = new sqlite3.Database(databasePath);
-    try {
-        await run(
-            fixtureDb,
-            `INSERT INTO news (title, image, thumbnail, content, date, author)
-             VALUES ('New after snapshot', '', '', 'https://example.test/new', '2026-07-24', 'Fixture')`
-        );
-    } finally {
-        await close(fixtureDb);
-    }
+    await run(
+        fixturePool,
+        `INSERT INTO news (title, image, thumbnail, content, date, author)
+         VALUES ('New after snapshot', '', '', 'https://example.test/new', '2026-07-24', 'Fixture')`
+    );
 
     const second = await fetch(
         `${baseUrl}/api/news?limit=2&cursor=${encodeURIComponent(firstBody.pageInfo.nextCursor)}`
@@ -635,16 +615,15 @@ test('cookie-authenticated writes require CSRF while bearer writes remain compat
     assert.equal(bearer.status, 400);
 });
 
-test('[AUTH-01 CORE-01] shared auth contract runs against Node SQLite and filesystem services', async () => {
-    const fixtureDb = new sqlite3.Database(databasePath);
-    const user = await get(fixtureDb, "SELECT id, username, dept FROM users WHERE username='security-test-op'");
+test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and filesystem services', async () => {
+    const userRow = await get(fixturePool, "SELECT id, username, dept FROM users WHERE username='security-test-op'");
+    const user = { ...userRow, id: Number(userRow.id) };
     const inserted = await run(
-        fixtureDb,
+        fixturePool,
         `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
-         VALUES (?, ?, ?, ?, ?, 'pending')`,
+         VALUES (?, ?, ?, ?, ?, 'pending') RETURNING id`,
         ['/contract-front.webp', '/contract-back.webp', 'contract-front', 'contract-back', '127.0.0.1']
     );
-    await close(fixtureDb);
 
     const request = (requestPath, init) => fetch(`${baseUrl}${requestPath}`, init);
     try {
@@ -671,24 +650,18 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node SQLite and filesy
                 };
             },
             async assertMutationState(state) {
-                const db = new sqlite3.Database(databasePath);
-                const row = await get(db, 'SELECT status FROM cards WHERE id=?', [inserted.lastID]);
-                await close(db);
+                const row = await get(fixturePool, 'SELECT status FROM cards WHERE id=?', [inserted.lastID]);
                 assert.equal(row.status, state === 'before' ? 'pending' : 'approved');
             },
             async resetMutation() {
-                const db = new sqlite3.Database(databasePath);
-                await run(db, "UPDATE cards SET status='pending' WHERE id=?", [inserted.lastID]);
-                await close(db);
+                await run(fixturePool, "UPDATE cards SET status='pending' WHERE id=?", [inserted.lastID]);
             },
             setCookies(response) {
                 return response.headers.getSetCookie();
             }
         });
     } finally {
-        const db = new sqlite3.Database(databasePath);
-        await run(db, 'DELETE FROM cards WHERE id=?', [inserted.lastID]);
-        await close(db);
+        await run(fixturePool, 'DELETE FROM cards WHERE id=?', [inserted.lastID]);
     }
 });
 
@@ -734,14 +707,13 @@ test('[AUTH-01] Node and WebCrypto JWTs interoperate and invalid token classes s
     });
 });
 
-test('[CORE-01] shared reaction contract runs against Node SQLite', async () => {
-    const fixtureDb = new sqlite3.Database(databasePath);
+test('[CORE-01] shared reaction contract runs against Node PostgreSQL', async () => {
     const inserted = await run(
-        fixtureDb,
+        fixturePool,
         `INSERT INTO cards (image1_url, image2_url, status)
-         VALUES ('/contract-reaction-front.webp', '/contract-reaction-back.webp', 'approved')`
+         VALUES ('/contract-reaction-front.webp', '/contract-reaction-back.webp', 'approved')
+         RETURNING id`
     );
-    await close(fixtureDb);
     try {
         await assertReactionContract({
             runtime: 'Node',
@@ -749,10 +721,8 @@ test('[CORE-01] shared reaction contract runs against Node SQLite', async () => 
             request: (requestPath, init) => fetch(`${baseUrl}${requestPath}`, init)
         });
     } finally {
-        const db = new sqlite3.Database(databasePath);
-        await run(db, 'DELETE FROM card_emojis WHERE card_id=?', [inserted.lastID]);
-        await run(db, 'DELETE FROM cards WHERE id=?', [inserted.lastID]);
-        await close(db);
+        await run(fixturePool, 'DELETE FROM card_emojis WHERE card_id=?', [inserted.lastID]);
+        await run(fixturePool, 'DELETE FROM cards WHERE id=?', [inserted.lastID]);
     }
 });
 
@@ -797,13 +767,11 @@ test('event deletion survives media cleanup failure after database commit', asyn
     fs.mkdirSync(path.dirname(mediaPath), { recursive: true });
     fs.mkdirSync(mediaPath);
 
-    const fixtureDb = new sqlite3.Database(databasePath);
     const insert = await run(
-        fixtureDb,
-        'INSERT INTO events (title, name, contact, image_url) VALUES (?, ?, ?, ?)',
+        fixturePool,
+        'INSERT INTO events (title, name, contact, image_url) VALUES (?, ?, ?, ?) RETURNING id',
         ['cleanup test', 'test', 'test', `/uploads/event/original/${filename}`]
     );
-    await close(fixtureDb);
 
     try {
         const token = await getOpToken();
@@ -813,9 +781,7 @@ test('event deletion survives media cleanup failure after database commit', asyn
         });
         assert.equal(response.status, 200);
 
-        const verifyDb = new sqlite3.Database(databasePath);
-        const row = await get(verifyDb, 'SELECT id FROM events WHERE id = ?', [insert.lastID]);
-        await close(verifyDb);
+        const row = await get(fixturePool, 'SELECT id FROM events WHERE id = ?', [insert.lastID]);
         assert.equal(row, undefined);
         assert.equal(fs.lstatSync(mediaPath).isDirectory(), true);
     } finally {
@@ -1122,39 +1088,34 @@ test('legacy server entry forwards the compiled lifecycle contract', () => {
 
 test('news publishing does not write an audit record when user lookup fails', async () => {
     const token = await getOpToken();
-    const testDb = new sqlite3.Database(databasePath);
-    try {
-        const beforeRow = await get(
-            testDb,
-            "SELECT COUNT(*) AS total FROM logs WHERE action='发布新闻'"
-        );
-        await run(testDb, "DELETE FROM users WHERE username='security-test-op'");
+    const beforeRow = await get(
+        fixturePool,
+        "SELECT COUNT(*)::integer AS total FROM logs WHERE action='发布新闻'"
+    );
+    await run(fixturePool, "DELETE FROM users WHERE username='security-test-op'");
 
-        const response = await fetch(`${baseUrl}/api/admin/news`, {
-            method: 'POST',
-            headers: {
-                authorization: `Bearer ${token}`,
-                'content-type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: 'missing-user-audit-check',
-                content: 'https://example.com/news'
-            })
-        });
-        assert.equal(response.status, 200);
-        assert.deepEqual(await response.json(), {
-            success: false,
-            msg: '用户信息获取失败'
-        });
+    const response = await fetch(`${baseUrl}/api/admin/news`, {
+        method: 'POST',
+        headers: {
+            authorization: `Bearer ${token}`,
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            title: 'missing-user-audit-check',
+            content: 'https://example.com/news'
+        })
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+        success: false,
+        msg: '用户信息获取失败'
+    });
 
-        const afterRow = await get(
-            testDb,
-            "SELECT COUNT(*) AS total FROM logs WHERE action='发布新闻'"
-        );
-        assert.equal(afterRow.total, beforeRow.total);
-    } finally {
-        await close(testDb);
-    }
+    const afterRow = await get(
+        fixturePool,
+        "SELECT COUNT(*)::integer AS total FROM logs WHERE action='发布新闻'"
+    );
+    assert.equal(afterRow.total, beforeRow.total);
 });
 
 test('production refuses to load without IMS_JWT_SECRET', () => {
@@ -1218,7 +1179,7 @@ test('production JWT secret length is measured in UTF-8 bytes', () => {
         ...process.env,
         NODE_ENV: 'production',
         IMS_JWT_SECRET: '😀'.repeat(8),
-        IMS_SQLITE_PATH: path.join(tempDir, 'utf8-secret.db'),
+        DATABASE_URL: databaseUrl,
         IMS_EVENT_BASE_DIR: path.join(tempDir, 'utf8-secret-events')
     };
     const result = spawnSync(process.execPath, ['-e', script], {

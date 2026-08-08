@@ -8,9 +8,9 @@ import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensati
 import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 import { HmacTokenService } from '@/infra/security/hmac/token-service';
 import type { CompensationService } from '@/ports/object-storage';
 import type {
@@ -33,6 +33,7 @@ import {
     assertRouteUploadBoundaryContract,
     type ControlledUpload
 } from '../contracts/runtime-contracts.js';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 const SECRET = 'node-contract-secret-at-least-32-bytes';
 const USERNAME = 'node-contract-op';
@@ -168,15 +169,15 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     await Promise.all([publicDir, uploadsDir, chronicleDir, storyDataDir].map((directory) =>
         fs.mkdir(directory, { recursive: true })));
 
-    const connection = new SqliteConnection(path.join(root, 'core.sqlite'));
-    const core = new SqliteCoreRepository(connection, new SqliteSchemaStrategy());
+    const connection = await createPostgresTestDatabase(t, 'core-runtime');
+    const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
     await core.initialize();
-    await connection.run(
+    await executeSql(connection,
         `INSERT INTO users (username, password, dept, producername, admin_role)
          VALUES (?, 'contract-digest', 'op', ?, 'admin')`,
         [USERNAME, PRODUCER]
     );
-    await connection.run(
+    await executeSql(connection,
         `INSERT INTO cards (id, image1_url, image2_url, status)
          VALUES (?, '/uploads/namecard/original/contract-seed-front.webp',
                     '/uploads/namecard/original/contract-seed-back.webp', 'approved')`,
@@ -312,9 +313,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     };
 
     const uploadSnapshot = async () => ({
-        news: (await connection.get<{ count: number }>('SELECT COUNT(*) AS count FROM news'))!.count,
-        events: (await connection.get<{ count: number }>('SELECT COUNT(*) AS count FROM events'))!.count,
-        cards: (await connection.get<{ count: number }>('SELECT COUNT(*) AS count FROM cards'))!.count,
+        news: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM news'))!.count,
+        events: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM events'))!.count,
+        cards: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM cards'))!.count,
         chronicle: await chronicleRecordCount(path.join(chronicleDir, 'metadata')),
         objects: await objectCount()
     });
@@ -331,13 +332,13 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     };
 
     const mediaDeletionTargets = async () => ({
-        news: (await connection.get<{ id: number }>(
+        news: (await queryOne<{ id: number }>(connection,
             "SELECT id FROM news WHERE image<>'' ORDER BY id DESC LIMIT 1"
         ))?.id || 0,
-        event: (await connection.get<{ id: number }>(
+        event: (await queryOne<{ id: number }>(connection,
             "SELECT id FROM events WHERE image_url<>'' ORDER BY id DESC LIMIT 1"
         ))?.id || 0,
-        card: (await connection.get<{ id: number }>(
+        card: (await queryOne<{ id: number }>(connection,
             'SELECT id FROM cards ORDER BY id DESC LIMIT 1'
         ))?.id || 0
     });
@@ -357,12 +358,12 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         setUpload: (upload) => parser.set(upload),
         async snapshot() {
             const upload = await uploadSnapshot();
-            const audit = await connection.all<{ action: string }>('SELECT action FROM logs ORDER BY id');
+            const audit = await queryAll<{ action: string }>(connection, 'SELECT action FROM logs ORDER BY id');
             return {
                 news: upload.news,
                 events: upload.events,
                 cards: upload.cards,
-                reactions: (await connection.get<{ count: number }>(
+                reactions: (await queryOne<{ count: number }>(connection,
                     'SELECT COALESCE(SUM(count), 0) AS count FROM card_emojis'
                 ))!.count,
                 auditActions: audit.map((row) => row.action),
@@ -418,7 +419,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     };
 }
 
-test('[CORE-01] shared mutation contract uses Node SQLite/filesystem adapters', async (t) => {
+test('[CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters', async (t) => {
     const fixture = await createFixture(t);
     await assertCoreMutationContract({
         runtime: 'Node',
@@ -457,7 +458,7 @@ test('[STATE-01] namecard approval retries object publication before success', a
     ).length, 1);
 });
 
-test('[MEDIA-01] shared route boundaries use Node SQLite/filesystem adapters', async (t) => {
+test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters', async (t) => {
     const fixture = await createFixture(t);
     await assertRouteUploadBoundaryContract({ runtime: 'Node', ...fixture });
 });

@@ -85,66 +85,6 @@ const TRANSITIONS: Record<S3UploadState, ReadonlySet<S3UploadState>> = {
     deleted: new Set(['deleted'])
 };
 
-const SQLITE_SCHEMA = `
-    CREATE TABLE IF NOT EXISTS s3_object_versions (
-        object_id TEXT PRIMARY KEY,
-        physical_key TEXT,
-        storage_scope TEXT NOT NULL DEFAULT 'private'
-            CHECK (storage_scope IN ('private', 'public')),
-        byte_size INTEGER NOT NULL CHECK (byte_size >= 0),
-        content_type TEXT NOT NULL,
-        sha256 TEXT NOT NULL CHECK (length(sha256) = 64),
-        etag TEXT NOT NULL,
-        owner_token TEXT,
-        created_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS s3_object_index (
-        logical_key TEXT PRIMARY KEY,
-        object_id TEXT NOT NULL,
-        state TEXT NOT NULL CHECK (state IN ('uploading', 'pending', 'ready', 'deleted')),
-        incarnation INTEGER NOT NULL CHECK (incarnation >= 1),
-        operation_id TEXT,
-        updated_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_s3_object_index_state_key
-        ON s3_object_index(state, logical_key);
-    CREATE TABLE IF NOT EXISTS s3_upload_operations (
-        id TEXT PRIMARY KEY,
-        state TEXT NOT NULL CHECK (state IN ('uploading', 'pending', 'ready', 'deleted')),
-        logical_key TEXT NOT NULL,
-        object_id TEXT NOT NULL UNIQUE,
-        physical_key TEXT,
-        storage_scope TEXT NOT NULL DEFAULT 'private'
-            CHECK (storage_scope IN ('private', 'public')),
-        target_state TEXT NOT NULL CHECK (target_state IN ('pending', 'ready')),
-        previous_object_id TEXT,
-        previous_state TEXT CHECK (
-            previous_state IS NULL OR previous_state IN ('uploading', 'pending', 'ready', 'deleted')
-        ),
-        previous_operation_id TEXT,
-        previous_incarnation INTEGER,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_s3_upload_operations_stale
-        ON s3_upload_operations(state, updated_at);
-    CREATE TABLE IF NOT EXISTS s3_compensation_jobs (
-        id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        payload_json TEXT NOT NULL,
-        state TEXT NOT NULL CHECK (state IN ('pending', 'running', 'completed', 'failed')),
-        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
-        last_error TEXT,
-        next_attempt_at INTEGER,
-        lease_expires_at INTEGER,
-        quarantined_at INTEGER,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_s3_compensation_jobs_schedule
-        ON s3_compensation_jobs(quarantined_at, state, next_attempt_at, attempts, created_at);
-`;
-
 const REQUIRED_POSTGRESQL_MIGRATION = '0009_s3_public_storage_scope';
 
 function escapeLike(value: string): string {
@@ -170,43 +110,11 @@ export class S3UploadStateMachine {
     constructor(private readonly database: ManagedSqlDatabase) {}
 
     initialize(): Promise<void> {
-        this.initialized ??= this.initializeCurrentDialect();
+        this.initialized ??= this.verifySchema();
         return this.initialized;
     }
 
-    private async initializeCurrentDialect(): Promise<void> {
-        if (this.database.dialect === 'sqlite') {
-            await this.database.executeScript(SQLITE_SCHEMA);
-            await this.addSqliteColumnIfMissing(
-                's3_object_versions',
-                'physical_key',
-                'TEXT'
-            );
-            await this.addSqliteColumnIfMissing(
-                's3_upload_operations',
-                'physical_key',
-                'TEXT'
-            );
-            await this.addSqliteColumnIfMissing(
-                's3_object_versions',
-                'storage_scope',
-                "TEXT NOT NULL DEFAULT 'private' CHECK (storage_scope IN ('private', 'public'))"
-            );
-            await this.addSqliteColumnIfMissing(
-                's3_upload_operations',
-                'storage_scope',
-                "TEXT NOT NULL DEFAULT 'private' CHECK (storage_scope IN ('private', 'public'))"
-            );
-            await this.database.executeScript(`
-                CREATE UNIQUE INDEX IF NOT EXISTS s3_object_versions_physical_scope_idx
-                    ON s3_object_versions(storage_scope, physical_key)
-                    WHERE physical_key IS NOT NULL;
-                CREATE UNIQUE INDEX IF NOT EXISTS s3_upload_operations_physical_scope_idx
-                    ON s3_upload_operations(storage_scope, physical_key)
-                    WHERE physical_key IS NOT NULL;
-            `);
-            return;
-        }
+    private async verifySchema(): Promise<void> {
         const migration = await this.database.prepare(
             'SELECT version FROM ims_schema_migrations WHERE version=?'
         ).bind(REQUIRED_POSTGRESQL_MIGRATION).first<{ version: string }>();
@@ -216,19 +124,6 @@ export class S3UploadStateMachine {
                 'run pnpm run migration:postgresql'
             );
         }
-    }
-
-    private async addSqliteColumnIfMissing(
-        table: string,
-        column: string,
-        definition: string
-    ): Promise<void> {
-        const columns = await this.database.prepare(`PRAGMA table_info(${table})`)
-            .all<{ name: string }>();
-        if (columns.results.some((candidate) => candidate.name === column)) return;
-        await this.database.prepare(
-            `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`
-        ).run();
     }
 
     private async index(logicalKey: string): Promise<ObjectIndexRow | null> {

@@ -367,14 +367,10 @@ async function main() {
     });
     const { closeNodeServices, resolveNodeServices } = require('../../src/runtime/node-services.ts');
     const { parseNodeDatabaseConfig } = require('../../src/config/database.ts');
-    const { SQLITE_DATABASE_PATH } = require('../../src/config/paths.ts');
     const { PostgresConnection } = require('../../src/infra/db/postgresql/connection.ts');
-    const { SqliteConnection } = require('../../src/infra/db/sqlite/connection.ts');
     const { S3UploadStateMachine } = require('../../src/infra/oss/s3/upload-state-machine.ts');
-    const databaseConfig = parseNodeDatabaseConfig(process.env, { path: SQLITE_DATABASE_PATH });
-    const database = databaseConfig.type === 'postgresql'
-        ? PostgresConnection.create(databaseConfig)
-        : new SqliteConnection(databaseConfig.path);
+    const databaseConfig = parseNodeDatabaseConfig(process.env);
+    const database = PostgresConnection.create(databaseConfig);
     const state = new S3UploadStateMachine(database);
     try {
         await state.initialize();

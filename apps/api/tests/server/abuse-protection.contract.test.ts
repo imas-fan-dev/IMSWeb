@@ -1,6 +1,8 @@
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import { JSON_BODY_MAX_BYTES } from '@/middleware/json-body-limit';
 import type { AuthRepository, ReactionRepository } from '@/ports/repositories';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -25,6 +27,9 @@ test('[SECURITY] shared JSON and abuse limits use the Node memory limiter', asyn
         },
         async incrementReaction() {
             calls.reactionMutations += 1;
+        },
+        async listReactions() {
+            return [];
         }
     } as unknown as AuthRepository & ReactionRepository;
     const runtime: RuntimeServices = {
@@ -76,4 +81,56 @@ test('[SECURITY] shared JSON and abuse limits use the Node memory limiter', asyn
         compensationCount: () => compensationRuns,
         handlerSnapshot: () => ({ ...calls })
     });
+});
+
+test('memory rate limiter sweeps expired identities on the request path', async () => {
+    let now = 0;
+    const limiter = new MemoryRateLimiter(() => now, 100);
+    await limiter.consume('global', 'expired-client', 10, 1);
+    now = 2_000;
+    await limiter.consume('global', 'active-client', 10, 1);
+
+    const windows = (limiter as unknown as {
+        windows: Map<string, { identities: Set<string> }>;
+    }).windows;
+    assert.equal(windows.has('global\0expired-client'), false);
+    assert.equal(windows.has('global\0active-client'), true);
+});
+
+test('admin login shares auth throttling and cannot bypass body limits by content type', async () => {
+    const limiter = new MemoryRateLimiter();
+    let lookups = 0;
+    const app = createHonoApp(() => ({
+        auth: {
+            async findUserByUsername() {
+                lookups += 1;
+                return null;
+            }
+        } as unknown as AuthRepository,
+        rateLimiter: limiter,
+        config: { clientAddressSource: 'direct' }
+    }));
+
+    const oversized = await app.request('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: 'x'.repeat(JSON_BODY_MAX_BYTES + 1)
+    });
+    assert.equal(oversized.status, 413);
+
+    const nullBody = await app.request('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'null'
+    });
+    assert.equal(nullBody.status, 400);
+    assert.equal(lookups, 0);
+
+    const windows = (limiter as unknown as {
+        windows: Map<string, { identities: Set<string> }>;
+    }).windows;
+    const authWindow = [...windows.entries()].find(([key]) =>
+        key.startsWith('auth-login\0')
+    );
+    assert.equal(authWindow?.[1].identities.size, 2);
 });

@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import { test, type TestContext } from 'node:test';
 import {
     CopyObjectCommand,
@@ -21,7 +18,8 @@ import {
 } from '@/infra/oss/s3/object-storage';
 import { S3CompensationService } from '@/infra/oss/s3/compensation-service';
 import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
+import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 interface FakeObject {
     body: Uint8Array;
@@ -159,14 +157,13 @@ async function fixture(
     storageOptions: Partial<S3ObjectStorageOptions> = {}
 ): Promise<{
     client: FakeS3Client;
-    connection: SqliteConnection;
+    connection: PostgresConnection;
     compensation: S3CompensationService;
     signed: Array<{ command: GetObjectCommand | HeadObjectCommand; expiresIn: number }>;
     state: S3UploadStateMachine;
     storage: S3ObjectStorage;
 }> {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-s3-storage-'));
-    const connection = new SqliteConnection(path.join(directory, 'state.sqlite'));
+    const connection = await createPostgresTestDatabase(t, 's3-storage');
     const state = new S3UploadStateMachine(connection);
     await state.initialize();
     const client = new FakeS3Client();
@@ -200,7 +197,6 @@ async function fixture(
     t.after(async () => {
         storage.close();
         await connection.close();
-        await fs.rm(directory, { recursive: true, force: true });
     });
     return { client, connection, compensation, signed, state, storage };
 }

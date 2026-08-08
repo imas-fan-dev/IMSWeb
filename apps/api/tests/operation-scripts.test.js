@@ -40,7 +40,7 @@ test('categorized add-user script validates PostgreSQL connection URLs', () => {
     assert.equal(databaseUrl({ DATABASE_URL: connectionString }), connectionString);
     assert.throws(() => databaseUrl({}), /DATABASE_URL is required/);
     assert.throws(
-        () => databaseUrl({ DATABASE_URL: 'sqlite:///tmp/imsweb.db' }),
+        () => databaseUrl({ DATABASE_URL: 'mysql://localhost/imsweb' }),
         /valid PostgreSQL URL/
     );
 });

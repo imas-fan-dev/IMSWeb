@@ -133,7 +133,6 @@ services:
       IMS_COOKIE_SECURE: ${IMS_COOKIE_SECURE:-false}
       IMS_SUPER_ADMIN_USERNAME: ${IMS_SUPER_ADMIN_USERNAME-}
       IMS_CLIENT_ADDRESS_SOURCE: ${IMS_CLIENT_ADDRESS_SOURCE:-direct}
-      IMS_DATABASE: postgresql
       DATABASE_URL: ${IMS_API_DATABASE_URL:-postgresql://imsweb:imsweb-local-password@postgres:5432/imsweb}
       IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}
       IMS_PG_IDLE_TIMEOUT_MS: ${IMS_PG_IDLE_TIMEOUT_MS:-30000}
@@ -173,7 +172,7 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:3000/api/wiki/test').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+        - fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
       timeout: 3s
       retries: 6
