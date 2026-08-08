@@ -1,3 +1,8 @@
+import {
+    revisionedContentRequest,
+    type RevisionedContentRequest
+} from '@/utils/validation/request-data';
+
 const MAX_REGIONS = 34;
 const MAX_COMMUNITIES = 100;
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -229,6 +234,10 @@ export function validateProducerMapDraft(value: unknown): ProducerMapDraft {
         regions,
         communities
     };
+}
+
+export function validateProducerMapUpdateRequest(value: unknown): RevisionedContentRequest {
+    return revisionedContentRequest(value, '制作人地图配置');
 }
 
 export function parseProducerMapContent(body: Uint8Array): ProducerMapContent {

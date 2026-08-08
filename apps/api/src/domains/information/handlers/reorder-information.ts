@@ -1,22 +1,17 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import { updateInformationIndex } from '@/domains/information/content-store';
 import { services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
-export async function handleReorderInformation(c: Context<AppEnvironment>): Promise<Response> {
+export async function handleReorderInformation(
+    c: ValidatedRequestContext<AppEnvironment, 'json', string[]>
+): Promise<Response> {
     const runtime = services(c);
     if (!runtime.storage) throw new Error('Object storage unavailable');
     try {
-        const body = await c.req.json() as { ids?: unknown };
-        if (!Array.isArray(body.ids) || body.ids.some((id) => typeof id !== 'string')) {
-            throw Object.assign(new Error('排序内容必须是活动内容 ID 列表'), { status: 400 });
-        }
-        const ids = body.ids as string[];
-        if (new Set(ids).size !== ids.length) {
-            throw Object.assign(new Error('排序内容包含重复活动'), { status: 400 });
-        }
+        const ids = c.req.valid('json');
         await updateInformationIndex(runtime.storage, (index) => {
             const byId = new Map(index.cards.map((card) => [card.id, card]));
             if (ids.length !== index.cards.length || ids.some((id) => !byId.has(id))) {

@@ -1,3 +1,5 @@
+import { uniqueStringIdListRequest } from '@/utils/validation/request-data';
+
 export const INFORMATION_CATEGORIES = ['activity', 'fan'] as const;
 export const INFORMATION_CONTENT_TYPES = ['external', 'html'] as const;
 
@@ -38,6 +40,26 @@ export function informationAssetUrl(value: unknown): value is string {
     return segments.length >= 3 && segments.every((segment) =>
         Boolean(segment) && segment !== '.' && segment !== '..'
     );
+}
+
+export function validateInformationAssetDeletionRequest(value: unknown): string {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw Object.assign(new Error('图片地址无效'), { status: 400 });
+    }
+    const url = typeof (value as { url?: unknown }).url === 'string'
+        ? (value as { url: string }).url.trim()
+        : '';
+    if (!informationAssetUrl(url)) {
+        throw Object.assign(new Error('图片地址无效'), { status: 400 });
+    }
+    return url;
+}
+
+export function validateInformationOrderRequest(value: unknown): string[] {
+    return uniqueStringIdListRequest(value, {
+        invalid: '排序内容必须是活动内容 ID 列表',
+        duplicate: '排序内容包含重复活动'
+    });
 }
 
 function legacyInformationImage(value: unknown): value is string {

@@ -1,20 +1,22 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import {
     createInformationId,
     informationCardFromSubmission,
     updateInformationIndex,
-    validateInformationSubmission
+    type InformationSubmission
 } from '@/domains/information/content-store';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
-export async function handleCreateInformation(c: Context<AppEnvironment>): Promise<Response> {
+export async function handleCreateInformation(
+    c: ValidatedRequestContext<AppEnvironment, 'json', InformationSubmission>
+): Promise<Response> {
     const runtime = services(c);
     if (!runtime.storage) throw new Error('Object storage unavailable');
     try {
-        const submission = validateInformationSubmission(await c.req.json());
+        const submission = c.req.valid('json');
         const id = createInformationId();
         const card = informationCardFromSubmission(id, submission);
         await updateInformationIndex(runtime.storage, (index) => {

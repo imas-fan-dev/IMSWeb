@@ -3,6 +3,7 @@ import {
     type HomepageLinkRecord,
     type HomepageLinkSection
 } from '@/ports/repositories';
+import { uniqueStringIdListRequest } from '@/utils/validation/request-data';
 
 export const HOMEPAGE_LINK_ICONS = [
     'calendar',
@@ -115,6 +116,21 @@ export function validateHomepageLinkSubmission(
         icon,
         accent
     };
+}
+
+export function validateNewHomepageLinkRequest(value: unknown): HomepageLinkSubmission {
+    return validateHomepageLinkSubmission(value, { includeSection: true });
+}
+
+export function validateHomepageLinkUpdateRequest(value: unknown): HomepageLinkSubmission {
+    return validateHomepageLinkSubmission(value, { includeSection: false });
+}
+
+export function validateHomepageLinkOrderRequest(value: unknown): string[] {
+    return uniqueStringIdListRequest(value, {
+        invalid: '排序内容必须是链接 ID 列表',
+        duplicate: '排序内容包含重复链接'
+    });
 }
 
 export function publicHomepageLink(record: HomepageLinkRecord): PublicHomepageLink {

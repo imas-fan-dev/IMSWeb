@@ -37,6 +37,11 @@ interface CardSubmission {
     image?: unknown;
 }
 
+export type InformationSubmission = Omit<
+    InformationCard,
+    'id' | 'link' | 'updatedAt'
+> & { externalUrl: string };
+
 export function oneInformationFile(
     value: UploadedFile | UploadedFile[] | undefined
 ): UploadedFile | null {
@@ -82,7 +87,7 @@ export async function updateInformationIndex(
 
 export function validateInformationSubmission(
     value: unknown
-): Omit<InformationCard, 'id' | 'link' | 'updatedAt'> & { externalUrl: string } {
+): InformationSubmission {
     if (!value || typeof value !== 'object') {
         throw Object.assign(new Error('内容格式无效'), { status: 400 });
     }

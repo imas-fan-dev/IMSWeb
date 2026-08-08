@@ -1,37 +1,18 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { saveAboutPageContent } from '@/domains/about/content-store';
 import { writeAudit } from '@/domains/audit/hono-service';
 import { services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
+import type { RevisionedContentRequest } from '@/utils/validation/request-data';
 
-interface UpdatePayload {
-    content: unknown;
-    revision: string | null;
-}
-
-function updatePayload(value: unknown): UpdatePayload {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw Object.assign(new Error('关于页配置格式无效'), { status: 400 });
-    }
-    const payload = value as Record<string, unknown>;
-    if (payload.revision !== null && typeof payload.revision !== 'string') {
-        throw Object.assign(new Error('关于页配置版本无效'), { status: 400 });
-    }
-    return { content: payload.content, revision: payload.revision } as UpdatePayload;
-}
-
-export async function handleUpdateAboutPage(c: Context<AppEnvironment>): Promise<Response> {
+export async function handleUpdateAboutPage(
+    c: ValidatedRequestContext<AppEnvironment, 'json', RevisionedContentRequest>
+): Promise<Response> {
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
     try {
-        let body: unknown;
-        try {
-            body = await c.req.json();
-        } catch {
-            throw Object.assign(new Error('请求正文必须为 JSON'), { status: 400 });
-        }
-        const payload = updatePayload(body);
+        const payload = c.req.valid('json');
         const result = await saveAboutPageContent(storage, payload.content, payload.revision);
         await writeAudit(c, '更新关于本站', result.content.siteName);
         return c.json({ success: true, ...result });
