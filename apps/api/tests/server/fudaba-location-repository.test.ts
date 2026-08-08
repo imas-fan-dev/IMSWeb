@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
@@ -9,8 +6,6 @@ import type {
     ManagedSqlDatabase,
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type {
     NewFudabaOfficeInput,
     PlatformAccountStatus
@@ -45,31 +40,15 @@ async function createFixture(
     t: TestContext,
     dialect: Fixture['dialect']
 ): Promise<Fixture> {
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        t.after(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-location-repo-'));
-    const database = new SqliteConnection(path.join(root, 'location.sqlite'));
-    const schema = new SqliteSchemaStrategy();
-    await schema.initializeCore(database);
-    await schema.initializePlatform(database);
-    const repository = new SqlFudabaRepository(database, schema);
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+    const harness = await createPostgresTestHarness();
+    const repository = new SqlFudabaRepository(
+        harness.connection,
+        initializedPostgresSchema
+    );
+    t.after(() => harness.close());
     await repository.initialize();
-    await seedCanonicalFudabaAgencies(database);
-    return { database, repository, dialect };
+    await seedCanonicalFudabaAgencies(harness.connection);
+    return { database: harness.connection, repository, dialect };
 }
 
 async function seedAccount(
@@ -482,7 +461,7 @@ async function assertLocationRepository(
 
     const core = new SqlCoreRepository(
         fixture.database,
-        dialect === 'sqlite' ? new SqliteSchemaStrategy() : initializedPostgresSchema
+        initializedPostgresSchema
     );
     assert.equal(await core.deleteAdminAccount(reviewerId), 'moderation-history');
     const reviewerTable = dialect === 'sqlite' ? 'users' : 'backoffice_accounts';
@@ -490,10 +469,6 @@ async function assertLocationRepository(
         `SELECT COUNT(*) AS count FROM ${reviewerTable} WHERE id=?`
     ).bind(reviewerId).first<number>('count'), 1);
 }
-
-test('SQLite Fudaba public locations enforce owner CAS, review, and map privacy', async (t) => {
-    await assertLocationRepository(t, 'sqlite');
-});
 
 test('real PostgreSQL enforces Fudaba location CAS and public map eligibility', {
     skip: !postgresIntegrationEnabled() &&

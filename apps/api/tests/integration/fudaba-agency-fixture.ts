@@ -83,7 +83,7 @@ export async function seedCanonicalFudabaAgencies(
             agency.code,
             agency.name,
             agency.color,
-            database.dialect === 'sqlite' ? 1 : true,
+            true,
             agency.order,
             `${agency.name} Banner`,
             agency.iconObjectKey

@@ -16,5 +16,12 @@ export function registerAboutRoutes(app: ImsHonoApp): void {
         backofficeCsrf,
         handleUploadAboutHeroImage
     );
+    app.post(
+        '/api/admin/about/member-avatar',
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        handleUploadAboutMemberAvatar
+    );
     app.put('/api/admin/about', backofficeAuth, opOnly, backofficeCsrf, handleUpdateAboutPage);
 }

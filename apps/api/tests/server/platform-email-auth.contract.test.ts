@@ -1,14 +1,9 @@
 import assert from 'node:assert/strict';
 import { createHash, pbkdf2Sync, randomUUID } from 'node:crypto';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
 import { BcryptPasswordVerifier } from '@/infra/security/bcrypt/password-verifier';
 import { HmacPlatformTokenService } from '@/infra/security/hmac/platform-token-service';
@@ -115,35 +110,20 @@ function emailAccount(
 
 async function createFixture(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql' = 'sqlite'
+    dialect: 'sqlite' | 'postgresql' = 'postgresql'
 ): Promise<Fixture> {
-    let database: ManagedSqlDatabase;
-    let close: () => Promise<void>;
-    let schema: SqlSchemaStrategy;
-    let databaseUrl: string | undefined;
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        database = harness.connection;
-        databaseUrl = harness.databaseUrl;
-        close = () => harness.close();
-        schema = initializedPostgresSchema;
-    } else {
-        const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-platform-email-auth-'));
-        database = new SqliteConnection(path.join(root, 'platform.sqlite'));
-        close = async () => {
-            await database.close();
-            await fs.rm(root, { recursive: true, force: true });
-        };
-        schema = new SqliteSchemaStrategy();
-    }
-    t.after(close);
-    const repository = new SqlPlatformAccountRepository(database, schema);
+    const harness = await createPostgresTestHarness();
+    t.after(() => harness.close());
+    const repository = new SqlPlatformAccountRepository(
+        harness.connection,
+        initializedPostgresSchema
+    );
     await repository.initialize();
     const emailSender = new CapturingPlatformEmailSender();
     return {
         app: appWithPlatformEmail(repository, emailSender),
-        database,
-        ...(databaseUrl ? { databaseUrl } : {}),
+        database: harness.connection,
+        databaseUrl: harness.databaseUrl,
         repository,
         emailSender
     };
@@ -446,10 +426,6 @@ async function assertRegistrationAndLogin(
     ).first<number>('count'), 2);
 }
 
-test('SQLite registration, login, normalization, cookies, and duplicate race are isolated', async (t) => {
-    await assertRegistrationAndLogin(t, 'sqlite');
-});
-
 test('registration verification is hashed, cooled down, atomically consumed, and single use', async (t) => {
     const fixture = await createFixture(t);
     const email = 'verified@example.test';
@@ -569,10 +545,6 @@ test('verification delivery fails closed and revokes only the unsent code', asyn
         { email: 'failed@example.test' }
     ));
     assert.equal(retry.status, 202, await retry.clone().text());
-});
-
-test('SQLite failed resend preserves the old code and concurrent attempt state', async (t) => {
-    await assertFailedResendPreservesOldCode(t, 'sqlite');
 });
 
 test('session fencing returns account unavailable without writing cookies', async (t) => {

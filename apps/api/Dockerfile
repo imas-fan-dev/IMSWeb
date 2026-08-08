@@ -68,12 +68,6 @@ COPY --from=build /pnpm/store /pnpm/store
 RUN PNPM_CONFIG_TRUST_LOCKFILE=true \
     pnpm install --offline --frozen-lockfile --prod --filter @imsweb/api...
 
-ARG NODE_HEADERS_MIRROR=https://npmmirror.com/mirrors/node
-
-RUN npm_config_build_from_source=true \
-    npm_config_disturl=${NODE_HEADERS_MIRROR} \
-    pnpm --filter @imsweb/api rebuild sqlite3
-
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 ENV NODE_ENV=production

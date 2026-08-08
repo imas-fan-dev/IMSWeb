@@ -70,7 +70,12 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0024_fudaba_office_workflows', phase: 'post-data' },
             { version: '0025_platform_email_verification', phase: 'post-data' },
             { version: '0026_platform_email_verification_delivery', phase: 'post-data' },
-            { version: '0027_fudaba_agency_catalog', phase: 'post-data' }
+            { version: '0027_fudaba_agency_catalog', phase: 'post-data' },
+            { version: '20260804095901_wiki_idol_url', phase: 'post-data' },
+            {
+                version: '20260805090000_wiki_story_content_type_icons',
+                phase: 'post-data'
+            }
         ]
     );
     for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -426,6 +431,19 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
         fudabaAgencyCatalog.sql,
         /DROP TABLE public\.fudaba_series_tags/
     );
+    const idolWikiUrl = migrations.find(
+        ({ version }) => version === '20260804095901_wiki_idol_url'
+    );
+    assert.match(idolWikiUrl.sql, /ADD COLUMN wiki_url TEXT/);
+    assert.match(idolWikiUrl.sql, /idols_wiki_url_http_check/);
+    assert.match(idolWikiUrl.sql, /length\(wiki_url\) BETWEEN 1 AND 2048/);
+    assert.match(idolWikiUrl.sql, /wiki_url ~\* '\^https\?:\/\/'/);
+    const storyContentTypeIcons = migrations.find(
+        ({ version }) => version === '20260805090000_wiki_story_content_type_icons'
+    );
+    assert.match(storyContentTypeIcons.sql, /ADD COLUMN icon_name TEXT/);
+    assert.match(storyContentTypeIcons.sql, /WHEN '剧情' THEN 'book-open-text'/);
+    assert.match(storyContentTypeIcons.sql, /wiki_story_content_types_icon_name_check/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -494,7 +512,9 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0024_fudaba_office_workflows',
         '0025_platform_email_verification',
         '0026_platform_email_verification_delivery',
-        '0027_fudaba_agency_catalog'
+        '0027_fudaba_agency_catalog',
+        '20260804095901_wiki_idol_url',
+        '20260805090000_wiki_story_content_type_icons'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

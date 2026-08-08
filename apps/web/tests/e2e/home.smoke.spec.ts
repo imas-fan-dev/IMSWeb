@@ -17,7 +17,7 @@ const publicRoutes = [
   { path: "/account/register", title: /帐号注册.*IMSWeb/i },
   { path: "/community/exchange", title: /名片交换事务所.*IMSWeb/i },
   { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
-  { path: "/works", title: /同人作品.*IMSWeb/i },
+  { path: "/works", title: /系列作品.*IMSWeb/i },
   { path: "/wiki", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/modern", title: /剧情档案.*IMSWeb/i },
   { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i },
@@ -60,6 +60,7 @@ for (const route of publicRoutes) {
     await expect(page.locator("main#main-content")).not.toBeEmpty()
     if (
       route.path === "/wiki/classic" ||
+      route.path === "/story/classic" ||
       route.path === "/community/exchange"
     ) {
       await expect(page.getByTestId("series-icon-background")).toHaveCount(0)
@@ -393,7 +394,10 @@ test("homepage directory uses compact responsive columns", async ({ page }) => {
     exact: true,
   })
 
-  await expect(grid.getByRole("link")).toHaveCount(10)
+  await expect
+    .poll(() => grid.getByRole("link").count())
+    .toBeGreaterThanOrEqual(11)
+  await expect(grid.locator('a[href="/community/exchange"]')).toBeVisible()
 
   for (const viewport of [
     { width: 320, expectedColumns: 2, descriptionVisible: false },

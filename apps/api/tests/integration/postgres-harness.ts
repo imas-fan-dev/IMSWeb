@@ -34,18 +34,15 @@ function quotedIdentifier(value: string): string {
 }
 
 export function postgresIntegrationEnabled(): boolean {
-    return Boolean(process.env.IMS_TEST_POSTGRES_ADMIN_URL?.trim());
+    return true;
 }
 
 export async function createPostgresTestHarness(
     options: PostgresTestHarnessOptions = {}
 ): Promise<PostgresTestHarness> {
-    const adminValue = process.env.IMS_TEST_POSTGRES_ADMIN_URL?.trim();
-    if (!adminValue) {
-        throw new Error(
-            'IMS_TEST_POSTGRES_ADMIN_URL is required for the PostgreSQL integration contract'
-        );
-    }
+    const adminValue = process.env.IMS_TEST_POSTGRES_ADMIN_URL?.trim() ||
+        process.env.IMS_TEST_DATABASE_URL?.trim() ||
+        'postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/postgres';
     const adminUrl = new URL(adminValue);
     if (
         !['postgres:', 'postgresql:'].includes(adminUrl.protocol) ||

@@ -4,7 +4,6 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Pool } = require('pg');
-const { detectedMime } = require('./r2-manifest');
 const {
     FUDABA_D1_DATABASE_ID,
     FUDABA_R2_BUCKET,
@@ -36,6 +35,20 @@ class FudabaMediaBlockedError extends Error {
 
 function sha256(body) {
     return crypto.createHash('sha256').update(body).digest('hex');
+}
+
+function detectedImageContentType(body) {
+    if (body.subarray(0, 8).equals(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    )) return 'image/png';
+    if (body[0] === 0xff && body[1] === 0xd8 && body[2] === 0xff) return 'image/jpeg';
+    if (body.subarray(0, 4).toString('ascii') === 'RIFF' &&
+        body.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+    if (body.length >= 12 && body.subarray(4, 8).toString('ascii') === 'ftyp') {
+        const brand = body.subarray(8, 12).toString('ascii');
+        if (brand === 'avif' || brand === 'avis') return 'image/avif';
+    }
+    return null;
 }
 
 function compareUtf8(left, right) {
@@ -174,7 +187,7 @@ function verifiedFile(filename, entry) {
     if (body.byteLength !== entry.bytes || sha256(body) !== entry.sha256) {
         throw new Error(`Inventory source bytes or SHA-256 differ: ${entry.exportPath}`);
     }
-    const sniffed = detectedMime(body);
+    const sniffed = detectedImageContentType(body);
     if (sniffed !== entry.contentType) {
         throw new Error(`Inventory source MIME differs: ${entry.exportPath}`);
     }

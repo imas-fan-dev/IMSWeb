@@ -8,9 +8,9 @@ import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensati
 import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { CompensationService } from '@/ports/object-storage';
 import type {

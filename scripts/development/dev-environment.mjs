@@ -476,7 +476,6 @@ export function resolveDevelopmentConfiguration({
     IMS_COOKIE_SECURE: "false",
     IMS_CLIENT_ADDRESS_SOURCE: "direct",
     ...resolveFudabaDevelopmentEnvironment(environment),
-    IMS_DATABASE: "postgresql",
     DATABASE_URL: databaseUrl,
     ...objectStorageEnvironment,
     IMS_PUBLIC_DIR: "apps/api/dist/node-client",

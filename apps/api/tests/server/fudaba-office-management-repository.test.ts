@@ -1,19 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {
     ManagedSqlDatabase,
     SqlResult,
+    SqlDatabase,
     SqlStatement,
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type {
     CreateOwnedFudabaOfficeInput,
     PlatformAccountStatus
@@ -77,14 +73,12 @@ class InterleavingStatement implements SqlStatement {
 }
 
 class InterleavingOwnerReadDatabase implements ManagedSqlDatabase {
-    readonly dialect: ManagedSqlDatabase['dialect'];
     private armed = true;
 
     constructor(
         private readonly database: ManagedSqlDatabase,
         private readonly interleave: () => Promise<void>
     ) {
-        this.dialect = database.dialect;
     }
 
     prepare(sql: string): SqlStatement {
@@ -110,6 +104,12 @@ class InterleavingOwnerReadDatabase implements ManagedSqlDatabase {
         return this.database.executeScript(sql);
     }
 
+    transaction<Value>(
+        operation: (database: SqlDatabase) => Promise<Value>
+    ): Promise<Value> {
+        return this.database.transaction(operation);
+    }
+
     close(): Promise<void> {
         return Promise.resolve();
     }
@@ -123,30 +123,15 @@ async function createFixture(
     t: TestContext,
     dialect: Fixture['dialect']
 ): Promise<Fixture> {
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        t.after(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-office-owner-'));
-    const database = new SqliteConnection(path.join(root, 'office.sqlite'));
-    const schema = new SqliteSchemaStrategy();
-    await schema.initializeCore(database);
-    await schema.initializePlatform(database);
-    const repository = new SqlFudabaRepository(database, schema);
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+    const harness = await createPostgresTestHarness();
+    const repository = new SqlFudabaRepository(
+        harness.connection,
+        initializedPostgresSchema
+    );
+    t.after(() => harness.close());
     await repository.initialize();
-    await seedCanonicalFudabaAgencies(database);
-    return { database, repository, dialect };
+    await seedCanonicalFudabaAgencies(harness.connection);
+    return { database: harness.connection, repository, dialect };
 }
 
 async function seedAccount(
@@ -574,10 +559,6 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     );
 }
 
-test('SQLite owner offices enforce receipt, atomic metadata, and state fences', async (t) => {
-    await assertOfficeManagement(await createFixture(t, 'sqlite'));
-});
-
 test('real PostgreSQL owner offices enforce receipt and cross-replica CAS', {
     skip: !postgresIntegrationEnabled() &&
         'set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database'
@@ -645,10 +626,6 @@ async function assertOwnerOfficeReadsUseOneSnapshot(fixture: Fixture): Promise<v
         [2, 'Version two', ['sidem']]
     );
 }
-
-test('SQLite owner reads keep metadata and series in one snapshot', async (t) => {
-    await assertOwnerOfficeReadsUseOneSnapshot(await createFixture(t, 'sqlite'));
-});
 
 test('real PostgreSQL owner reads keep metadata and series in one snapshot', {
     skip: !postgresIntegrationEnabled() &&

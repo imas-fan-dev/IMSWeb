@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
@@ -9,12 +6,6 @@ import type {
     ManagedSqlDatabase,
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import {
-    SQLITE_FUDABA_SCHEMA,
-    SQLITE_FUDABA_WORKFLOW_SCHEMA
-} from '@/infra/db/sqlite/fudaba-schema';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type {
     NewFudabaCardInput,
     NewFudabaOfficeInput
@@ -104,33 +95,17 @@ function card(
 
 async function createFixture(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql' = 'sqlite'
+    dialect: 'sqlite' | 'postgresql' = 'postgresql'
 ): Promise<Fixture> {
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        t.after(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-domain-'));
-    const database = new SqliteConnection(path.join(root, 'fudaba.sqlite'));
-    const schema = new SqliteSchemaStrategy();
-    await schema.initializeCore(database);
-    await schema.initializePlatform(database);
-    const repository = new SqlFudabaRepository(database, schema);
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+    const harness = await createPostgresTestHarness();
+    const repository = new SqlFudabaRepository(
+        harness.connection,
+        initializedPostgresSchema
+    );
+    t.after(() => harness.close());
     await repository.initialize();
-    await seedCanonicalFudabaAgencies(database);
-    return { database, repository, dialect };
+    await seedCanonicalFudabaAgencies(harness.connection);
+    return { database: harness.connection, repository, dialect };
 }
 
 async function seedPlatformAccount(
@@ -148,9 +123,8 @@ async function seedBackofficeActor(
     fixture: Fixture,
     username: string
 ): Promise<number> {
-    const table = fixture.dialect === 'sqlite' ? 'users' : 'backoffice_accounts';
     const actor = await fixture.database.prepare(
-        `INSERT INTO ${table}
+        `INSERT INTO backoffice_accounts
             (username, password, dept, producername, admin_role)
          VALUES (?, 'hash', 'op', ?, 'admin')
          RETURNING id`
@@ -177,90 +151,6 @@ async function placeCard(
         zIndex
     });
 }
-
-test('runtime SQLite schema stays aligned with the forward migrations', async () => {
-    const domainMigration = await fs.readFile(
-        path.join(__dirname, '../../migrations/core/0013_fudaba_domain.sql'),
-        'utf8'
-    );
-    const workflowMigration = await fs.readFile(
-        path.join(__dirname, '../../migrations/core/0015_fudaba_office_workflows.sql'),
-        'utf8'
-    );
-    for (const table of [
-        'fudaba_offices',
-        'fudaba_cards',
-        'fudaba_office_cards',
-        'fudaba_messages',
-        'fudaba_exchange_requests'
-    ]) {
-        assert.ok(domainMigration.includes(`CREATE TABLE IF NOT EXISTS ${table}`));
-        assert.ok(SQLITE_FUDABA_SCHEMA.includes(`CREATE TABLE IF NOT EXISTS ${table}`));
-    }
-    for (const fragment of [
-        'pending_cover_object_key',
-        'pending_cover_submitted_at',
-        'revision INTEGER NOT NULL DEFAULT 0',
-        'hidden_by_account_id'
-    ]) {
-        assert.ok(workflowMigration.includes(fragment));
-        assert.ok(SQLITE_FUDABA_SCHEMA.includes(fragment));
-    }
-    for (const fragment of [
-        'fudaba_geocoder_cache',
-        'fudaba_mutation_receipts'
-    ]) {
-        assert.ok(workflowMigration.includes(fragment));
-        assert.ok(SQLITE_FUDABA_WORKFLOW_SCHEMA.includes(fragment));
-    }
-    for (const trigger of [
-        'fudaba_offices_pending_cover_update_check',
-        'fudaba_office_cards_transition_update',
-        'fudaba_messages_hidden_update_check'
-    ]) {
-        assert.ok(workflowMigration.includes(trigger));
-        assert.ok(SQLITE_FUDABA_WORKFLOW_SCHEMA.includes(trigger));
-    }
-});
-
-test('SQLite initializes all Fudaba tables and the canonical series catalog', async (t) => {
-    const fixture = await createFixture(t);
-    await fixture.repository.initialize();
-
-    const tables = await fixture.database.prepare(
-        `SELECT name FROM sqlite_master
-         WHERE type='table' AND name LIKE 'fudaba_%'
-         ORDER BY name`
-    ).all<{ name: string }>();
-    assert.deepEqual(tables.results.map(({ name }) => name), [
-        'fudaba_card_favorites',
-        'fudaba_card_likes',
-        'fudaba_cards',
-        'fudaba_exchange_requests',
-        'fudaba_geocoder_cache',
-        'fudaba_messages',
-        'fudaba_moderation_cases',
-        'fudaba_mutation_receipts',
-        'fudaba_office_cards',
-        'fudaba_office_public_locations',
-        'fudaba_office_series_tags',
-        'fudaba_offices',
-        'fudaba_rate_limit_windows'
-    ]);
-    const series = await fixture.database.prepare(
-        `SELECT code, display_order, wiki_enabled
-         FROM agencies ORDER BY display_order`
-    ).all<{ code: string; display_order: number; wiki_enabled: number }>();
-    assert.deepEqual(series.results, [
-        { code: '765', display_order: 0, wiki_enabled: 1 },
-        { code: '876', display_order: 1, wiki_enabled: 1 },
-        { code: 'cg', display_order: 2, wiki_enabled: 1 },
-        { code: 'ml', display_order: 3, wiki_enabled: 1 },
-        { code: 'sidem', display_order: 4, wiki_enabled: 1 },
-        { code: 'sc', display_order: 5, wiki_enabled: 1 },
-        { code: 'gk', display_order: 6, wiki_enabled: 1 }
-    ]);
-});
 
 test('office creation and series assignment are atomic', async (t) => {
     const fixture = await createFixture(t);
@@ -387,10 +277,6 @@ async function assertOwnerAndArchiveBoundary(
     ).run());
 }
 
-test('SQLite conditions card placement on ownership and blocks archived writes', async (t) => {
-    await assertOwnerAndArchiveBoundary(t, 'sqlite');
-});
-
 async function assertExchangeConstraints(
     t: TestContext,
     dialect: 'sqlite' | 'postgresql'
@@ -509,10 +395,6 @@ async function assertExchangeConstraints(
     ).bind(exchangeId).first<string>('status'), 'accepted');
 }
 
-test('exchange requests enforce both card owners, uniqueness, and final states', async (t) => {
-    await assertExchangeConstraints(t, 'sqlite');
-});
-
 test('media rights and moderation constraints cannot be bypassed', async (t) => {
     const fixture = await createFixture(t);
     await seedPlatformAccount(fixture, 'card-owner');
@@ -573,10 +455,6 @@ test('media rights and moderation constraints cannot be bypassed', async (t) => 
         updatedAt: UPDATED_AT,
         resolvedAt: UPDATED_AT
     }));
-    assert.deepEqual(
-        (await fixture.database.prepare('PRAGMA foreign_key_check').all()).results,
-        []
-    );
 });
 
 async function assertModerationActorRetention(
@@ -604,13 +482,12 @@ async function assertModerationActorRetention(
     });
     const core = new SqlCoreRepository(
         fixture.database,
-        dialect === 'sqlite' ? new SqliteSchemaStrategy() : initializedPostgresSchema
+        initializedPostgresSchema
     );
 
     assert.equal(await core.deleteAdminAccount(actorId), 'moderation-history');
-    const accountTable = dialect === 'sqlite' ? 'users' : 'backoffice_accounts';
     assert.equal(await fixture.database.prepare(
-        `SELECT COUNT(*) AS count FROM ${accountTable} WHERE id=?`
+        'SELECT COUNT(*) AS count FROM backoffice_accounts WHERE id=?'
     ).bind(actorId).first<number>('count'), 1);
     assert.equal(await fixture.database.prepare(
         `SELECT backoffice_actor_id FROM fudaba_moderation_cases WHERE id=?`
@@ -618,10 +495,6 @@ async function assertModerationActorRetention(
         'backoffice_actor_id'
     ), actorId);
 }
-
-test('SQLite retains actors referenced by resolved moderation cases', async (t) => {
-    await assertModerationActorRetention(t, 'sqlite');
-});
 
 test('real PostgreSQL enforces Fudaba ownership and archived-office constraints', {
     skip: !postgresIntegrationEnabled() &&

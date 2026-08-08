@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import { JSON_BODY_MAX_BYTES } from '@/middleware/json-body-limit';
 import type { BackofficeAuthRepository, ReactionRepository } from '@/ports/repositories';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -100,12 +101,12 @@ test('admin login shares auth throttling and cannot bypass body limits by conten
     const limiter = new MemoryRateLimiter();
     let lookups = 0;
     const app = createHonoApp(() => ({
-        auth: {
+        backofficeAuth: {
             async findUserByUsername() {
                 lookups += 1;
                 return null;
             }
-        } as unknown as AuthRepository,
+        } as unknown as BackofficeAuthRepository,
         rateLimiter: limiter,
         config: { clientAddressSource: 'direct' }
     }));

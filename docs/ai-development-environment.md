@@ -138,7 +138,7 @@ Platform 注册邮箱验证码在 `NODE_ENV=development` 且未设置
 值，API Token 属于密钥，发件地址必须来自已接入 Cloudflare Email Service 的发件域；不得把这些
 值提交到 Git。生产环境未配置时会退回 `disabled`，这不满足邮箱注册上线门禁。
 
-本地运行统一使用 PostgreSQL 与 S3 兼容的 MinIO，不再把 SQLite 或文件系统作为隐式默认值。
+本地运行统一使用 PostgreSQL 与 S3 兼容的 RustFS。
 需要绕过统一启动器排障时，可以分别启动依赖：
 
 ```sh

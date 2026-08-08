@@ -52,25 +52,11 @@ transaction 才占用专用连接。分页使用稳定的 BIGINT 游标与有界
 
 迁移器通过 advisory lock、事务和 SHA-256 记录保证幂等执行。发布流程必须：
 
-- 路由按能力依赖 `BackofficeAuthRepository`、`NewsRepository`、`EventRepository` 等端口以及
-  `StoryRepository`、`ObjectStorage`，不读取数据库或 S3 配置。
-- `domain` 只从 `ports/` 导入接口，不进入 `infra/`，也不导入数据库驱动、ORM client 或 ORM
-  生成类型。
-- `SqlDatabase` 统一参数绑定、查询结果、写入元数据、脚本执行和原子批处理。
-- Repository SQL 使用 `?` 参数；PostgreSQL Driver 安全转换为 `$1`、`$2`。
-- `SqlSchemaStrategy` 隔离 SQLite/PostgreSQL DDL；Repository 内没有 provider 分支。
-- `sqlite/` 与 `postgresql/` 分别封装各自连接和 schema 行为；`repositories/` 只实现可复用
-  SQL 仓储，`sql/` 只提供适配器内部的 Driver 契约和查询工具。
-- `runtime/` 是唯一组合根，每个实例只创建一个 Driver；同一个 Core SQL 适配器按能力注入多个
-  Repository port，Story 适配器共享该 Driver。
-- `runtime/` 独立选择 filesystem/S3；S3 状态机只依赖 `ManagedSqlDatabase`，不依赖具体 driver。
-- S3 受保护读取通过 ObjectStorage port 签发短期 URL；所有 ready 对象使用单一 bucket 的
-  CDN URL，上传和业务提交仍只经过 Hono。
-- S3 使用 `s3_object_versions`、`s3_object_index`、`s3_upload_operations` 和
-  `s3_compensation_jobs` 实现延迟发布、版本 fencing、过期恢复和有租约补偿。
-- `s3_object_versions.storage_scope` 与 `s3_upload_operations.storage_scope` 记录对象访问级别；
-  受保护对象写入 `__protected/`，发布时在同一 bucket 生成新的公开 ready 版本。
-- SQLite/PG `close()` 都是幂等的，支持多个 Repository 端口共享同一底层资源。
+1. 备份 PostgreSQL 与对象存储，并记录同一发布标识。
+2. 对目标数据库运行 `pnpm run migration:postgresql`。
+3. 启动新 API，验证 `/api/health/live` 与 `/api/health/ready`。
+4. 验证代表性公开读取、认证、管理写入和冲突回滚。
+5. 观察结构化请求日志、数据库错误、连接数、延迟和 5xx 后再完成切流。
 
 回滚应用版本前必须确认旧版本理解当前 schema。破坏性结构清理应拆成后续发布，不能与依赖它的
 应用变更在同一次不可逆操作中完成。

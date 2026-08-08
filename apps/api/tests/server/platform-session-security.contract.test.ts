@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import test, { type TestContext } from 'node:test';
@@ -10,8 +8,6 @@ import { createHonoApp } from '@/app';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
 import type { NewPlatformAccountInput, PlatformAccountStatus } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -171,27 +167,13 @@ function expectedSessionPayload(accountId: string, status: PlatformAccountStatus
 
 async function createFixture(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql' = 'sqlite'
+    dialect: 'sqlite' | 'postgresql' = 'postgresql'
 ): Promise<Fixture> {
-    let database: ManagedSqlDatabase;
-    let databaseUrl: string | undefined;
-    let closeDatabase: () => Promise<void>;
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        database = harness.connection;
-        databaseUrl = harness.databaseUrl;
-        closeDatabase = () => harness.close();
-    } else {
-        const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-platform-session-'));
-        database = new SqliteConnection(path.join(root, 'platform.sqlite'));
-        closeDatabase = async () => {
-            await database.close();
-            await fs.rm(root, { recursive: true, force: true });
-        };
-    }
+    const harness = await createPostgresTestHarness();
+    const database = harness.connection;
     const repository = new SqlPlatformAccountRepository(
         database,
-        dialect === 'sqlite' ? new SqliteSchemaStrategy() : initializedPostgresSchema
+        initializedPostgresSchema
     );
     await repository.initialize();
     const platformTokens = new TestPlatformTokenService(PLATFORM_SECRET);
@@ -209,7 +191,7 @@ async function createFixture(
     const fixture: Fixture = {
         app,
         database,
-        ...(databaseUrl ? { databaseUrl } : {}),
+        databaseUrl: harness.databaseUrl,
         platformTokens,
         repository,
         async seedSession(options = {}) {
@@ -289,7 +271,7 @@ async function createFixture(
         async close() {
             if (closed) return;
             closed = true;
-            await closeDatabase();
+            await harness.close();
         }
     };
     t.after(() => fixture.close());
@@ -723,10 +705,6 @@ async function assertRotationReplayAndLogout(
         new Set(['auth.session.created', 'auth.logout'])
     );
 }
-
-test('SQLite rotates refresh state, contains replay to one family, and logs out immediately', async (t) => {
-    await assertRotationReplayAndLogout(t, 'sqlite');
-});
 
 test('suspended and deleted Platform accounts are blocked and their family is revoked', async (t) => {
     const fixture = await createFixture(t);

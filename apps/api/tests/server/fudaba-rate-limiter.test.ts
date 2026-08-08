@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
 import { SqlFudabaRateLimiter } from '@/infra/cache/sql/fudaba-rate-limiter';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
 import {
     PLATFORM_AUTH_LOGIN_ACCOUNT_LIMIT,
     platformLoginAccountRateLimitKey
@@ -47,37 +45,21 @@ async function createFixture(
     t: TestContext,
     dialect: 'sqlite' | 'postgresql'
 ): Promise<Fixture> {
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        const siblingDatabase = PostgresConnection.create({
-            connectionString: harness.databaseUrl,
-            maxConnections: 4,
-            idleTimeoutMs: 5_000,
-            connectionTimeoutMs: 5_000,
-            statementTimeoutMs: 30_000,
-            idleInTransactionTimeoutMs: 30_000
-        });
-        t.after(async () => {
-            await siblingDatabase.close();
-            await harness.close();
-        });
-        await harness.connection.executeScript(RATE_LIMIT_SCHEMA);
-        return { database: harness.connection, siblingDatabase };
-    }
-
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-rate-limit-'));
-    const databasePath = path.join(root, 'rate-limit.sqlite');
-    const database = new SqliteConnection(databasePath);
-    const siblingDatabase = new SqliteConnection(databasePath);
+    const harness = await createPostgresTestHarness();
+    const siblingDatabase = PostgresConnection.create({
+        connectionString: harness.databaseUrl,
+        maxConnections: 4,
+        idleTimeoutMs: 5_000,
+        connectionTimeoutMs: 5_000,
+        statementTimeoutMs: 30_000,
+        idleInTransactionTimeoutMs: 30_000
+    });
     t.after(async () => {
         await siblingDatabase.close();
-        await database.close();
-        await fs.rm(root, { recursive: true, force: true });
+        await harness.close();
     });
-    await database.run('PRAGMA busy_timeout=5000');
-    await siblingDatabase.run('PRAGMA busy_timeout=5000');
-    await database.executeScript(RATE_LIMIT_SCHEMA);
-    return { database, siblingDatabase };
+    await harness.connection.executeScript(RATE_LIMIT_SCHEMA);
+    return { database: harness.connection, siblingDatabase };
 }
 
 async function assertPersistentRateLimiterContract(
@@ -148,10 +130,6 @@ async function assertPersistentRateLimiterContract(
     );
 }
 
-test('SQLite shares hashed Fudaba windows atomically across limiter instances', async (t) => {
-    await assertPersistentRateLimiterContract(t, 'sqlite');
-});
-
 test('PostgreSQL shares hashed Fudaba windows atomically across limiter instances', {
     skip: !postgresIntegrationEnabled()
 }, async (t) => {
@@ -205,10 +183,6 @@ async function assertPlatformLoginAccountLimiterContract(
     assert.notEqual(stored.key_hash, accountKey);
 }
 
-test('SQLite shares the platform login account bucket without storing email PII', async (t) => {
-    await assertPlatformLoginAccountLimiterContract(t, 'sqlite');
-});
-
 test('PostgreSQL shares the platform login account bucket without storing email PII', {
     skip: !postgresIntegrationEnabled()
 }, async (t) => {
@@ -216,7 +190,7 @@ test('PostgreSQL shares the platform login account bucket without storing email 
 });
 
 test('only selected buckets without identities use persistent windows', async (t) => {
-    const fixture = await createFixture(t, 'sqlite');
+    const fixture = await createFixture(t, 'postgresql');
     const first = new SqlFudabaRateLimiter(fixture.database, new MemoryRateLimiter());
     const sibling = new SqlFudabaRateLimiter(
         fixture.siblingDatabase,
@@ -264,7 +238,7 @@ test('only selected buckets without identities use persistent windows', async (t
 });
 
 test('expired windows are cleaned at most once per limiter every five minutes', async (t) => {
-    const fixture = await createFixture(t, 'sqlite');
+    const fixture = await createFixture(t, 'postgresql');
     let now = 1_800_000_000_000;
     const limiter = new SqlFudabaRateLimiter(
         fixture.database,
@@ -306,7 +280,7 @@ test('expired windows are cleaned at most once per limiter every five minutes', 
 });
 
 test('cleanup database failures fail closed and are retried', async (t) => {
-    const fixture = await createFixture(t, 'sqlite');
+    const fixture = await createFixture(t, 'postgresql');
     const now = 1_800_000_000_000;
     const limiter = new SqlFudabaRateLimiter(
         fixture.database,
@@ -318,13 +292,17 @@ test('cleanup database failures fail closed and are retried', async (t) => {
             (bucket, key_hash, hits, window_seconds, reset_at)
          VALUES ('fudaba-map-ip', ?, 1, 60, ?)`
     ).bind('c'.repeat(64), now - 1).run();
-    await fixture.database.executeScript(
-        `CREATE TRIGGER fail_rate_limit_cleanup
-         BEFORE DELETE ON fudaba_rate_limit_windows
-         BEGIN
-             SELECT RAISE(ABORT, 'injected cleanup failure');
-         END`
-    );
+    await fixture.database.executeScript(`
+        CREATE FUNCTION fail_rate_limit_cleanup() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+            RAISE EXCEPTION 'injected cleanup failure';
+        END;
+        $$;
+        CREATE TRIGGER fail_rate_limit_cleanup
+        BEFORE DELETE ON fudaba_rate_limit_windows
+        FOR EACH ROW EXECUTE FUNCTION fail_rate_limit_cleanup();
+    `);
 
     await assert.rejects(
         limiter.consume('fudaba-map-ip', 'current-key', 2, 60),
@@ -338,7 +316,10 @@ test('cleanup database failures fail closed and are retried', async (t) => {
         1
     );
 
-    await fixture.database.executeScript('DROP TRIGGER fail_rate_limit_cleanup');
+    await fixture.database.executeScript(`
+        DROP TRIGGER fail_rate_limit_cleanup ON fudaba_rate_limit_windows;
+        DROP FUNCTION fail_rate_limit_cleanup();
+    `);
     assert.deepEqual(
         await limiter.consume('fudaba-map-ip', 'current-key', 2, 60),
         { allowed: true, remaining: 1, resetAt: now + 60_000 }

@@ -40,8 +40,8 @@ export class StreamingUploadParser implements UploadParser {
                     fileSize: options.maxBytes,
                     files: options.maxFiles ?? 10,
                     fields: options.maxFields ?? 32,
-                    // Busboy emits partsLimit when its count reaches this value.
-                    // Add one so our option remains an inclusive maximum.
+                    // Busboy emits partsLimit when it reaches this value, so
+                    // reserve one sentinel part to keep maxParts inclusive.
                     parts: maxParts + 1
                 }
             });

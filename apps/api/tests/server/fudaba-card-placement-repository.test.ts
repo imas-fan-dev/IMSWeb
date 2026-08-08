@@ -1,15 +1,10 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {
     ManagedSqlDatabase,
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type {
     NewFudabaCardInput,
     NewFudabaOfficeInput,
@@ -42,31 +37,15 @@ async function createFixture(
     t: TestContext,
     dialect: Fixture['dialect']
 ): Promise<Fixture> {
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        const repository = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        t.after(() => harness.close());
-        await repository.initialize();
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return { database: harness.connection, repository, dialect };
-    }
-
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-placement-'));
-    const database = new SqliteConnection(path.join(root, 'placement.sqlite'));
-    const schema = new SqliteSchemaStrategy();
-    await schema.initializeCore(database);
-    await schema.initializePlatform(database);
-    const repository = new SqlFudabaRepository(database, schema);
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+    const harness = await createPostgresTestHarness();
+    const repository = new SqlFudabaRepository(
+        harness.connection,
+        initializedPostgresSchema
+    );
+    t.after(() => harness.close());
     await repository.initialize();
-    await seedCanonicalFudabaAgencies(database);
-    return { database, repository, dialect };
+    await seedCanonicalFudabaAgencies(harness.connection);
+    return { database: harness.connection, repository, dialect };
 }
 
 async function seedAccount(
@@ -418,11 +397,6 @@ async function assertCardPlacementRepository(
          WHERE office_id=? AND card_id=?`
     ).bind(officeId, removableCardId).first<number>('count'), 0);
 }
-
-test('SQLite Fudaba card placements enforce public eligibility, CAS, and ownership',
-    async (t) => {
-        await assertCardPlacementRepository(t, 'sqlite');
-    });
 
 test('real PostgreSQL enforces the same Fudaba card placement contract', {
     skip: !postgresIntegrationEnabled() &&

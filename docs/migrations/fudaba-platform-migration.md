@@ -557,7 +557,7 @@ i18n、shadcn/Base UI 和 Lucide 约定，不能并行维护第二套全局 rese
 现有命令：
 
 ```sh
-pnpm run migration:fudaba:extract
+pnpm --filter @imsweb/api run migration:fudaba -- extract
 pnpm run migration:fudaba:import
 pnpm run migration:fudaba:reconcile
 pnpm run media:fudaba:sync

@@ -1,16 +1,14 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { sign as signJwt } from 'hono/utils/jwt/jwt';
 import { createHonoApp } from '@/app';
 import { hashBackofficeAuthSecret } from '@/domains/backoffice-auth/backoffice-auth-session';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 const USERNAME = 'backoffice-boundary-op';
 const PASSWORD = 'backoffice-boundary-password';
@@ -29,7 +27,7 @@ const LEGACY_SUCCESSORS = new Map([
 
 interface Fixture {
     app: ReturnType<typeof createHonoApp>;
-    connection: SqliteConnection;
+    connection: PostgresConnection;
     repository: SqlCoreRepository;
     tokens: HmacBackofficeTokenService;
     close(): Promise<void>;
@@ -101,16 +99,18 @@ function assertDeprecated(response: Response, pathName: string): void {
     );
 }
 
-async function createFixture(legacySecret: string | null = LEGACY_SECRET): Promise<Fixture> {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-backoffice-boundary-'));
-    const connection = new SqliteConnection(path.join(root, 'core.sqlite'));
-    const repository = new SqlCoreRepository(connection, new SqliteSchemaStrategy());
+async function createFixture(
+    t: TestContext,
+    legacySecret: string | null = LEGACY_SECRET
+): Promise<Fixture> {
+    const connection = await createPostgresTestDatabase(t, 'backoffice-boundary');
+    const repository = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
     await repository.initialize();
-    await connection.run(
-        `INSERT INTO users (username, password, dept, producername, admin_role)
-         VALUES (?, 'backoffice-boundary-digest', 'op', 'Boundary Producer', 'admin')`,
-        [USERNAME]
-    );
+    await connection.prepare(
+        `INSERT INTO backoffice_accounts
+            (username, password, dept, producername, admin_role)
+         VALUES (?, 'backoffice-boundary-digest', 'op', 'Boundary Producer', 'admin')`
+    ).bind(USERNAME).run();
     const tokens = new HmacBackofficeTokenService(SECRET, legacySecret ?? undefined);
     const runtime: RuntimeServices = {
         backofficeAuth: repository,
@@ -130,7 +130,6 @@ async function createFixture(legacySecret: string | null = LEGACY_SECRET): Promi
         tokens,
         async close() {
             await repository.close();
-            await fs.rm(root, { recursive: true, force: true });
         }
     };
 }
@@ -144,7 +143,7 @@ async function login(fixture: Fixture, route = '/api/admin/auth/login') {
 }
 
 test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin cookies', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const loginResponse = await login(fixture);
@@ -191,7 +190,7 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
 });
 
 test('Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const valid = await fixture.tokens.sign({
@@ -230,7 +229,7 @@ test('Backoffice JWT verification fixes HS256 and rejects missing or wrong realm
 });
 
 test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const now = Math.floor(Date.now() / 1000);
@@ -275,7 +274,7 @@ test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
     );
     assert.equal(platformCookie.status, 401);
 
-    const strictOnlyFixture = await createFixture(null);
+    const strictOnlyFixture = await createFixture(t, null);
     t.after(() => strictOnlyFixture.close());
     const currentSecretLegacyToken = await signJwt(legacyClaims, SECRET, 'HS256');
     const disabledBridge = await strictOnlyFixture.app.request(
@@ -285,9 +284,9 @@ test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
     assert.equal(disabledBridge.status, 401);
 });
 
-test('logout revokes coexisting canonical and legacy refresh sessions', async () => {
+test('logout revokes coexisting canonical and legacy refresh sessions', async (t) => {
     for (const route of ['/api/admin/auth/logout', '/api/logout']) {
-        const fixture = await createFixture();
+        const fixture = await createFixture(t);
         try {
             const canonical = cookieValues(await login(fixture));
             const legacy = cookieValues(await login(fixture, '/api/login'));
@@ -326,10 +325,9 @@ test('logout revokes coexisting canonical and legacy refresh sessions', async ()
             );
             for (const session of sessions) {
                 assert.ok(session);
-                const stored = await fixture.connection.get<{ revoked_at: number | null }>(
-                    'SELECT revoked_at FROM auth_refresh_sessions WHERE id=?',
-                    [session.id]
-                );
+                const stored = await fixture.connection.prepare(
+                    'SELECT revoked_at FROM backoffice_refresh_sessions WHERE id=?'
+                ).bind(session.id).first<{ revoked_at: number | null }>();
                 assert.equal(typeof stored?.revoked_at, 'number', route);
             }
             const canonicalReplay = await fixture.app.request(
@@ -358,7 +356,7 @@ test('logout revokes coexisting canonical and legacy refresh sessions', async ()
 });
 
 test('legacy Backoffice endpoints are deprecated and old cookies only bridge into Backoffice', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
     const logged = t.mock.method(console, 'warn', () => undefined);
 

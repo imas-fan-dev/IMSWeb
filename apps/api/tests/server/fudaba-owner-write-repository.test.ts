@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
@@ -9,8 +6,6 @@ import type {
     ManagedSqlDatabase,
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
 import type {
     CreateOwnedFudabaCardInput,
     NewFudabaCardInput,
@@ -47,40 +42,19 @@ async function createFixture(
     t: TestContext,
     dialect: Fixture['dialect']
 ): Promise<Fixture> {
-    if (dialect === 'postgresql') {
-        const harness = await createPostgresTestHarness();
-        const platform = new SqlPlatformAccountRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        const fudaba = new SqlFudabaRepository(
-            harness.connection,
-            initializedPostgresSchema
-        );
-        t.after(() => harness.close());
-        await Promise.all([platform.initialize(), fudaba.initialize()]);
-        await seedCanonicalFudabaAgencies(harness.connection);
-        return {
-            database: harness.connection,
-            platform,
-            fudaba,
-            dialect
-        };
-    }
-
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-fudaba-owner-write-'));
-    const database = new SqliteConnection(path.join(root, 'fudaba.sqlite'));
-    const schema = new SqliteSchemaStrategy();
-    const platform = new SqlPlatformAccountRepository(database, schema);
-    const fudaba = new SqlFudabaRepository(database, schema);
-    t.after(async () => {
-        await database.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
-    await schema.initializeCore(database);
+    const harness = await createPostgresTestHarness();
+    const platform = new SqlPlatformAccountRepository(
+        harness.connection,
+        initializedPostgresSchema
+    );
+    const fudaba = new SqlFudabaRepository(
+        harness.connection,
+        initializedPostgresSchema
+    );
+    t.after(() => harness.close());
     await Promise.all([platform.initialize(), fudaba.initialize()]);
-    await seedCanonicalFudabaAgencies(database);
-    return { database, platform, fudaba, dialect };
+    await seedCanonicalFudabaAgencies(harness.connection);
+    return { database: harness.connection, platform, fudaba, dialect };
 }
 
 function account(
@@ -444,18 +418,6 @@ async function assertCrossInstanceCas(fixture: Fixture): Promise<void> {
     assert.ok(cardConflict && cardConflict.status === 'conflict');
     assert.equal(cardConflict.revision, 1);
 }
-
-test('SQLite profile writes fence stale and restricted accounts', async (t) => {
-    await assertProfileWrites(await createFixture(t, 'sqlite'));
-});
-
-test('SQLite card writes enforce owner, status, series, revision, and soft delete', async (t) => {
-    await assertCardWrites(await createFixture(t, 'sqlite'));
-});
-
-test('SQLite profile and card writes have one cross-instance CAS winner', async (t) => {
-    await assertCrossInstanceCas(await createFixture(t, 'sqlite'));
-});
 
 test('real PostgreSQL enforces Stage 14 profile and card write fences', {
     skip: !postgresIntegrationEnabled() &&
