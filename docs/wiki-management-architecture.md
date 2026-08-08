@@ -7,7 +7,7 @@ Wiki 的企划、栏目、内容页、栏目归档关系、剧情分类、剧情
 `StoryRepository` 读取和修改业务数据，通过 `ObjectStorage` 保存图片字节。
 
 当前 PostgreSQL 最低 schema 版本为 `0018_wiki_story_cover_presentation`。`0011` 至 `0018` 已在
-代码、SQLite 等价 schema 和测试夹具中落地，但代码合入或本地迁移成功不代表生产数据库已完成
+代码、PostgreSQL migration 和测试夹具中落地，但代码合入或本地迁移成功不代表生产数据库已完成
 迁移，生产边界见“迁移与发布”。
 
 ```text
@@ -310,4 +310,4 @@ pnpm run test
 ```
 
 涉及真实媒体或迁移切换时，自动化测试之外还必须用目标环境的 PostgreSQL、对象存储和浏览器完成
-回读；fixture、空 SQLite 或仅构建成功不能作为生产数据验收证据。
+回读；fixture、空数据库或仅构建成功不能作为生产数据验收证据。

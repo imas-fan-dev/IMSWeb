@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { executeSql, queryOne } from '@/infra/db/sql/query';
+import {
+    connectPostgresTestDatabase,
+    createPostgresTestDatabase
+} from './postgres-test-database';
 
 const DEFAULT_IMAGE_TRANSFORM = {
     fit: 'cover' as const,
@@ -20,20 +21,16 @@ const DEFAULT_STORY_SOURCE = {
     sourcePlatformId: 2
 };
 
-test('SQLite story lookup selects the requested row within its agency and idol', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-story-repository-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL story lookup selects the requested row within its agency and idol', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'story-lookup');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
-    await database.run(
+    await executeSql(database,
         'INSERT INTO agencies (id, code, name_cn, color) VALUES (?, ?, ?, ?)',
         [1, 'sc', '闪耀色彩', '#8dbbff']
     );
-    await database.run(
+    await executeSql(database,
         `INSERT INTO idols (id, agency_id, name_cn, folder_name, color)
          VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)`,
         [1, 1, '樱木真乃', 'sakuragi_mano', '#ffbad6',
@@ -174,16 +171,17 @@ test('SQLite story lookup selects the requested row within its agency and idol',
         (error: Error & { status?: number; revision?: number }) =>
             error.status === 409 && error.revision === 1
     );
+    assert.equal(
+        (await repository.findStoryById('sc', 1, id))?.up_name,
+        'fixture-up-updated',
+        'a stale card revision must roll back the preceding link update'
+    );
 });
 
-test('SQLite catalog CRUD supports dynamic agencies and multi-group idols', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-catalog-repository-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL catalog CRUD supports dynamic agencies and multi-group idols', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'catalog');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
 
     const agency = await repository.createWikiAgency({
@@ -341,6 +339,30 @@ test('SQLite catalog CRUD supports dynamic agencies and multi-group idols', asyn
         revisionBeforeMetadataUpdate + 1
     );
 
+    const layoutRevision = (await repository.findAgencyById(agency.id))!.layout_revision;
+    assert.deepEqual(await repository.saveWikiLayout({
+        agencyId: agency.id,
+        expectedRevision: layoutRevision,
+        groups: [
+            { id: fallback.id, idolIds: [idol.id] },
+            { id: group.id, idolIds: [secondIdol.id] }
+        ]
+    }), { status: 'saved', revision: layoutRevision + 1 });
+    const savedLayout = await repository.listWikiGroupMembers(agency.id);
+    assert.deepEqual(await repository.saveWikiLayout({
+        agencyId: agency.id,
+        expectedRevision: layoutRevision,
+        groups: [
+            { id: fallback.id, idolIds: [secondIdol.id] },
+            { id: group.id, idolIds: [idol.id] }
+        ]
+    }), { status: 'conflict', revision: layoutRevision + 1 });
+    assert.deepEqual(
+        await repository.listWikiGroupMembers(agency.id),
+        savedLayout,
+        'a stale layout revision must roll back its delete and inserts'
+    );
+
     const ungrouped = await repository.createWikiIdol({
         agencyId: agency.id,
         name: '未分组偶像',
@@ -372,14 +394,10 @@ test('SQLite catalog CRUD supports dynamic agencies and multi-group idols', asyn
     );
 });
 
-test('SQLite group deletion preserves idols and their normalized stories', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-group-delete-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL group deletion preserves idols and their normalized stories', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'group-delete');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -446,14 +464,10 @@ test('SQLite group deletion preserves idols and their normalized stories', async
     );
 });
 
-test('SQLite normalized stories keep one card and one link per source row', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-normalized-story-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL normalized stories keep one card and one link per source row', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'normalized-story');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -482,10 +496,10 @@ test('SQLite normalized stories keep one card and one link per source row', asyn
     const secondId = await repository.insertStoryReturningId({ ...base, upName: '来源二' });
     assert.notEqual(firstId, secondId);
     assert.equal((await repository.listStories(agency.code, idol.id)).length, 2);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_cards'
     ))?.count, 1);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_links'
     ))?.count, 2);
 
@@ -499,10 +513,10 @@ test('SQLite normalized stories keep one card and one link per source row', asyn
         ]
     });
     assert.equal(batchIds.length, 2);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_cards'
     ))?.count, 2);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_links'
     ))?.count, 4);
     const firstBatchDelete = await repository.deleteStoryLink({
@@ -526,10 +540,10 @@ test('SQLite normalized stories keep one card and one link per source row', asyn
         lastBatchDelete?.status === 'deleted' ? lastBatchDelete.cardDeleted : null,
         false
     );
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_cards'
     ))?.count, 2);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_links'
     ))?.count, 2);
     assert.ok((await repository.listStoryCards(agency.code, idol.id)).some((card) =>
@@ -537,12 +551,18 @@ test('SQLite normalized stories keep one card and one link per source row', asyn
     ));
 
     await database.executeScript(`
+        CREATE FUNCTION reject_batch_second_source() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+            IF NEW.url = 'https://example.test/reject-batch' THEN
+                RAISE EXCEPTION 'injected batch source failure';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
         CREATE TRIGGER reject_batch_second_source
         BEFORE INSERT ON wiki_story_links
-        WHEN NEW.url = 'https://example.test/reject-batch'
-        BEGIN
-            SELECT RAISE(ABORT, 'injected batch source failure');
-        END;
+        FOR EACH ROW EXECUTE FUNCTION reject_batch_second_source();
     `);
     await assert.rejects(repository.insertStoryBatchReturningIds({
         ...base,
@@ -558,19 +578,20 @@ test('SQLite normalized stories keep one card and one link per source row', asyn
             }
         ]
     }));
-    await database.executeScript('DROP TRIGGER reject_batch_second_source;');
+    await database.executeScript(`
+        DROP TRIGGER reject_batch_second_source ON wiki_story_links;
+        DROP FUNCTION reject_batch_second_source();
+    `);
     assert.equal(
         (await repository.listStories(agency.code, idol.id))
             .filter((story) => story.card_name === '事务回滚卡片').length,
         0
     );
 
-    await database.run('PRAGMA busy_timeout=5000');
-    const concurrentDatabase = new SqliteConnection(path.join(root, 'story.sqlite'));
-    await concurrentDatabase.run('PRAGMA busy_timeout=5000');
+    const concurrentDatabase = connectPostgresTestDatabase(t, database);
     const concurrentRepository = new SqlStoryRepository(
         concurrentDatabase,
-        new SqliteSchemaStrategy()
+        new PostgresqlSchemaStrategy()
     );
     try {
         const contenders = await Promise.allSettled([
@@ -594,10 +615,10 @@ test('SQLite normalized stories keep one card and one link per source row', asyn
     } finally {
         await concurrentRepository.close();
     }
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_cards'
     ))?.count, 3);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_links'
     ))?.count, 3);
     assert.equal(
@@ -621,14 +642,10 @@ test('SQLite normalized stories keep one card and one link per source row', asyn
     );
 });
 
-test('SQLite card source append requires the exact card and current media revision', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-card-source-append-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL card source append requires the exact card and current media revision', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'card-source');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -669,7 +686,7 @@ test('SQLite card source append requires the exact card and current media revisi
     assert.equal(added.status, 'added');
     assert.equal(added.status === 'added' ? added.ids.length : 0, 2);
     assert.equal((await repository.listStories(agency.code, idol.id)).length, 3);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_cards'
     ))?.count, 1);
 
@@ -689,19 +706,15 @@ test('SQLite card source append requires the exact card and current media revisi
         links: [{ ...DEFAULT_STORY_SOURCE, upName: '无效来源', videoTitle: '无效', url: 'https://example.test/missing' }]
     }), (error: Error & { status?: number }) => error.status === 404);
     assert.equal((await repository.listStories(agency.code, idol.id)).length, 3);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_cards'
     ))?.count, 1);
 });
 
-test('SQLite idol deletion preserves rows while hiding the idol and its stories', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-idol-soft-delete-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL idol deletion preserves rows while hiding the idol and its stories', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'idol-delete');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'soft-delete', name: '软删除企划', color: '#123456',
@@ -762,23 +775,23 @@ test('SQLite idol deletion preserves rows while hiding the idol and its stories'
     ));
     assert.deepEqual(await repository.listStories(agency.code, idol.id), []);
     assert.deepEqual(await repository.listWikiCategories(agency.id, idol.id), []);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM idols WHERE id=? AND deleted_at IS NOT NULL',
         [idol.id]
     ))?.count, 1);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_cards WHERE idol_id=?',
         [idol.id]
     ))?.count, 2);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         `SELECT COUNT(*) AS count FROM wiki_story_cards
          WHERE idol_id=? AND deleted_at IS NOT NULL`,
         [idol.id]
     ))?.count, 2);
-    assert.equal((await database.get<{ count: number }>(
+    assert.equal((await queryOne<{ count: number }>(database,
         'SELECT COUNT(*) AS count FROM wiki_story_links WHERE deleted_at IS NOT NULL'
     ))?.count, 3);
-    assert.equal((await database.get<{ avatar_object_key: string | null }>(
+    assert.equal((await queryOne<{ avatar_object_key: string | null }>(database,
         'SELECT avatar_object_key FROM idols WHERE id=?',
         [idol.id]
     ))?.avatar_object_key,
@@ -789,14 +802,10 @@ test('SQLite idol deletion preserves rows while hiding the idol and its stories'
     }), null);
 });
 
-test('SQLite category rename is scoped by idol assignment and preserves storage slug', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-category-rename-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL category rename is scoped by idol assignment and preserves storage slug', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'category-rename');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -864,14 +873,10 @@ test('SQLite category rename is scoped by idol assignment and preserves storage 
     }), null);
 });
 
-test('SQLite card edit updates shared card metadata without modifying source links', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-card-edit-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL card edit updates shared card metadata without modifying source links', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'card-edit');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'future', name: '未来企划', color: '#123456',
@@ -958,14 +963,10 @@ test('SQLite card edit updates shared card metadata without modifying source lin
     ), null);
 });
 
-test('SQLite story cover assets are agency scoped, versioned, and protected in use', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-cover-assets-'));
-    const database = new SqliteConnection(path.join(root, 'story.sqlite'));
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    t.after(async () => {
-        await repository.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+test('PostgreSQL story cover assets are agency scoped, versioned, and protected in use', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'cover-assets');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
     await repository.initialize();
     const agency = await repository.createWikiAgency({
         code: 'shared', name: '共享素材企划', color: '#123456',
@@ -1055,201 +1056,4 @@ test('SQLite story cover assets are agency scoped, versioned, and protected in u
         status: 'deleted',
         objectKey: 'wiki/agencies/shared/story-cover-assets/two.webp'
     });
-});
-
-test('SQLite legacy story IDs survive backfill and new IDs start above them', async (t) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-story-id-backfill-'));
-    const filename = path.join(root, 'story.sqlite');
-    t.after(async () => fs.rm(root, { recursive: true, force: true }));
-
-    const source = new SqliteConnection(filename);
-    await new SqliteSchemaStrategy().initializeStory(source);
-    await source.executeScript(`
-        DROP TABLE wiki_story_links;
-        DROP TABLE wiki_story_cards;
-    `);
-    await source.run(
-        'INSERT INTO agencies (id, code, name_cn, color) VALUES (?, ?, ?, ?)',
-        [1, 'sc', '闪耀色彩', '#123456']
-    );
-    await source.run(
-        `INSERT INTO idols (id, agency_id, name_cn, folder_name, color)
-         VALUES (?, ?, ?, ?, ?)`,
-        [1, 1, '未来偶像', 'future_idol', '#abcdef']
-    );
-    await source.run(
-        `INSERT INTO sc_stories
-            (id, idol_id, category, card_name, up_name, video_title, url,
-             subtitle, image_file)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?),
-                (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [500, 1, '主线', '第一章', '旧来源', '旧标题', 'https://example.test/legacy',
-            '旧副标题', 'legacy/first.webp',
-            501, 1, '主线', '第一章', '另一来源', '另一标题',
-            'https://example.test/legacy-variant', '另一副标题', 'legacy/second.webp']
-    );
-    await source.close();
-
-    const database = new SqliteConnection(filename);
-    const repository = new SqlStoryRepository(database, new SqliteSchemaStrategy());
-    await repository.initialize();
-    t.after(async () => repository.close());
-    assert.deepEqual(await repository.listStories('sc', 1), [
-        {
-            id: 500,
-            card_id: 1,
-            idol_id: 1,
-            category: '主线',
-            card_name: '第一章',
-            up_name: '旧来源',
-            video_title: '旧标题',
-            url: 'https://example.test/legacy',
-            subtitle: '旧副标题',
-            image_file: 'legacy/first.webp',
-            cover_asset_id: null,
-            cover_asset_name: null,
-            cover_asset_object_key: null,
-            cover_asset_revision: null,
-            cover_asset_presentation_policy: null,
-            image_fit: 'cover',
-            image_focal_x: 0.5,
-            image_focal_y: 0.5,
-            image_zoom: 1,
-            image_rotation: 0,
-            image_media_revision: 0,
-            content_type_id: 1,
-            content_type_name: '剧情',
-            content_type_icon_name: 'book-open-text',
-            source_platform_id: 2,
-            source_platform_name: '其他来源'
-        },
-        {
-            id: 501,
-            card_id: 1,
-            idol_id: 1,
-            category: '主线',
-            card_name: '第一章',
-            up_name: '另一来源',
-            video_title: '另一标题',
-            url: 'https://example.test/legacy-variant',
-            subtitle: '旧副标题',
-            image_file: 'legacy/first.webp',
-            cover_asset_id: null,
-            cover_asset_name: null,
-            cover_asset_object_key: null,
-            cover_asset_revision: null,
-            cover_asset_presentation_policy: null,
-            image_fit: 'cover',
-            image_focal_x: 0.5,
-            image_focal_y: 0.5,
-            image_zoom: 1,
-            image_rotation: 0,
-            image_media_revision: 0,
-            content_type_id: 1,
-            content_type_name: '剧情',
-            content_type_icon_name: 'book-open-text',
-            source_platform_id: 2,
-            source_platform_name: '其他来源'
-        }
-    ]);
-    const preserved = await database.get<{
-        legacy_subtitle: string;
-        legacy_image_file: string;
-    }>(
-        `SELECT legacy_subtitle, legacy_image_file
-         FROM wiki_story_links WHERE legacy_table='sc_stories' AND legacy_id=501`
-    );
-    assert.deepEqual(preserved, {
-        legacy_subtitle: '另一副标题',
-        legacy_image_file: 'legacy/second.webp'
-    });
-    await repository.setStoryImage('sc', 500, 'runtime/current.webp');
-    assert.deepEqual(
-        (await repository.listStoryGroupForDelete('sc', 1, '主线', '第一章'))
-            .map((story) => story.image_file)
-            .sort(),
-        ['legacy/first.webp', 'legacy/second.webp', 'runtime/current.webp']
-    );
-    assert.deepEqual(
-        (await repository.listCategoryImages('sc', 1, '主线'))
-            .map(({ image_file }) => image_file)
-            .sort(),
-        ['legacy/first.webp', 'legacy/second.webp', 'runtime/current.webp']
-    );
-    assert.deepEqual(await repository.deleteStoryLink({
-        agencyCode: 'sc',
-        idolId: 1,
-        id: 501,
-        expectedRevision: 0
-    }), { status: 'conflict', revision: 1 });
-    assert.deepEqual(await repository.deleteStoryLink({
-        agencyCode: 'sc',
-        idolId: 1,
-        id: 501,
-        expectedRevision: 1
-    }), {
-        status: 'deleted',
-        cardDeleted: false,
-        revision: 1,
-        cleanupImageFiles: ['legacy/second.webp']
-    });
-    assert.deepEqual(await repository.deleteStoryLink({
-        agencyCode: 'sc',
-        idolId: 1,
-        id: 500,
-        expectedRevision: 1
-    }), {
-        status: 'deleted',
-        cardDeleted: false,
-        revision: 1,
-        cleanupImageFiles: ['legacy/first.webp']
-    });
-    assert.ok(await repository.findStoryCardById('sc', 1, 1));
-
-    const id = await repository.insertStoryReturningId({
-        ...DEFAULT_STORY_SOURCE,
-        agencyCode: 'sc',
-        idolId: 1,
-        category: '主线',
-        cardName: '第二章',
-        upName: '新来源',
-        videoTitle: '新标题',
-        url: 'https://example.test/runtime',
-        subtitle: '',
-        imageFile: null,
-        imageTransform: DEFAULT_IMAGE_TRANSFORM
-    });
-    assert.ok(id > 501);
-    assert.equal((await repository.findStoryById('sc', 1, id))?.up_name, '新来源');
-
-    const replacementGroup = await repository.createWikiGroup({
-        agencyId: 1,
-        code: 'replacement',
-        name: '新组合',
-        color: '#654321'
-    });
-    await repository.updateWikiIdol({
-        id: 1,
-        name: '未来偶像',
-        color: '#abcdef',
-        textColor: '#ffffff',
-        imageFit: 'cover',
-        wikiEnabled: true,
-        groupIds: [replacementGroup.id]
-    });
-    await repository.deleteStoryGroup('sc', 1, '主线', '第一章');
-    await repository.close();
-
-    const reopenedDatabase = new SqliteConnection(filename);
-    const reopened = new SqlStoryRepository(reopenedDatabase, new SqliteSchemaStrategy());
-    await reopened.initialize();
-    t.after(async () => reopened.close());
-    assert.deepEqual(
-        (await reopened.listStories('sc', 1)).map((story) => story.card_name),
-        ['第二章']
-    );
-    assert.deepEqual(
-        (await reopened.listWikiGroupMembers(1)).map((member) => member.group_id),
-        [replacementGroup.id]
-    );
 });

@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { validatedRequestPath } from '@/middleware/rate-limit';
+import { isDynamicBusinessRequest, validatedRequestPath } from '@/middleware/rate-limit';
 
 export const JSON_BODY_MAX_BYTES = 100 * 1024;
 export const INFORMATION_JSON_BODY_MAX_BYTES = 600 * 1024;
@@ -21,6 +21,7 @@ function routeParsesJson(method: string, pathname: string): boolean {
     const normalizedMethod = method.toUpperCase();
     if (normalizedMethod === 'POST') {
         return pathname === '/api/login' ||
+            pathname === '/api/admin/login' ||
             pathname === '/api/emojis' ||
             pathname === '/api/reactions' ||
             pathname === '/api/wiki/parse_bilibili';
@@ -31,10 +32,11 @@ function routeParsesJson(method: string, pathname: string): boolean {
 
 function shouldLimitBody(request: Request, pathname: string): boolean {
     const contentType = request.headers.get('content-type') || undefined;
-    if (isJsonContentType(contentType)) return true;
-    if (routeParsesJson(request.method, pathname)) return true;
-    return request.method.toUpperCase() === 'POST' &&
-        pathname === '/api/admin/news' && !isMultipartContentType(contentType);
+    if (isJsonContentType(contentType) || routeParsesJson(request.method, pathname)) {
+        return true;
+    }
+    return !isMultipartContentType(contentType) &&
+        isDynamicBusinessRequest(request.method, pathname);
 }
 
 function tooLarge(maxBytes: number): Response {

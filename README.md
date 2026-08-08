@@ -107,8 +107,8 @@ workspace 时使用 `pnpm --filter @imsweb/api run <command>` 或
 - API 业务代码依赖 `apps/api/src/ports/`，具体数据库、存储和媒体实现由 `runtime` 组合。
 - Web 构建产物经 manifest 和逐文件内容校验后复制到 `apps/api/dist/client` 与
   `apps/api/dist/node-client`；不要手工维护 API 静态目录。
-- PostgreSQL 是活动运行时的唯一权威数据库，RustFS/S3 是可变媒体的统一存储。SQLite 与
-  filesystem 适配器仅保留给显式迁移、测试和离线兼容流程。
+- PostgreSQL 是活动运行时和测试的唯一数据库，RustFS/S3 是可变媒体的统一存储。
+  filesystem 对象存储适配器仅用于显式的本地开发与测试流程。
 - `data/` 只保存本地运行状态和迁移输入，除 `.gitignore` 外不会进入版本控制。
 
 更具体的约束见 [API workspace](apps/api/README.md)、[Web workspace](apps/web/README.md)及各目录

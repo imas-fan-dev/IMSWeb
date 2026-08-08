@@ -59,6 +59,9 @@ export function isDynamicBusinessRequest(
   pathname: string,
 ): boolean {
   if (method === "OPTIONS") return false;
+  if (pathname === "/api/health/live" || pathname === "/api/wiki/test") {
+    return false;
+  }
   return (
     pathname === "/api" ||
     pathname.startsWith("/api/") ||
@@ -105,7 +108,12 @@ function requestSpecificLimit(
   method: string,
   pathname: string,
 ): RateLimitOptions | null {
-  if (method === "POST" && pathname === "/api/login") return AUTH_LOGIN_LIMIT;
+  if (
+    method === "POST" &&
+    (pathname === "/api/login" || pathname === "/api/admin/login")
+  ) {
+    return AUTH_LOGIN_LIMIT;
+  }
   if (
     (method === "POST" || method === "DELETE") &&
     (pathname === "/api/emojis" || pathname === "/api/reactions")

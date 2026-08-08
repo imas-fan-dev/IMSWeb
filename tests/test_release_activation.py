@@ -156,7 +156,6 @@ def deployment_environment(root: Path, releases: Path, current: Path) -> dict[st
     shared = root / "shared"
     for directory in ("compensation", "uploads", "Data", "events"):
         (shared / directory).mkdir(parents=True, exist_ok=True)
-    (shared / "imsweb.db").write_bytes(b"database fixture")
     environment = os.environ.copy()
     environment.update(
         {
@@ -165,7 +164,7 @@ def deployment_environment(root: Path, releases: Path, current: Path) -> dict[st
             "IMS_CURRENT_LINK": str(current),
             "IMS_PROJECT_ROOT": str(current),
             "IMS_PUBLIC_DIR": str(current / "apps/api/dist/node-client"),
-            "IMS_SQLITE_PATH": str(shared / "imsweb.db"),
+            "DATABASE_URL": "postgresql://imsweb:test@127.0.0.1:5432/imsweb",
             "IMS_COMPENSATION_DIR": str(shared / "compensation"),
             "IMS_UPLOADS_DIR": str(shared / "uploads"),
             "IMS_STORY_DATA_DIR": str(shared / "Data"),

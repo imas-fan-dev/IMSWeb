@@ -526,7 +526,7 @@ async function main() {
     if (options.apply && (!bucket || options.confirmBucket !== bucket)) {
         throw new Error(`Apply requires --confirm-bucket ${bucket || '<IMS_S3_BUCKET>'}`);
     }
-    if (process.env.IMS_DATABASE?.toLowerCase() !== 'postgresql' || !process.env.DATABASE_URL) {
+    if (!process.env.DATABASE_URL) {
         throw new Error('Legacy namecard migration requires configured PostgreSQL');
     }
     const { parseNodeObjectStorageConfig } = require('../../src/config/object-storage.ts');

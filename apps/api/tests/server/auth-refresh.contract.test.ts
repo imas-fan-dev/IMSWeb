@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { HmacTokenService } from '@/infra/security/hmac/token-service';
 import { hashAuthSecret } from '@/domains/auth/auth-session';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 const USERNAME = 'refresh-contract-op';
 const NON_OP_USERNAME = 'refresh-contract-user';
@@ -17,7 +16,7 @@ const PASSWORD = 'refresh-contract-password';
 
 interface AuthFixture {
     app: ReturnType<typeof createHonoApp>;
-    connection: SqliteConnection;
+    connection: PostgresConnection;
     repository: SqlCoreRepository;
     close(): Promise<void>;
 }
@@ -44,17 +43,16 @@ function jwtPayload(token: string): Record<string, unknown> {
     return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
-async function createFixture(): Promise<AuthFixture> {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-auth-refresh-'));
-    const connection = new SqliteConnection(path.join(root, 'core.sqlite'));
-    const repository = new SqlCoreRepository(connection, new SqliteSchemaStrategy());
+async function createFixture(t: TestContext): Promise<AuthFixture> {
+    const connection = await createPostgresTestDatabase(t, 'auth-refresh');
+    const repository = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
     await repository.initialize();
-    await connection.run(
+    await executeSql(connection,
         `INSERT INTO users (username, password, dept, producername, admin_role)
          VALUES (?, 'refresh-contract-digest', 'op', 'Refresh Contract Producer', 'admin')`,
         [USERNAME]
     );
-    await connection.run(
+    await executeSql(connection,
         `INSERT INTO users (username, password, dept, producername)
          VALUES (?, 'refresh-contract-digest', 'user', 'Refresh Contract User')`,
         [NON_OP_USERNAME]
@@ -76,7 +74,6 @@ async function createFixture(): Promise<AuthFixture> {
         repository,
         async close() {
             await repository.close();
-            await fs.rm(root, { recursive: true, force: true });
         }
     };
 }
@@ -112,7 +109,7 @@ async function login(
 }
 
 test('admin login rejects non-op users before creating a refresh session', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const denied = await login(fixture, {
@@ -126,7 +123,7 @@ test('admin login rejects non-op users before creating a refresh session', async
     });
     assert.deepEqual(setCookies(denied.response), []);
     assert.deepEqual(
-        await fixture.connection.get<{ total: number }>(
+        await queryOne<{ total: number }>(fixture.connection,
             'SELECT COUNT(*) AS total FROM auth_refresh_sessions'
         ),
         { total: 0 }
@@ -137,7 +134,7 @@ test('admin login rejects non-op users before creating a refresh session', async
 });
 
 test('admin login issues a refresh session for op users', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const session = await login(fixture, { path: '/api/admin/login' });
@@ -150,7 +147,7 @@ test('admin login issues a refresh session for op users', async (t) => {
 });
 
 test('access JWT login creates a rotating refresh session with CSRF binding', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const session = await login(fixture);
@@ -220,7 +217,7 @@ test('access JWT login creates a rotating refresh session with CSRF binding', as
 });
 
 test('logout revokes the refresh session and clears all authentication cookies', async (t) => {
-    const fixture = await createFixture();
+    const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
     const session = await login(fixture);

@@ -13,5 +13,4 @@ allowBuilds:
   esbuild: true
   msw: false
   sharp: true
-  sqlite3: true
   workerd: true

@@ -10,8 +10,6 @@ export interface SqlResult<Row = Record<string, unknown>> {
     meta: SqlResultMeta;
 }
 
-export type SqlDialect = 'sqlite' | 'postgresql';
-
 export interface SqlStatement {
     bind(...values: unknown[]): SqlStatement;
     first<Value = Record<string, unknown>>(column?: string): Promise<Value | null>;
@@ -25,8 +23,8 @@ export interface SqlDatabase {
 }
 
 export interface ManagedSqlDatabase extends SqlDatabase {
-    readonly dialect: SqlDialect;
     executeScript(sql: string): Promise<void>;
+    transaction<Value>(operation: (database: SqlDatabase) => Promise<Value>): Promise<Value>;
     close(): Promise<void>;
 }
 

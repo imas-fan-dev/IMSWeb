@@ -1,16 +1,13 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import {
     decodeDescendingIdCursor,
     encodeDescendingIdCursor
 } from '@/utils/validation/descending-id-cursor';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 interface NewsListItem {
     id: number;
@@ -32,10 +29,10 @@ interface NewsFixture {
 }
 
 async function createFixture(t: TestContext, count: number): Promise<NewsFixture> {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-news-pagination-'));
+    const connection = await createPostgresTestDatabase(t, 'news-pagination');
     const core = new SqlCoreRepository(
-        new SqliteConnection(path.join(root, 'core.sqlite')),
-        new SqliteSchemaStrategy()
+        connection,
+        new PostgresqlSchemaStrategy()
     );
     await core.initialize();
     for (let id = 1; id <= count; id += 1) {
@@ -49,10 +46,7 @@ async function createFixture(t: TestContext, count: number): Promise<NewsFixture
         });
     }
     const app = createHonoApp(() => ({ news: core }));
-    t.after(async () => {
-        await core.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+    t.after(() => core.close());
     return {
         request(pathname) {
             return Promise.resolve(app.request(`http://ims.test${pathname}`));

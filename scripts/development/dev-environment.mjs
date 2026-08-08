@@ -418,7 +418,6 @@ export function resolveDevelopmentConfiguration({
     IMS_JWT_SECRET: "imsweb-local-development-secret",
     IMS_COOKIE_SECURE: "false",
     IMS_CLIENT_ADDRESS_SOURCE: "direct",
-    IMS_DATABASE: "postgresql",
     DATABASE_URL: databaseUrl,
     ...objectStorageEnvironment,
     IMS_PUBLIC_DIR: "apps/api/dist/node-client",

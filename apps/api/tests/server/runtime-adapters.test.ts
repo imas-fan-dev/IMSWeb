@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createServer } from 'node:http';
 import { test } from 'node:test';
 import {
     brotliCompressSync,
@@ -27,6 +29,7 @@ import {
 import { parseClientAddressSource, parseStoryMaxUploadBytes } from '@/config/env';
 import { parseNodeDatabaseConfig } from '@/config/database';
 import { parseNodeObjectStorageConfig } from '@/config/object-storage';
+import { shutdownServer } from '@/main';
 
 async function temporaryDirectory(prefix: string): Promise<string> {
     return fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -45,6 +48,23 @@ test('Node repository initialization closes every constructed resource after par
 
     await assert.rejects(initializeNodeRepositories(core, story), /story init failed/);
     assert.deepEqual(calls, ['core:init', 'story:init', 'story:close', 'core:close']);
+});
+
+test('graceful shutdown stops HTTP acceptance before closing runtime services', async () => {
+    const server = createServer((_request, response) => response.end('ok'));
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    let closes = 0;
+
+    await shutdownServer(server, {
+        timeoutMs: 1_000,
+        async closeServices() {
+            closes += 1;
+        }
+    });
+
+    assert.equal(server.listening, false);
+    assert.equal(closes, 1);
 });
 
 test('story upload byte limit accepts only a positive bounded safe integer', () => {
@@ -206,23 +226,16 @@ test('Node object storage defaults to S3 and requires explicit filesystem compat
     });
 });
 
-test('Node database defaults to PostgreSQL and requires explicit SQLite compatibility', () => {
-    const defaults = { path: '/data/imsweb.db' };
+test('Node database accepts only a validated PostgreSQL configuration', () => {
     assert.throws(
-        () => parseNodeDatabaseConfig({}, defaults),
+        () => parseNodeDatabaseConfig({}),
         /DATABASE_URL is required/
     );
-    assert.deepEqual(parseNodeDatabaseConfig({ IMS_DATABASE: 'sqlite' }, defaults), {
-        type: 'sqlite',
-        path: '/data/imsweb.db'
-    });
     assert.deepEqual(parseNodeDatabaseConfig({
-        IMS_DATABASE: ' pgsql ',
         DATABASE_URL: 'postgresql://ims:secret@db.example.test:5432/ims',
         IMS_PG_POOL_MAX: '8',
         IMS_PG_IDLE_TIMEOUT_MS: '45000'
-    }, defaults), {
-        type: 'postgresql',
+    }), {
         connectionString: 'postgresql://ims:secret@db.example.test:5432/ims',
         maxConnections: 8,
         idleTimeoutMs: 45_000,
@@ -231,22 +244,22 @@ test('Node database defaults to PostgreSQL and requires explicit SQLite compatib
         idleInTransactionTimeoutMs: 30_000
     });
     assert.throws(
-        () => parseNodeDatabaseConfig({ IMS_DATABASE: 'postgresql' }, defaults),
-        /DATABASE_URL is required/
-    );
-    assert.throws(
         () => parseNodeDatabaseConfig({
-            IMS_DATABASE: 'postgresql',
-            DATABASE_URL: 'sqlite:///tmp/core.db'
-        }, defaults),
+            DATABASE_URL: 'mysql://localhost/core'
+        }),
         /valid PostgreSQL URL/
     );
     assert.throws(
         () => parseNodeDatabaseConfig({
-            IMS_DATABASE: 'postgresql',
+            DATABASE_URL: 'postgresql://localhost'
+        }),
+        /valid PostgreSQL URL/
+    );
+    assert.throws(
+        () => parseNodeDatabaseConfig({
             DATABASE_URL: 'postgresql://localhost/ims',
             IMS_PG_POOL_MAX: '101'
-        }, defaults),
+        }),
         /IMS_PG_POOL_MAX must be an integer between 1 and 100/
     );
 });

@@ -1,16 +1,13 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import {
     decodeEventCursor,
     encodeEventCursor
 } from '@/domains/events/event-cursor';
-import { SqliteCoreRepository } from '@/infra/db/repositories/core-repository';
-import { SqliteConnection } from '@/infra/db/sqlite/connection';
-import { SqliteSchemaStrategy } from '@/infra/db/sqlite/schema-strategy';
+import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { createPostgresTestDatabase } from './postgres-test-database';
 
 interface EventListItem {
     id: number;
@@ -37,9 +34,8 @@ interface EventFixture {
 }
 
 async function createFixture(t: TestContext, count: number): Promise<EventFixture> {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ims-events-pagination-'));
-    const connection = new SqliteConnection(path.join(root, 'core.sqlite'));
-    const core = new SqliteCoreRepository(connection, new SqliteSchemaStrategy());
+    const connection = await createPostgresTestDatabase(t, 'events-pagination');
+    const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
     await core.initialize();
     for (let id = 1; id <= count; id += 1) {
         await core.insertEvent({
@@ -50,10 +46,7 @@ async function createFixture(t: TestContext, count: number): Promise<EventFixtur
         });
     }
     const app = createHonoApp(() => ({ events: core }));
-    t.after(async () => {
-        await core.close();
-        await fs.rm(root, { recursive: true, force: true });
-    });
+    t.after(() => core.close());
     return {
         request(pathname) {
             return Promise.resolve(app.request(`http://ims.test${pathname}`));

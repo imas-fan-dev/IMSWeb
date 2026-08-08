@@ -44,9 +44,6 @@ COPY --from=build /pnpm/store /pnpm/store
 
 RUN pnpm install --offline --frozen-lockfile --prod --filter @imsweb/api...
 
-RUN npm_config_build_from_source=true \
-    pnpm --filter @imsweb/api rebuild sqlite3
-
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 ENV NODE_ENV=production

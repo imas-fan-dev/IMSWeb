@@ -7,6 +7,7 @@ import {
 } from 'pg';
 import type {
     ManagedSqlDatabase,
+    SqlDatabase,
     SqlResult,
     SqlStatement
 } from '@/infra/db/sql/database';
@@ -18,6 +19,7 @@ interface QueryExecutor {
 export type PostgresPool = QueryExecutor & {
     connect(): Promise<PoolClient>;
     end(): Promise<void>;
+    on?(event: 'error', listener: (error: Error) => void): unknown;
 };
 
 interface TranslatedSql {
@@ -124,17 +126,23 @@ class PostgresStatement implements SqlStatement {
 
     constructor(
         readonly connection: PostgresConnection,
+        readonly executor: QueryExecutor,
         readonly sql: string,
         readonly parameterCount: number
     ) {}
 
     bind(...values: unknown[]): SqlStatement {
-        const statement = new PostgresStatement(this.connection, this.sql, this.parameterCount);
+        const statement = new PostgresStatement(
+            this.connection,
+            this.executor,
+            this.sql,
+            this.parameterCount
+        );
         statement.values = values;
         return statement;
     }
 
-    private async query(executor: QueryExecutor): Promise<QueryResult> {
+    private async query(executor = this.executor): Promise<QueryResult> {
         if (this.values.length !== this.parameterCount) {
             throw new Error(
                 `PostgreSQL statement expected ${this.parameterCount} parameters, got ${this.values.length}`
@@ -144,18 +152,18 @@ class PostgresStatement implements SqlStatement {
     }
 
     async first<Value = Record<string, unknown>>(column?: string): Promise<Value | null> {
-        const result = await this.query(this.connection.pool);
+        const result = await this.query();
         const row = normalizedRows(result)[0];
         if (!row) return null;
         return (column === undefined ? row : row[column]) as Value ?? null;
     }
 
     async all<Row = Record<string, unknown>>(): Promise<SqlResult<Row>> {
-        return this.result(await this.query(this.connection.pool));
+        return this.result(await this.query());
     }
 
     async run<Row = Record<string, unknown>>(): Promise<SqlResult<Row>> {
-        return this.result(await this.query(this.connection.pool));
+        return this.result(await this.query());
     }
 
     runWith<Row = Record<string, unknown>>(executor: QueryExecutor): Promise<SqlResult<Row>> {
@@ -175,6 +183,23 @@ class PostgresStatement implements SqlStatement {
                 ...(typeof firstId === 'number' ? { last_row_id: firstId } : {})
             }
         };
+    }
+}
+
+class PostgresTransactionDatabase implements SqlDatabase {
+    constructor(
+        private readonly connection: PostgresConnection,
+        private readonly client: PoolClient
+    ) {}
+
+    prepare(sql: string): SqlStatement {
+        return this.connection.statement(sql, this.client);
+    }
+
+    async batch<Row = Record<string, unknown>>(
+        statements: SqlStatement[]
+    ): Promise<SqlResult<Row>[]> {
+        return this.connection.runBatch<Row>(statements, this.client);
     }
 }
 
@@ -201,37 +226,58 @@ export function postgresPoolConfig(options: PostgresConnectionOptions): PoolConf
 }
 
 export class PostgresConnection implements ManagedSqlDatabase {
-    readonly dialect = 'postgresql' as const;
     private closing?: Promise<void>;
 
     constructor(readonly pool: PostgresPool) {}
 
     static create(options: PostgresConnectionOptions): PostgresConnection {
-        return new PostgresConnection(new Pool(postgresPoolConfig(options)) as PostgresPool);
+        const pool = new Pool(postgresPoolConfig(options)) as PostgresPool;
+        pool.on?.('error', (error) => {
+            console.error(JSON.stringify({
+                event: 'postgres_pool_error',
+                error: error.message
+            }));
+        });
+        return new PostgresConnection(pool);
     }
 
     prepare(sql: string): SqlStatement {
+        return this.statement(sql, this.pool);
+    }
+
+    statement(sql: string, executor: QueryExecutor): SqlStatement {
         const translated = translatePostgresParameters(sql);
-        return new PostgresStatement(this, translated.sql, translated.parameters);
+        return new PostgresStatement(this, executor, translated.sql, translated.parameters);
+    }
+
+    async runBatch<Row = Record<string, unknown>>(
+        statements: SqlStatement[],
+        executor: QueryExecutor
+    ): Promise<SqlResult<Row>[]> {
+        const postgresStatements = statements.map((statement) => {
+            if (
+                !(statement instanceof PostgresStatement) ||
+                statement.connection !== this
+            ) {
+                throw new Error('PostgreSQL batch contains a statement from another database');
+            }
+            return statement;
+        });
+        const results: SqlResult<Row>[] = [];
+        for (const statement of postgresStatements) {
+            results.push(await statement.runWith<Row>(executor));
+        }
+        return results;
     }
 
     async batch<Row = Record<string, unknown>>(
         statements: SqlStatement[]
     ): Promise<SqlResult<Row>[]> {
         if (!statements.length) return [];
-        const postgresStatements = statements.map((statement) => {
-            if (!(statement instanceof PostgresStatement) || statement.connection !== this) {
-                throw new Error('PostgreSQL batch contains a statement from another database');
-            }
-            return statement;
-        });
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
-            const results: SqlResult<Row>[] = [];
-            for (const statement of postgresStatements) {
-                results.push(await statement.runWith<Row>(client));
-            }
+            const results = await this.runBatch<Row>(statements, client);
             await client.query('COMMIT');
             return results;
         } catch (error) {
@@ -244,6 +290,23 @@ export class PostgresConnection implements ManagedSqlDatabase {
 
     async executeScript(sql: string): Promise<void> {
         await this.pool.query(sql);
+    }
+
+    async transaction<Value>(
+        operation: (database: SqlDatabase) => Promise<Value>
+    ): Promise<Value> {
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            const result = await operation(new PostgresTransactionDatabase(this, client));
+            await client.query('COMMIT');
+            return result;
+        } catch (error) {
+            await client.query('ROLLBACK').catch(() => undefined);
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
     close(): Promise<void> {

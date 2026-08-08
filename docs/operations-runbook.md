@@ -1,7 +1,7 @@
 # 现网部署、备份与回滚手册
 
-本文适用于统一 Hono Node 后端、单一 SQLite/PostgreSQL 数据库以及本地文件或 S3 媒体。
-当前公开项目不包含 Express、Flask、Worker、D1 或 R2 运行时。所有生产操作都应先确认实际
+本文适用于统一 Hono Node 后端、单一 PostgreSQL 数据库以及本地文件或 S3 媒体。
+所有生产操作都应先确认实际
 发布目录、数据目录、进程管理器、入口/TLS 配置和回滚责任人。
 
 ## 1. 首次纳管
@@ -30,7 +30,7 @@ pnpm run check
 pnpm run test
 ```
 
-不得把其他系统生成的 `node_modules/` 复制到目标主机。`bcrypt`、`sharp` 和 `sqlite3` 含原生
+不得把其他系统生成的 `node_modules/` 复制到目标主机。`bcrypt` 和 `sharp` 含原生
 模块，必须在目标 Linux 环境安装并执行启动冒烟。
 
 `pnpm run build` 先生成 Web，再构建 API，并把经过 manifest 校验的 Web 文件写入
@@ -64,9 +64,7 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `NODE_ENV` | 运行模式 | 生产使用 `production` |
 | `HOST`、`PORT` | Hono 监听地址 | 建议 `127.0.0.1:3000` |
 | `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；外部受信 Nginx 为 `nginx` |
-| `IMS_DATABASE` | 数据库 provider | `sqlite` 或 `postgresql` |
-| `IMS_SQLITE_PATH` | SQLite 权威数据库 | SQLite 模式使用 release 外绝对路径 |
-| `DATABASE_URL` | PostgreSQL 连接 | PostgreSQL 模式必填，由密钥系统注入 |
+| `DATABASE_URL` | PostgreSQL 连接 | 必填，由密钥系统注入 |
 | `IMS_PUBLIC_DIR` | 不可变客户端目录 | `/srv/ims/current/apps/api/dist/node-client` |
 | `IMS_COMPENSATION_DIR` | 文件存储补偿 journal | release 外绝对目录 |
 | `IMS_IDEMPOTENCY_DIR` | 编年史幂等 journal | release 外绝对目录 |
@@ -84,30 +82,14 @@ CSRF Cookie 保持脚本可读，用于 Alova 自动刷新和管理写请求的�
 角色完成初始化后可以移除该变量，后续启动会从数据库确认最高管理员。
 
 S3 模式还需要 `IMS_S3_BUCKET`、`IMS_S3_REGION` 及可选 endpoint/prefix。启用 CDN 读取时配置
-同一 bucket 的 `IMS_PUBLIC_READ_URL_BASE`（旧名 `IMS_S3_PUBLIC_READ_URL_BASE` 仍兼容），
+同一 bucket 的 `IMS_PUBLIC_READ_URL_BASE`，
 并在自定义域名 WAF 阻断 `/__protected/`；凭据
-使用标准 AWS 凭据链，不写入仓库。R2 只作为 S3-compatible provider 与单 bucket 自定义域名，
-不部署 Worker 或 D1。完整说明见 [Node 文件对象存储](object-storage.md)。
+使用标准 AWS 凭据链，不写入仓库。完整说明见 [Node 文件对象存储](object-storage.md)。
 
 生产相对路径会随 release 改变，因此所有可变数据路径必须是绝对路径，且不能位于
 `IMS_RELEASES_DIR` 或 `IMS_CURRENT_LINK` 下。
 
 ## 4. 数据库准备
-
-### SQLite
-
-启动前验证文件存在且通过完整性检查：
-
-```sh
-: "${IMS_SQLITE_PATH:?set the authoritative SQLite path}"
-test -f "$IMS_SQLITE_PATH"
-sqlite3 "$IMS_SQLITE_PATH" 'PRAGMA quick_check;'
-```
-
-SQLite 在目标不存在时可能创建空库，不能把进程启动成功视为路径正确。不要直接复制正在写入
-的数据库，也不要手工删除活动数据库的 `-wal` 或 `-shm`。
-
-### PostgreSQL
 
 生产固定经过验证的版本，不使用 `latest` tag。空库先执行版本化迁移：
 
@@ -116,36 +98,12 @@ SQLite 在目标不存在时可能创建空库，不能把进程启动成功视�
 pnpm run migration:postgresql
 ```
 
-从统一 SQLite 首次导入时，目标必须为空：
-
-```sh
-IMS_SQLITE_PATH=/srv/ims/migration/imsweb.db \
-DATABASE_URL='postgresql://imsweb:<password>@127.0.0.1:5432/imsweb' \
-  pnpm run migration:postgresql:import-sqlite -- \
-  --allow-foreign-key-violations
-```
-
-导入器会记录源 SHA-256、逐表计数和历史外键异常。切换权威写入源前仍需停写增量、媒体引用
-核验和回滚演练。
+迁移后直接验证 `/api/health/ready` 和代表性业务读取；进程存活不能替代数据库就绪证明。
 
 ## 5. 配对备份
 
-数据库与媒体必须在同一停写窗口备份并用同一标识归档。SQLite 使用在线备份接口：
-
-```sh
-set -eu
-umask 077
-: "${IMS_SQLITE_PATH:?set the authoritative SQLite path}"
-BACKUP_DIR=/secure-backups/ims
-STAMP=$(date +%Y%m%d-%H%M%S)
-install -d -m 0700 "$BACKUP_DIR"
-sqlite3 "$IMS_SQLITE_PATH" ".backup '$BACKUP_DIR/imsweb-$STAMP.db'"
-sqlite3 "$BACKUP_DIR/imsweb-$STAMP.db" 'PRAGMA quick_check;'
-shasum -a 256 "$BACKUP_DIR/imsweb-$STAMP.db" \
-  > "$BACKUP_DIR/imsweb-$STAMP.db.sha256"
-```
-
-PostgreSQL 使用与生产版本兼容的 `pg_dump --format=custom`，并保存 restore 演练结果。文件系统
+数据库与媒体必须在同一停写窗口备份并用同一标识归档。PostgreSQL 使用与生产版本兼容的
+`pg_dump --format=custom`，并保存 restore 演练结果。文件系统
 媒体至少包括 uploads、chronicle、story、compensation 和 idempotency 目录；生成文件清单与
 SHA-256 后再归档。S3 使用版本化 bucket、对象清单和数据库中的对象状态共同构成恢复点。
 
@@ -174,7 +132,7 @@ Node 目录激活流程保留给未纳入 Compose 的既有安装或迁移排障
 export IMS_RELEASES_DIR=/srv/ims/releases
 export IMS_CURRENT_LINK=/srv/ims/current
 export IMS_PUBLIC_DIR=/srv/ims/current/apps/api/dist/node-client
-export IMS_SQLITE_PATH=/srv/ims/shared/database/imsweb.db
+export DATABASE_URL='postgresql://imsweb:<password>@127.0.0.1:5432/imsweb'
 export IMS_COMPENSATION_DIR=/srv/ims/shared/media/compensation
 export IMS_UPLOADS_DIR=/srv/ims/shared/media/uploads
 export IMS_STORY_DATA_DIR=/srv/ims/shared/media/story
@@ -203,7 +161,8 @@ Console。
 
 - TLS、真实域名、防火墙和上传大小限制已经生效；
 - 主站与隔离站点包使用预期域名并保持 Cookie 边界；
-- 上游只指向当前 Hono release，健康检查直接覆盖 `/api/wiki/test`；
+- 上游只指向当前 Hono release，存活探针使用 `/api/health/live`，就绪探针使用
+  `/api/health/ready`；
 - 外部 Nginx 仅在覆盖转发头且不能被绕过时使用 `IMS_CLIENT_ADDRESS_SOURCE=nginx`。
 
 ## 8. 发布冒烟
@@ -212,6 +171,7 @@ Console。
 
 ```sh
 curl --fail --silent --show-error http://127.0.0.1:3000/api/news >/dev/null
+curl --fail --silent --show-error http://127.0.0.1:3000/api/health/ready >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
 ENTRY_ASSET=entry.client-CURRENT_HASH.js
 curl --head --header 'Accept-Encoding: br, gzip' \
@@ -248,7 +208,7 @@ test "$(readlink "$IMS_CURRENT_LINK")" = "$IMS_RELEASES_DIR/$PREVIOUS_RELEASE_ID
   `/api/refresh` 能读取未撤销的 `auth_refresh_sessions` 记录。
 - refresh 连续返回 `401`：检查 refresh Cookie 的 `/api` Path、CSRF header/cookie 是否一致，
   再检查会话是否过期、已登出撤销或因旧 refresh token 重放而整条会话被撤销。
-- SQLite `database is locked`：检查非预期多进程、长事务和备份方式，不删除 WAL/SHM。
+- PostgreSQL 就绪失败：检查连接预算、migration、锁等待和语句超时，再核对结构化数据库日志。
 - 图片 `404`：核对数据库逻辑路径、对象键和前缀；签名 URL 失败时检查 endpoint、时钟和权限。
 - 编年史状态异常：将数据库记录、对象和 journal 作为一个恢复单元检查。
 - 原生模块启动失败：在目标主机重新用 frozen lockfile 安装，不能跨平台复制依赖。

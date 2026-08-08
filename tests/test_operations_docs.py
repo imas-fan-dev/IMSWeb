@@ -29,19 +29,16 @@ class OperationsDocumentationTests(unittest.TestCase):
         cls.producer_map_migration = PRODUCER_MAP_MIGRATION.read_text(encoding="utf-8")
         cls.producer_map_sql = PRODUCER_MAP_SQL.read_text(encoding="utf-8")
 
-    def test_database_configuration_covers_one_database_and_provider_selection(self):
+    def test_database_configuration_covers_postgresql_runtime_and_readiness(self):
         for token in (
-            "IMS_DATABASE",
-            "IMS_SQLITE_PATH",
             "DATABASE_URL",
-            "一个实例、一个物理数据库",
-            "migration:sqlite:merge",
-            "--allow-foreign-key-violations",
+            "一个 PostgreSQL 物理数据库",
+            "IMS_PG_POOL_MAX",
+            "migration:postgresql",
             "Hono Node",
             "自动读取 `apps/api/.env`",
-            "PRAGMA quick_check",
-            "-wal",
-            "-shm",
+            "/api/health/live",
+            "/api/health/ready",
         ):
             self.assertIn(token, self.database_configuration)
 
@@ -163,12 +160,10 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "IMS_JWT_SECRET",
             "IMS_SUPER_ADMIN_USERNAME",
-            "IMS_DATABASE",
-            "IMS_SQLITE_PATH",
             "IMS_OBJECT_STORAGE",
         ):
             self.assertIn(token, api_environment)
-        self.assertIn("IMS_DATABASE=postgresql", api_environment)
+        self.assertNotIn("IMS_DATABASE", api_environment)
         self.assertIn("IMS_OBJECT_STORAGE=s3", api_environment)
         self.assertIn("DATABASE_URL=", api_environment)
         for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
@@ -226,7 +221,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "dist/server",
             "client-manifest.json",
             "/srv/ims/current",
-            "SQLite 使用在线备份接口",
+            "pg_dump --format=custom",
             "数据库与媒体必须在同一停写窗口",
         ):
             self.assertIn(token, self.runbook)

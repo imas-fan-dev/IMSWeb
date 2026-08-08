@@ -21,7 +21,11 @@ async function login(
 ): Promise<Response> {
     let body: Record<string, unknown>;
     try {
-        body = await c.req.json<Record<string, unknown>>();
+        const candidate = await c.req.json<unknown>();
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+            throw new Error('Invalid login body');
+        }
+        body = candidate as Record<string, unknown>;
     } catch {
         return c.json({ success: false, message: '用户名或密码格式错误' }, 400);
     }

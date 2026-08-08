@@ -1,13 +1,12 @@
 # Node 文件对象存储
 
 Hono Node 活动运行时统一使用 `s3` 可变媒体存储；不设置 `IMS_OBJECT_STORAGE` 时默认创建
-S3 client。S3 配置缺失时服务拒绝初始化，不会回退到本地磁盘。`filesystem` 适配器只保留给
-显式迁移、测试和离线兼容流程。
+S3 client。S3 配置缺失时服务拒绝初始化，不会回退到本地磁盘。`filesystem` 适配器只用于
+显式的本地开发与测试流程。
 
 业务代码只依赖 `ObjectStorage` 和 `CompensationService` 端口，Node 组合根负责选择
 filesystem 或 S3 实例。S3 的对象字节保存在 bucket，上传状态、逻辑 key 映射和补偿任务保存在
-当前 `IMS_DATABASE` 指向的统一数据库；两部分都通过抽象实例注入，domain 不感知 S3、SQLite 或
-PostgreSQL。
+当前 PostgreSQL 数据库；两部分都通过抽象实例注入，domain 不感知具体对象存储 provider。
 
 S3 模式采用控制面与数据面分离：业务 URL 仍保持 `/uploads/*`、`/image/*` 等稳定路径。
 Hono 完成数据库映射、对象存在性检查和受保护资源鉴权后，公开对象返回单一 bucket 的 CDN
@@ -56,8 +55,7 @@ pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
 
 以下内容不进入 S3：
 
-- Core/Story 关系数据；SQLite 使用一个 `IMS_SQLITE_PATH`，PostgreSQL 使用一个
-  `DATABASE_URL`；
+- Core/Story 关系数据，由一个 `DATABASE_URL` 指向的 PostgreSQL 数据库持有；
 - filesystem 模式的删除补偿仍由 `IMS_COMPENSATION_DIR` 指向本地持久卷；S3 模式的补偿、
   重试租约和隔离状态保存在统一数据库的 `s3_compensation_jobs`；
 - 编年史幂等 journal 仍由 `IMS_IDEMPOTENCY_DIR` 指向本地持久卷；
@@ -67,7 +65,7 @@ pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
 
 | 变量 | 要求 |
 | --- | --- |
-| `IMS_OBJECT_STORAGE` | `filesystem` 或 `s3`，默认 `s3`；filesystem 仅用于兼容流程 |
+| `IMS_OBJECT_STORAGE` | `filesystem` 或 `s3`，默认 `s3`；filesystem 仅用于本地开发与测试 |
 | `IMS_S3_BUCKET` | S3 模式必填；普通 bucket 名称 |
 | `IMS_PUBLIC_READ_URL_BASE` | 可选；filesystem 使用的公开站点前缀，或单一 bucket 的 RustFS/R2 公开基址 |
 | `IMS_S3_PUBLIC_READ_URL_BASE` | `IMS_PUBLIC_READ_URL_BASE` 的 S3 兼容别名；新配置应使用通用名称 |
@@ -101,8 +99,7 @@ AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优
 `AWS_SECRET_ACCESS_KEY`，使用短期凭据时再注入 `AWS_SESSION_TOKEN`。真实凭据不得写入
 `apps/api/.env.example`、release 或进程启动命令历史。
 
-SQLite 在首次启用 S3 时幂等创建 `s3_*` 控制面表。PostgreSQL 不允许应用隐式 DDL，启用 S3
-前必须执行 `pnpm run migration:postgresql` 并确认
+应用不执行隐式 DDL。启用 S3 前必须执行 `pnpm run migration:postgresql` 并确认
 `0009_s3_public_storage_scope` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
 
 AWS S3 + IAM Role 示例：
@@ -278,11 +275,10 @@ pnpm run media:information:sync -- --apply
 ### Wiki 全量素材同步
 
 Wiki 来源素材必须通过清单同步器导入，不能手工按展示名拼接对象键。同步器会遍历远端首页及
-全部剧情页，并要求远端入口与统一 SQLite 的事务所/角色集合一一对应：
+全部剧情页，并要求远端入口与 PostgreSQL 中的企划/内容页集合一一对应：
 
 ```sh
 pnpm run wiki:media:sync -- \
-  --database "$IMS_SQLITE_PATH" \
   --staging-dir "$PWD/data/migration/wiki-import"
 ```
 
@@ -291,7 +287,6 @@ MinIO/S3 环境变量的同一 shell 中校验本地文件并上传，无需重�
 
 ```sh
 pnpm run wiki:media:sync -- \
-  --database "$IMS_SQLITE_PATH" \
   --staging-dir "$PWD/data/migration/wiki-import" \
   --upload-existing
 ```

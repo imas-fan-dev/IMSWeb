@@ -1,22 +1,10 @@
-export interface SqliteDatabaseConfig {
-    type: 'sqlite';
-    path: string;
-}
-
-export interface PostgresDatabaseConfig {
-    type: 'postgresql';
+export interface NodeDatabaseConfig {
     connectionString: string;
     maxConnections: number;
     idleTimeoutMs: number;
     connectionTimeoutMs: number;
     statementTimeoutMs: number;
     idleInTransactionTimeoutMs: number;
-}
-
-export type NodeDatabaseConfig = SqliteDatabaseConfig | PostgresDatabaseConfig;
-
-export interface SqliteDatabaseDefaults {
-    path: string;
 }
 
 function optionalValue(environment: NodeJS.ProcessEnv, name: string): string | undefined {
@@ -43,7 +31,7 @@ function boundedInteger(
 function postgresUrl(environment: NodeJS.ProcessEnv): string {
     const connectionString = optionalValue(environment, 'DATABASE_URL');
     if (!connectionString) {
-        throw new Error('DATABASE_URL is required when IMS_DATABASE=postgresql');
+        throw new Error('DATABASE_URL is required');
     }
     let parsed: URL;
     try {
@@ -51,28 +39,21 @@ function postgresUrl(environment: NodeJS.ProcessEnv): string {
     } catch {
         throw new Error('DATABASE_URL must be a valid PostgreSQL URL');
     }
-    if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !parsed.hostname || !parsed.pathname) {
+    if (
+        !['postgres:', 'postgresql:'].includes(parsed.protocol) ||
+        !parsed.hostname ||
+        !parsed.pathname ||
+        parsed.pathname === '/'
+    ) {
         throw new Error('DATABASE_URL must be a valid PostgreSQL URL');
     }
     return connectionString;
 }
 
 export function parseNodeDatabaseConfig(
-    environment: NodeJS.ProcessEnv,
-    sqliteDefaults: SqliteDatabaseDefaults
+    environment: NodeJS.ProcessEnv
 ): NodeDatabaseConfig {
-    const rawType = optionalValue(environment, 'IMS_DATABASE')?.toLowerCase() || 'postgresql';
-    if (rawType === 'sqlite') {
-        return {
-            type: 'sqlite',
-            path: sqliteDefaults.path
-        };
-    }
-    if (!['postgres', 'postgresql', 'pgsql'].includes(rawType)) {
-        throw new Error('IMS_DATABASE must be sqlite or postgresql');
-    }
     return {
-        type: 'postgresql',
         connectionString: postgresUrl(environment),
         maxConnections: boundedInteger(environment, 'IMS_PG_POOL_MAX', 10, 1, 100),
         idleTimeoutMs: boundedInteger(environment, 'IMS_PG_IDLE_TIMEOUT_MS', 30_000, 1_000, 600_000),

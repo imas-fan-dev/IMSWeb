@@ -80,7 +80,7 @@ test('Node Wiki delete journals a failed cleanup and the next compensation scan 
     });
 
     failDeletes = false;
-    const scan = await fixture.app.request('/api/wiki/test');
+    const scan = await fixture.app.request('/api/wiki/catalog?agency=sc');
     assert.equal(scan.status, 200);
     assert.equal(await delegate.exists(key), false);
     assert.equal(deleteAttempts, 2);

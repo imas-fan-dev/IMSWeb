@@ -1,14 +1,13 @@
 # @imsweb/api
 
 IMSWeb 后端已迁移为 TypeScript + Hono。当前唯一运行入口是 Hono Node，活动运行时统一使用
-PostgreSQL 与 RustFS/S3，并提供 Sharp 和流式 multipart，监听 `127.0.0.1:3000`。SQLite 与
-filesystem 适配器只保留给显式迁移、测试和离线兼容流程。
+PostgreSQL 与 RustFS/S3，并提供 Sharp 和流式 multipart，监听 `127.0.0.1:3000`。
+filesystem 对象存储适配器只用于显式的本地开发环境。
 
 原 Express 与 Flask 路由均由 Hono 实现；Flask、Jinja、Gunicorn 和 uWSGI 不属于公开仓库
 或活动部署。生产数据仍必须按停写、在线备份、
-完整对账和单一权威写入源的闸门切换。PostgreSQL 18.4 的版本化 schema 与 SQLite 全量
-导入链路已经建立，生产切换仍需影子读、停写增量和回滚演练。不再把
-Worker、D1 或 R2 纳入当前设计和验收。
+完整对账和单一权威写入源的闸门切换。PostgreSQL 18.4 schema 只通过版本化 migration
+演进，生产切换仍需影子读、停写增量和回滚演练。
 
 ## 基础设施边界
 
@@ -23,7 +22,7 @@ domains/middleware/utils -> ports contracts <- concrete infra adapters
                                   ^
                        runtime composition root
 
-infra/db/        postgresql、sqlite、repositories、sql
+infra/db/        postgresql、repositories、sql
 infra/cache/     filesystem、memory
 infra/oss/       filesystem、s3（对象持久化与补偿）
 infra/media/     sharp（图片校验与转换）
@@ -36,9 +35,8 @@ infra/security/  bcrypt、bcryptjs、hmac
 大接口。图片处理属于 `media` 能力，不与 `ObjectStorage` 绑定；业务只使用
 `ImageProcessor` 接口，`runtime` 注入 Sharp 实例。每个中间件目录按
 业务职责拆文件；替换实现时只调整 `runtime` 的实例组合和对应实现，不修改业务域或服务契约。
-数据库目录按隔离边界拆分：`postgresql/` 与 `sqlite/` 各自持有连接和 Schema Strategy，
-`repositories/` 持有复用的 SQL Repository 实现，`sql/` 只保留 Driver 契约与查询工具。
-Provider 差异不会进入 Repository 或业务域。S3 目录按职责拆为 `object-storage.ts`、`upload-state-machine.ts` 和
+数据库目录按隔离边界拆分：`postgresql/` 持有连接与 Schema Strategy，`repositories/`
+持有复用的 SQL Repository 实现，`sql/` 只保留 Driver 契约与查询工具。S3 目录按职责拆为 `object-storage.ts`、`upload-state-machine.ts` 和
 `compensation-service.ts`：对象字节进入 S3，不可变版本映射、延迟发布、恢复与补偿状态进入注入的
 统一 SQL 数据库。SQL Driver 契约是 `infra/db/sql/database.ts` 的实现层内部抽象，不向业务暴露。
 

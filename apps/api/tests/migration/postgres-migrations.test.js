@@ -136,7 +136,7 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
         }
     );
     assert.throws(() => databaseUrl({}), /DATABASE_URL is required/);
-    assert.throws(() => databaseUrl({ DATABASE_URL: 'sqlite:///tmp/ims.db' }), /PostgreSQL URL/);
+    assert.throws(() => databaseUrl({ DATABASE_URL: 'mysql://localhost/ims' }), /PostgreSQL URL/);
 });
 
 function migrationClient() {

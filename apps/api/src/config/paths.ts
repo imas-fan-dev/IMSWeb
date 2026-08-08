@@ -17,10 +17,6 @@ export const PUBLIC_DIR = configuredPath(
     'IMS_PUBLIC_DIR',
     path.join(PROJECT_ROOT, 'apps/api/dist/node-client')
 );
-export const SQLITE_DATABASE_PATH = configuredPath(
-    'IMS_SQLITE_PATH',
-    path.join(DATA_DIR, 'imsweb.db')
-);
 export const COMPENSATION_DIR = configuredPath(
     'IMS_COMPENSATION_DIR',
     path.join(DATA_DIR, 'core', 'compensation')
