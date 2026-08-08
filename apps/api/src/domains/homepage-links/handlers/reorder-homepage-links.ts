@@ -1,21 +1,16 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import { parseHomepageLinkSection } from '@/domains/homepage-links/data';
 import { homepageLinkRepository } from '@/domains/homepage-links/handler-support';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
-export async function handleReorderHomepageLinks(c: Context<AppEnvironment>): Promise<Response> {
+export async function handleReorderHomepageLinks(
+    c: ValidatedRequestContext<AppEnvironment, 'json', string[]>
+): Promise<Response> {
     try {
         const section = parseHomepageLinkSection(c.req.param('section'));
-        const body = await c.req.json() as { ids?: unknown };
-        if (!Array.isArray(body.ids) || body.ids.some((id) => typeof id !== 'string')) {
-            throw Object.assign(new Error('排序内容必须是链接 ID 列表'), { status: 400 });
-        }
-        const ids = body.ids as string[];
-        if (new Set(ids).size !== ids.length) {
-            throw Object.assign(new Error('排序内容包含重复链接'), { status: 400 });
-        }
+        const ids = c.req.valid('json');
         const repository = homepageLinkRepository(c);
         const current = await repository.listHomepageLinks(section);
         if (current.length !== ids.length || current.some((link) => !ids.includes(link.id))) {

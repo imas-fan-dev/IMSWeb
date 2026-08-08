@@ -4,7 +4,9 @@ import { handleGetAdminAboutPage } from '@/domains/about/handlers/get-admin-abou
 import { handleUploadAboutHeroImage } from '@/domains/about/handlers/upload-about-hero-image';
 import { handleUploadAboutMemberAvatar } from '@/domains/about/handlers/upload-about-member-avatar';
 import { handleUpdateAboutPage } from '@/domains/about/handlers/update-about-page';
+import { validateAboutPageUpdateRequest } from '@/domains/about/data';
 import { coreAuth, coreCsrf, opOnly } from '@/middleware/hono-auth';
+import { jsonValidator } from '@/middleware/request-validation';
 
 export function registerAboutRoutes(app: ImsHonoApp): void {
     app.get('/api/about', handleGetAboutPage);
@@ -23,5 +25,14 @@ export function registerAboutRoutes(app: ImsHonoApp): void {
         coreCsrf,
         handleUploadAboutMemberAvatar
     );
-    app.put('/api/admin/about', coreAuth, opOnly, coreCsrf, handleUpdateAboutPage);
+    app.put(
+        '/api/admin/about',
+        coreAuth,
+        opOnly,
+        coreCsrf,
+        jsonValidator(validateAboutPageUpdateRequest, {
+            malformedMessage: '请求正文必须为 JSON'
+        }),
+        handleUpdateAboutPage
+    );
 }

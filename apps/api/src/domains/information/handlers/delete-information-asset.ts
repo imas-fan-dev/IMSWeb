@@ -1,27 +1,22 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import {
     informationCardUsesAsset,
     updateInformationIndex
 } from '@/domains/information/content-store';
-import { informationAssetUrl } from '@/domains/information/data';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleDeleteInformationAsset(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'json', string>
 ): Promise<Response> {
     const runtime = services(c);
     if (!runtime.storage) throw new Error('Object storage unavailable');
     try {
-        const body = await c.req.json<{ url?: unknown }>();
-        const url = typeof body.url === 'string' ? body.url.trim() : '';
-        if (!informationAssetUrl(url)) {
-            return c.json({ error: '图片地址无效' }, 400);
-        }
+        const url = c.req.valid('json');
         await updateInformationIndex(runtime.storage, (index) => {
             if (index.cards.some((card) => informationCardUsesAsset(card, url))) {
                 throw Object.assign(new Error('图片仍被活动内容使用'), { status: 409 });

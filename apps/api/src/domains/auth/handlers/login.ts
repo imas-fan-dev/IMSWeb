@@ -1,4 +1,3 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { randomHex } from '@/utils/crypto/random';
 import {
@@ -8,35 +7,20 @@ import {
     hashAuthSecret,
     setAuthenticationCookies
 } from '@/domains/auth/auth-session';
+import type { LoginRequest } from '@/domains/auth/login-request';
 import {
     auditRepository,
     authRepository,
     getClientAddress,
     services
 } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 async function login(
-    c: Context<AppEnvironment>,
+    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>,
     requiredDepartment?: string
 ): Promise<Response> {
-    let body: Record<string, unknown>;
-    try {
-        const candidate = await c.req.json<unknown>();
-        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-            throw new Error('Invalid login body');
-        }
-        body = candidate as Record<string, unknown>;
-    } catch {
-        return c.json({ success: false, message: '用户名或密码格式错误' }, 400);
-    }
-    const { username, password } = body;
-    if (
-        typeof username !== 'string' || typeof password !== 'string' ||
-        username.length < 1 || username.length > 128 ||
-        password.length < 1 || new TextEncoder().encode(password).byteLength > 1024
-    ) {
-        return c.json({ success: false, message: '用户名或密码格式错误' }, 400);
-    }
+    const { username, password } = c.req.valid('json');
     const runtime = services(c);
     if (!runtime.passwords || !runtime.tokens) throw new Error('Authentication services unavailable');
     const user = await authRepository(c).findUserByUsername(username);
@@ -93,10 +77,14 @@ async function login(
     });
 }
 
-export function handleLogin(c: Context<AppEnvironment>): Promise<Response> {
+export function handleLogin(
+    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
+): Promise<Response> {
     return login(c);
 }
 
-export function handleAdminLogin(c: Context<AppEnvironment>): Promise<Response> {
+export function handleAdminLogin(
+    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
+): Promise<Response> {
     return login(c, 'op');
 }

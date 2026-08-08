@@ -1,18 +1,18 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import {
     publicHomepageLink,
-    validateHomepageLinkSubmission
+    type HomepageLinkSubmission
 } from '@/domains/homepage-links/data';
 import { homepageLinkRepository } from '@/domains/homepage-links/handler-support';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
-export async function handleUpdateHomepageLink(c: Context<AppEnvironment>): Promise<Response> {
+export async function handleUpdateHomepageLink(
+    c: ValidatedRequestContext<AppEnvironment, 'json', HomepageLinkSubmission>
+): Promise<Response> {
     try {
-        const submission = validateHomepageLinkSubmission(await c.req.json(), {
-            includeSection: false
-        });
+        const submission = c.req.valid('json');
         const id = c.req.param('id');
         if (!id) throw Object.assign(new Error('首页链接 ID 无效'), { status: 400 });
         const updated = await homepageLinkRepository(c).updateHomepageLink(id, {

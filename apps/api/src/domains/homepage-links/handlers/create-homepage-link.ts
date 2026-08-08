@@ -1,19 +1,19 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import {
     publicHomepageLink,
-    validateHomepageLinkSubmission
+    type HomepageLinkSubmission
 } from '@/domains/homepage-links/data';
 import { homepageLinkRepository } from '@/domains/homepage-links/handler-support';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
-export async function handleCreateHomepageLink(c: Context<AppEnvironment>): Promise<Response> {
+export async function handleCreateHomepageLink(
+    c: ValidatedRequestContext<AppEnvironment, 'json', HomepageLinkSubmission>
+): Promise<Response> {
     try {
-        const submission = validateHomepageLinkSubmission(await c.req.json(), {
-            includeSection: true
-        });
+        const submission = c.req.valid('json');
         const now = Date.now();
         const created = await homepageLinkRepository(c).createHomepageLink({
             id: `home-${now.toString(36)}-${randomHex(6)}`,

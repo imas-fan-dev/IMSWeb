@@ -1,3 +1,8 @@
+import {
+    revisionedContentRequest,
+    type RevisionedContentRequest
+} from '@/utils/validation/request-data';
+
 const MAX_GROUPS = 8;
 const MAX_PEOPLE_PER_GROUP = 24;
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -259,6 +264,10 @@ export function validateAboutPageDraft(value: unknown): AboutPageDraft {
         }),
         groups
     };
+}
+
+export function validateAboutPageUpdateRequest(value: unknown): RevisionedContentRequest {
+    return revisionedContentRequest(value, '关于页配置');
 }
 
 export function parseAboutPageContent(body: Uint8Array): AboutPageContent {
