@@ -1,16 +1,31 @@
+import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
-import { parseHomepageLinkSection } from '@/domains/homepage-links/data';
 import { homepageLinkRepository } from '@/domains/homepage-links/handler-support';
-import type { ValidatedRequestContext } from '@/middleware/request-validation';
+import type {
+    HomepageLinkOrderRequest,
+    HomepageLinkSectionParams
+} from '@/domains/homepage-links/request';
+import type {
+    HomepageLinkErrorResponse,
+    HomepageLinkMutationResponse
+} from '@/domains/homepage-links/response';
+import type { ValidatedRequestInput } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
+type ReorderHomepageLinksContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<'json', HomepageLinkOrderRequest>
+    & ValidatedRequestInput<'param', HomepageLinkSectionParams>
+>;
+
 export async function handleReorderHomepageLinks(
-    c: ValidatedRequestContext<AppEnvironment, 'json', string[]>
+    c: ReorderHomepageLinksContext
 ): Promise<Response> {
     try {
-        const section = parseHomepageLinkSection(c.req.param('section'));
-        const ids = c.req.valid('json');
+        const { section } = c.req.valid('param');
+        const { ids } = c.req.valid('json');
         const repository = homepageLinkRepository(c);
         const current = await repository.listHomepageLinks(section);
         if (current.length !== ids.length || current.some((link) => !ids.includes(link.id))) {
@@ -20,11 +35,12 @@ export async function handleReorderHomepageLinks(
             throw Object.assign(new Error('链接列表已变化，请刷新后重新排序'), { status: 409 });
         }
         await writeAudit(c, '调整首页链接顺序', section);
-        return c.json({ success: true });
+        return c.json({ success: true } satisfies HomepageLinkMutationResponse);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to reorder homepage links', error);
-        return c.json({ error: status >= 500 ? '首页链接排序失败' : messageFromError(error) },
-            status as 400 | 409 | 500);
+        return c.json({
+            error: status >= 500 ? '首页链接排序失败' : messageFromError(error)
+        } satisfies HomepageLinkErrorResponse, status as 400 | 409 | 500);
     }
 }

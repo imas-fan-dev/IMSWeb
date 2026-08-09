@@ -4,6 +4,10 @@ import {
     informationCardUsesAsset,
     updateInformationIndex
 } from '@/domains/information/content-store';
+import type {
+    InformationErrorResponse,
+    InformationMutationResponse
+} from '@/domains/information/response';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
@@ -29,12 +33,12 @@ export async function handleDeleteInformationAsset(
             console.error('Failed to clean committed information asset deletion', error);
         }
         await writeAudit(c, '删除活动图片', url);
-        return c.json({ success: true });
+        return c.json({ success: true } satisfies InformationMutationResponse);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to delete information asset', error);
         return c.json({
             error: status >= 500 ? '图片删除失败' : messageFromError(error)
-        }, status as 400 | 409 | 500);
+        } satisfies InformationErrorResponse, status as 400 | 409 | 500);
     }
 }

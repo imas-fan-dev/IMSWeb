@@ -1,29 +1,15 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import {
-    getLiveSchedule,
-    isLiveScheduleMonth
-} from '@/domains/live-schedule/live-schedule-service';
+import type { LiveScheduleQuery } from '@/domains/live-schedule/request';
+import type { LiveScheduleListResponse } from '@/domains/live-schedule/response';
+import { getLiveSchedule } from '@/domains/live-schedule/live-schedule-service';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
-function currentMonth(): string {
-    const japanNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    return japanNow.toISOString().slice(0, 7);
-}
-
-export async function handleListLiveSchedule(c: Context<AppEnvironment>) {
-    const months = (c.req.query('months') || currentMonth())
-        .split(',')
-        .map((month) => month.trim())
-        .filter(Boolean);
-    if (
-        months.length === 0 ||
-        months.length > 2 ||
-        months.some((month) => !isLiveScheduleMonth(month))
-    ) {
-        return c.json({ error: 'Invalid live schedule month' }, 400);
-    }
+export async function handleListLiveSchedule(
+    c: ValidatedRequestContext<AppEnvironment, 'query', LiveScheduleQuery>
+): Promise<Response> {
+    const { months } = c.req.valid('query');
     const fetcher = c.get('services').fetch || globalThis.fetch;
     const events = await getLiveSchedule(fetcher, months);
     c.header('Cache-Control', 'public, max-age=300');
-    return c.json(events);
+    return c.json(events satisfies LiveScheduleListResponse);
 }

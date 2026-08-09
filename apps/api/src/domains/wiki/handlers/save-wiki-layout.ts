@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     wikiErrorBody,
@@ -8,23 +8,27 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { requireWikiServices } from '@/domains/wiki/service';
-
-interface LayoutBody {
-    expectedRevision?: unknown;
-    groups?: unknown;
-}
+import type {
+    WikiIdParams,
+    WikiLayoutRequest,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 export function createHandleSaveWikiLayout<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiLayoutRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const agencyId = Number(context.req.param('agencyId'));
-            const body = await context.req.json<LayoutBody>();
+            const agencyId = context.req.valid('param').id;
+            const body = context.req.valid('json');
             if (!Number.isSafeInteger(agencyId) || agencyId <= 0 ||
                 !Number.isSafeInteger(body.expectedRevision) ||
                 Number(body.expectedRevision) < 0 || !Array.isArray(body.groups)) {

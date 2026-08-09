@@ -4,7 +4,7 @@ import { handleGetAdminAboutPage } from '@/domains/about/handlers/get-admin-abou
 import { handleUploadAboutHeroImage } from '@/domains/about/handlers/upload-about-hero-image';
 import { handleUploadAboutMemberAvatar } from '@/domains/about/handlers/upload-about-member-avatar';
 import { handleUpdateAboutPage } from '@/domains/about/handlers/update-about-page';
-import { validateAboutPageUpdateRequest } from '@/domains/about/data';
+import { validateAboutPageUpdateRequest } from '@/domains/about/request';
 import { coreAuth, coreCsrf, opOnly } from '@/middleware/hono-auth';
 import { jsonValidator } from '@/middleware/request-validation';
 

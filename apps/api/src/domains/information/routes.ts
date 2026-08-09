@@ -14,13 +14,20 @@ import {
     validateInformationAssetDeletionRequest,
     validateInformationOrderRequest
 } from '@/domains/information/data';
+import { validateInformationCardParams } from '@/domains/information/request';
 import { coreAuth, coreCsrf, opOnly } from '@/middleware/hono-auth';
-import { jsonValidator } from '@/middleware/request-validation';
+import { jsonValidator, paramValidator } from '@/middleware/request-validation';
+
+const informationCardParamValidator = paramValidator(validateInformationCardParams);
 
 export function registerInformationRoutes(app: ImsHonoApp): void {
-    app.get('/information/:id/content', handleServeInformationContent);
+    app.get(
+        '/information/:id/content',
+        informationCardParamValidator,
+        handleServeInformationContent
+    );
     app.get('/api/information', handleListInformation);
-    app.get('/api/information/:id', handleGetInformation);
+    app.get('/api/information/:id', informationCardParamValidator, handleGetInformation);
     app.get('/api/admin/information', coreAuth, opOnly, handleListAdminInformation);
     app.post(
         '/api/admin/information/assets',
@@ -50,6 +57,7 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         coreAuth,
         opOnly,
         coreCsrf,
+        informationCardParamValidator,
         jsonValidator(validateInformationSubmission),
         handleUpdateInformation
     );
@@ -61,5 +69,12 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         jsonValidator(validateInformationAssetDeletionRequest),
         handleDeleteInformationAsset
     );
-    app.delete('/api/admin/information/:id', coreAuth, opOnly, coreCsrf, handleDeleteInformation);
+    app.delete(
+        '/api/admin/information/:id',
+        coreAuth,
+        opOnly,
+        coreCsrf,
+        informationCardParamValidator,
+        handleDeleteInformation
+    );
 }

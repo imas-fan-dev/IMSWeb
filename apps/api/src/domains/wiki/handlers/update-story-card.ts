@@ -1,9 +1,8 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     cleanupWikiObjects,
     findWikiMutationTarget,
-    parseWikiUpload,
     singleWikiFile,
     wikiErrorBody,
     wikiJson,
@@ -11,6 +10,12 @@ import {
     wikiStatusOf,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
+import {
+    parseUpdateWikiStoryCardRequest,
+    type WikiIdParams,
+    type WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 import {
     parseWikiImageTransform,
     parseWikiMediaRevision
@@ -55,7 +60,7 @@ function removeImageValue(value: string | undefined): boolean {
 
 export function createHandleUpdateWikiStoryCard<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'param', WikiIdParams>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
@@ -64,8 +69,8 @@ export function createHandleUpdateWikiStoryCard<E extends Env>(
         let createdKey: string | null = null;
         let oldKey: string | null = null;
         try {
-            const cardId = positiveId(context.req.param('cardId'), '卡片');
-            const upload = await parseWikiUpload(context.req.raw, services);
+            const cardId = context.req.valid('param').id;
+            const upload = await parseUpdateWikiStoryCardRequest(context.req.raw, services);
             const fields = upload.fields;
             const target = await findWikiMutationTarget(
                 services,

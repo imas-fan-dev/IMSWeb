@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type { UsedChronicleMediaListResponse } from '@/domains/chronicle/response';
 import {
     encodedChronicleMediaUrl,
     listChronicleObjects
@@ -11,7 +12,7 @@ export async function handleListUsedChronicleMedia(
 ): Promise<Response> {
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
-    const result: Record<string, Array<{ filename: string; url: string }>> = {};
+    const result: UsedChronicleMediaListResponse = {};
     for (const entry of await listChronicleObjects(storage, 'used')) {
         const parts = entry.key.split('/');
         const activityId = parts.at(-2)!;
@@ -21,5 +22,5 @@ export async function handleListUsedChronicleMedia(
             url: encodedChronicleMediaUrl('used', activityId, filename)
         });
     }
-    return c.json(result);
+    return c.json(result satisfies UsedChronicleMediaListResponse);
 }

@@ -1,6 +1,7 @@
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { deleteCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type { AuthenticationCookieRequest } from '@/domains/auth/request';
 import type { RefreshSessionRecord, UserRecord } from '@/ports/repositories';
 import type { JwtClaims } from '@/ports/security';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
@@ -52,22 +53,19 @@ export function clearAuthenticationCookies(c: Context<AppEnvironment>): void {
     deleteCookie(c, CSRF_TOKEN_COOKIE, { ...common, httpOnly: false, path: '/' });
 }
 
-export function refreshTokenCookie(c: Context<AppEnvironment>): string | undefined {
-    return getCookie(c, REFRESH_TOKEN_COOKIE);
-}
-
 export async function hashAuthSecret(value: string): Promise<string> {
     return sha256Hex(new TextEncoder().encode(value));
 }
 
 export async function hasValidRefreshCsrf(
-    c: Context<AppEnvironment>,
+    request: AuthenticationCookieRequest,
     session: RefreshSessionRecord
 ): Promise<boolean> {
-    const header = c.req.header('x-csrftoken') || c.req.header('x-csrf-token') || '';
-    const cookie = getCookie(c, CSRF_TOKEN_COOKIE) || '';
-    if (!constantTimeEqual(header, cookie)) return false;
-    return constantTimeEqual(await hashAuthSecret(header), session.csrf_hash);
+    if (!constantTimeEqual(request.csrfHeader, request.csrfCookie)) return false;
+    return constantTimeEqual(
+        await hashAuthSecret(request.csrfHeader),
+        session.csrf_hash
+    );
 }
 
 export function accessTokenClaims(

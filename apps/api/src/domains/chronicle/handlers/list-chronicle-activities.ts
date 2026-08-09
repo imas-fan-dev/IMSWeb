@@ -1,5 +1,9 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type {
+    ChronicleActivityListResponse,
+    ChronicleActivitySummaryResponse
+} from '@/domains/chronicle/response';
 import {
     chroniclePrefix,
     encodedChronicleMediaUrl,
@@ -15,7 +19,7 @@ export async function handleListChronicleActivities(
 ): Promise<Response> {
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
-    const activities: Array<Record<string, unknown>> = [];
+    const activities: ChronicleActivitySummaryResponse[] = [];
     for (const entry of await listChronicleObjects(storage, 'meta')) {
         const id = entry.key.split('/').at(-1)!.replace(/\.json$/, '');
         try {
@@ -49,5 +53,5 @@ export async function handleListChronicleActivities(
         if (b === '待定') return -1;
         return a.localeCompare(b);
     });
-    return c.json(activities);
+    return c.json(activities satisfies ChronicleActivityListResponse);
 }

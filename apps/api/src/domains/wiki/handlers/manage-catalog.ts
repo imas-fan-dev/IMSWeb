@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import type {
     AgencyRecord,
     IdolRecord,
@@ -22,6 +22,12 @@ import {
     requireWikiServices,
     wikiGroupIconUrl
 } from '@/domains/wiki/service';
+import type {
+    WikiCatalogMutationRequest,
+    WikiIdParams,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 const SLUG = /^[a-z0-9][a-z0-9_-]*$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
@@ -31,14 +37,6 @@ const STORY_ENTRY_SUBTYPES = new Set<WikiStoryEntrySubtype>([
 ]);
 
 type JsonObject = Record<string, unknown>;
-
-function requestId(value: string | undefined, label: string): number {
-    const id = Number(value);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-        throw Object.assign(new Error(`${label} ID 无效`), { status: 400 });
-    }
-    return id;
-}
 
 function revisionValue(body: JsonObject, key = 'expectedRevision'): number {
     const value = body[key];
@@ -230,14 +228,14 @@ function catalogError(error: unknown, fallback: string): Response {
 
 export function createHandleCreateWikiAgency<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'json', WikiCatalogMutationRequest>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const body = await context.req.json<JsonObject>();
+            const body = context.req.valid('json');
             const name = textValue(body, 'name', '企划名称');
             const agency = await services.story!.createWikiAgency({
                 code: slugValue(body, 'code', '企划代码'),
@@ -255,17 +253,20 @@ export function createHandleCreateWikiAgency<E extends Env>(
 
 export function createHandleUpdateWikiAgency<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const id = requestId(context.req.param('agencyId'), '企划');
+            const id = context.req.valid('param').id;
             const existing = await services.story!.findAgencyById(id);
             if (!existing) throw Object.assign(new Error('企划不存在'), { status: 404 });
-            const body = await context.req.json<JsonObject>();
+            const body = context.req.valid('json');
             const agency = await services.story!.updateWikiAgency({
                 id,
                 name: textValue(body, 'name', '企划名称', existing.name_cn),
@@ -284,15 +285,18 @@ export function createHandleUpdateWikiAgency<E extends Env>(
 
 export function createHandleCreateWikiGroup<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const agencyId = requestId(context.req.param('agencyId'), '企划');
-            const body = await context.req.json<JsonObject>();
+            const agencyId = context.req.valid('param').id;
+            const body = context.req.valid('json');
             const group = await services.story!.createWikiGroup({
                 agencyId,
                 code: slugValue(body, 'code', '栏目代码'),
@@ -308,17 +312,20 @@ export function createHandleCreateWikiGroup<E extends Env>(
 
 export function createHandleUpdateWikiGroup<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const id = requestId(context.req.param('groupId'), '栏目');
+            const id = context.req.valid('param').id;
             const existing = await services.story!.findWikiGroupById(id);
             if (!existing) throw Object.assign(new Error('栏目不存在'), { status: 404 });
-            const body = await context.req.json<JsonObject>();
+            const body = context.req.valid('json');
             const group = await services.story!.updateWikiGroup({
                 id,
                 code: slugValue(body, 'code', '栏目代码', existing.code),
@@ -334,15 +341,18 @@ export function createHandleUpdateWikiGroup<E extends Env>(
 
 export function createHandleDeleteWikiGroup<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage']);
         try {
-            const id = requestId(context.req.param('groupId'), '栏目');
-            const body = await context.req.json<JsonObject>();
+            const id = context.req.valid('param').id;
+            const body = context.req.valid('json');
             const result = await services.story!.deleteWikiGroup({
                 id,
                 expectedRevision: revisionValue(body)
@@ -366,15 +376,18 @@ export function createHandleDeleteWikiGroup<E extends Env>(
 
 export function createHandleCreateWikiIdol<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const agencyId = requestId(context.req.param('agencyId'), '企划');
-            const body = await context.req.json<JsonObject>();
+            const agencyId = context.req.valid('param').id;
+            const body = context.req.valid('json');
             const groupIds = groupIdsValue(body);
             const entryType = entryTypeValue(body, 'idol', null);
             const idol = await services.story!.createWikiIdol({
@@ -398,17 +411,20 @@ export function createHandleCreateWikiIdol<E extends Env>(
 
 export function createHandleUpdateWikiIdol<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const id = requestId(context.req.param('idolId'), '内容页');
+            const id = context.req.valid('param').id;
             const existing = await services.story!.findIdolById(id);
             if (!existing) throw Object.assign(new Error('内容页不存在'), { status: 404 });
-            const body = await context.req.json<JsonObject>();
+            const body = context.req.valid('json');
             const groupIds = groupIdsValue(body);
             const entryType = entryTypeValue(
                 body, existing.entry_kind, existing.entry_subtype
@@ -433,15 +449,18 @@ export function createHandleUpdateWikiIdol<E extends Env>(
 
 export function createHandleDeleteWikiIdol<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const id = requestId(context.req.param('idolId'), '内容页');
-            const body = await context.req.json<JsonObject>();
+            const id = context.req.valid('param').id;
+            const body = context.req.valid('json');
             const result = await services.story!.deleteWikiIdol({
                 id,
                 expectedRevision: revisionValue(body)

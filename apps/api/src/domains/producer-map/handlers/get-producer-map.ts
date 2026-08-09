@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { readProducerMapContent } from '@/domains/producer-map/content-store';
+import type { ProducerMapPublicReadResponse } from '@/domains/producer-map/response';
 import { services } from '@/middleware/hono-context';
 import { resolvePublicMediaUrl } from '@/utils/storage/public-object-url';
 
@@ -23,5 +24,9 @@ export async function handleGetProducerMap(c: Context<AppEnvironment>): Promise<
         })))
     ]);
     c.header('Cache-Control', 'no-cache');
-    return c.json({ ...content, regions, communities });
+    return c.json({
+        ...content,
+        regions,
+        communities
+    } satisfies ProducerMapPublicReadResponse);
 }

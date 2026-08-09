@@ -1,5 +1,8 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type {
+    PendingChronicleMediaListResponse
+} from '@/domains/chronicle/response';
 import {
     encodedChronicleMediaUrl,
     listChronicleObjects,
@@ -13,7 +16,7 @@ export async function handleListPendingChronicleMedia(
 ): Promise<Response> {
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
-    const result: Record<string, Array<Record<string, unknown>>> = {};
+    const result: PendingChronicleMediaListResponse = {};
     for (const entry of await listChronicleObjects(storage, 'meta')) {
         const activityId = entry.key.split('/').at(-1)!.replace(/\.json$/, '');
         try {
@@ -30,5 +33,5 @@ export async function handleListPendingChronicleMedia(
             // Skip malformed legacy metadata.
         }
     }
-    return c.json(result);
+    return c.json(result satisfies PendingChronicleMediaListResponse);
 }

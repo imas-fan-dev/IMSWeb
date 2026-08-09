@@ -1,16 +1,16 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
-import {
-    MAX_INFORMATION_IMAGE_BYTES,
-    oneInformationFile,
-    updateInformationIndex
-} from '@/domains/information/content-store';
+import { updateInformationIndex } from '@/domains/information/content-store';
+import { parseUploadInformationAssetRequest } from '@/domains/information/request';
+import type {
+    InformationErrorResponse,
+    InformationUploadResponse
+} from '@/domains/information/response';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { services } from '@/middleware/hono-context';
 import { safeUploadBaseName } from '@/utils/media/filename';
-import { validateUploadedImage } from '@/utils/media/image-upload';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { informationAssetObjectKey } from '@/utils/storage/business-object-keys';
 
@@ -24,20 +24,9 @@ export async function handleUploadInformationAsset(
     let key = '';
     let publicKey = '';
     try {
-        const parsed = await runtime.uploads.parse(c.req.raw, {
-            maxBytes: MAX_INFORMATION_IMAGE_BYTES + 64 * 1024,
-            fileFields: ['image'],
-            maxFiles: 1,
-            maxFields: 1,
-            maxParts: 2
-        });
-        const file = oneInformationFile(parsed.files.image);
-        if (!file || file.body.byteLength > MAX_INFORMATION_IMAGE_BYTES) {
-            return c.json({ error: '必须上传一张不超过 10MB 的图片' }, 400);
-        }
-        await validateUploadedImage(file, runtime.images);
-        const webp = await runtime.images.toWebp(file.body, 88);
-        const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
+        const { image } = await parseUploadInformationAssetRequest(c);
+        const webp = await runtime.images.toWebp(image.body, 88);
+        const filename = `${safeUploadBaseName(image.filename)}-${Date.now()}-${randomHex(6)}.webp`;
         publicKey = `uploads/information/original/${filename}`;
         key = informationAssetObjectKey(filename);
         const url = `/${publicKey}`;
@@ -47,14 +36,16 @@ export async function handleUploadInformationAsset(
             assets: index.assets.includes(url) ? index.assets : [...index.assets, url]
         }));
         await writeAudit(c, '上传活动图片', url);
-        return c.json({ success: true, url });
+        return c.json({ success: true, url } satisfies InformationUploadResponse);
     } catch (error) {
         if (key) await deleteObjectWithCompensation(runtime, key).catch(() => undefined);
         const status = statusFromError(error);
         if (status >= 500) {
             console.error('Failed to upload information asset', error);
-            return c.json({ error: '图片上传失败' }, status as 500);
+            return c.json({ error: '图片上传失败' } satisfies InformationErrorResponse, 500);
         }
-        return c.json({ error: messageFromError(error) }, status as 400);
+        return c.json({
+            error: messageFromError(error)
+        } satisfies InformationErrorResponse, status as 400);
     }
 }

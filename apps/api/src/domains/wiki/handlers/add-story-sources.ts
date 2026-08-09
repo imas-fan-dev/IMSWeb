@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import type { NewStoryLinkInput } from '@/ports/repositories';
 import {
     authorizeWikiWrite,
@@ -12,16 +12,14 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { requireWikiServices } from '@/domains/wiki/service';
+import type {
+    WikiIdParams,
+    WikiStorySourcesRequest,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 type JsonObject = Record<string, unknown>;
-
-function positiveId(value: string | undefined, label: string): number {
-    const id = Number(value);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-        throw Object.assign(new Error(`${label} ID 无效`), { status: 400 });
-    }
-    return id;
-}
 
 function nonNegativeRevision(value: unknown): number {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
@@ -68,15 +66,18 @@ function storySources(value: unknown): Array<Omit<NewStoryLinkInput,
 
 export function createHandleAddWikiStorySources<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiStorySourcesRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const cardId = positiveId(context.req.param('cardId'), '剧情卡片');
-            const body = await context.req.json<JsonObject>();
+            const cardId = context.req.valid('param').id;
+            const body = context.req.valid('json');
             const target = await findWikiMutationTarget(
                 services,
                 requiredText(body.agency, '企划', 100),

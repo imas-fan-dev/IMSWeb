@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     cleanupWikiObjects,
@@ -13,6 +13,13 @@ import {
     requireWikiServices,
     storyObjectKey
 } from '@/domains/wiki/service';
+import {
+    parseDeleteWikiStoryLinkRequest,
+    type WikiIdParams,
+    type WikiStoryLinkQuery,
+    type WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 type JsonObject = Record<string, unknown>;
 
@@ -30,33 +37,25 @@ function revisionInput(body: JsonObject, fallback: string | undefined): number {
     return revision;
 }
 
-async function optionalJsonBody(request: Request): Promise<JsonObject> {
-    if (!request.headers.get('content-type')?.toLowerCase()
-        .startsWith('application/json')) {
-        return {};
-    }
-    const source = await request.text();
-    return source.trim() ? JSON.parse(source) as JsonObject : {};
-}
-
 export function createHandleDeleteWikiStoryLink<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'query', WikiStoryLinkQuery>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage']);
         try {
-            const storyId = Number(context.req.param('storyId'));
-            if (!Number.isSafeInteger(storyId) || storyId <= 0) {
-                return wikiJson(wikiErrorBody('剧情来源 ID 无效'), 400);
-            }
-            const body = await optionalJsonBody(context.req.raw);
+            const storyId = context.req.valid('param').id;
+            const query = context.req.valid('query');
+            const body = await parseDeleteWikiStoryLinkRequest(context.req.raw);
             const target = await findWikiMutationTarget(
                 services,
-                textInput(body, 'agency', context.req.query('agency')),
-                textInput(body, 'idol', context.req.query('idol')),
+                textInput(body, 'agency', query.agency),
+                textInput(body, 'idol', query.idol),
                 404
             );
             if ('error' in target) return target.error;
@@ -64,7 +63,7 @@ export function createHandleDeleteWikiStoryLink<E extends Env>(
                 agencyCode: target.agency.code,
                 idolId: target.idol.id,
                 id: storyId,
-                expectedRevision: revisionInput(body, context.req.query('expectedRevision'))
+                expectedRevision: revisionInput(body, query.expectedRevision)
             });
             if (!result) return wikiJson(wikiErrorBody('剧情来源不存在'), 404);
             if (result.status === 'conflict') {

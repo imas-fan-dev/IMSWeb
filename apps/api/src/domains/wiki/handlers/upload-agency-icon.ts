@@ -1,9 +1,8 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     cleanupWikiObjects,
     findWikiAgencyTarget,
-    parseWikiUpload,
     singleWikiFile,
     wikiErrorBody,
     wikiJson,
@@ -11,6 +10,8 @@ import {
     wikiStatusOf,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
+import { parseUploadWikiAgencyIconRequest } from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 import {
     agencyIconObjectKey,
     agencyIconUrl,
@@ -20,7 +21,7 @@ import {
 
 export function createHandleUploadWikiAgencyIcon<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
@@ -29,7 +30,10 @@ export function createHandleUploadWikiAgencyIcon<E extends Env>(
         let createdKey: string | null = null;
         let cleanupCreated = false;
         try {
-            const upload = await parseWikiUpload(context.req.raw, services);
+            const upload = await parseUploadWikiAgencyIconRequest(
+                context.req.raw,
+                services
+            );
             const file = singleWikiFile(upload, 'image');
             if (!file?.filename) {
                 return wikiJson(wikiErrorBody('请选择系列图标'), 400);

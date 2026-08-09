@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiRead,
     wikiJson,
@@ -12,6 +12,7 @@ import {
     wikiGroupIconUrl
 } from '@/domains/wiki/service';
 import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 function revisionedUrl(url: string, revision: number): string {
     return url ? `${url}${url.includes('?') ? '&' : '?'}v=${revision}` : url;
@@ -19,7 +20,7 @@ function revisionedUrl(url: string, revision: number): string {
 
 export function createHandleListAdminWikiCatalog<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiRead(context, services);

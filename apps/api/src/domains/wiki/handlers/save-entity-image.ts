@@ -1,8 +1,7 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     cleanupWikiObjects,
-    parseWikiUpload,
     singleWikiFile,
     wikiErrorBody,
     wikiJson,
@@ -10,6 +9,12 @@ import {
     wikiStatusOf,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
+import {
+    parseSaveWikiEntityImageRequest,
+    type WikiIdParams,
+    type WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 import {
     parseWikiImageTransform,
     parseWikiMediaRevision
@@ -44,14 +49,6 @@ type EntityTarget = {
     publicUrl: string;
     metadata: Record<string, string>;
 };
-
-function positiveId(value: string | undefined): number {
-    const id = Number(value);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-        throw Object.assign(new Error('媒体实体 ID 无效'), { status: 400 });
-    }
-    return id;
-}
 
 function agencyTransform(record: AgencyRecord): WikiImageTransform {
     return {
@@ -160,7 +157,8 @@ export function createHandleSaveWikiEntityImage<E extends Env>(
     resolveServices: WikiServicesResolver<E>,
     kind: WikiEntityImageKind,
     parameter: 'agencyId' | 'groupId' | 'idolId'
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'param', WikiIdParams>> {
+    void parameter;
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
@@ -170,10 +168,10 @@ export function createHandleSaveWikiEntityImage<E extends Env>(
         try {
             const target = await resolveTarget(
                 kind,
-                positiveId(context.req.param(parameter)),
+                context.req.valid('param').id,
                 services
             );
-            const upload = await parseWikiUpload(context.req.raw, services);
+            const upload = await parseSaveWikiEntityImageRequest(context.req.raw, services);
             const file = singleWikiFile(upload, 'image');
             const transform = parseWikiImageTransform(upload.fields, target.transform);
             const expectedRevision = parseWikiMediaRevision(

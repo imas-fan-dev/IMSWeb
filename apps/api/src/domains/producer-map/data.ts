@@ -1,6 +1,5 @@
 import {
-    revisionedContentRequest,
-    type RevisionedContentRequest
+    revisionedContentRequest
 } from '@/utils/validation/request-data';
 
 const MAX_REGIONS = 34;
@@ -95,6 +94,11 @@ export interface ProducerMapDraft {
 
 export interface ProducerMapContent extends ProducerMapDraft {
     updatedAt: string | null;
+}
+
+export interface ProducerMapUpdateRequest {
+    content: unknown;
+    revision: string | null;
 }
 
 function invalid(message: string): never {
@@ -236,7 +240,7 @@ export function validateProducerMapDraft(value: unknown): ProducerMapDraft {
     };
 }
 
-export function validateProducerMapUpdateRequest(value: unknown): RevisionedContentRequest {
+export function validateProducerMapUpdateRequest(value: unknown): ProducerMapUpdateRequest {
     return revisionedContentRequest(value, '制作人地图配置');
 }
 

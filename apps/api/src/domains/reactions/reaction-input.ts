@@ -1,4 +1,5 @@
 import { positiveInteger } from '@/utils/validation/number';
+import { requestRecord } from '@/utils/validation/request-data';
 
 export const ALLOWED_REACTIONS = new Set([
     '❤️', '👍', '😂', '🤣', '😭', '😍', '🥰', '😘', '🤯', '😱',
@@ -11,6 +12,10 @@ export const ALLOWED_REACTIONS = new Set([
 export interface ReactionRequest {
     id: number;
     emoji: string;
+}
+
+export interface ReactionListQuery {
+    id: number;
 }
 
 export function validateReactionRequest(value: unknown): ReactionRequest {
@@ -26,6 +31,9 @@ export function validateReactionRequest(value: unknown): ReactionRequest {
     return { id, emoji: payload.emoji };
 }
 
-export function reactionMutationBody(path: string): { success: true } | { ok: true } {
-    return path === '/api/emojis' ? { success: true } : { ok: true };
+export function validateReactionListQuery(value: unknown): ReactionListQuery {
+    const query = requestRecord(value, 'Invalid card id');
+    const id = positiveInteger(query.id);
+    if (!id) throw Object.assign(new Error('Invalid card id'), { status: 400 });
+    return { id };
 }

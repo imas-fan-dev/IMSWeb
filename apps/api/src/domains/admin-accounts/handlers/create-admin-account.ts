@@ -2,6 +2,10 @@ import type { AppEnvironment } from '@/app';
 import type {
     CreateAdminAccountRequest
 } from '@/domains/admin-accounts/create-admin-account-request';
+import type {
+    AdminAccountErrorResponse,
+    CreateAdminAccountResponse
+} from '@/domains/admin-accounts/response';
 import { writeAudit } from '@/domains/audit/hono-service';
 import { serializeAdminAccount } from '@/domains/admin-accounts/serializer';
 import { adminAccountRepository, services } from '@/middleware/hono-context';
@@ -20,11 +24,17 @@ export async function handleCreateAdminAccount(
             passwordHash: await passwordService.hash(password)
         });
         await writeAudit(c, '新增管理员', username);
-        return c.json({ success: true, account: serializeAdminAccount(account) }, 201);
+        return c.json({
+            success: true,
+            account: serializeAdminAccount(account)
+        } satisfies CreateAdminAccountResponse, 201);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/unique|constraint|duplicate/i.test(message)) {
-            return c.json({ success: false, message: '用户名已存在' }, 409);
+            return c.json({
+                success: false,
+                message: '用户名已存在'
+            } satisfies AdminAccountErrorResponse, 409);
         }
         throw error;
     }

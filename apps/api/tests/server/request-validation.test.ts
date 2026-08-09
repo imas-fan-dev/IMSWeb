@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Hono } from 'hono';
-import { jsonValidator } from '@/middleware/request-validation';
+import {
+    jsonValidator,
+    paramValidator,
+    queryValidator
+} from '@/middleware/request-validation';
 
 function positiveIdRequest(value: unknown): { id: number } {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -98,4 +102,22 @@ test('json validator awaits asynchronous request parsers', async () => {
     });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { id: 9 });
+});
+
+test('param and query validators expose normalized request models', async () => {
+    const app = new Hono();
+    app.get('/items/:id', paramValidator(positiveIdRequest), (c) => {
+        return c.json({ source: 'param', ...c.req.valid('param') });
+    });
+    app.get('/items', queryValidator(positiveIdRequest), (c) => {
+        return c.json({ source: 'query', ...c.req.valid('query') });
+    });
+
+    const param = await app.request('/items/42');
+    assert.equal(param.status, 200);
+    assert.deepEqual(await param.json(), { source: 'param', id: 42 });
+
+    const query = await app.request('/items?id=43');
+    assert.equal(query.status, 200);
+    assert.deepEqual(await query.json(), { source: 'query', id: 43 });
 });

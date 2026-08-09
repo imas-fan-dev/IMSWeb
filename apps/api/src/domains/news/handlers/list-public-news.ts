@@ -1,58 +1,48 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type { NewsListQuery } from '@/domains/news/request';
+import type {
+    NewsCursorPageResponse,
+    PublicNewsItemResponse,
+    PublicNewsListResponse
+} from '@/domains/news/response';
 import { newsRepository, services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { resolvePublicMediaFields } from '@/utils/storage/public-object-url';
 import {
-    decodeDescendingIdCursor,
     descendingIdAsDecimal,
     encodeDescendingIdCursor
 } from '@/utils/validation/descending-id-cursor';
 
-const DEFAULT_CURSOR_LIMIT = 20;
-const MAX_CURSOR_LIMIT = 100;
-
 async function publicNewsRows(
     c: Context<AppEnvironment>,
-    rows: Record<string, unknown>[]
-): Promise<Record<string, unknown>[]> {
+    rows: PublicNewsItemResponse[]
+): Promise<PublicNewsItemResponse[]> {
     const storage = services(c).storage;
     return storage
         ? Promise.all(rows.map((row) => resolvePublicMediaFields(storage, row, ['thumbnail'])))
         : rows;
 }
 
-function boundedLimit(value: string | undefined): number | null {
-    if (value === undefined) return DEFAULT_CURSOR_LIMIT;
-    if (!/^[1-9]\d*$/.test(value)) return null;
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) && parsed <= MAX_CURSOR_LIMIT ? parsed : null;
-}
-
 async function listCursorNews(
     c: Context<AppEnvironment>,
-    limitValue: string | undefined,
-    cursorValue: string | undefined
+    query: Extract<NewsListQuery, { mode: 'cursor' }>
 ): Promise<Response> {
-    const limit = boundedLimit(limitValue);
-    if (!limit) return c.json({ error: 'limit must be an integer between 1 and 100' }, 400);
-
-    const cursor = cursorValue === undefined ? null : decodeDescendingIdCursor(cursorValue);
-    if (cursorValue !== undefined && !cursor) return c.json({ error: 'Invalid news cursor' }, 400);
-
+    const { cursor, limit } = query;
     const repository = newsRepository(c);
     const snapshotId = cursor?.snapshotId ?? await repository.findLatestPublicNewsId();
     if (!snapshotId) {
         return c.json({
             items: [],
             pageInfo: { nextCursor: null, hasNextPage: false, snapshotAt: null }
-        });
+        } satisfies NewsCursorPageResponse);
     }
 
     const rows = await repository.listPublicNewsByCursor(
         limit + 1,
         snapshotId,
         cursor?.afterId
-    );
+    ) as PublicNewsItemResponse[];
     const hasNextPage = rows.length > limit;
     const items = await publicNewsRows(c, hasNextPage ? rows.slice(0, limit) : rows);
     const lastId = items.length ? descendingIdAsDecimal(items.at(-1)?.id) : null;
@@ -67,18 +57,19 @@ async function listCursorNews(
             hasNextPage,
             snapshotAt: snapshotId
         }
-    });
+    } satisfies NewsCursorPageResponse);
 }
 
-export async function handleListPublicNews(c: Context<AppEnvironment>): Promise<Response> {
-    const limitValue = c.req.query('limit');
-    const cursorValue = c.req.query('cursor');
-    if (limitValue !== undefined || cursorValue !== undefined) {
-        return listCursorNews(c, limitValue, cursorValue);
-    }
+export async function handleListPublicNews(
+    c: ValidatedRequestContext<AppEnvironment, 'query', NewsListQuery>
+): Promise<Response> {
+    const query = c.req.valid('query');
+    if (query.mode === 'cursor') return listCursorNews(c, query);
     try {
-        return c.json(await publicNewsRows(c, await newsRepository(c).listPublicNews()));
+        const rows = await newsRepository(c).listPublicNews() as PublicNewsItemResponse[];
+        const response = await publicNewsRows(c, rows);
+        return c.json(response satisfies PublicNewsListResponse);
     } catch {
-        return c.json([], 500);
+        return c.json([] satisfies PublicNewsListResponse, 500);
     }
 }

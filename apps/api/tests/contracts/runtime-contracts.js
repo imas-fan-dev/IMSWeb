@@ -796,6 +796,18 @@ async function assertCoreMutationContract(fixture) {
     const afterLogin = await fixture.snapshot();
     deepEqual(afterLogin.auditActions, ['登录'], `${fixture.runtime} login audit`);
 
+    await assertJsonResponse(
+        await fixture.request('/api/admin/news/not-an-id', {
+            method: 'DELETE',
+            headers: auth
+        }),
+        400,
+        { error: '资讯 ID 无效' },
+        `${fixture.runtime} invalid news deletion id`
+    );
+    deepEqual(await fixture.snapshot(), afterLogin,
+        `${fixture.runtime} invalid news deletion has no side effects`);
+
     const invalidNews = await fixture.request('/api/admin/news', {
         method: 'POST',
         headers: { ...auth, 'Content-Type': 'application/json' },
@@ -819,6 +831,23 @@ async function assertCoreMutationContract(fixture) {
     const afterNews = await fixture.snapshot();
     equal(afterNews.news, afterLogin.news + 1, `${fixture.runtime} news row committed`);
     deepEqual(afterNews.auditActions, ['登录', '发布新闻'], `${fixture.runtime} news audit after commit`);
+
+    fixture.setUpload({
+        fields: { title: 'Missing organizer', contact: 'contact@example.test' },
+        files: { image: uploadedFile('invalid-event.png', 32, 20) }
+    });
+    await assertJsonResponse(
+        await fixture.request('/api/events', {
+            method: 'POST',
+            headers: { ...auth, 'Content-Type': 'multipart/form-data; boundary=contract' },
+            body: '--contract--'
+        }),
+        400,
+        { error: '主办方或活动名必须为 1-160 个字符' },
+        `${fixture.runtime} invalid event fields`
+    );
+    deepEqual(await fixture.snapshot(), afterNews,
+        `${fixture.runtime} invalid event fields have no side effects`);
 
     fixture.setUpload({
         fields: { title: 'Contract event', name: 'Producer', contact: 'contact@example.test' },
@@ -851,6 +880,15 @@ async function assertCoreMutationContract(fixture) {
     );
     const afterNamecard = await fixture.snapshot();
     equal(afterNamecard.cards, afterNews.cards + 1, `${fixture.runtime} namecard row committed`);
+
+    await assertJsonResponse(
+        await fixture.request('/api/cards?page=1x&size=101'),
+        400,
+        { error: 'page must be an integer between 1 and 100' },
+        `${fixture.runtime} invalid namecard pagination`
+    );
+    deepEqual(await fixture.snapshot(), afterNamecard,
+        `${fixture.runtime} invalid namecard pagination has no side effects`);
 
     fixture.setUpload({
         fields: {},

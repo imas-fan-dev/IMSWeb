@@ -2,8 +2,11 @@ import type { ImsHonoApp } from '@/app';
 import { createHandleAddReaction } from '@/domains/reactions/handlers/add-reaction';
 import { createHandleDeleteReaction } from '@/domains/reactions/handlers/delete-reaction';
 import { handleListReactions } from '@/domains/reactions/handlers/list-reactions';
-import { validateReactionRequest } from '@/domains/reactions/reaction-input';
-import { jsonValidator } from '@/middleware/request-validation';
+import {
+    validateReactionListQuery,
+    validateReactionRequest
+} from '@/domains/reactions/reaction-input';
+import { jsonValidator, queryValidator } from '@/middleware/request-validation';
 
 const reactionValidator = jsonValidator(validateReactionRequest, {
     acceptMislabeledJson: true,
@@ -12,7 +15,7 @@ const reactionValidator = jsonValidator(validateReactionRequest, {
 
 export function registerReactionRoutes(app: ImsHonoApp): void {
     for (const route of ['/api/emojis', '/api/reactions'] as const) {
-        app.get(route, handleListReactions);
+        app.get(route, queryValidator(validateReactionListQuery), handleListReactions);
         app.post(
             route,
             reactionValidator,

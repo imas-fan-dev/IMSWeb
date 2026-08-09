@@ -1,20 +1,21 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type { ChronicleActivityParams } from '@/domains/chronicle/request';
+import type { ChronicleActivityResponse } from '@/domains/chronicle/response';
 import {
     chroniclePrefix,
     encodedChronicleMediaUrl,
     listChronicleObjects,
     readChronicleMeta,
-    safeChronicleSegment,
     type ChronicleMeta
 } from '@/domains/chronicle/chronicle-records';
 import { services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
 
 export async function handleGetChronicleActivity(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'param', ChronicleActivityParams>
 ): Promise<Response> {
-    const activityId = safeChronicleSegment(c.req.param('id'), 'activityId');
+    const { activityId } = c.req.valid('param');
     const storage = services(c).storage;
     if (!storage) throw new Error('Object storage unavailable');
     let meta: ChronicleMeta = {};
@@ -43,5 +44,5 @@ export async function handleGetChronicleActivity(
         date: meta.date || '待补充',
         location: meta.location || '待补充',
         images
-    });
+    } satisfies ChronicleActivityResponse);
 }

@@ -5,12 +5,17 @@ import { handleListHomepageLinks } from '@/domains/homepage-links/handlers/list-
 import { handleReorderHomepageLinks } from '@/domains/homepage-links/handlers/reorder-homepage-links';
 import { handleUpdateHomepageLink } from '@/domains/homepage-links/handlers/update-homepage-link';
 import {
+    validateHomepageLinkIdParams,
     validateHomepageLinkOrderRequest,
+    validateHomepageLinkSectionParams,
     validateHomepageLinkUpdateRequest,
     validateNewHomepageLinkRequest
-} from '@/domains/homepage-links/data';
+} from '@/domains/homepage-links/request';
 import { coreAuth, coreCsrf, opOnly } from '@/middleware/hono-auth';
-import { jsonValidator } from '@/middleware/request-validation';
+import { jsonValidator, paramValidator } from '@/middleware/request-validation';
+
+const homepageLinkIdValidator = paramValidator(validateHomepageLinkIdParams);
+const homepageLinkSectionValidator = paramValidator(validateHomepageLinkSectionParams);
 
 export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
     app.get('/api/homepage-links', handleListHomepageLinks);
@@ -29,6 +34,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         opOnly,
         coreCsrf,
         jsonValidator(validateHomepageLinkOrderRequest),
+        homepageLinkSectionValidator,
         handleReorderHomepageLinks
     );
     app.put(
@@ -37,6 +43,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         opOnly,
         coreCsrf,
         jsonValidator(validateHomepageLinkUpdateRequest),
+        homepageLinkIdValidator,
         handleUpdateHomepageLink
     );
     app.delete(
@@ -44,6 +51,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         coreAuth,
         opOnly,
         coreCsrf,
+        homepageLinkIdValidator,
         handleDeleteHomepageLink
     );
 }

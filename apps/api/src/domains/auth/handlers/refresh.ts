@@ -7,28 +7,36 @@ import {
     clearAuthenticationCookies,
     hashAuthSecret,
     hasValidRefreshCsrf,
-    refreshTokenCookie,
     setAuthenticationCookies
 } from '@/domains/auth/auth-session';
+import { parseAuthenticationCookieRequest } from '@/domains/auth/request';
+import type {
+    RefreshErrorResponse,
+    RefreshSuccessResponse
+} from '@/domains/auth/response';
 import { authRepository, services } from '@/middleware/hono-context';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
 import { randomHex } from '@/utils/crypto/random';
 
 function rejectRefresh(c: Context<AppEnvironment>, message: string): Response {
     clearAuthenticationCookies(c);
-    return c.json({ success: false, message }, 401);
+    return c.json({ success: false, message } satisfies RefreshErrorResponse, 401);
 }
 
 export async function handleRefresh(c: Context<AppEnvironment>): Promise<Response> {
-    const refreshToken = refreshTokenCookie(c);
+    const request = parseAuthenticationCookieRequest(c);
+    const refreshToken = request.refreshToken;
     if (!refreshToken) return rejectRefresh(c, '刷新令牌无效');
 
     const repository = authRepository(c);
     const tokenHash = await hashAuthSecret(refreshToken);
     const session = await repository.findRefreshSessionByTokenHash(tokenHash);
     if (!session) return rejectRefresh(c, '刷新令牌无效');
-    if (!await hasValidRefreshCsrf(c, session)) {
-        return c.json({ success: false, message: 'CSRF token invalid' }, 403);
+    if (!await hasValidRefreshCsrf(request, session)) {
+        return c.json({
+            success: false,
+            message: 'CSRF token invalid'
+        } satisfies RefreshErrorResponse, 403);
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -48,7 +56,7 @@ export async function handleRefresh(c: Context<AppEnvironment>): Promise<Respons
 
     const runtime = services(c);
     if (!runtime.tokens) throw new Error('Authentication services unavailable');
-    const csrfSecret = c.req.header('x-csrftoken') || c.req.header('x-csrf-token') || '';
+    const csrfSecret = request.csrfHeader;
     const nextRefreshToken = randomHex(32);
     const [accessToken, nextTokenHash] = await Promise.all([
         runtime.tokens.sign(accessTokenClaims(user, csrfSecret), ACCESS_TOKEN_TTL_SECONDS),
@@ -80,5 +88,5 @@ export async function handleRefresh(c: Context<AppEnvironment>): Promise<Respons
             dept: user.dept,
             adminRole: user.admin_role
         }
-    });
+    } satisfies RefreshSuccessResponse);
 }

@@ -1,3 +1,9 @@
+import type { LoginErrorResponse } from '@/domains/auth/response';
+import {
+    invalidRequest,
+    requestRecord
+} from '@/utils/validation/request-data';
+
 export interface LoginRequest {
     username: string;
     password: string;
@@ -5,21 +11,18 @@ export interface LoginRequest {
 
 export function loginValidationError(
     message: string
-): Record<string, string | boolean> {
-    return { success: false, message };
+): LoginErrorResponse & Record<string, string | boolean> {
+    return { success: false, message } satisfies LoginErrorResponse;
 }
 
 export function validateLoginRequest(value: unknown): LoginRequest {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw Object.assign(new Error('用户名或密码格式错误'), { status: 400 });
-    }
-    const { username, password } = value as Record<string, unknown>;
+    const { username, password } = requestRecord(value, '用户名或密码格式错误');
     if (
         typeof username !== 'string' || typeof password !== 'string' ||
         username.length < 1 || username.length > 128 ||
         password.length < 1 || new TextEncoder().encode(password).byteLength > 1024
     ) {
-        throw Object.assign(new Error('用户名或密码格式错误'), { status: 400 });
+        invalidRequest('用户名或密码格式错误');
     }
     return { username, password };
 }

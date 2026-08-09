@@ -1,6 +1,10 @@
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import { updateInformationIndex } from '@/domains/information/content-store';
+import type {
+    InformationErrorResponse,
+    InformationMutationResponse
+} from '@/domains/information/response';
 import { services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -22,12 +26,12 @@ export async function handleReorderInformation(
             return { ...index, cards: ids.map((id) => byId.get(id)!) };
         });
         await writeAudit(c, '调整活动内容顺序', `${ids.length} 条内容`);
-        return c.json({ success: true });
+        return c.json({ success: true } satisfies InformationMutationResponse);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to reorder information cards', error);
         return c.json({
             error: status >= 500 ? '活动内容排序失败' : messageFromError(error)
-        }, status as 400 | 409 | 500);
+        } satisfies InformationErrorResponse, status as 400 | 409 | 500);
     }
 }

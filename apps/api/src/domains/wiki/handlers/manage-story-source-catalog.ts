@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import type {
     WikiStoryCatalogOptionInput,
     WikiStoryContentTypeInput,
@@ -14,17 +14,15 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { requireWikiServices } from '@/domains/wiki/service';
+import type {
+    WikiIdParams,
+    WikiStoryCatalogMutationRequest,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 type CatalogKind = 'content-type' | 'source-platform';
 type JsonObject = Record<string, unknown>;
-
-function positiveId(value: string | undefined): number {
-    const id = Number(value);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-        throw Object.assign(new Error('目录项 ID 无效'), { status: 400 });
-    }
-    return id;
-}
 
 function requiredText(value: unknown, label: string, maximumLength: number): string {
     if (typeof value !== 'string' || !value.trim() || value.trim().length > maximumLength) {
@@ -135,7 +133,7 @@ function mutationError(error: unknown): Response {
 
 export function createHandleListWikiStorySourceCatalog<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiRead(context, services);
@@ -156,14 +154,16 @@ export function createHandleListWikiStorySourceCatalog<E extends Env>(
 export function createHandleCreateWikiStoryCatalogOption<E extends Env>(
     resolveServices: WikiServicesResolver<E>,
     kind: CatalogKind
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'json', WikiStoryCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const body = await context.req.json<JsonObject>();
+            const body = context.req.valid('json');
             const option = kind === 'content-type'
                 ? publicContentType(await services.story!.createStoryContentType(
                     contentTypeInput(body)
@@ -183,15 +183,18 @@ export function createHandleCreateWikiStoryCatalogOption<E extends Env>(
 export function createHandleUpdateWikiStoryCatalogOption<E extends Env>(
     resolveServices: WikiServicesResolver<E>,
     kind: CatalogKind
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiStoryCatalogMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const id = positiveId(context.req.param('optionId'));
-            const body = await context.req.json<JsonObject>();
+            const id = context.req.valid('param').id;
+            const body = context.req.valid('json');
             const result = kind === 'content-type'
                 ? await services.story!.updateStoryContentType(
                     id,
@@ -229,14 +232,14 @@ export function createHandleUpdateWikiStoryCatalogOption<E extends Env>(
 export function createHandleDeleteWikiStoryCatalogOption<E extends Env>(
     resolveServices: WikiServicesResolver<E>,
     kind: CatalogKind
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'param', WikiIdParams>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const id = positiveId(context.req.param('optionId'));
+            const id = context.req.valid('param').id;
             const result = kind === 'content-type'
                 ? await services.story!.deleteStoryContentType(id)
                 : await services.story!.deleteStorySourcePlatform(id);

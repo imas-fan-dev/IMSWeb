@@ -1,30 +1,30 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { authorizePrivate } from '@/domains/media/media-access';
-import { objectReadResponse } from '@/utils/http/object-read-response';
+import type { NamecardMediaParams } from '@/domains/media/request';
+import {
+    MEDIA_NOT_FOUND_RESPONSE,
+    mediaObjectReadResponse,
+    mediaTextResponse
+} from '@/domains/media/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
-import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
-export async function handleServeNamecard(c: Context<AppEnvironment>): Promise<Response> {
+export async function handleServeNamecard(
+    c: ValidatedRequestContext<AppEnvironment, 'param', NamecardMediaParams>
+): Promise<Response> {
     const runtime = services(c);
     if (!runtime.storage) throw new Error('Object storage unavailable');
-    const url = `/uploads/namecard/original/${c.req.param('filename')}`;
+    const { url, key } = c.req.valid('param');
     const card = await namecardRepository(c).findCardByMediaUrl(url);
     const isPrivate = card?.status !== 'approved';
     if (isPrivate) {
         const failure = await authorizePrivate(c);
         if (failure) return failure;
     }
-    const response = await objectReadResponse(
+    const response = await mediaObjectReadResponse(
         c.req.raw,
         runtime.storage,
-        publicMediaObjectKey(url),
-        isPrivate ? {
-            'Cache-Control': 'private, no-store',
-            'Vary': 'Cookie, Authorization'
-        } : {
-            'Cache-Control': 'public, max-age=31536000, immutable'
-        }
+        { key, visibility: isPrivate ? 'private' : 'public' }
     );
-    return response ?? c.text('Not Found', 404);
+    return response ?? mediaTextResponse(c, MEDIA_NOT_FOUND_RESPONSE);
 }

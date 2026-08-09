@@ -1,3 +1,5 @@
+import type { AdminAccountErrorResponse } from '@/domains/admin-accounts/response';
+
 export interface CreateAdminAccountRequest {
     username: string;
     producername: string;
@@ -6,7 +8,7 @@ export interface CreateAdminAccountRequest {
 
 export function createAdminAccountValidationError(
     message: string
-): Record<string, string | boolean> {
+): AdminAccountErrorResponse {
     return { success: false, message };
 }
 

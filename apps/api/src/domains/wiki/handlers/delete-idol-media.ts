@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     findWikiMutationTarget,
@@ -12,17 +12,22 @@ import {
     requireWikiServices
 } from '@/domains/wiki/service';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import type {
+    WikiDeleteMediaRequest,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 export function createHandleDeleteWikiIdolMedia<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'json', WikiDeleteMediaRequest>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage']);
         try {
-            const fields = await context.req.json<Record<string, unknown>>();
+            const fields = context.req.valid('json');
             const target = await findWikiMutationTarget(
                 services,
                 typeof fields.agency === 'string' ? fields.agency.trim() : '',

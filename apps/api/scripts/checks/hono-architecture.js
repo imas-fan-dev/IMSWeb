@@ -21,6 +21,50 @@ function filesUnder(directory) {
     });
 }
 
+function maskNonCode(source) {
+    const output = [...source];
+    let index = 0;
+    while (index < output.length) {
+        const character = source[index];
+        const next = source[index + 1];
+        if (character === '/' && next === '/') {
+            while (index < output.length && source[index] !== '\n') output[index++] = ' ';
+            continue;
+        }
+        if (character === '/' && next === '*') {
+            output[index++] = ' ';
+            output[index++] = ' ';
+            while (index < output.length && !(source[index] === '*' && source[index + 1] === '/')) {
+                if (source[index] !== '\n') output[index] = ' ';
+                index += 1;
+            }
+            if (index < output.length) {
+                output[index++] = ' ';
+                output[index++] = ' ';
+            }
+            continue;
+        }
+        if (character === '\'' || character === '"' || character === '`') {
+            const quote = character;
+            output[index++] = ' ';
+            while (index < output.length) {
+                if (source[index] === '\\') {
+                    output[index++] = ' ';
+                    if (index < output.length) output[index++] = ' ';
+                    continue;
+                }
+                const closing = source[index] === quote;
+                if (source[index] !== '\n') output[index] = ' ';
+                index += 1;
+                if (closing) break;
+            }
+            continue;
+        }
+        index += 1;
+    }
+    return output.join('');
+}
+
 const infraCategories = new Set([
     'cache',
     'db',
@@ -239,6 +283,53 @@ for (const file of filesUnder(domainRoot)) {
     const source = fs.readFileSync(file, 'utf8');
     for (const [pattern, label] of forbiddenDomainPatterns) {
         if (pattern.test(source)) failures.push(`${path.relative(root, file)}: ${label}`);
+    }
+}
+
+const validatedRequestDomains = new Set([
+    'about',
+    'admin-accounts',
+    'audit',
+    'auth',
+    'brand-assets',
+    'chronicle',
+    'events',
+    'homepage-links',
+    'information',
+    'live-schedule',
+    'media',
+    'namecards',
+    'news',
+    'producer-map',
+    'reactions',
+    'site',
+    'site-packages',
+    'wiki'
+]);
+for (const domain of validatedRequestDomains) {
+    const handlersRoot = path.join(domainRoot, domain, 'handlers');
+    for (const file of filesUnder(handlersRoot)) {
+        const source = fs.readFileSync(file, 'utf8');
+        const code = maskNonCode(source);
+        if (/\.\s*req\s*\.\s*(?:json|param|query)\s*(?:<[^;()]*>)?\s*\(/.test(code)) {
+            failures.push(
+                `${path.relative(root, file)}: validated handlers must consume a parsed request model`
+            );
+        }
+        if (/\.\s*uploads\s*\.\s*parse\s*\(/.test(code)) {
+            failures.push(
+                `${path.relative(root, file)}: handlers must use a named domain request parser`
+            );
+        }
+        for (const match of code.matchAll(
+            /\b(parse[A-Z][A-Za-z0-9]*)\s*\([^;]{0,500}?\.\s*req\s*\.\s*raw/g
+        )) {
+            if (!/Request$/.test(match[1])) {
+                failures.push(
+                    `${path.relative(root, file)}: ${match[1]} must be exposed as an explicit *Request parser`
+                );
+            }
+        }
     }
 }
 

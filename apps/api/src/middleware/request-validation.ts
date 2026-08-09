@@ -123,3 +123,17 @@ export function jsonValidator<Output>(
 ): MiddlewareHandler<Env, string, ValidatedRequestInput<'json', Output>> {
     return requestValidator('json', parse, options);
 }
+
+export function paramValidator<Output>(
+    parse: RequestParser<Output>,
+    options: RequestValidatorOptions = {}
+): MiddlewareHandler<Env, string, ValidatedRequestInput<'param', Output>> {
+    return requestValidator('param', parse, options);
+}
+
+export function queryValidator<Output>(
+    parse: RequestParser<Output>,
+    options: RequestValidatorOptions = {}
+): MiddlewareHandler<Env, string, ValidatedRequestInput<'query', Output>> {
+    return requestValidator('query', parse, options);
+}

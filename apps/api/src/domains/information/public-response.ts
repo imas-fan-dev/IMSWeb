@@ -1,4 +1,8 @@
 import type { InformationCard, InformationCardSummary } from '@/domains/information/data';
+import type {
+    PublicInformationCardResponse,
+    PublicInformationCardSummaryResponse
+} from '@/domains/information/response';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { resolvePublicMediaUrl } from '@/utils/storage/public-object-url';
 
@@ -39,17 +43,21 @@ async function resolveHtmlImageUrls(storage: ObjectStorage, html: string): Promi
 export async function publicInformationSummary(
     storage: ObjectStorage,
     card: InformationCardSummary
-): Promise<InformationCardSummary> {
+): Promise<PublicInformationCardSummaryResponse> {
     return { ...card, image: await resolvePublicMediaUrl(storage, card.image) };
 }
 
 export async function publicInformationCard(
     storage: ObjectStorage,
     card: InformationCard
-): Promise<InformationCard> {
+): Promise<PublicInformationCardResponse> {
+    if (card.contentType !== 'html' || !card.html) {
+        throw new Error('Public information detail must contain hosted HTML');
+    }
     return {
         ...card,
+        contentType: 'html',
         image: await resolvePublicMediaUrl(storage, card.image),
-        ...(card.html ? { html: await resolveHtmlImageUrls(storage, card.html) } : {})
+        html: await resolveHtmlImageUrls(storage, card.html)
     };
 }

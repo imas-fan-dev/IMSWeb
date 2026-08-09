@@ -1,22 +1,35 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { ALLOWED_REACTIONS } from '@/domains/reactions/reaction-input';
+import {
+    ALLOWED_REACTIONS,
+    type ReactionListQuery
+} from '@/domains/reactions/reaction-input';
+import type {
+    ReactionErrorResponse,
+    ReactionListResponse
+} from '@/domains/reactions/response';
 import { reactionRepository } from '@/middleware/hono-context';
-import { positiveInteger } from '@/utils/validation/number';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
-export async function handleListReactions(c: Context<AppEnvironment>): Promise<Response> {
-    const id = positiveInteger(c.req.query('id'));
-    if (!id) return c.json({ error: 'Invalid card id' }, 400);
+export async function handleListReactions(
+    c: ValidatedRequestContext<AppEnvironment, 'query', ReactionListQuery>
+): Promise<Response> {
+    const { id } = c.req.valid('query');
     try {
         if (!await reactionRepository(c).findApprovedCard(id)) {
-            return c.json({ error: 'Card not found' }, 404);
+            return c.json(
+                { error: 'Card not found' } satisfies ReactionErrorResponse,
+                404
+            );
         }
-        const result: Record<string, number> = Object.create(null) as Record<string, number>;
+        const result: ReactionListResponse = Object.create(null) as ReactionListResponse;
         for (const reaction of await reactionRepository(c).listReactions(id)) {
             if (ALLOWED_REACTIONS.has(reaction.emoji)) result[reaction.emoji] = reaction.count;
         }
-        return c.json(result);
+        return c.json(result satisfies ReactionListResponse);
     } catch {
-        return c.json({ error: 'Database error' }, 500);
+        return c.json(
+            { error: 'Database error' } satisfies ReactionErrorResponse,
+            500
+        );
     }
 }

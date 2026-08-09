@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     wikiErrorBody,
@@ -8,6 +8,13 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { categoryStorageSlug, requireWikiServices } from '@/domains/wiki/service';
+import type {
+    WikiCategoryCreateParams,
+    WikiCategoryMutationRequest,
+    WikiIdParams,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 type JsonObject = Record<string, unknown>;
 
@@ -47,16 +54,18 @@ function categoryResponse(category: {
 
 export function createHandleCreateWikiCategory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiCategoryCreateParams> &
+    WikiValidatedInput<'json', WikiCategoryMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const agencyId = positiveId(context.req.param('agencyId'), '企划');
-            const idolId = positiveId(context.req.param('idolId'), '内容页');
-            const body = await context.req.json<JsonObject>();
+            const { agencyId, idolId } = context.req.valid('param');
+            const body = context.req.valid('json');
             const name = requiredText(body, 'name', '分类名称');
             const agency = await services.story!.findAgencyById(agencyId);
             const idol = await services.story!.findIdolById(idolId);
@@ -92,15 +101,18 @@ export function createHandleCreateWikiCategory<E extends Env>(
 
 export function createHandleUpdateWikiCategory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', WikiCategoryMutationRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const categoryId = positiveId(context.req.param('categoryId'), '分类');
-            const body = await context.req.json<JsonObject>();
+            const categoryId = context.req.valid('param').id;
+            const body = context.req.valid('json');
             const agencyId = positiveId(String(body.agencyId ?? ''), '企划');
             const idolId = positiveId(String(body.idolId ?? ''), '内容页');
             const agency = await services.story!.findAgencyById(agencyId);

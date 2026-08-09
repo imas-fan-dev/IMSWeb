@@ -1,8 +1,9 @@
-import type { Context, Env } from 'hono';
+import type { Context, Env, MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { ParsedUpload, UploadedFile } from '@/ports/http';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import type { NewStoryLinkInput, StoryRepository } from '@/ports/repositories';
+import type { WikiErrorResponse, WikiJsonResponse } from '@/domains/wiki/response';
 import { DEFAULT_STORY_UPLOAD_MAX_BYTES, toWikiAgency, toWikiIdolFromRecord } from '@/domains/wiki/service';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
@@ -12,9 +13,9 @@ export type WikiServicesResolver<E extends Env> = (
 
 const jsonHeaders = { 'Content-Type': 'application/json; charset=UTF-8' };
 
-export const wikiErrorBody = (msg: string) => ({ status: 'error', msg });
+export const wikiErrorBody = (msg: string): WikiErrorResponse => ({ status: 'error', msg });
 
-export function wikiJson(body: unknown, status = 200): Response {
+export function wikiJson(body: WikiJsonResponse, status = 200): Response {
     return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
 }
 
@@ -87,6 +88,30 @@ export async function authorizeWikiWrite<E extends Env>(
         return wikiJson(wikiErrorBody('CSRF token 无效，请刷新页面重试'), 403);
     }
     return null;
+}
+
+export function createWikiAdminAuthorization<E extends Env>(
+    resolveServices: WikiServicesResolver<E>
+): MiddlewareHandler<E> {
+    return async (context, next) => {
+        const services = await resolveServices(context);
+        const response = ['GET', 'HEAD'].includes(context.req.method)
+            ? await authorizeWikiRead(context, services)
+            : await authorizeWikiWrite(context, services);
+        return response ?? next();
+    };
+}
+
+export function createWikiWriteAuthorization<E extends Env>(
+    resolveServices: WikiServicesResolver<E>
+): MiddlewareHandler<E> {
+    return async (context, next) => {
+        const response = await authorizeWikiWrite(
+            context,
+            await resolveServices(context)
+        );
+        return response ?? next();
+    };
 }
 
 export function decodeWikiSegment(value: string): string {

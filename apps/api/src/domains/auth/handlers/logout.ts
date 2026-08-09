@@ -3,21 +3,29 @@ import type { AppEnvironment } from '@/app';
 import {
     clearAuthenticationCookies,
     hashAuthSecret,
-    hasValidRefreshCsrf,
-    refreshTokenCookie
+    hasValidRefreshCsrf
 } from '@/domains/auth/auth-session';
+import { parseAuthenticationCookieRequest } from '@/domains/auth/request';
+import type {
+    LogoutErrorResponse,
+    LogoutSuccessResponse
+} from '@/domains/auth/response';
 import { authRepository } from '@/middleware/hono-context';
 
 export async function handleLogout(c: Context<AppEnvironment>): Promise<Response> {
-    const refreshToken = refreshTokenCookie(c);
+    const request = parseAuthenticationCookieRequest(c);
+    const refreshToken = request.refreshToken;
     if (refreshToken) {
         const repository = authRepository(c);
         const session = await repository.findRefreshSessionByTokenHash(
             await hashAuthSecret(refreshToken)
         );
         if (session) {
-            if (!await hasValidRefreshCsrf(c, session)) {
-                return c.json({ success: false, message: 'CSRF token invalid' }, 403);
+            if (!await hasValidRefreshCsrf(request, session)) {
+                return c.json({
+                    success: false,
+                    message: 'CSRF token invalid'
+                } satisfies LogoutErrorResponse, 403);
             }
             await repository.revokeRefreshSession(
                 session.id,
@@ -26,5 +34,5 @@ export async function handleLogout(c: Context<AppEnvironment>): Promise<Response
         }
     }
     clearAuthenticationCookies(c);
-    return c.json({ success: true });
+    return c.json({ success: true } satisfies LogoutSuccessResponse);
 }

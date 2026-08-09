@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { informationCardSummary } from '@/domains/information/data';
 import { readInformationIndex } from '@/domains/information/content-store';
+import type { PublicInformationListResponse } from '@/domains/information/response';
 import { publicInformationSummary } from '@/domains/information/public-response';
 import { services } from '@/middleware/hono-context';
 
@@ -14,5 +15,5 @@ export async function handleListInformation(c: Context<AppEnvironment>): Promise
         cards: await Promise.all(index.cards.map((card) =>
             publicInformationSummary(storage, informationCardSummary(card))
         ))
-    });
+    } satisfies PublicInformationListResponse);
 }

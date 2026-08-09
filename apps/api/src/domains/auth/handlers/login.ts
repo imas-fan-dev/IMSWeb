@@ -8,6 +8,10 @@ import {
     setAuthenticationCookies
 } from '@/domains/auth/auth-session';
 import type { LoginRequest } from '@/domains/auth/login-request';
+import type {
+    LoginErrorResponse,
+    LoginSuccessResponse
+} from '@/domains/auth/response';
 import {
     auditRepository,
     authRepository,
@@ -25,13 +29,16 @@ async function login(
     if (!runtime.passwords || !runtime.tokens) throw new Error('Authentication services unavailable');
     const user = await authRepository(c).findUserByUsername(username);
     if (!user || !await runtime.passwords.verify(password, user.password)) {
-        return c.json({ success: false, message: '用户名或密码错误' }, 401);
+        return c.json({
+            success: false,
+            message: '用户名或密码错误'
+        } satisfies LoginErrorResponse, 401);
     }
     if (requiredDepartment && user.dept !== requiredDepartment) {
         return c.json({
             success: false,
             message: '当前账号没有管理工作台权限'
-        }, 403);
+        } satisfies LoginErrorResponse, 403);
     }
     const csrfSecret = randomHex(32);
     const refreshToken = randomHex(32);
@@ -74,7 +81,7 @@ async function login(
         producername: user.producername,
         dept: user.dept,
         adminRole: user.admin_role
-    });
+    } satisfies LoginSuccessResponse);
 }
 
 export function handleLogin(

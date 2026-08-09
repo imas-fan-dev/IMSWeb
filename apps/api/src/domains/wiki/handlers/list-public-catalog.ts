@@ -1,4 +1,4 @@
-import type { Env, Handler } from "hono";
+import type { Env } from "hono";
 import {
   wikiErrorBody,
   wikiJson,
@@ -12,10 +12,15 @@ import {
   wikiGroupIconUrl,
 } from "@/domains/wiki/service";
 import { resolvePublicObjectUrl } from "@/utils/storage/public-object-url";
+import type {
+  WikiCatalogQuery,
+  WikiValidatedInput,
+} from "@/domains/wiki/request";
+import type { WikiRouteHandler } from "@/domains/wiki/response";
 
 export function createHandleListPublicWikiCatalog<E extends Env>(
   resolveServices: WikiServicesResolver<E>,
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<"query", WikiCatalogQuery>> {
   return async (context) => {
     const services = await resolveServices(context);
     requireWikiServices(services, ["story", "storage"]);
@@ -68,7 +73,7 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
         entrySubtype: idol.entrySubtype,
       }];
     });
-    const requestedAgency = (context.req.query("agency") ?? "").trim();
+    const requestedAgency = context.req.valid("query").agency;
     const selectedAgency = requestedAgency
       ? agencies.find(
           (agency) =>

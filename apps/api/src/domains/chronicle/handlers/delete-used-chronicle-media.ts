@@ -1,5 +1,9 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type { ChronicleMediaParams } from '@/domains/chronicle/request';
+import type {
+    ChronicleErrorResponse,
+    ChronicleMutationResponse
+} from '@/domains/chronicle/response';
 import {
     beginChronicleIdempotency,
     completeChronicleIdempotency,
@@ -12,20 +16,19 @@ import {
     mutateChronicleMeta,
     readChronicleMeta,
     recordsFromChronicleMeta,
-    safeChronicleSegment,
     withChronicleRecords
 } from '@/domains/chronicle/chronicle-records';
 import { randomHex } from '@/utils/crypto/random';
 import { services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 export async function handleDeleteUsedChronicleMedia(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'param', ChronicleMediaParams>
 ): Promise<Response> {
     const runtime = services(c);
     const storage = runtime.storage;
     if (!storage) throw new Error('Object storage unavailable');
-    const activityId = safeChronicleSegment(c.req.param('activityId'), 'activityId');
-    const filename = safeChronicleSegment(c.req.param('filename'), 'filename');
+    const { activityId, filename } = c.req.valid('param');
     const source = chroniclePrefix('used', activityId, filename);
     const started = await beginChronicleIdempotency(
         c,
@@ -36,12 +39,14 @@ export async function handleDeleteUsedChronicleMedia(
     const handle = started;
 
     if (!handle) {
-        if (!await storage.exists(source)) return c.json({ error: '文件不存在' }, 404);
+        if (!await storage.exists(source)) {
+            return c.json({ error: '文件不存在' } satisfies ChronicleErrorResponse, 404);
+        }
         const meta = await readChronicleMeta(storage, activityId);
         const records = recordsFromChronicleMeta(meta);
         const matches = records.filter((record) => record.filename === filename);
         if (matches.some((record) => record.status && record.status !== 'approved')) {
-            return c.json({ error: '审核记录状态冲突' }, 409);
+            return c.json({ error: '审核记录状态冲突' } satisfies ChronicleErrorResponse, 409);
         }
         const trash = chroniclePrefix('.trash', randomHex(10), filename);
         await storage.move(source, trash);
@@ -66,7 +71,7 @@ export async function handleDeleteUsedChronicleMedia(
             throw error;
         }
         await cleanupCommittedChronicleObject(runtime, trash);
-        return c.json({ success: true });
+        return c.json({ success: true } satisfies ChronicleMutationResponse);
     }
 
     try {
@@ -76,19 +81,26 @@ export async function handleDeleteUsedChronicleMedia(
         const sourceExists = await storage.exists(source);
 
         if (handle.recovered && !matches.length) {
-            const response = await completeChronicleIdempotency(handle, { success: true });
+            const response = await completeChronicleIdempotency(
+                handle,
+                { success: true } satisfies ChronicleMutationResponse
+            );
             if (sourceExists) await cleanupCommittedChronicleObject(runtime, source);
             return response;
         }
         if (matches.some((record) => record.status && record.status !== 'approved')) {
             return await completeChronicleIdempotency(
                 handle,
-                { error: '审核记录状态冲突' },
+                { error: '审核记录状态冲突' } satisfies ChronicleErrorResponse,
                 409
             );
         }
         if (!sourceExists && !handle.recovered) {
-            return await completeChronicleIdempotency(handle, { error: '文件不存在' }, 404);
+            return await completeChronicleIdempotency(
+                handle,
+                { error: '文件不存在' } satisfies ChronicleErrorResponse,
+                404
+            );
         }
         await ensureCurrentIdempotencyHandle(handle);
         await mutateChronicleMeta(storage, activityId, (latest) => {
@@ -104,7 +116,10 @@ export async function handleDeleteUsedChronicleMedia(
                 latestRecords.filter((record) => record.filename !== filename)
             );
         });
-        const response = await completeChronicleIdempotency(handle, { success: true });
+        const response = await completeChronicleIdempotency(
+            handle,
+            { success: true } satisfies ChronicleMutationResponse
+        );
         if (sourceExists) await cleanupCommittedChronicleObject(runtime, source);
         return response;
     } catch (error) {
