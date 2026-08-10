@@ -3,6 +3,7 @@ import type { AppEnvironment } from '@/app';
 import type { IdempotencyStore } from '@/ports/cache';
 import { chronicleUploadIdempotencyKey } from '@/middleware/rate-limit';
 import type { RuntimeServices } from '@/ports/runtime-services';
+import type { ChronicleErrorResponse } from '@/domains/chronicle/response';
 import { sha256Hex } from '@/utils/crypto/sha256';
 import { getClientAddress, services } from '@/middleware/hono-context';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
@@ -156,7 +157,9 @@ async function uploadLimit(
             ? undefined
             : { operation: 'chronicle:upload', identity }
     );
-    return result.allowed ? null : c.json({ error: 'Too many requests' }, 429);
+    return result.allowed
+        ? null
+        : c.json({ error: 'Too many requests' } satisfies ChronicleErrorResponse, 429);
 }
 
 export async function beginChronicleUploadIdempotency(

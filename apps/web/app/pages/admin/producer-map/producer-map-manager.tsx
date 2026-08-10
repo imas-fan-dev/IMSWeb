@@ -25,6 +25,7 @@ import {
   adminTextareaClass,
 } from "~/pages/admin/components/admin-ui"
 import {
+  createProducerMapDraft,
   createCommunity,
   createRegion,
   moveItem,
@@ -533,7 +534,7 @@ export function ProducerMapManager() {
   onError(() => undefined)
   onSuccess((event) => {
     const snapshot = event.data as ProducerMapAdminSnapshot
-    setDraft(snapshot.content)
+    setDraft(snapshot.content ?? createProducerMapDraft())
     setRevision(snapshot.revision)
     setDirty(false)
   })

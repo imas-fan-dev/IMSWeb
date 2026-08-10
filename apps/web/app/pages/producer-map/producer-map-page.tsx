@@ -25,6 +25,7 @@ import {
 import {
   getProducerMapContent,
   getProducerMapGeometry,
+  isApiError,
   type ProducerMapCommunity,
   type ProducerMapRegion,
   type ProducerMapSeries,
@@ -353,19 +354,22 @@ export default function ProducerMapPage() {
   if (loading && !data) return <LoadingState />
 
   if (error || !data) {
+    const unconfigured = isApiError(error) && error.status === 404
     return (
       <main
         id="main-content"
         className="mx-auto flex min-h-[65svh] w-full max-w-3xl items-center px-4 py-16 sm:px-6"
       >
-        <Alert variant="destructive">
-          <AlertTitle>制作人地图暂时无法显示</AlertTitle>
+        <Alert variant={unconfigured ? "default" : "destructive"}>
+          <AlertTitle>
+            {unconfigured ? "制作人地图尚未发布" : "制作人地图暂时无法显示"}
+          </AlertTitle>
           <AlertDescription className="mt-2 flex flex-col items-start gap-4">
             <span>{error?.message || "未能读取制作人地图配置。"}</span>
             <Button
               type="button"
               variant="outline"
-              onClick={() => void forceRefresh()}
+              onClick={() => void forceRefresh().catch(() => undefined)}
             >
               <RefreshCwIcon data-icon="inline-start" />
               重新加载

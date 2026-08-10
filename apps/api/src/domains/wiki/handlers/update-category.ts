@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     wikiErrorBody,
@@ -8,24 +8,14 @@ import {
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { categoryStorageSlug, requireWikiServices } from '@/domains/wiki/service';
-
-type JsonObject = Record<string, unknown>;
-
-function positiveId(value: string | undefined, label: string): number {
-    const id = Number(value);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-        throw Object.assign(new Error(`${label} ID 无效`), { status: 400 });
-    }
-    return id;
-}
-
-function requiredText(body: JsonObject, key: string, label: string): string {
-    const value = body[key];
-    if (typeof value !== 'string' || !value.trim() || value.trim().length > 100) {
-        throw Object.assign(new Error(`${label}无效`), { status: 400 });
-    }
-    return value.trim();
-}
+import type {
+    CreateWikiCategoryRequest,
+    UpdateWikiCategoryRequest,
+    WikiCategoryCreateParams,
+    WikiIdParams,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 function categoryResponse(category: {
     id: number;
@@ -47,17 +37,19 @@ function categoryResponse(category: {
 
 export function createHandleCreateWikiCategory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiCategoryCreateParams> &
+    WikiValidatedInput<'json', CreateWikiCategoryRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const agencyId = positiveId(context.req.param('agencyId'), '企划');
-            const idolId = positiveId(context.req.param('idolId'), '内容页');
-            const body = await context.req.json<JsonObject>();
-            const name = requiredText(body, 'name', '分类名称');
+            const { agencyId, idolId } = context.req.valid('param');
+            const body = context.req.valid('json');
+            const name = body.name;
             const agency = await services.story!.findAgencyById(agencyId);
             const idol = await services.story!.findIdolById(idolId);
             if (!agency) throw Object.assign(new Error('企划不存在'), { status: 404 });
@@ -92,17 +84,19 @@ export function createHandleCreateWikiCategory<E extends Env>(
 
 export function createHandleUpdateWikiCategory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E,
+    WikiValidatedInput<'param', WikiIdParams> &
+    WikiValidatedInput<'json', UpdateWikiCategoryRequest>
+> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story']);
         try {
-            const categoryId = positiveId(context.req.param('categoryId'), '分类');
-            const body = await context.req.json<JsonObject>();
-            const agencyId = positiveId(String(body.agencyId ?? ''), '企划');
-            const idolId = positiveId(String(body.idolId ?? ''), '内容页');
+            const categoryId = context.req.valid('param').id;
+            const body = context.req.valid('json');
+            const { agencyId, idolId } = body;
             const agency = await services.story!.findAgencyById(agencyId);
             const idol = await services.story!.findIdolById(idolId);
             if (!agency) throw Object.assign(new Error('企划不存在'), { status: 404 });
@@ -113,8 +107,8 @@ export function createHandleUpdateWikiCategory<E extends Env>(
                 agencyId,
                 idolId,
                 id: categoryId,
-                name: requiredText(body, 'name', '分类名称'),
-                expectedName: requiredText(body, 'expectedName', '当前分类名称')
+                name: body.name,
+                expectedName: body.expectedName
             });
             if (!category) {
                 throw Object.assign(new Error('分类不属于所选内容页'), { status: 404 });

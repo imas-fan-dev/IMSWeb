@@ -1,15 +1,20 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import { authorizePrivate } from '@/domains/media/media-access';
+import type { ThumbnailQueryRequest } from '@/domains/media/request';
 import {
-    authorizePrivate,
-    thumbnailDimension,
-    thumbnailKey
-} from '@/domains/media/media-access';
+    mediaTextResponse,
+    thumbnailImageResponse,
+    THUMBNAIL_FORBIDDEN_RESPONSE,
+    THUMBNAIL_NOT_FOUND_RESPONSE
+} from '@/domains/media/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
-export async function handleCreateThumbnail(c: Context<AppEnvironment>): Promise<Response> {
-    const target = thumbnailKey(c.req.query('url'));
-    if (!target) return c.text('Forbidden', 403);
+export async function handleCreateThumbnail(
+    c: ValidatedRequestContext<AppEnvironment, 'query', ThumbnailQueryRequest>
+): Promise<Response> {
+    const { target, width, height } = c.req.valid('query');
+    if (!target) return mediaTextResponse(c, THUMBNAIL_FORBIDDEN_RESPONSE);
     const runtime = services(c);
     if (!runtime.storage || !runtime.images) throw new Error('Image services unavailable');
     let isPrivate = false;
@@ -22,24 +27,14 @@ export async function handleCreateThumbnail(c: Context<AppEnvironment>): Promise
         }
     }
     const source = await runtime.storage.get(target.key);
-    if (!source) return c.text('Image not found', 404);
+    if (!source) return mediaTextResponse(c, THUMBNAIL_NOT_FOUND_RESPONSE);
     try {
-        const output = await runtime.images.resizeJpeg(
-            source.body,
-            thumbnailDimension(c.req.query('width')),
-            thumbnailDimension(c.req.query('height'))
-        );
-        return new Response(Uint8Array.from(output).buffer, {
-            headers: {
-                'Content-Type': 'image/jpeg',
-                'Content-Length': String(output.byteLength),
-                'Cache-Control': isPrivate
-                    ? 'private, no-store'
-                    : 'public, max-age=31536000, immutable',
-                ...(isPrivate ? { Vary: 'Cookie, Authorization' } : {})
-            }
+        const output = await runtime.images.resizeJpeg(source.body, width, height);
+        return thumbnailImageResponse({
+            body: output,
+            visibility: isPrivate ? 'private' : 'public'
         });
     } catch {
-        return c.text('Image not found', 404);
+        return mediaTextResponse(c, THUMBNAIL_NOT_FOUND_RESPONSE);
     }
 }

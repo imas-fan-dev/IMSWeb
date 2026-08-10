@@ -51,8 +51,9 @@ function aboutContent(): AboutPageContent {
   }
 }
 
-function jsonResponse(payload: unknown) {
+function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
+    status,
     headers: { "content-type": "application/json" },
   })
 }
@@ -113,5 +114,17 @@ describe("About page", () => {
 
     expect(await screen.findByText("关于本站暂时无法显示")).toBeVisible()
     expect(screen.getByRole("button", { name: "重新加载" })).toBeVisible()
+  })
+
+  it("renders an unpublished state when no About content exists", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ error: "关于页尚未配置" }, 404))
+    )
+
+    render(<About />)
+
+    expect(await screen.findByText("关于本站尚未发布")).toBeVisible()
+    expect(screen.getByText("关于页尚未配置")).toBeVisible()
   })
 })

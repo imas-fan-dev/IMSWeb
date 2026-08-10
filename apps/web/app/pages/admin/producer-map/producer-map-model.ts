@@ -1,5 +1,6 @@
 import type {
   ProducerMapCommunity,
+  ProducerMapContent,
   ProducerMapRegion,
   ProducerMapSeries,
 } from "~/lib/api"
@@ -53,6 +54,21 @@ export const seriesOptions: ReadonlyArray<{
   { value: "sc", label: "闪耀色彩" },
   { value: "gakuen", label: "学园偶像大师" },
 ]
+
+export function createProducerMapDraft(): ProducerMapContent {
+  return {
+    version: 1,
+    title: "",
+    subtitle: "",
+    introduction: "",
+    directoryTitle: "",
+    mapSourceLabel: "",
+    mapSourceUrl: "",
+    regions: [],
+    communities: [],
+    updatedAt: null,
+  }
+}
 
 function shortId(): string {
   return globalThis.crypto.randomUUID().slice(0, 8)

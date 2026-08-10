@@ -1,14 +1,15 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     cleanupWikiObjects,
     findWikiMutationTarget,
-    parseWikiUpload,
     wikiErrorBody,
     wikiJson,
     wikiStatusOf,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
+import { parseDeleteWikiStoryRequest } from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 import {
     requireWikiServices,
     storyObjectKey
@@ -16,14 +17,17 @@ import {
 
 export function createHandleDeleteWikiStory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage', 'uploads']);
         try {
-            const { fields } = await parseWikiUpload(context.req.raw, services);
+            const { fields } = await parseDeleteWikiStoryRequest(
+                context.req.raw,
+                services
+            );
             const target = await findWikiMutationTarget(
                 services,
                 (fields.agency ?? '').trim(),

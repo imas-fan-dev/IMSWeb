@@ -1,10 +1,9 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     cleanupWikiObjects,
     findWikiMutationTarget,
     optionalWikiCatalogId,
-    parseWikiUpload,
     singleWikiFile,
     splitStoryUrl,
     resolveWikiStorySources,
@@ -14,6 +13,8 @@ import {
     wikiStatusOf,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
+import { parseAddWikiStoryRequest } from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 import { parseWikiImageTransform } from '@/domains/wiki/image-transform';
 import {
     categoryStorageSlug,
@@ -105,7 +106,7 @@ function storySources(fields: Record<string, string>): {
 
 export function createHandleAddWikiStory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
@@ -113,7 +114,7 @@ export function createHandleAddWikiStory<E extends Env>(
         requireWikiServices(services, ['story', 'storage', 'images', 'uploads']);
         let createdKey: string | null = null;
         try {
-            const upload = await parseWikiUpload(context.req.raw, services);
+            const upload = await parseAddWikiStoryRequest(context.req.raw, services);
             const fields = upload.fields;
             const imageTransform = parseWikiImageTransform(fields, {
                 fit: 'cover',

@@ -57,12 +57,14 @@ export const producerMapContentSchema = z.object({
 })
 
 const producerMapAdminSnapshotSchema = z.object({
-  content: producerMapContentSchema,
+  content: producerMapContentSchema.nullable(),
   revision: z.string().nullable(),
 })
 
-const producerMapAdminUpdateSchema = producerMapAdminSnapshotSchema.extend({
+const producerMapAdminUpdateSchema = z.object({
   success: z.literal(true),
+  content: producerMapContentSchema,
+  revision: z.string(),
 })
 
 const producerMapGeometrySchema = z.object({

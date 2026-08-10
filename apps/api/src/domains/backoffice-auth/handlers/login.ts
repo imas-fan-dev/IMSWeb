@@ -1,4 +1,3 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { randomHex } from '@/utils/crypto/random';
 import {
@@ -9,48 +8,40 @@ import {
     setBackofficeAuthenticationCookies,
     setLegacyBackofficeAuthenticationCookies
 } from '@/domains/backoffice-auth/backoffice-auth-session';
+import type { LoginRequest } from '@/domains/backoffice-auth/login-request';
+import type {
+    LoginErrorResponse,
+    LoginSuccessResponse
+} from '@/domains/backoffice-auth/response';
 import {
     auditRepository,
     backofficeAuthRepository,
     getClientAddress,
     services
 } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 async function login(
-    c: Context<AppEnvironment>,
+    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>,
     options: { requiredDepartment?: string; legacyCookies?: boolean } = {}
 ): Promise<Response> {
-    let body: Record<string, unknown>;
-    try {
-        const candidate = await c.req.json<unknown>();
-        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-            throw new Error('Invalid login body');
-        }
-        body = candidate as Record<string, unknown>;
-    } catch {
-        return c.json({ success: false, message: '用户名或密码格式错误' }, 400);
-    }
-    const { username, password } = body;
-    if (
-        typeof username !== 'string' || typeof password !== 'string' ||
-        username.length < 1 || username.length > 128 ||
-        password.length < 1 || new TextEncoder().encode(password).byteLength > 1024
-    ) {
-        return c.json({ success: false, message: '用户名或密码格式错误' }, 400);
-    }
+    const { username, password } = c.req.valid('json');
     const runtime = services(c);
     if (!runtime.passwords || !runtime.backofficeTokens) {
         throw new Error('Backoffice authentication services unavailable');
     }
     const user = await backofficeAuthRepository(c).findUserByUsername(username);
     if (!user || !await runtime.passwords.verify(password, user.password)) {
-        return c.json({ success: false, message: '用户名或密码错误' }, 401);
+        return c.json({
+            success: false,
+            message: '用户名或密码错误'
+        } satisfies LoginErrorResponse, 401);
     }
     if (options.requiredDepartment && user.dept !== options.requiredDepartment) {
         return c.json({
             success: false,
             message: '当前账号没有管理工作台权限'
-        }, 403);
+        } satisfies LoginErrorResponse, 403);
     }
     const csrfSecret = randomHex(32);
     const refreshToken = randomHex(32);
@@ -96,19 +87,23 @@ async function login(
         producername: user.producername,
         dept: user.dept,
         adminRole: user.admin_role
-    });
+    } satisfies LoginSuccessResponse);
 }
 
-export function handleBackofficeLogin(c: Context<AppEnvironment>): Promise<Response> {
+export function handleBackofficeLogin(
+    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
+): Promise<Response> {
     return login(c, { legacyCookies: true });
 }
 
-export function handleBackofficeAdminLogin(c: Context<AppEnvironment>): Promise<Response> {
+export function handleBackofficeAdminLogin(
+    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
+): Promise<Response> {
     return login(c, { requiredDepartment: 'op', legacyCookies: true });
 }
 
 export function handleCanonicalBackofficeLogin(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
 ): Promise<Response> {
     return login(c);
 }

@@ -1,3 +1,7 @@
+import {
+    revisionedContentRequest
+} from '@/utils/validation/request-data';
+
 const MAX_REGIONS = 34;
 const MAX_COMMUNITIES = 100;
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -90,6 +94,11 @@ export interface ProducerMapDraft {
 
 export interface ProducerMapContent extends ProducerMapDraft {
     updatedAt: string | null;
+}
+
+export interface ProducerMapUpdateRequest {
+    content: ProducerMapDraft;
+    revision: string | null;
 }
 
 function invalid(message: string): never {
@@ -231,6 +240,14 @@ export function validateProducerMapDraft(value: unknown): ProducerMapDraft {
     };
 }
 
+export function validateProducerMapUpdateRequest(value: unknown): ProducerMapUpdateRequest {
+    const request = revisionedContentRequest(value, '制作人地图配置');
+    return {
+        content: validateProducerMapDraft(request.content),
+        revision: request.revision
+    };
+}
+
 export function parseProducerMapContent(body: Uint8Array): ProducerMapContent {
     let value: unknown;
     try {
@@ -252,128 +269,4 @@ export function parseProducerMapContent(body: Uint8Array): ProducerMapContent {
 
 export function serializeProducerMapContent(content: ProducerMapContent): Uint8Array {
     return new TextEncoder().encode(`${JSON.stringify(content, null, 2)}\n`);
-}
-
-export function defaultProducerMapContent(): ProducerMapContent {
-    return {
-        version: 1,
-        title: '全国偶像大师社群一览',
-        subtitle: 'THE IDOLM@STER COMMUNITY MAP',
-        introduction: '连接各地制作人社群，发现身边的同好与活动。',
-        directoryTitle: '制作人社群名录',
-        mapSourceLabel: '阿里云 DataV.GeoAtlas',
-        mapSourceUrl: 'https://datav.aliyun.com/portal/school/atlas/area_selector',
-        regions: [],
-        communities: [
-            {
-                id: 'site-owner-lounge',
-                name: '站长小窝',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'all',
-                enabled: true
-            },
-            {
-                id: 'shiny-colors-lounge',
-                name: '大部分都能唠些的闪耀色彩群',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'sc',
-                enabled: true
-            },
-            {
-                id: 'world-of-warships',
-                name: 'WORLD OF W@RSHIPS',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'all',
-                enabled: true
-            },
-            {
-                id: 'war-thunder-lounge',
-                name: '闪耀雷普（偶像大师战雷群）',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'sc',
-                enabled: true
-            },
-            {
-                id: 'u149-lounge',
-                name: 'U149同好群',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'cg',
-                enabled: true
-            },
-            {
-                id: 'idol-sports-lounge',
-                name: '偶球群',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'all',
-                enabled: true
-            },
-            {
-                id: 'chaoshan-wechat',
-                name: '潮汕微信官号',
-                platform: '微信',
-                region: '广东省',
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'all',
-                enabled: true
-            },
-            {
-                id: 'producer-tarkov',
-                name: 'Pの塔科夫',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'all',
-                enabled: true
-            },
-            {
-                id: 'first-star-lounge',
-                name: '一番星の小窝',
-                platform: 'QQ',
-                region: null,
-                description: '',
-                contact: '',
-                linkUrl: null,
-                imageUrl: null,
-                series: 'all',
-                enabled: true
-            }
-        ],
-        updatedAt: null
-    };
 }

@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
-import {
-    defaultAboutPageContent,
-    parseAboutPageContent
-} from '@/domains/about/data';
+import { parseAboutPageContent, type AboutPageContent } from '@/domains/about/data';
 import type {
     ListedObject,
     ObjectStorage,
@@ -103,6 +100,46 @@ const images: ImageProcessor = {
     async resizeJpeg(body) { return body; }
 };
 
+function aboutPageContent(): AboutPageContent {
+    return {
+        version: 1,
+        siteName: '测试制作人交流站',
+        siteNameEn: 'A test site for Producers.',
+        tagline: '由测试数据维护的社区站点。',
+        heroImageUrl: '/uploads/about/hero/test.webp',
+        heroImageAlt: '测试主视觉',
+        heroImageScale: 100,
+        heroImageOffsetX: 0,
+        heroImageOffsetY: 0,
+        accentColorStart: '#112233',
+        accentColorEnd: '#445566',
+        welcome: '欢迎来到测试站点！',
+        manifesto: [],
+        sinceYear: 2026,
+        overviewTitle: '测试概要',
+        overview: [],
+        groups: [
+            {
+                id: 'test-team',
+                title: '测试团队',
+                subtitle: 'Test Team',
+                people: [
+                    {
+                        id: 'test-producer',
+                        name: '测试制作人',
+                        role: '测试员',
+                        description: '',
+                        since: '',
+                        profileUrl: 'https://example.com/producer',
+                        avatarUrl: '/uploads/about/member-avatars/test.webp'
+                    }
+                ]
+            }
+        ],
+        updatedAt: null
+    };
+}
+
 function fixture() {
     const storage = new MemoryStorage();
     const audit: AuditLogInput[] = [];
@@ -133,41 +170,17 @@ function fixture() {
     return { request, audit };
 }
 
-test('about page exposes reference-derived defaults when no config was saved', async () => {
+test('about page reports unconfigured content without serving defaults', async () => {
     const { request } = fixture();
     const response = await request('/api/about');
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 404);
     assert.equal(response.headers.get('cache-control'), 'no-cache');
-    const content = await response.json() as ReturnType<typeof defaultAboutPageContent>;
-    assert.equal(content.siteName, '偶像大师交流站');
-    assert.equal(content.overviewTitle, '本站概要');
-    assert.equal(content.heroImageUrl, '/brand/about/gakuen-arisa.png');
-    assert.equal(content.heroImageAlt, '亚里沙老师全身立绘');
-    assert.equal(content.heroImageScale, 100);
-    assert.equal(content.heroImageOffsetX, 0);
-    assert.equal(content.heroImageOffsetY, 0);
-    assert.equal(content.accentColorStart, '#B4E04B');
-    assert.equal(content.accentColorEnd, '#E6F9E5');
-    assert.equal(
-        content.groups[0]?.people[0]?.avatarUrl,
-        '/brand/about/staff/iris-radio-p.webp'
-    );
-    assert.deepEqual(content.groups.map((group) => group.title), [
-        '创始人',
-        '特别鸣谢',
-        '卓越贡献'
-    ]);
+    assert.deepEqual(await response.json(), { error: '关于页尚未配置' });
 });
 
-test('about page backfills artwork when reading an older saved config', () => {
-    const legacy = defaultAboutPageContent() as unknown as Record<string, unknown>;
+test('about page does not backfill removed static artwork paths', () => {
+    const legacy = aboutPageContent() as unknown as Record<string, unknown>;
     delete legacy.heroImageUrl;
-    delete legacy.heroImageAlt;
-    delete legacy.heroImageScale;
-    delete legacy.heroImageOffsetX;
-    delete legacy.heroImageOffsetY;
-    delete legacy.accentColorStart;
-    delete legacy.accentColorEnd;
     const groups = legacy.groups as Array<{ people: Array<Record<string, unknown>> }>;
     delete groups[0]!.people[0]!.avatarUrl;
 
@@ -175,17 +188,8 @@ test('about page backfills artwork when reading an older saved config', () => {
         new TextEncoder().encode(JSON.stringify(legacy))
     );
 
-    assert.equal(parsed.heroImageUrl, '/brand/about/gakuen-arisa.png');
-    assert.equal(parsed.heroImageAlt, '亚里沙老师全身立绘');
-    assert.equal(parsed.heroImageScale, 100);
-    assert.equal(parsed.heroImageOffsetX, 0);
-    assert.equal(parsed.heroImageOffsetY, 0);
-    assert.equal(parsed.accentColorStart, '#B4E04B');
-    assert.equal(parsed.accentColorEnd, '#E6F9E5');
-    assert.equal(
-        parsed.groups[0]?.people[0]?.avatarUrl,
-        '/brand/about/staff/iris-radio-p.webp'
-    );
+    assert.equal(parsed.heroImageUrl, null);
+    assert.equal(parsed.groups[0]?.people[0]?.avatarUrl, null);
 });
 
 test('about page admin updates are authenticated, audited, and revision guarded', async () => {
@@ -200,13 +204,13 @@ test('about page admin updates are authenticated, audited, and revision guarded'
     const initialResponse = await request('/api/admin/about', { headers });
     assert.equal(initialResponse.status, 200);
     const initial = await initialResponse.json() as {
-        content: ReturnType<typeof defaultAboutPageContent>;
+        content: AboutPageContent | null;
         revision: string | null;
     };
-    assert.equal(initial.revision, null);
+    assert.deepEqual(initial, { content: null, revision: null });
 
     const edited = {
-        ...initial.content,
+        ...aboutPageContent(),
         welcome: '欢迎来到动态配置后的交流站！'
     };
     const savedResponse = await request('/api/admin/about', {
@@ -216,7 +220,7 @@ test('about page admin updates are authenticated, audited, and revision guarded'
     });
     assert.equal(savedResponse.status, 200);
     const saved = await savedResponse.json() as {
-        content: ReturnType<typeof defaultAboutPageContent>;
+        content: AboutPageContent;
         revision: string;
     };
     assert.match(saved.revision, /revision-1/);
@@ -225,7 +229,7 @@ test('about page admin updates are authenticated, audited, and revision guarded'
     assert.equal(audit.at(-1)?.action, '更新关于本站');
 
     const publicResponse = await request('/api/about');
-    const publicContent = await publicResponse.json() as ReturnType<typeof defaultAboutPageContent>;
+    const publicContent = await publicResponse.json() as AboutPageContent;
     assert.equal(publicContent.welcome, edited.welcome);
 
     const staleResponse = await request('/api/admin/about', {
@@ -324,7 +328,7 @@ test('about member avatar uploads are authenticated, audited, and publicly reada
 
 test('about page rejects unsafe profile links before persistence', async () => {
     const { request } = fixture();
-    const content = defaultAboutPageContent();
+    const content = aboutPageContent();
     content.groups[0]!.people[0]!.profileUrl = 'javascript:alert(1)';
     const response = await request('/api/admin/about', {
         method: 'PUT',
@@ -340,7 +344,7 @@ test('about page rejects unsafe profile links before persistence', async () => {
 
 test('about page rejects unsafe image links before persistence', async () => {
     const { request } = fixture();
-    const content = defaultAboutPageContent();
+    const content = aboutPageContent();
     content.heroImageUrl = 'data:image/svg+xml,<svg onload=alert(1) />';
     const response = await request('/api/admin/about', {
         method: 'PUT',
@@ -360,7 +364,7 @@ test('about page rejects invalid hero layout and gradient values', async () => {
         Authorization: 'Bearer about-token',
         'Content-Type': 'application/json'
     };
-    const invalidScale = defaultAboutPageContent();
+    const invalidScale = aboutPageContent();
     invalidScale.heroImageScale = 161;
     const scaleResponse = await request('/api/admin/about', {
         method: 'PUT',
@@ -370,7 +374,7 @@ test('about page rejects invalid hero layout and gradient values', async () => {
     assert.equal(scaleResponse.status, 400);
     assert.match((await scaleResponse.json() as { error: string }).error, /缩放/);
 
-    const invalidColor = defaultAboutPageContent();
+    const invalidColor = aboutPageContent();
     invalidColor.accentColorStart = 'green';
     const colorResponse = await request('/api/admin/about', {
         method: 'PUT',

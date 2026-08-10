@@ -2,19 +2,31 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
 import {
-    publicHomepageLink,
-    validateHomepageLinkSubmission
-} from '@/domains/homepage-links/data';
+    type HomepageLinkIdParams,
+    type HomepageLinkUpdateRequest
+} from '@/domains/homepage-links/request';
+import {
+    toHomepageLinkResponse,
+    type HomepageLinkErrorResponse,
+    type HomepageLinkUpsertResponse
+} from '@/domains/homepage-links/response';
 import { homepageLinkRepository } from '@/domains/homepage-links/handler-support';
+import type { ValidatedRequestInput } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
-export async function handleUpdateHomepageLink(c: Context<AppEnvironment>): Promise<Response> {
+type UpdateHomepageLinkContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<'json', HomepageLinkUpdateRequest>
+    & ValidatedRequestInput<'param', HomepageLinkIdParams>
+>;
+
+export async function handleUpdateHomepageLink(
+    c: UpdateHomepageLinkContext
+): Promise<Response> {
     try {
-        const submission = validateHomepageLinkSubmission(await c.req.json(), {
-            includeSection: false
-        });
-        const id = c.req.param('id');
-        if (!id) throw Object.assign(new Error('首页链接 ID 无效'), { status: 400 });
+        const submission = c.req.valid('json');
+        const { id } = c.req.valid('param');
         const updated = await homepageLinkRepository(c).updateHomepageLink(id, {
             title: submission.title,
             description: submission.description,
@@ -23,13 +35,21 @@ export async function handleUpdateHomepageLink(c: Context<AppEnvironment>): Prom
             accent: submission.accent,
             updatedAt: Date.now()
         });
-        if (!updated) return c.json({ error: '首页链接不存在' }, 404);
+        if (!updated) {
+            return c.json({
+                error: '首页链接不存在'
+            } satisfies HomepageLinkErrorResponse, 404);
+        }
         await writeAudit(c, '更新首页链接', `${updated.section}:${updated.title}`);
-        return c.json({ success: true, link: publicHomepageLink(updated) });
+        return c.json({
+            success: true,
+            link: toHomepageLinkResponse(updated)
+        } satisfies HomepageLinkUpsertResponse);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to update homepage link', error);
-        return c.json({ error: status >= 500 ? '首页链接保存失败' : messageFromError(error) },
-            status as 400 | 500);
+        return c.json({
+            error: status >= 500 ? '首页链接保存失败' : messageFromError(error)
+        } satisfies HomepageLinkErrorResponse, status as 400 | 500);
     }
 }

@@ -8,6 +8,10 @@ import {
     hasValidBackofficeRefreshCsrf,
     backofficeRefreshTokenCookies
 } from '@/domains/backoffice-auth/backoffice-auth-session';
+import type {
+    LogoutErrorResponse,
+    LogoutSuccessResponse
+} from '@/domains/backoffice-auth/response';
 import { backofficeAuthRepository } from '@/middleware/hono-context';
 
 async function logoutBackoffice(
@@ -33,7 +37,10 @@ async function logoutBackoffice(
                 authenticated.session,
                 authenticated.cookie.source
             )) {
-                return c.json({ success: false, message: 'CSRF token invalid' }, 403);
+                return c.json({
+                    success: false,
+                    message: 'CSRF token invalid'
+                } satisfies LogoutErrorResponse, 403);
             }
             const revokedAt = Math.floor(Date.now() / 1000);
             const sessionIds = new Set(
@@ -53,7 +60,7 @@ async function logoutBackoffice(
     if (hadLegacyCookies || legacyRoute) {
         clearLegacyBackofficeAuthenticationCookies(c);
     }
-    return c.json({ success: true });
+    return c.json({ success: true } satisfies LogoutSuccessResponse);
 }
 
 export function handleBackofficeLogout(c: Context<AppEnvironment>): Promise<Response> {

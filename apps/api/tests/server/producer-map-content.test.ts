@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
-import { defaultProducerMapContent } from '@/domains/producer-map/data';
+import type { ProducerMapContent } from '@/domains/producer-map/data';
 import { producerMapAssetObjectKey } from '@/utils/storage/business-object-keys';
 import type {
     ListedObject,
@@ -70,6 +70,34 @@ class MemoryStorage implements ObjectStorage {
     }
 }
 
+function producerMapContent(): ProducerMapContent {
+    return {
+        version: 1,
+        title: '测试制作人地图',
+        subtitle: 'PRODUCER COMMUNITY MAP',
+        introduction: '测试制作人社群入口。',
+        directoryTitle: '测试社群名录',
+        mapSourceLabel: '测试地图数据源',
+        mapSourceUrl: 'https://example.com/map-source',
+        regions: [],
+        communities: [
+            {
+                id: 'test-community',
+                name: '测试社群',
+                platform: 'QQ',
+                region: null,
+                description: '',
+                contact: '',
+                linkUrl: null,
+                imageUrl: null,
+                series: 'all',
+                enabled: true
+            }
+        ],
+        updatedAt: null
+    };
+}
+
 function fixture() {
     const storage = new MemoryStorage();
     const audit: AuditLogInput[] = [];
@@ -123,19 +151,12 @@ test('producer map media is served from semantic object storage', async () => {
     assert.equal((await request('/uploads/producer-map/missing.png')).status, 404);
 });
 
-test('producer map exposes migrated public defaults without legacy media', async () => {
+test('producer map reports unconfigured content without serving defaults', async () => {
     const { request } = fixture();
     const response = await request('/api/producer-map');
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 404);
     assert.equal(response.headers.get('cache-control'), 'no-cache');
-    const content = await response.json() as ReturnType<typeof defaultProducerMapContent>;
-    assert.equal(content.title, '全国偶像大师社群一览');
-    assert.equal(content.communities.length, 9);
-    assert.deepEqual(content.communities.slice(0, 2).map((item) => item.name), [
-        '站长小窝',
-        '大部分都能唠些的闪耀色彩群'
-    ]);
-    assert.ok(content.communities.every((item) => item.imageUrl === null));
+    assert.deepEqual(await response.json(), { error: '制作人地图尚未配置' });
 });
 
 test('producer map admin updates are authenticated, audited, and revision guarded', async () => {
@@ -149,11 +170,12 @@ test('producer map admin updates are authenticated, audited, and revision guarde
     const initialResponse = await request('/api/admin/producer-map', { headers });
     assert.equal(initialResponse.status, 200);
     const initial = await initialResponse.json() as {
-        content: ReturnType<typeof defaultProducerMapContent>;
+        content: ProducerMapContent | null;
         revision: string | null;
     };
+    assert.deepEqual(initial, { content: null, revision: null });
     const edited = {
-        ...initial.content,
+        ...producerMapContent(),
         introduction: '更新后的全国制作人社群入口。',
         regions: [
             {
@@ -176,7 +198,7 @@ test('producer map admin updates are authenticated, audited, and revision guarde
     });
     assert.equal(savedResponse.status, 200);
     const saved = await savedResponse.json() as {
-        content: ReturnType<typeof defaultProducerMapContent>;
+        content: ProducerMapContent;
         revision: string;
     };
     assert.match(saved.revision, /revision-1/);
@@ -202,7 +224,7 @@ test('producer map rejects unsafe links and duplicate provinces', async () => {
         Authorization: 'Bearer producer-map-token',
         'Content-Type': 'application/json'
     };
-    const unsafe = defaultProducerMapContent();
+    const unsafe = producerMapContent();
     unsafe.communities[0]!.linkUrl = 'javascript:alert(1)';
     const unsafeResponse = await request('/api/admin/producer-map', {
         method: 'PUT',
@@ -212,7 +234,7 @@ test('producer map rejects unsafe links and duplicate provinces', async () => {
     assert.equal(unsafeResponse.status, 400);
     assert.match((await unsafeResponse.json() as { error: string }).error, /链接无效/);
 
-    const duplicate = defaultProducerMapContent();
+    const duplicate = producerMapContent();
     duplicate.regions = [
         {
             id: 'guangdong-a',

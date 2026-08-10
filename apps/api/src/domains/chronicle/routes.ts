@@ -10,21 +10,41 @@ import { handleServeChronicleAdmin } from '@/domains/chronicle/handlers/serve-ch
 import { handleServeApprovedChronicleMedia } from '@/domains/chronicle/handlers/serve-approved-chronicle-media';
 import { handleServePendingChronicleMedia } from '@/domains/chronicle/handlers/serve-pending-chronicle-media';
 import { handleUploadChronicleMedia } from '@/domains/chronicle/handlers/upload-chronicle-media';
+import {
+    validateChronicleActivityParams,
+    validateChronicleMediaParams
+} from '@/domains/chronicle/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
+import { paramValidator } from '@/middleware/request-validation';
 
 export function registerChronicleRoutes(app: ImsHonoApp): void {
+    const activityParams = paramValidator(validateChronicleActivityParams);
+    const mediaParams = paramValidator(validateChronicleMediaParams);
     const pendingMediaRoute =
         '/assets/images/eventchronicle/events/upload/:activityId/:filename';
-    app.get(pendingMediaRoute, handleServePendingChronicleMedia);
-    app.on('HEAD', pendingMediaRoute, handleServePendingChronicleMedia);
+    app.get(
+        pendingMediaRoute,
+        backofficeAuth,
+        opOnly,
+        mediaParams,
+        handleServePendingChronicleMedia
+    );
+    app.on(
+        'HEAD',
+        pendingMediaRoute,
+        backofficeAuth,
+        opOnly,
+        mediaParams,
+        handleServePendingChronicleMedia
+    );
 
     const approvedMediaRoute =
         '/assets/images/eventchronicle/events/used/:activityId/:filename';
-    app.get(approvedMediaRoute, handleServeApprovedChronicleMedia);
-    app.on('HEAD', approvedMediaRoute, handleServeApprovedChronicleMedia);
+    app.get(approvedMediaRoute, mediaParams, handleServeApprovedChronicleMedia);
+    app.on('HEAD', approvedMediaRoute, mediaParams, handleServeApprovedChronicleMedia);
 
     app.post('/eventchronicle/upload', handleUploadChronicleMedia);
-    app.get('/eventchronicle/activities/:id', handleGetChronicleActivity);
+    app.get('/eventchronicle/activities/:id', activityParams, handleGetChronicleActivity);
     app.get('/eventchronicle/admin', backofficeAuth, opOnly, handleServeChronicleAdmin);
     app.get(
         '/eventchronicle/admin/pending',
@@ -38,6 +58,7 @@ export function registerChronicleRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
+        mediaParams,
         handleApproveChronicleMedia
     );
     app.post(
@@ -45,6 +66,7 @@ export function registerChronicleRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
+        mediaParams,
         handleRejectChronicleMedia
     );
     app.get('/eventchronicle/activities', handleListChronicleActivities);
@@ -53,6 +75,7 @@ export function registerChronicleRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
+        mediaParams,
         handleDeleteUsedChronicleMedia
     );
 }

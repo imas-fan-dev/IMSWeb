@@ -1,4 +1,4 @@
-import type { Env, Handler } from "hono";
+import type { Env } from "hono";
 import {
   wikiErrorBody,
   wikiJson,
@@ -15,15 +15,19 @@ import {
   requirePublicObjectUrl,
   resolvePublicObjectUrl,
 } from "@/utils/storage/public-object-url";
+import type {
+  WikiStoriesQuery,
+  WikiValidatedInput,
+} from "@/domains/wiki/request";
+import type { WikiRouteHandler } from "@/domains/wiki/response";
 
 export function createHandleListPublicWikiStories<E extends Env>(
   resolveServices: WikiServicesResolver<E>,
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<"query", WikiStoriesQuery>> {
   return async (context) => {
     const services = await resolveServices(context);
     requireWikiServices(services, ["story", "storage"]);
-    const agencyName = (context.req.query("agency") ?? "").trim();
-    const idolName = (context.req.query("idol") ?? "").trim();
+    const { agency: agencyName, idol: idolName } = context.req.valid("query");
     if (!agencyName || !idolName) {
       return wikiJson(wikiErrorBody("缺少企划或内容页参数"), 400);
     }

@@ -57,6 +57,26 @@ describe("AboutManager", () => {
     document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
   })
 
+  it("starts first-time configuration from a content-free draft", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          content: null,
+          revision: null,
+        })
+      )
+    )
+
+    render(<AboutManager />)
+
+    expect(await screen.findByLabelText("站点名称")).toHaveValue("")
+    expect(screen.getByLabelText("欢迎语")).toHaveValue("")
+    expect(screen.queryByText("偶像大师交流站")).not.toBeInTheDocument()
+    expect(screen.queryByText("创始人")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "保存更改" })).toBeDisabled()
+  })
+
   it("loads the current revision and saves edited content", async () => {
     const original = aboutContent()
     document.cookie = "ims_admin_csrf=about-manager-test; path=/"

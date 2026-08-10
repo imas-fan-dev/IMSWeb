@@ -16,6 +16,16 @@ import {
     handleBackofficeRefresh,
     handleLegacyBackofficeRefresh
 } from '@/domains/backoffice-auth/handlers/refresh';
+import {
+    loginValidationError,
+    validateLoginRequest
+} from '@/domains/backoffice-auth/login-request';
+import { jsonValidator } from '@/middleware/request-validation';
+
+const loginValidator = jsonValidator(validateLoginRequest, {
+    malformedMessage: '用户名或密码格式错误',
+    errorBody: loginValidationError
+});
 
 const LEGACY_BACKOFFICE_AUTH_SUCCESSORS = new Map([
     ['/api/login', '/api/admin/auth/login'],
@@ -43,15 +53,16 @@ async function markLegacyBackofficeAuthRoute(
 }
 
 export function registerBackofficeAuthRoutes(app: ImsHonoApp): void {
-    app.post('/api/admin/auth/login', handleCanonicalBackofficeLogin);
+    app.post('/api/admin/auth/login', loginValidator, handleCanonicalBackofficeLogin);
     app.get('/api/admin/auth/session', backofficeAuth, handleCheckBackofficeAuth);
     app.post('/api/admin/auth/refresh', handleBackofficeRefresh);
     app.post('/api/admin/auth/logout', handleBackofficeLogout);
 
-    app.post('/api/login', markLegacyBackofficeAuthRoute, handleBackofficeLogin);
+    app.post('/api/login', markLegacyBackofficeAuthRoute, loginValidator, handleBackofficeLogin);
     app.post(
         '/api/admin/login',
         markLegacyBackofficeAuthRoute,
+        loginValidator,
         handleBackofficeAdminLogin
     );
     app.get(

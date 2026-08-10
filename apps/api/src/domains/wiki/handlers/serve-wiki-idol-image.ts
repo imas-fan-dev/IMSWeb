@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     decodeWikiSegment,
     wikiPlain,
@@ -9,10 +9,11 @@ import {
     storyObjectKey
 } from '@/domains/wiki/service';
 import { objectReadResponse } from '@/utils/http/object-read-response';
+import type { WikiBinaryRouteHandler } from '@/domains/wiki/response';
 
 export function createHandleServeWikiIdolImage<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiBinaryRouteHandler<E> {
     return async (context) => {
         const services = await resolveServices(context);
         requireWikiServices(services, ['story', 'storage']);

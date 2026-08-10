@@ -11,15 +11,18 @@ import {
     type IdempotencyHandle
 } from '@/domains/chronicle/chronicle-idempotency';
 import {
-    chronicleFiles,
     chroniclePrefix,
     mutateChronicleMeta,
     readChronicleMeta,
     recordsFromChronicleMeta,
-    safeChronicleSegment,
     withChronicleRecords,
     type ChronicleRecord
 } from '@/domains/chronicle/chronicle-records';
+import { parseChronicleUploadRequest } from '@/domains/chronicle/request';
+import type {
+    ChronicleUploadErrorResponse,
+    ChronicleUploadResponse
+} from '@/domains/chronicle/response';
 import { chronicleUploadIdempotencyKey } from '@/middleware/rate-limit';
 import { randomHex } from '@/utils/crypto/random';
 import { sha256Hex } from '@/utils/crypto/sha256';
@@ -40,23 +43,10 @@ export async function handleUploadChronicleMedia(
     let handle: IdempotencyHandle | null = null;
     let metadataCommitted = false;
     try {
-        const parsed = await runtime.uploads.parse(c.req.raw, {
-            maxBytes: 25 * 1024 * 1024 + 256 * 1024,
-            fileFields: ['images'],
-            maxFiles: 5,
-            maxFields: 8,
-            maxParts: 13
-        });
-        const activityId = safeChronicleSegment(parsed.fields.activityId || '0', 'activityId');
-        const username = (parsed.fields.username || '匿名')
-            .replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80) || '匿名';
-        const uploads = chronicleFiles(parsed.files.images);
-        if (!uploads.length || uploads.length > 5) {
-            return c.json({ success: false, error: '最多上传5张图片' }, 400);
-        }
-        if (uploads.some((file) => file.body.byteLength > 5 * 1024 * 1024)) {
-            return c.json({ success: false, error: '文件过大' }, 400);
-        }
+        const { activityId, username, uploads } = await parseChronicleUploadRequest(
+            c.req.raw,
+            runtime.uploads
+        );
         const digested = await Promise.all(uploads.map(async (file) => ({
             file,
             digest: await sha256Hex(file.body)
@@ -87,7 +77,7 @@ export async function handleUploadChronicleMedia(
                 success: true,
                 count: currentRecords.filter((record) =>
                     record.idempotencyKey === claimedKey).length
-            });
+            } satisfies ChronicleUploadResponse);
         }
         const newRecords: ChronicleRecord[] = [];
         for (const [index, { file, info }] of validated.entries()) {
@@ -124,7 +114,7 @@ export async function handleUploadChronicleMedia(
         return await completeChronicleIdempotency(handle, {
             success: true,
             count: newRecords.length
-        });
+        } satisfies ChronicleUploadResponse);
     } catch (error) {
         if (!metadataCommitted && await isCurrentIdempotencyHandle(handle)) {
             await Promise.all(written.map((key) =>
@@ -135,8 +125,14 @@ export async function handleUploadChronicleMedia(
         const status = statusFromError(error);
         if (status >= 500) {
             console.error('Chronicle upload failed', error);
-            return c.json({ success: false, error: '服务器错误' }, status as 500);
+            return c.json({
+                success: false,
+                error: '服务器错误'
+            } satisfies ChronicleUploadErrorResponse, status as 500);
         }
-        return c.json({ success: false, error: messageFromError(error) }, status as 400);
+        return c.json({
+            success: false,
+            error: messageFromError(error)
+        } satisfies ChronicleUploadErrorResponse, status as 400);
     }
 }

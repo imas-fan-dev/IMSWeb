@@ -14,6 +14,10 @@ import {
     setBackofficeAuthenticationCookies,
     setLegacyBackofficeAuthenticationCookies
 } from '@/domains/backoffice-auth/backoffice-auth-session';
+import type {
+    RefreshErrorResponse,
+    RefreshSuccessResponse
+} from '@/domains/backoffice-auth/response';
 import { backofficeAuthRepository, services } from '@/middleware/hono-context';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
 import { randomHex } from '@/utils/crypto/random';
@@ -29,7 +33,7 @@ function rejectRefresh(
         clearBackofficeAuthenticationCookies(c);
         if (legacyCookie) clearLegacyBackofficeAuthenticationCookies(c);
     }
-    return c.json({ success: false, message }, 401);
+    return c.json({ success: false, message } satisfies RefreshErrorResponse, 401);
 }
 
 async function refreshBackoffice(
@@ -55,7 +59,10 @@ async function refreshBackoffice(
         );
     }
     if (!await hasValidBackofficeRefreshCsrf(c, session, refreshCookie.source)) {
-        return c.json({ success: false, message: 'CSRF token invalid' }, 403);
+        return c.json({
+            success: false,
+            message: 'CSRF token invalid'
+        } satisfies RefreshErrorResponse, 403);
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -133,7 +140,7 @@ async function refreshBackoffice(
             dept: user.dept,
             adminRole: user.admin_role
         }
-    });
+    } satisfies RefreshSuccessResponse);
 }
 
 export function handleBackofficeRefresh(c: Context<AppEnvironment>): Promise<Response> {

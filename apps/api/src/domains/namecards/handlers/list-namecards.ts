@@ -1,27 +1,35 @@
-import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type { NamecardListQuery } from '@/domains/namecards/request';
+import {
+    toPublicNamecardResponse,
+    type NamecardListErrorResponse,
+    type NamecardPageResponse
+} from '@/domains/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
-import { resolvePublicMediaFields } from '@/utils/storage/public-object-url';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
+import { resolvePublicMediaUrl } from '@/utils/storage/public-object-url';
 
-export async function handleListNamecards(c: Context<AppEnvironment>): Promise<Response> {
-    const page = Number.parseInt(c.req.query('page') || '', 10) || 1;
-    const size = Number.parseInt(c.req.query('size') || '', 10) || 25;
+export async function handleListNamecards(
+    c: ValidatedRequestContext<AppEnvironment, 'query', NamecardListQuery>
+): Promise<Response> {
+    const { page, size } = c.req.valid('query');
     try {
         const total = await namecardRepository(c).countApprovedCards();
-        const cards = await namecardRepository(c).listApprovedCards(size, (page - 1) * size);
+        const cards = (await namecardRepository(c).listApprovedCards(size, (page - 1) * size))
+            .map(toPublicNamecardResponse);
         const storage = services(c).storage;
         return c.json({
             list: storage
-                ? await Promise.all(cards.map((card) => resolvePublicMediaFields(
-                    storage,
-                    card,
-                    ['image1_url', 'image2_url']
-                )))
+                ? await Promise.all(cards.map(async (card) => ({
+                    ...card,
+                    image1_url: await resolvePublicMediaUrl(storage, card.image1_url),
+                    image2_url: await resolvePublicMediaUrl(storage, card.image2_url)
+                })))
                 : cards,
             total,
             totalPage: Math.ceil(total / size)
-        });
+        } satisfies NamecardPageResponse);
     } catch {
-        return c.json({ msg: '查询失败' });
+        return c.json({ msg: '查询失败' } satisfies NamecardListErrorResponse);
     }
 }

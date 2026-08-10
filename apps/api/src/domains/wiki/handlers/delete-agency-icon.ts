@@ -1,4 +1,4 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
     findWikiAgencyTarget,
@@ -12,21 +12,23 @@ import {
     requireWikiServices
 } from '@/domains/wiki/service';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
+import type {
+    DeleteWikiAgencyIconRequest,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 export function createHandleDeleteWikiAgencyIcon<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'json', DeleteWikiAgencyIconRequest>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage']);
         try {
-            const fields = await context.req.json<Record<string, unknown>>();
-            const target = await findWikiAgencyTarget(
-                services,
-                typeof fields.agency === 'string' ? fields.agency.trim() : ''
-            );
+            const fields = context.req.valid('json');
+            const target = await findWikiAgencyTarget(services, fields.agency);
             if ('error' in target) return target.error;
             const record = await services.story!.findAgencyById(target.agency.id);
             const key = record?.icon_object_key ?? null;

@@ -47,12 +47,14 @@ export const aboutPageContentSchema = z.object({
 })
 
 const aboutAdminSnapshotSchema = z.object({
-  content: aboutPageContentSchema,
+  content: aboutPageContentSchema.nullable(),
   revision: z.string().nullable(),
 })
 
-const aboutAdminUpdateSchema = aboutAdminSnapshotSchema.extend({
+const aboutAdminUpdateSchema = z.object({
   success: z.literal(true),
+  content: aboutPageContentSchema,
+  revision: z.string(),
 })
 
 const aboutImageUploadSchema = z.object({

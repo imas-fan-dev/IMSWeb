@@ -1,13 +1,14 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     wikiJson,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { idolMediaUrl, requireWikiServices } from '@/domains/wiki/service';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 export function createHandleListWikiIdolMedia<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E> {
     return async (context) => {
         const services = await resolveServices(context);
         requireWikiServices(services, ['story']);
@@ -26,7 +27,9 @@ export function createHandleListWikiIdolMedia<E extends Env>(
                         ? idolMediaUrl(agency.name_cn, idol.name_cn)
                         : '',
                     imageFit: idol.avatar_fit,
-                    source: idol.avatar_object_key ? 'object-storage' : 'none'
+                    source: idol.avatar_object_key
+                        ? 'object-storage' as const
+                        : 'none' as const
                 }))
             }))
         });

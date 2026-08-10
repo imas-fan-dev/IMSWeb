@@ -13,6 +13,7 @@ import type {
   WikiGroupRecord,
   WikiImageTransform,
 } from "@/ports/repositories";
+import type { WikiBilibiliResponse } from "@/domains/wiki/response";
 import {
   type WikiAgency,
   type WikiIdol,
@@ -538,7 +539,7 @@ export async function parseBilibili(
   input: string,
   fetchImpl: typeof globalThis.fetch,
   timeoutMs = 5000,
-) {
+): Promise<WikiBilibiliResponse> {
   const bv = /(BV[a-zA-Z0-9]{10})/.exec(input);
   const av = /av(\d+)/i.exec(input);
   const ml = /ml(\d+)/i.exec(input);

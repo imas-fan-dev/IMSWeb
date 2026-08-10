@@ -1,9 +1,8 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     authorizeWikiRead,
     authorizeWikiWrite,
     cleanupWikiObjects,
-    parseWikiUpload,
     singleWikiFile,
     wikiErrorBody,
     wikiJson,
@@ -11,6 +10,13 @@ import {
     wikiStatusOf,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
+import {
+    parseCreateWikiStoryCoverAssetRequest,
+    parseUpdateWikiStoryCoverAssetRequest,
+    type WikiIdParams,
+    type WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiRouteHandler } from '@/domains/wiki/response';
 import {
     requireWikiServices,
     validateAndConvertStoryImage,
@@ -21,14 +27,6 @@ import type {
     WikiStoryCoverPresentationPolicy
 } from '@/ports/repositories';
 import { requirePublicObjectUrl } from '@/utils/storage/public-object-url';
-
-function positiveId(value: string | undefined, label: string): number {
-    const id = Number(value);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-        throw Object.assign(new Error(`${label} ID 无效`), { status: 400 });
-    }
-    return id;
-}
 
 function assetName(value: string | undefined): string {
     const name = (value ?? '').trim();
@@ -78,14 +76,14 @@ async function serializeAsset(
 
 export function createHandleListWikiStoryCoverAssets<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'param', WikiIdParams>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiRead(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage']);
         try {
-            const agencyId = positiveId(context.req.param('agencyId'), '企划');
+            const agencyId = context.req.valid('param').id;
             const agency = await services.story!.findAgencyById(agencyId);
             if (!agency) return wikiJson(wikiErrorBody('企划不存在'), 404);
             const assets = await services.story!.listStoryCoverAssets(agencyId);
@@ -107,7 +105,7 @@ export function createHandleListWikiStoryCoverAssets<E extends Env>(
 
 export function createHandleCreateWikiStoryCoverAsset<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'param', WikiIdParams>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
@@ -115,10 +113,13 @@ export function createHandleCreateWikiStoryCoverAsset<E extends Env>(
         requireWikiServices(services, ['story', 'storage', 'images', 'uploads']);
         let createdKey: string | null = null;
         try {
-            const agencyId = positiveId(context.req.param('agencyId'), '企划');
+            const agencyId = context.req.valid('param').id;
             const agency = await services.story!.findAgencyById(agencyId);
             if (!agency) return wikiJson(wikiErrorBody('企划不存在'), 404);
-            const upload = await parseWikiUpload(context.req.raw, services);
+            const upload = await parseCreateWikiStoryCoverAssetRequest(
+                context.req.raw,
+                services
+            );
             const file = singleWikiFile(upload, 'image');
             if (!file?.filename) {
                 return wikiJson(wikiErrorBody('请选择要上传的封面图片'), 400);
@@ -160,7 +161,7 @@ export function createHandleCreateWikiStoryCoverAsset<E extends Env>(
 
 export function createHandleUpdateWikiStoryCoverAsset<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'param', WikiIdParams>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
@@ -168,12 +169,15 @@ export function createHandleUpdateWikiStoryCoverAsset<E extends Env>(
         requireWikiServices(services, ['story', 'storage', 'images', 'uploads']);
         let createdKey: string | null = null;
         try {
-            const assetId = positiveId(context.req.param('assetId'), '素材');
+            const assetId = context.req.valid('param').id;
             const current = await services.story!.findStoryCoverAssetById(assetId);
             if (!current) return wikiJson(wikiErrorBody('剧情封面素材不存在'), 404);
             const agency = await services.story!.findAgencyById(current.agency_id);
             if (!agency) return wikiJson(wikiErrorBody('企划不存在'), 404);
-            const upload = await parseWikiUpload(context.req.raw, services);
+            const upload = await parseUpdateWikiStoryCoverAssetRequest(
+                context.req.raw,
+                services
+            );
             const expectedRevision = Number(upload.fields.expected_revision);
             if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
                 return wikiJson(wikiErrorBody('缺少有效的素材版本'), 400);
@@ -238,14 +242,14 @@ export function createHandleUpdateWikiStoryCoverAsset<E extends Env>(
 
 export function createHandleDeleteWikiStoryCoverAsset<E extends Env>(
     resolveServices: WikiServicesResolver<E>
-): Handler<E> {
+): WikiRouteHandler<E, WikiValidatedInput<'param', WikiIdParams>> {
     return async (context) => {
         const services = await resolveServices(context);
         const unauthorized = await authorizeWikiWrite(context, services);
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['story', 'storage']);
         try {
-            const assetId = positiveId(context.req.param('assetId'), '素材');
+            const assetId = context.req.valid('param').id;
             const result = await services.story!.deleteStoryCoverAsset(assetId);
             if (result.status === 'not-found') {
                 return wikiJson(wikiErrorBody('剧情封面素材不存在'), 404);

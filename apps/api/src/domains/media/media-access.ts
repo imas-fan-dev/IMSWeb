@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
+import type { MediaAuthorizationErrorResponse } from '@/domains/media/response';
 import { authenticateBackofficeRequest } from '@/middleware/hono-auth';
 import { getRequestPathSegments } from '@/middleware/static-path-policy';
 import { chroniclePrefix } from '@/domains/chronicle/chronicle-records';
@@ -63,5 +64,10 @@ export function publicUploadKey(pathname: string): string | null {
 export async function authorizePrivate(c: Context<AppEnvironment>): Promise<Response | null> {
     const failure = await authenticateBackofficeRequest(c);
     if (failure) return failure;
-    return c.get('backofficeUser')?.dept === 'op' ? null : c.json({ message: '无权限（仅op可访问）' }, 403);
+    return c.get('backofficeUser')?.dept === 'op'
+        ? null
+        : c.json(
+            { message: '无权限（仅op可访问）' } satisfies MediaAuthorizationErrorResponse,
+            403
+        );
 }

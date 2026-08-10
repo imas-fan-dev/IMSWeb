@@ -1,10 +1,15 @@
-import type { Env, Handler } from 'hono';
+import type { Env } from 'hono';
 import {
     wikiPlain,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { requireWikiServices } from '@/domains/wiki/service';
 import { objectReadResponse } from '@/utils/http/object-read-response';
+import type {
+    WikiAssetParams,
+    WikiValidatedInput
+} from '@/domains/wiki/request';
+import type { WikiBinaryRouteHandler } from '@/domains/wiki/response';
 
 function entityId(value: string): number | null {
     const matched = /^(\d+)\.webp$/.exec(value);
@@ -16,11 +21,11 @@ function entityId(value: string): number | null {
 export function createHandleServeWikiEntityIcon<E extends Env>(
     resolveServices: WikiServicesResolver<E>,
     entity: 'agency' | 'group'
-): Handler<E> {
+): WikiBinaryRouteHandler<E, WikiValidatedInput<'param', WikiAssetParams>> {
     return async (context) => {
         const services = await resolveServices(context);
         requireWikiServices(services, ['story', 'storage']);
-        const id = entityId(context.req.param('asset') ?? '');
+        const id = entityId(context.req.valid('param').asset);
         if (!id) return wikiPlain('Not found', 404);
         const record = entity === 'agency'
             ? await services.story!.findAgencyById(id)

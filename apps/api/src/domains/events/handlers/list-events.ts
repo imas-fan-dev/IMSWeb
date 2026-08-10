@@ -1,53 +1,43 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import {
-    decodeEventCursor,
     encodeEventCursor,
     eventIdAsDecimal
 } from '@/domains/events/event-cursor';
+import type { EventListQuery } from '@/domains/events/request';
+import type {
+    EventCursorPageResponse,
+    EventLegacyPageResponse,
+    EventResponse
+} from '@/domains/events/response';
+import { toEventResponse } from '@/domains/events/response';
 import { eventRepository, services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { resolvePublicMediaFields } from '@/utils/storage/public-object-url';
-
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 5;
-const DEFAULT_CURSOR_LIMIT = 20;
-const MAX_PAGE_VALUE = 100;
 
 async function publicEventRows(
     c: Context<AppEnvironment>,
-    rows: Record<string, unknown>[]
-): Promise<Record<string, unknown>[]> {
+    rows: Array<{ [key: string]: unknown }>
+): Promise<EventResponse[]> {
     const storage = services(c).storage;
-    return storage
+    const resolved = storage
         ? Promise.all(rows.map((row) => resolvePublicMediaFields(storage, row, ['image_url'])))
-        : rows;
-}
-
-function boundedPaginationInteger(value: string | undefined, fallback: number): number | null {
-    if (value === undefined) return fallback;
-    if (!/^[1-9]\d*$/.test(value)) return null;
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) && parsed <= MAX_PAGE_VALUE ? parsed : null;
+        : Promise.resolve(rows);
+    return (await resolved).map(toEventResponse);
 }
 
 async function listCursorEvents(
     c: Context<AppEnvironment>,
-    limitValue: string | undefined,
-    cursorValue: string | undefined
+    query: Extract<EventListQuery, { mode: 'cursor' }>
 ): Promise<Response> {
-    const limit = boundedPaginationInteger(limitValue, DEFAULT_CURSOR_LIMIT);
-    if (!limit) return c.json({ error: 'limit must be an integer between 1 and 100' }, 400);
-
     const repository = eventRepository(c);
-    const cursor = cursorValue === undefined ? null : decodeEventCursor(cursorValue);
-    if (cursorValue !== undefined && !cursor) return c.json({ error: 'Invalid event cursor' }, 400);
-
+    const { cursor, limit } = query;
     const snapshotId = cursor?.snapshotId ?? await repository.findLatestEventId();
     if (!snapshotId) {
         return c.json({
             items: [],
             pageInfo: { nextCursor: null, hasNextPage: false, snapshotAt: null }
-        });
+        } satisfies EventCursorPageResponse);
     }
 
     const rows = await repository.listEventsByCursor(limit + 1, snapshotId, cursor?.afterId);
@@ -65,30 +55,22 @@ async function listCursorEvents(
             hasNextPage,
             snapshotAt: snapshotId
         }
-    });
+    } satisfies EventCursorPageResponse);
 }
 
-export async function handleListEvents(c: Context<AppEnvironment>): Promise<Response> {
-    const pageValue = c.req.query('page');
-    const sizeValue = c.req.query('size');
-    const limitValue = c.req.query('limit');
-    const cursorValue = c.req.query('cursor');
-    const cursorMode = limitValue !== undefined || cursorValue !== undefined;
-    if (cursorMode) {
-        if (pageValue !== undefined || sizeValue !== undefined) {
-            return c.json({ error: 'Cannot mix page/size with limit/cursor' }, 400);
-        }
-        return listCursorEvents(c, limitValue, cursorValue);
-    }
-
-    const page = boundedPaginationInteger(pageValue, DEFAULT_PAGE);
-    const size = boundedPaginationInteger(sizeValue, DEFAULT_PAGE_SIZE);
-    if (!page) return c.json({ error: 'page must be an integer between 1 and 100' }, 400);
-    if (!size) return c.json({ error: 'size must be an integer between 1 and 100' }, 400);
+export async function handleListEvents(
+    c: ValidatedRequestContext<AppEnvironment, 'query', EventListQuery>
+): Promise<Response> {
+    const query = c.req.valid('query');
+    if (query.mode === 'cursor') return listCursorEvents(c, query);
+    const { page, size } = query;
     const total = await eventRepository(c).countEvents();
     const list = await publicEventRows(
         c,
         await eventRepository(c).listEvents(size, (page - 1) * size)
     );
-    return c.json({ list, totalPage: Math.ceil(total / size) });
+    return c.json({
+        list,
+        totalPage: Math.ceil(total / size)
+    } satisfies EventLegacyPageResponse);
 }
