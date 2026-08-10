@@ -178,4 +178,82 @@ describe("ProducerMapManager", () => {
       },
     })
   })
+
+  it("uploads a community image and saves its hosted URL", async () => {
+    document.cookie = "csrf_token=producer-map-upload-test; path=/"
+    let uploadedFileName: string | null = null
+    let uploadCsrf: string | null = null
+    let savedBody: unknown
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (input, init) => {
+        const request =
+          input instanceof Request
+            ? input
+            : new Request(new URL(String(input), "http://localhost"), init)
+        if (request.method === "POST") {
+          const form = init?.body
+          if (!(form instanceof FormData)) {
+            throw new Error("missing upload form")
+          }
+          const image = form.get("image")
+          uploadedFileName = image instanceof File ? image.name : null
+          uploadCsrf = request.headers.get("x-csrftoken")
+          return jsonResponse({
+            success: true,
+            url: "/uploads/producer-map/community-contact.webp",
+          })
+        }
+        if (request.method === "PUT") {
+          savedBody = await request.clone().json()
+          const submitted = savedBody as { content: ProducerMapContent }
+          return jsonResponse({
+            success: true,
+            content: submitted.content,
+            revision: '"revision-2"',
+          })
+        }
+        return jsonResponse({ content: content(), revision: '"revision-1"' })
+      })
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<ProducerMapManager />)
+
+    const upload = await screen.findByLabelText("上传联络图片")
+    expect(screen.queryByLabelText("联络图片 URL")).not.toBeInTheDocument()
+    expect(upload).toHaveAttribute(
+      "accept",
+      "image/png,image/jpeg,image/webp,image/avif"
+    )
+    await user.upload(
+      upload,
+      new File([Uint8Array.of(1, 2, 3)], "community-contact.png", {
+        type: "image/png",
+      })
+    )
+
+    await waitFor(() => expect(uploadedFileName).toBe("community-contact.png"))
+    expect(uploadCsrf).toBe("producer-map-upload-test")
+    await waitFor(() =>
+      expect(screen.getByAltText("站长小窝联络图片")).toHaveAttribute(
+        "src",
+        "/uploads/producer-map/community-contact.webp"
+      )
+    )
+    expect(
+      screen.queryByDisplayValue("/uploads/producer-map/community-contact.webp")
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "清除图片" })).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "保存更改" }))
+    await waitFor(() => expect(savedBody).toBeDefined())
+    expect(savedBody).toMatchObject({
+      content: {
+        communities: [
+          { imageUrl: "/uploads/producer-map/community-contact.webp" },
+        ],
+      },
+    })
+  })
 })

@@ -5,12 +5,12 @@ import type {
     NamecardMessageResponse,
     NamecardRateLimitResponse
 } from '@/domains/namecards/response';
+import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
 import { md5Hex } from '@/utils/crypto/md5';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { namecardRepository, getClientAddress, services } from '@/middleware/hono-context';
 import { safeUploadBaseName } from '@/utils/media/filename';
-import { validateUploadedImage } from '@/utils/media/image-upload';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { namecardImageObjectKey } from '@/utils/storage/business-object-keys';
 
@@ -44,8 +44,7 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
         }
         const outputs: Array<{ key: string; url: string; hash: string }> = [];
         for (const file of files) {
-            await validateUploadedImage(file, runtime.images);
-            const webp = await runtime.images.toWebp(file.body, 85);
+            const webp = await normalizeNamecardImage(file, runtime.images);
             const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
             const publicKey = `uploads/namecard/original/${filename}`;
             const key = namecardImageObjectKey(filename);
