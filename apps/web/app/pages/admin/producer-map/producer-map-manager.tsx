@@ -163,6 +163,7 @@ function ImageUrlEditor({
   value,
   previewAlt,
   uploadLabel,
+  showUrlField = true,
   disabled,
   onUploadingChange,
   onChange,
@@ -172,6 +173,7 @@ function ImageUrlEditor({
   value: string | null
   previewAlt: string
   uploadLabel: string
+  showUrlField?: boolean
   disabled: boolean
   onUploadingChange: (uploading: boolean) => void
   onChange: (value: string | null) => void
@@ -230,44 +232,57 @@ function ImageUrlEditor({
           resetAfterSelect
           onSelect={(file) => void upload(file)}
         />
-        <AdminField
-          label={label}
-          htmlFor={id}
-          description="也可填写外部地址；公开页将使用当前图片地址。"
-        >
-          <input
-            id={id}
-            className={adminControlClass}
-            maxLength={500}
-            placeholder="https://… 或 /uploads/…"
-            value={value || ""}
-            onChange={(event) => onChange(event.target.value || null)}
-          />
-          {value ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                render={<a href={value} target="_blank" rel="noreferrer" />}
-                nativeButton={false}
-              >
-                <ExternalLinkIcon data-icon="inline-start" />
-                打开原图
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={disabled}
-                onClick={() => onChange(null)}
-              >
-                <Trash2Icon data-icon="inline-start" />
-                清除图片
-              </Button>
-            </div>
-          ) : null}
-        </AdminField>
+        {showUrlField ? (
+          <AdminField
+            label={label}
+            htmlFor={id}
+            description="也可填写外部地址；公开页将使用当前图片地址。"
+          >
+            <input
+              id={id}
+              className={adminControlClass}
+              maxLength={500}
+              placeholder="https://… 或 /uploads/…"
+              value={value || ""}
+              onChange={(event) => onChange(event.target.value || null)}
+            />
+            {value ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  render={<a href={value} target="_blank" rel="noreferrer" />}
+                  nativeButton={false}
+                >
+                  <ExternalLinkIcon data-icon="inline-start" />
+                  打开原图
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={() => onChange(null)}
+                >
+                  <Trash2Icon data-icon="inline-start" />
+                  清除图片
+                </Button>
+              </div>
+            ) : null}
+          </AdminField>
+        ) : value ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={() => onChange(null)}
+          >
+            <Trash2Icon data-icon="inline-start" />
+            清除图片
+          </Button>
+        ) : null}
       </div>
     </div>
   )
@@ -569,6 +584,7 @@ function CommunityEditor({
         value={community.imageUrl}
         previewAlt={`${community.name || `社群 ${index + 1}`}联络图片`}
         uploadLabel="联络图片"
+        showUrlField={false}
         disabled={disabled}
         onUploadingChange={onUploadingChange}
         onChange={(imageUrl) => onChange({ ...community, imageUrl })}

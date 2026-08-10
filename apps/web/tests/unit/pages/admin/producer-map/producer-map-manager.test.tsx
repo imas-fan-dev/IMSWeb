@@ -221,6 +221,7 @@ describe("ProducerMapManager", () => {
     render(<ProducerMapManager />)
 
     const upload = await screen.findByLabelText("上传联络图片")
+    expect(screen.queryByLabelText("联络图片 URL")).not.toBeInTheDocument()
     expect(upload).toHaveAttribute(
       "accept",
       "image/png,image/jpeg,image/webp,image/avif"
@@ -235,14 +236,15 @@ describe("ProducerMapManager", () => {
     await waitFor(() => expect(uploadedFileName).toBe("community-contact.png"))
     expect(uploadCsrf).toBe("producer-map-upload-test")
     await waitFor(() =>
-      expect(screen.getByLabelText("联络图片 URL")).toHaveValue(
+      expect(screen.getByAltText("站长小窝联络图片")).toHaveAttribute(
+        "src",
         "/uploads/producer-map/community-contact.webp"
       )
     )
-    expect(screen.getByAltText("站长小窝联络图片")).toHaveAttribute(
-      "src",
-      "/uploads/producer-map/community-contact.webp"
-    )
+    expect(
+      screen.queryByDisplayValue("/uploads/producer-map/community-contact.webp")
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "清除图片" })).toBeVisible()
 
     await user.click(screen.getByRole("button", { name: "保存更改" }))
     await waitFor(() => expect(savedBody).toBeDefined())
