@@ -66,6 +66,11 @@ const producerMapAdminUpdateSchema = z.object({
   revision: z.string(),
 })
 
+const producerMapImageUploadSchema = z.object({
+  success: z.literal(true),
+  url: z.string(),
+})
+
 const producerMapGeometrySchema = z.object({
   type: z.literal("FeatureCollection"),
   features: z.array(z.unknown()),
@@ -118,6 +123,19 @@ export function updateAdminProducerMapContent(
       meta: withCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
       transform: (payload) => producerMapAdminUpdateSchema.parse(payload),
+    }
+  )
+}
+
+export function uploadAdminProducerMapImage(file: File) {
+  const form = new FormData()
+  form.append("image", file)
+  return apiClient.Post<z.infer<typeof producerMapImageUploadSchema>, unknown>(
+    "/api/admin/producer-map/images",
+    form,
+    {
+      meta: withCsrf(),
+      transform: (payload) => producerMapImageUploadSchema.parse(payload),
     }
   )
 }

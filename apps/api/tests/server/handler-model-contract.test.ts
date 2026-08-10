@@ -85,6 +85,7 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
     'producer-map': [
         'handleGetAdminProducerMap',
         'handleGetProducerMap',
+        'handleUploadProducerMapImage',
         'handleUpdateProducerMap'
     ],
     reactions: ['createHandleAddReaction', 'createHandleDeleteReaction', 'handleListReactions'],
@@ -396,7 +397,7 @@ test('route handler inventory remains explicit and complete for all 18 domains',
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([domain, handlers]) => [domain, [...handlers].sort()]));
     assert.deepEqual(actual, expected);
-    assert.equal(Object.values(actual).flat().length, 121);
+    assert.equal(Object.values(actual).flat().length, 122);
 });
 
 test('route handlers use validated request models and named multipart parsers', () => {

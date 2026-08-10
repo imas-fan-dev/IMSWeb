@@ -17,6 +17,7 @@ import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
+import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
 import {
   AdminField,
   AdminPageHeader,
@@ -34,6 +35,7 @@ import {
 } from "~/pages/admin/producer-map/producer-map-model"
 import {
   getAdminProducerMapContent,
+  uploadAdminProducerMapImage,
   updateAdminProducerMapContent,
   type ProducerMapAdminSnapshot,
   type ProducerMapCommunity,
@@ -79,12 +81,14 @@ function OrderActions({
   label,
   index,
   total,
+  disabled,
   onMove,
   onRemove,
 }: {
   label: string
   index: number
   total: number
+  disabled: boolean
   onMove: (offset: number) => void
   onRemove: () => void
 }) {
@@ -95,7 +99,7 @@ function OrderActions({
         variant="ghost"
         size="icon"
         aria-label={`上移${label}`}
-        disabled={index === 0}
+        disabled={disabled || index === 0}
         onClick={() => onMove(-1)}
       >
         <ArrowUpIcon aria-hidden="true" />
@@ -105,7 +109,7 @@ function OrderActions({
         variant="ghost"
         size="icon"
         aria-label={`下移${label}`}
-        disabled={index === total - 1}
+        disabled={disabled || index === total - 1}
         onClick={() => onMove(1)}
       >
         <ArrowDownIcon aria-hidden="true" />
@@ -115,6 +119,7 @@ function OrderActions({
         variant="ghost"
         size="icon"
         aria-label={`删除${label}`}
+        disabled={disabled}
         onClick={onRemove}
       >
         <Trash2Icon aria-hidden="true" />
@@ -157,16 +162,44 @@ function ImageUrlEditor({
   label,
   value,
   previewAlt,
+  uploadLabel,
+  disabled,
+  onUploadingChange,
   onChange,
 }: {
   id: string
   label: string
   value: string | null
   previewAlt: string
+  uploadLabel: string
+  disabled: boolean
+  onUploadingChange: (uploading: boolean) => void
   onChange: (value: string | null) => void
 }) {
   const [failedValue, setFailedValue] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const previewFailed = Boolean(value && failedValue === value)
+
+  async function upload(file: File | null) {
+    if (!file) return
+    setUploading(true)
+    onUploadingChange(true)
+    try {
+      const result = await uploadAdminProducerMapImage(file).send()
+      setFailedValue(null)
+      onChange(result.url)
+      toast.success(`${uploadLabel}已上传，请保存更改`)
+    } catch (uploadError) {
+      toast.error(
+        uploadError instanceof Error
+          ? uploadError.message
+          : `${uploadLabel}上传失败`
+      )
+    } finally {
+      setUploading(false)
+      onUploadingChange(false)
+    }
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] lg:items-start">
@@ -186,43 +219,56 @@ function ImageUrlEditor({
           </div>
         )}
       </div>
-      <AdminField
-        label={label}
-        htmlFor={id}
-        description="公开页将使用此地址展示图片；修改后需保存更改。"
-      >
-        <input
-          id={id}
-          className={adminControlClass}
-          maxLength={500}
-          placeholder="https://… 或 /uploads/…"
-          value={value || ""}
-          onChange={(event) => onChange(event.target.value || null)}
+      <div className="space-y-4">
+        <AdminImageUploadField
+          id={`${id}-upload`}
+          name="image"
+          label={`上传${uploadLabel}`}
+          description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB；上传后请保存更改。"
+          disabled={disabled}
+          uploading={uploading}
+          resetAfterSelect
+          onSelect={(file) => void upload(file)}
         />
-        {value ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              render={<a href={value} target="_blank" rel="noreferrer" />}
-              nativeButton={false}
-            >
-              <ExternalLinkIcon data-icon="inline-start" />
-              打开原图
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onChange(null)}
-            >
-              <Trash2Icon data-icon="inline-start" />
-              清除图片
-            </Button>
-          </div>
-        ) : null}
-      </AdminField>
+        <AdminField
+          label={label}
+          htmlFor={id}
+          description="也可填写外部地址；公开页将使用当前图片地址。"
+        >
+          <input
+            id={id}
+            className={adminControlClass}
+            maxLength={500}
+            placeholder="https://… 或 /uploads/…"
+            value={value || ""}
+            onChange={(event) => onChange(event.target.value || null)}
+          />
+          {value ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                render={<a href={value} target="_blank" rel="noreferrer" />}
+                nativeButton={false}
+              >
+                <ExternalLinkIcon data-icon="inline-start" />
+                打开原图
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                onClick={() => onChange(null)}
+              >
+                <Trash2Icon data-icon="inline-start" />
+                清除图片
+              </Button>
+            </div>
+          ) : null}
+        </AdminField>
+      </div>
     </div>
   )
 }
@@ -231,6 +277,8 @@ function RegionEditor({
   region,
   index,
   total,
+  disabled,
+  onUploadingChange,
   onChange,
   onMove,
   onRemove,
@@ -238,6 +286,8 @@ function RegionEditor({
   region: ProducerMapRegion
   index: number
   total: number
+  disabled: boolean
+  onUploadingChange: (uploading: boolean) => void
   onChange: (region: ProducerMapRegion) => void
   onMove: (offset: number) => void
   onRemove: () => void
@@ -253,6 +303,7 @@ function RegionEditor({
           label={region.name || `地区 ${index + 1}`}
           index={index}
           total={total}
+          disabled={disabled}
           onMove={onMove}
           onRemove={onRemove}
         />
@@ -360,6 +411,9 @@ function RegionEditor({
         label="地区资料图片 URL"
         value={region.imageUrl}
         previewAlt={`${region.name || region.province}地区资料图片`}
+        uploadLabel="地区资料图片"
+        disabled={disabled}
+        onUploadingChange={onUploadingChange}
         onChange={(imageUrl) => onChange({ ...region, imageUrl })}
       />
     </AdminPanel>
@@ -370,6 +424,8 @@ function CommunityEditor({
   community,
   index,
   total,
+  disabled,
+  onUploadingChange,
   onChange,
   onMove,
   onRemove,
@@ -377,6 +433,8 @@ function CommunityEditor({
   community: ProducerMapCommunity
   index: number
   total: number
+  disabled: boolean
+  onUploadingChange: (uploading: boolean) => void
   onChange: (community: ProducerMapCommunity) => void
   onMove: (offset: number) => void
   onRemove: () => void
@@ -392,6 +450,7 @@ function CommunityEditor({
           label={community.name || `社群 ${index + 1}`}
           index={index}
           total={total}
+          disabled={disabled}
           onMove={onMove}
           onRemove={onRemove}
         />
@@ -509,6 +568,9 @@ function CommunityEditor({
         label="联络图片 URL"
         value={community.imageUrl}
         previewAlt={`${community.name || `社群 ${index + 1}`}联络图片`}
+        uploadLabel="联络图片"
+        disabled={disabled}
+        onUploadingChange={onUploadingChange}
         onChange={(imageUrl) => onChange({ ...community, imageUrl })}
       />
     </AdminPanel>
@@ -531,6 +593,7 @@ export function ProducerMapManager() {
   const [revision, setRevision] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [uploadingImages, setUploadingImages] = useState(0)
   onError(() => undefined)
   onSuccess((event) => {
     const snapshot = event.data as ProducerMapAdminSnapshot
@@ -546,7 +609,7 @@ export function ProducerMapManager() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!draft) return
+    if (!draft || uploadingImages > 0) return
     setSaving(true)
     try {
       const result = await updateAdminProducerMapContent(draft, revision).send()
@@ -591,6 +654,9 @@ export function ProducerMapManager() {
   const nextProvince = provinceOptions.find(
     (province) => !usedProvinces.has(province)
   )
+  const imageBusy = uploadingImages > 0
+  const setImageUploading = (uploading: boolean) =>
+    setUploadingImages((count) => Math.max(0, count + (uploading ? 1 : -1)))
 
   return (
     <form className="flex flex-col gap-8" onSubmit={save}>
@@ -613,13 +679,13 @@ export function ProducerMapManager() {
             <Button
               type="button"
               variant="outline"
-              disabled={loading || saving}
+              disabled={loading || saving || imageBusy}
               onClick={() => refresh()}
             >
               <RefreshCwIcon data-icon="inline-start" />
               重新读取
             </Button>
-            <Button type="submit" disabled={!dirty || saving}>
+            <Button type="submit" disabled={!dirty || saving || imageBusy}>
               {saving ? (
                 <LoaderCircleIcon
                   className="animate-spin"
@@ -749,7 +815,7 @@ export function ProducerMapManager() {
           <Button
             type="button"
             variant="outline"
-            disabled={!nextProvince}
+            disabled={!nextProvince || imageBusy}
             onClick={() => {
               if (!nextProvince) return
               change((content) => ({
@@ -768,6 +834,8 @@ export function ProducerMapManager() {
             region={region}
             index={index}
             total={draft.regions.length}
+            disabled={imageBusy}
+            onUploadingChange={setImageUploading}
             onChange={(next) =>
               change((content) => ({
                 ...content,
@@ -807,7 +875,7 @@ export function ProducerMapManager() {
           <Button
             type="button"
             variant="outline"
-            disabled={draft.communities.length >= 100}
+            disabled={draft.communities.length >= 100 || imageBusy}
             onClick={() =>
               change((content) => ({
                 ...content,
@@ -825,6 +893,8 @@ export function ProducerMapManager() {
             community={community}
             index={index}
             total={draft.communities.length}
+            disabled={imageBusy}
+            onUploadingChange={setImageUploading}
             onChange={(next) =>
               change((content) => ({
                 ...content,
