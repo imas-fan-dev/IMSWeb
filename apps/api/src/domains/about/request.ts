@@ -1,10 +1,14 @@
+import {
+    validateAboutPageDraft,
+    type AboutPageDraft
+} from '@/domains/about/data';
 import type { UploadedFile, UploadParser } from '@/ports/http';
 import { revisionedContentRequest } from '@/utils/validation/request-data';
 
 const MAX_ABOUT_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export interface AboutPageUpdateRequest {
-    content: unknown;
+    content: AboutPageDraft;
     revision: string | null;
 }
 
@@ -40,7 +44,11 @@ async function parseAboutImageRequest(
 }
 
 export function validateAboutPageUpdateRequest(value: unknown): AboutPageUpdateRequest {
-    return revisionedContentRequest(value, '关于页配置');
+    const request = revisionedContentRequest(value, '关于页配置');
+    return {
+        content: validateAboutPageDraft(request.content),
+        revision: request.revision
+    };
 }
 
 export function parseAboutHeroImageRequest(

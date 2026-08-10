@@ -9,30 +9,13 @@ import {
 } from '@/domains/wiki/handler-support';
 import { categoryStorageSlug, requireWikiServices } from '@/domains/wiki/service';
 import type {
+    CreateWikiCategoryRequest,
+    UpdateWikiCategoryRequest,
     WikiCategoryCreateParams,
-    WikiCategoryMutationRequest,
     WikiIdParams,
     WikiValidatedInput
 } from '@/domains/wiki/request';
 import type { WikiRouteHandler } from '@/domains/wiki/response';
-
-type JsonObject = Record<string, unknown>;
-
-function positiveId(value: string | undefined, label: string): number {
-    const id = Number(value);
-    if (!Number.isSafeInteger(id) || id <= 0) {
-        throw Object.assign(new Error(`${label} ID 无效`), { status: 400 });
-    }
-    return id;
-}
-
-function requiredText(body: JsonObject, key: string, label: string): string {
-    const value = body[key];
-    if (typeof value !== 'string' || !value.trim() || value.trim().length > 100) {
-        throw Object.assign(new Error(`${label}无效`), { status: 400 });
-    }
-    return value.trim();
-}
 
 function categoryResponse(category: {
     id: number;
@@ -56,7 +39,7 @@ export function createHandleCreateWikiCategory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
 ): WikiRouteHandler<E,
     WikiValidatedInput<'param', WikiCategoryCreateParams> &
-    WikiValidatedInput<'json', WikiCategoryMutationRequest>
+    WikiValidatedInput<'json', CreateWikiCategoryRequest>
 > {
     return async (context) => {
         const services = await resolveServices(context);
@@ -66,7 +49,7 @@ export function createHandleCreateWikiCategory<E extends Env>(
         try {
             const { agencyId, idolId } = context.req.valid('param');
             const body = context.req.valid('json');
-            const name = requiredText(body, 'name', '分类名称');
+            const name = body.name;
             const agency = await services.story!.findAgencyById(agencyId);
             const idol = await services.story!.findIdolById(idolId);
             if (!agency) throw Object.assign(new Error('企划不存在'), { status: 404 });
@@ -103,7 +86,7 @@ export function createHandleUpdateWikiCategory<E extends Env>(
     resolveServices: WikiServicesResolver<E>
 ): WikiRouteHandler<E,
     WikiValidatedInput<'param', WikiIdParams> &
-    WikiValidatedInput<'json', WikiCategoryMutationRequest>
+    WikiValidatedInput<'json', UpdateWikiCategoryRequest>
 > {
     return async (context) => {
         const services = await resolveServices(context);
@@ -113,8 +96,7 @@ export function createHandleUpdateWikiCategory<E extends Env>(
         try {
             const categoryId = context.req.valid('param').id;
             const body = context.req.valid('json');
-            const agencyId = positiveId(String(body.agencyId ?? ''), '企划');
-            const idolId = positiveId(String(body.idolId ?? ''), '内容页');
+            const { agencyId, idolId } = body;
             const agency = await services.story!.findAgencyById(agencyId);
             const idol = await services.story!.findIdolById(idolId);
             if (!agency) throw Object.assign(new Error('企划不存在'), { status: 404 });
@@ -125,8 +107,8 @@ export function createHandleUpdateWikiCategory<E extends Env>(
                 agencyId,
                 idolId,
                 id: categoryId,
-                name: requiredText(body, 'name', '分类名称'),
-                expectedName: requiredText(body, 'expectedName', '当前分类名称')
+                name: body.name,
+                expectedName: body.expectedName
             });
             if (!category) {
                 throw Object.assign(new Error('分类不属于所选内容页'), { status: 404 });

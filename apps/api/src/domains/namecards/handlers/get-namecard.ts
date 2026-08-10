@@ -1,5 +1,5 @@
 import type { AppEnvironment } from '@/app';
-import type { NamecardIdParams } from '@/domains/namecards/request';
+import type { CompatibleNamecardIdParams } from '@/domains/namecards/request';
 import type {
     NamecardDetailResponse,
     NamecardEmptyResponse
@@ -9,9 +9,10 @@ import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { resolvePublicMediaUrl } from '@/utils/storage/public-object-url';
 
 export async function handleGetNamecard(
-    c: ValidatedRequestContext<AppEnvironment, 'param', NamecardIdParams>
+    c: ValidatedRequestContext<AppEnvironment, 'param', CompatibleNamecardIdParams>
 ): Promise<Response> {
     const { id } = c.req.valid('param');
+    if (!id) return c.json({} satisfies NamecardEmptyResponse);
     try {
         const card = await namecardRepository(c).findApprovedCardMedia(id);
         if (!card) return c.json({} satisfies NamecardEmptyResponse);

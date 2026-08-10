@@ -13,6 +13,7 @@ export async function handleDeleteEvent(
     c: ValidatedRequestContext<AppEnvironment, 'param', EventIdParams>
 ): Promise<Response> {
     const { id } = c.req.valid('param');
+    if (!id) return c.json({ error: '不存在' } satisfies EventErrorResponse, 404);
     const repository = eventRepository(c);
     const media = await repository.findEventMedia(id);
     if (!media) return c.json({ error: '不存在' } satisfies EventErrorResponse, 404);

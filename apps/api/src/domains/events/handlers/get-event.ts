@@ -13,6 +13,7 @@ export async function handleGetEvent(
     c: ValidatedRequestContext<AppEnvironment, 'param', EventIdParams>
 ): Promise<Response> {
     const { id } = c.req.valid('param');
+    if (!id) return c.json({ error: '活动不存在' } satisfies EventErrorResponse, 404);
     const event = await eventRepository(c).findEvent(id);
     if (!event) return c.json({ error: '活动不存在' } satisfies EventErrorResponse, 404);
     const storage = services(c).storage;

@@ -57,8 +57,8 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         coreAuth,
         opOnly,
         coreCsrf,
-        informationCardParamValidator,
         jsonValidator(validateInformationSubmission),
+        informationCardParamValidator,
         handleUpdateInformation
     );
     app.delete(

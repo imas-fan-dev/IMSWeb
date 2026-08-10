@@ -1,6 +1,6 @@
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
-import type { NewsIdParams } from '@/domains/news/request';
+import type { CompatibleNewsDeleteParams } from '@/domains/news/request';
 import type { NewsMutationSuccessResponse } from '@/domains/news/response';
 import { newsRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
@@ -8,7 +8,7 @@ import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleDeleteNews(
-    c: ValidatedRequestContext<AppEnvironment, 'param', NewsIdParams>
+    c: ValidatedRequestContext<AppEnvironment, 'param', CompatibleNewsDeleteParams>
 ): Promise<Response> {
     const { id } = c.req.valid('param');
     const media = await newsRepository(c).findNewsMedia(id);

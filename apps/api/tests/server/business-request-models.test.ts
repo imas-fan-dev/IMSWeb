@@ -11,10 +11,12 @@ import {
     validateNamecardListQuery
 } from '@/domains/namecards/request';
 import {
+    validateCompatibleNewsDeleteParams,
     validateNewsIdParams,
     validateNewsListQuery
 } from '@/domains/news/request';
 import { validateNewsSubmission } from '@/domains/news/submission';
+import { validateWikiAgencyIdParams } from '@/domains/wiki/request';
 import { encodeDescendingIdCursor } from '@/utils/validation/descending-id-cursor';
 
 function rejects(run: () => unknown, message: RegExp): void {
@@ -27,7 +29,8 @@ function rejects(run: () => unknown, message: RegExp): void {
 
 test('event request models normalize valid fields and reject ambiguous values', () => {
     assert.deepEqual(validateEventIdParams({ id: '42' }), { id: 42 });
-    rejects(() => validateEventIdParams({ id: '01' }), /活动 ID/);
+    assert.deepEqual(validateEventIdParams({ id: '01' }), { id: 1 });
+    assert.deepEqual(validateEventIdParams({ id: 'not-an-id' }), { id: null });
     assert.deepEqual(validateEventFields({
         title: '  社区活动  ',
         name: '  IMSWeb  ',
@@ -54,6 +57,11 @@ test('event request models normalize valid fields and reject ambiguous values', 
 test('news request models validate IDs, cursors, URLs, and normalized text', () => {
     assert.deepEqual(validateNewsIdParams({ id: '7' }), { id: 7 });
     rejects(() => validateNewsIdParams({ id: 'not-a-number' }), /资讯 ID/);
+    assert.equal(Number.isNaN(
+        validateCompatibleNewsDeleteParams({ id: 'not-a-number' }).id
+    ), true);
+    assert.deepEqual(validateCompatibleNewsDeleteParams({ id: '01' }), { id: 1 });
+    assert.deepEqual(validateCompatibleNewsDeleteParams({ id: '1e1' }), { id: 10 });
     assert.deepEqual(validateNewsListQuery({}), { mode: 'legacy' });
     const cursorValue = encodeDescendingIdCursor({ snapshotId: '10', afterId: '8' });
     assert.deepEqual(validateNewsListQuery({ limit: '5', cursor: cursorValue }), {
@@ -73,7 +81,7 @@ test('news request models validate IDs, cursors, URLs, and normalized text', () 
         /标题或链接/);
 });
 
-test('namecard request models enforce canonical IDs and bounded pagination', () => {
+test('namecard request models enforce IDs and preserve legacy parseInt pagination', () => {
     assert.deepEqual(validateNamecardIdParams({ id: '9' }), { id: 9 });
     rejects(() => validateNamecardIdParams({ id: '-1' }), /名片 ID/);
     assert.deepEqual(validateNamecardListQuery({}), { page: 1, size: 25 });
@@ -81,7 +89,31 @@ test('namecard request models enforce canonical IDs and bounded pagination', () 
         page: 3,
         size: 12
     });
-    assert.deepEqual(validateAdminNamecardListQuery({ page: '4' }), { page: 4 });
-    rejects(() => validateNamecardListQuery({ size: '101' }), /size/);
-    rejects(() => validateAdminNamecardListQuery({ page: '3x' }), /page/);
+    assert.deepEqual(validateNamecardListQuery({ page: 'abc', size: 'abc' }), {
+        page: 1,
+        size: 25
+    });
+    assert.deepEqual(validateNamecardListQuery({ page: '0', size: '0' }), {
+        page: 1,
+        size: 25
+    });
+    assert.deepEqual(validateNamecardListQuery({ page: '1foo', size: '1foo' }), {
+        page: 1,
+        size: 1
+    });
+    assert.deepEqual(validateNamecardListQuery({ page: '101', size: '101' }), {
+        page: 101,
+        size: 101
+    });
+    assert.deepEqual(validateAdminNamecardListQuery({ page: 'abc' }), { page: 1 });
+    assert.deepEqual(validateAdminNamecardListQuery({ page: '0' }), { page: 1 });
+    assert.deepEqual(validateAdminNamecardListQuery({ page: '1foo' }), { page: 1 });
+    assert.deepEqual(validateAdminNamecardListQuery({ page: '101' }), { page: 101 });
+});
+
+test('Wiki shared numeric params preserve Number aliases and reject non-positive IDs', () => {
+    assert.deepEqual(validateWikiAgencyIdParams({ agencyId: '01' }), { id: 1 });
+    assert.deepEqual(validateWikiAgencyIdParams({ agencyId: '1e1' }), { id: 10 });
+    rejects(() => validateWikiAgencyIdParams({ agencyId: 'not-an-id' }), /企划 ID/);
+    rejects(() => validateWikiAgencyIdParams({ agencyId: '0' }), /企划 ID/);
 });

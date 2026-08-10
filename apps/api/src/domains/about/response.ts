@@ -39,12 +39,14 @@ export interface AboutPageContentResponse {
 export type AboutPublicContentResponse = AboutPageContentResponse;
 
 export interface AboutAdminContentResponse {
-    content: AboutPageContentResponse;
+    content: AboutPageContentResponse | null;
     revision: string | null;
 }
 
-export interface AboutUpdateSuccessResponse extends AboutAdminContentResponse {
+export interface AboutUpdateSuccessResponse {
     success: true;
+    content: AboutPageContentResponse;
+    revision: string;
 }
 
 export interface AboutMutationErrorResponse {

@@ -1,9 +1,9 @@
 import {
-    defaultAboutPageContent,
     parseAboutPageContent,
     serializeAboutPageContent,
     validateAboutPageDraft,
-    type AboutPageContent
+    type AboutPageContent,
+    type AboutPageDraft
 } from '@/domains/about/data';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { ABOUT_PAGE_OBJECT_KEY } from '@/utils/storage/business-object-keys';
@@ -11,22 +11,27 @@ import { ABOUT_PAGE_OBJECT_KEY } from '@/utils/storage/business-object-keys';
 const CONTENT_TYPE = 'application/json; charset=utf-8';
 
 export interface AboutPageSnapshot {
-    content: AboutPageContent;
+    content: AboutPageContent | null;
     revision: string | null;
+}
+
+export interface SavedAboutPageSnapshot extends AboutPageSnapshot {
+    content: AboutPageContent;
+    revision: string;
 }
 
 export async function readAboutPageContent(storage: ObjectStorage): Promise<AboutPageSnapshot> {
     const object = await storage.get(ABOUT_PAGE_OBJECT_KEY);
     return object
         ? { content: parseAboutPageContent(object.body), revision: object.etag }
-        : { content: defaultAboutPageContent(), revision: null };
+        : { content: null, revision: null };
 }
 
 export async function saveAboutPageContent(
     storage: ObjectStorage,
-    value: unknown,
+    value: AboutPageDraft,
     expectedRevision: string | null
-): Promise<AboutPageSnapshot> {
+): Promise<SavedAboutPageSnapshot> {
     const current = await readAboutPageContent(storage);
     if (current.revision !== expectedRevision) {
         throw Object.assign(new Error('关于页已被其他管理员更新，请刷新后重试'), { status: 409 });

@@ -18,6 +18,10 @@ export interface NewsIdParams {
     id: number;
 }
 
+export interface CompatibleNewsDeleteParams {
+    id: number;
+}
+
 export type NewsListQuery =
     | { mode: 'legacy' }
     | { mode: 'cursor'; limit: number; cursor: DescendingIdCursor | null };
@@ -27,6 +31,14 @@ export function validateNewsIdParams(value: unknown): NewsIdParams {
     const id = canonicalPositiveInteger(params.id);
     if (!id) invalidRequest('资讯 ID 无效');
     return { id };
+}
+
+export function validateCompatibleNewsDeleteParams(
+    value: unknown
+): CompatibleNewsDeleteParams {
+    const params = requestRecord(value, '资讯 ID 无效');
+    // DELETE historically forwards Number coercions, including NaN, to the handler.
+    return { id: Number(params.id) };
 }
 
 export function validateNewsListQuery(value: unknown): NewsListQuery {

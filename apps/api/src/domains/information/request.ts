@@ -5,7 +5,6 @@ import {
     oneInformationFile,
     type InformationSubmission
 } from '@/domains/information/content-store';
-import { informationCardId } from '@/domains/information/data';
 import { services } from '@/middleware/hono-context';
 import type { ValidatedRequestInput } from '@/middleware/request-validation';
 import type { UploadedFile } from '@/ports/http';
@@ -35,8 +34,7 @@ export type UpdateInformationRequestContext = Context<
 
 export function validateInformationCardParams(value: unknown): InformationCardParams {
     const params = requestRecord(value, '活动内容 ID 无效');
-    if (!informationCardId(params.id)) invalidRequest('活动内容 ID 无效');
-    return { id: params.id };
+    return { id: String(params.id ?? '') };
 }
 
 export async function parseUploadInformationAssetRequest(

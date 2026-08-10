@@ -80,8 +80,9 @@ function content(): ProducerMapContent {
   }
 }
 
-function jsonResponse(payload: unknown) {
+function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
+    status,
     headers: { "content-type": "application/json" },
   })
 }
@@ -175,6 +176,22 @@ describe("ProducerMapPage", () => {
 
     expect(await screen.findByText("制作人地图暂时无法显示")).toBeVisible()
     expect(screen.getByRole("button", { name: "重新加载" })).toBeVisible()
+  })
+
+  it("renders an unpublished state when no Producer Map content exists", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        requestPath(input) === "/api/producer-map"
+          ? jsonResponse({ error: "制作人地图尚未配置" }, 404)
+          : jsonResponse(geometry())
+      )
+    )
+
+    render(<ProducerMapPage />)
+
+    expect(await screen.findByText("制作人地图尚未发布")).toBeVisible()
+    expect(screen.getByText("制作人地图尚未配置")).toBeVisible()
   })
 
   it("starts content and geometry requests before either response settles", async () => {

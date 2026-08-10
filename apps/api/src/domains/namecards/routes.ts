@@ -7,13 +7,13 @@ import { handleListNamecards } from '@/domains/namecards/handlers/list-namecards
 import { handleUploadNamecard } from '@/domains/namecards/handlers/upload-namecard';
 import {
     validateAdminNamecardListQuery,
-    validateNamecardIdParams,
+    validateCompatibleNamecardIdParams,
     validateNamecardListQuery
 } from '@/domains/namecards/request';
 import { coreAuth, coreCsrf, opOnly } from '@/middleware/hono-auth';
 import { paramValidator, queryValidator } from '@/middleware/request-validation';
 
-const namecardIdValidator = paramValidator(validateNamecardIdParams);
+const namecardIdValidator = paramValidator(validateCompatibleNamecardIdParams);
 
 export function registerNamecardRoutes(app: ImsHonoApp): void {
     app.post('/api/uploadNameCard', handleUploadNamecard);

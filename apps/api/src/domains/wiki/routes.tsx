@@ -62,17 +62,28 @@ import {
   queryValidator,
 } from "@/middleware/request-validation";
 import {
+  validateCreateWikiAgencyRequest,
+  validateCreateWikiCategoryRequest,
+  validateCreateWikiContentTypeRequest,
+  validateCreateWikiGroupRequest,
+  validateCreateWikiIdolRequest,
+  validateCreateWikiSourcePlatformRequest,
+  validateDeleteWikiAgencyIconRequest,
+  validateDeleteWikiIdolMediaRequest,
+  validateUpdateWikiAgencyRequest,
+  validateUpdateWikiCategoryRequest,
+  validateUpdateWikiContentTypeRequest,
+  validateUpdateWikiGroupRequest,
+  validateUpdateWikiIdolRequest,
+  validateUpdateWikiSourcePlatformRequest,
   validateWikiAssetParams,
   validateWikiAgencyIdParams,
   validateWikiAssetIdParams,
   validateWikiBilibiliRequest,
   validateWikiCardIdParams,
-  validateWikiCatalogMutationRequest,
   validateWikiCatalogQuery,
   validateWikiCategoryCreateParams,
   validateWikiCategoryIdParams,
-  validateWikiCategoryMutationRequest,
-  validateWikiDeleteMediaRequest,
   validateWikiGroupIdParams,
   validateWikiIdolIdParams,
   validateWikiLayoutRequest,
@@ -80,9 +91,9 @@ import {
   validateWikiMediaGroupIdParams,
   validateWikiMediaIdolIdParams,
   validateWikiOptionIdParams,
+  validateWikiRevisionRequest,
   validateWikiStoriesQuery,
   validateWikiStoryIdParams,
-  validateWikiStoryCatalogMutationRequest,
   validateWikiStoryLinkQuery,
   validateWikiStorySourcesRequest,
   wikiValidationErrorBody,
@@ -98,22 +109,6 @@ export function registerWikiRoutes<E extends Env>(
     malformedMessage: "请求内容不是有效 JSON",
     errorBody: wikiValidationErrorBody,
   };
-  const catalogJson = jsonValidator(
-    validateWikiCatalogMutationRequest,
-    jsonOptions,
-  );
-  const categoryJson = jsonValidator(
-    validateWikiCategoryMutationRequest,
-    jsonOptions,
-  );
-  const deleteMediaJson = jsonValidator(
-    validateWikiDeleteMediaRequest,
-    jsonOptions,
-  );
-  const sourceCatalogJson = jsonValidator(
-    validateWikiStoryCatalogMutationRequest,
-    jsonOptions,
-  );
   const assetParam = paramValidator(validateWikiAssetParams, {
     errorBody: wikiValidationErrorBody,
   });
@@ -192,13 +187,13 @@ export function registerWikiRoutes<E extends Env>(
   );
   app.post(
     "/api/admin/wiki/story-content-types",
-    sourceCatalogJson,
+    jsonValidator(validateCreateWikiContentTypeRequest, jsonOptions),
     createHandleCreateWikiStoryCatalogOption(resolveServices, "content-type"),
   );
   app.patch(
     "/api/admin/wiki/story-content-types/:optionId",
     paramValidator(validateWikiOptionIdParams, { errorBody: wikiValidationErrorBody }),
-    sourceCatalogJson,
+    jsonValidator(validateUpdateWikiContentTypeRequest, jsonOptions),
     createHandleUpdateWikiStoryCatalogOption(resolveServices, "content-type"),
   );
   app.delete(
@@ -208,7 +203,7 @@ export function registerWikiRoutes<E extends Env>(
   );
   app.post(
     "/api/admin/wiki/story-source-platforms",
-    sourceCatalogJson,
+    jsonValidator(validateCreateWikiSourcePlatformRequest, jsonOptions),
     createHandleCreateWikiStoryCatalogOption(
       resolveServices,
       "source-platform",
@@ -217,7 +212,7 @@ export function registerWikiRoutes<E extends Env>(
   app.patch(
     "/api/admin/wiki/story-source-platforms/:optionId",
     paramValidator(validateWikiOptionIdParams, { errorBody: wikiValidationErrorBody }),
-    sourceCatalogJson,
+    jsonValidator(validateUpdateWikiSourcePlatformRequest, jsonOptions),
     createHandleUpdateWikiStoryCatalogOption(
       resolveServices,
       "source-platform",
@@ -233,49 +228,49 @@ export function registerWikiRoutes<E extends Env>(
   );
   app.post(
     "/api/admin/wiki/agencies",
-    catalogJson,
+    jsonValidator(validateCreateWikiAgencyRequest, jsonOptions),
     createHandleCreateWikiAgency(resolveServices),
   );
   app.patch(
     "/api/admin/wiki/agencies/:agencyId",
     paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
-    catalogJson,
+    jsonValidator(validateUpdateWikiAgencyRequest, jsonOptions),
     createHandleUpdateWikiAgency(resolveServices),
   );
   app.post(
     "/api/admin/wiki/agencies/:agencyId/groups",
     paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
-    catalogJson,
+    jsonValidator(validateCreateWikiGroupRequest, jsonOptions),
     createHandleCreateWikiGroup(resolveServices),
   );
   app.patch(
     "/api/admin/wiki/groups/:groupId",
     paramValidator(validateWikiGroupIdParams, { errorBody: wikiValidationErrorBody }),
-    catalogJson,
+    jsonValidator(validateUpdateWikiGroupRequest, jsonOptions),
     createHandleUpdateWikiGroup(resolveServices),
   );
   app.delete(
     "/api/admin/wiki/groups/:groupId",
     paramValidator(validateWikiGroupIdParams, { errorBody: wikiValidationErrorBody }),
-    catalogJson,
+    jsonValidator(validateWikiRevisionRequest, jsonOptions),
     createHandleDeleteWikiGroup(resolveServices),
   );
   app.post(
     "/api/admin/wiki/agencies/:agencyId/idols",
     paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
-    catalogJson,
+    jsonValidator(validateCreateWikiIdolRequest, jsonOptions),
     createHandleCreateWikiIdol(resolveServices),
   );
   app.patch(
     "/api/admin/wiki/idols/:idolId",
     paramValidator(validateWikiIdolIdParams, { errorBody: wikiValidationErrorBody }),
-    catalogJson,
+    jsonValidator(validateUpdateWikiIdolRequest, jsonOptions),
     createHandleUpdateWikiIdol(resolveServices),
   );
   app.delete(
     "/api/admin/wiki/idols/:idolId",
     paramValidator(validateWikiIdolIdParams, { errorBody: wikiValidationErrorBody }),
-    catalogJson,
+    jsonValidator(validateWikiRevisionRequest, jsonOptions),
     createHandleDeleteWikiIdol(resolveServices),
   );
   app.put(
@@ -292,7 +287,7 @@ export function registerWikiRoutes<E extends Env>(
   app.patch(
     "/api/admin/wiki/categories/:categoryId",
     paramValidator(validateWikiCategoryIdParams, { errorBody: wikiValidationErrorBody }),
-    categoryJson,
+    jsonValidator(validateUpdateWikiCategoryRequest, jsonOptions),
     createHandleUpdateWikiCategory(resolveServices),
   );
   app.post(
@@ -300,7 +295,7 @@ export function registerWikiRoutes<E extends Env>(
     paramValidator(validateWikiCategoryCreateParams, {
       errorBody: wikiValidationErrorBody,
     }),
-    categoryJson,
+    jsonValidator(validateCreateWikiCategoryRequest, jsonOptions),
     createHandleCreateWikiCategory(resolveServices),
   );
   app.patch(
@@ -335,7 +330,7 @@ export function registerWikiRoutes<E extends Env>(
   app.delete(
     "/api/wiki/agency-icon",
     writeAuthorization,
-    deleteMediaJson,
+    jsonValidator(validateDeleteWikiAgencyIconRequest, jsonOptions),
     createHandleDeleteWikiAgencyIcon(resolveServices),
   );
   app.post(
@@ -345,7 +340,7 @@ export function registerWikiRoutes<E extends Env>(
   app.delete(
     "/api/wiki/idol-media",
     writeAuthorization,
-    deleteMediaJson,
+    jsonValidator(validateDeleteWikiIdolMediaRequest, jsonOptions),
     createHandleDeleteWikiIdolMedia(resolveServices),
   );
   app.post("/api/wiki/add_story", createHandleAddWikiStory(resolveServices));

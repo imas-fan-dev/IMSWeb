@@ -801,8 +801,8 @@ async function assertCoreMutationContract(fixture) {
             method: 'DELETE',
             headers: auth
         }),
-        400,
-        { error: '资讯 ID 无效' },
+        500,
+        { error: 'Internal server error' },
         `${fixture.runtime} invalid news deletion id`
     );
     deepEqual(await fixture.snapshot(), afterLogin,
@@ -881,14 +881,19 @@ async function assertCoreMutationContract(fixture) {
     const afterNamecard = await fixture.snapshot();
     equal(afterNamecard.cards, afterNews.cards + 1, `${fixture.runtime} namecard row committed`);
 
-    await assertJsonResponse(
-        await fixture.request('/api/cards?page=1x&size=101'),
-        400,
-        { error: 'page must be an integer between 1 and 100' },
-        `${fixture.runtime} invalid namecard pagination`
+    const legacyNamecardPagination = await fixture.request('/api/cards?page=1x&size=101');
+    equal(legacyNamecardPagination.status, 200,
+        `${fixture.runtime} legacy namecard pagination status`);
+    const legacyNamecardPage = await json(
+        legacyNamecardPagination,
+        `${fixture.runtime} legacy namecard pagination`
     );
+    equal(Array.isArray(legacyNamecardPage.list), true,
+        `${fixture.runtime} legacy namecard pagination list`);
+    equal(legacyNamecardPage.totalPage, Math.ceil(legacyNamecardPage.total / 101),
+        `${fixture.runtime} legacy namecard pagination size alias`);
     deepEqual(await fixture.snapshot(), afterNamecard,
-        `${fixture.runtime} invalid namecard pagination has no side effects`);
+        `${fixture.runtime} legacy namecard pagination has no side effects`);
 
     fixture.setUpload({
         fields: {},

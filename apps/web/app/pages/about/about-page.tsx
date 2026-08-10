@@ -5,7 +5,7 @@ import type { CSSProperties } from "react"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
-import { getAboutPageContent } from "~/lib/api"
+import { getAboutPageContent, isApiError } from "~/lib/api"
 import type { AboutGroup, AboutPerson } from "~/lib/api"
 
 const groupAccents = [
@@ -202,16 +202,23 @@ export default function About() {
   if (loading && !data) return <AboutLoading />
 
   if (error || !data) {
+    const unconfigured = isApiError(error) && error.status === 404
     return (
       <main
         id="main-content"
         className="mx-auto flex min-h-[65svh] w-full max-w-3xl items-center px-4 py-16 sm:px-6"
       >
-        <Alert variant="destructive">
-          <AlertTitle>关于本站暂时无法显示</AlertTitle>
+        <Alert variant={unconfigured ? "default" : "destructive"}>
+          <AlertTitle>
+            {unconfigured ? "关于本站尚未发布" : "关于本站暂时无法显示"}
+          </AlertTitle>
           <AlertDescription className="mt-2 flex flex-col items-start gap-4">
             <span>{error?.message || "未能读取关于页配置。"}</span>
-            <Button type="button" variant="outline" onClick={() => refresh()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void refresh().catch(() => undefined)}
+            >
               <RefreshCwIcon data-icon="inline-start" />
               重新加载
             </Button>

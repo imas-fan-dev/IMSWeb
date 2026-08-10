@@ -22,68 +22,24 @@ import type {
 import type { WikiRouteHandler } from '@/domains/wiki/response';
 
 type CatalogKind = 'content-type' | 'source-platform';
-type JsonObject = Record<string, unknown>;
-
-function requiredText(value: unknown, label: string, maximumLength: number): string {
-    if (typeof value !== 'string' || !value.trim() || value.trim().length > maximumLength) {
-        throw Object.assign(new Error(`${label}无效`), { status: 400 });
-    }
-    return value.trim();
-}
-
-function optionalText(value: unknown, label: string, maximumLength: number): string {
-    if (value === undefined || value === null) return '';
-    if (typeof value !== 'string' || value.trim().length > maximumLength) {
-        throw Object.assign(new Error(`${label}无效`), { status: 400 });
-    }
-    return value.trim();
-}
-
-function activeValue(value: unknown): boolean {
-    if (value === undefined) return true;
-    if (typeof value !== 'boolean') {
-        throw Object.assign(new Error('启用状态无效'), { status: 400 });
-    }
-    return value;
-}
-
-function expectedRevision(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-        throw Object.assign(new Error('expectedRevision 必须是非负整数'), { status: 400 });
-    }
-    return value;
-}
-
-function catalogInput(body: JsonObject): WikiStoryCatalogOptionInput {
+function catalogInput(body: WikiStoryCatalogMutationRequest): WikiStoryCatalogOptionInput {
     return {
-        name: requiredText(body.name, '名称', 80),
-        description: optionalText(body.description, '说明', 240),
-        isActive: activeValue(body.isActive)
+        name: body.name,
+        description: body.description,
+        isActive: body.isActive
     };
 }
 
-function contentTypeInput(body: JsonObject): WikiStoryContentTypeInput {
-    const iconName = requiredText(body.iconName, '图标', 80);
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(iconName)) {
-        throw Object.assign(new Error('图标无效'), { status: 400 });
-    }
-    return { ...catalogInput(body), iconName };
+function contentTypeInput(
+    body: WikiStoryCatalogMutationRequest
+): WikiStoryContentTypeInput {
+    return { ...catalogInput(body), iconName: body.iconName! };
 }
 
-function sourcePlatformInput(body: JsonObject): WikiStorySourcePlatformInput {
-    const homepageUrl = optionalText(body.homepageUrl, '主页链接', 2048);
-    if (homepageUrl) {
-        let parsed: URL;
-        try {
-            parsed = new URL(homepageUrl);
-        } catch {
-            throw Object.assign(new Error('主页链接无效'), { status: 400 });
-        }
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-            throw Object.assign(new Error('主页链接仅支持 HTTP 或 HTTPS'), { status: 400 });
-        }
-    }
-    return { ...catalogInput(body), homepageUrl };
+function sourcePlatformInput(
+    body: WikiStoryCatalogMutationRequest
+): WikiStorySourcePlatformInput {
+    return { ...catalogInput(body), homepageUrl: body.homepageUrl! };
 }
 
 type PublicCatalogOptionRecord = {
@@ -198,12 +154,12 @@ export function createHandleUpdateWikiStoryCatalogOption<E extends Env>(
             const result = kind === 'content-type'
                 ? await services.story!.updateStoryContentType(
                     id,
-                    expectedRevision(body.expectedRevision),
+                    body.expectedRevision!,
                     contentTypeInput(body)
                 )
                 : await services.story!.updateStorySourcePlatform(
                     id,
-                    expectedRevision(body.expectedRevision),
+                    body.expectedRevision!,
                     sourcePlatformInput(body)
                 );
             if (!result) return wikiJson(wikiErrorBody('目录项不存在'), 404);

@@ -41,14 +41,16 @@ export interface ProducerMapContentResponse {
 export type ProducerMapPublicReadResponse = ProducerMapContentResponse;
 
 export interface ProducerMapRevisionResponse {
-    content: ProducerMapContentResponse;
+    content: ProducerMapContentResponse | null;
     revision: string | null;
 }
 
 export type ProducerMapAdminReadResponse = ProducerMapRevisionResponse;
 
-export interface ProducerMapUpdateSuccessResponse extends ProducerMapRevisionResponse {
+export interface ProducerMapUpdateSuccessResponse {
     success: true;
+    content: ProducerMapContentResponse;
+    revision: string;
 }
 
 export interface ProducerMapMutationErrorResponse {

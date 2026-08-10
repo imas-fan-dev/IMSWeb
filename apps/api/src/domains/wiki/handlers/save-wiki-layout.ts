@@ -29,30 +29,10 @@ export function createHandleSaveWikiLayout<E extends Env>(
         try {
             const agencyId = context.req.valid('param').id;
             const body = context.req.valid('json');
-            if (!Number.isSafeInteger(agencyId) || agencyId <= 0 ||
-                !Number.isSafeInteger(body.expectedRevision) ||
-                Number(body.expectedRevision) < 0 || !Array.isArray(body.groups)) {
-                return wikiJson(wikiErrorBody('布局参数无效'), 400);
-            }
-            const groups = body.groups.map((value) => {
-                if (!value || typeof value !== 'object') {
-                    throw Object.assign(new Error('布局分组无效'), { status: 400 });
-                }
-                const record = value as Record<string, unknown>;
-                const id = Number(record.id);
-                if (!Number.isSafeInteger(id) || id <= 0 || !Array.isArray(record.idolIds)) {
-                    throw Object.assign(new Error('布局分组无效'), { status: 400 });
-                }
-                const idolIds = record.idolIds.map(Number);
-                if (idolIds.some((idolId) => !Number.isSafeInteger(idolId) || idolId <= 0)) {
-                    throw Object.assign(new Error('布局成员无效'), { status: 400 });
-                }
-                return { id, idolIds };
-            });
             const result = await services.story!.saveWikiLayout({
                 agencyId,
-                expectedRevision: Number(body.expectedRevision),
-                groups
+                expectedRevision: body.expectedRevision,
+                groups: body.groups
             });
             if (result.status === 'conflict') {
                 return wikiJson({

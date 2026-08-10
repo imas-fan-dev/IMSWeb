@@ -312,6 +312,71 @@ function identifierCount(source: string, identifier: string): number {
     return [...maskNonCode(source).matchAll(new RegExp(`\\b${escaped}\\b`, 'g'))].length;
 }
 
+function domainSourceFiles(directory: string): string[] {
+    const files: string[] = [];
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const filename = path.join(directory, entry.name);
+        if (entry.isDirectory()) files.push(...domainSourceFiles(filename));
+        if (entry.isFile() && /\.tsx?$/.test(entry.name)) files.push(filename);
+    }
+    return files;
+}
+
+function matchingDelimiter(
+    source: string,
+    opening: number,
+    openCharacter: string,
+    closeCharacter: string
+): number {
+    let depth = 0;
+    for (let index = opening; index < source.length; index += 1) {
+        if (source[index] === openCharacter) depth += 1;
+        if (source[index] !== closeCharacter) continue;
+        depth -= 1;
+        if (depth === 0) return index;
+    }
+    return -1;
+}
+
+function typeAliasEnd(source: string, start: number): number {
+    let braces = 0;
+    let brackets = 0;
+    let parentheses = 0;
+    for (let index = start; index < source.length; index += 1) {
+        if (source[index] === '{') braces += 1;
+        else if (source[index] === '}') braces -= 1;
+        else if (source[index] === '[') brackets += 1;
+        else if (source[index] === ']') brackets -= 1;
+        else if (source[index] === '(') parentheses += 1;
+        else if (source[index] === ')') parentheses -= 1;
+        else if (source[index] === ';' && braces === 0 && brackets === 0 && parentheses === 0) {
+            return index;
+        }
+    }
+    return source.length;
+}
+
+function parameterNames(parameters: string): string[] {
+    return [...parameters.matchAll(/(?:^|,)\s*([A-Za-z_$][\w$]*)\s*(?:\?|):/g)]
+        .map((match) => match[1]);
+}
+
+function isUnvalidatedRecordBody(body: string, parameters: readonly string[]): boolean {
+    const directInput = parameters.length
+        ? `(?:${parameters.map((name) => name.replace(/[$]/g, '\\$&')).join('|')})`
+        : '(?!)';
+    return new RegExp(
+        `^\\s*return\\s+(?:${directInput}\\s*|(?:jsonObject|record|requestRecord)\\s*\\([\\s\\S]*\\))\\s*;\\s*$`
+    ).test(body);
+}
+
+function constValidatorOutput(declaration: string): string | null {
+    const implemented = /\)\s*:\s*([^=]+?)\s*=>/.exec(declaration);
+    if (implemented) return implemented[1];
+    const declared = /\)\s*=>\s*([^;]+)\s*;?\s*$/.exec(declaration);
+    return declared?.[1] ?? null;
+}
+
 test('route handler inventory remains explicit and complete for all 18 domains', () => {
     const actual: Record<string, string[]> = {};
     for (const domain of Object.keys(expectedRouteHandlers).sort()) {
@@ -413,4 +478,72 @@ test('route handlers adopt field-level JSON DTOs or explicit non-JSON response b
     }
     const uniqueFailures = [...new Set(failures)];
     assert.equal(uniqueFailures.length, 0, `Response model contract failures:\n${uniqueFailures.join('\n')}`);
+});
+
+test('exported request contracts define concrete validated fields across all domains', () => {
+    const failures: string[] = [];
+    for (const domain of Object.keys(expectedRouteHandlers)) {
+        for (const filename of domainSourceFiles(path.join(domainRoot, domain))) {
+            const source = fs.readFileSync(filename, 'utf8');
+            const code = maskNonCode(source);
+            const label = path.relative(domainRoot, filename);
+            const interfacePattern = /\bexport\s+interface\s+([A-Za-z_$][\w$]*Request)\b/g;
+            for (const match of code.matchAll(interfacePattern)) {
+                const opening = code.indexOf('{', match.index + match[0].length);
+                const closing = matchingDelimiter(code, opening, '{', '}');
+                const declaration = code.slice(match.index, closing + 1);
+                if (/\bunknown\b/.test(declaration)) {
+                    failures.push(
+                        `${label}/${match[1]}: request DTO cannot expose unknown fields`
+                    );
+                }
+            }
+            const typePattern = /\bexport\s+type\s+([A-Za-z_$][\w$]*Request)\b/g;
+            for (const match of code.matchAll(typePattern)) {
+                const equals = code.indexOf('=', match.index + match[0].length);
+                const end = typeAliasEnd(code, equals + 1);
+                if (/\bunknown\b/.test(code.slice(equals + 1, end))) {
+                    failures.push(
+                        `${label}/${match[1]}: request DTO cannot expose unknown fields`
+                    );
+                }
+            }
+            const validatorPattern = /\bexport\s+(?:async\s+)?function\s+((?:validate|parse)[A-Za-z0-9]+Request)\b/g;
+            for (const match of code.matchAll(validatorPattern)) {
+                const parameterOpening = code.indexOf('(', match.index + match[0].length);
+                const parameterClosing = matchingDelimiter(code, parameterOpening, '(', ')');
+                const bodyOpening = code.indexOf('{', parameterClosing + 1);
+                const bodyClosing = matchingDelimiter(code, bodyOpening, '{', '}');
+                const output = code.slice(parameterClosing + 1, bodyOpening);
+                if (!/^\s*:/.test(output)) {
+                    failures.push(`${label}/${match[1]}: validator output must be explicit`);
+                } else if (/\bunknown\b/.test(output)) {
+                    failures.push(
+                        `${label}/${match[1]}: validator output cannot expose unknown fields`
+                    );
+                }
+                const parameters = parameterNames(code.slice(parameterOpening + 1, parameterClosing));
+                if (isUnvalidatedRecordBody(code.slice(bodyOpening + 1, bodyClosing), parameters)) {
+                    failures.push(`${label}/${match[1]}: validator cannot return an unvalidated input record`);
+                }
+            }
+            const constValidatorPattern = /\bexport\s+const\s+((?:validate|parse)[A-Za-z0-9]+Request)\b/g;
+            for (const match of code.matchAll(constValidatorPattern)) {
+                const end = typeAliasEnd(code, match.index + match[0].length);
+                const declaration = code.slice(match.index, end + 1);
+                const output = constValidatorOutput(declaration);
+                if (!output) {
+                    failures.push(`${label}/${match[1]}: validator output must be explicit`);
+                } else if (/\bunknown\b/.test(output)) {
+                    failures.push(
+                        `${label}/${match[1]}: validator output cannot expose unknown fields`
+                    );
+                }
+                if (/=>\s*(?:jsonObject|record|requestRecord)\s*\(/.test(declaration)) {
+                    failures.push(`${label}/${match[1]}: validator cannot return an unvalidated input record`);
+                }
+            }
+        }
+    }
+    assert.equal(failures.length, 0, `Request DTO contract failures:\n${failures.join('\n')}`);
 });

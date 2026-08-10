@@ -4,7 +4,7 @@ import { handleDeleteNews } from '@/domains/news/handlers/delete-news';
 import { handleListAdminNews } from '@/domains/news/handlers/list-admin-news';
 import { handleListPublicNews } from '@/domains/news/handlers/list-public-news';
 import {
-    validateNewsIdParams,
+    validateCompatibleNewsDeleteParams,
     validateNewsListQuery
 } from '@/domains/news/request';
 import { coreAuth, coreCsrf, opOnly } from '@/middleware/hono-auth';
@@ -19,7 +19,7 @@ export function registerNewsRoutes(app: ImsHonoApp): void {
         coreAuth,
         opOnly,
         coreCsrf,
-        paramValidator(validateNewsIdParams),
+        paramValidator(validateCompatibleNewsDeleteParams),
         handleDeleteNews
     );
 }

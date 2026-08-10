@@ -3,20 +3,23 @@ import type { AppEnvironment } from '@/app';
 import { services } from '@/middleware/hono-context';
 import type { UploadedFile } from '@/ports/http';
 import {
-    boundedPositiveInteger,
-    canonicalPositiveInteger
+    canonicalPositiveInteger,
+    positiveInteger
 } from '@/utils/validation/number';
 import {
     invalidRequest,
     requestRecord
 } from '@/utils/validation/request-data';
 
-const MAX_PAGE_VALUE = 100;
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_UPLOAD_BYTES = 6 * 1024 * 1024 + 128 * 1024;
 
 export interface NamecardIdParams {
+    id: number;
+}
+
+export interface CompatibleNamecardIdParams {
     id: number;
 }
 
@@ -33,11 +36,8 @@ export interface UploadNamecardRequest {
     images: UploadedFile[];
 }
 
-function paginationValue(value: unknown, fallback: number, field: string): number {
-    if (value === undefined) return fallback;
-    const parsed = boundedPositiveInteger(value, MAX_PAGE_VALUE);
-    if (!parsed) invalidRequest(`${field} must be an integer between 1 and 100`);
-    return parsed;
+function legacyPaginationValue(value: unknown, fallback: number): number {
+    return Number.parseInt((value || '') as string, 10) || fallback;
 }
 
 export function validateNamecardIdParams(value: unknown): NamecardIdParams {
@@ -47,17 +47,22 @@ export function validateNamecardIdParams(value: unknown): NamecardIdParams {
     return { id };
 }
 
+export function validateCompatibleNamecardIdParams(value: unknown): CompatibleNamecardIdParams {
+    const params = requestRecord(value, '名片 ID 无效');
+    return { id: positiveInteger(params.id) || 0 };
+}
+
 export function validateNamecardListQuery(value: unknown): NamecardListQuery {
     const query = requestRecord(value, '名片分页参数无效');
     return {
-        page: paginationValue(query.page, DEFAULT_PAGE, 'page'),
-        size: paginationValue(query.size, DEFAULT_PAGE_SIZE, 'size')
+        page: legacyPaginationValue(query.page, DEFAULT_PAGE),
+        size: legacyPaginationValue(query.size, DEFAULT_PAGE_SIZE)
     };
 }
 
 export function validateAdminNamecardListQuery(value: unknown): AdminNamecardListQuery {
     const query = requestRecord(value, '名片分页参数无效');
-    return { page: paginationValue(query.page, DEFAULT_PAGE, 'page') };
+    return { page: legacyPaginationValue(query.page, DEFAULT_PAGE) };
 }
 
 function uploadedFiles(value: UploadedFile | UploadedFile[] | undefined): UploadedFile[] {

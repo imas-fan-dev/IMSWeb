@@ -33,10 +33,6 @@ function cleanString(value: unknown): string {
     return typeof value === 'string' ? value.trim() : '';
 }
 
-export function informationCardId(value: unknown): value is string {
-    return typeof value === 'string' && CARD_ID.test(value);
-}
-
 export function informationAssetUrl(value: unknown): value is string {
     if (typeof value !== 'string' || !value.startsWith('/uploads/information/')) return false;
     if (!IMAGE_EXTENSION.test(value) || /[?#\\\u0000-\u001f\u007f]/.test(value)) return false;
@@ -108,9 +104,7 @@ function normalizeCard(
     const html = typeof card.html === 'string' ? card.html.trim() : '';
     const contentType = informationContentType(card.contentType, html);
     const rawId = cleanString(card.id);
-    const id = informationCardId(rawId)
-        ? rawId
-        : `legacy-card-${String(index + 1).padStart(3, '0')}`;
+    const id = CARD_ID.test(rawId) ? rawId : `legacy-card-${String(index + 1).padStart(3, '0')}`;
     const link = contentType === 'html'
         ? `/information/${encodeURIComponent(id)}`
         : cleanString(card.link);

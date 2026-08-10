@@ -55,6 +55,7 @@ import type {
   AboutPageContent,
   AboutPerson,
 } from "~/lib/api"
+import { createAboutPageDraft } from "~/pages/admin/about/about-model"
 
 function editorId(prefix: string): string {
   return `${prefix}-${globalThis.crypto.randomUUID()}`
@@ -234,7 +235,7 @@ function ColorEditor({
     <AdminField
       label={label}
       htmlFor={id}
-      description="使用六位十六进制颜色，例如 #B4E04B"
+      description="使用六位十六进制颜色，例如 #112233"
     >
       <div className="flex items-center gap-2">
         <input
@@ -329,8 +330,8 @@ function HeroCompositionPreview({
     offsetX: number
     offsetY: number
   } | null>(null)
-  const accentStart = previewColor(content.accentColorStart, "#B4E04B")
-  const accentEnd = previewColor(content.accentColorEnd, "#E6F9E5")
+  const accentStart = previewColor(content.accentColorStart, "#000000")
+  const accentEnd = previewColor(content.accentColorEnd, "#000000")
   const isMobilePreview = previewMode === "mobile"
 
   function updatePosition(offsetX: number, offsetY: number) {
@@ -976,7 +977,7 @@ export function AboutManager() {
 
   onSuccess((event) => {
     const snapshot = event.data as AboutAdminSnapshot
-    setDraft(snapshot.content)
+    setDraft(snapshot.content ?? createAboutPageDraft())
     setRevision(snapshot.revision)
     setDirty(false)
     setMemberAvatarUploads({})
@@ -1276,7 +1277,7 @@ export function AboutManager() {
             id="about-hero-image-alt"
             className={adminControlClass}
             maxLength={120}
-            required
+            required={draft.heroImageUrl !== null}
             value={draft.heroImageAlt}
             onChange={(event) =>
               change((content) => ({

@@ -430,6 +430,21 @@ function legacyImage(current, sourcePathValue, sourceBaseUrl, mediaUrl) {
     return current === new URL(sourcePathValue, sourceBaseUrl).toString();
 }
 
+function initialProducerMapContent(source) {
+    return {
+        version: 1,
+        title: source.title,
+        subtitle: source.subtitle,
+        introduction: source.title,
+        directoryTitle: source.title,
+        mapSourceLabel: source.sourceBaseUrl,
+        mapSourceUrl: source.sourceBaseUrl,
+        regions: [],
+        communities: [],
+        updatedAt: null
+    };
+}
+
 function nextProducerMapContent(current, source, media) {
     const mediaBySourcePath = new Map(media.map((item) => [item.sourcePath, item]));
     const regions = [...current.regions];
@@ -503,10 +518,6 @@ function nextProducerMapContent(current, source, media) {
 
     const content = {
         ...current,
-        title: current.title === '全国偶像大师社群一览' ? source.title : current.title,
-        subtitle: current.subtitle === 'THE IDOLM@STER COMMUNITY MAP'
-            ? source.subtitle
-            : current.subtitle,
         regions,
         communities
     };
@@ -554,7 +565,7 @@ async function syncProducerMapData(storage, source, media, apply, dependencies) 
     const currentObject = await storage.get(dependencies.objectKey);
     const current = currentObject
         ? dependencies.parseContent(currentObject.body)
-        : dependencies.defaultContent();
+        : initialProducerMapContent(source);
     const plan = nextProducerMapContent(current, source, media);
     const validated = dependencies.validateDraft(plan.content);
     const syncedMedia = await syncObjects(storage, media, apply);
@@ -635,7 +646,6 @@ async function main() {
     } = require('../../src/utils/storage/business-object-keys.ts');
     const {
         PRODUCER_MAP_PROVINCES,
-        defaultProducerMapContent,
         parseProducerMapContent,
         serializeProducerMapContent,
         validateProducerMapDraft
@@ -654,7 +664,6 @@ async function main() {
             options.apply,
             {
                 objectKey: PRODUCER_MAP_OBJECT_KEY,
-                defaultContent: defaultProducerMapContent,
                 parseContent: parseProducerMapContent,
                 serializeContent: serializeProducerMapContent,
                 validateDraft: validateProducerMapDraft
@@ -706,6 +715,7 @@ if (require.main === module) {
 
 module.exports = {
     helpText,
+    initialProducerMapContent,
     nextProducerMapContent,
     parseArguments,
     parseLegacyMapScript,

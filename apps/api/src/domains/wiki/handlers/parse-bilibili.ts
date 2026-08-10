@@ -21,14 +21,8 @@ export function createHandleParseBilibili<E extends Env>(
         if (unauthorized) return unauthorized;
         requireWikiServices(services, ['fetch']);
         const body = context.req.valid('json');
-        const input = (
-            typeof body === 'object' && body !== null && 'url' in body &&
-            typeof (body as { url?: unknown }).url === 'string'
-        )
-            ? (body as { url: string }).url.trim()
-            : '';
         try {
-            return wikiJson(await parseBilibili(input, services.fetch!));
+            return wikiJson(await parseBilibili(body.url, services.fetch!));
         } catch {
             return wikiJson(wikiErrorBody('解析请求失败'), 502);
         }

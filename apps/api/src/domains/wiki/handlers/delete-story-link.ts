@@ -21,22 +21,6 @@ import {
 } from '@/domains/wiki/request';
 import type { WikiRouteHandler } from '@/domains/wiki/response';
 
-type JsonObject = Record<string, unknown>;
-
-function textInput(body: JsonObject, key: string, fallback: string | undefined): string {
-    const value = body[key] ?? fallback;
-    return typeof value === 'string' ? value.trim() : '';
-}
-
-function revisionInput(body: JsonObject, fallback: string | undefined): number {
-    const value = body.expectedRevision ?? fallback;
-    const revision = typeof value === 'number' ? value : Number(value);
-    if (!Number.isSafeInteger(revision) || revision < 0) {
-        throw Object.assign(new Error('expectedRevision 必须是非负整数'), { status: 400 });
-    }
-    return revision;
-}
-
 export function createHandleDeleteWikiStoryLink<E extends Env>(
     resolveServices: WikiServicesResolver<E>
 ): WikiRouteHandler<E,
@@ -51,11 +35,11 @@ export function createHandleDeleteWikiStoryLink<E extends Env>(
         try {
             const storyId = context.req.valid('param').id;
             const query = context.req.valid('query');
-            const body = await parseDeleteWikiStoryLinkRequest(context.req.raw);
+            const body = await parseDeleteWikiStoryLinkRequest(context.req.raw, query);
             const target = await findWikiMutationTarget(
                 services,
-                textInput(body, 'agency', query.agency),
-                textInput(body, 'idol', query.idol),
+                body.agency,
+                body.idol,
                 404
             );
             if ('error' in target) return target.error;
@@ -63,7 +47,7 @@ export function createHandleDeleteWikiStoryLink<E extends Env>(
                 agencyCode: target.agency.code,
                 idolId: target.idol.id,
                 id: storyId,
-                expectedRevision: revisionInput(body, query.expectedRevision)
+                expectedRevision: body.expectedRevision
             });
             if (!result) return wikiJson(wikiErrorBody('剧情来源不存在'), 404);
             if (result.status === 'conflict') {

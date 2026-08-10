@@ -5,7 +5,6 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const { test } = require('node:test');
 const {
-    defaultProducerMapContent,
     parseProducerMapContent,
     PRODUCER_MAP_PROVINCES,
     serializeProducerMapContent,
@@ -17,6 +16,7 @@ const {
 } = require('../../src/utils/storage/business-object-keys.ts');
 const {
     helpText,
+    initialProducerMapContent,
     nextProducerMapContent,
     parseArguments,
     parseLegacyMapScript,
@@ -58,7 +58,6 @@ class MemoryStorage {
 function dependencies() {
     return {
         objectKey: PRODUCER_MAP_OBJECT_KEY,
-        defaultContent: defaultProducerMapContent,
         parseContent: parseProducerMapContent,
         serializeContent: serializeProducerMapContent,
         validateDraft: validateProducerMapDraft
@@ -310,7 +309,7 @@ test('Producer Map migration applies idempotently and preserves admin edits', as
 test('Producer Map merge fails closed when staged media is incomplete', () => {
     const source = sourceFixture();
     assert.throws(
-        () => nextProducerMapContent(defaultProducerMapContent(), source, []),
+        () => nextProducerMapContent(initialProducerMapContent(source), source, []),
         /media is missing region/
     );
 });

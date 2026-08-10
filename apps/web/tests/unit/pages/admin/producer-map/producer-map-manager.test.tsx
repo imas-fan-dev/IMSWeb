@@ -45,6 +45,27 @@ describe("ProducerMapManager", () => {
     document.cookie = "csrf_token=; Max-Age=0; path=/"
   })
 
+  it("starts first-time configuration from a content-free draft", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          content: null,
+          revision: null,
+        })
+      )
+    )
+
+    render(<ProducerMapManager />)
+
+    expect(await screen.findByLabelText("页面标题")).toHaveValue("")
+    expect(
+      screen.getByText("0 个地区，数组顺序用于筛选与管理展示。")
+    ).toBeVisible()
+    expect(screen.queryByText("站长小窝")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "保存更改" })).toBeDisabled()
+  })
+
   it("loads the current revision and saves page and region edits", async () => {
     document.cookie = "csrf_token=producer-map-manager-test; path=/"
     let savedBody: unknown

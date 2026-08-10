@@ -9,7 +9,7 @@ import {
 } from '@/utils/validation/request-data';
 import {
     boundedPositiveInteger,
-    canonicalPositiveInteger
+    positiveInteger
 } from '@/utils/validation/number';
 import { trimmedText } from '@/utils/validation/text';
 
@@ -20,7 +20,7 @@ const MAX_PAGE_VALUE = 100;
 const MAX_EVENT_IMAGE_BYTES = 3 * 1024 * 1024;
 
 export interface EventIdParams {
-    id: number;
+    id: number | null;
 }
 
 export type EventListQuery =
@@ -43,9 +43,7 @@ function pageValue(value: unknown, fallback: number, field: string): number {
 
 export function validateEventIdParams(value: unknown): EventIdParams {
     const params = requestRecord(value, '活动 ID 无效');
-    const id = canonicalPositiveInteger(params.id);
-    if (!id) invalidRequest('活动 ID 无效');
-    return { id };
+    return { id: positiveInteger(params.id) };
 }
 
 export function validateEventListQuery(value: unknown): EventListQuery {

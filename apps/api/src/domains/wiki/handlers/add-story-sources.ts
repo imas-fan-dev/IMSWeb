@@ -1,9 +1,7 @@
 import type { Env } from 'hono';
-import type { NewStoryLinkInput } from '@/ports/repositories';
 import {
     authorizeWikiWrite,
     findWikiMutationTarget,
-    optionalWikiCatalogId,
     resolveWikiStorySources,
     wikiErrorBody,
     wikiJson,
@@ -18,51 +16,6 @@ import type {
     WikiValidatedInput
 } from '@/domains/wiki/request';
 import type { WikiRouteHandler } from '@/domains/wiki/response';
-
-type JsonObject = Record<string, unknown>;
-
-function nonNegativeRevision(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-        throw Object.assign(new Error('expectedRevision 必须是非负整数'), { status: 400 });
-    }
-    return value;
-}
-
-function requiredText(value: unknown, label: string, maximumLength: number): string {
-    if (typeof value !== 'string' || !value.trim() || value.trim().length > maximumLength) {
-        throw Object.assign(new Error(`${label}无效`), { status: 400 });
-    }
-    return value.trim();
-}
-
-function storySources(value: unknown): Array<Omit<NewStoryLinkInput,
-    'contentTypeId' | 'sourcePlatformId'> & {
-        contentTypeId?: number;
-        sourcePlatformId?: number;
-    }> {
-    if (!Array.isArray(value) || !value.length || value.length > 20) {
-        throw Object.assign(new Error('剧情卡片需要 1 至 20 个来源'), { status: 400 });
-    }
-    return value.map((source, index) => {
-        if (!source || typeof source !== 'object' || Array.isArray(source)) {
-            throw Object.assign(new Error(`第 ${index + 1} 个来源无效`), { status: 400 });
-        }
-        const record = source as JsonObject;
-        return {
-            upName: requiredText(record.upName, `第 ${index + 1} 个来源投稿者`, 100),
-            videoTitle: requiredText(record.videoTitle, `第 ${index + 1} 个来源标题`, 500),
-            url: requiredText(record.url, `第 ${index + 1} 个来源链接`, 2048),
-            contentTypeId: optionalWikiCatalogId(
-                record.contentTypeId,
-                `第 ${index + 1} 个来源内容类型`
-            ),
-            sourcePlatformId: optionalWikiCatalogId(
-                record.sourcePlatformId,
-                `第 ${index + 1} 个来源平台`
-            )
-        };
-    });
-}
 
 export function createHandleAddWikiStorySources<E extends Env>(
     resolveServices: WikiServicesResolver<E>
@@ -80,20 +33,20 @@ export function createHandleAddWikiStorySources<E extends Env>(
             const body = context.req.valid('json');
             const target = await findWikiMutationTarget(
                 services,
-                requiredText(body.agency, '企划', 100),
-                requiredText(body.idol, '内容页', 100),
+                body.agency,
+                body.idol,
                 404
             );
             if ('error' in target) return target.error;
             const links = await resolveWikiStorySources(
                 services.story!,
-                storySources(body.sources)
+                body.sources
             );
             const result = await services.story!.addStoryCardSources({
                 agencyCode: target.agency.code,
                 idolId: target.idol.id,
                 cardId,
-                expectedRevision: nonNegativeRevision(body.expectedRevision),
+                expectedRevision: body.expectedRevision,
                 links
             });
             if (result.status === 'conflict') {
