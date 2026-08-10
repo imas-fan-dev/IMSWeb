@@ -575,12 +575,6 @@ export function WikiWorkbench() {
                       entity: selectedIdol,
                     })
                   }
-                  onCreateStory={() =>
-                    openCreateStory({
-                      category: stories?.categories[0]?.name ?? "",
-                      cardName: "",
-                    })
-                  }
                 />
 
                 {storiesError ? (
@@ -729,7 +723,7 @@ export function WikiWorkbench() {
           contentTypes={stories?.contentTypes ?? []}
           sourcePlatforms={stories?.sourcePlatforms ?? []}
           coverAssets={coverAssets}
-          defaultCategory={stories?.categories[0]?.name ?? ""}
+          defaultCategory=""
           defaults={storyEditor.defaults}
           mode={storyEditor.mode}
           onOpenChange={(open) => {
@@ -830,12 +824,10 @@ function IdolSummary({
   agency,
   idol,
   onEdit,
-  onCreateStory,
 }: {
   agency: WikiAdminAgency
   idol: WikiAdminIdol
   onEdit: () => void
-  onCreateStory: () => void
 }) {
   const groups = agency.groups.filter(
     (group) =>
@@ -893,10 +885,6 @@ function IdolSummary({
         <Button type="button" variant="outline" onClick={onEdit}>
           <PencilIcon data-icon="inline-start" />
           编辑内容页
-        </Button>
-        <Button type="button" onClick={onCreateStory}>
-          <PlusIcon data-icon="inline-start" />
-          新增卡片
         </Button>
       </div>
     </section>

@@ -111,7 +111,7 @@ export function StoryOutline({
             type="button"
             onClick={() =>
               onCreate({
-                category: stories.categories[0]?.name ?? "",
+                category: "",
                 cardName: "",
               })
             }
