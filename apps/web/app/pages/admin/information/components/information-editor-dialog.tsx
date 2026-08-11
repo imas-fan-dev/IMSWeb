@@ -25,12 +25,12 @@ import type {
   InformationContentType,
   InformationSubmission,
 } from "~/lib/api"
-import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
+import { AdminImageUploadField } from "~/components/admin/admin-image-upload-field"
 import {
   AdminField,
   adminControlClass,
   adminTextareaClass,
-} from "~/pages/admin/components/admin-ui"
+} from "~/components/admin/admin-ui"
 import { buildInformationHtmlDocument } from "~/pages/information/html-document"
 
 import {

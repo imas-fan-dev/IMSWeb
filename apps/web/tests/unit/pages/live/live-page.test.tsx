@@ -8,7 +8,7 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import Live from "~/pages/live/live-page"
+import Live from "~/pages/live/index"
 
 const FIXED_TODAY = new Date(2026, 7, 20, 12)
 

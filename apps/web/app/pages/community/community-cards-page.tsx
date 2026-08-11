@@ -2,11 +2,8 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CalendarDaysIcon,
-  FileImageIcon,
-  ImageUpIcon,
   ImagesIcon,
   PlusIcon,
-  UploadIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
@@ -15,15 +12,12 @@ import { toast } from "sonner"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "~/components/ui/card"
 import {
   Empty,
@@ -32,7 +26,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty"
-import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
+import { FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import {
   Popover,
@@ -54,7 +48,6 @@ import {
   getNamecardPage,
   getNamecardReactions,
   NAMECARD_REACTIONS,
-  uploadNamecard,
 } from "~/lib/api"
 import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
 
@@ -189,16 +182,28 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
 
 function NamecardItem({ card }: { card: Namecard }) {
   const createdAt = namecardCreatedAt(card.created_at)
+  const previewItems = [
+    {
+      src: card.image1_url,
+      alt: `制作人名片 ${card.id} 正面`,
+    },
+    {
+      src: card.image2_url,
+      alt: `制作人名片 ${card.id} 背面`,
+    },
+  ]
 
   return (
     <Card className="h-full">
       <div className="grid grid-cols-2 gap-px bg-border">
-        {[card.image1_url, card.image2_url].map((image, index) => (
+        {previewItems.map((image, index) => (
           <CoverImagePreview
-            key={image}
-            src={image}
-            alt={`制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
+            key={image.alt}
+            src={image.src}
+            alt={image.alt}
             previewLabel="名片"
+            previewItems={previewItems}
+            previewIndex={index}
             className="aspect-3/2 w-full rounded-none bg-muted"
             imageClassName="transition-transform group-hover:scale-[1.02]"
           />
@@ -228,9 +233,6 @@ export default function CommunityCardsPage() {
   const [result, setResult] = useState<NamecardPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [front, setFront] = useState<File | null>(null)
-  const [back, setBack] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -277,45 +279,6 @@ export default function CommunityCardsPage() {
       return
     }
     changePage(nextPage)
-  }
-
-  function chooseFile(file: File | null, side: "front" | "back") {
-    if (!file) {
-      if (side === "front") setFront(null)
-      else setBack(null)
-      return
-    }
-    if (!file.type.startsWith("image/")) {
-      toast.error("只能上传图片文件")
-      return
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error("每张名片图片不能超过 3 MiB")
-      return
-    }
-    if (side === "front") setFront(file)
-    else setBack(file)
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!front || !back) {
-      toast.error("请同时选择名片正面和背面")
-      return
-    }
-    setUploading(true)
-    const form = event.currentTarget
-    try {
-      const response = await uploadNamecard(front, back).send()
-      toast.success(response.msg)
-      setFront(null)
-      setBack(null)
-      form.reset()
-    } catch {
-      toast.error("名片上传失败，请检查图片后重试")
-    } finally {
-      setUploading(false)
-    }
   }
 
   return (
@@ -469,69 +432,6 @@ export default function CommunityCardsPage() {
             </div>
           </>
         ) : null}
-      </section>
-
-      <section className="mt-14" aria-labelledby="namecard-upload-title">
-        <Card>
-          <CardHeader>
-            <CardTitle id="namecard-upload-title">提交制作人名片</CardTitle>
-            <CardDescription>
-              请分别上传正面和背面。每张不超过 3 MiB，图片会转换为 WebP
-              并进入审核队列。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="flex flex-col gap-5"
-              onSubmit={(event) => void submit(event)}
-            >
-              <FieldGroup className="grid gap-5 md:grid-cols-2">
-                <Field data-disabled={uploading || undefined}>
-                  <FieldLabel htmlFor="namecard-front">名片正面</FieldLabel>
-                  <FileUploadControl
-                    id="namecard-front"
-                    compact
-                    accept="image/*"
-                    emptyTitle="选择名片正面"
-                    emptyDetail="图片文件 · 不超过 3 MiB"
-                    fileKind="名片正面"
-                    file={front}
-                    uploading={uploading}
-                    required
-                    selectedIcon={FileImageIcon}
-                    emptyIcon={ImageUpIcon}
-                    onSelect={(file) => chooseFile(file, "front")}
-                  />
-                </Field>
-                <Field data-disabled={uploading || undefined}>
-                  <FieldLabel htmlFor="namecard-back">名片背面</FieldLabel>
-                  <FileUploadControl
-                    id="namecard-back"
-                    compact
-                    accept="image/*"
-                    emptyTitle="选择名片背面"
-                    emptyDetail="图片文件 · 不超过 3 MiB"
-                    fileKind="名片背面"
-                    file={back}
-                    uploading={uploading}
-                    required
-                    selectedIcon={FileImageIcon}
-                    emptyIcon={ImageUpIcon}
-                    onSelect={(file) => chooseFile(file, "back")}
-                  />
-                </Field>
-              </FieldGroup>
-              <Button
-                type="submit"
-                className="self-start"
-                disabled={uploading || !front || !back}
-              >
-                <UploadIcon data-icon="inline-start" />
-                {uploading ? "正在上传" : "提交审核"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
       </section>
     </main>
   )

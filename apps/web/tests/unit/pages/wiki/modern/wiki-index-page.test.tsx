@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { WikiIndexPage } from "~/pages/wiki/modern/wiki-index-page"
+import { WikiIndexPage } from "~/pages/wiki/modern/index"
 
 function response(payload: unknown) {
   return Promise.resolve(Response.json(payload))

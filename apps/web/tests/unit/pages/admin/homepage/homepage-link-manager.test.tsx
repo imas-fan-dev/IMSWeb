@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { HomepageLinkManager } from "~/pages/admin/homepage/homepage-link-manager"
+import { HomepageLinkManager } from "~/pages/admin/homepage/index"
 
 function jsonResponse(payload: unknown) {
   return new Response(JSON.stringify(payload), {

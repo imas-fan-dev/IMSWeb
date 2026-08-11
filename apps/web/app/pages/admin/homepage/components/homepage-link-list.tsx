@@ -12,8 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import type { HomepageLink } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import { AdminEmptyState, AdminPanel } from "~/pages/admin/components/admin-ui"
-import { SortableList } from "~/pages/admin/components/sortable-list"
+import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
+import { SortableList } from "~/components/admin/sortable-list"
 
 function HomepageLinkRow({
   link,

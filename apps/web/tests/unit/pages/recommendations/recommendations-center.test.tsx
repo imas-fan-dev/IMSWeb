@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { RecommendationsCenter } from "~/pages/recommendations/recommendations-center"
+import { RecommendationsCenter } from "~/pages/recommendations/index"
 import { cacheRecommendationFeed, parseRecommendationPage } from "~/lib/api"
 import type { Recommendation } from "~/lib/api"
 
