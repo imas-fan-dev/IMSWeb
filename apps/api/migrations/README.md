@@ -11,7 +11,9 @@
 
 ## 活动账本约束
 
-- 已发布文件的文件名、phase 和内容都不可修改或删除；迁移器会校验 SHA-256。
+- 已发布文件的文件名、phase 和内容都不可修改或删除。迁移器会在 phase 筛选前，以完整 catalog
+  反向校验数据库中的 version、文件名、phase 和 SHA-256；未知或不匹配的 applied row 会作为
+  migration drift 直接失败。
 - `0001` 至 `0019` 是冻结的历史序列。新文件统一使用 14 位 UTC 时间戳，格式为
   `YYYYMMDDHHMMSS_description.sql`。
 - 同一时间戳只能对应一个文件，描述只使用小写字母、数字和下划线。

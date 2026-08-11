@@ -110,21 +110,34 @@ async function appliedMigrations(client) {
     return new Map(result.rows.map((row) => [row.version, row]));
 }
 
+function validateAppliedMigrations(migrations, applied) {
+    const catalog = new Map(
+        migrations.map((migration) => [migration.version, migration])
+    );
+    for (const existing of applied.values()) {
+        const migration = catalog.get(existing.version);
+        if (!migration || existing.filename !== migration.filename ||
+            existing.phase !== migration.phase || existing.checksum !== migration.checksum) {
+            throw new Error(
+                `Applied PostgreSQL migration drifted from catalog: ` +
+                `${existing.version} (${existing.filename})`
+            );
+        }
+    }
+}
+
 async function applyMigrations(client, options = {}) {
     const migrations = options.migrations || readMigrations(options.directory);
+    await ensureMigrationTable(client);
+    const applied = await appliedMigrations(client);
+    validateAppliedMigrations(migrations, applied);
     const selected = options.phase
         ? migrations.filter((migration) => migration.phase === options.phase)
         : migrations;
-    await ensureMigrationTable(client);
-    const applied = await appliedMigrations(client);
     const executed = [];
     for (const migration of selected) {
         const existing = applied.get(migration.version);
         if (existing) {
-            if (existing.checksum !== migration.checksum ||
-                existing.filename !== migration.filename || existing.phase !== migration.phase) {
-                throw new Error(`Applied PostgreSQL migration drifted: ${migration.filename}`);
-            }
             continue;
         }
         await client.query(migration.sql);

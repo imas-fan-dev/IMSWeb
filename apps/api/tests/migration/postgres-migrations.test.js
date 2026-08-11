@@ -180,8 +180,13 @@ test('PostgreSQL migration names keep the frozen sequence and use UTC timestamps
     );
 });
 
-function migrationClient() {
-    const rows = [];
+function migrationClient(initialRows = []) {
+    const rows = initialRows.map(({ version, filename, phase, checksum }) => ({
+        version,
+        filename,
+        phase,
+        checksum
+    }));
     return {
         rows,
         async query(sql, values = []) {
@@ -236,4 +241,31 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         : migration
     );
     await assert.rejects(applyMigrations(client, { migrations: drifted }), /drifted/);
+});
+
+test('PostgreSQL migration runner rejects an applied migration deleted from the catalog', async () => {
+    const [deleted, ...migrations] = readMigrations();
+    const client = migrationClient([deleted]);
+
+    await assert.rejects(
+        applyMigrations(client, { migrations, phase: 'post-data' }),
+        /Applied PostgreSQL migration drifted from catalog: 0001_initial_compatibility/
+    );
+    assert.equal(client.rows.length, 1);
+});
+
+test('PostgreSQL migration runner rejects an applied migration renamed in the catalog', async () => {
+    const [applied, ...migrations] = readMigrations();
+    const renamed = {
+        ...applied,
+        version: '20260811000000_initial_compatibility',
+        filename: '20260811000000_initial_compatibility.sql'
+    };
+    const client = migrationClient([applied]);
+
+    await assert.rejects(
+        applyMigrations(client, { migrations: [...migrations, renamed] }),
+        /Applied PostgreSQL migration drifted from catalog: 0001_initial_compatibility/
+    );
+    assert.equal(client.rows.length, 1);
 });
