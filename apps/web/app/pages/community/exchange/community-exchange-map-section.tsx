@@ -184,7 +184,7 @@ export function CommunityExchangeMapSection({
   onSwitchDirectory,
 }: {
   city?: string
-  series?: string
+  series?: readonly string[]
   seriesCatalog?: readonly FudabaSeries[]
   open?: boolean
   onSwitchDirectory: () => void
@@ -375,7 +375,7 @@ export function CommunityExchangeMapSection({
 
       {!mapFailure && data.phase !== "error" ? (
         <div
-          className="pointer-events-none absolute bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))] left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
+          className="pointer-events-none absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm md:bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
           aria-live="polite"
         >
           <span className="inline-flex items-center gap-1.5">

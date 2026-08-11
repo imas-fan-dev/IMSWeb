@@ -296,6 +296,17 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     assert.equal(await fixture.repository.findOfficeById(disabled.id), null);
     assert.equal(await countOrphanedOfficeCreateReceipts(fixture), 0);
 
+    const untaggedOfficeId = `${fixture.dialect}-untagged-office`;
+    const untagged = await fixture.repository.createOfficeForOwner(office(
+        untaggedOfficeId,
+        ownerId,
+        { seriesCodes: [] }
+    ));
+    assert.equal(untagged.status, 'saved');
+    if (untagged.status === 'saved') {
+        assert.deepEqual(untagged.office.series_codes, []);
+    }
+
     const officeId = `${fixture.dialect}-managed-office`;
     const create = office(officeId, ownerId, {
         seriesCodes: ['765', 'cg']
@@ -348,7 +359,7 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
         officeId,
         ownerId,
         1,
-        { city: 'Hangzhou', updatedAt: LATER_AT }
+        { city: 'Hangzhou', seriesCodes: [], updatedAt: LATER_AT }
     ));
     assert.equal(relocated.status, 'saved');
     assert.equal(await fixture.repository.findOfficePublicLocationForOwner(
@@ -367,7 +378,7 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     )), { status: 'unavailable' });
     const afterRollback = await fixture.repository.findOfficeForOwner(officeId, ownerId);
     assert.equal(afterRollback?.revision, 2);
-    assert.deepEqual(afterRollback?.series_codes, ['cg', '765']);
+    assert.deepEqual(afterRollback?.series_codes, []);
     await fixture.database.prepare(
         "UPDATE agencies SET wiki_enabled=TRUE WHERE code='sidem'"
     ).run();
@@ -555,7 +566,7 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
     }
     assert.deepEqual(
         (await fixture.repository.listOfficesForOwner(ownerId)).map(({ id }) => id),
-        [officeId]
+        [officeId, untaggedOfficeId]
     );
 }
 

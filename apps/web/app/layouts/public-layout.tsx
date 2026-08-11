@@ -37,7 +37,7 @@ export default function PublicLayout() {
           {t("accessibility.skipToContent")}
         </a>
         {isExchangeMap ? null : <SeriesIconBackground />}
-        <SiteHeader />
+        <SiteHeader compact={isExchangeMap} />
         <div
           className={cn(
             "relative flex-1 bg-background/75 sm:bg-background/60",

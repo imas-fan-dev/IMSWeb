@@ -68,4 +68,16 @@ describe("SiteHeader", () => {
       ).not.toBeInTheDocument()
     }
   })
+
+  it("adds an explicit mobile home shortcut in compact mode", () => {
+    render(<SiteHeader compact />, { wrapper: TestProviders })
+
+    const homeShortcut = screen.getByRole("link", { name: "返回首页" })
+    expect(homeShortcut).toHaveAttribute("href", "/")
+    expect(homeShortcut).toHaveClass("sm:hidden")
+    expect(homeShortcut.querySelector("svg")).toHaveAttribute(
+      "aria-hidden",
+      "true"
+    )
+  })
 })

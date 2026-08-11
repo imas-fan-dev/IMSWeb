@@ -259,7 +259,7 @@ async function assertPublicReadModels(
     );
     assert.deepEqual(await fixture.repository.listPublicOffices({
         city: 'Shanghai',
-        seriesCode: 'cg',
+        seriesCodes: ['cg'],
         isOpen: true,
         limit: 10
     }).then((items) => items.map((item) => item.id)), ['office-b-open']);
@@ -268,9 +268,17 @@ async function assertPublicReadModels(
         limit: 10
     }).then((items) => items.map((item) => item.id)), ['office-a-closed']);
     assert.deepEqual(await fixture.repository.listPublicOffices({
-        seriesCode: 'sidem',
+        seriesCodes: ['sidem'],
         limit: 10
     }), []);
+    assert.deepEqual(await fixture.repository.listPublicOffices({
+        seriesCodes: ['cg', 'ml'],
+        limit: 10
+    }).then((items) => items.map((item) => item.id)), [
+        'office-a-closed',
+        'office-b-open',
+        'office-c-beijing'
+    ]);
     assert.deepEqual(await fixture.repository.listPublicOffices({
         city: 'Shang',
         limit: 10
@@ -498,7 +506,7 @@ async function assertPublicReadModels(
         ['card-y-new', 'card-unavailable']
     );
     assert.deepEqual(await fixture.repository.listPublicCards({
-        seriesCode: '765',
+        seriesCodes: ['765'],
         available: true,
         officeSlug: 'office-b-open',
         viewerAccountId: 'viewer',
@@ -509,15 +517,27 @@ async function assertPublicReadModels(
         'card-restricted-owner'
     ]);
     assert.deepEqual(await fixture.repository.listPublicCards({
-        seriesCode: 'cg',
+        seriesCodes: ['cg'],
         viewerAccountId: null,
         limit: 10
     }).then((items) => items.map((item) => item.id)), ['card-cinderella-old']);
     assert.deepEqual(await fixture.repository.listPublicCards({
-        seriesCode: 'sidem',
+        seriesCodes: ['sidem'],
         viewerAccountId: null,
         limit: 10
     }), []);
+    assert.deepEqual(await fixture.repository.listPublicCards({
+        seriesCodes: ['765', 'cg'],
+        viewerAccountId: null,
+        limit: 10
+    }).then((items) => items.map((item) => item.id)), [
+        'card-z-new',
+        'card-y-new',
+        'card-unavailable',
+        'card-restricted-owner',
+        'card-hidden-office',
+        'card-cinderella-old'
+    ]);
     assert.deepEqual(await fixture.repository.listPublicCards({
         available: false,
         viewerAccountId: null,

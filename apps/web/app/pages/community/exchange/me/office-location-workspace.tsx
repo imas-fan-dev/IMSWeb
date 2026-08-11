@@ -82,7 +82,7 @@ export function OfficeLocationWorkspace({
   const [savingOffice, setSavingOffice] = useState(false)
   const [savingLocation, setSavingLocation] = useState(false)
   const [officeDraftState, setOfficeDraftState] = useState<OfficeDraft>(() =>
-    emptyOfficeDraft(homeCity, series)
+    emptyOfficeDraft(homeCity)
   )
   const [locationDraftState, setLocationDraftState] =
     useState<PublicLocationDraft>(() => publicLocationDraft(null))
@@ -168,7 +168,7 @@ export function OfficeLocationWorkspace({
         setOffice(null)
         setLocation(null)
         setCreating(true)
-        setOfficeDraftState(emptyOfficeDraft(homeCity, series))
+        setOfficeDraftState(emptyOfficeDraft(homeCity))
         setLocationDraftState(publicLocationDraft(null))
         return
       }
@@ -178,7 +178,7 @@ export function OfficeLocationWorkspace({
       setPhase("error")
       setLoadError(apiMessage(error, "事务所与地图位置暂时无法加载。"))
     }
-  }, [homeCity, loadSelection, series])
+  }, [homeCity, loadSelection])
 
   useEffect(() => {
     const timer = globalThis.setTimeout(() => void loadWorkspace(), 0)
@@ -198,7 +198,7 @@ export function OfficeLocationWorkspace({
     setSelectedId(null)
     setOffice(null)
     setLocation(null)
-    setOfficeDraftState(emptyOfficeDraft(homeCity, series))
+    setOfficeDraftState(emptyOfficeDraft(homeCity))
     setLocationDraftState(publicLocationDraft(null))
     setOfficeFeedback(null)
     setLocationFeedback(null)
@@ -230,8 +230,7 @@ export function OfficeLocationWorkspace({
     if (!parsed.success) {
       setOfficeFeedback({
         kind: "error",
-        message:
-          "请填写完整有效的事务所名称、地点、精确坐标，并至少选择一个企划。",
+        message: "请填写完整有效的事务所名称、地点和精确坐标。",
       })
       return
     }

@@ -34,14 +34,6 @@ import {
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
-import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -64,6 +56,8 @@ import {
 import { cn } from "~/lib/utils"
 import { CommunityExchangeMapSection } from "./community-exchange-map-section"
 import { ExchangeDiscoveryRail } from "./components/exchange-discovery-rail"
+import { ExchangeMobileNavigation } from "./components/exchange-mobile-navigation"
+import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
 import { ExchangeCard, OfficeCard } from "./exchange-components"
 
 type DiscoveryPhase = "loading" | "ready" | "closed" | "error"
@@ -121,15 +115,15 @@ interface FilterControlsProps {
   idPrefix: string
   cityDraft: string
   city: string
-  seriesCode: string
+  seriesCodes: readonly string[]
   openOnly: boolean
   series: FudabaSeries[]
-  seriesMap: ReadonlyMap<string, FudabaSeries>
   hasFilters: boolean
   className?: string
   onCityDraftChange: (value: string) => void
   onCitySubmit: (event: FormEvent<HTMLFormElement>) => void
   onFilterChange: (name: string, value: string | null) => void
+  onSeriesToggle: (seriesCode: string) => void
   onReset: () => void
 }
 
@@ -137,19 +131,18 @@ function FilterControls({
   idPrefix,
   cityDraft,
   city,
-  seriesCode,
+  seriesCodes,
   openOnly,
   series,
-  seriesMap,
   hasFilters,
   className,
   onCityDraftChange,
   onCitySubmit,
   onFilterChange,
+  onSeriesToggle,
   onReset,
 }: FilterControlsProps) {
   const cityInputId = `${idPrefix}-exchange-city`
-  const seriesInputId = `${idPrefix}-exchange-series`
 
   return (
     <form
@@ -180,36 +173,18 @@ function FilterControls({
       </div>
 
       <div className="min-w-0 space-y-1.5">
-        <Label htmlFor={seriesInputId} className="text-xs">
-          企划
-        </Label>
-        <Select
-          value={seriesCode || "all"}
-          onValueChange={(value) =>
-            onFilterChange(
-              "series",
-              String(value) === "all" ? null : String(value)
-            )
-          }
-        >
-          <SelectTrigger id={seriesInputId} className="w-full bg-background">
-            <SelectValue>
-              {seriesCode
-                ? (seriesMap.get(seriesCode)?.displayName ?? seriesCode)
-                : "全部企划"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectGroup>
-              <SelectItem value="all">全部企划</SelectItem>
-              {series.map((item) => (
-                <SelectItem key={item.code} value={item.code}>
-                  {item.displayName}（{item.activeOfficeCount}）
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <div className="flex min-h-5 items-center justify-between gap-3">
+          <Label className="text-xs">企划标签</Label>
+          <span className="text-xs text-muted-foreground">
+            {seriesCodes.length ? `已选 ${seriesCodes.length}` : "全部"}
+          </span>
+        </div>
+        <ExchangeSeriesFilter
+          series={series}
+          selectedCodes={seriesCodes}
+          onToggle={onSeriesToggle}
+          className="sm:grid-cols-3"
+        />
       </div>
 
       <div className="flex min-h-8 flex-wrap items-center gap-2">
@@ -411,7 +386,18 @@ export function meta() {
 export default function CommunityExchangePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const city = searchParams.get("city")?.trim() ?? ""
-  const seriesCode = searchParams.get("series")?.trim() ?? ""
+  const seriesCodes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          searchParams
+            .getAll("series")
+            .map((value) => value.trim())
+            .filter(Boolean)
+        )
+      ).slice(0, 8),
+    [searchParams]
+  )
   const openOnly = searchParams.get("open") === "true"
   const [cityDraft, setCityDraft] = useState(city)
   const [state, setState] = useState<DiscoveryState>(initialState)
@@ -444,12 +430,12 @@ export default function CommunityExchangePage() {
         getFudabaSeries().send(),
         getFudabaOfficePage({
           city: city || undefined,
-          series: seriesCode || undefined,
+          series: seriesCodes.length ? seriesCodes : undefined,
           open: openOnly ? true : undefined,
           limit: 12,
         }).send(),
         getFudabaCardPage({
-          series: seriesCode || undefined,
+          series: seriesCodes.length ? seriesCodes : undefined,
           available: true,
           limit: 8,
         }).send(),
@@ -482,7 +468,7 @@ export default function CommunityExchangePage() {
     } finally {
       if (requestGeneration.current === generation) setRefreshing(false)
     }
-  }, [city, openOnly, seriesCode])
+  }, [city, openOnly, seriesCodes])
 
   useEffect(() => {
     setCityDraft(city)
@@ -512,6 +498,22 @@ export default function CommunityExchangePage() {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(name, value)
     else next.delete(name)
+    setSearchParams(next, { replace: true })
+  }
+
+  function toggleSeriesFilter(seriesCode: string) {
+    const next = new URLSearchParams(searchParams)
+    const selected = new Set(seriesCodes)
+    if (selected.has(seriesCode)) selected.delete(seriesCode)
+    else if (selected.size < 8) selected.add(seriesCode)
+    next.delete("series")
+    for (const code of selected) next.append("series", code)
+    setSearchParams(next, { replace: true })
+  }
+
+  function clearSeriesFilter() {
+    const next = new URLSearchParams(searchParams)
+    next.delete("series")
     setSearchParams(next, { replace: true })
   }
 
@@ -547,7 +549,7 @@ export default function CommunityExchangePage() {
     try {
       const result = await getFudabaOfficePage({
         city: city || undefined,
-        series: seriesCode || undefined,
+        series: seriesCodes.length ? seriesCodes : undefined,
         open: openOnly ? true : undefined,
         cursor: state.officePageInfo.nextCursor,
         limit: 12,
@@ -570,7 +572,7 @@ export default function CommunityExchangePage() {
         setLoadingMoreOffices(false)
       }
     }
-  }, [city, openOnly, seriesCode, state.officePageInfo])
+  }, [city, openOnly, seriesCodes, state.officePageInfo])
 
   const loadMoreCards = useCallback(async () => {
     if (
@@ -587,7 +589,7 @@ export default function CommunityExchangePage() {
     setState((current) => ({ ...current, error: null }))
     try {
       const result = await getFudabaCardPage({
-        series: seriesCode || undefined,
+        series: seriesCodes.length ? seriesCodes : undefined,
         available: true,
         cursor: state.cardPageInfo.nextCursor,
         limit: 8,
@@ -610,20 +612,20 @@ export default function CommunityExchangePage() {
         setLoadingMoreCards(false)
       }
     }
-  }, [seriesCode, state.cardPageInfo])
+  }, [seriesCodes, state.cardPageInfo])
 
-  const hasFilters = Boolean(city || seriesCode || openOnly)
+  const hasFilters = Boolean(city || seriesCodes.length || openOnly)
   const filterProps = {
     cityDraft,
     city,
-    seriesCode,
+    seriesCodes,
     openOnly,
     series: state.series,
-    seriesMap,
     hasFilters,
     onCityDraftChange: setCityDraft,
     onCitySubmit: applyCityFilter,
     onFilterChange: updateFilter,
+    onSeriesToggle: toggleSeriesFilter,
     onReset: resetFilters,
   }
 
@@ -637,7 +639,7 @@ export default function CommunityExchangePage() {
           <div className="flex size-full min-h-0">
             <ExchangeDiscoveryRail
               cityDraft={cityDraft}
-              seriesCode={seriesCode}
+              seriesCodes={seriesCodes}
               openOnly={openOnly}
               series={state.series}
               offices={state.offices}
@@ -647,7 +649,8 @@ export default function CommunityExchangePage() {
               hasFilters={hasFilters}
               onCityDraftChange={setCityDraft}
               onCitySubmit={applyCityFilter}
-              onSeriesChange={(value) => updateFilter("series", value)}
+              onSeriesToggle={toggleSeriesFilter}
+              onSeriesClear={clearSeriesFilter}
               onOpenChange={(value) =>
                 updateFilter("open", value ? "true" : null)
               }
@@ -660,21 +663,21 @@ export default function CommunityExchangePage() {
             <div className="relative min-w-0 flex-1">
               <CommunityExchangeMapSection
                 city={city || undefined}
-                series={seriesCode || undefined}
+                series={seriesCodes.length ? seriesCodes : undefined}
                 seriesCatalog={state.series}
                 open={openOnly ? true : undefined}
                 onSwitchDirectory={() => openDirectory("offices")}
               />
 
               <section
-                className="pointer-events-none absolute inset-x-3 top-3 z-20 lg:hidden"
+                className="pointer-events-none absolute inset-x-2 top-2 z-20 sm:inset-x-3 sm:top-3 lg:hidden"
                 aria-label="地图工具"
               >
-                <div className="pointer-events-auto relative overflow-hidden rounded-lg border bg-background/95 shadow-md backdrop-blur-sm">
+                <div className="pointer-events-auto relative overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur-sm sm:rounded-lg">
                   <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
-                  <div className="flex min-w-0 items-center gap-2 px-3 pt-3 pb-2">
+                  <div className="flex min-w-0 items-center gap-1.5 px-2.5 pt-2 pb-1 sm:gap-2 sm:px-3 sm:pt-3 sm:pb-2">
                     <MapPinnedIcon
-                      className="size-4 shrink-0 text-primary"
+                      className="size-3.5 shrink-0 text-primary sm:size-4"
                       aria-hidden="true"
                     />
                     <div className="min-w-0 flex-1">
@@ -704,51 +707,67 @@ export default function CommunityExchangePage() {
                           aria-hidden="true"
                         />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label="打开筛选"
-                        title="筛选"
-                        onClick={() => setFilterOpen(true)}
-                      >
-                        <ListFilterIcon aria-hidden="true" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label="打开事务所名录"
-                        title="事务所名录"
-                        onClick={() => openDirectory("offices")}
-                      >
-                        <Building2Icon aria-hidden="true" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label="打开名片名录"
-                        title="名片名录"
-                        onClick={() => openDirectory("cards")}
-                      >
-                        <CreditCardIcon aria-hidden="true" />
-                      </Button>
-                      <Link
-                        to="/community/exchange/me"
-                        className={buttonVariants({
-                          variant: "outline",
-                          size: "icon",
-                        })}
-                        aria-label="管理我的交换账号"
-                        title="账号管理"
-                      >
-                        <UserRoundCogIcon aria-hidden="true" />
-                      </Link>
+                      <div className="hidden shrink-0 items-center gap-1 md:flex">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="打开筛选"
+                          title="筛选"
+                          onClick={() => setFilterOpen(true)}
+                        >
+                          <ListFilterIcon aria-hidden="true" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="打开事务所名录"
+                          title="事务所名录"
+                          onClick={() => openDirectory("offices")}
+                        >
+                          <Building2Icon aria-hidden="true" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="打开名片名录"
+                          title="名片名录"
+                          onClick={() => openDirectory("cards")}
+                        >
+                          <CreditCardIcon aria-hidden="true" />
+                        </Button>
+                        <Link
+                          to="/community/exchange/me"
+                          className={buttonVariants({
+                            variant: "outline",
+                            size: "icon",
+                          })}
+                          aria-label="管理我的交换账号"
+                          title="账号管理"
+                        >
+                          <UserRoundCogIcon aria-hidden="true" />
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>
               </section>
+
+              <ExchangeMobileNavigation
+                filterActive={filterOpen}
+                filterApplied={hasFilters}
+                officesActive={directoryOpen && directoryView === "offices"}
+                cardsActive={directoryOpen && directoryView === "cards"}
+                onShowMap={() => {
+                  setFilterOpen(false)
+                  setDirectoryOpen(false)
+                }}
+                onOpenFilter={() => setFilterOpen(true)}
+                onOpenOffices={() => openDirectory("offices")}
+                onOpenCards={() => openDirectory("cards")}
+              />
             </div>
           </div>
 

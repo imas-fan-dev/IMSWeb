@@ -3,28 +3,27 @@ import {
   ChevronRightIcon,
   CreditCardIcon,
   EyeIcon,
-  LayoutGridIcon,
   MapPinIcon,
   RadioTowerIcon,
   RefreshCwIcon,
   SearchIcon,
   UserRoundCogIcon,
 } from "lucide-react"
-import { useState, type FormEvent } from "react"
+import type { FormEvent } from "react"
 import { Link } from "react-router"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
-import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import type { FudabaOffice, FudabaSeries } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { ExchangeSeriesFilter } from "./exchange-series-filter"
 
 interface ExchangeDiscoveryRailProps {
   cityDraft: string
-  seriesCode: string
+  seriesCodes: readonly string[]
   openOnly: boolean
   series: FudabaSeries[]
   offices: FudabaOffice[]
@@ -34,50 +33,13 @@ interface ExchangeDiscoveryRailProps {
   hasFilters: boolean
   onCityDraftChange: (value: string) => void
   onCitySubmit: (event: FormEvent<HTMLFormElement>) => void
-  onSeriesChange: (seriesCode: string | null) => void
+  onSeriesToggle: (seriesCode: string) => void
+  onSeriesClear: () => void
   onOpenChange: (openOnly: boolean) => void
   onResetFilters: () => void
   onRefresh: () => void
   onOpenOffices: () => void
   onOpenCards: () => void
-}
-
-function SeriesChannelIcon({ series }: { series: FudabaSeries }) {
-  return (
-    <StatefulSeriesChannelIcon
-      key={`${series.code}:${series.iconUrl ?? ""}`}
-      series={series}
-    />
-  )
-}
-
-function StatefulSeriesChannelIcon({ series }: { series: FudabaSeries }) {
-  const [failed, setFailed] = useState(false)
-  const showIcon = Boolean(series.iconUrl) && !failed
-
-  return (
-    <span
-      className={cn(
-        "flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-sm",
-        showIcon && "border bg-background p-0.5"
-      )}
-      style={{
-        backgroundColor: showIcon ? undefined : series.color,
-        borderColor: showIcon ? series.color : undefined,
-      }}
-      aria-hidden="true"
-    >
-      {showIcon ? (
-        <WikiTransformedImage
-          src={series.iconUrl ?? undefined}
-          alt=""
-          transform={series.imageTransform}
-          draggable={false}
-          onError={() => setFailed(true)}
-        />
-      ) : null}
-    </span>
-  )
 }
 
 function officeSeriesLabel(
@@ -93,7 +55,7 @@ function officeSeriesLabel(
 
 export function ExchangeDiscoveryRail({
   cityDraft,
-  seriesCode,
+  seriesCodes,
   openOnly,
   series,
   offices,
@@ -103,7 +65,8 @@ export function ExchangeDiscoveryRail({
   hasFilters,
   onCityDraftChange,
   onCitySubmit,
-  onSeriesChange,
+  onSeriesToggle,
+  onSeriesClear,
   onOpenChange,
   onResetFilters,
   onRefresh,
@@ -197,45 +160,28 @@ export function ExchangeDiscoveryRail({
         </div>
       </header>
 
-      <section className="shrink-0 border-b p-4" aria-label="企划频道">
-        <div className="mb-2 flex items-center justify-between gap-3 px-1">
-          <h2 className="text-xs font-semibold">企划频道</h2>
-          <span className="text-xs text-muted-foreground">
-            {series.length + 1} 个频道
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <Button
-            type="button"
-            variant={seriesCode ? "ghost" : "secondary"}
-            size="sm"
-            className="h-9 min-w-0 justify-start px-2.5"
-            aria-pressed={!seriesCode}
-            onClick={() => onSeriesChange(null)}
-          >
-            <LayoutGridIcon className="size-4 shrink-0" aria-hidden="true" />
-            <span className="truncate">全部企划</span>
-          </Button>
-          {series.map((item) => (
+      <section className="shrink-0 border-b p-3" aria-label="企划标签">
+        <div className="mb-1.5 flex min-h-7 items-center justify-between gap-3 px-1">
+          <h2 className="text-xs font-semibold">企划标签</h2>
+          {seriesCodes.length ? (
             <Button
-              key={item.code}
               type="button"
-              variant={seriesCode === item.code ? "secondary" : "ghost"}
+              variant="ghost"
               size="sm"
-              className="h-9 min-w-0 justify-start px-2.5"
-              aria-pressed={seriesCode === item.code}
-              onClick={() => onSeriesChange(item.code)}
+              className="h-7 px-2 text-xs"
+              onClick={onSeriesClear}
             >
-              <SeriesChannelIcon series={item} />
-              <span className="min-w-0 flex-1 truncate text-left">
-                {item.displayName}
-              </span>
-              <span className="text-[0.6875rem] text-muted-foreground">
-                {item.activeOfficeCount}
-              </span>
+              已选 {seriesCodes.length} · 清除
             </Button>
-          ))}
+          ) : (
+            <span className="text-xs text-muted-foreground">全部</span>
+          )}
         </div>
+        <ExchangeSeriesFilter
+          series={series}
+          selectedCodes={seriesCodes}
+          onToggle={onSeriesToggle}
+        />
       </section>
 
       <section className="flex min-h-0 flex-1 flex-col" aria-label="附近事务所">

@@ -1,11 +1,11 @@
-import { BookOpenTextIcon, MenuIcon } from "lucide-react"
+import { BookOpenTextIcon, HouseIcon, MenuIcon } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, NavLink } from "react-router"
 
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { PlatformAccountMenu } from "~/components/platform/platform-account-menu"
-import { Button } from "~/components/ui/button"
+import { Button, buttonVariants } from "~/components/ui/button"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
 import {
   Sheet,
@@ -48,20 +48,28 @@ function desktopLinkClass({ isActive }: { isActive: boolean }) {
   )
 }
 
-export function SiteHeader() {
+export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const hydrated = useHydrated()
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:gap-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-7xl items-center sm:h-16 sm:gap-3 sm:px-6 lg:gap-6 lg:px-8",
+          compact ? "h-12 gap-1.5 px-3" : "h-16 gap-2 px-4"
+        )}
+      >
         <Link
           to="/"
           className="flex min-w-0 items-center gap-3"
           aria-label={t("brand.homeLabel")}
         >
-          <BrandWordmark className="h-7 sm:h-9" alt="" />
+          <BrandWordmark
+            className={cn(compact ? "h-6" : "h-7", "sm:h-9")}
+            alt=""
+          />
           <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
             {t("brand.name")}
           </span>
@@ -91,7 +99,25 @@ export function SiteHeader() {
           <BookOpenTextIcon aria-hidden="true" className="size-3.5" />
         </Link>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
+        <div
+          className={cn(
+            "ml-auto flex shrink-0 items-center lg:ml-0",
+            compact ? "gap-1.5 sm:gap-2" : "gap-2"
+          )}
+        >
+          {compact ? (
+            <Link
+              to="/"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "icon" }),
+                "sm:hidden"
+              )}
+              aria-label="返回首页"
+              title="返回首页"
+            >
+              <HouseIcon aria-hidden="true" />
+            </Link>
+          ) : null}
           <PlatformAccountMenu />
           <ThemeToggle />
 

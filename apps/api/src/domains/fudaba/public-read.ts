@@ -10,17 +10,18 @@ const CURSOR_VERSION = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const MAX_CURSOR_LENGTH = 2048;
+const MAX_SERIES_FILTERS = 8;
 const SERIES_CODE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const OFFICE_SLUG_PATTERN = /^[a-z0-9\u4e00-\u9fa5]+(?:-[a-z0-9\u4e00-\u9fa5]+)*$/;
 
 export interface FudabaOfficeFilters {
     city?: string;
-    seriesCode?: string;
+    seriesCodes?: string[];
     isOpen?: boolean;
 }
 
 export interface FudabaCardFilters {
-    seriesCode?: string;
+    seriesCodes?: string[];
     available?: boolean;
     officeSlug?: string;
 }
@@ -88,10 +89,14 @@ function optionalBoolean(value: string | null, name: string): boolean | undefine
     throw badRequest(`${name} must be true or false`);
 }
 
-function validateQueryKeys(parameters: URLSearchParams, allowed: ReadonlySet<string>): void {
+function validateQueryKeys(
+    parameters: URLSearchParams,
+    allowed: ReadonlySet<string>,
+    repeatable: ReadonlySet<string> = new Set()
+): void {
     for (const key of parameters.keys()) {
         if (!allowed.has(key)) throw badRequest(`Unsupported query parameter: ${key}`);
-        if (parameters.getAll(key).length !== 1) {
+        if (!repeatable.has(key) && parameters.getAll(key).length !== 1) {
             throw badRequest(`Query parameter must appear once: ${key}`);
         }
     }
@@ -128,12 +133,18 @@ function sameFilters(actual: unknown, expected: object): boolean {
     return JSON.stringify(actual) === JSON.stringify(expected);
 }
 
-function parseSeriesCode(value: string | null): string | undefined {
-    const seriesCode = optionalText(value, 'series', 40);
-    if (seriesCode && !SERIES_CODE_PATTERN.test(seriesCode)) {
-        throw badRequest('series is invalid');
+function parseSeriesCodes(parameters: URLSearchParams): string[] {
+    const result = parameters.getAll('series').map((value) =>
+        optionalText(value, 'series', 40)
+    );
+    if (
+        result.length > MAX_SERIES_FILTERS ||
+        result.some((seriesCode) => !seriesCode || !SERIES_CODE_PATTERN.test(seriesCode)) ||
+        new Set(result).size !== result.length
+    ) {
+        throw badRequest('series filters are invalid');
     }
-    return seriesCode;
+    return result as string[];
 }
 
 export function encodeFudabaOfficeCursor(
@@ -207,13 +218,17 @@ export function decodeFudabaCardCursor(
 
 export function parseFudabaOfficeQuery(url: string): FudabaOfficeQuery {
     const parameters = new URL(url).searchParams;
-    validateQueryKeys(parameters, new Set(['city', 'series', 'open', 'limit', 'cursor']));
+    validateQueryKeys(
+        parameters,
+        new Set(['city', 'series', 'open', 'limit', 'cursor']),
+        new Set(['series'])
+    );
     const city = optionalText(parameters.get('city'), 'city', 100);
-    const seriesCode = parseSeriesCode(parameters.get('series'));
+    const seriesCodes = parseSeriesCodes(parameters);
     const isOpen = optionalBoolean(parameters.get('open'), 'open');
     const filters = {
         ...(city ? { city } : {}),
-        ...(seriesCode ? { seriesCode } : {}),
+        ...(seriesCodes.length ? { seriesCodes } : {}),
         ...(isOpen === undefined ? {} : { isOpen })
     };
     const cursorValue = parameters.get('cursor');
@@ -230,16 +245,17 @@ export function parseFudabaCardQuery(url: string): FudabaCardQuery {
     const parameters = new URL(url).searchParams;
     validateQueryKeys(
         parameters,
-        new Set(['series', 'available', 'office', 'limit', 'cursor'])
+        new Set(['series', 'available', 'office', 'limit', 'cursor']),
+        new Set(['series'])
     );
-    const seriesCode = parseSeriesCode(parameters.get('series'));
+    const seriesCodes = parseSeriesCodes(parameters);
     const available = optionalBoolean(parameters.get('available'), 'available');
     const officeSlug = optionalText(parameters.get('office'), 'office', 120);
     if (officeSlug && !OFFICE_SLUG_PATTERN.test(officeSlug)) {
         throw badRequest('office is invalid');
     }
     const filters = {
-        ...(seriesCode ? { seriesCode } : {}),
+        ...(seriesCodes.length ? { seriesCodes } : {}),
         ...(available === undefined ? {} : { available }),
         ...(officeSlug ? { officeSlug } : {})
     };

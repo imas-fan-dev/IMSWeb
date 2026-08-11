@@ -636,6 +636,7 @@ export function ExchangeOfficeMap({
     <div
       ref={containerRef}
       className="size-full min-h-0 bg-[#e8f2f4]"
+      data-exchange-office-map
       aria-label="区域事务所地图工作面"
     />
   )

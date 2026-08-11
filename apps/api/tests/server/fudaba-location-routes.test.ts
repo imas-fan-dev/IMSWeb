@@ -445,7 +445,8 @@ test('map config and offices require both flags and expose strict regional DTOs'
 
     const response = await fixture.app.request(
         'http://ims.test/api/community/exchange/map/offices?' +
-        'bbox=121.41,31.11,121.59,31.29&city=Shanghai&series=765&open=true&limit=1'
+        'bbox=121.41,31.11,121.59,31.29&city=Shanghai' +
+        '&series=765&series=cg&open=true&limit=1'
     );
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
@@ -468,7 +469,7 @@ test('map config and offices require both flags and expose strict regional DTOs'
     assert.deepEqual(fixture.mapInputs.at(-1), {
         bbox: { westE1: 1215, southE1: 312, eastE1: 1215, northE1: 312 },
         city: 'Shanghai',
-        seriesCode: '765',
+        seriesCodes: ['765', 'cg'],
         isOpen: true,
         limit: 2
     });
@@ -495,7 +496,9 @@ test('map query rejects missing, duplicate, unknown, invalid, and antimeridian i
         '?bbox=-181,-10,10,10',
         '?bbox=-10,10,10,-10',
         '?bbox=-10,-10,10,10&limit=501',
-        '?bbox=-10,-10,10,10&open=1'
+        '?bbox=-10,-10,10,10&open=1',
+        '?bbox=-10,-10,10,10&series=765&series=765',
+        '?bbox=-10,-10,10,10&series=invalid%21'
     ]) {
         const response = await fixture.app.request(
             `http://ims.test/api/community/exchange/map/offices${query}`

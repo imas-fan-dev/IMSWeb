@@ -5,7 +5,6 @@ import {
   type FudabaOfficeFields,
   type FudabaOwnerLocation,
   type FudabaOwnerOffice,
-  type FudabaSeries,
 } from "~/lib/api"
 
 export type OfficeDraft = {
@@ -49,10 +48,7 @@ function numericInput(value: string) {
   return value.trim() ? Number(value) : Number.NaN
 }
 
-export function emptyOfficeDraft(
-  homeCity: string | null,
-  series: FudabaSeries[]
-): OfficeDraft {
+export function emptyOfficeDraft(homeCity: string | null): OfficeDraft {
   return {
     name: "",
     intro: "",
@@ -62,7 +58,7 @@ export function emptyOfficeDraft(
     longitude: "",
     accent: "#2581c7",
     isOpen: true,
-    seriesCodes: series[0] ? [series[0].code] : [],
+    seriesCodes: [],
   }
 }
 

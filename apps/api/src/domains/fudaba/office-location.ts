@@ -9,6 +9,7 @@ import { parseFudabaRevision } from '@/domains/fudaba/owner-card';
 
 const DEFAULT_MAP_LIMIT = 200;
 const MAX_MAP_LIMIT = 500;
+const MAX_SERIES_FILTERS = 8;
 const DEFAULT_REVIEW_LIMIT = 50;
 const MAX_REVIEW_LIMIT = 200;
 const SERIES_CODE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -53,11 +54,12 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
 
 function validateQueryKeys(
     parameters: URLSearchParams,
-    allowed: ReadonlySet<string>
+    allowed: ReadonlySet<string>,
+    repeatable: ReadonlySet<string> = new Set()
 ): void {
     for (const key of parameters.keys()) {
         if (!allowed.has(key)) throw badRequest(`Unsupported query parameter: ${key}`);
-        if (parameters.getAll(key).length !== 1) {
+        if (!repeatable.has(key) && parameters.getAll(key).length !== 1) {
             throw badRequest(`Query parameter must appear once: ${key}`);
         }
     }
@@ -159,19 +161,28 @@ export function parseFudabaMapQuery(url: string): ListFudabaPublicMapOfficesInpu
     const parameters = new URL(url).searchParams;
     validateQueryKeys(
         parameters,
-        new Set(['bbox', 'city', 'series', 'open', 'limit'])
+        new Set(['bbox', 'city', 'series', 'open', 'limit']),
+        new Set(['series'])
     );
     const city = optionalText(parameters.get('city'), 'city', 100);
-    const seriesCode = optionalText(parameters.get('series'), 'series', 40);
-    if (seriesCode && !SERIES_CODE_PATTERN.test(seriesCode)) {
-        throw badRequest('series is invalid');
+    const seriesCodes = parameters.getAll('series').map((value) =>
+        optionalText(value, 'series', 40)
+    );
+    if (
+        seriesCodes.length > MAX_SERIES_FILTERS ||
+        seriesCodes.some(
+            (seriesCode) => !seriesCode || !SERIES_CODE_PATTERN.test(seriesCode)
+        ) ||
+        new Set(seriesCodes).size !== seriesCodes.length
+    ) {
+        throw badRequest('series filters are invalid');
     }
     const isOpen = optionalBoolean(parameters.get('open'), 'open');
     const bounds = bbox(parameters.get('bbox'));
     return {
         bbox: bounds,
         ...(city ? { city } : {}),
-        ...(seriesCode ? { seriesCode } : {}),
+        ...(seriesCodes.length ? { seriesCodes: seriesCodes as string[] } : {}),
         ...(isOpen === undefined ? {} : { isOpen }),
         limit: positiveLimit(parameters.get('limit'), DEFAULT_MAP_LIMIT, MAX_MAP_LIMIT)
     };

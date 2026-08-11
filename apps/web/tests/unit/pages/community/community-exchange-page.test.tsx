@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -30,7 +30,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
 vi.mock("~/pages/community/exchange/community-exchange-map-section", () => ({
   CommunityExchangeMapSection: (props: {
     city?: string
-    series?: string
+    series?: readonly string[]
     open?: boolean
     onSwitchDirectory: () => void
   }) => {
@@ -172,11 +172,22 @@ describe("CommunityExchangePage", () => {
     expect(
       screen.getByRole("heading", { name: "名片交换信号地图" })
     ).toBeVisible()
-    expect(screen.getByRole("button", { name: "全部企划" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    )
+    const mobileNavigation = screen.getByRole("navigation", {
+      name: "交换地图导航",
+    })
+    expect(
+      within(mobileNavigation).getByRole("button", { name: "地图" })
+    ).toHaveAttribute("aria-current", "page")
+    expect(
+      within(mobileNavigation).getByRole("button", { name: "打开筛选" })
+    ).toHaveAttribute("aria-pressed", "false")
+    expect(
+      within(mobileNavigation).getByRole("link", {
+        name: "管理我的交换账号",
+      })
+    ).toHaveAttribute("href", "/community/exchange/me")
     const agencyButton = screen.getByRole("button", { name: /765PRO/ })
+    expect(agencyButton).toHaveAttribute("aria-pressed", "false")
     expect(agencyButton.querySelector("img")).toHaveAttribute(
       "src",
       "/icon/agencies/1.webp"
@@ -217,7 +228,7 @@ describe("CommunityExchangePage", () => {
     })
   })
 
-  it("uses the canonical agency code for every discovery request", async () => {
+  it("keeps multi-select series tags in every discovery request", async () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter initialEntries={["/community/exchange"]}>
@@ -227,25 +238,48 @@ describe("CommunityExchangePage", () => {
     )
 
     await user.click(await screen.findByRole("button", { name: /765PRO/ }))
+    await user.click(screen.getByRole("button", { name: /灰姑娘女孩/ }))
 
     await waitFor(() => {
       const search = new URLSearchParams(
         screen.getByLabelText("current search").textContent ?? ""
       )
-      expect(search.get("series")).toBe("765")
+      expect(search.getAll("series")).toEqual(["765", "cg"])
       expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith({
         city: undefined,
-        series: "765",
+        series: ["765", "cg"],
         open: undefined,
         limit: 12,
       })
       expect(apiMocks.getFudabaCardPage).toHaveBeenLastCalledWith({
-        series: "765",
+        series: ["765", "cg"],
         available: true,
         limit: 8,
       })
       expect(mapSectionMock.renders).toHaveBeenLastCalledWith(
-        expect.objectContaining({ series: "765" })
+        expect.objectContaining({ series: ["765", "cg"] })
+      )
+    })
+
+    await user.click(screen.getByRole("button", { name: /765PRO/ }))
+    await waitFor(() => {
+      const search = new URLSearchParams(
+        screen.getByLabelText("current search").textContent ?? ""
+      )
+      expect(search.getAll("series")).toEqual(["cg"])
+      expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ series: ["cg"] })
+      )
+    })
+
+    await user.click(screen.getByRole("button", { name: /灰姑娘女孩/ }))
+    await waitFor(() => {
+      const search = new URLSearchParams(
+        screen.getByLabelText("current search").textContent ?? ""
+      )
+      expect(search.getAll("series")).toEqual([])
+      expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ series: undefined })
       )
     })
   })

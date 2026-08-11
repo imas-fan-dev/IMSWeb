@@ -79,8 +79,8 @@ function coordinate(value: unknown, name: string, minimum: number, maximum: numb
 }
 
 function seriesCodes(value: unknown): string[] {
-    if (!Array.isArray(value) || value.length < 1 || value.length > 8) {
-        throw badRequest('seriesCodes 必须包含 1 至 8 个系列');
+    if (!Array.isArray(value) || value.length > 8) {
+        throw badRequest('seriesCodes 最多包含 8 个企划标签');
     }
     const result = value.map((entry) =>
         text(entry, 'seriesCode', 40, true)
@@ -89,7 +89,7 @@ function seriesCodes(value: unknown): string[] {
         result.some((entry) => !SERIES_CODE_PATTERN.test(entry)) ||
         new Set(result).size !== result.length
     ) {
-        throw badRequest('seriesCodes 包含无效或重复系列');
+        throw badRequest('seriesCodes 包含无效或重复企划标签');
     }
     return result;
 }

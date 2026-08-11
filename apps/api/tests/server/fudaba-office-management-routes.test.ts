@@ -603,7 +603,8 @@ test('office creation requires persistent idempotency and replays one resource',
     assert.equal(missingKey.status, 400);
     assert.equal(fixture.createInputs.length, 0);
 
-    const created = await createOffice(fixture, 'create-office-key');
+    const untaggedBody = officeBody({ seriesCodes: [] });
+    const created = await createOffice(fixture, 'create-office-key', untaggedBody);
     const createdBody = await created.json() as { office?: { id: string } };
     assert.equal(created.status, 201, JSON.stringify(createdBody));
     assert.ok(createdBody.office?.id);
@@ -611,10 +612,11 @@ test('office creation requires persistent idempotency and replays one resource',
     assert.equal(fixture.createInputs[0]?.revision, 0);
     assert.equal(fixture.createInputs[0]?.visitorCount, 0);
     assert.equal(fixture.createInputs[0]?.coverObjectKey, null);
+    assert.deepEqual(fixture.createInputs[0]?.seriesCodes, []);
     assert.match(fixture.createInputs[0]?.idempotencyKeyHash ?? '', /^[0-9a-f]{64}$/);
     assert.match(fixture.createInputs[0]?.requestHash ?? '', /^[0-9a-f]{64}$/);
 
-    const replay = await createOffice(fixture, 'create-office-key');
+    const replay = await createOffice(fixture, 'create-office-key', untaggedBody);
     assert.equal(replay.status, 201);
     assert.equal((await replay.json() as { office: { id: string } }).office.id,
         createdBody.office?.id);
@@ -633,6 +635,14 @@ test('office creation requires persistent idempotency and replays one resource',
         officeBody({ status: 'hidden' })
     );
     assert.equal(forbidden.status, 400);
+    const tooManyTags = await createOffice(
+        fixture,
+        'too-many-tags',
+        officeBody({
+            seriesCodes: ['765', '876', 'cg', 'ml', 'sc', 'sidem', 'va', 'gk', 'extra']
+        })
+    );
+    assert.equal(tooManyTags.status, 400);
 });
 
 test('metadata and status routes fence stale, hidden, and non-owner writes', async () => {

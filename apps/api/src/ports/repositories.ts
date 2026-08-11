@@ -602,7 +602,7 @@ export interface FudabaPublicOfficeCursor {
 
 export interface ListFudabaPublicOfficesInput {
     city?: string;
-    seriesCode?: string;
+    seriesCodes?: string[];
     isOpen?: boolean;
     limit: number;
     after?: FudabaPublicOfficeCursor;
@@ -642,7 +642,7 @@ export interface ListFudabaPublicMapOfficesInput {
         northE1: number;
     };
     city?: string;
-    seriesCode?: string;
+    seriesCodes?: string[];
     isOpen?: boolean;
     limit: number;
 }
@@ -729,7 +729,7 @@ export interface FudabaPublicCardCursor {
 }
 
 export interface ListFudabaPublicCardsInput {
-    seriesCode?: string;
+    seriesCodes?: string[];
     available?: boolean;
     officeSlug?: string;
     viewerAccountId: string | null;

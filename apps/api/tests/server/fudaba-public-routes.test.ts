@@ -405,12 +405,19 @@ test('office visibility, query validation, and public media fail closed', async 
 test('Fudaba public queries reject duplicate, out-of-range, and mismatched cursor input', async () => {
     const fudaba = new PublicFudabaFixture();
     const app = createHonoApp(() => runtime(fudaba));
+    const multiSeries = await app.request(
+        'http://ims.test/api/community/exchange/offices' +
+        '?series=765&series=cg&limit=2'
+    );
+    assert.equal(multiSeries.status, 200);
+    assert.deepEqual(fudaba.lastOfficeInput?.seriesCodes, ['765', 'cg']);
     for (const path of [
         '/api/community/exchange/offices?city=Shanghai&city=Beijing',
         '/api/community/exchange/offices?limit=0',
         '/api/community/exchange/offices?limit=51',
         '/api/community/exchange/offices?cursor=not-a-cursor',
         '/api/community/exchange/cards?series=invalid%21',
+        '/api/community/exchange/cards?series=765&series=765',
         '/api/community/exchange/cards?office=invalid%2Fslug',
         '/api/community/exchange/offices/invalid_slug',
         '/api/community/exchange/offices/office-a?unexpected=true'

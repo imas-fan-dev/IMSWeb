@@ -446,7 +446,7 @@ describe("Fudaba Web API contracts", () => {
     await getFudabaMapOffices({
       bbox: [100, 20, 130, 45],
       city: " 上海 ",
-      series: "765",
+      series: ["765", "cg"],
       open: true,
       limit: 200,
     }).send()
@@ -458,7 +458,7 @@ describe("Fudaba Web API contracts", () => {
     const query = requests[1]?.url.searchParams
     expect(query?.get("bbox")).toBe("100,20,130,45")
     expect(query?.get("city")).toBe("上海")
-    expect(query?.get("series")).toBe("765")
+    expect(query?.getAll("series")).toEqual(["765", "cg"])
     expect(query?.get("open")).toBe("true")
     expect(query?.get("limit")).toBe("200")
     for (const request of requests) {

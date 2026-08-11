@@ -276,6 +276,15 @@
 }
 
 @media (max-width: 767px) {
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-left,
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-right {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-left {
+    max-width: calc(100% - 5rem);
+  }
+
   body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
     bottom: calc(4.25rem + env(safe-area-inset-bottom));
   }

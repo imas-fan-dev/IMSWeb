@@ -389,6 +389,7 @@ async function assertLocationRepository(
         office('map-suspended', suspendedId),
         office('map-hidden-office', ownerId, { status: 'hidden' }),
         office('map-disabled-series', ownerId, { seriesCodes: ['sidem'] }),
+        office('map-untagged', ownerId, { seriesCodes: [] }),
         office('map-pending', ownerId)
     ];
     for (const input of publicInputs) await fixture.repository.createOffice(input);
@@ -410,6 +411,9 @@ async function assertLocationRepository(
     await insertReviewedLocation(fixture, {
         officeId: 'map-disabled-series', latitudeE1: 316, longitudeE1: 1219, reviewerId
     });
+    await insertReviewedLocation(fixture, {
+        officeId: 'map-untagged', latitudeE1: 318, longitudeE1: 1221, reviewerId
+    });
     assert.equal((await fixture.repository.saveOfficePublicLocationForOwner({
         officeId: 'map-pending',
         ownerAccountId: ownerId,
@@ -426,7 +430,8 @@ async function assertLocationRepository(
     assert.deepEqual(worldwide.map(({ id }) => id), [
         'map-negative',
         'map-positive',
-        'map-restricted'
+        'map-restricted',
+        'map-untagged'
     ]);
     const mapRecord = worldwide[1] as unknown as Record<string, unknown>;
     for (const privateKey of [
@@ -438,7 +443,7 @@ async function assertLocationRepository(
     assert.deepEqual(await fixture.repository.listPublicMapOffices({
         bbox: { westE1: 1215, southE1: 312, eastE1: 1215, northE1: 312 },
         city: 'Shanghai',
-        seriesCode: '765',
+        seriesCodes: ['765', 'cg'],
         isOpen: true,
         limit: 20
     }).then((rows) => rows.map(({ id }) => id)), ['map-positive']);

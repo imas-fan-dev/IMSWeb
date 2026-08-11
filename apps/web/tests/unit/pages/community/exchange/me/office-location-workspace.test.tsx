@@ -63,6 +63,22 @@ const series = [
     displayOrder: 0,
     activeOfficeCount: 1,
   },
+  {
+    id: 3,
+    code: "cg",
+    displayName: "灰姑娘女孩",
+    color: "#2681c8",
+    iconUrl: null,
+    imageTransform: {
+      fit: "contain" as const,
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0 as const,
+    },
+    displayOrder: 2,
+    activeOfficeCount: 0,
+  },
 ]
 
 const office: FudabaOwnerOffice = {
@@ -329,6 +345,29 @@ describe("OfficeLocationWorkspace", () => {
     })
   })
 
+  it("saves multiple optional series tags for an office", async () => {
+    const user = userEvent.setup()
+    renderWorkspace()
+
+    const originalTag = await screen.findByRole("checkbox", { name: "765PRO" })
+    const addedTag = screen.getByRole("checkbox", { name: "灰姑娘女孩" })
+    expect(originalTag).toBeChecked()
+    expect(addedTag).not.toBeChecked()
+
+    await user.click(addedTag)
+    await user.click(screen.getByRole("button", { name: "保存事务所" }))
+
+    await waitFor(() => {
+      expect(apiMocks.updateFudabaOwnerOffice).toHaveBeenCalledWith(
+        office.id,
+        expect.objectContaining({
+          seriesCodes: ["765", "cg"],
+          expectedRevision: office.revision,
+        })
+      )
+    })
+  })
+
   it("creates a complete office with an idempotency key", async () => {
     apiMocks.sendOffices.mockResolvedValue({ items: [] })
     const user = userEvent.setup()
@@ -363,7 +402,7 @@ describe("OfficeLocationWorkspace", () => {
           address: "场馆入口",
           latitude: 31.2,
           longitude: 121.5,
-          seriesCodes: ["765"],
+          seriesCodes: [],
         }),
         expect.stringMatching(/^fudaba-office-/)
       )

@@ -341,6 +341,9 @@ test("fills the public workspace with a responsive map and keeps both directorie
       const mapCanvas = document.querySelector<HTMLCanvasElement>(
         "canvas.maplibregl-canvas"
       )
+      const mapTools = document.querySelector<HTMLElement>(
+        'section[aria-label="地图工具"] > div'
+      )
       if (
         !header ||
         !workspace ||
@@ -389,6 +392,8 @@ test("fills the public workspace with a responsive map and keeps both directorie
         canvasBottom: canvasRect.bottom,
         canvasWidth: canvasRect.width,
         canvasHeight: canvasRect.height,
+        mapToolsTop: mapTools?.getBoundingClientRect().top ?? null,
+        mapToolsHeight: mapTools?.getBoundingClientRect().height ?? null,
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
         scrollWidth: document.documentElement.scrollWidth,
@@ -430,7 +435,12 @@ test("fills the public workspace with a responsive map and keeps both directorie
       return (
         geometry.discoveryRailDisplay === "none" &&
         geometry.discoveryRailWidth === 0 &&
-        Math.abs(geometry.mapRegionLeft) <= 1
+        Math.abs(geometry.mapRegionLeft) <= 1 &&
+        geometry.headerBottom <= 49 &&
+        geometry.mapToolsTop !== null &&
+        geometry.mapToolsTop - geometry.workspaceTop <= 9 &&
+        geometry.mapToolsHeight !== null &&
+        geometry.mapToolsHeight <= 47
       )
     }
 
@@ -479,7 +489,11 @@ test("fills the public workspace with a responsive map and keeps both directorie
     ).toBeVisible()
     await page.keyboard.press("Escape")
     await page.setViewportSize({ width: 1180, height: 760 })
-    await expect(page.getByText("上海活动交换事务所")).toBeVisible()
+    await expect(
+      page
+        .getByRole("region", { name: "区域地图" })
+        .getByText("上海活动交换事务所")
+    ).toBeVisible()
   }
 
   const mapRequestCount = requests.filter((url) =>

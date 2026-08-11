@@ -214,7 +214,6 @@ const exactCoordinateSchema = (minimum: number, maximum: number) =>
   z.number().finite().min(minimum).max(maximum)
 const ownerOfficeSeriesCodesSchema = z
   .array(seriesCodeSchema.max(40))
-  .min(1)
   .max(8)
   .refine((codes) => new Set(codes).size === codes.length)
 const idempotencyKeySchema = z
@@ -517,14 +516,14 @@ export type FudabaCardPlacementDeleteResponse = z.infer<
 
 export interface FudabaOfficePageRequest {
   city?: string
-  series?: string
+  series?: readonly string[]
   open?: boolean
   limit?: number
   cursor?: string
 }
 
 export interface FudabaCardPageRequest {
-  series?: string
+  series?: readonly string[]
   available?: boolean
   office?: string
   limit?: number
@@ -541,7 +540,7 @@ export type FudabaMapBounds = readonly [
 export interface FudabaMapOfficeRequest {
   bbox: FudabaMapBounds
   city?: string
-  series?: string
+  series?: readonly string[]
   open?: boolean
   limit?: number
 }
@@ -553,11 +552,11 @@ function officePageParams({
   limit = 12,
   cursor,
 }: FudabaOfficePageRequest) {
-  const params: Record<string, string | number> = { limit }
-  if (city?.trim()) params.city = city.trim()
-  if (series) params.series = series
-  if (open !== undefined) params.open = String(open)
-  if (cursor) params.cursor = cursor
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (city?.trim()) params.set("city", city.trim())
+  for (const seriesCode of series ?? []) params.append("series", seriesCode)
+  if (open !== undefined) params.set("open", String(open))
+  if (cursor) params.set("cursor", cursor)
   return params
 }
 
@@ -568,11 +567,11 @@ function cardPageParams({
   limit = 8,
   cursor,
 }: FudabaCardPageRequest) {
-  const params: Record<string, string | number> = { limit }
-  if (series) params.series = series
-  if (available !== undefined) params.available = String(available)
-  if (office) params.office = office
-  if (cursor) params.cursor = cursor
+  const params = new URLSearchParams({ limit: String(limit) })
+  for (const seriesCode of series ?? []) params.append("series", seriesCode)
+  if (available !== undefined) params.set("available", String(available))
+  if (office) params.set("office", office)
+  if (cursor) params.set("cursor", cursor)
   return params
 }
 
@@ -599,14 +598,19 @@ function mapOfficeParams({
     throw new Error("Fudaba map limit must be between 1 and 500")
   }
 
-  const params: Record<string, string | number> = {
+  const params = new URLSearchParams({
     bbox: bbox.join(","),
-    limit,
-  }
-  if (city?.trim()) params.city = city.trim()
-  if (series) params.series = series
-  if (open !== undefined) params.open = String(open)
+    limit: String(limit),
+  })
+  if (city?.trim()) params.set("city", city.trim())
+  for (const seriesCode of series ?? []) params.append("series", seriesCode)
+  if (open !== undefined) params.set("open", String(open))
   return params
+}
+
+function withQuery(path: string, parameters: URLSearchParams) {
+  const query = parameters.toString()
+  return query ? `${path}?${query}` : path
 }
 
 export function getFudabaSeries() {
@@ -631,10 +635,9 @@ export function getFudabaOwnerSeries() {
 
 export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
   return platformApiClient.Get<FudabaOfficePage, unknown>(
-    "/api/community/exchange/offices",
+    withQuery("/api/community/exchange/offices", officePageParams(input)),
     {
       meta: withPlatformAuth(),
-      params: officePageParams(input),
       transform: (payload) => fudabaOfficePageSchema.parse(payload),
     }
   )
@@ -662,10 +665,9 @@ export function getFudabaMapConfig() {
 
 export function getFudabaMapOffices(input: FudabaMapOfficeRequest) {
   return platformApiClient.Get<FudabaMapOfficeList, unknown>(
-    "/api/community/exchange/map/offices",
+    withQuery("/api/community/exchange/map/offices", mapOfficeParams(input)),
     {
       meta: withPlatformAuth(),
-      params: mapOfficeParams(input),
       transform: (payload) => fudabaMapOfficeListSchema.parse(payload),
     }
   )
@@ -673,10 +675,9 @@ export function getFudabaMapOffices(input: FudabaMapOfficeRequest) {
 
 export function getFudabaCardPage(input: FudabaCardPageRequest = {}) {
   return platformApiClient.Get<FudabaCardPage, unknown>(
-    "/api/community/exchange/cards",
+    withQuery("/api/community/exchange/cards", cardPageParams(input)),
     {
       meta: withPlatformAuth(),
-      params: cardPageParams(input),
       transform: (payload) => fudabaCardPageSchema.parse(payload),
     }
   )

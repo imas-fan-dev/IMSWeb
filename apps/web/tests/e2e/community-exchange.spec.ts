@@ -142,9 +142,53 @@ test("discovers an exchange office and preserves the detail deep link", async ({
     })
   ).toBeVisible()
 
+  const mobileNavigation = page.getByRole("navigation", {
+    name: "交换地图导航",
+  })
+  const homeShortcut = page.getByRole("link", {
+    name: "返回首页",
+    exact: true,
+  })
+  if (isMobile) {
+    await expect(homeShortcut).toBeVisible()
+    await expect(homeShortcut).toHaveAttribute("href", "/")
+    await expect(mobileNavigation).toBeVisible()
+    await expect(
+      mobileNavigation.getByRole("button", { name: "地图" })
+    ).toHaveAttribute("aria-current", "page")
+    await expect(
+      mobileNavigation.getByText("筛选", { exact: true })
+    ).toBeVisible()
+    await expect(
+      mobileNavigation.getByText("事务所", { exact: true })
+    ).toBeVisible()
+    await expect(
+      mobileNavigation.getByText("名片", { exact: true })
+    ).toBeVisible()
+    await expect(
+      mobileNavigation.getByText("我的", { exact: true })
+    ).toBeVisible()
+  } else {
+    await expect(homeShortcut).toBeHidden()
+    await expect(mobileNavigation).toBeHidden()
+  }
+
   if (isMobile) {
     await page.getByRole("button", { name: "打开筛选" }).click()
   }
+  const firstSeriesTag = page.getByRole("button", { name: /765PRO/ })
+  const secondSeriesTag = page.getByRole("button", { name: /灰姑娘女孩/ })
+  await firstSeriesTag.click()
+  await secondSeriesTag.click()
+  await expect(firstSeriesTag).toHaveAttribute("aria-pressed", "true")
+  await expect(secondSeriesTag).toHaveAttribute("aria-pressed", "true")
+  expect(new URL(page.url()).searchParams.getAll("series")).toEqual([
+    "765",
+    "cg",
+  ])
+  await firstSeriesTag.click()
+  await secondSeriesTag.click()
+  expect(new URL(page.url()).searchParams.getAll("series")).toEqual([])
   await page.getByRole("checkbox", { name: "仅看开放事务所" }).click()
   await expect(page).toHaveURL(/open=true/)
   if (isMobile) await page.keyboard.press("Escape")

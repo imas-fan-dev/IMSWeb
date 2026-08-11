@@ -238,10 +238,8 @@ export function OfficeEditor({
             </Alert>
 
             <FieldSet disabled={formDisabled}>
-              <FieldLegend>所属企划</FieldLegend>
-              <FieldDescription>
-                至少选择 1 个，最多选择 8 个。
-              </FieldDescription>
+              <FieldLegend>企划标签（可选）</FieldLegend>
+              <FieldDescription>可不选择，最多添加 8 个标签。</FieldDescription>
               <div
                 data-slot="checkbox-group"
                 className="grid gap-3 sm:grid-cols-2"
@@ -330,11 +328,7 @@ export function OfficeEditor({
         </form>
       </CardContent>
       <CardFooter className="justify-end gap-2">
-        <Button
-          type="submit"
-          form="fudaba-office-form"
-          disabled={formDisabled || series.length === 0}
-        >
+        <Button type="submit" form="fudaba-office-form" disabled={formDisabled}>
           {busy ? (
             <LoaderCircleIcon
               data-icon="inline-start"

@@ -544,7 +544,7 @@ export class SqlFudabaRepository implements FudabaRepository {
     }
 
     private async enabledOfficeSeriesAvailable(seriesCodes: string[]): Promise<boolean> {
-        if (seriesCodes.length === 0) return false;
+        if (seriesCodes.length === 0) return true;
         const placeholders = seriesCodes.map(() => '?').join(', ');
         const row = await queryOne<{ count: number | string }>(
             this.database,
@@ -657,15 +657,16 @@ export class SqlFudabaRepository implements FudabaRepository {
             conditions.push('office.city=?');
             parameters.push(input.city);
         }
-        if (input.seriesCode !== undefined) {
+        if (input.seriesCodes?.length) {
+            const placeholders = input.seriesCodes.map(() => '?').join(', ');
             conditions.push(`EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags series_filter
                 JOIN agencies series
                   ON series.code=series_filter.series_code AND series.wiki_enabled
                 WHERE series_filter.office_id=office.id
-                  AND series_filter.series_code=?
+                  AND series_filter.series_code IN (${placeholders})
             )`);
-            parameters.push(input.seriesCode);
+            parameters.push(...input.seriesCodes);
         }
         if (input.isOpen !== undefined) {
             conditions.push('office.is_open=?');
@@ -704,13 +705,16 @@ export class SqlFudabaRepository implements FudabaRepository {
         const conditions = [
             `location.review_state='published'`,
             PUBLIC_OFFICE_ELIGIBILITY,
-            `EXISTS (
+            `(NOT EXISTS (
+                SELECT 1 FROM fudaba_office_series_tags any_office_series
+                WHERE any_office_series.office_id=office.id
+            ) OR EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags eligible_office_series
                 JOIN agencies eligible_series
                   ON eligible_series.code=eligible_office_series.series_code
                  AND eligible_series.wiki_enabled
                 WHERE eligible_office_series.office_id=office.id
-            )`
+            ))`
         ];
         const parameters: unknown[] = [];
         conditions.push(
@@ -729,16 +733,17 @@ export class SqlFudabaRepository implements FudabaRepository {
             conditions.push('office.city=?');
             parameters.push(input.city);
         }
-        if (input.seriesCode !== undefined) {
+        if (input.seriesCodes?.length) {
+            const placeholders = input.seriesCodes.map(() => '?').join(', ');
             conditions.push(`EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags map_series_filter
                 JOIN agencies map_series
                   ON map_series.code=map_series_filter.series_code
                  AND map_series.wiki_enabled
                 WHERE map_series_filter.office_id=office.id
-                  AND map_series_filter.series_code=?
+                  AND map_series_filter.series_code IN (${placeholders})
             )`);
-            parameters.push(input.seriesCode);
+            parameters.push(...input.seriesCodes);
         }
         if (input.isOpen !== undefined) {
             conditions.push('office.is_open=?');
@@ -807,9 +812,10 @@ export class SqlFudabaRepository implements FudabaRepository {
             input.viewerAccountId,
             input.viewerAccountId
         ];
-        if (input.seriesCode !== undefined) {
-            conditions.push('card.series_code=?');
-            parameters.push(input.seriesCode);
+        if (input.seriesCodes?.length) {
+            const placeholders = input.seriesCodes.map(() => '?').join(', ');
+            conditions.push(`card.series_code IN (${placeholders})`);
+            parameters.push(...input.seriesCodes);
         }
         if (input.available !== undefined) {
             conditions.push('card.available=?');
