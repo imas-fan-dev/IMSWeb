@@ -663,7 +663,7 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
                 assert.equal(row.status, state === 'before' ? 'pending' : 'approved');
             },
             async resetMutation() {
-                await run(fixturePool, "UPDATE cards SET status='pending' WHERE id=?", [inserted.lastID]);
+                await run(fixturePool, "UPDATE cards SET status='pending', revision=0 WHERE id=?", [inserted.lastID]);
             },
             setCookies(response) {
                 return response.headers.getSetCookie();
