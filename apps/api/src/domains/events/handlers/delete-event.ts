@@ -19,7 +19,13 @@ export async function handleDeleteEvent(
     if (!media) return c.json({ error: '不存在' } satisfies EventErrorResponse, 404);
     await repository.deleteEvent(id);
     try {
-        await deleteObjectWithCompensation(services(c), publicMediaObjectKey(media.image_url));
+        const references = await repository.countEventMediaReferences(media.image_url);
+        if (references === 0) {
+            await deleteObjectWithCompensation(
+                services(c),
+                publicMediaObjectKey(media.image_url)
+            );
+        }
     } catch (error) {
         console.error('Failed to clean media for committed event deletion', error);
     }

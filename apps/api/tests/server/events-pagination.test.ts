@@ -31,6 +31,18 @@ interface CursorEventPage {
 interface EventFixture {
     request(pathname: string): Promise<Response>;
     insert(title: string): Promise<number>;
+    find(id: number): Promise<Record<string, unknown> | null>;
+    references(imageUrl: string): Promise<number>;
+    update(
+        id: number,
+        input: {
+            title: string;
+            name: string;
+            contact: string;
+            imageUrl: string;
+        },
+        expectedImageUrl: string
+    ): Promise<boolean>;
 }
 
 async function createFixture(t: TestContext, count: number): Promise<EventFixture> {
@@ -58,7 +70,11 @@ async function createFixture(t: TestContext, count: number): Promise<EventFixtur
                 contact: 'fixture@example.test',
                 imageUrl: '/uploads/events/new.webp'
             });
-        }
+        },
+        find: (id) => core.findEvent(id),
+        references: (imageUrl) => core.countEventMediaReferences(imageUrl),
+        update: (id, input, expectedImageUrl) =>
+            core.updateEvent(id, input, expectedImageUrl)
     };
 }
 
@@ -142,6 +158,44 @@ test('cursor event pagination returns an explicit empty snapshot', async (t) => 
         items: [],
         pageInfo: { nextCursor: null, hasNextPage: false, snapshotAt: null }
     });
+});
+
+test('event updates require the expected current image reference', async (t) => {
+    const fixture = await createFixture(t, 1);
+    const replacement = {
+        title: 'Updated event',
+        name: 'Updated organizer',
+        contact: 'updated@example.test',
+        imageUrl: '/uploads/events/replacement.webp'
+    };
+
+    assert.equal(await fixture.update(
+        1,
+        replacement,
+        '/uploads/events/1.webp'
+    ), true);
+    assert.deepEqual(
+        await fixture.find(1),
+        {
+            id: 1,
+            title: replacement.title,
+            name: replacement.name,
+            contact: replacement.contact,
+            image_url: replacement.imageUrl,
+            created_at: (await fixture.find(1))?.created_at
+        }
+    );
+
+    assert.equal(await fixture.update(
+        1,
+        { ...replacement, title: 'Stale overwrite' },
+        '/uploads/events/1.webp'
+    ), false);
+    assert.equal((await fixture.find(1))?.title, replacement.title);
+
+    await fixture.insert('Shared image 1');
+    await fixture.insert('Shared image 2');
+    assert.equal(await fixture.references('/uploads/events/new.webp'), 2);
 });
 
 test('event cursors retain decimal BIGINT ids and reject invalid pagination modes', async (t) => {

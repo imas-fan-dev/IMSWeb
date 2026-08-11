@@ -1,4 +1,0 @@
-{
-  "cards": ["id", "image1_url", "image2_url", "status"],
-  "events": ["id", "title"]
-}

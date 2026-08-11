@@ -1,12 +1,15 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const path = require('node:path');
 const test = require('node:test');
 const {
     applyMigrations,
     databaseUrl,
+    migrationCatalog,
     parseArguments,
-    readMigrations
+    readMigrations,
+    validateMigrationFilenames
 } = require('../../scripts/migration/postgres-migrations');
 
 test('PostgreSQL migrations are ordered and split around the data import', () => {
@@ -131,16 +134,59 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
             DATABASE_URL: 'postgresql://imsweb:secret@localhost:5432/imsweb'
         }),
         {
+            command: 'migrate',
             connectionString: 'postgresql://imsweb:secret@localhost:5432/imsweb',
             migrationsPath: '/tmp/migrations'
         }
     );
+    assert.deepEqual(parseArguments(['--list'], {}), {
+        command: 'list',
+        migrationsPath: path.resolve(__dirname, '../../migrations/postgresql')
+    });
     assert.throws(() => databaseUrl({}), /DATABASE_URL is required/);
     assert.throws(() => databaseUrl({ DATABASE_URL: 'mysql://localhost/ims' }), /PostgreSQL URL/);
 });
 
-function migrationClient() {
-    const rows = [];
+test('PostgreSQL migration catalog is available without a database connection', () => {
+    const catalog = migrationCatalog();
+    assert.equal(catalog.count, 21);
+    assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
+    assert.equal(
+        catalog.migrations.at(-1).version,
+        '20260805090000_wiki_story_content_type_icons'
+    );
+    assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
+});
+
+test('PostgreSQL migration names keep the frozen sequence and use UTC timestamps after it', () => {
+    assert.doesNotThrow(() => validateMigrationFilenames([
+        '0019_homepage_links.sql',
+        '20260804095901_wiki_idol_url.sql'
+    ]));
+    assert.throws(
+        () => validateMigrationFilenames(['0020_new_change.sql']),
+        /14-digit UTC timestamp/
+    );
+    assert.throws(
+        () => validateMigrationFilenames(['20261301000000_invalid_month.sql']),
+        /Invalid PostgreSQL migration timestamp/
+    );
+    assert.throws(
+        () => validateMigrationFilenames([
+            '20260810010000_first.sql',
+            '20260810010000_second.sql'
+        ]),
+        /Duplicate PostgreSQL migration prefix/
+    );
+});
+
+function migrationClient(initialRows = []) {
+    const rows = initialRows.map(({ version, filename, phase, checksum }) => ({
+        version,
+        filename,
+        phase,
+        checksum
+    }));
     return {
         rows,
         async query(sql, values = []) {
@@ -195,4 +241,31 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         : migration
     );
     await assert.rejects(applyMigrations(client, { migrations: drifted }), /drifted/);
+});
+
+test('PostgreSQL migration runner rejects an applied migration deleted from the catalog', async () => {
+    const [deleted, ...migrations] = readMigrations();
+    const client = migrationClient([deleted]);
+
+    await assert.rejects(
+        applyMigrations(client, { migrations, phase: 'post-data' }),
+        /Applied PostgreSQL migration drifted from catalog: 0001_initial_compatibility/
+    );
+    assert.equal(client.rows.length, 1);
+});
+
+test('PostgreSQL migration runner rejects an applied migration renamed in the catalog', async () => {
+    const [applied, ...migrations] = readMigrations();
+    const renamed = {
+        ...applied,
+        version: '20260811000000_initial_compatibility',
+        filename: '20260811000000_initial_compatibility.sql'
+    };
+    const client = migrationClient([applied]);
+
+    await assert.rejects(
+        applyMigrations(client, { migrations: [...migrations, renamed] }),
+        /Applied PostgreSQL migration drifted from catalog: 0001_initial_compatibility/
+    );
+    assert.equal(client.rows.length, 1);
 });

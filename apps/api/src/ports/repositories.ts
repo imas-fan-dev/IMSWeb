@@ -112,6 +112,7 @@ export interface EventInput {
 
 export interface EventRepository {
     insertEvent(input: EventInput): Promise<number>;
+    updateEvent(id: number, input: EventInput, expectedImageUrl: string): Promise<boolean>;
     countEvents(): Promise<number>;
     listEvents(limit: number, offset: number): Promise<Record<string, unknown>[]>;
     findLatestEventId(): Promise<string | null>;
@@ -122,6 +123,7 @@ export interface EventRepository {
     ): Promise<Record<string, unknown>[]>;
     findEvent(id: number): Promise<Record<string, unknown> | null>;
     findEventMedia(id: number): Promise<{ image_url: string } | null>;
+    countEventMediaReferences(imageUrl: string): Promise<number>;
     deleteEvent(id: number): Promise<boolean>;
 }
 

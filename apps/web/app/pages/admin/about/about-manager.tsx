@@ -3,11 +3,13 @@ import {
   ChevronDownIcon,
   ExternalLinkIcon,
   ImageIcon,
+  ImageOffIcon,
   InfoIcon,
   ListPlusIcon,
   LoaderCircleIcon,
   MonitorIcon,
   MoveIcon,
+  PencilIcon,
   PlusIcon,
   RefreshCwIcon,
   RotateCcwIcon,
@@ -16,6 +18,7 @@ import {
   SmartphoneIcon,
   Trash2Icon,
   UserPlusIcon,
+  UsersRoundIcon,
 } from "lucide-react"
 import {
   useRef,
@@ -27,22 +30,43 @@ import {
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog"
 import { Button } from "~/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
 import { cn } from "~/lib/utils"
 import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
 import {
   AdminField,
+  AdminEmptyState,
   AdminPageHeader,
   AdminPanel,
   adminControlClass,
   adminTextareaClass,
 } from "~/pages/admin/components/admin-ui"
+import { SortableList } from "~/pages/admin/components/sortable-list"
 import {
   getAdminAboutPageContent,
   uploadAboutHeroImage,
@@ -147,74 +171,6 @@ function StringListEditor({
         添加{label}
       </Button>
     </div>
-  )
-}
-
-function ImageUrlEditor({
-  id,
-  label,
-  value,
-  alt,
-  portrait = false,
-  showPreview = true,
-  previewImageStyle,
-  onChange,
-}: {
-  id: string
-  label: string
-  value: string | null
-  alt: string
-  portrait?: boolean
-  showPreview?: boolean
-  previewImageStyle?: CSSProperties
-  onChange: (value: string | null) => void
-}) {
-  return (
-    <AdminField
-      label={label}
-      htmlFor={id}
-      description="支持 / 开头的站内路径或 http、https 链接；清空后隐藏图片"
-    >
-      <div className="flex items-start gap-4">
-        {showPreview ? (
-          <div
-            className={
-              portrait
-                ? "flex h-56 w-40 shrink-0 items-end justify-center overflow-hidden rounded-md border bg-muted"
-                : "flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted"
-            }
-          >
-            {value ? (
-              <img
-                src={value}
-                alt={alt}
-                style={previewImageStyle}
-                className={
-                  portrait
-                    ? "size-full object-contain"
-                    : "size-full object-cover"
-                }
-              />
-            ) : (
-              <ImageIcon className="size-5 text-muted-foreground" aria-hidden />
-            )}
-          </div>
-        ) : null}
-        <div className="relative min-w-0 flex-1">
-          <ImageIcon
-            className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <input
-            id={id}
-            className={`${adminControlClass} pl-9`}
-            maxLength={500}
-            value={value || ""}
-            onChange={(event) => onChange(event.target.value || null)}
-          />
-        </div>
-      </div>
-    </AdminField>
   )
 }
 
@@ -682,26 +638,115 @@ function HeroCompositionPreview({
   )
 }
 
-function PersonEditor({
-  groupId,
-  person,
+interface GroupEditorState {
+  mode: "create" | "edit"
+  draft: AboutGroup
+}
+
+interface MemberEditorState {
+  mode: "create" | "edit"
+  groupId: string
+  draft: AboutPerson
+}
+
+type RosterDeleteTarget =
+  | { kind: "group"; group: AboutGroup }
+  | { kind: "member"; groupId: string; person: AboutPerson }
+
+function GroupEditorDialog({
+  editor,
+  onOpenChange,
+  onChange,
+  onSave,
+}: {
+  editor: GroupEditorState | null
+  onOpenChange: (open: boolean) => void
+  onChange: (group: AboutGroup) => void
+  onSave: (event: React.FormEvent<HTMLFormElement>) => void
+}) {
+  return (
+    <Dialog open={editor !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        {editor ? (
+          <form onSubmit={onSave}>
+            <DialogHeader>
+              <DialogTitle>
+                {editor.mode === "create" ? "新增名单分组" : "编辑名单分组"}
+              </DialogTitle>
+              <DialogDescription>
+                设置分组在公开关于页显示的中英文标题。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-5 py-5 sm:grid-cols-2">
+              <AdminField label="分组标题" htmlFor="about-group-title">
+                <input
+                  id="about-group-title"
+                  className={adminControlClass}
+                  maxLength={80}
+                  required
+                  value={editor.draft.title}
+                  onChange={(event) =>
+                    onChange({ ...editor.draft, title: event.target.value })
+                  }
+                />
+              </AdminField>
+              <AdminField label="英文副标题" htmlFor="about-group-subtitle">
+                <input
+                  id="about-group-subtitle"
+                  className={adminControlClass}
+                  maxLength={80}
+                  value={editor.draft.subtitle}
+                  onChange={(event) =>
+                    onChange({ ...editor.draft, subtitle: event.target.value })
+                  }
+                />
+              </AdminField>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                取消
+              </Button>
+              <Button type="submit">
+                <SaveIcon data-icon="inline-start" />
+                保存分组
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function MemberEditorDialog({
+  editor,
   avatarFile,
   avatarUploading,
   uploadDisabled,
+  onOpenChange,
   onChange,
   onAvatarUpload,
-  onRemove,
+  onSave,
 }: {
-  groupId: string
-  person: AboutPerson
+  editor: MemberEditorState | null
   avatarFile: File | null
   avatarUploading: boolean
   uploadDisabled: boolean
+  onOpenChange: (open: boolean) => void
   onChange: (person: AboutPerson) => void
   onAvatarUpload: (file: File | null) => void
-  onRemove: () => void
+  onSave: (event: React.FormEvent<HTMLFormElement>) => void
 }) {
-  const prefix = `${groupId}-${person.id}`
+  if (!editor) {
+    return <Dialog open={false} onOpenChange={onOpenChange} />
+  }
+
+  const person = editor.draft
+  const prefix = `about-member-${person.id}`
 
   function update<Key extends keyof AboutPerson>(
     key: Key,
@@ -711,232 +756,146 @@ function PersonEditor({
   }
 
   return (
-    <div className="border-l-2 border-border pl-4 sm:pl-5">
-      <div className="mb-4 flex min-w-0 items-center justify-between gap-3">
-        <p className="truncate text-sm font-semibold">
-          {person.name || "新成员"}
-        </p>
-        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
-          <Trash2Icon data-icon="inline-start" />
-          删除成员
-        </Button>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <AdminField label="名称" htmlFor={`${prefix}-name`}>
-          <input
-            id={`${prefix}-name`}
-            className={adminControlClass}
-            maxLength={80}
-            required
-            value={person.name}
-            onChange={(event) => update("name", event.target.value)}
-          />
-        </AdminField>
-        <AdminField label="身份" htmlFor={`${prefix}-role`}>
-          <input
-            id={`${prefix}-role`}
-            className={adminControlClass}
-            maxLength={80}
-            required
-            value={person.role}
-            onChange={(event) => update("role", event.target.value)}
-          />
-        </AdminField>
-        <AdminField label="加入时间" htmlFor={`${prefix}-since`}>
-          <input
-            id={`${prefix}-since`}
-            className={adminControlClass}
-            maxLength={40}
-            placeholder="Since 2026"
-            value={person.since}
-            onChange={(event) => update("since", event.target.value)}
-          />
-        </AdminField>
-        <AdminField
-          label="个人主页"
-          htmlFor={`${prefix}-profile`}
-          description="仅支持 http 或 https 链接"
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent
+        className="h-[calc(100svh-2rem)] max-h-192 gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        showCloseButton={!avatarUploading}
+      >
+        <form
+          className="flex h-full min-h-0 flex-col overflow-hidden"
+          onSubmit={onSave}
         >
-          <div className="relative">
-            <ExternalLinkIcon
-              className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <input
-              id={`${prefix}-profile`}
-              type="url"
-              className={`${adminControlClass} pl-9`}
-              maxLength={500}
-              value={person.profileUrl || ""}
-              onChange={(event) =>
-                update("profileUrl", event.target.value || null)
-              }
-            />
-          </div>
-        </AdminField>
-        <div className="flex items-start gap-4 sm:col-span-2">
-          <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
-            {person.avatarUrl ? (
-              <img
-                src={person.avatarUrl}
-                alt={`${person.name || "新成员"}头像预览`}
-                className="size-full object-cover"
+          <DialogHeader className="shrink-0 p-4 pb-0">
+            <DialogTitle>
+              {editor.mode === "create" ? "新增成员" : "编辑成员"}
+            </DialogTitle>
+            <DialogDescription>
+              编辑该成员在公开关于页显示的资料与头像。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <AdminField label="名称" htmlFor={`${prefix}-name`}>
+                <input
+                  id={`${prefix}-name`}
+                  className={adminControlClass}
+                  maxLength={80}
+                  required
+                  value={person.name}
+                  onChange={(event) => update("name", event.target.value)}
+                />
+              </AdminField>
+              <AdminField label="身份" htmlFor={`${prefix}-role`}>
+                <input
+                  id={`${prefix}-role`}
+                  className={adminControlClass}
+                  maxLength={80}
+                  required
+                  value={person.role}
+                  onChange={(event) => update("role", event.target.value)}
+                />
+              </AdminField>
+              <AdminField label="加入时间" htmlFor={`${prefix}-since`}>
+                <input
+                  id={`${prefix}-since`}
+                  className={adminControlClass}
+                  maxLength={40}
+                  placeholder="Since 2026"
+                  value={person.since}
+                  onChange={(event) => update("since", event.target.value)}
+                />
+              </AdminField>
+              <AdminField
+                label="个人主页"
+                htmlFor={`${prefix}-profile`}
+                description="仅支持 http 或 https 链接"
+              >
+                <div className="relative">
+                  <ExternalLinkIcon
+                    className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <input
+                    id={`${prefix}-profile`}
+                    type="url"
+                    className={`${adminControlClass} pl-9`}
+                    maxLength={500}
+                    value={person.profileUrl || ""}
+                    onChange={(event) =>
+                      update("profileUrl", event.target.value || null)
+                    }
+                  />
+                </div>
+              </AdminField>
+            </div>
+
+            <AdminField label="简介" htmlFor={`${prefix}-description`}>
+              <textarea
+                id={`${prefix}-description`}
+                className={`${adminTextareaClass} min-h-24`}
+                maxLength={500}
+                value={person.description}
+                onChange={(event) => update("description", event.target.value)}
               />
-            ) : (
-              <ImageIcon className="size-5 text-muted-foreground" aria-hidden />
-            )}
+            </AdminField>
+
+            <div className="grid items-start gap-4 border-t pt-5 sm:grid-cols-[5rem_minmax(0,1fr)]">
+              <div className="flex size-20 items-center justify-center overflow-hidden rounded-full border bg-muted">
+                {person.avatarUrl ? (
+                  <img
+                    src={person.avatarUrl}
+                    alt={`${person.name || "新成员"}头像预览`}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon
+                    className="size-5 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+              <div className="min-w-0 space-y-3">
+                <AdminImageUploadField
+                  id={`${prefix}-avatar-upload`}
+                  label="上传头像"
+                  description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB。"
+                  file={avatarFile}
+                  disabled={uploadDisabled}
+                  uploading={avatarUploading}
+                  onSelect={onAvatarUpload}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!person.avatarUrl || avatarUploading}
+                  onClick={() => update("avatarUrl", null)}
+                >
+                  <ImageOffIcon data-icon="inline-start" />
+                  清除头像
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <AdminImageUploadField
-              id={`${prefix}-avatar-upload`}
-              label="上传头像"
-              description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB；上传后请保存更改以发布。"
-              file={avatarFile}
-              disabled={uploadDisabled}
-              uploading={avatarUploading}
-              onSelect={onAvatarUpload}
-            />
-          </div>
-        </div>
-      </div>
-      <AdminField
-        label="简介"
-        htmlFor={`${prefix}-description`}
-        className="mt-4"
-      >
-        <textarea
-          id={`${prefix}-description`}
-          className={`${adminTextareaClass} min-h-24`}
-          maxLength={500}
-          value={person.description}
-          onChange={(event) => update("description", event.target.value)}
-        />
-      </AdminField>
-    </div>
-  )
-}
 
-function GroupEditor({
-  group,
-  canRemove,
-  avatarUploads,
-  uploadDisabled,
-  onChange,
-  onAvatarUpload,
-  onRemove,
-}: {
-  group: AboutGroup
-  canRemove: boolean
-  avatarUploads: Record<string, MemberAvatarUploadState | undefined>
-  uploadDisabled: boolean
-  onChange: (group: AboutGroup) => void
-  onAvatarUpload: (groupId: string, personId: string, file: File | null) => void
-  onRemove: () => void
-}) {
-  function updatePerson(index: number, person: AboutPerson) {
-    const people = [...group.people]
-    people[index] = person
-    onChange({ ...group, people })
-  }
-
-  function addPerson() {
-    onChange({
-      ...group,
-      people: [
-        ...group.people,
-        {
-          id: editorId("person"),
-          name: "",
-          role: "",
-          description: "",
-          since: "",
-          profileUrl: null,
-          avatarUrl: null,
-        },
-      ],
-    })
-  }
-
-  return (
-    <AdminPanel
-      title={group.title || "新名单分组"}
-      description={`${group.people.length} 位成员 · ${group.id}`}
-      icon={InfoIcon}
-      action={
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!canRemove}
-          onClick={onRemove}
-        >
-          <Trash2Icon data-icon="inline-start" />
-          删除分组
-        </Button>
-      }
-      contentClassName="space-y-6"
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <AdminField label="分组标题" htmlFor={`${group.id}-title`}>
-          <input
-            id={`${group.id}-title`}
-            className={adminControlClass}
-            maxLength={80}
-            required
-            value={group.title}
-            onChange={(event) =>
-              onChange({ ...group, title: event.target.value })
-            }
-          />
-        </AdminField>
-        <AdminField label="英文副标题" htmlFor={`${group.id}-subtitle`}>
-          <input
-            id={`${group.id}-subtitle`}
-            className={adminControlClass}
-            maxLength={80}
-            value={group.subtitle}
-            onChange={(event) =>
-              onChange({ ...group, subtitle: event.target.value })
-            }
-          />
-        </AdminField>
-      </div>
-
-      {group.people.map((person, index) => (
-        <PersonEditor
-          key={person.id}
-          groupId={group.id}
-          person={person}
-          avatarFile={
-            avatarUploads[memberAvatarUploadKey(group.id, person.id)]?.file ||
-            null
-          }
-          avatarUploading={
-            avatarUploads[memberAvatarUploadKey(group.id, person.id)]
-              ?.uploading || false
-          }
-          uploadDisabled={uploadDisabled}
-          onChange={(next) => updatePerson(index, next)}
-          onAvatarUpload={(file) => onAvatarUpload(group.id, person.id, file)}
-          onRemove={() =>
-            onChange({
-              ...group,
-              people: group.people.filter((item) => item.id !== person.id),
-            })
-          }
-        />
-      ))}
-
-      <Button
-        type="button"
-        variant="outline"
-        disabled={group.people.length >= 24}
-        onClick={addPerson}
-      >
-        <UserPlusIcon data-icon="inline-start" />
-        添加成员
-      </Button>
-    </AdminPanel>
+          <DialogFooter className="m-0 shrink-0 rounded-none">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={avatarUploading}
+              onClick={() => onOpenChange(false)}
+            >
+              取消
+            </Button>
+            <Button type="submit" disabled={avatarUploading}>
+              <SaveIcon data-icon="inline-start" />
+              保存成员
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -944,13 +903,25 @@ export function meta() {
   return [{ title: "关于页配置 | IMSWeb" }]
 }
 
-interface MemberAvatarUploadState {
-  file: File
-  uploading: boolean
+function createGroupEditorDraft(): AboutGroup {
+  return {
+    id: editorId("group"),
+    title: "",
+    subtitle: "",
+    people: [],
+  }
 }
 
-function memberAvatarUploadKey(groupId: string, personId: string): string {
-  return `${groupId}/${personId}`
+function createMemberEditorDraft(): AboutPerson {
+  return {
+    id: editorId("person"),
+    name: "",
+    role: "",
+    description: "",
+    since: "",
+    profileUrl: null,
+    avatarUrl: null,
+  }
 }
 
 export function AboutManager() {
@@ -968,19 +939,28 @@ export function AboutManager() {
   const [saving, setSaving] = useState(false)
   const [heroFile, setHeroFile] = useState<File | null>(null)
   const [uploadingHero, setUploadingHero] = useState(false)
-  const [memberAvatarUploads, setMemberAvatarUploads] = useState<
-    Record<string, MemberAvatarUploadState | undefined>
-  >({})
-  const uploadingMemberAvatar = Object.values(memberAvatarUploads).some(
-    (upload) => upload?.uploading
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [groupEditor, setGroupEditor] = useState<GroupEditorState | null>(null)
+  const [memberEditor, setMemberEditor] = useState<MemberEditorState | null>(
+    null
   )
+  const [deleteTarget, setDeleteTarget] = useState<RosterDeleteTarget | null>(
+    null
+  )
+  const [memberAvatarFile, setMemberAvatarFile] = useState<File | null>(null)
+  const [uploadingMemberAvatar, setUploadingMemberAvatar] = useState(false)
 
   onSuccess((event) => {
     const snapshot = event.data as AboutAdminSnapshot
-    setDraft(snapshot.content ?? createAboutPageDraft())
+    const nextDraft = snapshot.content ?? createAboutPageDraft()
+    setDraft(nextDraft)
     setRevision(snapshot.revision)
     setDirty(false)
-    setMemberAvatarUploads({})
+    setSelectedGroupId(nextDraft.groups[0]?.id ?? null)
+    setGroupEditor(null)
+    setMemberEditor(null)
+    setDeleteTarget(null)
+    setMemberAvatarFile(null)
   })
 
   function change(update: (content: AboutPageContent) => AboutPageContent) {
@@ -1027,57 +1007,144 @@ export function AboutManager() {
     }
   }
 
-  async function uploadMemberAvatar(
-    groupId: string,
-    personId: string,
-    file: File | null
-  ) {
-    const uploadKey = memberAvatarUploadKey(groupId, personId)
-    if (!file) {
-      setMemberAvatarUploads((current) => {
-        const next = { ...current }
-        delete next[uploadKey]
-        return next
-      })
-      return
-    }
-    setMemberAvatarUploads((current) => ({
-      ...current,
-      [uploadKey]: { file, uploading: true },
-    }))
+  async function uploadMemberAvatar(file: File | null) {
+    setMemberAvatarFile(file)
+    if (!file || !memberEditor) return
+    const activeGroupId = memberEditor.groupId
+    const activePersonId = memberEditor.draft.id
+    setUploadingMemberAvatar(true)
     try {
       const result = await uploadAboutMemberAvatar(file).send()
+      setMemberEditor((current) =>
+        current?.groupId === activeGroupId &&
+        current.draft.id === activePersonId
+          ? {
+              ...current,
+              draft: { ...current.draft, avatarUrl: result.url },
+            }
+          : current
+      )
+      setMemberAvatarFile(null)
+      toast.success("成员头像已添加")
+    } catch (uploadError) {
+      toast.error(
+        uploadError instanceof Error ? uploadError.message : "成员头像上传失败"
+      )
+    } finally {
+      setUploadingMemberAvatar(false)
+    }
+  }
+
+  function openGroupEditor(group?: AboutGroup) {
+    setGroupEditor({
+      mode: group ? "edit" : "create",
+      draft: group ? { ...group } : createGroupEditorDraft(),
+    })
+  }
+
+  function submitGroupEditor(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!groupEditor) return
+    const editedGroup = groupEditor.draft
+    if (groupEditor.mode === "create") {
+      if (!draft || draft.groups.length >= 8) return
+      change((content) => ({
+        ...content,
+        groups: [...content.groups, editedGroup],
+      }))
+      setSelectedGroupId(editedGroup.id)
+    } else {
       change((content) => ({
         ...content,
         groups: content.groups.map((group) =>
-          group.id === groupId
+          group.id === editedGroup.id
             ? {
                 ...group,
-                people: group.people.map((person) =>
-                  person.id === personId
-                    ? { ...person, avatarUrl: result.url }
-                    : person
+                title: editedGroup.title,
+                subtitle: editedGroup.subtitle,
+              }
+            : group
+        ),
+      }))
+    }
+    setGroupEditor(null)
+  }
+
+  function openMemberEditor(groupId: string, person?: AboutPerson) {
+    setMemberAvatarFile(null)
+    setMemberEditor({
+      mode: person ? "edit" : "create",
+      groupId,
+      draft: person ? { ...person } : createMemberEditorDraft(),
+    })
+  }
+
+  function submitMemberEditor(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!memberEditor || uploadingMemberAvatar) return
+    const editedMember = memberEditor.draft
+    const editedGroup = draft?.groups.find(
+      (group) => group.id === memberEditor.groupId
+    )
+    if (
+      !editedGroup ||
+      (memberEditor.mode === "create" && editedGroup.people.length >= 24)
+    ) {
+      return
+    }
+    change((content) => ({
+      ...content,
+      groups: content.groups.map((group) => {
+        if (group.id !== memberEditor.groupId) return group
+        return {
+          ...group,
+          people:
+            memberEditor.mode === "create"
+              ? [...group.people, editedMember]
+              : group.people.map((person) =>
+                  person.id === editedMember.id ? editedMember : person
+                ),
+        }
+      }),
+    }))
+    setMemberEditor(null)
+    setMemberAvatarFile(null)
+  }
+
+  function confirmRosterDeletion() {
+    if (!deleteTarget || !draft) return
+    if (deleteTarget.kind === "group") {
+      const remainingGroups = draft.groups.filter(
+        (group) => group.id !== deleteTarget.group.id
+      )
+      change((content) => ({ ...content, groups: remainingGroups }))
+      if (selectedGroupId === deleteTarget.group.id) {
+        setSelectedGroupId(remainingGroups[0]?.id ?? null)
+      }
+    } else {
+      change((content) => ({
+        ...content,
+        groups: content.groups.map((group) =>
+          group.id === deleteTarget.groupId
+            ? {
+                ...group,
+                people: group.people.filter(
+                  (person) => person.id !== deleteTarget.person.id
                 ),
               }
             : group
         ),
       }))
-      setMemberAvatarUploads((current) => {
-        const next = { ...current }
-        delete next[uploadKey]
-        return next
-      })
-      toast.success("成员头像已上传，请保存更改")
-    } catch (uploadError) {
-      setMemberAvatarUploads((current) => ({
-        ...current,
-        [uploadKey]: { file, uploading: false },
-      }))
-      toast.error(
-        uploadError instanceof Error ? uploadError.message : "成员头像上传失败"
-      )
     }
+    setDeleteTarget(null)
   }
+
+  const selectedGroup =
+    draft?.groups.find((group) => group.id === selectedGroupId) ??
+    draft?.groups[0] ??
+    null
 
   if (loading && !draft) {
     return (
@@ -1258,16 +1325,18 @@ export function AboutManager() {
           uploading={uploadingHero}
           onSelect={(file) => void uploadHero(file)}
         />
-        <ImageUrlEditor
-          id="about-hero-image"
-          label="角色主视觉图链接"
-          value={draft.heroImageUrl}
-          alt={`${draft.heroImageAlt}预览`}
-          showPreview={false}
-          onChange={(heroImageUrl) =>
-            change((content) => ({ ...content, heroImageUrl }))
+        <Button
+          type="button"
+          variant="outline"
+          className="w-fit"
+          disabled={!draft.heroImageUrl || saving || uploadingHero}
+          onClick={() =>
+            change((content) => ({ ...content, heroImageUrl: null }))
           }
-        />
+        >
+          <ImageOffIcon data-icon="inline-start" />
+          清除角色主视觉图
+        </Button>
         <AdminField
           label="角色图片替代文本"
           htmlFor="about-hero-image-alt"
@@ -1341,55 +1410,288 @@ export function AboutManager() {
         </AdminField>
       </AdminPanel>
 
-      {draft.groups.map((group, index) => (
-        <GroupEditor
-          key={group.id}
-          group={group}
-          canRemove={draft.groups.length > 1}
-          avatarUploads={memberAvatarUploads}
-          uploadDisabled={saving || uploadingHero}
-          onChange={(next) =>
-            change((content) => {
-              const groups = [...content.groups]
-              groups[index] = next
-              return { ...content, groups }
-            })
-          }
-          onAvatarUpload={(groupId, personId, file) =>
-            void uploadMemberAvatar(groupId, personId, file)
-          }
-          onRemove={() =>
-            change((content) => ({
-              ...content,
-              groups: content.groups.filter((item) => item.id !== group.id),
-            }))
-          }
-        />
-      ))}
-
-      <Button
-        type="button"
-        variant="outline"
-        className="w-fit"
-        disabled={draft.groups.length >= 8}
-        onClick={() =>
-          change((content) => ({
-            ...content,
-            groups: [
-              ...content.groups,
-              {
-                id: editorId("group"),
-                title: "新名单分组",
-                subtitle: "Group",
-                people: [],
-              },
-            ],
-          }))
+      <AdminPanel
+        title="贡献名单"
+        description="最多 8 个分组，每组最多 24 位成员。"
+        icon={UsersRoundIcon}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={saving || draft.groups.length >= 8}
+            onClick={() => openGroupEditor()}
+          >
+            <PlusIcon data-icon="inline-start" />
+            添加名单分组
+          </Button>
         }
+        contentClassName="grid gap-8 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
       >
-        <PlusIcon data-icon="inline-start" />
-        添加名单分组
-      </Button>
+        <section aria-labelledby="about-group-list-heading">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 id="about-group-list-heading" className="text-sm font-semibold">
+              名单分组
+            </h3>
+            <span className="text-xs text-muted-foreground">
+              {draft.groups.length} / 8
+            </span>
+          </div>
+          {draft.groups.length ? (
+            <SortableList
+              items={draft.groups}
+              disabled={saving}
+              getLabel={(group) => group.title || "未命名分组"}
+              renderItem={(group) => {
+                const selected = selectedGroup?.id === group.id
+                return (
+                  <div className="flex min-h-16 items-center gap-1 py-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-pressed={selected}
+                      className={cn(
+                        "h-auto min-w-0 flex-1 justify-start p-2 text-left",
+                        selected && "bg-accent text-accent-foreground"
+                      )}
+                      onClick={() => setSelectedGroupId(group.id)}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">
+                          {group.title || "未命名分组"}
+                        </span>
+                        <span className="mt-1 block truncate text-xs font-normal text-muted-foreground">
+                          {group.subtitle || "无英文副标题"} ·{" "}
+                          {group.people.length}
+                          位成员
+                        </span>
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`编辑分组 ${group.title}`}
+                      disabled={saving}
+                      onClick={() => openGroupEditor(group)}
+                    >
+                      <PencilIcon aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`删除分组 ${group.title}`}
+                      disabled={saving}
+                      onClick={() => setDeleteTarget({ kind: "group", group })}
+                    >
+                      <Trash2Icon aria-hidden="true" />
+                    </Button>
+                  </div>
+                )
+              }}
+              onReorder={(groups) =>
+                change((content) => ({ ...content, groups }))
+              }
+            />
+          ) : (
+            <AdminEmptyState
+              icon={UsersRoundIcon}
+              title="还没有名单分组"
+              description="添加分组后即可维护贡献成员。"
+            />
+          )}
+        </section>
+
+        <section
+          aria-label={selectedGroup ? undefined : "名单成员"}
+          aria-labelledby={
+            selectedGroup ? "about-member-list-heading" : undefined
+          }
+        >
+          {selectedGroup ? (
+            <>
+              <div className="mb-3 flex min-h-9 items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h3
+                    id="about-member-list-heading"
+                    className="truncate text-sm font-semibold"
+                  >
+                    {selectedGroup.title}
+                  </h3>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {selectedGroup.people.length} / 24 位成员
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || selectedGroup.people.length >= 24}
+                  onClick={() => openMemberEditor(selectedGroup.id)}
+                >
+                  <UserPlusIcon data-icon="inline-start" />
+                  添加成员
+                </Button>
+              </div>
+
+              {selectedGroup.people.length ? (
+                <SortableList
+                  items={selectedGroup.people}
+                  disabled={saving}
+                  getLabel={(person) => person.name || "未命名成员"}
+                  renderItem={(person) => (
+                    <div className="flex min-h-16 items-center gap-3 py-2">
+                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
+                        {person.avatarUrl ? (
+                          <img
+                            src={person.avatarUrl}
+                            alt={`${person.name}头像`}
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon
+                            className="size-4 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {person.name || "未命名成员"}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {person.role}
+                          {person.since ? ` · ${person.since}` : ""}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`编辑成员 ${person.name}`}
+                        disabled={saving}
+                        onClick={() =>
+                          openMemberEditor(selectedGroup.id, person)
+                        }
+                      >
+                        <PencilIcon aria-hidden="true" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`删除成员 ${person.name}`}
+                        disabled={saving}
+                        onClick={() =>
+                          setDeleteTarget({
+                            kind: "member",
+                            groupId: selectedGroup.id,
+                            person,
+                          })
+                        }
+                      >
+                        <Trash2Icon aria-hidden="true" />
+                      </Button>
+                    </div>
+                  )}
+                  onReorder={(people) =>
+                    change((content) => ({
+                      ...content,
+                      groups: content.groups.map((group) =>
+                        group.id === selectedGroup.id
+                          ? { ...group, people }
+                          : group
+                      ),
+                    }))
+                  }
+                />
+              ) : (
+                <AdminEmptyState
+                  icon={UserPlusIcon}
+                  title="此分组还没有成员"
+                  description="添加第一位贡献成员。"
+                />
+              )}
+            </>
+          ) : (
+            <AdminEmptyState
+              icon={UsersRoundIcon}
+              title="选择名单分组"
+              description="添加或选择分组后维护成员。"
+            />
+          )}
+        </section>
+      </AdminPanel>
+
+      <GroupEditorDialog
+        editor={groupEditor}
+        onOpenChange={(open) => {
+          if (!open) setGroupEditor(null)
+        }}
+        onChange={(group) =>
+          setGroupEditor((current) =>
+            current ? { ...current, draft: group } : current
+          )
+        }
+        onSave={submitGroupEditor}
+      />
+
+      <MemberEditorDialog
+        editor={memberEditor}
+        avatarFile={memberAvatarFile}
+        avatarUploading={uploadingMemberAvatar}
+        uploadDisabled={saving || uploadingHero}
+        onOpenChange={(open) => {
+          if (!open && !uploadingMemberAvatar) {
+            setMemberEditor(null)
+            setMemberAvatarFile(null)
+          }
+        }}
+        onChange={(person) =>
+          setMemberEditor((current) =>
+            current ? { ...current, draft: person } : current
+          )
+        }
+        onAvatarUpload={(file) => void uploadMemberAvatar(file)}
+        onSave={submitMemberEditor}
+      />
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="text-destructive">
+              <Trash2Icon aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>
+              {deleteTarget?.kind === "group" ? "删除名单分组？" : "删除成员？"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.kind === "group"
+                ? `“${deleteTarget.group.title}”及其中 ${deleteTarget.group.people.length} 位成员将从当前草稿中移除。`
+                : deleteTarget?.kind === "member"
+                  ? `“${deleteTarget.person.name}”将从当前名单分组中移除。`
+                  : "该名单内容将从当前草稿中移除。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              onClick={confirmRosterDeletion}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   )
 }

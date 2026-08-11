@@ -7,11 +7,53 @@ const { Pool } = require('pg');
 
 const packageRoot = path.resolve(__dirname, '../..');
 const DEFAULT_MIGRATIONS = path.join(packageRoot, 'migrations/postgresql');
-const MIGRATION_NAME = /^(?:\d{4}|\d{14})_[a-z0-9_]+\.sql$/;
+const MIGRATION_NAME = /^(?:(\d{4})|(\d{14}))_([a-z0-9_]+)\.sql$/;
+const LAST_SEQUENTIAL_MIGRATION = 19;
 const PHASE_LINE = /^-- ims:migration-phase: (pre-data|post-data)$/m;
 
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function isValidTimestamp(value) {
+    const parts = value.match(
+        /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/
+    );
+    if (!parts) return false;
+    const [, year, month, day, hour, minute, second] = parts.map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    return date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day &&
+        date.getUTCHours() === hour &&
+        date.getUTCMinutes() === minute &&
+        date.getUTCSeconds() === second;
+}
+
+function validateMigrationFilenames(filenames) {
+    const prefixes = new Set();
+    for (const filename of filenames) {
+        const match = filename.match(MIGRATION_NAME);
+        if (!match) {
+            throw new Error(`Invalid PostgreSQL migration filename: ${filename}`);
+        }
+        const [, sequential, timestamp] = match;
+        const prefix = sequential || timestamp;
+        if (prefixes.has(prefix)) {
+            throw new Error(`Duplicate PostgreSQL migration prefix: ${prefix}`);
+        }
+        prefixes.add(prefix);
+        if (sequential && (
+            Number(sequential) < 1 || Number(sequential) > LAST_SEQUENTIAL_MIGRATION
+        )) {
+            throw new Error(
+                `New PostgreSQL migrations must use a 14-digit UTC timestamp: ${filename}`
+            );
+        }
+        if (timestamp && !isValidTimestamp(timestamp)) {
+            throw new Error(`Invalid PostgreSQL migration timestamp: ${filename}`);
+        }
+    }
 }
 
 function readMigrations(directory = DEFAULT_MIGRATIONS) {
@@ -20,10 +62,8 @@ function readMigrations(directory = DEFAULT_MIGRATIONS) {
         .filter((filename) => filename.endsWith('.sql'))
         .sort();
     if (!filenames.length) throw new Error(`No PostgreSQL migrations found: ${migrationsPath}`);
+    validateMigrationFilenames(filenames);
     return filenames.map((filename) => {
-        if (!MIGRATION_NAME.test(filename)) {
-            throw new Error(`Invalid PostgreSQL migration filename: ${filename}`);
-        }
         const sql = fs.readFileSync(path.join(migrationsPath, filename), 'utf8');
         const phase = sql.match(PHASE_LINE)?.[1];
         if (!phase) throw new Error(`PostgreSQL migration has no phase marker: ${filename}`);
@@ -35,6 +75,20 @@ function readMigrations(directory = DEFAULT_MIGRATIONS) {
             sql
         };
     });
+}
+
+function migrationCatalog(directory = DEFAULT_MIGRATIONS) {
+    const migrations = readMigrations(directory);
+    return {
+        directory: path.resolve(directory),
+        count: migrations.length,
+        migrations: migrations.map(({ version, filename, phase, checksum }) => ({
+            version,
+            filename,
+            phase,
+            checksum
+        }))
+    };
 }
 
 async function ensureMigrationTable(client) {
@@ -56,21 +110,34 @@ async function appliedMigrations(client) {
     return new Map(result.rows.map((row) => [row.version, row]));
 }
 
+function validateAppliedMigrations(migrations, applied) {
+    const catalog = new Map(
+        migrations.map((migration) => [migration.version, migration])
+    );
+    for (const existing of applied.values()) {
+        const migration = catalog.get(existing.version);
+        if (!migration || existing.filename !== migration.filename ||
+            existing.phase !== migration.phase || existing.checksum !== migration.checksum) {
+            throw new Error(
+                `Applied PostgreSQL migration drifted from catalog: ` +
+                `${existing.version} (${existing.filename})`
+            );
+        }
+    }
+}
+
 async function applyMigrations(client, options = {}) {
     const migrations = options.migrations || readMigrations(options.directory);
+    await ensureMigrationTable(client);
+    const applied = await appliedMigrations(client);
+    validateAppliedMigrations(migrations, applied);
     const selected = options.phase
         ? migrations.filter((migration) => migration.phase === options.phase)
         : migrations;
-    await ensureMigrationTable(client);
-    const applied = await appliedMigrations(client);
     const executed = [];
     for (const migration of selected) {
         const existing = applied.get(migration.version);
         if (existing) {
-            if (existing.checksum !== migration.checksum ||
-                existing.filename !== migration.filename || existing.phase !== migration.phase) {
-                throw new Error(`Applied PostgreSQL migration drifted: ${migration.filename}`);
-            }
             continue;
         }
         await client.query(migration.sql);
@@ -102,14 +169,23 @@ function databaseUrl(environment = process.env) {
 
 function parseArguments(argv, environment = process.env) {
     let migrationsPath = DEFAULT_MIGRATIONS;
+    let command = 'migrate';
     for (let index = 0; index < argv.length; index += 1) {
         if (argv[index] === '--') continue;
+        if (argv[index] === '--list') {
+            command = 'list';
+            continue;
+        }
         if (argv[index] !== '--migrations' || !argv[index + 1]) {
-            throw new Error('Usage: postgres-migrations.js [--migrations DIRECTORY]');
+            throw new Error(
+                'Usage: postgres-migrations.js [--list] [--migrations DIRECTORY]'
+            );
         }
         migrationsPath = argv[++index];
     }
-    return { connectionString: databaseUrl(environment), migrationsPath };
+    return command === 'list'
+        ? { command, migrationsPath }
+        : { command, connectionString: databaseUrl(environment), migrationsPath };
 }
 
 async function migratePostgres(options) {
@@ -145,7 +221,11 @@ async function migratePostgres(options) {
 }
 
 if (require.main === module) {
-    migratePostgres(parseArguments(process.argv.slice(2)))
+    const options = parseArguments(process.argv.slice(2));
+    const operation = options.command === 'list'
+        ? Promise.resolve(migrationCatalog(options.migrationsPath))
+        : migratePostgres(options);
+    operation
         .then((report) => process.stdout.write(`${JSON.stringify(report, null, 2)}\n`))
         .catch((error) => {
             console.error(error.message);
@@ -157,7 +237,9 @@ module.exports = {
     DEFAULT_MIGRATIONS,
     applyMigrations,
     databaseUrl,
+    migrationCatalog,
     migratePostgres,
     parseArguments,
-    readMigrations
+    readMigrations,
+    validateMigrationFilenames
 };

@@ -7,6 +7,7 @@ import {
   LinkIcon,
   LoaderCircleIcon,
   PencilIcon,
+  PlusIcon,
   Trash2Icon,
 } from "lucide-react"
 import { useEffect, useRef } from "react"
@@ -59,14 +60,21 @@ function InformationRow({
           href={card.link}
           target={card.contentType === "external" ? "_blank" : undefined}
           rel={card.contentType === "external" ? "noreferrer" : undefined}
+          aria-label={`打开“${card.title}”`}
           className="mt-2 inline-flex max-w-full items-center gap-1 text-xs text-primary hover:underline"
         >
-          <span className="truncate">{card.link}</span>
+          <span>打开内容</span>
           <ArrowUpRightIcon className="size-3 shrink-0" aria-hidden="true" />
         </a>
       </div>
       <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1 sm:self-center">
-        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={`编辑“${card.title}”`}
+          onClick={onEdit}
+        >
           <PencilIcon data-icon="inline-start" />
           编辑
         </Button>
@@ -74,6 +82,7 @@ function InformationRow({
           type="button"
           variant="destructive"
           size="sm"
+          aria-label={`删除“${card.title}”`}
           disabled={deleting}
           onClick={onDelete}
         >
@@ -130,46 +139,54 @@ export function InformationPreview({
   document: string
   submission: InformationSubmission
 }) {
+  const PreviewIcon =
+    submission.contentType === "html" ? FileCode2Icon : LinkIcon
+
   return (
-    <aside className="min-w-0">
-      <AdminPanel
-        title="内容预览"
-        description={
-          submission.contentType === "html"
-            ? "以站内安全策略渲染 HTML。"
-            : "首页活动卡片的展示效果。"
-        }
-        icon={submission.contentType === "html" ? FileCode2Icon : LinkIcon}
-        className="sticky top-24"
-      >
-        {submission.contentType === "html" ? (
-          <InformationHtmlPreviewFrame document={document} />
-        ) : (
-          <div className="overflow-hidden rounded-lg border bg-background">
-            <div className="aspect-video bg-muted">
-              {submission.image ? (
-                <CoverImagePreview
-                  src={submission.image}
-                  alt={`${submission.title || "活动标题"}封面`}
-                  className="size-full rounded-none"
-                />
-              ) : (
-                <div className="flex size-full items-center justify-center text-muted-foreground">
-                  <ImagePlusIcon className="size-8" aria-hidden="true" />
-                </div>
-              )}
-            </div>
-            <div className="p-4">
-              <p className="text-xs font-medium text-primary">
-                {categoryLabel(submission.category)}
-              </p>
-              <p className="mt-2 font-semibold">
-                {submission.title || "活动标题"}
-              </p>
-            </div>
+    <aside
+      aria-label="内容预览"
+      className="min-w-0 lg:sticky lg:top-0 lg:self-start"
+    >
+      <header className="mb-4 flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+          <PreviewIcon className="size-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">内容预览</h2>
+          <p className="mt-1 text-xs/5 text-muted-foreground">
+            {submission.contentType === "html"
+              ? "以站内安全策略渲染 HTML。"
+              : "首页活动卡片的展示效果。"}
+          </p>
+        </div>
+      </header>
+      {submission.contentType === "html" ? (
+        <InformationHtmlPreviewFrame document={document} />
+      ) : (
+        <div className="overflow-hidden rounded-lg border bg-background">
+          <div className="aspect-video bg-muted">
+            {submission.image ? (
+              <CoverImagePreview
+                src={submission.image}
+                alt={`${submission.title || "活动标题"}封面`}
+                className="size-full rounded-none"
+              />
+            ) : (
+              <div className="flex size-full items-center justify-center text-muted-foreground">
+                <ImagePlusIcon className="size-8" aria-hidden="true" />
+              </div>
+            )}
           </div>
-        )}
-      </AdminPanel>
+          <div className="p-4">
+            <p className="text-xs font-medium text-primary">
+              {categoryLabel(submission.category)}
+            </p>
+            <p className="mt-2 font-semibold">
+              {submission.title || "活动标题"}
+            </p>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }
@@ -182,6 +199,7 @@ export function PublishedInformationPanel({
   reordering,
   onDelete,
   onEdit,
+  onCreate,
   onReorder,
 }: {
   cards: AdminInformationCard[]
@@ -191,6 +209,7 @@ export function PublishedInformationPanel({
   reordering: boolean
   onDelete: (card: AdminInformationCard) => void
   onEdit: (card: AdminInformationCard) => void
+  onCreate: () => void
   onReorder: (cards: AdminInformationCard[]) => void
 }) {
   return (
@@ -198,6 +217,12 @@ export function PublishedInformationPanel({
       title="已发布活动内容"
       description={`${cards.length} 条内容`}
       icon={CalendarDaysIcon}
+      action={
+        <Button type="button" onClick={onCreate}>
+          <PlusIcon data-icon="inline-start" />
+          新增活动内容
+        </Button>
+      }
       contentClassName="pt-1"
     >
       {error ? (
@@ -226,7 +251,7 @@ export function PublishedInformationPanel({
         <AdminEmptyState
           icon={CalendarDaysIcon}
           title="还没有活动内容"
-          description="使用上方表单发布第一条活动资讯或同人活动。"
+          description="等待发布第一条活动资讯或同人活动。"
         />
       )}
     </AdminPanel>
@@ -250,21 +275,23 @@ export function InformationAssetsPanel({
     >
       {assets.length ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {assets.map((url) => (
+          {assets.map((url, index) => (
             <article key={url} className="min-w-0">
               <img
                 src={url}
-                alt=""
+                alt={`托管图片 ${index + 1}`}
                 className="aspect-video w-full rounded-lg border bg-muted object-cover"
               />
               <div className="mt-2 flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate text-xs">{url}</code>
+                <p className="min-w-0 flex-1 truncate text-xs font-medium">
+                  托管图片 {index + 1}
+                </p>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="删除托管图片"
-                  title="删除托管图片"
+                  aria-label={`删除托管图片 ${index + 1}`}
+                  title={`删除托管图片 ${index + 1}`}
                   disabled={deletingUrl === url}
                   onClick={() => onDelete(url)}
                 >

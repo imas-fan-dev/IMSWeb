@@ -1,20 +1,20 @@
 import { useRequest } from "alova/client"
-import {
-  LinkIcon,
-  LoaderCircleIcon,
-  PencilIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  XIcon,
-} from "lucide-react"
+import { LoaderCircleIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog"
 import { Button } from "~/components/ui/button"
-import { Separator } from "~/components/ui/separator"
-import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
-import { buildInformationHtmlDocument } from "~/pages/information/html-document"
 import {
   createInformation,
   deleteInformation,
@@ -24,30 +24,21 @@ import {
   updateInformation,
   uploadInformationAsset,
 } from "~/lib/api"
-import type {
-  AdminInformationCard,
-  InformationCategory,
-  InformationContentType,
-  InformationSubmission,
-} from "~/lib/api"
-import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
-import {
-  AdminField,
-  AdminPageHeader,
-  AdminPanel,
-  adminControlClass,
-  adminTextareaClass,
-} from "~/pages/admin/components/admin-ui"
+import type { AdminInformationCard, InformationSubmission } from "~/lib/api"
+import { AdminPageHeader } from "~/pages/admin/components/admin-ui"
 
+import { InformationEditorDialog } from "./components/information-editor-dialog"
 import {
   InformationAssetsPanel,
-  InformationPreview,
   PublishedInformationPanel,
 } from "./components/information-panels"
 import {
-  contentTypeLabel,
+  appendInformationBodyAsset,
   emptyInformationSubmission,
   informationErrorMessage,
+  maskInformationBodyAssets,
+  restoreInformationBodyAssets,
+  type InformationBodyAsset,
 } from "./information-model"
 
 export function meta() {
@@ -68,11 +59,19 @@ export function InformationManager() {
   const [submission, setSubmission] = useState<InformationSubmission>(
     emptyInformationSubmission
   )
+  const [bodyAssets, setBodyAssets] = useState<InformationBodyAsset[]>([])
+  const [editorOpen, setEditorOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [coverUploading, setCoverUploading] = useState(false)
   const [bodyImageUploading, setBodyImageUploading] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<AdminInformationCard | null>(
+    null
+  )
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [assetDeleteTarget, setAssetDeleteTarget] = useState<string | null>(
+    null
+  )
   const [assetDeleting, setAssetDeleting] = useState<string | null>(null)
   const [cardOrder, setCardOrder] = useState<string[] | null>(null)
   const [reordering, setReordering] = useState(false)
@@ -86,11 +85,6 @@ export function InformationManager() {
     })
   }, [cardOrder, data.cards])
 
-  const previewDocument = useMemo(
-    () => buildInformationHtmlDocument(submission.title, submission.html),
-    [submission.html, submission.title]
-  )
-
   function updateSubmission<Key extends keyof InformationSubmission>(
     key: Key,
     value: InformationSubmission[Key]
@@ -100,20 +94,34 @@ export function InformationManager() {
 
   function resetForm() {
     setSubmission(emptyInformationSubmission)
+    setBodyAssets([])
     setEditingId(null)
   }
 
+  function createCard() {
+    resetForm()
+    setEditorOpen(true)
+  }
+
   function editCard(card: AdminInformationCard) {
+    const htmlDraft = maskInformationBodyAssets(card.html ?? "")
     setEditingId(card.id)
+    setBodyAssets(htmlDraft.assets)
     setSubmission({
       title: card.title,
       category: card.category,
       contentType: card.contentType,
       externalUrl: card.contentType === "external" ? card.link : "",
-      html: card.html ?? "",
+      html: htmlDraft.html,
       image: card.image,
     })
-    window.scrollTo({ top: 0, behavior: "smooth" })
+    setEditorOpen(true)
+  }
+
+  function changeEditorOpen(open: boolean) {
+    if (!open && (saving || coverUploading || bodyImageUploading)) return
+    setEditorOpen(open)
+    if (!open) resetForm()
   }
 
   async function uploadAsset(file: File, usage: "cover" | "body") {
@@ -125,13 +133,22 @@ export function InformationManager() {
       if (usage === "cover") {
         updateSubmission("image", result.url)
       } else {
-        setSubmission((current) => ({
-          ...current,
-          html: `${current.html}${current.html ? "\n" : ""}<img src="${result.url}" alt="">`,
-        }))
+        const appended = appendInformationBodyAsset(
+          submission.html,
+          result.url,
+          bodyAssets
+        )
+        setSubmission((current) => ({ ...current, html: appended.html }))
+        setBodyAssets((current) => [...current, appended.asset])
       }
-      await refresh()
       toast.success(usage === "cover" ? "封面已托管" : "正文图片已插入")
+      try {
+        await refresh()
+      } catch (refreshError) {
+        toast.error(
+          `图片已托管，但资源列表刷新失败：${informationErrorMessage(refreshError)}`
+        )
+      }
     } catch (uploadError) {
       toast.error(informationErrorMessage(uploadError))
     } finally {
@@ -139,50 +156,92 @@ export function InformationManager() {
     }
   }
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function submit() {
     setSaving(true)
+    const editing = editingId !== null
+    const resolvedSubmission = {
+      ...submission,
+      html: restoreInformationBodyAssets(submission.html, bodyAssets),
+    }
     try {
       if (editingId) {
-        await updateInformation(editingId, submission).send()
-        toast.success("活动内容已更新")
+        await updateInformation(editingId, resolvedSubmission).send()
       } else {
-        await createInformation(submission).send()
-        toast.success("活动内容已发布")
+        await createInformation(resolvedSubmission).send()
       }
+      toast.success(editing ? "活动内容已更新" : "活动内容已发布")
+      setEditorOpen(false)
       resetForm()
-      await refresh()
     } catch (saveError) {
       toast.error(informationErrorMessage(saveError))
+      setSaving(false)
+      return
+    }
+
+    try {
+      await refresh()
+    } catch (refreshError) {
+      toast.error(
+        `内容已保存，但列表刷新失败：${informationErrorMessage(refreshError)}`
+      )
     } finally {
       setSaving(false)
     }
   }
 
-  async function removeCard(card: AdminInformationCard) {
-    if (!window.confirm(`确定删除“${card.title}”吗？`)) return
+  async function removeCard() {
+    const card = deleteTarget
+    if (!card) return
+
     setDeletingId(card.id)
     try {
       await deleteInformation(card.id).send()
-      if (editingId === card.id) resetForm()
-      await refresh()
+      setDeleteTarget(null)
+      setCardOrder(
+        orderedCards
+          .filter((item) => item.id !== card.id)
+          .map((item) => item.id)
+      )
       toast.success("活动内容已删除")
     } catch (deleteError) {
       toast.error(informationErrorMessage(deleteError))
+      setDeletingId(null)
+      return
+    }
+
+    try {
+      await refresh()
+      setCardOrder(null)
+    } catch (refreshError) {
+      toast.error(
+        `内容已删除，但列表刷新失败：${informationErrorMessage(refreshError)}`
+      )
     } finally {
       setDeletingId(null)
     }
   }
 
-  async function removeAsset(url: string) {
-    if (!window.confirm("确定删除这张托管图片吗？")) return
+  async function removeAsset() {
+    const url = assetDeleteTarget
+    if (!url) return
+
     setAssetDeleting(url)
     try {
       await deleteInformationAsset(url).send()
-      await refresh()
+      setAssetDeleteTarget(null)
       toast.success("托管图片已删除")
     } catch (deleteError) {
       toast.error(informationErrorMessage(deleteError))
+      setAssetDeleting(null)
+      return
+    }
+
+    try {
+      await refresh()
+    } catch (refreshError) {
+      toast.error(
+        `图片已删除，但列表刷新失败：${informationErrorMessage(refreshError)}`
+      )
     } finally {
       setAssetDeleting(null)
     }
@@ -194,17 +253,34 @@ export function InformationManager() {
     setReordering(true)
     try {
       await reorderInformation(ids).send()
-      await refresh()
-      setCardOrder(null)
       toast.success("活动内容顺序已更新")
     } catch (reorderError) {
       setCardOrder(null)
       toast.error(informationErrorMessage(reorderError))
+      setReordering(false)
+      try {
+        await refresh()
+      } catch {
+        // The mutation already failed; the existing load error state is enough.
+      }
+      return
+    }
+
+    try {
       await refresh()
+      setCardOrder(null)
+    } catch (refreshError) {
+      toast.error(
+        `顺序已保存，但列表刷新失败：${informationErrorMessage(refreshError)}`
+      )
     } finally {
       setReordering(false)
     }
   }
+
+  const assetDeleteIndex = assetDeleteTarget
+    ? data.assets.indexOf(assetDeleteTarget)
+    : -1
 
   return (
     <div className="flex flex-col gap-8">
@@ -220,208 +296,121 @@ export function InformationManager() {
         }
       />
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)]">
-        <form className="min-w-0" onSubmit={submit}>
-          <AdminPanel
-            title={editingId ? "编辑活动内容" : "添加活动内容"}
-            description={
-              editingId ? `内容 ID：${editingId}` : "新内容将显示在首页活动区"
-            }
-            icon={editingId ? PencilIcon : PlusIcon}
-            action={
-              editingId ? (
-                <Button type="button" variant="ghost" onClick={resetForm}>
-                  <XIcon data-icon="inline-start" />
-                  取消编辑
-                </Button>
-              ) : null
-            }
-            contentClassName="flex flex-col gap-6"
-          >
-            <AdminField label="标题" htmlFor="information-title">
-              <input
-                id="information-title"
-                className={adminControlClass}
-                maxLength={200}
-                required
-                value={submission.title}
-                onChange={(event) =>
-                  updateSubmission("title", event.target.value)
-                }
-              />
-            </AdminField>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <AdminField label="活动分类" htmlFor="information-category">
-                <select
-                  id="information-category"
-                  className={adminControlClass}
-                  value={submission.category}
-                  onChange={(event) =>
-                    updateSubmission(
-                      "category",
-                      event.target.value as InformationCategory
-                    )
-                  }
-                >
-                  <option value="activity">活动资讯</option>
-                  <option value="fan">同人活动</option>
-                </select>
-              </AdminField>
-
-              <AdminField label="内容类型">
-                <ToggleGroup
-                  value={[submission.contentType]}
-                  variant="outline"
-                  spacing={0}
-                  className="w-full"
-                  aria-label="内容类型"
-                  onValueChange={(values) => {
-                    const contentType = values[0] as
-                      | InformationContentType
-                      | undefined
-                    if (contentType) {
-                      updateSubmission("contentType", contentType)
-                    }
-                  }}
-                >
-                  {(["external", "html"] as InformationContentType[]).map(
-                    (contentType) => (
-                      <ToggleGroupItem
-                        key={contentType}
-                        value={contentType}
-                        className="flex-1"
-                      >
-                        {contentTypeLabel(contentType)}
-                      </ToggleGroupItem>
-                    )
-                  )}
-                </ToggleGroup>
-              </AdminField>
-            </div>
-
-            <AdminImageUploadField
-              id="information-cover"
-              label="封面图片"
-              description="PNG、JPEG、WebP 或 AVIF，上传后转换为 WebP 并托管。"
-              uploading={coverUploading}
-              resetAfterSelect
-              onSelect={(file) => {
-                if (file) void uploadAsset(file, "cover")
-              }}
-            />
-            {submission.image ? (
-              <div className="flex min-w-0 items-center gap-3 border-l-2 border-primary pl-3">
-                <CoverImagePreview
-                  src={submission.image}
-                  alt="当前封面"
-                  className="h-16 w-24"
-                />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium">当前封面</p>
-                  <code className="mt-1 block truncate text-xs text-muted-foreground">
-                    {submission.image}
-                  </code>
-                </div>
-              </div>
-            ) : null}
-
-            {submission.contentType === "external" ? (
-              <AdminField label="外部链接" htmlFor="information-link">
-                <div className="relative">
-                  <LinkIcon
-                    className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <input
-                    id="information-link"
-                    type="url"
-                    className={`${adminControlClass} pl-9`}
-                    placeholder="https://"
-                    required
-                    value={submission.externalUrl}
-                    onChange={(event) =>
-                      updateSubmission("externalUrl", event.target.value)
-                    }
-                  />
-                </div>
-              </AdminField>
-            ) : (
-              <>
-                <AdminField
-                  label="HTML 正文"
-                  htmlFor="information-html"
-                  description="脚本、表单和外部资源不会在站内详情页执行。"
-                >
-                  <textarea
-                    id="information-html"
-                    className={`${adminTextareaClass} min-h-80`}
-                    required
-                    value={submission.html}
-                    onChange={(event) =>
-                      updateSubmission("html", event.target.value)
-                    }
-                  />
-                </AdminField>
-                <AdminImageUploadField
-                  id="information-body-image"
-                  label="正文图片"
-                  description="上传成功后会把图片标签插入 HTML 末尾。"
-                  uploading={bodyImageUploading}
-                  resetAfterSelect
-                  onSelect={(file) => {
-                    if (file) void uploadAsset(file, "body")
-                  }}
-                />
-              </>
-            )}
-
-            <Separator />
-
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button
-                type="submit"
-                size="lg"
-                disabled={saving || coverUploading || !submission.image}
-              >
-                {saving ? (
-                  <LoaderCircleIcon
-                    data-icon="inline-start"
-                    className="animate-spin"
-                  />
-                ) : editingId ? (
-                  <PencilIcon data-icon="inline-start" />
-                ) : (
-                  <PlusIcon data-icon="inline-start" />
-                )}
-                {editingId ? "保存活动内容" : "发布活动内容"}
-              </Button>
-            </div>
-          </AdminPanel>
-        </form>
-
-        <InformationPreview
-          document={previewDocument}
-          submission={submission}
-        />
-      </div>
-
       <PublishedInformationPanel
         cards={orderedCards}
         deletingId={deletingId}
         error={error}
         loading={loading}
         reordering={reordering}
+        onCreate={createCard}
         onEdit={editCard}
-        onDelete={(card) => void removeCard(card)}
+        onDelete={setDeleteTarget}
         onReorder={(cards) => void reorderCards(cards)}
       />
 
       <InformationAssetsPanel
         assets={data.assets}
         deletingUrl={assetDeleting}
-        onDelete={(url) => void removeAsset(url)}
+        onDelete={setAssetDeleteTarget}
       />
+
+      <InformationEditorDialog
+        open={editorOpen}
+        editing={editingId !== null}
+        submission={submission}
+        bodyAssets={bodyAssets}
+        saving={saving}
+        coverUploading={coverUploading}
+        bodyImageUploading={bodyImageUploading}
+        onOpenChange={changeEditorOpen}
+        onSubmit={() => void submit()}
+        onUpdate={updateSubmission}
+        onUpload={(file, usage) => void uploadAsset(file, usage)}
+      />
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingId) setDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="text-destructive">
+              <Trash2Icon aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>删除活动内容？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `“${deleteTarget.title}”将从活动区移除。`
+                : "所选活动内容将从活动区移除。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingId !== null}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              disabled={deletingId !== null}
+              onClick={() => void removeCard()}
+            >
+              {deletingId ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin"
+                />
+              ) : (
+                <Trash2Icon data-icon="inline-start" />
+              )}
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={assetDeleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !assetDeleting) setAssetDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="text-destructive">
+              <Trash2Icon aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>删除托管图片？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {assetDeleteIndex >= 0
+                ? `托管图片 ${assetDeleteIndex + 1} 将被永久删除。`
+                : "所选托管图片将被永久删除。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={assetDeleting !== null}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              disabled={assetDeleting !== null}
+              onClick={() => void removeAsset()}
+            >
+              {assetDeleting ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin"
+                />
+              ) : (
+                <Trash2Icon data-icon="inline-start" />
+              )}
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

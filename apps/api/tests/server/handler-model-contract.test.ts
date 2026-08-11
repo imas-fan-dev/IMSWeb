@@ -45,7 +45,8 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
         'handleCreateEvent',
         'handleDeleteEvent',
         'handleGetEvent',
-        'handleListEvents'
+        'handleListEvents',
+        'handleUpdateEvent'
     ],
     'homepage-links': [
         'handleCreateHomepageLink',
@@ -85,8 +86,8 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
     'producer-map': [
         'handleGetAdminProducerMap',
         'handleGetProducerMap',
-        'handleUploadProducerMapImage',
-        'handleUpdateProducerMap'
+        'handleUpdateProducerMap',
+        'handleUploadProducerMapImage'
     ],
     reactions: ['createHandleAddReaction', 'createHandleDeleteReaction', 'handleListReactions'],
     site: ['handleLegacyChronicleRedirect', 'handleLegacySiteRedirect', 'handleServeSiteIndex'],
@@ -397,7 +398,7 @@ test('route handler inventory remains explicit and complete for all 18 domains',
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([domain, handlers]) => [domain, [...handlers].sort()]));
     assert.deepEqual(actual, expected);
-    assert.equal(Object.values(actual).flat().length, 122);
+    assert.equal(Object.values(actual).flat().length, 123);
 });
 
 test('route handlers use validated request models and named multipart parsers', () => {

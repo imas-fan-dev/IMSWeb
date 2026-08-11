@@ -34,6 +34,13 @@ export interface CreateEventRequest {
     image: UploadedFile;
 }
 
+export interface UpdateEventRequest {
+    title: string;
+    name: string;
+    contact: string;
+    image: UploadedFile | null;
+}
+
 function pageValue(value: unknown, fallback: number, field: string): number {
     if (value === undefined) return fallback;
     const parsed = boundedPositiveInteger(value, MAX_PAGE_VALUE);
@@ -96,6 +103,26 @@ export async function parseCreateEventRequest(
     const image = candidate && !Array.isArray(candidate) ? candidate : null;
     if (!image || image.body.byteLength > MAX_EVENT_IMAGE_BYTES) {
         invalidRequest('必须上传一张图片');
+    }
+    return { ...validateEventFields(parsed.fields), image };
+}
+
+export async function parseUpdateEventRequest(
+    c: Context<AppEnvironment>
+): Promise<UpdateEventRequest> {
+    const runtime = services(c);
+    if (!runtime.uploads) throw new Error('Upload parser unavailable');
+    const parsed = await runtime.uploads.parse(c.req.raw, {
+        maxBytes: MAX_EVENT_IMAGE_BYTES + 64 * 1024,
+        fileFields: ['image'],
+        maxFiles: 1,
+        maxFields: 8,
+        maxParts: 9
+    });
+    const candidate = parsed.files.image;
+    const image = candidate && !Array.isArray(candidate) ? candidate : null;
+    if (image && image.body.byteLength > MAX_EVENT_IMAGE_BYTES) {
+        invalidRequest('替换图片不能超过 3 MiB');
     }
     return { ...validateEventFields(parsed.fields), image };
 }
