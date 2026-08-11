@@ -5,6 +5,7 @@ import {
     wikiJson,
     wikiMessageOf,
     wikiStatusOf,
+    writeWikiAudit,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { categoryStorageSlug, requireWikiServices } from '@/domains/wiki/service';
@@ -24,6 +25,7 @@ function categoryResponse(category: {
     display_order: number;
     show_when_empty: boolean;
     background_eligible: boolean;
+    revision: number;
 }) {
     return {
         id: category.id,
@@ -31,7 +33,8 @@ function categoryResponse(category: {
         storageSlug: category.storage_slug,
         displayOrder: category.display_order,
         showWhenEmpty: category.show_when_empty,
-        backgroundEligible: category.background_eligible
+        backgroundEligible: category.background_eligible,
+        revision: category.revision
     };
 }
 
@@ -65,6 +68,12 @@ export function createHandleCreateWikiCategory<E extends Env>(
                 idolId,
                 name,
                 categoryStorageSlug(name)
+            );
+            await writeWikiAudit(
+                context,
+                services,
+                '新增 Wiki 分类',
+                `agency_id=${agencyId};idol_id=${idolId};category_id=${category.id}`
             );
             return wikiJson({
                 status: 'success',
@@ -116,10 +125,17 @@ export function createHandleUpdateWikiCategory<E extends Env>(
             if (category.status === 'conflict') {
                 return wikiJson({
                     ...wikiErrorBody('分类已被其他编辑更新，请刷新后重试'),
-                    currentName: category.currentName
+                    currentName: category.currentName,
+                    revision: category.revision
                 }, 409);
             }
             const saved = category.category;
+            await writeWikiAudit(
+                context,
+                services,
+                '更新 Wiki 分类',
+                `agency_id=${agencyId};idol_id=${idolId};category_id=${saved.id};revision=${saved.revision}`
+            );
             return wikiJson({
                 status: 'success',
                 category: categoryResponse(saved)

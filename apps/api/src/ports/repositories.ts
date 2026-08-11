@@ -108,11 +108,15 @@ export interface EventInput {
     name: string;
     contact: string;
     imageUrl: string;
+    operationKey?: string;
+    requestFingerprint?: string;
 }
 
 export interface EventRepository {
     insertEvent(input: EventInput): Promise<number>;
     updateEvent(id: number, input: EventInput, expectedImageUrl: string): Promise<boolean>;
+    findEventByOperationKey(operationKey: string): Promise<Record<string, unknown> | null>;
+    markEventReady(id: number, operationKey: string): Promise<boolean>;
     countEvents(): Promise<number>;
     listEvents(limit: number, offset: number): Promise<Record<string, unknown>[]>;
     findLatestEventId(): Promise<string | null>;
@@ -133,6 +137,7 @@ export interface PendingCardInput {
     hash1: string;
     hash2: string;
     ip: string;
+    withdrawalTokenHash: string;
 }
 
 export interface CardMediaRecord {
@@ -140,18 +145,51 @@ export interface CardMediaRecord {
     image1_url: string;
     image2_url: string;
     status?: string;
+    revision?: number;
 }
+
+export type NamecardSubmissionStatus =
+    | 'pending'
+    | 'approving'
+    | 'approved'
+    | 'rejected'
+    | 'withdrawn';
+
+export interface NamecardSubmissionRecord extends CardMediaRecord {
+    id: number;
+    status: NamecardSubmissionStatus;
+    revision: number;
+    created_at: string | Date | null;
+}
+
+export type NamecardApprovalClaim =
+    | { status: 'claimed' | 'resumed'; card: NamecardSubmissionRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' };
+
+export type NamecardMutationResult =
+    | { status: 'updated'; card: NamecardSubmissionRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' };
 
 export interface NamecardRepository {
     findCardByOrderedHashes(hash1: string, hash2: string): Promise<{ id: number } | null>;
     insertPendingCard(input: PendingCardInput): Promise<number>;
     countApprovedCards(): Promise<number>;
+    countAdminCards(): Promise<number>;
     listApprovedCards(limit: number, offset: number): Promise<Record<string, unknown>[]>;
     findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
     listAdminCards(limit: number, offset: number): Promise<Record<string, unknown>[]>;
-    approveCard(id: number): Promise<void>;
+    beginCardApproval(id: number, expectedRevision: number): Promise<NamecardApprovalClaim>;
+    completeCardApproval(id: number, approvingRevision: number): Promise<NamecardMutationResult>;
     findCardMedia(id: number): Promise<CardMediaRecord | null>;
-    deleteCard(id: number): Promise<void>;
+    deleteCard(id: number, expectedRevision: number): Promise<NamecardMutationResult>;
+    findSubmissionByTokenHash(id: number, tokenHash: string): Promise<NamecardSubmissionRecord | null>;
+    withdrawSubmission(
+        id: number,
+        tokenHash: string,
+        expectedRevision: number
+    ): Promise<NamecardMutationResult>;
     findCardByMediaUrl(url: string): Promise<CardMediaRecord | null>;
 }
 
@@ -479,6 +517,7 @@ export interface WikiCategoryRecord {
     background_eligible: boolean;
     display_order: number;
     show_when_empty: boolean;
+    revision: number;
 }
 
 export interface UpdateWikiCategoryInput {
@@ -491,7 +530,33 @@ export interface UpdateWikiCategoryInput {
 
 export type WikiCategorySaveResult =
     | { status: 'saved'; category: WikiCategoryRecord }
-    | { status: 'conflict'; currentName: string };
+    | { status: 'conflict'; currentName: string; revision: number };
+
+export interface DeleteStoryGroupInput {
+    agencyCode: string;
+    idolId: number;
+    category: string;
+    cardName: string;
+    expectedRevision: number;
+}
+
+export type DeleteStoryGroupResult =
+    | { status: 'deleted'; revision: number }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' };
+
+export interface DeleteWikiCategoryInput {
+    agencyCode: string;
+    agencyId: number;
+    idolId: number;
+    category: string;
+    expectedRevision: number;
+}
+
+export type DeleteWikiCategoryResult =
+    | { status: 'deleted'; category: WikiCategoryRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' };
 
 export interface WikiBackgroundRecord extends StoryRecord {
     agency_id: number;
@@ -890,18 +955,13 @@ export interface StoryRepository {
         category: string,
         cardName: string
     ): Promise<StoryRecord[]>;
-    deleteStoryGroup(
-        agencyCode: string,
-        idolId: number,
-        category: string,
-        cardName: string
-    ): Promise<void>;
+    deleteStoryGroup(input: DeleteStoryGroupInput): Promise<DeleteStoryGroupResult>;
     listCategoryImages(
         agencyCode: string,
         idolId: number,
         category: string
     ): Promise<Array<{ image_file: string | null }>>;
-    deleteCategory(agencyCode: string, idolId: number, category: string): Promise<void>;
+    deleteCategory(input: DeleteWikiCategoryInput): Promise<DeleteWikiCategoryResult>;
 }
 
 export interface RepositoryServices {

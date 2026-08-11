@@ -181,6 +181,10 @@ export class FilesystemObjectStorage implements ObjectStorage {
         return (await this.get(key)) !== null;
     }
 
+    async publish(key: string): Promise<void> {
+        if (!await this.exists(key)) throw new Error('Object not found');
+    }
+
     async copy(sourceKey: string, destinationKey: string): Promise<void> {
         const source = await this.get(sourceKey);
         if (!source) throw new Error('Source object not found');

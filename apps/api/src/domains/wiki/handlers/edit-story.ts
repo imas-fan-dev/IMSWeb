@@ -11,6 +11,7 @@ import {
     wikiJson,
     wikiMessageOf,
     wikiStatusOf,
+    writeWikiAudit,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { parseEditWikiStoryRequest } from '@/domains/wiki/request';
@@ -162,6 +163,12 @@ export function createHandleEditWikiStory<E extends Env>(
                     : undefined
             });
             if (oldKey) await cleanupWikiObjects(services, [oldKey]);
+            await writeWikiAudit(
+                context,
+                services,
+                '更新 Wiki 剧情来源',
+                `agency=${target.agency.code};idol_id=${target.idol.id};story_id=${record.id};revision=${expectedMediaRevision}`
+            );
             return wikiJson({ status: 'success' });
         } catch (error) {
             if (createdKey) await cleanupWikiObjects(services, [createdKey]);

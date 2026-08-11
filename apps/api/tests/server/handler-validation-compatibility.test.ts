@@ -34,7 +34,9 @@ interface CompatibilityCalls {
     storageWrites: number;
 }
 
-function createCompatibilityFixture() {
+function createCompatibilityFixture(
+    namecardOverrides: Partial<NamecardRepository> = {}
+) {
     const calls: CompatibilityCalls = {
         adminDelete: [],
         audit: [],
@@ -56,7 +58,9 @@ function createCompatibilityFixture() {
     };
     const events: EventRepository = {
         async insertEvent() { throw new Error('unexpected event insert'); },
-        async updateEvent() { return false; },
+    async updateEvent() { return false; },
+    async findEventByOperationKey() { return null; },
+    async markEventReady() { return false; },
         async countEvents() { return 0; },
         async listEvents() { return []; },
         async findLatestEventId() { return null; },
@@ -79,6 +83,7 @@ function createCompatibilityFixture() {
         async findCardByOrderedHashes() { return null; },
         async insertPendingCard() { throw new Error('unexpected namecard insert'); },
         async countApprovedCards() { return 0; },
+        async countAdminCards() { return 0; },
         async listApprovedCards(limit, offset) {
             calls.namecardListApproved.push([limit, offset]);
             return [];
@@ -91,13 +96,23 @@ function createCompatibilityFixture() {
             calls.namecardListAdmin.push([limit, offset]);
             return [];
         },
-        async approveCard(id) { calls.namecardApprove.push(id); },
+        async beginCardApproval(id) {
+            calls.namecardApprove.push(id);
+            return { status: 'not-found' };
+        },
+        async completeCardApproval() { return { status: 'not-found' }; },
         async findCardMedia(id) {
             calls.namecardFindMedia.push(id);
             return null;
         },
-        async deleteCard(id) { calls.namecardDelete.push(id); },
-        async findCardByMediaUrl() { return null; }
+        async deleteCard(id) {
+            calls.namecardDelete.push(id);
+            return { status: 'not-found' };
+        },
+        async findSubmissionByTokenHash() { return null; },
+        async withdrawSubmission() { return { status: 'not-found' }; },
+        async findCardByMediaUrl() { return null; },
+        ...namecardOverrides
     };
     const news: NewsRepository = {
         async listPublicNews() { return []; },
@@ -184,6 +199,7 @@ function createCompatibilityFixture() {
             throw new Error('unexpected storage write');
         },
         async delete() { calls.storageWrites += 1; },
+        async publish() { calls.storageWrites += 1; },
         async exists() { return false; },
         async copy() { calls.storageWrites += 1; },
         async move() { calls.storageWrites += 1; },
@@ -253,6 +269,156 @@ test('invalid event IDs preserve legacy 404 bodies without repository side effec
     assert.deepEqual(fixture.calls.eventDelete, []);
     assert.deepEqual(fixture.calls.audit, []);
     assert.equal(fixture.calls.storageWrites, 0);
+});
+
+test('event creation rejects a missing idempotency key before parsing uploads', async () => {
+    const fixture = createCompatibilityFixture();
+    const response = await fixture.request('/api/events', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer op-token' }
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await responseJson(response), {
+        error: 'Idempotency-Key is required'
+    });
+    assert.equal(fixture.calls.storageWrites, 0);
+    assert.deepEqual(fixture.calls.audit, []);
+});
+
+test('anonymous submission receipts do not reveal whether an ID exists', async () => {
+    const fixture = createCompatibilityFixture();
+    const missingToken = await fixture.request('/api/namecards/submissions/19');
+    const wrongToken = await fixture.request('/api/namecards/submissions/19', {
+        headers: { 'X-Namecard-Withdrawal-Token': 'wrong-token' }
+    });
+    const withdrawn = await fixture.request('/api/namecards/submissions/19/withdraw', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Namecard-Withdrawal-Token': 'wrong-token'
+        },
+        body: JSON.stringify({ expected_revision: 0 })
+    });
+
+    for (const response of [missingToken, wrongToken, withdrawn]) {
+        assert.equal(response.status, 404);
+        assert.deepEqual(await responseJson(response), {
+            error: 'Submission not found'
+        });
+    }
+    assert.equal(fixture.calls.storageWrites, 0);
+    assert.deepEqual(fixture.calls.audit, []);
+});
+
+test('a valid anonymous receipt can read and withdraw only the pending revision', async () => {
+    const seenHashes: string[] = [];
+    const seenWithdrawals: Array<[number, string, number]> = [];
+    const pending = {
+        id: 19,
+        image1_url: '/uploads/namecard/original/front.webp',
+        image2_url: '/uploads/namecard/original/back.webp',
+        status: 'pending' as const,
+        created_at: '2026-08-11T00:00:00.000Z',
+        revision: 2
+    };
+    const fixture = createCompatibilityFixture({
+        async findSubmissionByTokenHash(id, tokenHash) {
+            assert.equal(id, 19);
+            seenHashes.push(tokenHash);
+            return pending;
+        },
+        async withdrawSubmission(id, tokenHash, expectedRevision) {
+            seenWithdrawals.push([id, tokenHash, expectedRevision]);
+            return {
+                status: 'updated',
+                card: { ...pending, status: 'withdrawn', revision: 3 }
+            };
+        }
+    });
+    const headers = {
+        'X-Namecard-Withdrawal-Token': 'a'.repeat(64)
+    };
+
+    const detail = await fixture.request('/api/namecards/submissions/19', { headers });
+    assert.equal(detail.status, 200);
+    assert.deepEqual(await responseJson(detail), { submission: pending });
+
+    const withdrawn = await fixture.request('/api/namecards/submissions/19/withdraw', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_revision: 2 })
+    });
+    assert.equal(withdrawn.status, 200);
+    assert.deepEqual(await responseJson(withdrawn), {
+        success: true,
+        submission: { ...pending, status: 'withdrawn', revision: 3 }
+    });
+
+    assert.equal(seenHashes.length, 1);
+    assert.match(seenHashes[0], /^[a-f0-9]{64}$/);
+    assert.deepEqual(seenWithdrawals, [[19, seenHashes[0], 2]]);
+    assert.equal(fixture.calls.storageWrites, 2);
+    assert.deepEqual(fixture.calls.audit.map(({ action, target, username }) => ({
+        action,
+        target,
+        username
+    })), [{
+        action: '撤回名片投稿',
+        target: 'card_id=19;revision=3',
+        username: 'anonymous'
+    }]);
+});
+
+test('namecard approval publishes both sides before the final CAS transition', async () => {
+    const fixture = createCompatibilityFixture({
+        async beginCardApproval(id, expectedRevision) {
+            assert.equal(id, 19);
+            assert.equal(expectedRevision, 2);
+            return {
+                status: 'claimed',
+                card: {
+                    id,
+                    image1_url: '/uploads/namecard/original/front.webp',
+                    image2_url: '/uploads/namecard/original/back.webp',
+                    status: 'approving',
+                    created_at: null,
+                    revision: 3
+                }
+            };
+        },
+        async completeCardApproval(id, approvingRevision) {
+            assert.equal(id, 19);
+            assert.equal(approvingRevision, 3);
+            return {
+                status: 'updated',
+                card: {
+                    id,
+                    image1_url: '/uploads/namecard/original/front.webp',
+                    image2_url: '/uploads/namecard/original/back.webp',
+                    status: 'approved',
+                    created_at: null,
+                    revision: 4
+                }
+            };
+        }
+    });
+    const response = await fixture.request('/api/admin/cards/approve/19', {
+        method: 'POST',
+        headers: {
+            Authorization: 'Bearer op-token',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ expected_revision: 2 })
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await responseJson(response), { success: true, revision: 4 });
+    assert.equal(fixture.calls.storageWrites, 2);
+    assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
+        action: '审核图片通过',
+        target: 'card_id=19;revision=4'
+    }]);
 });
 
 test('invalid information IDs retain not-found responses and JSON body validation precedence', async () => {
@@ -493,7 +659,17 @@ test('namecard public and admin pagination preserve parseInt aliases and fallbac
             headers: { Authorization: 'Bearer op-token' }
         });
         assert.equal(response.status, 200, query);
-        assert.deepEqual(await responseJson(response), { success: true, data: [] });
+        assert.deepEqual(await responseJson(response), {
+            success: true,
+            data: [],
+            pageInfo: {
+                page: repositoryArgs[1] / 10 + 1,
+                pageSize: 10,
+                total: 0,
+                totalPages: 0,
+                hasNextPage: false
+            }
+        });
         assert.deepEqual(fixture.calls.namecardListAdmin.at(-1), repositoryArgs, query);
     }
 });
@@ -533,25 +709,28 @@ test('invalid namecard IDs preserve public/admin responses after auth and CSRF c
         method: 'POST',
         headers: {
             Cookie: 'token=op-token; csrf_token=csrf',
-            'X-CSRFToken': 'csrf'
-        }
+            'X-CSRFToken': 'csrf',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ expected_revision: 0 })
     });
-    assert.equal(approved.status, 200);
-    assert.deepEqual(await responseJson(approved), { success: false });
+    assert.equal(approved.status, 404);
+    assert.deepEqual(await responseJson(approved), {
+        error: 'Namecard not found'
+    });
 
-    const deleted = await fixture.request('/api/admin/cards/not-a-number', {
+    const deleted = await fixture.request('/api/admin/cards/not-a-number?expected_revision=0', {
         method: 'DELETE',
         headers: { Authorization: 'Bearer op-token' }
     });
-    assert.equal(deleted.status, 200);
-    assert.deepEqual(await responseJson(deleted), { success: true });
-    assert.deepEqual(fixture.calls.namecardFindMedia, [0, 0]);
-    assert.deepEqual(fixture.calls.namecardApprove, []);
+    assert.equal(deleted.status, 404);
+    assert.deepEqual(await responseJson(deleted), {
+        error: 'Namecard not found'
+    });
+    assert.deepEqual(fixture.calls.namecardFindMedia, []);
+    assert.deepEqual(fixture.calls.namecardApprove, [0]);
     assert.deepEqual(fixture.calls.namecardDelete, [0]);
-    assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
-        action: '删除图片',
-        target: 'card_id=0'
-    }]);
+    assert.deepEqual(fixture.calls.audit, []);
     assert.equal(fixture.calls.storageWrites, 0);
 });
 

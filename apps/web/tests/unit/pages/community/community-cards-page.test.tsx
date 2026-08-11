@@ -148,7 +148,7 @@ describe("CommunityCardsPage", () => {
     expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
   })
 
-  it("navigates both namecard sides inside the shared image preview", async () => {
+  it("opens both namecard sides in one preview dialog", async () => {
     const user = userEvent.setup()
     apiMocks.sendPage.mockResolvedValue({
       list: [
@@ -184,28 +184,30 @@ describe("CommunityCardsPage", () => {
       screen.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()
     expect(screen.getByLabelText("名片查看区域")).toBeVisible()
-    expect(screen.getByRole("button", { name: /查看上一面/ })).toBeVisible()
 
-    await user.click(screen.getByRole("button", { name: /查看下一面/ }))
+    await user.click(screen.getByRole("button", { name: "背面" }))
+
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
     ).toBeVisible()
-    expect(screen.getByText("2 / 2")).toBeVisible()
+    expect(screen.getAllByRole("dialog")).toHaveLength(1)
 
     fireEvent.keyDown(dialog, { key: "ArrowLeft" })
     expect(
       screen.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()
+  })
 
-    await user.click(screen.getByRole("button", { name: "关闭名片预览" }))
-    await user.click(
-      screen.getByRole("button", { name: "查看制作人名片 42 背面" })
+  it("reads page and size from the URL", async () => {
+    render(
+      <MemoryRouter initialEntries={["/community/cards?page=3&size=24"]}>
+        <CommunityCardsPage />
+      </MemoryRouter>
     )
 
-    expect(
-      screen.getByRole("img", { name: "制作人名片 42 背面" })
-    ).toBeVisible()
-    expect(screen.getByText("2 / 2")).toBeVisible()
+    await waitFor(() => {
+      expect(apiMocks.getNamecardPage).toHaveBeenCalledWith(3, 24)
+    })
   })
 
   it("jumps to a specified page", async () => {

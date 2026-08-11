@@ -4,7 +4,7 @@ import type {
 } from '@/infra/db/sql/database';
 
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20260805090000_wiki_story_content_type_icons';
+    '20260811100000_wiki_category_revision';
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();

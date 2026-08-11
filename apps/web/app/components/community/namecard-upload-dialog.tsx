@@ -1,9 +1,17 @@
-import { FileImageIcon, ImageUpIcon, UploadIcon } from "lucide-react"
+import {
+  CopyIcon,
+  ExternalLinkIcon,
+  FileImageIcon,
+  ImageUpIcon,
+  UploadIcon,
+} from "lucide-react"
 import { useState } from "react"
 import type { FormEvent } from "react"
+import { Link } from "react-router"
 import { toast } from "sonner"
 
 import { FileUploadControl } from "~/components/shared/file-upload-control"
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
   Dialog,
@@ -17,16 +25,23 @@ import {
 } from "~/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
 import { uploadNamecard } from "~/lib/api"
+import {
+  namecardSubmissionManagePath,
+  saveNamecardSubmissionReceipt,
+  type NamecardSubmissionReceipt,
+} from "~/pages/community/namecard-submission-storage"
 
 export function NamecardUploadDialog() {
   const [open, setOpen] = useState(false)
   const [front, setFront] = useState<File | null>(null)
   const [back, setBack] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [receipt, setReceipt] = useState<NamecardSubmissionReceipt | null>(null)
 
   function changeOpen(nextOpen: boolean) {
+    if (!nextOpen && uploading) return
     setOpen(nextOpen)
-    if (!nextOpen && !uploading) {
+    if (!nextOpen) {
       setFront(null)
       setBack(null)
     }
@@ -61,14 +76,37 @@ export function NamecardUploadDialog() {
     try {
       const response = await uploadNamecard(front, back).send()
       toast.success(response.msg)
+      const nextReceipt = {
+        id: response.submission.id,
+        token: response.withdrawalToken,
+      }
+      saveNamecardSubmissionReceipt(nextReceipt)
+      setReceipt(nextReceipt)
       setFront(null)
       setBack(null)
       form.reset()
-      setOpen(false)
     } catch {
       toast.error("名片上传失败，请检查图片后重试")
     } finally {
       setUploading(false)
+    }
+  }
+
+  function manageLink(nextReceipt: NamecardSubmissionReceipt) {
+    return namecardSubmissionManagePath(nextReceipt.id, nextReceipt.token)
+  }
+
+  async function copyManageLink(nextReceipt: NamecardSubmissionReceipt) {
+    if (!navigator.clipboard?.writeText) {
+      toast.error("浏览器不支持复制，请手动保存投稿管理链接")
+      return
+    }
+    const link = new URL(manageLink(nextReceipt), window.location.origin).href
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.success("投稿管理链接已复制")
+    } catch {
+      toast.error("复制失败，请手动保存投稿管理链接")
     }
   }
 
@@ -105,6 +143,36 @@ export function NamecardUploadDialog() {
               并进入审核队列。
             </DialogDescription>
           </DialogHeader>
+
+          {receipt ? (
+            <Alert>
+              <ExternalLinkIcon aria-hidden="true" />
+              <AlertTitle>请保存投稿管理链接</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>
+                  审核完成前，你可以凭这个链接查看状态或撤回投稿。链接丢失后无法自行找回。
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void copyManageLink(receipt)}
+                  >
+                    <CopyIcon data-icon="inline-start" />
+                    复制管理链接
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    render={<Link to={manageLink(receipt)} />}
+                  >
+                    管理这次投稿
+                    <ExternalLinkIcon data-icon="inline-end" />
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
           <FieldGroup className="grid gap-5 md:grid-cols-2">
             <Field data-disabled={uploading || undefined}>
@@ -144,8 +212,12 @@ export function NamecardUploadDialog() {
           </FieldGroup>
 
           <DialogFooter>
-            <DialogClose render={<Button type="button" variant="outline" />}>
-              {uploading ? "关闭" : "取消"}
+            <DialogClose
+              render={
+                <Button type="button" variant="outline" disabled={uploading} />
+              }
+            >
+              取消
             </DialogClose>
             <Button type="submit" disabled={uploading || !front || !back}>
               <UploadIcon data-icon="inline-start" />

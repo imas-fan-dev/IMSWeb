@@ -8,6 +8,7 @@ import {
     wikiJson,
     wikiMessageOf,
     wikiStatusOf,
+    writeWikiAudit,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
@@ -207,9 +208,16 @@ export function createHandleUpdateWikiStoryCard<E extends Env>(
                 }, 409);
             }
             if (oldKey) await cleanupWikiObjects(services, [oldKey]);
+            await writeWikiAudit(
+                context,
+                services,
+                '更新 Wiki 剧情卡片',
+                `agency=${target.agency.code};idol_id=${target.idol.id};card_id=${cardId};revision=${result.revision}`
+            );
             return wikiJson({
                 status: 'success',
                 mediaRevision: result.revision,
+                revision: result.revision,
                 imageFile,
                 coverAssetId: selectedCoverAssetId,
                 imageTransform

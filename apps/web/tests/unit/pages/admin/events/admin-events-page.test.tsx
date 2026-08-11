@@ -176,7 +176,7 @@ describe("AdminEventsPage", () => {
 
     await waitFor(() =>
       expect(toastMocks.error).toHaveBeenCalledWith(
-        "活动更新已成功，但列表刷新失败"
+        "活动更新已成功，但列表同步失败"
       )
     )
     expect(toastMocks.success).toHaveBeenCalledWith("活动已更新")
@@ -188,10 +188,10 @@ describe("AdminEventsPage", () => {
     expect(
       screen.queryByRole("heading", { name: "编辑社区活动" })
     ).not.toBeInTheDocument()
-    expect(screen.getByText("无法读取活动")).toBeVisible()
+    expect(screen.getByText("广州交流活动")).toBeVisible()
   })
 
-  it("clears a successful deletion when the list refresh fails", async () => {
+  it("removes a successful deletion without refreshing the list", async () => {
     document.cookie = "csrf_token=event-delete-refresh-test; path=/"
     const methods: string[] = []
     let getCount = 0
@@ -221,21 +221,19 @@ describe("AdminEventsPage", () => {
     await user.click(screen.getByRole("button", { name: "确认删除" }))
 
     await waitFor(() =>
-      expect(toastMocks.error).toHaveBeenCalledWith(
-        "活动删除已成功，但列表刷新失败"
-      )
+      expect(screen.queryByText("广州交流活动")).not.toBeInTheDocument()
     )
     expect(toastMocks.success).toHaveBeenCalledWith("活动已删除")
     expect(toastMocks.error).not.toHaveBeenCalledWith("活动删除失败")
     expect(methods.filter((method) => method === "DELETE")).toHaveLength(1)
-    expect(methods.filter((method) => method === "GET")).toHaveLength(2)
+    expect(methods.filter((method) => method === "GET")).toHaveLength(1)
     expect(
       screen.queryByRole("heading", { name: "删除社区活动？" })
     ).not.toBeInTheDocument()
-    expect(screen.getByText("无法读取活动")).toBeVisible()
+    expect(screen.getByText("还没有活动")).toBeVisible()
   })
 
-  it("loads every cursor page so older events remain editable", async () => {
+  it("loads the next cursor page on demand so older events remain editable", async () => {
     const requestedCursors: Array<string | null> = []
     vi.stubGlobal(
       "fetch",
@@ -276,6 +274,10 @@ describe("AdminEventsPage", () => {
     render(<AdminEventsPage />)
 
     expect(await screen.findByText("广州交流活动")).toBeVisible()
+    expect(screen.queryByText("较早的活动")).not.toBeInTheDocument()
+    await userEvent.setup().click(
+      screen.getByRole("button", { name: "加载更多" })
+    )
     expect(await screen.findByText("较早的活动")).toBeVisible()
     expect(requestedCursors).toEqual([null, "cursor-page-2"])
   })
