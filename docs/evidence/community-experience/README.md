@@ -1,6 +1,6 @@
 # 社区与体验交付证据
 
-记录日期：2026-08-11
+记录日期：2026-08-11（最新更新）
 
 ## 视觉检查
 
@@ -21,19 +21,21 @@
 
 - Web ESLint：通过，0 warning。
 - Web typecheck：通过。
-- Web Vitest 完整运行两次：两次均为 69 个测试文件、227 个测试通过。
-- API source、server tests 和 Wiki tests TypeScript 检查：通过。
-- API handler/model 回归：17/17 通过。
-- Wiki 合约回归：57/57 通过。
-- FilesystemObjectStorage 发布行为回归：1/1 通过。
-- PostgreSQL 迁移静态/runner 回归：3/3 通过。
+- Web Vitest：72 测试文件 / 255 测试通过。
 - Web production build 与 Classic Wiki CSS cascade 检查：通过。
-- API server build、Hono architecture、Web client packaging 与 asset scan：通过。
+- Web client packaging 与 asset scan：通过。
 - `git diff --check`：通过。
+- API check：syntax + TypeScript + Hono architecture + build 全部通过。
+- API `test:node`：52/52 通过（含 auth contract、media range、reaction、multipart、chronicle 合约与 probe）。
+- API `test:server`：165/165 通过（含 handler/model 回归、runtime adapter、story repository、local upload sync、rate limiter、validation 兼容性）。
+- API `test:wiki`：57/57 通过（admin data contract、public data contract、Bilibili parser、CSRF contract、media/story object paths、CRUD cleanup、upload validation、entity revision）。
+- API `test:migration`：51/51 通过（brand assets、information media、namecards、producer map、local upload、PostgreSQL runner、public object placement、semantic keys、single bucket、wiki media sync、wiki metadata audit）。
+- **API 完整测试套件：325/325 通过。**
 
 ## 环境限制
 
-- 本机 `127.0.0.1:5432` 没有运行 PostgreSQL，Docker daemon 也未启动，因此依赖真实 PostgreSQL 的完整 API server 测试无法在本轮本地验证；此前完整运行结果为 113/156 通过，其余 43 项均因连接被拒绝失败。
-- Windows 环境没有 `sh`，因此根级 `pnpm run check` 和 `pnpm run test` 均在 `check:root` 的 `sh -n scripts/migration/activate-node-release.sh` 停止；停止前规则、工作区边界和设计规范检查通过。其余 Web/API 检查与构建已使用对应的直接命令完成。
-- 已新增 Playwright 双面预览规格，但本轮没有保存一份完整 Playwright CLI 运行结果；桌面与移动交互使用本地浏览器进行了人工验证。
+- Windows 环境缺少 `sh`，根级 `pnpm run check` 和 `pnpm run test` 的 `check:root` 步骤在 `sh -n` 和 `bash -n` 处停止；规则、工作区边界和设计规范检查通过。Web/API 子 workspace 的完整 check 和 test 已用直接命令全部验证通过。
+- 本机 PostgreSQL 端口为 5433（非默认 5432），需通过 `IMS_TEST_DATABASE_URL` 环境变量指定；Docker 容器（PostgreSQL 18 + RustFS）正常运行，API 完整测试套件已验证通过。
+- 根级 `test:infra`（Python unittest）需要 Python 3 + `unittest`，本轮未在本机执行。
+- 已新增 Playwright 双面预览规格，但本轮未保存完整 Playwright CLI 运行结果；桌面与移动交互使用本地浏览器进行了人工验证。
 - 没有执行生产部署、生产迁移或 GitHub Projects 状态更新。
