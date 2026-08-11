@@ -632,6 +632,8 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
             expectedUser: user,
             request,
             cookieMutationPath: `/api/admin/cards/approve/${inserted.lastID}`,
+            cookieMutationContentType: 'application/json',
+            cookieMutationBody: JSON.stringify({ expected_revision: 0 }),
             secureCookies: false,
             async login() {
                 const response = await request('/api/login', {

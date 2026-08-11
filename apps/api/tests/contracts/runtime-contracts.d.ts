@@ -12,6 +12,8 @@ export interface CoreAuthContractFixture {
     login(): Promise<ContractLogin>;
     cookieMutationPath: string;
     cookieMutationMethod?: string;
+    cookieMutationBody?: string;
+    cookieMutationContentType?: string;
     mutationSuccessStatus?: number;
     assertMutationState(state: 'before' | 'after-cookie' | 'after-authorization'): Promise<void>;
     resetMutation(): Promise<void>;

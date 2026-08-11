@@ -462,9 +462,15 @@ async function assertCoreAuthContract(fixture) {
     const wrongCsrf = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
+            ...(fixture.cookieMutationContentType
+                ? { 'Content-Type': fixture.cookieMutationContentType }
+                : {}),
             Cookie: refreshedCookieHeader,
             'X-CSRFToken': 'wrong-contract-token'
-        }
+        },
+        ...(fixture.cookieMutationBody !== undefined
+            ? { body: fixture.cookieMutationBody }
+            : {})
     });
     await assertJsonResponse(
         wrongCsrf,
@@ -477,9 +483,15 @@ async function assertCoreAuthContract(fixture) {
     const cookieWrite = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
+            ...(fixture.cookieMutationContentType
+                ? { 'Content-Type': fixture.cookieMutationContentType }
+                : {}),
             Cookie: refreshedCookieHeader,
             'X-CSRFToken': login.csrf
-        }
+        },
+        ...(fixture.cookieMutationBody !== undefined
+            ? { body: fixture.cookieMutationBody }
+            : {})
     });
     equal(cookieWrite.status, fixture.mutationSuccessStatus || 200, `${fixture.runtime} Cookie write`);
     await fixture.assertMutationState('after-cookie');
@@ -488,9 +500,15 @@ async function assertCoreAuthContract(fixture) {
     const authorizationWrite = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
+            ...(fixture.cookieMutationContentType
+                ? { 'Content-Type': fixture.cookieMutationContentType }
+                : {}),
             Authorization: login.token,
             Cookie: 'unrelated=value'
-        }
+        },
+        ...(fixture.cookieMutationBody !== undefined
+            ? { body: fixture.cookieMutationBody }
+            : {})
     });
     equal(
         authorizationWrite.status,
