@@ -3,6 +3,7 @@ import {
   LayoutListIcon,
   LoaderCircleIcon,
   PencilIcon,
+  PlusIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -52,7 +53,13 @@ function HomepageLinkRow({
         </a>
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={`编辑“${link.title}”`}
+          onClick={onEdit}
+        >
           <PencilIcon data-icon="inline-start" />
           编辑
         </Button>
@@ -60,6 +67,7 @@ function HomepageLinkRow({
           type="button"
           variant="destructive"
           size="sm"
+          aria-label={`删除“${link.title}”`}
           disabled={deleting}
           onClick={onDelete}
         >
@@ -85,6 +93,7 @@ export function HomepageLinkList({
   error,
   deletingId,
   reordering,
+  onCreate,
   onDelete,
   onEdit,
   onReorder,
@@ -95,6 +104,7 @@ export function HomepageLinkList({
   error: unknown
   deletingId: string | null
   reordering: boolean
+  onCreate: () => void
   onDelete: (link: HomepageLink) => void
   onEdit: (link: HomepageLink) => void
   onReorder: (links: HomepageLink[]) => void
@@ -104,6 +114,12 @@ export function HomepageLinkList({
       title={title}
       description={`${links.length} 条链接`}
       icon={LayoutListIcon}
+      action={
+        <Button type="button" size="sm" onClick={onCreate}>
+          <PlusIcon data-icon="inline-start" />
+          添加链接
+        </Button>
+      }
       contentClassName="pt-1"
     >
       {error ? (

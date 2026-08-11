@@ -32,6 +32,31 @@ const content = {
           profileUrl: "https://example.com/producer-a",
           avatarUrl: "/brand/about/staff/iris-radio-p.webp",
         },
+        {
+          id: "producer-a2",
+          name: "制作人A2",
+          role: "设计",
+          description: "维护视觉。",
+          since: "Since 2026",
+          profileUrl: null,
+          avatarUrl: null,
+        },
+      ],
+    },
+    {
+      id: "maintainers",
+      title: "维护组",
+      subtitle: "Maintainer",
+      people: [
+        {
+          id: "producer-b",
+          name: "制作人B",
+          role: "维护者",
+          description: "维护内容。",
+          since: "Since 2026",
+          profileUrl: null,
+          avatarUrl: null,
+        },
       ],
     },
   ],
@@ -73,10 +98,18 @@ test.beforeEach(async ({ context, page }) => {
   })
 })
 
-test("member avatar upload fills the profile draft and saves responsively", async ({
+test("roster sorting and scoped avatar edits stay in the draft until page save", async ({
   page,
 }, testInfo) => {
-  let savedAvatarUrl: string | null = null
+  const browserErrors: string[] = []
+  page.on("console", (message) => {
+    if (message.type() === "error" || message.type() === "warning") {
+      browserErrors.push(`${message.type()}: ${message.text()}`)
+    }
+  })
+  page.on("pageerror", (error) => browserErrors.push(error.message))
+  const savedState: { groups: typeof content.groups | null } = { groups: null }
+  const readSavedGroups = () => savedState.groups
   await page.route("**/api/admin/about/member-avatar", async (route) => {
     expect(route.request().headers()["x-csrftoken"]).toBe("about-avatar-e2e")
     await route.fulfill({
@@ -90,7 +123,7 @@ test("member avatar upload fills the profile draft and saves responsively", asyn
   await page.route("**/api/admin/about", async (route) => {
     if (route.request().method() === "PUT") {
       const requestBody = route.request().postDataJSON()
-      savedAvatarUrl = requestBody.content.groups[0].people[0].avatarUrl
+      savedState.groups = requestBody.content.groups
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -113,25 +146,75 @@ test("member avatar upload fills the profile draft and saves responsively", asyn
   await page.goto("/admin/about")
   await expect(page.getByRole("heading", { name: "关于页配置" })).toBeVisible()
   await expect(page.getByLabel("头像链接")).toHaveCount(0)
-  await expect(page.getByAltText("制作人A头像预览")).toHaveAttribute(
+  await expect(page.getByLabel("角色主视觉图链接")).toHaveCount(0)
+  await expect(page.getByAltText("制作人A头像")).toHaveAttribute(
     "src",
     "/brand/about/staff/iris-radio-p.webp"
   )
 
-  await page.getByLabel("上传头像").setInputFiles({
+  const groupHandle = page.getByRole("button", {
+    name: "拖动排序：创始人",
+  })
+  await groupHandle.focus()
+  await page.keyboard.press("Space")
+  await page.waitForTimeout(100)
+  await page.keyboard.press("ArrowDown")
+  await page.waitForTimeout(100)
+  await page.keyboard.press("Space")
+
+  const memberHandle = page.getByRole("button", {
+    name: "拖动排序：制作人A",
+    exact: true,
+  })
+  await memberHandle.focus()
+  await page.keyboard.press("Space")
+  await page.waitForTimeout(100)
+  await page.keyboard.press("ArrowDown")
+  await page.waitForTimeout(100)
+  await page.keyboard.press("Space")
+
+  await page
+    .getByRole("button", { name: "编辑成员 制作人A", exact: true })
+    .click()
+  const dialog = page.getByRole("dialog", { name: "编辑成员" })
+  await expect(dialog.getByLabel("名称")).toHaveValue("制作人A")
+  await dialog.getByLabel("上传头像").setInputFiles({
     name: "member-avatar.png",
     mimeType: "image/png",
     buffer: Buffer.from([1, 2, 3]),
   })
-  await expect(page.getByAltText("制作人A头像预览")).toHaveAttribute(
+  await expect(dialog.getByAltText("制作人A头像预览")).toHaveAttribute(
     "src",
     "/uploads/about/member-avatars/producer-a.webp"
   )
+  await expect(
+    page.getByText("/uploads/about/member-avatars/producer-a.webp")
+  ).toHaveCount(0)
+  if (process.env.CAPTURE_ABOUT_AVATAR_QA === "1") {
+    await page.screenshot({
+      path: `/tmp/imsweb-about-member-dialog-${testInfo.project.name}.png`,
+      fullPage: false,
+    })
+  }
+  await dialog.getByRole("button", { name: "保存成员" }).click()
+
+  expect(readSavedGroups()).toBeNull()
 
   await page.getByRole("button", { name: "保存更改" }).click()
   await expect
-    .poll(() => savedAvatarUrl)
-    .toBe("/uploads/about/member-avatars/producer-a.webp")
+    .poll(() => readSavedGroups()?.map((group) => group.id))
+    .toEqual(["maintainers", "creators"])
+  const savedGroups = readSavedGroups()
+  if (!savedGroups) throw new Error("missing saved About groups")
+  const savedCreators = savedGroups.find((group) => group.id === "creators")
+  expect(savedCreators?.people.map((person) => person.id)).toEqual([
+    "producer-a2",
+    "producer-a",
+  ])
+  expect(
+    savedCreators?.people.find((person) => person.id === "producer-a")
+      ?.avatarUrl
+  ).toBe("/uploads/about/member-avatars/producer-a.webp")
   await expect(page.getByText(/最近保存/)).toBeVisible()
 
   const hasHorizontalOverflow = await page.evaluate(
@@ -140,6 +223,7 @@ test("member avatar upload fills the profile draft and saves responsively", asyn
       document.documentElement.clientWidth
   )
   expect(hasHorizontalOverflow).toBe(false)
+  expect(browserErrors).toEqual([])
 
   if (process.env.CAPTURE_ABOUT_AVATAR_QA === "1") {
     await page.getByText("制作人A", { exact: true }).scrollIntoViewIfNeeded()

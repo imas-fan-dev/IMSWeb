@@ -56,6 +56,7 @@ function createCompatibilityFixture() {
     };
     const events: EventRepository = {
         async insertEvent() { throw new Error('unexpected event insert'); },
+        async updateEvent() { return false; },
         async countEvents() { return 0; },
         async listEvents() { return []; },
         async findLatestEventId() { return null; },
@@ -68,6 +69,7 @@ function createCompatibilityFixture() {
             calls.eventFindMedia.push(id);
             return null;
         },
+        async countEventMediaReferences() { return 0; },
         async deleteEvent(id) {
             calls.eventDelete.push(id);
             return false;

@@ -13,6 +13,7 @@ export function AdminImageUploadField({
   file = null,
   disabled = false,
   uploading = false,
+  required = false,
   resetAfterSelect = false,
   compact = true,
   onSelect,
@@ -24,6 +25,7 @@ export function AdminImageUploadField({
   file?: File | null
   disabled?: boolean
   uploading?: boolean
+  required?: boolean
   resetAfterSelect?: boolean
   compact?: boolean
   onSelect: (file: File | null) => void
@@ -43,6 +45,7 @@ export function AdminImageUploadField({
       file={file}
       disabled={disabled}
       uploading={uploading}
+      required={required}
       resetAfterSelect={resetAfterSelect}
       compact={compact}
       selectedIcon={FileImageIcon}

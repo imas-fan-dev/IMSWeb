@@ -274,6 +274,28 @@ export class SqlCoreRepository implements
         return result.id;
     }
 
+    async updateEvent(
+        id: number,
+        input: EventInput,
+        expectedImageUrl: string
+    ): Promise<boolean> {
+        const result = await executeSql(
+            this.database,
+            `UPDATE events
+             SET title=?, name=?, contact=?, image_url=?
+             WHERE id=? AND image_url=?`,
+            [
+                input.title,
+                input.name,
+                input.contact,
+                input.imageUrl,
+                id,
+                expectedImageUrl
+            ]
+        );
+        return result.meta.changes > 0;
+    }
+
     async countEvents(): Promise<number> {
         const row = await queryOne<{ total: number }>(
             this.database,
@@ -321,6 +343,15 @@ export class SqlCoreRepository implements
 
     findEventMedia(id: number): Promise<{ image_url: string } | null> {
         return queryOne(this.database, 'SELECT image_url FROM events WHERE id=?', [id]);
+    }
+
+    async countEventMediaReferences(imageUrl: string): Promise<number> {
+        const row = await queryOne<{ count: number }>(
+            this.database,
+            'SELECT COUNT(*) AS count FROM events WHERE image_url=?',
+            [imageUrl]
+        );
+        return row?.count ?? 0;
     }
 
     async deleteEvent(id: number): Promise<boolean> {

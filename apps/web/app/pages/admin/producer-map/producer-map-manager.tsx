@@ -1,24 +1,45 @@
 import { useRequest } from "alova/client"
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   ExternalLinkIcon,
   ImageIcon,
   LoaderCircleIcon,
   MapPinnedIcon,
+  PencilIcon,
   PlusIcon,
   RefreshCwIcon,
   SaveIcon,
   Trash2Icon,
   UsersRoundIcon,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { Button } from "~/components/ui/button"
-import { AdminImageUploadField } from "~/pages/admin/components/admin-image-upload-field"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog"
+import { Badge } from "~/components/ui/badge"
+import { Button } from "~/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import {
+  getAdminProducerMapContent,
+  updateAdminProducerMapContent,
+  type ProducerMapAdminSnapshot,
+  type ProducerMapCommunity,
+  type ProducerMapContent,
+  type ProducerMapRegion,
+} from "~/lib/api"
+import { SortableList } from "~/pages/admin/components/sortable-list"
+import {
+  AdminEmptyState,
   AdminField,
   AdminPageHeader,
   AdminPanel,
@@ -26,22 +47,29 @@ import {
   adminTextareaClass,
 } from "~/pages/admin/components/admin-ui"
 import {
-  createProducerMapDraft,
+  CommunityEditorDialog,
+  RegionEditorDialog,
+} from "~/pages/admin/producer-map/producer-map-editor-dialogs"
+import {
   createCommunity,
+  createProducerMapDraft,
   createRegion,
-  moveItem,
   provinceOptions,
   seriesOptions,
 } from "~/pages/admin/producer-map/producer-map-model"
-import {
-  getAdminProducerMapContent,
-  uploadAdminProducerMapImage,
-  updateAdminProducerMapContent,
-  type ProducerMapAdminSnapshot,
-  type ProducerMapCommunity,
-  type ProducerMapContent,
-  type ProducerMapRegion,
-} from "~/lib/api"
+
+type ChangeContent = (
+  update: (content: ProducerMapContent) => ProducerMapContent
+) => void
+
+interface EditorState<Item> {
+  index: number | null
+  value: Item
+}
+
+type DeleteTarget =
+  | { kind: "region"; item: ProducerMapRegion }
+  | { kind: "community"; item: ProducerMapCommunity }
 
 function formatUpdateTime(value: string | null): string {
   if (!value) return "尚未保存过自定义配置"
@@ -51,544 +79,235 @@ function formatUpdateTime(value: string | null): string {
   }).format(new Date(value))}`
 }
 
-function VisibilityControl({
-  id,
-  checked,
-  onChange,
-}: {
-  id: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-}) {
-  return (
-    <label
-      htmlFor={id}
-      className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border bg-background px-3 text-sm font-medium"
-    >
-      <input
-        id={id}
-        type="checkbox"
-        className="size-4 accent-primary"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      公开显示
-    </label>
-  )
+function seriesLabel(value: ProducerMapRegion["series"]): string {
+  return seriesOptions.find((option) => option.value === value)?.label ?? value
 }
 
-function OrderActions({
-  label,
-  index,
-  total,
-  disabled,
-  onMove,
-  onRemove,
-}: {
-  label: string
-  index: number
-  total: number
-  disabled: boolean
-  onMove: (offset: number) => void
-  onRemove: () => void
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`上移${label}`}
-        disabled={disabled || index === 0}
-        onClick={() => onMove(-1)}
-      >
-        <ArrowUpIcon aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`下移${label}`}
-        disabled={disabled || index === total - 1}
-        onClick={() => onMove(1)}
-      >
-        <ArrowDownIcon aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`删除${label}`}
-        disabled={disabled}
-        onClick={onRemove}
-      >
-        <Trash2Icon aria-hidden="true" />
-      </Button>
-    </div>
-  )
-}
-
-function SeriesSelect({
-  id,
-  value,
-  onChange,
-}: {
-  id: string
-  value: ProducerMapRegion["series"]
-  onChange: (value: ProducerMapRegion["series"]) => void
-}) {
-  return (
-    <AdminField label="系列归属" htmlFor={id}>
-      <select
-        id={id}
-        className={adminControlClass}
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value as ProducerMapRegion["series"])
-        }
-      >
-        {seriesOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </AdminField>
-  )
-}
-
-function ImageUrlEditor({
-  id,
-  label,
-  value,
-  previewAlt,
-  uploadLabel,
-  showUrlField = true,
-  disabled,
-  onUploadingChange,
-  onChange,
-}: {
-  id: string
-  label: string
-  value: string | null
-  previewAlt: string
-  uploadLabel: string
-  showUrlField?: boolean
-  disabled: boolean
-  onUploadingChange: (uploading: boolean) => void
-  onChange: (value: string | null) => void
-}) {
-  const [failedValue, setFailedValue] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const previewFailed = Boolean(value && failedValue === value)
-
-  async function upload(file: File | null) {
-    if (!file) return
-    setUploading(true)
-    onUploadingChange(true)
-    try {
-      const result = await uploadAdminProducerMapImage(file).send()
-      setFailedValue(null)
-      onChange(result.url)
-      toast.success(`${uploadLabel}已上传，请保存更改`)
-    } catch (uploadError) {
-      toast.error(
-        uploadError instanceof Error
-          ? uploadError.message
-          : `${uploadLabel}上传失败`
-      )
-    } finally {
-      setUploading(false)
-      onUploadingChange(false)
-    }
-  }
+function ListThumbnail({ value }: { value: string | null }) {
+  const [failed, setFailed] = useState(false)
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] lg:items-start">
-      <div className="flex aspect-16/10 min-h-36 items-center justify-center overflow-hidden rounded-lg border bg-muted/25">
-        {value && !previewFailed ? (
-          <img
-            src={value}
-            alt={previewAlt}
-            className="size-full object-contain"
-            loading="lazy"
-            onError={() => setFailedValue(value)}
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-2 px-4 text-center text-xs text-muted-foreground">
-            <ImageIcon className="size-5" aria-hidden="true" />
-            <span>{previewFailed ? "图片无法预览" : "尚未设置图片"}</span>
-          </div>
-        )}
-      </div>
-      <div className="space-y-4">
-        <AdminImageUploadField
-          id={`${id}-upload`}
-          name="image"
-          label={`上传${uploadLabel}`}
-          description="支持 PNG、JPEG、WebP 或 AVIF，单张不超过 10MB；上传后请保存更改。"
-          disabled={disabled}
-          uploading={uploading}
-          resetAfterSelect
-          onSelect={(file) => void upload(file)}
+    <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/25 text-muted-foreground">
+      {value && !failed ? (
+        <img
+          src={value}
+          alt=""
+          className="size-full object-cover"
+          onError={() => setFailed(true)}
         />
-        {showUrlField ? (
-          <AdminField
-            label={label}
-            htmlFor={id}
-            description="也可填写外部地址；公开页将使用当前图片地址。"
-          >
-            <input
-              id={id}
-              className={adminControlClass}
-              maxLength={500}
-              placeholder="https://… 或 /uploads/…"
-              value={value || ""}
-              onChange={(event) => onChange(event.target.value || null)}
-            />
-            {value ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  render={<a href={value} target="_blank" rel="noreferrer" />}
-                  nativeButton={false}
-                >
-                  <ExternalLinkIcon data-icon="inline-start" />
-                  打开原图
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={disabled}
-                  onClick={() => onChange(null)}
-                >
-                  <Trash2Icon data-icon="inline-start" />
-                  清除图片
-                </Button>
-              </div>
-            ) : null}
-          </AdminField>
-        ) : value ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={() => onChange(null)}
-          >
-            <Trash2Icon data-icon="inline-start" />
-            清除图片
-          </Button>
-        ) : null}
-      </div>
+      ) : (
+        <ImageIcon aria-hidden="true" />
+      )}
     </div>
   )
 }
 
-function RegionEditor({
+function RegionRow({
   region,
-  index,
-  total,
-  disabled,
-  onUploadingChange,
-  onChange,
-  onMove,
-  onRemove,
+  onEdit,
+  onDelete,
 }: {
   region: ProducerMapRegion
-  index: number
-  total: number
-  disabled: boolean
-  onUploadingChange: (uploading: boolean) => void
-  onChange: (region: ProducerMapRegion) => void
-  onMove: (offset: number) => void
-  onRemove: () => void
+  onEdit: () => void
+  onDelete: () => void
 }) {
-  const prefix = `producer-map-region-${index}`
+  return (
+    <div className="flex min-h-18 min-w-0 items-center gap-3 py-3">
+      <ListThumbnail key={region.imageUrl ?? "empty"} value={region.imageUrl} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate font-medium">{region.name}</p>
+          <Badge variant={region.enabled ? "secondary" : "outline"}>
+            {region.enabled ? "公开" : "隐藏"}
+          </Badge>
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          {region.province} · {seriesLabel(region.series)}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`编辑${region.name}`}
+          onClick={onEdit}
+        >
+          <PencilIcon aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`删除${region.name}`}
+          onClick={onDelete}
+        >
+          <Trash2Icon aria-hidden="true" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function CommunityRow({
+  community,
+  onEdit,
+  onDelete,
+}: {
+  community: ProducerMapCommunity
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div className="flex min-h-18 min-w-0 items-center gap-3 py-3">
+      <ListThumbnail
+        key={community.imageUrl ?? "empty"}
+        value={community.imageUrl}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate font-medium">{community.name}</p>
+          <Badge variant={community.enabled ? "secondary" : "outline"}>
+            {community.enabled ? "公开" : "隐藏"}
+          </Badge>
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          {community.platform} · {community.region ?? "全国"} ·{" "}
+          {seriesLabel(community.series)}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`编辑${community.name}`}
+          onClick={onEdit}
+        >
+          <PencilIcon aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`删除${community.name}`}
+          onClick={onDelete}
+        >
+          <Trash2Icon aria-hidden="true" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function PageMetadataFields({
+  draft,
+  change,
+}: {
+  draft: ProducerMapContent
+  change: ChangeContent
+}) {
   return (
     <AdminPanel
-      title={region.name || `地区 ${index + 1}`}
-      description={region.province}
+      title="页面信息"
+      description="公开页的标题、说明、名录名称与地图署名。"
       icon={MapPinnedIcon}
-      action={
-        <OrderActions
-          label={region.name || `地区 ${index + 1}`}
-          index={index}
-          total={total}
-          disabled={disabled}
-          onMove={onMove}
-          onRemove={onRemove}
-        />
-      }
-      contentClassName="space-y-5"
+      contentClassName="flex flex-col gap-5"
     >
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <AdminField label="行政区" htmlFor={`${prefix}-province`}>
-          <select
-            id={`${prefix}-province`}
-            className={adminControlClass}
-            value={region.province}
-            onChange={(event) =>
-              onChange({
-                ...region,
-                province: event.target.value,
-                name:
-                  region.name === region.province
-                    ? event.target.value
-                    : region.name,
-              })
-            }
-          >
-            {provinceOptions.map((province) => (
-              <option key={province} value={province}>
-                {province}
-              </option>
-            ))}
-          </select>
-        </AdminField>
-        <AdminField label="地区名称" htmlFor={`${prefix}-name`}>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <AdminField label="页面标题" htmlFor="producer-map-title">
           <input
-            id={`${prefix}-name`}
+            id="producer-map-title"
             className={adminControlClass}
             maxLength={80}
             required
-            value={region.name}
+            value={draft.title}
             onChange={(event) =>
-              onChange({ ...region, name: event.target.value })
+              change((content) => ({
+                ...content,
+                title: event.target.value,
+              }))
             }
           />
         </AdminField>
-        <SeriesSelect
-          id={`${prefix}-series`}
-          value={region.series}
-          onChange={(series) => onChange({ ...region, series })}
-        />
-        <AdminField label="显示状态">
-          <VisibilityControl
-            id={`${prefix}-enabled`}
-            checked={region.enabled}
-            onChange={(enabled) => onChange({ ...region, enabled })}
+        <AdminField label="英文副标题" htmlFor="producer-map-subtitle">
+          <input
+            id="producer-map-subtitle"
+            className={adminControlClass}
+            maxLength={120}
+            value={draft.subtitle}
+            onChange={(event) =>
+              change((content) => ({
+                ...content,
+                subtitle: event.target.value,
+              }))
+            }
           />
         </AdminField>
       </div>
-      <AdminField label="地区 ID" htmlFor={`${prefix}-id`}>
-        <input
-          id={`${prefix}-id`}
-          className={adminControlClass}
-          maxLength={80}
-          pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-          required
-          value={region.id}
-          onChange={(event) => onChange({ ...region, id: event.target.value })}
-        />
-      </AdminField>
-      <AdminField label="地区简介" htmlFor={`${prefix}-summary`}>
+      <AdminField label="页面简介" htmlFor="producer-map-introduction">
         <textarea
-          id={`${prefix}-summary`}
-          className={`${adminTextareaClass} min-h-28`}
-          maxLength={1000}
-          value={region.summary}
+          id="producer-map-introduction"
+          className={`${adminTextareaClass} min-h-24`}
+          maxLength={300}
+          required
+          value={draft.introduction}
           onChange={(event) =>
-            onChange({ ...region, summary: event.target.value })
+            change((content) => ({
+              ...content,
+              introduction: event.target.value,
+            }))
           }
         />
       </AdminField>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <AdminField label="联络信息" htmlFor={`${prefix}-contact`}>
+      <div className="grid gap-5 lg:grid-cols-3">
+        <AdminField label="名录标题" htmlFor="producer-map-directory-title">
           <input
-            id={`${prefix}-contact`}
+            id="producer-map-directory-title"
             className={adminControlClass}
-            maxLength={240}
-            value={region.contact}
+            maxLength={80}
+            required
+            value={draft.directoryTitle}
             onChange={(event) =>
-              onChange({ ...region, contact: event.target.value })
+              change((content) => ({
+                ...content,
+                directoryTitle: event.target.value,
+              }))
             }
           />
         </AdminField>
-        <AdminField label="地区链接" htmlFor={`${prefix}-link`}>
+        <AdminField label="地图来源名称" htmlFor="producer-map-source-label">
           <input
-            id={`${prefix}-link`}
-            type="url"
-            className={adminControlClass}
-            maxLength={500}
-            value={region.linkUrl || ""}
-            onChange={(event) =>
-              onChange({ ...region, linkUrl: event.target.value || null })
-            }
-          />
-        </AdminField>
-      </div>
-      <ImageUrlEditor
-        id={`${prefix}-image`}
-        label="地区资料图片 URL"
-        value={region.imageUrl}
-        previewAlt={`${region.name || region.province}地区资料图片`}
-        uploadLabel="地区资料图片"
-        disabled={disabled}
-        onUploadingChange={onUploadingChange}
-        onChange={(imageUrl) => onChange({ ...region, imageUrl })}
-      />
-    </AdminPanel>
-  )
-}
-
-function CommunityEditor({
-  community,
-  index,
-  total,
-  disabled,
-  onUploadingChange,
-  onChange,
-  onMove,
-  onRemove,
-}: {
-  community: ProducerMapCommunity
-  index: number
-  total: number
-  disabled: boolean
-  onUploadingChange: (uploading: boolean) => void
-  onChange: (community: ProducerMapCommunity) => void
-  onMove: (offset: number) => void
-  onRemove: () => void
-}) {
-  const prefix = `producer-map-community-${index}`
-  return (
-    <AdminPanel
-      title={community.name || `社群 ${index + 1}`}
-      description={community.platform || "未填写平台"}
-      icon={UsersRoundIcon}
-      action={
-        <OrderActions
-          label={community.name || `社群 ${index + 1}`}
-          index={index}
-          total={total}
-          disabled={disabled}
-          onMove={onMove}
-          onRemove={onRemove}
-        />
-      }
-      contentClassName="space-y-5"
-    >
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <AdminField label="社群名称" htmlFor={`${prefix}-name`}>
-          <input
-            id={`${prefix}-name`}
+            id="producer-map-source-label"
             className={adminControlClass}
             maxLength={100}
             required
-            value={community.name}
+            value={draft.mapSourceLabel}
             onChange={(event) =>
-              onChange({ ...community, name: event.target.value })
+              change((content) => ({
+                ...content,
+                mapSourceLabel: event.target.value,
+              }))
             }
           />
         </AdminField>
-        <AdminField label="平台" htmlFor={`${prefix}-platform`}>
+        <AdminField label="地图来源链接" htmlFor="producer-map-source-url">
           <input
-            id={`${prefix}-platform`}
-            className={adminControlClass}
-            maxLength={40}
-            required
-            value={community.platform}
-            onChange={(event) =>
-              onChange({ ...community, platform: event.target.value })
-            }
-          />
-        </AdminField>
-        <AdminField label="所属地区" htmlFor={`${prefix}-region`}>
-          <select
-            id={`${prefix}-region`}
-            className={adminControlClass}
-            value={community.region || ""}
-            onChange={(event) =>
-              onChange({ ...community, region: event.target.value || null })
-            }
-          >
-            <option value="">全国 / 未指定</option>
-            {provinceOptions.map((province) => (
-              <option key={province} value={province}>
-                {province}
-              </option>
-            ))}
-          </select>
-        </AdminField>
-        <AdminField label="显示状态">
-          <VisibilityControl
-            id={`${prefix}-enabled`}
-            checked={community.enabled}
-            onChange={(enabled) => onChange({ ...community, enabled })}
-          />
-        </AdminField>
-      </div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <AdminField label="社群 ID" htmlFor={`${prefix}-id`}>
-          <input
-            id={`${prefix}-id`}
-            className={adminControlClass}
-            maxLength={80}
-            pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-            required
-            value={community.id}
-            onChange={(event) =>
-              onChange({ ...community, id: event.target.value })
-            }
-          />
-        </AdminField>
-        <SeriesSelect
-          id={`${prefix}-series`}
-          value={community.series}
-          onChange={(series) => onChange({ ...community, series })}
-        />
-      </div>
-      <AdminField label="社群简介" htmlFor={`${prefix}-description`}>
-        <textarea
-          id={`${prefix}-description`}
-          className={`${adminTextareaClass} min-h-24`}
-          maxLength={600}
-          value={community.description}
-          onChange={(event) =>
-            onChange({ ...community, description: event.target.value })
-          }
-        />
-      </AdminField>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <AdminField label="联络信息" htmlFor={`${prefix}-contact`}>
-          <input
-            id={`${prefix}-contact`}
-            className={adminControlClass}
-            maxLength={240}
-            value={community.contact}
-            onChange={(event) =>
-              onChange({ ...community, contact: event.target.value })
-            }
-          />
-        </AdminField>
-        <AdminField label="社群链接" htmlFor={`${prefix}-link`}>
-          <input
-            id={`${prefix}-link`}
+            id="producer-map-source-url"
             type="url"
             className={adminControlClass}
             maxLength={500}
-            value={community.linkUrl || ""}
+            required
+            value={draft.mapSourceUrl}
             onChange={(event) =>
-              onChange({ ...community, linkUrl: event.target.value || null })
+              change((content) => ({
+                ...content,
+                mapSourceUrl: event.target.value,
+              }))
             }
           />
         </AdminField>
       </div>
-      <ImageUrlEditor
-        id={`${prefix}-image`}
-        label="联络图片 URL"
-        value={community.imageUrl}
-        previewAlt={`${community.name || `社群 ${index + 1}`}联络图片`}
-        uploadLabel="联络图片"
-        showUrlField={false}
-        disabled={disabled}
-        onUploadingChange={onUploadingChange}
-        onChange={(imageUrl) => onChange({ ...community, imageUrl })}
-      />
     </AdminPanel>
   )
 }
@@ -609,7 +328,12 @@ export function ProducerMapManager() {
   const [revision, setRevision] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [uploadingImages, setUploadingImages] = useState(0)
+  const [regionEditor, setRegionEditor] =
+    useState<EditorState<ProducerMapRegion> | null>(null)
+  const [communityEditor, setCommunityEditor] =
+    useState<EditorState<ProducerMapCommunity> | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+
   onError(() => undefined)
   onSuccess((event) => {
     const snapshot = event.data as ProducerMapAdminSnapshot
@@ -623,9 +347,9 @@ export function ProducerMapManager() {
     setDirty(true)
   }
 
-  async function save(event: React.FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!draft || uploadingImages > 0) return
+    if (!draft) return
     setSaving(true)
     try {
       const result = await updateAdminProducerMapContent(draft, revision).send()
@@ -645,7 +369,7 @@ export function ProducerMapManager() {
   if (loading && !draft) {
     return (
       <div className="flex min-h-80 items-center justify-center gap-2 text-sm text-muted-foreground">
-        <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+        <LoaderCircleIcon className="animate-spin" aria-hidden="true" />
         正在读取制作人地图配置
       </div>
     )
@@ -670,273 +394,305 @@ export function ProducerMapManager() {
   const nextProvince = provinceOptions.find(
     (province) => !usedProvinces.has(province)
   )
-  const imageBusy = uploadingImages > 0
-  const setImageUploading = (uploading: boolean) =>
-    setUploadingImages((count) => Math.max(0, count + (uploading ? 1 : -1)))
+  const availableEditorProvinces = regionEditor
+    ? provinceOptions.filter(
+        (province) =>
+          province === regionEditor.value.province ||
+          !draft.regions.some(
+            (region) =>
+              region.id !== regionEditor.value.id &&
+              region.province === province
+          )
+      )
+    : []
+
+  function saveRegion(region: ProducerMapRegion) {
+    if (!regionEditor) return
+    change((content) => ({
+      ...content,
+      regions:
+        regionEditor.index === null
+          ? [...content.regions, region]
+          : content.regions.map((item, index) =>
+              index === regionEditor.index ? region : item
+            ),
+    }))
+    setRegionEditor(null)
+  }
+
+  function saveCommunity(community: ProducerMapCommunity) {
+    if (!communityEditor) return
+    change((content) => ({
+      ...content,
+      communities:
+        communityEditor.index === null
+          ? [...content.communities, community]
+          : content.communities.map((item, index) =>
+              index === communityEditor.index ? community : item
+            ),
+    }))
+    setCommunityEditor(null)
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return
+    if (deleteTarget.kind === "region") {
+      const id = deleteTarget.item.id
+      change((content) => ({
+        ...content,
+        regions: content.regions.filter((region) => region.id !== id),
+      }))
+    } else {
+      const id = deleteTarget.item.id
+      change((content) => ({
+        ...content,
+        communities: content.communities.filter(
+          (community) => community.id !== id
+        ),
+      }))
+    }
+    setDeleteTarget(null)
+  }
+
+  const deleteLabel = deleteTarget?.item.name ?? "该条目"
 
   return (
-    <form className="flex flex-col gap-8" onSubmit={save}>
-      <AdminPageHeader
-        eyebrow="COMMUNITY DIRECTORY"
-        title="制作人地图配置"
-        description={`${formatUpdateTime(draft.updatedAt)}。保存后公开地图与社群名录会立即使用新配置。`}
-        actions={
-          <>
-            <Button
-              variant="outline"
-              render={
-                <a href="/producer-map" target="_blank" rel="noreferrer" />
+    <>
+      <form className="flex flex-col gap-8" onSubmit={save}>
+        <AdminPageHeader
+          eyebrow="COMMUNITY DIRECTORY"
+          title="制作人地图配置"
+          description={`${formatUpdateTime(draft.updatedAt)}。保存后公开地图与社群名录会立即使用新配置。`}
+          actions={
+            <>
+              <Button
+                variant="outline"
+                render={
+                  <a href="/producer-map" target="_blank" rel="noreferrer" />
+                }
+                nativeButton={false}
+              >
+                <ExternalLinkIcon data-icon="inline-start" />
+                查看公开页
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading || saving}
+                onClick={() => refresh()}
+              >
+                <RefreshCwIcon data-icon="inline-start" />
+                重新读取
+              </Button>
+              <Button type="submit" disabled={!dirty || saving}>
+                {saving ? (
+                  <LoaderCircleIcon
+                    className="animate-spin"
+                    data-icon="inline-start"
+                  />
+                ) : (
+                  <SaveIcon data-icon="inline-start" />
+                )}
+                保存更改
+              </Button>
+            </>
+          }
+        />
+
+        <PageMetadataFields draft={draft} change={change} />
+
+        <Tabs defaultValue="regions">
+          <TabsList className="grid w-full grid-cols-2 sm:w-fit">
+            <TabsTrigger value="regions">
+              <MapPinnedIcon data-icon="inline-start" />
+              地图地点
+            </TabsTrigger>
+            <TabsTrigger value="communities">
+              <UsersRoundIcon data-icon="inline-start" />
+              社群名录
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="regions">
+            <AdminPanel
+              title="地图地点"
+              description={`${draft.regions.length} 个地点，拖动可调整管理顺序。`}
+              icon={MapPinnedIcon}
+              action={
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!nextProvince}
+                  onClick={() => {
+                    if (!nextProvince) return
+                    setRegionEditor({
+                      index: null,
+                      value: createRegion(nextProvince),
+                    })
+                  }}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  添加地图地点
+                </Button>
               }
-              nativeButton={false}
+              contentClassName="p-0"
             >
-              <ExternalLinkIcon data-icon="inline-start" />
-              查看公开页
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={loading || saving || imageBusy}
-              onClick={() => refresh()}
-            >
-              <RefreshCwIcon data-icon="inline-start" />
-              重新读取
-            </Button>
-            <Button type="submit" disabled={!dirty || saving || imageBusy}>
-              {saving ? (
-                <LoaderCircleIcon
-                  className="animate-spin"
-                  data-icon="inline-start"
+              {draft.regions.length ? (
+                <SortableList
+                  items={draft.regions}
+                  disabled={saving}
+                  className="border-y-0"
+                  getLabel={(region) => region.name}
+                  renderItem={(region) => (
+                    <RegionRow
+                      region={region}
+                      onEdit={() =>
+                        setRegionEditor({
+                          index: draft.regions.findIndex(
+                            (item) => item.id === region.id
+                          ),
+                          value: region,
+                        })
+                      }
+                      onDelete={() =>
+                        setDeleteTarget({ kind: "region", item: region })
+                      }
+                    />
+                  )}
+                  onReorder={(regions) =>
+                    change((content) => ({ ...content, regions }))
+                  }
                 />
               ) : (
-                <SaveIcon data-icon="inline-start" />
+                <div className="p-4">
+                  <AdminEmptyState
+                    icon={MapPinnedIcon}
+                    title="还没有地图地点"
+                    description="新增地点后会加入地图资料列表。"
+                  />
+                </div>
               )}
-              保存更改
-            </Button>
-          </>
-        }
-      />
+            </AdminPanel>
+          </TabsContent>
 
-      <AdminPanel
-        title="页面信息"
-        description="公开页的标题、说明、名录名称与地图署名。"
-        icon={MapPinnedIcon}
-        contentClassName="space-y-5"
+          <TabsContent value="communities">
+            <AdminPanel
+              title="社群名录"
+              description={`${draft.communities.length} 个社群，拖动可调整公开页顺序。`}
+              icon={UsersRoundIcon}
+              action={
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={draft.communities.length >= 100}
+                  onClick={() =>
+                    setCommunityEditor({
+                      index: null,
+                      value: createCommunity(),
+                    })
+                  }
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  添加社群
+                </Button>
+              }
+              contentClassName="p-0"
+            >
+              {draft.communities.length ? (
+                <SortableList
+                  items={draft.communities}
+                  disabled={saving}
+                  className="border-y-0"
+                  getLabel={(community) => community.name}
+                  renderItem={(community) => (
+                    <CommunityRow
+                      community={community}
+                      onEdit={() =>
+                        setCommunityEditor({
+                          index: draft.communities.findIndex(
+                            (item) => item.id === community.id
+                          ),
+                          value: community,
+                        })
+                      }
+                      onDelete={() =>
+                        setDeleteTarget({ kind: "community", item: community })
+                      }
+                    />
+                  )}
+                  onReorder={(communities) =>
+                    change((content) => ({ ...content, communities }))
+                  }
+                />
+              ) : (
+                <div className="p-4">
+                  <AdminEmptyState
+                    icon={UsersRoundIcon}
+                    title="还没有社群"
+                    description="新增社群后会加入公开名录。"
+                  />
+                </div>
+              )}
+            </AdminPanel>
+          </TabsContent>
+        </Tabs>
+      </form>
+
+      {regionEditor ? (
+        <RegionEditorDialog
+          key={`${regionEditor.index === null ? "new" : "edit"}-${regionEditor.value.id}`}
+          region={regionEditor.value}
+          creating={regionEditor.index === null}
+          availableProvinces={availableEditorProvinces}
+          onOpenChange={(open) => {
+            if (!open) setRegionEditor(null)
+          }}
+          onSave={saveRegion}
+        />
+      ) : null}
+
+      {communityEditor ? (
+        <CommunityEditorDialog
+          key={`${communityEditor.index === null ? "new" : "edit"}-${communityEditor.value.id}`}
+          community={communityEditor.value}
+          creating={communityEditor.index === null}
+          onOpenChange={(open) => {
+            if (!open) setCommunityEditor(null)
+          }}
+          onSave={saveCommunity}
+        />
+      ) : null}
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
       >
-        <div className="grid gap-5 sm:grid-cols-2">
-          <AdminField label="页面标题" htmlFor="producer-map-title">
-            <input
-              id="producer-map-title"
-              className={adminControlClass}
-              maxLength={80}
-              required
-              value={draft.title}
-              onChange={(event) =>
-                change((content) => ({
-                  ...content,
-                  title: event.target.value,
-                }))
-              }
-            />
-          </AdminField>
-          <AdminField label="英文副标题" htmlFor="producer-map-subtitle">
-            <input
-              id="producer-map-subtitle"
-              className={adminControlClass}
-              maxLength={120}
-              value={draft.subtitle}
-              onChange={(event) =>
-                change((content) => ({
-                  ...content,
-                  subtitle: event.target.value,
-                }))
-              }
-            />
-          </AdminField>
-        </div>
-        <AdminField label="页面简介" htmlFor="producer-map-introduction">
-          <textarea
-            id="producer-map-introduction"
-            className={`${adminTextareaClass} min-h-24`}
-            maxLength={300}
-            required
-            value={draft.introduction}
-            onChange={(event) =>
-              change((content) => ({
-                ...content,
-                introduction: event.target.value,
-              }))
-            }
-          />
-        </AdminField>
-        <div className="grid gap-5 lg:grid-cols-3">
-          <AdminField label="名录标题" htmlFor="producer-map-directory-title">
-            <input
-              id="producer-map-directory-title"
-              className={adminControlClass}
-              maxLength={80}
-              required
-              value={draft.directoryTitle}
-              onChange={(event) =>
-                change((content) => ({
-                  ...content,
-                  directoryTitle: event.target.value,
-                }))
-              }
-            />
-          </AdminField>
-          <AdminField label="地图来源名称" htmlFor="producer-map-source-label">
-            <input
-              id="producer-map-source-label"
-              className={adminControlClass}
-              maxLength={100}
-              required
-              value={draft.mapSourceLabel}
-              onChange={(event) =>
-                change((content) => ({
-                  ...content,
-                  mapSourceLabel: event.target.value,
-                }))
-              }
-            />
-          </AdminField>
-          <AdminField label="地图来源链接" htmlFor="producer-map-source-url">
-            <input
-              id="producer-map-source-url"
-              type="url"
-              className={adminControlClass}
-              maxLength={500}
-              required
-              value={draft.mapSourceUrl}
-              onChange={(event) =>
-                change((content) => ({
-                  ...content,
-                  mapSourceUrl: event.target.value,
-                }))
-              }
-            />
-          </AdminField>
-        </div>
-      </AdminPanel>
-
-      <section className="space-y-4" aria-labelledby="producer-map-regions">
-        <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 id="producer-map-regions" className="text-lg font-semibold">
-              地区资料
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {draft.regions.length} 个地区，数组顺序用于筛选与管理展示。
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!nextProvince || imageBusy}
-            onClick={() => {
-              if (!nextProvince) return
-              change((content) => ({
-                ...content,
-                regions: [...content.regions, createRegion(nextProvince)],
-              }))
-            }}
-          >
-            <PlusIcon data-icon="inline-start" />
-            添加地区
-          </Button>
-        </div>
-        {draft.regions.map((region, index) => (
-          <RegionEditor
-            key={region.id}
-            region={region}
-            index={index}
-            total={draft.regions.length}
-            disabled={imageBusy}
-            onUploadingChange={setImageUploading}
-            onChange={(next) =>
-              change((content) => ({
-                ...content,
-                regions: content.regions.map((item, itemIndex) =>
-                  itemIndex === index ? next : item
-                ),
-              }))
-            }
-            onMove={(offset) =>
-              change((content) => ({
-                ...content,
-                regions: moveItem(content.regions, index, offset),
-              }))
-            }
-            onRemove={() =>
-              change((content) => ({
-                ...content,
-                regions: content.regions.filter(
-                  (_, itemIndex) => itemIndex !== index
-                ),
-              }))
-            }
-          />
-        ))}
-      </section>
-
-      <section className="space-y-4" aria-labelledby="producer-map-communities">
-        <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 id="producer-map-communities" className="text-lg font-semibold">
-              社群名录
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {draft.communities.length} 个条目，顺序即公开页展示顺序。
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={draft.communities.length >= 100 || imageBusy}
-            onClick={() =>
-              change((content) => ({
-                ...content,
-                communities: [...content.communities, createCommunity()],
-              }))
-            }
-          >
-            <PlusIcon data-icon="inline-start" />
-            添加社群
-          </Button>
-        </div>
-        {draft.communities.map((community, index) => (
-          <CommunityEditor
-            key={community.id}
-            community={community}
-            index={index}
-            total={draft.communities.length}
-            disabled={imageBusy}
-            onUploadingChange={setImageUploading}
-            onChange={(next) =>
-              change((content) => ({
-                ...content,
-                communities: content.communities.map((item, itemIndex) =>
-                  itemIndex === index ? next : item
-                ),
-              }))
-            }
-            onMove={(offset) =>
-              change((content) => ({
-                ...content,
-                communities: moveItem(content.communities, index, offset),
-              }))
-            }
-            onRemove={() =>
-              change((content) => ({
-                ...content,
-                communities: content.communities.filter(
-                  (_, itemIndex) => itemIndex !== index
-                ),
-              }))
-            }
-          />
-        ))}
-      </section>
-    </form>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="text-destructive">
+              <Trash2Icon aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>删除这个条目？</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{deleteLabel}”会从当前草稿中移除，保存页面后生效。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 

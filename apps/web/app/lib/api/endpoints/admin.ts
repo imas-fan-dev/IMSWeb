@@ -440,6 +440,17 @@ export function createAdminEvent(form: FormData) {
   )
 }
 
+export function updateAdminEvent(id: string, form: FormData) {
+  return apiClient.Put<{ success: true }, unknown>(
+    `/api/events/${encodeURIComponent(id)}`,
+    form,
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
+    }
+  )
+}
+
 export function deleteAdminEvent(id: string) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/api/events/${encodeURIComponent(id)}`,

@@ -1,9 +1,20 @@
 import { useRequest } from "alova/client"
-import { RefreshCwIcon } from "lucide-react"
+import { LoaderCircleIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "~/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import {
   createHomepageLink,
@@ -48,7 +59,9 @@ export function HomepageLinkManager() {
     emptyHomepageLinkSubmission("navigation")
   )
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editorOpen, setEditorOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<HomepageLink | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [reordering, setReordering] = useState(false)
 
@@ -70,7 +83,19 @@ export function HomepageLinkManager() {
 
   function chooseSection(section: HomepageLinkSection) {
     setActiveSection(section)
+    setEditorOpen(false)
     resetForm(section)
+  }
+
+  function createLink(section: HomepageLinkSection) {
+    resetForm(section)
+    setEditorOpen(true)
+  }
+
+  function changeEditorOpen(open: boolean) {
+    if (!open && saving) return
+    setEditorOpen(open)
+    if (!open) resetForm(activeSection)
   }
 
   function editLink(link: HomepageLink) {
@@ -83,12 +108,13 @@ export function HomepageLinkManager() {
       icon: link.icon,
       accent: link.accent,
     })
-    window.scrollTo({ top: 0, behavior: "smooth" })
+    setEditorOpen(true)
   }
 
   async function saveLink(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSaving(true)
+    const editing = editingId !== null
     try {
       if (editingId) {
         await updateHomepageLink(editingId, {
@@ -98,56 +124,90 @@ export function HomepageLinkManager() {
           icon: draft.icon,
           accent: draft.accent,
         }).send()
-        toast.success("首页链接已更新")
       } else {
         await createHomepageLink(draft).send()
-        toast.success("首页链接已添加")
       }
-      resetForm()
-      await refresh()
     } catch (saveError) {
       toast.error(homepageLinkErrorMessage(saveError))
+      setSaving(false)
+      return
+    }
+
+    toast.success(editing ? "首页链接已更新" : "首页链接已添加")
+    setEditorOpen(false)
+    resetForm()
+    try {
+      await refresh()
+    } catch (refreshError) {
+      toast.error(
+        `链接已保存，但列表刷新失败：${homepageLinkErrorMessage(refreshError)}`
+      )
     } finally {
       setSaving(false)
     }
   }
 
-  async function removeLink(link: HomepageLink) {
-    if (!window.confirm(`确定删除“${link.title}”吗？`)) return
+  async function removeLink() {
+    const link = deleteTarget
+    if (!link) return
     setDeletingId(link.id)
     try {
       await deleteHomepageLink(link.id).send()
-      if (editingId === link.id) resetForm()
-      await refresh()
-      toast.success("首页链接已删除")
     } catch (deleteError) {
       toast.error(homepageLinkErrorMessage(deleteError))
+      setDeletingId(null)
+      return
+    }
+
+    if (editingId === link.id) resetForm()
+    toast.success("首页链接已删除")
+    setDeleteTarget(null)
+    try {
+      await refresh()
+    } catch (refreshError) {
+      toast.error(
+        `链接已删除，但列表刷新失败：${homepageLinkErrorMessage(refreshError)}`
+      )
     } finally {
       setDeletingId(null)
     }
   }
 
   async function reorderLinks(next: HomepageLink[]) {
+    const section = activeSection
     const ids = next.map((link) => link.id)
-    setSectionOrders((current) => ({ ...current, [activeSection]: ids }))
+    setSectionOrders((current) => ({ ...current, [section]: ids }))
     setReordering(true)
     try {
-      await reorderHomepageLinks(activeSection, ids).send()
-      await refresh()
-      setSectionOrders((current) => {
-        const nextOrders = { ...current }
-        delete nextOrders[activeSection]
-        return nextOrders
-      })
-      toast.success("首页链接顺序已更新")
+      await reorderHomepageLinks(section, ids).send()
     } catch (reorderError) {
       setSectionOrders((current) => {
         const nextOrders = { ...current }
-        delete nextOrders[activeSection]
+        delete nextOrders[section]
         return nextOrders
       })
       toast.error(homepageLinkErrorMessage(reorderError))
+      try {
+        await refresh()
+      } catch {
+        // The mutation failed and the optimistic order is already rolled back.
+      }
+      setReordering(false)
+      return
+    }
+
+    toast.success("首页链接顺序已更新")
+    try {
       await refresh()
+      setSectionOrders((current) => {
+        const nextOrders = { ...current }
+        delete nextOrders[section]
+        return nextOrders
+      })
+    } catch (refreshError) {
+      toast.error(
+        `顺序已保存，但列表刷新失败：${homepageLinkErrorMessage(refreshError)}`
+      )
     } finally {
       setReordering(false)
     }
@@ -182,30 +242,74 @@ export function HomepageLinkManager() {
         </TabsList>
         {homepageSectionOrder.map((section) => (
           <TabsContent key={section} value={section}>
-            <div className="grid gap-8 xl:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1.28fr)]">
-              <HomepageLinkForm
-                draft={draft}
-                editing={Boolean(editingId)}
-                saving={saving}
-                onChange={setDraft}
-                onCancel={() => resetForm()}
-                onSubmit={saveLink}
-              />
-              <HomepageLinkList
-                title={homepageSectionLabels[section]}
-                links={sectionLinks(section)}
-                loading={loading}
-                error={error}
-                deletingId={deletingId}
-                reordering={reordering}
-                onDelete={removeLink}
-                onEdit={editLink}
-                onReorder={reorderLinks}
-              />
-            </div>
+            <HomepageLinkList
+              title={homepageSectionLabels[section]}
+              links={sectionLinks(section)}
+              loading={loading}
+              error={error}
+              deletingId={deletingId}
+              reordering={reordering}
+              onCreate={() => createLink(section)}
+              onDelete={setDeleteTarget}
+              onEdit={editLink}
+              onReorder={reorderLinks}
+            />
           </TabsContent>
         ))}
       </Tabs>
+
+      <HomepageLinkForm
+        open={editorOpen}
+        sectionLabel={homepageSectionLabels[draft.section]}
+        draft={draft}
+        editing={Boolean(editingId)}
+        saving={saving}
+        onChange={setDraft}
+        onOpenChange={changeEditorOpen}
+        onSubmit={saveLink}
+      />
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && deletingId === null) setDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="text-destructive">
+              <Trash2Icon aria-hidden="true" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>删除首页链接？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `“${deleteTarget.title}”将从首页移除。`
+                : "该链接将从首页移除。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingId !== null}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              disabled={deletingId !== null}
+              onClick={() => void removeLink()}
+            >
+              {deletingId !== null ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin"
+                />
+              ) : (
+                <Trash2Icon data-icon="inline-start" />
+              )}
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

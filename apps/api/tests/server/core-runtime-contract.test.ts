@@ -436,6 +436,67 @@ test('[STATE-01] post-commit media failures preserve Node success semantics', as
     await assertPostCommitMediaContract({ runtime: 'Node', ...fixture });
 });
 
+test('[STATE-01] event image replacement keeps the published record on publish failure', async (t) => {
+    const fixture = await createFixture(t);
+    const token = await fixture.opToken();
+    const headers = {
+        Authorization: token,
+        'Content-Type': 'multipart/form-data; boundary=contract'
+    };
+    fixture.setUpload({
+        fields: {
+            title: 'Original event',
+            name: 'Original producer',
+            contact: 'original@example.test'
+        },
+        files: {
+            image: {
+                filename: 'original.png',
+                contentType: 'image/png',
+                body: Uint8Array.of(1, 2, 3)
+            }
+        }
+    });
+    const created = await fixture.request('/api/events', {
+        method: 'POST',
+        headers,
+        body: '--contract--'
+    });
+    assert.equal(created.status, 200);
+    const id = (await created.json() as { id: number }).id;
+    const before = await fixture.request(`/api/events/${id}`);
+    const beforeBody = await before.json() as Record<string, unknown>;
+    const beforeSnapshot = await fixture.snapshot();
+
+    fixture.setUpload({
+        fields: {
+            title: 'Replacement event',
+            name: 'Replacement producer',
+            contact: 'replacement@example.test'
+        },
+        files: {
+            image: {
+                filename: 'replacement.png',
+                contentType: 'image/png',
+                body: Uint8Array.of(4, 5, 6)
+            }
+        }
+    });
+    fixture.failObjectPublishes(true);
+    const failed = await fixture.request(`/api/events/${id}`, {
+        method: 'PUT',
+        headers,
+        body: '--contract--'
+    });
+    fixture.failObjectPublishes(false);
+
+    assert.equal(failed.status, 500);
+    assert.deepEqual(await failed.json(), { error: '服务器错误' });
+    const after = await fixture.request(`/api/events/${id}`);
+    assert.deepEqual(await after.json(), beforeBody);
+    assert.deepEqual(await fixture.snapshot(), beforeSnapshot);
+});
+
 test('[STATE-01] namecard approval retries object publication before success', async (t) => {
     const fixture = await createFixture(t);
     const token = await fixture.opToken();

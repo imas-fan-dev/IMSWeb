@@ -864,6 +864,65 @@ async function assertCoreMutationContract(fixture) {
     equal(eventBody.success, true, `${fixture.runtime} event mutation success`);
     equal(Number.isSafeInteger(eventBody.id) && eventBody.id > 0, true, `${fixture.runtime} event id`);
 
+    const beforeEventUpdate = await fixture.snapshot();
+    fixture.setUpload({
+        fields: {
+            title: 'Updated contract event',
+            name: 'Updated producer',
+            contact: 'updated@example.test'
+        },
+        files: {}
+    });
+    await assertJsonResponse(
+        await fixture.request(`/api/events/${eventBody.id}`, {
+            method: 'PUT',
+            headers: { ...auth, 'Content-Type': 'multipart/form-data; boundary=contract' },
+            body: '--contract--'
+        }),
+        200,
+        { success: true },
+        `${fixture.runtime} event text update`
+    );
+    const updatedEvent = await fixture.request(`/api/events/${eventBody.id}`);
+    equal(updatedEvent.status, 200, `${fixture.runtime} updated event lookup status`);
+    const updatedEventBody = await json(updatedEvent, `${fixture.runtime} updated event lookup`);
+    equal(updatedEventBody.title, 'Updated contract event', `${fixture.runtime} updated event title`);
+    equal(updatedEventBody.name, 'Updated producer', `${fixture.runtime} updated event organizer`);
+    equal(updatedEventBody.contact, 'updated@example.test', `${fixture.runtime} updated event contact`);
+    const afterEventUpdate = await fixture.snapshot();
+    equal(afterEventUpdate.events, beforeEventUpdate.events,
+        `${fixture.runtime} event update preserves row count`);
+    equal(afterEventUpdate.objects, beforeEventUpdate.objects,
+        `${fixture.runtime} text-only event update preserves media`);
+
+    fixture.setUpload({
+        fields: {
+            title: 'Updated contract event',
+            name: 'Updated producer',
+            contact: 'updated@example.test'
+        },
+        files: { image: uploadedFile('replacement-event.png', 32, 21) }
+    });
+    await assertJsonResponse(
+        await fixture.request(`/api/events/${eventBody.id}`, {
+            method: 'PUT',
+            headers: { ...auth, 'Content-Type': 'multipart/form-data; boundary=contract' },
+            body: '--contract--'
+        }),
+        200,
+        { success: true },
+        `${fixture.runtime} event image replacement`
+    );
+    const replacedEvent = await fixture.request(`/api/events/${eventBody.id}`);
+    const replacedEventBody = await json(replacedEvent, `${fixture.runtime} replaced event lookup`);
+    equal(replacedEventBody.image_url === updatedEventBody.image_url, false,
+        `${fixture.runtime} event replacement changes the public image`);
+    const afterEventReplacement = await fixture.snapshot();
+    equal(afterEventReplacement.events, beforeEventUpdate.events,
+        `${fixture.runtime} event replacement preserves row count`);
+    equal(afterEventReplacement.objects, beforeEventUpdate.objects,
+        `${fixture.runtime} event replacement removes the superseded media`);
+
     fixture.setUpload({
         fields: {},
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
