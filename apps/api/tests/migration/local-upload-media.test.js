@@ -22,7 +22,7 @@ test('local upload media sync requires an explicit apply flag for writes', () =>
         IMS_UPLOADS_DIR: '/tmp/uploads'
     });
     assert.equal(options.apply, true);
-    assert.equal(options.source, '/tmp/uploads');
+    assert.equal(options.source, path.resolve('/tmp/uploads'));
     assert.match(helpText(), /read-only unless --apply/);
 });
 

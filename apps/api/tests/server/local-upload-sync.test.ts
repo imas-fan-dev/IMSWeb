@@ -79,7 +79,9 @@ async function fixture(t: TestContext): Promise<string> {
 test('local upload sync maps only mutable business media to stable logical keys', async (t) => {
     const directory = await fixture(t);
     const files = await listLocalUploadFiles(directory);
-    assert.deepEqual(files.map((file) => path.relative(directory, file)), [
+    assert.deepEqual(files.map((file) =>
+        path.relative(directory, file).split(path.sep).join('/')
+    ), [
         'event/original/activity.png',
         'news/thumb/recommendation.jpg'
     ]);

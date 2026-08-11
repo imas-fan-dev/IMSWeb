@@ -343,7 +343,9 @@ export class SqlCoreRepository implements
 
     listEvents(limit: number, offset: number): Promise<Record<string, unknown>[]> {
         return queryAll(this.database,
-            "SELECT * FROM events WHERE publication_state='ready' ORDER BY id DESC LIMIT ? OFFSET ?",
+            `SELECT id, title, name, contact, image_url, created_at
+             FROM events WHERE publication_state='ready'
+             ORDER BY id DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
     }
@@ -363,20 +365,22 @@ export class SqlCoreRepository implements
     ): Promise<Record<string, unknown>[]> {
         if (afterId) {
             return queryAll(this.database,
-                `SELECT * FROM events
+                `SELECT id, title, name, contact, image_url, created_at FROM events
                  WHERE publication_state='ready' AND id<=? AND id<? ORDER BY id DESC LIMIT ?`,
                 [snapshotId, afterId, limit]
             );
         }
         return queryAll(this.database,
-            "SELECT * FROM events WHERE publication_state='ready' AND id<=? ORDER BY id DESC LIMIT ?",
+            `SELECT id, title, name, contact, image_url, created_at FROM events
+             WHERE publication_state='ready' AND id<=? ORDER BY id DESC LIMIT ?`,
             [snapshotId, limit]
         );
     }
 
     findEvent(id: number): Promise<Record<string, unknown> | null> {
         return queryOne(this.database,
-            "SELECT * FROM events WHERE id=? AND publication_state='ready'", [id]);
+            `SELECT id, title, name, contact, image_url, created_at FROM events
+             WHERE id=? AND publication_state='ready'`, [id]);
     }
 
     findEventMedia(id: number): Promise<{ image_url: string } | null> {

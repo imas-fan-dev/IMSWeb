@@ -697,7 +697,7 @@ test('PostgreSQL card source append requires the exact card and current media re
         cardId: card.card_id,
         expectedRevision: 0,
         links: [{ ...DEFAULT_STORY_SOURCE, upName: '过期来源', videoTitle: '过期', url: 'https://example.test/stale' }]
-    }), { status: 'conflict', revision: 1 });
+    }), { status: 'conflict', revision: 2 });
     await assert.rejects(repository.addStoryCardSources({
         agencyCode: agency.code,
         idolId: idol.id,
@@ -858,7 +858,7 @@ test('PostgreSQL category rename is scoped by idol assignment and preserves stor
         id: category.id,
         name: '过期改名',
         expectedName: '共同分类'
-    }), { status: 'conflict', currentName: '已改名分类' });
+    }), { status: 'conflict', currentName: '已改名分类', revision: 1 });
     assert.deepEqual(
         (await repository.listWikiCategories(agency.id, firstIdol.id))
             .map(({ name, storage_slug }) => ({ name, storage_slug })),
@@ -1121,7 +1121,7 @@ test('PostgreSQL whole-card and category deletion reject stale revisions', async
         idolId: idol.id,
         category: 'CAS 分类改',
         expectedRevision: 0
-    }), { status: 'conflict', revision: 2 });
+    }), { status: 'conflict', revision: 1 });
     assert.equal((await repository.listWikiCategories(agency.id, idol.id)).length, 1);
     const deleted = await repository.deleteCategory({
         agencyCode: agency.code,
