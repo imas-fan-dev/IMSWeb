@@ -7,10 +7,13 @@ import {
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
-import { Link } from "react-router"
+import { Link, useSearchParams } from "react-router"
 import { toast } from "sonner"
 
-import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import {
+  NamecardPreview,
+  type NamecardSide,
+} from "~/components/shared/namecard-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
@@ -72,6 +75,16 @@ function namecardCreatedAt(value?: string | null) {
     dateTime: date.toISOString(),
     label: NAMECARD_DATE_FORMATTER.format(date),
   }
+}
+
+function pageFromSearchParam(value: string | null) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1
+}
+
+function pageSizeFromSearchParam(value: string | null) {
+  const parsed = Number(value)
+  return NAMECARD_PAGE_SIZES.find((size) => size === parsed) ?? 12
 }
 
 export function meta() {
@@ -180,33 +193,49 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
   )
 }
 
-function NamecardItem({ card }: { card: Namecard }) {
+function NamecardItem({
+  card,
+  onPreview,
+}: {
+  card: Namecard
+  onPreview: (
+    card: Namecard,
+    side: NamecardSide,
+    trigger: HTMLButtonElement
+  ) => void
+}) {
   const createdAt = namecardCreatedAt(card.created_at)
-  const previewItems = [
-    {
-      src: card.image1_url,
-      alt: `制作人名片 ${card.id} 正面`,
-    },
-    {
-      src: card.image2_url,
-      alt: `制作人名片 ${card.id} 背面`,
-    },
-  ]
-
   return (
     <Card className="h-full">
       <div className="grid grid-cols-2 gap-px bg-border">
-        {previewItems.map((image, index) => (
-          <CoverImagePreview
-            key={image.alt}
-            src={image.src}
-            alt={image.alt}
-            previewLabel="名片"
-            previewItems={previewItems}
-            previewIndex={index}
-            className="aspect-3/2 w-full rounded-none bg-muted"
-            imageClassName="transition-transform group-hover:scale-[1.02]"
-          />
+        {[card.image1_url, card.image2_url].map((image, index) => (
+          <button
+            key={`${card.id}-${index === 0 ? "front" : "back"}`}
+            type="button"
+            className="group relative aspect-3/2 w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            aria-label={`查看制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
+            title="查看大图"
+            onClick={(event) =>
+              onPreview(
+                card,
+                index === 0 ? "front" : "back",
+                event.currentTarget
+              )
+            }
+          >
+            <img
+              src={image}
+              alt=""
+              loading="lazy"
+              className="size-full object-cover transition-transform group-hover:scale-[1.02]"
+            />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-colors group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
+              <ImagesIcon
+                className="size-5 drop-shadow-sm"
+                aria-hidden="true"
+              />
+            </span>
+          </button>
         ))}
       </div>
       <CardHeader>
@@ -227,12 +256,33 @@ function NamecardItem({ card }: { card: Namecard }) {
 }
 
 export default function CommunityCardsPage() {
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number>(NAMECARD_PAGE_SIZES[0])
-  const [targetPage, setTargetPage] = useState("1")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const page = pageFromSearchParam(searchParams.get("page"))
+  const pageSize = pageSizeFromSearchParam(searchParams.get("size"))
+  const [targetPage, setTargetPage] = useState(String(page))
   const [result, setResult] = useState<NamecardPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [selectedCard, setSelectedCard] = useState<Namecard | null>(null)
+  const [selectedSide, setSelectedSide] = useState<NamecardSide>("front")
+  const previewReturnRef = useRef<{
+    trigger: HTMLButtonElement
+    scrollY: number
+  } | null>(null)
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    let changed = false
+    if (searchParams.get("page") !== String(page)) {
+      next.set("page", String(page))
+      changed = true
+    }
+    if (searchParams.get("size") !== String(pageSize)) {
+      next.set("size", String(pageSize))
+      changed = true
+    }
+    if (changed) setSearchParams(next, { replace: true })
+  }, [page, pageSize, searchParams, setSearchParams])
 
   useEffect(() => {
     let active = true
@@ -257,7 +307,11 @@ export default function CommunityCardsPage() {
     if (nextPage === page) return
     setLoading(true)
     setError(false)
-    setPage(nextPage)
+    setTargetPage("1")
+    const next = new URLSearchParams(searchParams)
+    next.set("page", String(nextPage))
+    next.set("size", String(pageSize))
+    setSearchParams(next)
   }
 
   function changePageSize(value: unknown) {
@@ -265,9 +319,34 @@ export default function CommunityCardsPage() {
     if (!NAMECARD_PAGE_SIZES.some((size) => size === nextPageSize)) return
     setLoading(true)
     setError(false)
-    setPage(1)
-    setTargetPage("1")
-    setPageSize(nextPageSize)
+    const next = new URLSearchParams(searchParams)
+    next.set("page", "1")
+    next.set("size", String(nextPageSize))
+    setSearchParams(next)
+  }
+
+  function openPreview(
+    card: Namecard,
+    side: NamecardSide,
+    trigger: HTMLButtonElement
+  ) {
+    previewReturnRef.current = { trigger, scrollY: window.scrollY }
+    setSelectedSide(side)
+    setSelectedCard(card)
+  }
+
+  function handlePreviewOpenChange(open: boolean) {
+    if (open) return
+    const returnTarget = previewReturnRef.current
+    setSelectedCard(null)
+    window.requestAnimationFrame(() => {
+      if (!returnTarget) return
+      if (returnTarget.trigger.isConnected) {
+        returnTarget.trigger.focus({ preventScroll: true })
+      }
+      window.scrollTo({ top: returnTarget.scrollY, behavior: "auto" })
+      previewReturnRef.current = null
+    })
   }
 
   function jumpToPage(event: FormEvent<HTMLFormElement>) {
@@ -283,6 +362,13 @@ export default function CommunityCardsPage() {
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-12">
+      <NamecardPreview
+        card={selectedCard}
+        side={selectedSide}
+        onSideChange={setSelectedSide}
+        onOpenChange={handlePreviewOpenChange}
+      />
+
       <Link
         to="/community"
         className={buttonVariants({ variant: "ghost", size: "sm" })}
@@ -338,7 +424,11 @@ export default function CommunityCardsPage() {
           <>
             <div className="grid gap-4 md:grid-cols-2">
               {result.list.map((card) => (
-                <NamecardItem key={card.id} card={card} />
+                <NamecardItem
+                  key={card.id}
+                  card={card}
+                  onPreview={openPreview}
+                />
               ))}
             </div>
             <div className="mt-6 flex flex-col gap-4 border-t pt-4">

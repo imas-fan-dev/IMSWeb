@@ -51,6 +51,10 @@ export type StoryCreateDefaults = {
 
 export function StoryOutline({
   stories,
+  query: controlledQuery,
+  onQueryChange,
+  expandedCategoryIds,
+  onCategoryOpenChange,
   onCreateCategory,
   onCreate,
   onEditCategory,
@@ -61,6 +65,10 @@ export function StoryOutline({
   onDeleteCategory,
 }: {
   stories: WikiAdminStories
+  query?: string
+  onQueryChange?: (query: string) => void
+  expandedCategoryIds?: ReadonlySet<number>
+  onCategoryOpenChange?: (categoryId: number, open: boolean) => void
   onCreateCategory: () => void
   onCreate: (defaults: StoryCreateDefaults) => void
   onEditCategory: (category: WikiAdminStories["categories"][number]) => void
@@ -70,7 +78,8 @@ export function StoryOutline({
   onDeleteCard: (card: StoryCard) => void
   onDeleteCategory: (category: StoryCategory, linkCount: number) => void
 }) {
-  const [query, setQuery] = useState("")
+  const [localQuery, setLocalQuery] = useState("")
+  const query = controlledQuery ?? localQuery
   const categories = useMemo(
     () => buildOutline(stories, query),
     [query, stories]
@@ -100,7 +109,11 @@ export function StoryOutline({
               className="pl-8"
               placeholder="卡片、标题、投稿者"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                const nextQuery = event.target.value
+                if (onQueryChange) onQueryChange(nextQuery)
+                else setLocalQuery(nextQuery)
+              }}
             />
           </div>
           <Button type="button" variant="outline" onClick={onCreateCategory}>
@@ -111,7 +124,7 @@ export function StoryOutline({
             type="button"
             onClick={() =>
               onCreate({
-                category: stories.categories[0]?.name ?? "",
+                category: "",
                 cardName: "",
               })
             }
@@ -128,6 +141,10 @@ export function StoryOutline({
             <CategoryBranch
               key={category.id}
               category={category}
+              open={expandedCategoryIds?.has(category.id)}
+              onOpenChange={(open) =>
+                onCategoryOpenChange?.(category.id, open)
+              }
               onCreate={onCreate}
               onEditCategory={onEditCategory}
               onEditCard={onEditCard}
@@ -165,6 +182,8 @@ export function StoryOutline({
 
 function CategoryBranch({
   category,
+  open,
+  onOpenChange,
   onCreate,
   onEditCategory,
   onEditCard,
@@ -174,6 +193,8 @@ function CategoryBranch({
   onDeleteCategory,
 }: {
   category: StoryCategory
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   onCreate: (defaults: StoryCreateDefaults) => void
   onEditCategory: (category: WikiAdminStories["categories"][number]) => void
   onEditCard: (card: StoryCard) => void
@@ -188,7 +209,11 @@ function CategoryBranch({
   )
 
   return (
-    <Collapsible defaultOpen>
+    <Collapsible
+      defaultOpen={open === undefined}
+      open={open}
+      onOpenChange={onOpenChange}
+    >
       <div className="flex min-w-0 items-center gap-1 px-3 py-2">
         <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none">
           <ChevronDownIcon
@@ -229,6 +254,7 @@ function CategoryBranch({
               displayOrder: category.displayOrder,
               showWhenEmpty: category.showWhenEmpty,
               backgroundEligible: category.backgroundEligible,
+              revision: category.revision,
             })
           }
         >
@@ -239,6 +265,7 @@ function CategoryBranch({
           type="button"
           size="xs"
           variant="ghost"
+          aria-label={`删除分类 ${category.name}`}
           onClick={() => onDeleteCategory(category, linkCount)}
         >
           <Trash2Icon data-icon="inline-start" />
@@ -355,6 +382,7 @@ function CardBranch({
               type="button"
               size="xs"
               variant="ghost"
+              aria-label={`删除卡片 ${card.name}`}
               onClick={() => onDelete(card)}
             >
               <Trash2Icon data-icon="inline-start" />

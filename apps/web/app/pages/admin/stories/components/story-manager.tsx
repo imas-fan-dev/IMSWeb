@@ -58,8 +58,19 @@ import { StoryEditorDialog } from "~/pages/admin/stories/components/story-editor
 import { StoryTable } from "~/pages/admin/stories/components/story-table"
 
 type DeleteTarget =
-  | { kind: "card"; category: string; cardName: string; linkCount: number }
-  | { kind: "category"; category: string; linkCount: number }
+  | {
+      kind: "card"
+      category: string
+      cardName: string
+      linkCount: number
+      revision: number
+    }
+  | {
+      kind: "category"
+      category: string
+      linkCount: number
+      revision: number
+    }
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
@@ -255,6 +266,7 @@ export function StoryManager() {
           agency: selectedAgency.name,
           idol: selectedIdol.name,
           category: deleteTarget.category,
+          expectedRevision: deleteTarget.revision,
         }).send()
         toast.success(`分类“${deleteTarget.category}”已删除`)
       } else {
@@ -263,6 +275,7 @@ export function StoryManager() {
           idol: selectedIdol.name,
           category: deleteTarget.category,
           cardName: deleteTarget.cardName,
+          expectedRevision: deleteTarget.revision,
         }).send()
         toast.success(`卡片“${deleteTarget.cardName}”已删除`)
       }
@@ -468,6 +481,10 @@ export function StoryManager() {
                         kind: "category",
                         category: categoryFilter,
                         linkCount: selectedCategoryCount,
+                        revision:
+                          stories.categories.find(
+                            (category) => category.name === categoryFilter
+                          )?.revision ?? 0,
                       })
                     }
                   >
@@ -504,6 +521,7 @@ export function StoryManager() {
                       category: story.category,
                       cardName: story.cardName,
                       linkCount,
+                      revision: story.mediaRevision,
                     })
                   }
                 />

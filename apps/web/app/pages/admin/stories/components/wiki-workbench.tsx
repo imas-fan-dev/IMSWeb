@@ -2,35 +2,21 @@ import { useRequest } from "alova/client"
 import {
   ArrowUpRightIcon,
   Building2Icon,
-  FolderIcon,
   ImagesIcon,
-  LoaderCircleIcon,
   MenuIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
   Settings2Icon,
-  Trash2Icon,
   UserRoundIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router"
-import { toast } from "sonner"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { WikiEntryKindBadge } from "~/components/wiki/wiki-entry-kind"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-} from "~/components/ui/alert-dialog"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -61,6 +47,7 @@ import {
 import { Skeleton } from "~/components/ui/skeleton"
 import { AdminPageHeader } from "~/components/admin/admin-ui"
 import { StoryCategoryEditorDialog } from "~/pages/admin/stories/components/story-category-editor-dialog"
+import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
 import {
   StoryEditorDialog,
   type StoryEditorDefaults,
@@ -116,8 +103,19 @@ type CategoryEditorState = {
 }
 
 type DeleteTarget =
-  | { kind: "card"; category: string; cardName: string; linkCount: number }
-  | { kind: "category"; category: string; linkCount: number }
+  | {
+      kind: "card"
+      category: string
+      cardName: string
+      linkCount: number
+      revision: number
+    }
+  | {
+      kind: "category"
+      category: string
+      linkCount: number
+      revision: number
+    }
   | {
       kind: "source"
       storyId: number
@@ -135,6 +133,15 @@ export function WikiWorkbench() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedAgencyId = positiveId(searchParams.get("agencyId"))
   const requestedIdolId = positiveId(searchParams.get("idolId"))
+  const storyQuery = searchParams.get("query") ?? ""
+  const expandedParam = searchParams.get("expanded")
+  const expandedCategoryIds = useMemo(
+    () =>
+      expandedParam === null
+        ? undefined
+        : new Set(positiveIds(expandedParam)),
+    [expandedParam]
+  )
   const {
     data: catalogResult,
     loading: catalogLoading,
@@ -168,8 +175,6 @@ export function WikiWorkbench() {
   const [categoryEditor, setCategoryEditor] =
     useState<CategoryEditorState | null>(null)
   const [sourceCatalogOpen, setSourceCatalogOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
-  const [deleting, setDeleting] = useState(false)
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [coverAssets, setCoverAssets] = useState<WikiStoryCoverAsset[]>([])
   const [storiesRequest, setStoriesRequest] = useState<StoriesRequest>({
@@ -281,6 +286,38 @@ export function WikiWorkbench() {
   const storiesLoading = Boolean(
     selectedAgencyName && selectedIdolName && !requestIsCurrent
   )
+  const setStoryQuery = useCallback(
+    (query: string) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          if (query) next.set("query", query)
+          else next.delete("query")
+          return next
+        },
+        { preventScrollReset: true, replace: true }
+      )
+    },
+    [setSearchParams]
+  )
+  const setCategoryOpen = useCallback(
+    (categoryId: number, open: boolean) => {
+      const currentIds = new Set(
+        expandedCategoryIds ?? stories?.categories.map(({ id }) => id) ?? []
+      )
+      if (open) currentIds.add(categoryId)
+      else currentIds.delete(categoryId)
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          next.set("expanded", [...currentIds].sort((a, b) => a - b).join(","))
+          return next
+        },
+        { preventScrollReset: true }
+      )
+    },
+    [expandedCategoryIds, setSearchParams, stories]
+  )
   const storyUrl =
     selectedAgency && selectedIdol
       ? `/story?agency=${encodeURIComponent(selectedAgency.name)}&idol=${encodeURIComponent(selectedIdol.name)}`
@@ -331,42 +368,59 @@ export function WikiWorkbench() {
     })
   }
 
-  async function confirmDelete() {
-    if (!deleteTarget || !selectedAgency || !selectedIdol) return
-    setDeleting(true)
-    try {
-      if (deleteTarget.kind === "category") {
+  const deleteConfirm = useConfirmAction<DeleteTarget>({
+    onConfirm: async (target) => {
+      if (!selectedAgency || !selectedIdol) {
+        throw new Error("未选择企划或内容页")
+      }
+      if (target.kind === "category") {
         await deleteWikiCategory({
           agency: selectedAgency.name,
           idol: selectedIdol.name,
-          category: deleteTarget.category,
+          category: target.category,
+          expectedRevision: target.revision,
         }).send()
-        toast.success(`分类“${deleteTarget.category}”已删除`)
-      } else if (deleteTarget.kind === "card") {
+      } else if (target.kind === "card") {
         await deleteWikiStoryGroup({
           agency: selectedAgency.name,
           idol: selectedIdol.name,
-          category: deleteTarget.category,
-          cardName: deleteTarget.cardName,
+          category: target.category,
+          cardName: target.cardName,
+          expectedRevision: target.revision,
         }).send()
-        toast.success(`卡片“${deleteTarget.cardName}”已删除`)
       } else {
         await deleteWikiStoryLink({
           agency: selectedAgency.name,
           idol: selectedIdol.name,
-          storyId: deleteTarget.storyId,
-          expectedRevision: deleteTarget.mediaRevision,
+          storyId: target.storyId,
+          expectedRevision: target.mediaRevision,
         }).send()
-        toast.success("剧情来源已删除")
       }
-      setDeleteTarget(null)
       reloadStories()
-    } catch (error) {
-      toast.error(errorMessage(error))
-    } finally {
-      setDeleting(false)
-    }
-  }
+    },
+    getTitle: (target) =>
+      target.kind === "category"
+        ? "删除整个分类？"
+        : target.kind === "card"
+          ? "删除整张卡片？"
+          : "删除这条来源？",
+    getDescription: (target) =>
+      target.kind === "category"
+        ? target.linkCount
+          ? `“${target.category}”中的 ${target.linkCount} 条来源链接及图片会永久删除。`
+          : `空分类“${target.category}”会永久删除。`
+        : target.kind === "card"
+          ? `“${target.cardName}”的 ${target.linkCount} 条来源链接及图片会永久删除。`
+          : target.sourceCount === 1
+            ? `“${target.videoTitle}”是“${target.cardName}”的最后一个来源，删除后卡片会保留为空卡片。`
+            : `来源“${target.videoTitle}”会从卡片中永久删除，其他来源和卡片图片保持不变。`,
+    successMessage: (target) =>
+      target.kind === "category"
+        ? `分类“${target.category}”已删除`
+        : target.kind === "card"
+          ? `卡片“${target.cardName}”已删除`
+          : "剧情来源已删除",
+  })
 
   const explorer = selectedAgency ? (
     <WikiHierarchyExplorer
@@ -575,12 +629,6 @@ export function WikiWorkbench() {
                       entity: selectedIdol,
                     })
                   }
-                  onCreateStory={() =>
-                    openCreateStory({
-                      category: stories?.categories[0]?.name ?? "",
-                      cardName: "",
-                    })
-                  }
                 />
 
                 {storiesError ? (
@@ -597,6 +645,10 @@ export function WikiWorkbench() {
                 ) : (
                   <StoryOutline
                     stories={stories}
+                    query={storyQuery}
+                    onQueryChange={setStoryQuery}
+                    expandedCategoryIds={expandedCategoryIds}
+                    onCategoryOpenChange={setCategoryOpen}
                     onCreateCategory={() =>
                       setCategoryEditor({ category: null })
                     }
@@ -619,7 +671,7 @@ export function WikiWorkbench() {
                       })
                     }
                     onDeleteSource={(story, sourceCount) =>
-                      setDeleteTarget({
+                      deleteConfirm.requestAction({
                         kind: "source",
                         storyId: story.id,
                         videoTitle: story.videoTitle,
@@ -629,18 +681,20 @@ export function WikiWorkbench() {
                       })
                     }
                     onDeleteCard={(card) =>
-                      setDeleteTarget({
+                      deleteConfirm.requestAction({
                         kind: "card",
                         category: card.category,
                         cardName: card.name,
                         linkCount: card.stories.length,
+                        revision: card.mediaRevision,
                       })
                     }
                     onDeleteCategory={(category, linkCount) =>
-                      setDeleteTarget({
+                      deleteConfirm.requestAction({
                         kind: "category",
                         category: category.name,
                         linkCount,
+                        revision: category.revision ?? 0,
                       })
                     }
                   />
@@ -729,7 +783,7 @@ export function WikiWorkbench() {
           contentTypes={stories?.contentTypes ?? []}
           sourcePlatforms={stories?.sourcePlatforms ?? []}
           coverAssets={coverAssets}
-          defaultCategory={stories?.categories[0]?.name ?? ""}
+          defaultCategory=""
           defaults={storyEditor.defaults}
           mode={storyEditor.mode}
           onOpenChange={(open) => {
@@ -768,60 +822,14 @@ export function WikiWorkbench() {
         />
       ) : null}
 
-      <AlertDialog
-        open={Boolean(deleteTarget)}
-        onOpenChange={(open) => {
-          if (!open && !deleting) setDeleteTarget(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia>
-              {deleteTarget?.kind === "category" ? (
-                <FolderIcon aria-hidden="true" />
-              ) : (
-                <Trash2Icon aria-hidden="true" />
-              )}
-            </AlertDialogMedia>
-            <AlertDialogTitle>
-              {deleteTarget?.kind === "category"
-                ? "删除整个分类？"
-                : deleteTarget?.kind === "card"
-                  ? "删除整张卡片？"
-                  : "删除这条来源？"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.kind === "category"
-                ? deleteTarget.linkCount
-                  ? `“${deleteTarget.category}”中的 ${deleteTarget.linkCount} 条来源链接及图片会永久删除。`
-                  : `空分类“${deleteTarget.category}”会永久删除。`
-                : deleteTarget?.kind === "card"
-                  ? `“${deleteTarget.cardName}”的 ${deleteTarget.linkCount} 条来源链接及图片会永久删除。`
-                  : deleteTarget?.sourceCount === 1
-                    ? `“${deleteTarget.videoTitle}”是“${deleteTarget.cardName}”的最后一个来源，删除后卡片会保留为空卡片。`
-                    : `来源“${deleteTarget?.videoTitle ?? ""}”会从卡片中永久删除，其他来源和卡片图片保持不变。`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleting}
-              onClick={() => void confirmDelete()}
-            >
-              {deleting ? (
-                <LoaderCircleIcon
-                  data-icon="inline-start"
-                  className="animate-spin"
-                />
-              ) : (
-                <Trash2Icon data-icon="inline-start" />
-              )}
-              确认删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        open={deleteConfirm.open}
+        onOpenChange={deleteConfirm.onOpenChange}
+        title={deleteConfirm.title}
+        description={deleteConfirm.description}
+        submitting={deleteConfirm.submitting}
+        onConfirm={() => void deleteConfirm.confirmAction()}
+      />
     </div>
   )
 }
@@ -830,12 +838,10 @@ function IdolSummary({
   agency,
   idol,
   onEdit,
-  onCreateStory,
 }: {
   agency: WikiAdminAgency
   idol: WikiAdminIdol
   onEdit: () => void
-  onCreateStory: () => void
 }) {
   const groups = agency.groups.filter(
     (group) =>
@@ -894,10 +900,6 @@ function IdolSummary({
           <PencilIcon data-icon="inline-start" />
           编辑内容页
         </Button>
-        <Button type="button" onClick={onCreateStory}>
-          <PlusIcon data-icon="inline-start" />
-          新增卡片
-        </Button>
       </div>
     </section>
   )
@@ -951,6 +953,11 @@ function positiveId(value: string | null) {
   if (!value) return null
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function positiveIds(value: string) {
+  return [...new Set(value.split(",").map((item) => positiveId(item.trim())))]
+    .filter((item): item is number => item !== null)
 }
 
 function AgencySelectLabel({ agency }: { agency: WikiAdminAgency }) {

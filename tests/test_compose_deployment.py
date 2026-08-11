@@ -80,6 +80,8 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertNotRegex(compose, r"(?m)^\s+sed\s")
         self.assertIn('mc anonymous set-json /tmp/policy.json', compose)
         self.assertIn('mc version enable "local/$${IMS_RUSTFS_BUCKET}"', compose)
+        self.assertIn('"NotResource"', policy)
+        self.assertNotIn('"Effect": "Deny"', policy)
         self.assertIn("/__protected/*", policy)
         self.assertIn("/*/__protected/*", policy)
 

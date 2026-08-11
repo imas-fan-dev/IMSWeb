@@ -462,9 +462,15 @@ async function assertCoreAuthContract(fixture) {
     const wrongCsrf = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
+            ...(fixture.cookieMutationContentType
+                ? { 'Content-Type': fixture.cookieMutationContentType }
+                : {}),
             Cookie: refreshedCookieHeader,
             'X-CSRFToken': 'wrong-contract-token'
-        }
+        },
+        ...(fixture.cookieMutationBody !== undefined
+            ? { body: fixture.cookieMutationBody }
+            : {})
     });
     await assertJsonResponse(
         wrongCsrf,
@@ -477,9 +483,15 @@ async function assertCoreAuthContract(fixture) {
     const cookieWrite = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
+            ...(fixture.cookieMutationContentType
+                ? { 'Content-Type': fixture.cookieMutationContentType }
+                : {}),
             Cookie: refreshedCookieHeader,
             'X-CSRFToken': login.csrf
-        }
+        },
+        ...(fixture.cookieMutationBody !== undefined
+            ? { body: fixture.cookieMutationBody }
+            : {})
     });
     equal(cookieWrite.status, fixture.mutationSuccessStatus || 200, `${fixture.runtime} Cookie write`);
     await fixture.assertMutationState('after-cookie');
@@ -488,9 +500,15 @@ async function assertCoreAuthContract(fixture) {
     const authorizationWrite = await fixture.request(fixture.cookieMutationPath, {
         method: fixture.cookieMutationMethod || 'POST',
         headers: {
+            ...(fixture.cookieMutationContentType
+                ? { 'Content-Type': fixture.cookieMutationContentType }
+                : {}),
             Authorization: login.token,
             Cookie: 'unrelated=value'
-        }
+        },
+        ...(fixture.cookieMutationBody !== undefined
+            ? { body: fixture.cookieMutationBody }
+            : {})
     });
     equal(
         authorizationWrite.status,
@@ -839,7 +857,11 @@ async function assertCoreMutationContract(fixture) {
     await assertJsonResponse(
         await fixture.request('/api/events', {
             method: 'POST',
-            headers: { ...auth, 'Content-Type': 'multipart/form-data; boundary=contract' },
+            headers: {
+                ...auth,
+                'Content-Type': 'multipart/form-data; boundary=contract',
+                'Idempotency-Key': 'core-invalid-event-contract'
+            },
             body: '--contract--'
         }),
         400,
@@ -855,7 +877,11 @@ async function assertCoreMutationContract(fixture) {
     });
     const event = await fixture.request('/api/events', {
         method: 'POST',
-        headers: { ...auth, 'Content-Type': 'multipart/form-data; boundary=contract' },
+        headers: {
+            ...auth,
+            'Content-Type': 'multipart/form-data; boundary=contract',
+            'Idempotency-Key': 'core-event-contract'
+        },
         body: '--contract--'
     });
     equal(event.status, 200, `${fixture.runtime} event mutation status`);
@@ -933,10 +959,18 @@ async function assertCoreMutationContract(fixture) {
         body: '--contract--'
     });
     assertJsonContentType(namecard, `${fixture.runtime} namecard mutation`);
-    await assertJsonResponse(
-        namecard, 200, { msg: '上传成功，等待审核' },
-        `${fixture.runtime} namecard mutation`
-    );
+    equal(namecard.status, 200, `${fixture.runtime} namecard mutation status`);
+    const namecardBody = await json(namecard, `${fixture.runtime} namecard mutation`);
+    equal(namecardBody.msg, '上传成功，等待审核',
+        `${fixture.runtime} namecard mutation message`);
+    equal(Number.isSafeInteger(namecardBody.submission?.id), true,
+        `${fixture.runtime} namecard submission id`);
+    equal(namecardBody.submission?.status, 'pending',
+        `${fixture.runtime} namecard submission status`);
+    equal(namecardBody.submission?.revision, 0,
+        `${fixture.runtime} namecard submission revision`);
+    equal(/^[a-f0-9]{64}$/.test(namecardBody.withdrawalToken), true,
+        `${fixture.runtime} namecard withdrawal token`);
     const afterNamecard = await fixture.snapshot();
     equal(afterNamecard.cards, afterNews.cards + 1, `${fixture.runtime} namecard row committed`);
 
@@ -1026,11 +1060,18 @@ async function assertCoreMutationContract(fixture) {
 
 async function assertPostCommitMediaContract(fixture) {
     const auth = { Authorization: await fixture.opToken() };
-    const post = (pathname, includeAuth = true) => fixture.request(pathname, {
+    let eventOperation = 0;
+    const post = (pathname, includeAuth = true, operationKey) => fixture.request(pathname, {
         method: 'POST',
         headers: {
             ...(includeAuth ? auth : {}),
-            'Content-Type': 'multipart/form-data; boundary=contract'
+            'Content-Type': 'multipart/form-data; boundary=contract',
+            ...(pathname === '/api/events'
+                ? {
+                    'Idempotency-Key': operationKey
+                        ?? `post-commit-event-contract-${++eventOperation}`
+                }
+                : {})
         },
         body: '--contract--'
     });
@@ -1116,6 +1157,7 @@ async function assertPostCommitMediaContract(fixture) {
         `${fixture.runtime} object put failure leaves no staged objects or rows`);
 
     fixture.failObjectPublishes(true);
+    const committedEventOperationKey = 'post-commit-event-contract-recovery';
     let publishFailureLogs;
     try {
         publishFailureLogs = await captureConsoleErrors(async () => {
@@ -1140,12 +1182,11 @@ async function assertPostCommitMediaContract(fixture) {
                 fields: { title: 'Committed event', name: 'Producer', contact: 'contact@example.test' },
                 files: { image: uploadedFile('committed-event.png', 32, 64) }
             });
-            const event = await post('/api/events');
-            equal(event.status, 200, `${fixture.runtime} committed event survives publish failure`);
-            const eventBody = await json(event, `${fixture.runtime} committed event publish failure`);
-            equal(eventBody.success, true, `${fixture.runtime} committed event response success`);
-            equal(Number.isSafeInteger(eventBody.id) && eventBody.id > 0, true,
-                `${fixture.runtime} committed event response id`);
+            await assertPrivateServerError(
+                await post('/api/events', true, committedEventOperationKey),
+                { error: '服务器错误' },
+                'committed event publish failure'
+            );
             const eventCommitted = await fixture.postCommitSnapshot();
             equal(eventCommitted.events, before.events + 1,
                 `${fixture.runtime} publish failure creates one event row`);
@@ -1165,8 +1206,24 @@ async function assertPostCommitMediaContract(fixture) {
     }
     assertLoggedErrors(publishFailureLogs, [
         'Failed to publish committed news media; recovery will retry',
-        'Failed to publish committed event media; recovery will retry'
+        'Failed to create event'
     ], 'publish failures');
+
+    fixture.setUpload({
+        fields: { title: 'Committed event', name: 'Producer', contact: 'contact@example.test' },
+        files: { image: uploadedFile('committed-event.png', 32, 64) }
+    });
+    const recoveredEvent = await post('/api/events', true, committedEventOperationKey);
+    equal(recoveredEvent.status, 200,
+        `${fixture.runtime} committed event retry recovers publication`);
+    const recoveredEventBody = await json(
+        recoveredEvent,
+        `${fixture.runtime} committed event retry response`
+    );
+    equal(recoveredEventBody.success, true,
+        `${fixture.runtime} committed event retry response success`);
+    equal(Number.isSafeInteger(recoveredEventBody.id) && recoveredEventBody.id > 0, true,
+        `${fixture.runtime} committed event retry response id`);
 
     fixture.setUpload({
         fields: {},
@@ -1177,11 +1234,22 @@ async function assertPostCommitMediaContract(fixture) {
             ]
         }
     });
-    await assertJsonResponse(
-        await post('/api/uploadNameCard', false), 200,
-        { msg: '上传成功，等待审核' },
+    const committedNamecard = await post('/api/uploadNameCard', false);
+    equal(committedNamecard.status, 200,
+        `${fixture.runtime} namecard setup for committed deletion status`);
+    const committedNamecardBody = await json(
+        committedNamecard,
         `${fixture.runtime} namecard setup for committed deletion`
     );
+    equal(committedNamecardBody.msg, '上传成功，等待审核',
+        `${fixture.runtime} namecard setup message`);
+    equal(committedNamecardBody.submission?.status, 'pending',
+        `${fixture.runtime} namecard setup status`);
+    const committedNamecardRevision = committedNamecardBody.submission?.revision;
+    equal(Number.isSafeInteger(committedNamecardRevision), true,
+        `${fixture.runtime} namecard setup revision`);
+    equal(/^[a-f0-9]{64}$/.test(committedNamecardBody.withdrawalToken), true,
+        `${fixture.runtime} namecard setup withdrawal token`);
 
     const committed = await fixture.postCommitSnapshot();
     equal(committed.news, before.news + 1,
@@ -1244,7 +1312,10 @@ async function assertPostCommitMediaContract(fixture) {
                 200, { success: true }, `${fixture.runtime} event delete survives cleanup double failure`
             );
             await assertJsonResponse(
-                await fixture.request(`/api/admin/cards/${targets.card}`, { method: 'DELETE', headers: auth }),
+                await fixture.request(
+                    `/api/admin/cards/${targets.card}?expected_revision=${committedNamecardRevision}`,
+                    { method: 'DELETE', headers: auth }
+                ),
                 200, { success: true }, `${fixture.runtime} namecard delete survives cleanup double failure`
             );
         });
@@ -1273,9 +1344,16 @@ async function assertPostCommitMediaContract(fixture) {
 async function assertRouteUploadBoundaryContract(fixture) {
     const MiB = 1024 * 1024;
     const auth = { Authorization: await fixture.opToken() };
+    let eventOperation = 0;
     const post = (path, headers = {}) => fixture.request(path, {
         method: 'POST',
-        headers: { ...headers, 'Content-Type': 'multipart/form-data; boundary=contract' },
+        headers: {
+            ...headers,
+            'Content-Type': 'multipart/form-data; boundary=contract',
+            ...(path === '/api/events'
+                ? { 'Idempotency-Key': `upload-boundary-event-${++eventOperation}` }
+                : {})
+        },
         body: '--contract--'
     });
 
@@ -1283,11 +1361,15 @@ async function assertRouteUploadBoundaryContract(fixture) {
     fixture.setUpload({ fields: {}, files: {
         images: [uploadedFile('front.png', 3 * MiB, 11), uploadedFile('back.png', 3 * MiB, 12)]
     } });
-    await assertJsonResponse(
-        await post('/api/uploadNameCard'), 200,
-        { msg: '上传成功，等待审核' },
-        `${fixture.runtime} namecard exact boundary`
-    );
+    const exactNamecard = await post('/api/uploadNameCard');
+    equal(exactNamecard.status, 200, `${fixture.runtime} namecard exact boundary status`);
+    const exactNamecardBody = await json(exactNamecard, `${fixture.runtime} namecard exact boundary`);
+    equal(exactNamecardBody.msg, '上传成功，等待审核',
+        `${fixture.runtime} namecard exact boundary message`);
+    equal(exactNamecardBody.submission?.status, 'pending',
+        `${fixture.runtime} namecard exact boundary submission status`);
+    equal(/^[a-f0-9]{64}$/.test(exactNamecardBody.withdrawalToken), true,
+        `${fixture.runtime} namecard exact boundary withdrawal token`);
     let after = await fixture.uploadSnapshot();
     equal(after.cards, before.cards + 1, `${fixture.runtime} namecard exact boundary row`);
     equal(after.objects, before.objects + 2, `${fixture.runtime} namecard exact boundary objects`);

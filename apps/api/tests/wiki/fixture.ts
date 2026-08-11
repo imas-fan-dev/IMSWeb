@@ -11,6 +11,8 @@ import type {
     CreateWikiGroupInput,
     CreateWikiIdolInput,
     DeleteStoryLinkInput,
+    DeleteStoryGroupInput,
+    DeleteWikiCategoryInput,
     DeleteWikiGroupInput,
     DeleteWikiIdolInput,
     IdolRecord,
@@ -166,7 +168,8 @@ export class MemoryStoryRepository implements StoryRepository {
         storage_slug: idol.agency_code === 'sc' ? 'enza_pcard' : 'other',
         background_eligible: idol.agency_code === 'sc',
         display_order: 0,
-        show_when_empty: true
+        show_when_empty: true,
+        revision: 0
     }));
     cards: StoryCardRecord[] = [];
     stories: MemoryStoryRecord[] = [];
@@ -573,7 +576,8 @@ export class MemoryStoryRepository implements StoryRepository {
                 storage_slug: shared?.storage_slug ?? storageSlug,
                 background_eligible: shared?.background_eligible ?? false,
                 display_order: this.categories.filter((row) => row.idol_id === idolId).length,
-                show_when_empty: true
+                show_when_empty: true,
+                revision: shared?.revision ?? 0
             };
             this.categories.push(category);
         }
@@ -587,7 +591,11 @@ export class MemoryStoryRepository implements StoryRepository {
         );
         if (!assigned) return null;
         if (assigned.name !== input.expectedName) {
-            return { status: 'conflict' as const, currentName: assigned.name };
+            return {
+                status: 'conflict' as const,
+                currentName: assigned.name,
+                revision: assigned.revision
+            };
         }
         if (this.categories.some((row) =>
             row.agency_id === input.agencyId && row.id !== input.id && row.name === input.name
@@ -600,6 +608,7 @@ export class MemoryStoryRepository implements StoryRepository {
             row.agency_id === input.agencyId && row.id === input.id
         )) {
             category.name = input.name;
+            category.revision += 1;
         }
         const { idol_id: _idolId, ...record } = assigned;
         return { status: 'saved' as const, category: { ...record } };
@@ -989,7 +998,16 @@ export class MemoryStoryRepository implements StoryRepository {
             legacy_image_file: null
         })));
         this.nextId += input.links.length;
-        return { status: 'added' as const, ids, revision: input.expectedRevision };
+        const storedCard = this.cards.find((candidate) =>
+            candidate.card_id === input.cardId && candidate.idol_id === input.idolId
+        )!;
+        storedCard.image_media_revision += 1;
+        for (const story of this.stories.filter((candidate) =>
+            candidate.card_id === input.cardId
+        )) {
+            Object.assign(story, cardFromStory(storedCard));
+        }
+        return { status: 'added' as const, ids, revision: input.expectedRevision + 1 };
     }
     async setStoryImage(_agencyCode: string, id: number, imageFile: string) {
         const row = this.stories.find((candidate) => candidate.id === id);
@@ -1105,6 +1123,15 @@ export class MemoryStoryRepository implements StoryRepository {
             return { status: 'conflict' as const, revision: current.image_media_revision };
         }
         const [story] = this.stories.splice(index, 1);
+        const storedCard = this.cards.find((candidate) =>
+            candidate.card_id === current.card_id
+        )!;
+        storedCard.image_media_revision += 1;
+        for (const remaining of this.stories.filter((candidate) =>
+            candidate.card_id === current.card_id
+        )) {
+            Object.assign(remaining, cardFromStory(storedCard));
+        }
         const candidates = [story!.legacy_image_file];
         const referenced = new Set(this.stories
             .filter((candidate) => candidate.idol_id === input.idolId)
@@ -1113,7 +1140,7 @@ export class MemoryStoryRepository implements StoryRepository {
         return {
             status: 'deleted' as const,
             cardDeleted: false,
-            revision: current.image_media_revision,
+            revision: storedCard.image_media_revision,
             cleanupImageFiles: [...new Set(candidates.filter((value): value is string =>
                 typeof value === 'string' && Boolean(value) && !referenced.has(value)
             ))]
@@ -1171,29 +1198,58 @@ export class MemoryStoryRepository implements StoryRepository {
             row.idol_id === idolId && row.category === category && row.card_name === cardName
         ).map(cloneStory);
     }
-    async deleteStoryGroup(_agencyCode: string, idolId: number, category: string, cardName: string) {
+    async deleteStoryGroup(input: DeleteStoryGroupInput) {
         if (this.failNextDeleteStory) {
             this.failNextDeleteStory = false;
             throw new Error('injected delete commit failure');
         }
+        const current = this.cards.find((row) =>
+            row.idol_id === input.idolId && row.category === input.category &&
+            row.card_name === input.cardName
+        );
+        if (!current) return { status: 'not-found' as const };
+        if (current.image_media_revision !== input.expectedRevision) {
+            return { status: 'conflict' as const, revision: current.image_media_revision };
+        }
         this.stories = this.stories.filter((row) =>
-            !(row.idol_id === idolId && row.category === category && row.card_name === cardName)
+            !(row.idol_id === input.idolId && row.category === input.category &&
+                row.card_name === input.cardName)
         );
         this.cards = this.cards.filter((row) =>
-            !(row.idol_id === idolId && row.category === category && row.card_name === cardName)
+            !(row.idol_id === input.idolId && row.category === input.category &&
+                row.card_name === input.cardName)
         );
+        return { status: 'deleted' as const, revision: input.expectedRevision };
     }
     async listCategoryImages(_agencyCode: string, idolId: number, category: string) {
         return this.cards.filter((row) => row.idol_id === idolId && row.category === category)
             .map((row) => ({ image_file: row.image_file }));
     }
-    async deleteCategory(_agencyCode: string, idolId: number, category: string) {
+    async deleteCategory(input: DeleteWikiCategoryInput) {
         if (this.failNextDeleteCategory) {
             this.failNextDeleteCategory = false;
             throw new Error('injected category commit failure');
         }
-        this.stories = this.stories.filter((row) => !(row.idol_id === idolId && row.category === category));
-        this.cards = this.cards.filter((row) => !(row.idol_id === idolId && row.category === category));
+        const current = this.categories.find((row) =>
+            row.agency_id === input.agencyId && row.idol_id === input.idolId &&
+            row.name === input.category
+        );
+        if (!current) return { status: 'not-found' as const };
+        if (current.revision !== input.expectedRevision) {
+            return { status: 'conflict' as const, revision: current.revision };
+        }
+        this.stories = this.stories.filter((row) =>
+            !(row.idol_id === input.idolId && row.category === input.category)
+        );
+        this.cards = this.cards.filter((row) =>
+            !(row.idol_id === input.idolId && row.category === input.category)
+        );
+        this.categories = this.categories.filter((row) =>
+            !(row.agency_id === input.agencyId && row.idol_id === input.idolId &&
+                row.name === input.category)
+        );
+        const { idol_id: _idolId, ...category } = current;
+        return { status: 'deleted' as const, category };
     }
 
     seedStory(
@@ -1416,6 +1472,7 @@ export interface WikiFixture {
     images: FixtureImageProcessor;
     uploads: FixtureUploadParser;
     staticRequests: string[];
+    auditLogs: Array<{ action: string; target: string }>;
     setFetch(fetchImpl: typeof globalThis.fetch): void;
     auth(role?: string, csrf?: string): Promise<{ token: string; csrf: string }>;
     authHeaders(role?: string, csrf?: string): Promise<Record<string, string>>;
@@ -1429,12 +1486,19 @@ export function createWikiFixture(): WikiFixture {
     const uploads = new FixtureUploadParser();
     const tokens = new HmacTokenService('wiki-contract-secret-that-is-longer-than-thirty-two-bytes');
     const staticRequests: string[] = [];
+    const auditLogs: Array<{ action: string; target: string }> = [];
     const services: RuntimeServices = {
         story,
         storage,
         images,
         uploads,
         tokens,
+        audit: {
+            async insertAuditLog(input) {
+                auditLogs.push({ action: input.action, target: input.target });
+            },
+            async listRecentAuditLogs() { return []; }
+        },
         config: { storyMaxUploadBytes: 1024 },
         staticAssets: {
             async fetch(request: Request) {
@@ -1462,6 +1526,7 @@ export function createWikiFixture(): WikiFixture {
         images,
         uploads,
         staticRequests,
+        auditLogs,
         setFetch(fetchImpl) { services.fetch = fetchImpl; },
         async auth(role = 'op', csrf = `csrf-${role}`) {
             const token = await tokens.sign({ id: 1, username: `${role}-fixture`, dept: role, csrfSecret: csrf }, 7200);
@@ -1481,6 +1546,7 @@ export function formFields(overrides: Record<string, string> = {}) {
         idol: '樱木真乃',
         category_name: 'enzaP卡',
         card_name: '【fixture】',
+        expected_revision: '0',
         up_name: 'fixture-up',
         video_title: 'fixture-title',
         url: 'https://www.bilibili.com/video/BV1xx411c7mD',

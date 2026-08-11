@@ -89,6 +89,7 @@ export function createHandleListAdminWikiStories<E extends Env>(
           : "",
         imageTransform: storyImageTransform(card),
         mediaRevision: card.image_media_revision,
+        revision: card.image_media_revision,
       }))),
       Promise.all(stories.map(async (story) => ({
         id: story.id,
@@ -127,6 +128,7 @@ export function createHandleListAdminWikiStories<E extends Env>(
         cardId: story.card_id,
         imageTransform: storyImageTransform(story),
         mediaRevision: story.image_media_revision,
+        revision: story.image_media_revision,
       }))),
     ]);
     return wikiJson({
@@ -159,6 +161,7 @@ export function createHandleListAdminWikiStories<E extends Env>(
         displayOrder: category.display_order,
         showWhenEmpty: category.show_when_empty,
         backgroundEligible: category.background_eligible,
+        revision: category.revision,
       })),
       contentTypes: contentTypes.map((option) => ({
         id: option.id,

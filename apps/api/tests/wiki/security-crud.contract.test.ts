@@ -101,7 +101,8 @@ function seedOriginal(fixture: WikiFixture) {
         storage_slug: categoryStorageSlug('测试分类'),
         background_eligible: false,
         display_order: 1,
-        show_when_empty: true
+        show_when_empty: true,
+        revision: 0
     });
     return { row, key };
 }
@@ -803,7 +804,7 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.deepEqual(await firstDelete.json(), {
             status: 'success',
             cardDeleted: false,
-            mediaRevision: 0
+            mediaRevision: 1
         });
         assert.equal(fixture.story.stories.length, 1);
         assert.ok(fixture.storage.objects.has(imageKey));
@@ -811,7 +812,7 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         const lastDelete = await fixture.app.request(
             `/api/admin/wiki/stories/${fixture.story.stories[0]!.id}` +
             `?agency=${encodeURIComponent('闪耀色彩')}` +
-            `&idol=${encodeURIComponent('樱木真乃')}&expectedRevision=0`,
+            `&idol=${encodeURIComponent('樱木真乃')}&expectedRevision=1`,
             {
                 method: 'DELETE',
                 headers: { ...headers, 'Content-Type': 'application/json' }
@@ -821,7 +822,7 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.deepEqual(await lastDelete.json(), {
             status: 'success',
             cardDeleted: false,
-            mediaRevision: 0
+            mediaRevision: 2
         });
         assert.equal(fixture.story.stories.length, 0);
         assert.equal(fixture.story.cards.length, 1);
@@ -885,18 +886,18 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.deepEqual(await firstDelete.json(), {
             status: 'success',
             cardDeleted: false,
-            mediaRevision: 2
+            mediaRevision: 3
         });
         assert.ok(!fixture.storage.objects.has(firstLegacyKey));
         assert.ok(fixture.storage.objects.has(currentKey));
         assert.ok(fixture.storage.objects.has(secondLegacyKey));
 
-        const lastDelete = await request(second.id, 2);
+        const lastDelete = await request(second.id, 3);
         assert.equal(lastDelete.status, 200);
         assert.deepEqual(await lastDelete.json(), {
             status: 'success',
             cardDeleted: false,
-            mediaRevision: 2
+            mediaRevision: 4
         });
         assert.ok(fixture.storage.objects.has(currentKey));
         assert.ok(!fixture.storage.objects.has(secondLegacyKey));
@@ -925,7 +926,8 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
 
         const deletion = await postForm(fixture, '/api/wiki/delete_story', formFields({
             category_name: '测试分类',
-            card_name: '【updated】'
+            card_name: '【updated】',
+            expected_revision: '1'
         }), headers);
         assert.equal(deletion.status, 200);
         assert.deepEqual(await json(deletion), { status: 'success' });
@@ -1043,6 +1045,8 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         const foobarKey = `wiki/agencies/sc/idols/sc_idol/story-images/${foobar.image_file}`;
         fixture.storage.seed(fooKey);
         fixture.storage.seed(foobarKey);
+        await fixture.story.ensureWikiCategory(6, 6, 'foo', 'foo');
+        await fixture.story.ensureWikiCategory(6, 6, 'foobar', 'foobar');
 
         const response = await postForm(fixture, '/api/wiki/delete_category', formFields({
             category_name: 'foo'
@@ -1145,7 +1149,7 @@ describe('Wiki category and card secondary edit contract', () => {
         assert.deepEqual(await append.json(), {
             status: 'success',
             sourceCount: 2,
-            mediaRevision: 0
+            mediaRevision: 1
         });
         assert.equal(fixture.story.stories.length, 3);
         assert.ok(fixture.story.stories.every((story) =>
@@ -1183,7 +1187,7 @@ describe('Wiki category and card secondary edit contract', () => {
         assert.deepEqual(await stale.json(), {
             status: 'error',
             msg: '卡片已被其他编辑更新，请刷新后重试',
-            mediaRevision: 1
+            mediaRevision: 2
         });
         assert.equal(fixture.story.stories.length, 3);
     });
@@ -1244,7 +1248,8 @@ describe('Wiki category and card secondary edit contract', () => {
         assert.deepEqual(await stale.json(), {
             status: 'error',
             msg: '分类已被其他编辑更新，请刷新后重试',
-            currentName: '重命名分类'
+            currentName: '重命名分类',
+            revision: 1
         });
         assert.ok(fixture.story.categories
             .filter((candidate) => candidate.id === category.id)
@@ -1288,7 +1293,8 @@ describe('Wiki category and card secondary edit contract', () => {
             storage_slug: 'target_category',
             background_eligible: false,
             display_order: 2,
-            show_when_empty: true
+            show_when_empty: true,
+            revision: 0
         });
         const response = await patchMultipart(
             fixture,
@@ -1410,7 +1416,8 @@ describe('Wiki category and card secondary edit contract', () => {
             storage_slug: 'target_category',
             background_eligible: false,
             display_order: 2,
-            show_when_empty: true
+            show_when_empty: true,
+            revision: 0
         });
         failedFixture.story.failNextUpdate = true;
         const failure = await patchMultipart(
@@ -1432,5 +1439,83 @@ describe('Wiki category and card secondary edit contract', () => {
             failedFixture.storage.copies[0]!.destination
         ));
         assert.equal(failedFixture.story.stories[0]!.category, '测试分类');
+    });
+});
+
+describe('Wiki destructive revision and audit contract', () => {
+    test('whole-card and whole-category deletion require current revisions and audit only success', async () => {
+        const cardFixture = createWikiFixture();
+        seedOriginal(cardFixture);
+        const cardHeaders = await cardFixture.authHeaders('editor');
+
+        const missingCardRevision = await postForm(
+            cardFixture,
+            '/api/wiki/delete_story',
+            formFields({
+                category_name: '测试分类',
+                card_name: '【existing】',
+                expected_revision: ''
+            }),
+            cardHeaders
+        );
+        assert.equal(missingCardRevision.status, 428);
+        assert.equal(cardFixture.story.cards.length, 1);
+        assert.equal(cardFixture.auditLogs.length, 0);
+
+        const staleCard = await postForm(
+            cardFixture,
+            '/api/wiki/delete_story',
+            formFields({
+                category_name: '测试分类',
+                card_name: '【existing】',
+                expected_revision: '1'
+            }),
+            cardHeaders
+        );
+        assert.equal(staleCard.status, 409);
+        assert.deepEqual(await staleCard.json(), {
+            status: 'error',
+            msg: '卡片已被其他编辑更新，请刷新后重试',
+            revision: 0
+        });
+        assert.equal(cardFixture.auditLogs.length, 0);
+
+        const deletedCard = await postForm(
+            cardFixture,
+            '/api/wiki/delete_story',
+            formFields({ category_name: '测试分类', card_name: '【existing】' }),
+            cardHeaders
+        );
+        assert.equal(deletedCard.status, 200);
+        assert.equal(cardFixture.story.cards.length, 0);
+        assert.equal(cardFixture.auditLogs.length, 1);
+        assert.equal(cardFixture.auditLogs[0]?.action, '删除 Wiki 剧情卡片');
+
+        const categoryFixture = createWikiFixture();
+        seedOriginal(categoryFixture);
+        const categoryHeaders = await categoryFixture.authHeaders('op');
+        const staleCategory = await postForm(
+            categoryFixture,
+            '/api/wiki/delete_category',
+            formFields({ category_name: '测试分类', expected_revision: '1' }),
+            categoryHeaders
+        );
+        assert.equal(staleCategory.status, 409);
+        assert.deepEqual(await staleCategory.json(), {
+            status: 'error',
+            msg: '分类已被其他编辑更新，请刷新后重试',
+            revision: 0
+        });
+        assert.equal(categoryFixture.auditLogs.length, 0);
+
+        const deletedCategory = await postForm(
+            categoryFixture,
+            '/api/wiki/delete_category',
+            formFields({ category_name: '测试分类' }),
+            categoryHeaders
+        );
+        assert.equal(deletedCategory.status, 200);
+        assert.equal(categoryFixture.auditLogs.length, 1);
+        assert.equal(categoryFixture.auditLogs[0]?.action, '删除 Wiki 分类');
     });
 });

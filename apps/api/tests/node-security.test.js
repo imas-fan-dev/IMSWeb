@@ -618,11 +618,18 @@ test('cookie-authenticated writes require CSRF while bearer writes remain compat
 test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and filesystem services', async () => {
     const userRow = await get(fixturePool, "SELECT id, username, dept FROM users WHERE username='security-test-op'");
     const user = { ...userRow, id: Number(userRow.id) };
+    const contractFrontUrl = `/uploads/namecard/original/${TEST_FILE_PREFIX}-contract-front.png`;
+    const contractBackUrl = `/uploads/namecard/original/${TEST_FILE_PREFIX}-contract-back.png`;
+    for (const mediaUrl of [contractFrontUrl, contractBackUrl]) {
+        const target = namecardObjectPath(mediaUrl);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, validPng);
+    }
     const inserted = await run(
         fixturePool,
         `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
          VALUES (?, ?, ?, ?, ?, 'pending') RETURNING id`,
-        ['/contract-front.webp', '/contract-back.webp', 'contract-front', 'contract-back', '127.0.0.1']
+        [contractFrontUrl, contractBackUrl, 'contract-front', 'contract-back', '127.0.0.1']
     );
 
     const request = (requestPath, init) => fetch(`${baseUrl}${requestPath}`, init);
@@ -632,6 +639,8 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
             expectedUser: user,
             request,
             cookieMutationPath: `/api/admin/cards/approve/${inserted.lastID}`,
+            cookieMutationContentType: 'application/json',
+            cookieMutationBody: JSON.stringify({ expected_revision: 0 }),
             secureCookies: false,
             async login() {
                 const response = await request('/api/login', {
@@ -654,7 +663,7 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
                 assert.equal(row.status, state === 'before' ? 'pending' : 'approved');
             },
             async resetMutation() {
-                await run(fixturePool, "UPDATE cards SET status='pending' WHERE id=?", [inserted.lastID]);
+                await run(fixturePool, "UPDATE cards SET status='pending', revision=0 WHERE id=?", [inserted.lastID]);
             },
             setCookies(response) {
                 return response.headers.getSetCookie();
@@ -662,6 +671,10 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
         });
     } finally {
         await run(fixturePool, 'DELETE FROM cards WHERE id=?', [inserted.lastID]);
+        for (const mediaUrl of [contractFrontUrl, contractBackUrl]) {
+            const target = namecardObjectPath(mediaUrl);
+            fs.rmSync(path.dirname(target), { recursive: true, force: true });
+        }
     }
 });
 

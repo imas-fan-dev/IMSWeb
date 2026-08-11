@@ -8,6 +8,7 @@ import { eventRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
+import { writeAudit } from '@/domains/audit/hono-service';
 
 export async function handleDeleteEvent(
     c: ValidatedRequestContext<AppEnvironment, 'param', EventIdParams>
@@ -29,5 +30,6 @@ export async function handleDeleteEvent(
     } catch (error) {
         console.error('Failed to clean media for committed event deletion', error);
     }
+    await writeAudit(c, '删除活动', `event_id=${id}`);
     return c.json({ success: true } satisfies EventMutationResponse);
 }

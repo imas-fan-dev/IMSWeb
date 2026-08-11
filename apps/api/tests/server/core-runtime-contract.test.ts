@@ -40,6 +40,7 @@ const USERNAME = 'node-contract-op';
 const PASSWORD = 'contract-password';
 const PRODUCER = 'Node Contract Producer';
 const APPROVED_CARD_ID = 700;
+const PENDING_CARD_ID = 701;
 
 class ControlledUploadParser implements UploadParser {
     next?: ParsedUpload;
@@ -183,10 +184,24 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                     '/uploads/namecard/original/contract-seed-back.webp', 'approved')`,
         [APPROVED_CARD_ID]
     );
+    await executeSql(connection,
+        `INSERT INTO cards (id, image1_url, image2_url, status)
+         VALUES (?, '/uploads/namecard/original/contract-seed-front.webp',
+                    '/uploads/namecard/original/contract-seed-back.webp', 'pending')`,
+        [PENDING_CARD_ID]
+    );
 
     const parser = new ControlledUploadParser();
     const limiter = new MemoryRateLimiter();
     const delegate = new FilesystemObjectStorage({ publicDir, uploadsDir, chronicleDir, storyDataDir });
+    await delegate.put(
+        'community/namecards/assets/contract-seed-front/image.webp',
+        Uint8Array.of(1)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-back/image.webp',
+        Uint8Array.of(2)
+    );
     const compensationDelegate = new FilesystemCompensationService(compensationDir);
     let businessInsertFailure = false;
     let deleteFailure = false;
@@ -289,11 +304,14 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         return Promise.resolve(app.request(`http://ims.test${pathname}`, { ...init, headers }));
     };
 
-    const objectCount = () => Promise.all([
-        countFiles(uploadsDir),
+    const chronicleObjectCount = () => Promise.all([
         countFiles(path.join(chronicleDir, 'media/pending')),
         countFiles(path.join(chronicleDir, 'media/published')),
         countFiles(path.join(chronicleDir, 'trash'))
+    ]).then((counts) => counts.reduce((sum, count) => sum + count, 0));
+    const objectCount = () => Promise.all([
+        countFiles(uploadsDir),
+        chronicleObjectCount()
     ]).then((counts) => counts.reduce((sum, count) => sum + count, 0));
 
     const compensationCounts = async (): Promise<{ pending: number; completed: number }> => {
@@ -411,7 +429,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                     `chronicle-upload-attempt\0${clientAddress(client)}`
                 )?.identities.size || 0,
                 records: await chronicleRecordCount(path.join(chronicleDir, 'metadata')),
-                objects: await objectCount(),
+                objects: await chronicleObjectCount(),
                 parserCalls: parser.calls,
                 storageMutations
             };
@@ -441,7 +459,8 @@ test('[STATE-01] event image replacement keeps the published record on publish f
     const token = await fixture.opToken();
     const headers = {
         Authorization: token,
-        'Content-Type': 'multipart/form-data; boundary=contract'
+        'Content-Type': 'multipart/form-data; boundary=contract',
+        'Idempotency-Key': 'event-replacement-contract'
     };
     fixture.setUpload({
         fields: {
@@ -500,20 +519,20 @@ test('[STATE-01] event image replacement keeps the published record on publish f
 test('[STATE-01] namecard approval retries object publication before success', async (t) => {
     const fixture = await createFixture(t);
     const token = await fixture.opToken();
-    const approve = () => fixture.request(`/api/admin/cards/approve/${APPROVED_CARD_ID}`, {
+    const approve = () => fixture.request(`/api/admin/cards/approve/${PENDING_CARD_ID}`, {
         method: 'POST',
-        headers: { Authorization: token }
+        headers: { Authorization: token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_revision: 0 })
     });
 
     fixture.failObjectPublishes(true);
     const failed = await approve();
-    assert.equal(failed.status, 200);
-    assert.deepEqual(await failed.json(), { success: false });
+    assert.equal(failed.status, 500);
 
     fixture.failObjectPublishes(false);
     const retried = await approve();
     assert.equal(retried.status, 200);
-    assert.deepEqual(await retried.json(), { success: true });
+    assert.deepEqual(await retried.json(), { success: true, revision: 2 });
     assert.equal((await fixture.snapshot()).auditActions.filter(
         (action) => action === '审核图片通过'
     ).length, 1);

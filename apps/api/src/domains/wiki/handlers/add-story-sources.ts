@@ -7,6 +7,7 @@ import {
     wikiJson,
     wikiMessageOf,
     wikiStatusOf,
+    writeWikiAudit,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { requireWikiServices } from '@/domains/wiki/service';
@@ -55,6 +56,12 @@ export function createHandleAddWikiStorySources<E extends Env>(
                     mediaRevision: result.revision
                 }, 409);
             }
+            await writeWikiAudit(
+                context,
+                services,
+                '新增 Wiki 剧情来源',
+                `agency=${target.agency.code};idol_id=${target.idol.id};card_id=${cardId};count=${result.ids.length}`
+            );
             return wikiJson({
                 status: 'success',
                 sourceCount: result.ids.length,

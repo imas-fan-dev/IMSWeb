@@ -606,6 +606,7 @@ describe('Wiki admin dynamic data contract', () => {
             coverAssetName: null,
             imageTransform: COVER_TRANSFORM,
             mediaRevision: 5,
+            revision: 5,
             imageUrl: 'https://cdn.example.test/wiki/agencies/sc/idols/sc_idol/' +
                 'story-images/custom/story%20image.webp?v=5'
         }]);

@@ -40,6 +40,14 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             {
                 version: '20260805090000_wiki_story_content_type_icons',
                 phase: 'post-data'
+            },
+            {
+                version: '20260811090000_community_experience_consistency',
+                phase: 'post-data'
+            },
+            {
+                version: '20260811100000_wiki_category_revision',
+                phase: 'post-data'
             }
         ]
     );
@@ -149,11 +157,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 21);
+    assert.equal(catalog.count, 23);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260805090000_wiki_story_content_type_icons'
+        '20260811100000_wiki_category_revision'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -231,7 +239,9 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0018_wiki_story_cover_presentation',
         '0019_homepage_links',
         '20260804095901_wiki_idol_url',
-        '20260805090000_wiki_story_content_type_icons'
+        '20260805090000_wiki_story_content_type_icons',
+        '20260811090000_community_experience_consistency',
+        '20260811100000_wiki_category_revision'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

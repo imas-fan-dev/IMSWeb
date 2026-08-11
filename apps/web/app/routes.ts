@@ -15,6 +15,10 @@ const publicRoutes = [
     file: "pages/community/community-cards-page.tsx",
   },
   {
+    path: "community/cards/submissions/:id",
+    file: "pages/community/namecard-submission-page.tsx",
+  },
+  {
     path: "producer-map",
     file: "pages/producer-map/index.tsx",
   },

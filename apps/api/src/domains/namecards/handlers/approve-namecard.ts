@@ -1,34 +1,48 @@
-import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/audit/hono-service';
-import type { CompatibleNamecardIdParams } from '@/domains/namecards/request';
-import type { NamecardMutationResponse } from '@/domains/namecards/response';
+import type { NamecardMutationContext } from '@/domains/namecards/request';
+import type {
+    NamecardErrorResponse,
+    NamecardMutationResponse
+} from '@/domains/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
-import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
-export async function handleApproveNamecard(
-    c: ValidatedRequestContext<AppEnvironment, 'param', CompatibleNamecardIdParams>
-): Promise<Response> {
+export async function handleApproveNamecard(c: NamecardMutationContext): Promise<Response> {
     const { id } = c.req.valid('param');
+    const { expected_revision: revision } = c.req.valid('json');
     try {
         const repository = namecardRepository(c);
-        const media = await repository.findCardMedia(id);
-        if (!media) return c.json({ success: false } satisfies NamecardMutationResponse);
-        await repository.approveCard(id);
-        const storage = services(c).storage;
-        if (storage?.publish) {
-            try {
-                await Promise.all([media.image1_url, media.image2_url].map((url) =>
-                    storage.publish!(publicMediaObjectKey(url))
-                ));
-            } catch (error) {
-                console.error('Failed to publish approved namecard media; retry approval', error);
-                throw error;
-            }
+        const claim = await repository.beginCardApproval(id, revision);
+        if (claim.status === 'not-found') {
+            return c.json({ error: 'Namecard not found' } satisfies NamecardErrorResponse, 404);
         }
-        await writeAudit(c, '审核图片通过', `card_id=${id}`);
-        return c.json({ success: true } satisfies NamecardMutationResponse);
-    } catch {
-        return c.json({ success: false } satisfies NamecardMutationResponse);
+        if (claim.status === 'conflict') {
+            return c.json({
+                error: 'Namecard changed; refresh and retry',
+                revision: claim.revision
+            } satisfies NamecardErrorResponse, 409);
+        }
+        const storage = services(c).storage;
+        if (!storage?.publish) {
+            throw new Error('Object storage publication is unavailable');
+        }
+        await Promise.all([claim.card.image1_url, claim.card.image2_url].map((url) =>
+            storage.publish!(publicMediaObjectKey(url))
+        ));
+        const completed = await repository.completeCardApproval(id, claim.card.revision);
+        if (completed.status !== 'updated') {
+            return c.json({
+                error: 'Namecard changed; refresh and retry',
+                ...(completed.status === 'conflict' ? { revision: completed.revision } : {})
+            } satisfies NamecardErrorResponse, 409);
+        }
+        await writeAudit(c, '审核图片通过', `card_id=${id};revision=${completed.card.revision}`);
+        return c.json({
+            success: true,
+            revision: completed.card.revision
+        } satisfies NamecardMutationResponse);
+    } catch (error) {
+        console.error('Failed to approve namecard', error);
+        return c.json({ error: '服务器错误' } satisfies NamecardErrorResponse, 500);
     }
 }

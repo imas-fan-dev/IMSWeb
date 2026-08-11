@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { NamecardUploadDialog } from "~/components/community/namecard-upload-dialog"
@@ -29,13 +30,22 @@ vi.mock("sonner", () => ({
 describe("NamecardUploadDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    apiMocks.sendUpload.mockResolvedValue({ msg: "已提交审核" })
+    window.localStorage.clear()
+    apiMocks.sendUpload.mockResolvedValue({
+      msg: "已提交审核",
+      submission: { id: 81, status: "pending", revision: 0 },
+      withdrawalToken: "a".repeat(43),
+    })
     apiMocks.uploadNamecard.mockReturnValue({ send: apiMocks.sendUpload })
   })
 
   it("opens from the floating action and submits both namecard sides", async () => {
     const user = userEvent.setup()
-    render(<NamecardUploadDialog />)
+    render(
+      <MemoryRouter>
+        <NamecardUploadDialog />
+      </MemoryRouter>
+    )
 
     const uploadButton = screen.getByRole("button", { name: "上传名片" })
     const front = new File([new Uint8Array(1536)], "front.png", {
@@ -87,19 +97,43 @@ describe("NamecardUploadDialog", () => {
       expect(apiMocks.uploadNamecard).toHaveBeenCalledWith(front, back)
       expect(apiMocks.sendUpload).toHaveBeenCalledOnce()
     })
+    expect(await screen.findByText("请保存投稿管理链接")).toBeVisible()
+    expect(screen.getByRole("link", { name: /管理这次投稿/ })).toHaveAttribute(
+      "href",
+      `/community/cards/submissions/81#token=${"a".repeat(43)}`
+    )
+    expect(
+      window.localStorage.getItem("imsweb:namecard-submissions:v1")
+    ).toContain('"id":81')
+
+    await user.click(screen.getByRole("button", { name: "取消" }))
     await waitFor(() => expect(dialog).not.toBeInTheDocument())
     expect(uploadButton).toHaveFocus()
   })
 
-  it("allows the dialog to close while an upload continues", async () => {
-    let resolveUpload: ((value: { msg: string }) => void) | undefined
+  it("keeps the dialog locked while an upload continues", async () => {
+    let resolveUpload:
+      | ((value: {
+          msg: string
+          submission: { id: number; status: "pending"; revision: number }
+          withdrawalToken: string
+        }) => void)
+      | undefined
     apiMocks.sendUpload.mockReturnValue(
-      new Promise<{ msg: string }>((resolve) => {
+      new Promise<{
+        msg: string
+        submission: { id: number; status: "pending"; revision: number }
+        withdrawalToken: string
+      }>((resolve) => {
         resolveUpload = resolve
       })
     )
     const user = userEvent.setup()
-    render(<NamecardUploadDialog />)
+    render(
+      <MemoryRouter>
+        <NamecardUploadDialog />
+      </MemoryRouter>
+    )
 
     const uploadButton = screen.getByRole("button", { name: "上传名片" })
     await user.click(uploadButton)
@@ -113,17 +147,18 @@ describe("NamecardUploadDialog", () => {
     )
     await user.click(screen.getByRole("button", { name: "提交审核" }))
 
-    expect(screen.getByRole("button", { name: "关闭" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled()
     await user.keyboard("{Escape}")
+    expect(screen.getByRole("dialog")).toBeVisible()
 
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    )
-    expect(uploadButton).toHaveFocus()
-
-    resolveUpload?.({ msg: "已提交审核" })
+    resolveUpload?.({
+      msg: "已提交审核",
+      submission: { id: 82, status: "pending", revision: 0 },
+      withdrawalToken: "b".repeat(43),
+    })
     await waitFor(() =>
       expect(toastMocks.success).toHaveBeenCalledWith("已提交审核")
     )
+    expect(screen.getByRole("button", { name: "取消" })).toBeEnabled()
   })
 })

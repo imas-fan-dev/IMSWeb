@@ -3,7 +3,8 @@ import type { AppEnvironment } from '@/app';
 import { parseUploadNamecardRequest } from '@/domains/namecards/request';
 import type {
     NamecardMessageResponse,
-    NamecardRateLimitResponse
+    NamecardRateLimitResponse,
+    NamecardSubmissionReceiptResponse
 } from '@/domains/namecards/response';
 import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
 import { md5Hex } from '@/utils/crypto/md5';
@@ -13,6 +14,7 @@ import { namecardRepository, getClientAddress, services } from '@/middleware/hon
 import { safeUploadBaseName } from '@/utils/media/filename';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { namecardImageObjectKey } from '@/utils/storage/business-object-keys';
+import { sha256Hex } from '@/utils/crypto/sha256';
 
 export async function enforcePublicUploadLimit(
     c: Context<AppEnvironment>
@@ -59,14 +61,20 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
             await Promise.all(generated.map((key) => deleteObjectWithCompensation(runtime, key)));
             return c.json({ msg: '重复上传' } satisfies NamecardMessageResponse);
         }
-        await namecardRepository(c).insertPendingCard({
+        const withdrawalToken = randomHex(32);
+        const id = await namecardRepository(c).insertPendingCard({
             image1Url: outputs[0].url,
             image2Url: outputs[1].url,
             hash1: outputs[0].hash,
             hash2: outputs[1].hash,
-            ip: getClientAddress(c)
+            ip: getClientAddress(c),
+            withdrawalTokenHash: await sha256Hex(new TextEncoder().encode(withdrawalToken))
         });
-        return c.json({ msg: '上传成功，等待审核' } satisfies NamecardMessageResponse);
+        return c.json({
+            msg: '上传成功，等待审核',
+            submission: { id, status: 'pending', revision: 0 },
+            withdrawalToken
+        } satisfies NamecardSubmissionReceiptResponse);
     } catch (error) {
         await Promise.all(generated.map((key) =>
             deleteObjectWithCompensation(runtime, key).catch(() => undefined)

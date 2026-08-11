@@ -534,7 +534,7 @@ test('PostgreSQL normalized stories keep one card and one link per source row', 
         agencyCode: agency.code,
         idolId: idol.id,
         id: batchIds[1]!,
-        expectedRevision: 0
+        expectedRevision: 1
     });
     assert.equal(
         lastBatchDelete?.status === 'deleted' ? lastBatchDelete.cardDeleted : null,
@@ -697,7 +697,7 @@ test('PostgreSQL card source append requires the exact card and current media re
         cardId: card.card_id,
         expectedRevision: 0,
         links: [{ ...DEFAULT_STORY_SOURCE, upName: '过期来源', videoTitle: '过期', url: 'https://example.test/stale' }]
-    }), { status: 'conflict', revision: 1 });
+    }), { status: 'conflict', revision: 2 });
     await assert.rejects(repository.addStoryCardSources({
         agencyCode: agency.code,
         idolId: idol.id,
@@ -858,7 +858,7 @@ test('PostgreSQL category rename is scoped by idol assignment and preserves stor
         id: category.id,
         name: '过期改名',
         expectedName: '共同分类'
-    }), { status: 'conflict', currentName: '已改名分类' });
+    }), { status: 'conflict', currentName: '已改名分类', revision: 1 });
     assert.deepEqual(
         (await repository.listWikiCategories(agency.id, firstIdol.id))
             .map(({ name, storage_slug }) => ({ name, storage_slug })),
@@ -1056,4 +1056,80 @@ test('PostgreSQL story cover assets are agency scoped, versioned, and protected 
         status: 'deleted',
         objectKey: 'wiki/agencies/shared/story-cover-assets/two.webp'
     });
+});
+
+test('PostgreSQL whole-card and category deletion reject stale revisions', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'wiki-delete-cas');
+    const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+    t.after(() => repository.close());
+    await repository.initialize();
+    const agency = await repository.createWikiAgency({
+        code: 'cas', name: 'CAS 企划', color: '#123456',
+        bannerTitle: 'CAS 企划', wikiEnabled: true
+    });
+    const idol = await repository.createWikiIdol({
+        agencyId: agency.id, name: 'CAS 偶像', folderName: 'cas_idol', color: null,
+        textColor: '#ffffff', imageFit: 'cover', wikiEnabled: true, groupIds: []
+    });
+    const category = await repository.ensureWikiCategory(
+        agency.id, idol.id, 'CAS 分类', 'cas-category'
+    );
+    assert.equal(category.revision, 0);
+    await repository.insertStoryBatchReturningIds({
+        agencyCode: agency.code,
+        idolId: idol.id,
+        category: category.name,
+        cardName: '【CAS 卡片】',
+        subtitle: '',
+        imageFile: null,
+        imageTransform: DEFAULT_IMAGE_TRANSFORM,
+        links: [{
+            ...DEFAULT_STORY_SOURCE,
+            upName: '来源',
+            videoTitle: '标题',
+            url: 'https://example.test/cas'
+        }]
+    });
+    assert.deepEqual(await repository.deleteStoryGroup({
+        agencyCode: agency.code,
+        idolId: idol.id,
+        category: category.name,
+        cardName: '【CAS 卡片】',
+        expectedRevision: 1
+    }), { status: 'conflict', revision: 0 });
+    assert.equal((await repository.listStoryCards(agency.code, idol.id)).length, 1);
+    assert.deepEqual(await repository.deleteStoryGroup({
+        agencyCode: agency.code,
+        idolId: idol.id,
+        category: category.name,
+        cardName: '【CAS 卡片】',
+        expectedRevision: 0
+    }), { status: 'deleted', revision: 0 });
+
+    const renamed = await repository.updateWikiCategory({
+        agencyId: agency.id,
+        idolId: idol.id,
+        id: category.id,
+        name: 'CAS 分类改',
+        expectedName: category.name
+    });
+    assert.equal(renamed?.status, 'saved');
+    assert.equal(renamed?.status === 'saved' ? renamed.category.revision : -1, 1);
+    assert.deepEqual(await repository.deleteCategory({
+        agencyCode: agency.code,
+        agencyId: agency.id,
+        idolId: idol.id,
+        category: 'CAS 分类改',
+        expectedRevision: 0
+    }), { status: 'conflict', revision: 1 });
+    assert.equal((await repository.listWikiCategories(agency.id, idol.id)).length, 1);
+    const deleted = await repository.deleteCategory({
+        agencyCode: agency.code,
+        agencyId: agency.id,
+        idolId: idol.id,
+        category: 'CAS 分类改',
+        expectedRevision: 1
+    });
+    assert.equal(deleted.status, 'deleted');
+    assert.equal((await repository.listWikiCategories(agency.id, idol.id)).length, 0);
 });

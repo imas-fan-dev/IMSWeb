@@ -99,13 +99,7 @@ services:
               "Effect": "Allow",
               "Principal": { "AWS": ["*"] },
               "Action": ["s3:GetObject"],
-              "Resource": ["arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/*"]
-            },
-            {
-              "Effect": "Deny",
-              "Principal": { "AWS": ["*"] },
-              "Action": ["s3:GetObject"],
-              "Resource": [
+              "NotResource": [
                 "arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/__protected/*",
                 "arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/*/__protected/*"
               ]
