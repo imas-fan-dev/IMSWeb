@@ -7,6 +7,7 @@ import {
     wikiJson,
     wikiMessageOf,
     wikiStatusOf,
+    writeWikiAudit,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import {
@@ -63,6 +64,12 @@ export function createHandleDeleteWikiStoryLink<E extends Env>(
                     imageFile
                 )
             ));
+            await writeWikiAudit(
+                context,
+                services,
+                '删除 Wiki 剧情来源',
+                `agency=${target.agency.code};idol_id=${target.idol.id};story_id=${storyId};revision=${result.revision}`
+            );
             return wikiJson({
                 status: 'success',
                 cardDeleted: result.cardDeleted,

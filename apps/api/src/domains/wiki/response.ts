@@ -100,6 +100,7 @@ export interface WikiCategoryResponse {
     displayOrder: number;
     showWhenEmpty: boolean;
     backgroundEligible: boolean;
+    revision: number;
 }
 
 export interface WikiCatalogOptionResponse {
@@ -200,6 +201,7 @@ export interface WikiStoryLinkDeleteResponse extends WikiMutationResponse {
 
 export interface WikiStoryCardMutationResponse extends WikiMutationResponse {
     mediaRevision: number;
+    revision: number;
     imageFile: string | null;
     coverAssetId: number | null;
     imageTransform: WikiImageTransform;
@@ -328,6 +330,7 @@ export interface WikiAdminStoryCardResponse {
     imageUrl: string;
     imageTransform: WikiImageTransform;
     mediaRevision: number;
+    revision: number;
 }
 
 export interface WikiAdminStorySourceResponse extends WikiAdminStoryCardResponse {

@@ -1,5 +1,10 @@
 import type { UploadedFile } from '@/ports/http';
-import type { ImageInfo, ImageProcessor } from '@/ports/media';
+import {
+    ImagePixelLimitError,
+    type ImageInfo,
+    type ImageProcessor,
+    type ImageValidationOptions
+} from '@/ports/media';
 
 interface ImageTypeRule {
     mimes: readonly string[];
@@ -35,7 +40,8 @@ export function mimeMatchesImageInfo(declaredType: string, info: ImageInfo): boo
 
 export async function validateUploadedImage(
     file: UploadedFile,
-    processor: ImageProcessor
+    processor: ImageProcessor,
+    options?: ImageValidationOptions
 ): Promise<ImageInfo> {
     const extension = /(?:\.[^.]+)$/.exec(file.filename)?.[0].toLowerCase() ?? '';
     const expected = IMAGE_TYPES[extension];
@@ -47,8 +53,11 @@ export async function validateUploadedImage(
 
     let info: ImageInfo;
     try {
-        info = await processor.validate(file.body);
-    } catch {
+        info = await processor.validate(file.body, undefined, options);
+    } catch (error) {
+        if (error instanceof ImagePixelLimitError) {
+            throw badRequest(`图片像素过大，最多允许${error.maxPixels / 10_000}万像素`);
+        }
         throw badRequest('图片内容损坏或无法解码');
     }
     if (!expected.formats.includes(info.format.toLowerCase())) {

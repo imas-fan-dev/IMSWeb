@@ -13,10 +13,16 @@ S3-compatible 对象存储。
 | PostgreSQL schema | `migration/postgres-migrations.js` | 应用版本化 migration | `pnpm run migration:postgresql` |
 | Fudaba 元数据 | `migration/fudaba-command.js` | 默认导出或对账；导入命令写 PostgreSQL | `pnpm --filter @imsweb/api run migration:fudaba -- extract` / `pnpm run migration:fudaba:{import,reconcile}` |
 | Fudaba 媒体 | `migration/fudaba-media-sync.js` | 默认生成计划；显式 `--apply` 写对象存储 | `pnpm run media:fudaba:sync` |
+| 品牌素材导入 | `migration/legacy-brand-assets.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:brand-assets:sync` |
 | 首页资讯媒体 | `migration/legacy-information-media.js` | 默认只读；`--apply` 写对象索引 | `pnpm run media:information:sync` |
+| 名片媒体导入 | `migration/legacy-namecards.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:namecards:sync` |
+| 制作人地图导入 | `migration/legacy-producer-map.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:producer-map:sync` |
 | 本地上传媒体 | `migration/local-upload-media.js` | 默认只读；`--apply` 写对象与索引 | `pnpm run media:uploads:sync` |
 | Wiki 媒体 | `migration/wiki-media-sync.js` | 从 PostgreSQL 读取目录；可显式写对象存储 | `pnpm run wiki:media:sync` |
 | Wiki 元数据 | `migration/wiki-metadata-audit.ts` | 默认只读；`--apply` 关联已存在媒体 | `pnpm run wiki:metadata:audit` |
+| 对象语义键 | `migration/semantic-object-keys.js` | 默认只读；显式确认后切换对象键 | `pnpm run migration:object-keys` |
+| 单 bucket 收敛 | `migration/single-bucket-consolidation.ts` | 默认只读；显式确认后复制并切换对象 | `pnpm run migration:single-bucket` |
+| 公开对象归位 | `migration/public-object-placement.ts` | 默认只读；`--apply` 调整对象位置 | `pnpm run migration:public-objects` |
 | 账号运维 | `operations/accounts/` | 写 PostgreSQL 或生成密码哈希 | `pnpm run ops:account:add` / `pnpm run ops:password:hash` |
 
 ## 开发数据快照
@@ -43,7 +49,12 @@ DATABASE_URL='postgresql://imsweb:<password>@127.0.0.1:5432/imsweb' \
 ```
 
 迁移器持有 PostgreSQL advisory lock，校验已应用文件的 SHA-256，并在事务中依次应用未执行的
-版本。不得修改已经发布的 migration 文件。
+版本。不得修改已经发布的 migration 文件。目录职责、文件命名和新增流程见
+[API 数据迁移](../migrations/README.md)。无需数据库连接的账本清单可通过以下命令查看：
+
+```sh
+pnpm run migration:postgresql -- --list
+```
 
 ## 媒体同步
 

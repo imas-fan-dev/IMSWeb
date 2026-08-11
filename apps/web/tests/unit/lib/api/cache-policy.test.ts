@@ -118,9 +118,9 @@ describe("Alova client cache policy", () => {
     expect(getWikiRandomIdol().config.cacheFor).toBe(NO_CLIENT_CACHE)
     expect(getAdminSession().config.cacheFor).toBeUndefined()
     expect(getAdminWikiCatalog().config.cacheFor).toBeUndefined()
-    expect(createAdminEvent(new FormData()).config.name).toBe(
-      PUBLIC_CACHE_INVALIDATION_SOURCE.events
-    )
+    expect(
+      createAdminEvent(new FormData(), "cache-policy-test").config.name
+    ).toBe(PUBLIC_CACHE_INVALIDATION_SOURCE.events)
     expect(
       uploadIdolMedia(
         "765PRO",
@@ -259,7 +259,7 @@ describe("Alova client cache policy", () => {
 
     await getEventPage({ limit: 50 }).send()
     await getEventPage({ limit: 50 }).send()
-    await createAdminEvent(new FormData()).send()
+    await createAdminEvent(new FormData(), "cache-policy-test").send()
     await getEventPage({ limit: 50 }).send()
 
     expect(fetchMock).toHaveBeenCalledTimes(3)

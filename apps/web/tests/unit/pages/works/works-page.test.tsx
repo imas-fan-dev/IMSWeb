@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { describe, expect, it } from "vitest"
 
-import Works from "~/pages/works/works-page"
+import Works from "~/pages/works/index"
 
 describe("Works page", () => {
   it("renders section headers and links", () => {

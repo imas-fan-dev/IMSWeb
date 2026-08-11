@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import AdminChronicle from "~/pages/admin/chronicle/admin-chronicle-page"
+import AdminChronicle from "~/pages/admin/chronicle/index"
 
 function jsonResponse(payload: unknown) {
   return new Response(JSON.stringify(payload), {

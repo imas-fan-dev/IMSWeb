@@ -271,10 +271,14 @@ test("namecard images use the shared full-page viewer", async ({
   })
 
   await page.goto("/community/cards")
-  await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
+  const frontTrigger = page.getByRole("button", {
+    name: "查看制作人名片 42 正面",
+  })
+  await frontTrigger.click()
 
-  const dialog = page.getByRole("dialog", { name: "制作人名片 42 正面" })
+  const dialog = page.getByRole("dialog")
   await expect(dialog).toBeVisible()
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 正面")
   await expectFullPageGlass(page, dialog)
   await expect(dialog.getByLabel("名片查看区域")).toBeVisible()
   await expect(dialog.getByRole("img")).toHaveAttribute(
@@ -285,6 +289,30 @@ test("namecard images use the shared full-page viewer", async ({
   await dialog.getByRole("button", { name: "放大名片" }).click()
   await expect(dialog.getByText("125%", { exact: true })).toBeVisible()
 
+  const previousSide = dialog.getByRole("button", { name: /查看上一面/ })
+  const nextSide = dialog.getByRole("button", { name: /查看下一面/ })
+  await expect(previousSide).toBeEnabled()
+  await expect(nextSide).toBeEnabled()
+
+  await page.keyboard.press("ArrowRight")
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 背面")
+  await expect(
+    dialog.getByRole("img", { name: "制作人名片 42 背面" })
+  ).toBeVisible()
+  await expect(dialog.getByText("2 / 2", { exact: true })).toBeVisible()
+  await expect(dialog.getByText("100%", { exact: true })).toBeVisible()
+  await expect(previousSide).toBeEnabled()
+  await expect(nextSide).toBeEnabled()
+
+  await previousSide.click()
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 正面")
+  await expect(
+    dialog.getByRole("img", { name: "制作人名片 42 正面" })
+  ).toBeVisible()
+
+  await nextSide.click()
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 背面")
+
   if (process.env.CAPTURE_INFORMATION_COVER_QA === "1") {
     await page.screenshot({
       path: `/tmp/imsweb-namecard-preview-${testInfo.project.name}.png`,
@@ -293,8 +321,7 @@ test("namecard images use the shared full-page viewer", async ({
   }
 
   await dialog.getByRole("button", { name: "关闭名片预览" }).click()
+  await expect(frontTrigger).toBeFocused()
   await page.getByRole("button", { name: "查看制作人名片 42 背面" }).click()
-  await expect(
-    page.getByRole("dialog", { name: "制作人名片 42 背面" })
-  ).toBeVisible()
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 背面")
 })

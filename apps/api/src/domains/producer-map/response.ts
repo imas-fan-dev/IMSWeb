@@ -53,6 +53,11 @@ export interface ProducerMapUpdateSuccessResponse {
     revision: string;
 }
 
+export interface ProducerMapImageUploadSuccessResponse {
+    success: true;
+    url: string;
+}
+
 export interface ProducerMapMutationErrorResponse {
     error: string;
 }

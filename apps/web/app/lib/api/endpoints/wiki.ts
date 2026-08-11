@@ -107,6 +107,7 @@ export const wikiAdminStoryCardSchema = z.object({
   cardId: z.coerce.number().int().positive().optional(),
   imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
   mediaRevision: z.coerce.number().int().nonnegative().default(0),
+  revision: z.coerce.number().int().nonnegative().optional(),
 })
 
 export const wikiAdminStorySchema = wikiAdminStoryCardSchema.extend({
@@ -160,6 +161,7 @@ const wikiAdminStoriesSchema = z.object({
       displayOrder: z.coerce.number().int().nonnegative(),
       showWhenEmpty: z.boolean(),
       backgroundEligible: z.boolean(),
+      revision: z.coerce.number().int().nonnegative().optional(),
     })
   ),
   contentTypes: z.array(wikiStoryContentTypeSchema),
@@ -500,6 +502,7 @@ export type WikiStoryGroup = {
   idol: string
   category: string
   cardName: string
+  expectedRevision: number
 }
 
 function wikiMutationConfig() {
@@ -1132,6 +1135,7 @@ export function updateWikiStory(
 export function deleteWikiStoryGroup(group: WikiStoryGroup) {
   const form = new FormData()
   appendStoryGroup(form, group)
+  form.append("expected_revision", String(group.expectedRevision))
   return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
     "/api/wiki/delete_story",
     form,
@@ -1147,6 +1151,7 @@ export function deleteWikiCategory(group: Omit<WikiStoryGroup, "cardName">) {
   form.append("agency", group.agency)
   form.append("idol", group.idol)
   form.append("category_name", group.category)
+  form.append("expected_revision", String(group.expectedRevision))
   return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
     "/api/wiki/delete_category",
     form,

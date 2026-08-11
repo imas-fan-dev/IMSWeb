@@ -480,11 +480,13 @@ describe("Wiki admin API", () => {
       idol: "天海春香",
       category: "新分类",
       cardName: "【新卡片｜特典】",
+      expectedRevision: 7,
     }).send()
     await deleteWikiCategory({
       agency: "765PRO",
       idol: "天海春香",
       category: "新分类",
+      expectedRevision: 3,
     }).send()
 
     const requests = fetchMock.mock.calls.map((call) => requestDetails(call))
@@ -516,8 +518,10 @@ describe("Wiki admin API", () => {
 
     const cardDelete = requests[1]?.body as FormData
     expect(cardDelete.get("card_name")).toBe("【新卡片｜特典】")
+    expect(cardDelete.get("expected_revision")).toBe("7")
     const categoryDelete = requests[2]?.body as FormData
     expect(categoryDelete.get("category_name")).toBe("新分类")
+    expect(categoryDelete.get("expected_revision")).toBe("3")
   })
 
   it("creates a card with multiple sources and deletes groups or individual sources", async () => {

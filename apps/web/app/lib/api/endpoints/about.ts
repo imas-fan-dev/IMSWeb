@@ -100,14 +100,15 @@ export function updateAdminAboutPageContent(
 export function uploadAboutHeroImage(file: File) {
   const form = new FormData()
   form.append("image", file)
-  return adminApiClient.Post<
-    z.infer<typeof aboutImageUploadSchema>,
-    unknown
-  >("/api/admin/about/hero-image", form, {
-    meta: withBackofficeCsrf(),
-    name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
-    transform: (payload) => aboutImageUploadSchema.parse(payload),
-  })
+  return adminApiClient.Post<z.infer<typeof aboutImageUploadSchema>, unknown>(
+    "/api/admin/about/hero-image",
+    form,
+    {
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
+      transform: (payload) => aboutImageUploadSchema.parse(payload),
+    }
+  )
 }
 
 export function uploadAboutMemberAvatar(file: File) {

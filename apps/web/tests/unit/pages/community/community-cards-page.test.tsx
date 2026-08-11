@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -9,11 +9,9 @@ const apiMocks = vi.hoisted(() => ({
   getNamecardPage: vi.fn(),
   getNamecardReactions: vi.fn(),
   addNamecardReaction: vi.fn(),
-  uploadNamecard: vi.fn(),
   sendPage: vi.fn(),
   sendReactions: vi.fn(),
   sendAddReaction: vi.fn(),
-  sendUpload: vi.fn(),
 }))
 
 const toastMocks = vi.hoisted(() => ({
@@ -28,7 +26,6 @@ vi.mock("~/lib/api", async (importOriginal) => {
     addNamecardReaction: apiMocks.addNamecardReaction,
     getNamecardReactions: apiMocks.getNamecardReactions,
     getNamecardPage: apiMocks.getNamecardPage,
-    uploadNamecard: apiMocks.uploadNamecard,
   }
 })
 
@@ -45,7 +42,6 @@ describe("CommunityCardsPage", () => {
       total: 0,
       totalPage: 0,
     })
-    apiMocks.sendUpload.mockResolvedValue({ msg: "已提交审核" })
     apiMocks.sendReactions.mockResolvedValue({})
     apiMocks.sendAddReaction.mockResolvedValue({ ok: true })
     apiMocks.getNamecardPage.mockReturnValue({ send: apiMocks.sendPage })
@@ -54,45 +50,6 @@ describe("CommunityCardsPage", () => {
     })
     apiMocks.addNamecardReaction.mockReturnValue({
       send: apiMocks.sendAddReaction,
-    })
-    apiMocks.uploadNamecard.mockReturnValue({ send: apiMocks.sendUpload })
-  })
-
-  it("uses the shared upload controls for both sides and submits the files", async () => {
-    const user = userEvent.setup()
-    render(
-      <MemoryRouter>
-        <CommunityCardsPage />
-      </MemoryRouter>
-    )
-
-    const frontInput = screen.getByLabelText("名片正面")
-    const backInput = screen.getByLabelText("名片背面")
-    const submitButton = screen.getByRole("button", { name: "提交审核" })
-    const front = new File([new Uint8Array(1536)], "front.png", {
-      type: "image/png",
-    })
-    const back = new File([new Uint8Array(2048)], "back.png", {
-      type: "image/png",
-    })
-
-    expect(submitButton).toBeDisabled()
-    expect(screen.queryByText("No file chosen")).not.toBeInTheDocument()
-
-    await user.upload(frontInput, front)
-    await user.upload(backInput, back)
-
-    expect(screen.getByText("front.png")).toBeVisible()
-    expect(screen.getByText("back.png")).toBeVisible()
-    expect(screen.getByText(/名片正面 · 1.5 KiB/)).toBeVisible()
-    expect(screen.getByText(/名片背面 · 2.0 KiB/)).toBeVisible()
-    expect(submitButton).toBeEnabled()
-
-    await user.click(submitButton)
-
-    await waitFor(() => {
-      expect(apiMocks.uploadNamecard).toHaveBeenCalledWith(front, back)
-      expect(apiMocks.sendUpload).toHaveBeenCalledOnce()
     })
   })
 
@@ -191,7 +148,7 @@ describe("CommunityCardsPage", () => {
     expect(apiMocks.sendAddReaction).toHaveBeenCalledTimes(10)
   })
 
-  it("opens both namecard sides in the shared image preview", async () => {
+  it("opens both namecard sides in one preview dialog", async () => {
     const user = userEvent.setup()
     apiMocks.sendPage.mockResolvedValue({
       list: [
@@ -221,20 +178,36 @@ describe("CommunityCardsPage", () => {
       })
     )
 
-    expect(screen.getByRole("dialog")).toBeVisible()
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toBeVisible()
     expect(
       screen.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()
     expect(screen.getByLabelText("名片查看区域")).toBeVisible()
 
-    await user.click(screen.getByRole("button", { name: "关闭名片预览" }))
-    await user.click(
-      screen.getByRole("button", { name: "查看制作人名片 42 背面" })
-    )
+    await user.click(screen.getByRole("button", { name: "背面" }))
 
     expect(
       screen.getByRole("img", { name: "制作人名片 42 背面" })
     ).toBeVisible()
+    expect(screen.getAllByRole("dialog")).toHaveLength(1)
+
+    fireEvent.keyDown(dialog, { key: "ArrowLeft" })
+    expect(
+      screen.getByRole("img", { name: "制作人名片 42 正面" })
+    ).toBeVisible()
+  })
+
+  it("reads page and size from the URL", async () => {
+    render(
+      <MemoryRouter initialEntries={["/community/cards?page=3&size=24"]}>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      expect(apiMocks.getNamecardPage).toHaveBeenCalledWith(3, 24)
+    })
   })
 
   it("jumps to a specified page", async () => {

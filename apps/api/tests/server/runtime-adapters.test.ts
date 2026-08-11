@@ -434,6 +434,8 @@ test('FilesystemObjectStorage maps canonical business keys to owned roots', asyn
     const body = new Uint8Array([1, 2, 3, 4]);
 
     await storage.put(key, body, { contentType: 'image/webp' });
+    await storage.publish(key);
+    await assert.rejects(storage.publish('wiki/agencies/sc/missing.webp'), /Object not found/);
     assert.deepEqual((await storage.get(key))?.body, body);
     assert.equal(
         await storage.createPublicReadUrl(key, {

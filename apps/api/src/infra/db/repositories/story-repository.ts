@@ -8,6 +8,10 @@ import type {
     CreateWikiIdolInput,
     DeleteStoryLinkInput,
     DeleteStoryLinkResult,
+    DeleteStoryGroupInput,
+    DeleteStoryGroupResult,
+    DeleteWikiCategoryInput,
+    DeleteWikiCategoryResult,
     DeleteWikiGroupInput,
     DeleteWikiIdolInput,
     IdolRecord,
@@ -241,7 +245,7 @@ export class SqlStoryRepository implements StoryRepository {
     async listWikiCategories(agencyId: number, idolId: number): Promise<WikiCategoryRecord[]> {
         const rows = await queryAll<WikiCategoryRecord>(this.database,
             `SELECT c.id, c.agency_id, c.name, c.storage_slug, c.background_eligible,
-                    ic.display_order, ic.show_when_empty
+                    ic.display_order, ic.show_when_empty, c.revision
              FROM wiki_idol_categories ic
              JOIN wiki_categories c ON c.id=ic.category_id AND c.agency_id=ic.agency_id
              JOIN idols i ON i.id=ic.idol_id AND i.agency_id=ic.agency_id
@@ -769,7 +773,7 @@ export class SqlStoryRepository implements StoryRepository {
         await this.database.batch(statements);
         const category = await queryOne<WikiCategoryRecord>(this.database,
             `SELECT c.id, c.agency_id, c.name, c.storage_slug, c.background_eligible,
-                    ic.display_order, ic.show_when_empty
+                    ic.display_order, ic.show_when_empty, c.revision
              FROM wiki_categories c
              JOIN wiki_idol_categories ic ON ic.category_id=c.id AND ic.agency_id=c.agency_id
              WHERE c.agency_id=? AND ic.idol_id=? AND c.name=?`,
@@ -784,7 +788,7 @@ export class SqlStoryRepository implements StoryRepository {
     ): Promise<WikiCategorySaveResult | null> {
         const result = await sqlStatement(this.database,
             `UPDATE wiki_categories
-             SET name=?
+             SET name=?, revision=revision+1
              WHERE id=? AND agency_id=? AND EXISTS (
                  SELECT 1
                  FROM wiki_idol_categories assignments
@@ -792,7 +796,7 @@ export class SqlStoryRepository implements StoryRepository {
                    AND assignments.category_id=wiki_categories.id
                    AND assignments.idol_id=?
              ) AND name=?
-             RETURNING id, agency_id, name, storage_slug, background_eligible,
+             RETURNING id, agency_id, name, storage_slug, background_eligible, revision,
                  (SELECT display_order FROM wiki_idol_categories assignments
                   WHERE assignments.agency_id=wiki_categories.agency_id
                     AND assignments.category_id=wiki_categories.id
@@ -809,7 +813,11 @@ export class SqlStoryRepository implements StoryRepository {
         const current = (await this.listWikiCategories(input.agencyId, input.idolId))
             .find((category) => category.id === input.id);
         if (!current) return null;
-        return { status: 'conflict', currentName: current.name };
+        return {
+            status: 'conflict',
+            currentName: current.name,
+            revision: current.revision
+        };
     }
 
     async deleteWikiCategoryAssociation(
@@ -1411,16 +1419,24 @@ export class SqlStoryRepository implements StoryRepository {
                 link.sourcePlatformId, input.cardId, input.idolId,
                 input.agencyCode, input.expectedRevision]
         )));
+        statements.push(sqlStatement(this.database,
+            `UPDATE wiki_story_cards
+             SET image_media_revision=image_media_revision+1
+             WHERE id=? AND idol_id=? AND image_media_revision=?
+               AND agency_id=(SELECT id FROM agencies WHERE code=?)`,
+            [input.cardId, input.idolId, input.expectedRevision, input.agencyCode]
+        ));
         const results = await this.database.batch(statements);
         const guarded = results[0]?.results[0] as { id?: unknown } | undefined;
-        const ids = results.slice(1).map((result) => {
+        const ids = results.slice(1, 1 + input.links.length).map((result) => {
             const row = result.results[0] as { id?: unknown } | undefined;
             if (typeof row?.id === 'number') return row.id;
             return result.meta.changes ? result.meta.last_row_id : undefined;
         });
         if (typeof guarded?.id === 'number' &&
-            ids.every((id): id is number => typeof id === 'number' && id > 0)) {
-            return { status: 'added', ids, revision: input.expectedRevision };
+            ids.every((id): id is number => typeof id === 'number' && id > 0) &&
+            (results.at(-1)?.meta.changes ?? 0) === 1) {
+            return { status: 'added', ids, revision: input.expectedRevision + 1 };
         }
         const current = await this.findStoryCardById(
             input.agencyCode,
@@ -1613,6 +1629,13 @@ export class SqlStoryRepository implements StoryRepository {
                     input.expectedRevision]
             ),
             sqlStatement(this.database,
+                `UPDATE wiki_story_cards
+                 SET image_media_revision=image_media_revision+1
+                 WHERE id=? AND idol_id=? AND image_media_revision=?
+                   AND agency_id=(SELECT id FROM agencies WHERE code=?)`,
+                [story.card_id, input.idolId, input.expectedRevision, input.agencyCode]
+            ),
+            sqlStatement(this.database,
                 `SELECT cards.image_file
                  FROM wiki_story_cards cards
                  JOIN agencies ON agencies.id=cards.agency_id
@@ -1644,7 +1667,17 @@ export class SqlStoryRepository implements StoryRepository {
             if (!current) return null;
             return { status: 'conflict', revision: current.image_media_revision };
         }
-        const referenced = new Set((results[2]?.results ?? []).map((row) =>
+        if ((results[2]?.meta.changes ?? 0) !== 1) {
+            const current = await this.findStoryCardById(
+                input.agencyCode,
+                input.idolId,
+                story.card_id
+            );
+            return current
+                ? { status: 'conflict', revision: current.image_media_revision }
+                : null;
+        }
+        const referenced = new Set((results[3]?.results ?? []).map((row) =>
             (row as { image_file?: string | null }).image_file
         ).filter((value): value is string => Boolean(value)));
         const cleanupImageFiles = [...new Set([deletedLink.image_file]
@@ -1653,7 +1686,7 @@ export class SqlStoryRepository implements StoryRepository {
         return {
             status: 'deleted',
             cardDeleted: false,
-            revision: guarded.image_media_revision ?? input.expectedRevision,
+            revision: input.expectedRevision + 1,
             cleanupImageFiles
         };
     }
@@ -1819,25 +1852,36 @@ export class SqlStoryRepository implements StoryRepository {
         return rows;
     }
 
-    async deleteStoryGroup(
-        agencyCode: string,
-        idolId: number,
-        category: string,
-        cardName: string
-    ): Promise<void> {
-        await executeSql(this.database,
-            `DELETE FROM wiki_story_cards
-             WHERE id IN (
-                 SELECT cards.id
-                 FROM wiki_story_cards cards
-                 JOIN wiki_categories categories
-                   ON categories.id=cards.category_id AND categories.agency_id=cards.agency_id
-                 JOIN agencies ON agencies.id=cards.agency_id
-                 WHERE agencies.code=? AND cards.idol_id=?
-                   AND categories.name=? AND cards.card_name=?
-             )`,
-            [agencyCode, idolId, category, cardName]
-        );
+    async deleteStoryGroup(input: DeleteStoryGroupInput): Promise<DeleteStoryGroupResult> {
+        const current = (await this.listStoryCards(input.agencyCode, input.idolId))
+            .find((card) =>
+                card.category === input.category && card.card_name === input.cardName
+            );
+        if (!current) return { status: 'not-found' };
+        if (current.image_media_revision !== input.expectedRevision) {
+            return { status: 'conflict', revision: current.image_media_revision };
+        }
+        const results = await this.database.batch([
+            sqlStatement(this.database,
+                `UPDATE wiki_story_cards SET image_media_revision=image_media_revision
+                 WHERE id=? AND idol_id=? AND image_media_revision=?`,
+                [current.card_id, input.idolId, input.expectedRevision]
+            ),
+            sqlStatement(this.database,
+                `DELETE FROM wiki_story_cards
+                 WHERE id=? AND idol_id=? AND image_media_revision=?`,
+                [current.card_id, input.idolId, input.expectedRevision]
+            )
+        ]);
+        if ((results[0]?.meta.changes ?? 0) === 1 &&
+            (results[1]?.meta.changes ?? 0) === 1) {
+            return { status: 'deleted', revision: input.expectedRevision };
+        }
+        const raced = (await this.listStoryCards(input.agencyCode, input.idolId))
+            .find((card) => card.card_id === current.card_id);
+        return raced
+            ? { status: 'conflict', revision: raced.image_media_revision }
+            : { status: 'not-found' };
     }
 
     listCategoryImages(
@@ -1870,18 +1914,55 @@ export class SqlStoryRepository implements StoryRepository {
         );
     }
 
-    async deleteCategory(agencyCode: string, idolId: number, category: string): Promise<void> {
-        await executeSql(this.database,
-            `DELETE FROM wiki_story_cards
-             WHERE id IN (
-                 SELECT cards.id
-                 FROM wiki_story_cards cards
-                 JOIN wiki_categories categories
-                   ON categories.id=cards.category_id AND categories.agency_id=cards.agency_id
-                 JOIN agencies ON agencies.id=cards.agency_id
-                 WHERE agencies.code=? AND cards.idol_id=? AND categories.name=?
-             )`,
-            [agencyCode, idolId, category]
-        );
+    async deleteCategory(input: DeleteWikiCategoryInput): Promise<DeleteWikiCategoryResult> {
+        const current = (await this.listWikiCategories(input.agencyId, input.idolId))
+            .find((category) => category.name === input.category);
+        if (!current) return { status: 'not-found' };
+        if (current.revision !== input.expectedRevision) {
+            return { status: 'conflict', revision: current.revision };
+        }
+        const guard = `EXISTS (
+            SELECT 1 FROM wiki_categories guarded
+            JOIN wiki_idol_categories assignments
+              ON assignments.category_id=guarded.id
+             AND assignments.agency_id=guarded.agency_id
+            WHERE guarded.id=? AND guarded.agency_id=? AND guarded.revision=?
+              AND assignments.idol_id=?
+        )`;
+        const results = await this.database.batch([
+            sqlStatement(this.database,
+                `UPDATE wiki_categories SET revision=revision
+                 WHERE id=? AND agency_id=? AND revision=?`,
+                [current.id, input.agencyId, input.expectedRevision]
+            ),
+            sqlStatement(this.database,
+                `DELETE FROM wiki_story_cards
+                 WHERE agency_id=? AND idol_id=? AND category_id=? AND ${guard}`,
+                [input.agencyId, input.idolId, current.id,
+                    current.id, input.agencyId, input.expectedRevision, input.idolId]
+            ),
+            sqlStatement(this.database,
+                `DELETE FROM wiki_idol_categories
+                 WHERE agency_id=? AND idol_id=? AND category_id=? AND ${guard}`,
+                [input.agencyId, input.idolId, current.id,
+                    current.id, input.agencyId, input.expectedRevision, input.idolId]
+            ),
+            sqlStatement(this.database,
+                `DELETE FROM wiki_categories
+                 WHERE id=? AND agency_id=? AND revision=? AND NOT EXISTS (
+                     SELECT 1 FROM wiki_idol_categories WHERE category_id=?
+                 )`,
+                [current.id, input.agencyId, input.expectedRevision, current.id]
+            )
+        ]);
+        if ((results[0]?.meta.changes ?? 0) === 1 &&
+            (results[2]?.meta.changes ?? 0) === 1) {
+            return { status: 'deleted', category: current };
+        }
+        const raced = (await this.listWikiCategories(input.agencyId, input.idolId))
+            .find((category) => category.id === current.id);
+        return raced
+            ? { status: 'conflict', revision: raced.revision }
+            : { status: 'not-found' };
     }
 }

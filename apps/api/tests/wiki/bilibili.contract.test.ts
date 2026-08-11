@@ -81,20 +81,20 @@ describe('WIKI-02 isolated Bilibili parsing contract', () => {
     test('the five-second timeout aborts injected fetch and maps to the legacy gateway error', async (context) => {
         context.mock.timers.enable({ apis: ['setTimeout'] });
         const fixture = createWikiFixture();
-        let signalFetchStarted!: (signal: AbortSignal) => void;
+        let resolveFetchStarted!: (signal: AbortSignal) => void;
         const fetchStarted = new Promise<AbortSignal>((resolve) => {
-            signalFetchStarted = resolve;
+            resolveFetchStarted = resolve;
         });
         fixture.setFetch((async (_input, init) => {
             const signal = init?.signal;
             assert.ok(signal instanceof AbortSignal);
-            signalFetchStarted(signal);
             return new Promise<Response>((_resolve, reject) => {
                 signal.addEventListener(
                     'abort',
                     () => reject(new DOMException('aborted', 'AbortError')),
                     { once: true }
                 );
+                resolveFetchStarted(signal);
             });
         }) as typeof globalThis.fetch);
 

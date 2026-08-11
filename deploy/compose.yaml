@@ -36,6 +36,8 @@ services:
       - local-storage
     restart: unless-stopped
     environment:
+      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
+      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
       RUSTFS_VOLUMES: /data
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
@@ -77,6 +79,8 @@ services:
         condition: service_healthy
     restart: "no"
     environment:
+      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
+      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
       RUSTFS_ACCESS_KEY: ${IMS_RUSTFS_ACCESS_KEY:-imsweb-local}
       RUSTFS_SECRET_KEY: ${IMS_RUSTFS_SECRET_KEY:-imsweb-local-password}
       IMS_RUSTFS_BUCKET: ${IMS_RUSTFS_BUCKET:-imsweb-media-local}
@@ -95,13 +99,7 @@ services:
               "Effect": "Allow",
               "Principal": { "AWS": ["*"] },
               "Action": ["s3:GetObject"],
-              "Resource": ["arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/*"]
-            },
-            {
-              "Effect": "Deny",
-              "Principal": { "AWS": ["*"] },
-              "Action": ["s3:GetObject"],
-              "Resource": [
+              "NotResource": [
                 "arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/__protected/*",
                 "arn:aws:s3:::$${IMS_RUSTFS_BUCKET}/*/__protected/*"
               ]
@@ -129,6 +127,8 @@ services:
         condition: service_completed_successfully
         required: false
     environment:
+      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
+      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
       NODE_ENV: ${IMS_API_NODE_ENV:-development}
       HOST: 0.0.0.0
       PORT: 3000

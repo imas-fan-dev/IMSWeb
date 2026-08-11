@@ -12,10 +12,23 @@ export async function handleListAdminNamecards(
 ): Promise<Response> {
     const { page } = c.req.valid('query');
     try {
+        const repository = namecardRepository(c);
+        const pageSize = 10;
+        const [rows, total] = await Promise.all([
+            repository.listAdminCards(pageSize, (page - 1) * pageSize),
+            repository.countAdminCards()
+        ]);
+        const totalPages = Math.ceil(total / pageSize);
         return c.json({
             success: true,
-            data: (await namecardRepository(c).listAdminCards(10, (page - 1) * 10))
-                .map(toAdminNamecardResponse)
+            data: rows.map(toAdminNamecardResponse),
+            pageInfo: {
+                page,
+                pageSize,
+                total,
+                totalPages,
+                hasNextPage: page < totalPages
+            }
         } satisfies AdminNamecardListResponse);
     } catch {
         return c.json({ success: false } satisfies AdminNamecardListResponse);

@@ -9,6 +9,8 @@ import type {
     PutObjectOptions,
     StoredObject
 } from '@/ports/object-storage';
+import type { ImageProcessor } from '@/ports/media';
+import type { UploadParser } from '@/ports/http';
 import type { AuditLogInput } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 
@@ -70,6 +72,35 @@ class MemoryStorage implements ObjectStorage {
     }
 }
 
+const uploads: UploadParser = {
+    async parse(request) {
+        const form = await request.formData();
+        const image = form.get('image');
+        if (!(image instanceof File)) return { fields: {}, files: {} };
+        return {
+            fields: {},
+            files: {
+                image: {
+                    filename: image.name,
+                    contentType: image.type,
+                    body: new Uint8Array(await image.arrayBuffer())
+                }
+            }
+        };
+    }
+};
+
+const images: ImageProcessor = {
+    async validate() {
+        return { format: 'png', width: 1_200, height: 800, contentType: 'image/png' };
+    },
+    async toWebp(body) {
+        return Uint8Array.of(0x52, 0x49, 0x46, 0x46, ...body);
+    },
+    async thumbnailPng(body) { return body; },
+    async resizeJpeg(body) { return body; }
+};
+
 function producerMapContent(): ProducerMapContent {
     return {
         version: 1,
@@ -103,6 +134,8 @@ function fixture() {
     const audit: AuditLogInput[] = [];
     const services: RuntimeServices = {
         storage,
+        uploads,
+        images,
         audit: {
             async insertAuditLog(input) { audit.push(input); },
             async listRecentAuditLogs() { return []; }
@@ -125,6 +158,50 @@ function fixture() {
         app.request(`http://ims.test${path}`, init);
     return { request, audit, storage };
 }
+
+test('producer map images are authenticated, audited, and publicly readable', async () => {
+    const { request, audit } = fixture();
+    const unauthorizedForm = new FormData();
+    unauthorizedForm.append(
+        'image',
+        new Blob([Uint8Array.of(1)], { type: 'image/png' }),
+        'community.png'
+    );
+    const unauthorized = await request('/api/admin/producer-map/images', {
+        method: 'POST',
+        body: unauthorizedForm
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const form = new FormData();
+    form.append(
+        'image',
+        new Blob([Uint8Array.of(1, 2, 3)], { type: 'image/png' }),
+        'community-contact.png'
+    );
+    const response = await request('/api/admin/producer-map/images', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer producer-map-token' },
+        body: form
+    });
+    assert.equal(response.status, 200);
+    const uploaded = await response.json() as { success: true; url: string };
+    assert.equal(uploaded.success, true);
+    assert.match(
+        uploaded.url,
+        /^\/uploads\/producer-map\/community-contact-\d+-[a-f0-9]{12}\.webp$/
+    );
+    assert.equal(audit.at(-1)?.action, '上传制作人地图图片');
+    assert.equal(audit.at(-1)?.target, uploaded.url);
+
+    const publicResponse = await request(uploaded.url);
+    assert.equal(publicResponse.status, 200);
+    assert.equal(publicResponse.headers.get('content-type'), 'image/webp');
+    assert.deepEqual(
+        new Uint8Array(await publicResponse.arrayBuffer()),
+        Uint8Array.of(0x52, 0x49, 0x46, 0x46, 1, 2, 3)
+    );
+});
 
 test('producer map media is served from semantic object storage', async () => {
     const { request, storage } = fixture();

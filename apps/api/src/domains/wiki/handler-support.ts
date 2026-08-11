@@ -118,6 +118,38 @@ export async function authorizeWikiWrite<E extends Env>(
     return null;
 }
 
+export async function writeWikiAudit<E extends Env>(
+    context: Context<E>,
+    services: RuntimeServices,
+    action: string,
+    target: string
+): Promise<void> {
+    if (!services.audit || !services.backofficeTokens) return;
+    const token = wikiBackofficeAccessToken(context);
+    if (!token) return;
+    try {
+        const claims = token.source === 'legacy'
+            ? await (
+                services.backofficeTokens.verifyLegacyCookie?.(token.value) ??
+                services.backofficeTokens.verify(token.value)
+            )
+            : await services.backofficeTokens.verify(token.value);
+        const forwarded = context.req.header('x-forwarded-for');
+        const ip = forwarded?.split(',').at(-1)?.trim() ||
+            context.req.header('x-real-ip')?.trim() || 'unknown';
+        await services.audit.insertAuditLog({
+            username: claims.username,
+            producername: claims.producername || '',
+            action,
+            target,
+            ip,
+            time: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Failed to write Wiki audit log', error);
+    }
+}
+
 export function createWikiAdminAuthorization<E extends Env>(
     resolveServices: WikiServicesResolver<E>
 ): MiddlewareHandler<E> {

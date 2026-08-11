@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "~/lib/api"
-import Community from "~/pages/community/community-page"
+import Community from "~/pages/community"
 
 const apiMocks = vi.hoisted(() => ({
   getFudabaSeries: vi.fn(),

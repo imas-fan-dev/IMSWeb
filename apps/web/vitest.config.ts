@@ -17,5 +17,6 @@ export default defineConfig({
     include: ["tests/unit/**/*.{test,spec}.{ts,tsx}"],
     clearMocks: true,
     restoreMocks: true,
+    maxWorkers: process.env.CI ? 2 : 4,
   },
 })

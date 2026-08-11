@@ -13,6 +13,31 @@ export interface AdminNamecardResponse {
     image1_url: string;
     image2_url: string;
     status: string;
+    revision: number;
+}
+
+export interface NamecardSubmissionResponse {
+    id: NamecardResponseId;
+    image1_url: string;
+    image2_url: string;
+    status: 'pending' | 'approving' | 'approved' | 'rejected' | 'withdrawn';
+    created_at: string | null;
+    revision: number;
+}
+
+export interface NamecardSubmissionReceiptResponse {
+    msg: string;
+    submission: Pick<NamecardSubmissionResponse, 'id' | 'status' | 'revision'>;
+    withdrawalToken: string;
+}
+
+export interface NamecardSubmissionDetailResponse {
+    submission: NamecardSubmissionResponse;
+}
+
+export interface NamecardWithdrawalResponse {
+    success: true;
+    submission: NamecardSubmissionResponse;
 }
 
 export interface NamecardDetailResponse {
@@ -33,10 +58,22 @@ export interface NamecardListErrorResponse {
 }
 
 export type AdminNamecardListResponse =
-    | { success: true; data: AdminNamecardResponse[] }
+    | {
+        success: true;
+        data: AdminNamecardResponse[];
+        pageInfo: {
+            page: number;
+            pageSize: number;
+            total: number;
+            totalPages: number;
+            hasNextPage: boolean;
+        };
+    }
     | { success: false };
 
-export type NamecardMutationResponse = { success: true } | { success: false };
+export type NamecardMutationResponse =
+    | { success: true; revision?: number }
+    | { success: false; error?: string; revision?: number };
 
 export interface NamecardMessageResponse {
     msg: string;
@@ -46,7 +83,19 @@ export interface NamecardRateLimitResponse {
     error: string;
 }
 
-type NamecardRow = { readonly [field: string]: unknown };
+export interface NamecardErrorResponse {
+    error: string;
+    revision?: number;
+}
+
+interface NamecardRow {
+    id?: unknown;
+    image1_url?: unknown;
+    image2_url?: unknown;
+    status?: unknown;
+    created_at?: unknown;
+    revision?: unknown;
+}
 
 function responseId(value: unknown): NamecardResponseId {
     if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value;
@@ -81,6 +130,27 @@ export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse
         id: responseId(row.id),
         image1_url: responseString(row.image1_url, 'image1_url'),
         image2_url: responseString(row.image2_url, 'image2_url'),
-        status: responseString(row.status, 'status')
+        status: responseString(row.status, 'status'),
+        revision: responseRevision(row.revision)
+    };
+}
+
+function responseRevision(value: unknown): number {
+    if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
+    throw new Error('Namecard response has an invalid revision');
+}
+
+export function toNamecardSubmissionResponse(row: NamecardRow): NamecardSubmissionResponse {
+    const status = responseString(row.status, 'status');
+    if (!['pending', 'approving', 'approved', 'rejected', 'withdrawn'].includes(status)) {
+        throw new Error('Namecard response has an invalid status');
+    }
+    return {
+        id: responseId(row.id),
+        image1_url: responseString(row.image1_url, 'image1_url'),
+        image2_url: responseString(row.image2_url, 'image2_url'),
+        status: status as NamecardSubmissionResponse['status'],
+        created_at: responseTimestamp(row.created_at),
+        revision: responseRevision(row.revision)
     };
 }

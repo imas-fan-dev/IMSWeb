@@ -11,6 +11,7 @@ import {
     wikiJson,
     wikiMessageOf,
     wikiStatusOf,
+    writeWikiAudit,
     type WikiServicesResolver
 } from '@/domains/wiki/handler-support';
 import { parseAddWikiStoryRequest } from '@/domains/wiki/request';
@@ -177,6 +178,12 @@ export function createHandleAddWikiStory<E extends Env>(
                 imageTransform,
                 links: resolvedSources
             });
+            await writeWikiAudit(
+                context,
+                services,
+                '新增 Wiki 剧情卡片',
+                `agency=${target.agency.code};idol_id=${target.idol.id};category=${category};card=${cardName}`
+            );
             return wikiJson({ status: 'success', sourceCount: resolvedSources.length });
         } catch (error) {
             if (createdKey) await cleanupWikiObjects(services, [createdKey]);

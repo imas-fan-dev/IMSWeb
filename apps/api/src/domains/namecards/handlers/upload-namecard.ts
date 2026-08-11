@@ -3,16 +3,18 @@ import type { AppEnvironment } from '@/app';
 import { parseUploadNamecardRequest } from '@/domains/namecards/request';
 import type {
     NamecardMessageResponse,
-    NamecardRateLimitResponse
+    NamecardRateLimitResponse,
+    NamecardSubmissionReceiptResponse
 } from '@/domains/namecards/response';
+import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
 import { md5Hex } from '@/utils/crypto/md5';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { namecardRepository, getClientAddress, services } from '@/middleware/hono-context';
 import { safeUploadBaseName } from '@/utils/media/filename';
-import { validateUploadedImage } from '@/utils/media/image-upload';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 import { namecardImageObjectKey } from '@/utils/storage/business-object-keys';
+import { sha256Hex } from '@/utils/crypto/sha256';
 
 export async function enforcePublicUploadLimit(
     c: Context<AppEnvironment>
@@ -44,8 +46,7 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
         }
         const outputs: Array<{ key: string; url: string; hash: string }> = [];
         for (const file of files) {
-            await validateUploadedImage(file, runtime.images);
-            const webp = await runtime.images.toWebp(file.body, 85);
+            const webp = await normalizeNamecardImage(file, runtime.images);
             const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
             const publicKey = `uploads/namecard/original/${filename}`;
             const key = namecardImageObjectKey(filename);
@@ -60,14 +61,20 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
             await Promise.all(generated.map((key) => deleteObjectWithCompensation(runtime, key)));
             return c.json({ msg: '重复上传' } satisfies NamecardMessageResponse);
         }
-        await namecardRepository(c).insertPendingCard({
+        const withdrawalToken = randomHex(32);
+        const id = await namecardRepository(c).insertPendingCard({
             image1Url: outputs[0].url,
             image2Url: outputs[1].url,
             hash1: outputs[0].hash,
             hash2: outputs[1].hash,
-            ip: getClientAddress(c)
+            ip: getClientAddress(c),
+            withdrawalTokenHash: await sha256Hex(new TextEncoder().encode(withdrawalToken))
         });
-        return c.json({ msg: '上传成功，等待审核' } satisfies NamecardMessageResponse);
+        return c.json({
+            msg: '上传成功，等待审核',
+            submission: { id, status: 'pending', revision: 0 },
+            withdrawalToken
+        } satisfies NamecardSubmissionReceiptResponse);
     } catch (error) {
         await Promise.all(generated.map((key) =>
             deleteObjectWithCompensation(runtime, key).catch(() => undefined)

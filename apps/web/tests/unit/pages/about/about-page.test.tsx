@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import About from "~/pages/about/about-page"
+import About from "~/pages/about/index"
 import type { AboutPageContent } from "~/lib/api"
 import { seriesWallItems } from "~/lib/series-wall"
 

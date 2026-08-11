@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import AdminLogin from "~/pages/admin/login/admin-login-page"
+import AdminLogin from "~/pages/admin/login/index"
 
 function renderLogin() {
   render(

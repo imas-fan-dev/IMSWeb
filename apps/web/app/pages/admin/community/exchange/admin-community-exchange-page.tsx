@@ -20,10 +20,7 @@ import {
   type FudabaLocationReviewDecision,
   type FudabaLocationReviewState,
 } from "~/lib/api"
-import {
-  AdminEmptyState,
-  AdminPageHeader,
-} from "~/pages/admin/components/admin-ui"
+import { AdminEmptyState, AdminPageHeader } from "~/components/admin/admin-ui"
 
 import { LocationReviewCard } from "./location-review-card"
 

@@ -106,8 +106,19 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertNotRegex(compose, r"(?m)^\s+sed\s")
         self.assertIn('mc anonymous set-json /tmp/policy.json', compose)
         self.assertIn('mc version enable "local/$${IMS_RUSTFS_BUCKET}"', compose)
+        self.assertIn('"NotResource"', policy)
+        self.assertNotIn('"Effect": "Deny"', policy)
         self.assertIn("/__protected/*", policy)
         self.assertIn("/*/__protected/*", policy)
+
+    def test_internal_services_bypass_host_http_proxies(self):
+        compose = COMPOSE_PATH.read_text(encoding="utf-8")
+
+        for token in (
+            'NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"',
+            'no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"',
+        ):
+            self.assertEqual(compose.count(token), 3)
 
     def test_only_current_compose_is_present(self):
         self.assertTrue(COMPOSE_PATH.is_file())

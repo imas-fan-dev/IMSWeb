@@ -2,9 +2,16 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { test } from 'node:test';
 import sharp from 'sharp';
+import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
-import type { ImageInfo, ImageProcessor } from '@/ports/media';
+import {
+    ImagePixelLimitError,
+    type ImageInfo,
+    type ImageProcessor,
+    type ImageValidationOptions,
+    type WebpConversionOptions
+} from '@/ports/media';
 import type { UploadParser } from '@/ports/http';
 import { validateUploadedImage } from '@/utils/media/image-upload';
 import { md5Hex } from '@/utils/crypto/md5';
@@ -19,12 +26,29 @@ function versionAtLeast(actual: string, minimum: readonly number[]): boolean {
 }
 
 class FixtureImages implements ImageProcessor {
-    constructor(private readonly format = 'png', private readonly broken = false) {}
-    async validate(): Promise<ImageInfo> {
-        if (this.broken) throw new Error('decode failed');
-        return { format: this.format, width: 1, height: 1, contentType: `image/${this.format}` };
+    validationOptions: Array<ImageValidationOptions | undefined> = [];
+    conversionOptions: Array<WebpConversionOptions | undefined> = [];
+
+    constructor(
+        private readonly format = 'png',
+        private readonly validationFailure?: Error,
+        private readonly conversionFailure?: Error,
+        private readonly dimensions = { width: 1, height: 1 }
+    ) {}
+    async validate(
+        _body: Uint8Array,
+        _declaredType?: string,
+        options?: ImageValidationOptions
+    ): Promise<ImageInfo> {
+        this.validationOptions.push(options);
+        if (this.validationFailure) throw this.validationFailure;
+        return { format: this.format, ...this.dimensions, contentType: `image/${this.format}` };
     }
-    async toWebp(body: Uint8Array) { return body; }
+    async toWebp(body: Uint8Array, _quality?: number, options?: WebpConversionOptions) {
+        this.conversionOptions.push(options);
+        if (this.conversionFailure) throw this.conversionFailure;
+        return body;
+    }
     async thumbnailPng(body: Uint8Array) { return body; }
     async resizeJpeg(body: Uint8Array) { return body; }
 }
@@ -168,11 +192,63 @@ test('shared image upload contract rejects extension, MIME, decoded format, and 
         { filename: 'payload.png', contentType: 'image/png', body }, new FixtureImages('jpeg')
     ), /内容与文件格式/);
     await assert.rejects(validateUploadedImage(
-        { filename: 'payload.png', contentType: 'image/png', body }, new FixtureImages('png', true)
+        { filename: 'payload.png', contentType: 'image/png', body },
+        new FixtureImages('png', new Error('decode failed'))
     ), /损坏或无法解码/);
+    await assert.rejects(validateUploadedImage(
+        { filename: 'payload.png', contentType: 'image/png', body },
+        new FixtureImages('png', new ImagePixelLimitError(40_000_000))
+    ), /图片像素过大，最多允许4000万像素/);
     assert.equal((await validateUploadedImage(
         { filename: 'payload.jfif', contentType: 'image/pjpeg', body }, new FixtureImages('jpeg')
     )).format, 'jpeg');
+});
+
+test('namecard normalization bounds only oversized JPEG output', async () => {
+    const body = Uint8Array.of(1, 2, 3);
+    const processor = new FixtureImages(
+        'jpeg',
+        undefined,
+        undefined,
+        { width: 10_630, height: 6_378 }
+    );
+    assert.equal(await normalizeNamecardImage(
+        { filename: 'card.jpg', contentType: 'image/jpeg', body }, processor
+    ), body);
+    assert.deepEqual(processor.validationOptions, [{
+        maxInputPixels: 70_000_000,
+        fullDecode: false
+    }]);
+    assert.deepEqual(processor.conversionOptions, [{
+        maxInputPixels: 70_000_000,
+        maxOutputPixels: 16_000_000
+    }]);
+    const pngProcessor = new FixtureImages();
+    await normalizeNamecardImage(
+        { filename: 'card.png', contentType: 'image/png', body }, pngProcessor
+    );
+    assert.deepEqual(pngProcessor.validationOptions, [{
+        maxInputPixels: 40_000_000,
+        fullDecode: false
+    }]);
+    assert.deepEqual(pngProcessor.conversionOptions, [{
+        maxInputPixels: 40_000_000
+    }]);
+    const regularJpegProcessor = new FixtureImages('jpeg');
+    await normalizeNamecardImage(
+        { filename: 'regular.jpg', contentType: 'image/jpeg', body }, regularJpegProcessor
+    );
+    assert.deepEqual(regularJpegProcessor.conversionOptions, [{
+        maxInputPixels: 70_000_000
+    }]);
+    await assert.rejects(
+        normalizeNamecardImage(
+            { filename: 'card.png', contentType: 'image/png', body },
+            new FixtureImages('png', undefined, new Error('decode failed'))
+        ),
+        (error: Error & { status?: number }) =>
+            error.status === 400 && error.message === '图片内容损坏或无法解码'
+    );
 });
 
 test('Sharp runtime includes the libvips fixes for inherited image decoder CVEs', () => {
@@ -210,11 +286,23 @@ test('Sharp image processor validates and converts real image bytes with stable 
     }
     await assert.rejects(processor.validate(source, 'image/jpeg'), /图片类型与内容不匹配/);
     await assert.rejects(processor.validate(Uint8Array.of(1, 2, 3)), /unsupported image format|Input buffer/);
+    await assert.rejects(
+        processor.validate(source, undefined, { maxInputPixels: 31 }),
+        (error: unknown) => error instanceof ImagePixelLimitError && error.maxPixels === 31
+    );
 
     const webp = await sharp(await processor.toWebp(source, 82)).metadata();
     assert.deepEqual({ format: webp.format, width: webp.width, height: webp.height }, {
         format: 'webp', width: 8, height: 4
     });
+    const boundedWebp = await sharp(await processor.toWebp(source, 82, {
+        maxInputPixels: 32,
+        maxOutputPixels: 8
+    })).metadata();
+    assert.deepEqual(
+        { format: boundedWebp.format, width: boundedWebp.width, height: boundedWebp.height },
+        { format: 'webp', width: 4, height: 2 }
+    );
     const thumbnail = await sharp(await processor.thumbnailPng(source, 3, 3)).metadata();
     assert.deepEqual({ format: thumbnail.format, width: thumbnail.width, height: thumbnail.height }, {
         format: 'png', width: 3, height: 3

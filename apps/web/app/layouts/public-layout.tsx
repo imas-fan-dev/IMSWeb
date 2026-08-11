@@ -1,6 +1,7 @@
-import { Outlet, useLocation } from "react-router"
+import { Outlet, useLocation, useMatch } from "react-router"
 import { useTranslation } from "react-i18next"
 
+import { NamecardUploadDialog } from "~/components/community/namecard-upload-dialog"
 import { AdminReturnShortcut } from "~/components/shared/admin-return-shortcut"
 import { PlatformSessionProvider } from "~/components/platform/platform-session-provider"
 import { BackToTop } from "~/components/shared/back-to-top"
@@ -21,6 +22,7 @@ export default function PublicLayout() {
     normalizedPathname === "/wiki" || normalizedPathname === "/wiki/modern"
   const isModernStory =
     normalizedPathname === "/story" || normalizedPathname === "/story/modern"
+  const isNamecardWall = Boolean(useMatch("/community/cards"))
 
   return (
     <PlatformSessionProvider>
@@ -53,6 +55,7 @@ export default function PublicLayout() {
               <SiteFooter />
             </div>
             <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 sm:right-6 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]">
+              {isNamecardWall ? <NamecardUploadDialog /> : null}
               <BackToTop
                 className={cn("static", isWikiCatalog && "max-md:hidden")}
               />

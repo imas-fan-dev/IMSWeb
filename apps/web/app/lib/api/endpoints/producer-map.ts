@@ -67,6 +67,11 @@ const producerMapAdminUpdateSchema = z.object({
   revision: z.string(),
 })
 
+const producerMapImageUploadSchema = z.object({
+  success: z.literal(true),
+  url: z.string(),
+})
+
 const producerMapGeometrySchema = z.object({
   type: z.literal("FeatureCollection"),
   features: z.array(z.unknown()),
@@ -125,4 +130,16 @@ export function updateAdminProducerMapContent(
       transform: (payload) => producerMapAdminUpdateSchema.parse(payload),
     }
   )
+}
+
+export function uploadAdminProducerMapImage(file: File) {
+  const form = new FormData()
+  form.append("image", file)
+  return adminApiClient.Post<
+    z.infer<typeof producerMapImageUploadSchema>,
+    unknown
+  >("/api/admin/producer-map/images", form, {
+    meta: withBackofficeCsrf(),
+    transform: (payload) => producerMapImageUploadSchema.parse(payload),
+  })
 }

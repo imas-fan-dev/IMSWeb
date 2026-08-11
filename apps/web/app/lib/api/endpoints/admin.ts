@@ -134,11 +134,19 @@ const adminNamecardSchema = z.object({
   image1_url: z.string().min(1),
   image2_url: z.string().min(1),
   status: z.string(),
+  revision: z.coerce.number().int().nonnegative(),
 })
 
 const adminNamecardListSchema = z.object({
   success: z.literal(true),
   data: z.array(adminNamecardSchema),
+  pageInfo: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    totalPages: z.number().int().nonnegative(),
+    hasNextPage: z.boolean(),
+  }),
 })
 
 export type AdminSession = z.infer<typeof adminSessionSchema>["user"]
@@ -157,6 +165,7 @@ export type IdolMediaItem = IdolMediaAgency["idols"][number]
 export type PendingChronicleMedia = z.infer<typeof pendingChronicleMediaSchema>
 export type UsedChronicleMedia = z.infer<typeof usedChronicleMediaSchema>
 export type AdminNamecard = z.infer<typeof adminNamecardSchema>
+export type AdminNamecardList = z.infer<typeof adminNamecardListSchema>
 
 export type InformationSubmission = {
   title: string
@@ -442,10 +451,10 @@ export function getAdminNamecards(page = 1) {
   )
 }
 
-export function approveAdminNamecard(id: number) {
-  return adminApiClient.Post<{ success: true }, unknown>(
+export function approveAdminNamecard(id: number, expectedRevision: number) {
+  return adminApiClient.Post<{ success: true; revision: number }, unknown>(
     `/api/admin/cards/approve/${id}`,
-    undefined,
+    { expected_revision: expectedRevision },
     {
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
@@ -453,9 +462,9 @@ export function approveAdminNamecard(id: number) {
   )
 }
 
-export function deleteAdminNamecard(id: number) {
+export function deleteAdminNamecard(id: number, expectedRevision: number) {
   return adminApiClient.Delete<{ success: true }, unknown>(
-    `/api/admin/cards/${id}`,
+    `/api/admin/cards/${id}?expected_revision=${expectedRevision}`,
     undefined,
     {
       meta: withBackofficeCsrf(),
@@ -464,9 +473,21 @@ export function deleteAdminNamecard(id: number) {
   )
 }
 
-export function createAdminEvent(form: FormData) {
+export function createAdminEvent(form: FormData, idempotencyKey: string) {
   return adminApiClient.Post<{ success: true; id: number }, unknown>(
     "/api/events",
+    form,
+    {
+      headers: { "Idempotency-Key": idempotencyKey },
+      meta: withBackofficeCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
+    }
+  )
+}
+
+export function updateAdminEvent(id: string, form: FormData) {
+  return adminApiClient.Put<{ success: true }, unknown>(
+    `/api/events/${encodeURIComponent(id)}`,
     form,
     {
       meta: withBackofficeCsrf(),
