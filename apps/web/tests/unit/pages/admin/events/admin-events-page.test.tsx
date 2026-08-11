@@ -4,6 +4,15 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import AdminEventsPage from "~/pages/admin/events/admin-events-page"
 
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+}))
+
+vi.mock("sonner", () => ({
+  toast: toastMocks,
+}))
+
 function jsonResponse(payload: unknown) {
   return new Response(JSON.stringify(payload), {
     headers: { "content-type": "application/json" },
@@ -134,6 +143,96 @@ describe("AdminEventsPage", () => {
     await waitFor(() => expect(createForms).toHaveLength(1))
     expect(createForms[0].get("title")).toBe("新活动")
     expect((createForms[0].get("image") as File | null)?.name).toBe("event.png")
+  })
+
+  it("keeps a successful update when the list refresh fails", async () => {
+    document.cookie = "csrf_token=event-update-refresh-test; path=/"
+    const methods: string[] = []
+    let getCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+        const request =
+          input instanceof Request
+            ? input
+            : new Request(new URL(String(input), "http://localhost"), init)
+        methods.push(request.method)
+        if (request.method === "PUT") {
+          return jsonResponse({ success: true })
+        }
+        getCount += 1
+        if (getCount === 1) return jsonResponse(pagePayload)
+        throw new Error("event refresh failed")
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<AdminEventsPage />)
+
+    await user.click(
+      await screen.findByRole("button", { name: "编辑“广州交流活动”" })
+    )
+    await user.click(screen.getByRole("button", { name: "保存活动" }))
+
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        "活动更新已成功，但列表刷新失败"
+      )
+    )
+    expect(toastMocks.success).toHaveBeenCalledWith("活动已更新")
+    expect(toastMocks.error).not.toHaveBeenCalledWith(
+      "活动更新失败，请检查内容后重试"
+    )
+    expect(methods.filter((method) => method === "PUT")).toHaveLength(1)
+    expect(methods.filter((method) => method === "GET")).toHaveLength(2)
+    expect(
+      screen.queryByRole("heading", { name: "编辑社区活动" })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText("无法读取活动")).toBeVisible()
+  })
+
+  it("clears a successful deletion when the list refresh fails", async () => {
+    document.cookie = "csrf_token=event-delete-refresh-test; path=/"
+    const methods: string[] = []
+    let getCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+        const request =
+          input instanceof Request
+            ? input
+            : new Request(new URL(String(input), "http://localhost"), init)
+        methods.push(request.method)
+        if (request.method === "DELETE") {
+          return jsonResponse({ success: true })
+        }
+        getCount += 1
+        if (getCount === 1) return jsonResponse(pagePayload)
+        throw new Error("event refresh failed")
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<AdminEventsPage />)
+
+    await user.click(
+      await screen.findByRole("button", { name: "删除“广州交流活动”" })
+    )
+    await user.click(screen.getByRole("button", { name: "确认删除" }))
+
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        "活动删除已成功，但列表刷新失败"
+      )
+    )
+    expect(toastMocks.success).toHaveBeenCalledWith("活动已删除")
+    expect(toastMocks.error).not.toHaveBeenCalledWith("活动删除失败")
+    expect(methods.filter((method) => method === "DELETE")).toHaveLength(1)
+    expect(methods.filter((method) => method === "GET")).toHaveLength(2)
+    expect(
+      screen.queryByRole("heading", { name: "删除社区活动？" })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText("无法读取活动")).toBeVisible()
   })
 
   it("loads every cursor page so older events remain editable", async () => {

@@ -106,8 +106,10 @@ export default function AdminEventsPage() {
     setError(false)
     try {
       setEvents(await loadEvents())
+      return true
     } catch {
       setError(true)
+      return false
     } finally {
       setLoading(false)
     }
@@ -160,7 +162,8 @@ export default function AdminEventsPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const imageError = validateImage(eventImage, editingEvent === null)
+    const editing = editingEvent !== null
+    const imageError = validateImage(eventImage, !editing)
     if (imageError) {
       toast.error(imageError)
       return
@@ -176,39 +179,57 @@ export default function AdminEventsPage() {
     try {
       if (editingEvent) {
         await updateAdminEvent(editingEvent.id, form).send()
-        toast.success("活动已更新")
       } else {
         await createAdminEvent(form).send()
-        toast.success("活动已发布")
       }
-      setEditorOpen(false)
-      setEditingEvent(null)
-      setDraft(emptyDraft)
-      setEventImage(null)
-      await refresh()
-    } catch (error) {
+    } catch (mutationError) {
       toast.error(
-        isApiError(error)
-          ? error.message
-          : editingEvent
+        isApiError(mutationError)
+          ? mutationError.message
+          : editing
             ? "活动更新失败，请检查内容后重试"
             : "活动发布失败，请检查内容后重试"
       )
+      setSaving(false)
+      return
+    }
+
+    toast.success(editing ? "活动已更新" : "活动已发布")
+    setEditorOpen(false)
+    setEditingEvent(null)
+    setDraft(emptyDraft)
+    setEventImage(null)
+    try {
+      if (!(await refresh())) {
+        toast.error(
+          editing
+            ? "活动更新已成功，但列表刷新失败"
+            : "活动发布已成功，但列表刷新失败"
+        )
+      }
     } finally {
       setSaving(false)
     }
   }
 
   async function remove() {
-    if (!deleteTarget) return
+    const target = deleteTarget
+    if (!target) return
     setDeleting(true)
     try {
-      await deleteAdminEvent(deleteTarget.id).send()
-      toast.success("活动已删除")
-      setDeleteTarget(null)
-      await refresh()
+      await deleteAdminEvent(target.id).send()
     } catch {
       toast.error("活动删除失败")
+      setDeleting(false)
+      return
+    }
+
+    toast.success("活动已删除")
+    setDeleteTarget(null)
+    try {
+      if (!(await refresh())) {
+        toast.error("活动删除已成功，但列表刷新失败")
+      }
     } finally {
       setDeleting(false)
     }
