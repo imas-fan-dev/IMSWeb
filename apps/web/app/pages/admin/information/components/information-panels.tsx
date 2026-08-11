@@ -20,8 +20,8 @@ import {
   AdminEmptyState,
   AdminPanel,
   AdminStatus,
-} from "~/pages/admin/components/admin-ui"
-import { SortableList } from "~/pages/admin/components/sortable-list"
+} from "~/components/admin/admin-ui"
+import { SortableList } from "~/components/admin/sortable-list"
 import type { AdminInformationCard, InformationSubmission } from "~/lib/api"
 
 import {

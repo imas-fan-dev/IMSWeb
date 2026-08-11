@@ -1,16 +1,20 @@
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ProducerMapContent } from "~/lib/api"
-import { ProducerMapManager } from "~/pages/admin/producer-map/producer-map-manager"
+import type { ProducerMapContent, ProducerMapRegion } from "~/lib/api"
+import { ProducerMapManager } from "~/pages/admin/producer-map/index"
 import {
   createCommunity,
   createRegion,
+  provinceOptions,
 } from "~/pages/admin/producer-map/producer-map-model"
 
-vi.mock("~/pages/admin/components/sortable-list", () => ({
+vi.mock("~/components/admin/sortable-list", () => ({
   SortableList: ({
     items,
     disabled = false,
@@ -42,6 +46,32 @@ vi.mock("~/pages/admin/components/sortable-list", () => ({
           {renderItem(item)}
         </div>
       ))}
+    </div>
+  ),
+}))
+
+vi.mock("~/components/producer-map/china-community-map", () => ({
+  ChinaCommunityMap: ({
+    mode,
+    selectedProvince,
+    regions,
+    onSelect,
+  }: {
+    mode?: "public" | "admin"
+    selectedProvince?: string | null
+    regions: ProducerMapRegion[]
+    onSelect: (province: string) => void
+  }) => (
+    <div aria-label="测试中国地图">
+      <button type="button" onClick={() => onSelect("北京市")}>
+        地图选择北京市
+      </button>
+      <button type="button" onClick={() => onSelect("广东省")}>
+        地图选择广东省
+      </button>
+      <output data-testid="admin-map-state">
+        {mode}:{selectedProvince}:{regions.length}
+      </output>
     </div>
   ),
 }))
@@ -86,8 +116,16 @@ function content(): ProducerMapContent {
   }
 }
 
-function jsonResponse(payload: unknown) {
+function geometry() {
+  return {
+    type: "FeatureCollection",
+    features: [],
+  }
+}
+
+function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
+    status,
     headers: { "content-type": "application/json" },
   })
 }
@@ -96,6 +134,10 @@ function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
   return input instanceof Request
     ? input
     : new Request(new URL(String(input), "http://ims.test"), init)
+}
+
+function isGeometryRequest(request: Request) {
+  return new URL(request.url).pathname === "/maps/china-provinces.json"
 }
 
 describe("ProducerMapManager", () => {
@@ -119,15 +161,28 @@ describe("ProducerMapManager", () => {
     )
   })
 
+  it("keeps every fixed province aligned with the China map geometry", () => {
+    const map = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), "public/maps/china-provinces.json"),
+        "utf8"
+      )
+    ) as { features: Array<{ properties: { name: string } }> }
+
+    expect(map.features.map((feature) => feature.properties.name)).toEqual(
+      provinceOptions
+    )
+  })
+
   it("keeps page metadata inline and opens ID-free create dialogs", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({
-          content: null,
-          revision: null,
-        })
-      )
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestFrom(input, init)
+        return isGeometryRequest(request)
+          ? jsonResponse(geometry())
+          : jsonResponse({ content: null, revision: null })
+      })
     )
     const user = userEvent.setup()
 
@@ -136,16 +191,32 @@ describe("ProducerMapManager", () => {
     expect(await screen.findByLabelText("页面标题")).toHaveValue("")
     expect(screen.getByRole("tab", { name: "地图地点" })).toBeVisible()
     expect(screen.getByRole("tab", { name: "社群名录" })).toBeVisible()
-    expect(screen.getByText("0 个地点，拖动可调整管理顺序。")).toBeVisible()
+    expect(screen.getByText("0 / 34 个地点")).toBeVisible()
+    expect(await screen.findByTestId("admin-map-state")).toHaveTextContent(
+      "admin:北京市:0"
+    )
     expect(screen.getByRole("button", { name: "保存更改" })).toBeDisabled()
 
-    await user.click(screen.getByRole("button", { name: "添加地图地点" }))
+    const beijingMapButton = await screen.findByRole("button", {
+      name: "地图选择北京市",
+    })
+    await user.click(beijingMapButton)
     let dialog = await screen.findByRole("dialog", { name: "新增地图地点" })
-    expect(within(dialog).getByLabelText("行政区")).toHaveTextContent("北京市")
+    expect(within(dialog).getByLabelText("行政区")).toHaveValue("北京市")
+    expect(within(dialog).getByLabelText("行政区")).toHaveAttribute("readonly")
     expect(within(dialog).getByLabelText("地点名称")).toHaveValue("北京市")
     expect(within(dialog).queryByLabelText(/ID/)).not.toBeInTheDocument()
     expect(within(dialog).queryByLabelText(/图片.*URL/)).not.toBeInTheDocument()
     await user.click(within(dialog).getByRole("button", { name: "取消" }))
+    expect(screen.getByRole("combobox", { name: "行政区" })).toHaveFocus()
+
+    await user.click(beijingMapButton)
+    dialog = await screen.findByRole("dialog", { name: "新增地图地点" })
+    await user.click(within(dialog).getByRole("button", { name: "添加地点" }))
+    expect(
+      await screen.findByRole("button", { name: "编辑地点" })
+    ).toBeVisible()
+    expect(screen.getByRole("combobox", { name: "行政区" })).toHaveFocus()
 
     await user.click(screen.getByRole("tab", { name: "社群名录" }))
     await user.click(screen.getByRole("button", { name: "添加社群" }))
@@ -162,6 +233,7 @@ describe("ProducerMapManager", () => {
       .fn<typeof fetch>()
       .mockImplementation(async (input, init) => {
         const request = requestFrom(input, init)
+        if (isGeometryRequest(request)) return jsonResponse(geometry())
         if (request.method === "PUT") {
           savedBody = await request.clone().json()
           const submitted = savedBody as { content: ProducerMapContent }
@@ -183,8 +255,11 @@ describe("ProducerMapManager", () => {
 
     expect(await screen.findByText("广东制作人社群")).toBeVisible()
     expect(
-      screen.getByRole("button", { name: "拖动排序：广东制作人社群" })
-    ).toBeVisible()
+      screen.queryByRole("button", { name: "拖动排序：广东制作人社群" })
+    ).not.toBeInTheDocument()
+    expect(await screen.findByTestId("admin-map-state")).toHaveTextContent(
+      "admin:广东省:1"
+    )
     expect(
       screen.queryByText("/uploads/producer-map/guangdong.webp")
     ).not.toBeInTheDocument()
@@ -192,10 +267,14 @@ describe("ProducerMapManager", () => {
       screen.queryByDisplayValue("/uploads/producer-map/guangdong.webp")
     ).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "编辑广东制作人社群" }))
+    await user.click(
+      await screen.findByRole("button", { name: "地图选择广东省" })
+    )
     const dialog = await screen.findByRole("dialog", { name: "编辑地图地点" })
     expect(within(dialog).queryByLabelText(/ID/)).not.toBeInTheDocument()
     expect(within(dialog).queryByLabelText(/图片.*URL/)).not.toBeInTheDocument()
+    expect(within(dialog).getByLabelText("行政区")).toHaveValue("广东省")
+    expect(within(dialog).getByLabelText("行政区")).toHaveAttribute("readonly")
     const name = within(dialog).getByLabelText("地点名称")
     await user.clear(name)
     await user.type(name, "广东制作人联盟")
@@ -230,6 +309,7 @@ describe("ProducerMapManager", () => {
       .fn<typeof fetch>()
       .mockImplementation(async (input, init) => {
         const request = requestFrom(input, init)
+        if (isGeometryRequest(request)) return jsonResponse(geometry())
         if (request.method === "POST") {
           const form = init?.body
           if (!(form instanceof FormData))
@@ -260,7 +340,7 @@ describe("ProducerMapManager", () => {
     render(<ProducerMapManager />)
 
     await user.click(
-      await screen.findByRole("button", { name: "编辑广东制作人社群" })
+      await screen.findByRole("button", { name: "地图选择广东省" })
     )
     let dialog = await screen.findByRole("dialog", { name: "编辑地图地点" })
     expect(
@@ -354,6 +434,7 @@ describe("ProducerMapManager", () => {
       .fn<typeof fetch>()
       .mockImplementation(async (input, init) => {
         const request = requestFrom(input, init)
+        if (isGeometryRequest(request)) return jsonResponse(geometry())
         if (request.method === "PUT") {
           savedBody = await request.clone().json()
           const submitted = savedBody as { content: ProducerMapContent }
@@ -387,14 +468,135 @@ describe("ProducerMapManager", () => {
     })
   })
 
+  it("keeps region drag order in the secondary view until page save", async () => {
+    document.cookie = "csrf_token=producer-map-region-order-test; path=/"
+    const current = content()
+    current.regions.push({
+      ...createRegion("北京市"),
+      name: "北京制作人社群",
+    })
+    let savedBody: unknown
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (input, init) => {
+        const request = requestFrom(input, init)
+        if (isGeometryRequest(request)) return jsonResponse(geometry())
+        if (request.method === "PUT") {
+          savedBody = await request.clone().json()
+          const submitted = savedBody as { content: ProducerMapContent }
+          return jsonResponse({
+            success: true,
+            content: submitted.content,
+            revision: '"revision-2"',
+          })
+        }
+        return jsonResponse({ content: current, revision: '"revision-1"' })
+      })
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(<ProducerMapManager />)
+
+    await screen.findByText("广东制作人社群")
+    await user.click(screen.getByRole("button", { name: "公开顺序" }))
+    await user.click(
+      screen.getByRole("button", { name: "拖动排序：广东制作人社群" })
+    )
+
+    expect(savedBody).toBeUndefined()
+    await user.click(screen.getByRole("button", { name: "保存更改" }))
+    await waitFor(() => expect(savedBody).toBeDefined())
+    expect(savedBody).toMatchObject({
+      content: {
+        regions: [{ id: "region-beijing" }, { id: "region-guangdong" }],
+      },
+    })
+  })
+
+  it("disables region ordering actions while the page save is pending", async () => {
+    document.cookie = "csrf_token=producer-map-saving-test; path=/"
+    const current = content()
+    current.regions.push({
+      ...createRegion("北京市"),
+      name: "北京制作人社群",
+    })
+    let resolveSave!: (response: Response) => void
+    const saveResponse = new Promise<Response>((resolve) => {
+      resolveSave = resolve
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestFrom(input, init)
+        if (isGeometryRequest(request)) return jsonResponse(geometry())
+        if (request.method === "PUT") return saveResponse
+        return jsonResponse({ content: current, revision: '"revision-1"' })
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<ProducerMapManager />)
+
+    await screen.findByText("广东制作人社群")
+    await user.click(screen.getByRole("button", { name: "公开顺序" }))
+    await user.click(
+      screen.getByRole("button", { name: "拖动排序：广东制作人社群" })
+    )
+    await user.click(screen.getByRole("button", { name: "保存更改" }))
+
+    expect(
+      screen.getByRole("button", { name: "拖动排序：北京制作人社群" })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: "编辑北京制作人社群" })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: "删除北京制作人社群" })
+    ).toBeDisabled()
+
+    resolveSave(
+      jsonResponse({
+        success: true,
+        content: current,
+        revision: '"revision-2"',
+      })
+    )
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "保存更改" })).toBeDisabled()
+    )
+  })
+
+  it("keeps province editing available when map geometry fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestFrom(input, init)
+        return isGeometryRequest(request)
+          ? jsonResponse({ error: "geometry unavailable" }, 500)
+          : jsonResponse({ content: content(), revision: '"revision-1"' })
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<ProducerMapManager />)
+
+    expect(await screen.findByText("地图边界暂时无法加载。")).toBeVisible()
+    expect(screen.getByText("广东制作人社群")).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "编辑地点" }))
+    expect(
+      await screen.findByRole("dialog", { name: "编辑地图地点" })
+    ).toBeVisible()
+  })
+
   it("confirms local deletion before removing a row", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ content: content(), revision: '"revision-1"' })
-        )
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestFrom(input, init)
+        return isGeometryRequest(request)
+          ? jsonResponse(geometry())
+          : jsonResponse({ content: content(), revision: '"revision-1"' })
+      })
     )
     const user = userEvent.setup()
 

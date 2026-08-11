@@ -4,7 +4,7 @@ import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ClassicStoryPage } from "~/pages/wiki/classic/classic-story-page"
-import { ClassicWikiPage } from "~/pages/wiki/classic/classic-wiki-page"
+import { ClassicWikiPage } from "~/pages/wiki/classic/index"
 
 function response(payload: unknown) {
   return Promise.resolve(Response.json(payload))

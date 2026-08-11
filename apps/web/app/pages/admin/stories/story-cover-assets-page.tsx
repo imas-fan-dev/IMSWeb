@@ -46,11 +46,8 @@ import {
 } from "~/components/ui/select"
 import { Skeleton } from "~/components/ui/skeleton"
 import { cn } from "~/lib/utils"
-import {
-  AdminEmptyState,
-  AdminPageHeader,
-} from "~/pages/admin/components/admin-ui"
-import { StoryCoverAssetDialog } from "~/pages/admin/stories/story-cover-asset-dialog"
+import { AdminEmptyState, AdminPageHeader } from "~/components/admin/admin-ui"
+import { StoryCoverAssetDialog } from "~/pages/admin/stories/components/story-cover-asset-dialog"
 import {
   deleteWikiStoryCoverAsset,
   getAdminWikiCatalog,

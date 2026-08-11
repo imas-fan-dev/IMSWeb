@@ -1,4 +1,11 @@
-import { RotateCcwIcon, XIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react"
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  RotateCcwIcon,
+  XIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from "lucide-react"
 import { useRef, useState } from "react"
 
 import { Button } from "~/components/ui/button"
@@ -33,6 +40,11 @@ type ViewState = {
   offset: Point
 }
 
+type PreviewItem = {
+  src: string
+  alt: string
+}
+
 function clampScale(value: number) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
 }
@@ -44,6 +56,8 @@ export function CoverImagePreview({
   imageClassName,
   loading = "lazy",
   previewLabel = "封面",
+  previewItems,
+  previewIndex = 0,
 }: {
   src: string
   alt: string
@@ -51,8 +65,15 @@ export function CoverImagePreview({
   imageClassName?: string
   loading?: React.ImgHTMLAttributes<HTMLImageElement>["loading"]
   previewLabel?: string
+  previewItems?: readonly PreviewItem[]
+  previewIndex?: number
 }) {
+  const previewCount = Math.max(previewItems?.length ?? 0, 1)
+  const initialPreviewIndex =
+    previewIndex >= 0 && previewIndex < previewCount ? previewIndex : 0
   const [open, setOpen] = useState(false)
+  const [activePreviewIndex, setActivePreviewIndex] =
+    useState(initialPreviewIndex)
   const [view, setView] = useState<ViewState>({
     scale: 1,
     offset: { x: 0, y: 0 },
@@ -60,6 +81,12 @@ export function CoverImagePreview({
   const [dragging, setDragging] = useState(false)
   const dragRef = useRef<DragState | null>(null)
   const { scale, offset } = view
+  const activePreview = previewItems?.[activePreviewIndex] ?? { src, alt }
+  const previousPreviewIndex =
+    (activePreviewIndex - 1 + previewCount) % previewCount
+  const nextPreviewIndex = (activePreviewIndex + 1) % previewCount
+  const previousPreview = previewItems?.[previousPreviewIndex] ?? { src, alt }
+  const nextPreview = previewItems?.[nextPreviewIndex] ?? { src, alt }
 
   function resetView() {
     setView({ scale: 1, offset: { x: 0, y: 0 } })
@@ -79,11 +106,25 @@ export function CoverImagePreview({
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen)
-    if (!nextOpen) resetView()
+    setActivePreviewIndex(initialPreviewIndex)
+    resetView()
+  }
+
+  function selectPreview(nextIndex: number) {
+    const wrappedIndex =
+      ((nextIndex % previewCount) + previewCount) % previewCount
+    if (wrappedIndex === activePreviewIndex) return
+    setActivePreviewIndex(wrappedIndex)
+    resetView()
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (scale <= 1) return
+    if (
+      scale <= 1 ||
+      (event.target instanceof Element && event.target.closest("button"))
+    ) {
+      return
+    }
     event.currentTarget.setPointerCapture?.(event.pointerId)
     dragRef.current = {
       pointerId: event.pointerId,
@@ -122,6 +163,12 @@ export function CoverImagePreview({
     } else if (event.key === "0") {
       event.preventDefault()
       resetView()
+    } else if (previewCount > 1 && event.key === "ArrowLeft") {
+      event.preventDefault()
+      selectPreview(activePreviewIndex - 1)
+    } else if (previewCount > 1 && event.key === "ArrowRight") {
+      event.preventDefault()
+      selectPreview(activePreviewIndex + 1)
     } else if (scale > 1 && event.key === "ArrowLeft") {
       event.preventDefault()
       setView((current) => ({
@@ -183,8 +230,16 @@ export function CoverImagePreview({
       >
         <header className="flex h-16 min-w-0 items-center gap-3 px-4 sm:px-6">
           <DialogTitle className="min-w-0 flex-1 truncate text-sm text-foreground drop-shadow-sm">
-            {alt}
+            {activePreview.alt}
           </DialogTitle>
+          {previewCount > 1 ? (
+            <output
+              className="shrink-0 text-xs text-muted-foreground tabular-nums"
+              aria-live="polite"
+            >
+              {activePreviewIndex + 1} / {previewCount}
+            </output>
+          ) : null}
           <DialogDescription className="sr-only">
             {previewLabel}大图预览
           </DialogDescription>
@@ -225,9 +280,37 @@ export function CoverImagePreview({
             )
           }}
         >
+          {previewCount > 1 ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-lg"
+                className="absolute left-3 z-10 size-10 rounded-full border border-foreground/10 bg-background/45 text-foreground shadow-sm backdrop-blur-xl hover:bg-background/70 hover:text-foreground sm:left-6"
+                aria-label={`查看上一面：${previousPreview.alt}`}
+                aria-keyshortcuts="ArrowLeft"
+                title="上一面"
+                onClick={() => selectPreview(activePreviewIndex - 1)}
+              >
+                <ChevronLeftIcon />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-lg"
+                className="absolute right-3 z-10 size-10 rounded-full border border-foreground/10 bg-background/45 text-foreground shadow-sm backdrop-blur-xl hover:bg-background/70 hover:text-foreground sm:right-6"
+                aria-label={`查看下一面：${nextPreview.alt}`}
+                aria-keyshortcuts="ArrowRight"
+                title="下一面"
+                onClick={() => selectPreview(activePreviewIndex + 1)}
+              >
+                <ChevronRightIcon />
+              </Button>
+            </>
+          ) : null}
           <img
-            src={src}
-            alt={alt}
+            src={activePreview.src}
+            alt={activePreview.alt}
             draggable={false}
             className={cn(
               "size-full object-contain drop-shadow-[0_18px_40px_rgb(0_0_0/0.2)] will-change-transform select-none",

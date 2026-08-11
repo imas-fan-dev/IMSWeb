@@ -8,10 +8,10 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import ProducerMapPage from "~/pages/producer-map/producer-map-page"
+import ProducerMapPage from "~/pages/producer-map/index"
 import type { ProducerMapContent } from "~/lib/api"
 
-vi.mock("~/pages/producer-map/components/china-community-map", () => ({
+vi.mock("~/components/producer-map/china-community-map", () => ({
   ChinaCommunityMap: ({
     detailsOpen,
     onSelect,

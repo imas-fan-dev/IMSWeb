@@ -15,18 +15,14 @@ function routeFile(path: string) {
 
 describe("public route defaults", () => {
   it("uses the modern Wiki and story pages by default", () => {
-    expect(routeFile("wiki")).toBe("pages/wiki/modern/wiki-index-page.tsx")
+    expect(routeFile("wiki")).toBe("pages/wiki/modern/index.tsx")
     expect(routeFile("story")).toBe("pages/wiki/modern/story-page.tsx")
   })
 
   it("keeps explicit modern and classic compatibility routes", () => {
-    expect(routeFile("wiki/modern")).toBe(
-      "pages/wiki/modern/wiki-index-page.tsx"
-    )
+    expect(routeFile("wiki/modern")).toBe("pages/wiki/modern/index.tsx")
     expect(routeFile("story/modern")).toBe("pages/wiki/modern/story-page.tsx")
-    expect(routeFile("wiki/classic")).toBe(
-      "pages/wiki/classic/classic-wiki-page.tsx"
-    )
+    expect(routeFile("wiki/classic")).toBe("pages/wiki/classic/index.tsx")
     expect(routeFile("story/classic")).toBe(
       "pages/wiki/classic/classic-story-page.tsx"
     )

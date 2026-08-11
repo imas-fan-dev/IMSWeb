@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { InformationManager } from "~/pages/admin/information/information-manager"
+import { InformationManager } from "~/pages/admin/information/index"
 
 const informationPayload = {
   version: 1,

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Outlet, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import AdminAccountsPage from "~/pages/admin/accounts/admin-accounts-page"
+import AdminAccountsPage from "~/pages/admin/accounts/index"
 import type { AdminSession } from "~/lib/api"
 
 const mocks = vi.hoisted(() => ({
