@@ -18,7 +18,7 @@ export async function handleDeleteNamecard(c: NamecardDeleteContext): Promise<Re
     if (result.status === 'not-found') {
         return c.json({ error: 'Namecard not found' } satisfies NamecardErrorResponse, 404);
     }
-    if (result.status === 'conflict') {
+    if (result.status === 'conflict' || result.status === 'withdrawn') {
         return c.json({
             error: 'Namecard changed; refresh and retry',
             revision: result.revision

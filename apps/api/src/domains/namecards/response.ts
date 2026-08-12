@@ -40,6 +40,11 @@ export interface NamecardWithdrawalResponse {
     submission: NamecardSubmissionResponse;
 }
 
+export interface NamecardResubmitResponse {
+    success: true;
+    submission: NamecardSubmissionResponse;
+}
+
 export interface NamecardDetailResponse {
     image1_url: string;
     image2_url: string;

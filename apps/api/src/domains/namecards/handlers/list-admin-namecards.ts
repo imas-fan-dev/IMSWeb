@@ -4,6 +4,7 @@ import {
     toAdminNamecardResponse,
     type AdminNamecardListResponse
 } from '@/domains/namecards/response';
+import { purgeExpiredNamecardSubmissions } from '@/domains/namecards/ttl-purge';
 import { namecardRepository } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
@@ -13,6 +14,7 @@ export async function handleListAdminNamecards(
     const { page } = c.req.valid('query');
     try {
         const repository = namecardRepository(c);
+        await purgeExpiredNamecardSubmissions(c);
         const pageSize = 10;
         const [rows, total] = await Promise.all([
             repository.listAdminCards(pageSize, (page - 1) * pageSize),

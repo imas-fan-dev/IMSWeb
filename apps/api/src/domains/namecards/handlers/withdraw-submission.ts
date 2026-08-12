@@ -9,9 +9,7 @@ import {
     enforceSubmissionLimit,
     withdrawalTokenHash
 } from '@/domains/namecards/submission-support';
-import { namecardRepository, services } from '@/middleware/hono-context';
-import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
-import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
+import { namecardRepository } from '@/middleware/hono-context';
 
 export async function handleWithdrawNamecardSubmission(
     c: NamecardWithdrawalContext
@@ -32,18 +30,11 @@ export async function handleWithdrawNamecardSubmission(
     if (result.status === 'not-found') {
         return c.json({ error: 'Submission not found' } satisfies NamecardErrorResponse, 404);
     }
-    if (result.status === 'conflict') {
+    if (result.status === 'conflict' || result.status === 'withdrawn') {
         return c.json({
             error: 'Submission changed; refresh and retry',
             revision: result.revision
         } satisfies NamecardErrorResponse, 409);
-    }
-    try {
-        await Promise.all([result.card.image1_url, result.card.image2_url].map((url) =>
-            deleteObjectWithCompensation(services(c), publicMediaObjectKey(url))
-        ));
-    } catch (error) {
-        console.error('Failed to clean withdrawn namecard media', error);
     }
     await writeAudit(c, '撤回名片投稿', `card_id=${id};revision=${result.card.revision}`);
     return c.json({

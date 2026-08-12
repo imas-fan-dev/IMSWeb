@@ -998,7 +998,7 @@ async function assertCoreMutationContract(fixture) {
             headers: { 'Content-Type': 'multipart/form-data; boundary=contract' },
             body: '--contract--'
         }),
-        200, { msg: '重复上传' }, `${fixture.runtime} duplicate namecard`
+        409, { msg: '重复上传' }, `${fixture.runtime} duplicate namecard`
     );
     deepEqual(await fixture.snapshot(), afterNamecard,
         `${fixture.runtime} duplicate namecard removes generated objects`);
@@ -1388,7 +1388,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
         images: [uploadedFile('one.png', 1, 15), uploadedFile('two.png', 1, 16), uploadedFile('three.png', 1, 17)]
     } });
     await assertJsonResponse(
-        await post('/api/uploadNameCard'), 200, { msg: '必须上传2张图片' },
+        await post('/api/uploadNameCard'), 400, { msg: '必须上传2张图片' },
         `${fixture.runtime} namecard excess file count`
     );
     deepEqual(await fixture.uploadSnapshot(), before, `${fixture.runtime} excess namecard leaves no residue`);

@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { parseUploadNamecardRequest } from '@/domains/namecards/request';
+import { purgeExpiredNamecardSubmissions } from '@/domains/namecards/ttl-purge';
 import type {
     NamecardMessageResponse,
     NamecardRateLimitResponse,
@@ -30,6 +31,7 @@ export async function enforcePublicUploadLimit(
 export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<Response> {
     const limited = await enforcePublicUploadLimit(c);
     if (limited) return limited;
+    await purgeExpiredNamecardSubmissions(c);
     const runtime = services(c);
     if (!runtime.uploads || !runtime.images || !runtime.storage) throw new Error('Upload services unavailable');
     const generated: string[] = [];
@@ -39,7 +41,7 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
             return c.json({ msg: '只允许上传图片文件' } satisfies NamecardMessageResponse, 400);
         }
         if (files.length !== 2) {
-            return c.json({ msg: '必须上传2张图片' } satisfies NamecardMessageResponse);
+            return c.json({ msg: '必须上传2张图片' } satisfies NamecardMessageResponse, 400);
         }
         if (files.some((file) => file.body.byteLength > 3 * 1024 * 1024)) {
             return c.json({ msg: '文件过大' } satisfies NamecardMessageResponse, 400);
@@ -59,7 +61,7 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
         }
         if (await namecardRepository(c).findCardByOrderedHashes(outputs[0].hash, outputs[1].hash)) {
             await Promise.all(generated.map((key) => deleteObjectWithCompensation(runtime, key)));
-            return c.json({ msg: '重复上传' } satisfies NamecardMessageResponse);
+            return c.json({ msg: '重复上传' } satisfies NamecardMessageResponse, 409);
         }
         const withdrawalToken = randomHex(32);
         const id = await namecardRepository(c).insertPendingCard({
