@@ -107,6 +107,11 @@ const withdrawNamecardResponseSchema = z.object({
   submission: namecardSubmissionSchema,
 })
 
+const namecardResubmitResponseSchema = z.object({
+  success: z.literal(true),
+  submission: namecardSubmissionSchema,
+})
+
 export type Namecard = z.infer<typeof namecardSchema>
 export type NamecardPage = z.infer<typeof namecardPageSchema>
 export type NamecardReactions = z.infer<typeof reactionSchema>
@@ -156,13 +161,10 @@ export function getNamecardSubmission(id: number, withdrawalToken: string) {
   return apiClient.Get<
     z.infer<typeof namecardSubmissionResponseSchema>,
     unknown
-  >(
-    `/api/namecards/submissions/${id}`,
-    {
-      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-      transform: (payload) => namecardSubmissionResponseSchema.parse(payload),
-    }
-  )
+  >(`/api/namecards/submissions/${id}`, {
+    headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+    transform: (payload) => namecardSubmissionResponseSchema.parse(payload),
+  })
 }
 
 export function withdrawNamecardSubmission(
@@ -179,6 +181,46 @@ export function withdrawNamecardSubmission(
     {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
       transform: (payload) => withdrawNamecardResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function replaceNamecardSubmissionImage(
+  id: number,
+  withdrawalToken: string,
+  side: "front" | "back",
+  expectedRevision: number,
+  file: File
+) {
+  const form = new FormData()
+  form.append("image", file)
+  return apiClient.Post<
+    z.infer<typeof namecardResubmitResponseSchema>,
+    unknown
+  >(
+    `/api/namecards/submissions/${id}/images/${side}?expected_revision=${expectedRevision}`,
+    form,
+    {
+      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function resubmitNamecardSubmission(
+  id: number,
+  withdrawalToken: string,
+  expectedRevision: number
+) {
+  return apiClient.Post<
+    z.infer<typeof namecardResubmitResponseSchema>,
+    unknown
+  >(
+    `/api/namecards/submissions/${id}/resubmit`,
+    { expected_revision: expectedRevision },
+    {
+      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
     }
   )
 }
