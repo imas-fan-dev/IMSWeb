@@ -19,15 +19,13 @@ on:
 permissions:
   contents: read
 
-env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}-api
-
 jobs:
   prepare:
     name: Resolve release
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      image_name: ${{ steps.release.outputs.image_name }}
       release_tag: ${{ steps.release.outputs.release_tag }}
       release_sha: ${{ steps.release.outputs.release_sha }}
     steps:
@@ -45,6 +43,7 @@ jobs:
           EVENT_TAG: ${{ github.ref_name }}
           MANUAL_TAG: ${{ inputs.release_tag }}
           CONFIRM_DATA_COMPATIBILITY: ${{ inputs.confirm_data_compatibility }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
 
@@ -77,6 +76,13 @@ jobs:
             exit 1
           fi
 
+          image_name="ghcr.io/${REPOSITORY,,}-api"
+          if [[ ! "$image_name" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*$ ]]; then
+            echo "Resolved image name is not a valid lowercase GHCR repository." >&2
+            exit 1
+          fi
+
+          echo "image_name=$image_name" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
 
@@ -87,6 +93,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
+      IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
       IMS_TEST_DATABASE_URL: postgresql://imsweb:imsweb-test-password@127.0.0.1:5432/postgres
     services:
       postgres:
@@ -181,6 +188,8 @@ jobs:
       - publish
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
     permissions:
       contents: read
       packages: read
