@@ -427,6 +427,17 @@ export function approveAdminNamecard(id: number, expectedRevision: number) {
   )
 }
 
+export function rejectAdminNamecard(id: number, expectedRevision: number) {
+  return apiClient.Post<{ success: true }, unknown>(
+    `/api/admin/cards/reject/${id}`,
+    { expected_revision: expectedRevision },
+    {
+      meta: withCsrf(),
+      name: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+    }
+  )
+}
+
 export function deleteAdminNamecard(id: number, expectedRevision: number) {
   return apiClient.Delete<{ success: true }, unknown>(
     `/api/admin/cards/${id}?expected_revision=${expectedRevision}`,

@@ -22,6 +22,12 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
                 revision: claim.revision
             } satisfies NamecardErrorResponse, 409);
         }
+        if (claim.status === 'withdrawn') {
+            return c.json({
+                error: '用户已撤回',
+                revision: claim.revision
+            } satisfies NamecardErrorResponse, 410);
+        }
         const storage = services(c).storage;
         if (!storage?.publish) {
             throw new Error('Object storage publication is unavailable');

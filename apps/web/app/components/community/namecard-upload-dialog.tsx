@@ -24,7 +24,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
-import { uploadNamecard } from "~/lib/api"
+import { isApiError, uploadNamecard } from "~/lib/api"
 import {
   namecardSubmissionManagePath,
   saveNamecardSubmissionReceipt,
@@ -85,8 +85,10 @@ export function NamecardUploadDialog() {
       setFront(null)
       setBack(null)
       form.reset()
-    } catch {
-      toast.error("名片上传失败，请检查图片后重试")
+    } catch (error) {
+      toast.error(
+        isApiError(error) ? error.message : "名片上传失败，请检查图片后重试"
+      )
     } finally {
       setUploading(false)
     }
