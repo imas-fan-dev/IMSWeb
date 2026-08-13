@@ -168,6 +168,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         'isolated-script',
         {
             'index.html': `${previewPrefix}/files/index.html`,
+            'app.js': `${previewPrefix}/files/app.js`,
             'preview.webp': `${previewPrefix}/files/preview.webp`
         },
         2_000
@@ -209,9 +210,14 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     await storage.put(
         `${previewPrefix}/files/index.html`,
         new TextEncoder().encode(
-            '<!doctype html><html><body><script>document.body.dataset.ok="1"</script></body></html>'
+            '<!doctype html><html><body><script src="./app.js?v=1"></script></body></html>'
         ),
         { contentType: 'text/html; charset=utf-8' }
+    );
+    await storage.put(
+        `${previewPrefix}/files/app.js`,
+        new TextEncoder().encode('document.body.dataset.ok = "1";'),
+        { contentType: 'text/javascript; charset=utf-8' }
     );
     await storage.put(
         `${previewPrefix}/files/preview.webp`,
@@ -302,6 +308,13 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     assert.match(
         forwardedContent.headers.get('content-security-policy') || '',
         /frame-ancestors http:\/\/main\.test:8080/
+    );
+    assert.match(
+        forwardedContent.headers.get('content-security-policy') || '',
+        new RegExp(
+            `style-src http:\\/\\/main\\.test:8080\\/site-content\\/hiro-2026\\/` +
+            `${publishedId}\\/ 'unsafe-inline'`
+        )
     );
     const forwardedShell = await nginxApp.request(
         'http://upstream.test/sites/hiro-2026',
@@ -493,14 +506,19 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     assert.match(published.headers.get('content-security-policy') || '', /frame-ancestors http:\/\/main\.test/);
     assert.match(
         published.headers.get('content-security-policy') || '',
-        /img-src 'self' data: https:\/\/assets\.example\.test/
+        new RegExp(
+            `img-src http:\\/\\/main\\.test\\/site-content\\/hiro-2026\\/` +
+            `${publishedId}\\/ data: https:\\/\\/assets\\.example\\.test`
+        )
     );
+    assert.doesNotMatch(published.headers.get('content-security-policy') || '', /'self'/);
 
     const stylesheet = await app.request(
-        `http://main.test/site-content/hiro-2026/${publishedId}/fonts.css`
+        `http://main.test/site-content/hiro-2026/${publishedId}/fonts.css?v=20260813-34`
     );
     const stylesheetText = await stylesheet.text();
     assert.equal(stylesheet.status, 200);
+    assert.equal(stylesheet.headers.get('content-type'), 'text/css; charset=utf-8');
     assert.equal(stylesheet.headers.get('cache-control'), 'public, max-age=31536000, immutable');
     assert.doesNotMatch(stylesheetText, /fonts\.example|font-family: Remote/);
     assert.match(stylesheetText, /font-family: Local|url\(local\.woff2\)/);
@@ -551,9 +569,35 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     assert.equal(preview.status, 200);
     assert.equal(preview.headers.get('cache-control'), 'private, no-store');
     const previewCsp = preview.headers.get('content-security-policy') || '';
-    assert.match(previewCsp, /script-src 'self' 'unsafe-inline'/);
+    assert.match(
+        previewCsp,
+        new RegExp(
+            `script-src http:\\/\\/main\\.test\\/site-content\\/_preview\\/` +
+            `${'b'.repeat(64)}\\/ 'unsafe-inline'`
+        )
+    );
+    assert.match(
+        previewCsp,
+        new RegExp(
+            `style-src http:\\/\\/main\\.test\\/site-content\\/_preview\\/` +
+            `${'b'.repeat(64)}\\/ 'unsafe-inline'`
+        )
+    );
     assert.match(previewCsp, /sandbox allow-scripts/);
-    assert.doesNotMatch(previewCsp, /allow-same-origin|allow-forms|allow-top-navigation/);
+    assert.doesNotMatch(
+        previewCsp,
+        /'self'|allow-same-origin|allow-forms|allow-top-navigation/
+    );
+    const previewScript = await app.request(
+        `http://main.test/site-content/_preview/${'b'.repeat(64)}/app.js?v=20260813-26`
+    );
+    assert.equal(previewScript.status, 200);
+    assert.equal(
+        previewScript.headers.get('content-type'),
+        'text/javascript; charset=utf-8'
+    );
+    assert.equal(await previewScript.text(), 'document.body.dataset.ok = "1";');
+    assert.equal(previewScript.headers.get('content-security-policy'), previewCsp);
     const previewAsset = await app.request(
         `http://main.test/site-content/_preview/${'b'.repeat(64)}/preview.webp`
     );

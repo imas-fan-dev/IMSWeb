@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseSitePackageMaxUploadBytes } from '@/config/env';
 import {
+    sitePackageContentCsp,
     sitePackageFrameAncestorOrigins,
     sitePackageRequestOrigin
 } from '@/domains/site-packages/site-package-support';
@@ -53,6 +54,40 @@ test('site-package frame ancestors accept loopback aliases only for local develo
     assert.deepEqual(sitePackageFrameAncestorOrigins('https://www.example.com'), [
         'https://www.example.com'
     ]);
+});
+
+test('isolated site-package CSP uses an explicit content path for opaque origins', () => {
+    const contentSource =
+        'https://www.example.com/site-content/hiro-2026/' +
+        '22222222-2222-4222-8222-222222222222/';
+    const csp = sitePackageContentCsp(
+        'isolated-script',
+        'https://www.example.com',
+        contentSource,
+        'https://assets.example.com'
+    );
+
+    assert.match(csp, new RegExp(`script-src ${contentSource} 'unsafe-inline'`));
+    assert.match(csp, new RegExp(`style-src ${contentSource} 'unsafe-inline'`));
+    assert.match(
+        csp,
+        new RegExp(`img-src ${contentSource} data: https://assets\\.example\\.com`)
+    );
+    assert.match(csp, /sandbox allow-scripts/);
+    assert.doesNotMatch(csp, /'self'|allow-same-origin/);
+});
+
+test('safe site-package CSP blocks scripts while allowing packaged styles', () => {
+    const contentSource = 'https://www.example.com/site-content/safe/revision/';
+    const csp = sitePackageContentCsp(
+        'safe',
+        'https://www.example.com',
+        contentSource
+    );
+
+    assert.match(csp, /script-src 'none'; sandbox(?:;|$)/);
+    assert.match(csp, new RegExp(`style-src ${contentSource} 'unsafe-inline'`));
+    assert.doesNotMatch(csp, /allow-scripts|allow-same-origin|'self'/);
 });
 
 test('site-package upload limit is bounded by the archive parser maximum', () => {
