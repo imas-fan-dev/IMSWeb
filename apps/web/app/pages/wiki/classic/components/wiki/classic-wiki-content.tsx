@@ -4,6 +4,7 @@ import type { WikiPublicCatalog, WikiPublicIdol } from "~/lib/api"
 
 import { ClassicGroupFilter } from "./classic-group-filter"
 import { ClassicIdolSection } from "./classic-idol-section"
+import { ClassicVoicedFilter } from "./classic-voiced-filter"
 
 type ClassicSelection = NonNullable<WikiPublicCatalog["selection"]>
 
@@ -15,6 +16,8 @@ interface ClassicWikiContentProps {
   groupFilterDisabled: boolean
   groups: ClassicSelection["groups"]
   ungroupedIdols: WikiPublicIdol[]
+  hideUnvoiced: boolean
+  onToggleHideUnvoiced: () => void
   onQueryChange: (query: string) => void
   onRetry: () => void
 }
@@ -27,6 +30,8 @@ export function ClassicWikiContent({
   groupFilterDisabled,
   groups,
   ungroupedIdols,
+  hideUnvoiced,
+  onToggleHideUnvoiced,
   onQueryChange,
   onRetry,
 }: ClassicWikiContentProps) {
@@ -63,6 +68,15 @@ export function ClassicWikiContent({
             ungroupedCount={selection.ungroupedIdols.length}
             disabled={groupFilterDisabled}
           />
+
+          {selection.agency.code === "cg" ? (
+            <div className="wiki-classic-voiced-filter-row">
+              <ClassicVoicedFilter
+                hideUnvoiced={hideUnvoiced}
+                onToggle={onToggleHideUnvoiced}
+              />
+            </div>
+          ) : null}
 
           <div className="wiki-classic-groups">
             {groups.length || ungroupedIdols.length ? (
