@@ -21,7 +21,6 @@ import type { NodeRuntimeServices, RuntimeServices } from '@/ports/runtime-servi
 import {
     COMPENSATION_DIR,
     EVENT_BASE,
-    IDEMPOTENCY_DIR,
     PUBLIC_DIR,
     STORY_DATA_DIR,
     UPLOADS_DIR,
@@ -38,8 +37,8 @@ import {
 } from '@/config/env';
 import { parseNodeObjectStorageConfig } from '@/config/object-storage';
 import { parseNodeDatabaseConfig } from '@/config/database';
-import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
-import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
+import { PostgresqlRateLimiter } from '@/infra/cache/postgresql/rate-limiter';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
@@ -55,6 +54,7 @@ import {
     listFrontendFiles,
     NodeStaticAssets
 } from '@/infra/http/filesystem/static-assets';
+import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { S3CompensationService } from '@/infra/oss/s3/compensation-service';
 import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
 import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
@@ -103,11 +103,13 @@ async function createNodeObjectStorage(
     database: ManagedSqlDatabase
 ): Promise<ObjectStorageServices> {
     if (config.type === 'filesystem') {
+        const storage = new FilesystemObjectStorage(filesystemRoots, {
+            publicReadUrlBase: config.publicReadUrlBase
+        });
         return {
             compensation: new FilesystemCompensationService(COMPENSATION_DIR),
-            storage: new FilesystemObjectStorage(filesystemRoots, {
-                publicReadUrlBase: config.publicReadUrlBase
-            })
+            objectDeletions: new PostgresqlObjectDeletionWorker(database, storage),
+            storage
         };
     }
     const client = new S3Client({
@@ -142,7 +144,11 @@ async function createNodeObjectStorage(
         state,
         compensation
     );
-    return { compensation, storage };
+    return {
+        compensation,
+        objectDeletions: new PostgresqlObjectDeletionWorker(database, storage),
+        storage
+    };
 }
 
 export async function initializeNodeRepositories(
@@ -246,8 +252,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 new Set(listFrontendFiles(PUBLIC_DIR))
             ),
             uploads: new StreamingUploadParser(),
-            idempotency: new FilesystemIdempotencyStore(IDEMPOTENCY_DIR),
-            rateLimiter: new MemoryRateLimiter(),
+            idempotency: new PostgresqlIdempotencyStore(connection),
+            rateLimiter: new PostgresqlRateLimiter(connection),
             health: {
                 async check() {
                     await connection.prepare('SELECT 1 AS ready').first('ready');

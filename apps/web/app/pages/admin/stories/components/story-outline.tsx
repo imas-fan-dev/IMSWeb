@@ -142,9 +142,7 @@ export function StoryOutline({
               key={category.id}
               category={category}
               open={expandedCategoryIds?.has(category.id)}
-              onOpenChange={(open) =>
-                onCategoryOpenChange?.(category.id, open)
-              }
+              onOpenChange={(open) => onCategoryOpenChange?.(category.id, open)}
               onCreate={onCreate}
               onEditCategory={onEditCategory}
               onEditCard={onEditCard}
@@ -495,6 +493,7 @@ function buildOutline(stories: WikiAdminStories, query: string) {
         displayOrder: categoryMap.size,
         showWhenEmpty: true,
         backgroundEligible: false,
+        revision: 0,
         cards: [],
       }
       categoryMap.set(story.category, category)

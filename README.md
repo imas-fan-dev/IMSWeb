@@ -129,7 +129,7 @@ workspace 时使用 `pnpm --filter @imsweb/api run <command>` 或
 依赖项和第三方内容继续适用其各自许可证，MIT 不会重新授权这些内容。
 
 Web 公开资产必须登记来源和许可状态，见
-[资产来源记录](apps/web/docs/ASSET_PROVENANCE.md)。没有明确再分发授权的图片、字体、
+[资产来源记录](docs/ASSET_PROVENANCE.md)。没有明确再分发授权的图片、字体、
 音视频、品牌标识、游戏资源或社区投稿不得加入公开仓库。
 
 《偶像大师》及相关名称、商标、角色和素材归各自权利人所有。本项目许可证不授予任何商标权，

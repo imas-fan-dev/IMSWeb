@@ -4,7 +4,7 @@ import type {
 } from '@/infra/db/sql/database';
 
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20260813000000_namecard_rejected_at';
+    '20260814170000_object_deletion_jobs';
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();

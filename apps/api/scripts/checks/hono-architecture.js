@@ -74,7 +74,7 @@ const infraCategories = new Set([
     'security'
 ]);
 const infraMiddleware = new Map([
-    ['cache', new Set(['filesystem', 'memory'])],
+    ['cache', new Set(['filesystem', 'memory', 'postgresql'])],
     ['db', new Set(['postgresql', 'repositories', 'sql'])],
     ['http', new Set(['busboy', 'filesystem'])],
     ['media', new Set(['sharp'])],
@@ -113,7 +113,14 @@ for (const entry of fs.readdirSync(infraRoot, { withFileTypes: true })) {
 
 const databaseLayout = new Map([
     ['postgresql', ['connection.ts', 'schema-strategy.ts']],
-    ['repositories', ['core-repository.ts', 'story-repository.ts']],
+    ['repositories', [
+        'core-repository.ts',
+        'story-repository.ts',
+        'story-catalog-repository.ts',
+        'story-conflicts.ts',
+        'story-rows.ts',
+        'wiki-entity-repository.ts'
+    ]],
     ['sql', ['database.ts', 'query.ts']]
 ]);
 for (const [directory, requiredFiles] of databaseLayout) {
@@ -129,20 +136,42 @@ const portContracts = new Map([
     ['cache.ts', ['IdempotencyStore', 'RateLimiter', 'CacheServices']],
     ['http.ts', ['StaticAssets', 'UploadParser', 'HttpServices']],
     ['media.ts', ['ImageProcessor', 'MediaServices']],
-    ['object-storage.ts', ['ObjectStorage', 'CompensationService', 'ObjectStorageServices']],
-    ['repositories.ts', [
+    ['object-storage.ts', [
+        'ObjectStorage',
+        'CompensationService',
+        'ObjectDeletionWorker',
+        'ObjectStorageServices'
+    ]],
+    ['repositories-core.ts', [
         'AuthRepository',
+        'AdminAccountRepository',
         'AuditRepository',
         'NewsRepository',
         'EventRepository',
         'NamecardRepository',
         'ReactionRepository',
-        'SitePackageRepository',
-        'StoryRepository',
+        'HomepageLinkRepository',
+        'SitePackageRepository'
+    ]],
+    ['repositories-wiki.ts', [
+        'StoryRepository'
+    ]],
+    ['repositories.ts', [
         'RepositoryServices'
     ]],
     ['runtime-services.ts', ['RuntimeServices', 'NodeRuntimeServices']],
-    ['security.ts', ['PasswordVerifier', 'TokenService', 'SecurityServices']]
+    ['security.ts', ['PasswordVerifier', 'TokenService', 'SecurityServices']],
+    ['wiki-contracts.ts', [
+        'WikiPublicCatalogContract',
+        'WikiPublicStoriesContract',
+        'WikiAdminCatalogContract',
+        'WikiAdminStoriesContract',
+        'WikiCategoryContract',
+        'WikiCatalogOptionContract',
+        'WikiStoryContentTypeContract',
+        'WikiStorySourcePlatformContract',
+        'WikiAdminStoryContract'
+    ]]
 ]);
 for (const [name, contracts] of portContracts) {
     const file = path.join(portRoot, name);
@@ -416,8 +445,9 @@ for (const exportName of ['honoApp', 'app', 'startServer', 'closeDatabase']) {
 
 const nodeServicesSource = fs.readFileSync(path.join(sourceRoot, 'runtime/node-services.ts'), 'utf8');
 for (const implementation of [
-    'FilesystemIdempotencyStore',
-    'MemoryRateLimiter',
+    'PostgresqlIdempotencyStore',
+    'PostgresqlRateLimiter',
+    'PostgresqlObjectDeletionWorker',
     'PostgresConnection',
     'FilesystemObjectStorage',
     'S3ObjectStorage',

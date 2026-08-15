@@ -109,11 +109,12 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     app.use('*', async (c, next) => {
         const pathname = validatedRequestPath(c);
         const runtime = c.get('services');
-        if (
-            isDynamicBusinessRequest(c.req.method, pathname) &&
-            runtime.compensation && runtime.storage
-        ) {
-            await runtime.compensation.run(runtime.storage, 3).catch((error) => console.warn(error));
+        if (isDynamicBusinessRequest(c.req.method, pathname)) {
+            if (runtime.compensation && runtime.storage) {
+                await runtime.compensation.run(runtime.storage, 3)
+                    .catch((error) => console.warn(error));
+            }
+            await runtime.objectDeletions?.run(3).catch((error) => console.warn(error));
         }
         await next();
     });

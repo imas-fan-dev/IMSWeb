@@ -67,11 +67,12 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `DATABASE_URL` | PostgreSQL 连接 | 必填，由密钥系统注入 |
 | `IMS_PUBLIC_DIR` | 不可变客户端目录 | `/srv/ims/current/apps/api/dist/node-client` |
 | `IMS_COMPENSATION_DIR` | 文件存储补偿 journal | release 外绝对目录 |
-| `IMS_IDEMPOTENCY_DIR` | 编年史幂等 journal | release 外绝对目录 |
 | `IMS_UPLOADS_DIR` | 普通上传目录 | release 外绝对目录 |
 | `IMS_EVENT_BASE_DIR` | 编年史状态目录 | release 外绝对目录 |
 | `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
 | `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
+
+请求幂等记录和共享限流窗口由 PostgreSQL 持有，不再需要单机文件 journal 配置。
 
 管理员会话使用 15 分钟的 access JWT 和 30 天滑动有效期的 refresh token。两者都只写入
 `HttpOnly`、`SameSite=Lax` Cookie；refresh token 只保存 SHA-256 摘要，并在每次刷新时轮换。
@@ -104,7 +105,7 @@ pnpm run migration:postgresql
 
 数据库与媒体必须在同一停写窗口备份并用同一标识归档。PostgreSQL 使用与生产版本兼容的
 `pg_dump --format=custom`，并保存 restore 演练结果。文件系统
-媒体至少包括 uploads、chronicle、story、compensation 和 idempotency 目录；生成文件清单与
+媒体至少包括 uploads、chronicle、story 和 compensation 目录；生成文件清单与
 SHA-256 后再归档。S3 使用版本化 bucket、对象清单和数据库中的对象状态共同构成恢复点。
 
 禁止只恢复数据库或只恢复媒体。任何恢复都要先保留故障现场，并取得业务负责人对可能丢失
@@ -210,6 +211,13 @@ test "$(readlink "$IMS_CURRENT_LINK")" = "$IMS_RELEASES_DIR/$PREVIOUS_RELEASE_ID
   再检查会话是否过期、已登出撤销或因旧 refresh token 重放而整条会话被撤销。
 - PostgreSQL 就绪失败：检查连接预算、migration、锁等待和语句超时，再核对结构化数据库日志。
 - 图片 `404`：核对数据库逻辑路径、对象键和前缀；签名 URL 失败时检查 endpoint、时钟和权限。
+- 历史站点包删除后 OSS 空间未下降：按 `state` 汇总 `object_deletion_jobs`，检查 pending/failed 的
+  `next_attempt_at` 与 `last_error`；`quarantined_at` 非空表示已达到重试上限，需要先修复权限、
+  endpoint 或对象状态，再通过调用 `ObjectDeletionWorker.retryQuarantined(jobId)` 的运维入口显式
+  重新入队。若 outbox 与 S3 compensation 均为 completed 但空间仍未下降，检查 bucket versioning
+  的 noncurrent versions 与 delete markers；配置经过审计的 noncurrent-version lifecycle，或使用
+  专用 version-purge worker，且不得删除 PostgreSQL 活动索引仍引用的对象。不要手工恢复已删除的
+  revision 行。
 - 编年史状态异常：将数据库记录、对象和 journal 作为一个恢复单元检查。
 - 原生模块启动失败：在目标主机重新用 frozen lockfile 安装，不能跨平台复制依赖。
 

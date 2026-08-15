@@ -12,6 +12,7 @@ import {
 function idol(id: number, name: string, groupIds: number[]): WikiAdminIdol {
   return {
     id,
+    agencyId: 6,
     name,
     folderName: `idol_${id}`,
     color: "#8dbbff",

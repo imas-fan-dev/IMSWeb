@@ -99,6 +99,7 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
     'site-packages': [
         'handleCreateSitePackage',
         'handleCreateSitePackageRevision',
+        'handleDeleteSitePackageRevision',
         'handleGetPublicSitePackage',
         'handleListSitePackages',
         'handlePublishSitePackageRevision',
@@ -403,7 +404,7 @@ test('route handler inventory remains explicit and complete for all 18 domains',
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([domain, handlers]) => [domain, [...handlers].sort()]));
     assert.deepEqual(actual, expected);
-    assert.equal(Object.values(actual).flat().length, 128);
+    assert.equal(Object.values(actual).flat().length, 129);
 });
 
 test('route handlers use validated request models and named multipart parsers', () => {
