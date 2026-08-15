@@ -5,6 +5,7 @@ import type {
     AuditRepository,
     AuthRepository,
     CardMediaRecord,
+    DeleteSitePackageRevisionInput,
     EventRepository,
     EventInput,
     HomepageLinkRecord,
@@ -30,6 +31,7 @@ import type {
     SitePackageRecord,
     SitePackagePublicationResult,
     SitePackageRepository,
+    SitePackageRevisionDeletionResult,
     SitePackageRevisionRecord,
     SitePackageWithRevisions,
     UserRecord
@@ -941,6 +943,68 @@ export class SqlCoreRepository implements
         if (!operation) return null;
         if (!revision) throw new Error('Published site package revision could not be read');
         return { revision, operation };
+    }
+
+    deleteSitePackageRevision(
+        input: DeleteSitePackageRevisionInput
+    ): Promise<SitePackageRevisionDeletionResult | null> {
+        return this.database.transaction(async (database) => {
+            const sitePackage = await queryOne<SitePackageRecord>(
+                database,
+                'SELECT * FROM site_packages WHERE id=? FOR UPDATE',
+                [input.packageId]
+            );
+            if (!sitePackage) return null;
+            const revision = await queryOne<SitePackageRevisionRecord>(
+                database,
+                'SELECT * FROM site_package_revisions WHERE package_id=? AND id=?',
+                [input.packageId, input.revisionId]
+            );
+            if (!revision) return null;
+            if (sitePackage.published_revision_id === revision.id) {
+                return {
+                    kind: 'published',
+                    revision,
+                    sitePackage,
+                    packageDeleted: false
+                };
+            }
+            const prefix = `site-packages/${input.packageId}/revisions/${input.revisionId}/`;
+            await database.prepare(
+                `INSERT INTO object_deletion_jobs
+                    (id, resource_type, resource_id, target_kind, target, state,
+                     attempts, next_attempt_at, created_at, updated_at)
+                 VALUES (?, 'site-package-revision', ?, 'prefix', ?, 'pending', 0, ?, ?, ?)`
+            ).bind(
+                input.deletionJobId,
+                input.revisionId,
+                prefix,
+                input.deletedAt,
+                input.deletedAt,
+                input.deletedAt
+            ).run();
+            const deleted = await database.prepare(
+                `DELETE FROM site_package_revisions
+                 WHERE package_id=? AND id=?`
+            ).bind(input.packageId, input.revisionId).run();
+            if (deleted.meta.changes !== 1) {
+                throw new Error('Site package revision delete lost its lock');
+            }
+            const removedPackage = await database.prepare(
+                `DELETE FROM site_packages
+                 WHERE id=? AND published_revision_id IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM site_package_revisions WHERE package_id=?
+                   )`
+            ).bind(input.packageId, input.packageId).run();
+            const packageDeleted = removedPackage.meta.changes === 1;
+            if (!packageDeleted) {
+                await database.prepare(
+                    `UPDATE site_packages SET updated_by=?, updated_at=? WHERE id=?`
+                ).bind(input.deletedBy, input.deletedAt, input.packageId).run();
+            }
+            return { kind: 'deleted', revision, sitePackage, packageDeleted };
+        });
     }
 
     async rotateSitePackagePreviewToken(

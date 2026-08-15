@@ -32,6 +32,7 @@ const agencies = [
     bannerTitle: "765PRO ALLSTARS",
     iconUrl: null,
     idolCount: 1,
+    entryCount: 1,
   },
   {
     id: 6,
@@ -41,6 +42,7 @@ const agencies = [
     bannerTitle: "283 Production",
     iconUrl: null,
     idolCount: 2,
+    entryCount: 2,
   },
 ]
 
@@ -984,6 +986,7 @@ describe("classic Wiki pages", () => {
       bannerTitle: "CINDERELLA GIRLS",
       iconUrl: null,
       idolCount: 2,
+      entryCount: 2,
     }
     const voiced = {
       id: 2,

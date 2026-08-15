@@ -48,6 +48,9 @@ pnpm run check:root
 - Web 改动提交前运行 `pnpm --filter @imsweb/web format` 和
   `pnpm --filter @imsweb/web lint`。
 - 复用现有 port、adapter、API client 和 UI 原语，不在页面或业务域重复实现基础设施逻辑。
+- Wiki 线协议类型以 `apps/api/src/ports/wiki-contracts.ts` 为唯一来源；修改后运行
+  `node apps/api/scripts/contracts/generate-web-contracts.mjs` 并提交生成的 Web 声明，
+  `pnpm run check:root` 会校验漂移。
 - 保持 Pull Request 聚焦，不夹带无关格式化、生成产物或目录重构。
 
 修改前还应阅读根目录和目标 workspace 的 `.rules`；`AGENTS.md` 与 `CLAUDE.md` 是指向该
@@ -76,7 +79,7 @@ Pull Request 中列出实际运行的命令和结果；无法运行的门禁要�
 - 未脱敏的用户数据或生产数据样本；
 - 来源、权利人和再分发许可不明确的图片、字体、音视频、品牌标识或内容数据。
 
-新增公开资产必须在 `apps/web/docs/ASSET_PROVENANCE.md` 记录原始来源、权利人、许可证或
+新增公开资产必须在 `docs/ASSET_PROVENANCE.md` 记录原始来源、权利人、许可证或
 书面授权、允许的使用范围、修改状态和文件 SHA-256。仅有外链、作者昵称或“非商用”说明不
 等于取得开源再分发许可。
 

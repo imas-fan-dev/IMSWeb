@@ -14,6 +14,8 @@ import type {
 } from '@/ports/object-storage';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { queryOne } from '@/infra/db/sql/query';
+import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
@@ -35,6 +37,7 @@ class MemoryStorage implements ObjectStorage {
     readonly objects = new Map<string, StoredObject>();
     reads: string[] = [];
     readUrls: Array<{ key: string; method?: 'GET' | 'HEAD' }> = [];
+    deletedPrefixes: string[] = [];
 
     async get(key: string): Promise<StoredObject | null> {
         this.reads.push(key);
@@ -93,6 +96,7 @@ class MemoryStorage implements ObjectStorage {
     }
 
     async deletePrefix(prefix: string): Promise<void> {
+        this.deletedPrefixes.push(prefix);
         for (const key of [...this.objects.keys()]) {
             if (key.startsWith(prefix)) this.objects.delete(key);
         }
@@ -127,8 +131,9 @@ function revision(
 }
 
 test('site-package routes share the main origin and enforce manifests, CSP, and revisions', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'site-routes');
     const repository = new SqlCoreRepository(
-        await createPostgresTestDatabase(t, 'site-routes'),
+        database,
         new PostgresqlSchemaStrategy()
     );
     t.after(() => repository.close());
@@ -229,6 +234,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         sitePackages: repository,
         audit: repository,
         storage,
+        objectDeletions: new PostgresqlObjectDeletionWorker(database, storage),
         uploads: new StreamingUploadParser(),
         tokens: {
             sign: async () => 'op-token',
@@ -681,6 +687,76 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         auditCountBeforeFailedPublish,
         'a failed publication must not append an audit record'
     );
+
+    const deletePublished = await app.request(
+        `http://main.test/api/admin/site-packages/${packageId}/revisions/${publishedId}`,
+        { method: 'DELETE', headers: { authorization: 'Bearer op-token' } }
+    );
+    assert.equal(deletePublished.status, 409);
+    assert.deepEqual(await deletePublished.json(), {
+        error: '当前线上版本不能删除，请先发布其他版本'
+    });
+    assert.equal(
+        (await queryOne<{ count: number }>(database,
+            'SELECT COUNT(*) AS count FROM object_deletion_jobs'
+        ))?.count,
+        0,
+        'a protected publication must not enqueue object deletion'
+    );
+
+    const unauthorizedDelete = await app.request(
+        `http://main.test/api/admin/site-packages/${packageId}/revisions/${previewId}`,
+        { method: 'DELETE' }
+    );
+    assert.equal(unauthorizedDelete.status, 401);
+    const historicalObject = `${previewPrefix}/files/app.js`;
+    assert.equal(await storage.exists(historicalObject), true);
+    const deleted = await app.request(
+        `http://main.test/api/admin/site-packages/${packageId}/revisions/${previewId}`,
+        { method: 'DELETE', headers: { authorization: 'Bearer op-token' } }
+    );
+    assert.equal(deleted.status, 200);
+    assert.deepEqual(await deleted.json(), {
+        success: true,
+        packageId,
+        revisionId: previewId,
+        revisionNumber: 2,
+        packageDeleted: false,
+        objectCleanup: 'queued'
+    });
+    assert.equal(await repository.findSitePackageRevisionById(packageId, previewId), null);
+    assert.equal(await storage.exists(historicalObject), true, 'request only commits the outbox job');
+    const deletionAudit = (await repository.listRecentAuditLogs(1))[0];
+    assert.equal(deletionAudit?.action, '删除站点包历史版本');
+    assert.equal(deletionAudit?.target, 'hiro-2026#2');
+    assert.equal(
+        (await queryOne<{ state: string }>(database,
+            'SELECT state FROM object_deletion_jobs WHERE resource_id=?',
+            [previewId]
+        ))?.state,
+        'pending'
+    );
+
+    const refreshedAfterDelete = await app.request(
+        'http://main.test/api/admin/site-packages',
+        { headers: { authorization: 'Bearer op-token' } }
+    );
+    assert.equal(refreshedAfterDelete.status, 200);
+    assert.equal((await refreshedAfterDelete.json()).packages[0].revisions.length, 1);
+    assert.equal(await storage.exists(historicalObject), false);
+    assert.deepEqual(storage.deletedPrefixes, [`${previewPrefix}/`]);
+    assert.equal(
+        (await queryOne<{ state: string }>(database,
+            'SELECT state FROM object_deletion_jobs WHERE resource_id=?',
+            [previewId]
+        ))?.state,
+        'completed'
+    );
+    assert.equal((await app.request(rotatedBody.previewUrl)).status, 404);
+    assert.equal((await app.request(
+        `http://main.test/api/admin/site-packages/${packageId}/revisions/${previewId}`,
+        { method: 'DELETE', headers: { authorization: 'Bearer op-token' } }
+    )).status, 404);
 
     const head = await app.request(
         `http://main.test/site-content/hiro-2026/${publishedId}/`,

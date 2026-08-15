@@ -75,7 +75,13 @@ export interface CompensationService {
     run(storage: ObjectStorage, limit?: number): Promise<void>;
 }
 
+export interface ObjectDeletionWorker {
+    run(limit?: number): Promise<void>;
+    retryQuarantined(jobId: string): Promise<boolean>;
+}
+
 export interface ObjectStorageServices {
     compensation: CompensationService;
+    objectDeletions: ObjectDeletionWorker;
     storage: ObjectStorage;
 }

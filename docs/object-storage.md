@@ -58,7 +58,8 @@ pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
 - Core/Story 关系数据，由一个 `DATABASE_URL` 指向的 PostgreSQL 数据库持有；
 - filesystem 模式的删除补偿仍由 `IMS_COMPENSATION_DIR` 指向本地持久卷；S3 模式的补偿、
   重试租约和隔离状态保存在统一数据库的 `s3_compensation_jobs`；
-- 编年史幂等 journal 仍由 `IMS_IDEMPOTENCY_DIR` 指向本地持久卷；
+- 请求幂等租约、响应回放和共享限流窗口保存在 PostgreSQL 的
+  `request_idempotency_records`、`rate_limit_windows` 和 `rate_limit_identities`；
 - 构建后的 Web 静态文件，仍由 `IMS_PUBLIC_DIR` 提供。
 
 ## 配置
@@ -99,8 +100,8 @@ AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优
 `AWS_SECRET_ACCESS_KEY`，使用短期凭据时再注入 `AWS_SESSION_TOKEN`。真实凭据不得写入
 `apps/api/.env.example`、release 或进程启动命令历史。
 
-应用不执行隐式 DDL。启用 S3 前必须执行 `pnpm run migration:postgresql` 并确认
-`0009_s3_public_storage_scope` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
+应用不执行隐式 DDL。启动服务前必须执行 `pnpm run migration:postgresql` 并确认最新版本
+`20260814170000_object_deletion_jobs` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
 
 AWS S3 + IAM Role 示例：
 
@@ -109,7 +110,6 @@ export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-media-prod
 export IMS_S3_REGION=ap-northeast-1
 export IMS_S3_PREFIX=v1
-export IMS_IDEMPOTENCY_DIR=/srv/ims/shared/idempotency
 pnpm run start
 ```
 
@@ -346,7 +346,15 @@ site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 字体和媒体，不会放宽脚本、样式或网络连接来源。运行时会删除入口 HTML 中阻塞渲染的
 `fonts.css` import，并从独立 CSS
 响应中移除 CSP 必然拒绝的远程字体声明。历史版本的直接 URL 返回 404，但仍可通过该版本的
-预览 bearer 查看；预览使用 `private, no-store`。浏览器公开入口
+预览 bearer 查看；预览使用 `private, no-store`。管理员删除历史版本时，当前
+`published_revision_id` 由 PostgreSQL 父行锁保护，不能被删除。其他 revision 的数据库删除与
+`site-packages/{packageId}/revisions/{revisionId}/` 前缀回收任务在同一事务提交；成功响应表示
+版本已不可预览或回滚且 OSS 回收已排队，不表示物理对象已同步删除。通用
+`ObjectDeletionWorker` 使用租约、重试和隔离状态处理任务；S3 逻辑键删除后，现有 compensation
+队列负责提交并重试 provider 的 `DeleteObject`。启用 bucket 版本控制时，该操作只创建 delete
+marker，`completed` 不表示 noncurrent version 的存储字节已经清除；生产环境必须配置经过审计的
+noncurrent-version lifecycle，或由后续 version-purge worker 使用 provider 的版本枚举与版本删除
+能力处理。任何清理策略仍不得删除 PostgreSQL 活动索引引用的对象。浏览器公开入口
 固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳；页面包本体也从主站
 `/site-content/...` 路径加载。iframe 的 `sandbox` 不包含 `allow-same-origin`，因此即使请求
 使用主站域名，页面包文档仍获得 opaque origin，脚本不能访问父页面、主站 Cookie 或存储。

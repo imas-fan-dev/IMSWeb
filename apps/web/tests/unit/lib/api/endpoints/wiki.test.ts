@@ -76,7 +76,7 @@ describe("Wiki admin API", () => {
               id: 1,
               code: "765pro",
               name: "765PRO",
-              color: null,
+              color: "#f34f6d",
               wikiEnabled: true,
               bannerTitle: "765PRO ALLSTARS",
               displayOrder: 0,
@@ -94,6 +94,7 @@ describe("Wiki admin API", () => {
                   idols: [
                     {
                       id: 10,
+                      agencyId: 1,
                       name: "天海春香",
                       folderName: "amami_haruka",
                       color: "#e22b30",
@@ -120,6 +121,7 @@ describe("Wiki admin API", () => {
           },
           idol: {
             id: 10,
+            agencyId: 1,
             name: "天海春香",
             folderName: "amami_haruka",
             color: "#e22b30",
@@ -137,6 +139,7 @@ describe("Wiki admin API", () => {
               displayOrder: 0,
               showWhenEmpty: true,
               backgroundEligible: false,
+              revision: 0,
             },
           ],
           contentTypes: [
@@ -160,9 +163,11 @@ describe("Wiki admin API", () => {
               revision: 0,
             },
           ],
+          cards: [],
           stories: [
             {
               id: 21,
+              cardId: 401,
               category: "主线",
               cardName: "【第一话】",
               upName: "投稿者",
@@ -175,6 +180,7 @@ describe("Wiki admin API", () => {
               subtitle: "开场",
               imageFile: null,
               imageUrl: "",
+              revision: 0,
             },
           ],
         })
@@ -224,6 +230,7 @@ describe("Wiki admin API", () => {
               bannerTitle: "283 Production",
               iconUrl: "/icon/agencies/6.webp",
               idolCount: 1,
+              entryCount: 1,
               imageTransform: {
                 fit: "contain",
                 focalX: "0.25",
@@ -242,6 +249,7 @@ describe("Wiki admin API", () => {
               bannerTitle: "283 Production",
               iconUrl: "/icon/agencies/6.webp",
               idolCount: 1,
+              entryCount: 1,
             },
             layoutRevision: 3,
             groups: [

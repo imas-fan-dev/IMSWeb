@@ -55,6 +55,7 @@ describe("StoryCategoryEditorDialog", () => {
           displayOrder: 0,
           showWhenEmpty: true,
           backgroundEligible: false,
+          revision: 0,
         }}
         onOpenChange={onOpenChange}
         onSaved={onSaved}

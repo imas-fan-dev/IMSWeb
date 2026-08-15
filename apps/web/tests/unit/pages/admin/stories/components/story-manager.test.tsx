@@ -30,7 +30,7 @@ function catalogPayload() {
         id: 1,
         code: "765pro",
         name: "765PRO",
-        color: null,
+        color: "#f34f6d",
         wikiEnabled: true,
         bannerTitle: "765PRO ALLSTARS",
         displayOrder: 0,
@@ -48,6 +48,7 @@ function catalogPayload() {
             idols: [
               {
                 id: 10,
+                agencyId: 1,
                 name: "天海春香",
                 folderName: "amami_haruka",
                 color: "#e22b30",
@@ -75,6 +76,7 @@ function storiesPayload(upName = "投稿者") {
     },
     idol: {
       id: 10,
+      agencyId: 1,
       name: "天海春香",
       folderName: "amami_haruka",
       color: "#e22b30",
@@ -91,6 +93,7 @@ function storiesPayload(upName = "投稿者") {
         displayOrder: 0,
         showWhenEmpty: true,
         backgroundEligible: false,
+        revision: 0,
       },
       {
         id: 2,
@@ -99,6 +102,7 @@ function storiesPayload(upName = "投稿者") {
         displayOrder: 1,
         showWhenEmpty: true,
         backgroundEligible: false,
+        revision: 0,
       },
     ],
     contentTypes: [
@@ -122,9 +126,11 @@ function storiesPayload(upName = "投稿者") {
         revision: 0,
       },
     ],
+    cards: [],
     stories: [
       {
         id: 21,
+        cardId: 401,
         category: "主线",
         cardName: "【第一话】",
         upName,
@@ -137,6 +143,7 @@ function storiesPayload(upName = "投稿者") {
         subtitle: "开场",
         imageFile: null,
         imageUrl: "",
+        revision: 0,
       },
     ],
   }
