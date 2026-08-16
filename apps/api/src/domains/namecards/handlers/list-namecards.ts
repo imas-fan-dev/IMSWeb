@@ -1,4 +1,5 @@
 import type { AppEnvironment } from '@/app';
+import { resolveNamecardThumbnailUrl } from '@/domains/namecards/media-assets';
 import type { NamecardListQuery } from '@/domains/namecards/request';
 import {
     toPublicNamecardResponse,
@@ -20,11 +21,23 @@ export async function handleListNamecards(
         const storage = services(c).storage;
         return c.json({
             list: storage
-                ? await Promise.all(cards.map(async (card) => ({
-                    ...card,
-                    image1_url: await resolvePublicMediaUrl(storage, card.image1_url),
-                    image2_url: await resolvePublicMediaUrl(storage, card.image2_url)
-                })))
+                ? await Promise.all(cards.map(async (card) => {
+                    const [image1Url, image2Url] = await Promise.all([
+                        resolvePublicMediaUrl(storage, card.image1_url),
+                        resolvePublicMediaUrl(storage, card.image2_url)
+                    ]);
+                    const [image1ThumbnailUrl, image2ThumbnailUrl] = await Promise.all([
+                        resolveNamecardThumbnailUrl(storage, card.image1_url, image1Url),
+                        resolveNamecardThumbnailUrl(storage, card.image2_url, image2Url)
+                    ]);
+                    return {
+                        ...card,
+                        image1_url: image1Url,
+                        image2_url: image2Url,
+                        image1_thumbnail_url: image1ThumbnailUrl,
+                        image2_thumbnail_url: image2ThumbnailUrl
+                    };
+                }))
                 : cards,
             total,
             totalPage: Math.ceil(total / size)

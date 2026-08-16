@@ -16,6 +16,8 @@ describe("community API contracts", () => {
         id: "12",
         image1_url: "/uploads/front.webp",
         image2_url: "/uploads/back.webp",
+        image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
+        image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
         status: "approved",
         created_at: null,
       }).id

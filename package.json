@@ -46,6 +46,7 @@
     "test:r2:brand-assets": "pnpm --filter @imsweb/api run test:r2:brand-assets",
     "media:uploads:sync": "pnpm --filter @imsweb/api run migration:upload-media",
     "migration:public-objects": "pnpm --filter @imsweb/api run migration:public-objects",
+    "migration:namecard-thumbnails": "pnpm --filter @imsweb/api run migration:namecard-thumbnails",
     "migration:single-bucket": "pnpm --filter @imsweb/api run migration:single-bucket",
     "migration:release:activate": "sh scripts/migration/activate-node-release.sh",
     "migration:release:rollback": "sh scripts/migration/activate-node-release.sh --rollback",

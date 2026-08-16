@@ -208,35 +208,37 @@ function NamecardItem({
   return (
     <Card className="h-full">
       <div className="grid grid-cols-2 gap-px bg-border">
-        {[card.image1_url, card.image2_url].map((image, index) => (
-          <button
-            key={`${card.id}-${index === 0 ? "front" : "back"}`}
-            type="button"
-            className="group relative aspect-3/2 w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            aria-label={`查看制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
-            title="查看大图"
-            onClick={(event) =>
-              onPreview(
-                card,
-                index === 0 ? "front" : "back",
-                event.currentTarget
-              )
-            }
-          >
-            <img
-              src={image}
-              alt=""
-              loading="lazy"
-              className="size-full object-cover transition-transform group-hover:scale-[1.02]"
-            />
-            <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-colors group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
-              <ImagesIcon
-                className="size-5 drop-shadow-sm"
-                aria-hidden="true"
+        {[card.image1_thumbnail_url, card.image2_thumbnail_url].map(
+          (thumbnail, index) => (
+            <button
+              key={`${card.id}-${index === 0 ? "front" : "back"}`}
+              type="button"
+              className="group relative aspect-3/2 w-full overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              aria-label={`查看制作人名片 ${card.id} ${index === 0 ? "正面" : "背面"}`}
+              title="查看大图"
+              onClick={(event) =>
+                onPreview(
+                  card,
+                  index === 0 ? "front" : "back",
+                  event.currentTarget
+                )
+              }
+            >
+              <img
+                src={thumbnail}
+                alt=""
+                loading="lazy"
+                className="size-full object-cover transition-transform group-hover:scale-[1.02]"
               />
-            </span>
-          </button>
-        ))}
+              <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-colors group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
+                <ImagesIcon
+                  className="size-5 drop-shadow-sm"
+                  aria-hidden="true"
+                />
+              </span>
+            </button>
+          )
+        )}
       </div>
       <CardHeader>
         <CardDescription className="flex items-center gap-1.5 tabular-nums">

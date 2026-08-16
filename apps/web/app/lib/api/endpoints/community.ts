@@ -63,6 +63,8 @@ export const namecardSchema = z.object({
   id: cardIdSchema,
   image1_url: z.string().min(1),
   image2_url: z.string().min(1),
+  image1_thumbnail_url: z.string().min(1),
+  image2_thumbnail_url: z.string().min(1),
   status: z.string().optional(),
   created_at: z.string().nullable().optional(),
 })

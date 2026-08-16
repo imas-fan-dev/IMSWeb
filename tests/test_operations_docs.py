@@ -202,6 +202,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "不会自动搬迁",
             "migration:public-objects",
             "migration:single-bucket",
+            "migration:namecard-thumbnails",
             "__protected",
             "Worker",
             "D1",

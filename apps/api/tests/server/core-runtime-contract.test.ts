@@ -203,6 +203,14 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         'community/namecards/assets/contract-seed-back/image.webp',
         Uint8Array.of(2)
     );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-front/thumbnail.jpg',
+        Uint8Array.of(3)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-back/thumbnail.jpg',
+        Uint8Array.of(4)
+    );
     const compensationDelegate = new FilesystemCompensationService(compensationDir);
     let businessInsertFailure = false;
     let deleteFailure = false;
