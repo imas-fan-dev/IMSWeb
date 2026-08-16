@@ -119,7 +119,7 @@ export async function handleUploadNamecard(
                 new TextEncoder().encode(withdrawalToken),
             ),
             seriesCode,
-            favoriteIdolIds,
+            idolIds: favoriteIdolIds,
             submissionKind: "guest" as const,
         };
         const id = await namecardRepository(c).insertPendingCard(pendingCard);

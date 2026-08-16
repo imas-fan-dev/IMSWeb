@@ -101,6 +101,7 @@ function card(
         displayName: `Card ${id}`,
         seriesCode: '765',
         favoriteIdol: 'Haruka',
+        favoriteIdolIds: [900_001],
         frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
         backObjectKey: `community/fudaba/cards/${id}/back.webp`,
         accent: '#4f64dd',

@@ -92,6 +92,7 @@ function ownedCard(
         displayName: `Card ${id}`,
         seriesCode,
         favoriteIdol: 'Haruka',
+        favoriteIdolIds: [900_001],
         frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
         backObjectKey: `community/fudaba/cards/${id}/back.webp`,
         accent: '#4f64dd',
@@ -194,6 +195,19 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
     await fixture.platform.createAccountWithProfile(account(otherId));
     await fixture.platform.createAccountWithProfile(account(restrictedId, 'restricted'));
 
+    assert.deepEqual(await fixture.fudaba.createCardForOwner({
+        ...ownedCard(`${fixture.dialect}-empty-idols-card`, ownerId),
+        favoriteIdolIds: []
+    }), { status: 'unavailable' });
+    assert.deepEqual(await fixture.fudaba.createCardForOwner({
+        ...ownedCard(`${fixture.dialect}-duplicate-idols-card`, ownerId),
+        favoriteIdolIds: [900_001, 900_001]
+    }), { status: 'unavailable' });
+    assert.deepEqual(await fixture.fudaba.createCardForOwner({
+        ...ownedCard(`${fixture.dialect}-missing-idol-card`, ownerId),
+        favoriteIdolIds: [999_999]
+    }), { status: 'unavailable' });
+
     assert.deepEqual(await fixture.fudaba.createCardForOwner(ownedCard(
         `${fixture.dialect}-restricted-card`,
         restrictedId
@@ -216,6 +230,11 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
     assert.equal(created.card.publication_status, 'pending');
     assert.equal(created.card.revision, 0);
     assert.equal(created.card.source_url, null);
+    assert.equal(created.card.favorite_idol, '测试春香');
+    assert.deepEqual(
+        created.card.favorite_idols.map((idol) => idol.idol_id),
+        [900_001]
+    );
 
     const otherCardId = `${fixture.dialect}-other-card`;
     await fixture.fudaba.createCard(importedCard(otherCardId, otherId));
@@ -232,6 +251,7 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
         displayName: 'Intruder',
         seriesCode: '765',
         favoriteIdol: '',
+        favoriteIdolIds: [900_001],
         accent: '#ffffff',
         bio: '',
         tradeNote: '',
@@ -255,6 +275,7 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
         displayName: 'Updated Card',
         seriesCode: 'cg',
         favoriteIdol: 'Uzuki',
+        favoriteIdolIds: [900_001, 900_002] as number[],
         accent: '#ef5b6c',
         bio: 'Updated bio',
         tradeNote: 'Updated note',
@@ -270,11 +291,31 @@ async function assertCardWrites(fixture: Fixture): Promise<void> {
         "UPDATE agencies SET wiki_enabled=TRUE WHERE code='cg'"
     ).run();
 
+    assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
+        ...metadataInput,
+        favoriteIdolIds: [900_001, 900_001]
+    }), { status: 'unavailable' });
+    assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
+        ...metadataInput,
+        favoriteIdolIds: [999_999]
+    }), { status: 'unavailable' });
+
     const metadataSaved = await fixture.fudaba.updateCardMetadataForOwner(metadataInput);
     assert.equal(metadataSaved.status, 'saved');
     if (metadataSaved.status !== 'saved') return;
     assert.equal(metadataSaved.card.revision, 1);
     assert.equal(metadataSaved.card.series_code, 'cg');
+    assert.equal(metadataSaved.card.favorite_idol, '测试春香、测试卯月');
+    assert.deepEqual(
+        metadataSaved.card.favorite_idols.map((idol) => ({
+            id: idol.idol_id,
+            agency: idol.agency_code
+        })),
+        [
+            { id: 900_001, agency: '765' },
+            { id: 900_002, agency: 'cg' }
+        ]
+    );
     assert.equal(metadataSaved.card.media_rights_status, 'unknown');
     assert.equal(metadataSaved.card.publication_status, 'pending');
     assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
@@ -393,6 +434,7 @@ async function assertCrossInstanceCas(fixture: Fixture): Promise<void> {
         producerName: 'CAS Producer',
         seriesCode: '765',
         favoriteIdol: '',
+        favoriteIdolIds: [900_001] as number[],
         accent: '#4f64dd',
         bio: '',
         tradeNote: '',

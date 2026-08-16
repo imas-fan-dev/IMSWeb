@@ -56,6 +56,7 @@ function publicCard(overrides: Partial<FudabaPublicCardRecord> = {}): FudabaPubl
         display_name: 'Card A',
         series_code: '765',
         favorite_idol: 'Haruka',
+        favorite_idols: [],
         front_object_key: 'public/cards/card-a/front.webp',
         back_object_key: 'public/cards/card-a/back.webp',
         accent: '#4f64dd',

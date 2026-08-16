@@ -97,6 +97,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             {
                 version: '20260814170000_object_deletion_jobs',
                 phase: 'post-data'
+            },
+            {
+                version: '20260816193000_namecard_ownership_foundation',
+                phase: 'post-data'
             }
         ]
     );
@@ -481,6 +485,31 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(objectDeletions.sql, /lease_expires_at BIGINT/);
     assert.match(objectDeletions.sql, /object_deletion_jobs_candidates_idx/);
     assert.match(objectDeletions.sql, /object_deletion_jobs_completed_idx/);
+    const namecardOwnership = migrations.find(
+        ({ version }) => version === '20260816193000_namecard_ownership_foundation'
+    );
+    assert.match(namecardOwnership.sql, /submission_kind IN \('guest', 'legacy'\)/);
+    assert.match(namecardOwnership.sql, /UPDATE public\.cards[\s\S]+submission_kind = 'legacy'/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.namecard_idols/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_card_idols/);
+    assert.match(namecardOwnership.sql, /ADD COLUMN legacy_card_id BIGINT/);
+    assert.match(namecardOwnership.sql, /length\(favorite_idol\) <= 1000/);
+    assert.match(namecardOwnership.sql, /'draft', 'pending', 'approving', 'published'/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_card_claims/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_card_claim_idols/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_claim_envelopes/);
+    assert.match(
+        namecardOwnership.sql,
+        /fudaba_card_claims_one_open_or_approved_legacy_idx[\s\S]+WHERE state IN \('pending', 'approving', 'approved'\)/
+    );
+    assert.match(
+        namecardOwnership.sql,
+        /UNIQUE \(recipient_account_id, kind, legacy_card_id\)/
+    );
+    assert.match(
+        namecardOwnership.sql,
+        /FOREIGN KEY \(legacy_card_id\) REFERENCES public\.cards\(id\) ON DELETE RESTRICT/
+    );
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -504,11 +533,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 34);
+    assert.equal(catalog.count, 35);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260814170000_object_deletion_jobs'
+        '20260816193000_namecard_ownership_foundation'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -599,7 +628,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260811100000_wiki_category_revision',
         '20260813000000_namecard_rejected_at',
         '20260814155304_shared_request_controls',
-        '20260814170000_object_deletion_jobs'
+        '20260814170000_object_deletion_jobs',
+        '20260816193000_namecard_ownership_foundation'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

@@ -333,10 +333,34 @@ export type FudabaOfficeStatus = "active" | "hidden" | "archived";
 export type FudabaCardPublicationStatus =
     | "draft"
     | "pending"
+    | "approving"
     | "published"
     | "hidden"
     | "rejected";
 export type FudabaMediaRightsStatus = "unknown" | "approved" | "denied";
+export type FudabaCardClaimState =
+    | "pending"
+    | "approving"
+    | "approved"
+    | "rejected"
+    | "cancelled";
+export type FudabaClaimEnvelopeKind =
+    | "legacy-card-match"
+    | "claim-approved"
+    | "claim-rejected";
+export type FudabaClaimEnvelopeActionState =
+    | "pending"
+    | "confirmed"
+    | "declined"
+    | "none";
+
+export interface CardIdolSelectionRecord {
+    idol_id: number;
+    agency_code: string;
+    name_cn: string;
+    display_order: number;
+}
+
 export type FudabaExchangeStatus =
     | "pending"
     | "accepted"
@@ -452,6 +476,8 @@ export interface FudabaCardRecord {
     display_name: string;
     series_code: string;
     favorite_idol: string;
+    favorite_idols: CardIdolSelectionRecord[];
+    legacy_card_id: number | null;
     front_object_key: string;
     back_object_key: string;
     accent: string;
@@ -476,6 +502,8 @@ export interface NewFudabaCardInput {
     displayName: string;
     seriesCode: string;
     favoriteIdol: string;
+    favoriteIdolIds?: number[];
+    legacyCardId?: number | null;
     frontObjectKey: string;
     backObjectKey: string;
     accent: string;
@@ -500,6 +528,7 @@ export interface CreateOwnedFudabaCardInput {
     displayName: string;
     seriesCode: string;
     favoriteIdol: string;
+    favoriteIdolIds?: number[];
     frontObjectKey: string;
     backObjectKey: string;
     accent: string;
@@ -517,6 +546,7 @@ export interface UpdateOwnedFudabaCardMetadataInput {
     displayName: string;
     seriesCode: string;
     favoriteIdol: string;
+    favoriteIdolIds?: number[];
     accent: string;
     bio: string;
     tradeNote: string;
@@ -549,6 +579,147 @@ export type FudabaCardMutationResult =
       }
     | { status: "conflict"; revision: number }
     | { status: "unavailable" };
+
+export interface FudabaClaimEnvelopeRecord {
+    id: number;
+    recipient_account_id: string;
+    legacy_card_id: number;
+    kind: FudabaClaimEnvelopeKind;
+    action_state: FudabaClaimEnvelopeActionState;
+    claim_id: string | null;
+    title: string;
+    body: string;
+    read_at: string | null;
+    actioned_at: string | null;
+    created_at: string;
+    revision: number;
+}
+
+export interface FudabaCardClaimRecord {
+    id: string;
+    legacy_card_id: number;
+    claimant_account_id: string;
+    target_card_id: string | null;
+    series_code: string;
+    state: FudabaCardClaimState;
+    message: string;
+    review_note: string;
+    reviewed_by: number | null;
+    reviewed_at: string | null;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+    favorite_idols: CardIdolSelectionRecord[];
+}
+
+export interface FudabaRegisteredCardReviewRecord extends FudabaCardRecord {
+    owner_display_name: string;
+}
+
+export interface CreateFudabaCardClaimInput {
+    id: string;
+    legacyCardId: number;
+    claimantAccountId: string;
+    targetCardId: string | null;
+    seriesCode: string;
+    idolIds: number[];
+    message: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ConfirmFudabaLegacyEnvelopeInput
+    extends Omit<CreateFudabaCardClaimInput, 'legacyCardId' | 'claimantAccountId'> {
+    envelopeId: number;
+    recipientAccountId: string;
+    expectedRevision: number;
+    actionedAt: string;
+}
+
+export type FudabaClaimCreateResult =
+    | { status: 'created'; claim: FudabaCardClaimRecord }
+    | { status: 'conflict'; claimId: string; state: FudabaCardClaimState }
+    | { status: 'unavailable' };
+
+export type FudabaEnvelopeActionResult =
+    | { status: 'saved'; envelope: FudabaClaimEnvelopeRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'unavailable' };
+
+export type FudabaEnvelopeClaimResult =
+    | {
+        status: 'created';
+        envelope: FudabaClaimEnvelopeRecord;
+        claim: FudabaCardClaimRecord;
+    }
+    | { status: 'conflict'; revision: number }
+    | { status: 'unavailable' };
+
+export type FudabaRegisteredCardReviewClaim =
+    | { status: 'claimed'; card: FudabaRegisteredCardReviewRecord }
+    | {
+        status: 'conflict';
+        revision: number;
+        publicationStatus: FudabaCardPublicationStatus;
+    }
+    | { status: 'unavailable' };
+
+export type FudabaRegisteredCardReviewResult =
+    | { status: 'saved'; card: FudabaRegisteredCardReviewRecord }
+    | {
+        status: 'conflict';
+        revision: number;
+        publicationStatus: FudabaCardPublicationStatus;
+    }
+    | { status: 'unavailable' };
+
+export type FudabaClaimReviewClaim =
+    | { status: 'claimed'; claim: FudabaCardClaimRecord }
+    | { status: 'conflict'; revision: number; state: FudabaCardClaimState }
+    | { status: 'unavailable' };
+
+export interface CreateClaimedFudabaCardInput {
+    id: string;
+    producerName: string;
+    displayName: string;
+    frontObjectKey: string;
+    backObjectKey: string;
+    accent: string;
+    bio: string;
+    tradeNote: string;
+    available: boolean;
+}
+
+interface CompleteFudabaClaimReviewBaseInput {
+    claimId: string;
+    approvingRevision: number;
+    reviewedBy: number;
+    reviewedAt: string;
+    reviewNote: string;
+    notificationTitle: string;
+    notificationBody: string;
+    audit: AuditLogInput;
+}
+
+export type CompleteFudabaClaimReviewInput =
+    | (CompleteFudabaClaimReviewBaseInput & {
+        decision: 'approve';
+        target:
+            | { kind: 'existing'; cardId: string }
+            | { kind: 'create'; card: CreateClaimedFudabaCardInput };
+    })
+    | (CompleteFudabaClaimReviewBaseInput & {
+        decision: 'reject';
+    });
+
+export type FudabaClaimReviewResult =
+    | {
+        status: 'saved';
+        claim: FudabaCardClaimRecord;
+        card: FudabaCardRecord | null;
+    }
+    | { status: 'conflict'; revision: number; state: FudabaCardClaimState }
+    | { status: 'unavailable' };
 
 export interface FudabaExchangeRequestRecord {
     id: string;
@@ -689,6 +860,7 @@ export interface FudabaPublicCardRecord {
     display_name: string;
     series_code: string;
     favorite_idol: string;
+    favorite_idols: CardIdolSelectionRecord[];
     front_object_key: string;
     back_object_key: string;
     accent: string;
@@ -860,6 +1032,11 @@ export interface FudabaRepository {
     createCard(input: NewFudabaCardInput): Promise<FudabaCardRecord>;
     findCardById(id: string): Promise<FudabaCardRecord | null>;
     listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]>;
+    listCardIdols(cardIds: string[]): Promise<Map<string, CardIdolSelectionRecord[]>>;
+    attachCardIdols(
+        cardId: string,
+        idolIds: number[]
+    ): Promise<CardIdolSelectionRecord[] | null>;
     findCardForOwner(
         cardId: string,
         ownerAccountId: string,
@@ -876,6 +1053,58 @@ export interface FudabaRepository {
     softDeleteCardForOwner(
         input: SoftDeleteOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult>;
+    ensureSameIdLegacyCardEnvelopes(input: {
+        title: string;
+        body: string;
+        createdAt: string;
+    }): Promise<FudabaClaimEnvelopeRecord[]>;
+    listClaimEnvelopesForOwner(
+        recipientAccountId: string,
+        limit: number
+    ): Promise<FudabaClaimEnvelopeRecord[]>;
+    markClaimEnvelopeRead(input: {
+        envelopeId: number;
+        recipientAccountId: string;
+        expectedRevision: number;
+        readAt: string;
+    }): Promise<FudabaEnvelopeActionResult>;
+    actionClaimEnvelope(input: {
+        envelopeId: number;
+        recipientAccountId: string;
+        action: 'decline';
+        expectedRevision: number;
+        actionedAt: string;
+    }): Promise<FudabaEnvelopeActionResult>;
+    confirmLegacyCardEnvelope(
+        input: ConfirmFudabaLegacyEnvelopeInput
+    ): Promise<FudabaEnvelopeClaimResult>;
+    createCardClaimForOwner(
+        input: CreateFudabaCardClaimInput
+    ): Promise<FudabaClaimCreateResult>;
+    listCardClaimsForOwner(
+        claimantAccountId: string,
+        limit: number
+    ): Promise<FudabaCardClaimRecord[]>;
+    listAdminPendingCards(limit: number): Promise<FudabaRegisteredCardReviewRecord[]>;
+    listAdminPendingClaims(limit: number): Promise<FudabaCardClaimRecord[]>;
+    beginRegisteredCardReview(
+        cardId: string,
+        expectedRevision: number
+    ): Promise<FudabaRegisteredCardReviewClaim>;
+    completeRegisteredCardReview(input: {
+        cardId: string;
+        approvingRevision: number;
+        decision: 'publish' | 'reject';
+        reviewedAt: string;
+        audit: AuditLogInput;
+    }): Promise<FudabaRegisteredCardReviewResult>;
+    beginCardClaimReview(
+        claimId: string,
+        expectedRevision: number
+    ): Promise<FudabaClaimReviewClaim>;
+    completeCardClaimReview(
+        input: CompleteFudabaClaimReviewInput
+    ): Promise<FudabaClaimReviewResult>;
     placeOwnedCard(input: {
         officeId: string;
         cardId: string;
@@ -1008,6 +1237,8 @@ export interface EventRepository {
     deleteEvent(id: number): Promise<boolean>;
 }
 
+export type NamecardSubmissionKind = 'guest' | 'legacy';
+
 export interface PendingCardInput {
     image1Url: string;
     image2Url: string;
@@ -1015,9 +1246,9 @@ export interface PendingCardInput {
     hash2: string;
     ip: string;
     withdrawalTokenHash: string;
-    seriesCode: string;
-    favoriteIdolIds: number[];
-    submissionKind: "guest";
+    seriesCode?: string | null;
+    idolIds?: number[];
+    submissionKind?: NamecardSubmissionKind;
 }
 
 export interface CardMediaRecord {
@@ -1026,6 +1257,12 @@ export interface CardMediaRecord {
     image2_url: string;
     status?: string;
     revision?: number;
+    series_code?: string | null;
+    submission_kind?: NamecardSubmissionKind;
+    favorite_idols?: CardIdolSelectionRecord[];
+    seriesCode?: string | null;
+    submissionKind?: NamecardSubmissionKind;
+    favoriteIdols?: CardIdolSelectionRecord[];
 }
 
 export type NamecardSubmissionStatus =
@@ -1039,7 +1276,17 @@ export interface NamecardSubmissionRecord extends CardMediaRecord {
     id: number;
     status: NamecardSubmissionStatus;
     revision: number;
+    series_code?: string | null;
+    submission_kind?: NamecardSubmissionKind;
+    favorite_idols?: CardIdolSelectionRecord[];
+    seriesCode?: string | null;
+    submissionKind?: NamecardSubmissionKind;
+    favoriteIdols?: CardIdolSelectionRecord[];
     created_at: string | Date | null;
+}
+
+export interface NamecardPublicRecord extends NamecardSubmissionRecord {
+    status: 'approved';
 }
 
 export interface NamecardSubmissionWithHashesRecord
@@ -1076,12 +1323,12 @@ export interface NamecardRepository {
     listApprovedCards(
         limit: number,
         offset: number,
-    ): Promise<Record<string, unknown>[]>;
+    ): Promise<NamecardPublicRecord[]>;
     findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
     listAdminCards(
         limit: number,
         offset: number,
-    ): Promise<Record<string, unknown>[]>;
+    ): Promise<NamecardSubmissionRecord[]>;
     beginCardApproval(
         id: number,
         expectedRevision: number,

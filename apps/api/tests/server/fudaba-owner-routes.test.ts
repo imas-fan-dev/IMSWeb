@@ -67,6 +67,8 @@ function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCardRecord 
         display_name: 'Owner Card',
         series_code: '765',
         favorite_idol: 'Haruka',
+        favorite_idols: [],
+        legacy_card_id: null,
         front_object_key: 'protected/fudaba/cards/owner-card/front.webp',
         back_object_key: 'protected/fudaba/cards/owner-card/back.webp',
         accent: '#4f64dd',

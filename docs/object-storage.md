@@ -101,7 +101,7 @@ AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优
 `apps/api/.env.example`、release 或进程启动命令历史。
 
 应用不执行隐式 DDL。启动服务前必须执行 `pnpm run migration:postgresql` 并确认最新版本
-`20260814170000_object_deletion_jobs` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
+`20260816193000_namecard_ownership_foundation` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
 
 AWS S3 + IAM Role 示例：
 
