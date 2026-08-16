@@ -1,12 +1,11 @@
 import { writeAudit } from '@/domains/audit/hono-service';
+import { deleteNamecardMedia } from '@/domains/namecards/media-assets';
 import type { NamecardDeleteContext } from '@/domains/namecards/request';
 import type {
     NamecardErrorResponse,
     NamecardMutationResponse
 } from '@/domains/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
-import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
-import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleDeleteNamecard(c: NamecardDeleteContext): Promise<Response> {
     const { id } = c.req.valid('param');
@@ -25,9 +24,7 @@ export async function handleDeleteNamecard(c: NamecardDeleteContext): Promise<Re
         } satisfies NamecardErrorResponse, 409);
     }
     try {
-        await Promise.all([result.card.image1_url, result.card.image2_url].map((url) =>
-            deleteObjectWithCompensation(services(c), publicMediaObjectKey(url))
-        ));
+        await deleteNamecardMedia(services(c), [result.card.image1_url, result.card.image2_url]);
     } catch (error) {
         console.error('Failed to clean media for committed namecard deletion', error);
     }

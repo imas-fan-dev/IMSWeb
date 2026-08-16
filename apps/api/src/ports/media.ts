@@ -36,7 +36,12 @@ export interface ImageProcessor {
         options?: WebpConversionOptions
     ): Promise<Uint8Array>;
     thumbnailPng(body: Uint8Array, width: number, height: number): Promise<Uint8Array>;
-    resizeJpeg(body: Uint8Array, width: number, height: number): Promise<Uint8Array>;
+    resizeJpeg(
+        body: Uint8Array,
+        width: number,
+        height: number,
+        options?: ImageInputOptions
+    ): Promise<Uint8Array>;
 }
 
 export interface MediaServices {

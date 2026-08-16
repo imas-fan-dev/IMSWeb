@@ -11,8 +11,8 @@ filesystem 或 S3 实例。S3 的对象字节保存在 bucket，上传状态、�
 S3 模式采用控制面与数据面分离：业务 URL 仍保持 `/uploads/*`、`/image/*` 等稳定路径。
 Hono 完成数据库映射、对象存在性检查和受保护资源鉴权后，公开对象返回单一 bucket 的 CDN
 地址，受保护对象返回短期签名 URL；浏览器随后直接从 RustFS、R2、MinIO 或其他 S3-compatible 服务获取
-对象字节。上传、MIME/尺寸校验、格式转换、数据库提交和失败补偿始终由 Hono 执行。动态
-`/api/thumbnail` 需要后端转换图片，是唯一保留后端读取对象正文的图片接口。
+对象字节。上传、MIME/尺寸校验、格式转换、数据库提交和失败补偿始终由 Hono 执行。图片缩放只在
+上传等写入路径由 Hono 执行并保存为独立对象，不再提供运行时动态缩图接口。
 
 R2 只通过 S3-compatible API 和绑定到单一 bucket 的自定义域名接入。本项目不部署
 Cloudflare Worker，不读取 Worker binding，也不使用 D1。
@@ -431,3 +431,37 @@ pnpm run migration:public-objects -- \
 
 报告写入被 Git 忽略的 `data/migration/public-object-placement*.json`。新上传的 pending 名片直接
 写入 `__protected/`；审核通过时 `publish()` 在同一 bucket 内移动到公开业务语义路径。
+
+### 名片缩略图对象与历史回填
+
+每张名片图片的缩略图是与其原图同目录保存的独立对象：
+
+- 原图：`community/namecards/assets/<stem>/image.<extension>`；
+- 缩略图：`community/namecards/assets/<stem>/thumbnail.jpg`，公开路径为
+  `/uploads/namecard/thumbnail/<原文件名>.jpg`。
+
+上传与重新上传使用 Sharp 生成 600×400、JPEG quality 80 的缩略图，并与原图一起写入
+`__protected/`；审核通过时 `publish()` 同时发布原图与缩略图；替换、删除和终态 TTL 清理同样
+成对处理。公开名片列表返回缩略图 CDN 地址，展开预览仍使用原图地址。列表解析在缩略图对象尚
+未生成时回退到原图地址，因此可以先部署代码再回填，部署窗口不会破图。
+
+历史已审核名片使用一次性幂等脚本回填缩略图。脚本只处理 `status='approved'` 名片，跳过已存在
+且内容一致的目标对象，写入前重查审核状态，并使用 `putIfUnchanged` 防止并发重复版本；写入后
+回读核对，失败可重跑。先只读盘点：
+
+```sh
+pnpm run migration:namecard-thumbnails
+```
+
+确认 `data/migration/namecard-thumbnail-backfill-dry-run.json` 中不存在
+`missing-original` 或 `error` 后，精确确认目标 bucket 并应用：
+
+```sh
+pnpm run migration:namecard-thumbnails -- \
+  --apply \
+  --confirm-bucket "$IMS_S3_BUCKET"
+```
+
+该脚本是增量写入，可在线上执行；失败后重跑会自动跳过已完成对象。应用完成后再次运行只读盘
+点，结果应全部为 `exists`，随后在公开名片墙验证列表请求只命中缩略图 CDN 地址、展开预览才请
+求原图地址。

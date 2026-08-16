@@ -284,6 +284,16 @@ test('Sharp image processor validates and converts real image bytes with stable 
     assert.deepEqual({ format: jpeg.format, width: jpeg.width, height: jpeg.height }, {
         format: 'jpeg', width: 8, height: 4
     });
+    await assert.rejects(
+        processor.resizeJpeg(source, 20, 20, { maxInputPixels: 31 }),
+        /Input image exceeds pixel limit/
+    );
+    const raisedLimitJpeg = await sharp(await processor.resizeJpeg(source, 20, 20, {
+        maxInputPixels: 32
+    })).metadata();
+    assert.deepEqual({ format: raisedLimitJpeg.format, width: raisedLimitJpeg.width }, {
+        format: 'jpeg', width: 8
+    });
 });
 
 test('shared MD5 implementation matches RFC vectors and legacy Node hashes', () => {

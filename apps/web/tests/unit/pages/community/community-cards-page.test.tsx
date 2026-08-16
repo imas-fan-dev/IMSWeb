@@ -60,6 +60,8 @@ describe("CommunityCardsPage", () => {
           id: 459,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
+          image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
+          image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
           status: "approved",
           created_at: "2026-08-06T06:30:00.000Z",
         },
@@ -92,6 +94,8 @@ describe("CommunityCardsPage", () => {
           id: 42,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
+          image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
+          image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
           status: "approved",
           created_at: null,
         },
@@ -156,6 +160,8 @@ describe("CommunityCardsPage", () => {
           id: 42,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
+          image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
+          image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
           status: "approved",
           created_at: null,
         },
@@ -172,17 +178,21 @@ describe("CommunityCardsPage", () => {
       </MemoryRouter>
     )
 
-    await user.click(
-      await screen.findByRole("button", {
-        name: "查看制作人名片 42 正面",
-      })
+    const frontTrigger = await screen.findByRole("button", {
+      name: "查看制作人名片 42 正面",
+    })
+    expect(frontTrigger.querySelector("img")).toHaveAttribute(
+      "src",
+      "/uploads/namecard/thumbnail/front.webp.jpg"
     )
+
+    await user.click(frontTrigger)
 
     const dialog = screen.getByRole("dialog")
     expect(dialog).toBeVisible()
     expect(
       screen.getByRole("img", { name: "制作人名片 42 正面" })
-    ).toBeVisible()
+    ).toHaveAttribute("src", "/uploads/front.webp")
     expect(screen.getByLabelText("名片查看区域")).toBeVisible()
 
     await user.click(screen.getByRole("button", { name: "背面" }))
@@ -218,6 +228,8 @@ describe("CommunityCardsPage", () => {
           id: 42,
           image1_url: "/uploads/front.webp",
           image2_url: "/uploads/back.webp",
+          image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
+          image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
           status: "approved",
           created_at: null,
         },

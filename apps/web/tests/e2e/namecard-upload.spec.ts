@@ -39,6 +39,8 @@ async function mockNamecardApi(page: Page, cardCount = 12) {
           id: index + 1,
           image1_url: FRONT_IMAGE,
           image2_url: BACK_IMAGE,
+          image1_thumbnail_url: FRONT_IMAGE,
+          image2_thumbnail_url: BACK_IMAGE,
           status: "approved",
           created_at: null,
         })),
@@ -53,7 +55,13 @@ async function mockNamecardApi(page: Page, cardCount = 12) {
   })
 
   await page.route("**/api/uploadNameCard", async (route) => {
-    await route.fulfill({ json: { msg: "名片已提交审核" } })
+    await route.fulfill({
+      json: {
+        msg: "名片已提交审核",
+        submission: { id: 1, status: "pending", revision: 0 },
+        withdrawalToken: "a".repeat(64),
+      },
+    })
   })
 }
 
@@ -133,6 +141,14 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
   expect(multipartBody.match(/name="images"/g)).toHaveLength(2)
   expect(multipartBody).toContain('filename="namecard-front.png"')
   expect(multipartBody).toContain('filename="namecard-back.png"')
+  await expect(uploadDialog).toBeVisible()
+  await expect(
+    uploadDialog.getByText("请保存投稿管理链接")
+  ).toBeVisible()
+  await expect(
+    uploadDialog.getByRole("link", { name: "管理这次投稿" })
+  ).toBeVisible()
+  await uploadDialog.getByRole("button", { name: "取消" }).click()
   await expect(uploadDialog).not.toBeVisible()
   await expect(uploadTrigger).toBeFocused()
 })

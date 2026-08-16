@@ -11,7 +11,8 @@ import type {
 import { contentTypeForPath } from '@/utils/http/content-type';
 
 function contentTypeForObject(key: string, filePath: string): string {
-    return key.replace(/^\/+/, '').includes('/thumbnail.')
+    const normalized = key.replace(/^\/+/, '');
+    return normalized.startsWith('editorial/news/') && normalized.includes('/thumbnail.')
         ? 'image/png'
         : contentTypeForPath(filePath);
 }

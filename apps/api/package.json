@@ -27,6 +27,7 @@
     "test:r2:producer-map": "pnpm run migration:producer-map -- --require-r2 --expect-bucket imsweb-media-public-prod --expect-empty-prefix",
     "migration:upload-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/local-upload-media.js",
     "migration:public-objects": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/public-object-placement.ts",
+    "migration:namecard-thumbnails": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/namecard-thumbnail-backfill.ts",
     "migration:single-bucket": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/single-bucket-consolidation.ts",
     "migration:wiki-media": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx scripts/migration/wiki-media-sync.js",
     "wiki:metadata:audit": "TSX_TSCONFIG_PATH=tsconfig.server.json node --env-file-if-exists=.env --import tsx scripts/migration/wiki-metadata-audit.ts",
@@ -35,7 +36,7 @@
     "test:node": "pnpm run build && node --test tests/hono-app-contract.test.js tests/node-listener-probe.test.js tests/node-security.test.js tests/operation-scripts.test.js",
     "test:wiki": "node node_modules/typescript/bin/tsc -p tests/wiki/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/wiki/*.test.ts",
     "test:server": "node node_modules/typescript/bin/tsc -p tests/server/tsconfig.json --noEmit && TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/server/*.test.ts",
-    "test:migration": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/migration/legacy-brand-assets.test.js tests/migration/legacy-information-media.test.js tests/migration/legacy-namecards.test.js tests/migration/legacy-producer-map.test.js tests/migration/local-upload-media.test.js tests/migration/postgres-migrations.test.js tests/migration/public-object-placement.test.js tests/migration/semantic-object-keys.test.js tests/migration/single-bucket-consolidation.test.js tests/migration/wiki-media-sync.test.js tests/migration/wiki-metadata-audit.test.js",
+    "test:migration": "TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/migration/legacy-brand-assets.test.js tests/migration/legacy-information-media.test.js tests/migration/legacy-namecards.test.js tests/migration/legacy-producer-map.test.js tests/migration/local-upload-media.test.js tests/migration/postgres-migrations.test.js tests/migration/public-object-placement.test.js tests/migration/namecard-thumbnail-backfill.test.js tests/migration/semantic-object-keys.test.js tests/migration/single-bucket-consolidation.test.js tests/migration/wiki-media-sync.test.js tests/migration/wiki-metadata-audit.test.js",
     "test:web-routing": "node --test tests/assets/frontend-routing.contract.test.js",
     "test": "pnpm run check && pnpm run test:node && pnpm run test:server && pnpm run test:wiki && pnpm run test:migration"
   },

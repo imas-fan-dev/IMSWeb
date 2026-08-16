@@ -1,6 +1,10 @@
 import { writeAudit } from '@/domains/audit/hono-service';
 import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
 import {
+    deleteNamecardMedia,
+    storeProtectedNamecardMedia
+} from '@/domains/namecards/media-assets';
+import {
     parseNamecardReplacementImage,
     type NamecardImageReplaceContext
 } from '@/domains/namecards/request';
@@ -18,8 +22,6 @@ import { namecardRepository, services } from '@/middleware/hono-context';
 import { md5Hex } from '@/utils/crypto/md5';
 import { randomHex } from '@/utils/crypto/random';
 import { safeUploadBaseName } from '@/utils/media/filename';
-import { namecardImageObjectKey, publicMediaObjectKey } from '@/utils/storage/business-object-keys';
-import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
@@ -61,20 +63,19 @@ export async function handleReplaceNamecardSubmissionImage(
     }
     const webp = await normalizeNamecardImage(image, runtime.images);
     const filename = `${safeUploadBaseName(image.filename)}-${Date.now()}-${randomHex(6)}.webp`;
-    const publicKey = `uploads/namecard/original/${filename}`;
-    const key = namecardImageObjectKey(filename);
-    const newUrl = `/${publicKey}`;
+    const stored = await storeProtectedNamecardMedia({
+        compensation: runtime.compensation,
+        images: runtime.images,
+        storage: runtime.storage
+    }, filename, webp);
+    const newUrl = stored.url;
     const newHash = md5Hex(webp);
-    await runtime.storage.put(key, webp, {
-        contentType: 'image/webp',
-        protectedAccess: true
-    });
     const [hash1, hash2] = side === 'front'
         ? [newHash, submission.hash2]
         : [submission.hash1, newHash];
     const duplicate = await namecardRepository(c).findCardByOrderedHashes(hash1, hash2);
     if (duplicate && duplicate.id !== id) {
-        await deleteObjectWithCompensation(runtime, key).catch(() => undefined);
+        await deleteNamecardMedia(runtime, [newUrl]).catch(() => undefined);
         return c.json({ msg: '重复上传' } satisfies NamecardMessageResponse, 409);
     }
     const result = await namecardRepository(c).replaceSubmissionImage(
@@ -86,7 +87,7 @@ export async function handleReplaceNamecardSubmissionImage(
         newHash
     );
     if (result.status !== 'updated') {
-        await deleteObjectWithCompensation(runtime, key).catch(() => undefined);
+        await deleteNamecardMedia(runtime, [newUrl]).catch(() => undefined);
         if (result.status === 'not-found') {
             return c.json({ error: 'Submission not found' } satisfies NamecardErrorResponse, 404);
         }
@@ -97,7 +98,7 @@ export async function handleReplaceNamecardSubmissionImage(
     }
     const oldUrl = side === 'front' ? submission.image1_url : submission.image2_url;
     try {
-        await deleteObjectWithCompensation(runtime, publicMediaObjectKey(oldUrl));
+        await deleteNamecardMedia(runtime, [oldUrl]);
     } catch (error) {
         console.error('Failed to clean replaced namecard image', error);
     }

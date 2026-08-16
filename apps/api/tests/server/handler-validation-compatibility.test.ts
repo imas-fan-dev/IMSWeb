@@ -384,7 +384,7 @@ test('a valid anonymous receipt can read and withdraw only the pending revision'
     }]);
 });
 
-test('namecard approval publishes both sides before the final CAS transition', async () => {
+test('namecard approval publishes originals and thumbnails before the final CAS transition', async () => {
     const fixture = createCompatibilityFixture({
         async beginCardApproval(id, expectedRevision) {
             assert.equal(id, 19);
@@ -428,7 +428,7 @@ test('namecard approval publishes both sides before the final CAS transition', a
 
     assert.equal(response.status, 200);
     assert.deepEqual(await responseJson(response), { success: true, revision: 4 });
-    assert.equal(fixture.calls.storageWrites, 2);
+    assert.equal(fixture.calls.storageWrites, 4);
     assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
         action: '审核图片通过',
         target: 'card_id=19;revision=4'

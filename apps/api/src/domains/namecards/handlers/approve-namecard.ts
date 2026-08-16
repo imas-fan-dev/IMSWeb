@@ -1,11 +1,11 @@
 import { writeAudit } from '@/domains/audit/hono-service';
+import { publishNamecardMedia } from '@/domains/namecards/media-assets';
 import type { NamecardMutationContext } from '@/domains/namecards/request';
 import type {
     NamecardErrorResponse,
     NamecardMutationResponse
 } from '@/domains/namecards/response';
 import { namecardRepository, services } from '@/middleware/hono-context';
-import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
 
 export async function handleApproveNamecard(c: NamecardMutationContext): Promise<Response> {
     const { id } = c.req.valid('param');
@@ -29,12 +29,8 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
             } satisfies NamecardErrorResponse, 410);
         }
         const storage = services(c).storage;
-        if (!storage?.publish) {
-            throw new Error('Object storage publication is unavailable');
-        }
-        await Promise.all([claim.card.image1_url, claim.card.image2_url].map((url) =>
-            storage.publish!(publicMediaObjectKey(url))
-        ));
+        if (!storage) throw new Error('Object storage publication is unavailable');
+        await publishNamecardMedia(storage, [claim.card.image1_url, claim.card.image2_url]);
         const completed = await repository.completeCardApproval(id, claim.card.revision);
         if (completed.status !== 'updated') {
             return c.json({

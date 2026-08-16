@@ -115,8 +115,13 @@ export class SharpImageProcessor implements ImageProcessor {
             .png({ quality: 80 }).toBuffer());
     }
 
-    async resizeJpeg(body: Uint8Array, width: number, height: number): Promise<Uint8Array> {
-        return new Uint8Array(await sharp(body, inputOptions(DEFAULT_MAX_INPUT_PIXELS))
+    async resizeJpeg(
+        body: Uint8Array,
+        width: number,
+        height: number,
+        options?: ImageInputOptions
+    ): Promise<Uint8Array> {
+        return new Uint8Array(await sharp(body, inputOptions(maxInputPixels(options)))
             .resize({ width, height, fit: 'inside', withoutEnlargement: true })
             .jpeg({ quality: 80 }).toBuffer());
     }
