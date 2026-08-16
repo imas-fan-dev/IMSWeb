@@ -12,6 +12,7 @@ const category = {
   displayOrder: 0,
   showWhenEmpty: true,
   backgroundEligible: false,
+  revision: 0,
 }
 
 const contentTypes = [
@@ -195,6 +196,7 @@ describe("StoryEditorDialog", () => {
       imageUrl: "",
       imageTransform: defaultWikiImageTransform,
       mediaRevision: 4,
+      revision: 0,
     }
     const onOpenChange = vi.fn()
     const onSaved = vi.fn()
@@ -283,6 +285,7 @@ describe("StoryEditorDialog", () => {
       imageUrl: "",
       imageTransform: defaultWikiImageTransform,
       mediaRevision: 4,
+      revision: 0,
     }
     const onOpenChange = vi.fn()
     const onSaved = vi.fn()
@@ -352,6 +355,7 @@ describe("StoryEditorDialog", () => {
       imageUrl: "",
       imageTransform: defaultWikiImageTransform,
       mediaRevision: 4,
+      revision: 0,
     }
     const user = userEvent.setup()
 

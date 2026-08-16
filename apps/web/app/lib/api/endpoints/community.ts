@@ -63,6 +63,8 @@ export const namecardSchema = z.object({
   id: cardIdSchema,
   image1_url: z.string().min(1),
   image2_url: z.string().min(1),
+  image1_thumbnail_url: z.string().min(1),
+  image2_thumbnail_url: z.string().min(1),
   status: z.string().optional(),
   created_at: z.string().nullable().optional(),
 })
@@ -103,6 +105,11 @@ const namecardSubmissionResponseSchema = z.object({
 })
 
 const withdrawNamecardResponseSchema = z.object({
+  success: z.literal(true),
+  submission: namecardSubmissionSchema,
+})
+
+const namecardResubmitResponseSchema = z.object({
   success: z.literal(true),
   submission: namecardSubmissionSchema,
 })
@@ -176,6 +183,46 @@ export function withdrawNamecardSubmission(
     {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
       transform: (payload) => withdrawNamecardResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function replaceNamecardSubmissionImage(
+  id: number,
+  withdrawalToken: string,
+  side: "front" | "back",
+  expectedRevision: number,
+  file: File
+) {
+  const form = new FormData()
+  form.append("image", file)
+  return apiClient.Post<
+    z.infer<typeof namecardResubmitResponseSchema>,
+    unknown
+  >(
+    `/api/namecards/submissions/${id}/images/${side}?expected_revision=${expectedRevision}`,
+    form,
+    {
+      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
+    }
+  )
+}
+
+export function resubmitNamecardSubmission(
+  id: number,
+  withdrawalToken: string,
+  expectedRevision: number
+) {
+  return apiClient.Post<
+    z.infer<typeof namecardResubmitResponseSchema>,
+    unknown
+  >(
+    `/api/namecards/submissions/${id}/resubmit`,
+    { expected_revision: expectedRevision },
+    {
+      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
     }
   )
 }

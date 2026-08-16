@@ -1,9 +1,13 @@
+import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
+
 export type NamecardResponseId = number | string;
 
 export interface PublicNamecardResponse {
     id: NamecardResponseId;
     image1_url: string;
     image2_url: string;
+    image1_thumbnail_url: string;
+    image2_thumbnail_url: string;
     status: string;
     created_at: string | null;
 }
@@ -36,6 +40,11 @@ export interface NamecardSubmissionDetailResponse {
 }
 
 export interface NamecardWithdrawalResponse {
+    success: true;
+    submission: NamecardSubmissionResponse;
+}
+
+export interface NamecardResubmitResponse {
     success: true;
     submission: NamecardSubmissionResponse;
 }
@@ -116,10 +125,14 @@ function responseTimestamp(value: unknown): string | null {
 }
 
 export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardResponse {
+    const image1Url = responseString(row.image1_url, 'image1_url');
+    const image2Url = responseString(row.image2_url, 'image2_url');
     return {
         id: responseId(row.id),
-        image1_url: responseString(row.image1_url, 'image1_url'),
-        image2_url: responseString(row.image2_url, 'image2_url'),
+        image1_url: image1Url,
+        image2_url: image2Url,
+        image1_thumbnail_url: namecardThumbnailPublicUrl(image1Url),
+        image2_thumbnail_url: namecardThumbnailPublicUrl(image2Url),
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };

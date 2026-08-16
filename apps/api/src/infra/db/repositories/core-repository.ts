@@ -8,6 +8,7 @@ import type {
     BackofficeRefreshSessionRecord,
     CardMediaRecord,
     DeleteAdminAccountResult,
+    DeleteSitePackageRevisionInput,
     EventRepository,
     EventInput,
     HomepageLinkRecord,
@@ -16,8 +17,10 @@ import type {
     HomepageLinkUpdateInput,
     NamecardRepository,
     NamecardApprovalClaim,
+    NamecardEditResult,
     NamecardMutationResult,
     NamecardSubmissionRecord,
+    NamecardSubmissionWithHashesRecord,
     NewAdminAccountInput,
     NewHomepageLinkInput,
     NewBackofficeRefreshSessionInput,
@@ -30,6 +33,7 @@ import type {
     SitePackageRecord,
     SitePackagePublicationResult,
     SitePackageRepository,
+    SitePackageRevisionDeletionResult,
     SitePackageRevisionRecord,
     SitePackageWithRevisions
 } from '@/ports/repositories';
@@ -451,7 +455,10 @@ export class SqlCoreRepository implements
     }
 
     findCardByOrderedHashes(hash1: string, hash2: string): Promise<{ id: number } | null> {
-        return queryOne(this.database, 'SELECT id FROM cards WHERE hash1=? AND hash2=?', [hash1, hash2]);
+        return queryOne(this.database,
+            `SELECT id FROM cards WHERE hash1=? AND hash2=? AND status NOT IN ('withdrawn','rejected')`,
+            [hash1, hash2]
+        );
     }
 
     async insertPendingCard(input: PendingCardInput): Promise<number> {
@@ -481,7 +488,7 @@ export class SqlCoreRepository implements
 
     async countAdminCards(): Promise<number> {
         const row = await queryOne<{ total: number }>(this.database,
-            'SELECT CAST(COUNT(*) AS INTEGER) AS total FROM cards'
+            "SELECT CAST(COUNT(*) AS INTEGER) AS total FROM cards WHERE status NOT IN ('withdrawn','rejected')"
         );
         return row?.total ?? 0;
     }
@@ -504,7 +511,7 @@ export class SqlCoreRepository implements
     listAdminCards(limit: number, offset: number): Promise<Record<string, unknown>[]> {
         return queryAll(this.database,
             `SELECT id, image1_url, image2_url, status, revision
-             FROM cards ORDER BY id DESC LIMIT ? OFFSET ?`,
+             FROM cards WHERE status NOT IN ('withdrawn','rejected') ORDER BY id DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
     }
@@ -526,6 +533,9 @@ export class SqlCoreRepository implements
             [id]
         );
         if (!current) return { status: 'not-found' };
+        if (current.status === 'withdrawn') {
+            return { status: 'withdrawn', revision: current.revision };
+        }
         if (
             current.status === 'approving' &&
             (current.revision === expectedRevision || current.revision === expectedRevision + 1)
@@ -579,6 +589,38 @@ export class SqlCoreRepository implements
             : { status: 'not-found' };
     }
 
+    async rejectSubmission(
+        id: number,
+        expectedRevision: number
+    ): Promise<NamecardMutationResult> {
+        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+            `UPDATE cards SET status='rejected', rejected_at=CURRENT_TIMESTAMP, revision=revision+1
+             WHERE id=? AND status='pending' AND revision=?
+             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+            [id, expectedRevision]
+        );
+        if (updated) return { status: 'updated', card: updated };
+        const current = await queryOne<{ status: string; revision: number }>(this.database,
+            'SELECT status, revision FROM cards WHERE id=?', [id]);
+        if (!current) return { status: 'not-found' };
+        if (current.status === 'withdrawn') {
+            return { status: 'withdrawn', revision: current.revision };
+        }
+        return { status: 'conflict', revision: current.revision };
+    }
+
+    async purgeTerminalCards(
+        cutoff: Date
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>> {
+        return queryAll(this.database,
+            `DELETE FROM cards
+             WHERE status IN ('withdrawn','rejected')
+               AND COALESCE(withdrawn_at, rejected_at, created_at) <= ?
+             RETURNING id, image1_url, image2_url`,
+            [cutoff]
+        );
+    }
+
     findSubmissionByTokenHash(
         id: number,
         tokenHash: string
@@ -590,19 +632,67 @@ export class SqlCoreRepository implements
         );
     }
 
+    findSubmissionWithHashesByTokenHash(
+        id: number,
+        tokenHash: string
+    ): Promise<NamecardSubmissionWithHashesRecord | null> {
+        return queryOne(this.database,
+            `SELECT id, image1_url, image2_url, hash1, hash2, status, revision, created_at
+             FROM cards WHERE id=? AND withdrawal_token_hash=?`,
+            [id, tokenHash]
+        );
+    }
+
     async withdrawSubmission(
         id: number,
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardMutationResult> {
-        const withdrawn = await queryOne<NamecardSubmissionRecord>(this.database,
-            `UPDATE cards
-             SET status='withdrawn', withdrawn_at=CURRENT_TIMESTAMP, revision=revision+1
+        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+            `UPDATE cards SET status='withdrawn', withdrawn_at=CURRENT_TIMESTAMP, revision=revision+1
              WHERE id=? AND withdrawal_token_hash=? AND status='pending' AND revision=?
              RETURNING id, image1_url, image2_url, status, revision, created_at`,
             [id, tokenHash, expectedRevision]
         );
-        if (withdrawn) return { status: 'updated', card: withdrawn };
+        if (updated) return { status: 'updated', card: updated };
+        const current = await this.findSubmissionByTokenHash(id, tokenHash);
+        if (!current) return { status: 'not-found' };
+        return { status: 'conflict', revision: current.revision };
+    }
+
+    async replaceSubmissionImage(
+        id: number,
+        tokenHash: string,
+        expectedRevision: number,
+        side: 'front' | 'back',
+        imageUrl: string,
+        hash: string
+    ): Promise<NamecardEditResult> {
+        const column = side === 'front' ? 'image1_url=?, hash1=?' : 'image2_url=?, hash2=?';
+        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+            `UPDATE cards SET ${column}, revision=revision+1
+             WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
+             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+            [imageUrl, hash, id, tokenHash, expectedRevision]
+        );
+        if (updated) return { status: 'updated', card: updated };
+        const current = await this.findSubmissionByTokenHash(id, tokenHash);
+        if (!current) return { status: 'not-found' };
+        return { status: 'conflict', revision: current.revision };
+    }
+
+    async resubmitSubmission(
+        id: number,
+        tokenHash: string,
+        expectedRevision: number
+    ): Promise<NamecardEditResult> {
+        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+            `UPDATE cards SET status='pending', withdrawn_at=NULL, rejected_at=NULL, revision=revision+1
+             WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
+             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+            [id, tokenHash, expectedRevision]
+        );
+        if (updated) return { status: 'updated', card: updated };
         const current = await this.findSubmissionByTokenHash(id, tokenHash);
         if (!current) return { status: 'not-found' };
         return { status: 'conflict', revision: current.revision };
@@ -902,6 +992,68 @@ export class SqlCoreRepository implements
         if (!operation) return null;
         if (!revision) throw new Error('Published site package revision could not be read');
         return { revision, operation };
+    }
+
+    deleteSitePackageRevision(
+        input: DeleteSitePackageRevisionInput
+    ): Promise<SitePackageRevisionDeletionResult | null> {
+        return this.database.transaction(async (database) => {
+            const sitePackage = await queryOne<SitePackageRecord>(
+                database,
+                'SELECT * FROM site_packages WHERE id=? FOR UPDATE',
+                [input.packageId]
+            );
+            if (!sitePackage) return null;
+            const revision = await queryOne<SitePackageRevisionRecord>(
+                database,
+                'SELECT * FROM site_package_revisions WHERE package_id=? AND id=?',
+                [input.packageId, input.revisionId]
+            );
+            if (!revision) return null;
+            if (sitePackage.published_revision_id === revision.id) {
+                return {
+                    kind: 'published',
+                    revision,
+                    sitePackage,
+                    packageDeleted: false
+                };
+            }
+            const prefix = `site-packages/${input.packageId}/revisions/${input.revisionId}/`;
+            await database.prepare(
+                `INSERT INTO object_deletion_jobs
+                    (id, resource_type, resource_id, target_kind, target, state,
+                     attempts, next_attempt_at, created_at, updated_at)
+                 VALUES (?, 'site-package-revision', ?, 'prefix', ?, 'pending', 0, ?, ?, ?)`
+            ).bind(
+                input.deletionJobId,
+                input.revisionId,
+                prefix,
+                input.deletedAt,
+                input.deletedAt,
+                input.deletedAt
+            ).run();
+            const deleted = await database.prepare(
+                `DELETE FROM site_package_revisions
+                 WHERE package_id=? AND id=?`
+            ).bind(input.packageId, input.revisionId).run();
+            if (deleted.meta.changes !== 1) {
+                throw new Error('Site package revision delete lost its lock');
+            }
+            const removedPackage = await database.prepare(
+                `DELETE FROM site_packages
+                 WHERE id=? AND published_revision_id IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM site_package_revisions WHERE package_id=?
+                   )`
+            ).bind(input.packageId, input.packageId).run();
+            const packageDeleted = removedPackage.meta.changes === 1;
+            if (!packageDeleted) {
+                await database.prepare(
+                    `UPDATE site_packages SET updated_by=?, updated_at=? WHERE id=?`
+                ).bind(input.deletedBy, input.deletedAt, input.packageId).run();
+            }
+            return { kind: 'deleted', revision, sitePackage, packageDeleted };
+        });
     }
 
     async rotateSitePackagePreviewToken(

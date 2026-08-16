@@ -32,6 +32,7 @@ const agencies = [
     bannerTitle: "765PRO ALLSTARS",
     iconUrl: null,
     idolCount: 1,
+    entryCount: 1,
   },
   {
     id: 6,
@@ -41,6 +42,7 @@ const agencies = [
     bannerTitle: "283 Production",
     iconUrl: null,
     idolCount: 2,
+    entryCount: 2,
   },
 ]
 
@@ -973,5 +975,88 @@ describe("classic Wiki pages", () => {
     await user.click(audioOnlyCard)
     expect(screen.getByRole("dialog")).toBeVisible()
     expect(screen.getByRole("link", { name: /语音试听/ })).toBeVisible()
+  })
+
+  it("hides unvoiced Cinderella Girls idols in the classic view", async () => {
+    const cgAgency = {
+      id: 2,
+      code: "cg",
+      name: "灰姑娘女孩",
+      color: "#e5458f",
+      bannerTitle: "CINDERELLA GIRLS",
+      iconUrl: null,
+      idolCount: 2,
+      entryCount: 2,
+    }
+    const voiced = {
+      id: 2,
+      name: "渋谷凛",
+      folderName: "shibuya_rin",
+      color: "#37b4e5",
+      imageUrl: "/image/rin.webp",
+      imageFit: "cover",
+      textColor: "#ffffff",
+    }
+    const unvoiced = {
+      id: 3,
+      name: "未付声演示",
+      folderName: "unvoiced_demo",
+      color: "#999999",
+      imageUrl: "/image/unvoiced.webp",
+      imageFit: "cover",
+      textColor: "#ffffff",
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response({
+              status: "success",
+              agencies: [cgAgency],
+              searchEntries: [],
+              selection: {
+                agency: cgAgency,
+                layoutRevision: 0,
+                groups: [
+                  {
+                    id: 2,
+                    code: "cute",
+                    name: "Cute",
+                    color: cgAgency.color,
+                    iconUrl: null,
+                    idols: [voiced, unvoiced],
+                  },
+                ],
+                ungroupedIdols: [],
+              },
+            })
+      })
+    )
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={["/wiki/classic?agency=灰姑娘女孩"]}>
+        <ClassicWikiPage />
+      </MemoryRouter>
+    )
+
+    const voicedLink = await screen.findByRole("link", { name: /渋谷凛/ })
+    expect(voicedLink).toBeVisible()
+    expect(screen.getByRole("link", { name: /未付声演示/ })).toBeVisible()
+
+    const toggle = screen.getByRole("button", { name: "隐藏未付声" })
+    expect(toggle).toHaveAttribute("aria-pressed", "false")
+    await user.click(toggle)
+
+    expect(toggle).toHaveAttribute("aria-pressed", "true")
+    expect(voicedLink).toBeVisible()
+    expect(
+      screen.queryByRole("link", { name: /未付声演示/ })
+    ).not.toBeInTheDocument()
   })
 })

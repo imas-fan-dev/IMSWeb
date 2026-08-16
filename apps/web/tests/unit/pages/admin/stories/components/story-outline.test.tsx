@@ -10,6 +10,7 @@ const stories: WikiAdminStories = {
   agency: { id: 6, code: "sc", name: "闪耀色彩", color: "#8dbbff" },
   idol: {
     id: 6,
+    agencyId: 6,
     name: "樱木真乃",
     folderName: "sakuragi_mano",
     color: "#f1b0c9",
@@ -33,6 +34,7 @@ const stories: WikiAdminStories = {
       displayOrder: 0,
       showWhenEmpty: true,
       backgroundEligible: false,
+      revision: 0,
     },
   ],
   contentTypes: [
@@ -67,6 +69,7 @@ const stories: WikiAdminStories = {
       imageUrl: "",
       imageTransform: defaultWikiImageTransform,
       mediaRevision: 2,
+      revision: 0,
     },
     {
       cardId: 12,
@@ -77,6 +80,7 @@ const stories: WikiAdminStories = {
       imageUrl: "",
       imageTransform: defaultWikiImageTransform,
       mediaRevision: 0,
+      revision: 0,
     },
   ],
   stories: [
@@ -97,6 +101,7 @@ const stories: WikiAdminStories = {
       imageUrl: "",
       imageTransform: defaultWikiImageTransform,
       mediaRevision: 2,
+      revision: 0,
     },
   ],
 }

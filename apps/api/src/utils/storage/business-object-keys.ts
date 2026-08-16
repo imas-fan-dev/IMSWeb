@@ -81,6 +81,27 @@ export function namecardImageObjectKey(filename: string): string {
     return `community/namecards/assets/${file.stem}/image.${file.extension}`;
 }
 
+export function namecardThumbnailObjectKey(filename: string): string {
+    const file = fileParts(filename);
+    return `community/namecards/assets/${file.stem}/thumbnail.jpg`;
+}
+
+export function namecardThumbnailPublicUrl(originalUrl: string): string {
+    const legacyKey = normalizeObjectKey(originalUrl);
+    const segments = legacyKey.split('/');
+    const filename = segments.at(-1)!;
+    const prefix = segments.slice(0, -1).join('/').toLowerCase();
+    if (prefix !== 'uploads/namecard/original') {
+        throw new Error(`Unsupported namecard media path: ${legacyKey}`);
+    }
+    return `/uploads/namecard/thumbnail/${filename}.jpg`;
+}
+
+export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
+    const thumbnailUrl = namecardThumbnailPublicUrl(originalUrl);
+    return [publicMediaObjectKey(originalUrl), publicMediaObjectKey(thumbnailUrl)];
+}
+
 export function producerMapAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
@@ -170,6 +191,13 @@ export function publicMediaObjectKey(value: string): string {
             return aboutMemberAvatarObjectKey(filename);
         case 'uploads/namecard/original':
             return namecardImageObjectKey(filename);
+        case 'uploads/namecard/thumbnail': {
+            const suffix = '.jpg';
+            if (!filename.toLowerCase().endsWith(suffix) || filename.length === suffix.length) {
+                throw new Error(`Unsupported namecard thumbnail path: ${legacyKey}`);
+            }
+            return namecardThumbnailObjectKey(filename.slice(0, -suffix.length));
+        }
         case 'uploads/producer-map':
             return producerMapAssetObjectKey(filename);
         default:

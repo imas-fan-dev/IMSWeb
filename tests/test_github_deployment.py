@@ -144,6 +144,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "workflow_dispatch:",
             "confirm_data_compatibility:",
             "refs/remotes/origin/main",
+            'image_name="ghcr.io/${REPOSITORY,,}-api"',
+            "IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}",
             PNPM_SETUP_ACTION,
             DOCKER_BUILD_PUSH_ACTION,
             "actions/attest-build-provenance@",
@@ -204,6 +206,10 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("secrets.IMS_JWT_SECRET", deployment)
         self.assertNotIn("secrets.AWS_SECRET_ACCESS_KEY", deployment)
         self.assertNotIn("secrets.GHCR_TOKEN", deployment)
+        self.assertNotIn(
+            "IMAGE_NAME: ghcr.io/${{ github.repository }}-api",
+            deployment,
+        )
 
     def test_deployment_guide_covers_setup_release_and_recovery_boundaries(self):
         guide = DEPLOYMENT_GUIDE.read_text(encoding="utf-8")

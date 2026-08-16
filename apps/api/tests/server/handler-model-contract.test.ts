@@ -71,7 +71,7 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
         'handleUploadInformationAsset'
     ],
     'live-schedule': ['handleListLiveSchedule'],
-    media: ['handleCreateThumbnail', 'handleServeNamecard', 'handleServePublicUpload'],
+    media: ['handleServeNamecard', 'handleServePublicUpload'],
     namecards: [
         'handleApproveNamecard',
         'handleDeleteNamecard',
@@ -79,6 +79,9 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
         'handleGetNamecardSubmission',
         'handleListAdminNamecards',
         'handleListNamecards',
+        'handleRejectNamecard',
+        'handleReplaceNamecardSubmissionImage',
+        'handleResubmitNamecardSubmission',
         'handleUploadNamecard',
         'handleWithdrawNamecardSubmission'
     ],
@@ -99,6 +102,7 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
     'site-packages': [
         'handleCreateSitePackage',
         'handleCreateSitePackageRevision',
+        'handleDeleteSitePackageRevision',
         'handleGetPublicSitePackage',
         'handleListSitePackages',
         'handlePublishSitePackageRevision',

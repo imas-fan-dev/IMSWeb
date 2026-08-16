@@ -15,6 +15,7 @@ import {
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_UPLOAD_BYTES = 6 * 1024 * 1024 + 128 * 1024;
+const MAX_REPLACEMENT_IMAGE_BYTES = 3 * 1024 * 1024 + 128 * 1024;
 
 export interface NamecardIdParams {
     id: number;
@@ -41,6 +42,11 @@ export interface ExpectedRevisionQuery {
     expected_revision: number | null;
 }
 
+export interface NamecardImageSideParams {
+    id: number;
+    side: 'front' | 'back';
+}
+
 export type NamecardParamContext<Params extends NamecardIdParams | CompatibleNamecardIdParams> =
     Context<AppEnvironment, string, ValidatedRequestInput<'param', Params>>;
 
@@ -65,6 +71,13 @@ export type NamecardWithdrawalContext = Context<
     & ValidatedRequestInput<'json', ExpectedRevisionRequest>
 >;
 
+export type NamecardImageReplaceContext = Context<
+    AppEnvironment,
+    string,
+    ValidatedRequestInput<'param', NamecardImageSideParams>
+    & ValidatedRequestInput<'query', ExpectedRevisionQuery>
+>;
+
 export interface UploadNamecardRequest {
     images: UploadedFile[];
 }
@@ -83,6 +96,16 @@ export function validateNamecardIdParams(value: unknown): NamecardIdParams {
 export function validateCompatibleNamecardIdParams(value: unknown): CompatibleNamecardIdParams {
     const params = requestRecord(value, '名片 ID 无效');
     return { id: positiveInteger(params.id) || 0 };
+}
+
+export function validateNamecardImageSideParams(value: unknown): NamecardImageSideParams {
+    const params = requestRecord(value, '名片 ID 无效');
+    const id = canonicalPositiveInteger(params.id);
+    if (!id) invalidRequest('名片 ID 无效');
+    if (params.side !== 'front' && params.side !== 'back') {
+        invalidRequest('名片面无效');
+    }
+    return { id, side: params.side as 'front' | 'back' };
 }
 
 export function validateNamecardListQuery(value: unknown): NamecardListQuery {
@@ -144,4 +167,20 @@ export async function parseUploadNamecardRequest(
         maxParts: 6
     });
     return { images: uploadedFiles(parsed.files.images) };
+}
+
+export async function parseNamecardReplacementImage(
+    c: Context<AppEnvironment>
+): Promise<{ image: UploadedFile | null }> {
+    const uploads = services(c).uploads;
+    if (!uploads) throw new Error('Upload parser unavailable');
+    const parsed = await uploads.parse(c.req.raw, {
+        maxBytes: MAX_REPLACEMENT_IMAGE_BYTES,
+        fileFields: ['image'],
+        maxFiles: 1,
+        maxFields: 2,
+        maxParts: 2
+    });
+    const files = uploadedFiles(parsed.files.image);
+    return { image: files[0] ?? null };
 }

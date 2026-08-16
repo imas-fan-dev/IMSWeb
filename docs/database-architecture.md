@@ -21,7 +21,7 @@ Hono domains -> repository ports <- SQL repositories
 
 ## 依赖方向
 
-- `src/ports/repositories.ts` 定义业务仓储契约。
+- `src/ports/repositories-{core,wiki}.ts` 定义业务仓储契约，`repositories.ts` 保留兼容 facade。
 - `src/infra/db/repositories/` 实现可复用 SQL Repository。
 - `src/infra/db/sql/` 定义内部 statement、batch 和 transaction 契约。
 - `src/infra/db/postgresql/` 封装连接池、参数转换和 schema 验证。
@@ -38,6 +38,20 @@ Domain 与 middleware 不得导入具体数据库模块。Repository 不读取�
 
 `batch()` 适合无条件的一组原子 SQL；需要根据中间结果决定提交或回滚时使用 `transaction()`。
 测试必须连接真实 PostgreSQL，并覆盖冲突后的数据回读，不能只断言返回值。
+
+请求幂等和限流端口也复用同一 `ManagedSqlDatabase`。幂等 claim 通过复合主键与
+`SELECT ... FOR UPDATE` 串行化首次获取、过期接管和 generation fencing；限流器按客户端窗口行
+加锁，并用独立 identity 表去重。多个 API 进程因此共享租约、回放结果和配额，不依赖进程内内存
+或宿主机文件锁。幂等记录默认保留 7 天后惰性清理 completed/failed 状态；started 租约不会被
+清理，以免删除后复用 generation 破坏 fencing。
+
+历史站点包版本删除使用事务 outbox。Repository 先锁定 `site_packages` 父行，在同一事务中确认目标
+不是 `published_revision_id`、删除 revision，并写入 `object_deletion_jobs` 的前缀回收任务；因此
+不会出现数据库已删除但回收意图丢失的窗口。`ObjectDeletionWorker` 用 PostgreSQL 租约跨进程领取
+任务，通过对象存储端口执行幂等 `deletePrefix()`，失败按退避策略重试，达到上限后隔离；修复外部
+故障后由运维入口调用 `retryQuarantined(jobId)` 重新入队。当前由动态业务请求小批量驱动；后续定时
+任务或独立 worker 应复用同一端口，不直接复制 SQL。completed 运维
+任务默认保留 30 天，之后按批惰性清理。
 
 ## 连接与性能
 

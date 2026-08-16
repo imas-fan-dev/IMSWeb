@@ -3,8 +3,6 @@ import type { ObjectStorage } from '@/ports/object-storage';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 
 export type MediaTextResponse =
-    | { body: 'Forbidden'; status: 403 }
-    | { body: 'Image not found'; status: 404 }
     | { body: 'Bad Request'; status: 400 }
     | { body: 'Not Found'; status: 404 };
 
@@ -12,25 +10,10 @@ export interface MediaAuthorizationErrorResponse {
     message: string;
 }
 
-export interface ThumbnailImageResponse {
-    body: Uint8Array;
-    visibility: 'private' | 'public';
-}
-
 export interface MediaObjectReadResponse {
     key: string;
     visibility: 'private' | 'public';
 }
-
-export const THUMBNAIL_FORBIDDEN_RESPONSE = {
-    body: 'Forbidden',
-    status: 403
-} as const satisfies MediaTextResponse;
-
-export const THUMBNAIL_NOT_FOUND_RESPONSE = {
-    body: 'Image not found',
-    status: 404
-} as const satisfies MediaTextResponse;
 
 export const PUBLIC_UPLOAD_BAD_REQUEST_RESPONSE = {
     body: 'Bad Request',
@@ -47,20 +30,6 @@ export function mediaTextResponse(
     response: MediaTextResponse
 ): Response {
     return c.text(response.body, response.status);
-}
-
-export function thumbnailImageResponse(response: ThumbnailImageResponse): Response {
-    const isPrivate = response.visibility === 'private';
-    return new Response(Uint8Array.from(response.body).buffer, {
-        headers: {
-            'Content-Type': 'image/jpeg',
-            'Content-Length': String(response.body.byteLength),
-            'Cache-Control': isPrivate
-                ? 'private, no-store'
-                : 'public, max-age=31536000, immutable',
-            ...(isPrivate ? { Vary: 'Cookie, Authorization' } : {})
-        }
-    });
 }
 
 export function mediaObjectReadResponse(

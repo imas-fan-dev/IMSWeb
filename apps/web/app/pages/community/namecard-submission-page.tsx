@@ -4,7 +4,10 @@ import {
   CircleCheckIcon,
   CircleDashedIcon,
   CircleXIcon,
+  ImageUpIcon,
+  LoaderCircleIcon,
   RotateCcwIcon,
+  SendIcon,
   Trash2Icon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -20,6 +23,8 @@ import { Skeleton } from "~/components/ui/skeleton"
 import {
   getNamecardSubmission,
   isApiError,
+  replaceNamecardSubmissionImage,
+  resubmitNamecardSubmission,
   withdrawNamecardSubmission,
 } from "~/lib/api"
 import type { NamecardSubmission, NamecardSubmissionStatus } from "~/lib/api"
@@ -47,11 +52,11 @@ const STATUS_COPY: Record<
   },
   rejected: {
     label: "未通过",
-    description: "这次投稿未通过审核，如有疑问请联系管理员。",
+    description: "这次投稿未通过审核，你可以修改图片后重新送审。",
   },
   withdrawn: {
     label: "已撤回",
-    description: "投稿已退出审核队列，上传的图片将被清理。",
+    description: "投稿已退出审核队列，你可以重新上传图片并重新送审。",
   },
 }
 
@@ -107,7 +112,11 @@ export default function NamecardSubmissionPage() {
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
+  const [replacing, setReplacing] = useState<"front" | "back" | null>(null)
+  const [resubmitting, setResubmitting] = useState(false)
   const statusHeadingRef = useRef<HTMLDivElement>(null)
+  const frontInputRef = useRef<HTMLInputElement>(null)
+  const backInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!validId || !token) return
@@ -183,6 +192,77 @@ export default function NamecardSubmissionPage() {
       }
     } finally {
       setWithdrawing(false)
+    }
+  }
+
+  const editable =
+    submission?.status === "withdrawn" || submission?.status === "rejected"
+
+  function openFilePicker(side: "front" | "back") {
+    const input =
+      side === "front" ? frontInputRef.current : backInputRef.current
+    input?.click()
+  }
+
+  async function replaceImage(side: "front" | "back", file: File) {
+    if (!submission || !token || replacing) return
+    if (!file.type.startsWith("image/")) {
+      toast.error("只能上传图片文件")
+      return
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("每张名片图片不能超过 3 MiB")
+      return
+    }
+    setReplacing(side)
+    setError(null)
+    try {
+      const response = await replaceNamecardSubmissionImage(
+        submission.id,
+        token,
+        side,
+        submission.revision,
+        file
+      ).send()
+      setSubmission(response.submission)
+      toast.success(side === "front" ? "已更新正面" : "已更新背面")
+    } catch (replaceError) {
+      const message = isApiError(replaceError)
+        ? replaceError.message
+        : "图片替换失败，请重试"
+      setError(message)
+      toast.error(message)
+      if (isApiError(replaceError) && replaceError.status === 409) {
+        await refresh()
+      }
+    } finally {
+      setReplacing(null)
+    }
+  }
+
+  async function resubmit() {
+    if (!submission || !token || resubmitting) return
+    setResubmitting(true)
+    setError(null)
+    try {
+      const response = await resubmitNamecardSubmission(
+        submission.id,
+        token,
+        submission.revision
+      ).send()
+      setSubmission(response.submission)
+      toast.success("已重新送审，等待审核")
+    } catch (resubmitError) {
+      const message = isApiError(resubmitError)
+        ? resubmitError.message
+        : "重新送审失败，请重试"
+      setError(message)
+      toast.error(message)
+      if (isApiError(resubmitError) && resubmitError.status === 409) {
+        await refresh()
+      }
+    } finally {
+      setResubmitting(false)
     }
   }
 
@@ -274,18 +354,50 @@ export default function NamecardSubmissionPage() {
           <CardContent className="space-y-5">
             {submission.image1_url && submission.image2_url ? (
               <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border">
-                {[
-                  [submission.image1_url, "正面"],
-                  [submission.image2_url, "背面"],
-                ].map(([src, label]) => (
-                  <figure key={label} className="bg-muted">
-                    <img
-                      src={src}
-                      alt={`投稿名片${label}`}
-                      className="aspect-3/2 size-full object-contain"
-                    />
+                {(
+                  [
+                    [submission.image1_url, "正面", "front"],
+                    [submission.image2_url, "背面", "back"],
+                  ] as const
+                ).map(([src, label, side]) => (
+                  <figure key={side} className="group bg-muted">
+                    {editable ? (
+                      <button
+                        type="button"
+                        disabled={replacing !== null || resubmitting}
+                        onClick={() => openFilePicker(side)}
+                        aria-label={`点击更换${label}图片`}
+                        className="relative block w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+                      >
+                        <img
+                          src={src}
+                          alt={`投稿名片${label}`}
+                          className="aspect-3/2 size-full object-contain"
+                        />
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 bg-background/70 text-sm font-medium opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                          {replacing === side ? (
+                            <LoaderCircleIcon
+                              aria-hidden="true"
+                              className="size-4 animate-spin"
+                            />
+                          ) : (
+                            <ImageUpIcon
+                              aria-hidden="true"
+                              className="size-4"
+                            />
+                          )}
+                          {replacing === side ? "上传中" : "点击更换"}
+                        </span>
+                      </button>
+                    ) : (
+                      <img
+                        src={src}
+                        alt={`投稿名片${label}`}
+                        className="aspect-3/2 size-full object-contain"
+                      />
+                    )}
                     <figcaption className="p-2 text-center text-xs text-muted-foreground">
-                      {label}
+                      <span>{label}</span>
                     </figcaption>
                   </figure>
                 ))}
@@ -318,9 +430,50 @@ export default function NamecardSubmissionPage() {
                 撤回投稿
               </Button>
             ) : null}
+
+            {editable ? (
+              <Button
+                type="button"
+                disabled={replacing !== null || resubmitting}
+                onClick={() => void resubmit()}
+              >
+                {resubmitting ? (
+                  <LoaderCircleIcon
+                    data-icon="inline-start"
+                    className="animate-spin"
+                  />
+                ) : (
+                  <SendIcon data-icon="inline-start" />
+                )}
+                {resubmitting ? "正在送审" : "重新送审"}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
+
+      <input
+        ref={frontInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null
+          if (file) void replaceImage("front", file)
+          event.target.value = ""
+        }}
+      />
+      <input
+        ref={backInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null
+          if (file) void replaceImage("back", file)
+          event.target.value = ""
+        }}
+      />
 
       <ConfirmActionDialog
         open={confirmOpen}
@@ -328,7 +481,7 @@ export default function NamecardSubmissionPage() {
           if (!withdrawing) setConfirmOpen(open)
         }}
         title="撤回这次投稿？"
-        description="投稿将退出审核队列，已上传的正反面图片会被清理。撤回后不能恢复。"
+        description="投稿将退出审核队列。你可以稍后重新上传图片并重新送审。"
         submitting={withdrawing}
         onConfirm={() => void withdraw()}
         confirmLabel="确认撤回"

@@ -185,8 +185,10 @@ test("namecard images show a shimmer until the network response completes", asyn
         list: [
           {
             id: 42,
-            image1_url: slowImageUrl,
+            image1_url: coverUrl,
             image2_url: coverUrl,
+            image1_thumbnail_url: slowImageUrl,
+            image2_thumbnail_url: coverUrl,
             status: "approved",
             created_at: null,
           },
@@ -254,6 +256,8 @@ test("namecard images use the shared full-page viewer", async ({
             id: 42,
             image1_url: coverUrl,
             image2_url: "/brand/series/wall/shiny-colors.webp",
+            image1_thumbnail_url: coverUrl,
+            image2_thumbnail_url: "/brand/series/wall/shiny-colors.webp",
             status: "approved",
             created_at: null,
           },
@@ -278,7 +282,7 @@ test("namecard images use the shared full-page viewer", async ({
 
   const dialog = page.getByRole("dialog")
   await expect(dialog).toBeVisible()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 正面")
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")
   await expectFullPageGlass(page, dialog)
   await expect(dialog.getByLabel("名片查看区域")).toBeVisible()
   await expect(dialog.getByRole("img")).toHaveAttribute(
@@ -289,29 +293,26 @@ test("namecard images use the shared full-page viewer", async ({
   await dialog.getByRole("button", { name: "放大名片" }).click()
   await expect(dialog.getByText("125%", { exact: true })).toBeVisible()
 
-  const previousSide = dialog.getByRole("button", { name: /查看上一面/ })
-  const nextSide = dialog.getByRole("button", { name: /查看下一面/ })
-  await expect(previousSide).toBeEnabled()
-  await expect(nextSide).toBeEnabled()
+  const switchToBack = dialog.getByRole("button", { name: "切换到背面" })
+  await expect(switchToBack).toBeEnabled()
 
-  await page.keyboard.press("ArrowRight")
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 背面")
+  await switchToBack.click()
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
   await expect(
     dialog.getByRole("img", { name: "制作人名片 42 背面" })
   ).toBeVisible()
-  await expect(dialog.getByText("2 / 2", { exact: true })).toBeVisible()
   await expect(dialog.getByText("100%", { exact: true })).toBeVisible()
-  await expect(previousSide).toBeEnabled()
-  await expect(nextSide).toBeEnabled()
 
-  await previousSide.click()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 正面")
+  const switchToFront = dialog.getByRole("button", { name: "切换到正面" })
+  await expect(switchToFront).toBeEnabled()
+  await switchToFront.click()
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")
   await expect(
     dialog.getByRole("img", { name: "制作人名片 42 正面" })
   ).toBeVisible()
 
-  await nextSide.click()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 背面")
+  await dialog.getByRole("button", { name: "切换到背面" }).click()
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
 
   if (process.env.CAPTURE_INFORMATION_COVER_QA === "1") {
     await page.screenshot({
@@ -323,5 +324,5 @@ test("namecard images use the shared full-page viewer", async ({
   await dialog.getByRole("button", { name: "关闭名片预览" }).click()
   await expect(frontTrigger).toBeFocused()
   await page.getByRole("button", { name: "查看制作人名片 42 背面" }).click()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 背面")
+  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
 })

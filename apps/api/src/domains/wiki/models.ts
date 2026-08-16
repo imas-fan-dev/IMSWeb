@@ -31,7 +31,7 @@ export interface WikiIdol {
   wikiUrl: string | null;
   avatarUrl?: string;
   avatarFit?: WikiMediaFit;
-  avatarTransform?: WikiImageTransform;
+  avatarTransform: WikiImageTransform;
   mediaRevision?: number;
   avatarSource?: WikiMediaSource;
   textColor?: string;

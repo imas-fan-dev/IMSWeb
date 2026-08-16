@@ -1,15 +1,16 @@
 import type { ImsHonoApp } from '@/app';
-import { handleCreateThumbnail } from '@/domains/media/handlers/create-thumbnail';
 import { handleServeNamecard } from '@/domains/media/handlers/serve-namecard';
 import { handleServePublicUpload } from '@/domains/media/handlers/serve-public-upload';
 import {
     validateNamecardMediaParams,
-    validateThumbnailQuery
+    validateNamecardThumbnailMediaParams
 } from '@/domains/media/request';
-import { paramValidator, queryValidator } from '@/middleware/request-validation';
+import { paramValidator } from '@/middleware/request-validation';
 
 const namecardMediaValidator = paramValidator(validateNamecardMediaParams);
-const thumbnailQueryValidator = queryValidator(validateThumbnailQuery);
+const namecardThumbnailMediaValidator = paramValidator(
+    validateNamecardThumbnailMediaParams
+);
 
 export function registerMediaRoutes(app: ImsHonoApp): void {
     for (const route of [
@@ -37,5 +38,15 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
         namecardMediaValidator,
         handleServeNamecard
     );
-    app.get('/api/thumbnail', thumbnailQueryValidator, handleCreateThumbnail);
+    app.get(
+        '/uploads/namecard/thumbnail/:filename',
+        namecardThumbnailMediaValidator,
+        handleServeNamecard
+    );
+    app.on(
+        'HEAD',
+        '/uploads/namecard/thumbnail/:filename',
+        namecardThumbnailMediaValidator,
+        handleServeNamecard
+    );
 }

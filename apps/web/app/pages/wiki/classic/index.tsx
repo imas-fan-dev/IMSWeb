@@ -13,6 +13,7 @@ import { WikiMobileSearch } from "~/components/wiki/wiki-mobile-search"
 import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
 import type { WikiPublicCatalog } from "~/lib/api"
 import { WikiAgencyDial } from "~/pages/wiki/modern/components/wiki-agency-dial"
+import { shouldKeepCgIdol } from "~/pages/wiki/cg-voiced-idols"
 import { contrastingWikiText, safeWikiColor } from "~/pages/wiki/wiki-model"
 
 import { ClassicAgencyNavigation } from "./components/wiki/classic-agency-navigation"
@@ -56,6 +57,7 @@ export function ClassicWikiPage() {
     })
   const [query, setQuery] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
+  const [hideUnvoiced, setHideUnvoiced] = useState(false)
   const deferredQuery = useDeferredValue(query)
   const requestKey = `${requestedAgency}\u0000${refreshVersion}`
 
@@ -107,6 +109,7 @@ export function ClassicWikiPage() {
   const catalogError = requestIsCurrent ? catalogRequest.error : null
   const loading = !catalog && !catalogError
   const selection = catalog?.selection ?? null
+  const showOnlyVoiced = hideUnvoiced && selection?.agency.code === "cg"
   const background = backgroundLayers.current
   const pendingAgency = catalog?.agencies.find(
     (agency) => agency.name === requestedAgency
@@ -115,27 +118,35 @@ export function ClassicWikiPage() {
   const groups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
     if (!selection) return []
-    if (!normalized) return selection.groups
     return selection.groups
-      .map((group) => ({
-        ...group,
-        idols: group.name.toLocaleLowerCase("zh-CN").includes(normalized)
-          ? group.idols
-          : group.idols.filter((idol) =>
-              idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
-            ),
-      }))
+      .map((group) => {
+        let idols = group.idols
+        if (
+          normalized &&
+          !group.name.toLocaleLowerCase("zh-CN").includes(normalized)
+        ) {
+          idols = idols.filter((idol) =>
+            idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+          )
+        }
+        if (showOnlyVoiced) idols = idols.filter(shouldKeepCgIdol)
+        return { ...group, idols }
+      })
       .filter((group) => group.idols.length)
-  }, [deferredQuery, selection])
+  }, [deferredQuery, selection, showOnlyVoiced])
 
   const ungroupedIdols = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
     if (!selection) return []
-    if (!normalized) return selection.ungroupedIdols
-    return selection.ungroupedIdols.filter((idol) =>
-      idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
-    )
-  }, [deferredQuery, selection])
+    let idols = selection.ungroupedIdols
+    if (normalized) {
+      idols = idols.filter((idol) =>
+        idol.name.toLocaleLowerCase("zh-CN").includes(normalized)
+      )
+    }
+    if (showOnlyVoiced) idols = idols.filter(shouldKeepCgIdol)
+    return idols
+  }, [deferredQuery, selection, showOnlyVoiced])
   const modernWikiAgency = requestIsCurrent
     ? selection?.agency.name
     : requestedAgency
@@ -175,6 +186,8 @@ export function ClassicWikiPage() {
           groupFilterDisabled={!requestIsCurrent}
           groups={groups}
           ungroupedIdols={ungroupedIdols}
+          hideUnvoiced={hideUnvoiced}
+          onToggleHideUnvoiced={() => setHideUnvoiced((current) => !current)}
           onQueryChange={setQuery}
           onRetry={() => setRefreshVersion((current) => current + 1)}
         />

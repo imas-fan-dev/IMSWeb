@@ -7,9 +7,23 @@ import type {
 } from '@/ports/repositories';
 import type {
     WikiRandomBackground,
-    WikiRandomIdol,
-    WikiStoryCategory
+    WikiRandomIdol
 } from '@/domains/wiki/models';
+import type {
+    WikiAdminAgencyContract,
+    WikiAdminCatalogContract,
+    WikiAdminGroupContract,
+    WikiAdminIdolContract,
+    WikiAdminStoriesContract,
+    WikiAdminStoryCardContract,
+    WikiAdminStoryContract,
+    WikiPublicAgencyContract,
+    WikiPublicCatalogContract,
+    WikiPublicGroupContract,
+    WikiPublicIdolContract,
+    WikiPublicSearchEntryContract,
+    WikiPublicStoriesContract
+} from '@/ports/wiki-contracts';
 
 export type WikiRouteHandler<E extends Env, I extends Input = Input> = Handler<E, string, I>;
 export type WikiBinaryResponse = Response;
@@ -126,39 +140,7 @@ export interface WikiStoryCoverAssetResponse {
     usageCount: number;
 }
 
-export interface WikiCatalogAgencyResponse {
-    id: number;
-    code: string;
-    name: string;
-    color: string;
-    bannerTitle?: string;
-    iconUrl?: string | null;
-    wikiEnabled?: boolean;
-    displayOrder?: number;
-    layoutRevision?: number;
-    imageTransform?: WikiImageTransform;
-    mediaRevision?: number;
-}
-
-export interface WikiCatalogIdolResponse {
-    id: number;
-    name: string;
-    folderName?: string;
-    color: string | null;
-    wikiUrl?: string | null;
-    imageUrl?: string;
-    imageFit?: 'cover' | 'contain';
-    imageTransform?: WikiImageTransform;
-    textColor?: string;
-    entryKind: WikiEntryKind;
-    entrySubtype: WikiStoryEntrySubtype | null;
-}
-
-export interface WikiStoryListResponse extends WikiMutationResponse {
-    agency: WikiCatalogAgencyResponse;
-    idol: WikiCatalogIdolResponse;
-    categories: WikiStoryCategory[];
-}
+export type WikiStoryListResponse = WikiPublicStoriesContract;
 
 export interface WikiBilibiliSuccessResponse extends WikiMutationResponse {
     title: string;
@@ -242,117 +224,18 @@ export interface WikiIdolMediaListResponse extends WikiMutationResponse {
     }>;
 }
 
-export interface WikiPublicCatalogAgencyResponse {
-    id: number;
-    code: string;
-    name: string;
-    color: string;
-    bannerTitle: string;
-    iconUrl: string | null;
-    idolCount: number;
-    entryCount: number;
-    imageTransform: WikiImageTransform;
-}
-
-export interface WikiPublicCatalogSearchEntryResponse {
-    id: number;
-    name: string;
-    agencyId: number;
-    agencyCode: string;
-    agencyName: string;
-    agencyColor: string;
-    entryKind: WikiEntryKind;
-    entrySubtype: WikiStoryEntrySubtype | null;
-}
-
-export interface WikiPublicCatalogIdolResponse {
-    id: number;
-    name: string;
-    folderName: string;
-    color: string | null;
-    wikiUrl: string | null;
-    imageUrl: string;
-    imageFit: 'cover' | 'contain';
-    imageTransform: WikiImageTransform | undefined;
-    textColor: string;
-    entryKind: WikiEntryKind;
-    entrySubtype: WikiStoryEntrySubtype | null;
-}
-
-export interface WikiPublicCatalogGroupResponse {
-    id: number;
-    code: string;
-    name: string;
-    color: string;
-    iconUrl: string | null;
-    imageTransform: WikiImageTransform;
-    idols: WikiPublicCatalogIdolResponse[];
-}
-
-export interface WikiPublicCatalogResponse extends WikiMutationResponse {
-    agencies: WikiPublicCatalogAgencyResponse[];
-    searchEntries: WikiPublicCatalogSearchEntryResponse[];
-    selection: {
-        agency: WikiPublicCatalogAgencyResponse;
-        layoutRevision: number;
-        groups: WikiPublicCatalogGroupResponse[];
-        ungroupedIdols: WikiPublicCatalogIdolResponse[];
-    } | null;
-}
-
-export interface WikiAdminCatalogIdolResponse extends WikiIdolMutationDTO {
-    groupIds: number[];
-}
-
-export interface WikiAdminCatalogGroupResponse
-    extends Omit<WikiGroupMutationDTO, 'agencyId'> {
-    idolIds: number[];
-    idols: WikiAdminCatalogIdolResponse[];
-}
-
-export interface WikiAdminCatalogAgencyResponse extends WikiAgencyMutationDTO {
-    idols: WikiAdminCatalogIdolResponse[];
-    groups: WikiAdminCatalogGroupResponse[];
-}
-
-export interface WikiAdminCatalogResponse extends WikiMutationResponse {
-    agencies: WikiAdminCatalogAgencyResponse[];
-}
-
-export interface WikiAdminStoryCardResponse {
-    cardId: number;
-    category: string;
-    cardName: string;
-    subtitle: string;
-    imageFile: string | null;
-    coverAssetId?: number | null;
-    coverAssetName?: string | null;
-    imageUrl: string;
-    imageTransform: WikiImageTransform;
-    mediaRevision: number;
-    revision: number;
-}
-
-export interface WikiAdminStorySourceResponse extends WikiAdminStoryCardResponse {
-    id: number;
-    upName: string;
-    videoTitle: string;
-    url: string;
-    contentTypeId: number;
-    contentTypeName: string;
-    sourcePlatformId: number;
-    sourcePlatformName: string;
-}
-
-export interface WikiAdminStoriesResponse extends WikiMutationResponse {
-    agency: { id: number; code: string; name: string; color: string };
-    idol: WikiIdolMutationDTO;
-    categories: WikiCategoryResponse[];
-    contentTypes: WikiCatalogOptionResponse[];
-    sourcePlatforms: WikiCatalogOptionResponse[];
-    cards: WikiAdminStoryCardResponse[];
-    stories: WikiAdminStorySourceResponse[];
-}
+export type WikiPublicCatalogAgencyResponse = WikiPublicAgencyContract;
+export type WikiPublicCatalogSearchEntryResponse = WikiPublicSearchEntryContract;
+export type WikiPublicCatalogIdolResponse = WikiPublicIdolContract;
+export type WikiPublicCatalogGroupResponse = WikiPublicGroupContract;
+export type WikiPublicCatalogResponse = WikiPublicCatalogContract;
+export type WikiAdminCatalogIdolResponse = WikiAdminIdolContract;
+export type WikiAdminCatalogGroupResponse = WikiAdminGroupContract;
+export type WikiAdminCatalogAgencyResponse = WikiAdminAgencyContract;
+export type WikiAdminCatalogResponse = WikiAdminCatalogContract;
+export type WikiAdminStoryCardResponse = WikiAdminStoryCardContract;
+export type WikiAdminStorySourceResponse = WikiAdminStoryContract;
+export type WikiAdminStoriesResponse = WikiAdminStoriesContract;
 
 export type WikiJsonResponse =
     | WikiErrorResponse

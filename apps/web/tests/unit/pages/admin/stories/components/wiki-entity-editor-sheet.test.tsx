@@ -267,6 +267,7 @@ describe("WikiEntityEditorDialog", () => {
     vi.stubGlobal("fetch", fetchMock)
     const idol: WikiAdminIdol = {
       id: 10,
+      agencyId: 6,
       name: "樱木真乃",
       folderName: "sakuragi_mano",
       color: "#f1b0c9",

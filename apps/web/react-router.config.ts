@@ -16,6 +16,7 @@ export default {
     "/community/exchange",
     "/community/cards",
     "/producer-map",
+    "/tier-list",
     "/works",
     "/works/765",
     "/works/cg",

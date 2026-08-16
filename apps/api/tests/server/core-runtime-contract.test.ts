@@ -5,9 +5,11 @@ import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
-import { FilesystemIdempotencyStore } from '@/infra/cache/filesystem/idempotency-store';
-import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
+import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
+import { PostgresqlRateLimiter } from '@/infra/cache/postgresql/rate-limiter';
+import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
+import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
@@ -166,7 +168,6 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     const chronicleDir = path.join(root, 'chronicle');
     const storyDataDir = path.join(root, 'story-data');
     const compensationDir = path.join(root, 'compensation');
-    const idempotencyDir = path.join(root, 'idempotency');
     await Promise.all([publicDir, uploadsDir, chronicleDir, storyDataDir].map((directory) =>
         fs.mkdir(directory, { recursive: true })));
 
@@ -192,7 +193,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     );
 
     const parser = new ControlledUploadParser();
-    const limiter = new MemoryRateLimiter();
+    const limiter = new PostgresqlRateLimiter(connection);
     const delegate = new FilesystemObjectStorage({ publicDir, uploadsDir, chronicleDir, storyDataDir });
     await delegate.put(
         'community/namecards/assets/contract-seed-front/image.webp',
@@ -201,6 +202,14 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     await delegate.put(
         'community/namecards/assets/contract-seed-back/image.webp',
         Uint8Array.of(2)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-front/thumbnail.jpg',
+        Uint8Array.of(3)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-back/thumbnail.jpg',
+        Uint8Array.of(4)
     );
     const compensationDelegate = new FilesystemCompensationService(compensationDir);
     let businessInsertFailure = false;
@@ -284,8 +293,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         reactions: repository,
         compensation,
         storage,
+        objectDeletions: new PostgresqlObjectDeletionWorker(connection, storage),
         images,
-        idempotency: new FilesystemIdempotencyStore(idempotencyDir),
+        idempotency: new PostgresqlIdempotencyStore(connection),
         passwords: { async verify(value, digest) { return value === PASSWORD && digest === 'contract-digest'; } },
         backofficeTokens: new HmacBackofficeTokenService(SECRET),
         rateLimiter: limiter,
@@ -370,6 +380,12 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         assert.equal(response.status, 200);
         return (await response.json() as { token: string }).token;
     };
+    const rateCount = async (bucket: string, client: string): Promise<number> =>
+        (await queryOne<{ consumed: number }>(connection,
+            `SELECT consumed FROM rate_limit_windows
+             WHERE bucket=? AND limit_key=?`,
+            [bucket, clientAddress(client)]
+        ))?.consumed ?? 0;
 
     return {
         request,
@@ -417,17 +433,10 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
             return request('/eventchronicle/upload', init);
         },
         async rateSnapshot(client) {
-            const windows = (limiter as unknown as {
-                windows: Map<string, { identities: Set<string> }>;
-            }).windows;
             return {
-                count: windows.get(`public-upload\0${clientAddress(client)}`)?.identities.size || 0,
-                writeCount: windows.get(
-                    `chronicle-upload-write\0${clientAddress(client)}`
-                )?.identities.size || 0,
-                attemptCount: windows.get(
-                    `chronicle-upload-attempt\0${clientAddress(client)}`
-                )?.identities.size || 0,
+                count: await rateCount('public-upload', client),
+                writeCount: await rateCount('chronicle-upload-write', client),
+                attemptCount: await rateCount('chronicle-upload-attempt', client),
                 records: await chronicleRecordCount(path.join(chronicleDir, 'metadata')),
                 objects: await chronicleObjectCount(),
                 parserCalls: parser.calls,
@@ -543,7 +552,7 @@ test('[MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters
     await assertRouteUploadBoundaryContract({ runtime: 'Node', ...fixture });
 });
 
-test('[STATE-01] shared Chronicle upload budgets run before parsing with the Node limiter', async (t) => {
+test('[STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing', async (t) => {
     const fixture = await createFixture(t);
     await assertChronicleRateContract({ runtime: 'Node', ...fixture });
 });

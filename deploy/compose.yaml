@@ -168,7 +168,6 @@ services:
       IMS_PROJECT_ROOT: /app
       IMS_PUBLIC_DIR: /app/apps/api/dist/node-client
       IMS_COMPENSATION_DIR: /app/data/core/compensation
-      IMS_IDEMPOTENCY_DIR: /app/data/core/idempotency
       IMS_UPLOADS_DIR: /app/data/uploads
       IMS_EVENT_BASE_DIR: /app/data/chronicle
       IMS_STORY_DATA_DIR: /app/data/story/images

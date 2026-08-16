@@ -1,4 +1,4 @@
-'use strict';
+
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -75,7 +75,7 @@ const infraCategories = new Set([
     'security'
 ]);
 const infraMiddleware = new Map([
-    ['cache', new Set(['filesystem', 'memory', 'sql'])],
+    ['cache', new Set(['filesystem', 'memory', 'postgresql', 'sql'])],
     ['db', new Set(['postgresql', 'repositories', 'sql'])],
     ['email', new Set(['cloudflare'])],
     ['http', new Set(['busboy', 'filesystem'])],
@@ -119,7 +119,11 @@ const databaseLayout = new Map([
         'core-repository.ts',
         'fudaba-repository.ts',
         'platform-account-repository.ts',
-        'story-repository.ts'
+        'story-repository.ts',
+        'story-catalog-repository.ts',
+        'story-conflicts.ts',
+        'story-rows.ts',
+        'wiki-entity-repository.ts'
     ]],
     ['sql', ['database.ts', 'query.ts']]
 ]);
@@ -137,25 +141,49 @@ const portContracts = new Map([
     ['email.ts', ['PlatformEmailSender', 'EmailServices']],
     ['http.ts', ['StaticAssets', 'UploadParser', 'HttpServices']],
     ['media.ts', ['ImageProcessor', 'MediaServices']],
-    ['object-storage.ts', ['ObjectStorage', 'CompensationService', 'ObjectStorageServices']],
-    ['repositories.ts', [
-        'BackofficeAuthRepository',
-        'PlatformAccountRepository',
-        'FudabaRepository',
+    ['object-storage.ts', [
+        'ObjectStorage',
+        'CompensationService',
+        'ObjectDeletionWorker',
+        'ObjectStorageServices'
+    ]],
+    ['repositories-core.ts', [
+        'AuthRepository',
+        'AdminAccountRepository',
         'AuditRepository',
         'NewsRepository',
         'EventRepository',
         'NamecardRepository',
         'ReactionRepository',
-        'SitePackageRepository',
-        'StoryRepository',
+        'HomepageLinkRepository',
+        'SitePackageRepository'
+    ]],
+    ['repositories-wiki.ts', [
+        'StoryRepository'
+    ]],
+    ['repositories.ts', [
+        'BackofficeAuthRepository',
+        'PlatformAccountRepository',
+        'FudabaRepository',
         'RepositoryServices'
     ]],
     ['runtime-services.ts', ['RuntimeServices', 'NodeRuntimeServices']],
     ['security.ts', [
         'BackofficeTokenService',
+        'PlatformTokenService',
         'PasswordVerifier',
         'SecurityServices'
+    ]],
+    ['wiki-contracts.ts', [
+        'WikiPublicCatalogContract',
+        'WikiPublicStoriesContract',
+        'WikiAdminCatalogContract',
+        'WikiAdminStoriesContract',
+        'WikiCategoryContract',
+        'WikiCatalogOptionContract',
+        'WikiStoryContentTypeContract',
+        'WikiStorySourcePlatformContract',
+        'WikiAdminStoryContract'
     ]]
 ]);
 for (const [name, contracts] of portContracts) {
@@ -430,8 +458,9 @@ for (const exportName of ['honoApp', 'app', 'startServer', 'closeDatabase']) {
 
 const nodeServicesSource = fs.readFileSync(path.join(sourceRoot, 'runtime/node-services.ts'), 'utf8');
 for (const implementation of [
-    'FilesystemIdempotencyStore',
-    'MemoryRateLimiter',
+    'PostgresqlIdempotencyStore',
+    'PostgresqlRateLimiter',
+    'PostgresqlObjectDeletionWorker',
     'PostgresConnection',
     'SqlFudabaRepository',
     'FilesystemObjectStorage',

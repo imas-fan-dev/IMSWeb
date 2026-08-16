@@ -11,8 +11,8 @@ filesystem 或 S3 实例。S3 的对象字节保存在 bucket，上传状态、�
 S3 模式采用控制面与数据面分离：业务 URL 仍保持 `/uploads/*`、`/image/*` 等稳定路径。
 Hono 完成数据库映射、对象存在性检查和受保护资源鉴权后，公开对象返回单一 bucket 的 CDN
 地址，受保护对象返回短期签名 URL；浏览器随后直接从 RustFS、R2、MinIO 或其他 S3-compatible 服务获取
-对象字节。上传、MIME/尺寸校验、格式转换、数据库提交和失败补偿始终由 Hono 执行。动态
-`/api/thumbnail` 需要后端转换图片，是唯一保留后端读取对象正文的图片接口。
+对象字节。上传、MIME/尺寸校验、格式转换、数据库提交和失败补偿始终由 Hono 执行。图片缩放只在
+上传等写入路径由 Hono 执行并保存为独立对象，不再提供运行时动态缩图接口。
 
 R2 只通过 S3-compatible API 和绑定到单一 bucket 的自定义域名接入。本项目不部署
 Cloudflare Worker，不读取 Worker binding，也不使用 D1。
@@ -58,7 +58,8 @@ pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
 - Core/Story 关系数据，由一个 `DATABASE_URL` 指向的 PostgreSQL 数据库持有；
 - filesystem 模式的删除补偿仍由 `IMS_COMPENSATION_DIR` 指向本地持久卷；S3 模式的补偿、
   重试租约和隔离状态保存在统一数据库的 `s3_compensation_jobs`；
-- 编年史幂等 journal 仍由 `IMS_IDEMPOTENCY_DIR` 指向本地持久卷；
+- 请求幂等租约、响应回放和共享限流窗口保存在 PostgreSQL 的
+  `request_idempotency_records`、`rate_limit_windows` 和 `rate_limit_identities`；
 - 构建后的 Web 静态文件，仍由 `IMS_PUBLIC_DIR` 提供。
 
 ## 配置
@@ -99,8 +100,8 @@ AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优
 `AWS_SECRET_ACCESS_KEY`，使用短期凭据时再注入 `AWS_SESSION_TOKEN`。真实凭据不得写入
 `apps/api/.env.example`、release 或进程启动命令历史。
 
-应用不执行隐式 DDL。启用 S3 前必须执行 `pnpm run migration:postgresql` 并确认
-`0009_s3_public_storage_scope` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
+应用不执行隐式 DDL。启动服务前必须执行 `pnpm run migration:postgresql` 并确认最新版本
+`20260814170000_object_deletion_jobs` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
 
 AWS S3 + IAM Role 示例：
 
@@ -109,7 +110,6 @@ export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-media-prod
 export IMS_S3_REGION=ap-northeast-1
 export IMS_S3_PREFIX=v1
-export IMS_IDEMPOTENCY_DIR=/srv/ims/shared/idempotency
 pnpm run start
 ```
 
@@ -347,7 +347,15 @@ site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 字体和媒体，不会放宽脚本、样式或网络连接来源。运行时会删除入口 HTML 中阻塞渲染的
 `fonts.css` import，并从独立 CSS
 响应中移除 CSP 必然拒绝的远程字体声明。历史版本的直接 URL 返回 404，但仍可通过该版本的
-预览 bearer 查看；预览使用 `private, no-store`。浏览器公开入口
+预览 bearer 查看；预览使用 `private, no-store`。管理员删除历史版本时，当前
+`published_revision_id` 由 PostgreSQL 父行锁保护，不能被删除。其他 revision 的数据库删除与
+`site-packages/{packageId}/revisions/{revisionId}/` 前缀回收任务在同一事务提交；成功响应表示
+版本已不可预览或回滚且 OSS 回收已排队，不表示物理对象已同步删除。通用
+`ObjectDeletionWorker` 使用租约、重试和隔离状态处理任务；S3 逻辑键删除后，现有 compensation
+队列负责提交并重试 provider 的 `DeleteObject`。启用 bucket 版本控制时，该操作只创建 delete
+marker，`completed` 不表示 noncurrent version 的存储字节已经清除；生产环境必须配置经过审计的
+noncurrent-version lifecycle，或由后续 version-purge worker 使用 provider 的版本枚举与版本删除
+能力处理。任何清理策略仍不得删除 PostgreSQL 活动索引引用的对象。浏览器公开入口
 固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳；页面包本体也从主站
 `/site-content/...` 路径加载。iframe 的 `sandbox` 不包含 `allow-same-origin`，因此即使请求
 使用主站域名，页面包文档仍获得 opaque origin，脚本不能访问父页面、主站 Cookie 或存储。
@@ -424,3 +432,37 @@ pnpm run migration:public-objects -- \
 
 报告写入被 Git 忽略的 `data/migration/public-object-placement*.json`。新上传的 pending 名片直接
 写入 `__protected/`；审核通过时 `publish()` 在同一 bucket 内移动到公开业务语义路径。
+
+### 名片缩略图对象与历史回填
+
+每张名片图片的缩略图是与其原图同目录保存的独立对象：
+
+- 原图：`community/namecards/assets/<stem>/image.<extension>`；
+- 缩略图：`community/namecards/assets/<stem>/thumbnail.jpg`，公开路径为
+  `/uploads/namecard/thumbnail/<原文件名>.jpg`。
+
+上传与重新上传使用 Sharp 生成 600×400、JPEG quality 80 的缩略图，并与原图一起写入
+`__protected/`；审核通过时 `publish()` 同时发布原图与缩略图；替换、删除和终态 TTL 清理同样
+成对处理。公开名片列表返回缩略图 CDN 地址，展开预览仍使用原图地址。列表解析在缩略图对象尚
+未生成时回退到原图地址，因此可以先部署代码再回填，部署窗口不会破图。
+
+历史已审核名片使用一次性幂等脚本回填缩略图。脚本只处理 `status='approved'` 名片，跳过已存在
+且内容一致的目标对象，写入前重查审核状态，并使用 `putIfUnchanged` 防止并发重复版本；写入后
+回读核对，失败可重跑。先只读盘点：
+
+```sh
+pnpm run migration:namecard-thumbnails
+```
+
+确认 `data/migration/namecard-thumbnail-backfill-dry-run.json` 中不存在
+`missing-original` 或 `error` 后，精确确认目标 bucket 并应用：
+
+```sh
+pnpm run migration:namecard-thumbnails -- \
+  --apply \
+  --confirm-bucket "$IMS_S3_BUCKET"
+```
+
+该脚本是增量写入，可在线上执行；失败后重跑会自动跳过已完成对象。应用完成后再次运行只读盘
+点，结果应全部为 `exists`，随后在公开名片墙验证列表请求只命中缩略图 CDN 地址、展开预览才请
+求原图地址。

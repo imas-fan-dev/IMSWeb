@@ -1,4 +1,4 @@
-'use strict';
+
 
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
@@ -84,6 +84,18 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             },
             {
                 version: '20260811100000_wiki_category_revision',
+                phase: 'post-data'
+            },
+            {
+                version: '20260813000000_namecard_rejected_at',
+                phase: 'post-data'
+            },
+            {
+                version: '20260814155304_shared_request_controls',
+                phase: 'post-data'
+            },
+            {
+                version: '20260814170000_object_deletion_jobs',
                 phase: 'post-data'
             }
         ]
@@ -454,6 +466,21 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(storyContentTypeIcons.sql, /ADD COLUMN icon_name TEXT/);
     assert.match(storyContentTypeIcons.sql, /WHEN '剧情' THEN 'book-open-text'/);
     assert.match(storyContentTypeIcons.sql, /wiki_story_content_types_icon_name_check/);
+    const requestControls = migrations.find(
+        ({ version }) => version === '20260814155304_shared_request_controls'
+    );
+    assert.match(requestControls.sql, /CREATE TABLE public\.request_idempotency_records/);
+    assert.match(requestControls.sql, /CREATE TABLE public\.rate_limit_windows/);
+    assert.match(requestControls.sql, /CREATE TABLE public\.rate_limit_identities/);
+    assert.match(requestControls.sql, /ON DELETE CASCADE/);
+    const objectDeletions = migrations.find(
+        ({ version }) => version === '20260814170000_object_deletion_jobs'
+    );
+    assert.match(objectDeletions.sql, /CREATE TABLE public\.object_deletion_jobs/);
+    assert.match(objectDeletions.sql, /target_kind IN \('prefix'\)/);
+    assert.match(objectDeletions.sql, /lease_expires_at BIGINT/);
+    assert.match(objectDeletions.sql, /object_deletion_jobs_candidates_idx/);
+    assert.match(objectDeletions.sql, /object_deletion_jobs_completed_idx/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -477,11 +504,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 31);
+    assert.equal(catalog.count, 34);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260811100000_wiki_category_revision'
+        '20260814170000_object_deletion_jobs'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -569,7 +596,10 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260804095901_wiki_idol_url',
         '20260805090000_wiki_story_content_type_icons',
         '20260811090000_community_experience_consistency',
-        '20260811100000_wiki_category_revision'
+        '20260811100000_wiki_category_revision',
+        '20260813000000_namecard_rejected_at',
+        '20260814155304_shared_request_controls',
+        '20260814170000_object_deletion_jobs'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

@@ -1,25 +1,12 @@
-import {
-    publicUploadKey,
-    thumbnailDimension,
-    thumbnailKey
-} from '@/domains/media/media-access';
+import { publicUploadKey } from '@/domains/media/media-access';
 import {
     invalidRequest,
     requestRecord
 } from '@/utils/validation/request-data';
-import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';
-
-export interface ThumbnailTargetRequest {
-    key: string;
-    namecardUrl?: string;
-}
-
-export interface ThumbnailQueryRequest {
-    url: string;
-    width: number;
-    height: number;
-    target: ThumbnailTargetRequest | null;
-}
+import {
+    namecardThumbnailObjectKey,
+    publicMediaObjectKey
+} from '@/utils/storage/business-object-keys';
 
 export interface NamecardMediaParams {
     filename: string;
@@ -32,23 +19,7 @@ export interface PublicUploadPathRequest {
     key: string;
 }
 
-function queryText(value: unknown): string | undefined {
-    if (typeof value === 'string') return value;
-    return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : undefined;
-}
-
-export function validateThumbnailQuery(value: unknown): ThumbnailQueryRequest {
-    const query = requestRecord(value, '缩略图参数无效');
-    const url = queryText(query.url) ?? '';
-    return {
-        url,
-        width: thumbnailDimension(queryText(query.width)),
-        height: thumbnailDimension(queryText(query.height)),
-        target: thumbnailKey(url)
-    };
-}
-
-export function validateNamecardMediaParams(value: unknown): NamecardMediaParams {
+function namecardFilename(value: unknown): string {
     const params = requestRecord(value, '名片文件名无效');
     if (
         typeof params.filename !== 'string' ||
@@ -57,17 +28,32 @@ export function validateNamecardMediaParams(value: unknown): NamecardMediaParams
     ) {
         invalidRequest('名片文件名无效');
     }
-    const url = `/uploads/namecard/original/${params.filename}`;
+    return params.filename;
+}
+
+export function validateNamecardMediaParams(value: unknown): NamecardMediaParams {
+    const filename = namecardFilename(value);
+    const url = `/uploads/namecard/original/${filename}`;
     let key: string;
     try {
         key = publicMediaObjectKey(url);
     } catch {
         invalidRequest('名片文件名无效');
     }
+    return { filename, url, key };
+}
+
+export function validateNamecardThumbnailMediaParams(value: unknown): NamecardMediaParams {
+    const filename = namecardFilename(value);
+    const suffix = '.jpg';
+    if (!filename.toLowerCase().endsWith(suffix) || filename.length === suffix.length) {
+        invalidRequest('名片文件名无效');
+    }
+    const originalFilename = filename.slice(0, -suffix.length);
     return {
-        filename: params.filename,
-        url,
-        key
+        filename,
+        url: `/uploads/namecard/original/${originalFilename}`,
+        key: namecardThumbnailObjectKey(originalFilename)
     };
 }
 

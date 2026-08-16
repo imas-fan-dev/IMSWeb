@@ -1,19 +1,20 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { parseUploadNamecardRequest } from '@/domains/namecards/request';
+import { purgeExpiredNamecardSubmissions } from '@/domains/namecards/ttl-purge';
 import type {
     NamecardMessageResponse,
     NamecardRateLimitResponse,
     NamecardSubmissionReceiptResponse
 } from '@/domains/namecards/response';
 import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
+import { storeProtectedNamecardMedia } from '@/domains/namecards/media-assets';
 import { md5Hex } from '@/utils/crypto/md5';
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { namecardRepository, getClientAddress, services } from '@/middleware/hono-context';
 import { safeUploadBaseName } from '@/utils/media/filename';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
-import { namecardImageObjectKey } from '@/utils/storage/business-object-keys';
 import { sha256Hex } from '@/utils/crypto/sha256';
 
 export async function enforcePublicUploadLimit(
@@ -30,6 +31,7 @@ export async function enforcePublicUploadLimit(
 export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<Response> {
     const limited = await enforcePublicUploadLimit(c);
     if (limited) return limited;
+    await purgeExpiredNamecardSubmissions(c);
     const runtime = services(c);
     if (!runtime.uploads || !runtime.images || !runtime.storage) throw new Error('Upload services unavailable');
     const generated: string[] = [];
@@ -39,27 +41,26 @@ export async function handleUploadNamecard(c: Context<AppEnvironment>): Promise<
             return c.json({ msg: '只允许上传图片文件' } satisfies NamecardMessageResponse, 400);
         }
         if (files.length !== 2) {
-            return c.json({ msg: '必须上传2张图片' } satisfies NamecardMessageResponse);
+            return c.json({ msg: '必须上传2张图片' } satisfies NamecardMessageResponse, 400);
         }
         if (files.some((file) => file.body.byteLength > 3 * 1024 * 1024)) {
             return c.json({ msg: '文件过大' } satisfies NamecardMessageResponse, 400);
         }
-        const outputs: Array<{ key: string; url: string; hash: string }> = [];
+        const outputs: Array<{ url: string; hash: string }> = [];
         for (const file of files) {
             const webp = await normalizeNamecardImage(file, runtime.images);
             const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
-            const publicKey = `uploads/namecard/original/${filename}`;
-            const key = namecardImageObjectKey(filename);
-            await runtime.storage.put(key, webp, {
-                contentType: 'image/webp',
-                protectedAccess: true
-            });
-            generated.push(key);
-            outputs.push({ key, url: `/${publicKey}`, hash: md5Hex(webp) });
+            const stored = await storeProtectedNamecardMedia({
+                compensation: runtime.compensation,
+                images: runtime.images,
+                storage: runtime.storage
+            }, filename, webp);
+            generated.push(...stored.keys);
+            outputs.push({ url: stored.url, hash: md5Hex(webp) });
         }
         if (await namecardRepository(c).findCardByOrderedHashes(outputs[0].hash, outputs[1].hash)) {
             await Promise.all(generated.map((key) => deleteObjectWithCompensation(runtime, key)));
-            return c.json({ msg: '重复上传' } satisfies NamecardMessageResponse);
+            return c.json({ msg: '重复上传' } satisfies NamecardMessageResponse, 409);
         }
         const withdrawalToken = randomHex(32);
         const id = await namecardRepository(c).insertPendingCard({

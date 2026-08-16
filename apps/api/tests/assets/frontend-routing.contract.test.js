@@ -104,7 +104,8 @@ test('[FRT-02] real prerendered documents and selective SPA routes use build/cli
         'story',
         'story/modern',
         'story/classic',
-        'chronicle'
+        'chronicle',
+        'tier-list'
     ]) {
         await assertFileResponse(`/${route}`, path.join(FRONTEND_ROOT, route, 'index.html'));
         await assertFileResponse(`/${route}/`, path.join(FRONTEND_ROOT, route, 'index.html'));
@@ -287,5 +288,21 @@ test('[FRT-06] legacy browser URLs redirect to their modern owners', async () =>
             destination,
             legacyPath
         );
+    }
+});
+
+test('[FRT-07] every prerendered document in the build is owned by the route policy', async () => {
+    const documents = frontendFileList.filter((file) => file.endsWith('/index.html'));
+    assert.ok(documents.length > 0, 'build/client must contain prerendered documents');
+
+    for (const document of documents) {
+        const route = `/${document.slice(0, -'/index.html'.length)}`;
+        assert.deepEqual(
+            resolveFrontendRoute({ method: 'GET', pathname: route }, frontendFiles),
+            { kind: 'frontend', assetPath: document },
+            `${route} is prerendered but unowned; add it to PRERENDERED_ROUTES`
+        );
+        await assertFileResponse(route, path.join(FRONTEND_ROOT, document));
+        await assertFileResponse(`${route}/`, path.join(FRONTEND_ROOT, document));
     }
 });

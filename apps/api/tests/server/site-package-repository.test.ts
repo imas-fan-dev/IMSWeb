@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import crypto from 'node:crypto';
 import type { ManagedSqlDatabase, SqlResult } from '@/infra/db/sql/database';
-import { executeSql } from '@/infra/db/sql/query';
+import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { createPostgresTestDatabase } from './postgres-test-database';
@@ -163,4 +163,67 @@ test('PostgreSQL site packages create revisions and atomically switch rollback p
         ),
         /belongs to another site package|foreign key constraint/i
     );
+
+    const protectedRevision = await repository.deleteSitePackageRevision({
+        packageId,
+        revisionId: firstId,
+        deletionJobId: '77777777-7777-4777-8777-777777777777',
+        deletedBy: 10,
+        deletedAt: 8_000
+    });
+    assert.equal(protectedRevision?.kind, 'published');
+    assert.ok(await repository.findSitePackageRevisionById(packageId, firstId));
+
+    const deletionJobId = '88888888-8888-4888-8888-888888888888';
+    const deletedRevision = await repository.deleteSitePackageRevision({
+        packageId,
+        revisionId: secondId,
+        deletionJobId,
+        deletedBy: 10,
+        deletedAt: 9_000
+    });
+    assert.equal(deletedRevision?.kind, 'deleted');
+    assert.equal(deletedRevision?.revision.revision_number, 2);
+    assert.equal(await repository.findSitePackageRevisionById(packageId, secondId), null);
+    assert.equal((await repository.findSitePackageById(packageId))?.updated_by, 10);
+    assert.deepEqual(
+        await queryOne<{
+            resource_type: string;
+            resource_id: string;
+            target: string;
+            state: string;
+        }>(database,
+            `SELECT resource_type, resource_id, target, state
+             FROM object_deletion_jobs WHERE id=?`,
+            [deletionJobId]
+        ),
+        {
+            resource_type: 'site-package-revision',
+            resource_id: secondId,
+            target: `site-packages/${packageId}/revisions/${secondId}/`,
+            state: 'pending'
+        }
+    );
+    assert.equal(
+        await repository.deleteSitePackageRevision({
+            packageId,
+            revisionId: secondId,
+            deletionJobId: '99999999-9999-4999-8999-999999999999',
+            deletedBy: 10,
+            deletedAt: 10_000
+        }),
+        null
+    );
+
+    const deletedOnlyRevision = await repository.deleteSitePackageRevision({
+        packageId: otherPackageId,
+        revisionId: otherRevisionId,
+        deletionJobId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        deletedBy: 10,
+        deletedAt: 11_000
+    });
+    assert.equal(deletedOnlyRevision?.kind, 'deleted');
+    assert.equal(deletedOnlyRevision?.packageDeleted, true);
+    assert.equal(deletedOnlyRevision?.sitePackage.slug, 'another-site');
+    assert.equal(await repository.findSitePackageById(otherPackageId), null);
 });

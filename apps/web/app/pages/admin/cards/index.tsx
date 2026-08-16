@@ -6,6 +6,7 @@ import {
   LoaderCircleIcon,
   RefreshCwIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router"
@@ -24,6 +25,8 @@ import {
   approveAdminNamecard,
   deleteAdminNamecard,
   getAdminNamecards,
+  isApiError,
+  rejectAdminNamecard,
   type AdminNamecard,
   type AdminNamecardList,
 } from "~/lib/api"
@@ -34,6 +37,10 @@ export function meta() {
 
 async function loadCards(page: number) {
   return getAdminNamecards(page).send()
+}
+
+function isStaleSubmission(error: unknown) {
+  return isApiError(error) && (error.status === 409 || error.status === 410)
 }
 
 export default function AdminCardsPage() {
@@ -111,14 +118,22 @@ export default function AdminCardsPage() {
 
   const approveConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {
-      const response = await approveAdminNamecard(card.id, card.revision).send()
-      setCards((current) =>
-        current.map((item) =>
-          item.id === card.id
-            ? { ...item, status: "approved", revision: response.revision }
-            : item
+      try {
+        const response = await approveAdminNamecard(
+          card.id,
+          card.revision
+        ).send()
+        setCards((current) =>
+          current.map((item) =>
+            item.id === card.id
+              ? { ...item, status: "approved", revision: response.revision }
+              : item
+          )
         )
-      )
+      } catch (error) {
+        if (isStaleSubmission(error)) await refresh()
+        throw error
+      }
     },
     getTitle: () => "通过审核",
     getDescription: (card) =>
@@ -129,16 +144,21 @@ export default function AdminCardsPage() {
 
   const deleteConfirm = useConfirmAction<AdminNamecard>({
     onConfirm: async (card) => {
-      await deleteAdminNamecard(card.id, card.revision).send()
-      setCards((current) => current.filter((item) => item.id !== card.id))
-      setPageInfo((current) => ({
-        ...current,
-        total: Math.max(0, current.total - 1),
-        totalPages: Math.ceil(
-          Math.max(0, current.total - 1) / current.pageSize
-        ),
-      }))
-      if (cards.length === 1 && page > 1) changePage(page - 1)
+      try {
+        await deleteAdminNamecard(card.id, card.revision).send()
+        setCards((current) => current.filter((item) => item.id !== card.id))
+        setPageInfo((current) => ({
+          ...current,
+          total: Math.max(0, current.total - 1),
+          totalPages: Math.ceil(
+            Math.max(0, current.total - 1) / current.pageSize
+          ),
+        }))
+        if (cards.length === 1 && page > 1) changePage(page - 1)
+      } catch (error) {
+        if (isStaleSubmission(error)) await refresh()
+        throw error
+      }
     },
     getTitle: () => "删除名片",
     getDescription: (card) =>
@@ -147,7 +167,35 @@ export default function AdminCardsPage() {
     getFallbackFocus,
   })
 
-  const submitting = approveConfirm.submitting || deleteConfirm.submitting
+  const rejectConfirm = useConfirmAction<AdminNamecard>({
+    onConfirm: async (card) => {
+      try {
+        await rejectAdminNamecard(card.id, card.revision).send()
+        setCards((current) => current.filter((item) => item.id !== card.id))
+        setPageInfo((current) => ({
+          ...current,
+          total: Math.max(0, current.total - 1),
+          totalPages: Math.ceil(
+            Math.max(0, current.total - 1) / current.pageSize
+          ),
+        }))
+        if (cards.length === 1 && page > 1) changePage(page - 1)
+      } catch (error) {
+        if (isStaleSubmission(error)) await refresh()
+        throw error
+      }
+    },
+    getTitle: () => "驳回名片",
+    getDescription: (card) =>
+      `名片 #${card.id} 将被驳回。投稿者会在状态页看到「未通过」，可修改后重新投稿。`,
+    successMessage: (card) => `名片 #${card.id} 已驳回`,
+    getFallbackFocus,
+  })
+
+  const submitting =
+    approveConfirm.submitting ||
+    rejectConfirm.submitting ||
+    deleteConfirm.submitting
 
   return (
     <div className="flex flex-col gap-7">
@@ -246,6 +294,31 @@ export default function AdminCardsPage() {
                           通过
                         </Button>
                       ) : null}
+                      {card.status === "pending" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={submitting}
+                          onClick={(event) =>
+                            rejectConfirm.requestAction(
+                              card,
+                              event.currentTarget
+                            )
+                          }
+                        >
+                          {rejectConfirm.submitting &&
+                          rejectConfirm.target?.id === card.id ? (
+                            <LoaderCircleIcon
+                              data-icon="inline-start"
+                              className="animate-spin"
+                            />
+                          ) : (
+                            <XIcon data-icon="inline-start" />
+                          )}
+                          驳回
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         size="sm"
@@ -318,6 +391,18 @@ export default function AdminCardsPage() {
         confirmLabel="确认通过"
         variant="default"
         icon={CheckIcon}
+      />
+
+      <ConfirmActionDialog
+        open={rejectConfirm.open}
+        onOpenChange={rejectConfirm.onOpenChange}
+        title={rejectConfirm.title}
+        description={rejectConfirm.description}
+        submitting={rejectConfirm.submitting}
+        onConfirm={() => void rejectConfirm.confirmAction()}
+        confirmLabel="确认驳回"
+        variant="default"
+        icon={XIcon}
       />
 
       <ConfirmActionDialog

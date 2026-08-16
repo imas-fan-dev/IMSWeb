@@ -1017,7 +1017,7 @@ async function assertCoreMutationContract(fixture) {
             headers: { 'Content-Type': 'multipart/form-data; boundary=contract' },
             body: '--contract--'
         }),
-        200, { msg: '重复上传' }, `${fixture.runtime} duplicate namecard`
+        409, { msg: '重复上传' }, `${fixture.runtime} duplicate namecard`
     );
     deepEqual(await fixture.snapshot(), afterNamecard,
         `${fixture.runtime} duplicate namecard removes generated objects`);
@@ -1277,7 +1277,7 @@ async function assertPostCommitMediaContract(fixture) {
         `${fixture.runtime} later recovery does not duplicate event rows`);
     equal(committed.cards, before.cards + 1,
         `${fixture.runtime} namecard setup creates one row`);
-    equal(committed.objects, before.objects + 5,
+    equal(committed.objects, before.objects + 7,
         `${fixture.runtime} post-commit state preserves all referenced objects`);
     equal(committed.compensationPending, before.compensationPending,
         `${fixture.runtime} publish failures do not enqueue destructive cleanup`);
@@ -1286,7 +1286,7 @@ async function assertPostCommitMediaContract(fixture) {
             `${fixture.runtime} later request recovery drains the committed event publication`);
     }
     if (committed.readyPublications !== undefined && before.readyPublications !== undefined) {
-        equal(committed.readyPublications, before.readyPublications + 5,
+        equal(committed.readyPublications, before.readyPublications + 7,
             `${fixture.runtime} all referenced media is ready after request recovery`);
     }
 
@@ -1391,7 +1391,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
         `${fixture.runtime} namecard exact boundary withdrawal token`);
     let after = await fixture.uploadSnapshot();
     equal(after.cards, before.cards + 1, `${fixture.runtime} namecard exact boundary row`);
-    equal(after.objects, before.objects + 2, `${fixture.runtime} namecard exact boundary objects`);
+    equal(after.objects, before.objects + 4, `${fixture.runtime} namecard exact boundary objects`);
 
     before = after;
     fixture.setUpload({ fields: {}, files: {
@@ -1407,7 +1407,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
         images: [uploadedFile('one.png', 1, 15), uploadedFile('two.png', 1, 16), uploadedFile('three.png', 1, 17)]
     } });
     await assertJsonResponse(
-        await post('/api/uploadNameCard'), 200, { msg: '必须上传2张图片' },
+        await post('/api/uploadNameCard'), 400, { msg: '必须上传2张图片' },
         `${fixture.runtime} namecard excess file count`
     );
     deepEqual(await fixture.uploadSnapshot(), before, `${fixture.runtime} excess namecard leaves no residue`);

@@ -493,6 +493,7 @@ function buildOutline(stories: WikiAdminStories, query: string) {
         displayOrder: categoryMap.size,
         showWhenEmpty: true,
         backgroundEligible: false,
+        revision: 0,
         cards: [],
       }
       categoryMap.set(story.category, category)

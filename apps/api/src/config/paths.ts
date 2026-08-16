@@ -41,22 +41,10 @@ export const EVENT_BASE = configuredPath(
 export const CHRONICLE_UPLOAD_DIR = path.join(EVENT_BASE, 'upload');
 export const CHRONICLE_USED_DIR = path.join(EVENT_BASE, 'used');
 export const CHRONICLE_META_DIR = path.join(EVENT_BASE, 'meta');
-export const CHRONICLE_IDEMPOTENCY_DIR = path.join(EVENT_BASE, '.idempotency');
-const OBJECT_STORAGE_TYPE = process.env.IMS_OBJECT_STORAGE?.trim().toLowerCase() || 's3';
-const DEFAULT_IDEMPOTENCY_DIR = OBJECT_STORAGE_TYPE === 's3'
-    ? path.join(COMPENSATION_DIR, 'idempotency')
-    : CHRONICLE_IDEMPOTENCY_DIR;
-export const IDEMPOTENCY_DIR = configuredPath(
-    'IMS_IDEMPOTENCY_DIR',
-    DEFAULT_IDEMPOTENCY_DIR
-);
 export const CHRONICLE_STAGING_DIR = path.join(EVENT_BASE, '.staging');
 export const CHRONICLE_TRASH_DIR = path.join(EVENT_BASE, '.trash');
 
-const ALWAYS_RUNTIME_DIRECTORIES = [
-    COMPENSATION_DIR,
-    IDEMPOTENCY_DIR
-];
+const ALWAYS_RUNTIME_DIRECTORIES = [COMPENSATION_DIR];
 
 const FILESYSTEM_STORAGE_DIRECTORIES = [
     NEWS_ORIGINAL_DIR,

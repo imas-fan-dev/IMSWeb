@@ -277,6 +277,61 @@
   background: #6b7280;
 }
 
+.wiki-classic-voiced-filter-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.wiki-classic-voiced-filter {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 2px solid color-mix(in srgb, var(--classic-accent) 46%, #fff);
+  border-radius: 999px;
+  color: var(--classic-ink);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 3px 9px rgb(48 38 42 / 10%);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.wiki-classic-voiced-filter svg {
+  width: 15px;
+  height: 15px;
+  color: var(--classic-accent);
+}
+
+.wiki-classic-voiced-filter:hover {
+  border-color: var(--classic-accent);
+  transform: translateY(-1px);
+}
+
+.wiki-classic-voiced-filter:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--classic-accent) 45%, #fff);
+  outline-offset: 2px;
+}
+
+.wiki-classic-voiced-filter.is-active {
+  border-color: var(--classic-accent);
+  color: var(--classic-banner-ink);
+  background: var(--classic-accent);
+}
+
+.wiki-classic-voiced-filter.is-active svg {
+  color: var(--classic-banner-ink);
+}
+
 .wiki-classic-groups {
   gap: 60px;
   padding-top: 28px;

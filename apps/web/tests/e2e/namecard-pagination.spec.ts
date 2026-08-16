@@ -38,6 +38,10 @@ test("namecard wall changes page size and jumps to a page", async ({
               "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=",
             image2_url:
               "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs=",
+            image1_thumbnail_url:
+              "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=",
+            image2_thumbnail_url:
+              "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs=",
             status: "approved",
             created_at: null,
           },

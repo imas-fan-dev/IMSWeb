@@ -30,6 +30,12 @@ const APPROVED_FRONT_URL = `/uploads/namecard/original/${TEST_FILE_PREFIX}-appro
 const APPROVED_BACK_URL = `/uploads/namecard/original/${TEST_FILE_PREFIX}-approved-back.png`;
 const PENDING_FRONT_URL = `/uploads/namecard/original/${TEST_FILE_PREFIX}-pending-front.png`;
 const PENDING_BACK_URL = `/uploads/namecard/original/${TEST_FILE_PREFIX}-pending-back.png`;
+const APPROVED_FRONT_THUMBNAIL_URL =
+    `/uploads/namecard/thumbnail/${path.basename(APPROVED_FRONT_URL)}.jpg`;
+const APPROVED_BACK_THUMBNAIL_URL =
+    `/uploads/namecard/thumbnail/${path.basename(APPROVED_BACK_URL)}.jpg`;
+const PENDING_FRONT_THUMBNAIL_URL =
+    `/uploads/namecard/thumbnail/${path.basename(PENDING_FRONT_URL)}.jpg`;
 
 let baseUrl;
 let closeDatabase;
@@ -39,6 +45,7 @@ let databaseUrl;
 let fixturePool;
 let server;
 let tempDir;
+let validJpeg;
 let validPng;
 
 function run(db, sql, params = []) {
@@ -115,6 +122,13 @@ function namecardObjectPath(publicUrl) {
     return path.join(NAMECARD_DIR, stem, `image${extension}`);
 }
 
+function namecardThumbnailObjectPath(publicUrl) {
+    const filename = path.basename(publicUrl);
+    const extension = path.extname(filename).toLowerCase();
+    const stem = path.basename(filename, extension);
+    return path.join(NAMECARD_DIR, stem, 'thumbnail.jpg');
+}
+
 before(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-node-security-'));
     const uploadsDir = path.join(tempDir, 'uploads');
@@ -167,14 +181,16 @@ before(async () => {
         'INSERT INTO users (username, password, dept, producername) VALUES (?, ?, ?, ?)',
         ['security-test-op', passwordHash, 'op', 'Security Test']
     );
-    validPng = await sharp({
+    const image = sharp({
         create: {
             width: 2,
             height: 2,
             channels: 3,
             background: { r: 120, g: 40, b: 200 }
         }
-    }).png().toBuffer();
+    });
+    validPng = await image.clone().png().toBuffer();
+    validJpeg = await image.clone().jpeg().toBuffer();
     for (const mediaUrl of [
         APPROVED_FRONT_URL,
         APPROVED_BACK_URL,
@@ -184,6 +200,7 @@ before(async () => {
         const target = namecardObjectPath(mediaUrl);
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.writeFileSync(target, validPng);
+        fs.writeFileSync(namecardThumbnailObjectPath(mediaUrl), validJpeg);
     }
 
     process.env.NODE_ENV = 'test';
@@ -336,6 +353,8 @@ test('public card endpoints only expose approved non-sensitive data', async () =
     assert.equal(page.total, 1);
     assert.equal(page.list.length, 1);
     assert.equal(page.list[0].image1_url, APPROVED_FRONT_URL);
+    assert.equal(page.list[0].image1_thumbnail_url, APPROVED_FRONT_THUMBNAIL_URL);
+    assert.equal(page.list[0].image2_thumbnail_url, APPROVED_BACK_THUMBNAIL_URL);
 
     for (const privateField of ['ip', 'hash1', 'hash2']) {
         assert.equal(Object.hasOwn(page.list[0], privateField), false, privateField);
@@ -351,7 +370,7 @@ test('public card endpoints only expose approved non-sensitive data', async () =
     assert.deepEqual(await pendingResponse.json(), {});
 });
 
-test('namecard files and thumbnails enforce approval or op access', async () => {
+test('namecard originals and stored thumbnails enforce approval or op access', async () => {
     const approved = await fetch(`${baseUrl}${APPROVED_FRONT_URL}`);
     assert.equal(approved.status, 200);
 
@@ -365,28 +384,21 @@ test('namecard files and thumbnails enforce approval or op access', async () => 
     assert.equal(pendingForOp.status, 200);
     assert.equal(pendingForOp.headers.get('cache-control'), 'private, no-store');
 
-    const approvedThumbnail = await fetch(
-        `${baseUrl}/api/thumbnail?url=${encodeURIComponent(APPROVED_FRONT_URL)}&width=20&height=20`
-    );
+    const approvedThumbnail = await fetch(`${baseUrl}${APPROVED_FRONT_THUMBNAIL_URL}`);
     assert.equal(approvedThumbnail.status, 200);
     assert.match(approvedThumbnail.headers.get('content-type'), /^image\/jpeg/);
 
-    const privateThumbnail = await fetch(
-        `${baseUrl}/api/thumbnail?url=${encodeURIComponent(PENDING_FRONT_URL)}`
-    );
+    const privateThumbnail = await fetch(`${baseUrl}${PENDING_FRONT_THUMBNAIL_URL}`);
     assert.equal(privateThumbnail.status, 401);
 
-    const privateThumbnailForOp = await fetch(
-        `${baseUrl}/api/thumbnail?url=${encodeURIComponent(PENDING_FRONT_URL)}`,
-        { headers: { authorization: token } }
-    );
+    const privateThumbnailForOp = await fetch(`${baseUrl}${PENDING_FRONT_THUMBNAIL_URL}`, {
+        headers: { authorization: token }
+    });
     assert.equal(privateThumbnailForOp.status, 200);
     assert.equal(privateThumbnailForOp.headers.get('cache-control'), 'private, no-store');
 
-    const sourceThumbnail = await fetch(
-        `${baseUrl}/api/thumbnail?url=${encodeURIComponent('/app.py')}`
-    );
-    assert.equal(sourceThumbnail.status, 403);
+    const removedDynamicThumbnail = await fetch(`${baseUrl}/api/thumbnail`);
+    assert.equal(removedDynamicThumbnail.status, 404);
 });
 
 test('spoofed image uploads are rejected without leaving files behind', async () => {
@@ -624,6 +636,7 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
         const target = namecardObjectPath(mediaUrl);
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.writeFileSync(target, validPng);
+        fs.writeFileSync(namecardThumbnailObjectPath(mediaUrl), validJpeg);
     }
     const inserted = await run(
         fixturePool,

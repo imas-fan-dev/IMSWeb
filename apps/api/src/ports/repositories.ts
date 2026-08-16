@@ -1001,14 +1001,26 @@ export interface NamecardSubmissionRecord extends CardMediaRecord {
     created_at: string | Date | null;
 }
 
+export interface NamecardSubmissionWithHashesRecord extends NamecardSubmissionRecord {
+    hash1: string;
+    hash2: string;
+}
+
+export type NamecardEditResult =
+    | { status: 'updated'; card: NamecardSubmissionRecord }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' };
+
 export type NamecardApprovalClaim =
     | { status: 'claimed' | 'resumed'; card: NamecardSubmissionRecord }
     | { status: 'conflict'; revision: number }
+    | { status: 'withdrawn'; revision: number }
     | { status: 'not-found' };
 
 export type NamecardMutationResult =
     | { status: 'updated'; card: NamecardSubmissionRecord }
     | { status: 'conflict'; revision: number }
+    | { status: 'withdrawn'; revision: number }
     | { status: 'not-found' };
 
 export interface NamecardRepository {
@@ -1023,12 +1035,31 @@ export interface NamecardRepository {
     completeCardApproval(id: number, approvingRevision: number): Promise<NamecardMutationResult>;
     findCardMedia(id: number): Promise<CardMediaRecord | null>;
     deleteCard(id: number, expectedRevision: number): Promise<NamecardMutationResult>;
+    rejectSubmission(id: number, expectedRevision: number): Promise<NamecardMutationResult>;
+    purgeTerminalCards(cutoff: Date): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;
     findSubmissionByTokenHash(id: number, tokenHash: string): Promise<NamecardSubmissionRecord | null>;
     withdrawSubmission(
         id: number,
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardMutationResult>;
+    findSubmissionWithHashesByTokenHash(
+        id: number,
+        tokenHash: string
+    ): Promise<NamecardSubmissionWithHashesRecord | null>;
+    replaceSubmissionImage(
+        id: number,
+        tokenHash: string,
+        expectedRevision: number,
+        side: 'front' | 'back',
+        imageUrl: string,
+        hash: string
+    ): Promise<NamecardEditResult>;
+    resubmitSubmission(
+        id: number,
+        tokenHash: string,
+        expectedRevision: number
+    ): Promise<NamecardEditResult>;
     findCardByMediaUrl(url: string): Promise<CardMediaRecord | null>;
 }
 
@@ -1108,6 +1139,21 @@ export interface SitePackagePublicationResult {
     operation: 'publish' | 'rollback' | 'noop';
 }
 
+export interface DeleteSitePackageRevisionInput {
+    packageId: string;
+    revisionId: string;
+    deletionJobId: string;
+    deletedBy: number;
+    deletedAt: number;
+}
+
+export type SitePackageRevisionDeletionResult = {
+    kind: 'deleted' | 'published';
+    revision: SitePackageRevisionRecord;
+    sitePackage: SitePackageRecord;
+    packageDeleted: boolean;
+};
+
 export interface SitePackageRepository {
     listSitePackages(): Promise<SitePackageWithRevisions[]>;
     findSitePackageById(id: string): Promise<SitePackageRecord | null>;
@@ -1132,6 +1178,9 @@ export interface SitePackageRepository {
         updatedBy: number,
         publishedAt: number
     ): Promise<SitePackagePublicationResult | null>;
+    deleteSitePackageRevision(
+        input: DeleteSitePackageRevisionInput
+    ): Promise<SitePackageRevisionDeletionResult | null>;
     rotateSitePackagePreviewToken(
         packageId: string,
         revisionId: string,
@@ -1817,3 +1866,6 @@ export interface RepositoryServices {
     sitePackages: SitePackageRepository;
     story: StoryRepository;
 }
+
+export * from '@/ports/repositories-core';
+export * from '@/ports/repositories-wiki';

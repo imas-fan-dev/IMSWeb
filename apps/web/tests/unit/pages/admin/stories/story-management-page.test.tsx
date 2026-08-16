@@ -45,6 +45,7 @@ const catalog = {
           idols: [
             {
               id: 10,
+              agencyId: 1,
               name: "天海春香",
               folderName: "amami_haruka",
               color: "#e22b30",
@@ -65,6 +66,7 @@ const stories = {
   agency: { id: 1, code: "765pro", name: "765PRO", color: "#f34f6d" },
   idol: {
     id: 10,
+    agencyId: 1,
     name: "天海春香",
     folderName: "amami_haruka",
     color: "#e22b30",

@@ -50,6 +50,13 @@ function mediaObjectKey(key) {
     if (prefix === 'uploads/namecard/original') {
         return `community/namecards/assets/${file.stem}/image.${file.extension}`;
     }
+    if (prefix === 'uploads/namecard/thumbnail') {
+        const suffix = '.jpg';
+        if (!filename.toLowerCase().endsWith(suffix) || filename.length === suffix.length) {
+            throw new Error(`Unsupported namecard thumbnail key: ${key}`);
+        }
+        return `community/namecards/assets/${fileParts(filename.slice(0, -suffix.length)).stem}/thumbnail.jpg`;
+    }
     if (prefix === 'uploads/producer-map') {
         return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
     }

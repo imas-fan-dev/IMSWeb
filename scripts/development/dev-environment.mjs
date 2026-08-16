@@ -480,7 +480,6 @@ export function resolveDevelopmentConfiguration({
     ...objectStorageEnvironment,
     IMS_PUBLIC_DIR: "apps/api/dist/node-client",
     IMS_COMPENSATION_DIR: "data/core/compensation",
-    IMS_IDEMPOTENCY_DIR: "data/core/idempotency",
     IMS_UPLOADS_DIR: "data/uploads",
     IMS_EVENT_BASE_DIR: "data/chronicle",
     IMS_STORY_DATA_DIR: "data/story/images",
