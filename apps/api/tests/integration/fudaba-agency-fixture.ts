@@ -59,6 +59,27 @@ export const CANONICAL_FUDABA_AGENCIES = [
     }
 ] as const;
 
+export const FUDABA_TEST_IDOLS = [
+    {
+        id: 900_001,
+        agencyId: 1,
+        agencyCode: '765',
+        name: '测试春香',
+        folderName: 'test-haruka',
+        color: '#e22b30',
+        order: 0
+    },
+    {
+        id: 900_002,
+        agencyId: 3,
+        agencyCode: 'cg',
+        name: '测试卯月',
+        folderName: 'test-uzuki',
+        color: '#f16ab1',
+        order: 0
+    }
+] as const;
+
 export async function seedCanonicalFudabaAgencies(
     database: ManagedSqlDatabase
 ): Promise<void> {
@@ -87,6 +108,29 @@ export async function seedCanonicalFudabaAgencies(
             agency.order,
             `${agency.name} Banner`,
             agency.iconObjectKey
+        ).run();
+    }
+    for (const idol of FUDABA_TEST_IDOLS) {
+        await database.prepare(
+            `INSERT INTO idols
+                (id, agency_id, name_cn, folder_name, color, wiki_enabled,
+                 display_order, text_color)
+             VALUES (?, ?, ?, ?, ?, ?, ?, '#ffffff')
+             ON CONFLICT(id) DO UPDATE SET
+                 agency_id=excluded.agency_id,
+                 name_cn=excluded.name_cn,
+                 folder_name=excluded.folder_name,
+                 color=excluded.color,
+                 wiki_enabled=excluded.wiki_enabled,
+                 display_order=excluded.display_order`
+        ).bind(
+            idol.id,
+            idol.agencyId,
+            idol.name,
+            idol.folderName,
+            idol.color,
+            true,
+            idol.order
         ).run();
     }
 }
