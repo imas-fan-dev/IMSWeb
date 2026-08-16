@@ -206,7 +206,7 @@ function createCompatibilityFixture(
         },
         async delete() { calls.storageWrites += 1; },
         async publish() { calls.storageWrites += 1; },
-        async exists() { return false; },
+        async exists() { return true; },
         async copy() { calls.storageWrites += 1; },
         async move() { calls.storageWrites += 1; },
         async list() { return []; },
@@ -429,6 +429,101 @@ test('namecard approval publishes originals and thumbnails before the final CAS 
     assert.equal(response.status, 200);
     assert.deepEqual(await responseJson(response), { success: true, revision: 4 });
     assert.equal(fixture.calls.storageWrites, 4);
+    assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
+        action: '审核图片通过',
+        target: 'card_id=19;revision=4'
+    }]);
+});
+
+test('namecard approval heals legacy uploads whose thumbnails were never stored', async () => {
+    const writtenKeys: string[] = [];
+    const publishedKeys: string[] = [];
+    const originals = new Map([
+        ['community/namecards/assets/front/image.webp', new Uint8Array([9, 9])],
+        ['community/namecards/assets/back/image.webp', new Uint8Array([7])]
+    ]);
+    const fixture = createCompatibilityFixture({
+        async beginCardApproval(id, expectedRevision) {
+            assert.equal(id, 19);
+            assert.equal(expectedRevision, 2);
+            return {
+                status: 'claimed',
+                card: {
+                    id,
+                    image1_url: '/uploads/namecard/original/front.webp',
+                    image2_url: '/uploads/namecard/original/back.webp',
+                    status: 'approving',
+                    created_at: null,
+                    revision: 3
+                }
+            };
+        },
+        async completeCardApproval(id, approvingRevision) {
+            assert.equal(id, 19);
+            assert.equal(approvingRevision, 3);
+            return {
+                status: 'updated',
+                card: {
+                    id,
+                    image1_url: '/uploads/namecard/original/front.webp',
+                    image2_url: '/uploads/namecard/original/back.webp',
+                    status: 'approved',
+                    created_at: null,
+                    revision: 4
+                }
+            };
+        }
+    }, {
+        images: {
+            async validate() { throw new Error('unexpected validate'); },
+            async toWebp() { throw new Error('unexpected toWebp'); },
+            async thumbnailPng() { throw new Error('unexpected thumbnailPng'); },
+            async resizeJpeg(body) { return new Uint8Array(body.byteLength + 4); }
+        },
+        storage: {
+            async get(key) {
+                const original = originals.get(key);
+                return original ? {
+                    body: original,
+                    size: original.byteLength,
+                    contentType: 'image/webp',
+                    etag: 'etag'
+                } : null;
+            },
+            async put(key, body) {
+                writtenKeys.push(key);
+                return { body, size: body.byteLength, contentType: 'image/jpeg', etag: 'etag' };
+            },
+            async delete() {},
+            async exists(key) { return !key.endsWith('/thumbnail.jpg'); },
+            async publish(key) { publishedKeys.push(key); },
+            async copy() {},
+            async move() {},
+            async list() { return []; },
+            async deletePrefix() {}
+        }
+    });
+    const response = await fixture.request('/api/admin/cards/approve/19', {
+        method: 'POST',
+        headers: {
+            Authorization: 'Bearer op-token',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ expected_revision: 2 })
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await responseJson(response), { success: true, revision: 4 });
+    assert.deepEqual(writtenKeys, [
+        'community/namecards/assets/front/thumbnail.jpg',
+        'community/namecards/assets/back/thumbnail.jpg'
+    ]);
+    assert.deepEqual(publishedKeys, [
+        'community/namecards/assets/front/image.webp',
+        'community/namecards/assets/front/thumbnail.jpg',
+        'community/namecards/assets/back/image.webp',
+        'community/namecards/assets/back/thumbnail.jpg'
+    ]);
     assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
         action: '审核图片通过',
         target: 'card_id=19;revision=4'
