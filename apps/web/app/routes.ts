@@ -22,6 +22,7 @@ const publicRoutes = [
     path: "producer-map",
     file: "pages/producer-map/index.tsx",
   },
+  { path: "tier-list", file: "pages/tier-list/index.tsx" },
   { path: "works", file: "pages/works/index.tsx" },
   {
     path: "works/:workSlug",
