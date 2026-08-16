@@ -1,4 +1,4 @@
-export type AdminRole = 'admin' | 'super_admin';
+export type AdminRole = "admin" | "super_admin";
 
 export interface UserRecord {
     id: number;
@@ -47,7 +47,9 @@ export interface AuthRepository {
     findUserByUsername(username: string): Promise<UserRecord | null>;
     findUserById(id: number): Promise<UserRecord | null>;
     createRefreshSession(input: NewRefreshSessionInput): Promise<void>;
-    findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSessionRecord | null>;
+    findRefreshSessionByTokenHash(
+        tokenHash: string,
+    ): Promise<RefreshSessionRecord | null>;
     rotateRefreshSession(input: {
         id: string;
         currentTokenHash: string;
@@ -62,7 +64,9 @@ export interface AuthRepository {
 export interface AdminAccountRepository {
     ensureSuperAdmin(username?: string): Promise<void>;
     listAdminAccounts(): Promise<AdminAccountRecord[]>;
-    createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord>;
+    createAdminAccount(
+        input: NewAdminAccountInput,
+    ): Promise<AdminAccountRecord>;
     deleteAdminAccount(id: number): Promise<boolean>;
 }
 
@@ -95,11 +99,13 @@ export interface NewsRepository {
     listPublicNewsByCursor(
         limit: number,
         snapshotId: string,
-        afterId?: string
+        afterId?: string,
     ): Promise<Record<string, unknown>[]>;
     listAdminNews(): Promise<Record<string, unknown>[]>;
     insertNews(input: NewsInput): Promise<number>;
-    findNewsMedia(id: number): Promise<{ image: string; thumbnail: string } | null>;
+    findNewsMedia(
+        id: number,
+    ): Promise<{ image: string; thumbnail: string } | null>;
     deleteNews(id: number): Promise<void>;
 }
 
@@ -114,16 +120,25 @@ export interface EventInput {
 
 export interface EventRepository {
     insertEvent(input: EventInput): Promise<number>;
-    updateEvent(id: number, input: EventInput, expectedImageUrl: string): Promise<boolean>;
-    findEventByOperationKey(operationKey: string): Promise<Record<string, unknown> | null>;
+    updateEvent(
+        id: number,
+        input: EventInput,
+        expectedImageUrl: string,
+    ): Promise<boolean>;
+    findEventByOperationKey(
+        operationKey: string,
+    ): Promise<Record<string, unknown> | null>;
     markEventReady(id: number, operationKey: string): Promise<boolean>;
     countEvents(): Promise<number>;
-    listEvents(limit: number, offset: number): Promise<Record<string, unknown>[]>;
+    listEvents(
+        limit: number,
+        offset: number,
+    ): Promise<Record<string, unknown>[]>;
     findLatestEventId(): Promise<string | null>;
     listEventsByCursor(
         limit: number,
         snapshotId: string,
-        afterId?: string
+        afterId?: string,
     ): Promise<Record<string, unknown>[]>;
     findEvent(id: number): Promise<Record<string, unknown> | null>;
     findEventMedia(id: number): Promise<{ image_url: string } | null>;
@@ -138,6 +153,9 @@ export interface PendingCardInput {
     hash2: string;
     ip: string;
     withdrawalTokenHash: string;
+    seriesCode: string;
+    favoriteIdolIds: number[];
+    submissionKind: "guest";
 }
 
 export interface CardMediaRecord {
@@ -149,11 +167,11 @@ export interface CardMediaRecord {
 }
 
 export type NamecardSubmissionStatus =
-    | 'pending'
-    | 'approving'
-    | 'approved'
-    | 'rejected'
-    | 'withdrawn';
+    | "pending"
+    | "approving"
+    | "approved"
+    | "rejected"
+    | "withdrawn";
 
 export interface NamecardSubmissionRecord extends CardMediaRecord {
     id: number;
@@ -162,78 +180,107 @@ export interface NamecardSubmissionRecord extends CardMediaRecord {
     created_at: string | Date | null;
 }
 
-export interface NamecardSubmissionWithHashesRecord extends NamecardSubmissionRecord {
+export interface NamecardSubmissionWithHashesRecord
+    extends NamecardSubmissionRecord {
     hash1: string;
     hash2: string;
 }
 
 export type NamecardEditResult =
-    | { status: 'updated'; card: NamecardSubmissionRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'not-found' };
+    | { status: "updated"; card: NamecardSubmissionRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "not-found" };
 
 export type NamecardApprovalClaim =
-    | { status: 'claimed' | 'resumed'; card: NamecardSubmissionRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'withdrawn'; revision: number }
-    | { status: 'not-found' };
+    | { status: "claimed" | "resumed"; card: NamecardSubmissionRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "withdrawn"; revision: number }
+    | { status: "not-found" };
 
 export type NamecardMutationResult =
-    | { status: 'updated'; card: NamecardSubmissionRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'withdrawn'; revision: number }
-    | { status: 'not-found' };
+    | { status: "updated"; card: NamecardSubmissionRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "withdrawn"; revision: number }
+    | { status: "not-found" };
 
 export interface NamecardRepository {
-    findCardByOrderedHashes(hash1: string, hash2: string): Promise<{ id: number } | null>;
+    findCardByOrderedHashes(
+        hash1: string,
+        hash2: string,
+    ): Promise<{ id: number } | null>;
     insertPendingCard(input: PendingCardInput): Promise<number>;
     countApprovedCards(): Promise<number>;
     countAdminCards(): Promise<number>;
-    listApprovedCards(limit: number, offset: number): Promise<Record<string, unknown>[]>;
+    listApprovedCards(
+        limit: number,
+        offset: number,
+    ): Promise<Record<string, unknown>[]>;
     findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
-    listAdminCards(limit: number, offset: number): Promise<Record<string, unknown>[]>;
-    beginCardApproval(id: number, expectedRevision: number): Promise<NamecardApprovalClaim>;
-    completeCardApproval(id: number, approvingRevision: number): Promise<NamecardMutationResult>;
+    listAdminCards(
+        limit: number,
+        offset: number,
+    ): Promise<Record<string, unknown>[]>;
+    beginCardApproval(
+        id: number,
+        expectedRevision: number,
+    ): Promise<NamecardApprovalClaim>;
+    completeCardApproval(
+        id: number,
+        approvingRevision: number,
+    ): Promise<NamecardMutationResult>;
     findCardMedia(id: number): Promise<CardMediaRecord | null>;
-    deleteCard(id: number, expectedRevision: number): Promise<NamecardMutationResult>;
-    rejectSubmission(id: number, expectedRevision: number): Promise<NamecardMutationResult>;
-    purgeTerminalCards(cutoff: Date): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;
-    findSubmissionByTokenHash(id: number, tokenHash: string): Promise<NamecardSubmissionRecord | null>;
+    deleteCard(
+        id: number,
+        expectedRevision: number,
+    ): Promise<NamecardMutationResult>;
+    rejectSubmission(
+        id: number,
+        expectedRevision: number,
+    ): Promise<NamecardMutationResult>;
+    purgeTerminalCards(
+        cutoff: Date,
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;
+    findSubmissionByTokenHash(
+        id: number,
+        tokenHash: string,
+    ): Promise<NamecardSubmissionRecord | null>;
     withdrawSubmission(
         id: number,
         tokenHash: string,
-        expectedRevision: number
+        expectedRevision: number,
     ): Promise<NamecardMutationResult>;
     findSubmissionWithHashesByTokenHash(
         id: number,
-        tokenHash: string
+        tokenHash: string,
     ): Promise<NamecardSubmissionWithHashesRecord | null>;
     replaceSubmissionImage(
         id: number,
         tokenHash: string,
         expectedRevision: number,
-        side: 'front' | 'back',
+        side: "front" | "back",
         imageUrl: string,
-        hash: string
+        hash: string,
     ): Promise<NamecardEditResult>;
     resubmitSubmission(
         id: number,
         tokenHash: string,
-        expectedRevision: number
+        expectedRevision: number,
     ): Promise<NamecardEditResult>;
     findCardByMediaUrl(url: string): Promise<CardMediaRecord | null>;
 }
 
 export interface ReactionRepository {
     findApprovedCard(id: number): Promise<{ id: number } | null>;
-    listReactions(cardId: number): Promise<Array<{ emoji: string; count: number }>>;
+    listReactions(
+        cardId: number,
+    ): Promise<Array<{ emoji: string; count: number }>>;
     incrementReaction(cardId: number, emoji: string): Promise<void>;
     decrementAndPruneReaction(cardId: number, emoji: string): Promise<void>;
 }
 
-export type SitePackageRuntimeMode = 'safe' | 'isolated-script';
+export type SitePackageRuntimeMode = "safe" | "isolated-script";
 
-export type SitePackageRevisionState = 'ready' | 'archived';
+export type SitePackageRevisionState = "ready" | "archived";
 
 export interface SitePackageRecord {
     id: string;
@@ -298,7 +345,7 @@ export interface SitePackageWithRevisions extends SitePackageRecord {
 
 export interface SitePackagePublicationResult {
     revision: SitePackageRevisionRecord;
-    operation: 'publish' | 'rollback' | 'noop';
+    operation: "publish" | "rollback" | "noop";
 }
 
 export interface DeleteSitePackageRevisionInput {
@@ -310,7 +357,7 @@ export interface DeleteSitePackageRevisionInput {
 }
 
 export type SitePackageRevisionDeletionResult = {
-    kind: 'deleted' | 'published';
+    kind: "deleted" | "published";
     revision: SitePackageRevisionRecord;
     sitePackage: SitePackageRecord;
     packageDeleted: boolean;
@@ -322,37 +369,41 @@ export interface SitePackageRepository {
     findSitePackageBySlug(slug: string): Promise<SitePackageRecord | null>;
     findSitePackageRevisionById(
         packageId: string,
-        revisionId: string
+        revisionId: string,
     ): Promise<SitePackageRevisionRecord | null>;
     findSitePackageRevisionByPreviewTokenHash(
-        previewTokenHash: string
+        previewTokenHash: string,
     ): Promise<(SitePackageRevisionRecord & { slug: string }) | null>;
     createSitePackageWithRevision(
         sitePackage: NewSitePackageInput,
-        revision: NewSitePackageRevisionInput
+        revision: NewSitePackageRevisionInput,
     ): Promise<void>;
     createSitePackageRevision(
-        revision: NewSitePackageRevisionInput
+        revision: NewSitePackageRevisionInput,
     ): Promise<SitePackageRevisionRecord>;
     publishSitePackageRevision(
         packageId: string,
         revisionId: string,
         updatedBy: number,
-        publishedAt: number
+        publishedAt: number,
     ): Promise<SitePackagePublicationResult | null>;
     deleteSitePackageRevision(
-        input: DeleteSitePackageRevisionInput
+        input: DeleteSitePackageRevisionInput,
     ): Promise<SitePackageRevisionDeletionResult | null>;
     rotateSitePackagePreviewToken(
         packageId: string,
         revisionId: string,
-        previewTokenHash: string
+        previewTokenHash: string,
     ): Promise<boolean>;
 }
 
-export const HOMEPAGE_LINK_SECTIONS = ['navigation', 'friend', 'support'] as const;
+export const HOMEPAGE_LINK_SECTIONS = [
+    "navigation",
+    "friend",
+    "support",
+] as const;
 
-export type HomepageLinkSection = typeof HOMEPAGE_LINK_SECTIONS[number];
+export type HomepageLinkSection = (typeof HOMEPAGE_LINK_SECTIONS)[number];
 
 export interface HomepageLinkRecord {
     id: string;
@@ -388,17 +439,21 @@ export interface HomepageLinkUpdateInput {
 }
 
 export interface HomepageLinkRepository {
-    listHomepageLinks(section?: HomepageLinkSection): Promise<HomepageLinkRecord[]>;
+    listHomepageLinks(
+        section?: HomepageLinkSection,
+    ): Promise<HomepageLinkRecord[]>;
     findHomepageLinkById(id: string): Promise<HomepageLinkRecord | null>;
-    createHomepageLink(input: NewHomepageLinkInput): Promise<HomepageLinkRecord>;
+    createHomepageLink(
+        input: NewHomepageLinkInput,
+    ): Promise<HomepageLinkRecord>;
     updateHomepageLink(
         id: string,
-        input: HomepageLinkUpdateInput
+        input: HomepageLinkUpdateInput,
     ): Promise<HomepageLinkRecord | null>;
     deleteHomepageLink(id: string): Promise<boolean>;
     reorderHomepageLinks(
         section: HomepageLinkSection,
         ids: readonly string[],
-        updatedAt: number
+        updatedAt: number,
     ): Promise<boolean>;
 }

@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { useEffect, useMemo } from "react"
 
+import { IdolMultiSelect } from "~/components/community/idol-multi-select"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Button } from "~/components/ui/button"
@@ -32,6 +33,7 @@ import type {
   FudabaCardFields,
   FudabaCardMediaSide,
   FudabaSeries,
+  WikiPublicSearchEntry,
 } from "~/lib/api"
 
 export function useObjectUrl(file: File | null) {
@@ -96,11 +98,13 @@ export function CardPreview({
 export function CardFields({
   draft,
   series,
+  idols,
   disabled,
   onChange,
 }: {
   draft: FudabaCardFields
   series: FudabaSeries[]
+  idols: WikiPublicSearchEntry[]
   disabled: boolean
   onChange: (draft: FudabaCardFields) => void
 }) {
@@ -137,45 +141,41 @@ export function CardFields({
         </Field>
       </FieldGroup>
 
-      <FieldGroup className="grid gap-5 sm:grid-cols-2">
-        <Field data-disabled={disabled || undefined}>
-          <FieldLabel htmlFor="exchange-card-series">所属企划</FieldLabel>
-          <Select
-            value={draft.seriesCode || undefined}
-            disabled={disabled || series.length === 0}
-            onValueChange={(value) =>
-              onChange({ ...draft, seriesCode: String(value ?? "") })
-            }
+      <Field data-disabled={disabled || undefined}>
+        <FieldLabel htmlFor="exchange-card-series">所属企划</FieldLabel>
+        <Select
+          value={draft.seriesCode || undefined}
+          disabled={disabled || series.length === 0}
+          onValueChange={(value) =>
+            onChange({ ...draft, seriesCode: String(value ?? "") })
+          }
+        >
+          <SelectTrigger
+            id="exchange-card-series"
+            className="w-full sm:max-w-sm"
           >
-            <SelectTrigger id="exchange-card-series" className="w-full">
-              <SelectValue placeholder="选择企划" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectGroup>
-                {series.map((item) => (
-                  <SelectItem key={item.code} value={item.code}>
-                    {item.displayName}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field data-disabled={disabled || undefined}>
-          <FieldLabel htmlFor="exchange-card-favorite-idol">
-            喜欢的偶像
-          </FieldLabel>
-          <Input
-            id="exchange-card-favorite-idol"
-            value={draft.favoriteIdol}
-            maxLength={200}
-            disabled={disabled}
-            onChange={(event) =>
-              onChange({ ...draft, favoriteIdol: event.currentTarget.value })
-            }
-          />
-        </Field>
-      </FieldGroup>
+            <SelectValue placeholder="选择企划" />
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectGroup>
+              {series.map((item) => (
+                <SelectItem key={item.code} value={item.code}>
+                  {item.displayName}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <IdolMultiSelect
+        id="exchange-card-idols"
+        series={series}
+        idols={idols}
+        selectedIds={draft.favoriteIdolIds}
+        disabled={disabled}
+        onChange={(favoriteIdolIds) => onChange({ ...draft, favoriteIdolIds })}
+      />
 
       <Field data-disabled={disabled || undefined}>
         <FieldLabel htmlFor="exchange-card-accent">名片强调色</FieldLabel>

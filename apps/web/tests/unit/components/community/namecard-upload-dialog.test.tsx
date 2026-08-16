@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { NamecardUploadDialog } from "~/components/community/namecard-upload-dialog"
 
 const apiMocks = vi.hoisted(() => ({
+  sendCatalog: vi.fn(),
   sendUpload: vi.fn(),
+  getWikiCatalog: vi.fn(),
   uploadNamecard: vi.fn(),
 }))
 
@@ -19,6 +21,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
     ...actual,
+    getWikiCatalog: apiMocks.getWikiCatalog,
     uploadNamecard: apiMocks.uploadNamecard,
   }
 })
@@ -31,6 +34,42 @@ describe("NamecardUploadDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.localStorage.clear()
+    apiMocks.sendCatalog.mockResolvedValue({
+      status: "success",
+      agencies: [
+        {
+          id: 1,
+          code: "765",
+          name: "765PRO",
+          color: "#f34e6c",
+          bannerTitle: "765PRO",
+          iconUrl: null,
+          idolCount: 1,
+          entryCount: 1,
+          imageTransform: {
+            fit: "cover",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
+        },
+      ],
+      searchEntries: [
+        {
+          id: 1,
+          name: "天海春香",
+          agencyId: 1,
+          agencyCode: "765",
+          agencyName: "765PRO",
+          agencyColor: "#f34e6c",
+          entryKind: "idol",
+          entrySubtype: null,
+        },
+      ],
+      selection: null,
+    })
+    apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendCatalog })
     apiMocks.sendUpload.mockResolvedValue({
       msg: "已提交审核",
       submission: { id: 81, status: "pending", revision: 0 },
@@ -76,6 +115,7 @@ describe("NamecardUploadDialog", () => {
     })
     const frontInput = screen.getByLabelText("名片正面")
     const backInput = screen.getByLabelText("名片背面")
+    await user.click(await screen.findByRole("checkbox", { name: /天海春香/ }))
     const submitButton = screen.getByRole("button", { name: "提交审核" })
 
     expect(dialog).toBeVisible()
@@ -94,7 +134,10 @@ describe("NamecardUploadDialog", () => {
     await user.click(submitButton)
 
     await waitFor(() => {
-      expect(apiMocks.uploadNamecard).toHaveBeenCalledWith(front, back)
+      expect(apiMocks.uploadNamecard).toHaveBeenCalledWith(front, back, {
+        seriesCode: "765",
+        favoriteIdolIds: [1],
+      })
       expect(apiMocks.sendUpload).toHaveBeenCalledOnce()
     })
     expect(await screen.findByText("请保存投稿管理链接")).toBeVisible()
@@ -137,6 +180,7 @@ describe("NamecardUploadDialog", () => {
 
     const uploadButton = screen.getByRole("button", { name: "上传名片" })
     await user.click(uploadButton)
+    await user.click(await screen.findByRole("checkbox", { name: /天海春香/ }))
     await user.upload(
       screen.getByLabelText("名片正面"),
       new File(["front"], "front.png", { type: "image/png" })

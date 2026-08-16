@@ -46,6 +46,13 @@ const PlatformSessionContext = createContext<
   PlatformSessionContextValue | undefined
 >(undefined)
 
+const optionalAnonymousContext: PlatformSessionContextValue = {
+  ...anonymousState,
+  acceptSession: () => undefined,
+  reload: async () => undefined,
+  logout: async () => undefined,
+}
+
 function resolvedSessionState(session: PlatformSession): PlatformSessionState {
   return {
     status:
@@ -141,4 +148,8 @@ export function usePlatformSession(): PlatformSessionContextValue {
     )
   }
   return context
+}
+
+export function useOptionalPlatformSession(): PlatformSessionContextValue {
+  return useContext(PlatformSessionContext) ?? optionalAnonymousContext
 }

@@ -24,12 +24,15 @@ import {
   getFudabaOwnerCards,
   getFudabaOwnerSeries,
   getPlatformProfile,
+  getWikiCatalog,
   hasPlatformSessionHint,
   type FudabaOwnerCard,
   type FudabaSeries,
   type PlatformProfile,
+  type WikiPublicSearchEntry,
 } from "~/lib/api"
 import { CardWorkspace } from "./card-workspace"
+import { ClaimEnvelopePanel } from "./claim-envelope-panel"
 import { apiMessage, isFeatureClosed } from "./exchange-me-model"
 import { OfficeLocationWorkspace } from "./office-location-workspace"
 import { ProfileEditor } from "./profile-editor"
@@ -42,6 +45,7 @@ type WorkspaceState = {
   accountStatus: "active" | "restricted" | null
   writeEnabled: boolean
   series: FudabaSeries[]
+  idols: WikiPublicSearchEntry[]
   cards: FudabaOwnerCard[]
   error: string | null
 }
@@ -52,6 +56,7 @@ const initialState: WorkspaceState = {
   accountStatus: null,
   writeEnabled: false,
   series: [],
+  idols: [],
   cards: [],
   error: null,
 }
@@ -83,11 +88,13 @@ export default function CommunityExchangeMePage() {
       error: null,
     }))
     try {
-      const [profileResult, seriesResult, cardResult] = await Promise.all([
-        getPlatformProfile().send(),
-        getFudabaOwnerSeries().send(),
-        getFudabaOwnerCards().send(),
-      ])
+      const [profileResult, seriesResult, cardResult, catalogResult] =
+        await Promise.all([
+          getPlatformProfile().send(),
+          getFudabaOwnerSeries().send(),
+          getFudabaOwnerCards().send(),
+          getWikiCatalog().send(),
+        ])
       if (workspaceGeneration.current !== generation) return
       const canCreate =
         profileResult.account.status === "active" &&
@@ -98,6 +105,7 @@ export default function CommunityExchangeMePage() {
         accountStatus: profileResult.account.status,
         writeEnabled: profileResult.capabilities.fudabaWrite,
         series: seriesResult.items,
+        idols: catalogResult.searchEntries,
         cards: cardResult.items,
         error: null,
       })
@@ -363,6 +371,8 @@ export default function CommunityExchangeMePage() {
         </div>
       ) : null}
 
+      <ClaimEnvelopePanel readOnly={readOnly} />
+
       <div className="mx-auto grid w-full max-w-7xl min-w-0 gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[20rem_minmax(0,1fr)] lg:px-8">
         <ProfileEditor
           profile={state.profile}
@@ -383,6 +393,7 @@ export default function CommunityExchangeMePage() {
             loadingDetail={loadingDetail}
             profile={state.profile}
             series={state.series}
+            idols={state.idols}
             readOnly={readOnly}
             readOnlyReason={readOnlyReason}
             onSelect={(cardId) => void loadCard(cardId)}

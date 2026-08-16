@@ -42,6 +42,7 @@ const card = {
   displayName: "交换会用名片",
   seriesCode: "765",
   favoriteIdol: "天海春香",
+  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/media/card-1-front.webp",
   backImageUrl: "/media/card-1-back.webp",
   accent: "#f34e6c",
@@ -87,6 +88,7 @@ const ownerCard = {
   displayName: "交换会用名片",
   seriesCode: "765",
   favoriteIdol: "天海春香",
+  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/api/community/exchange/me/cards/owner-card/media/front?v=1",
   backImageUrl: "/api/community/exchange/me/cards/owner-card/media/back?v=1",
   accent: "#f34e6c",
@@ -144,7 +146,7 @@ const cardFields = {
   producerName: "春香P",
   displayName: "交换会用名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
+  favoriteIdolIds: [1],
   accent: "#f34e6c",
   bio: "周末参加线下活动",
   tradeNote: "希望交换同系列名片",
@@ -652,6 +654,7 @@ describe("Fudaba Web API contracts", () => {
     expect(create.get("back")).toBe(back)
     expect(create.get("available")).toBe("true")
     expect(create.get("displayName")).toBe(cardFields.displayName)
+    expect(create.get("favoriteIdolIds")).toBe("[1]")
 
     expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
       ...cardFields,

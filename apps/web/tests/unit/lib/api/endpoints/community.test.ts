@@ -50,7 +50,8 @@ describe("community API contracts", () => {
     await expect(
       uploadNamecard(
         new File(["front"], "front.png", { type: "image/png" }),
-        new File(["back"], "back.png", { type: "image/png" })
+        new File(["back"], "back.png", { type: "image/png" }),
+        { seriesCode: "765", favoriteIdolIds: [1, 2] }
       ).send()
     ).resolves.toMatchObject({
       submission: { id: 19, status: "pending", revision: 0 },

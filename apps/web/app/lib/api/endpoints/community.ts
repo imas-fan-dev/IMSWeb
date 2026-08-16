@@ -59,8 +59,27 @@ const cardIdSchema = z
   .union([z.number().int().positive(), z.string().regex(/^[1-9]\d*$/)])
   .transform(Number)
 
+const namecardIdolSchema = z
+  .object({
+    id: z.number().int().positive(),
+    name: z.string().trim().min(1),
+    seriesCode: z.string().min(1),
+  })
+  .strict()
+
+const namecardMetadataSchema = {
+  seriesCode: z.string().min(1).nullable().default(null),
+  favoriteIdols: z.array(namecardIdolSchema).max(20).default([]),
+  claimStatus: z.enum(["unclaimed", "pending", "claimed"]).default("unclaimed"),
+  viewerClaimState: z
+    .enum(["pending", "approving", "approved", "rejected", "cancelled"])
+    .nullable()
+    .default(null),
+}
+
 export const namecardSchema = z.object({
   id: cardIdSchema,
+  ...namecardMetadataSchema,
   image1_url: z.string().min(1),
   image2_url: z.string().min(1),
   image1_thumbnail_url: z.string().min(1),
@@ -86,6 +105,7 @@ const namecardSubmissionStatusSchema = z.enum([
 
 const namecardSubmissionSchema = z.object({
   id: cardIdSchema,
+  ...namecardMetadataSchema,
   status: namecardSubmissionStatusSchema,
   revision: z.number().int().nonnegative(),
   image1_url: z.string().min(1).optional(),
@@ -105,11 +125,6 @@ const namecardSubmissionResponseSchema = z.object({
 })
 
 const withdrawNamecardResponseSchema = z.object({
-  success: z.literal(true),
-  submission: namecardSubmissionSchema,
-})
-
-const namecardResubmitResponseSchema = z.object({
   success: z.literal(true),
   submission: namecardSubmissionSchema,
 })
@@ -148,10 +163,16 @@ export function addNamecardReaction(cardId: number, emoji: string) {
   })
 }
 
-export function uploadNamecard(front: File, back: File) {
+export function uploadNamecard(
+  front: File,
+  back: File,
+  metadata: { seriesCode: string; favoriteIdolIds: number[] }
+) {
   const form = new FormData()
   form.append("images", front)
   form.append("images", back)
+  form.append("seriesCode", metadata.seriesCode)
+  form.append("favoriteIdolIds", JSON.stringify(metadata.favoriteIdolIds))
   return apiClient.Post<UploadNamecardResponse, unknown>(
     "/api/uploadNameCard",
     form,
@@ -183,46 +204,6 @@ export function withdrawNamecardSubmission(
     {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
       transform: (payload) => withdrawNamecardResponseSchema.parse(payload),
-    }
-  )
-}
-
-export function replaceNamecardSubmissionImage(
-  id: number,
-  withdrawalToken: string,
-  side: "front" | "back",
-  expectedRevision: number,
-  file: File
-) {
-  const form = new FormData()
-  form.append("image", file)
-  return apiClient.Post<
-    z.infer<typeof namecardResubmitResponseSchema>,
-    unknown
-  >(
-    `/api/namecards/submissions/${id}/images/${side}?expected_revision=${expectedRevision}`,
-    form,
-    {
-      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
-    }
-  )
-}
-
-export function resubmitNamecardSubmission(
-  id: number,
-  withdrawalToken: string,
-  expectedRevision: number
-) {
-  return apiClient.Post<
-    z.infer<typeof namecardResubmitResponseSchema>,
-    unknown
-  >(
-    `/api/namecards/submissions/${id}/resubmit`,
-    { expected_revision: expectedRevision },
-    {
-      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-      transform: (payload) => namecardResubmitResponseSchema.parse(payload),
     }
   )
 }

@@ -11,6 +11,7 @@ const baseCard: FudabaPlacedCard = {
   displayName: "边界名片",
   seriesCode: "765",
   favoriteIdol: "天海春香",
+  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",

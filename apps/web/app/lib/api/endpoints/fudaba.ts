@@ -55,12 +55,21 @@ export const fudabaOfficeSchema = z.object({
   seriesCodes: z.array(seriesCodeSchema),
 })
 
+export const fudabaIdolSelectionSchema = z
+  .object({
+    id: z.number().int().positive(),
+    name: z.string().trim().min(1),
+    seriesCode: seriesCodeSchema,
+  })
+  .strict()
+
 export const fudabaCardSchema = z.object({
   id: z.string().min(1),
   producerName: z.string().trim().min(1),
   displayName: z.string().trim().min(1),
   seriesCode: seriesCodeSchema,
   favoriteIdol: z.string(),
+  favoriteIdols: z.array(fudabaIdolSelectionSchema).max(20).default([]),
   frontImageUrl: publicMediaUrlSchema,
   backImageUrl: publicMediaUrlSchema,
   accent: accentSchema,
@@ -237,6 +246,7 @@ export const fudabaOwnerCardSchema = z
     displayName: ownerCardTextSchema(120, true),
     seriesCode: seriesCodeSchema.max(64),
     favoriteIdol: ownerCardTextSchema(200),
+    favoriteIdols: z.array(fudabaIdolSelectionSchema).max(20).default([]),
     frontImageUrl: publicMediaUrlSchema,
     backImageUrl: publicMediaUrlSchema,
     accent: accentSchema,
@@ -247,6 +257,7 @@ export const fudabaOwnerCardSchema = z
     publicationStatus: z.enum([
       "draft",
       "pending",
+      "approving",
       "published",
       "hidden",
       "rejected",
@@ -288,7 +299,10 @@ export const fudabaCardFieldsSchema = z
     producerName: ownerCardTextSchema(80, true),
     displayName: ownerCardTextSchema(120, true),
     seriesCode: seriesCodeSchema.max(64),
-    favoriteIdol: ownerCardTextSchema(200),
+    favoriteIdolIds: z
+      .array(z.number().int().positive())
+      .max(20)
+      .refine((ids) => new Set(ids).size === ids.length),
     accent: accentSchema,
     bio: ownerCardTextSchema(2000),
     tradeNote: ownerCardTextSchema(1000),
@@ -459,6 +473,7 @@ const fudabaCardPlacementPathSchema = z
 
 export type FudabaSeries = z.infer<typeof fudabaSeriesSchema>
 export type FudabaSeriesList = z.infer<typeof fudabaSeriesListSchema>
+export type FudabaIdolSelection = z.infer<typeof fudabaIdolSelectionSchema>
 export type FudabaOffice = z.infer<typeof fudabaOfficeSchema>
 export type FudabaCard = z.infer<typeof fudabaCardSchema>
 export type FudabaCardPlacement = z.infer<typeof fudabaCardPlacementSchema>
@@ -807,7 +822,7 @@ function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("producerName", fields.producerName)
   form.append("displayName", fields.displayName)
   form.append("seriesCode", fields.seriesCode)
-  form.append("favoriteIdol", fields.favoriteIdol)
+  form.append("favoriteIdolIds", JSON.stringify(fields.favoriteIdolIds))
   form.append("accent", fields.accent)
   form.append("bio", fields.bio)
   form.append("tradeNote", fields.tradeNote)

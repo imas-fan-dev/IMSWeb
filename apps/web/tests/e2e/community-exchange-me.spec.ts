@@ -15,6 +15,7 @@ const card = {
   displayName: "浏览器交换名片",
   seriesCode: "765",
   favoriteIdol: "天海春香",
+  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -140,10 +141,98 @@ test.beforeEach(async ({ context, page }) => {
             displayOrder: 0,
             activeOfficeCount: 1,
           },
+          {
+            id: 2,
+            code: "cg",
+            displayName: "灰姑娘女孩",
+            color: "#2581c7",
+            iconUrl: null,
+            imageTransform: {
+              fit: "cover",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
+            displayOrder: 1,
+            activeOfficeCount: 1,
+          },
         ],
       },
     })
   })
+  await page.route("**/api/wiki/catalog", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "success",
+        agencies: [
+          {
+            id: 1,
+            code: "765",
+            name: "765PRO",
+            color: "#f34f6d",
+            bannerTitle: "765PRO",
+            iconUrl: null,
+            idolCount: 1,
+            entryCount: 1,
+            imageTransform: {
+              fit: "cover",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
+          },
+          {
+            id: 2,
+            code: "cg",
+            name: "灰姑娘女孩",
+            color: "#2581c7",
+            bannerTitle: "CINDERELLA GIRLS",
+            iconUrl: null,
+            idolCount: 1,
+            entryCount: 1,
+            imageTransform: {
+              fit: "cover",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
+          },
+        ],
+        searchEntries: [
+          {
+            id: 1,
+            name: "天海春香",
+            agencyId: 1,
+            agencyCode: "765",
+            agencyName: "765PRO",
+            agencyColor: "#f34f6d",
+            entryKind: "idol",
+            entrySubtype: null,
+          },
+          {
+            id: 2,
+            name: "涩谷凛",
+            agencyId: 2,
+            agencyCode: "cg",
+            agencyName: "灰姑娘女孩",
+            agencyColor: "#2581c7",
+            entryKind: "idol",
+            entrySubtype: null,
+          },
+        ],
+        selection: null,
+      },
+    })
+  })
+  await page.route(
+    "**/api/community/exchange/me/claim-envelopes",
+    async (route) => {
+      await route.fulfill({ json: { items: [] } })
+    }
+  )
   await page.route("**/api/community/exchange/me/cards", async (route) => {
     await route.fulfill({ json: { items: [card] } })
   })
@@ -161,6 +250,12 @@ test.beforeEach(async ({ context, page }) => {
           card: {
             ...card,
             displayName: submission.displayName,
+            favoriteIdol: "天海春香、涩谷凛",
+            favoriteIdols: submission.favoriteIdolIds.map((idolId: number) =>
+              idolId === 1
+                ? { id: 1, name: "天海春香", seriesCode: "765" }
+                : { id: 2, name: "涩谷凛", seriesCode: "cg" }
+            ),
             revision: 4,
             updatedAt: "2026-08-02T10:00:00.000Z",
           },
@@ -260,6 +355,15 @@ test("edits the authenticated profile and card without viewport overflow", async
 
   const cardName = page.getByRole("textbox", { name: "名片标题" })
   await cardName.fill("更新后的浏览器名片")
+  await page.getByRole("tab", { name: "灰姑娘女孩" }).click()
+  await page.getByRole("searchbox", { name: "" }).fill("凛")
+  await page.getByRole("checkbox", { name: /涩谷凛/ }).click()
+  await expect(
+    page.getByLabel("已选担当偶像").getByText("天海春香")
+  ).toBeVisible()
+  await expect(
+    page.getByLabel("已选担当偶像").getByText("涩谷凛")
+  ).toBeVisible()
   await page.getByRole("button", { name: "保存名片资料" }).click()
   await expect(page.getByText("名片资料已保存。")).toBeVisible()
 

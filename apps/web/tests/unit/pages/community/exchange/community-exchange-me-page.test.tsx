@@ -16,6 +16,8 @@ const apiMocks = vi.hoisted(() => ({
   getFudabaOwnerSeries: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
   getFudabaOwnerCard: vi.fn(),
+  getFudabaClaimEnvelopes: vi.fn(),
+  getWikiCatalog: vi.fn(),
   updatePlatformProfile: vi.fn(),
   uploadPlatformAvatar: vi.fn(),
   createFudabaCard: vi.fn(),
@@ -26,6 +28,8 @@ const apiMocks = vi.hoisted(() => ({
   sendSeries: vi.fn(),
   sendCards: vi.fn(),
   sendCard: vi.fn(),
+  sendCatalog: vi.fn(),
+  sendEnvelopes: vi.fn(),
   sendProfileUpdate: vi.fn(),
   sendAvatarUpload: vi.fn(),
   sendCreate: vi.fn(),
@@ -47,6 +51,8 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getFudabaOwnerSeries: apiMocks.getFudabaOwnerSeries,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
     getFudabaOwnerCard: apiMocks.getFudabaOwnerCard,
+    getFudabaClaimEnvelopes: apiMocks.getFudabaClaimEnvelopes,
+    getWikiCatalog: apiMocks.getWikiCatalog,
     updatePlatformProfile: apiMocks.updatePlatformProfile,
     uploadPlatformAvatar: apiMocks.uploadPlatformAvatar,
     createFudabaCard: apiMocks.createFudabaCard,
@@ -87,6 +93,7 @@ const card = {
   displayName: "周末交换名片",
   seriesCode: "765",
   favoriteIdol: "天海春香",
+  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/api/community/exchange/me/cards/card-1/media/front?v=3",
   backImageUrl: "/api/community/exchange/me/cards/card-1/media/back?v=3",
   accent: "#f34e6c",
@@ -140,6 +147,10 @@ describe("CommunityExchangeMePage", () => {
     apiMocks.getFudabaOwnerSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOwnerCards.mockReturnValue({ send: apiMocks.sendCards })
     apiMocks.getFudabaOwnerCard.mockReturnValue({ send: apiMocks.sendCard })
+    apiMocks.getFudabaClaimEnvelopes.mockReturnValue({
+      send: apiMocks.sendEnvelopes,
+    })
+    apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendCatalog })
     apiMocks.updatePlatformProfile.mockReturnValue({
       send: apiMocks.sendProfileUpdate,
     })
@@ -160,6 +171,42 @@ describe("CommunityExchangeMePage", () => {
       profile,
     })
     apiMocks.sendSeries.mockResolvedValue({ items: [series] })
+    apiMocks.sendCatalog.mockResolvedValue({
+      status: "success",
+      agencies: [
+        {
+          id: 1,
+          code: "765",
+          name: "765PRO",
+          color: "#f34f6d",
+          bannerTitle: "765PRO",
+          iconUrl: null,
+          idolCount: 1,
+          entryCount: 1,
+          imageTransform: {
+            fit: "cover",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
+        },
+      ],
+      searchEntries: [
+        {
+          id: 1,
+          name: "天海春香",
+          agencyId: 1,
+          agencyCode: "765",
+          agencyName: "765PRO",
+          agencyColor: "#f34f6d",
+          entryKind: "idol",
+          entrySubtype: null,
+        },
+      ],
+      selection: null,
+    })
+    apiMocks.sendEnvelopes.mockResolvedValue({ items: [] })
     apiMocks.sendCards.mockResolvedValue({ items: [card] })
     apiMocks.sendCard.mockResolvedValue({ card })
     apiMocks.sendProfileUpdate.mockResolvedValue({
@@ -262,6 +309,7 @@ describe("CommunityExchangeMePage", () => {
 
     const cardName = await screen.findByRole("textbox", { name: "名片标题" })
     await user.type(cardName, "新交换名片")
+    await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
     await user.upload(
       screen.getByLabelText("名片正面"),
       new File(["front"], "front.png", { type: "image/png" })
@@ -277,6 +325,7 @@ describe("CommunityExchangeMePage", () => {
         expect.objectContaining({
           displayName: "新交换名片",
           seriesCode: "765",
+          favoriteIdolIds: [1],
           front: expect.any(File),
           back: expect.any(File),
         })

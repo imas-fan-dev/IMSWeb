@@ -1,4 +1,4 @@
-export type AdminRole = 'admin' | 'super_admin';
+export type AdminRole = "admin" | "super_admin";
 
 export interface BackofficeAccountRecord {
     id: number;
@@ -44,10 +44,16 @@ export interface NewBackofficeRefreshSessionInput {
 }
 
 export interface BackofficeAuthRepository {
-    findUserByUsername(username: string): Promise<BackofficeAccountRecord | null>;
+    findUserByUsername(
+        username: string,
+    ): Promise<BackofficeAccountRecord | null>;
     findUserById(id: number): Promise<BackofficeAccountRecord | null>;
-    createRefreshSession(input: NewBackofficeRefreshSessionInput): Promise<void>;
-    findRefreshSessionByTokenHash(tokenHash: string): Promise<BackofficeRefreshSessionRecord | null>;
+    createRefreshSession(
+        input: NewBackofficeRefreshSessionInput,
+    ): Promise<void>;
+    findRefreshSessionByTokenHash(
+        tokenHash: string,
+    ): Promise<BackofficeRefreshSessionRecord | null>;
     rotateRefreshSession(input: {
         id: string;
         currentTokenHash: string;
@@ -62,16 +68,22 @@ export interface BackofficeAuthRepository {
 export interface AdminAccountRepository {
     ensureSuperAdmin(username?: string): Promise<void>;
     listAdminAccounts(): Promise<AdminAccountRecord[]>;
-    createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord>;
+    createAdminAccount(
+        input: NewAdminAccountInput,
+    ): Promise<AdminAccountRecord>;
     deleteAdminAccount(id: number): Promise<DeleteAdminAccountResult>;
 }
 
 export type DeleteAdminAccountResult =
-    | 'deleted'
-    | 'moderation-history'
-    | 'not-deletable';
+    | "deleted"
+    | "moderation-history"
+    | "not-deletable";
 
-export type PlatformAccountStatus = 'active' | 'restricted' | 'suspended' | 'deleted';
+export type PlatformAccountStatus =
+    | "active"
+    | "restricted"
+    | "suspended"
+    | "deleted";
 
 export interface PlatformAccountRecord {
     id: string;
@@ -97,7 +109,7 @@ export interface PlatformAccountWithProfile {
     profile: PlatformProfileRecord;
 }
 
-export type PlatformEmailCredentialAlgorithm = 'pbkdf2-sha256' | 'bcrypt';
+export type PlatformEmailCredentialAlgorithm = "pbkdf2-sha256" | "bcrypt";
 
 export interface PlatformEmailCredentialRecord {
     normalized_email: string;
@@ -134,7 +146,7 @@ export interface NewPlatformAccountInput {
 export interface NewPlatformEmailAccountInput extends NewPlatformAccountInput {
     credential: {
         normalizedEmail: string;
-        algorithm: 'bcrypt';
+        algorithm: "bcrypt";
         parametersJson: string;
         passwordHash: string;
         createdAt: number;
@@ -143,8 +155,8 @@ export interface NewPlatformEmailAccountInput extends NewPlatformAccountInput {
 }
 
 export type CreatePlatformEmailAccountResult =
-    | { status: 'created'; identity: PlatformAccountWithProfile }
-    | { status: 'email-conflict' };
+    | { status: "created"; identity: PlatformAccountWithProfile }
+    | { status: "email-conflict" };
 
 export interface PlatformEmailVerificationInput {
     normalizedEmail: string;
@@ -157,8 +169,8 @@ export interface PlatformEmailVerificationInput {
 }
 
 export type IssuePlatformEmailVerificationResult =
-    | { status: 'issued' }
-    | { status: 'cooldown'; retryAfterMs: number };
+    | { status: "issued" }
+    | { status: "cooldown"; retryAfterMs: number };
 
 export interface NewVerifiedPlatformEmailAccountInput
     extends NewPlatformEmailAccountInput {
@@ -171,7 +183,7 @@ export interface NewVerifiedPlatformEmailAccountInput
 
 export type CreateVerifiedPlatformEmailAccountResult =
     | CreatePlatformEmailAccountResult
-    | { status: 'verification-invalid' };
+    | { status: "verification-invalid" };
 
 export interface UpdatePlatformProfileTextInput {
     accountId: string;
@@ -191,12 +203,12 @@ export interface UpdatePlatformProfileAvatarInput {
 
 export type PlatformProfileSaveResult =
     | {
-        status: 'saved';
-        profile: PlatformProfileRecord;
-        previousAvatarObjectKey: string | null;
-    }
-    | { status: 'conflict'; updatedAt: number }
-    | { status: 'unavailable' };
+          status: "saved";
+          profile: PlatformProfileRecord;
+          previousAvatarObjectKey: string | null;
+      }
+    | { status: "conflict"; updatedAt: number }
+    | { status: "unavailable" };
 
 export interface PlatformRefreshSessionRecord {
     id: string;
@@ -211,11 +223,11 @@ export interface PlatformRefreshSessionRecord {
 }
 
 export type PlatformSecurityEventType =
-    | 'auth.session.created'
-    | 'auth.refresh.succeeded'
-    | 'auth.refresh.replay'
-    | 'auth.logout'
-    | 'auth.account_blocked';
+    | "auth.session.created"
+    | "auth.refresh.succeeded"
+    | "auth.refresh.replay"
+    | "auth.logout"
+    | "auth.account_blocked";
 
 export interface PlatformSecurityEventInput {
     id: string;
@@ -241,31 +253,35 @@ export interface NewPlatformRefreshSessionInput {
 
 export interface PlatformAccountRepository {
     createAccountWithProfile(
-        input: NewPlatformAccountInput
+        input: NewPlatformAccountInput,
     ): Promise<PlatformAccountWithProfile>;
     findAccountById(id: string): Promise<PlatformAccountRecord | null>;
-    findAccountWithProfileById(id: string): Promise<PlatformAccountWithProfile | null>;
+    findAccountWithProfileById(
+        id: string,
+    ): Promise<PlatformAccountWithProfile | null>;
     createEmailAccount(
-        input: NewPlatformEmailAccountInput
+        input: NewPlatformEmailAccountInput,
     ): Promise<CreatePlatformEmailAccountResult>;
     issueEmailVerification(
-        input: PlatformEmailVerificationInput
+        input: PlatformEmailVerificationInput,
     ): Promise<IssuePlatformEmailVerificationResult>;
     completeEmailVerificationDelivery(
         normalizedEmail: string,
-        deliveryToken: string
+        deliveryToken: string,
     ): Promise<boolean>;
     revokeEmailVerification(
         normalizedEmail: string,
-        deliveryToken: string
+        deliveryToken: string,
     ): Promise<void>;
     createVerifiedEmailAccount(
-        input: NewVerifiedPlatformEmailAccountInput
+        input: NewVerifiedPlatformEmailAccountInput,
     ): Promise<CreateVerifiedPlatformEmailAccountResult>;
-    findEmailIdentity(normalizedEmail: string): Promise<PlatformEmailIdentity | null>;
+    findEmailIdentity(
+        normalizedEmail: string,
+    ): Promise<PlatformEmailIdentity | null>;
     upgradeEmailCredentialToBcrypt(input: {
         normalizedEmail: string;
-        expectedAlgorithm: 'pbkdf2-sha256';
+        expectedAlgorithm: "pbkdf2-sha256";
         expectedPasswordHash: string;
         expectedUpdatedAt: number;
         passwordHash: string;
@@ -273,15 +289,19 @@ export interface PlatformAccountRepository {
         updatedAt: number;
     }): Promise<boolean>;
     updateProfileTextForOwner(
-        input: UpdatePlatformProfileTextInput
+        input: UpdatePlatformProfileTextInput,
     ): Promise<PlatformProfileSaveResult>;
     updateProfileAvatarForOwner(
-        input: UpdatePlatformProfileAvatarInput
+        input: UpdatePlatformProfileAvatarInput,
     ): Promise<PlatformProfileSaveResult>;
-    createRefreshSession(input: NewPlatformRefreshSessionInput): Promise<boolean>;
-    findRefreshSessionById(id: string): Promise<PlatformRefreshSessionRecord | null>;
+    createRefreshSession(
+        input: NewPlatformRefreshSessionInput,
+    ): Promise<boolean>;
+    findRefreshSessionById(
+        id: string,
+    ): Promise<PlatformRefreshSessionRecord | null>;
     findRefreshSessionByTokenHash(
-        tokenHash: string
+        tokenHash: string,
     ): Promise<PlatformRefreshSessionRecord | null>;
     rotateRefreshSession(input: {
         id: string;
@@ -309,27 +329,31 @@ export interface PlatformAccountRepository {
     deleteExpiredRefreshSessions(now: number): Promise<void>;
 }
 
-export type FudabaOfficeStatus = 'active' | 'hidden' | 'archived';
+export type FudabaOfficeStatus = "active" | "hidden" | "archived";
 export type FudabaCardPublicationStatus =
-    | 'draft'
-    | 'pending'
-    | 'published'
-    | 'hidden'
-    | 'rejected';
-export type FudabaMediaRightsStatus = 'unknown' | 'approved' | 'denied';
-export type FudabaExchangeStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+    | "draft"
+    | "pending"
+    | "published"
+    | "hidden"
+    | "rejected";
+export type FudabaMediaRightsStatus = "unknown" | "approved" | "denied";
+export type FudabaExchangeStatus =
+    | "pending"
+    | "accepted"
+    | "declined"
+    | "cancelled";
 export type FudabaModerationResourceKind =
-    | 'account'
-    | 'office'
-    | 'card'
-    | 'message'
-    | 'exchange';
+    | "account"
+    | "office"
+    | "card"
+    | "message"
+    | "exchange";
 export type FudabaModerationState =
-    | 'open'
-    | 'reviewing'
-    | 'resolved'
-    | 'dismissed'
-    | 'appealed';
+    | "open"
+    | "reviewing"
+    | "resolved"
+    | "dismissed"
+    | "appealed";
 
 export interface FudabaOfficeRecord {
     id: string;
@@ -404,22 +428,22 @@ export interface UpdateOwnedFudabaOfficeInput {
 
 export type FudabaOfficeMutationResult =
     | {
-        status: 'saved';
-        office: FudabaOwnerOfficeRecord;
-        previousPendingObjectKey: string | null;
-    }
-    | { status: 'conflict'; revision: number }
-    | { status: 'pending-exists'; revision: number }
+          status: "saved";
+          office: FudabaOwnerOfficeRecord;
+          previousPendingObjectKey: string | null;
+      }
+    | { status: "conflict"; revision: number }
+    | { status: "pending-exists"; revision: number }
     | {
-        status: 'state-conflict';
-        revision: number;
-        officeStatus: FudabaOfficeStatus;
-    }
-    | { status: 'unavailable' };
+          status: "state-conflict";
+          revision: number;
+          officeStatus: FudabaOfficeStatus;
+      }
+    | { status: "unavailable" };
 
 export type FudabaOfficeCreateResult =
     | FudabaOfficeMutationResult
-    | { status: 'idempotency-conflict' };
+    | { status: "idempotency-conflict" };
 
 export interface FudabaCardRecord {
     id: string;
@@ -504,7 +528,7 @@ export interface UpdateOwnedFudabaCardMetadataInput {
 export interface UpdateOwnedFudabaCardMediaInput {
     cardId: string;
     ownerAccountId: string;
-    side: 'front' | 'back';
+    side: "front" | "back";
     objectKey: string;
     expectedRevision: number;
     updatedAt: string;
@@ -519,12 +543,12 @@ export interface SoftDeleteOwnedFudabaCardInput {
 
 export type FudabaCardMutationResult =
     | {
-        status: 'saved';
-        card: FudabaCardRecord;
-        previousObjectKey: string | null;
-    }
-    | { status: 'conflict'; revision: number }
-    | { status: 'unavailable' };
+          status: "saved";
+          card: FudabaCardRecord;
+          previousObjectKey: string | null;
+      }
+    | { status: "conflict"; revision: number }
+    | { status: "unavailable" };
 
 export interface FudabaExchangeRequestRecord {
     id: string;
@@ -608,7 +632,7 @@ export interface ListFudabaPublicOfficesInput {
     after?: FudabaPublicOfficeCursor;
 }
 
-export type FudabaLocationReviewState = 'pending' | 'published' | 'rejected';
+export type FudabaLocationReviewState = "pending" | "published" | "rejected";
 
 export interface FudabaOfficePublicLocationRecord {
     office_id: string;
@@ -655,9 +679,9 @@ export interface FudabaOfficeLocationReviewRecord
 }
 
 export type FudabaOfficeLocationMutationResult =
-    | { status: 'saved'; location: FudabaOfficePublicLocationRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'unavailable' };
+    | { status: "saved"; location: FudabaOfficePublicLocationRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "unavailable" };
 
 export interface FudabaPublicCardRecord {
     id: string;
@@ -706,20 +730,21 @@ export interface FudabaCardPlacementRecord {
 
 export type FudabaCardPlacementSaveResult =
     | {
-        status: 'saved';
-        placement: FudabaCardPlacementRecord;
-        created: boolean;
-    }
-    | { status: 'conflict'; revision: number }
-    | { status: 'unavailable' };
+          status: "saved";
+          placement: FudabaCardPlacementRecord;
+          created: boolean;
+      }
+    | { status: "conflict"; revision: number }
+    | { status: "unavailable" };
 
 export type FudabaCardPlacementRemovalResult =
-    | { status: 'removed'; revision: number }
-    | { status: 'conflict'; revision: number }
-    | { status: 'in-use'; revision: number }
-    | { status: 'unavailable' };
+    | { status: "removed"; revision: number }
+    | { status: "conflict"; revision: number }
+    | { status: "in-use"; revision: number }
+    | { status: "unavailable" };
 
-export interface FudabaPublicOfficeDetailRecord extends FudabaPublicOfficeRecord {
+export interface FudabaPublicOfficeDetailRecord
+    extends FudabaPublicOfficeRecord {
     cards: FudabaPublicPlacedCardRecord[];
 }
 
@@ -740,30 +765,32 @@ export interface ListFudabaPublicCardsInput {
 export interface FudabaRepository {
     listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
     listPublicOffices(
-        input: ListFudabaPublicOfficesInput
+        input: ListFudabaPublicOfficesInput,
     ): Promise<FudabaPublicOfficeRecord[]>;
     listPublicMapOffices(
-        input: ListFudabaPublicMapOfficesInput
+        input: ListFudabaPublicMapOfficesInput,
     ): Promise<FudabaPublicMapOfficeRecord[]>;
     findPublicOfficeBySlug(
         slug: string,
-        viewerAccountId: string | null
+        viewerAccountId: string | null,
     ): Promise<FudabaPublicOfficeDetailRecord | null>;
     listPublicCards(
-        input: ListFudabaPublicCardsInput
+        input: ListFudabaPublicCardsInput,
     ): Promise<FudabaPublicCardRecord[]>;
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
     findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
-    listOfficesForOwner(ownerAccountId: string): Promise<FudabaOwnerOfficeRecord[]>;
+    listOfficesForOwner(
+        ownerAccountId: string,
+    ): Promise<FudabaOwnerOfficeRecord[]>;
     findOfficeForOwner(
         officeId: string,
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaOwnerOfficeRecord | null>;
     createOfficeForOwner(
-        input: CreateOwnedFudabaOfficeInput
+        input: CreateOwnedFudabaOfficeInput,
     ): Promise<FudabaOfficeCreateResult>;
     updateOfficeForOwner(
-        input: UpdateOwnedFudabaOfficeInput
+        input: UpdateOwnedFudabaOfficeInput,
     ): Promise<FudabaOfficeMutationResult>;
     archiveOfficeForOwner(input: {
         officeId: string;
@@ -801,7 +828,7 @@ export interface FudabaRepository {
     }): Promise<boolean>;
     findOfficePublicLocationForOwner(
         officeId: string,
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaOfficePublicLocationRecord | null>;
     saveOfficePublicLocationForOwner(input: {
         officeId: string;
@@ -822,7 +849,7 @@ export interface FudabaRepository {
     }): Promise<FudabaOfficeLocationReviewRecord[]>;
     reviewOfficePublicLocation(input: {
         officeId: string;
-        decision: 'publish' | 'reject';
+        decision: "publish" | "reject";
         expectedRevision: number;
         reviewedAt: string;
         reviewedBy: number;
@@ -835,19 +862,19 @@ export interface FudabaRepository {
     listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]>;
     findCardForOwner(
         cardId: string,
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaCardRecord | null>;
     createCardForOwner(
-        input: CreateOwnedFudabaCardInput
+        input: CreateOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult>;
     updateCardMetadataForOwner(
-        input: UpdateOwnedFudabaCardMetadataInput
+        input: UpdateOwnedFudabaCardMetadataInput,
     ): Promise<FudabaCardMutationResult>;
     updateCardMediaForOwner(
-        input: UpdateOwnedFudabaCardMediaInput
+        input: UpdateOwnedFudabaCardMediaInput,
     ): Promise<FudabaCardMutationResult>;
     softDeleteCardForOwner(
-        input: SoftDeleteOwnedFudabaCardInput
+        input: SoftDeleteOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult>;
     placeOwnedCard(input: {
         officeId: string;
@@ -894,14 +921,14 @@ export interface FudabaRepository {
         createdAt: string;
     }): Promise<FudabaExchangeRequestRecord | null>;
     setCardInteraction(input: {
-        kind: 'like' | 'favorite';
+        kind: "like" | "favorite";
         cardId: string;
         accountId: string;
         active: boolean;
         createdAt: string;
     }): Promise<boolean>;
     createModerationCase(
-        input: NewFudabaModerationCaseInput
+        input: NewFudabaModerationCaseInput,
     ): Promise<FudabaModerationCaseRecord>;
 }
 
@@ -934,11 +961,13 @@ export interface NewsRepository {
     listPublicNewsByCursor(
         limit: number,
         snapshotId: string,
-        afterId?: string
+        afterId?: string,
     ): Promise<Record<string, unknown>[]>;
     listAdminNews(): Promise<Record<string, unknown>[]>;
     insertNews(input: NewsInput): Promise<number>;
-    findNewsMedia(id: number): Promise<{ image: string; thumbnail: string } | null>;
+    findNewsMedia(
+        id: number,
+    ): Promise<{ image: string; thumbnail: string } | null>;
     deleteNews(id: number): Promise<void>;
 }
 
@@ -953,16 +982,25 @@ export interface EventInput {
 
 export interface EventRepository {
     insertEvent(input: EventInput): Promise<number>;
-    updateEvent(id: number, input: EventInput, expectedImageUrl: string): Promise<boolean>;
-    findEventByOperationKey(operationKey: string): Promise<Record<string, unknown> | null>;
+    updateEvent(
+        id: number,
+        input: EventInput,
+        expectedImageUrl: string,
+    ): Promise<boolean>;
+    findEventByOperationKey(
+        operationKey: string,
+    ): Promise<Record<string, unknown> | null>;
     markEventReady(id: number, operationKey: string): Promise<boolean>;
     countEvents(): Promise<number>;
-    listEvents(limit: number, offset: number): Promise<Record<string, unknown>[]>;
+    listEvents(
+        limit: number,
+        offset: number,
+    ): Promise<Record<string, unknown>[]>;
     findLatestEventId(): Promise<string | null>;
     listEventsByCursor(
         limit: number,
         snapshotId: string,
-        afterId?: string
+        afterId?: string,
     ): Promise<Record<string, unknown>[]>;
     findEvent(id: number): Promise<Record<string, unknown> | null>;
     findEventMedia(id: number): Promise<{ image_url: string } | null>;
@@ -977,6 +1015,9 @@ export interface PendingCardInput {
     hash2: string;
     ip: string;
     withdrawalTokenHash: string;
+    seriesCode: string;
+    favoriteIdolIds: number[];
+    submissionKind: "guest";
 }
 
 export interface CardMediaRecord {
@@ -988,11 +1029,11 @@ export interface CardMediaRecord {
 }
 
 export type NamecardSubmissionStatus =
-    | 'pending'
-    | 'approving'
-    | 'approved'
-    | 'rejected'
-    | 'withdrawn';
+    | "pending"
+    | "approving"
+    | "approved"
+    | "rejected"
+    | "withdrawn";
 
 export interface NamecardSubmissionRecord extends CardMediaRecord {
     id: number;
@@ -1001,77 +1042,106 @@ export interface NamecardSubmissionRecord extends CardMediaRecord {
     created_at: string | Date | null;
 }
 
-export interface NamecardSubmissionWithHashesRecord extends NamecardSubmissionRecord {
+export interface NamecardSubmissionWithHashesRecord
+    extends NamecardSubmissionRecord {
     hash1: string;
     hash2: string;
 }
 
 export type NamecardEditResult =
-    | { status: 'updated'; card: NamecardSubmissionRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'not-found' };
+    | { status: "updated"; card: NamecardSubmissionRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "not-found" };
 
 export type NamecardApprovalClaim =
-    | { status: 'claimed' | 'resumed'; card: NamecardSubmissionRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'withdrawn'; revision: number }
-    | { status: 'not-found' };
+    | { status: "claimed" | "resumed"; card: NamecardSubmissionRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "withdrawn"; revision: number }
+    | { status: "not-found" };
 
 export type NamecardMutationResult =
-    | { status: 'updated'; card: NamecardSubmissionRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'withdrawn'; revision: number }
-    | { status: 'not-found' };
+    | { status: "updated"; card: NamecardSubmissionRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "withdrawn"; revision: number }
+    | { status: "not-found" };
 
 export interface NamecardRepository {
-    findCardByOrderedHashes(hash1: string, hash2: string): Promise<{ id: number } | null>;
+    findCardByOrderedHashes(
+        hash1: string,
+        hash2: string,
+    ): Promise<{ id: number } | null>;
     insertPendingCard(input: PendingCardInput): Promise<number>;
     countApprovedCards(): Promise<number>;
     countAdminCards(): Promise<number>;
-    listApprovedCards(limit: number, offset: number): Promise<Record<string, unknown>[]>;
+    listApprovedCards(
+        limit: number,
+        offset: number,
+    ): Promise<Record<string, unknown>[]>;
     findApprovedCardMedia(id: number): Promise<CardMediaRecord | null>;
-    listAdminCards(limit: number, offset: number): Promise<Record<string, unknown>[]>;
-    beginCardApproval(id: number, expectedRevision: number): Promise<NamecardApprovalClaim>;
-    completeCardApproval(id: number, approvingRevision: number): Promise<NamecardMutationResult>;
+    listAdminCards(
+        limit: number,
+        offset: number,
+    ): Promise<Record<string, unknown>[]>;
+    beginCardApproval(
+        id: number,
+        expectedRevision: number,
+    ): Promise<NamecardApprovalClaim>;
+    completeCardApproval(
+        id: number,
+        approvingRevision: number,
+    ): Promise<NamecardMutationResult>;
     findCardMedia(id: number): Promise<CardMediaRecord | null>;
-    deleteCard(id: number, expectedRevision: number): Promise<NamecardMutationResult>;
-    rejectSubmission(id: number, expectedRevision: number): Promise<NamecardMutationResult>;
-    purgeTerminalCards(cutoff: Date): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;
-    findSubmissionByTokenHash(id: number, tokenHash: string): Promise<NamecardSubmissionRecord | null>;
+    deleteCard(
+        id: number,
+        expectedRevision: number,
+    ): Promise<NamecardMutationResult>;
+    rejectSubmission(
+        id: number,
+        expectedRevision: number,
+    ): Promise<NamecardMutationResult>;
+    purgeTerminalCards(
+        cutoff: Date,
+    ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>>;
+    findSubmissionByTokenHash(
+        id: number,
+        tokenHash: string,
+    ): Promise<NamecardSubmissionRecord | null>;
     withdrawSubmission(
         id: number,
         tokenHash: string,
-        expectedRevision: number
+        expectedRevision: number,
     ): Promise<NamecardMutationResult>;
     findSubmissionWithHashesByTokenHash(
         id: number,
-        tokenHash: string
+        tokenHash: string,
     ): Promise<NamecardSubmissionWithHashesRecord | null>;
     replaceSubmissionImage(
         id: number,
         tokenHash: string,
         expectedRevision: number,
-        side: 'front' | 'back',
+        side: "front" | "back",
         imageUrl: string,
-        hash: string
+        hash: string,
     ): Promise<NamecardEditResult>;
     resubmitSubmission(
         id: number,
         tokenHash: string,
-        expectedRevision: number
+        expectedRevision: number,
     ): Promise<NamecardEditResult>;
     findCardByMediaUrl(url: string): Promise<CardMediaRecord | null>;
 }
 
 export interface ReactionRepository {
     findApprovedCard(id: number): Promise<{ id: number } | null>;
-    listReactions(cardId: number): Promise<Array<{ emoji: string; count: number }>>;
+    listReactions(
+        cardId: number,
+    ): Promise<Array<{ emoji: string; count: number }>>;
     incrementReaction(cardId: number, emoji: string): Promise<void>;
     decrementAndPruneReaction(cardId: number, emoji: string): Promise<void>;
 }
 
-export type SitePackageRuntimeMode = 'safe' | 'isolated-script';
-export type SitePackageRevisionState = 'ready' | 'archived';
+export type SitePackageRuntimeMode = "safe" | "isolated-script";
+export type SitePackageRevisionState = "ready" | "archived";
 
 export interface SitePackageRecord {
     id: string;
@@ -1136,7 +1206,7 @@ export interface SitePackageWithRevisions extends SitePackageRecord {
 
 export interface SitePackagePublicationResult {
     revision: SitePackageRevisionRecord;
-    operation: 'publish' | 'rollback' | 'noop';
+    operation: "publish" | "rollback" | "noop";
 }
 
 export interface DeleteSitePackageRevisionInput {
@@ -1148,7 +1218,7 @@ export interface DeleteSitePackageRevisionInput {
 }
 
 export type SitePackageRevisionDeletionResult = {
-    kind: 'deleted' | 'published';
+    kind: "deleted" | "published";
     revision: SitePackageRevisionRecord;
     sitePackage: SitePackageRecord;
     packageDeleted: boolean;
@@ -1160,37 +1230,41 @@ export interface SitePackageRepository {
     findSitePackageBySlug(slug: string): Promise<SitePackageRecord | null>;
     findSitePackageRevisionById(
         packageId: string,
-        revisionId: string
+        revisionId: string,
     ): Promise<SitePackageRevisionRecord | null>;
     findSitePackageRevisionByPreviewTokenHash(
-        previewTokenHash: string
+        previewTokenHash: string,
     ): Promise<(SitePackageRevisionRecord & { slug: string }) | null>;
     createSitePackageWithRevision(
         sitePackage: NewSitePackageInput,
-        revision: NewSitePackageRevisionInput
+        revision: NewSitePackageRevisionInput,
     ): Promise<void>;
     createSitePackageRevision(
-        revision: NewSitePackageRevisionInput
+        revision: NewSitePackageRevisionInput,
     ): Promise<SitePackageRevisionRecord>;
     publishSitePackageRevision(
         packageId: string,
         revisionId: string,
         updatedBy: number,
-        publishedAt: number
+        publishedAt: number,
     ): Promise<SitePackagePublicationResult | null>;
     deleteSitePackageRevision(
-        input: DeleteSitePackageRevisionInput
+        input: DeleteSitePackageRevisionInput,
     ): Promise<SitePackageRevisionDeletionResult | null>;
     rotateSitePackagePreviewToken(
         packageId: string,
         revisionId: string,
-        previewTokenHash: string
+        previewTokenHash: string,
     ): Promise<boolean>;
 }
 
-export const HOMEPAGE_LINK_SECTIONS = ['navigation', 'friend', 'support'] as const;
+export const HOMEPAGE_LINK_SECTIONS = [
+    "navigation",
+    "friend",
+    "support",
+] as const;
 
-export type HomepageLinkSection = typeof HOMEPAGE_LINK_SECTIONS[number];
+export type HomepageLinkSection = (typeof HOMEPAGE_LINK_SECTIONS)[number];
 
 export interface HomepageLinkRecord {
     id: string;
@@ -1226,18 +1300,22 @@ export interface HomepageLinkUpdateInput {
 }
 
 export interface HomepageLinkRepository {
-    listHomepageLinks(section?: HomepageLinkSection): Promise<HomepageLinkRecord[]>;
+    listHomepageLinks(
+        section?: HomepageLinkSection,
+    ): Promise<HomepageLinkRecord[]>;
     findHomepageLinkById(id: string): Promise<HomepageLinkRecord | null>;
-    createHomepageLink(input: NewHomepageLinkInput): Promise<HomepageLinkRecord>;
+    createHomepageLink(
+        input: NewHomepageLinkInput,
+    ): Promise<HomepageLinkRecord>;
     updateHomepageLink(
         id: string,
-        input: HomepageLinkUpdateInput
+        input: HomepageLinkUpdateInput,
     ): Promise<HomepageLinkRecord | null>;
     deleteHomepageLink(id: string): Promise<boolean>;
     reorderHomepageLinks(
         section: HomepageLinkSection,
         ids: readonly string[],
-        updatedAt: number
+        updatedAt: number,
     ): Promise<boolean>;
 }
 
@@ -1250,7 +1328,7 @@ export interface AgencyRecord {
     display_order: number;
     banner_title: string;
     icon_object_key: string | null;
-    icon_fit: 'cover' | 'contain';
+    icon_fit: "cover" | "contain";
     icon_focal_x: number;
     icon_focal_y: number;
     icon_zoom: number;
@@ -1260,8 +1338,8 @@ export interface AgencyRecord {
     layout_revision: number;
 }
 
-export type WikiEntryKind = 'idol' | 'unit' | 'story' | 'other';
-export type WikiStoryEntrySubtype = 'main' | 'event' | 'special' | 'other';
+export type WikiEntryKind = "idol" | "unit" | "story" | "other";
+export type WikiStoryEntrySubtype = "main" | "event" | "special" | "other";
 
 export interface IdolRecord {
     id: number;
@@ -1274,7 +1352,7 @@ export interface IdolRecord {
     text_color: string;
     wiki_url: string | null;
     avatar_object_key: string | null;
-    avatar_fit: 'cover' | 'contain';
+    avatar_fit: "cover" | "contain";
     avatar_focal_x: number;
     avatar_focal_y: number;
     avatar_zoom: number;
@@ -1297,7 +1375,7 @@ export interface WikiGroupRecord {
     name: string;
     color: string;
     icon_object_key: string | null;
-    icon_fit: 'cover' | 'contain';
+    icon_fit: "cover" | "contain";
     icon_focal_x: number;
     icon_focal_y: number;
     icon_zoom: number;
@@ -1315,7 +1393,7 @@ export interface WikiGroupMemberRecord {
 }
 
 export interface WikiImageTransform {
-    fit: 'cover' | 'contain';
+    fit: "cover" | "contain";
     focalX: number;
     focalY: number;
     zoom: number;
@@ -1331,14 +1409,14 @@ export interface SaveWikiEntityMediaInput {
 
 export type WikiEntityMediaSaveResult =
     | {
-        status: 'saved';
-        revision: number;
-        previousObjectKey: string | null;
-    }
+          status: "saved";
+          revision: number;
+          previousObjectKey: string | null;
+      }
     | {
-        status: 'conflict';
-        revision: number;
-    };
+          status: "conflict";
+          revision: number;
+      };
 
 export interface CreateWikiAgencyInput {
     code: string;
@@ -1377,7 +1455,7 @@ export interface CreateWikiIdolInput {
     color: string | null;
     textColor: string;
     wikiUrl?: string | null;
-    imageFit: 'cover' | 'contain';
+    imageFit: "cover" | "contain";
     wikiEnabled: boolean;
     groupIds: number[];
     entryKind?: WikiEntryKind;
@@ -1390,7 +1468,7 @@ export interface UpdateWikiIdolInput {
     color: string | null;
     textColor: string;
     wikiUrl?: string | null;
-    imageFit: 'cover' | 'contain';
+    imageFit: "cover" | "contain";
     wikiEnabled: boolean;
     groupIds: number[];
     entryKind?: WikiEntryKind;
@@ -1417,8 +1495,8 @@ export interface UpdateWikiCategoryInput {
 }
 
 export type WikiCategorySaveResult =
-    | { status: 'saved'; category: WikiCategoryRecord }
-    | { status: 'conflict'; currentName: string; revision: number };
+    | { status: "saved"; category: WikiCategoryRecord }
+    | { status: "conflict"; currentName: string; revision: number };
 
 export interface DeleteStoryGroupInput {
     agencyCode: string;
@@ -1429,9 +1507,9 @@ export interface DeleteStoryGroupInput {
 }
 
 export type DeleteStoryGroupResult =
-    | { status: 'deleted'; revision: number }
-    | { status: 'conflict'; revision: number }
-    | { status: 'not-found' };
+    | { status: "deleted"; revision: number }
+    | { status: "conflict"; revision: number }
+    | { status: "not-found" };
 
 export interface DeleteWikiCategoryInput {
     agencyCode: string;
@@ -1442,9 +1520,9 @@ export interface DeleteWikiCategoryInput {
 }
 
 export type DeleteWikiCategoryResult =
-    | { status: 'deleted'; category: WikiCategoryRecord }
-    | { status: 'conflict'; revision: number }
-    | { status: 'not-found' };
+    | { status: "deleted"; category: WikiCategoryRecord }
+    | { status: "conflict"; revision: number }
+    | { status: "not-found" };
 
 export interface WikiBackgroundRecord extends StoryRecord {
     agency_id: number;
@@ -1464,8 +1542,8 @@ export interface WikiLayoutInput {
 }
 
 export type WikiLayoutSaveResult =
-    | { status: 'saved'; revision: number }
-    | { status: 'conflict'; revision: number };
+    | { status: "saved"; revision: number }
+    | { status: "conflict"; revision: number };
 
 export interface StoryRecord {
     id: number;
@@ -1488,7 +1566,7 @@ export interface StoryRecord {
     cover_asset_object_key?: string | null;
     cover_asset_revision?: number | null;
     cover_asset_presentation_policy?: WikiStoryCoverPresentationPolicy | null;
-    image_fit: 'cover' | 'contain';
+    image_fit: "cover" | "contain";
     image_focal_x: number;
     image_focal_y: number;
     image_zoom: number;
@@ -1508,7 +1586,7 @@ export interface StoryCardRecord {
     cover_asset_object_key?: string | null;
     cover_asset_revision?: number | null;
     cover_asset_presentation_policy?: WikiStoryCoverPresentationPolicy | null;
-    image_fit: 'cover' | 'contain';
+    image_fit: "cover" | "contain";
     image_focal_x: number;
     image_focal_y: number;
     image_zoom: number;
@@ -1570,18 +1648,19 @@ export interface WikiStoryContentTypeInput extends WikiStoryCatalogOptionInput {
     iconName: string;
 }
 
-export interface WikiStorySourcePlatformInput extends WikiStoryCatalogOptionInput {
+export interface WikiStorySourcePlatformInput
+    extends WikiStoryCatalogOptionInput {
     homepageUrl: string;
 }
 
 export type WikiStoryCatalogSaveResult<T> =
-    | { status: 'saved'; option: T }
-    | { status: 'conflict'; revision: number };
+    | { status: "saved"; option: T }
+    | { status: "conflict"; revision: number };
 
 export type WikiStoryCatalogDeleteResult =
-    | { status: 'deleted' }
-    | { status: 'in-use' }
-    | { status: 'not-found' };
+    | { status: "deleted" }
+    | { status: "in-use" }
+    | { status: "not-found" };
 
 export interface NewStoryBatchInput {
     agencyCode: string;
@@ -1604,8 +1683,8 @@ export interface AddStoryCardSourcesInput {
 }
 
 export type AddStoryCardSourcesResult =
-    | { status: 'added'; ids: number[]; revision: number }
-    | { status: 'conflict'; revision: number };
+    | { status: "added"; ids: number[]; revision: number }
+    | { status: "conflict"; revision: number };
 
 export interface DeleteStoryLinkInput {
     agencyCode: string;
@@ -1616,12 +1695,12 @@ export interface DeleteStoryLinkInput {
 
 export type DeleteStoryLinkResult =
     | {
-        status: 'deleted';
-        cardDeleted: boolean;
-        revision: number;
-        cleanupImageFiles: string[];
-    }
-    | { status: 'conflict'; revision: number };
+          status: "deleted";
+          cardDeleted: boolean;
+          revision: number;
+          cleanupImageFiles: string[];
+      }
+    | { status: "conflict"; revision: number };
 
 export interface UpdateStoryInput extends NewStoryInput {
     id: number;
@@ -1643,10 +1722,10 @@ export interface UpdateStoryCardInput {
 }
 
 export type WikiStoryCardSaveResult =
-    | { status: 'saved'; revision: number }
-    | { status: 'conflict'; revision: number };
+    | { status: "saved"; revision: number }
+    | { status: "conflict"; revision: number };
 
-export type WikiStoryCoverPresentationPolicy = 'inherit' | 'contain';
+export type WikiStoryCoverPresentationPolicy = "inherit" | "contain";
 
 export interface WikiStoryCoverAssetRecord {
     id: number;
@@ -1679,16 +1758,16 @@ export interface UpdateWikiStoryCoverAssetInput {
 
 export type WikiStoryCoverAssetSaveResult =
     | {
-        status: 'saved';
-        asset: WikiStoryCoverAssetRecord;
-        previousObjectKey: string | null;
-    }
-    | { status: 'conflict'; revision: number };
+          status: "saved";
+          asset: WikiStoryCoverAssetRecord;
+          previousObjectKey: string | null;
+      }
+    | { status: "conflict"; revision: number };
 
 export type WikiStoryCoverAssetDeleteResult =
-    | { status: 'deleted'; objectKey: string }
-    | { status: 'in-use'; usageCount: number }
-    | { status: 'not-found' };
+    | { status: "deleted"; objectKey: string }
+    | { status: "in-use"; usageCount: number }
+    | { status: "not-found" };
 
 export interface DeleteWikiGroupInput {
     id: number;
@@ -1696,8 +1775,8 @@ export interface DeleteWikiGroupInput {
 }
 
 export type WikiGroupDeleteResult =
-    | { status: 'deleted'; group: WikiGroupRecord }
-    | { status: 'conflict'; revision: number };
+    | { status: "deleted"; group: WikiGroupRecord }
+    | { status: "conflict"; revision: number };
 
 export interface DeleteWikiIdolInput {
     id: number;
@@ -1706,12 +1785,12 @@ export interface DeleteWikiIdolInput {
 
 export type WikiIdolDeleteResult =
     | {
-        status: 'deleted';
-        idol: IdolRecord;
-        cardCount: number;
-        storyCount: number;
-    }
-    | { status: 'conflict'; revision: number };
+          status: "deleted";
+          idol: IdolRecord;
+          cardCount: number;
+          storyCount: number;
+      }
+    | { status: "conflict"; revision: number };
 
 export interface StoryRepository {
     listThemeColors(): Promise<Record<string, string>>;
@@ -1720,102 +1799,145 @@ export interface StoryRepository {
     listWikiGroups(agencyId?: number): Promise<WikiGroupRecord[]>;
     findWikiGroupById(id: number): Promise<WikiGroupRecord | null>;
     listWikiGroupMembers(agencyId?: number): Promise<WikiGroupMemberRecord[]>;
-    listWikiCategories(agencyId: number, idolId: number): Promise<WikiCategoryRecord[]>;
+    listWikiCategories(
+        agencyId: number,
+        idolId: number,
+    ): Promise<WikiCategoryRecord[]>;
     listStoryContentTypes(): Promise<WikiStoryContentTypeRecord[]>;
     listStorySourcePlatforms(): Promise<WikiStorySourcePlatformRecord[]>;
-    listStoryCoverAssets(agencyId: number): Promise<WikiStoryCoverAssetRecord[]>;
-    findStoryCoverAssetById(id: number): Promise<WikiStoryCoverAssetRecord | null>;
+    listStoryCoverAssets(
+        agencyId: number,
+    ): Promise<WikiStoryCoverAssetRecord[]>;
+    findStoryCoverAssetById(
+        id: number,
+    ): Promise<WikiStoryCoverAssetRecord | null>;
     createStoryCoverAsset(
-        input: CreateWikiStoryCoverAssetInput
+        input: CreateWikiStoryCoverAssetInput,
     ): Promise<WikiStoryCoverAssetRecord>;
     updateStoryCoverAsset(
-        input: UpdateWikiStoryCoverAssetInput
+        input: UpdateWikiStoryCoverAssetInput,
     ): Promise<WikiStoryCoverAssetSaveResult | null>;
     deleteStoryCoverAsset(id: number): Promise<WikiStoryCoverAssetDeleteResult>;
     createStoryContentType(
-        input: WikiStoryContentTypeInput
+        input: WikiStoryContentTypeInput,
     ): Promise<WikiStoryContentTypeRecord>;
     updateStoryContentType(
         id: number,
         expectedRevision: number,
-        input: WikiStoryContentTypeInput
+        input: WikiStoryContentTypeInput,
     ): Promise<WikiStoryCatalogSaveResult<WikiStoryContentTypeRecord> | null>;
     deleteStoryContentType(id: number): Promise<WikiStoryCatalogDeleteResult>;
     createStorySourcePlatform(
-        input: WikiStorySourcePlatformInput
+        input: WikiStorySourcePlatformInput,
     ): Promise<WikiStorySourcePlatformRecord>;
     updateStorySourcePlatform(
         id: number,
         expectedRevision: number,
-        input: WikiStorySourcePlatformInput
+        input: WikiStorySourcePlatformInput,
     ): Promise<WikiStoryCatalogSaveResult<WikiStorySourcePlatformRecord> | null>;
-    deleteStorySourcePlatform(id: number): Promise<WikiStoryCatalogDeleteResult>;
+    deleteStorySourcePlatform(
+        id: number,
+    ): Promise<WikiStoryCatalogDeleteResult>;
     findAgencyByName(name: string): Promise<AgencyRecord | null>;
     findAgencyByCode(code: string): Promise<AgencyRecord | null>;
     findAgencyById(id: number): Promise<AgencyRecord | null>;
-    findIdolByAgencyAndName(agencyId: number, idolName: string): Promise<IdolRecord | null>;
+    findIdolByAgencyAndName(
+        agencyId: number,
+        idolName: string,
+    ): Promise<IdolRecord | null>;
     findIdolById(id: number): Promise<IdolRecord | null>;
     createWikiAgency(input: CreateWikiAgencyInput): Promise<AgencyRecord>;
     updateWikiAgency(input: UpdateWikiAgencyInput): Promise<AgencyRecord>;
     createWikiGroup(input: CreateWikiGroupInput): Promise<WikiGroupRecord>;
     updateWikiGroup(input: UpdateWikiGroupInput): Promise<WikiGroupRecord>;
-    deleteWikiGroup(input: DeleteWikiGroupInput): Promise<WikiGroupDeleteResult | null>;
+    deleteWikiGroup(
+        input: DeleteWikiGroupInput,
+    ): Promise<WikiGroupDeleteResult | null>;
     createWikiIdol(input: CreateWikiIdolInput): Promise<IdolRecord>;
     updateWikiIdol(input: UpdateWikiIdolInput): Promise<IdolRecord>;
-    deleteWikiIdol(input: DeleteWikiIdolInput): Promise<WikiIdolDeleteResult | null>;
+    deleteWikiIdol(
+        input: DeleteWikiIdolInput,
+    ): Promise<WikiIdolDeleteResult | null>;
     saveAgencyIconMedia(
-        input: SaveWikiEntityMediaInput
+        input: SaveWikiEntityMediaInput,
     ): Promise<WikiEntityMediaSaveResult>;
     saveWikiGroupIconMedia(
-        input: SaveWikiEntityMediaInput
+        input: SaveWikiEntityMediaInput,
     ): Promise<WikiEntityMediaSaveResult>;
     saveIdolAvatarMedia(
-        input: SaveWikiEntityMediaInput
+        input: SaveWikiEntityMediaInput,
     ): Promise<WikiEntityMediaSaveResult>;
-    setAgencyIconObjectKey(agencyId: number, objectKey: string | null): Promise<void>;
-    setIdolAvatarObjectKey(idolId: number, objectKey: string | null): Promise<void>;
+    setAgencyIconObjectKey(
+        agencyId: number,
+        objectKey: string | null,
+    ): Promise<void>;
+    setIdolAvatarObjectKey(
+        idolId: number,
+        objectKey: string | null,
+    ): Promise<void>;
     ensureWikiCategory(
         agencyId: number,
         idolId: number,
         name: string,
-        storageSlug: string
+        storageSlug: string,
     ): Promise<WikiCategoryRecord>;
-    updateWikiCategory(input: UpdateWikiCategoryInput): Promise<WikiCategorySaveResult | null>;
+    updateWikiCategory(
+        input: UpdateWikiCategoryInput,
+    ): Promise<WikiCategorySaveResult | null>;
     deleteWikiCategoryAssociation(
         agencyId: number,
         idolId: number,
-        name: string
+        name: string,
     ): Promise<WikiCategoryRecord | null>;
     saveWikiLayout(input: WikiLayoutInput): Promise<WikiLayoutSaveResult>;
-    listStoryCards(agencyCode: string, idolId: number): Promise<StoryCardRecord[]>;
+    listStoryCards(
+        agencyCode: string,
+        idolId: number,
+    ): Promise<StoryCardRecord[]>;
     listStories(agencyCode: string, idolId: number): Promise<StoryRecord[]>;
-    sampleStory(agencyCode: string, categories: readonly string[]): Promise<(StoryRecord & {
-        idol_name: string;
-        agency_name: string;
-    }) | null>;
+    sampleStory(
+        agencyCode: string,
+        categories: readonly string[],
+    ): Promise<
+        | (StoryRecord & {
+              idol_name: string;
+              agency_name: string;
+          })
+        | null
+    >;
     sampleWikiBackground(): Promise<WikiBackgroundRecord | null>;
     insertStoryReturningId(input: NewStoryInput): Promise<number>;
     insertStoryBatchReturningIds(input: NewStoryBatchInput): Promise<number[]>;
-    addStoryCardSources(input: AddStoryCardSourcesInput): Promise<AddStoryCardSourcesResult>;
-    setStoryImage(agencyCode: string, id: number, imageFile: string): Promise<void>;
+    addStoryCardSources(
+        input: AddStoryCardSourcesInput,
+    ): Promise<AddStoryCardSourcesResult>;
+    setStoryImage(
+        agencyCode: string,
+        id: number,
+        imageFile: string,
+    ): Promise<void>;
     findFirstStoryByCard(
         agencyCode: string,
         idolId: number,
         category: string,
-        cardName: string
+        cardName: string,
     ): Promise<StoryRecord | null>;
     findStoryById(
         agencyCode: string,
         idolId: number,
-        id: number
+        id: number,
     ): Promise<StoryRecord | null>;
     findStoryCardById(
         agencyCode: string,
         idolId: number,
-        cardId: number
+        cardId: number,
     ): Promise<StoryCardRecord | null>;
-    updateStoryCard(input: UpdateStoryCardInput): Promise<WikiStoryCardSaveResult>;
-    deleteStoryLink(input: DeleteStoryLinkInput): Promise<DeleteStoryLinkResult | null>;
+    updateStoryCard(
+        input: UpdateStoryCardInput,
+    ): Promise<WikiStoryCardSaveResult>;
+    deleteStoryLink(
+        input: DeleteStoryLinkInput,
+    ): Promise<DeleteStoryLinkResult | null>;
     updateStory(input: UpdateStoryInput): Promise<void>;
     updateStoryAndRenameGroup(input: {
         story: UpdateStoryInput;
@@ -1841,15 +1963,19 @@ export interface StoryRepository {
         agencyCode: string,
         idolId: number,
         category: string,
-        cardName: string
+        cardName: string,
     ): Promise<StoryRecord[]>;
-    deleteStoryGroup(input: DeleteStoryGroupInput): Promise<DeleteStoryGroupResult>;
+    deleteStoryGroup(
+        input: DeleteStoryGroupInput,
+    ): Promise<DeleteStoryGroupResult>;
     listCategoryImages(
         agencyCode: string,
         idolId: number,
-        category: string
+        category: string,
     ): Promise<Array<{ image_file: string | null }>>;
-    deleteCategory(input: DeleteWikiCategoryInput): Promise<DeleteWikiCategoryResult>;
+    deleteCategory(
+        input: DeleteWikiCategoryInput,
+    ): Promise<DeleteWikiCategoryResult>;
 }
 
 export interface RepositoryServices {
@@ -1867,5 +1993,5 @@ export interface RepositoryServices {
     story: StoryRepository;
 }
 
-export * from '@/ports/repositories-core';
-export * from '@/ports/repositories-wiki';
+export * from "@/ports/repositories-core";
+export * from "@/ports/repositories-wiki";
