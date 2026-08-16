@@ -46,6 +46,7 @@ const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map([
   ["/story/modern", "story/modern/index.html"],
   ["/story/classic", "story/classic/index.html"],
   ["/chronicle", "chronicle/index.html"],
+  ["/tier-list", "tier-list/index.html"],
 ] as const);
 
 const SPA_FALLBACK = "__spa-fallback.html";
