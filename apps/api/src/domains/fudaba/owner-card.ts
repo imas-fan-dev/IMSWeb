@@ -5,7 +5,7 @@ export interface FudabaCardFields {
     available: boolean;
     bio: string;
     displayName: string;
-    favoriteIdol: string;
+    favoriteIdolIds: number[];
     producerName: string;
     seriesCode: string;
     tradeNote: string;
@@ -19,7 +19,7 @@ const CARD_FIELDS = [
     'producerName',
     'displayName',
     'seriesCode',
-    'favoriteIdol',
+    'favoriteIdolIds',
     'accent',
     'bio',
     'tradeNote',
@@ -53,6 +53,25 @@ function booleanValue(value: unknown): boolean {
     throw badRequest('available 必须是布尔值');
 }
 
+function favoriteIdolIds(value: unknown): number[] {
+    let parsed = value;
+    if (typeof value === 'string') {
+        try {
+            parsed = JSON.parse(value);
+        } catch {
+            throw badRequest('favoriteIdolIds 无效');
+        }
+    }
+    if (
+        !Array.isArray(parsed) || parsed.length < 1 || parsed.length > 20 ||
+        parsed.some((id) => !Number.isSafeInteger(id) || Number(id) <= 0) ||
+        new Set(parsed).size !== parsed.length
+    ) {
+        throw badRequest('favoriteIdolIds 无效');
+    }
+    return parsed.map(Number);
+}
+
 function cardFields(value: Record<string, unknown>): FudabaCardFields {
     const seriesCode = text(value.seriesCode, 'seriesCode', 64, true);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(seriesCode)) {
@@ -64,7 +83,7 @@ function cardFields(value: Record<string, unknown>): FudabaCardFields {
         producerName: text(value.producerName, 'producerName', 80, true),
         displayName: text(value.displayName, 'displayName', 120, true),
         seriesCode,
-        favoriteIdol: text(value.favoriteIdol, 'favoriteIdol', 200),
+        favoriteIdolIds: favoriteIdolIds(value.favoriteIdolIds),
         accent,
         bio: text(value.bio, 'bio', 2000),
         tradeNote: text(value.tradeNote, 'tradeNote', 1000),
@@ -130,6 +149,11 @@ export function fudabaOwnerCardView(card: FudabaCardRecord): Record<string, unkn
         displayName: card.display_name,
         seriesCode: card.series_code,
         favoriteIdol: card.favorite_idol,
+        favoriteIdols: card.favorite_idols.map((idol) => ({
+            id: idol.idol_id,
+            name: idol.name_cn,
+            seriesCode: idol.agency_code
+        })),
         frontImageUrl: `/api/community/exchange/me/cards/${encodeURIComponent(card.id)}/media/front?v=${card.revision}`,
         backImageUrl: `/api/community/exchange/me/cards/${encodeURIComponent(card.id)}/media/back?v=${card.revision}`,
         accent: card.accent,

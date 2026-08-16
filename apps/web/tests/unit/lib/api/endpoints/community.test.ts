@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  getNamecardPage,
   getNamecardSubmission,
   namecardSchema,
   uploadNamecard,
@@ -57,6 +58,42 @@ describe("community API contracts", () => {
       submission: { id: 19, status: "pending", revision: 0 },
       withdrawalToken: "a".repeat(43),
     })
+  })
+
+  it("does not cache viewer-specific claim state across sessions", async () => {
+    let requestCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        requestCount += 1
+        return Promise.resolve(
+          Response.json({
+            list: [
+              {
+                id: 42,
+                image1_url: "/uploads/front.webp",
+                image2_url: "/uploads/back.webp",
+                image1_thumbnail_url:
+                  "/uploads/namecard/thumbnail/front.webp.jpg",
+                image2_thumbnail_url:
+                  "/uploads/namecard/thumbnail/back.webp.jpg",
+                claimStatus: requestCount === 1 ? "unclaimed" : "pending",
+                viewerClaimState: requestCount === 1 ? null : "pending",
+              },
+            ],
+            total: 1,
+            totalPage: 1,
+          })
+        )
+      })
+    )
+
+    const first = await getNamecardPage().send()
+    const second = await getNamecardPage().send()
+
+    expect(requestCount).toBe(2)
+    expect(first.list[0]?.viewerClaimState).toBeNull()
+    expect(second.list[0]?.viewerClaimState).toBe("pending")
   })
 
   it("keeps the withdrawal token in a header for status and mutation", async () => {

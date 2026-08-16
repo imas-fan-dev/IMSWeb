@@ -18,6 +18,33 @@ export async function deleteObjectWithCompensation(
     }
 }
 
+export async function protectObjectWithCompensation(
+    runtime: ObjectCleanupServices,
+    key: string
+): Promise<void> {
+    if (!runtime.storage?.protect) throw new Error('Object protection is unavailable');
+    const objectId = await runtime.storage.currentObjectId?.(key);
+    try {
+        if (objectId && runtime.storage.protectIfObjectId) {
+            await runtime.storage.protectIfObjectId(key, objectId);
+        } else {
+            await runtime.storage.protect(key);
+        }
+    } catch (error) {
+        if (
+            !runtime.compensation || !objectId ||
+            !runtime.storage.protectIfObjectId
+        ) {
+            throw error;
+        }
+        await runtime.compensation.enqueue(
+            'protect-object',
+            { key, objectId },
+            error
+        );
+    }
+}
+
 export async function deleteOwnedObjectWithCompensation(
     runtime: ObjectCleanupServices,
     key: string,

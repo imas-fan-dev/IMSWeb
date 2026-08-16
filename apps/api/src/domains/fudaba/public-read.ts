@@ -102,8 +102,16 @@ function validateQueryKeys(
     }
 }
 
+function searchParameters(url: string): URLSearchParams {
+    try {
+        return new URL(url).searchParams;
+    } catch {
+        throw badRequest('Request URL is invalid');
+    }
+}
+
 export function assertNoFudabaQuery(url: string): void {
-    validateQueryKeys(new URL(url).searchParams, new Set());
+    validateQueryKeys(searchParameters(url), new Set());
 }
 
 function encodeCursor(value: object): string {
@@ -217,7 +225,7 @@ export function decodeFudabaCardCursor(
 }
 
 export function parseFudabaOfficeQuery(url: string): FudabaOfficeQuery {
-    const parameters = new URL(url).searchParams;
+    const parameters = searchParameters(url);
     validateQueryKeys(
         parameters,
         new Set(['city', 'series', 'open', 'limit', 'cursor']),
@@ -242,7 +250,7 @@ export function parseFudabaOfficeQuery(url: string): FudabaOfficeQuery {
 }
 
 export function parseFudabaCardQuery(url: string): FudabaCardQuery {
-    const parameters = new URL(url).searchParams;
+    const parameters = searchParameters(url);
     validateQueryKeys(
         parameters,
         new Set(['series', 'available', 'office', 'limit', 'cursor']),
@@ -315,6 +323,11 @@ export async function fudabaPublicCardView(
         displayName: card.display_name,
         seriesCode: card.series_code,
         favoriteIdol: card.favorite_idol,
+        favoriteIdols: card.favorite_idols.map((idol) => ({
+            id: idol.idol_id,
+            name: idol.name_cn,
+            seriesCode: idol.agency_code
+        })),
         frontImageUrl,
         backImageUrl,
         accent: card.accent,

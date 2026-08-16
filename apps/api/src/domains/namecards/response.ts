@@ -1,9 +1,20 @@
+import type { CardIdolSelectionRecord, FudabaCardClaimState } from '@/ports/repositories';
 import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
 
 export type NamecardResponseId = number | string;
 
+export interface NamecardIdolResponse {
+    id: number;
+    name: string;
+    seriesCode: string;
+}
+
 export interface PublicNamecardResponse {
     id: NamecardResponseId;
+    seriesCode: string | null;
+    favoriteIdols: NamecardIdolResponse[];
+    claimStatus: 'unclaimed' | 'pending' | 'claimed';
+    viewerClaimState: FudabaCardClaimState | null;
     image1_url: string;
     image2_url: string;
     image1_thumbnail_url: string;
@@ -22,6 +33,8 @@ export interface AdminNamecardResponse {
 
 export interface NamecardSubmissionResponse {
     id: NamecardResponseId;
+    seriesCode: string | null;
+    favoriteIdols: NamecardIdolResponse[];
     image1_url: string;
     image2_url: string;
     status: 'pending' | 'approving' | 'approved' | 'rejected' | 'withdrawn';
@@ -104,6 +117,10 @@ interface NamecardRow {
     status?: unknown;
     created_at?: unknown;
     revision?: unknown;
+    series_code?: unknown;
+    favorite_idols?: unknown;
+    claim_status?: unknown;
+    viewer_claim_state?: unknown;
 }
 
 function responseId(value: unknown): NamecardResponseId {
@@ -124,11 +141,39 @@ function responseTimestamp(value: unknown): string | null {
     throw new Error('Namecard response has an invalid created_at');
 }
 
+function responseSeriesCode(value: unknown): string | null {
+    return typeof value === 'string' && value ? value : null;
+}
+
+function responseFavoriteIdols(value: unknown): NamecardIdolResponse[] {
+    if (!Array.isArray(value)) return [];
+    return (value as CardIdolSelectionRecord[]).map((idol) => ({
+        id: idol.idol_id,
+        name: idol.name_cn,
+        seriesCode: idol.agency_code
+    }));
+}
+
+function responseClaimStatus(value: unknown): PublicNamecardResponse['claimStatus'] {
+    return value === 'claimed' || value === 'pending' ? value : 'unclaimed';
+}
+
+function responseViewerClaimState(value: unknown): FudabaCardClaimState | null {
+    return value === 'pending' || value === 'approving' || value === 'approved' ||
+        value === 'rejected' || value === 'cancelled'
+        ? value
+        : null;
+}
+
 export function toPublicNamecardResponse(row: NamecardRow): PublicNamecardResponse {
     const image1Url = responseString(row.image1_url, 'image1_url');
     const image2Url = responseString(row.image2_url, 'image2_url');
     return {
         id: responseId(row.id),
+        seriesCode: responseSeriesCode(row.series_code),
+        favoriteIdols: responseFavoriteIdols(row.favorite_idols),
+        claimStatus: responseClaimStatus(row.claim_status),
+        viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
         image1_url: image1Url,
         image2_url: image2Url,
         image1_thumbnail_url: namecardThumbnailPublicUrl(image1Url),
@@ -160,6 +205,8 @@ export function toNamecardSubmissionResponse(row: NamecardRow): NamecardSubmissi
     }
     return {
         id: responseId(row.id),
+        seriesCode: responseSeriesCode(row.series_code),
+        favoriteIdols: responseFavoriteIdols(row.favorite_idols),
         image1_url: responseString(row.image1_url, 'image1_url'),
         image2_url: responseString(row.image2_url, 'image2_url'),
         status: status as NamecardSubmissionResponse['status'],

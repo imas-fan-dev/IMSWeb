@@ -16,7 +16,12 @@ import {
     validateNamecardIdParams,
     validateNamecardListQuery,
 } from "@/domains/namecards/request";
-import { backofficeAuth, backofficeCsrf, opOnly } from "@/middleware/hono-auth";
+import {
+    backofficeAuth,
+    backofficeCsrf,
+    opOnly,
+    optionalPlatformAuth,
+} from "@/middleware/hono-auth";
 import {
     jsonValidator,
     paramValidator,
@@ -30,6 +35,7 @@ export function registerNamecardRoutes(app: ImsHonoApp): void {
     app.post("/api/uploadNameCard", handleUploadNamecard);
     app.get(
         "/api/cards",
+        optionalPlatformAuth,
         queryValidator(validateNamecardListQuery),
         handleListNamecards,
     );

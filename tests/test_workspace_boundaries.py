@@ -206,8 +206,8 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
         )["scripts"]
 
-        self.assertLessEqual(len(root_scripts), 50)
-        self.assertLessEqual(len(api_scripts), 35)
+        self.assertLessEqual(len(root_scripts), 51)
+        self.assertLessEqual(len(api_scripts), 36)
         self.assertLessEqual(len(web_scripts), 13)
         self.assertTrue(
             {

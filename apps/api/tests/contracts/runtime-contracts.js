@@ -969,7 +969,10 @@ async function assertCoreMutationContract(fixture) {
         `${fixture.runtime} event replacement removes the superseded media`);
 
     fixture.setUpload({
-        fields: {},
+        fields: {
+            seriesCode: '765',
+            favoriteIdolIds: '[900001]'
+        },
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
     const namecard = await fixture.request('/api/uploadNameCard', {
@@ -1008,7 +1011,10 @@ async function assertCoreMutationContract(fixture) {
         `${fixture.runtime} legacy namecard pagination has no side effects`);
 
     fixture.setUpload({
-        fields: {},
+        fields: {
+            seriesCode: '765',
+            favoriteIdolIds: '[900001]'
+        },
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
     await assertJsonResponse(
@@ -1155,7 +1161,10 @@ async function assertPostCommitMediaContract(fixture) {
     try {
         putFailureLogs = await captureConsoleErrors(async () => {
             fixture.setUpload({
-                fields: {},
+                fields: {
+                    seriesCode: '765',
+                    favoriteIdolIds: '[900001]'
+                },
                 files: {
                     images: [
                         uploadedFile('failed-card-front.png', 32, 67),
@@ -1245,7 +1254,10 @@ async function assertPostCommitMediaContract(fixture) {
         `${fixture.runtime} committed event retry response id`);
 
     fixture.setUpload({
-        fields: {},
+        fields: {
+            seriesCode: '765',
+            favoriteIdolIds: '[900001]'
+        },
         files: {
             images: [
                 uploadedFile('committed-card-front.png', 32, 65),
@@ -1377,7 +1389,10 @@ async function assertRouteUploadBoundaryContract(fixture) {
     });
 
     let before = await fixture.uploadSnapshot();
-    fixture.setUpload({ fields: {}, files: {
+    fixture.setUpload({ fields: {
+        seriesCode: '765',
+        favoriteIdolIds: '[900001]'
+    }, files: {
         images: [uploadedFile('front.png', 3 * MiB, 11), uploadedFile('back.png', 3 * MiB, 12)]
     } });
     const exactNamecard = await post('/api/uploadNameCard');
@@ -1394,7 +1409,10 @@ async function assertRouteUploadBoundaryContract(fixture) {
     equal(after.objects, before.objects + 4, `${fixture.runtime} namecard exact boundary objects`);
 
     before = after;
-    fixture.setUpload({ fields: {}, files: {
+    fixture.setUpload({ fields: {
+        seriesCode: '765',
+        favoriteIdolIds: '[900001]'
+    }, files: {
         images: [uploadedFile('front-too-large.png', 3 * MiB + 1, 13), uploadedFile('back.png', 1, 14)]
     } });
     await assertJsonResponse(
@@ -1403,7 +1421,10 @@ async function assertRouteUploadBoundaryContract(fixture) {
     );
     deepEqual(await fixture.uploadSnapshot(), before, `${fixture.runtime} rejected namecard leaves no residue`);
 
-    fixture.setUpload({ fields: {}, files: {
+    fixture.setUpload({ fields: {
+        seriesCode: '765',
+        favoriteIdolIds: '[900001]'
+    }, files: {
         images: [uploadedFile('one.png', 1, 15), uploadedFile('two.png', 1, 16), uploadedFile('three.png', 1, 17)]
     } });
     await assertJsonResponse(

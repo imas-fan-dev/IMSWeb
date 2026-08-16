@@ -616,6 +616,18 @@ export interface FudabaRegisteredCardReviewRecord extends FudabaCardRecord {
     owner_display_name: string;
 }
 
+export interface FudabaAdminCardClaimRecord extends FudabaCardClaimRecord {
+    claimant_display_name: string;
+    legacy_image1_url: string;
+    legacy_image2_url: string;
+}
+
+export interface LegacyNamecardClaimStatusRecord {
+    legacy_card_id: number;
+    claim_status: 'unclaimed' | 'pending' | 'claimed';
+    viewer_claim_state: FudabaCardClaimState | null;
+}
+
 export interface CreateFudabaCardClaimInput {
     id: string;
     legacyCardId: number;
@@ -1085,12 +1097,22 @@ export interface FudabaRepository {
         claimantAccountId: string,
         limit: number
     ): Promise<FudabaCardClaimRecord[]>;
+    listLegacyNamecardClaimStatuses(
+        legacyCardIds: number[],
+        viewerAccountId: string | null
+    ): Promise<LegacyNamecardClaimStatusRecord[]>;
+    findRegisteredCardForAdmin(cardId: string): Promise<FudabaCardRecord | null>;
     listAdminPendingCards(limit: number): Promise<FudabaRegisteredCardReviewRecord[]>;
-    listAdminPendingClaims(limit: number): Promise<FudabaCardClaimRecord[]>;
+    findAdminCardClaim(claimId: string): Promise<FudabaAdminCardClaimRecord | null>;
+    listAdminPendingClaims(limit: number): Promise<FudabaAdminCardClaimRecord[]>;
     beginRegisteredCardReview(
         cardId: string,
         expectedRevision: number
     ): Promise<FudabaRegisteredCardReviewClaim>;
+    rollbackRegisteredCardReview(
+        cardId: string,
+        approvingRevision: number
+    ): Promise<boolean>;
     completeRegisteredCardReview(input: {
         cardId: string;
         approvingRevision: number;
@@ -1102,6 +1124,10 @@ export interface FudabaRepository {
         claimId: string,
         expectedRevision: number
     ): Promise<FudabaClaimReviewClaim>;
+    rollbackCardClaimReview(
+        claimId: string,
+        approvingRevision: number
+    ): Promise<boolean>;
     completeCardClaimReview(
         input: CompleteFudabaClaimReviewInput
     ): Promise<FudabaClaimReviewResult>;

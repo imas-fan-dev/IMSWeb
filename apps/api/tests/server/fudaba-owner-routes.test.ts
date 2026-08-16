@@ -93,7 +93,7 @@ function cardFields(): Record<string, string> {
         producerName: 'New Producer',
         displayName: 'New Card',
         seriesCode: '765',
-        favoriteIdol: 'Chihaya',
+        favoriteIdolIds: '[900001]',
         accent: '#336699',
         bio: 'New bio',
         tradeNote: 'New trade note',
@@ -709,7 +709,7 @@ function metadataBody(expectedRevision: number): Record<string, unknown> {
         producerName: 'Updated Producer',
         displayName: 'Updated Card',
         seriesCode: '765',
-        favoriteIdol: 'Miki',
+        favoriteIdolIds: [900001],
         accent: '#112233',
         bio: 'Updated card bio',
         tradeNote: 'Updated card trade note',
@@ -969,6 +969,7 @@ test('card creation sniffs both images and writes only protected owner objects',
     assert.equal(fixture.images.conversions.length, 2);
     assert.equal(fixture.storage.puts.length, 2);
     assert.equal(fixture.createInputs[0]?.ownerAccountId, ACCOUNT_ID);
+    assert.deepEqual(fixture.createInputs[0]?.favoriteIdolIds, [900001]);
     for (const put of fixture.storage.puts) {
         assert.equal(put.options.contentType, 'image/webp');
         assert.equal(put.options.protectedAccess, true);

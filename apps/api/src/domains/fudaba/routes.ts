@@ -1,5 +1,12 @@
 import type { Context, Next } from 'hono';
 import type { AppEnvironment, ImsHonoApp } from '@/app';
+import {
+    handleListFudabaCardClaimReviews,
+    handleListFudabaRegisteredCardReviews,
+    handleReviewFudabaCardClaim,
+    handleReviewFudabaRegisteredCard,
+    handleServeFudabaRegisteredCardReviewMedia
+} from '@/domains/fudaba/handlers/admin-card-reviews';
 import { handleGetFudabaPublicOffice } from '@/domains/fudaba/handlers/get-public-office';
 import { handleCreateFudabaCard } from '@/domains/fudaba/handlers/create-card';
 import { handleCreateFudabaOffice } from '@/domains/fudaba/handlers/create-office';
@@ -12,6 +19,12 @@ import { handleListFudabaPublicOffices } from '@/domains/fudaba/handlers/list-pu
 import { handleListFudabaPublicSeries } from '@/domains/fudaba/handlers/list-public-series';
 import { handleListFudabaOwnerCards } from '@/domains/fudaba/handlers/list-owner-cards';
 import { handleListFudabaOwnerOffices } from '@/domains/fudaba/handlers/list-owner-offices';
+import {
+    handleCreateFudabaLegacyCardClaim,
+    handleListFudabaClaimEnvelopes,
+    handleListFudabaOwnerCardClaims,
+    handleRespondFudabaClaimEnvelope
+} from '@/domains/fudaba/handlers/platform-card-claims';
 import { handleGetFudabaMapConfig } from '@/domains/fudaba/handlers/get-map-config';
 import { handleGetFudabaOwnerLocation } from '@/domains/fudaba/handlers/get-owner-location';
 import { handleListFudabaLocationReviews } from '@/domains/fudaba/handlers/list-location-reviews';
@@ -144,6 +157,16 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         handleGetFudabaOwnerCard
     );
     app.get(
+        '/api/community/exchange/me/claim-envelopes',
+        platformAuth,
+        handleListFudabaClaimEnvelopes
+    );
+    app.get(
+        '/api/community/exchange/me/card-claims',
+        platformAuth,
+        handleListFudabaOwnerCardClaims
+    );
+    app.get(
         '/api/community/exchange/me/offices',
         platformAuth,
         handleListFudabaOwnerOffices
@@ -215,6 +238,16 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         platformUploadRateLimit,
         platformWriteRateLimit,
         handleCreateFudabaCard
+    );
+    app.post(
+        '/api/community/exchange/legacy-cards/:legacyCardId/claims',
+        ...write,
+        handleCreateFudabaLegacyCardClaim
+    );
+    app.put(
+        '/api/community/exchange/me/claim-envelopes/:envelopeId',
+        ...write,
+        handleRespondFudabaClaimEnvelope
     );
     app.post(
         '/api/community/exchange/offices',
@@ -302,5 +335,44 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
         currentBackofficeOp,
         backofficeCsrf,
         handleReviewFudabaLocation
+    );
+    app.get(
+        '/api/admin/community/exchange/card-reviews',
+        backofficeAuth,
+        currentBackofficeOp,
+        handleListFudabaRegisteredCardReviews
+    );
+    app.get(
+        '/api/admin/community/exchange/card-reviews/:cardId/media/:side',
+        backofficeAuth,
+        currentBackofficeOp,
+        handleServeFudabaRegisteredCardReviewMedia
+    );
+    app.on(
+        'HEAD',
+        '/api/admin/community/exchange/card-reviews/:cardId/media/:side',
+        backofficeAuth,
+        currentBackofficeOp,
+        handleServeFudabaRegisteredCardReviewMedia
+    );
+    app.put(
+        '/api/admin/community/exchange/card-reviews/:cardId',
+        backofficeAuth,
+        currentBackofficeOp,
+        backofficeCsrf,
+        handleReviewFudabaRegisteredCard
+    );
+    app.get(
+        '/api/admin/community/exchange/card-claims',
+        backofficeAuth,
+        currentBackofficeOp,
+        handleListFudabaCardClaimReviews
+    );
+    app.put(
+        '/api/admin/community/exchange/card-claims/:claimId',
+        backofficeAuth,
+        currentBackofficeOp,
+        backofficeCsrf,
+        handleReviewFudabaCardClaim
     );
 }

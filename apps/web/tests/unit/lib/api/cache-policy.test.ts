@@ -78,7 +78,6 @@ describe("Alova client cache policy", () => {
       getRecommendationPage(),
       getHomeInformation(),
       getChronicleActivities(),
-      getNamecardPage(),
       getLiveEvents(["2026-08"]),
     ]) {
       expect(method.config.cacheFor).toBe(PUBLIC_QUERY_CACHE_FOR)
@@ -114,6 +113,7 @@ describe("Alova client cache policy", () => {
       expect(method.hitSource).toEqual([PUBLIC_CACHE_INVALIDATION_SOURCE.wiki])
     }
 
+    expect(getNamecardPage().config.cacheFor).toBe(NO_CLIENT_CACHE)
     expect(getWikiRandomBackground().config.cacheFor).toBe(NO_CLIENT_CACHE)
     expect(getWikiRandomIdol().config.cacheFor).toBe(NO_CLIENT_CACHE)
     expect(getAdminSession().config.cacheFor).toBeUndefined()

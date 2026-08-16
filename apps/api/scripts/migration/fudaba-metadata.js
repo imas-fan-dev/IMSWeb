@@ -1,4 +1,4 @@
-'use strict';
+
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -195,31 +195,31 @@ const SOURCE_INDEX_SQL = new Map([
     ['sessions_user_idx', 'CREATE INDEX sessions_user_idx ON sessions(user_id)']
 ]);
 const SOURCE_TABLE_SQL_SHA256 = new Map([
-    ['card_favorites', 'c2d9fb71ddfb5e973b34cde9d88ac4fb2a1f1a1e6186e8e9da7c3054ce9b28cb'],
-    ['card_likes', '1a6bbb78a3bf4f0c6c35dc4bf30d4360c8fd9938839a853a623c41b151c7deff'],
-    ['cards', '04e3d7ce4e5f9938eda7a2318dc280f247782e079ef0ae91ef602ad83e9f134b'],
-    ['d1_migrations', 'b635b9b3f4e2a717156ba8ba9a77dc0bae47407077a58e8c8c2d924113909e5c'],
-    ['email_credentials', 'f63aa9285cb02890422574a6882eb27367c592460ca3a9cfbca2b8a70945e75f'],
-    ['exchange_requests', '6f83ad6cb7b1b0ff4c69e859f755902b223e5969fc6cc5ccdd2da917a3e064df'],
-    ['messages', '2d37acefaf22ac92076af995085ab3b78060306f36972912d24ff0b873a44adf'],
-    ['oauth_accounts', '852dba401f3c770479991cdf2ac9e884a75934868dcd612f5653c63620c46383'],
-    ['oauth_states', '40e144eeb015b4203ac822f63243352e0896993592323a8baa6f165664a864ab'],
-    ['office_cards', 'f5ed861f98bb262df36f4f2e99ac3d1d4ba25b1dea3989001ae428142b4122d4'],
-    ['office_series_tags', '49df569b5bd6f488f1c7eac16ab1d70f28cdbc97d023076af7861ae40927c614'],
-    ['offices', 'ceae918f48c721ef183a3d3774ef7256a63662cbf4666cbcb39aafe61ed6b52b'],
-    ['series_tags', 'e4f37bc4013605d08ff85365a61718368ebac3f16a839a24adbc51f512ae2103'],
-    ['sessions', '328f61103400b61613e94679f886b0decd852c4222b14bb4f21dc6f5818be734'],
-    ['users', 'ecc2c0a0bea537f7882dde3e0e51a5110dd1dfca896e47e7932eeaa1baf61f99']
+    ['card_favorites', 'c2d9fb71ddfb5e973b34cde9d88ac4fb2a1f1a1e6186e8e9da7c3054ce9b28cb'], // gitleaks:allow -- frozen schema SHA-256
+    ['card_likes', '1a6bbb78a3bf4f0c6c35dc4bf30d4360c8fd9938839a853a623c41b151c7deff'], // gitleaks:allow -- frozen schema SHA-256
+    ['cards', '04e3d7ce4e5f9938eda7a2318dc280f247782e079ef0ae91ef602ad83e9f134b'], // gitleaks:allow -- frozen schema SHA-256
+    ['d1_migrations', 'b635b9b3f4e2a717156ba8ba9a77dc0bae47407077a58e8c8c2d924113909e5c'], // gitleaks:allow -- frozen schema SHA-256
+    ['email_credentials', 'f63aa9285cb02890422574a6882eb27367c592460ca3a9cfbca2b8a70945e75f'], // gitleaks:allow -- frozen schema SHA-256
+    ['exchange_requests', '6f83ad6cb7b1b0ff4c69e859f755902b223e5969fc6cc5ccdd2da917a3e064df'], // gitleaks:allow -- frozen schema SHA-256
+    ['messages', '2d37acefaf22ac92076af995085ab3b78060306f36972912d24ff0b873a44adf'], // gitleaks:allow -- frozen schema SHA-256
+    ['oauth_accounts', '852dba401f3c770479991cdf2ac9e884a75934868dcd612f5653c63620c46383'], // gitleaks:allow -- frozen schema SHA-256
+    ['oauth_states', '40e144eeb015b4203ac822f63243352e0896993592323a8baa6f165664a864ab'], // gitleaks:allow -- frozen schema SHA-256
+    ['office_cards', 'f5ed861f98bb262df36f4f2e99ac3d1d4ba25b1dea3989001ae428142b4122d4'], // gitleaks:allow -- frozen schema SHA-256
+    ['office_series_tags', '49df569b5bd6f488f1c7eac16ab1d70f28cdbc97d023076af7861ae40927c614'], // gitleaks:allow -- frozen schema SHA-256
+    ['offices', 'ceae918f48c721ef183a3d3774ef7256a63662cbf4666cbcb39aafe61ed6b52b'], // gitleaks:allow -- frozen schema SHA-256
+    ['series_tags', 'e4f37bc4013605d08ff85365a61718368ebac3f16a839a24adbc51f512ae2103'], // gitleaks:allow -- frozen schema SHA-256
+    ['sessions', '328f61103400b61613e94679f886b0decd852c4222b14bb4f21dc6f5818be734'], // gitleaks:allow -- frozen schema SHA-256
+    ['users', 'ecc2c0a0bea537f7882dde3e0e51a5110dd1dfca896e47e7932eeaa1baf61f99'] // gitleaks:allow -- frozen schema SHA-256
 ]);
 const SOURCE_TRIGGER_SQL_SHA256 = new Map([
     ['exchanges_require_active_insert',
-        '3c044d5bf1da3f0c714d797a95c9c3915d5e3d4459a0b288f55cd98573bded22'],
+        '3c044d5bf1da3f0c714d797a95c9c3915d5e3d4459a0b288f55cd98573bded22'], // gitleaks:allow -- frozen schema SHA-256
     ['messages_require_active_insert',
-        'bf53553c2de4e1f1ded0513227a47628a44bce5792b07d46ae4100c9122bb572'],
+        'bf53553c2de4e1f1ded0513227a47628a44bce5792b07d46ae4100c9122bb572'], // gitleaks:allow -- frozen schema SHA-256
     ['office_cards_require_active_insert',
-        '349af704e6d1c6859b48270bf2ee503632d4433536bc9b00178ec80e209a0d07'],
+        '349af704e6d1c6859b48270bf2ee503632d4433536bc9b00178ec80e209a0d07'], // gitleaks:allow -- frozen schema SHA-256
     ['office_cards_require_active_update',
-        '85696d9eafa854591deb6542f7bb287ad82e52d92cf63c4d69fdf51cdf472018']
+        '85696d9eafa854591deb6542f7bb287ad82e52d92cf63c4d69fdf51cdf472018'] // gitleaks:allow -- frozen schema SHA-256
 ]);
 const SOURCE_REAL_COLUMNS = new Set([
     'offices.latitude',

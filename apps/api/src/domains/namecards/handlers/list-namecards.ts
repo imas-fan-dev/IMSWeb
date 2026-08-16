@@ -16,8 +16,29 @@ export async function handleListNamecards(
     const { page, size } = c.req.valid('query');
     try {
         const total = await namecardRepository(c).countApprovedCards();
-        const cards = (await namecardRepository(c).listApprovedCards(size, (page - 1) * size))
-            .map(toPublicNamecardResponse);
+        const rows = await namecardRepository(c).listApprovedCards(
+            size,
+            (page - 1) * size
+        );
+        const claimRepository = services(c).fudaba;
+        const statuses = claimRepository
+            ? await claimRepository.listLegacyNamecardClaimStatuses(
+                rows.map((card) => Number(card.id)),
+                c.get('platformUser')?.id ?? null
+            )
+            : [];
+        const statusByCardId = new Map(statuses.map((status) => [
+            status.legacy_card_id,
+            status
+        ]));
+        const cards = rows.map((card) => {
+            const status = statusByCardId.get(Number(card.id));
+            return toPublicNamecardResponse({
+                ...card,
+                claim_status: status?.claim_status,
+                viewer_claim_state: status?.viewer_claim_state
+            });
+        });
         const storage = services(c).storage;
         return c.json({
             list: storage

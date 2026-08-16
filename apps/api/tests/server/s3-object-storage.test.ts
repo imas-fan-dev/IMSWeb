@@ -18,7 +18,7 @@ import {
 } from '@/infra/oss/s3/object-storage';
 import { S3CompensationService } from '@/infra/oss/s3/compensation-service';
 import { S3UploadStateMachine } from '@/infra/oss/s3/upload-state-machine';
-import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import type { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
 interface FakeObject {
@@ -42,6 +42,7 @@ class FakeS3Client {
     destroyCalls = 0;
     deleteFailuresRemaining = 0;
     putFailuresAfterWriteRemaining = 0;
+    copyFailuresAfterWriteRemaining = 0;
     private revision = 0;
 
     object(bucket: string, key: string): FakeObject | undefined {
@@ -119,6 +120,10 @@ class FakeS3Client {
                 body: Uint8Array.from(source.body),
                 lastModified: new Date('2026-07-22T00:00:01Z')
             });
+            if (this.copyFailuresAfterWriteRemaining > 0) {
+                this.copyFailuresAfterWriteRemaining -= 1;
+                throw s3Error('RequestTimeout', 408);
+            }
             return {};
         }
         if (command instanceof ListObjectsV2Command) {
@@ -465,6 +470,15 @@ test('S3 public and protected objects share one bucket with distinct read paths'
         await storage.createPublicReadUrl(namecardKey) ?? '',
         /^https:\/\/media\.example\.test\/bucket-root\//
     );
+    const publishedPhysicalKey = publishedNamecard.physicalKey!;
+    await storage.protect(namecardKey);
+    const protectedAgain = await state.snapshot(namecardKey);
+    assert.ok(protectedAgain);
+    assert.equal(protectedAgain.storageScope, 'private');
+    assert.match(protectedAgain.physicalKey!, /\/__protected\/community\/namecards\//);
+    assert.equal(await storage.createPublicReadUrl(namecardKey), null);
+    assert.equal((await storage.createReadUrl(namecardKey))?.visibility, 'private');
+    assert.equal(client.hasObject('ims-media-prod', publishedPhysicalKey), false);
 
     const readyInternalKey = 'site-packages/example/revisions/one/source.zip';
     await storage.put(readyInternalKey, new Uint8Array([5]));
@@ -507,6 +521,86 @@ test('S3 deferred public media stays private until publication moves it', async 
         decodeURIComponent(copy.input.CopySource!),
         /^ims-media-prod\/ims\/production\/__protected\//
     );
+});
+
+test('ambiguous S3 publication removes an untracked public destination', async (t) => {
+    const { client, state, storage } = await fixture(t, {
+        publicReadUrlBase: 'https://media.example.test'
+    });
+    const key = 'community/fudaba/cards/ambiguous/front.webp';
+    await storage.put(key, new Uint8Array([1]), {
+        protectedAccess: true,
+        ownerToken: 'ambiguous-owner-token'
+    });
+    const original = await state.snapshot(key);
+    assert.ok(original);
+    client.copyFailuresAfterWriteRemaining = 1;
+
+    await assert.rejects(storage.publish(key), /RequestTimeout/);
+
+    const current = await state.snapshot(key);
+    assert.equal(current?.objectId, original.objectId);
+    assert.equal(current?.storageScope, 'private');
+    const copy = [...client.commands].reverse().find(
+        (command) => command instanceof CopyObjectCommand
+    );
+    assert.ok(copy instanceof CopyObjectCommand);
+    assert.equal(client.hasObject('ims-media-prod', copy.input.Key!), false);
+});
+
+test('S3 protection compensation restores private scope', async (t) => {
+    const { compensation, state, storage } = await fixture(t, {
+        publicReadUrlBase: 'https://media.example.test'
+    });
+    const key = 'community/fudaba/cards/review-recovery/front.webp';
+    await storage.put(key, new Uint8Array([1]), {
+        protectedAccess: true,
+        ownerToken: 'review-owner-token'
+    });
+    await storage.publish(key);
+    const published = await state.snapshot(key);
+    assert.equal(published?.storageScope, 'public');
+    await compensation.enqueue('protect-object', {
+        key,
+        objectId: published!.objectId
+    });
+    await compensation.run(storage);
+    assert.equal((await state.snapshot(key))?.storageScope, 'private');
+    assert.equal(await storage.createPublicReadUrl(key), null);
+});
+
+test('stale S3 protection compensation does not privatize a newer version', async (t) => {
+    const { compensation, state, storage } = await fixture(t, {
+        publicReadUrlBase: 'https://media.example.test'
+    });
+    const key = 'community/fudaba/cards/review-recovery/stale.webp';
+    await storage.put(key, new Uint8Array([1]), {
+        protectedAccess: true,
+        ownerToken: 'first-owner-token'
+    });
+    await storage.publish(key);
+    const original = await state.snapshot(key);
+    assert.ok(original);
+    await compensation.enqueue('protect-object', {
+        key,
+        objectId: original.objectId
+    });
+
+    await storage.put(key, new Uint8Array([2]), {
+        protectedAccess: true,
+        ownerToken: 'second-owner-token'
+    });
+    await storage.publish(key);
+    const newer = await state.snapshot(key);
+    assert.ok(newer);
+    assert.notEqual(newer.objectId, original.objectId);
+    assert.equal(newer.storageScope, 'public');
+
+    await compensation.run(storage);
+    const afterStaleJob = await state.snapshot(key);
+    assert.equal(afterStaleJob?.objectId, newer.objectId);
+    assert.equal(afterStaleJob?.storageScope, 'public');
+    assert.match(await storage.createPublicReadUrl(key) ?? '', /^https:\/\//);
 });
 
 test('S3 compensation preserves public access scope after a delete failure', async (t) => {

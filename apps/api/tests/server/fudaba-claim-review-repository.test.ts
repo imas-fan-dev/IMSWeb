@@ -218,6 +218,17 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
         confirmed.claim.favorite_idols.map((idol) => idol.idol_id),
         [900_001, 900_002]
     );
+    assert.deepEqual(await fudaba.listLegacyNamecardClaimStatuses(
+        [legacyId],
+        ownerA
+    ), [{
+        legacy_card_id: legacyId,
+        claim_status: 'pending',
+        viewer_claim_state: 'pending'
+    }]);
+    const adminClaim = await fudaba.findAdminCardClaim(claimId);
+    assert.equal(adminClaim?.claimant_display_name, 'Producer claim-owner-a');
+    assert.equal(adminClaim?.legacy_image1_url, 'legacy/a/front.webp');
     assert.deepEqual(await fudaba.confirmLegacyCardEnvelope({
         envelopeId: envelope.id,
         recipientAccountId: ownerA,
@@ -270,6 +281,14 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
     assert.equal(claimCompleted.claim.state, 'approved');
     assert.equal(claimCompleted.card?.legacy_card_id, legacyId);
     assert.equal((await fudaba.findCardById(matchingCardId))?.legacy_card_id, legacyId);
+    assert.deepEqual(await fudaba.listLegacyNamecardClaimStatuses(
+        [legacyId],
+        ownerA
+    ), [{
+        legacy_card_id: legacyId,
+        claim_status: 'claimed',
+        viewer_claim_state: 'approved'
+    }]);
     const ownerAEnvelopes = await fudaba.listClaimEnvelopesForOwner(ownerA, 20);
     const approvedEnvelope = ownerAEnvelopes.find(
         (item) => item.kind === 'claim-approved'
@@ -418,6 +437,19 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
     assert.equal(createdCardResult.card?.legacy_card_id, createLegacyId);
     assert.equal(createdCardResult.card?.publication_status, 'published');
     assert.equal(createdCardResult.card?.favorite_idol, '测试春香、测试卯月');
+    assert.equal((await fudaba.softDeleteCardForOwner({
+        cardId: 'claimed-created-card',
+        ownerAccountId: ownerB,
+        expectedRevision: 0,
+        deletedAt: REVIEWED_AT
+    })).status, 'saved');
+    assert.equal(
+        (await fudaba.listLegacyNamecardClaimStatuses(
+            [createLegacyId],
+            ownerB
+        ))[0]?.claim_status,
+        'claimed'
+    );
 
     const rejectedLegacyId = await insertLegacyCard(database, 'j');
     const rejectedClaim = await fudaba.createCardClaimForOwner({
@@ -554,4 +586,39 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
     if (registeredRejected.status !== 'saved') return;
     assert.equal(registeredRejected.card.publication_status, 'rejected');
     assert.equal(registeredRejected.card.media_rights_status, 'denied');
+
+    const rollbackCardId = 'registered-review-rollback';
+    assert.equal(
+        (await fudaba.createCardForOwner(ownerCard(rollbackCardId, ownerC))).status,
+        'saved'
+    );
+    assert.equal(
+        (await fudaba.beginRegisteredCardReview(rollbackCardId, 0)).status,
+        'claimed'
+    );
+    assert.equal(await fudaba.rollbackRegisteredCardReview(rollbackCardId, 1), true);
+    const rolledBackCard = await fudaba.findRegisteredCardForAdmin(rollbackCardId);
+    assert.equal(rolledBackCard?.publication_status, 'pending');
+    assert.equal(rolledBackCard?.revision, 2);
+
+    const rollbackLegacyId = await insertLegacyCard(database, 'q');
+    assert.equal((await fudaba.createCardClaimForOwner({
+        id: 'claim-review-rollback',
+        legacyCardId: rollbackLegacyId,
+        claimantAccountId: ownerC,
+        targetCardId: null,
+        seriesCode: '765',
+        idolIds: [900_001],
+        message: '',
+        createdAt: CREATED_AT,
+        updatedAt: CREATED_AT
+    })).status, 'created');
+    assert.equal(
+        (await fudaba.beginCardClaimReview('claim-review-rollback', 0)).status,
+        'claimed'
+    );
+    assert.equal(await fudaba.rollbackCardClaimReview('claim-review-rollback', 1), true);
+    const rolledBackClaim = await fudaba.findAdminCardClaim('claim-review-rollback');
+    assert.equal(rolledBackClaim?.state, 'pending');
+    assert.equal(rolledBackClaim?.revision, 2);
 });

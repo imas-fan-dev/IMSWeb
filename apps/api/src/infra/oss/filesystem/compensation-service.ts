@@ -80,7 +80,14 @@ export class FilesystemCompensationService implements CompensationService {
         let handled = 0;
         for (const name of names) {
             if (handled >= limit) break;
-            const entry = JSON.parse(await fs.readFile(path.join(this.directory, name), 'utf8')) as JournalEntry;
+            let entry: JournalEntry;
+            try {
+                entry = JSON.parse(
+                    await fs.readFile(path.join(this.directory, name), 'utf8')
+                ) as JournalEntry;
+            } catch {
+                continue;
+            }
             if (entry.state === 'completed') continue;
             handled += 1;
             entry.state = 'running';
@@ -88,10 +95,17 @@ export class FilesystemCompensationService implements CompensationService {
             entry.updatedAt = new Date().toISOString();
             await this.write(entry);
             try {
-                if (entry.kind !== 'delete-object') throw new Error(`Unsupported compensation: ${entry.kind}`);
                 const key = (entry.payload as { key?: unknown })?.key;
-                if (typeof key !== 'string' || !key) throw new Error('Invalid delete-object compensation');
-                await storage.delete(key);
+                if (typeof key !== 'string' || !key) {
+                    throw new Error('Invalid object compensation');
+                }
+                if (entry.kind === 'delete-object') {
+                    await storage.delete(key);
+                } else if (entry.kind === 'protect-object') {
+                    throw new Error('Filesystem object protection does not require compensation');
+                } else {
+                    throw new Error(`Unsupported compensation: ${entry.kind}`);
+                }
                 entry.state = 'completed';
                 entry.lastError = undefined;
             } catch (error) {

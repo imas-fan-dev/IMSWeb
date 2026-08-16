@@ -35,6 +35,7 @@ import {
     assertRouteUploadBoundaryContract,
     type ControlledUpload
 } from '../contracts/runtime-contracts.js';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
 const SECRET = 'node-contract-secret-at-least-32-bytes';
@@ -174,6 +175,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     const connection = await createPostgresTestDatabase(t, 'core-runtime');
     const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
     await core.initialize();
+    await seedCanonicalFudabaAgencies(connection);
     await executeSql(connection,
         `INSERT INTO users (username, password, dept, producername, admin_role)
          VALUES (?, 'contract-digest', 'op', ?, 'admin')`,

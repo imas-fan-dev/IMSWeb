@@ -17,7 +17,15 @@ type BoundingBox = {
 }
 
 async function mockNamecardApi(page: Page, cardCount = 12) {
-  await page.route("**/api/check**", async (route) => {
+  await page.context().addCookies([
+    {
+      name: "ims_admin_csrf",
+      value: "namecard-upload-e2e",
+      domain: "127.0.0.1",
+      path: "/",
+    },
+  ])
+  await page.route("**/api/admin/auth/session**", async (route) => {
     await route.fulfill({
       json: {
         success: true,
@@ -186,9 +194,7 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
   expect(multipartBody).toContain('filename="namecard-front.png"')
   expect(multipartBody).toContain('filename="namecard-back.png"')
   await expect(uploadDialog).toBeVisible()
-  await expect(
-    uploadDialog.getByText("请保存投稿管理链接")
-  ).toBeVisible()
+  await expect(uploadDialog.getByText("请保存投稿管理链接")).toBeVisible()
   await expect(
     uploadDialog.getByRole("link", { name: "管理这次投稿" })
   ).toBeVisible()
