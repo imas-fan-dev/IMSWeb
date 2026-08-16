@@ -67,6 +67,34 @@ export async function publishNamecardMedia(
     ));
 }
 
+export interface NamecardThumbnailEnsureServices {
+    images?: ImageProcessor;
+    storage: ObjectStorage;
+}
+
+export async function ensureNamecardThumbnails(
+    runtime: NamecardThumbnailEnsureServices,
+    originalUrls: readonly string[]
+): Promise<void> {
+    for (const originalUrl of originalUrls) {
+        const [originalKey, thumbnailKey] = namecardMediaObjectKeys(originalUrl);
+        if (await runtime.storage.exists(thumbnailKey)) continue;
+        if (!runtime.images) throw new Error('Image processing is unavailable');
+        const original = await runtime.storage.get(originalKey);
+        if (!original) throw new Error('Namecard original object not found');
+        const thumbnail = await runtime.images.resizeJpeg(
+            original.body,
+            NAMECARD_THUMBNAIL_WIDTH,
+            NAMECARD_THUMBNAIL_HEIGHT,
+            { maxInputPixels: NAMECARD_THUMBNAIL_MAX_INPUT_PIXELS }
+        );
+        await runtime.storage.put(thumbnailKey, thumbnail, {
+            contentType: 'image/jpeg',
+            protectedAccess: true
+        });
+    }
+}
+
 export async function deleteNamecardMedia(
     runtime: ObjectCleanupServices,
     originalUrls: readonly string[]
