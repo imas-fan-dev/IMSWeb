@@ -141,6 +141,7 @@ export function createHandleListAdminWikiStories<E extends Env>(
       },
       idol: {
         id: idol.id,
+        agencyId: idol.agency_id,
         name: idol.name_cn,
         folderName: idol.folder_name,
         color: idol.color,

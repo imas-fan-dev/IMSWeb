@@ -579,6 +579,7 @@ describe('Wiki admin dynamic data contract', () => {
         const body = await response.json() as any;
         assert.equal(body.status, 'success');
         assert.equal(body.agency.code, 'sc');
+        assert.equal(body.idol.agencyId, body.agency.id);
         assert.equal(body.idol.name, '樱木真乃');
         assert.equal(
             body.idol.imageUrl,
