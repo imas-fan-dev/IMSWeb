@@ -20,10 +20,10 @@ corepack enable
 pnpm install --frozen-lockfile
 ```
 
-AI coding agents must follow `docs/ai-development-environment.md` for workspace
+AI coding agents must follow `docs/development/ai-environment.md` for workspace
 preflight, local data configuration, service startup, and validation evidence.
 
-- `pnpm dev`: start PostgreSQL, RustFS, migrations, Hono, and Web with hot reload.
+- `pnpm dev`: start PostgreSQL, Valkey, RustFS, migrations, Hono, and Web with hot reload.
 - `pnpm run dev:doctor`: diagnose local prerequisites without changing state.
 - `pnpm run dev:down`: stop local data services without deleting their volumes.
 - `pnpm run dev:node`: watch only the Hono Node server.
@@ -37,11 +37,20 @@ preflight, local data configuration, service startup, and validation evidence.
 
 ## Coding Style & Naming Conventions
 
-Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and the `@/` alias rooted at `apps/api/src`. Web code uses two spaces, no semicolons, double quotes, 80 columns, and the `~/` app alias. Run `pnpm --filter @imsweb/web format` and `pnpm --filter @imsweb/web lint` for frontend changes. Use kebab-case filenames and PascalCase React components.
+Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and the `@/` alias rooted at `apps/api/src`; Web and contracts code use their local `.rules` formatting conventions. New or substantially edited API files must follow the API style; do not create unrelated formatter churn solely to normalize historical files. Run `pnpm --filter @imsweb/web format` and `pnpm --filter @imsweb/web lint` for frontend changes. Use kebab-case filenames and PascalCase React components.
 
 ## Testing Guidelines
 
 Tests use Node's runner, Vitest, Testing Library, Playwright, and Python `unittest`. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. No numeric coverage threshold exists; API persistence changes must cover the active Node runtime.
+
+## Documentation
+
+Repository-level documentation lives under `docs/` and follows [`docs/README.md`](docs/README.md):
+architecture, development, operations, migrations, governance, and archive are separate scopes. Every
+`docs/**/*.md` file has the required metadata header, valid relative links, and an explicit authority
+source. Run `pnpm run check:rules` to run the documentation checker as well as agent/source rules.
+Workspace-specific behavior stays in the owning workspace README, DESIGN, or `.rules`; do not duplicate
+wire contracts, path prefixes, migration ledgers, or deployment shell flows in prose.
 
 ## Wire Contracts (@imsweb/contracts)
 
@@ -62,7 +71,9 @@ page-info) live in `@imsweb/contracts/common` and domain schemas compose them
 via `successEnvelope`/shared refs instead of redefining inline. Shared API and
 public delivery URL prefixes live in `@imsweb/contracts/paths`; both API route
 registration/middleware and Web endpoints must use its path builders, keeping
-only business-specific suffixes local. API response
+only business-specific suffixes local. `pnpm run check:rules` runs the source
+boundary checker for forbidden directories, direct zod imports, domain-to-infra
+imports, Web test placement, and raw shared URL prefixes. API response
 modules must not hand-write wire shapes: they alias package types (output
 types, or `z.input` variants where schemas transform/coerce) and view builders
 annotate returns with contract types; only API-local boundaries (media/site

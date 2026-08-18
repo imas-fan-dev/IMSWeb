@@ -130,7 +130,7 @@ test.beforeEach(async ({ context, page }) => {
             code: "765",
             displayName: "765PRO",
             color: "#f34f6d",
-            iconUrl: "/brand/series/765pro.png",
+            iconUrl: "/brand/series/wall/765pro.webp",
             imageTransform: {
               fit: "contain",
               focalX: 0.5,

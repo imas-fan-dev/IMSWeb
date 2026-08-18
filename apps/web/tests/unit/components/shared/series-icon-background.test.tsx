@@ -46,9 +46,9 @@ describe("SeriesIconBackground", () => {
 
     expect(background).toHaveAttribute("aria-hidden", "true")
     expect(motifs).toHaveLength(12)
-    expect(firstMotif).toHaveAttribute("src", "/brand/series/765pro.png")
-    expect(firstMotif).toHaveAttribute("width", "193")
-    expect(firstMotif).toHaveAttribute("height", "150")
+    expect(firstMotif).toHaveAttribute("src", "/brand/series/wall/765pro.webp")
+    expect(firstMotif).toHaveAttribute("width", "585")
+    expect(firstMotif).toHaveAttribute("height", "500")
     expect(firstMotif).toHaveStyle({ width: "119px", opacity: "0.370" })
 
     const [initialX, initialY, initialRotation] = readTransform(firstMotif)

@@ -1,3 +1,4 @@
+import { platformAuthPath } from "@imsweb/contracts/paths"
 import { createAlova } from "alova"
 import { createServerTokenAuthentication } from "alova/client"
 import adapterFetch from "alova/fetch"
@@ -57,7 +58,7 @@ const platformAuthentication = createServerTokenAuthentication<
           if (readCookie(PLATFORM_CSRF_COOKIE_NAME) !== requestCsrfToken) {
             return
           }
-          await method.context.Post("/api/platform/auth/refresh", undefined, {
+          await method.context.Post(platformAuthPath("/refresh"), undefined, {
             meta: withPlatformCsrf({ authRole: "refreshToken" }),
           })
         })

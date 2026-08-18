@@ -10,6 +10,7 @@ import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ROOT_PACKAGE = PROJECT_ROOT / "package.json"
 CI_WORKFLOW = PROJECT_ROOT / ".github/workflows/ci.yml"
 DEPLOY_WORKFLOW = PROJECT_ROOT / ".github/workflows/deploy.yml"
 DEPLOY_SCRIPT = PROJECT_ROOT / "scripts/deployment/deploy-compose-release.sh"
@@ -17,7 +18,7 @@ AUTH_DEPLOY_SCRIPT = (
     PROJECT_ROOT / "scripts/deployment/run-authenticated-compose-release.sh"
 )
 COMPOSE = PROJECT_ROOT / "deploy/compose.yaml"
-DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/github-actions-deployment.md"
+DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/operations/github-actions-deployment.md"
 PNPM_SETUP_ACTION = (
     "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10"
 )
@@ -125,6 +126,19 @@ def write_executable(path: Path, content: str) -> None:
 
 
 class GitHubWorkflowContractTests(unittest.TestCase):
+    def test_root_check_parses_each_deployment_script(self):
+        package = ROOT_PACKAGE.read_text(encoding="utf-8")
+        self.assertIn(
+            "bash -n scripts/deployment/deploy-compose-release.sh && bash -n "
+            "scripts/deployment/run-authenticated-compose-release.sh",
+            package,
+        )
+        self.assertNotIn(
+            "bash -n scripts/deployment/deploy-compose-release.sh "
+            "scripts/deployment/run-authenticated-compose-release.sh",
+            package,
+        )
+
     def test_ci_and_deployment_workflows_use_expected_gates(self):
         ci = CI_WORKFLOW.read_text(encoding="utf-8")
         deployment = DEPLOY_WORKFLOW.read_text(encoding="utf-8")

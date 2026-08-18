@@ -1,7 +1,8 @@
+import type { output } from '@imsweb/contracts/z';
 import type {
     AdminRole,
     AdminSession,
-    AdminSessionResponse,
+    adminSessionSchema
 } from '@imsweb/contracts/admin';
 import type { SuccessFlag } from '@imsweb/contracts/common';
 
@@ -35,7 +36,7 @@ export interface CheckAuthResponse {
 }
 
 export type RefreshUserResponse = AdminSession;
-export type RefreshSuccessResponse = AdminSessionResponse;
+export type RefreshSuccessResponse = output<typeof adminSessionSchema>;
 
 export interface RefreshErrorResponse {
     success: false;

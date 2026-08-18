@@ -25,6 +25,18 @@ function appendPath(prefix: string, suffix = ""): string {
   return normalizedSuffix ? `${prefix}/${normalizedSuffix}` : prefix
 }
 
+export const sitesPath = (suffix = ""): string =>
+  appendPath(SITES_PATH_PREFIX, suffix)
+
+export const imagePath = (suffix = ""): string =>
+  appendPath(IMAGE_PATH_PREFIX, suffix)
+
+export const iconPath = (suffix = ""): string =>
+  appendPath(ICON_PATH_PREFIX, suffix)
+
+export const cssPath = (suffix = ""): string =>
+  appendPath(CSS_PATH_PREFIX, suffix)
+
 export function apiPath(suffix = ""): string {
   return appendPath(API_PATH_PREFIX, suffix)
 }
@@ -87,20 +99,4 @@ export function mapsPath(suffix = ""): string {
 
 export function siteContentPath(suffix = ""): string {
   return appendPath(SITE_CONTENT_PATH_PREFIX, suffix)
-}
-
-export function sitesPath(suffix = ""): string {
-  return appendPath(SITES_PATH_PREFIX, suffix)
-}
-
-export function imagePath(suffix = ""): string {
-  return appendPath(IMAGE_PATH_PREFIX, suffix)
-}
-
-export function iconPath(suffix = ""): string {
-  return appendPath(ICON_PATH_PREFIX, suffix)
-}
-
-export function cssPath(suffix = ""): string {
-  return appendPath(CSS_PATH_PREFIX, suffix)
 }

@@ -1,3 +1,4 @@
+import { platformAuthOAuthPath } from "@imsweb/contracts/paths"
 import {
   ArrowRightIcon,
   CircleCheckIcon,
@@ -789,7 +790,9 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                     return (
                       <a
                         key={provider.code}
-                        href={`/api/platform/auth/oauth/${provider.code}/start?returnPath=${encodeURIComponent("/community/exchange/me")}`}
+                        href={platformAuthOAuthPath(
+                          `/${provider.code}/start?returnPath=${encodeURIComponent("/community/exchange/me")}`,
+                        )}
                         className={buttonVariants({
                           variant: "outline",
                           size: "lg",

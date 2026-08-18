@@ -64,13 +64,11 @@ function hashRateLimitComponent(value: string): string {
     return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-export function valkeyRateLimitWindowKey(
+export const valkeyRateLimitWindowKey = (
     keyPrefix: string,
     bucket: string,
-    key: string,
-): string {
-    return `${keyPrefix}rate-limit:${bucket}:${hashRateLimitComponent(key)}`;
-}
+    key: string
+): string => `${keyPrefix}rate-limit:${bucket}:${hashRateLimitComponent(key)}`;
 
 export function valkeyRateLimitIdentitySetKey(
     keyPrefix: string,

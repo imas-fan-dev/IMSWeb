@@ -1,11 +1,12 @@
 import type { SuccessFlag } from '@imsweb/contracts/common';
+import type { output } from '@imsweb/contracts/z';
 import type {
     AdminInformationCard,
     AdminInformationIndex,
-    InformationAsset,
     InformationCard,
     InformationDetail,
     InformationList,
+    informationAssetSchema
 } from '@imsweb/contracts/information';
 
 export type InformationCardResponse = AdminInformationCard;
@@ -25,7 +26,7 @@ export interface InformationCardMutationResponse {
 }
 
 export type InformationMutationResponse = SuccessFlag;
-export type InformationUploadResponse = InformationAsset;
+export type InformationUploadResponse = output<typeof informationAssetSchema>;
 
 export interface InformationErrorResponse {
     error: string;

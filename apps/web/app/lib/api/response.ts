@@ -54,7 +54,16 @@ function hasNoBody(response: Response): boolean {
 
 async function parseJson(response: Response): Promise<unknown> {
   const body = await response.text()
-  return body.trim() ? JSON.parse(body) : null
+  if (!body.trim()) return null
+  try {
+    return JSON.parse(body)
+  } catch (cause) {
+    throw new ApiError("服务器返回了无效的 JSON", {
+      kind: "parse",
+      code: "RESPONSE_JSON_INVALID",
+      cause,
+    })
+  }
 }
 
 function isJsonContentType(contentType: string): boolean {

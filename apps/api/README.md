@@ -47,7 +47,7 @@ infra/security/  bcrypt、bcryptjs、hmac
 具体中间件实现不得进入 `utils`。
 
 Domain 内部按业务能力组织的目录、命名和渐进迁移规则见
-[Domain 能力分层与编写结构](../../docs/domain-capability-architecture.md)，当前能力导航见
+[Domain 能力分层与编写结构](../../docs/architecture/domain-capabilities.md)，当前能力导航见
 [`src/domains/README.md`](src/domains/README.md)。
 
 ## 本地验证
@@ -110,10 +110,10 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 
 ## 文档
 
-- [数据库配置](../../docs/database-configuration.md)
-- [缓存架构与 Valkey](../../docs/cache-architecture.md)
-- [Node 文件对象存储](../../docs/object-storage.md)
-- [部署、备份与回滚](../../docs/operations-runbook.md)
+- [数据库配置](../../docs/operations/database-configuration.md)
+- [缓存架构与 Valkey](../../docs/architecture/cache.md)
+- [Node 文件对象存储](../../docs/architecture/object-storage.md)
+- [部署、备份与回滚](../../docs/operations/runbook.md)
 - [本地依赖服务](../../deploy/README.md)
 - [Hono 操作脚本](scripts/README.md)
 

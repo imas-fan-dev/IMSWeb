@@ -35,7 +35,7 @@ export function SeriesBrowserIcon() {
 
     const updateIcon = () => {
       previousIconIndex = nextIconIndex(previousIconIndex)
-      icon.type = "image/png"
+      icon.type = "image/webp"
       icon.href = seriesIcons[previousIconIndex]
     }
 

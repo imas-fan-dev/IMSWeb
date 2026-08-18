@@ -96,7 +96,7 @@ tests/e2e/            浏览器流程与可访问性冒烟测试
 - `components/ui/` 只承载可复用的基础原语；跨页面业务组件应在 `app/components/` 下按领域组织。
 - 所有请求函数、schema 和 API 类型统一定义在 `app/lib/api/endpoints/`，经 `~/lib/api` 出口调用。页面不得直接使用 `fetch`、`apiClient`、API 内部子路径或页面本地 `api.ts`。
 - 不再使用 `app/features/`；新增页面必须进入 `app/pages/` 对应层级。
-- `public/` 不接收私有 Legacy 资产。新增文件必须有明确用途、来源和许可状态，并登记在 [资产来源记录](docs/ASSET_PROVENANCE.md) 中。
+- `public/` 不接收私有 Legacy 资产。新增文件必须有明确用途、来源和许可状态，并登记在 [资产来源记录](../../docs/governance/assets.md) 中。
 - Hono 路由与服务端领域逻辑不进入本仓库；接口契约的源头仍是上游 `apps/api`。
 
 ## 同源 Cookie 与 CSRF
@@ -156,4 +156,4 @@ React Router 预渲染在引入 loader 后可能生成 `.data` 文件。部署�
 ## 公开资产
 
 Web 不包含从私有 Legacy 仓库迁入的图片、字体、音视频或品牌标识。新增公开资产前必须完成
-[来源与许可登记](docs/ASSET_PROVENANCE.md)。
+[来源与许可登记](../../docs/governance/assets.md)。

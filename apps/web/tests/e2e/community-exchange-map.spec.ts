@@ -8,7 +8,7 @@ const series = {
       code: "765",
       displayName: "765PRO",
       color: "#f34f6d",
-      iconUrl: "/brand/series/765pro.png",
+      iconUrl: "/brand/series/wall/765pro.webp",
       imageTransform: {
         fit: "contain",
         focalX: 0.5,
@@ -242,7 +242,7 @@ test("fills the public workspace with a responsive map and keeps both directorie
     const agencyChannel = page.getByRole("button", { name: /765PRO/ })
     await expect(agencyChannel.locator("img")).toHaveAttribute(
       "src",
-      "/brand/series/765pro.png"
+      "/brand/series/wall/765pro.webp"
     )
     await agencyChannel.click()
     await expect(page).toHaveURL(/series=765/)

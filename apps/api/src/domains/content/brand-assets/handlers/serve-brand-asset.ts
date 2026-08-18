@@ -10,7 +10,12 @@ import { services } from '@/middleware/hono-context';
 export async function handleServeBrandAsset(
     c: Context<AppEnvironment>
 ): Promise<Response> {
-    const pathname = new URL(c.req.raw.url).pathname;
+    let pathname: string;
+    try {
+        pathname = new URL(c.req.raw.url).pathname;
+    } catch {
+        return brandAssetNotFoundResponse(c);
+    }
     const asset = brandAssetDefinition(pathname);
     if (!asset) return brandAssetNotFoundResponse(c);
 

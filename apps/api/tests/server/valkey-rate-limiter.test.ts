@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import {
-    ValkeyRateLimiter,
-    valkeyRateLimitWindowKey
-} from '@/infra/cache/valkey/rate-limiter';
+import { ValkeyRateLimiter } from '@/infra/cache/valkey/rate-limiter';
 import { assertConcurrentRateLimiterContract } from '../contracts/runtime-contracts.js';
 import { FakeValkeyRateLimitServer } from './fake-valkey';
 
 const PREFIX = 'imsweb:test:';
+
+function rateLimitWindowKey(bucket: string, key: string): string {
+    const digest = crypto.createHash('sha256').update(key).digest('hex');
+    return `${PREFIX}rate-limit:${bucket}:${digest}`;
+}
 
 async function typescriptFiles(directory: string): Promise<string[]> {
     const entries = await fs.readdir(directory, { withFileTypes: true });
@@ -43,7 +46,7 @@ test('Valkey rate limiter shares one atomic budget across limiter instances', as
         },
         async count(client) {
             return server.consumedFor(
-                valkeyRateLimitWindowKey(PREFIX, 'concurrent-contract', client)
+                rateLimitWindowKey('concurrent-contract', client)
             );
         }
     });
@@ -107,7 +110,7 @@ test('Valkey rate limiter exempts replayed identities without extra consumption'
         { allowed: true, remaining: 0, resetAt: 110_000 }
     );
     assert.equal(
-        server.consumedFor(valkeyRateLimitWindowKey(PREFIX, 'uploads', 'client')),
+        server.consumedFor(rateLimitWindowKey('uploads', 'client')),
         2
     );
 });

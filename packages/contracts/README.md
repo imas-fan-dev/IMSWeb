@@ -1,5 +1,10 @@
 # @imsweb/contracts
 
+> 文档类型：架构
+> 状态：Active
+> 权威来源：`packages/contracts/src/`、`package.json` exports 和 contracts build
+
+本 workspace 的 scope 规则见同目录 `.rules`；`AGENTS.md` 与 `CLAUDE.md` 均为其软链接。
 跨端线格式契约的唯一事实源：zod schema 定义 API↔Web 传输面，静态类型由
 `z.infer` 派生，两端通过 `workspace:*` 消费同一个运行时对象。
 
@@ -38,6 +43,13 @@ src/
   `exports` 中补充对应子路径。
 - 跨模块共享的原子 schema 只从其所属核心模块导出（如 `fudaba/index.ts`），
   兄弟模块内部原子不导出，避免 Web 端 barrel 星导出撞名。
+
+## 验证
+
+从仓库根目录运行 `pnpm --filter @imsweb/contracts run build`。跨 workspace 的
+`pnpm run check:rules` 还会检查 forbidden directories、zod import、API domain
+依赖方向、Web 测试位置和共享 URL 前缀；新增 schema、子路径或 namespace 时必须同时更新
+`package.json`、`src/index.ts` 和对应 endpoint/API response tests。
 
 ## URL 前缀与路径（`@imsweb/contracts/paths`）
 

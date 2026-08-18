@@ -46,7 +46,7 @@ capability 内的技术角色。
 - `community/fudaba/README.md`：社区交换能力拆分。
 - `identity/platform-auth/README.md`：平台认证能力拆分。
 - `content/wiki/README.md`：Wiki 目录、剧情、媒体和素材能力。
-- 完整原则、目录模板、迁移顺序和验证门槛：`docs/domain-capability-architecture.md`。
+- 完整原则、目录模板、迁移顺序和验证门槛：`docs/architecture/domain-capabilities.md`。
 
 ## 编写规则
 

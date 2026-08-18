@@ -56,9 +56,9 @@ describe("SeriesBrowserIcon", () => {
 
     const { unmount } = render(<SeriesBrowserIcon />)
 
-    expect(icon.getAttribute("href")).toBe("/brand/series/765pro.png")
+    expect(icon.getAttribute("href")).toBe("/brand/series/wall/765pro.webp")
     vi.advanceTimersByTime(10_000)
-    expect(icon.getAttribute("href")).toBe("/brand/series/cinderella-girls.png")
+    expect(icon.getAttribute("href")).toBe("/brand/series/wall/cinderella-girls.webp")
     expect(document.title).toBe("活动中心 | IMSWeb")
 
     unmount()

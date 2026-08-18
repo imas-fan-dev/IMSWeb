@@ -7,7 +7,7 @@ API 镜像包含构建后的 Web 静态资源，并在启动前幂等应用 Post
 不包含反向代理或 TLS 入口；宿主机 Nginx 的参考配置位于
 [`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。
 
-正式环境的默认发布入口是 [GitHub Actions 自动部署](../docs/github-actions-deployment.md)：CI
+正式环境的默认发布入口是 [GitHub Actions 自动部署](../docs/operations/github-actions-deployment.md)：CI
 构建 API 镜像并推送到 GHCR，目标主机只按不可变 digest 拉取并启动。下面的 `--build` 命令用于
 本地容器集成预览，不是正式服务器上的发布步骤。
 
@@ -59,7 +59,7 @@ Valkey 与外部 S3 API endpoint。
 `IMS_S3_*`、AWS 凭据、`IMS_CACHE_BACKEND=valkey`、`IMS_VALKEY_URL`、互不相同的高熵
 `IMS_BACKOFFICE_JWT_SECRET` 与 `IMS_PLATFORM_JWT_SECRET`、`IMS_API_DATABASE_URL`，并在首次启用管理员角色时将
 `IMS_SUPER_ADMIN_USERNAME` 设为现有 `op` 账号。若从旧版本滚动升级，按
-[运维手册](../docs/operations-runbook.md) 暂时保留旧 `IMS_JWT_SECRET`；全新安装保持其为空。
+[运维手册](../docs/operations/runbook.md) 暂时保留旧 `IMS_JWT_SECRET`；全新安装保持其为空。
 R2 使用 `auto` region；
 `IMS_S3_ENDPOINT` 是 R2 S3 API 域名，`IMS_PUBLIC_READ_URL_BASE` 是 bucket 自定义域名，
 二者不能互换。手工排障时先指定 CI 已记录的不可变镜像，再渲染配置和启动 API 栈：

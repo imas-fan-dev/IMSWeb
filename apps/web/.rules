@@ -12,7 +12,7 @@ Keep all unit tests under `tests/unit/`, grouped by production ownership: layout
 
 All endpoint functions, request and response schemas, browser API access, response parsing, Cookie handling, and CSRF behavior belong in `app/lib/api/`. Define domain endpoints under `app/lib/api/endpoints/` and export them from the `~/lib/api` facade. Pages and routes may call that facade, but must not construct requests with `fetch` or `apiClient`, import API internals, or add page-local `api.ts` files. Do not restore `app/features/`.
 
-Use same-origin relative API URLs. Do not move Hono routes, server logic, or assets from the private historical repository into this workspace. Files added to `public/` need a clear purpose and an entry in `docs/ASSET_PROVENANCE.md`.
+Use same-origin relative API URLs. Do not move Hono routes, server logic, or assets from the private historical repository into this workspace. Files added to `public/` need a clear purpose and an entry in `../../docs/governance/assets.md`.
 
 ## Commands
 
@@ -60,5 +60,7 @@ endpoints barrel free of ambiguous exports. Import `z` from
 Wire types come from the package alongside their schemas; endpoint modules keep
 only UI-semantic aliases, request/input types, and upload shapes. All API and
 public delivery URLs use path builders from `@imsweb/contracts/paths`; endpoint
-modules keep business suffixes and dynamic parameters only, so prefix changes
-are made once for both Web and API.
+modules, auth refresh clients, and map/public-resource helpers keep business
+suffixes and dynamic parameters only, so prefix changes are made once for both
+Web and API. `pnpm run check:rules` rejects raw shared prefixes in production
+Web code; test fixtures may use literal paths when asserting the public contract.

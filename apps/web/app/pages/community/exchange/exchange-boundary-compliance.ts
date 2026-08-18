@@ -1,3 +1,4 @@
+import { mapsPath } from "@imsweb/contracts/paths"
 import type {
   FillLayerSpecification,
   FilterSpecification,
@@ -12,7 +13,7 @@ import type {
  * `class=country` / `iso_a2=TW`），并按印度实控线绘制中印边界；两者都不符合规范。
  *
  * 本模块只在运行时改写图层 filter 并追加图层，不修改 `public/maps/exchange-style.json`，
- * 因此 `apps/web/docs/ASSET_PROVENANCE.md` 记录的样式 SHA-256 保持有效。
+ * 因此 `docs/governance/assets.md` 记录的样式 SHA-256 保持有效。
  *
  * 实现依据为实际解码 OpenFreeMap 矢量瓦片得到的字段取值，而非推测：
  * - place 层：`class=country, rank=2, iso_a2=TW, name=臺灣`；中国各省为 `class=state`。
@@ -44,7 +45,9 @@ export const CHINA_DASH_FILL_LAYER_ID = "boundary_china_dash_fill"
 export const CHINA_DASH_LINE_LAYER_ID = "boundary_china_dash_line"
 
 /** 南海断续线资产路径，必须同源。 */
-export const CHINA_DASH_SOURCE_URL = "/maps/china-boundary-dashes.json"
+export const CHINA_DASH_SOURCE_URL = mapsPath(
+  "/china-boundary-dashes.json",
+)
 
 /** 台湾省级注记插入位置：与其余注记同层级，位于国家注记之下。 */
 const TAIWAN_LABEL_ANCHOR_LAYER_ID = "label_country_3"

@@ -1,7 +1,7 @@
 import type { z } from "@imsweb/contracts/z"
 
-import { ApiError } from "./api-error"
-import type { ApiMethodMeta } from "./types"
+import { ApiError } from "./api-error.js"
+import type { ApiMethodMeta } from "./types.js"
 
 /**
  * Alova method config bag accepted by `parsed`. Keys other than `meta` and

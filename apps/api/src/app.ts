@@ -49,6 +49,16 @@ export interface AppEnvironment {
 
 export type ImsHonoApp = Hono<AppEnvironment>;
 
+function allowedCorsOrigin(origin: string): string | null {
+    try {
+        const parsed = new URL(origin);
+        const localHost = ['127.0.0.1', '::1', 'localhost'].includes(parsed.hostname);
+        return localHost && ['http:', 'https:'].includes(parsed.protocol) ? origin : null;
+    } catch {
+        return null;
+    }
+}
+
 export interface CreateHonoAppOptions {
     requestLogging?: boolean;
 }
@@ -99,7 +109,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     });
 
     // pi-lens-ignore: cors-wildcard
-    app.use('*', cors());
+    app.use('*', cors({ origin: allowedCorsOrigin }));
     app.use('*', secureHeaders({
         crossOriginEmbedderPolicy: false,
         crossOriginResourcePolicy: 'cross-origin',

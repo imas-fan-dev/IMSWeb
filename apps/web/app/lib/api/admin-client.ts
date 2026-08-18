@@ -1,3 +1,4 @@
+import { adminApiPath } from "@imsweb/contracts/paths"
 import { createAlova } from "alova"
 import { createServerTokenAuthentication } from "alova/client"
 import adapterFetch from "alova/fetch"
@@ -32,7 +33,7 @@ const backofficeAuthentication = createServerTokenAuthentication<
     },
     handler: async (_response, method) => {
       try {
-        await method.context.Post("/api/admin/auth/refresh", undefined, {
+        await method.context.Post(adminApiPath("/auth/refresh"), undefined, {
           meta: withBackofficeCsrf({ authRole: "refreshToken" }),
         })
       } catch {
