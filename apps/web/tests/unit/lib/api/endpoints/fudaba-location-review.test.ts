@@ -4,7 +4,7 @@ import {
   fudabaLocationReviewListSchema,
   getFudabaLocationReviews,
   reviewFudabaLocation,
-} from "~/lib/api/endpoints/fudaba-location-review"
+} from "~/lib/api/endpoints/fudaba/location-review"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
 const review = {

@@ -17,7 +17,9 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         )
         files = {
             "package.json": json.dumps(root_package),
-            "pnpm-workspace.yaml": "packages:\n  - apps/api\n  - apps/web\n",
+            "pnpm-workspace.yaml": (
+                "packages:\n  - apps/api\n  - apps/web\n  - packages/contracts\n"
+            ),
             ".npmrc": "registry=https://registry.npmjs.org/\n",
             ".nvmrc": "22.13.0\n",
             "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
@@ -29,6 +31,9 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             ).read_text(encoding="utf-8"),
             "apps/web/package.json": (
                 PROJECT_ROOT / "apps/web/package.json"
+            ).read_text(encoding="utf-8"),
+            "packages/contracts/package.json": (
+                PROJECT_ROOT / "packages/contracts/package.json"
             ).read_text(encoding="utf-8"),
             "apps/api/src/app.ts": "export {};\n",
             "apps/api/src/main.ts": "export {};\n",
@@ -52,7 +57,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             text=True,
         )
 
-    def test_two_workspace_fixture_passes(self):
+    def test_workspace_fixture_passes(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
             root = Path(temporary)
             self.make_fixture(root)

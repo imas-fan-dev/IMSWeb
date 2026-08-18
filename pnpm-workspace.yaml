@@ -1,6 +1,7 @@
 packages:
   - apps/api
   - apps/web
+  - packages/contracts
 
 verifyDepsBeforeRun: warn
 

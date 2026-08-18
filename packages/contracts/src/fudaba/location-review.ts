@@ -1,7 +1,5 @@
 import { z } from "zod"
-
-import { adminApiClient } from "../admin-client"
-import { withBackofficeAuth, withBackofficeCsrf } from "../types"
+import { successEnvelope } from "../common.js"
 
 const timestampSchema = z.string().datetime({ offset: true })
 const reviewStateSchema = z.enum(["pending", "published", "rejected"])
@@ -59,9 +57,7 @@ const fudabaReviewedLocationSchema = z
   })
   .strict()
 
-export const fudabaLocationReviewMutationSchema = z
-  .object({
-    success: z.literal(true),
+export const fudabaLocationReviewMutationSchema = successEnvelope({
     officeLocation: fudabaReviewedLocationSchema,
   })
   .strict()
@@ -69,41 +65,3 @@ export const fudabaLocationReviewMutationSchema = z
 export type FudabaLocationReviewState = z.infer<typeof reviewStateSchema>
 export type FudabaLocationReview = z.infer<typeof fudabaLocationReviewSchema>
 export type FudabaLocationReviewDecision = "publish" | "reject"
-
-export function getFudabaLocationReviews(
-  state: FudabaLocationReviewState,
-  limit = 50
-) {
-  const query = new URLSearchParams({
-    state,
-    limit: String(limit),
-  })
-  return adminApiClient.Get<
-    z.infer<typeof fudabaLocationReviewListSchema>,
-    unknown
-  >(`/api/admin/community/exchange/office-locations?${query}`, {
-    meta: withBackofficeAuth(),
-    transform: (payload) => fudabaLocationReviewListSchema.parse(payload),
-  })
-}
-
-export function reviewFudabaLocation(
-  officeId: string,
-  input: {
-    decision: FudabaLocationReviewDecision
-    expectedRevision: number
-    note: string
-  }
-) {
-  return adminApiClient.Put<
-    z.infer<typeof fudabaLocationReviewMutationSchema>,
-    unknown
-  >(
-    `/api/admin/community/exchange/office-locations/${encodeURIComponent(officeId)}`,
-    input,
-    {
-      meta: withBackofficeCsrf(),
-      transform: (payload) => fudabaLocationReviewMutationSchema.parse(payload),
-    }
-  )
-}

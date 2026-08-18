@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@imsweb/contracts/z"
 
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
@@ -10,29 +10,24 @@ import type { EventListItem, EventPage } from "./events"
 import { getRecommendationPage } from "./recommendations"
 import type { Recommendation } from "./recommendations"
 
-const homeInformationCardSchema = z.object({
-  id: z.string(),
-  category: z.enum(["activity", "fan"]),
-  contentType: z.enum(["external", "html"]),
-  title: z.string().trim().min(1),
-  image: z.string(),
-  link: z.string(),
-  updatedAt: z.string(),
-})
+import {
+  informationDetailSchema,
+  informationListSchema,
+} from "@imsweb/contracts/information"
 
-const homeInformationListSchema = z.object({
-  cards: z.array(homeInformationCardSchema),
-})
+import type {
+  InformationCard,
+  InformationDetail,
+} from "@imsweb/contracts/information"
 
-const homeInformationDetailSchema = z.object({
-  card: homeInformationCardSchema.extend({ html: z.string().min(1) }),
-})
+export type HomeInformationCard = InformationCard
+export type HomeInformationDetail = InformationDetail
 
 export type HomeNews = Recommendation
+
 export type HomeEvent = EventListItem
+
 export type HomeEventList = EventPage
-export type HomeInformationCard = z.infer<typeof homeInformationCardSchema>
-export type HomeInformationDetail = z.infer<typeof homeInformationDetailSchema>
 
 export function getHomeNews(limit = 4) {
   return getRecommendationPage({ limit })
@@ -43,12 +38,12 @@ export function getHomeEvents(limit = 4) {
 }
 
 export function getHomeInformation() {
-  return apiClient.Get<z.infer<typeof homeInformationListSchema>, unknown>(
+  return apiClient.Get<z.infer<typeof informationListSchema>, unknown>(
     "/api/information",
     {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-      transform: (payload) => homeInformationListSchema.parse(payload),
+      transform: (payload) => informationListSchema.parse(payload),
     }
   )
 }
@@ -59,7 +54,7 @@ export function getHomeInformationDetail(id: string) {
     {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-      transform: (payload) => homeInformationDetailSchema.parse(payload),
+      transform: (payload) => informationDetailSchema.parse(payload),
     }
   )
 }

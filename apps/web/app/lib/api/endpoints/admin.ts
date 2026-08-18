@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@imsweb/contracts/z"
 
 import { adminApiClient } from "../admin-client"
 import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
@@ -9,18 +9,70 @@ import {
 } from "../request"
 import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
-const adminRoleSchema = z.enum(["admin", "super_admin"])
+import {
+  adminAccountListSchema,
+  adminAccountMutationSchema,
+  adminRoleSchema,
+  adminSessionSchema,
+} from "@imsweb/contracts/admin"
 
-const adminSessionSchema = z.object({
-  success: z.literal(true),
-  user: z.object({
-    id: z.coerce.number().int().positive(),
-    username: z.string(),
-    producername: z.string().optional().default(""),
-    dept: z.string(),
-    adminRole: adminRoleSchema.nullable(),
-  }),
-})
+import {
+  pendingChronicleMediaSchema,
+  usedChronicleMediaSchema,
+} from "@imsweb/contracts/chronicle"
+
+import {
+  adminInformationIndexSchema,
+  informationAssetSchema,
+} from "@imsweb/contracts/information"
+
+import { adminNamecardListSchema } from "@imsweb/contracts/namecards"
+
+import { adminRecommendationListSchema } from "@imsweb/contracts/news"
+
+import { idolMediaCatalogSchema } from "@imsweb/contracts/wiki"
+
+export { adminInformationCardSchema } from "@imsweb/contracts/information"
+
+import type {
+  PendingChronicleMedia,
+  UsedChronicleMedia,
+} from "@imsweb/contracts/chronicle"
+
+import type {
+  AdminInformationCard,
+  AdminInformationIndex,
+  InformationCategory,
+  InformationContentType,
+} from "@imsweb/contracts/information"
+
+import type { IdolMediaCatalog } from "@imsweb/contracts/wiki"
+
+export type {
+  IdolMediaAgency,
+  IdolMediaCatalog,
+  IdolMediaItem,
+} from "@imsweb/contracts/wiki"
+
+export type {
+  AdminAccount,
+  AdminRole,
+  AdminSession,
+} from "@imsweb/contracts/admin"
+
+export type {
+  AdminInformationCard,
+  AdminInformationIndex,
+  InformationCategory,
+  InformationContentType,
+} from "@imsweb/contracts/information"
+
+export type { AdminRecommendation } from "@imsweb/contracts/news"
+
+export type {
+  PendingChronicleMedia,
+  UsedChronicleMedia,
+} from "@imsweb/contracts/chronicle"
 
 const loginSchema = z.object({
   success: z.literal(true),
@@ -29,143 +81,6 @@ const loginSchema = z.object({
   dept: z.literal("op"),
   adminRole: adminRoleSchema,
 })
-
-const adminAccountSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  username: z.string(),
-  producername: z.string(),
-  adminRole: adminRoleSchema,
-})
-
-const adminAccountListSchema = z.object({
-  success: z.literal(true),
-  accounts: z.array(adminAccountSchema),
-})
-
-const adminAccountMutationSchema = z.object({
-  success: z.literal(true),
-  account: adminAccountSchema,
-})
-
-const informationCategorySchema = z.enum(["activity", "fan"])
-const informationContentTypeSchema = z.enum(["external", "html"])
-
-export const adminInformationCardSchema = z.object({
-  id: z.string(),
-  category: informationCategorySchema,
-  contentType: informationContentTypeSchema,
-  image: z.string(),
-  link: z.string(),
-  title: z.string(),
-  html: z.string().optional(),
-  updatedAt: z.string(),
-})
-
-const adminInformationIndexSchema = z.object({
-  version: z.literal(1),
-  cards: z.array(adminInformationCardSchema),
-  assets: z.array(z.string()),
-})
-
-const recommendationSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  title: z.string(),
-  image: z.string().nullable().optional(),
-  thumbnail: z.string().nullable().optional(),
-  content: z.string(),
-  date: z.string().nullable().optional(),
-  author: z.string().nullable().optional(),
-})
-
-const recommendationListSchema = z.object({
-  success: z.literal(true),
-  data: z.array(recommendationSchema),
-})
-
-const informationAssetSchema = z.object({
-  success: z.literal(true),
-  url: z.string(),
-})
-
-const idolMediaSourceSchema = z.enum(["object-storage", "none"])
-
-const idolMediaCatalogSchema = z.object({
-  status: z.literal("success"),
-  agencies: z.array(
-    z.object({
-      code: z.string(),
-      name: z.string(),
-      idols: z.array(
-        z.object({
-          name: z.string(),
-          imageUrl: z.string(),
-          imageFit: z.enum(["contain", "cover"]),
-          source: idolMediaSourceSchema,
-        })
-      ),
-    })
-  ),
-})
-
-const pendingChronicleMediaSchema = z.record(
-  z.string(),
-  z.array(
-    z.object({
-      filename: z.string().min(1),
-      url: z.string().min(1),
-      uploader: z.string().optional(),
-      time: z.string().optional(),
-    })
-  )
-)
-
-const usedChronicleMediaSchema = z.record(
-  z.string(),
-  z.array(
-    z.object({
-      filename: z.string().min(1),
-      url: z.string().min(1),
-    })
-  )
-)
-
-const adminNamecardSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
-  status: z.string(),
-  revision: z.coerce.number().int().nonnegative(),
-})
-
-const adminNamecardListSchema = z.object({
-  success: z.literal(true),
-  data: z.array(adminNamecardSchema),
-  pageInfo: z.object({
-    page: z.number().int().positive(),
-    pageSize: z.number().int().positive(),
-    total: z.number().int().nonnegative(),
-    totalPages: z.number().int().nonnegative(),
-    hasNextPage: z.boolean(),
-  }),
-})
-
-export type AdminSession = z.infer<typeof adminSessionSchema>["user"]
-export type AdminRole = z.infer<typeof adminRoleSchema>
-export type AdminAccount = z.infer<typeof adminAccountSchema>
-export type AdminInformationCard = z.infer<typeof adminInformationCardSchema>
-export type AdminInformationIndex = z.infer<typeof adminInformationIndexSchema>
-export type AdminRecommendation = z.infer<typeof recommendationSchema>
-export type InformationCategory = z.infer<typeof informationCategorySchema>
-export type InformationContentType = z.infer<
-  typeof informationContentTypeSchema
->
-export type IdolMediaCatalog = z.infer<typeof idolMediaCatalogSchema>
-export type IdolMediaAgency = IdolMediaCatalog["agencies"][number]
-export type IdolMediaItem = IdolMediaAgency["idols"][number]
-export type PendingChronicleMedia = z.infer<typeof pendingChronicleMediaSchema>
-export type UsedChronicleMedia = z.infer<typeof usedChronicleMediaSchema>
-export type AdminNamecard = z.infer<typeof adminNamecardSchema>
-export type AdminNamecardList = z.infer<typeof adminNamecardListSchema>
 
 export type InformationSubmission = {
   title: string
@@ -326,13 +241,13 @@ export function deleteInformationAsset(url: string) {
 }
 
 export function getRecommendations() {
-  return adminApiClient.Get<z.infer<typeof recommendationListSchema>, unknown>(
-    "/api/admin/news",
-    {
-      meta: withBackofficeAuth(),
-      transform: (payload) => recommendationListSchema.parse(payload),
-    }
-  )
+  return adminApiClient.Get<
+    z.infer<typeof adminRecommendationListSchema>,
+    unknown
+  >("/api/admin/news", {
+    meta: withBackofficeAuth(),
+    transform: (payload) => adminRecommendationListSchema.parse(payload),
+  })
 }
 
 export function createRecommendation(form: FormData) {

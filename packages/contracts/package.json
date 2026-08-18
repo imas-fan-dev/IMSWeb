@@ -1,0 +1,120 @@
+{
+  "name": "@imsweb/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cross-workspace wire-format contracts: zod schemas are the single source of truth shared by @imsweb/api and @imsweb/web.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./wiki": {
+      "types": "./dist/wiki.d.ts",
+      "require": "./dist/wiki.js",
+      "default": "./dist/wiki.js"
+    },
+    "./platform": {
+      "types": "./dist/platform/index.d.ts",
+      "require": "./dist/platform/index.js",
+      "default": "./dist/platform/index.js"
+    },
+    "./namecards": {
+      "types": "./dist/namecards.d.ts",
+      "require": "./dist/namecards.js",
+      "default": "./dist/namecards.js"
+    },
+    "./fudaba": {
+      "types": "./dist/fudaba/index.d.ts",
+      "require": "./dist/fudaba/index.js",
+      "default": "./dist/fudaba/index.js"
+    },
+    "./fudaba/card-claims": {
+      "types": "./dist/fudaba/card-claims.d.ts",
+      "require": "./dist/fudaba/card-claims.js",
+      "default": "./dist/fudaba/card-claims.js"
+    },
+    "./fudaba/location-review": {
+      "types": "./dist/fudaba/location-review.d.ts",
+      "require": "./dist/fudaba/location-review.js",
+      "default": "./dist/fudaba/location-review.js"
+    },
+    "./platform/admin": {
+      "types": "./dist/platform/admin.d.ts",
+      "require": "./dist/platform/admin.js",
+      "default": "./dist/platform/admin.js"
+    },
+    "./live": {
+      "types": "./dist/live.d.ts",
+      "require": "./dist/live.js",
+      "default": "./dist/live.js"
+    },
+    "./events": {
+      "types": "./dist/events.d.ts",
+      "require": "./dist/events.js",
+      "default": "./dist/events.js"
+    },
+    "./news": {
+      "types": "./dist/news.d.ts",
+      "require": "./dist/news.js",
+      "default": "./dist/news.js"
+    },
+    "./information": {
+      "types": "./dist/information.d.ts",
+      "require": "./dist/information.js",
+      "default": "./dist/information.js"
+    },
+    "./chronicle": {
+      "types": "./dist/chronicle.d.ts",
+      "require": "./dist/chronicle.js",
+      "default": "./dist/chronicle.js"
+    },
+    "./about": {
+      "types": "./dist/about.d.ts",
+      "require": "./dist/about.js",
+      "default": "./dist/about.js"
+    },
+    "./producer-map": {
+      "types": "./dist/producer-map.d.ts",
+      "require": "./dist/producer-map.js",
+      "default": "./dist/producer-map.js"
+    },
+    "./homepage-links": {
+      "types": "./dist/homepage-links.d.ts",
+      "require": "./dist/homepage-links.js",
+      "default": "./dist/homepage-links.js"
+    },
+    "./site-packages": {
+      "types": "./dist/site-packages.d.ts",
+      "require": "./dist/site-packages.js",
+      "default": "./dist/site-packages.js"
+    },
+    "./admin": {
+      "types": "./dist/admin.d.ts",
+      "require": "./dist/admin.js",
+      "default": "./dist/admin.js"
+    },
+    "./z": {
+      "types": "./dist/z.d.ts",
+      "require": "./dist/z.js",
+      "default": "./dist/z.js"
+    },
+    "./common": {
+      "types": "./dist/common.d.ts",
+      "require": "./dist/common.js",
+      "default": "./dist/common.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "node build-if-sources.mjs"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

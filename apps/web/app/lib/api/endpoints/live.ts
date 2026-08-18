@@ -1,23 +1,13 @@
-import { z } from "zod"
+import { z } from "@imsweb/contracts/z"
 
 import { PUBLIC_QUERY_CACHE_FOR } from "../cache-policy"
 import { apiClient } from "../client"
 
-export const liveEventSchema = z.object({
-  id: z.string(),
-  year: z.number().int(),
-  month: z.number().int().min(1).max(12),
-  day: z.number().int(),
-  title: z.string(),
-  time: z.string(),
-  location: z.string(),
-  detailUrl: z.string().optional(),
-  image: z.string().optional(),
-  franchises: z.array(z.string()),
-  brandCodes: z.array(z.string()),
-})
+import { liveEventSchema } from "@imsweb/contracts/live"
 
-export type LiveEvent = z.infer<typeof liveEventSchema>
+export * from "@imsweb/contracts/live"
+
+import type { LiveEvent } from "@imsweb/contracts/live"
 
 export function getLiveEvents(months: string[]) {
   const search = new URLSearchParams({ months: months.join(",") })

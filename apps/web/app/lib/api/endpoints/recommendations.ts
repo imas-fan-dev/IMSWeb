@@ -1,5 +1,4 @@
 import { setCache } from "alova"
-import { z } from "zod"
 
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
@@ -7,34 +6,13 @@ import {
 } from "../cache-policy"
 import { apiClient } from "../client"
 
-const recommendationIdSchema = z
-  .union([z.string(), z.number().int().positive().safe()])
-  .transform(String)
-  .pipe(z.string().regex(/^[1-9]\d*$/))
+import { recommendationResponseSchema } from "@imsweb/contracts/news"
 
-export const recommendationSchema = z.object({
-  id: recommendationIdSchema,
-  title: z.string().trim().min(1),
-  thumbnail: z.string().nullable().optional(),
-  content: z.string(),
-  date: z.string().nullable().optional(),
-})
+export { recommendationSchema } from "@imsweb/contracts/news"
 
-const paginatedRecommendationSchema = z.object({
-  items: z.array(recommendationSchema),
-  pageInfo: z.object({
-    nextCursor: z.string().min(1).nullable(),
-    hasNextPage: z.boolean(),
-    snapshotAt: z.string().regex(/^\d+$/).nullable(),
-  }),
-})
+import type { Recommendation } from "@imsweb/contracts/news"
 
-const recommendationResponseSchema = z.union([
-  paginatedRecommendationSchema,
-  z.array(recommendationSchema),
-])
-
-export type Recommendation = z.infer<typeof recommendationSchema>
+export type { Recommendation } from "@imsweb/contracts/news"
 
 export type RecommendationPage = {
   items: Recommendation[]

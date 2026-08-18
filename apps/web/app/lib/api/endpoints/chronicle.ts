@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "@imsweb/contracts/z"
 
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
@@ -6,33 +6,26 @@ import {
 } from "../cache-policy"
 import { apiClient } from "../client"
 
-const activityIdSchema = z.string().trim().min(1).max(120)
+import {
+  chronicleActivitySchema,
+  chronicleActivitySummarySchema,
+  chronicleUploadResponseSchema,
+} from "@imsweb/contracts/chronicle"
 
-export const chronicleActivitySummarySchema = z.object({
-  id: activityIdSchema,
-  title: z.string().trim().min(1),
-  date: z.string().trim().min(1),
-  location: z.string().trim().min(1),
-  cover: z.string().nullable(),
-})
+export {
+  chronicleActivitySchema,
+  chronicleActivitySummarySchema,
+} from "@imsweb/contracts/chronicle"
 
-export const chronicleActivitySchema = z.object({
-  id: activityIdSchema,
-  title: z.string().trim().min(1),
-  date: z.string().trim().min(1),
-  location: z.string().trim().min(1),
-  images: z.array(z.string().min(1)),
-})
+import type {
+  ChronicleActivity,
+  ChronicleActivitySummary,
+} from "@imsweb/contracts/chronicle"
 
-const chronicleUploadResponseSchema = z.object({
-  success: z.literal(true),
-  count: z.number().int().nonnegative(),
-})
-
-export type ChronicleActivitySummary = z.infer<
-  typeof chronicleActivitySummarySchema
->
-export type ChronicleActivity = z.infer<typeof chronicleActivitySchema>
+export type {
+  ChronicleActivity,
+  ChronicleActivitySummary,
+} from "@imsweb/contracts/chronicle"
 
 export function getChronicleActivities() {
   return apiClient.Get<ChronicleActivitySummary[], unknown>(

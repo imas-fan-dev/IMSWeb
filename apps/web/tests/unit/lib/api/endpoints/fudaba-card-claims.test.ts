@@ -8,7 +8,7 @@ import {
   respondFudabaClaimEnvelope,
   reviewAdminFudabaCard,
   reviewAdminFudabaCardClaim,
-} from "~/lib/api/endpoints/fudaba-card-claims"
+} from "~/lib/api/endpoints/fudaba/card-claims"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
 const idol = { id: 1, name: "天海春香", seriesCode: "765" }

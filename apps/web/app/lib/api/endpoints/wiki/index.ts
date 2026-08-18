@@ -1,13 +1,13 @@
-import { z } from "zod"
+import { z } from "@imsweb/contracts/z"
 
-import { adminApiClient } from "../admin-client"
+import { adminApiClient } from "../../admin-client"
 import {
   NO_CLIENT_CACHE,
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   WIKI_PUBLIC_CACHE,
-} from "../cache-policy"
-import { apiClient } from "../client"
-import { withBackofficeAuth, withBackofficeCsrf } from "../types"
+} from "../../cache-policy"
+import { apiClient } from "../../client"
+import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
 import {
   bilibiliResultSchema,
   wikiAdminCatalogSchema,
@@ -53,7 +53,7 @@ import {
   type WikiStorySourcePlatformSubmission,
   type WikiStorySourcesSubmission,
   type WikiStorySubmission,
-} from "./wiki-schemas"
+} from "./schemas"
 
 export {
   defaultWikiImageTransform,
@@ -100,7 +100,7 @@ export {
   type WikiStorySourceSubmission,
   type WikiStorySourcesSubmission,
   type WikiStorySubmission,
-} from "./wiki-schemas"
+} from "./schemas"
 
 function wikiMutationConfig() {
   return {

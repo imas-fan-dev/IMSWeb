@@ -1,10 +1,26 @@
-import { z } from "zod"
+import { z } from "@imsweb/contracts/z"
 
 import {
   NO_CLIENT_CACHE,
   PUBLIC_CACHE_INVALIDATION_SOURCE,
 } from "../cache-policy"
 import { apiClient } from "../client"
+
+import {
+  namecardPageSchema,
+  namecardSubmissionResponseSchema,
+  reactionSchema,
+  uploadNamecardResponseSchema,
+  withdrawNamecardResponseSchema,
+} from "@imsweb/contracts/namecards"
+
+export * from "@imsweb/contracts/namecards"
+
+import type {
+  NamecardPage,
+  NamecardReactions,
+  UploadNamecardResponse,
+} from "@imsweb/contracts/namecards"
 
 export const NAMECARD_REACTIONS = [
   "❤️",
@@ -54,91 +70,6 @@ export const NAMECARD_REACTIONS = [
   "😙",
   "🔘",
 ] as const
-
-const cardIdSchema = z
-  .union([z.number().int().positive(), z.string().regex(/^[1-9]\d*$/)])
-  .transform(Number)
-
-const namecardIdolSchema = z
-  .object({
-    id: z.number().int().positive(),
-    name: z.string().trim().min(1),
-    seriesCode: z.string().min(1),
-  })
-  .strict()
-
-const namecardMetadataSchema = {
-  seriesCode: z.string().min(1).nullable().default(null),
-  favoriteIdols: z.array(namecardIdolSchema).max(20).default([]),
-  claimStatus: z.enum(["unclaimed", "pending", "claimed"]).default("unclaimed"),
-  viewerClaimState: z
-    .enum(["pending", "approving", "approved", "rejected", "cancelled"])
-    .nullable()
-    .default(null),
-}
-
-export const namecardSchema = z.object({
-  id: cardIdSchema,
-  ...namecardMetadataSchema,
-  image1_url: z.string().min(1),
-  image2_url: z.string().min(1),
-  image1_thumbnail_url: z.string().min(1),
-  image2_thumbnail_url: z.string().min(1),
-  status: z.string().optional(),
-  created_at: z.string().nullable().optional(),
-})
-
-const namecardPageSchema = z.object({
-  list: z.array(namecardSchema),
-  total: z.number().int().nonnegative(),
-  totalPage: z.number().int().nonnegative(),
-})
-
-const reactionSchema = z.record(z.string(), z.number().int().nonnegative())
-const namecardSubmissionStatusSchema = z.enum([
-  "pending",
-  "approving",
-  "approved",
-  "rejected",
-  "withdrawn",
-])
-
-const namecardSubmissionSchema = z.object({
-  id: cardIdSchema,
-  ...namecardMetadataSchema,
-  status: namecardSubmissionStatusSchema,
-  revision: z.number().int().nonnegative(),
-  image1_url: z.string().min(1).optional(),
-  image2_url: z.string().min(1).optional(),
-  created_at: z.string().nullable().optional(),
-  withdrawn_at: z.string().nullable().optional(),
-})
-
-const uploadNamecardResponseSchema = z.object({
-  msg: z.string().min(1),
-  submission: namecardSubmissionSchema,
-  withdrawalToken: z.string().min(32),
-})
-
-const namecardSubmissionResponseSchema = z.object({
-  submission: namecardSubmissionSchema,
-})
-
-const withdrawNamecardResponseSchema = z.object({
-  success: z.literal(true),
-  submission: namecardSubmissionSchema,
-})
-
-export type Namecard = z.infer<typeof namecardSchema>
-export type NamecardPage = z.infer<typeof namecardPageSchema>
-export type NamecardReactions = z.infer<typeof reactionSchema>
-export type NamecardSubmission = z.infer<typeof namecardSubmissionSchema>
-export type NamecardSubmissionStatus = z.infer<
-  typeof namecardSubmissionStatusSchema
->
-export type UploadNamecardResponse = z.infer<
-  typeof uploadNamecardResponseSchema
->
 
 export function getNamecardPage(page = 1, size = 12) {
   return apiClient.Get<NamecardPage, unknown>("/api/cards", {

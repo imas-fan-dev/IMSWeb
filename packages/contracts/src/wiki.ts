@@ -1,12 +1,5 @@
 import { z } from "zod"
 
-import type {
-  WikiAdminCatalogContract,
-  WikiAdminStoriesContract,
-  WikiPublicCatalogContract,
-  WikiPublicStoriesContract,
-} from "~/lib/api/generated/wiki-contracts"
-
 export const wikiImageTransformSchema = z.object({
   fit: z.enum(["contain", "cover"]),
   focalX: z.coerce.number().min(0).max(1),
@@ -41,6 +34,23 @@ export const wikiStoryEntrySubtypeSchema = z.enum([
   "special",
   "other",
 ])
+
+export const wikiAgencySummarySchema = z.object({
+  id: z.coerce.number().int().positive(),
+  code: z.string(),
+  name: z.string(),
+  color: z.string(),
+})
+
+export const wikiCategorySchema = z.object({
+  id: z.coerce.number().int().positive(),
+  name: z.string(),
+  storageSlug: z.string(),
+  displayOrder: z.coerce.number().int().nonnegative(),
+  showWhenEmpty: z.boolean(),
+  backgroundEligible: z.boolean(),
+  revision: z.coerce.number().int().nonnegative(),
+})
 
 export const wikiAdminIdolSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -147,24 +157,9 @@ export const wikiStorySourceCatalogSchema = z.object({
 
 export const wikiAdminStoriesSchema = z.object({
   status: z.literal("success"),
-  agency: z.object({
-    id: z.coerce.number().int().positive(),
-    code: z.string(),
-    name: z.string(),
-    color: z.string(),
-  }),
+  agency: wikiAgencySummarySchema,
   idol: wikiAdminIdolSchema,
-  categories: z.array(
-    z.object({
-      id: z.coerce.number().int().positive(),
-      name: z.string(),
-      storageSlug: z.string(),
-      displayOrder: z.coerce.number().int().nonnegative(),
-      showWhenEmpty: z.boolean(),
-      backgroundEligible: z.boolean(),
-      revision: z.coerce.number().int().nonnegative(),
-    })
-  ),
+  categories: z.array(wikiCategorySchema),
   contentTypes: z.array(wikiStoryContentTypeSchema),
   sourcePlatforms: z.array(wikiStorySourcePlatformSchema),
   cards: z.array(wikiAdminStoryCardSchema),
@@ -342,12 +337,7 @@ export const wikiPublicStoryCardSchema = z.object({
 
 export const wikiPublicStoriesSchema = z.object({
   status: z.literal("success"),
-  agency: z.object({
-    id: z.coerce.number().int().positive(),
-    code: z.string(),
-    name: z.string(),
-    color: z.string(),
-  }),
+  agency: wikiAgencySummarySchema,
   idol: wikiPublicIdolSchema,
   categories: z.array(
     z.object({
@@ -424,135 +414,59 @@ export type WikiPublicStoryCard = WikiPublicStoryCategory["cards"][number]
 export type WikiRandomBackground = z.infer<typeof wikiRandomBackgroundSchema>
 export type WikiRandomIdol = z.infer<typeof wikiRandomIdolSchema>
 
-export type WikiStorySubmission = {
-  agency: string
-  idol: string
-  category: string
-  cardName: string
-  upName: string
-  videoTitle: string
-  url: string
-  contentTypeId: number
-  sourcePlatformId: number
-  subtitle: string
-  image?: File | null
-  imageTransform?: WikiImageTransform
-  mediaRevision?: number
-}
+export type WikiAgencySummary = z.infer<typeof wikiAgencySummarySchema>
+export type WikiPublicGroup = z.infer<typeof wikiPublicGroupSchema>
+export type WikiCategory = z.infer<typeof wikiCategorySchema>
+export type WikiStoryCatalogOption = z.infer<typeof wikiStoryCatalogOptionSchema>
 
-export type WikiStorySourceSubmission = {
-  upName: string
-  videoTitle: string
-  url: string
-  contentTypeId: number
-  sourcePlatformId: number
-}
+// Contract-named aliases: the historical API-side interface names, now derived
+// from the schemas above so the wire format has exactly one definition.
+export type WikiContractEntryKind = WikiEntryKind
+export type WikiContractStoryEntrySubtype = WikiStoryEntrySubtype
+export type WikiContractImageTransform = WikiImageTransform
+export type WikiContractAgencySummary = WikiAgencySummary
+export type WikiPublicAgencyContract = WikiPublicAgency
+export type WikiPublicIdolContract = WikiPublicIdol
+export type WikiPublicSearchEntryContract = WikiPublicSearchEntry
+export type WikiPublicGroupContract = WikiPublicGroup
+export type WikiPublicCatalogContract = WikiPublicCatalog
+export type WikiPublicStoryLinkContract = z.infer<typeof wikiPublicStoryLinkSchema>
+export type WikiPublicStoryCardContract = z.infer<typeof wikiPublicStoryCardSchema>
+export type WikiPublicStoriesContract = WikiPublicStories
+export type WikiAdminIdolContract = WikiAdminIdol
+export type WikiAdminGroupContract = WikiAdminGroup
+export type WikiAdminAgencyContract = WikiAdminAgency
+export type WikiAdminCatalogContract = WikiAdminCatalog
+export type WikiCategoryContract = WikiCategory
+export type WikiCatalogOptionContract = WikiStoryCatalogOption
+export type WikiStoryContentTypeContract = WikiStoryContentType
+export type WikiStorySourcePlatformContract = WikiStorySourcePlatform
+export type WikiAdminStoryCardContract = WikiAdminStoryCard
+export type WikiAdminStoryContract = WikiAdminStory
+export type WikiAdminStoriesContract = WikiAdminStories
 
-export type WikiStoryCatalogOptionSubmission = {
-  name: string
-  iconName: string
-  description: string
-  isActive: boolean
-}
+export const idolMediaSourceSchema = z.enum(["object-storage", "none"])
 
-export type WikiStorySourcePlatformSubmission = Omit<
-  WikiStoryCatalogOptionSubmission,
-  "iconName"
-> & {
-  homepageUrl: string
-}
+export const idolMediaCatalogSchema = z.object({
+  status: z.literal("success"),
+  agencies: z.array(
+    z.object({
+      code: z.string(),
+      name: z.string(),
+      idols: z.array(
+        z.object({
+          name: z.string(),
+          imageUrl: z.string(),
+          imageFit: z.enum(["contain", "cover"]),
+          source: idolMediaSourceSchema,
+        })
+      ),
+    })
+  ),
+})
 
-export type WikiStoryBatchSubmission = {
-  agency: string
-  idol: string
-  category: string
-  cardName: string
-  subtitle: string
-  sources: WikiStorySourceSubmission[]
-  image?: File | null
-  coverAssetId?: number | null
-  imageTransform?: WikiImageTransform
-}
+export type IdolMediaCatalog = z.infer<typeof idolMediaCatalogSchema>
 
-export type WikiStorySourcesSubmission = {
-  agency: string
-  idol: string
-  expectedRevision: number
-  sources: WikiStorySourceSubmission[]
-}
+export type IdolMediaAgency = IdolMediaCatalog["agencies"][number]
 
-export type WikiStoryCardSubmission = {
-  agency: string
-  idol: string
-  categoryId: number
-  cardName: string
-  subtitle: string
-  image?: File | null
-  coverAssetId?: number | null
-  removeImage?: boolean
-  imageTransform: WikiImageTransform
-  mediaRevision: number
-}
-
-export type WikiAgencySubmission = {
-  code: string
-  name: string
-  color: string
-  bannerTitle: string
-  wikiEnabled: boolean
-}
-
-export type WikiGroupSubmission = {
-  code: string
-  name: string
-  color: string
-}
-
-export type WikiIdolSubmission = {
-  name: string
-  folderName: string
-  color: string | null
-  textColor: string
-  wikiUrl: string | null
-  wikiEnabled: boolean
-  groupIds: number[]
-  entryKind?: WikiEntryKind
-  entrySubtype?: WikiStoryEntrySubtype | null
-}
-
-export type WikiStoryGroup = {
-  agency: string
-  idol: string
-  category: string
-  cardName: string
-  expectedRevision: number
-}
-
-type Exact<Left, Right> =
-  (<Value>() => Value extends Left ? 1 : 2) extends <
-    Value,
-  >() => Value extends Right ? 1 : 2
-    ? (<Value>() => Value extends Right ? 1 : 2) extends <
-        Value,
-      >() => Value extends Left ? 1 : 2
-      ? true
-      : false
-    : false
-type Assert<Condition extends true> = Condition
-
-// Compile-time checks that the zod-inferred response types match the API
-// contracts generated from apps/api/src/ports/wiki-contracts.ts. Exported so
-// the assertions participate in the module surface without leaking through
-// the wiki endpoint facade, which re-exports an explicit public surface.
-export type WikiAdminCatalogMatchesApi = Assert<
-  Exact<WikiAdminCatalog, WikiAdminCatalogContract>
->
-export type WikiAdminStoriesMatchesApi = Assert<
-  Exact<WikiAdminStories, WikiAdminStoriesContract>
->
-export type WikiPublicCatalogMatchesApi = Assert<
-  Exact<WikiPublicCatalog, WikiPublicCatalogContract>
->
-export type WikiPublicStoriesMatchesApi = Assert<
-  Exact<WikiPublicStories, WikiPublicStoriesContract>
->
+export type IdolMediaItem = IdolMediaAgency["idols"][number]
