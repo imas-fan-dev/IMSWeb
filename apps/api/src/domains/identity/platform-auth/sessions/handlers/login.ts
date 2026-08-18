@@ -3,13 +3,9 @@ import type { AppEnvironment } from '@/app';
 import {
     establishPlatformSession,
     platformSessionPayload
-} from '@/domains/platform-auth/platform-auth-session';
-import {
-    isBcryptPasswordSafe,
-    isPlatformJsonContentType,
-    isMigratedPbkdf2Parameters,
-    parsePlatformLoginInput
-} from '@/domains/platform-auth/platform-email-input';
+} from '@/domains/identity/platform-auth/contracts/session';
+import { isBcryptPasswordSafe, isMigratedPbkdf2Parameters, isPlatformJsonContentType } from '@/domains/identity/platform-auth/contracts/credentials';
+import { parsePlatformLoginInput } from '@/domains/identity/platform-auth/sessions/request';
 import type { PlatformEmailIdentity } from '@/ports/repositories';
 import { platformAccountRepository, services } from '@/middleware/hono-context';
 import {

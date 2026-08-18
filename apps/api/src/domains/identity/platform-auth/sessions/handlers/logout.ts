@@ -6,7 +6,7 @@ import {
     hasValidPlatformRefreshCsrf,
     platformRefreshTokenCookie,
     platformSecurityEvent
-} from '@/domains/platform-auth/platform-auth-session';
+} from '@/domains/identity/platform-auth/contracts/session';
 import { platformAccountRepository, services } from '@/middleware/hono-context';
 
 async function revokeBearerSession(c: Context<AppEnvironment>, token: string): Promise<void> {

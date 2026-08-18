@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 const session = {
   success: true,
@@ -43,6 +43,21 @@ async function expectAccessibleAuthPage(page: Page) {
   expect(accessibility.violations).toEqual([])
 }
 
+async function captureStableAuthScreenshot(
+  page: Page,
+  testInfo: TestInfo,
+  interfaceName: "login" | "register"
+) {
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await page.waitForTimeout(300)
+  await page.screenshot({
+    path: testInfo.outputPath(
+      `auth-${interfaceName}-${testInfo.project.name}.png`
+    ),
+    fullPage: true,
+  })
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
@@ -50,7 +65,7 @@ test.beforeEach(async ({ page }) => {
   await mockOwnerWorkspace(page)
 })
 
-test("logs in and adopts the returned Platform session", async ({ page }) => {
+test("logs in and adopts the returned Platform session", async ({ page }, testInfo) => {
   let loginBody: unknown
   let sessionRequests = 0
   await page.route("**/api/platform/auth/login", async (route) => {
@@ -68,6 +83,7 @@ test("logs in and adopts the returned Platform session", async ({ page }) => {
     page.getByRole("heading", { name: "登录站点帐号" })
   ).toBeVisible()
   await expectAccessibleAuthPage(page)
+  await captureStableAuthScreenshot(page, testInfo, "login")
 
   await page.getByLabel("邮箱").fill("  Producer@Example.COM ")
   await page.getByLabel("密码", { exact: true }).fill("correct-horse-battery")
@@ -89,7 +105,7 @@ test("logs in and adopts the returned Platform session", async ({ page }) => {
 
 test("registers after a conflict is corrected and keeps errors user-safe", async ({
   page,
-}) => {
+}, testInfo) => {
   let attempts = 0
   let registrationBody: unknown
   let verificationBody: unknown
@@ -125,6 +141,7 @@ test("registers after a conflict is corrected and keeps errors user-safe", async
     page.getByRole("heading", { name: "注册站点帐号" })
   ).toBeVisible()
   await expectAccessibleAuthPage(page)
+  await captureStableAuthScreenshot(page, testInfo, "register")
 
   await page.getByLabel("显示名称").fill("  浏览器制作人  ")
   await page.getByLabel("邮箱", { exact: true }).fill("  New@Example.COM ")

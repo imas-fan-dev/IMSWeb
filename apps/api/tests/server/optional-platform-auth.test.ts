@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Hono } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { PLATFORM_ACCESS_TOKEN_COOKIE } from '@/domains/platform-auth/platform-auth-session';
+import { PLATFORM_ACCESS_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';
 import { optionalPlatformAuth } from '@/middleware/hono-auth';
 import type { PlatformJwtClaims } from '@/ports/security';
 import type { RuntimeServices } from '@/ports/runtime-services';

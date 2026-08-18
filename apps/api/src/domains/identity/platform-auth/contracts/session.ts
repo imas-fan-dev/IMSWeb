@@ -1,3 +1,4 @@
+import type { PlatformSession } from '@imsweb/contracts/platform';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { AppEnvironment } from '@/app';
@@ -132,16 +133,7 @@ export function platformSecurityEvent(
 export async function platformSessionPayload(
     c: Context<AppEnvironment>,
     identity: PlatformAccountWithProfile
-): Promise<{
-    success: true;
-    account: { id: string; status: PlatformAccountWithProfile['account']['status'] };
-    profile: {
-        displayName: string;
-        avatarUrl: string | null;
-        homeCity: string | null;
-        bio: string;
-    };
-}> {
+): Promise<PlatformSession> {
     const { account, profile } = identity;
     let avatarUrl = profile.avatar_external_url;
     if (!avatarUrl && profile.avatar_object_key) {
@@ -151,7 +143,12 @@ export async function platformSessionPayload(
     }
     return {
         success: true,
-        account: { id: account.id, status: account.status },
+        // 会话仅为 active/restricted 账号建立（establishPlatformSession 前置校验），
+        // 契约status窄于 ports 全量状态。
+        account: {
+            id: account.id,
+            status: account.status as PlatformSession['account']['status']
+        },
         profile: {
             displayName: profile.display_name,
             avatarUrl,

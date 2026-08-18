@@ -12,7 +12,7 @@ import {
     platformSecurityEvent,
     platformSessionPayload,
     setPlatformAuthenticationCookies
-} from '@/domains/platform-auth/platform-auth-session';
+} from '@/domains/identity/platform-auth/contracts/session';
 import { platformAccountRepository, services } from '@/middleware/hono-context';
 import { constantTimeEqual } from '@/utils/crypto/constant-time';
 import { randomHex } from '@/utils/crypto/random';
