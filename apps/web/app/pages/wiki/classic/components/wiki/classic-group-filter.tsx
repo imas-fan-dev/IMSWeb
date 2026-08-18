@@ -10,12 +10,14 @@ interface ClassicGroupFilterProps {
   groups: PublicGroup[]
   ungroupedCount: number
   disabled: boolean
+  action?: ReactNode
 }
 
 export function ClassicGroupFilter({
   groups,
   ungroupedCount,
   disabled,
+  action,
 }: ClassicGroupFilterProps) {
   return (
     <section className="wiki-classic-group-filter" aria-label="组合与分类导航">
@@ -68,6 +70,7 @@ export function ClassicGroupFilter({
           </ClassicGroupLink>
         ) : null}
       </nav>
+      {action}
     </section>
   )
 }

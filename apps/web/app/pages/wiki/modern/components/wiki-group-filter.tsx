@@ -10,9 +10,11 @@ type PublicGroup = NonNullable<WikiPublicCatalog["selection"]>["groups"][number]
 export function WikiGroupFilter({
   groups,
   ungroupedCount,
+  action,
 }: {
   groups: PublicGroup[]
   ungroupedCount: number
+  action?: ReactNode
 }) {
   return (
     <section
@@ -68,6 +70,7 @@ export function WikiGroupFilter({
             </GroupLink>
           ) : null}
         </nav>
+        {action}
       </div>
     </section>
   )

@@ -977,7 +977,7 @@ describe("classic Wiki pages", () => {
     expect(screen.getByRole("link", { name: /语音试听/ })).toBeVisible()
   })
 
-  it("hides unvoiced Cinderella Girls idols in the classic view", async () => {
+  it("shows unvoiced Cinderella Girls idols in the classic view", async () => {
     const cgAgency = {
       id: 2,
       code: "cg",
@@ -1047,16 +1047,16 @@ describe("classic Wiki pages", () => {
 
     const voicedLink = await screen.findByRole("link", { name: /渋谷凛/ })
     expect(voicedLink).toBeVisible()
-    expect(screen.getByRole("link", { name: /未付声演示/ })).toBeVisible()
-
-    const toggle = screen.getByRole("button", { name: "隐藏未付声" })
-    expect(toggle).toHaveAttribute("aria-pressed", "false")
-    await user.click(toggle)
-
-    expect(toggle).toHaveAttribute("aria-pressed", "true")
-    expect(voicedLink).toBeVisible()
     expect(
       screen.queryByRole("link", { name: /未付声演示/ })
     ).not.toBeInTheDocument()
+
+    const toggle = screen.getByRole("button", { name: "展示未付声" })
+    expect(toggle).toHaveAttribute("aria-pressed", "true")
+    await user.click(toggle)
+
+    expect(toggle).toHaveAttribute("aria-pressed", "false")
+    expect(voicedLink).toBeVisible()
+    expect(screen.getByRole("link", { name: /未付声演示/ })).toBeVisible()
   })
 })
