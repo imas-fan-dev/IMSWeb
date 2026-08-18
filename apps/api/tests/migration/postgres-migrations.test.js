@@ -16,18 +16,16 @@ const {
 
 test('released Platform and Fudaba migrations remain byte-for-byte immutable', () => {
     const expected = new Map([
-        ['core/0011_platform_accounts.sql',
-            '26f13cd59482e7d08c97262fc8aa0ec41a03b45a2479d59e3959ca3f10fbd8ad'],
         ['postgresql/0020_platform_accounts.sql',
             'b7a67b066fd49fa3191a3ecc9c05881a753ca8c83950056bc3ac63d0d9e9734f'],
-        ['core/0013_fudaba_domain.sql',
-            '54b28982af30f4513b9a860caab1462dd90679bf4f3714273bdbcfbba0804f95'],
         ['postgresql/0022_fudaba_domain.sql',
             '718e476b3db6828130a75fd4e10933c1ceac765ea203495ba0eb9320b78d905a'],
-        ['core/0016_platform_email_verification.sql',
-            'c3f2db65ec8c2ac514ed39e027c14164163a4cc8b64929855ae18a0c893c8938'],
         ['postgresql/0025_platform_email_verification.sql',
-            '987e277a19c4637244737480a28eb8cc04d156039dfe4115855c1b879a6cf2bd']
+            '987e277a19c4637244737480a28eb8cc04d156039dfe4115855c1b879a6cf2bd'],
+        ['postgresql/20260818000000_platform_password_reset.sql',
+            'e2d8080805a9f769201e48e196000c38a54f3f47314d579bf47d240492e16524'],
+        ['postgresql/20260818010000_platform_oauth_configuration.sql',
+            '228603876f6ae11ee45e013c9394d096a4c72a0ce220ccb3eed8f065a538db5c']
     ]);
     for (const [relativePath, checksum] of expected) {
         const contents = fs.readFileSync(
@@ -100,6 +98,14 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             },
             {
                 version: '20260816193000_namecard_ownership_foundation',
+                phase: 'post-data'
+            },
+            {
+                version: '20260818000000_platform_password_reset',
+                phase: 'post-data'
+            },
+            {
+                version: '20260818010000_platform_oauth_configuration',
                 phase: 'post-data'
             }
         ]
@@ -533,11 +539,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 35);
+    assert.equal(catalog.count, 37);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260816193000_namecard_ownership_foundation'
+        '20260818010000_platform_oauth_configuration'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -629,7 +635,9 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260813000000_namecard_rejected_at',
         '20260814155304_shared_request_controls',
         '20260814170000_object_deletion_jobs',
-        '20260816193000_namecard_ownership_foundation'
+        '20260816193000_namecard_ownership_foundation',
+        '20260818000000_platform_password_reset',
+        '20260818010000_platform_oauth_configuration'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

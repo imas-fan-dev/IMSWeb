@@ -172,7 +172,7 @@ export default function AdminEventsPage() {
   function editEvent(item: EventListItem) {
     setEditingEvent(item)
     setDraft({
-      title: item.title,
+      title: item.title ?? "",
       name: item.name ?? "",
       contact: item.contact ?? "",
     })

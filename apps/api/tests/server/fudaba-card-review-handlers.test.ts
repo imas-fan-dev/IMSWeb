@@ -1,3 +1,4 @@
+import { reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Hono } from 'hono';
@@ -5,7 +6,7 @@ import type { AppEnvironment } from '@/app';
 import {
     handleReviewFudabaCardClaim,
     handleReviewFudabaRegisteredCard
-} from '@/domains/fudaba/handlers/admin-card-reviews';
+} from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
 import type { ObjectStorage, StoredObject } from '@/ports/object-storage';
 import type {
     FudabaAdminCardClaimRecord,
@@ -339,7 +340,8 @@ test('uncertain registered-card completion reconciles committed state without pr
     );
 
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { success: true, revision: 2 });
+    assert.deepEqual(reviewMutationSchema.parse(await response.json()),
+        { success: true, revision: 2 });
     assert.deepEqual(protectedKeys, []);
     assert.equal(rollbackCalls, 0);
 });
@@ -408,7 +410,8 @@ test('uncertain claimed-card completion preserves committed public media', async
     );
 
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { success: true, revision: 2 });
+    assert.deepEqual(reviewMutationSchema.parse(await response.json()),
+        { success: true, revision: 2 });
     assert.ok(createdCardId);
     assert.equal(deletedCalls, 0);
     assert.equal(rollbackCalls, 0);

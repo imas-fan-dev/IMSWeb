@@ -18,10 +18,23 @@ class ConsolePlatformEmailSender implements PlatformEmailSender {
     async sendRegistrationVerification(
         message: PlatformEmailVerificationMessage
     ): Promise<void> {
+        this.logCode(message, 'registration');
+    }
+
+    async sendPasswordResetVerification(
+        message: PlatformEmailVerificationMessage
+    ): Promise<void> {
+        this.logCode(message, 'password reset');
+    }
+
+    private logCode(
+        message: PlatformEmailVerificationMessage,
+        purpose: string
+    ): void {
         const [local, domain = ''] = message.email.split('@');
         const masked = `${local.slice(0, 2)}***@${domain}`;
         console.info(
-            `[dev-email] Platform registration code for ${masked}: ${message.code} ` +
+            `[dev-email] Platform ${purpose} code for ${masked}: ${message.code} ` +
             `(expires in ${message.expiresInMinutes} minutes)`
         );
     }
@@ -99,19 +112,21 @@ class CloudflarePlatformEmailSender implements PlatformEmailSender {
         }
     }
 
-    async sendRegistrationVerification(
-        message: PlatformEmailVerificationMessage
+    private async sendVerification(
+        message: PlatformEmailVerificationMessage,
+        subject: string,
+        purpose: string
     ): Promise<void> {
         const endpoint =
             `https://api.cloudflare.com/client/v4/accounts/` +
             `${this.config.accountId}/email/sending/send`;
         const text = [
-            `Your IMSWeb registration verification code is ${message.code}.`,
+            `Your IMSWeb ${purpose} verification code is ${message.code}.`,
             `It expires in ${message.expiresInMinutes} minutes.`,
             'If you did not request this code, you can ignore this message.'
         ].join('\n\n');
         const html = [
-            '<p>Your IMSWeb registration verification code is:</p>',
+            `<p>Your IMSWeb ${purpose} verification code is:</p>`,
             `<p><strong>${message.code}</strong></p>`,
             `<p>It expires in ${message.expiresInMinutes} minutes.</p>`,
             '<p>If you did not request this code, you can ignore this message.</p>'
@@ -132,7 +147,7 @@ class CloudflarePlatformEmailSender implements PlatformEmailSender {
                             address: this.config.fromAddress,
                             name: this.config.fromName
                         },
-                        subject: 'IMSWeb registration verification code',
+                        subject,
                         text,
                         html
                     })
@@ -161,6 +176,26 @@ class CloudflarePlatformEmailSender implements PlatformEmailSender {
             if (response.ok && payload?.success && accepted) return;
             throw new Error('Cloudflare Email Service rejected the verification email');
         }
+    }
+
+    sendRegistrationVerification(
+        message: PlatformEmailVerificationMessage
+    ): Promise<void> {
+        return this.sendVerification(
+            message,
+            'IMSWeb registration verification code',
+            'registration'
+        );
+    }
+
+    sendPasswordResetVerification(
+        message: PlatformEmailVerificationMessage
+    ): Promise<void> {
+        return this.sendVerification(
+            message,
+            'IMSWeb password reset verification code',
+            'password reset'
+        );
     }
 }
 

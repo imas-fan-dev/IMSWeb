@@ -3,6 +3,7 @@ import type { EmailServices } from '@/ports/email';
 import type { HttpServices } from '@/ports/http';
 import type { MediaServices } from '@/ports/media';
 import type { ObjectStorageServices } from '@/ports/object-storage';
+import type { OAuthServices } from '@/ports/oauth';
 import type { RepositoryServices } from '@/ports/repositories';
 import type { SecurityServices } from '@/ports/security';
 
@@ -27,6 +28,7 @@ export interface RuntimeServices extends
     Partial<HttpServices>,
     Partial<MediaServices>,
     Partial<ObjectStorageServices>,
+    Partial<OAuthServices>,
     Partial<RepositoryServices>,
     Partial<SecurityServices> {
     fetch?: typeof globalThis.fetch;
@@ -40,6 +42,7 @@ export interface NodeRuntimeServices extends
     HttpServices,
     MediaServices,
     ObjectStorageServices,
+    OAuthServices,
     RepositoryServices,
     SecurityServices {
     fetch: typeof globalThis.fetch;

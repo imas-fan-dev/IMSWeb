@@ -30,7 +30,7 @@ const initializedPostgresSchema: SqlSchemaStrategy = {
 interface Fixture {
     database: ManagedSqlDatabase;
     repository: SqlFudabaRepository;
-    dialect: 'sqlite' | 'postgresql';
+    dialect: 'postgresql';
 }
 
 function office(
@@ -96,7 +96,7 @@ function card(
 
 async function createFixture(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql' = 'postgresql'
+    dialect: 'postgresql' = 'postgresql'
 ): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
     const repository = new SqlFudabaRepository(
@@ -192,7 +192,7 @@ test('office creation and series assignment are atomic', async (t) => {
 
 async function assertOwnerAndArchiveBoundary(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql'
+    dialect: 'postgresql'
 ): Promise<void> {
     const fixture = await createFixture(t, dialect);
     for (const accountId of ['owner', 'intruder', 'requester']) {
@@ -280,7 +280,7 @@ async function assertOwnerAndArchiveBoundary(
 
 async function assertExchangeConstraints(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql'
+    dialect: 'postgresql'
 ): Promise<void> {
     const fixture = await createFixture(t, dialect);
     const requesterId = `${dialect}-exchange-requester`;
@@ -460,7 +460,7 @@ test('media rights and moderation constraints cannot be bypassed', async (t) => 
 
 async function assertModerationActorRetention(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql'
+    dialect: 'postgresql'
 ): Promise<void> {
     const fixture = await createFixture(t, dialect);
     const actorId = await seedBackofficeActor(

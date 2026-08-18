@@ -33,7 +33,7 @@ const initializedPostgresSchema: SqlSchemaStrategy = {
 interface Fixture {
     database: ManagedSqlDatabase;
     repository: SqlFudabaRepository;
-    dialect: 'sqlite' | 'postgresql';
+    dialect: 'postgresql';
 }
 
 async function createFixture(
@@ -174,7 +174,7 @@ async function assertPublicReadModels(
     await fixture.database.prepare(
         'UPDATE agencies SET wiki_enabled=? WHERE code=?'
     ).bind(
-        dialect === 'sqlite' ? 0 : false,
+        false,
         'sidem'
     ).run();
 

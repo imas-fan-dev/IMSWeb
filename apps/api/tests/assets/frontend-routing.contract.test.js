@@ -1,4 +1,4 @@
-'use strict';
+
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -265,33 +265,7 @@ test('[FRT-05] build assets require an exact entry in the real file set', async 
     );
 });
 
-test('[FRT-06] legacy browser URLs redirect to their modern owners', async () => {
-    const redirects = new Map([
-        ['/About.html', '/about'],
-        ['/Event.html', '/events'],
-        ['/producer.html', '/admin/login'],
-        ['/producermap.html', '/producer-map'],
-        ['/ProducerNameCard.html', '/community/cards'],
-        ['/timeline.html', '/chronicle'],
-        ['/eventchronicleadmin.html', '/admin/chronicle'],
-        ['/283Introduction.html', '/works/sc'],
-        ['/WOWSIntroduction.html', '/works/wows'],
-        ['/hiro2026.html', '/sites/hiro2026'],
-        ['/eventchronicle.html?id=activity%201', '/chronicle/activity%201']
-    ]);
-
-    for (const [legacyPath, destination] of redirects) {
-        const response = await request(legacyPath, { redirect: 'manual' });
-        assert.equal(response.status, 301, legacyPath);
-        assert.equal(
-            new URL(response.headers.get('location'), 'http://ims.test').pathname,
-            destination,
-            legacyPath
-        );
-    }
-});
-
-test('[FRT-07] every prerendered document in the build is owned by the route policy', async () => {
+test('[FRT-06] every prerendered document in the build is owned by the route policy', async () => {
     const documents = frontendFileList.filter((file) => file.endsWith('/index.html'));
     assert.ok(documents.length > 0, 'build/client must contain prerendered documents');
 

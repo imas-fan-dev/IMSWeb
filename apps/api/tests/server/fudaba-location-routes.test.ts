@@ -5,11 +5,11 @@ import { createHonoApp } from '@/app';
 import {
     BACKOFFICE_ACCESS_TOKEN_COOKIE,
     BACKOFFICE_CSRF_TOKEN_COOKIE
-} from '@/domains/backoffice-auth/backoffice-auth-session';
+} from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import {
     PLATFORM_ACCESS_TOKEN_COOKIE,
     PLATFORM_CSRF_TOKEN_COOKIE
-} from '@/domains/platform-auth/platform-auth-session';
+} from '@/domains/identity/platform-auth/contracts/session';
 import type { RateLimiter } from '@/ports/cache';
 import type {
     AuditLogInput,

@@ -12,6 +12,7 @@ import { Link, useSearchParams } from "react-router"
 import { toast } from "sonner"
 
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import {
   NamecardPreview,
   type NamecardSide,
@@ -198,10 +199,12 @@ function NamecardReactionBar({ cardId }: { cardId: number }) {
 
 function NamecardItem({
   card,
+  canClaim,
   onPreview,
   onClaim,
 }: {
   card: Namecard
+  canClaim: boolean
   onPreview: (
     card: Namecard,
     side: NamecardSide,
@@ -266,7 +269,7 @@ function NamecardItem({
           <Badge variant="outline" className="w-fit">
             认领审核中
           </Badge>
-        ) : (
+        ) : canClaim ? (
           <Button
             type="button"
             variant="outline"
@@ -277,13 +280,15 @@ function NamecardItem({
             <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
             认领这张旧名片
           </Button>
-        )}
+        ) : null}
       </CardFooter>
     </Card>
   )
 }
 
 export default function CommunityCardsPage() {
+  const platform = useOptionalPlatformSession()
+  const canClaim = platform.status === "authenticated"
   const [searchParams, setSearchParams] = useSearchParams()
   const page = pageFromSearchParam(searchParams.get("page"))
   const pageSize = pageSizeFromSearchParam(searchParams.get("size"))
@@ -398,8 +403,8 @@ export default function CommunityCardsPage() {
         onOpenChange={handlePreviewOpenChange}
       />
       <NamecardClaimDialog
-        card={claimCard}
-        open={claimCard !== null}
+        card={canClaim ? claimCard : null}
+        open={canClaim && claimCard !== null}
         onOpenChange={(open) => {
           if (!open) setClaimCard(null)
         }}
@@ -482,6 +487,7 @@ export default function CommunityCardsPage() {
                 <NamecardItem
                   key={card.id}
                   card={card}
+                  canClaim={canClaim}
                   onPreview={openPreview}
                   onClaim={setClaimCard}
                 />

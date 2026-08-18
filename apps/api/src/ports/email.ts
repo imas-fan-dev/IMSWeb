@@ -9,6 +9,9 @@ export interface PlatformEmailSender {
     sendRegistrationVerification(
         message: PlatformEmailVerificationMessage
     ): Promise<void>;
+    sendPasswordResetVerification?(
+        message: PlatformEmailVerificationMessage
+    ): Promise<void>;
 }
 
 export interface EmailServices {

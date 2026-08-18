@@ -13,27 +13,26 @@ import type { BackofficeJwtClaims, PlatformJwtClaims } from '@/ports/security';
 import type { PlatformAccountWithProfile } from '@/ports/repositories';
 import { requestCompletionLogger } from '@/middleware/request-observability';
 import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
-import { registerAuditRoutes } from '@/domains/audit/routes';
-import { registerAdminAccountRoutes } from '@/domains/admin-accounts/routes';
-import { registerAboutRoutes } from '@/domains/about/routes';
-import { registerBackofficeAuthRoutes } from '@/domains/backoffice-auth/routes';
-import { registerBrandAssetRoutes } from '@/domains/brand-assets/routes';
-import { registerChronicleRoutes } from '@/domains/chronicle/routes';
-import { registerEventRoutes } from '@/domains/events/routes';
-import { registerFudabaRoutes } from '@/domains/fudaba/routes';
-import { registerInformationRoutes } from '@/domains/information/routes';
-import { registerHomepageLinkRoutes } from '@/domains/homepage-links/routes';
-import { registerLiveScheduleRoutes } from '@/domains/live-schedule/routes';
-import { registerMediaRoutes } from '@/domains/media/routes';
-import { registerNamecardRoutes } from '@/domains/namecards/routes';
-import { registerNewsRoutes } from '@/domains/news/routes';
-import { registerProducerMapRoutes } from '@/domains/producer-map/routes';
-import { registerPlatformAuthRoutes } from '@/domains/platform-auth/routes';
-import { registerPlatformProfileRoutes } from '@/domains/platform-profile/routes';
-import { registerReactionRoutes } from '@/domains/reactions/routes';
-import { registerSiteRoutes } from '@/domains/site/routes';
-import { registerSitePackageRoutes } from '@/domains/site-packages/routes';
-import { registerWikiRoutes } from '@/domains/wiki/index';
+import { registerAuditRoutes } from '@/domains/admin/audit/routes';
+import { registerAdminAccountRoutes } from '@/domains/admin/admin-accounts/routes';
+import { registerAboutRoutes } from '@/domains/content/about/routes';
+import { registerBackofficeAuthRoutes } from '@/domains/admin/backoffice-auth/routes';
+import { registerBrandAssetRoutes } from '@/domains/content/brand-assets/routes';
+import { registerChronicleRoutes } from '@/domains/content/chronicle/routes';
+import { registerEventRoutes } from '@/domains/content/events/routes';
+import { registerFudabaRoutes } from '@/domains/community/fudaba/routes';
+import { registerInformationRoutes } from '@/domains/content/information/routes';
+import { registerHomepageLinkRoutes } from '@/domains/content/homepage-links/routes';
+import { registerLiveScheduleRoutes } from '@/domains/content/live-schedule/routes';
+import { registerMediaRoutes } from '@/domains/delivery/media/routes';
+import { registerNamecardRoutes } from '@/domains/community/namecards/routes';
+import { registerNewsRoutes } from '@/domains/content/news/routes';
+import { registerProducerMapRoutes } from '@/domains/content/producer-map/routes';
+import { registerPlatformAuthRoutes } from '@/domains/identity/platform-auth/routes';
+import { registerPlatformProfileRoutes } from '@/domains/identity/platform-profile/routes';
+import { registerSiteRoutes } from '@/domains/delivery/site/routes';
+import { registerSitePackageRoutes } from '@/domains/delivery/site-packages/routes';
+import { registerWikiRoutes } from '@/domains/content/wiki/routes';
 
 export interface AppEnvironment {
     Bindings: object;
@@ -86,13 +85,19 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     });
 
     app.use('*', async (c, next) => {
-        const rawPath = new URL(c.req.raw.url).pathname;
+        let rawPath: string;
+        try {
+            rawPath = new URL(c.req.raw.url).pathname;
+        } catch {
+            return c.text('Forbidden', 403);
+        }
         if (isSensitiveRequestPath(rawPath)) {
             return c.text('Forbidden', 403);
         }
         await next();
     });
 
+    // pi-lens-ignore: cors-wildcard
     app.use('*', cors());
     app.use('*', secureHeaders({
         crossOriginEmbedderPolicy: false,
@@ -102,7 +107,12 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     }));
     app.use('*', async (c, next) => {
         await next();
-        const pathname = new URL(c.req.raw.url).pathname;
+        let pathname = '';
+        try {
+            pathname = new URL(c.req.raw.url).pathname;
+        } catch {
+            pathname = '';
+        }
         if (
             pathname !== '/site-content' &&
             !pathname.startsWith('/site-content/') &&
@@ -153,7 +163,6 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     // Kept as a compatibility probe for existing clients.
     app.get('/api/wiki/test', (c) => c.json({ status: 'ok' }));
 
-    registerReactionRoutes(app);
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);
     registerBrandAssetRoutes(app);

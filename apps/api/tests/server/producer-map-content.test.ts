@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
-import type { ProducerMapContent } from '@/domains/producer-map/data';
+import type { ProducerMapContent } from '@/domains/content/producer-map/data';
 import { producerMapAssetObjectKey } from '@/utils/storage/business-object-keys';
 import type {
     ListedObject,

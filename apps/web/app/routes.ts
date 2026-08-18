@@ -16,6 +16,10 @@ const publicRoutes = [
     file: "pages/account/register/account-register-page.tsx",
   },
   {
+    path: "account/password-reset",
+    file: "pages/account/reset/account-password-reset-page.tsx",
+  },
+  {
     path: "community/exchange",
     file: "pages/community/exchange/community-exchange-page.tsx",
   },
@@ -131,6 +135,10 @@ const adminRoutes = [
   {
     path: "accounts",
     file: "pages/admin/accounts/index.tsx",
+  },
+  {
+    path: "platform/oauth",
+    file: "pages/admin/platform-oauth/index.tsx",
   },
   { path: "*", file: "pages/admin/not-found/index.tsx" },
 ] satisfies RouteConfigEntry[]

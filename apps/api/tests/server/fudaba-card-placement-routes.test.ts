@@ -5,7 +5,7 @@ import { createHonoApp } from '@/app';
 import {
     PLATFORM_ACCESS_TOKEN_COOKIE,
     PLATFORM_CSRF_TOKEN_COOKIE
-} from '@/domains/platform-auth/platform-auth-session';
+} from '@/domains/identity/platform-auth/contracts/session';
 import type { RateLimiter } from '@/ports/cache';
 import type {
     FudabaCardPlacementRecord,

@@ -56,6 +56,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "pnpm run dev:down",
             "PostgreSQL",
             "RustFS",
+            "Valkey",
             "自动读取 `apps/api/.env`",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:rustfs:up",
@@ -170,7 +171,9 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
             self.assertIn(token, web_environment)
         for token in (
-            "COMPOSE_PROFILES=local-storage",
+            "COMPOSE_PROFILES=local-cache,local-storage",
+            "IMS_VALKEY_IMAGE",
+            "IMS_CACHE_BACKEND",
             "IMS_POSTGRES_IMAGE",
             "IMS_RUSTFS_IMAGE",
             "IMS_RUSTFS_BUCKET",

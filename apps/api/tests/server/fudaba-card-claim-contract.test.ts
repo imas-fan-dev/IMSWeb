@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-    fudabaCardClaimView,
-    parseLegacyCardClaim
-} from '@/domains/fudaba/card-claims';
-import { parseFudabaCardCreateFields } from '@/domains/fudaba/owner-card';
-import { toPublicNamecardResponse } from '@/domains/namecards/response';
+import { parseLegacyCardClaim } from '@/domains/community/fudaba/claims/request';
+import { fudabaCardClaimView } from '@/domains/community/fudaba/contracts/claim';
+import { parseFudabaCardCreateFields } from '@/domains/community/fudaba/cards/request';
+import { toPublicNamecardResponse } from '@/domains/community/namecards/response';
 import type { FudabaCardClaimRecord } from '@/ports/repositories';
 
 function registeredFields(favoriteIdolIds: string) {

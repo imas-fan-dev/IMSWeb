@@ -5,7 +5,7 @@ import {
     clearLiveScheduleCache,
     getLiveSchedule,
     normalizeLiveScheduleArticle
-} from '@/domains/live-schedule/live-schedule-service';
+} from '@/domains/content/live-schedule/live-schedule-service';
 
 function jsonResponse(value: unknown, status = 200): Response {
     return new Response(JSON.stringify(value), {

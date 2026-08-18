@@ -1,16 +1,25 @@
 import type {
     CreatePlatformEmailAccountResult,
     CreateVerifiedPlatformEmailAccountResult,
+    CompletePlatformPasswordResetInput,
+    CompletePlatformPasswordResetResult,
+    CreatePlatformOAuthAccountResult,
+    IssuePlatformPasswordResetResult,
     IssuePlatformEmailVerificationResult,
     NewPlatformRefreshSessionInput,
     NewPlatformAccountInput,
     NewPlatformEmailAccountInput,
+    NewPlatformOAuthAccountInput,
+    NewPlatformOAuthStateInput,
+    PlatformPasswordResetInput,
     NewVerifiedPlatformEmailAccountInput,
     PlatformAccountRecord,
     PlatformAccountRepository,
     PlatformAccountWithProfile,
     PlatformEmailIdentity,
     PlatformEmailVerificationInput,
+    PlatformOAuthIdentity,
+    PlatformOAuthStateRecord,
     PlatformProfileSaveResult,
     PlatformProfileRecord,
     PlatformRefreshSessionRecord,
@@ -18,6 +27,11 @@ import type {
     UpdatePlatformProfileAvatarInput,
     UpdatePlatformProfileTextInput
 } from '@/ports/repositories';
+import type {
+    PlatformOAuthProviderCode,
+    PlatformOAuthProviderConfigRecord,
+    PlatformOAuthProviderStore
+} from '@/ports/oauth';
 import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
 import { executeSql, queryOne, sqlStatement } from '@/infra/db/sql/query';
 
@@ -37,6 +51,26 @@ interface PlatformAccountProfileRow extends PlatformAccountRecord {
     profile_home_city: string | null;
     profile_bio: string;
     profile_updated_at: number;
+}
+
+interface PlatformOAuthProviderRow {
+    code: PlatformOAuthProviderConfigRecord['code'];
+    display_name: string;
+    enabled: boolean | number | string;
+    client_id_ciphertext: string | null;
+    client_secret_ciphertext: string | null;
+    redirect_uri: string | null;
+    updated_at: number;
+}
+
+interface PlatformOAuthIdentityRow extends PlatformAccountProfileRow {
+    oauth_provider_code: PlatformOAuthProviderCode;
+    oauth_provider_subject: string;
+    oauth_account_id: string;
+    oauth_provider_display_name: string;
+    oauth_provider_avatar_url: string;
+    oauth_created_at: number;
+    oauth_updated_at: number;
 }
 
 interface PlatformEmailIdentityRow extends PlatformAccountProfileRow {
@@ -71,6 +105,21 @@ function accountWithProfile(row: PlatformAccountProfileRow): PlatformAccountWith
     return { account, profile };
 }
 
+function oauthIdentity(row: PlatformOAuthIdentityRow): PlatformOAuthIdentity {
+    return {
+        ...accountWithProfile(row),
+        oauth: {
+            provider_code: row.oauth_provider_code,
+            provider_subject: row.oauth_provider_subject,
+            account_id: row.oauth_account_id,
+            provider_display_name: row.oauth_provider_display_name,
+            provider_avatar_url: row.oauth_provider_avatar_url,
+            created_at: row.oauth_created_at,
+            updated_at: row.oauth_updated_at
+        }
+    };
+}
+
 function emailIdentity(row: PlatformEmailIdentityRow): PlatformEmailIdentity {
     return {
         ...accountWithProfile(row),
@@ -103,6 +152,21 @@ function isEmailConflict(error: unknown): boolean {
         );
 }
 
+function isOAuthIdentityConflict(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const candidate = error as { code?: unknown; constraint?: unknown; message?: unknown };
+    if (
+        candidate.code === '23505' &&
+        (candidate.constraint === 'platform_oauth_identities_pkey' ||
+            candidate.constraint === 'platform_oauth_identities_account_id_provider_code_key')
+    ) {
+        return true;
+    }
+    return candidate.code === 'SQLITE_CONSTRAINT' &&
+        typeof candidate.message === 'string' &&
+        candidate.message.includes('platform_oauth_identities');
+}
+
 function conditionalSecurityEventValues(event: PlatformSecurityEventInput): unknown[] {
     return [
         event.id,
@@ -115,7 +179,7 @@ function conditionalSecurityEventValues(event: PlatformSecurityEventInput): unkn
     ];
 }
 
-export class SqlPlatformAccountRepository implements PlatformAccountRepository {
+export class SqlPlatformAccountRepository implements PlatformAccountRepository, PlatformOAuthProviderStore {
     private initialized?: Promise<void>;
     private writeTail: Promise<void> = Promise.resolve();
 
@@ -177,6 +241,218 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository {
         const created = await this.findAccountWithProfileById(input.id);
         if (!created) throw new Error('Platform account was not created');
         return created;
+    }
+
+    async listOAuthProviderConfigs(): Promise<PlatformOAuthProviderConfigRecord[]> {
+        const result = await sqlStatement(
+            this.database,
+            `SELECT code, display_name, enabled, client_id_ciphertext,
+                    client_secret_ciphertext, redirect_uri, updated_at
+             FROM platform_oauth_providers
+             ORDER BY code`,
+            []
+        ).all<PlatformOAuthProviderRow>();
+        return result.results.map((row) => ({
+            code: row.code,
+            displayName: row.display_name,
+            icon: row.code,
+            enabled: row.enabled === true || row.enabled === 1 || row.enabled === 't',
+            clientIdCiphertext: row.client_id_ciphertext,
+            clientSecretCiphertext: row.client_secret_ciphertext,
+            redirectUri: row.redirect_uri,
+            updatedAt: row.updated_at
+        }));
+    }
+
+    async updateOAuthProviderConfig(input: {
+        code: PlatformOAuthProviderConfigRecord['code'];
+        displayName: string;
+        enabled: boolean;
+        clientIdCiphertext: string | null;
+        clientSecretCiphertext: string | null;
+        redirectUri: string | null;
+        expectedUpdatedAt: number;
+        updatedAt: number;
+    }): Promise<
+        | { status: 'saved'; provider: PlatformOAuthProviderConfigRecord }
+        | { status: 'conflict'; provider: PlatformOAuthProviderConfigRecord }
+        | { status: 'not-found' }
+    > {
+        const result = await sqlStatement(
+            this.database,
+            `UPDATE platform_oauth_providers
+             SET display_name=?, enabled=?, client_id_ciphertext=?,
+                 client_secret_ciphertext=?, redirect_uri=?, updated_at=?
+             WHERE code=? AND updated_at=?
+             RETURNING code, display_name, enabled, client_id_ciphertext,
+                       client_secret_ciphertext, redirect_uri, updated_at`,
+            [
+                input.displayName,
+                input.enabled,
+                input.clientIdCiphertext,
+                input.clientSecretCiphertext,
+                input.redirectUri,
+                input.updatedAt,
+                input.code,
+                input.expectedUpdatedAt
+            ]
+        ).all<PlatformOAuthProviderRow>();
+        const row = result.results[0];
+        if (row) {
+            const provider = (await this.listOAuthProviderConfigs()).find(
+                (candidate) => candidate.code === row.code
+            );
+            if (!provider) throw new Error('OAuth provider was not returned after update');
+            return { status: 'saved', provider };
+        }
+        const current = (await this.listOAuthProviderConfigs()).find(
+            (candidate) => candidate.code === input.code
+        );
+        return current ? { status: 'conflict', provider: current } : { status: 'not-found' };
+    }
+
+    async createOAuthState(input: NewPlatformOAuthStateInput): Promise<void> {
+        await this.serializeWrite(() => this.database.batch([
+            sqlStatement(
+                this.database,
+                `DELETE FROM platform_oauth_states WHERE expires_at<=?`,
+                [input.createdAt]
+            ),
+            sqlStatement(
+                this.database,
+                `INSERT INTO platform_oauth_states
+                    (state_hash, provider_code, intent, linking_account_id,
+                     code_verifier, return_path, expires_at, created_at)
+                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?)`,
+                [
+                    input.stateHash,
+                    input.providerCode,
+                    input.intent,
+                    input.codeVerifier,
+                    input.returnPath,
+                    input.expiresAt,
+                    input.createdAt
+                ]
+            )
+        ]));
+    }
+
+    async consumeOAuthState(
+        stateHash: string,
+        providerCode: PlatformOAuthProviderCode,
+        consumedAt: number
+    ): Promise<PlatformOAuthStateRecord | null> {
+        const result = await sqlStatement(
+            this.database,
+            `DELETE FROM platform_oauth_states
+             WHERE state_hash=? AND provider_code=? AND intent='login'
+               AND expires_at>?
+             RETURNING state_hash, provider_code, intent, linking_account_id,
+                       code_verifier, return_path, expires_at, created_at`,
+            [stateHash, providerCode, consumedAt]
+        ).all<PlatformOAuthStateRecord>();
+        return result.results[0] ?? null;
+    }
+
+    async findOAuthIdentity(
+        providerCode: PlatformOAuthProviderCode,
+        providerSubject: string
+    ): Promise<PlatformOAuthIdentity | null> {
+        const row = await queryOne<PlatformOAuthIdentityRow>(
+            this.database,
+            `SELECT accounts.id, accounts.status, accounts.token_version,
+                    accounts.created_at, accounts.updated_at, accounts.deleted_at,
+                    profiles.account_id AS profile_account_id,
+                    profiles.display_name AS profile_display_name,
+                    profiles.avatar_object_key AS profile_avatar_object_key,
+                    profiles.avatar_external_url AS profile_avatar_external_url,
+                    profiles.home_city AS profile_home_city,
+                    profiles.bio AS profile_bio,
+                    profiles.updated_at AS profile_updated_at,
+                    identities.provider_code AS oauth_provider_code,
+                    identities.provider_subject AS oauth_provider_subject,
+                    identities.account_id AS oauth_account_id,
+                    identities.provider_display_name AS oauth_provider_display_name,
+                    identities.provider_avatar_url AS oauth_provider_avatar_url,
+                    identities.created_at AS oauth_created_at,
+                    identities.updated_at AS oauth_updated_at
+             FROM platform_oauth_identities identities
+             JOIN platform_accounts accounts ON accounts.id=identities.account_id
+             JOIN platform_profiles profiles ON profiles.account_id=accounts.id
+             WHERE identities.provider_code=? AND identities.provider_subject=?`,
+            [providerCode, providerSubject]
+        );
+        return row ? oauthIdentity(row) : null;
+    }
+
+    async createOAuthAccount(
+        input: NewPlatformOAuthAccountInput
+    ): Promise<CreatePlatformOAuthAccountResult> {
+        try {
+            await this.serializeWrite(() => this.database.batch([
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO platform_accounts
+                        (id, status, token_version, created_at, updated_at, deleted_at)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                        input.id,
+                        input.status,
+                        input.tokenVersion,
+                        input.createdAt,
+                        input.updatedAt,
+                        input.deletedAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO platform_profiles
+                        (account_id, display_name, avatar_object_key,
+                         avatar_external_url, home_city, bio, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        input.id,
+                        input.profile.displayName,
+                        input.profile.avatarObjectKey,
+                        input.profile.avatarExternalUrl,
+                        input.profile.homeCity,
+                        input.profile.bio,
+                        input.profile.updatedAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO platform_oauth_identities
+                        (provider_code, provider_subject, account_id,
+                         provider_display_name, provider_avatar_url,
+                         created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        input.oauth.providerCode,
+                        input.oauth.providerSubject,
+                        input.id,
+                        input.oauth.providerDisplayName,
+                        input.oauth.providerAvatarUrl,
+                        input.oauth.createdAt,
+                        input.oauth.updatedAt
+                    ]
+                )
+            ]));
+        } catch (error) {
+            if (!isOAuthIdentityConflict(error)) throw error;
+            const existing = await this.findOAuthIdentity(
+                input.oauth.providerCode,
+                input.oauth.providerSubject
+            );
+            if (!existing) throw error;
+            return { status: 'identity-conflict', identity: existing };
+        }
+        const identity = await this.findOAuthIdentity(
+            input.oauth.providerCode,
+            input.oauth.providerSubject
+        );
+        if (!identity) throw new Error('Platform OAuth account was not created');
+        return { status: 'created', identity };
     }
 
     async createEmailAccount(
@@ -581,6 +857,286 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository {
             [id]
         );
         return row ? accountWithProfile(row) : null;
+    }
+
+    issuePasswordReset(
+        input: PlatformPasswordResetInput
+    ): Promise<IssuePlatformPasswordResetResult> {
+        return this.serializeWrite(async () => {
+            const account = await queryOne<{ account_id: string }>(
+                this.database,
+                `SELECT account_id FROM platform_email_credentials
+                 WHERE normalized_email=?`,
+                [input.normalizedEmail]
+            );
+            if (!account) return { status: 'email-not-found' };
+            const [, result] = await this.database.batch<{ resend_after: number }>([
+                sqlStatement(
+                    this.database,
+                    `DELETE FROM platform_password_reset_codes
+                     WHERE expires_at<=?
+                       AND (pending_token IS NULL OR pending_expires_at<=?)
+                       AND normalized_email IN (
+                         SELECT normalized_email
+                         FROM platform_password_reset_codes
+                         WHERE expires_at<=?
+                           AND (pending_token IS NULL OR pending_expires_at<=?)
+                         ORDER BY expires_at, normalized_email
+                         LIMIT ${EMAIL_VERIFICATION_CLEANUP_LIMIT}
+                     )`,
+                    [
+                        input.createdAt,
+                        input.createdAt,
+                        input.createdAt,
+                        input.createdAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO platform_password_reset_codes
+                        (normalized_email, code_hash, expires_at, resend_after,
+                         attempts_remaining, consumed_at, created_at, updated_at,
+                         delivery_token)
+                     VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+                     ON CONFLICT(normalized_email) DO UPDATE SET
+                        pending_token=excluded.delivery_token,
+                        pending_code_hash=excluded.code_hash,
+                        pending_expires_at=excluded.expires_at,
+                        pending_resend_after=excluded.resend_after,
+                        pending_attempts_remaining=excluded.attempts_remaining,
+                        pending_created_at=excluded.created_at,
+                        consumed_at=NULL
+                     WHERE platform_password_reset_codes.delivery_token IS NULL
+                       AND platform_password_reset_codes.resend_after<=excluded.created_at
+                       AND (
+                           platform_password_reset_codes.pending_token IS NULL
+                           OR platform_password_reset_codes.pending_expires_at<=
+                                excluded.created_at
+                       )
+                     RETURNING resend_after`,
+                    [
+                        input.normalizedEmail,
+                        input.codeHash,
+                        input.expiresAt,
+                        input.resendAfter,
+                        input.attemptsRemaining,
+                        input.createdAt,
+                        input.createdAt,
+                        input.deliveryToken
+                    ]
+                )
+            ]);
+            if (result?.results.length === 1) return { status: 'issued' };
+            const current = await queryOne<{ retry_after: number }>(
+                this.database,
+                `SELECT CASE
+                            WHEN delivery_token IS NOT NULL THEN expires_at
+                            WHEN pending_token IS NOT NULL AND pending_expires_at>?
+                                THEN pending_expires_at
+                            ELSE resend_after
+                        END AS retry_after
+                 FROM platform_password_reset_codes
+                 WHERE normalized_email=?`,
+                [input.createdAt, input.normalizedEmail]
+            );
+            return {
+                status: 'cooldown',
+                retryAfterMs: Math.max(
+                    1,
+                    Number(current?.retry_after ?? input.resendAfter) - input.createdAt
+                )
+            };
+        });
+    }
+
+    async completePasswordResetDelivery(
+        normalizedEmail: string,
+        deliveryToken: string
+    ): Promise<boolean> {
+        const result = await sqlStatement(
+            this.database,
+            `UPDATE platform_password_reset_codes
+             SET code_hash=pending_code_hash,
+                 expires_at=pending_expires_at,
+                 resend_after=pending_resend_after,
+                 attempts_remaining=pending_attempts_remaining,
+                 created_at=pending_created_at,
+                 updated_at=pending_created_at,
+                 delivery_token=?,
+                 pending_token=NULL,
+                 pending_code_hash=NULL,
+                 pending_expires_at=NULL,
+                 pending_resend_after=NULL,
+                 pending_attempts_remaining=NULL,
+                 pending_created_at=NULL
+             WHERE normalized_email=? AND pending_token=?
+             RETURNING normalized_email`,
+            [deliveryToken, normalizedEmail, deliveryToken]
+        ).all();
+        return result.results.length === 1;
+    }
+
+    async revokePasswordReset(
+        normalizedEmail: string,
+        deliveryToken: string
+    ): Promise<void> {
+        await this.serializeWrite(() => this.database.batch([
+            sqlStatement(
+                this.database,
+                `DELETE FROM platform_password_reset_codes
+                 WHERE normalized_email=? AND delivery_token=?`,
+                [normalizedEmail, deliveryToken]
+            ),
+            sqlStatement(
+                this.database,
+                `UPDATE platform_password_reset_codes
+                 SET pending_token=NULL, pending_code_hash=NULL,
+                     pending_expires_at=NULL, pending_resend_after=NULL,
+                     pending_attempts_remaining=NULL, pending_created_at=NULL,
+                     updated_at=?
+                 WHERE normalized_email=? AND pending_token=?`,
+                [Date.now(), normalizedEmail, deliveryToken]
+            )
+        ]));
+    }
+
+    async completePasswordReset(
+        input: CompletePlatformPasswordResetInput
+    ): Promise<CompletePlatformPasswordResetResult> {
+        return this.serializeWrite(async () => {
+            const identity = await queryOne<{ account_id: string }>(
+                this.database,
+                `SELECT credentials.account_id
+                 FROM platform_email_credentials credentials
+                 JOIN platform_accounts accounts ON accounts.id=credentials.account_id
+                 WHERE credentials.normalized_email=?
+                   AND accounts.status IN ('active', 'restricted')`,
+                [input.normalizedEmail]
+            );
+            if (!identity) return { status: 'invalid' };
+            const results = await this.database.batch<{ consumed_at: number }>([
+                sqlStatement(
+                    this.database,
+                    `UPDATE platform_password_reset_codes
+                     SET attempts_remaining=attempts_remaining-
+                            CASE WHEN code_hash=? THEN 0 ELSE 1 END,
+                         consumed_at=CASE WHEN code_hash=? THEN ? ELSE NULL END,
+                         updated_at=?
+                     WHERE normalized_email=? AND delivery_token IS NULL
+                       AND expires_at>? AND attempts_remaining>0
+                       AND EXISTS (
+                           SELECT 1 FROM platform_email_credentials credentials
+                           JOIN platform_accounts accounts
+                             ON accounts.id=credentials.account_id
+                           WHERE credentials.normalized_email=?
+                             AND accounts.status IN ('active', 'restricted')
+                       )
+                     RETURNING consumed_at`,
+                    [
+                        input.codeHash,
+                        input.codeHash,
+                        input.updatedAt,
+                        input.updatedAt,
+                        input.normalizedEmail,
+                        input.updatedAt,
+                        input.normalizedEmail
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `UPDATE platform_email_credentials
+                     SET algorithm='bcrypt', parameters_json=?, salt=NULL,
+                         password_hash=?, updated_at=?
+                     WHERE normalized_email=? AND account_id=?
+                       AND EXISTS (
+                           SELECT 1 FROM platform_password_reset_codes
+                           WHERE normalized_email=? AND code_hash=?
+                             AND consumed_at=?
+                       )`,
+                    [
+                        input.parametersJson,
+                        input.passwordHash,
+                        input.updatedAt,
+                        input.normalizedEmail,
+                        identity.account_id,
+                        input.normalizedEmail,
+                        input.codeHash,
+                        input.updatedAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `UPDATE platform_accounts
+                     SET token_version=token_version+1, updated_at=?
+                     WHERE id=? AND EXISTS (
+                         SELECT 1 FROM platform_password_reset_codes
+                         WHERE normalized_email=? AND code_hash=? AND consumed_at=?
+                     )`,
+                    [
+                        input.updatedAt,
+                        identity.account_id,
+                        input.normalizedEmail,
+                        input.codeHash,
+                        input.updatedAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `UPDATE platform_refresh_sessions
+                     SET revoked_at=?, updated_at=?
+                     WHERE account_id=? AND revoked_at IS NULL
+                       AND EXISTS (
+                           SELECT 1 FROM platform_password_reset_codes
+                           WHERE normalized_email=? AND code_hash=? AND consumed_at=?
+                       )`,
+                    [
+                        input.updatedAt,
+                        input.updatedAt,
+                        identity.account_id,
+                        input.normalizedEmail,
+                        input.codeHash,
+                        input.updatedAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO platform_security_events
+                        (id, account_id, event_type, request_id, ip_address,
+                         user_agent, metadata_json, created_at)
+                     SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                     WHERE EXISTS (
+                         SELECT 1 FROM platform_password_reset_codes
+                         WHERE normalized_email=? AND code_hash=? AND consumed_at=?
+                     )`,
+                    [
+                        input.event.id,
+                        identity.account_id,
+                        input.event.eventType,
+                        input.event.requestId,
+                        input.event.ipAddress,
+                        input.event.userAgent,
+                        input.event.metadataJson,
+                        input.event.createdAt,
+                        input.normalizedEmail,
+                        input.codeHash,
+                        input.updatedAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `DELETE FROM platform_password_reset_codes
+                     WHERE normalized_email=? AND code_hash=? AND consumed_at=?`,
+                    [input.normalizedEmail, input.codeHash, input.updatedAt]
+                )
+            ]);
+            const consumed = results[0]?.results[0]?.consumed_at;
+            if (Number(consumed) !== input.updatedAt || results[1]?.meta.changes !== 1) {
+                return { status: 'invalid' };
+            }
+            const account = await this.findAccountWithProfileById(identity.account_id);
+            if (!account) return { status: 'invalid' };
+            return { status: 'completed', account };
+        });
     }
 
     async findEmailIdentity(normalizedEmail: string): Promise<PlatformEmailIdentity | null> {

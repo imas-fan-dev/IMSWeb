@@ -4,6 +4,7 @@ import {
   CalendarDaysIcon,
   HistoryIcon,
   InfoIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   MapPinnedIcon,
   NewspaperIcon,
@@ -87,6 +88,14 @@ const workspaces = [
     icon: HistoryIcon,
     accent: "bg-franchise-gk",
     scope: ["投稿审核", "活动图片"],
+  },
+  {
+    title: "OAuth 登录",
+    description: "动态管理第三方登录凭据",
+    to: "/admin/platform/oauth",
+    icon: KeyRoundIcon,
+    accent: "bg-franchise-765",
+    scope: ["Google", "GitHub", "加密存储"],
   },
 ]
 

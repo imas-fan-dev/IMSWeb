@@ -3,9 +3,15 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
 import {
+    fudabaCardMutationResponseSchema,
+    fudabaOwnerCardDetailSchema,
+    fudabaOwnerCardListSchema,
+} from '@imsweb/contracts/fudaba';
+import { platformProfileMutationResponseSchema } from '@imsweb/contracts/platform';
+import {
     PLATFORM_ACCESS_TOKEN_COOKIE,
     PLATFORM_CSRF_TOKEN_COOKIE
-} from '@/domains/platform-auth/platform-auth-session';
+} from '@/domains/identity/platform-auth/contracts/session';
 import type { RateLimiter } from '@/ports/cache';
 import type {
     ParsedUpload,
@@ -910,6 +916,7 @@ test('Platform profile GET and text update expose a fenced owner projection', as
     const savedBody = await saved.json() as {
         profile: { displayName: string; updatedAt: number };
     };
+    platformProfileMutationResponseSchema.parse(savedBody);
     assert.equal(savedBody.profile.displayName, 'Updated Owner');
     assert.ok(savedBody.profile.updatedAt > expectedUpdatedAt);
     assert.equal(fixture.profileTextInputs[0]?.accountId, ACCOUNT_ID);
@@ -937,6 +944,7 @@ test('owner card list and detail hide non-owner cards and raw object keys', asyn
     const listBody = await list.json() as {
         items: Array<{ id: string; frontImageUrl: string; backImageUrl: string }>;
     };
+    fudabaOwnerCardListSchema.parse(listBody);
     assert.equal(listBody.items.length, 1);
     assert.equal(listBody.items[0]?.id, 'owner-card');
     assert.equal(listBody.items[0]?.frontImageUrl,
@@ -949,7 +957,8 @@ test('owner card list and detail hide non-owner cards and raw object keys', asyn
         { headers: bearerHeaders() }
     );
     assert.equal(detail.status, 200);
-    assert.equal(JSON.stringify(await detail.json()).includes('object_key'), false);
+    const detailBody = fudabaOwnerCardDetailSchema.parse(await detail.json());
+    assert.equal(JSON.stringify(detailBody).includes('object_key'), false);
     assert.equal((await fixture.app.request(
         'http://ims.test/api/community/exchange/me/cards/other-card',
         { headers: bearerHeaders() }
@@ -961,6 +970,7 @@ test('card creation sniffs both images and writes only protected owner objects',
     const response = await postCard(fixture);
     const body = await response.json();
     assert.equal(response.status, 201, JSON.stringify(body));
+    fudabaCardMutationResponseSchema.parse(body);
     const serialized = JSON.stringify(body);
     assert.equal(serialized.includes('object_key'), false);
     assert.equal(serialized.includes('protected/fudaba'), false);

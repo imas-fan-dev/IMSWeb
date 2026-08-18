@@ -30,7 +30,7 @@ const initializedPostgresSchema: SqlSchemaStrategy = {
 interface Fixture {
     database: ManagedSqlDatabase;
     repository: SqlFudabaRepository;
-    dialect: 'sqlite' | 'postgresql';
+    dialect: 'postgresql';
 }
 
 async function createFixture(
@@ -285,7 +285,7 @@ async function assertCardPlacementRepository(
 
     await fixture.database.prepare(
         'UPDATE agencies SET wiki_enabled=? WHERE code=?'
-    ).bind(dialect === 'sqlite' ? 0 : false, 'sidem').run();
+    ).bind(false, 'sidem').run();
     for (const unavailable of [
         placementInput(officeId, `${dialect}-other-card`, ownerId, null),
         placementInput(officeId, `${dialect}-pending-card`, ownerId, null),
@@ -346,7 +346,7 @@ async function assertCardPlacementRepository(
     assert.equal(closedRemoval.status, 'saved');
     await fixture.database.prepare(
         'UPDATE fudaba_offices SET is_open=? WHERE id=?'
-    ).bind(dialect === 'sqlite' ? 0 : false, officeId).run();
+    ).bind(false, officeId).run();
     assert.deepEqual(
         await fixture.repository.saveCardPlacementForOwner(
             placementInput(officeId, cardId, ownerId, 1, ARCHIVED_AT)
@@ -367,7 +367,7 @@ async function assertCardPlacementRepository(
     }), { status: 'removed', revision: 1 });
     await fixture.database.prepare(
         'UPDATE fudaba_offices SET is_open=? WHERE id=?'
-    ).bind(dialect === 'sqlite' ? 1 : true, officeId).run();
+    ).bind(true, officeId).run();
     assert.equal(await fixture.repository.updateOfficeStatusForOwner({
         officeId,
         ownerAccountId: ownerId,

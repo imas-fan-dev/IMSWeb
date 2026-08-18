@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
-import { PLATFORM_ACCESS_TOKEN_COOKIE } from '@/domains/platform-auth/platform-auth-session';
+import {
+    fudabaCardPageSchema,
+    fudabaOfficeDetailSchema,
+    fudabaOfficePageSchema,
+} from '@imsweb/contracts/fudaba';
+import { PLATFORM_ACCESS_TOKEN_COOKIE } from '@/domains/identity/platform-auth/contracts/session';
 import type {
     FudabaPublicCardRecord,
     FudabaPublicOfficeDetailRecord,
@@ -290,6 +295,7 @@ test('anonymous Fudaba discovery exposes only public projections and stable curs
         items: Record<string, unknown>[];
         pageInfo: { hasNextPage: boolean; nextCursor: string };
     };
+    fudabaOfficePageSchema.parse(body);
     assert.equal(body.pageInfo.hasNextPage, true);
     assert.ok(body.pageInfo.nextCursor);
     assert.equal(body.items[0].coverUrl,
@@ -329,6 +335,7 @@ test('valid Platform auth adds viewer flags while Backoffice remains anonymous',
     const body = await authenticated.json() as {
         items: Array<{ interactions: { viewerLiked: boolean; viewerFavorited: boolean } }>;
     };
+    fudabaCardPageSchema.parse(body);
     assert.deepEqual(body.items[0].interactions, {
         likes: 2,
         favorites: 1,
@@ -350,6 +357,7 @@ test('valid Platform auth adds viewer flags while Backoffice remains anonymous',
             }>;
         };
     };
+    fudabaOfficeDetailSchema.parse(officeBody);
     assert.equal(officeBody.office.cards[0]?.viewerOwned, true);
     assert.deepEqual(officeBody.office.cards[0]?.placement, {
         pinnedAt: CREATED_AT,

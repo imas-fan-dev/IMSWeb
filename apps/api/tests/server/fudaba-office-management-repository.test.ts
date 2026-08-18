@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test, { type TestContext } from 'node:test';
-import { PostgresConnection } from '@/infra/db/postgresql/connection';
+import type { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {
     ManagedSqlDatabase,
@@ -35,7 +35,7 @@ const initializedPostgresSchema: SqlSchemaStrategy = {
 interface Fixture {
     database: ManagedSqlDatabase;
     repository: SqlFudabaRepository;
-    dialect: 'sqlite' | 'postgresql';
+    dialect: 'postgresql';
 }
 
 class InterleavingStatement implements SqlStatement {
@@ -398,15 +398,10 @@ async function assertOfficeManagement(fixture: Fixture): Promise<void> {
         seriesCodes: ['cg', 'sidem'],
         updatedAt: LATER_AT
     });
-    const casResults = fixture.dialect === 'postgresql'
-        ? await Promise.all([
-            fixture.repository.updateOfficeForOwner(first),
-            sibling.updateOfficeForOwner(second)
-        ])
-        : [
-            await fixture.repository.updateOfficeForOwner(first),
-            await sibling.updateOfficeForOwner(second)
-        ];
+    const casResults = await Promise.all([
+        fixture.repository.updateOfficeForOwner(first),
+        sibling.updateOfficeForOwner(second)
+    ]);
     assert.deepEqual(
         casResults.map((result) => result.status).sort(),
         ['conflict', 'saved']

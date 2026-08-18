@@ -12,6 +12,10 @@ The same rule applies to ORMs: domain code must not import Prisma Client or gene
 
 Do not create `src/shared`. Hono request context and request path policies belong in `middleware/`; frontend route decisions belong in `routing/`; runtime-neutral pure functions belong under `utils/{crypto,http,media,storage,validation}`. Do not add utility barrels, `index.ts`, `utils.ts`, or `helpers.ts`. SQL helpers belong to `infra/db/sql`; concrete middleware and runtime selection never belong in `utils`.
 
+### Domain capability structure
+
+Keep `src/domains/<domain>/routes.ts(x)` as the stable composition entry. Small domains may keep a flat `handlers/` directory; a domain with separate actors, permissions, lifecycles, or route prefixes should use directly named capability directories such as `fudaba/cards/` or `wiki/story-content/`. Each capability owns its handlers, request models, response models, and named policies. Capability code must not import another capability's handler or route; use a narrow `contracts/` module or an explicit port/command for collaboration. Do not add new generic `handler-support.ts`, `helpers.ts`, `utils.ts`, `models.ts`, or catch-all `service.ts` files. See [`docs/domain-capability-architecture.md`](../../docs/domain-capability-architecture.md) and the local index at `src/domains/README.md` before adding a capability.
+
 ## Commands
 
 Run from this directory, or use `pnpm --filter @imsweb/api run <script>` at the repository root:

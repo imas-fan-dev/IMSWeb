@@ -7,7 +7,7 @@ const {
     defaultInformationIndex,
     parseInformationIndex,
     serializeInformationIndex
-} = require('../../src/domains/information/data.ts');
+} = require('../../src/domains/content/information/data.ts');
 const { contentTypeForPath } = require('../../src/utils/http/content-type.ts');
 const {
     INFORMATION_INDEX_OBJECT_KEY,

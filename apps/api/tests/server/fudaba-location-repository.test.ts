@@ -33,7 +33,7 @@ const initializedPostgresSchema: SqlSchemaStrategy = {
 interface Fixture {
     database: ManagedSqlDatabase;
     repository: SqlFudabaRepository;
-    dialect: 'sqlite' | 'postgresql';
+    dialect: 'postgresql';
 }
 
 async function createFixture(
@@ -93,9 +93,8 @@ function office(
 }
 
 async function seedReviewer(fixture: Fixture): Promise<number> {
-    const table = fixture.dialect === 'sqlite' ? 'users' : 'backoffice_accounts';
     const row = await fixture.database.prepare(
-        `INSERT INTO ${table}
+        `INSERT INTO backoffice_accounts
             (username, password, dept, producername, admin_role)
          VALUES (?, 'hash', 'op', 'Reviewer', 'admin')
          RETURNING id`
@@ -145,16 +144,6 @@ function reviewAudit(target: string) {
 }
 
 async function installFailingAuditTrigger(fixture: Fixture): Promise<void> {
-    if (fixture.dialect === 'sqlite') {
-        await fixture.database.executeScript(`
-            CREATE TRIGGER fail_fudaba_location_audit
-            BEFORE INSERT ON logs
-            BEGIN
-                SELECT RAISE(FAIL, 'forced Fudaba location audit failure');
-            END;
-        `);
-        return;
-    }
     await fixture.database.executeScript(`
         CREATE FUNCTION fail_fudaba_location_audit()
         RETURNS trigger LANGUAGE plpgsql AS $$
@@ -169,12 +158,6 @@ async function installFailingAuditTrigger(fixture: Fixture): Promise<void> {
 }
 
 async function removeFailingAuditTrigger(fixture: Fixture): Promise<void> {
-    if (fixture.dialect === 'sqlite') {
-        await fixture.database.executeScript(
-            'DROP TRIGGER fail_fudaba_location_audit;'
-        );
-        return;
-    }
     await fixture.database.executeScript(`
         DROP TRIGGER fail_fudaba_location_audit ON logs;
         DROP FUNCTION fail_fudaba_location_audit();
@@ -381,7 +364,7 @@ async function assertLocationRepository(
 
     await fixture.database.prepare(
         "UPDATE agencies SET wiki_enabled=? WHERE code='sidem'"
-    ).bind(dialect === 'sqlite' ? 0 : false).run();
+    ).bind(false).run();
     const publicInputs = [
         office('map-negative', ownerId, { city: 'Beijing', isOpen: false }),
         office('map-positive', ownerId),
@@ -469,7 +452,7 @@ async function assertLocationRepository(
         initializedPostgresSchema
     );
     assert.equal(await core.deleteAdminAccount(reviewerId), 'moderation-history');
-    const reviewerTable = dialect === 'sqlite' ? 'users' : 'backoffice_accounts';
+    const reviewerTable = 'backoffice_accounts';
     assert.equal(await fixture.database.prepare(
         `SELECT COUNT(*) AS count FROM ${reviewerTable} WHERE id=?`
     ).bind(reviewerId).first<number>('count'), 1);

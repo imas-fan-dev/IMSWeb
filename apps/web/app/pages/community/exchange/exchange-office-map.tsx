@@ -11,6 +11,13 @@ import {
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import { useEffect, useRef } from "react"
 
+import {
+  applyChinaBoundaryCompliance,
+  CHINA_CLAIM_BOUNDARY_LAYER_ID,
+  CHINA_DASH_FILL_LAYER_ID,
+  CHINA_DASH_LINE_LAYER_ID,
+  TAIWAN_PROVINCE_LABEL_LAYER_ID,
+} from "./exchange-boundary-compliance"
 import type { FudabaMapOfficeGroup } from "./exchange-map-model"
 import {
   resolveAllowedMapResourceUrl,
@@ -55,6 +62,20 @@ const portalMapLayerPaint: Readonly<
     "fill-outline-color": "#dde6ef",
   },
   boundary_2: { "line-color": "#afbed0", "line-opacity": 0.68 },
+  // 中国主张国界线与其余国界同色，视觉上不可区分。
+  [CHINA_CLAIM_BOUNDARY_LAYER_ID]: {
+    "line-color": "#afbed0",
+    "line-opacity": 0.68,
+  },
+  // 南海断续线：fill 填实，outline 保证低缩放下仍可见，两者同色。
+  [CHINA_DASH_FILL_LAYER_ID]: {
+    "fill-color": "#afbed0",
+    "fill-opacity": 0.68,
+  },
+  [CHINA_DASH_LINE_LAYER_ID]: {
+    "line-color": "#afbed0",
+    "line-opacity": 0.68,
+  },
   boundary_3: { "line-color": "#c5d1df", "line-opacity": 0.58 },
   boundary_disputed: {
     "line-color": "#b7c3d1",
@@ -147,6 +168,7 @@ const labelLayerIds = [
   "label_village",
   "label_town",
   "label_state",
+  TAIWAN_PROVINCE_LABEL_LAYER_ID,
   "label_city",
   "label_city_capital",
   "label_country_3",
@@ -411,7 +433,9 @@ export function ExchangeOfficeMap({
         center: [127.1, 31.2],
         zoom: 4.05,
         minZoom: 2.3,
-        maxZoom: 17,
+        // 公开点为 0.1 度网格（约 11 km），再放大既无信息增益，也会让
+        // 区域位置在视觉上退化为近似精确位置，违反区域投影的隐私合同。
+        maxZoom: 11,
         bearing: 0,
         pitch: 0,
         roll: 0,
@@ -540,6 +564,9 @@ export function ExchangeOfficeMap({
         "aria-label",
         "区域事务所地图。使用方向键移动地图，使用加减按钮缩放。"
       )
+      // 先按《公开地图内容表示规范》修正边界与注记，再统一配色，
+      // 使新增图层与既有图层走同一套门户配色。
+      applyChinaBoundaryCompliance(map)
       applyPortalMapPalette(map)
       map.addSource(officeSourceId, {
         type: "geojson",

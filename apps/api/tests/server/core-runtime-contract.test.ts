@@ -7,7 +7,11 @@ import { createHonoApp } from '@/app';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
-import { PostgresqlRateLimiter } from '@/infra/cache/postgresql/rate-limiter';
+import {
+    ValkeyRateLimiter,
+    valkeyRateLimitWindowKey
+} from '@/infra/cache/valkey/rate-limiter';
+import { FakeValkeyRateLimitServer } from './fake-valkey';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
@@ -195,7 +199,8 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     );
 
     const parser = new ControlledUploadParser();
-    const limiter = new PostgresqlRateLimiter(connection);
+    const valkey = new FakeValkeyRateLimitServer();
+    const limiter = new ValkeyRateLimiter(valkey, { keyPrefix: 'contract:' });
     const delegate = new FilesystemObjectStorage({ publicDir, uploadsDir, chronicleDir, storyDataDir });
     await delegate.put(
         'community/namecards/assets/contract-seed-front/image.webp',
@@ -383,11 +388,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         return (await response.json() as { token: string }).token;
     };
     const rateCount = async (bucket: string, client: string): Promise<number> =>
-        (await queryOne<{ consumed: number }>(connection,
-            `SELECT consumed FROM rate_limit_windows
-             WHERE bucket=? AND limit_key=?`,
-            [bucket, clientAddress(client)]
-        ))?.consumed ?? 0;
+        valkey.consumedFor(
+            valkeyRateLimitWindowKey('contract:', bucket, clientAddress(client))
+        );
 
     return {
         request,

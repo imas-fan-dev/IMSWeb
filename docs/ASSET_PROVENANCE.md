@@ -62,3 +62,4 @@ not committed to `apps/web/public/`.
 | Local asset | Original source | Purpose |
 | --- | --- | --- |
 | `maps/china-provinces.json` | `https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json` (retrieved 2026-07-26; source linked by the public legacy page) | Province-level boundaries for the interactive Producer Map; the source's `100000_JD` inset and Hainan's remote South China Sea island polygons are intentionally omitted from the visual display |
+| `maps/china-boundary-dashes.json` | `https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json`, feature `100000_JD` only (retrieved 2026-08-18; same upstream file as the row above) | South China Sea dashed boundary for the Fudaba exchange map, required by the national public-map presentation standard |

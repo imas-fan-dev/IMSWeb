@@ -1,3 +1,4 @@
+import { namecardPageSchema } from '@imsweb/contracts/namecards';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
@@ -840,7 +841,9 @@ test('namecard public and admin pagination preserve parseInt aliases and fallbac
     for (const [query, repositoryArgs] of publicCases) {
         const response = await fixture.request(`/api/cards?${query}`);
         assert.equal(response.status, 200, query);
-        assert.deepEqual(await responseJson(response), { list: [], total: 0, totalPage: 0 });
+        const cardsBody = await responseJson(response);
+        namecardPageSchema.parse(cardsBody);
+        assert.deepEqual(cardsBody, { list: [], total: 0, totalPage: 0 });
         assert.deepEqual(fixture.calls.namecardListApproved.at(-1), repositoryArgs, query);
     }
 

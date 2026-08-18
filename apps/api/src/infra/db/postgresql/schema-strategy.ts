@@ -1,13 +1,16 @@
 import type {
     ManagedSqlDatabase,
-    SqlSchemaStrategy
-} from '@/infra/db/sql/database';
+    SqlSchemaStrategy,
+} from "@/infra/db/sql/database";
 
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20260816193000_namecard_ownership_foundation';
+    "20260818010000_platform_oauth_configuration";
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
-    private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();
+    private readonly verifications = new WeakMap<
+        ManagedSqlDatabase,
+        Promise<void>
+    >();
 
     private verify(database: ManagedSqlDatabase): Promise<void> {
         const existing = this.verifications.get(database);
@@ -20,19 +23,22 @@ export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private async verifyCurrent(database: ManagedSqlDatabase): Promise<void> {
         let migration: { version: string } | null;
         try {
-            migration = await database.prepare(
-                'SELECT version FROM ims_schema_migrations WHERE version=?'
-            ).bind(REQUIRED_POSTGRESQL_SCHEMA_VERSION).first<{ version: string }>();
+            migration = await database
+                .prepare(
+                    "SELECT version FROM ims_schema_migrations WHERE version=?",
+                )
+                .bind(REQUIRED_POSTGRESQL_SCHEMA_VERSION)
+                .first<{ version: string }>();
         } catch (error) {
             throw new Error(
-                'PostgreSQL schema is not initialized; run pnpm run migration:postgresql',
-                { cause: error }
+                "PostgreSQL schema is not initialized; run pnpm run migration:postgresql",
+                { cause: error },
             );
         }
         if (!migration) {
             throw new Error(
                 `PostgreSQL schema migration ${REQUIRED_POSTGRESQL_SCHEMA_VERSION} is required; ` +
-                'run pnpm run migration:postgresql'
+                    "run pnpm run migration:postgresql",
             );
         }
     }

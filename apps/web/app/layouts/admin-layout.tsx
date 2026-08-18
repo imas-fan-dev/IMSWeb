@@ -8,6 +8,7 @@ import {
   HistoryIcon,
   HomeIcon,
   InfoIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   LoaderCircleIcon,
   LogInIcon,
@@ -142,6 +143,14 @@ const navigation: Array<{
     description: "运营账号与访问控制",
     icon: UsersRoundIcon,
     accent: "bg-franchise-cg",
+    superOnly: true,
+  },
+  {
+    to: "/admin/platform/oauth",
+    label: "OAuth 登录",
+    description: "第三方登录凭据配置",
+    icon: KeyRoundIcon,
+    accent: "bg-franchise-765",
     superOnly: true,
   },
 ]

@@ -4,7 +4,7 @@ import { createHonoApp } from '@/app';
 import {
     decodeEventCursor,
     encodeEventCursor
-} from '@/domains/events/event-cursor';
+} from '@/domains/content/events/event-cursor';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { createPostgresTestDatabase } from './postgres-test-database';

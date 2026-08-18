@@ -39,3 +39,17 @@ Follow `.prettierrc`: two spaces, no semicolons, double quotes, 80 columns, and 
 ## Testing & UX
 
 Vitest and Testing Library files use `*.test.ts(x)`; Playwright files use `tests/e2e/*.spec.ts`. Cover loading, error, empty, and successful states for data-driven UI. Add an accessibility assertion or browser test for user-visible workflows. Confirm desktop and mobile layouts for visual changes and include screenshots in the PR. Mutating requests must use the shared CSRF mechanism rather than constructing headers ad hoc.
+
+## API Endpoints Layering (app/lib/api/endpoints)
+
+Mirror the `@imsweb/contracts` layout: one flat module per business domain, with
+folders only for multi-file businesses (`fudaba/`, `platform/`, `wiki/`) whose
+core module is `index.ts`. Endpoint modules import wire schemas from package
+subpaths and parse responses in `transform` callbacks; request-side input
+validation, `File`/`FormData` schemas, and UI-only types stay in the endpoint
+module. Modules mapping 1:1 to one package module re-export it via `export *`;
+multi-source modules use named imports and named re-exports only, keeping the
+endpoints barrel free of ambiguous exports. Import `z` from
+`@imsweb/contracts/z`, never from `zod` directly.
+Wire types come from the package alongside their schemas; endpoint modules keep
+only UI-semantic aliases, request/input types, and upload shapes.

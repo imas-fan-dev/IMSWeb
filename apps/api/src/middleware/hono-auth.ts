@@ -5,14 +5,14 @@ import {
     BACKOFFICE_CSRF_TOKEN_COOKIE,
     LEGACY_BACKOFFICE_CSRF_TOKEN_COOKIE,
     backofficeAccessTokenCookie
-} from '@/domains/backoffice-auth/backoffice-auth-session';
+} from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import {
     PLATFORM_ACCESS_TOKEN_COOKIE,
     PLATFORM_CSRF_TOKEN_COOKIE,
     clearPlatformAuthenticationCookies,
     hashPlatformAuthSecret,
     platformSecurityEvent
-} from '@/domains/platform-auth/platform-auth-session';
+} from '@/domains/identity/platform-auth/contracts/session';
 import {
     backofficeAuthRepository,
     platformAccountRepository,

@@ -74,7 +74,7 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
 | `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
 
-请求幂等记录和共享限流窗口由 PostgreSQL 持有，不再需要单机文件 journal 配置。
+请求幂等记录由 PostgreSQL 持有；共享限流窗口由 Valkey 通过原子 Lua 脚本持有（键为 SHA-256 匿名散列并随窗口 TTL 自动过期），生产多副本必须指向同一 Valkey。限流窗口是可丢失的短期状态，Valkey 重启只会重置限流计数，不影响幂等与账户数据。
 
 管理员会话使用 15 分钟的 access JWT 和 30 天滑动有效期的 refresh token。access 与 refresh
 分别写入 `ims_admin_access`、`ims_admin_refresh` 两个 `HttpOnly`、`SameSite=Lax` Cookie；
@@ -189,8 +189,9 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 
 ## 7. 入口与 TLS
 
-`deploy/compose.yaml` 可运行构建后的 Hono API、本地 PostgreSQL 和 RustFS，但不运行 Nginx、
-TLS 或其他正式入口。API 容器会在启动前幂等应用 migrations；RustFS 初始化服务创建一个
+`deploy/compose.yaml` 可运行构建后的 Hono API、本地 PostgreSQL、Valkey 和 RustFS，但不运行 Nginx、
+TLS 或其他正式入口。API 容器会在启动前幂等应用 migrations；Valkey 只承载可丢失的短期缓存，
+邮箱验证码和账户状态仍以 PostgreSQL 为准；RustFS 初始化服务创建一个
 bucket，并通过匿名读取策略拒绝 `__protected/`，用于验证签名读取和公开 CDN 路径语义。
 宿主机部署可使用 [`deploy/nginx/`](../deploy/nginx/README.md) 中的 Nginx 模板：主域名整体代理
 到 Hono，使 Web 与 API 同源；同机 RustFS 使用独立对象域名代理到回环 S3 API，且不暴露
@@ -249,6 +250,8 @@ test "$(readlink "$IMS_CURRENT_LINK")" = "$IMS_RELEASES_DIR/$PREVIOUS_RELEASE_ID
 - refresh 连续返回 `401`：检查 refresh Cookie 的 `/api` Path、CSRF header/cookie 是否一致，
   再检查会话是否过期、已登出撤销或因旧 refresh token 重放而整条会话被撤销。
 - PostgreSQL 就绪失败：检查连接预算、migration、锁等待和语句超时，再核对结构化数据库日志。
+- Valkey 就绪失败：检查 `IMS_CACHE_BACKEND`、`IMS_VALKEY_URL`、TLS/ACL、连接超时和 `PING`；
+  不得把验证码或账户状态迁移到缓存来规避数据库故障。
 - 图片 `404`：核对数据库逻辑路径、对象键和前缀；签名 URL 失败时检查 endpoint、时钟和权限。
 - 历史站点包删除后 OSS 空间未下降：按 `state` 汇总 `object_deletion_jobs`，检查 pending/failed 的
   `next_attempt_at` 与 `last_error`；`quarantined_at` 非空表示已达到重试上限，需要先修复权限、

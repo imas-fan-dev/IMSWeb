@@ -19,6 +19,10 @@ const toastMocks = vi.hoisted(() => ({
   success: vi.fn(),
 }))
 
+const sessionMocks = vi.hoisted(() => ({
+  useOptionalPlatformSession: vi.fn(),
+}))
+
 vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
@@ -33,8 +37,21 @@ vi.mock("sonner", () => ({
   toast: toastMocks,
 }))
 
+vi.mock("~/components/platform/platform-session-provider", () => ({
+  useOptionalPlatformSession: sessionMocks.useOptionalPlatformSession,
+}))
+
 describe("CommunityCardsPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      status: "anonymous",
+      session: null,
+      error: null,
+      acceptSession: vi.fn(),
+      reload: vi.fn(),
+      logout: vi.fn(),
+    })
     apiMocks.sendPage.mockResolvedValue({
       list: [],
       page: 1,
@@ -84,6 +101,66 @@ describe("CommunityCardsPage", () => {
       "2026-08-06T06:30:00.000Z"
     )
     expect(screen.queryByText("制作人名片 #459")).not.toBeInTheDocument()
+  })
+
+  it("shows the legacy-card claim action only for authenticated users", async () => {
+    apiMocks.sendPage.mockResolvedValue({
+      list: [
+        {
+          id: 42,
+          image1_url: "/uploads/front.webp",
+          image2_url: "/uploads/back.webp",
+          image1_thumbnail_url: "/uploads/namecard/thumbnail/front.webp.jpg",
+          image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+          status: "approved",
+          created_at: null,
+          claimStatus: "unclaimed",
+          viewerClaimState: null,
+        },
+      ],
+      page: 1,
+      perPage: 12,
+      total: 1,
+      totalPage: 1,
+    })
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
+    expect(
+      screen.queryByRole("button", { name: "认领这张旧名片" })
+    ).not.toBeInTheDocument()
+
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      status: "authenticated",
+      session: {
+        success: true,
+        account: { id: "platform-1", status: "active" },
+        profile: {
+          displayName: "春香P",
+          avatarUrl: null,
+          homeCity: null,
+          bio: "",
+        },
+      },
+      error: null,
+      acceptSession: vi.fn(),
+      reload: vi.fn(),
+      logout: vi.fn(),
+    })
+    rerender(
+      <MemoryRouter>
+        <CommunityCardsPage />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole("button", { name: "认领这张旧名片" })
+    ).toBeVisible()
   })
 
   it("opens the complete reaction picker and updates the selected count", async () => {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { sign as signJwt } from 'hono/utils/jwt/jwt';
 import { createHonoApp } from '@/app';
-import { hashBackofficeAuthSecret } from '@/domains/backoffice-auth/backoffice-auth-session';
+import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';

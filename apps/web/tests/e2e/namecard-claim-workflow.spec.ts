@@ -70,6 +70,15 @@ const catalog = {
 
 const favoriteIdol = { id: 1, name: "天海春香", seriesCode: "765" }
 
+async function mockAnonymousPlatformSession(page: Page) {
+  await page.route("**/api/platform/auth/session", async (route) => {
+    await route.fulfill({
+      status: 401,
+      json: { success: false, code: "PLATFORM_AUTH_REQUIRED" },
+    })
+  })
+}
+
 async function mockPlatformSession(page: Page) {
   await page.context().addCookies([
     {
@@ -94,6 +103,46 @@ async function mockPlatformSession(page: Page) {
     })
   })
 }
+
+test("anonymous visitors do not see the legacy-card claim action", async ({
+  page,
+}) => {
+  await mockAnonymousPlatformSession(page)
+  await page.route("**/api/cards**", async (route) => {
+    await route.fulfill({
+      json: {
+        list: [
+          {
+            id: 42,
+            seriesCode: "765",
+            favoriteIdols: [favoriteIdol],
+            claimStatus: "unclaimed",
+            viewerClaimState: null,
+            image1_url: FRONT_IMAGE,
+            image2_url: BACK_IMAGE,
+            image1_thumbnail_url: FRONT_IMAGE,
+            image2_thumbnail_url: BACK_IMAGE,
+            status: "approved",
+            created_at: "2026-08-16T19:30:00.000Z",
+          },
+        ],
+        total: 1,
+        totalPage: 1,
+      },
+    })
+  })
+  await page.route("**/api/reactions**", async (route) => {
+    await route.fulfill({ json: {} })
+  })
+
+  await page.goto("/community/cards")
+  await expect(
+    page.getByRole("button", { name: "查看制作人名片 42 正面" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "认领这张旧名片" })
+  ).toHaveCount(0)
+})
 
 test("registered user submits a legacy-card claim from the public wall", async ({
   page,
@@ -339,9 +388,7 @@ test("same-ID envelope asks the owner before submitting an admin-reviewed claim"
   await page.goto("/community/exchange/me")
   await expect(page.getByText("1 封待确认")).toBeVisible()
   await expect(page.getByText("历史名片 #42")).toBeVisible()
-  await page
-    .getByRole("button", { name: "是本人名片", exact: true })
-    .click()
+  await page.getByRole("button", { name: "是本人名片", exact: true }).click()
   await expect(page.getByText("当前没有待确认信封。")).toBeVisible()
   expect(responseBody).toEqual({ decision: "confirm", expectedRevision: 0 })
   expect(csrf).toBe("claim-workflow-csrf")

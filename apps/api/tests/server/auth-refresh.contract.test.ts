@@ -6,7 +6,7 @@ import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
-import { hashBackofficeAuthSecret } from '@/domains/backoffice-auth/backoffice-auth-session';
+import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { createPostgresTestDatabase } from './postgres-test-database';
 

@@ -4,19 +4,19 @@ import {
     validateEventFields,
     validateEventIdParams,
     validateEventListQuery
-} from '@/domains/events/request';
+} from '@/domains/content/events/request';
 import {
     validateAdminNamecardListQuery,
     validateNamecardIdParams,
     validateNamecardListQuery
-} from '@/domains/namecards/request';
+} from '@/domains/community/namecards/request';
 import {
     validateCompatibleNewsDeleteParams,
     validateNewsIdParams,
     validateNewsListQuery
-} from '@/domains/news/request';
-import { validateNewsSubmission } from '@/domains/news/submission';
-import { validateWikiAgencyIdParams } from '@/domains/wiki/request';
+} from '@/domains/content/news/request';
+import { validateNewsSubmission } from '@/domains/content/news/submission';
+import { validateWikiAgencyIdParams } from '@/domains/content/wiki/request';
 import { encodeDescendingIdCursor } from '@/utils/validation/descending-id-cursor';
 
 function rejects(run: () => unknown, message: RegExp): void {

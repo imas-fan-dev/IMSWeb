@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
-import { BRAND_ASSET_DEFINITIONS } from '@/domains/brand-assets/data';
+import { BRAND_ASSET_DEFINITIONS } from '@/domains/content/brand-assets/data';
 import type {
     ListedObject,
     ObjectReadTarget,

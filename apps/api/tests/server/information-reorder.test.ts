@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
-import { parseInformationIndex, serializeInformationIndex } from '@/domains/information/data';
+import { parseInformationIndex, serializeInformationIndex } from '@/domains/content/information/data';
 import type {
     ListedObject,
     ObjectStorage,

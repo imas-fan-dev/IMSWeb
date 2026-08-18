@@ -5,7 +5,7 @@ import {
     sitePackageContentCsp,
     sitePackageFrameAncestorOrigins,
     sitePackageRequestOrigin
-} from '@/domains/site-packages/site-package-support';
+} from '@/domains/delivery/site-packages/site-package-support';
 
 test('site-package content uses the current request origin', () => {
     const forwarded = new Request('http://upstream.test/sites/hiro-2026', {

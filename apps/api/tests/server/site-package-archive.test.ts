@@ -7,7 +7,7 @@ import {
     parseSitePackageArchive,
     SITE_PACKAGE_ARCHIVE_LIMITS,
     SitePackageArchiveError
-} from '@/domains/site-packages/package-archive';
+} from '@/domains/delivery/site-packages/package-archive';
 
 interface ArchiveFixtureEntry {
     readonly path: string;

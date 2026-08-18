@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { test } from 'node:test';
 import sharp from 'sharp';
-import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
+import { normalizeNamecardImage } from '@/domains/community/namecards/namecard-image';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
 import {

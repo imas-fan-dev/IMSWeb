@@ -35,7 +35,7 @@ interface Fixture {
     database: ManagedSqlDatabase;
     platform: SqlPlatformAccountRepository;
     fudaba: SqlFudabaRepository;
-    dialect: 'sqlite' | 'postgresql';
+    dialect: 'postgresql';
 }
 
 async function createFixture(

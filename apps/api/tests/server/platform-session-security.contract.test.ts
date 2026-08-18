@@ -167,7 +167,7 @@ function expectedSessionPayload(accountId: string, status: PlatformAccountStatus
 
 async function createFixture(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql' = 'postgresql'
+    dialect: 'postgresql' = 'postgresql'
 ): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
     const database = harness.connection;
@@ -580,7 +580,7 @@ test('Platform refresh requires cookie, header, and stored CSRF before rotating 
 
 async function assertRotationReplayAndLogout(
     t: TestContext,
-    dialect: 'sqlite' | 'postgresql'
+    dialect: 'postgresql'
 ): Promise<void> {
     const fixture = await createFixture(t, dialect);
     const session = await fixture.seedSession({ accountId: `${dialect}-rotation` });

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createNodeServices } from '@/runtime/node-services';
-import { agencyIconObjectKey, idolMediaObjectKey, storyObjectKey } from '@/domains/wiki/service';
+import { agencyIconObjectKey, idolMediaObjectKey, storyObjectKey } from '@/domains/content/wiki/service';
 import type { NodeRuntimeServices } from '@/ports/runtime-services';
 
 interface Options {

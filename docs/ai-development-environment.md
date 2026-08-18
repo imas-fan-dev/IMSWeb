@@ -55,13 +55,14 @@ pnpm dev
 1. 检查平台、Node/pnpm 版本、workspace 依赖、API/Web 端口和 Compose 运行时，不会终止
    占用端口的未知进程。
 2. 解析当前 Docker/Podman endpoint；只有 Unix socket、named pipe 或回环地址才允许继续。
-3. 从 `deploy/compose.yaml` 启动 PostgreSQL 与 RustFS，并等待数据库和 S3 API 就绪。
+3. 从 `deploy/compose.yaml` 启动 PostgreSQL、Valkey 与 RustFS，并等待数据库、缓存和 S3 API 就绪。
 4. 幂等初始化 RustFS bucket、公开读取策略与版本控制，再应用全部 PostgreSQL migrations。
 5. 启动 Hono `tsx watch`，等待真实 API 请求成功后启动 React Router Web。
 6. 通过 Web 开发代理再次探测 API，最后报告实际可访问地址。
 
-默认 Web 为 `http://127.0.0.1:5173`，API 为 `http://127.0.0.1:3000`，RustFS S3 API 为
-`http://127.0.0.1:9000`，控制台为 `http://127.0.0.1:9001`。需要避开已有端口时使用：
+默认 Web 为 `http://127.0.0.1:5173`，API 为 `http://127.0.0.1:3000`，Valkey 为
+`redis://127.0.0.1:6379`，RustFS S3 API 为 `http://127.0.0.1:9000`，控制台为
+`http://127.0.0.1:9001`。需要避开已有端口时使用：
 
 ```sh
 pnpm dev --api-port 3100 --web-port 5174
@@ -130,6 +131,11 @@ API 独立启动时自动读取 `apps/api/.env`，已有 shell 或进程管理�
 未填写必需值时原样用于开发。
 
 Platform 注册邮箱验证码在 `NODE_ENV=development` 且未设置
+Platform 缓存默认使用 Valkey；开发启动器会注入 `IMS_CACHE_BACKEND=valkey` 和本地
+`IMS_VALKEY_URL`。邮箱验证码哈希、尝试次数和消费仍由 PostgreSQL 保存，Valkey 只保存不含
+邮箱和验证码的短期 cooldown 标记，缓存异常时回退 PostgreSQL。
+
+Platform 注册邮箱验证码在 `NODE_ENV=development` 且未设置
 `IMS_PLATFORM_EMAIL_DELIVERY` 时默认使用 `console`，只把验证码写入本地 API 日志。也可显式
 设置为 `disabled` 或 `console`；`disabled` 会让验证码发送不可用。生产环境禁止 `console`，
 上线时必须设置 `IMS_PLATFORM_EMAIL_DELIVERY=cloudflare`，并配置
@@ -143,11 +149,13 @@ Platform 注册邮箱验证码在 `NODE_ENV=development` 且未设置
 
 ```sh
 pnpm run dev:postgresql:up
+docker compose --profile local-cache -f deploy/compose.yaml up -d valkey
 pnpm run dev:rustfs:up
 docker compose -f deploy/compose.yaml ps postgres rustfs rustfs-init
 ```
 
-RustFS S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
+Valkey 位于 `redis://127.0.0.1:6379`，可用上述 Compose 命令单独启动；缓存数据
+是短期数据，不执行业务数据恢复。RustFS S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
 `http://127.0.0.1:9001`。`pnpm run dev:rustfs:down` 默认保留 `rustfs-data` 卷；只有明确
 需要清空测试对象时才可另外执行带 `--volumes` 的 Compose 清理。
 `imsweb-media-local` 对公开对象开放下载，但匿名策略拒绝包含 `__protected/` 的路径；本地公开
