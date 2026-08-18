@@ -28,6 +28,7 @@ const localInfrastructureDefaults = Object.freeze({
   IMS_RUSTFS_ACCESS_KEY: "imsweb-local",
   IMS_RUSTFS_SECRET_KEY: "imsweb-local-password",
   IMS_RUSTFS_BUCKET: "imsweb-media-local",
+  IMS_VALKEY_PORT: "6379",
 });
 
 function usage() {
@@ -44,12 +45,13 @@ Options:
   --web-port PORT  React Router port (default: ${defaultWebPort})
   --r2             Use the R2 test bucket configured in apps/api/.env
   --doctor         Check prerequisites without changing local state
-  --down           Stop local PostgreSQL and RustFS without deleting data
+  --down           Stop local PostgreSQL, Valkey, and RustFS without deleting data
   --dry-run        Print the startup plan without executing it
   -h, --help       Show this help
 
 Environment overrides:
   IMS_DEV_API_PORT, IMS_DEV_WEB_PORT, IMS_DEV_R2_ENV_FILE
+  IMS_VALKEY_PORT
   IMS_DEV_FUDABA_PUBLIC_READ_ENABLED, IMS_DEV_FUDABA_WRITE_ENABLED
   IMS_DEV_FUDABA_MAP_ENABLED, IMS_DEV_FUDABA_MAP_STYLE_URL
 `;
@@ -168,7 +170,9 @@ function sanitizedApplicationEnvironment(environment) {
 }
 
 function developmentBooleanFlag(environment, name) {
-  const value = String(environment[name] || "").trim().toLowerCase();
+  const value = String(environment[name] || "")
+    .trim()
+    .toLowerCase();
   if (!value) return "false";
   if (value === "true" || value === "false") return value;
   throw new Error(`${name} must be true or false`);
@@ -222,7 +226,12 @@ function resolveFudabaDevelopmentEnvironment(environment) {
 }
 
 function encodedPostgresUrl({ host, port, database, username, password }) {
-  const url = new URL("postgresql://localhost");
+  let url;
+  try {
+    url = new URL("postgresql://localhost");
+  } catch {
+    throw new Error("Unable to construct the local PostgreSQL URL");
+  }
   url.hostname = host;
   url.port = String(port);
   url.username = username;
@@ -404,6 +413,10 @@ export function resolveDevelopmentConfiguration({
     infrastructure.IMS_RUSTFS_CONSOLE_PORT,
     "IMS_RUSTFS_CONSOLE_PORT",
   );
+  const valkeyPort = parsePort(
+    infrastructure.IMS_VALKEY_PORT,
+    "IMS_VALKEY_PORT",
+  );
   const database = infrastructure.IMS_POSTGRES_DB;
   const username = infrastructure.IMS_POSTGRES_USER;
   const password = infrastructure.IMS_POSTGRES_PASSWORD;
@@ -415,13 +428,13 @@ export function resolveDevelopmentConfiguration({
     IMS_POSTGRES_DB: database,
     IMS_POSTGRES_USER: username,
     IMS_POSTGRES_PASSWORD: password,
-    ...(!options.r2
-      ? {
+    ...(options.r2
+      ? {}
+      : {
           IMS_RUSTFS_ACCESS_KEY: rustfsAccessKey,
           IMS_RUSTFS_SECRET_KEY: rustfsSecretKey,
           IMS_RUSTFS_BUCKET: bucket,
-        }
-      : {}),
+        }),
   };
   for (const [name, value] of Object.entries(requiredInfrastructure)) {
     if (!String(value || "").trim()) throw new Error(`${name} cannot be empty`);
@@ -431,6 +444,7 @@ export function resolveDevelopmentConfiguration({
   const webOrigin = `http://${loopbackHost}:${options.webPort}`;
   const rustfsOrigin = `http://${loopbackHost}:${rustfsPort}`;
   const rustfsConsoleOrigin = `http://${loopbackHost}:${rustfsConsolePort}`;
+  const valkeyUrl = `redis://${loopbackHost}:${valkeyPort}`;
   const databaseUrl = encodedPostgresUrl({
     host: loopbackHost,
     port: postgresPort,
@@ -444,6 +458,7 @@ export function resolveDevelopmentConfiguration({
   if (fs.existsSync(deployEnvironmentPath)) {
     composeArguments.push("--env-file", deployEnvironmentPath);
   }
+  composeArguments.push("--profile", "local-cache");
   if (!options.r2) composeArguments.push("--profile", "local-storage");
   composeArguments.push("-f", composePath);
 
@@ -474,6 +489,8 @@ export function resolveDevelopmentConfiguration({
     IMS_BACKOFFICE_JWT_SECRET: "imsweb-local-development-secret",
     IMS_PLATFORM_JWT_SECRET: "imsweb-local-development-platform-secret",
     IMS_COOKIE_SECURE: "false",
+    IMS_CACHE_BACKEND: "valkey",
+    IMS_VALKEY_URL: valkeyUrl,
     IMS_CLIENT_ADDRESS_SOURCE: "direct",
     ...resolveFudabaDevelopmentEnvironment(environment),
     DATABASE_URL: databaseUrl,
@@ -492,6 +509,8 @@ export function resolveDevelopmentConfiguration({
     webOrigin,
     rustfsOrigin,
     rustfsConsoleOrigin,
+    valkeyUrl,
+    valkeyPort,
     databaseUrl,
     postgresPort,
     rustfsPort,
@@ -534,6 +553,7 @@ export function buildCommandPlan(configuration) {
         "up",
         "-d",
         "postgres",
+        "valkey",
         ...(usesRustfs ? ["rustfs"] : []),
       ],
       env: configuration.composeEnvironment,
@@ -551,6 +571,11 @@ export function buildCommandPlan(configuration) {
         "-d",
         configuration.database,
       ],
+      env: configuration.composeEnvironment,
+    },
+    valkeyReady: {
+      command: "docker",
+      args: [...compose, "exec", "-T", "valkey", "valkey-cli", "ping"],
       env: configuration.composeEnvironment,
     },
     rustfsInit: usesRustfs
@@ -592,6 +617,7 @@ export function buildCommandPlan(configuration) {
         ...compose,
         "stop",
         ...(usesRustfs ? ["rustfs-init", "rustfs"] : []),
+        "valkey",
         "postgres",
       ],
       env: configuration.composeEnvironment,
@@ -609,7 +635,8 @@ function printableCommand(specification) {
 
 function runCommand(label, specification, { quiet = false } = {}) {
   process.stdout.write(`[dev] ${label}\n`);
-  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
+  const useShell =
+    process.platform === "win32" && specification.command.endsWith(".cmd");
   const result = spawnSync(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
@@ -624,7 +651,8 @@ function runCommand(label, specification, { quiet = false } = {}) {
 }
 
 function probeCommand(specification) {
-  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
+  const useShell =
+    process.platform === "win32" && specification.command.endsWith(".cmd");
   const result = spawnSync(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
@@ -914,7 +942,8 @@ function startWatchProcess(label, specification) {
   process.stdout.write(
     `[dev] Starting ${label}: ${printableCommand(specification)}\n`,
   );
-  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
+  const useShell =
+    process.platform === "win32" && specification.command.endsWith(".cmd");
   return spawn(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
@@ -1040,6 +1069,7 @@ async function supervise(configuration, plan) {
     process.stdout.write("\n[dev] Development environment is ready\n");
     process.stdout.write(`[dev] Web:           ${configuration.webOrigin}\n`);
     process.stdout.write(`[dev] API:           ${configuration.apiOrigin}\n`);
+    process.stdout.write(`[dev] Valkey:        ${configuration.valkeyUrl}\n`);
     if (configuration.storageMode === "r2") {
       process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
       process.stdout.write(
@@ -1174,6 +1204,15 @@ async function doctor(configuration, plan) {
         ? "choose another port with --web-port or IMS_DEV_WEB_PORT"
         : portFailureHint(webPortProbe, configuration.webPort, "Web"),
   });
+  const valkeyPortProbe = await probePort(configuration.valkeyPort);
+  checks.push({
+    label: `Valkey port ${configuration.valkeyPort} available`,
+    ok: valkeyPortProbe.available,
+    hint:
+      valkeyPortProbe.code === "EADDRINUSE"
+        ? "choose another port with IMS_VALKEY_PORT"
+        : portFailureHint(valkeyPortProbe, configuration.valkeyPort, "Valkey"),
+  });
 
   for (const check of checks) {
     process.stdout.write(`[${check.ok ? "ok" : "fail"}] ${check.label}\n`);
@@ -1190,11 +1229,12 @@ function printPlan(configuration, plan) {
     ["Validate Compose", plan.composeConfig],
     [
       configuration.storageMode === "r2"
-        ? "Start PostgreSQL"
-        : "Start PostgreSQL and RustFS",
+        ? "Start PostgreSQL and Valkey"
+        : "Start PostgreSQL, Valkey, and RustFS",
       plan.infrastructure,
     ],
     ["Wait for PostgreSQL", plan.postgresReady],
+    ["Wait for Valkey", plan.valkeyReady],
     ...(plan.rustfsInit ? [["Initialize RustFS bucket", plan.rustfsInit]] : []),
     ["Apply PostgreSQL migrations", plan.migrate],
     ["Start Hono API", plan.api],
@@ -1207,6 +1247,7 @@ function printPlan(configuration, plan) {
   }
   process.stdout.write(`[dev] Web URL: ${configuration.webOrigin}\n`);
   process.stdout.write(`[dev] API URL: ${configuration.apiOrigin}\n`);
+  process.stdout.write(`[dev] Valkey URL: ${configuration.valkeyUrl}\n`);
   if (configuration.storageMode === "r2") {
     process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
     process.stdout.write(
@@ -1226,11 +1267,12 @@ export async function prepareDevelopmentEnvironment(
   );
   operations.runCommand(
     configuration.storageMode === "r2"
-      ? "Starting PostgreSQL"
-      : "Starting PostgreSQL and RustFS",
+      ? "Starting PostgreSQL and Valkey"
+      : "Starting PostgreSQL, Valkey, and RustFS",
     plan.infrastructure,
   );
   await operations.waitForCommand("Waiting for PostgreSQL", plan.postgresReady);
+  await operations.waitForCommand("Waiting for Valkey", plan.valkeyReady);
   if (plan.rustfsInit) {
     process.stdout.write("[dev] Waiting for RustFS\n");
     await operations.waitForUrl(
@@ -1271,7 +1313,7 @@ export async function main(argv = process.argv.slice(2)) {
   );
   assertLocalContainerTarget(containerTarget);
   if (options.down) {
-    runCommand("Stopping local PostgreSQL and RustFS", plan.down);
+    runCommand("Stopping local PostgreSQL, Valkey, and RustFS", plan.down);
     process.stdout.write("[dev] Local data volumes were preserved.\n");
     return 0;
   }

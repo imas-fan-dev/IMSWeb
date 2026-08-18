@@ -30,6 +30,41 @@ services:
         max-size: 10m
         max-file: "3"
 
+  valkey:
+    image: ${IMS_VALKEY_IMAGE:-valkey/valkey:8.1.9-alpine}
+    profiles:
+      - local-cache
+    restart: unless-stopped
+    command:
+      - valkey-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - ${IMS_VALKEY_MAX_MEMORY:-128mb}
+      - --maxmemory-policy
+      - allkeys-lru
+    ports:
+      - "127.0.0.1:${IMS_VALKEY_PORT:-6379}:6379"
+    healthcheck:
+      test:
+        - CMD
+        - valkey-cli
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
   rustfs:
     image: ${IMS_RUSTFS_IMAGE:-rustfs/rustfs:1.0.0-beta.12}
     profiles:
@@ -126,6 +161,9 @@ services:
       rustfs-init:
         condition: service_completed_successfully
         required: false
+      valkey:
+        condition: service_healthy
+        required: false
     environment:
       NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
       no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
@@ -136,6 +174,8 @@ services:
       IMS_BACKOFFICE_JWT_SECRET: ${IMS_BACKOFFICE_JWT_SECRET-}
       IMS_JWT_SECRET: ${IMS_JWT_SECRET-}
       IMS_PLATFORM_JWT_SECRET: ${IMS_PLATFORM_JWT_SECRET-}
+      IMS_CACHE_BACKEND: ${IMS_CACHE_BACKEND:-valkey}
+      IMS_VALKEY_URL: ${IMS_VALKEY_URL:-redis://valkey:6379}
       IMS_PLATFORM_EMAIL_DELIVERY: ${IMS_PLATFORM_EMAIL_DELIVERY-}
       IMS_CLOUDFLARE_EMAIL_ACCOUNT_ID: ${IMS_CLOUDFLARE_EMAIL_ACCOUNT_ID-}
       IMS_CLOUDFLARE_EMAIL_API_TOKEN: ${IMS_CLOUDFLARE_EMAIL_API_TOKEN-}

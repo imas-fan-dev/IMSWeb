@@ -14,14 +14,19 @@ class ComposeDeploymentTests(unittest.TestCase):
         services_source = compose.split("\nvolumes:\n", maxsplit=1)[0]
         services = re.findall(r"^  ([a-z0-9][a-z0-9-]*):$", services_source, re.MULTILINE)
 
-        self.assertEqual(services, ["postgres", "rustfs", "rustfs-init", "api"])
+        self.assertEqual(services, ["postgres", "valkey", "rustfs", "rustfs-init", "api"])
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
         self.assertIn(
             "image: ${IMS_RUSTFS_IMAGE:-rustfs/rustfs:1.0.0-beta.12}",
             compose,
         )
+        self.assertIn(
+            "image: ${IMS_VALKEY_IMAGE:-valkey/valkey:8.1.9-alpine}",
+            compose,
+        )
         self.assertIn("image: ${IMS_S3_CLIENT_IMAGE:-minio/mc:", compose)
         self.assertEqual(compose.count("      - local-storage"), 2)
+        self.assertEqual(compose.count("      - local-cache"), 1)
         self.assertIn("postgresql-data:/var/lib/postgresql", compose)
         self.assertIn("rustfs-data:/data", compose)
         self.assertIn("image: ${IMS_API_IMAGE:-imsweb-api:local}", compose)
@@ -65,6 +70,8 @@ class ComposeDeploymentTests(unittest.TestCase):
             "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-imsweb-local}",
             "AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-imsweb-local-password}",
             "IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}",
+            "IMS_CACHE_BACKEND: ${IMS_CACHE_BACKEND:-valkey}",
+            "IMS_VALKEY_URL: ${IMS_VALKEY_URL:-redis://valkey:6379}",
         ):
             self.assertIn(token, compose)
 

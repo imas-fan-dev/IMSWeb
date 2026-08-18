@@ -117,6 +117,11 @@ test("development configuration derives a fully local runtime", async () => {
     "postgresql://dev%20user:p%40ss%2Fword@127.0.0.1:55432/ims%2Fweb",
   );
   assert.equal(configuration.apiEnvironment.NODE_ENV, "development");
+  assert.equal(configuration.apiEnvironment.IMS_CACHE_BACKEND, "valkey");
+  assert.equal(
+    configuration.apiEnvironment.IMS_VALKEY_URL,
+    "redis://127.0.0.1:6379",
+  );
   assert.equal(configuration.apiEnvironment.PATH, "/test/bin");
   assert.equal(configuration.apiEnvironment.IMS_ENV_FILE, "");
   assert.equal(
@@ -299,10 +304,11 @@ test("development command plan orders local infrastructure before hot reload", a
   });
   const plan = buildCommandPlan(configuration);
 
-  assert.deepEqual(plan.infrastructure.args.slice(-4), [
+  assert.deepEqual(plan.infrastructure.args.slice(-5), [
     "up",
     "-d",
     "postgres",
+    "valkey",
     "rustfs",
   ]);
   assert.deepEqual(plan.composeRuntime.args.slice(-2), ["ps", "--quiet"]);
@@ -320,12 +326,7 @@ test("development command plan orders local infrastructure before hot reload", a
     "run",
     "migration:postgresql",
   ]);
-  assert.deepEqual(plan.api.args, [
-    "--filter",
-    "@imsweb/api",
-    "run",
-    "dev",
-  ]);
+  assert.deepEqual(plan.api.args, ["--filter", "@imsweb/api", "run", "dev"]);
   assert.deepEqual(plan.web.args, [
     "--filter",
     "@imsweb/web",
@@ -339,10 +340,11 @@ test("development command plan orders local infrastructure before hot reload", a
     "--strictPort",
   ]);
   assert.equal(plan.web.args.includes("--"), false);
-  assert.deepEqual(plan.down.args.slice(-4), [
+  assert.deepEqual(plan.down.args.slice(-5), [
     "stop",
     "rustfs-init",
     "rustfs",
+    "valkey",
     "postgres",
   ]);
   assert.equal(plan.down.args.includes("--volumes"), false);
@@ -369,14 +371,15 @@ test("R2 command plan starts PostgreSQL without RustFS", async () => {
   });
   const plan = buildCommandPlan(configuration);
 
-  assert.deepEqual(plan.infrastructure.args.slice(-3), [
+  assert.deepEqual(plan.infrastructure.args.slice(-4), [
     "up",
     "-d",
     "postgres",
+    "valkey",
   ]);
   assert.equal(plan.infrastructure.args.includes("rustfs"), false);
   assert.equal(plan.rustfsInit, undefined);
-  assert.deepEqual(plan.down.args.slice(-2), ["stop", "postgres"]);
+  assert.deepEqual(plan.down.args.slice(-3), ["stop", "valkey", "postgres"]);
 });
 
 test("development launcher enforces the repository Node baseline", async () => {
@@ -542,8 +545,9 @@ test("development preparation waits for dependencies before migration", async ()
 
   assert.deepEqual(events, [
     "Validating local Compose configuration",
-    "Starting PostgreSQL and RustFS",
+    "Starting PostgreSQL, Valkey, and RustFS",
     "Waiting for PostgreSQL",
+    "Waiting for Valkey",
     "RustFS:http://127.0.0.1:9000/health",
     "Initializing the local RustFS bucket",
     "Applying PostgreSQL migrations",
@@ -583,8 +587,9 @@ test("R2 development preparation skips RustFS", async () => {
 
   assert.deepEqual(events, [
     "Validating local Compose configuration",
-    "Starting PostgreSQL",
+    "Starting PostgreSQL and Valkey",
     "Waiting for PostgreSQL",
+    "Waiting for Valkey",
     "Applying PostgreSQL migrations",
   ]);
 });
