@@ -1,5 +1,4 @@
-import { z } from "@imsweb/contracts/z"
-
+import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import { platformApiClient } from "../../platform-client"
 import {
@@ -21,13 +20,12 @@ import {
 export * from "@imsweb/contracts/fudaba/card-claims"
 
 export function getFudabaClaimEnvelopes() {
-  return platformApiClient.Get<
-    z.infer<typeof claimEnvelopeListSchema>,
-    unknown
-  >("/api/community/exchange/me/claim-envelopes", {
-    meta: withPlatformAuth(),
-    transform: (payload) => claimEnvelopeListSchema.parse(payload),
-  })
+  return platformApiClient.Get(
+    "/api/community/exchange/me/claim-envelopes",
+    parsed(claimEnvelopeListSchema, {
+      meta: withPlatformAuth(),
+    })
+  )
 }
 
 export function respondFudabaClaimEnvelope(
@@ -35,23 +33,21 @@ export function respondFudabaClaimEnvelope(
   decision: "confirm" | "decline",
   expectedRevision: number
 ) {
-  return platformApiClient.Put<z.infer<typeof envelopeMutationSchema>, unknown>(
+  return platformApiClient.Put(
     `/api/community/exchange/me/claim-envelopes/${encodeURIComponent(envelopeId)}`,
     { decision, expectedRevision },
-    {
+    parsed(envelopeMutationSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) => envelopeMutationSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOwnerCardClaims() {
-  return platformApiClient.Get<z.infer<typeof ownerClaimListSchema>, unknown>(
+  return platformApiClient.Get(
     "/api/community/exchange/me/card-claims",
-    {
+    parsed(ownerClaimListSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => ownerClaimListSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -64,24 +60,22 @@ export function createFudabaLegacyCardClaim(
     message: string
   }
 ) {
-  return platformApiClient.Post<z.infer<typeof claimMutationSchema>, unknown>(
+  return platformApiClient.Post(
     `/api/community/exchange/legacy-cards/${legacyCardId}/claims`,
     input,
-    {
+    parsed(claimMutationSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) => claimMutationSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getAdminFudabaCardReviews() {
-  return adminApiClient.Get<
-    z.infer<typeof registeredCardReviewListSchema>,
-    unknown
-  >("/api/admin/community/exchange/card-reviews", {
-    meta: withBackofficeAuth(),
-    transform: (payload) => registeredCardReviewListSchema.parse(payload),
-  })
+  return adminApiClient.Get(
+    "/api/admin/community/exchange/card-reviews",
+    parsed(registeredCardReviewListSchema, {
+      meta: withBackofficeAuth(),
+    })
+  )
 }
 
 export function reviewAdminFudabaCard(
@@ -92,23 +86,21 @@ export function reviewAdminFudabaCard(
     note: string
   }
 ) {
-  return adminApiClient.Put<z.infer<typeof reviewMutationSchema>, unknown>(
+  return adminApiClient.Put(
     `/api/admin/community/exchange/card-reviews/${encodeURIComponent(cardId)}`,
     input,
-    {
+    parsed(reviewMutationSchema, {
       meta: withBackofficeCsrf(),
-      transform: (payload) => reviewMutationSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getAdminFudabaCardClaims() {
-  return adminApiClient.Get<z.infer<typeof adminCardClaimListSchema>, unknown>(
+  return adminApiClient.Get(
     "/api/admin/community/exchange/card-claims",
-    {
+    parsed(adminCardClaimListSchema, {
       meta: withBackofficeAuth(),
-      transform: (payload) => adminCardClaimListSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -120,12 +112,11 @@ export function reviewAdminFudabaCardClaim(
     note: string
   }
 ) {
-  return adminApiClient.Put<z.infer<typeof reviewMutationSchema>, unknown>(
+  return adminApiClient.Put(
     `/api/admin/community/exchange/card-claims/${encodeURIComponent(claimId)}`,
     input,
-    {
+    parsed(reviewMutationSchema, {
       meta: withBackofficeCsrf(),
-      transform: (payload) => reviewMutationSchema.parse(payload),
-    }
+    })
   )
 }

@@ -4,6 +4,7 @@ import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   PUBLIC_QUERY_CACHE_FOR,
 } from "../cache-policy"
+import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
 import {
@@ -17,36 +18,28 @@ export {
   chronicleActivitySummarySchema,
 } from "@imsweb/contracts/chronicle"
 
-import type {
-  ChronicleActivity,
-  ChronicleActivitySummary,
-} from "@imsweb/contracts/chronicle"
-
 export type {
   ChronicleActivity,
   ChronicleActivitySummary,
 } from "@imsweb/contracts/chronicle"
 
 export function getChronicleActivities() {
-  return apiClient.Get<ChronicleActivitySummary[], unknown>(
+  return apiClient.Get(
     "/eventchronicle/activities",
-    {
+    parsed(z.array(chronicleActivitySummarySchema), {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
-      transform: (payload) =>
-        z.array(chronicleActivitySummarySchema).parse(payload),
-    }
+    })
   )
 }
 
 export function getChronicleActivity(activityId: string) {
-  return apiClient.Get<ChronicleActivity, unknown>(
+  return apiClient.Get(
     `/eventchronicle/activities/${encodeURIComponent(activityId)}`,
-    {
+    parsed(chronicleActivitySchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
-      transform: (payload) => chronicleActivitySchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -61,12 +54,11 @@ export function uploadChronicleImages(
   form.append("username", username)
   for (const file of files) form.append("images", file)
 
-  return apiClient.Post<z.infer<typeof chronicleUploadResponseSchema>, unknown>(
+  return apiClient.Post(
     "/eventchronicle/upload",
     form,
-    {
+    parsed(chronicleUploadResponseSchema, {
       headers: { "Idempotency-Key": idempotencyKey },
-      transform: (payload) => chronicleUploadResponseSchema.parse(payload),
-    }
+    })
   )
 }

@@ -123,7 +123,7 @@ describe("Platform API boundary", () => {
       getPlatformSession().send(),
       platformApiClient
         .Get("/api/platform/auth/session?request=second", {
-          meta: withPlatformAuth(),
+          meta: withPlatformAuth({ skipContractCheck: true }),
         })
         .send(),
     ])
@@ -176,7 +176,7 @@ describe("Platform API boundary", () => {
       getPlatformSession().send(),
       platformApiClient
         .Get("/api/platform/auth/session?request=second", {
-          meta: withPlatformAuth(),
+          meta: withPlatformAuth({ skipContractCheck: true }),
         })
         .send(),
     ]

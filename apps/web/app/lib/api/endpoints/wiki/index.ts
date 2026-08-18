@@ -1,5 +1,4 @@
-import { z } from "@imsweb/contracts/z"
-
+import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import {
   NO_CLIENT_CACHE,
@@ -30,26 +29,17 @@ import {
   wikiStoryLinkDeleteResultSchema,
   wikiStorySourceCatalogSchema,
   wikiStorySourcePlatformMutationSchema,
-  type BilibiliParseResult,
-  type WikiAdminCatalog,
-  type WikiAdminStories,
   type WikiAdminStory,
   type WikiAgencySubmission,
   type WikiEntityImageKind,
   type WikiGroupSubmission,
   type WikiIdolSubmission,
   type WikiImageTransform,
-  type WikiPublicCatalog,
-  type WikiPublicStories,
-  type WikiRandomBackground,
-  type WikiRandomIdol,
   type WikiStoryBatchSubmission,
   type WikiStoryCardSubmission,
   type WikiStoryCatalogOptionSubmission,
-  type WikiStoryCoverAssets,
   type WikiStoryCoverPresentationPolicy,
   type WikiStoryGroup,
-  type WikiStorySourceCatalog,
   type WikiStorySourcePlatformSubmission,
   type WikiStorySourcesSubmission,
   type WikiStorySubmission,
@@ -110,35 +100,43 @@ function wikiMutationConfig() {
 }
 
 export function getWikiCatalog(agency?: string) {
-  return apiClient.Get<WikiPublicCatalog, unknown>("/api/wiki/catalog", {
-    cacheFor: WIKI_PUBLIC_CACHE,
-    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
-    params: agency ? { agency } : undefined,
-    transform: (payload) => wikiPublicCatalogSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/wiki/catalog",
+    parsed(wikiPublicCatalogSchema, {
+      cacheFor: WIKI_PUBLIC_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
+      params: agency ? { agency } : undefined,
+    })
+  )
 }
 
 export function getWikiStories(agency: string, idol: string) {
-  return apiClient.Get<WikiPublicStories, unknown>("/api/wiki/stories", {
-    cacheFor: WIKI_PUBLIC_CACHE,
-    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
-    params: { agency, idol },
-    transform: (payload) => wikiPublicStoriesSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/wiki/stories",
+    parsed(wikiPublicStoriesSchema, {
+      cacheFor: WIKI_PUBLIC_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
+      params: { agency, idol },
+    })
+  )
 }
 
 export function getWikiRandomBackground() {
-  return apiClient.Get<WikiRandomBackground, unknown>("/api/wiki/random_bg", {
-    cacheFor: NO_CLIENT_CACHE,
-    transform: (payload) => wikiRandomBackgroundSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/wiki/random_bg",
+    parsed(wikiRandomBackgroundSchema, {
+      cacheFor: NO_CLIENT_CACHE,
+    })
+  )
 }
 
 export function getWikiRandomIdol() {
-  return apiClient.Get<WikiRandomIdol, unknown>("/api/wiki/random_idol", {
-    cacheFor: NO_CLIENT_CACHE,
-    transform: (payload) => wikiRandomIdolSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/wiki/random_idol",
+    parsed(wikiRandomIdolSchema, {
+      cacheFor: NO_CLIENT_CACHE,
+    })
+  )
 }
 
 function normalizedCardName(value: string) {
@@ -186,33 +184,30 @@ function appendStoryGroup(form: FormData, group: WikiStoryGroup) {
 }
 
 export function getAdminWikiCatalog() {
-  return adminApiClient.Get<WikiAdminCatalog, unknown>(
+  return adminApiClient.Get(
     "/api/admin/wiki/catalog",
-    {
+    parsed(wikiAdminCatalogSchema, {
       meta: withBackofficeAuth(),
-      transform: (payload) => wikiAdminCatalogSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getAdminWikiStories(agency: string, idol: string) {
-  return adminApiClient.Get<WikiAdminStories, unknown>(
+  return adminApiClient.Get(
     "/api/admin/wiki/stories",
-    {
+    parsed(wikiAdminStoriesSchema, {
       meta: withBackofficeAuth(),
       params: { agency, idol },
-      transform: (payload) => wikiAdminStoriesSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getAdminWikiStoryCoverAssets(agencyId: number) {
-  return adminApiClient.Get<WikiStoryCoverAssets, unknown>(
+  return adminApiClient.Get(
     `/api/admin/wiki/agencies/${agencyId}/story-cover-assets`,
-    {
+    parsed(wikiStoryCoverAssetsSchema, {
       meta: withBackofficeAuth(),
-      transform: (payload) => wikiStoryCoverAssetsSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -226,13 +221,13 @@ export function createWikiStoryCoverAsset(input: {
   form.append("name", input.name.trim())
   form.append("presentation_policy", input.presentationPolicy)
   form.append("image", input.image)
-  return adminApiClient.Post<
-    z.infer<typeof wikiStoryCoverAssetMutationSchema>,
-    unknown
-  >(`/api/admin/wiki/agencies/${input.agencyId}/story-cover-assets`, form, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiStoryCoverAssetMutationSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    `/api/admin/wiki/agencies/${input.agencyId}/story-cover-assets`,
+    form,
+    parsed(wikiStoryCoverAssetMutationSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function updateWikiStoryCoverAsset(input: {
@@ -249,45 +244,44 @@ export function updateWikiStoryCoverAsset(input: {
   form.append("presentation_policy", input.presentationPolicy)
   form.append("expected_revision", String(input.expectedRevision))
   if (input.image) form.append("image", input.image)
-  return adminApiClient.Patch<
-    z.infer<typeof wikiStoryCoverAssetMutationSchema>,
-    unknown
-  >(`/api/admin/wiki/story-cover-assets/${input.assetId}`, form, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiStoryCoverAssetMutationSchema.parse(payload),
-  })
+  return adminApiClient.Patch(
+    `/api/admin/wiki/story-cover-assets/${input.assetId}`,
+    form,
+    parsed(wikiStoryCoverAssetMutationSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function deleteWikiStoryCoverAsset(assetId: number) {
-  return adminApiClient.Delete<
-    z.infer<typeof wikiMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/story-cover-assets/${assetId}`, undefined, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Delete(
+    `/api/admin/wiki/story-cover-assets/${assetId}`,
+    undefined,
+    parsed(wikiMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function getWikiStorySourceCatalog() {
-  return adminApiClient.Get<WikiStorySourceCatalog, unknown>(
+  return adminApiClient.Get(
     "/api/admin/wiki/story-source-catalog",
-    {
+    parsed(wikiStorySourceCatalogSchema, {
       meta: withBackofficeAuth(),
-      transform: (payload) => wikiStorySourceCatalogSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function createWikiStoryContentType(
   submission: WikiStoryCatalogOptionSubmission
 ) {
-  return adminApiClient.Post<
-    z.infer<typeof wikiStoryContentTypeMutationSchema>,
-    unknown
-  >("/api/admin/wiki/story-content-types", submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiStoryContentTypeMutationSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    "/api/admin/wiki/story-content-types",
+    submission,
+    parsed(wikiStoryContentTypeMutationSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function updateWikiStoryContentType(
@@ -295,43 +289,38 @@ export function updateWikiStoryContentType(
   expectedRevision: number,
   submission: WikiStoryCatalogOptionSubmission
 ) {
-  return adminApiClient.Patch<
-    z.infer<typeof wikiStoryContentTypeMutationSchema>,
-    unknown
-  >(
+  return adminApiClient.Patch(
     `/api/admin/wiki/story-content-types/${optionId}`,
     {
       ...submission,
       expectedRevision,
     },
-    {
+    parsed(wikiStoryContentTypeMutationSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiStoryContentTypeMutationSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function deleteWikiStoryContentType(optionId: number) {
-  return adminApiClient.Delete<
-    z.infer<typeof wikiMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/story-content-types/${optionId}`, undefined, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Delete(
+    `/api/admin/wiki/story-content-types/${optionId}`,
+    undefined,
+    parsed(wikiMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function createWikiStorySourcePlatform(
   submission: WikiStorySourcePlatformSubmission
 ) {
-  return adminApiClient.Post<
-    z.infer<typeof wikiStorySourcePlatformMutationSchema>,
-    unknown
-  >("/api/admin/wiki/story-source-platforms", submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) =>
-      wikiStorySourcePlatformMutationSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    "/api/admin/wiki/story-source-platforms",
+    submission,
+    parsed(wikiStorySourcePlatformMutationSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function updateWikiStorySourcePlatform(
@@ -339,93 +328,84 @@ export function updateWikiStorySourcePlatform(
   expectedRevision: number,
   submission: WikiStorySourcePlatformSubmission
 ) {
-  return adminApiClient.Patch<
-    z.infer<typeof wikiStorySourcePlatformMutationSchema>,
-    unknown
-  >(
+  return adminApiClient.Patch(
     `/api/admin/wiki/story-source-platforms/${optionId}`,
     {
       ...submission,
       expectedRevision,
     },
-    {
+    parsed(wikiStorySourcePlatformMutationSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) =>
-        wikiStorySourcePlatformMutationSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function deleteWikiStorySourcePlatform(optionId: number) {
-  return adminApiClient.Delete<
-    z.infer<typeof wikiMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/story-source-platforms/${optionId}`, undefined, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Delete(
+    `/api/admin/wiki/story-source-platforms/${optionId}`,
+    undefined,
+    parsed(wikiMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function createWikiAgency(submission: WikiAgencySubmission) {
-  return adminApiClient.Post<
-    z.infer<typeof wikiAgencyMutationResultSchema>,
-    unknown
-  >("/api/admin/wiki/agencies", submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiAgencyMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    "/api/admin/wiki/agencies",
+    submission,
+    parsed(wikiAgencyMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function updateWikiAgency(
   agencyId: number,
   submission: Omit<WikiAgencySubmission, "code">
 ) {
-  return adminApiClient.Patch<
-    z.infer<typeof wikiAgencyMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/agencies/${agencyId}`, submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiAgencyMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Patch(
+    `/api/admin/wiki/agencies/${agencyId}`,
+    submission,
+    parsed(wikiAgencyMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function createWikiGroup(
   agencyId: number,
   submission: WikiGroupSubmission
 ) {
-  return adminApiClient.Post<
-    z.infer<typeof wikiGroupMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/agencies/${agencyId}/groups`, submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiGroupMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    `/api/admin/wiki/agencies/${agencyId}/groups`,
+    submission,
+    parsed(wikiGroupMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function updateWikiGroup(
   groupId: number,
   submission: Omit<WikiGroupSubmission, "code">
 ) {
-  return adminApiClient.Patch<
-    z.infer<typeof wikiGroupMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/groups/${groupId}`, submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiGroupMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Patch(
+    `/api/admin/wiki/groups/${groupId}`,
+    submission,
+    parsed(wikiGroupMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function deleteWikiGroup(groupId: number, expectedRevision: number) {
-  return adminApiClient.Delete<
-    z.infer<typeof wikiMutationResultSchema>,
-    unknown
-  >(
+  return adminApiClient.Delete(
     `/api/admin/wiki/groups/${groupId}`,
     { expectedRevision },
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -433,26 +413,26 @@ export function createWikiIdol(
   agencyId: number,
   submission: WikiIdolSubmission
 ) {
-  return adminApiClient.Post<
-    z.infer<typeof wikiIdolMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/agencies/${agencyId}/idols`, submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiIdolMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    `/api/admin/wiki/agencies/${agencyId}/idols`,
+    submission,
+    parsed(wikiIdolMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function updateWikiIdol(
   idolId: number,
   submission: Omit<WikiIdolSubmission, "folderName">
 ) {
-  return adminApiClient.Patch<
-    z.infer<typeof wikiIdolMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/idols/${idolId}`, submission, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiIdolMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Patch(
+    `/api/admin/wiki/idols/${idolId}`,
+    submission,
+    parsed(wikiIdolMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 const wikiEntityImagePath = {
@@ -472,39 +452,35 @@ export function saveWikiEntityImage(input: {
   if (input.file) form.append("image", input.file)
   appendImageTransform(form, input.transform)
   form.append("expected_revision", String(input.expectedRevision))
-  return adminApiClient.Put<
-    z.infer<typeof wikiEntityImageResultSchema>,
-    unknown
-  >(wikiEntityImagePath[input.kind](input.id), form, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiEntityImageResultSchema.parse(payload),
-  })
+  return adminApiClient.Put(
+    wikiEntityImagePath[input.kind](input.id),
+    form,
+    parsed(wikiEntityImageResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function uploadWikiAgencyIcon(agency: string, file: File) {
   const form = new FormData()
   form.append("agency", agency)
   form.append("image", file)
-  return adminApiClient.Post<
-    z.infer<typeof wikiAgencyIconResultSchema>,
-    unknown
-  >("/api/wiki/agency-icon", form, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiAgencyIconResultSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    "/api/wiki/agency-icon",
+    form,
+    parsed(wikiAgencyIconResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function deleteWikiAgencyIcon(agency: string) {
-  return adminApiClient.Delete<
-    z.infer<typeof wikiMutationResultSchema>,
-    unknown
-  >(
+  return adminApiClient.Delete(
     "/api/wiki/agency-icon",
     { agency },
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -513,26 +489,24 @@ export function saveWikiLayout(
   expectedRevision: number,
   groups: Array<{ id: number; idolIds: number[] }>
 ) {
-  return adminApiClient.Put<z.infer<typeof wikiLayoutResultSchema>, unknown>(
+  return adminApiClient.Put(
     `/api/admin/wiki/agencies/${agencyId}/layout`,
     { expectedRevision, groups },
-    {
+    parsed(wikiLayoutResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiLayoutResultSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function createWikiStory(submission: WikiStorySubmission) {
   const form = new FormData()
   appendStoryFields(form, submission)
-  return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+  return adminApiClient.Post(
     "/api/wiki/add_story",
     form,
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -562,13 +536,12 @@ export function createWikiStoryBatch(submission: WikiStoryBatchSubmission) {
   if (submission.imageTransform) {
     appendImageTransform(form, submission.imageTransform)
   }
-  return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+  return adminApiClient.Post(
     "/api/wiki/add_story",
     form,
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -576,7 +549,7 @@ export function createWikiStorySources(
   cardId: number,
   submission: WikiStorySourcesSubmission
 ) {
-  return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+  return adminApiClient.Post(
     `/api/admin/wiki/cards/${cardId}/sources`,
     {
       agency: submission.agency,
@@ -590,10 +563,9 @@ export function createWikiStorySources(
         sourcePlatformId: source.sourcePlatformId,
       })),
     },
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -603,31 +575,27 @@ export function deleteWikiStoryLink(input: {
   storyId: number
   expectedRevision: number
 }) {
-  return adminApiClient.Delete<
-    z.infer<typeof wikiStoryLinkDeleteResultSchema>,
-    unknown
-  >(`/api/admin/wiki/stories/${input.storyId}`, undefined, {
-    params: {
-      agency: input.agency,
-      idol: input.idol,
-      expectedRevision: input.expectedRevision,
-    },
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiStoryLinkDeleteResultSchema.parse(payload),
-  })
+  return adminApiClient.Delete(
+    `/api/admin/wiki/stories/${input.storyId}`,
+    undefined,
+    parsed(wikiStoryLinkDeleteResultSchema, {
+      params: {
+        agency: input.agency,
+        idol: input.idol,
+        expectedRevision: input.expectedRevision,
+      },
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function deleteWikiIdol(idolId: number, expectedRevision: number) {
-  return adminApiClient.Delete<
-    z.infer<typeof wikiIdolDeleteResultSchema>,
-    unknown
-  >(
+  return adminApiClient.Delete(
     `/api/admin/wiki/idols/${idolId}`,
     { expectedRevision },
-    {
+    parsed(wikiIdolDeleteResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiIdolDeleteResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -638,10 +606,7 @@ export function updateWikiCategory(input: {
   name: string
   expectedName: string
 }) {
-  return adminApiClient.Patch<
-    z.infer<typeof wikiMutationResultSchema>,
-    unknown
-  >(
+  return adminApiClient.Patch(
     `/api/admin/wiki/categories/${input.categoryId}`,
     {
       agencyId: input.agencyId,
@@ -649,10 +614,9 @@ export function updateWikiCategory(input: {
       name: input.name.trim(),
       expectedName: input.expectedName,
     },
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -661,13 +625,12 @@ export function createWikiCategory(input: {
   idolId: number
   name: string
 }) {
-  return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+  return adminApiClient.Post(
     `/api/admin/wiki/agencies/${input.agencyId}/idols/${input.idolId}/categories`,
     { name: input.name.trim() },
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -689,13 +652,13 @@ export function updateWikiStoryCard(
   if (submission.removeImage) form.append("remove_image", "true")
   appendImageTransform(form, submission.imageTransform)
   if (submission.image) form.append("image", submission.image)
-  return adminApiClient.Patch<
-    z.infer<typeof wikiMutationResultSchema>,
-    unknown
-  >(`/api/admin/wiki/cards/${cardId}`, form, {
-    ...wikiMutationConfig(),
-    transform: (payload) => wikiMutationResultSchema.parse(payload),
-  })
+  return adminApiClient.Patch(
+    `/api/admin/wiki/cards/${cardId}`,
+    form,
+    parsed(wikiMutationResultSchema, {
+      ...wikiMutationConfig(),
+    })
+  )
 }
 
 export function updateWikiStory(
@@ -708,13 +671,12 @@ export function updateWikiStory(
   form.append("story_id", String(storyId))
   form.append("old_category_name", original.category)
   form.append("old_card_name", original.cardName)
-  return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+  return adminApiClient.Post(
     "/api/wiki/edit_story",
     form,
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -722,13 +684,12 @@ export function deleteWikiStoryGroup(group: WikiStoryGroup) {
   const form = new FormData()
   appendStoryGroup(form, group)
   form.append("expected_revision", String(group.expectedRevision))
-  return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+  return adminApiClient.Post(
     "/api/wiki/delete_story",
     form,
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -738,23 +699,21 @@ export function deleteWikiCategory(group: Omit<WikiStoryGroup, "cardName">) {
   form.append("idol", group.idol)
   form.append("category_name", group.category)
   form.append("expected_revision", String(group.expectedRevision))
-  return adminApiClient.Post<z.infer<typeof wikiMutationResultSchema>, unknown>(
+  return adminApiClient.Post(
     "/api/wiki/delete_category",
     form,
-    {
+    parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
-      transform: (payload) => wikiMutationResultSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function parseBilibiliStoryUrl(url: string) {
-  return adminApiClient.Post<BilibiliParseResult, unknown>(
+  return adminApiClient.Post(
     "/api/wiki/parse_bilibili",
     { url },
-    {
+    parsed(bilibiliResultSchema, {
       meta: withBackofficeCsrf(),
-      transform: (payload) => bilibiliResultSchema.parse(payload),
-    }
+    })
   )
 }

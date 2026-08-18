@@ -1,5 +1,6 @@
 import { z } from "@imsweb/contracts/z"
 
+import { parsed } from "../../parsed"
 import { platformApiClient } from "../../platform-client"
 import { withPlatformAuth, withPlatformCsrf } from "../../types"
 
@@ -38,24 +39,6 @@ import {
 } from "@imsweb/contracts/fudaba"
 
 export * from "@imsweb/contracts/fudaba"
-
-import type {
-  FudabaCardDeleteResponse,
-  FudabaCardMutationResponse,
-  FudabaCardPage,
-  FudabaCardPlacementDeleteResponse,
-  FudabaCardPlacementSaveResponse,
-  FudabaMapConfig,
-  FudabaMapOfficeList,
-  FudabaOfficeDetail,
-  FudabaOfficeMutationResponse,
-  FudabaOfficePage,
-  FudabaOwnerCardDetail,
-  FudabaOwnerCardList,
-  FudabaOwnerLocationDetail,
-  FudabaOwnerOfficeList,
-  FudabaSeriesList,
-} from "@imsweb/contracts/fudaba"
 
 const idempotencyKeySchema = z
   .string()
@@ -284,113 +267,103 @@ export interface FudabaCardPageRequest {
 }
 
 export function getFudabaSeries() {
-  return platformApiClient.Get<z.infer<typeof fudabaSeriesListSchema>, unknown>(
+  return platformApiClient.Get(
     "/api/community/exchange/series",
-    {
+    parsed(fudabaSeriesListSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaSeriesListSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOwnerSeries() {
-  return platformApiClient.Get<FudabaSeriesList, unknown>(
+  return platformApiClient.Get(
     "/api/community/exchange/me/series",
-    {
+    parsed(fudabaSeriesListSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaSeriesListSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
-  return platformApiClient.Get<FudabaOfficePage, unknown>(
+  return platformApiClient.Get(
     withQuery("/api/community/exchange/offices", officePageParams(input)),
-    {
+    parsed(fudabaOfficePageSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaOfficePageSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOffice(officeSlug: string) {
-  return platformApiClient.Get<FudabaOfficeDetail, unknown>(
+  return platformApiClient.Get(
     `/api/community/exchange/offices/${encodeURIComponent(officeSlug)}`,
-    {
+    parsed(fudabaOfficeDetailSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaOfficeDetailSchema.parse(payload).office,
-    }
+      select: (data) => data.office,
+    })
   )
 }
 
 export function getFudabaMapConfig() {
-  return platformApiClient.Get<FudabaMapConfig, unknown>(
+  return platformApiClient.Get(
     "/api/community/exchange/map/config",
-    {
+    parsed(fudabaMapConfigSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaMapConfigSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaMapOffices(input: FudabaMapOfficeRequest) {
-  return platformApiClient.Get<FudabaMapOfficeList, unknown>(
+  return platformApiClient.Get(
     withQuery("/api/community/exchange/map/offices", mapOfficeParams(input)),
-    {
+    parsed(fudabaMapOfficeListSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaMapOfficeListSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaCardPage(input: FudabaCardPageRequest = {}) {
-  return platformApiClient.Get<FudabaCardPage, unknown>(
+  return platformApiClient.Get(
     withQuery("/api/community/exchange/cards", cardPageParams(input)),
-    {
+    parsed(fudabaCardPageSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaCardPageSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOwnerCards() {
-  return platformApiClient.Get<FudabaOwnerCardList, unknown>(
+  return platformApiClient.Get(
     "/api/community/exchange/me/cards",
-    {
+    parsed(fudabaOwnerCardListSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaOwnerCardListSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOwnerCard(cardId: string) {
-  return platformApiClient.Get<FudabaOwnerCardDetail, unknown>(
+  return platformApiClient.Get(
     `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
-    {
+    parsed(fudabaOwnerCardDetailSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaOwnerCardDetailSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOwnerOffices() {
-  return platformApiClient.Get<FudabaOwnerOfficeList, unknown>(
+  return platformApiClient.Get(
     "/api/community/exchange/me/offices",
-    {
+    parsed(fudabaOwnerOfficeListSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaOwnerOfficeListSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOwnerOffice(officeId: string) {
-  return platformApiClient.Get<
-    z.infer<typeof fudabaOwnerOfficeDetailSchema>,
-    unknown
-  >(`/api/community/exchange/me/offices/${encodeURIComponent(officeId)}`, {
-    meta: withPlatformAuth(),
-    transform: (payload) => fudabaOwnerOfficeDetailSchema.parse(payload),
-  })
+  return platformApiClient.Get(
+    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}`,
+    parsed(fudabaOwnerOfficeDetailSchema, {
+      meta: withPlatformAuth(),
+    })
+  )
 }
 
 export function createFudabaOffice(
@@ -399,14 +372,13 @@ export function createFudabaOffice(
 ) {
   const submission = fudabaOfficeFieldsSchema.parse(input)
   const key = idempotencyKeySchema.parse(idempotencyKey)
-  return platformApiClient.Post<FudabaOfficeMutationResponse, unknown>(
+  return platformApiClient.Post(
     "/api/community/exchange/offices",
     submission,
-    {
+    parsed(fudabaOfficeMutationResponseSchema, {
       headers: { "Idempotency-Key": key },
       meta: withPlatformCsrf(),
-      transform: (payload) => fudabaOfficeMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -415,23 +387,21 @@ export function updateFudabaOwnerOffice(
   input: UpdateFudabaOfficeInput
 ) {
   const submission = fudabaOfficeUpdateSchema.parse(input)
-  return platformApiClient.Put<FudabaOfficeMutationResponse, unknown>(
+  return platformApiClient.Put(
     `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}`,
     submission,
-    {
+    parsed(fudabaOfficeMutationResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) => fudabaOfficeMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getFudabaOwnerLocation(officeId: string) {
-  return platformApiClient.Get<FudabaOwnerLocationDetail, unknown>(
+  return platformApiClient.Get(
     `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
-    {
+    parsed(fudabaOwnerLocationDetailSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => fudabaOwnerLocationDetailSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -440,17 +410,12 @@ export function saveFudabaOwnerLocation(
   input: SaveFudabaOwnerLocationInput
 ) {
   const submission = fudabaOwnerLocationSubmissionSchema.parse(input)
-  return platformApiClient.Put<
-    z.infer<typeof fudabaOwnerLocationMutationResponseSchema>,
-    unknown
-  >(
+  return platformApiClient.Put(
     `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
     submission,
-    {
+    parsed(fudabaOwnerLocationMutationResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) =>
-        fudabaOwnerLocationMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -459,17 +424,12 @@ export function withdrawFudabaOwnerLocation(
   expectedRevision: number
 ) {
   const revision = fudabaRevisionSchema.parse(expectedRevision)
-  return platformApiClient.Delete<
-    z.infer<typeof fudabaOwnerLocationWithdrawalResponseSchema>,
-    unknown
-  >(
+  return platformApiClient.Delete(
     `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
     { expectedRevision: revision },
-    {
+    parsed(fudabaOwnerLocationWithdrawalResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) =>
-        fudabaOwnerLocationWithdrawalResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -490,25 +450,23 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
   appendCardFields(form, fields)
   form.append("front", front)
   form.append("back", back)
-  return platformApiClient.Post<FudabaCardMutationResponse, unknown>(
+  return platformApiClient.Post(
     "/api/community/exchange/cards",
     form,
-    {
+    parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) => fudabaCardMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function updateFudabaCard(cardId: string, input: UpdateFudabaCardInput) {
   const submission = fudabaCardUpdateSchema.parse(input)
-  return platformApiClient.Put<FudabaCardMutationResponse, unknown>(
+  return platformApiClient.Put(
     `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
     submission,
-    {
+    parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) => fudabaCardMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -528,25 +486,23 @@ export function uploadFudabaCardMedia(
   form.append("image", upload.image)
   form.append("cardId", upload.cardId)
   form.append("expectedRevision", String(upload.expectedRevision))
-  return platformApiClient.Put<FudabaCardMutationResponse, unknown>(
+  return platformApiClient.Put(
     `/api/community/exchange/uploads/${upload.side}`,
     form,
-    {
+    parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) => fudabaCardMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function deleteFudabaCard(cardId: string, expectedRevision: number) {
   const revision = fudabaRevisionSchema.parse(expectedRevision)
-  return platformApiClient.Delete<FudabaCardDeleteResponse, unknown>(
+  return platformApiClient.Delete(
     `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
     { expectedRevision: revision },
-    {
+    parsed(fudabaCardDeleteResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) => fudabaCardDeleteResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -557,14 +513,12 @@ export function saveFudabaCardPlacement(
 ) {
   const path = fudabaCardPlacementPathSchema.parse({ officeId, cardId })
   const submission = fudabaCardPlacementSaveSchema.parse(input)
-  return platformApiClient.Put<FudabaCardPlacementSaveResponse, unknown>(
+  return platformApiClient.Put(
     `/api/community/exchange/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`,
     submission,
-    {
+    parsed(fudabaCardPlacementSaveResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) =>
-        fudabaCardPlacementSaveResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -577,13 +531,11 @@ export function deleteFudabaCardPlacement(
   const submission = fudabaCardPlacementDeleteSchema.parse({
     expectedRevision,
   })
-  return platformApiClient.Delete<FudabaCardPlacementDeleteResponse, unknown>(
+  return platformApiClient.Delete(
     `/api/community/exchange/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`,
     submission,
-    {
+    parsed(fudabaCardPlacementDeleteResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) =>
-        fudabaCardPlacementDeleteResponseSchema.parse(payload),
-    }
+    })
   )
 }

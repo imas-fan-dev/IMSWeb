@@ -1,5 +1,8 @@
+import { successFlagSchema } from "@imsweb/contracts/common"
+import { passwordResetIssueResponseSchema } from "@imsweb/contracts/platform"
 import { z } from "@imsweb/contracts/z"
 
+import { parsed } from "../../parsed"
 import { readCookie } from "../../cookies"
 import { platformApiClient } from "../../platform-client"
 import { PLATFORM_CSRF_COOKIE_NAME } from "../../request"
@@ -14,14 +17,6 @@ import {
 } from "@imsweb/contracts/platform"
 
 export * from "@imsweb/contracts/platform"
-
-import type {
-  PlatformOAuthProvidersResponse,
-  PlatformProfileMutationResponse,
-  PlatformProfileResponse,
-  PlatformRegistrationVerificationResponse,
-  PlatformSession,
-} from "@imsweb/contracts/platform"
 
 const utf8Encoder = new TextEncoder()
 
@@ -144,13 +139,11 @@ export function hasPlatformSessionHint() {
 }
 
 export function getPlatformOAuthProviders() {
-  return platformApiClient.Get<PlatformOAuthProvidersResponse, unknown>(
+  return platformApiClient.Get(
     "/api/platform/auth/oauth/providers",
-    {
+    parsed(platformOAuthProvidersResponseSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
-      transform: (payload) =>
-        platformOAuthProvidersResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -158,44 +151,43 @@ export function sendPlatformPasswordResetVerificationCode(
   input: PlatformPasswordResetRequest
 ) {
   const submission = platformPasswordResetRequestSchema.parse(input)
-  return platformApiClient.Post<
-    { success: true; sent: true; retryAfterSeconds?: number },
-    unknown
-  >("/api/platform/auth/password-reset/verification-code", submission, {
-    meta: withPlatformAuth({ authRole: "login" }),
-  })
+  return platformApiClient.Post(
+    "/api/platform/auth/password-reset/verification-code",
+    submission,
+    parsed(passwordResetIssueResponseSchema, {
+      meta: withPlatformAuth({ authRole: "login" }),
+    })
+  )
 }
 
 export function resetPlatformPassword(input: PlatformPasswordResetSubmission) {
   const submission = platformPasswordResetSubmissionSchema.parse(input)
-  return platformApiClient.Post<{ success: true }, unknown>(
+  return platformApiClient.Post(
     "/api/platform/auth/password-reset",
     submission,
-    {
+    parsed(successFlagSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
-    }
+    })
   )
 }
 
 export function getPlatformSession() {
-  return platformApiClient.Get<PlatformSession, unknown>(
+  return platformApiClient.Get(
     "/api/platform/auth/session",
-    {
+    parsed(platformSessionSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => platformSessionSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function loginPlatform(input: PlatformLoginInput) {
   const submission = platformLoginInputSchema.parse(input)
-  return platformApiClient.Post<PlatformSession, unknown>(
+  return platformApiClient.Post(
     "/api/platform/auth/login",
     submission,
-    {
+    parsed(platformSessionSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
-      transform: (payload) => platformSessionSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -203,48 +195,43 @@ export function sendPlatformRegistrationVerificationCode(
   input: PlatformRegistrationVerificationInput
 ) {
   const submission = platformRegistrationVerificationInputSchema.parse(input)
-  return platformApiClient.Post<
-    PlatformRegistrationVerificationResponse,
-    unknown
-  >("/api/platform/auth/register/verification-code", submission, {
-    meta: withPlatformAuth({ authRole: "login" }),
-    transform: (payload) =>
-      platformRegistrationVerificationResponseSchema.parse(payload),
-  })
+  return platformApiClient.Post(
+    "/api/platform/auth/register/verification-code",
+    submission,
+    parsed(platformRegistrationVerificationResponseSchema, {
+      meta: withPlatformAuth({ authRole: "login" }),
+    })
+  )
 }
 
 export function registerPlatform(input: PlatformRegisterInput) {
   const submission = platformRegisterInputSchema.parse(input)
-  return platformApiClient.Post<PlatformSession, unknown>(
+  return platformApiClient.Post(
     "/api/platform/auth/register",
     submission,
-    {
+    parsed(platformSessionSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
-      transform: (payload) => platformSessionSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getPlatformProfile() {
-  return platformApiClient.Get<PlatformProfileResponse, unknown>(
+  return platformApiClient.Get(
     "/api/platform/me",
-    {
+    parsed(platformProfileResponseSchema, {
       meta: withPlatformAuth(),
-      transform: (payload) => platformProfileResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function updatePlatformProfile(input: PlatformProfileUpdate) {
   const submission = platformProfileUpdateSchema.parse(input)
-  return platformApiClient.Put<PlatformProfileMutationResponse, unknown>(
+  return platformApiClient.Put(
     "/api/platform/me",
     submission,
-    {
+    parsed(platformProfileMutationResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) =>
-        platformProfileMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -253,23 +240,21 @@ export function uploadPlatformAvatar(input: PlatformAvatarUpload) {
   const form = new FormData()
   form.append("image", upload.image)
   form.append("expectedUpdatedAt", String(upload.expectedUpdatedAt))
-  return platformApiClient.Put<PlatformProfileMutationResponse, unknown>(
+  return platformApiClient.Put(
     "/api/community/exchange/uploads/avatar",
     form,
-    {
+    parsed(platformProfileMutationResponseSchema, {
       meta: withPlatformCsrf(),
-      transform: (payload) =>
-        platformProfileMutationResponseSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function logoutPlatform() {
-  return platformApiClient.Post<{ success: true }, unknown>(
+  return platformApiClient.Post(
     "/api/platform/auth/logout",
     undefined,
-    {
+    parsed(successFlagSchema, {
       meta: withPlatformCsrf({ authRole: "logout" }),
-    }
+    })
   )
 }

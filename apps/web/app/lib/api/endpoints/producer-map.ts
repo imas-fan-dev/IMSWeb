@@ -1,5 +1,4 @@
-import { z } from "@imsweb/contracts/z"
-
+import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
@@ -18,37 +17,33 @@ import {
 
 export * from "@imsweb/contracts/producer-map"
 
-import type {
-  ProducerMapAdminSnapshot,
-  ProducerMapContent,
-  ProducerMapGeometry,
-} from "@imsweb/contracts/producer-map"
+import type { ProducerMapContent } from "@imsweb/contracts/producer-map"
 
 export function getProducerMapGeometry() {
-  return apiClient.Get<ProducerMapGeometry, unknown>(
+  return apiClient.Get(
     "/maps/china-provinces.json",
-    {
+    parsed(producerMapGeometrySchema, {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
-      transform: (payload) => producerMapGeometrySchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getProducerMapContent() {
-  return apiClient.Get<ProducerMapContent, unknown>("/api/producer-map", {
-    cacheFor: STABLE_CONTENT_CACHE_FOR,
-    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
-    transform: (payload) => producerMapContentSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/producer-map",
+    parsed(producerMapContentSchema, {
+      cacheFor: STABLE_CONTENT_CACHE_FOR,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
+    })
+  )
 }
 
 export function getAdminProducerMapContent() {
-  return adminApiClient.Get<ProducerMapAdminSnapshot, unknown>(
+  return adminApiClient.Get(
     "/api/admin/producer-map",
-    {
+    parsed(producerMapAdminSnapshotSchema, {
       meta: withBackofficeAuth(),
-      transform: (payload) => producerMapAdminSnapshotSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -56,28 +51,24 @@ export function updateAdminProducerMapContent(
   content: ProducerMapContent,
   revision: string | null
 ) {
-  return adminApiClient.Put<
-    z.infer<typeof producerMapAdminUpdateSchema>,
-    unknown
-  >(
+  return adminApiClient.Put(
     "/api/admin/producer-map",
     { content, revision },
-    {
+    parsed(producerMapAdminUpdateSchema, {
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
-      transform: (payload) => producerMapAdminUpdateSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function uploadAdminProducerMapImage(file: File) {
   const form = new FormData()
   form.append("image", file)
-  return adminApiClient.Post<
-    z.infer<typeof producerMapImageUploadSchema>,
-    unknown
-  >("/api/admin/producer-map/images", form, {
-    meta: withBackofficeCsrf(),
-    transform: (payload) => producerMapImageUploadSchema.parse(payload),
-  })
+  return adminApiClient.Post(
+    "/api/admin/producer-map/images",
+    form,
+    parsed(producerMapImageUploadSchema, {
+      meta: withBackofficeCsrf(),
+    })
+  )
 }

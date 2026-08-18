@@ -1,3 +1,5 @@
+import type { z } from "@imsweb/contracts/z"
+import { parsed } from "../parsed"
 import { setCache } from "alova"
 
 import {
@@ -28,9 +30,9 @@ type RecommendationPageRequest = {
   cursor?: string
 }
 
-export function parseRecommendationPage(payload: unknown): RecommendationPage {
-  const parsed = recommendationResponseSchema.parse(payload)
-
+export function normalizeRecommendationPage(
+  parsed: z.output<typeof recommendationResponseSchema>
+): RecommendationPage {
   if (Array.isArray(parsed)) {
     return {
       items: parsed,
@@ -45,6 +47,16 @@ export function parseRecommendationPage(payload: unknown): RecommendationPage {
   return parsed
 }
 
+export function parseRecommendationPage(payload: unknown): RecommendationPage {
+  return normalizeRecommendationPage(
+    recommendationResponseSchema.parse(payload)
+  )
+}
+
+const recommendationPageParsed = parsed(recommendationResponseSchema, {
+  select: normalizeRecommendationPage,
+})
+
 export function getRecommendationPage({
   limit = 20,
   cursor,
@@ -52,11 +64,11 @@ export function getRecommendationPage({
   const params: Record<string, string | number> = { limit }
   if (cursor) params.cursor = cursor
 
-  return apiClient.Get<RecommendationPage, unknown>("/api/news", {
+  return apiClient.Get("/api/news", {
+    ...recommendationPageParsed,
     cacheFor: PUBLIC_QUERY_CACHE_FOR,
     hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,
     params,
-    transform: parseRecommendationPage,
   })
 }
 

@@ -470,3 +470,11 @@ export type IdolMediaCatalog = z.infer<typeof idolMediaCatalogSchema>
 export type IdolMediaAgency = IdolMediaCatalog["agencies"][number]
 
 export type IdolMediaItem = IdolMediaAgency["idols"][number]
+
+export const wikiIdolMediaUploadResultSchema = wikiMutationResultSchema.extend({
+  url: z.string(),
+})
+
+export type WikiIdolMediaUploadResult = z.infer<
+  typeof wikiIdolMediaUploadResultSchema
+>

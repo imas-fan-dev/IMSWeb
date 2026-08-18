@@ -120,3 +120,13 @@ export type WithdrawNamecardInput = z.input<typeof withdrawNamecardResponseSchem
 export type AdminNamecardInput = z.input<typeof adminNamecardSchema>
 
 export type AdminNamecardListInput = z.input<typeof adminNamecardListSchema>
+
+export const adminNamecardMutationSchema = successEnvelope({
+  revision: z.number().int().nonnegative(),
+})
+
+export const reactionMutationSchema = z.object({ ok: z.literal(true) })
+
+export type AdminNamecardMutation = z.infer<typeof adminNamecardMutationSchema>
+
+export type ReactionMutation = z.infer<typeof reactionMutationSchema>

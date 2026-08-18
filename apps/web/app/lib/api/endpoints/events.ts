@@ -4,6 +4,7 @@ import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   PUBLIC_QUERY_CACHE_FOR,
 } from "../cache-policy"
+import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
 import { eventPageSchema } from "@imsweb/contracts/events"
@@ -21,12 +22,14 @@ export function getEventPage({ limit = 20, cursor }: EventPageRequest = {}) {
   const params: Record<string, string | number> = { limit }
   if (cursor) params.cursor = cursor
 
-  return apiClient.Get<EventPage, unknown>("/api/events", {
-    cacheFor: PUBLIC_QUERY_CACHE_FOR,
-    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
-    params,
-    transform: (payload) => eventPageSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/events",
+    parsed(eventPageSchema, {
+      cacheFor: PUBLIC_QUERY_CACHE_FOR,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
+      params,
+    })
+  )
 }
 
 export function cacheEventFeed(page: EventPage) {

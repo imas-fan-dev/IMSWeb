@@ -71,3 +71,12 @@ export type PlatformProfile = z.infer<typeof platformProfileSchema>
 export type PlatformRegistrationVerificationResponse = z.infer<typeof platformRegistrationVerificationResponseSchema>
 export type PlatformProfileResponse = z.infer<typeof platformProfileResponseSchema>
 export type PlatformProfileMutationResponse = z.infer<typeof platformProfileMutationResponseSchema>
+
+export const passwordResetIssueResponseSchema = successEnvelope({
+  sent: z.literal(true),
+  retryAfterSeconds: z.number().int().positive().optional(),
+})
+
+export type PasswordResetIssueResponse = z.infer<
+  typeof passwordResetIssueResponseSchema
+>

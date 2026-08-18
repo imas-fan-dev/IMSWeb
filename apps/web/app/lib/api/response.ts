@@ -160,5 +160,40 @@ export async function handleApiResponse(
     })
   }
 
+  if (
+    (responseType === "auto" || responseType === "json") &&
+    (isRecord(payload) || Array.isArray(payload)) &&
+    !context.meta?.parsed &&
+    !context.meta?.skipContractCheck
+  ) {
+    reportUnparsedResponse(context)
+  }
+
   return payload
+}
+
+const unparsedResponseReports = new Set<string>()
+
+/**
+ * Wire-contract enforcement: every JSON endpoint must either validate its
+ * payload via `parsed()` or opt out explicitly with `meta.skipContractCheck`.
+ * Warns once per endpoint during development and fails fast under vitest.
+ */
+function reportUnparsedResponse(context: ApiRequestContext): void {
+  const key = `${context.method ?? "GET"} ${context.url ?? "<unknown>"}`
+  if (unparsedResponseReports.has(key)) {
+    return
+  }
+  unparsedResponseReports.add(key)
+  const message = `JSON 响应未经线上契约校验: ${key}（请使用 parsed() 或 meta.skipContractCheck）`
+  if (import.meta.env.MODE === "test") {
+    throw new ApiError(message, {
+      ...context,
+      kind: "contract",
+      code: "UNVALIDATED_RESPONSE",
+    })
+  }
+  if (import.meta.env.DEV) {
+    console.warn(`[api] ${message}`)
+  }
 }

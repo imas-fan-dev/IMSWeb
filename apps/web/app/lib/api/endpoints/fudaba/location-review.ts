@@ -1,5 +1,4 @@
-import { z } from "@imsweb/contracts/z"
-
+import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
 
@@ -23,13 +22,12 @@ export function getFudabaLocationReviews(
     state,
     limit: String(limit),
   })
-  return adminApiClient.Get<
-    z.infer<typeof fudabaLocationReviewListSchema>,
-    unknown
-  >(`/api/admin/community/exchange/office-locations?${query}`, {
-    meta: withBackofficeAuth(),
-    transform: (payload) => fudabaLocationReviewListSchema.parse(payload),
-  })
+  return adminApiClient.Get(
+    `/api/admin/community/exchange/office-locations?${query}`,
+    parsed(fudabaLocationReviewListSchema, {
+      meta: withBackofficeAuth(),
+    })
+  )
 }
 
 export function reviewFudabaLocation(
@@ -40,15 +38,11 @@ export function reviewFudabaLocation(
     note: string
   }
 ) {
-  return adminApiClient.Put<
-    z.infer<typeof fudabaLocationReviewMutationSchema>,
-    unknown
-  >(
+  return adminApiClient.Put(
     `/api/admin/community/exchange/office-locations/${encodeURIComponent(officeId)}`,
     input,
-    {
+    parsed(fudabaLocationReviewMutationSchema, {
       meta: withBackofficeCsrf(),
-      transform: (payload) => fudabaLocationReviewMutationSchema.parse(payload),
-    }
+    })
   )
 }

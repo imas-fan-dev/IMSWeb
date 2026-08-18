@@ -1,9 +1,10 @@
-import { z } from "@imsweb/contracts/z"
+import { reactionMutationSchema } from "@imsweb/contracts/namecards"
 
 import {
   NO_CLIENT_CACHE,
   PUBLIC_CACHE_INVALIDATION_SOURCE,
 } from "../cache-policy"
+import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
 import {
@@ -15,12 +16,6 @@ import {
 } from "@imsweb/contracts/namecards"
 
 export * from "@imsweb/contracts/namecards"
-
-import type {
-  NamecardPage,
-  NamecardReactions,
-  UploadNamecardResponse,
-} from "@imsweb/contracts/namecards"
 
 export const NAMECARD_REACTIONS = [
   "❤️",
@@ -72,26 +67,31 @@ export const NAMECARD_REACTIONS = [
 ] as const
 
 export function getNamecardPage(page = 1, size = 12) {
-  return apiClient.Get<NamecardPage, unknown>("/api/cards", {
-    cacheFor: NO_CLIENT_CACHE,
-    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
-    params: { page, size },
-    transform: (payload) => namecardPageSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/cards",
+    parsed(namecardPageSchema, {
+      cacheFor: NO_CLIENT_CACHE,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
+      params: { page, size },
+    })
+  )
 }
 
 export function getNamecardReactions(cardId: number) {
-  return apiClient.Get<NamecardReactions, unknown>("/api/reactions", {
-    params: { id: cardId },
-    transform: (payload) => reactionSchema.parse(payload),
-  })
+  return apiClient.Get(
+    "/api/reactions",
+    parsed(reactionSchema, {
+      params: { id: cardId },
+    })
+  )
 }
 
 export function addNamecardReaction(cardId: number, emoji: string) {
-  return apiClient.Post<{ ok: true }, unknown>("/api/reactions", {
-    id: cardId,
-    emoji,
-  })
+  return apiClient.Post(
+    "/api/reactions",
+    { id: cardId, emoji },
+    parsed(reactionMutationSchema)
+  )
 }
 
 export function uploadNamecard(
@@ -104,21 +104,20 @@ export function uploadNamecard(
   form.append("images", back)
   form.append("seriesCode", metadata.seriesCode)
   form.append("favoriteIdolIds", JSON.stringify(metadata.favoriteIdolIds))
-  return apiClient.Post<UploadNamecardResponse, unknown>(
+  return apiClient.Post(
     "/api/uploadNameCard",
     form,
-    { transform: (payload) => uploadNamecardResponseSchema.parse(payload) }
+    parsed(uploadNamecardResponseSchema)
   )
 }
 
 export function getNamecardSubmission(id: number, withdrawalToken: string) {
-  return apiClient.Get<
-    z.infer<typeof namecardSubmissionResponseSchema>,
-    unknown
-  >(`/api/namecards/submissions/${id}`, {
-    headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-    transform: (payload) => namecardSubmissionResponseSchema.parse(payload),
-  })
+  return apiClient.Get(
+    `/api/namecards/submissions/${id}`,
+    parsed(namecardSubmissionResponseSchema, {
+      headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+    })
+  )
 }
 
 export function withdrawNamecardSubmission(
@@ -126,15 +125,11 @@ export function withdrawNamecardSubmission(
   withdrawalToken: string,
   expectedRevision: number
 ) {
-  return apiClient.Post<
-    z.infer<typeof withdrawNamecardResponseSchema>,
-    unknown
-  >(
+  return apiClient.Post(
     `/api/namecards/submissions/${id}/withdraw`,
     { expected_revision: expectedRevision },
-    {
+    parsed(withdrawNamecardResponseSchema, {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
-      transform: (payload) => withdrawNamecardResponseSchema.parse(payload),
-    }
+    })
   )
 }

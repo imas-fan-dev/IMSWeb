@@ -127,7 +127,9 @@ describe("API response policy", () => {
   it("parses JSON responses", async () => {
     const response = Response.json({ success: true, user: { dept: "op" } })
 
-    await expect(handleApiResponse(response)).resolves.toEqual({
+    await expect(
+      handleApiResponse(response, { meta: { skipContractCheck: true } })
+    ).resolves.toEqual({
       success: true,
       user: { dept: "op" },
     })
@@ -164,8 +166,18 @@ describe("API response policy", () => {
     const response = Response.json(payload)
 
     await expect(
-      handleApiResponse(response, { meta: { skipBusinessErrorCheck: true } })
+      handleApiResponse(response, {
+        meta: { skipBusinessErrorCheck: true, skipContractCheck: true },
+      })
     ).resolves.toEqual(payload)
+  })
+
+  it("rejects unvalidated JSON responses under vitest", async () => {
+    const response = Response.json({ anything: 1 })
+
+    await expect(
+      handleApiResponse(response, { url: "/api/unvalidated" })
+    ).rejects.toMatchObject({ kind: "contract", code: "UNVALIDATED_RESPONSE" })
   })
 
   it("reports malformed JSON as a parse error", async () => {
@@ -325,7 +337,7 @@ describe("Alova access-token refresh", () => {
       getAdminSession().send(),
       adminApiClient
         .Get("/api/admin/auth/session?request=second", {
-          meta: withBackofficeAuth(),
+          meta: withBackofficeAuth({ skipContractCheck: true }),
         })
         .send(),
     ]
@@ -400,7 +412,7 @@ describe("Alova access-token refresh", () => {
           success: true
           user: { username: string }
         }>("/api/admin/auth/session?request=second", {
-          meta: withBackofficeAuth(),
+          meta: withBackofficeAuth({ skipContractCheck: true }),
         })
         .send(),
     ])

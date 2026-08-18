@@ -19,6 +19,10 @@ export interface ApiMethodMeta {
   responseType?: ApiResponseType
   /** Use only when an endpoint intentionally returns a failure-shaped payload as data. */
   skipBusinessErrorCheck?: boolean
+  /** Set by `parsed()`: the payload is validated against a wire-contract schema. */
+  parsed?: boolean
+  /** Explicit opt-out for JSON endpoints that intentionally skip contract validation. */
+  skipContractCheck?: boolean
 }
 
 export interface ApiRequestContext {

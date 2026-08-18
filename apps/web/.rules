@@ -45,7 +45,13 @@ Vitest and Testing Library files use `*.test.ts(x)`; Playwright files use `tests
 Mirror the `@imsweb/contracts` layout: one flat module per business domain, with
 folders only for multi-file businesses (`fudaba/`, `platform/`, `wiki/`) whose
 core module is `index.ts`. Endpoint modules import wire schemas from package
-subpaths and parse responses in `transform` callbacks; request-side input
+subpaths and validate responses through the `parsed(schema, config)` helper
+(`app/lib/api/parsed.ts`) — never hand-written `transform` closures or manual
+response generics; the response type infers from the schema and `select`
+projects after validation. `handleApiResponse` enforces this: JSON responses
+without `meta.parsed` warn in dev and fail under vitest, and
+`meta.skipContractCheck` is an explicit reviewed opt-out for infra tests and
+raw probes only. Request-side input
 validation, `File`/`FormData` schemas, and UI-only types stay in the endpoint
 module. Modules mapping 1:1 to one package module re-export it via `export *`;
 multi-source modules use named imports and named re-exports only, keeping the

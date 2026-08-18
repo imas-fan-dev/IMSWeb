@@ -1,9 +1,8 @@
-import { z } from "@imsweb/contracts/z"
-
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   PUBLIC_QUERY_CACHE_FOR,
 } from "../cache-policy"
+import { parsed } from "../parsed"
 import { apiClient } from "../client"
 import { getEventPage } from "./events"
 import type { EventListItem, EventPage } from "./events"
@@ -38,23 +37,21 @@ export function getHomeEvents(limit = 4) {
 }
 
 export function getHomeInformation() {
-  return apiClient.Get<z.infer<typeof informationListSchema>, unknown>(
+  return apiClient.Get(
     "/api/information",
-    {
+    parsed(informationListSchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-      transform: (payload) => informationListSchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getHomeInformationDetail(id: string) {
-  return apiClient.Get<HomeInformationDetail, unknown>(
+  return apiClient.Get(
     `/api/information/${encodeURIComponent(id)}`,
-    {
+    parsed(informationDetailSchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
-      transform: (payload) => informationDetailSchema.parse(payload),
-    }
+    })
   )
 }

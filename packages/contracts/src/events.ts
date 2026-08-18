@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { snapshotPageInfoSchema } from "./common.js"
+import { snapshotPageInfoSchema, successEnvelope } from "./common.js"
 
 export const eventIdSchema = z
   .union([z.string(), z.number().int().positive()])
@@ -31,3 +31,9 @@ export type EventPage = z.infer<typeof eventPageSchema>
 export type EventListItemInput = z.input<typeof eventListItemSchema>
 
 export type EventPageInput = z.input<typeof eventPageSchema>
+
+export const createEventResponseSchema = successEnvelope({
+  id: z.number().int().positive(),
+})
+
+export type CreateEventResponse = z.infer<typeof createEventResponseSchema>

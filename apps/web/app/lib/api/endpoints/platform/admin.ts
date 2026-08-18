@@ -1,5 +1,4 @@
-import { z } from "@imsweb/contracts/z"
-
+import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
 
@@ -10,19 +9,14 @@ import {
 
 export * from "@imsweb/contracts/platform/admin"
 
-import type {
-  PlatformOAuthAdminProvider,
-  PlatformOAuthAdminProviderList,
-} from "@imsweb/contracts/platform/admin"
+import type { PlatformOAuthAdminProvider } from "@imsweb/contracts/platform/admin"
 
 export function getAdminPlatformOAuthProviders() {
-  return adminApiClient.Get<PlatformOAuthAdminProviderList, unknown>(
+  return adminApiClient.Get(
     "/api/admin/platform/auth/oauth/providers",
-    {
+    parsed(platformOAuthAdminProviderListSchema, {
       meta: withBackofficeAuth(),
-      transform: (payload) =>
-        platformOAuthAdminProviderListSchema.parse(payload),
-    }
+    })
   )
 }
 
@@ -37,12 +31,11 @@ export function updateAdminPlatformOAuthProvider(
     expectedUpdatedAt: number
   }
 ) {
-  return adminApiClient.Put<
-    z.infer<typeof platformOAuthAdminProviderMutationSchema>,
-    unknown
-  >(`/api/admin/platform/auth/oauth/${provider}`, input, {
-    meta: withBackofficeCsrf(),
-    transform: (payload) =>
-      platformOAuthAdminProviderMutationSchema.parse(payload),
-  })
+  return adminApiClient.Put(
+    `/api/admin/platform/auth/oauth/${provider}`,
+    input,
+    parsed(platformOAuthAdminProviderMutationSchema, {
+      meta: withBackofficeCsrf(),
+    })
+  )
 }

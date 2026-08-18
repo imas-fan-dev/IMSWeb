@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { successEnvelope } from "./common.js"
 
 export const homepageLinkSectionSchema = z.enum([
   "navigation",
@@ -61,3 +62,9 @@ export type HomepageLinkSection = z.infer<typeof homepageLinkSectionSchema>
 export type HomepageLinkIcon = z.infer<typeof homepageLinkIconSchema>
 
 export type HomepageLinkAccent = z.infer<typeof homepageLinkAccentSchema>
+
+export const homepageLinkMutationSchema = successEnvelope({
+  link: homepageLinkSchema,
+})
+
+export type HomepageLinkMutation = z.infer<typeof homepageLinkMutationSchema>

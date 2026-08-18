@@ -61,3 +61,11 @@ export type InformationContentType = z.infer<
 export type InformationList = z.infer<typeof informationListSchema>
 
 export type InformationAsset = z.infer<typeof informationAssetSchema>
+
+export const adminInformationMutationSchema = successEnvelope({
+  card: adminInformationCardSchema,
+})
+
+export type AdminInformationMutation = z.infer<
+  typeof adminInformationMutationSchema
+>
