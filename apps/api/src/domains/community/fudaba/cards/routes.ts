@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 import { activePlatformMutation, platformAuth, platformCsrf } from '@/middleware/hono-auth';
 import { requireFudabaWrite } from '@/domains/community/fudaba/access-policy';
 import { handleCreateFudabaCard } from '@/domains/community/fudaba/cards/handlers/create-card';
@@ -64,7 +65,7 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
         handleRemoveFudabaCardPlacement
     );
     routes.put(
-        '/uploads/:side',
+        publicUploadsPath('/:side'),
         requireFudabaWrite,
         platformAuth,
         activePlatformMutation,

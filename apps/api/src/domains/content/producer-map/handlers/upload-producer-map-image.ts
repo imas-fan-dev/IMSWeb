@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
@@ -26,7 +27,7 @@ export async function handleUploadProducerMapImage(
         const { image } = await parseProducerMapImageUploadRequest(c);
         const webp = await normalizeUploadedImageToWebp(image, runtime.images, 88);
         const filename = `${safeUploadBaseName(image.filename)}-${Date.now()}-${randomHex(6)}.webp`;
-        const url = `/uploads/producer-map/${filename}`;
+        const url = publicUploadsPath(`/producer-map/${filename}`);
         key = producerMapAssetObjectKey(filename);
         await runtime.storage.put(key, webp, {
             contentType: 'image/webp',

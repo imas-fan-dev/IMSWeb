@@ -59,7 +59,10 @@ types, and `File`/`FormData` shapes. zod itself is encapsulated by the package: 
 `@imsweb/contracts/z`; only `packages/contracts` may declare the zod dependency.
 Cross-domain response commons (success envelope, cursor/snapshot/numbered
 page-info) live in `@imsweb/contracts/common` and domain schemas compose them
-via `successEnvelope`/shared refs instead of redefining inline. API response
+via `successEnvelope`/shared refs instead of redefining inline. Shared API and
+public delivery URL prefixes live in `@imsweb/contracts/paths`; both API route
+registration/middleware and Web endpoints must use its path builders, keeping
+only business-specific suffixes local. API response
 modules must not hand-write wire shapes: they alias package types (output
 types, or `z.input` variants where schemas transform/coerce) and view builders
 annotate returns with contract types; only API-local boundaries (media/site

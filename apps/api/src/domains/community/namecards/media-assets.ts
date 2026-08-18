@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { ImageProcessor } from '@/ports/media';
 import type { ObjectStorage } from '@/ports/object-storage';
 import {
@@ -28,7 +29,7 @@ export async function storeProtectedNamecardMedia(
     filename: string,
     webp: Uint8Array
 ): Promise<StoredNamecardMedia> {
-    const url = `/uploads/namecard/original/${filename}`;
+    const url = publicUploadsPath(`/namecard/original/${filename}`);
     const keys = namecardMediaObjectKeys(url);
     const thumbnail = await runtime.images.resizeJpeg(
         webp,

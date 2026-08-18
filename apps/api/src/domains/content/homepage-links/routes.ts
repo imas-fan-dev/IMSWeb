@@ -1,3 +1,4 @@
+import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleCreateHomepageLink } from '@/domains/content/homepage-links/handlers/create-homepage-link';
 import { handleDeleteHomepageLink } from '@/domains/content/homepage-links/handlers/delete-homepage-link';
@@ -18,10 +19,10 @@ const homepageLinkIdValidator = paramValidator(validateHomepageLinkIdParams);
 const homepageLinkSectionValidator = paramValidator(validateHomepageLinkSectionParams);
 
 export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
-    app.get('/api/homepage-links', handleListHomepageLinks);
-    app.get('/api/admin/homepage-links', backofficeAuth, opOnly, handleListHomepageLinks);
+    app.get(apiPath('/homepage-links'), handleListHomepageLinks);
+    app.get(adminApiPath('/homepage-links'), backofficeAuth, opOnly, handleListHomepageLinks);
     app.post(
-        '/api/admin/homepage-links',
+        adminApiPath('/homepage-links'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -29,7 +30,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         handleCreateHomepageLink
     );
     app.put(
-        '/api/admin/homepage-links/:section/order',
+        adminApiPath('/homepage-links/:section/order'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -38,7 +39,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         handleReorderHomepageLinks
     );
     app.put(
-        '/api/admin/homepage-links/:id',
+        adminApiPath('/homepage-links/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -47,7 +48,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         handleUpdateHomepageLink
     );
     app.delete(
-        '/api/admin/homepage-links/:id',
+        adminApiPath('/homepage-links/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,

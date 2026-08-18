@@ -1,3 +1,10 @@
+import {
+  adminWikiPath,
+  cssPath,
+  iconPath,
+  imagePath,
+  wikiPath,
+} from '@imsweb/contracts/paths';
 import type { Env, Hono } from "hono";
 import {
   createWikiWriteAuthorization,
@@ -47,84 +54,84 @@ export function registerWikiMediaRoutes<E extends Env>(
 
   app.on(
     ["GET", "HEAD"],
-    "/icon/agencies/:asset",
+    iconPath('/agencies/:asset'),
     assetParam,
     createHandleServeWikiEntityIcon(resolveServices, "agency"),
   );
   app.on(
     ["GET", "HEAD"],
-    "/icon/wiki-groups/:asset",
+    iconPath('/wiki-groups/:asset'),
     assetParam,
     createHandleServeWikiEntityIcon(resolveServices, "group"),
   );
-  app.on(["GET", "HEAD"], "/icon/*", handleRejectRetiredWikiStaticAsset);
+  app.on(["GET", "HEAD"], iconPath('/*'), handleRejectRetiredWikiStaticAsset);
   app.on(
     ["GET", "HEAD"],
-    "/api/wiki/story-cover-assets/:asset",
+    wikiPath('/story-cover-assets/:asset'),
     assetParam,
     createHandleServeWikiStoryCoverAsset(resolveServices),
   );
-  app.on(["GET", "HEAD"], "/css/*", handleRejectRetiredWikiStaticAsset);
+  app.on(["GET", "HEAD"], cssPath('/*'), handleRejectRetiredWikiStaticAsset);
   app.on(
     ["GET", "HEAD"],
-    "/image/:agency/:idol/*",
+    imagePath('/:agency/:idol/*'),
     createHandleServeWikiIdolImage(resolveServices),
   );
   app.get(
-    "/api/admin/wiki/agencies/:agencyId/story-cover-assets",
+    adminWikiPath('/agencies/:agencyId/story-cover-assets'),
     paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleListWikiStoryCoverAssets(resolveServices),
   );
   app.post(
-    "/api/admin/wiki/agencies/:agencyId/story-cover-assets",
+    adminWikiPath('/agencies/:agencyId/story-cover-assets'),
     paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleCreateWikiStoryCoverAsset(resolveServices),
   );
   app.patch(
-    "/api/admin/wiki/story-cover-assets/:assetId",
+    adminWikiPath('/story-cover-assets/:assetId'),
     paramValidator(validateWikiAssetIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleUpdateWikiStoryCoverAsset(resolveServices),
   );
   app.delete(
-    "/api/admin/wiki/story-cover-assets/:assetId",
+    adminWikiPath('/story-cover-assets/:assetId'),
     paramValidator(validateWikiAssetIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleDeleteWikiStoryCoverAsset(resolveServices),
   );
   app.put(
-    "/api/admin/wiki/agencies/:agencyId/icon",
+    adminWikiPath('/agencies/:agencyId/icon'),
     paramValidator(validateWikiMediaAgencyIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleSaveWikiEntityImage(resolveServices, "agency", "agencyId"),
   );
   app.put(
-    "/api/admin/wiki/groups/:groupId/icon",
+    adminWikiPath('/groups/:groupId/icon'),
     paramValidator(validateWikiMediaGroupIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleSaveWikiEntityImage(resolveServices, "group", "groupId"),
   );
   app.put(
-    "/api/admin/wiki/idols/:idolId/avatar",
+    adminWikiPath('/idols/:idolId/avatar'),
     paramValidator(validateWikiMediaIdolIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleSaveWikiEntityImage(resolveServices, "idol", "idolId"),
   );
   app.get(
-    "/api/wiki/idol-media",
+    wikiPath('/idol-media'),
     createHandleListWikiIdolMedia(resolveServices),
   );
   app.post(
-    "/api/wiki/agency-icon",
+    wikiPath('/agency-icon'),
     createHandleUploadWikiAgencyIcon(resolveServices),
   );
   app.delete(
-    "/api/wiki/agency-icon",
+    wikiPath('/agency-icon'),
     writeAuthorization,
     jsonValidator(validateDeleteWikiAgencyIconRequest, jsonOptions),
     createHandleDeleteWikiAgencyIcon(resolveServices),
   );
   app.post(
-    "/api/wiki/idol-media",
+    wikiPath('/idol-media'),
     createHandleUploadWikiIdolMedia(resolveServices),
   );
   app.delete(
-    "/api/wiki/idol-media",
+    wikiPath('/idol-media'),
     writeAuthorization,
     jsonValidator(validateDeleteWikiIdolMediaRequest, jsonOptions),
     createHandleDeleteWikiIdolMedia(resolveServices),

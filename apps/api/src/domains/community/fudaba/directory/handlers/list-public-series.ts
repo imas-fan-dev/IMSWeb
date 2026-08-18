@@ -1,3 +1,4 @@
+import { iconPath } from '@imsweb/contracts/paths';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { assertNoFudabaQuery } from '@/domains/community/fudaba/directory/request';
@@ -23,7 +24,7 @@ export async function handleListFudabaPublicSeries(
                 iconUrl = await resolvePublicObjectUrl(
                     storage,
                     row.icon_object_key,
-                    `/icon/agencies/${row.id}.webp`
+                    iconPath(`/agencies/${row.id}.webp`)
                 );
             }
             return {

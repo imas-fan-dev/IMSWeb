@@ -1,3 +1,4 @@
+import { apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleListLiveSchedule } from '@/domains/content/live-schedule/handlers/list-live-schedule';
 import { validateLiveScheduleQuery } from '@/domains/content/live-schedule/request';
@@ -6,7 +7,7 @@ import { queryValidator } from '@/middleware/request-validation';
 
 export function registerLiveScheduleRoutes(app: ImsHonoApp): void {
     app.get(
-        '/api/live-schedule',
+        apiPath('/live-schedule'),
         queryValidator(validateLiveScheduleQuery, {
             errorBody: liveScheduleErrorResponse
         }),

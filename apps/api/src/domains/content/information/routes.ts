@@ -1,3 +1,4 @@
+import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleCreateInformation } from '@/domains/content/information/handlers/create-information';
 import { handleDeleteInformation } from '@/domains/content/information/handlers/delete-information';
@@ -26,18 +27,18 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         informationCardParamValidator,
         handleServeInformationContent
     );
-    app.get('/api/information', handleListInformation);
-    app.get('/api/information/:id', informationCardParamValidator, handleGetInformation);
-    app.get('/api/admin/information', backofficeAuth, opOnly, handleListAdminInformation);
+    app.get(apiPath('/information'), handleListInformation);
+    app.get(apiPath('/information/:id'), informationCardParamValidator, handleGetInformation);
+    app.get(adminApiPath('/information'), backofficeAuth, opOnly, handleListAdminInformation);
     app.post(
-        '/api/admin/information/assets',
+        adminApiPath('/information/assets'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
         handleUploadInformationAsset
     );
     app.post(
-        '/api/admin/information',
+        adminApiPath('/information'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -45,7 +46,7 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         handleCreateInformation
     );
     app.put(
-        '/api/admin/information/order',
+        adminApiPath('/information/order'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -53,7 +54,7 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         handleReorderInformation
     );
     app.put(
-        '/api/admin/information/:id',
+        adminApiPath('/information/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -62,7 +63,7 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         handleUpdateInformation
     );
     app.delete(
-        '/api/admin/information/assets',
+        adminApiPath('/information/assets'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -70,7 +71,7 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
         handleDeleteInformationAsset
     );
     app.delete(
-        '/api/admin/information/:id',
+        adminApiPath('/information/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,

@@ -1,3 +1,14 @@
+import {
+  apiPath,
+  cssPath,
+  eventChroniclePath,
+  iconPath,
+  imagePath,
+  publicAssetsPath,
+  publicUploadsPath,
+  siteContentPath,
+  sitesPath,
+} from '@imsweb/contracts/paths';
 import { isSensitiveRequestPath } from "@/middleware/static-path-policy";
 
 export type FrontendRouteDecision =
@@ -11,15 +22,15 @@ export interface FrontendRouteRequest {
 }
 
 const SERVER_PREFIXES = [
-  "/api",
-  "/site-content",
-  "/sites",
-  "/image",
-  "/icon",
-  "/css",
-  "/uploads",
-  "/eventchronicle",
-  "/assets/images/eventchronicle/events",
+  apiPath(),
+  siteContentPath(),
+  sitesPath(),
+  imagePath(),
+  iconPath(),
+  cssPath(),
+  publicUploadsPath(),
+  eventChroniclePath(),
+  publicAssetsPath('/images/eventchronicle/events'),
 ] as const;
 
 const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map([

@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 function normalizeObjectKey(value: string): string {
     const key = value.replace(/^\/+/, '').replace(/\\/g, '/');
     const segments = key.split('/');
@@ -94,7 +95,7 @@ export function namecardThumbnailPublicUrl(originalUrl: string): string {
     if (prefix !== 'uploads/namecard/original') {
         throw new Error(`Unsupported namecard media path: ${legacyKey}`);
     }
-    return `/uploads/namecard/thumbnail/${filename}.jpg`;
+    return publicUploadsPath(`/namecard/thumbnail/${filename}.jpg`);
 }
 
 export function namecardMediaObjectKeys(originalUrl: string): [string, string] {

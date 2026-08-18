@@ -1,3 +1,4 @@
+import { adminExchangePath, exchangePath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { privateFudabaResponse } from '@/domains/community/fudaba/access-policy';
 import { fudabaCardRoutes } from '@/domains/community/fudaba/cards/routes';
@@ -7,8 +8,8 @@ import { fudabaLocationRoutes } from '@/domains/community/fudaba/locations/route
 import { fudabaModerationRoutes } from '@/domains/community/fudaba/moderation/routes';
 import { fudabaOfficeRoutes } from '@/domains/community/fudaba/offices/routes';
 
-const EXCHANGE_PREFIX = '/api/community/exchange';
-const EXCHANGE_ADMIN_PREFIX = '/api/admin/community/exchange';
+const EXCHANGE_PREFIX = exchangePath();
+const EXCHANGE_ADMIN_PREFIX = adminExchangePath();
 
 export function registerFudabaRoutes(app: ImsHonoApp): void {
     app.use(`${EXCHANGE_PREFIX}/*`, privateFudabaResponse);

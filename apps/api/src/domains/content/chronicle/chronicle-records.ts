@@ -1,3 +1,4 @@
+import { publicAssetsPath } from '@imsweb/contracts/paths';
 import type { UploadedFile } from '@/ports/http';
 import type { ListedObject, ObjectStorage } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -84,10 +85,14 @@ async function readMetaSnapshot(
 ): Promise<{ value: unknown; etag: string | null }> {
     const object = await storage.get(metaKey(activityId));
     if (!object) return { value: { records: [] }, etag: null };
-    return {
-        value: JSON.parse(new TextDecoder().decode(object.body)) as unknown,
-        etag: object.etag
-    };
+    try {
+        return {
+            value: JSON.parse(new TextDecoder().decode(object.body)) as unknown,
+            etag: object.etag
+        };
+    } catch (error) {
+        throw new Error(`编年史元数据无法解析: ${activityId}`, { cause: error });
+    }
 }
 
 export async function mutateChronicleMeta(
@@ -120,7 +125,9 @@ export function encodedChronicleMediaUrl(
     activityId: string,
     filename: string
 ): string {
-    return `/assets/images/eventchronicle/events/${bucket}/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`;
+    return publicAssetsPath(
+        `/images/eventchronicle/events/${bucket}/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`
+    );
 }
 
 export async function cleanupCommittedChronicleObject(

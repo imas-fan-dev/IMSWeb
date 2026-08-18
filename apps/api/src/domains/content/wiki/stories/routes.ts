@@ -1,3 +1,4 @@
+import { adminWikiPath, wikiPath } from '@imsweb/contracts/paths';
 import type { Env, Hono } from "hono";
 import {
   createWikiWriteAuthorization,
@@ -49,37 +50,37 @@ export function registerWikiStoryRoutes<E extends Env>(
   const writeAuthorization = createWikiWriteAuthorization(resolveServices);
 
   app.get(
-    "/api/wiki/stories",
+    wikiPath('/stories'),
     queryValidator(validateWikiStoriesQuery, { errorBody: wikiValidationErrorBody }),
     createHandleListPublicWikiStories(resolveServices),
   );
   app.get(
-    "/api/admin/wiki/stories",
+    adminWikiPath('/stories'),
     queryValidator(validateWikiStoriesQuery, { errorBody: wikiValidationErrorBody }),
     createHandleListAdminWikiStories(resolveServices),
   );
   app.get(
-    "/api/admin/wiki/story-source-catalog",
+    adminWikiPath('/story-source-catalog'),
     createHandleListWikiStorySourceCatalog(resolveServices),
   );
   app.post(
-    "/api/admin/wiki/story-content-types",
+    adminWikiPath('/story-content-types'),
     jsonValidator(validateCreateWikiContentTypeRequest, jsonOptions),
     createHandleCreateWikiStoryCatalogOption(resolveServices, "content-type"),
   );
   app.patch(
-    "/api/admin/wiki/story-content-types/:optionId",
+    adminWikiPath('/story-content-types/:optionId'),
     paramValidator(validateWikiOptionIdParams, { errorBody: wikiValidationErrorBody }),
     jsonValidator(validateUpdateWikiContentTypeRequest, jsonOptions),
     createHandleUpdateWikiStoryCatalogOption(resolveServices, "content-type"),
   );
   app.delete(
-    "/api/admin/wiki/story-content-types/:optionId",
+    adminWikiPath('/story-content-types/:optionId'),
     paramValidator(validateWikiOptionIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleDeleteWikiStoryCatalogOption(resolveServices, "content-type"),
   );
   app.post(
-    "/api/admin/wiki/story-source-platforms",
+    adminWikiPath('/story-source-platforms'),
     jsonValidator(validateCreateWikiSourcePlatformRequest, jsonOptions),
     createHandleCreateWikiStoryCatalogOption(
       resolveServices,
@@ -87,7 +88,7 @@ export function registerWikiStoryRoutes<E extends Env>(
     ),
   );
   app.patch(
-    "/api/admin/wiki/story-source-platforms/:optionId",
+    adminWikiPath('/story-source-platforms/:optionId'),
     paramValidator(validateWikiOptionIdParams, { errorBody: wikiValidationErrorBody }),
     jsonValidator(validateUpdateWikiSourcePlatformRequest, jsonOptions),
     createHandleUpdateWikiStoryCatalogOption(
@@ -96,7 +97,7 @@ export function registerWikiStoryRoutes<E extends Env>(
     ),
   );
   app.delete(
-    "/api/admin/wiki/story-source-platforms/:optionId",
+    adminWikiPath('/story-source-platforms/:optionId'),
     paramValidator(validateWikiOptionIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleDeleteWikiStoryCatalogOption(
       resolveServices,
@@ -104,30 +105,30 @@ export function registerWikiStoryRoutes<E extends Env>(
     ),
   );
   app.delete(
-    "/api/admin/wiki/stories/:storyId",
+    adminWikiPath('/stories/:storyId'),
     paramValidator(validateWikiStoryIdParams, { errorBody: wikiValidationErrorBody }),
     queryValidator(validateWikiStoryLinkQuery, { errorBody: wikiValidationErrorBody }),
     createHandleDeleteWikiStoryLink(resolveServices),
   );
   app.patch(
-    "/api/admin/wiki/cards/:cardId",
+    adminWikiPath('/cards/:cardId'),
     paramValidator(validateWikiCardIdParams, { errorBody: wikiValidationErrorBody }),
     createHandleUpdateWikiStoryCard(resolveServices),
   );
   app.post(
-    "/api/admin/wiki/cards/:cardId/sources",
+    adminWikiPath('/cards/:cardId/sources'),
     paramValidator(validateWikiCardIdParams, { errorBody: wikiValidationErrorBody }),
     jsonValidator(validateWikiStorySourcesRequest, jsonOptions),
     createHandleAddWikiStorySources(resolveServices),
   );
-  app.post("/api/wiki/add_story", createHandleAddWikiStory(resolveServices));
-  app.post("/api/wiki/edit_story", createHandleEditWikiStory(resolveServices));
+  app.post(wikiPath('/add_story'), createHandleAddWikiStory(resolveServices));
+  app.post(wikiPath('/edit_story'), createHandleEditWikiStory(resolveServices));
   app.post(
-    "/api/wiki/delete_story",
+    wikiPath('/delete_story'),
     createHandleDeleteWikiStory(resolveServices),
   );
   app.post(
-    "/api/wiki/parse_bilibili",
+    wikiPath('/parse_bilibili'),
     writeAuthorization,
     jsonValidator(validateWikiBilibiliRequest, {
       ...jsonOptions,

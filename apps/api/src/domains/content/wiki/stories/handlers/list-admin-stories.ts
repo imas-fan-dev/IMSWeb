@@ -1,3 +1,4 @@
+import { imagePath } from '@imsweb/contracts/paths';
 import type { Env } from "hono";
 import {
   authorizeWikiRead,
@@ -62,7 +63,7 @@ export function createHandleListAdminWikiStories<E extends Env>(
         ? resolvePublicObjectUrl(
             services.storage!,
             idol.avatar_object_key,
-            `/image/${encodeURIComponent(agency.name)}/` +
+            imagePath(`/${encodeURIComponent(agency.name)}/`) +
               `${encodeURIComponent(idol.name_cn)}/icon.webp`,
           ).then((url) => revisionedUrl(url, idol.avatar_media_revision))
         : Promise.resolve(""),

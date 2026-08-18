@@ -1,3 +1,4 @@
+import { adminPlatformAuthOAuthPath, platformAuthOAuthPath, platformAuthPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import {
     platformOAuthAdminRoutes,
@@ -8,9 +9,9 @@ import { platformRegistrationRoutes } from '@/domains/identity/platform-auth/reg
 import { platformSessionRoutes } from '@/domains/identity/platform-auth/sessions/routes';
 
 export function registerPlatformAuthRoutes(app: ImsHonoApp): void {
-    app.route('/api/platform/auth', platformSessionRoutes());
-    app.route('/api/platform/auth', platformRegistrationRoutes());
-    app.route('/api/platform/auth', platformPasswordResetRoutes());
-    app.route('/api/platform/auth/oauth', platformOAuthRoutes());
-    app.route('/api/admin/platform/auth/oauth', platformOAuthAdminRoutes());
+    app.route(platformAuthPath(), platformSessionRoutes());
+    app.route(platformAuthPath(), platformRegistrationRoutes());
+    app.route(platformAuthPath(), platformPasswordResetRoutes());
+    app.route(platformAuthOAuthPath(), platformOAuthRoutes());
+    app.route(adminPlatformAuthOAuthPath(), platformOAuthAdminRoutes());
 }

@@ -1,3 +1,4 @@
+import { platformApiPath } from '@imsweb/contracts/paths';
 import type { PlatformProfileRecord } from '@/ports/repositories';
 
 export function platformProfileView(profile: PlatformProfileRecord): {
@@ -10,7 +11,7 @@ export function platformProfileView(profile: PlatformProfileRecord): {
     return {
         displayName: profile.display_name,
         avatarUrl: profile.avatar_external_url || (profile.avatar_object_key
-            ? `/api/platform/me/avatar?v=${profile.updated_at}`
+            ? platformApiPath(`/me/avatar?v=${profile.updated_at}`)
             : null),
         homeCity: profile.home_city,
         bio: profile.bio,

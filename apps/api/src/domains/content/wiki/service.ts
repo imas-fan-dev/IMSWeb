@@ -1,3 +1,4 @@
+import { iconPath, imagePath } from '@imsweb/contracts/paths';
 import type { UploadedFile } from "@/ports/http";
 import type { ImageProcessor } from "@/ports/media";
 import type { RuntimeServices } from "@/ports/runtime-services";
@@ -269,15 +270,15 @@ export function versionedIdolAvatarObjectKey(
 }
 
 export function agencyIconUrl(id: number): string {
-  return `/icon/agencies/${id}.webp`;
+  return iconPath(`/agencies/${id}.webp`);
 }
 
 export function wikiGroupIconUrl(id: number): string {
-  return `/icon/wiki-groups/${id}.webp`;
+  return iconPath(`/wiki-groups/${id}.webp`);
 }
 
 export function idolMediaUrl(agency: string, idol: string): string {
-  return `/image/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/icon.webp`;
+  return imagePath(`/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/icon.webp`);
 }
 
 export function wikiStoryImageUrl(
@@ -287,7 +288,7 @@ export function wikiStoryImageUrl(
 ): string {
   if (!imageFile) return "";
   const path = imageFile.split("/").map(encodeURIComponent).join("/");
-  return `/image/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/${path}`;
+  return imagePath(`/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/${path}`);
 }
 
 export function aggregateStories(

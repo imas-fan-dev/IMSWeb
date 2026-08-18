@@ -1,3 +1,4 @@
+import { eventChroniclePath } from "@imsweb/contracts/paths"
 import { z } from "@imsweb/contracts/z"
 
 import {
@@ -25,7 +26,7 @@ export type {
 
 export function getChronicleActivities() {
   return apiClient.Get(
-    "/eventchronicle/activities",
+    eventChroniclePath("/activities"),
     parsed(z.array(chronicleActivitySummarySchema), {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
@@ -35,7 +36,7 @@ export function getChronicleActivities() {
 
 export function getChronicleActivity(activityId: string) {
   return apiClient.Get(
-    `/eventchronicle/activities/${encodeURIComponent(activityId)}`,
+    eventChroniclePath(`/activities/${encodeURIComponent(activityId)}`),
     parsed(chronicleActivitySchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
@@ -55,7 +56,7 @@ export function uploadChronicleImages(
   for (const file of files) form.append("images", file)
 
   return apiClient.Post(
-    "/eventchronicle/upload",
+    eventChroniclePath("/upload"),
     form,
     parsed(chronicleUploadResponseSchema, {
       headers: { "Idempotency-Key": idempotencyKey },

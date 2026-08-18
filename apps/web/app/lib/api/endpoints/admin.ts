@@ -1,3 +1,9 @@
+import {
+  adminApiPath,
+  apiPath,
+  eventChroniclePath,
+  wikiPath,
+} from "@imsweb/contracts/paths"
 import { createEventResponseSchema } from "@imsweb/contracts/events"
 import { adminNamecardMutationSchema } from "@imsweb/contracts/namecards"
 import { wikiMutationResultSchema } from "@imsweb/contracts/wiki"
@@ -98,7 +104,7 @@ export function hasBackofficeSessionHint() {
 
 export function getAdminSession() {
   return adminApiClient.Get(
-    "/api/admin/auth/session",
+    adminApiPath("/auth/session"),
     parsed(adminSessionSchema, {
       meta: withBackofficeAuth(),
     })
@@ -107,7 +113,7 @@ export function getAdminSession() {
 
 export function loginAdmin(username: string, password: string) {
   return adminApiClient.Post(
-    "/api/admin/auth/login",
+    adminApiPath("/auth/login"),
     { username, password },
     parsed(loginSchema, {
       meta: withBackofficeAuth({ authRole: "login" }),
@@ -117,7 +123,7 @@ export function loginAdmin(username: string, password: string) {
 
 export function logoutAdmin() {
   return adminApiClient.Post(
-    "/api/admin/auth/logout",
+    adminApiPath("/auth/logout"),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf({ authRole: "logout" }),
@@ -127,7 +133,7 @@ export function logoutAdmin() {
 
 export function getAdminAccounts() {
   return adminApiClient.Get(
-    "/api/admin/accounts",
+    adminApiPath("/accounts"),
     parsed(adminAccountListSchema, {
       meta: withBackofficeAuth(),
     })
@@ -140,7 +146,7 @@ export function createAdminAccount(input: {
   password: string
 }) {
   return adminApiClient.Post(
-    "/api/admin/accounts",
+    adminApiPath("/accounts"),
     input,
     parsed(adminAccountMutationSchema, {
       meta: withBackofficeCsrf(),
@@ -150,7 +156,7 @@ export function createAdminAccount(input: {
 
 export function deleteAdminAccount(id: number) {
   return adminApiClient.Delete(
-    `/api/admin/accounts/${id}`,
+    adminApiPath(`/accounts/${id}`),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -160,7 +166,7 @@ export function deleteAdminAccount(id: number) {
 
 export function getAdminInformation() {
   return adminApiClient.Get(
-    "/api/admin/information",
+    adminApiPath("/information"),
     parsed(adminInformationIndexSchema, {
       meta: withBackofficeAuth(),
     })
@@ -171,7 +177,7 @@ export function uploadInformationAsset(file: File) {
   const form = new FormData()
   form.append("image", file)
   return adminApiClient.Post(
-    "/api/admin/information/assets",
+    adminApiPath("/information/assets"),
     form,
     parsed(informationAssetSchema, {
       meta: withBackofficeCsrf(),
@@ -181,7 +187,7 @@ export function uploadInformationAsset(file: File) {
 
 export function createInformation(submission: InformationSubmission) {
   return adminApiClient.Post(
-    "/api/admin/information",
+    adminApiPath("/information"),
     submission,
     parsed(adminInformationMutationSchema, {
       meta: withBackofficeCsrf(),
@@ -195,7 +201,7 @@ export function updateInformation(
   submission: InformationSubmission
 ) {
   return adminApiClient.Put(
-    `/api/admin/information/${encodeURIComponent(id)}`,
+    adminApiPath(`/information/${encodeURIComponent(id)}`),
     submission,
     parsed(adminInformationMutationSchema, {
       meta: withBackofficeCsrf(),
@@ -206,7 +212,7 @@ export function updateInformation(
 
 export function deleteInformation(id: string) {
   return adminApiClient.Delete(
-    `/api/admin/information/${encodeURIComponent(id)}`,
+    adminApiPath(`/information/${encodeURIComponent(id)}`),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -217,7 +223,7 @@ export function deleteInformation(id: string) {
 
 export function reorderInformation(ids: string[]) {
   return adminApiClient.Put(
-    "/api/admin/information/order",
+    adminApiPath("/information/order"),
     { ids },
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -228,7 +234,7 @@ export function reorderInformation(ids: string[]) {
 
 export function deleteInformationAsset(url: string) {
   return adminApiClient.Delete(
-    "/api/admin/information/assets",
+    adminApiPath("/information/assets"),
     { url },
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -239,7 +245,7 @@ export function deleteInformationAsset(url: string) {
 
 export function getRecommendations() {
   return adminApiClient.Get(
-    "/api/admin/news",
+    adminApiPath("/news"),
     parsed(adminRecommendationListSchema, {
       meta: withBackofficeAuth(),
     })
@@ -248,7 +254,7 @@ export function getRecommendations() {
 
 export function createRecommendation(form: FormData) {
   return adminApiClient.Post(
-    "/api/admin/news",
+    adminApiPath("/news"),
     form,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -259,7 +265,7 @@ export function createRecommendation(form: FormData) {
 
 export function deleteRecommendation(id: number) {
   return adminApiClient.Delete(
-    `/api/admin/news/${id}`,
+    adminApiPath(`/news/${id}`),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -270,7 +276,7 @@ export function deleteRecommendation(id: number) {
 
 export function getIdolMediaCatalog() {
   return adminApiClient.Get(
-    "/api/wiki/idol-media",
+    wikiPath("/idol-media"),
     parsed(idolMediaCatalogSchema, {
       meta: withBackofficeAuth(),
     })
@@ -283,7 +289,7 @@ export function uploadIdolMedia(agency: string, idol: string, file: File) {
   form.append("idol", idol)
   form.append("image", file)
   return adminApiClient.Post(
-    "/api/wiki/idol-media",
+    wikiPath("/idol-media"),
     form,
     parsed(wikiIdolMediaUploadResultSchema, {
       meta: withBackofficeCsrf(),
@@ -294,7 +300,7 @@ export function uploadIdolMedia(agency: string, idol: string, file: File) {
 
 export function deleteIdolMedia(agency: string, idol: string) {
   return adminApiClient.Delete(
-    "/api/wiki/idol-media",
+    wikiPath("/idol-media"),
     { agency, idol },
     parsed(wikiMutationResultSchema, {
       meta: withBackofficeCsrf(),
@@ -305,7 +311,7 @@ export function deleteIdolMedia(agency: string, idol: string) {
 
 export function getPendingChronicleMedia() {
   return adminApiClient.Get(
-    "/eventchronicle/admin/pending",
+    eventChroniclePath("/admin/pending"),
     parsed(pendingChronicleMediaSchema, {
       meta: withBackofficeAuth(),
     })
@@ -314,7 +320,7 @@ export function getPendingChronicleMedia() {
 
 export function getUsedChronicleMedia() {
   return adminApiClient.Get(
-    "/eventchronicle/admin/used",
+    eventChroniclePath("/admin/used"),
     parsed(usedChronicleMediaSchema, {
       meta: withBackofficeAuth(),
     })
@@ -323,7 +329,9 @@ export function getUsedChronicleMedia() {
 
 export function approveChronicleMedia(activityId: string, filename: string) {
   return adminApiClient.Post(
-    `/eventchronicle/admin/approve/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+    eventChroniclePath(
+      `/admin/approve/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`
+    ),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -334,7 +342,9 @@ export function approveChronicleMedia(activityId: string, filename: string) {
 
 export function rejectChronicleMedia(activityId: string, filename: string) {
   return adminApiClient.Post(
-    `/eventchronicle/admin/reject/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+    eventChroniclePath(
+      `/admin/reject/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`
+    ),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -344,7 +354,9 @@ export function rejectChronicleMedia(activityId: string, filename: string) {
 
 export function deleteUsedChronicleMedia(activityId: string, filename: string) {
   return adminApiClient.Delete(
-    `/eventchronicle/admin/delete-used/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`,
+    eventChroniclePath(
+      `/admin/delete-used/${encodeURIComponent(activityId)}/${encodeURIComponent(filename)}`
+    ),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -355,7 +367,7 @@ export function deleteUsedChronicleMedia(activityId: string, filename: string) {
 
 export function getAdminNamecards(page = 1) {
   return adminApiClient.Get(
-    "/api/admin/cards",
+    adminApiPath("/cards"),
     parsed(adminNamecardListSchema, {
       meta: withBackofficeAuth(),
       params: { page },
@@ -365,7 +377,7 @@ export function getAdminNamecards(page = 1) {
 
 export function approveAdminNamecard(id: number, expectedRevision: number) {
   return adminApiClient.Post(
-    `/api/admin/cards/approve/${id}`,
+    adminApiPath(`/cards/approve/${id}`),
     { expected_revision: expectedRevision },
     parsed(adminNamecardMutationSchema, {
       meta: withBackofficeCsrf(),
@@ -376,7 +388,7 @@ export function approveAdminNamecard(id: number, expectedRevision: number) {
 
 export function rejectAdminNamecard(id: number, expectedRevision: number) {
   return adminApiClient.Post(
-    `/api/admin/cards/reject/${id}`,
+    adminApiPath(`/cards/reject/${id}`),
     { expected_revision: expectedRevision },
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -387,7 +399,7 @@ export function rejectAdminNamecard(id: number, expectedRevision: number) {
 
 export function deleteAdminNamecard(id: number, expectedRevision: number) {
   return adminApiClient.Delete(
-    `/api/admin/cards/${id}?expected_revision=${expectedRevision}`,
+    adminApiPath(`/cards/${id}?expected_revision=${expectedRevision}`),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -398,7 +410,7 @@ export function deleteAdminNamecard(id: number, expectedRevision: number) {
 
 export function createAdminEvent(form: FormData, idempotencyKey: string) {
   return adminApiClient.Post(
-    "/api/events",
+    apiPath("/events"),
     form,
     parsed(createEventResponseSchema, {
       headers: { "Idempotency-Key": idempotencyKey },
@@ -410,7 +422,7 @@ export function createAdminEvent(form: FormData, idempotencyKey: string) {
 
 export function updateAdminEvent(id: string, form: FormData) {
   return adminApiClient.Put(
-    `/api/events/${encodeURIComponent(id)}`,
+    apiPath(`/events/${encodeURIComponent(id)}`),
     form,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -421,7 +433,7 @@ export function updateAdminEvent(id: string, form: FormData) {
 
 export function deleteAdminEvent(id: string) {
   return adminApiClient.Delete(
-    `/api/events/${encodeURIComponent(id)}`,
+    apiPath(`/events/${encodeURIComponent(id)}`),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),

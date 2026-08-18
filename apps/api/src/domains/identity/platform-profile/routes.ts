@@ -1,3 +1,4 @@
+import { platformApiPath } from '@imsweb/contracts/paths';
 import type { Context, Next } from 'hono';
 import type { AppEnvironment, ImsHonoApp } from '@/app';
 import { handleGetPlatformProfile } from '@/domains/identity/platform-profile/handlers/get-profile';
@@ -31,13 +32,13 @@ async function requireFudabaWrite(
 }
 
 export function registerPlatformProfileRoutes(app: ImsHonoApp): void {
-    app.use('/api/platform/me', privateProfileResponse);
-    app.use('/api/platform/me/*', privateProfileResponse);
-    app.get('/api/platform/me', platformAuth, handleGetPlatformProfile);
-    app.get('/api/platform/me/avatar', platformAuth, handleServePlatformAvatar);
-    app.on('HEAD', '/api/platform/me/avatar', platformAuth, handleServePlatformAvatar);
+    app.use(platformApiPath('/me'), privateProfileResponse);
+    app.use(platformApiPath('/me/*'), privateProfileResponse);
+    app.get(platformApiPath('/me'), platformAuth, handleGetPlatformProfile);
+    app.get(platformApiPath('/me/avatar'), platformAuth, handleServePlatformAvatar);
+    app.on('HEAD', platformApiPath('/me/avatar'), platformAuth, handleServePlatformAvatar);
     app.put(
-        '/api/platform/me',
+        platformApiPath('/me'),
         requireFudabaWrite,
         platformAuth,
         activePlatformMutation,

@@ -1,3 +1,4 @@
+import { iconPath, imagePath } from '@imsweb/contracts/paths';
 import type { Env } from 'hono';
 import {
     authorizeWikiRead,
@@ -49,7 +50,7 @@ export function createHandleListAdminWikiCatalog<E extends Env>(
                         await resolvePublicObjectUrl(
                             services.storage!,
                             idol.avatar_object_key,
-                            `/image/${encodeURIComponent(idol.agency_name)}/` +
+                            imagePath(`/${encodeURIComponent(idol.agency_name)}/`) +
                                 `${encodeURIComponent(idol.name_cn)}/icon.webp`
                         ),
                         idol.avatar_media_revision
@@ -86,7 +87,7 @@ export function createHandleListAdminWikiCatalog<E extends Env>(
                     await resolvePublicObjectUrl(
                         services.storage!,
                         agency.icon_object_key,
-                        `/icon/agencies/${agency.id}.webp`
+                        iconPath(`/agencies/${agency.id}.webp`)
                     ),
                     agency.icon_media_revision
                 )

@@ -1,3 +1,4 @@
+import { adminApiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import {
     validateAdminAccountIdParams
@@ -14,14 +15,14 @@ import { jsonValidator, paramValidator } from '@/middleware/request-validation';
 
 export function registerAdminAccountRoutes(app: ImsHonoApp): void {
     app.get(
-        '/api/admin/accounts',
+        adminApiPath('/accounts'),
         backofficeAuth,
         opOnly,
         superAdminOnly,
         handleListAdminAccounts
     );
     app.post(
-        '/api/admin/accounts',
+        adminApiPath('/accounts'),
         backofficeAuth,
         opOnly,
         superAdminOnly,
@@ -33,7 +34,7 @@ export function registerAdminAccountRoutes(app: ImsHonoApp): void {
         handleCreateAdminAccount
     );
     app.delete(
-        '/api/admin/accounts/:id',
+        adminApiPath('/accounts/:id'),
         backofficeAuth,
         opOnly,
         superAdminOnly,

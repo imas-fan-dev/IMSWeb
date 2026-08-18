@@ -1,3 +1,4 @@
+import { apiPath } from "@imsweb/contracts/paths"
 import type { z } from "@imsweb/contracts/z"
 import { parsed } from "../parsed"
 import { setCache } from "alova"
@@ -64,7 +65,7 @@ export function getRecommendationPage({
   const params: Record<string, string | number> = { limit }
   if (cursor) params.cursor = cursor
 
-  return apiClient.Get("/api/news", {
+  return apiClient.Get(apiPath("/news"), {
     ...recommendationPageParsed,
     cacheFor: PUBLIC_QUERY_CACHE_FOR,
     hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,

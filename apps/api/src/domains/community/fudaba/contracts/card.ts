@@ -1,3 +1,4 @@
+import { exchangePath } from '@imsweb/contracts/paths';
 import type { FudabaCardRecord } from '@/ports/repositories';
 
 function badRequest(message: string): Error {
@@ -27,8 +28,8 @@ export function fudabaOwnerCardView(card: FudabaCardRecord): Record<string, unkn
         seriesCode: card.series_code,
         favoriteIdol: card.favorite_idol,
         favoriteIdols: card.favorite_idols.map(idolView),
-        frontImageUrl: `/api/community/exchange/me/cards/${encodeURIComponent(card.id)}/media/front?v=${card.revision}`,
-        backImageUrl: `/api/community/exchange/me/cards/${encodeURIComponent(card.id)}/media/back?v=${card.revision}`,
+        frontImageUrl: exchangePath(`/me/cards/${encodeURIComponent(card.id)}/media/front?v=${card.revision}`),
+        backImageUrl: exchangePath(`/me/cards/${encodeURIComponent(card.id)}/media/back?v=${card.revision}`),
         accent: card.accent,
         bio: card.bio,
         tradeNote: card.trade_note,

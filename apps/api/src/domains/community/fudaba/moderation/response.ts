@@ -1,3 +1,4 @@
+import { adminExchangePath } from '@imsweb/contracts/paths';
 import type {
     FudabaAdminCardClaim,
     FudabaRegisteredCardReview,
@@ -37,8 +38,8 @@ export function fudabaRegisteredCardReviewView(
     return {
         card: {
             ...fudabaOwnerCardView(card),
-            frontImageUrl: `/api/admin/community/exchange/card-reviews/${encodedId}/media/front?v=${card.revision}`,
-            backImageUrl: `/api/admin/community/exchange/card-reviews/${encodedId}/media/back?v=${card.revision}`
+            frontImageUrl: adminExchangePath(`/card-reviews/${encodedId}/media/front?v=${card.revision}`),
+            backImageUrl: adminExchangePath(`/card-reviews/${encodedId}/media/back?v=${card.revision}`)
         },
         owner: {
             id: card.owner_account_id,

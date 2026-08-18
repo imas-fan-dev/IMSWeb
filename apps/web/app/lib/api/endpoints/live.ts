@@ -1,3 +1,4 @@
+import { apiPath } from "@imsweb/contracts/paths"
 import { z } from "@imsweb/contracts/z"
 
 import { parsed } from "../parsed"
@@ -11,7 +12,7 @@ export * from "@imsweb/contracts/live"
 export function getLiveEvents(months: string[]) {
   const search = new URLSearchParams({ months: months.join(",") })
   return apiClient.Get(
-    `/api/live-schedule?${search.toString()}`,
+    apiPath(`/live-schedule?${search.toString()}`),
     parsed(z.array(liveEventSchema), {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
     })

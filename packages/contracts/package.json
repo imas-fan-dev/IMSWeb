@@ -105,6 +105,11 @@
       "types": "./dist/common.d.ts",
       "require": "./dist/common.js",
       "default": "./dist/common.js"
+    },
+    "./paths": {
+      "types": "./dist/paths.d.ts",
+      "require": "./dist/paths.js",
+      "default": "./dist/paths.js"
     }
   },
   "scripts": {

@@ -1,3 +1,4 @@
+import { platformApiPath, platformAuthPath } from '@imsweb/contracts/paths';
 import type { PlatformSession } from '@imsweb/contracts/platform';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
@@ -42,7 +43,7 @@ export function setPlatformAuthenticationCookies(
         ...common,
         httpOnly: true,
         maxAge: PLATFORM_REFRESH_TOKEN_TTL_SECONDS,
-        path: '/api/platform/auth'
+        path: platformAuthPath()
     });
     setCookie(c, PLATFORM_CSRF_TOKEN_COOKIE, values.csrfSecret, {
         ...common,
@@ -62,7 +63,7 @@ export function clearPlatformAuthenticationCookies(c: Context<AppEnvironment>): 
     deleteCookie(c, PLATFORM_REFRESH_TOKEN_COOKIE, {
         ...common,
         httpOnly: true,
-        path: '/api/platform/auth'
+        path: platformAuthPath()
     });
     deleteCookie(c, PLATFORM_CSRF_TOKEN_COOKIE, {
         ...common,
@@ -139,7 +140,7 @@ export async function platformSessionPayload(
     if (!avatarUrl && profile.avatar_object_key) {
         avatarUrl = await services(c).storage?.createPublicReadUrl?.(
             profile.avatar_object_key
-        ) ?? '/api/platform/me/avatar';
+        ) ?? platformApiPath('/me/avatar');
     }
     return {
         success: true,

@@ -1,3 +1,4 @@
+import { apiPath } from "@imsweb/contracts/paths"
 import { setCache } from "alova"
 
 import {
@@ -23,7 +24,7 @@ export function getEventPage({ limit = 20, cursor }: EventPageRequest = {}) {
   if (cursor) params.cursor = cursor
 
   return apiClient.Get(
-    "/api/events",
+    apiPath("/events"),
     parsed(eventPageSchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.events,

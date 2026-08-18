@@ -1,3 +1,4 @@
+import { adminApiPath, apiPath } from "@imsweb/contracts/paths"
 import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
 import {
@@ -20,7 +21,7 @@ import type { AboutPageContent } from "@imsweb/contracts/about"
 
 export function getAboutPageContent() {
   return apiClient.Get(
-    "/api/about",
+    apiPath("/about"),
     parsed(aboutPageContentSchema, {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
@@ -30,7 +31,7 @@ export function getAboutPageContent() {
 
 export function getAdminAboutPageContent() {
   return adminApiClient.Get(
-    "/api/admin/about",
+    adminApiPath("/about"),
     parsed(aboutAdminSnapshotSchema, {
       meta: withBackofficeAuth(),
     })
@@ -42,7 +43,7 @@ export function updateAdminAboutPageContent(
   revision: string | null
 ) {
   return adminApiClient.Put(
-    "/api/admin/about",
+    adminApiPath("/about"),
     { content, revision },
     parsed(aboutAdminUpdateSchema, {
       meta: withBackofficeCsrf(),
@@ -55,7 +56,7 @@ export function uploadAboutHeroImage(file: File) {
   const form = new FormData()
   form.append("image", file)
   return adminApiClient.Post(
-    "/api/admin/about/hero-image",
+    adminApiPath("/about/hero-image"),
     form,
     parsed(aboutImageUploadSchema, {
       meta: withBackofficeCsrf(),
@@ -68,7 +69,7 @@ export function uploadAboutMemberAvatar(file: File) {
   const form = new FormData()
   form.append("image", file)
   return adminApiClient.Post(
-    "/api/admin/about/member-avatar",
+    adminApiPath("/about/member-avatar"),
     form,
     parsed(aboutImageUploadSchema, {
       meta: withBackofficeCsrf(),

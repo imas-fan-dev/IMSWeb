@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleServeNamecard } from '@/domains/delivery/media/handlers/serve-namecard';
 import { handleServePublicUpload } from '@/domains/delivery/media/handlers/serve-public-upload';
@@ -14,38 +15,38 @@ const namecardThumbnailMediaValidator = paramValidator(
 
 export function registerMediaRoutes(app: ImsHonoApp): void {
     for (const route of [
-        '/uploads/news/original/:filename',
-        '/uploads/news/thumb/:filename',
-        '/uploads/event/original/:filename',
-        '/uploads/about/hero/:filename',
-        '/uploads/about/member-avatars/:filename',
-        '/uploads/information/:filename',
-        '/uploads/information/original/:filename',
-        '/uploads/producer-map/:filename'
+        publicUploadsPath('/news/original/:filename'),
+        publicUploadsPath('/news/thumb/:filename'),
+        publicUploadsPath('/event/original/:filename'),
+        publicUploadsPath('/about/hero/:filename'),
+        publicUploadsPath('/about/member-avatars/:filename'),
+        publicUploadsPath('/information/:filename'),
+        publicUploadsPath('/information/original/:filename'),
+        publicUploadsPath('/producer-map/:filename')
     ]) {
         app.get(route, handleServePublicUpload);
         app.on('HEAD', route, handleServePublicUpload);
     }
 
     app.get(
-        '/uploads/namecard/original/:filename',
+        publicUploadsPath('/namecard/original/:filename'),
         namecardMediaValidator,
         handleServeNamecard
     );
     app.on(
         'HEAD',
-        '/uploads/namecard/original/:filename',
+        publicUploadsPath('/namecard/original/:filename'),
         namecardMediaValidator,
         handleServeNamecard
     );
     app.get(
-        '/uploads/namecard/thumbnail/:filename',
+        publicUploadsPath('/namecard/thumbnail/:filename'),
         namecardThumbnailMediaValidator,
         handleServeNamecard
     );
     app.on(
         'HEAD',
-        '/uploads/namecard/thumbnail/:filename',
+        publicUploadsPath('/namecard/thumbnail/:filename'),
         namecardThumbnailMediaValidator,
         handleServeNamecard
     );

@@ -1,3 +1,4 @@
+import { apiPath } from '@imsweb/contracts/paths';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
@@ -48,7 +49,7 @@ export function setBackofficeAuthenticationCookies(
         ...common,
         httpOnly: true,
         maxAge: BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
-        path: '/api'
+        path: apiPath()
     });
     setCookie(c, BACKOFFICE_CSRF_TOKEN_COOKIE, values.csrfSecret, {
         ...common,
@@ -73,7 +74,7 @@ export function setLegacyBackofficeAuthenticationCookies(
         ...common,
         httpOnly: true,
         maxAge: BACKOFFICE_REFRESH_TOKEN_TTL_SECONDS,
-        path: '/api'
+        path: apiPath()
     });
     setCookie(c, LEGACY_BACKOFFICE_CSRF_TOKEN_COOKIE, values.csrfSecret, {
         ...common,
@@ -86,7 +87,7 @@ export function setLegacyBackofficeAuthenticationCookies(
 export function clearBackofficeAuthenticationCookies(c: Context<AppEnvironment>): void {
     const common = cookieOptions(c);
     deleteCookie(c, BACKOFFICE_ACCESS_TOKEN_COOKIE, { ...common, httpOnly: true, path: '/' });
-    deleteCookie(c, BACKOFFICE_REFRESH_TOKEN_COOKIE, { ...common, httpOnly: true, path: '/api' });
+    deleteCookie(c, BACKOFFICE_REFRESH_TOKEN_COOKIE, { ...common, httpOnly: true, path: apiPath() });
     deleteCookie(c, BACKOFFICE_CSRF_TOKEN_COOKIE, { ...common, httpOnly: false, path: '/' });
 }
 
@@ -100,7 +101,7 @@ export function clearLegacyBackofficeAuthenticationCookies(c: Context<AppEnviron
     deleteCookie(c, LEGACY_BACKOFFICE_REFRESH_TOKEN_COOKIE, {
         ...common,
         httpOnly: true,
-        path: '/api'
+        path: apiPath()
     });
     deleteCookie(c, LEGACY_BACKOFFICE_CSRF_TOKEN_COOKIE, {
         ...common,

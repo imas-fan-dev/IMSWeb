@@ -1,3 +1,4 @@
+import { adminExchangePath, exchangePath } from "@imsweb/contracts/paths"
 import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import { platformApiClient } from "../../platform-client"
@@ -21,7 +22,7 @@ export * from "@imsweb/contracts/fudaba/card-claims"
 
 export function getFudabaClaimEnvelopes() {
   return platformApiClient.Get(
-    "/api/community/exchange/me/claim-envelopes",
+    exchangePath("/me/claim-envelopes"),
     parsed(claimEnvelopeListSchema, {
       meta: withPlatformAuth(),
     })
@@ -34,7 +35,7 @@ export function respondFudabaClaimEnvelope(
   expectedRevision: number
 ) {
   return platformApiClient.Put(
-    `/api/community/exchange/me/claim-envelopes/${encodeURIComponent(envelopeId)}`,
+    exchangePath(`/me/claim-envelopes/${encodeURIComponent(envelopeId)}`),
     { decision, expectedRevision },
     parsed(envelopeMutationSchema, {
       meta: withPlatformCsrf(),
@@ -44,7 +45,7 @@ export function respondFudabaClaimEnvelope(
 
 export function getFudabaOwnerCardClaims() {
   return platformApiClient.Get(
-    "/api/community/exchange/me/card-claims",
+    exchangePath("/me/card-claims"),
     parsed(ownerClaimListSchema, {
       meta: withPlatformAuth(),
     })
@@ -61,7 +62,7 @@ export function createFudabaLegacyCardClaim(
   }
 ) {
   return platformApiClient.Post(
-    `/api/community/exchange/legacy-cards/${legacyCardId}/claims`,
+    exchangePath(`/legacy-cards/${legacyCardId}/claims`),
     input,
     parsed(claimMutationSchema, {
       meta: withPlatformCsrf(),
@@ -71,7 +72,7 @@ export function createFudabaLegacyCardClaim(
 
 export function getAdminFudabaCardReviews() {
   return adminApiClient.Get(
-    "/api/admin/community/exchange/card-reviews",
+    adminExchangePath("/card-reviews"),
     parsed(registeredCardReviewListSchema, {
       meta: withBackofficeAuth(),
     })
@@ -87,7 +88,7 @@ export function reviewAdminFudabaCard(
   }
 ) {
   return adminApiClient.Put(
-    `/api/admin/community/exchange/card-reviews/${encodeURIComponent(cardId)}`,
+    adminExchangePath(`/card-reviews/${encodeURIComponent(cardId)}`),
     input,
     parsed(reviewMutationSchema, {
       meta: withBackofficeCsrf(),
@@ -97,7 +98,7 @@ export function reviewAdminFudabaCard(
 
 export function getAdminFudabaCardClaims() {
   return adminApiClient.Get(
-    "/api/admin/community/exchange/card-claims",
+    adminExchangePath("/card-claims"),
     parsed(adminCardClaimListSchema, {
       meta: withBackofficeAuth(),
     })
@@ -113,7 +114,7 @@ export function reviewAdminFudabaCardClaim(
   }
 ) {
   return adminApiClient.Put(
-    `/api/admin/community/exchange/card-claims/${encodeURIComponent(claimId)}`,
+    adminExchangePath(`/card-claims/${encodeURIComponent(claimId)}`),
     input,
     parsed(reviewMutationSchema, {
       meta: withBackofficeCsrf(),

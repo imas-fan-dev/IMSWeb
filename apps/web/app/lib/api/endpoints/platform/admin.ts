@@ -1,3 +1,4 @@
+import { adminPlatformAuthOAuthPath } from "@imsweb/contracts/paths"
 import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
@@ -13,7 +14,7 @@ import type { PlatformOAuthAdminProvider } from "@imsweb/contracts/platform/admi
 
 export function getAdminPlatformOAuthProviders() {
   return adminApiClient.Get(
-    "/api/admin/platform/auth/oauth/providers",
+    adminPlatformAuthOAuthPath("/providers"),
     parsed(platformOAuthAdminProviderListSchema, {
       meta: withBackofficeAuth(),
     })
@@ -32,7 +33,7 @@ export function updateAdminPlatformOAuthProvider(
   }
 ) {
   return adminApiClient.Put(
-    `/api/admin/platform/auth/oauth/${provider}`,
+    adminPlatformAuthOAuthPath(`/${provider}`),
     input,
     parsed(platformOAuthAdminProviderMutationSchema, {
       meta: withBackofficeCsrf(),

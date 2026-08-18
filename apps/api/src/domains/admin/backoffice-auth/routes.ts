@@ -1,3 +1,4 @@
+import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { Context, Next } from 'hono';
 import type { AppEnvironment } from '@/app';
 import type { ImsHonoApp } from '@/app';
@@ -28,11 +29,11 @@ const loginValidator = jsonValidator(validateLoginRequest, {
 });
 
 const LEGACY_BACKOFFICE_AUTH_SUCCESSORS = new Map([
-    ['/api/login', '/api/admin/auth/login'],
-    ['/api/admin/login', '/api/admin/auth/login'],
-    ['/api/check', '/api/admin/auth/session'],
-    ['/api/refresh', '/api/admin/auth/refresh'],
-    ['/api/logout', '/api/admin/auth/logout']
+    [apiPath('/login'), adminApiPath('/auth/login')],
+    [adminApiPath('/login'), adminApiPath('/auth/login')],
+    [apiPath('/check'), adminApiPath('/auth/session')],
+    [apiPath('/refresh'), adminApiPath('/auth/refresh')],
+    [apiPath('/logout'), adminApiPath('/auth/logout')]
 ]);
 
 async function markLegacyBackofficeAuthRoute(
@@ -51,31 +52,31 @@ async function markLegacyBackofficeAuthRoute(
         path: pathname
     }));
     const successor = LEGACY_BACKOFFICE_AUTH_SUCCESSORS.get(pathname) ||
-        '/api/admin/auth/session';
+        adminApiPath('/auth/session');
     c.header('Deprecation', 'true');
     c.header('Link', `<${successor}>; rel="successor-version"`);
     await next();
 }
 
 export function registerBackofficeAuthRoutes(app: ImsHonoApp): void {
-    app.post('/api/admin/auth/login', loginValidator, handleCanonicalBackofficeLogin);
-    app.get('/api/admin/auth/session', backofficeAuth, handleCheckBackofficeAuth);
-    app.post('/api/admin/auth/refresh', handleBackofficeRefresh);
-    app.post('/api/admin/auth/logout', handleBackofficeLogout);
+    app.post(adminApiPath('/auth/login'), loginValidator, handleCanonicalBackofficeLogin);
+    app.get(adminApiPath('/auth/session'), backofficeAuth, handleCheckBackofficeAuth);
+    app.post(adminApiPath('/auth/refresh'), handleBackofficeRefresh);
+    app.post(adminApiPath('/auth/logout'), handleBackofficeLogout);
 
-    app.post('/api/login', markLegacyBackofficeAuthRoute, loginValidator, handleBackofficeLogin);
+    app.post(apiPath('/login'), markLegacyBackofficeAuthRoute, loginValidator, handleBackofficeLogin);
     app.post(
-        '/api/admin/login',
+        adminApiPath('/login'),
         markLegacyBackofficeAuthRoute,
         loginValidator,
         handleBackofficeAdminLogin
     );
     app.get(
-        '/api/check',
+        apiPath('/check'),
         markLegacyBackofficeAuthRoute,
         backofficeAuth,
         handleCheckBackofficeAuth
     );
-    app.post('/api/refresh', markLegacyBackofficeAuthRoute, handleLegacyBackofficeRefresh);
-    app.post('/api/logout', markLegacyBackofficeAuthRoute, handleLegacyBackofficeLogout);
+    app.post(apiPath('/refresh'), markLegacyBackofficeAuthRoute, handleLegacyBackofficeRefresh);
+    app.post(apiPath('/logout'), markLegacyBackofficeAuthRoute, handleLegacyBackofficeLogout);
 }

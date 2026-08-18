@@ -1,3 +1,4 @@
+import { apiPath, platformAuthPath, siteContentPath, wikiPath } from '@imsweb/contracts/paths';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requestId, type RequestIdVariables } from 'hono/request-id';
@@ -61,14 +62,14 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     app.use('*', requestId({ limitLength: 128 }));
     app.use('*', requestCompletionLogger(options.requestLogging === true));
     app.use('*', async (c, next) => {
-        if (c.req.path === '/api/health/live' || c.req.path === '/api/wiki/test') {
+        if (c.req.path === apiPath('/health/live') || c.req.path === wikiPath('/test')) {
             return next();
         }
         let runtime: RuntimeServices;
         try {
             runtime = await resolveServices(c.env as Bindings);
         } catch (error) {
-            if (c.req.path === '/api/health/ready') {
+            if (c.req.path === apiPath('/health/ready')) {
                 if (options.requestLogging) {
                     console.warn(JSON.stringify({
                         event: 'health_readiness_failed',
@@ -114,14 +115,14 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
             pathname = '';
         }
         if (
-            pathname !== '/site-content' &&
-            !pathname.startsWith('/site-content/') &&
+            pathname !== siteContentPath() &&
+            !pathname.startsWith(siteContentPath('/')) &&
             !c.res.headers.has('X-Frame-Options')
         ) {
             c.header('X-Frame-Options', 'SAMEORIGIN');
         }
     });
-    app.use('/api/platform/auth/*', async (c, next) => {
+    app.use(platformAuthPath('/*'), async (c, next) => {
         await next();
         c.header('Cache-Control', 'private, no-store');
         c.header('Vary', 'Authorization, Cookie', { append: true });
@@ -141,8 +142,8 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
         await next();
     });
 
-    app.get('/api/health/live', (c) => c.json({ status: 'ok' }));
-    app.get('/api/health/ready', async (c) => {
+    app.get(apiPath('/health/live'), (c) => c.json({ status: 'ok' }));
+    app.get(apiPath('/health/ready'), async (c) => {
         const health = c.get('services').health;
         if (!health) return c.json({ status: 'unavailable' }, 503);
         try {
@@ -161,7 +162,7 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     });
 
     // Kept as a compatibility probe for existing clients.
-    app.get('/api/wiki/test', (c) => c.json({ status: 'ok' }));
+    app.get(wikiPath('/test'), (c) => c.json({ status: 'ok' }));
 
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);

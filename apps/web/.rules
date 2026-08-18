@@ -58,4 +58,7 @@ multi-source modules use named imports and named re-exports only, keeping the
 endpoints barrel free of ambiguous exports. Import `z` from
 `@imsweb/contracts/z`, never from `zod` directly.
 Wire types come from the package alongside their schemas; endpoint modules keep
-only UI-semantic aliases, request/input types, and upload shapes.
+only UI-semantic aliases, request/input types, and upload shapes. All API and
+public delivery URLs use path builders from `@imsweb/contracts/paths`; endpoint
+modules keep business suffixes and dynamic parameters only, so prefix changes
+are made once for both Web and API.

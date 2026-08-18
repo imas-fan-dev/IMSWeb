@@ -1,3 +1,4 @@
+import { apiPath } from '@imsweb/contracts/paths';
 import type { NamecardReactions } from '@imsweb/contracts/namecards';
 
 export interface LegacyEmojiMutationResponse {
@@ -23,5 +24,5 @@ export interface ReactionErrorResponse {
 export type ReactionListResponse = NamecardReactions;
 
 export function reactionMutationBody(path: string): ReactionMutationResponse {
-    return path === '/api/emojis' ? { success: true } : { ok: true };
+    return path === apiPath('/emojis') ? { success: true } : { ok: true };
 }

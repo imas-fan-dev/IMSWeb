@@ -1,3 +1,4 @@
+import { adminWikiPath, wikiPath } from "@imsweb/contracts/paths"
 import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import {
@@ -101,7 +102,7 @@ function wikiMutationConfig() {
 
 export function getWikiCatalog(agency?: string) {
   return apiClient.Get(
-    "/api/wiki/catalog",
+    wikiPath("/catalog"),
     parsed(wikiPublicCatalogSchema, {
       cacheFor: WIKI_PUBLIC_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
@@ -112,7 +113,7 @@ export function getWikiCatalog(agency?: string) {
 
 export function getWikiStories(agency: string, idol: string) {
   return apiClient.Get(
-    "/api/wiki/stories",
+    wikiPath("/stories"),
     parsed(wikiPublicStoriesSchema, {
       cacheFor: WIKI_PUBLIC_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
@@ -123,7 +124,7 @@ export function getWikiStories(agency: string, idol: string) {
 
 export function getWikiRandomBackground() {
   return apiClient.Get(
-    "/api/wiki/random_bg",
+    wikiPath("/random_bg"),
     parsed(wikiRandomBackgroundSchema, {
       cacheFor: NO_CLIENT_CACHE,
     })
@@ -132,7 +133,7 @@ export function getWikiRandomBackground() {
 
 export function getWikiRandomIdol() {
   return apiClient.Get(
-    "/api/wiki/random_idol",
+    wikiPath("/random_idol"),
     parsed(wikiRandomIdolSchema, {
       cacheFor: NO_CLIENT_CACHE,
     })
@@ -185,7 +186,7 @@ function appendStoryGroup(form: FormData, group: WikiStoryGroup) {
 
 export function getAdminWikiCatalog() {
   return adminApiClient.Get(
-    "/api/admin/wiki/catalog",
+    adminWikiPath("/catalog"),
     parsed(wikiAdminCatalogSchema, {
       meta: withBackofficeAuth(),
     })
@@ -194,7 +195,7 @@ export function getAdminWikiCatalog() {
 
 export function getAdminWikiStories(agency: string, idol: string) {
   return adminApiClient.Get(
-    "/api/admin/wiki/stories",
+    adminWikiPath("/stories"),
     parsed(wikiAdminStoriesSchema, {
       meta: withBackofficeAuth(),
       params: { agency, idol },
@@ -204,7 +205,7 @@ export function getAdminWikiStories(agency: string, idol: string) {
 
 export function getAdminWikiStoryCoverAssets(agencyId: number) {
   return adminApiClient.Get(
-    `/api/admin/wiki/agencies/${agencyId}/story-cover-assets`,
+    adminWikiPath(`/agencies/${agencyId}/story-cover-assets`),
     parsed(wikiStoryCoverAssetsSchema, {
       meta: withBackofficeAuth(),
     })
@@ -222,7 +223,7 @@ export function createWikiStoryCoverAsset(input: {
   form.append("presentation_policy", input.presentationPolicy)
   form.append("image", input.image)
   return adminApiClient.Post(
-    `/api/admin/wiki/agencies/${input.agencyId}/story-cover-assets`,
+    adminWikiPath(`/agencies/${input.agencyId}/story-cover-assets`),
     form,
     parsed(wikiStoryCoverAssetMutationSchema, {
       ...wikiMutationConfig(),
@@ -245,7 +246,7 @@ export function updateWikiStoryCoverAsset(input: {
   form.append("expected_revision", String(input.expectedRevision))
   if (input.image) form.append("image", input.image)
   return adminApiClient.Patch(
-    `/api/admin/wiki/story-cover-assets/${input.assetId}`,
+    adminWikiPath(`/story-cover-assets/${input.assetId}`),
     form,
     parsed(wikiStoryCoverAssetMutationSchema, {
       ...wikiMutationConfig(),
@@ -255,7 +256,7 @@ export function updateWikiStoryCoverAsset(input: {
 
 export function deleteWikiStoryCoverAsset(assetId: number) {
   return adminApiClient.Delete(
-    `/api/admin/wiki/story-cover-assets/${assetId}`,
+    adminWikiPath(`/story-cover-assets/${assetId}`),
     undefined,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -265,7 +266,7 @@ export function deleteWikiStoryCoverAsset(assetId: number) {
 
 export function getWikiStorySourceCatalog() {
   return adminApiClient.Get(
-    "/api/admin/wiki/story-source-catalog",
+    adminWikiPath("/story-source-catalog"),
     parsed(wikiStorySourceCatalogSchema, {
       meta: withBackofficeAuth(),
     })
@@ -276,7 +277,7 @@ export function createWikiStoryContentType(
   submission: WikiStoryCatalogOptionSubmission
 ) {
   return adminApiClient.Post(
-    "/api/admin/wiki/story-content-types",
+    adminWikiPath("/story-content-types"),
     submission,
     parsed(wikiStoryContentTypeMutationSchema, {
       ...wikiMutationConfig(),
@@ -290,7 +291,7 @@ export function updateWikiStoryContentType(
   submission: WikiStoryCatalogOptionSubmission
 ) {
   return adminApiClient.Patch(
-    `/api/admin/wiki/story-content-types/${optionId}`,
+    adminWikiPath(`/story-content-types/${optionId}`),
     {
       ...submission,
       expectedRevision,
@@ -303,7 +304,7 @@ export function updateWikiStoryContentType(
 
 export function deleteWikiStoryContentType(optionId: number) {
   return adminApiClient.Delete(
-    `/api/admin/wiki/story-content-types/${optionId}`,
+    adminWikiPath(`/story-content-types/${optionId}`),
     undefined,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -315,7 +316,7 @@ export function createWikiStorySourcePlatform(
   submission: WikiStorySourcePlatformSubmission
 ) {
   return adminApiClient.Post(
-    "/api/admin/wiki/story-source-platforms",
+    adminWikiPath("/story-source-platforms"),
     submission,
     parsed(wikiStorySourcePlatformMutationSchema, {
       ...wikiMutationConfig(),
@@ -329,7 +330,7 @@ export function updateWikiStorySourcePlatform(
   submission: WikiStorySourcePlatformSubmission
 ) {
   return adminApiClient.Patch(
-    `/api/admin/wiki/story-source-platforms/${optionId}`,
+    adminWikiPath(`/story-source-platforms/${optionId}`),
     {
       ...submission,
       expectedRevision,
@@ -342,7 +343,7 @@ export function updateWikiStorySourcePlatform(
 
 export function deleteWikiStorySourcePlatform(optionId: number) {
   return adminApiClient.Delete(
-    `/api/admin/wiki/story-source-platforms/${optionId}`,
+    adminWikiPath(`/story-source-platforms/${optionId}`),
     undefined,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -352,7 +353,7 @@ export function deleteWikiStorySourcePlatform(optionId: number) {
 
 export function createWikiAgency(submission: WikiAgencySubmission) {
   return adminApiClient.Post(
-    "/api/admin/wiki/agencies",
+    adminWikiPath("/agencies"),
     submission,
     parsed(wikiAgencyMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -365,7 +366,7 @@ export function updateWikiAgency(
   submission: Omit<WikiAgencySubmission, "code">
 ) {
   return adminApiClient.Patch(
-    `/api/admin/wiki/agencies/${agencyId}`,
+    adminWikiPath(`/agencies/${agencyId}`),
     submission,
     parsed(wikiAgencyMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -378,7 +379,7 @@ export function createWikiGroup(
   submission: WikiGroupSubmission
 ) {
   return adminApiClient.Post(
-    `/api/admin/wiki/agencies/${agencyId}/groups`,
+    adminWikiPath(`/agencies/${agencyId}/groups`),
     submission,
     parsed(wikiGroupMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -391,7 +392,7 @@ export function updateWikiGroup(
   submission: Omit<WikiGroupSubmission, "code">
 ) {
   return adminApiClient.Patch(
-    `/api/admin/wiki/groups/${groupId}`,
+    adminWikiPath(`/groups/${groupId}`),
     submission,
     parsed(wikiGroupMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -401,7 +402,7 @@ export function updateWikiGroup(
 
 export function deleteWikiGroup(groupId: number, expectedRevision: number) {
   return adminApiClient.Delete(
-    `/api/admin/wiki/groups/${groupId}`,
+    adminWikiPath(`/groups/${groupId}`),
     { expectedRevision },
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -414,7 +415,7 @@ export function createWikiIdol(
   submission: WikiIdolSubmission
 ) {
   return adminApiClient.Post(
-    `/api/admin/wiki/agencies/${agencyId}/idols`,
+    adminWikiPath(`/agencies/${agencyId}/idols`),
     submission,
     parsed(wikiIdolMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -427,7 +428,7 @@ export function updateWikiIdol(
   submission: Omit<WikiIdolSubmission, "folderName">
 ) {
   return adminApiClient.Patch(
-    `/api/admin/wiki/idols/${idolId}`,
+    adminWikiPath(`/idols/${idolId}`),
     submission,
     parsed(wikiIdolMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -436,9 +437,9 @@ export function updateWikiIdol(
 }
 
 const wikiEntityImagePath = {
-  agency: (id: number) => `/api/admin/wiki/agencies/${id}/icon`,
-  group: (id: number) => `/api/admin/wiki/groups/${id}/icon`,
-  idol: (id: number) => `/api/admin/wiki/idols/${id}/avatar`,
+  agency: (id: number) => adminWikiPath(`/agencies/${id}/icon`),
+  group: (id: number) => adminWikiPath(`/groups/${id}/icon`),
+  idol: (id: number) => adminWikiPath(`/idols/${id}/avatar`),
 } satisfies Record<WikiEntityImageKind, (id: number) => string>
 
 export function saveWikiEntityImage(input: {
@@ -466,7 +467,7 @@ export function uploadWikiAgencyIcon(agency: string, file: File) {
   form.append("agency", agency)
   form.append("image", file)
   return adminApiClient.Post(
-    "/api/wiki/agency-icon",
+    wikiPath("/agency-icon"),
     form,
     parsed(wikiAgencyIconResultSchema, {
       ...wikiMutationConfig(),
@@ -476,7 +477,7 @@ export function uploadWikiAgencyIcon(agency: string, file: File) {
 
 export function deleteWikiAgencyIcon(agency: string) {
   return adminApiClient.Delete(
-    "/api/wiki/agency-icon",
+    wikiPath("/agency-icon"),
     { agency },
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -490,7 +491,7 @@ export function saveWikiLayout(
   groups: Array<{ id: number; idolIds: number[] }>
 ) {
   return adminApiClient.Put(
-    `/api/admin/wiki/agencies/${agencyId}/layout`,
+    adminWikiPath(`/agencies/${agencyId}/layout`),
     { expectedRevision, groups },
     parsed(wikiLayoutResultSchema, {
       ...wikiMutationConfig(),
@@ -502,7 +503,7 @@ export function createWikiStory(submission: WikiStorySubmission) {
   const form = new FormData()
   appendStoryFields(form, submission)
   return adminApiClient.Post(
-    "/api/wiki/add_story",
+    wikiPath("/add_story"),
     form,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -537,7 +538,7 @@ export function createWikiStoryBatch(submission: WikiStoryBatchSubmission) {
     appendImageTransform(form, submission.imageTransform)
   }
   return adminApiClient.Post(
-    "/api/wiki/add_story",
+    wikiPath("/add_story"),
     form,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -550,7 +551,7 @@ export function createWikiStorySources(
   submission: WikiStorySourcesSubmission
 ) {
   return adminApiClient.Post(
-    `/api/admin/wiki/cards/${cardId}/sources`,
+    adminWikiPath(`/cards/${cardId}/sources`),
     {
       agency: submission.agency,
       idol: submission.idol,
@@ -576,7 +577,7 @@ export function deleteWikiStoryLink(input: {
   expectedRevision: number
 }) {
   return adminApiClient.Delete(
-    `/api/admin/wiki/stories/${input.storyId}`,
+    adminWikiPath(`/stories/${input.storyId}`),
     undefined,
     parsed(wikiStoryLinkDeleteResultSchema, {
       params: {
@@ -591,7 +592,7 @@ export function deleteWikiStoryLink(input: {
 
 export function deleteWikiIdol(idolId: number, expectedRevision: number) {
   return adminApiClient.Delete(
-    `/api/admin/wiki/idols/${idolId}`,
+    adminWikiPath(`/idols/${idolId}`),
     { expectedRevision },
     parsed(wikiIdolDeleteResultSchema, {
       ...wikiMutationConfig(),
@@ -607,7 +608,7 @@ export function updateWikiCategory(input: {
   expectedName: string
 }) {
   return adminApiClient.Patch(
-    `/api/admin/wiki/categories/${input.categoryId}`,
+    adminWikiPath(`/categories/${input.categoryId}`),
     {
       agencyId: input.agencyId,
       idolId: input.idolId,
@@ -626,7 +627,9 @@ export function createWikiCategory(input: {
   name: string
 }) {
   return adminApiClient.Post(
-    `/api/admin/wiki/agencies/${input.agencyId}/idols/${input.idolId}/categories`,
+    adminWikiPath(
+      `/agencies/${input.agencyId}/idols/${input.idolId}/categories`
+    ),
     { name: input.name.trim() },
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -653,7 +656,7 @@ export function updateWikiStoryCard(
   appendImageTransform(form, submission.imageTransform)
   if (submission.image) form.append("image", submission.image)
   return adminApiClient.Patch(
-    `/api/admin/wiki/cards/${cardId}`,
+    adminWikiPath(`/cards/${cardId}`),
     form,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -672,7 +675,7 @@ export function updateWikiStory(
   form.append("old_category_name", original.category)
   form.append("old_card_name", original.cardName)
   return adminApiClient.Post(
-    "/api/wiki/edit_story",
+    wikiPath("/edit_story"),
     form,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -685,7 +688,7 @@ export function deleteWikiStoryGroup(group: WikiStoryGroup) {
   appendStoryGroup(form, group)
   form.append("expected_revision", String(group.expectedRevision))
   return adminApiClient.Post(
-    "/api/wiki/delete_story",
+    wikiPath("/delete_story"),
     form,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -700,7 +703,7 @@ export function deleteWikiCategory(group: Omit<WikiStoryGroup, "cardName">) {
   form.append("category_name", group.category)
   form.append("expected_revision", String(group.expectedRevision))
   return adminApiClient.Post(
-    "/api/wiki/delete_category",
+    wikiPath("/delete_category"),
     form,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
@@ -710,7 +713,7 @@ export function deleteWikiCategory(group: Omit<WikiStoryGroup, "cardName">) {
 
 export function parseBilibiliStoryUrl(url: string) {
   return adminApiClient.Post(
-    "/api/wiki/parse_bilibili",
+    wikiPath("/parse_bilibili"),
     { url },
     parsed(bilibiliResultSchema, {
       meta: withBackofficeCsrf(),

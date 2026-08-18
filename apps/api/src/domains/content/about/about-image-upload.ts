@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import type { AboutImageUploadRequest } from '@/domains/content/about/request';
@@ -43,7 +44,7 @@ export async function uploadAboutImage(
         await validateUploadedImage(file, runtime.images);
         const webp = await runtime.images.toWebp(file.body, 88);
         const filename = `${safeUploadBaseName(file.filename)}-${Date.now()}-${randomHex(6)}.webp`;
-        const publicPath = `/uploads/about/${options.publicDirectory}/${filename}`;
+        const publicPath = publicUploadsPath(`/about/${options.publicDirectory}/${filename}`);
         key = options.objectKey(filename);
         await runtime.storage.put(key, webp, {
             contentType: 'image/webp',

@@ -1,3 +1,4 @@
+import { exchangePath } from '@imsweb/contracts/paths';
 import type { FudabaOwnerOffice } from '@imsweb/contracts/fudaba';
 import type {
     FudabaOwnerOfficeRecord,
@@ -7,7 +8,7 @@ import type {
 export function fudabaOwnerOfficeView(
     office: FudabaOwnerOfficeRecord
 ): FudabaOwnerOffice {
-    const base = `/api/community/exchange/me/offices/${encodeURIComponent(office.id)}`;
+    const base = exchangePath(`/me/offices/${encodeURIComponent(office.id)}`);
     return {
         id: office.id,
         slug: office.slug,

@@ -11,6 +11,7 @@
 ```text
 src/
   z.ts                   # zod 封装子路径：消费端唯一的 z 来源
+  paths.ts               # API 与公开 delivery URL 前缀及路径拼接器
   index.ts               # 根导出：按业务命名空间聚合（非扁平 re-export）
   wiki.ts                # 单文件域：平铺（含偶像媒体目录管理）
   namecards.ts           # 名片公开/投稿/管理员队列
@@ -37,6 +38,23 @@ src/
   `exports` 中补充对应子路径。
 - 跨模块共享的原子 schema 只从其所属核心模块导出（如 `fudaba/index.ts`），
   兄弟模块内部原子不导出，避免 Web 端 barrel 星导出撞名。
+
+## URL 前缀与路径（`@imsweb/contracts/paths`）
+
+API 与公开 delivery 的前缀只有一个事实源：`@imsweb/contracts/paths`。它导出
+`API_PATH_PREFIX`、`ADMIN_API_PATH_PREFIX`、`PLATFORM_API_PATH_PREFIX`、
+`EXCHANGE_PATH_PREFIX`、`WIKI_PATH_PREFIX` 等前缀常量，以及 `apiPath()`、
+`adminApiPath()`、`platformAuthPath()`、`exchangePath()`、`wikiPath()`、
+`siteContentPath()` 等拼接器。API 路由注册、middleware 路径分类、cookie scope、
+公开资源路由与 Web endpoints 都必须使用这些 builder，只在调用处保留业务
+suffix 和动态参数；修改前缀时只改本文件即可同步两端。
+
+```ts
+import { exchangePath } from "@imsweb/contracts/paths"
+
+exchangePath(`/me/cards/${cardId}`)
+// /api/community/exchange/me/cards/<id>
+```
 
 ## zod 封装（`@imsweb/contracts/z`）
 

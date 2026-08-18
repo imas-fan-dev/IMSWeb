@@ -1,3 +1,5 @@
+import { apiPath } from '@imsweb/contracts/paths';
+
 import { createHandleAddReaction } from '@/domains/community/namecards/reactions/handlers/add-reaction';
 import { createHandleDeleteReaction } from '@/domains/community/namecards/reactions/handlers/delete-reaction';
 import { handleListReactions } from '@/domains/community/namecards/reactions/handlers/list-reactions';
@@ -24,11 +26,11 @@ export function namecardReactionRoutes(): ImsCapabilityRouter {
             queryValidator(validateReactionListQuery),
             handleListReactions
         );
-        routes.post(route, reactionValidator, createHandleAddReaction(`/api${route}`));
+        routes.post(route, reactionValidator, createHandleAddReaction(apiPath(route)));
         routes.delete(
             route,
             reactionValidator,
-            createHandleDeleteReaction(`/api${route}`)
+            createHandleDeleteReaction(apiPath(route))
         );
     }
     return routes;

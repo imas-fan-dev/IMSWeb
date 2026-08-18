@@ -1,3 +1,9 @@
+import {
+  exchangePath,
+  platformApiPath,
+  platformAuthOAuthPath,
+  platformAuthPath,
+} from "@imsweb/contracts/paths"
 import { successFlagSchema } from "@imsweb/contracts/common"
 import { passwordResetIssueResponseSchema } from "@imsweb/contracts/platform"
 import { z } from "@imsweb/contracts/z"
@@ -140,7 +146,7 @@ export function hasPlatformSessionHint() {
 
 export function getPlatformOAuthProviders() {
   return platformApiClient.Get(
-    "/api/platform/auth/oauth/providers",
+    platformAuthOAuthPath("/providers"),
     parsed(platformOAuthProvidersResponseSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
     })
@@ -152,7 +158,7 @@ export function sendPlatformPasswordResetVerificationCode(
 ) {
   const submission = platformPasswordResetRequestSchema.parse(input)
   return platformApiClient.Post(
-    "/api/platform/auth/password-reset/verification-code",
+    platformAuthPath("/password-reset/verification-code"),
     submission,
     parsed(passwordResetIssueResponseSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
@@ -163,7 +169,7 @@ export function sendPlatformPasswordResetVerificationCode(
 export function resetPlatformPassword(input: PlatformPasswordResetSubmission) {
   const submission = platformPasswordResetSubmissionSchema.parse(input)
   return platformApiClient.Post(
-    "/api/platform/auth/password-reset",
+    platformAuthPath("/password-reset"),
     submission,
     parsed(successFlagSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
@@ -173,7 +179,7 @@ export function resetPlatformPassword(input: PlatformPasswordResetSubmission) {
 
 export function getPlatformSession() {
   return platformApiClient.Get(
-    "/api/platform/auth/session",
+    platformAuthPath("/session"),
     parsed(platformSessionSchema, {
       meta: withPlatformAuth(),
     })
@@ -183,7 +189,7 @@ export function getPlatformSession() {
 export function loginPlatform(input: PlatformLoginInput) {
   const submission = platformLoginInputSchema.parse(input)
   return platformApiClient.Post(
-    "/api/platform/auth/login",
+    platformAuthPath("/login"),
     submission,
     parsed(platformSessionSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
@@ -196,7 +202,7 @@ export function sendPlatformRegistrationVerificationCode(
 ) {
   const submission = platformRegistrationVerificationInputSchema.parse(input)
   return platformApiClient.Post(
-    "/api/platform/auth/register/verification-code",
+    platformAuthPath("/register/verification-code"),
     submission,
     parsed(platformRegistrationVerificationResponseSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
@@ -207,7 +213,7 @@ export function sendPlatformRegistrationVerificationCode(
 export function registerPlatform(input: PlatformRegisterInput) {
   const submission = platformRegisterInputSchema.parse(input)
   return platformApiClient.Post(
-    "/api/platform/auth/register",
+    platformAuthPath("/register"),
     submission,
     parsed(platformSessionSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
@@ -217,7 +223,7 @@ export function registerPlatform(input: PlatformRegisterInput) {
 
 export function getPlatformProfile() {
   return platformApiClient.Get(
-    "/api/platform/me",
+    platformApiPath("/me"),
     parsed(platformProfileResponseSchema, {
       meta: withPlatformAuth(),
     })
@@ -227,7 +233,7 @@ export function getPlatformProfile() {
 export function updatePlatformProfile(input: PlatformProfileUpdate) {
   const submission = platformProfileUpdateSchema.parse(input)
   return platformApiClient.Put(
-    "/api/platform/me",
+    platformApiPath("/me"),
     submission,
     parsed(platformProfileMutationResponseSchema, {
       meta: withPlatformCsrf(),
@@ -241,7 +247,7 @@ export function uploadPlatformAvatar(input: PlatformAvatarUpload) {
   form.append("image", upload.image)
   form.append("expectedUpdatedAt", String(upload.expectedUpdatedAt))
   return platformApiClient.Put(
-    "/api/community/exchange/uploads/avatar",
+    exchangePath("/uploads/avatar"),
     form,
     parsed(platformProfileMutationResponseSchema, {
       meta: withPlatformCsrf(),
@@ -251,7 +257,7 @@ export function uploadPlatformAvatar(input: PlatformAvatarUpload) {
 
 export function logoutPlatform() {
   return platformApiClient.Post(
-    "/api/platform/auth/logout",
+    platformAuthPath("/logout"),
     undefined,
     parsed(successFlagSchema, {
       meta: withPlatformCsrf({ authRole: "logout" }),

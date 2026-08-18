@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 import { publicUploadKey } from '@/domains/delivery/media/media-access';
 import {
     invalidRequest,
@@ -33,7 +34,7 @@ function namecardFilename(value: unknown): string {
 
 export function validateNamecardMediaParams(value: unknown): NamecardMediaParams {
     const filename = namecardFilename(value);
-    const url = `/uploads/namecard/original/${filename}`;
+    const url = publicUploadsPath(`/namecard/original/${filename}`);
     let key: string;
     try {
         key = publicMediaObjectKey(url);
@@ -52,7 +53,7 @@ export function validateNamecardThumbnailMediaParams(value: unknown): NamecardMe
     const originalFilename = filename.slice(0, -suffix.length);
     return {
         filename,
-        url: `/uploads/namecard/original/${originalFilename}`,
+        url: publicUploadsPath(`/namecard/original/${originalFilename}`),
         key: namecardThumbnailObjectKey(originalFilename)
     };
 }

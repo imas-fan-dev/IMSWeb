@@ -1,8 +1,20 @@
+import { adminApiPath, apiPath, eventChroniclePath, exchangePath, platformApiPath, platformAuthPath, wikiPath } from '@imsweb/contracts/paths';
 import { createHash } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
 import type { AppEnvironment } from "@/app";
 import type { RateLimitIdentity } from "@/ports/cache";
 import { getClientAddress, services } from "@/middleware/hono-context";
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const exchangeOfficeLocationPattern = new RegExp(
+  `^${escapeRegExp(exchangePath('/me/offices/'))}[^/]+/location$`,
+);
+const exchangeOfficeCoverPattern = new RegExp(
+  `^${escapeRegExp(exchangePath('/me/offices/'))}[^/]+/cover$`,
+);
 
 export interface RateLimitOptions {
   bucket: string;
@@ -127,20 +139,20 @@ export function isDynamicBusinessRequest(
   pathname: string,
 ): boolean {
   if (method === "OPTIONS") return false;
-  if (pathname === "/api/health/live" || pathname === "/api/wiki/test") {
+  if (pathname === apiPath('/health/live') || pathname === wikiPath('/test')) {
     return false;
   }
   return (
-    pathname === "/api" ||
-    pathname.startsWith("/api/") ||
-    pathname === "/eventchronicle" ||
-    pathname.startsWith("/eventchronicle/")
+    pathname === apiPath() ||
+    pathname.startsWith(apiPath('/')) ||
+    pathname === eventChroniclePath() ||
+    pathname.startsWith(eventChroniclePath('/'))
   );
 }
 
 export function validatedRequestPath(c: Context<AppEnvironment>): string {
-  const rawPathname = new URL(c.req.raw.url).pathname;
   try {
+    const rawPathname = new URL(c.req.raw.url).pathname;
     // Hono has already decoded the routing path into c.req.path. Decode the
     // raw pathname only as validation so encoded separators and %25 are
     // never decoded a second time for middleware classification.
@@ -178,58 +190,54 @@ function requestSpecificLimit(
 ): RateLimitOptions | null {
   if (
     method === "GET" &&
-    (pathname === "/api/community/exchange/map/config" ||
-      pathname === "/api/community/exchange/map/offices")
+    (pathname === exchangePath('/map/config') ||
+      pathname === exchangePath('/map/offices'))
   ) {
     return FUDABA_MAP_READ_LIMIT;
   }
   if (
     ["PUT", "DELETE"].includes(method) &&
-    /^\/api\/community\/exchange\/me\/offices\/[^/]+\/location$/.test(
-      pathname,
-    )
+    exchangeOfficeLocationPattern.test(pathname)
   ) {
     return FUDABA_LOCATION_WRITE_LIMIT;
   }
   if (
     (method === "PUT" && (
-      pathname.startsWith("/api/community/exchange/uploads/") ||
-      /^\/api\/community\/exchange\/me\/offices\/[^/]+\/cover$/.test(
-        pathname,
-      )
+      pathname.startsWith(exchangePath('/uploads/')) ||
+      exchangeOfficeCoverPattern.test(pathname)
     )) ||
-    (method === "POST" && pathname === "/api/community/exchange/cards")
+    (method === "POST" && pathname === exchangePath('/cards'))
   ) {
     return FUDABA_UPLOAD_ATTEMPT_LIMIT;
   }
   if (
     ["POST", "PUT", "DELETE"].includes(method) &&
-    (pathname === "/api/platform/me" ||
-      pathname.startsWith("/api/community/exchange/"))
+    (pathname === platformApiPath('/me') ||
+      pathname.startsWith(exchangePath('/')))
   ) {
     return FUDABA_WRITE_ATTEMPT_LIMIT;
   }
   if (
     method === "POST" &&
-    pathname === "/api/platform/auth/refresh"
+    pathname === platformAuthPath('/refresh')
   ) {
     return PLATFORM_AUTH_REFRESH_LIMIT;
   }
-  if (method === "POST" && pathname === "/api/platform/auth/login") {
+  if (method === "POST" && pathname === platformAuthPath('/login')) {
     return PLATFORM_AUTH_LOGIN_LIMIT;
   }
-  if (method === "POST" && pathname === "/api/platform/auth/register") {
+  if (method === "POST" && pathname === platformAuthPath('/register')) {
     return PLATFORM_AUTH_REGISTER_LIMIT;
   }
   if (
     method === "POST" &&
-    pathname === "/api/platform/auth/register/verification-code"
+    pathname === platformAuthPath('/register/verification-code')
   ) {
     return PLATFORM_AUTH_EMAIL_VERIFICATION_LIMIT;
   }
   if (
     method === "POST" &&
-    ["/api/login", "/api/admin/login", "/api/admin/auth/login"].includes(
+    [apiPath('/login'), adminApiPath('/login'), adminApiPath('/auth/login')].includes(
       pathname,
     )
   ) {
@@ -237,7 +245,7 @@ function requestSpecificLimit(
   }
   if (
     (method === "POST" || method === "DELETE") &&
-    (pathname === "/api/emojis" || pathname === "/api/reactions")
+    (pathname === apiPath('/emojis') || pathname === apiPath('/reactions'))
   ) {
     return REACTION_LIMIT;
   }
@@ -250,7 +258,7 @@ export function requestRateLimit(): MiddlewareHandler<AppEnvironment> {
     if (!isDynamicBusinessRequest(c.req.method, pathname)) return next();
     const globalLimited = await enforceRateLimit(c, GLOBAL_REQUEST_LIMIT);
     if (globalLimited) return globalLimited;
-    if (c.req.method === "POST" && pathname === "/eventchronicle/upload") {
+    if (c.req.method === "POST" && pathname === eventChroniclePath('/upload')) {
       const idempotencyKey = chronicleUploadIdempotencyKey(c.req.raw);
       const attemptLimited = await enforceRateLimit(
         c,

@@ -1,3 +1,4 @@
+import { apiPath } from "@imsweb/contracts/paths"
 import { reactionMutationSchema } from "@imsweb/contracts/namecards"
 
 import {
@@ -68,7 +69,7 @@ export const NAMECARD_REACTIONS = [
 
 export function getNamecardPage(page = 1, size = 12) {
   return apiClient.Get(
-    "/api/cards",
+    apiPath("/cards"),
     parsed(namecardPageSchema, {
       cacheFor: NO_CLIENT_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
@@ -79,7 +80,7 @@ export function getNamecardPage(page = 1, size = 12) {
 
 export function getNamecardReactions(cardId: number) {
   return apiClient.Get(
-    "/api/reactions",
+    apiPath("/reactions"),
     parsed(reactionSchema, {
       params: { id: cardId },
     })
@@ -88,7 +89,7 @@ export function getNamecardReactions(cardId: number) {
 
 export function addNamecardReaction(cardId: number, emoji: string) {
   return apiClient.Post(
-    "/api/reactions",
+    apiPath("/reactions"),
     { id: cardId, emoji },
     parsed(reactionMutationSchema)
   )
@@ -105,7 +106,7 @@ export function uploadNamecard(
   form.append("seriesCode", metadata.seriesCode)
   form.append("favoriteIdolIds", JSON.stringify(metadata.favoriteIdolIds))
   return apiClient.Post(
-    "/api/uploadNameCard",
+    apiPath("/uploadNameCard"),
     form,
     parsed(uploadNamecardResponseSchema)
   )
@@ -113,7 +114,7 @@ export function uploadNamecard(
 
 export function getNamecardSubmission(id: number, withdrawalToken: string) {
   return apiClient.Get(
-    `/api/namecards/submissions/${id}`,
+    apiPath(`/namecards/submissions/${id}`),
     parsed(namecardSubmissionResponseSchema, {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
     })
@@ -126,7 +127,7 @@ export function withdrawNamecardSubmission(
   expectedRevision: number
 ) {
   return apiClient.Post(
-    `/api/namecards/submissions/${id}/withdraw`,
+    apiPath(`/namecards/submissions/${id}/withdraw`),
     { expected_revision: expectedRevision },
     parsed(withdrawNamecardResponseSchema, {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },

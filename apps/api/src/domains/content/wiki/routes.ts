@@ -1,3 +1,4 @@
+import { adminWikiPath } from '@imsweb/contracts/paths';
 import type { Env, Hono } from "hono";
 import { registerWikiCatalogRoutes } from "@/domains/content/wiki/catalog/routes";
 import {
@@ -13,7 +14,7 @@ export function registerWikiRoutes<E extends Env>(
   app: Hono<E>,
   resolveServices: WikiServicesResolver<E>,
 ): void {
-  app.use("/api/admin/wiki/*", createWikiAdminAuthorization(resolveServices));
+  app.use(adminWikiPath('/*'), createWikiAdminAuthorization(resolveServices));
 
   registerWikiMediaRoutes(app, resolveServices);
   registerWikiCatalogRoutes(app, resolveServices);

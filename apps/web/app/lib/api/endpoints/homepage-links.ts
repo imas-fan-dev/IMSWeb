@@ -1,3 +1,4 @@
+import { adminApiPath, apiPath } from "@imsweb/contracts/paths"
 import { successFlagSchema } from "@imsweb/contracts/common"
 import { homepageLinkMutationSchema } from "@imsweb/contracts/homepage-links"
 import { parsed } from "../parsed"
@@ -27,7 +28,7 @@ export const emptyHomepageLinks: HomepageLinks = {
 
 export function getHomepageLinks() {
   return apiClient.Get(
-    "/api/homepage-links",
+    apiPath("/homepage-links"),
     parsed(homepageLinksSchema, {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.homepageLinks,
@@ -37,7 +38,7 @@ export function getHomepageLinks() {
 
 export function getAdminHomepageLinks() {
   return adminApiClient.Get(
-    "/api/admin/homepage-links",
+    adminApiPath("/homepage-links"),
     parsed(homepageLinksSchema, {
       meta: withBackofficeAuth(),
     })
@@ -46,7 +47,7 @@ export function getAdminHomepageLinks() {
 
 export function createHomepageLink(submission: HomepageLinkSubmission) {
   return adminApiClient.Post(
-    "/api/admin/homepage-links",
+    adminApiPath("/homepage-links"),
     submission,
     parsed(homepageLinkMutationSchema, {
       meta: withBackofficeCsrf(),
@@ -60,7 +61,7 @@ export function updateHomepageLink(
   submission: Omit<HomepageLinkSubmission, "section">
 ) {
   return adminApiClient.Put(
-    `/api/admin/homepage-links/${encodeURIComponent(id)}`,
+    adminApiPath(`/homepage-links/${encodeURIComponent(id)}`),
     submission,
     parsed(homepageLinkMutationSchema, {
       meta: withBackofficeCsrf(),
@@ -71,7 +72,7 @@ export function updateHomepageLink(
 
 export function deleteHomepageLink(id: string) {
   return adminApiClient.Delete(
-    `/api/admin/homepage-links/${encodeURIComponent(id)}`,
+    adminApiPath(`/homepage-links/${encodeURIComponent(id)}`),
     undefined,
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),
@@ -85,7 +86,7 @@ export function reorderHomepageLinks(
   ids: string[]
 ) {
   return adminApiClient.Put(
-    `/api/admin/homepage-links/${section}/order`,
+    adminApiPath(`/homepage-links/${section}/order`),
     { ids },
     parsed(successFlagSchema, {
       meta: withBackofficeCsrf(),

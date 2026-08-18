@@ -1,3 +1,4 @@
+import { adminExchangePath } from "@imsweb/contracts/paths"
 import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
@@ -23,7 +24,7 @@ export function getFudabaLocationReviews(
     limit: String(limit),
   })
   return adminApiClient.Get(
-    `/api/admin/community/exchange/office-locations?${query}`,
+    adminExchangePath(`/office-locations?${query}`),
     parsed(fudabaLocationReviewListSchema, {
       meta: withBackofficeAuth(),
     })
@@ -39,7 +40,7 @@ export function reviewFudabaLocation(
   }
 ) {
   return adminApiClient.Put(
-    `/api/admin/community/exchange/office-locations/${encodeURIComponent(officeId)}`,
+    adminExchangePath(`/office-locations/${encodeURIComponent(officeId)}`),
     input,
     parsed(fudabaLocationReviewMutationSchema, {
       meta: withBackofficeCsrf(),

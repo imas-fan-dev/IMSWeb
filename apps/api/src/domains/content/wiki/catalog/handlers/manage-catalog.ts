@@ -1,3 +1,4 @@
+import { iconPath } from '@imsweb/contracts/paths';
 import type { Env } from 'hono';
 import type {
     AgencyRecord,
@@ -62,7 +63,7 @@ function agencyResponse(agency: AgencyRecord) {
         bannerTitle: agency.banner_title,
         displayOrder: agency.display_order,
         layoutRevision: agency.layout_revision,
-        iconUrl: agency.icon_object_key ? `/icon/agencies/${agency.id}.webp` : null,
+        iconUrl: agency.icon_object_key ? iconPath(`/agencies/${agency.id}.webp`) : null,
         imageTransform: agencyImageTransform(agency),
         mediaRevision: agency.icon_media_revision
     };

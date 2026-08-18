@@ -1,3 +1,4 @@
+import { exchangePath } from "@imsweb/contracts/paths"
 import { z } from "@imsweb/contracts/z"
 
 import { parsed } from "../../parsed"
@@ -268,7 +269,7 @@ export interface FudabaCardPageRequest {
 
 export function getFudabaSeries() {
   return platformApiClient.Get(
-    "/api/community/exchange/series",
+    exchangePath("/series"),
     parsed(fudabaSeriesListSchema, {
       meta: withPlatformAuth(),
     })
@@ -277,7 +278,7 @@ export function getFudabaSeries() {
 
 export function getFudabaOwnerSeries() {
   return platformApiClient.Get(
-    "/api/community/exchange/me/series",
+    exchangePath("/me/series"),
     parsed(fudabaSeriesListSchema, {
       meta: withPlatformAuth(),
     })
@@ -286,7 +287,7 @@ export function getFudabaOwnerSeries() {
 
 export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
   return platformApiClient.Get(
-    withQuery("/api/community/exchange/offices", officePageParams(input)),
+    withQuery(exchangePath("/offices"), officePageParams(input)),
     parsed(fudabaOfficePageSchema, {
       meta: withPlatformAuth(),
     })
@@ -295,7 +296,7 @@ export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
 
 export function getFudabaOffice(officeSlug: string) {
   return platformApiClient.Get(
-    `/api/community/exchange/offices/${encodeURIComponent(officeSlug)}`,
+    exchangePath(`/offices/${encodeURIComponent(officeSlug)}`),
     parsed(fudabaOfficeDetailSchema, {
       meta: withPlatformAuth(),
       select: (data) => data.office,
@@ -305,7 +306,7 @@ export function getFudabaOffice(officeSlug: string) {
 
 export function getFudabaMapConfig() {
   return platformApiClient.Get(
-    "/api/community/exchange/map/config",
+    exchangePath("/map/config"),
     parsed(fudabaMapConfigSchema, {
       meta: withPlatformAuth(),
     })
@@ -314,7 +315,7 @@ export function getFudabaMapConfig() {
 
 export function getFudabaMapOffices(input: FudabaMapOfficeRequest) {
   return platformApiClient.Get(
-    withQuery("/api/community/exchange/map/offices", mapOfficeParams(input)),
+    withQuery(exchangePath("/map/offices"), mapOfficeParams(input)),
     parsed(fudabaMapOfficeListSchema, {
       meta: withPlatformAuth(),
     })
@@ -323,7 +324,7 @@ export function getFudabaMapOffices(input: FudabaMapOfficeRequest) {
 
 export function getFudabaCardPage(input: FudabaCardPageRequest = {}) {
   return platformApiClient.Get(
-    withQuery("/api/community/exchange/cards", cardPageParams(input)),
+    withQuery(exchangePath("/cards"), cardPageParams(input)),
     parsed(fudabaCardPageSchema, {
       meta: withPlatformAuth(),
     })
@@ -332,7 +333,7 @@ export function getFudabaCardPage(input: FudabaCardPageRequest = {}) {
 
 export function getFudabaOwnerCards() {
   return platformApiClient.Get(
-    "/api/community/exchange/me/cards",
+    exchangePath("/me/cards"),
     parsed(fudabaOwnerCardListSchema, {
       meta: withPlatformAuth(),
     })
@@ -341,7 +342,7 @@ export function getFudabaOwnerCards() {
 
 export function getFudabaOwnerCard(cardId: string) {
   return platformApiClient.Get(
-    `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
+    exchangePath(`/me/cards/${encodeURIComponent(cardId)}`),
     parsed(fudabaOwnerCardDetailSchema, {
       meta: withPlatformAuth(),
     })
@@ -350,7 +351,7 @@ export function getFudabaOwnerCard(cardId: string) {
 
 export function getFudabaOwnerOffices() {
   return platformApiClient.Get(
-    "/api/community/exchange/me/offices",
+    exchangePath("/me/offices"),
     parsed(fudabaOwnerOfficeListSchema, {
       meta: withPlatformAuth(),
     })
@@ -359,7 +360,7 @@ export function getFudabaOwnerOffices() {
 
 export function getFudabaOwnerOffice(officeId: string) {
   return platformApiClient.Get(
-    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}`,
+    exchangePath(`/me/offices/${encodeURIComponent(officeId)}`),
     parsed(fudabaOwnerOfficeDetailSchema, {
       meta: withPlatformAuth(),
     })
@@ -373,7 +374,7 @@ export function createFudabaOffice(
   const submission = fudabaOfficeFieldsSchema.parse(input)
   const key = idempotencyKeySchema.parse(idempotencyKey)
   return platformApiClient.Post(
-    "/api/community/exchange/offices",
+    exchangePath("/offices"),
     submission,
     parsed(fudabaOfficeMutationResponseSchema, {
       headers: { "Idempotency-Key": key },
@@ -388,7 +389,7 @@ export function updateFudabaOwnerOffice(
 ) {
   const submission = fudabaOfficeUpdateSchema.parse(input)
   return platformApiClient.Put(
-    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}`,
+    exchangePath(`/me/offices/${encodeURIComponent(officeId)}`),
     submission,
     parsed(fudabaOfficeMutationResponseSchema, {
       meta: withPlatformCsrf(),
@@ -398,7 +399,7 @@ export function updateFudabaOwnerOffice(
 
 export function getFudabaOwnerLocation(officeId: string) {
   return platformApiClient.Get(
-    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
+    exchangePath(`/me/offices/${encodeURIComponent(officeId)}/location`),
     parsed(fudabaOwnerLocationDetailSchema, {
       meta: withPlatformAuth(),
     })
@@ -411,7 +412,7 @@ export function saveFudabaOwnerLocation(
 ) {
   const submission = fudabaOwnerLocationSubmissionSchema.parse(input)
   return platformApiClient.Put(
-    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
+    exchangePath(`/me/offices/${encodeURIComponent(officeId)}/location`),
     submission,
     parsed(fudabaOwnerLocationMutationResponseSchema, {
       meta: withPlatformCsrf(),
@@ -425,7 +426,7 @@ export function withdrawFudabaOwnerLocation(
 ) {
   const revision = fudabaRevisionSchema.parse(expectedRevision)
   return platformApiClient.Delete(
-    `/api/community/exchange/me/offices/${encodeURIComponent(officeId)}/location`,
+    exchangePath(`/me/offices/${encodeURIComponent(officeId)}/location`),
     { expectedRevision: revision },
     parsed(fudabaOwnerLocationWithdrawalResponseSchema, {
       meta: withPlatformCsrf(),
@@ -451,7 +452,7 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
   form.append("front", front)
   form.append("back", back)
   return platformApiClient.Post(
-    "/api/community/exchange/cards",
+    exchangePath("/cards"),
     form,
     parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
@@ -462,7 +463,7 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
 export function updateFudabaCard(cardId: string, input: UpdateFudabaCardInput) {
   const submission = fudabaCardUpdateSchema.parse(input)
   return platformApiClient.Put(
-    `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
+    exchangePath(`/me/cards/${encodeURIComponent(cardId)}`),
     submission,
     parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
@@ -487,7 +488,7 @@ export function uploadFudabaCardMedia(
   form.append("cardId", upload.cardId)
   form.append("expectedRevision", String(upload.expectedRevision))
   return platformApiClient.Put(
-    `/api/community/exchange/uploads/${upload.side}`,
+    exchangePath(`/uploads/${upload.side}`),
     form,
     parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
@@ -498,7 +499,7 @@ export function uploadFudabaCardMedia(
 export function deleteFudabaCard(cardId: string, expectedRevision: number) {
   const revision = fudabaRevisionSchema.parse(expectedRevision)
   return platformApiClient.Delete(
-    `/api/community/exchange/me/cards/${encodeURIComponent(cardId)}`,
+    exchangePath(`/me/cards/${encodeURIComponent(cardId)}`),
     { expectedRevision: revision },
     parsed(fudabaCardDeleteResponseSchema, {
       meta: withPlatformCsrf(),
@@ -514,7 +515,9 @@ export function saveFudabaCardPlacement(
   const path = fudabaCardPlacementPathSchema.parse({ officeId, cardId })
   const submission = fudabaCardPlacementSaveSchema.parse(input)
   return platformApiClient.Put(
-    `/api/community/exchange/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`,
+    exchangePath(
+      `/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`
+    ),
     submission,
     parsed(fudabaCardPlacementSaveResponseSchema, {
       meta: withPlatformCsrf(),
@@ -532,7 +535,9 @@ export function deleteFudabaCardPlacement(
     expectedRevision,
   })
   return platformApiClient.Delete(
-    `/api/community/exchange/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`,
+    exchangePath(
+      `/offices/${encodeURIComponent(path.officeId)}/cards/${encodeURIComponent(path.cardId)}/placement`
+    ),
     submission,
     parsed(fudabaCardPlacementDeleteResponseSchema, {
       meta: withPlatformCsrf(),

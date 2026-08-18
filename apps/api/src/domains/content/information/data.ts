@@ -1,3 +1,4 @@
+import { publicAssetsPath, publicUploadsPath } from '@imsweb/contracts/paths';
 import { uniqueStringIdListRequest } from '@/utils/validation/request-data';
 
 export const INFORMATION_CATEGORIES = ['activity', 'fan'] as const;
@@ -34,7 +35,7 @@ function cleanString(value: unknown): string {
 }
 
 export function informationAssetUrl(value: unknown): value is string {
-    if (typeof value !== 'string' || !value.startsWith('/uploads/information/')) return false;
+    if (typeof value !== 'string' || !value.startsWith(publicUploadsPath('/information/'))) return false;
     if (!IMAGE_EXTENSION.test(value) || /[?#\\\u0000-\u001f\u007f]/.test(value)) return false;
     const segments = value.slice(1).split('/');
     return segments.length >= 3 && segments.every((segment) =>
@@ -63,7 +64,7 @@ export function validateInformationOrderRequest(value: unknown): string[] {
 }
 
 function legacyInformationImage(value: unknown): value is string {
-    return typeof value === 'string' && value.startsWith('/assets/images/') &&
+    return typeof value === 'string' && value.startsWith(publicAssetsPath('/images/')) &&
         IMAGE_EXTENSION.test(value) && !/[?#\\\u0000-\u001f\u007f]/.test(value) &&
         value.slice(1).split('/').every((segment) =>
             Boolean(segment) && segment !== '.' && segment !== '..'

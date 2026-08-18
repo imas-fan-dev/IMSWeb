@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { AppEnvironment } from '@/app';
 import {
     parseUpdateEventRequest,
@@ -54,7 +55,7 @@ export async function handleUpdateEvent(
             const info = await validateUploadedImage(submission.image, runtime.images);
             const extension = info.format === 'jpeg' ? 'jpg' : info.format;
             const filename = `${safeUploadBaseName(submission.image.filename)}-${Date.now()}-${randomHex(6)}.${extension}`;
-            imageUrl = `/uploads/event/original/${filename}`;
+            imageUrl = publicUploadsPath(`/event/original/${filename}`);
             stagedKey = eventPosterObjectKey(filename);
             await runtime.storage.put(stagedKey, submission.image.body, {
                 contentType: info.contentType,

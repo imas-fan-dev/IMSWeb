@@ -1,3 +1,4 @@
+import { apiPath } from "@imsweb/contracts/paths"
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   PUBLIC_QUERY_CACHE_FOR,
@@ -38,7 +39,7 @@ export function getHomeEvents(limit = 4) {
 
 export function getHomeInformation() {
   return apiClient.Get(
-    "/api/information",
+    apiPath("/information"),
     parsed(informationListSchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
@@ -48,7 +49,7 @@ export function getHomeInformation() {
 
 export function getHomeInformationDetail(id: string) {
   return apiClient.Get(
-    `/api/information/${encodeURIComponent(id)}`,
+    apiPath(`/information/${encodeURIComponent(id)}`),
     parsed(informationDetailSchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,

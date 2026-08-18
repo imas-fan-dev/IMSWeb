@@ -1,3 +1,4 @@
+import { iconPath } from '@imsweb/contracts/paths';
 import type { Env } from "hono";
 import {
   wikiErrorBody,
@@ -47,7 +48,7 @@ export function createHandleListPublicWikiCatalog<E extends Env>(
           ? await resolvePublicObjectUrl(
               services.storage!,
               agency.icon_object_key,
-              `/icon/agencies/${agency.id}.webp`,
+              iconPath(`/agencies/${agency.id}.webp`),
             )
           : null,
         idolCount: counts.get(agency.id) ?? 0,

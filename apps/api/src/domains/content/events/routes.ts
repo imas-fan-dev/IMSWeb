@@ -1,3 +1,4 @@
+import { apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleCreateEvent } from '@/domains/content/events/handlers/create-event';
 import { handleDeleteEvent } from '@/domains/content/events/handlers/delete-event';
@@ -14,11 +15,11 @@ import { paramValidator, queryValidator } from '@/middleware/request-validation'
 const eventIdValidator = paramValidator(validateEventIdParams);
 
 export function registerEventRoutes(app: ImsHonoApp): void {
-    app.post('/api/events', backofficeAuth, opOnly, backofficeCsrf, handleCreateEvent);
-    app.get('/api/events', queryValidator(validateEventListQuery), handleListEvents);
-    app.get('/api/events/:id', eventIdValidator, handleGetEvent);
+    app.post(apiPath('/events'), backofficeAuth, opOnly, backofficeCsrf, handleCreateEvent);
+    app.get(apiPath('/events'), queryValidator(validateEventListQuery), handleListEvents);
+    app.get(apiPath('/events/:id'), eventIdValidator, handleGetEvent);
     app.put(
-        '/api/events/:id',
+        apiPath('/events/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
@@ -26,7 +27,7 @@ export function registerEventRoutes(app: ImsHonoApp): void {
         handleUpdateEvent
     );
     app.delete(
-        '/api/events/:id',
+        apiPath('/events/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
