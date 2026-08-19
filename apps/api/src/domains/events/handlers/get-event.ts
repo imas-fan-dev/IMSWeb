@@ -1,9 +1,11 @@
 import type { AppEnvironment } from '@/app';
 import type { EventIdParams } from '@/domains/events/request';
 import {
+    toEditorialEventResponse,
     toEventResponse,
     type EventErrorResponse,
-    type EventResponse
+    type EventResponse,
+    type EditorialEventResponse
 } from '@/domains/events/response';
 import { eventRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
@@ -14,11 +16,27 @@ export async function handleGetEvent(
 ): Promise<Response> {
     const { id } = c.req.valid('param');
     if (!id) return c.json({ error: '活动不存在' } satisfies EventErrorResponse, 404);
-    const event = await eventRepository(c).findEvent(id);
+    const editorialRepository = services(c).editorial;
+    const editorial = editorialRepository
+        ? await editorialRepository.findPublicEvent(id)
+        : null;
+    const event = editorial || await eventRepository(c).findEvent(id);
     if (!event) return c.json({ error: '活动不存在' } satisfies EventErrorResponse, 404);
     const storage = services(c).storage;
     const response = storage
         ? await resolvePublicMediaFields(storage, event, ['image_url'])
         : event;
+    if (editorial) {
+        const resolved = await resolveEditorialEventResponse(editorial, storage);
+        return c.json(toEditorialEventResponse(resolved) satisfies EditorialEventResponse);
+    }
     return c.json(toEventResponse(response) satisfies EventResponse);
+}
+
+async function resolveEditorialEventResponse(
+    event: Record<string, unknown>,
+    storage: ReturnType<typeof services>['storage']
+): Promise<Record<string, unknown>> {
+    if (!storage) return event;
+    return resolvePublicMediaFields(storage, event, ['image_url']);
 }

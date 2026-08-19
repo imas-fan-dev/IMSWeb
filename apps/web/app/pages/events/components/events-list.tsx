@@ -54,6 +54,7 @@ export function EventRow({ event }: { event: EventListItem }) {
   const href = contactUrl(event.contact)
 
   return (
+    <a href={`/events/${encodeURIComponent(event.id)}`} className="block rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
     <article className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 border-b py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
       <div className="flex aspect-4/3 w-full items-center justify-center self-start overflow-hidden rounded-md bg-info/12 text-info">
         {imageUrl ? (
@@ -68,10 +69,11 @@ export function EventRow({ event }: { event: EventListItem }) {
       </div>
 
       <div className="min-w-0 py-0.5">
-        <p className="text-xs font-medium text-primary">活动 #{event.id}</p>
+        <p className="text-xs font-medium text-primary">{event.kind === "event" ? "具体活动" : "社区动态"}</p>
         <h2 className="mt-1.5 text-base/6 font-semibold whitespace-pre-line sm:text-lg/7">
           {event.title}
         </h2>
+        {event.summary ? <p className="mt-2 line-clamp-2 text-sm/6 text-muted-foreground">{event.summary}</p> : null}
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <UserRoundIcon aria-hidden="true" className="size-3.5" />
@@ -88,24 +90,14 @@ export function EventRow({ event }: { event: EventListItem }) {
               aria-hidden="true"
               className="mt-0.5 size-3.5 shrink-0"
             />
-            {href ? (
-              <a
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                className="min-w-0 break-all text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
-                {event.contact}
-              </a>
-            ) : (
-              <span className="min-w-0 wrap-anywhere whitespace-pre-line">
-                {event.contact}
-              </span>
-            )}
+            <span className={href ? "min-w-0 break-all text-primary" : "min-w-0 wrap-anywhere whitespace-pre-line"}>
+              {event.contact}
+            </span>
           </div>
         ) : null}
       </div>
     </article>
+    </a>
   )
 }
 

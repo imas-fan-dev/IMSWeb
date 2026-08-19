@@ -60,6 +60,14 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             {
                 version: '20260814170000_object_deletion_jobs',
                 phase: 'post-data'
+            },
+            {
+                version: '20260818101253_editorial_content_cms',
+                phase: 'post-data'
+            },
+            {
+                version: '20260819090000_community_posts_unification',
+                phase: 'post-data'
             }
         ]
     );
@@ -161,6 +169,20 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(objectDeletions.sql, /lease_expires_at BIGINT/);
     assert.match(objectDeletions.sql, /object_deletion_jobs_candidates_idx/);
     assert.match(objectDeletions.sql, /object_deletion_jobs_completed_idx/);
+    const editorialContent = migrations.find(
+        ({ version }) => version === '20260818101253_editorial_content_cms'
+    );
+    assert.match(editorialContent.sql, /CREATE TABLE public\.articles/);
+    assert.match(editorialContent.sql, /CREATE TABLE public\.article_assets/);
+    assert.match(editorialContent.sql, /CREATE TABLE public\.chronicle_entries/);
+    assert.match(editorialContent.sql, /ALTER TABLE public\.events/);
+    assert.match(editorialContent.sql, /INSERT INTO public\.articles/);
+    const communityPosts = migrations.find(
+        ({ version }) => version === '20260819090000_community_posts_unification'
+    );
+    assert.match(communityPosts.sql, /ADD COLUMN source_url TEXT/);
+    assert.match(communityPosts.sql, /CREATE TABLE public\.homepage_spotlight_entries/);
+    assert.match(communityPosts.sql, /ON DELETE CASCADE/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -184,11 +206,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 26);
+    assert.equal(catalog.count, 28);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260814170000_object_deletion_jobs'
+        '20260819090000_community_posts_unification'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -271,7 +293,9 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260811100000_wiki_category_revision',
         '20260813000000_namecard_rejected_at',
         '20260814155304_shared_request_controls',
-        '20260814170000_object_deletion_jobs'
+        '20260814170000_object_deletion_jobs',
+        '20260818101253_editorial_content_cms',
+        '20260819090000_community_posts_unification'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

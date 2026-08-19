@@ -9,10 +9,10 @@ import { useEventsFeed } from "./hooks/use-events-feed"
 
 export function meta() {
   return [
-    { title: "活动中心 | IMSWeb" },
+    { title: "社区动态 | IMSWeb" },
     {
       name: "description",
-      content: "浏览 IMSWeb 制作人社区持续更新的国内活动。",
+      content: "浏览 IMSWeb 制作人社区持续更新的公告、招募、企划和活动。",
     },
   ]
 }
@@ -87,10 +87,10 @@ export function EventsCenter() {
         <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
           <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
             <div className="max-w-2xl">
-              <p className="text-xs font-semibold text-primary">EVENTS</p>
-              <h1 className="mt-2 text-3xl font-semibold">活动中心</h1>
+              <p className="text-xs font-semibold text-primary">COMMUNITY</p>
+              <h1 className="mt-2 text-3xl font-semibold">社区动态</h1>
               <p className="mt-3 leading-7 text-muted-foreground">
-                汇集制作人社区正在进行和近期发布的国内活动。
+                汇集制作人社区近期发布的公告、招募、企划与具体活动。
               </p>
             </div>
             {phase === "ready" && items.length ? (
@@ -102,8 +102,8 @@ export function EventsCenter() {
                   type="button"
                   variant="outline"
                   onClick={() => void refresh()}
-                  aria-label="刷新活动列表"
-                  title="刷新活动列表"
+                  aria-label="刷新社区动态列表"
+                  title="刷新社区动态列表"
                 >
                   <RefreshCwIcon aria-hidden="true" />
                   刷新
@@ -119,7 +119,7 @@ export function EventsCenter() {
         aria-labelledby="events-list-heading"
       >
         <h2 id="events-list-heading" className="sr-only">
-          活动列表
+          社区动态列表
         </h2>
 
         {phase === "idle" || phase === "loading" ? (
@@ -127,7 +127,7 @@ export function EventsCenter() {
         ) : phase === "error" ? (
           <Alert className="my-8 py-4">
             <CalendarDaysIcon aria-hidden="true" />
-            <AlertTitle>活动暂时无法加载</AlertTitle>
+            <AlertTitle>社区动态暂时无法加载</AlertTitle>
             <AlertDescription>{error || "请稍后重新加载。"}</AlertDescription>
             <div className="col-start-2 mt-3">
               <Button type="button" onClick={() => void loadFirstPage()}>
@@ -141,9 +141,9 @@ export function EventsCenter() {
               aria-hidden="true"
               className="size-7 text-muted-foreground"
             />
-            <p className="mt-4 font-medium">当前没有已发布活动</p>
+            <p className="mt-4 font-medium">当前没有已发布社区动态</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              新活动发布后会显示在这里。
+              新帖子发布后会显示在这里。
             </p>
           </div>
         ) : (
@@ -151,7 +151,7 @@ export function EventsCenter() {
             <div
               ref={attachList}
               role="list"
-              aria-label="活动列表"
+              aria-label="社区动态列表"
               className="relative w-full"
               style={{ height: virtualizer.getTotalSize() }}
             >
@@ -183,7 +183,7 @@ export function EventsCenter() {
             >
               {loadMoreError ? (
                 <p role="alert" className="mb-3 text-sm text-destructive">
-                  后续活动加载失败：{loadMoreError}
+                  后续动态加载失败：{loadMoreError}
                 </p>
               ) : null}
               {pageInfo.hasNextPage ? (
@@ -204,11 +204,11 @@ export function EventsCenter() {
                     ? "正在加载"
                     : loadMoreError
                       ? "重试加载"
-                      : "加载更多活动"}
+                    : "加载更多动态"}
                 </Button>
               ) : (
                 <p role="status" className="text-sm text-muted-foreground">
-                  已显示本批次的全部活动
+                  已显示本批次的全部动态
                 </p>
               )}
             </div>

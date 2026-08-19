@@ -124,7 +124,7 @@ describe("home feed alova integration", () => {
     expect(screen.queryByText(/条活动/)).not.toBeInTheDocument()
     expect(screen.queryByText(/显示其余/)).not.toBeInTheDocument()
     expect(screen.queryByRole("group")).not.toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "查看全部活动" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "查看全部动态" })).toHaveAttribute(
       "href",
       "/events"
     )
@@ -136,7 +136,7 @@ describe("home feed alova integration", () => {
     expect(screen.queryByText("首页资讯 5")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: /首页活动 1/ })).toHaveAttribute(
       "href",
-      "/events"
+      "/events/1"
     )
     expect(screen.getByText("首页活动 1")).toHaveClass("line-clamp-2")
     expect(screen.getByText("首页活动 1")).toHaveAttribute(

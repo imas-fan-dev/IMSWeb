@@ -4,6 +4,7 @@ const publicRoutes = [
   { index: true, file: "pages/home/index.tsx" },
   { path: "about", file: "pages/about/index.tsx" },
   { path: "events", file: "pages/events/index.tsx" },
+  { path: "events/:eventId", file: "pages/events/event-detail-page.tsx" },
   {
     path: "recommendations",
     file: "pages/recommendations/index.tsx",
@@ -73,6 +74,7 @@ const standaloneRoutes = [
 const adminRoutes = [
   { index: true, file: "pages/admin/index.tsx" },
   { path: "events", file: "pages/admin/events/index.tsx" },
+  { path: "events/:eventId", file: "pages/admin/events/editor-page.tsx" },
   { path: "about", file: "pages/admin/about/index.tsx" },
   {
     path: "homepage",
@@ -84,7 +86,7 @@ const adminRoutes = [
   },
   {
     path: "information",
-    file: "pages/admin/information/index.tsx",
+    file: "pages/admin/information/redirect-page.tsx",
   },
   {
     path: "recommendations",
@@ -107,6 +109,7 @@ const adminRoutes = [
     path: "chronicle",
     file: "pages/admin/chronicle/index.tsx",
   },
+  { path: "chronicle/:entryId", file: "pages/admin/chronicle/editor-page.tsx" },
   {
     path: "accounts",
     file: "pages/admin/accounts/index.tsx",

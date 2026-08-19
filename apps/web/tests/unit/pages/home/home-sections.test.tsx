@@ -102,7 +102,9 @@ function stubInformation(
         ? randomIdols[Math.min(randomRequest++, randomIdols.length - 1)]
         : url.pathname === "/api/homepage-links"
           ? homepageLinks
-          : { cards }
+          : url.pathname === "/api/community-posts/spotlight"
+            ? { items: cards }
+            : { cards: [] }
     return new Response(JSON.stringify(payload), {
       headers: { "content-type": "application/json" },
     })
@@ -129,16 +131,14 @@ describe("home supporting sections", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders activity highlights only from the Information API", async () => {
+  it("renders activity highlights only from the community-post spotlight API", async () => {
     stubInformation([
       {
-        id: "stored-activity-001",
+        id: 35,
         category: "activity",
-        contentType: "external",
         title: "存储中的活动资讯",
-        image: "/uploads/information/original/stored.png",
-        link: "https://example.com/stored",
-        updatedAt: "2026-07-24T00:00:00.000Z",
+        image_url: "/uploads/articles/stored.webp",
+        sort_order: 0,
       },
     ])
     render(<HomeSections />)
@@ -148,7 +148,7 @@ describe("home supporting sections", () => {
     ).toBeVisible()
     expect(
       await screen.findByRole("link", { name: /存储中的活动资讯/ })
-    ).toHaveAttribute("href", "https://example.com/stored")
+    ).toHaveAttribute("href", "/events/35")
     expect(screen.queryByText("篠泽广研讨会")).not.toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: /雨云|云计算/ })).toHaveLength(3)
   })

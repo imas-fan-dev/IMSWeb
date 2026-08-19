@@ -39,6 +39,14 @@ export function eventPosterObjectKey(filename: string): string {
     return `editorial/events/assets/${file.stem}/poster.${file.extension}`;
 }
 
+export function articleAssetObjectKey(articleId: number, filename: string): string {
+    if (!Number.isSafeInteger(articleId) || articleId <= 0) {
+        throw new Error('Invalid article ID');
+    }
+    const file = fileParts(filename);
+    return `editorial/articles/${articleId}/assets/${file.stem}.${file.extension}`;
+}
+
 export const INFORMATION_INDEX_OBJECT_KEY = 'editorial/information/index.json';
 export const ABOUT_PAGE_OBJECT_KEY = 'editorial/about/config.json';
 export const PRODUCER_MAP_OBJECT_KEY = 'community/producer-map/config.json';
@@ -97,6 +105,16 @@ export function publicMediaObjectKey(value: string): string {
     const segments = legacyKey.split('/');
     const filename = segments.at(-1)!;
     const prefix = segments.slice(0, -1).join('/').toLowerCase();
+    if (
+        segments.length === 4 && segments[0]?.toLowerCase() === 'uploads' &&
+        segments[1]?.toLowerCase() === 'articles'
+    ) {
+        const articleId = Number(segments[2]);
+        if (!Number.isSafeInteger(articleId) || articleId <= 0) {
+            throw new Error(`Unsupported article asset path: ${legacyKey}`);
+        }
+        return articleAssetObjectKey(articleId, filename);
+    }
     switch (prefix) {
         case 'uploads/news/original':
             return newsOriginalObjectKey(filename);

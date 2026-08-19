@@ -131,6 +131,134 @@ export interface EventRepository {
     deleteEvent(id: number): Promise<boolean>;
 }
 
+export type ArticleContentType = 'event' | 'chronicle';
+export type ArticleStatus = 'draft' | 'published' | 'archived';
+export type EventKind = 'event' | 'notice';
+export type SpotlightCategory = 'activity' | 'fan';
+export type ChronicleSourceType = 'official' | 'community';
+export type ChronicleDatePrecision = 'year' | 'month' | 'day';
+
+export interface EditorialDraftRecord {
+    id: number;
+    article_id: number;
+    revision: number;
+}
+
+export interface EditorialUpdateInput {
+    title: string;
+    summary: string;
+    coverUrl: string | null;
+    bodyJson: Record<string, unknown>;
+    bodyHtml: string;
+    revision: number;
+    userId: number;
+}
+
+export interface EditorialStatusResult {
+    status: 'updated' | 'conflict' | 'not-found';
+    revision?: number;
+}
+
+export interface EditorialRepository {
+    createEventDraft(input: {
+        title: string;
+        kind: EventKind;
+        userId: number;
+    }): Promise<EditorialDraftRecord>;
+    createChronicleDraft(input: {
+        title: string;
+        sourceType: ChronicleSourceType;
+        userId: number;
+    }): Promise<EditorialDraftRecord>;
+    listAdminEvents(status?: ArticleStatus): Promise<Record<string, unknown>[]>;
+    findAdminEvent(id: number): Promise<Record<string, unknown> | null>;
+    findPublicEvent(id: number): Promise<Record<string, unknown> | null>;
+    deleteEditorialEvent(id: number): Promise<boolean>;
+    updateEditorialEvent(
+        id: number,
+        input: EditorialUpdateInput & {
+            kind: EventKind;
+            sourceUrl: string | null;
+            name: string | null;
+            contact: string | null;
+            startAt: string | null;
+            endAt: string | null;
+            timezone: string;
+            venueName: string | null;
+            address: string | null;
+            registrationUrl: string | null;
+            eventStatus: string | null;
+        }
+    ): Promise<EditorialStatusResult>;
+    listAdminSpotlightEntries(): Promise<Record<string, unknown>[]>;
+    replaceHomepageSpotlightEntries(input: Array<{
+        postId: number;
+        category: SpotlightCategory;
+    }>): Promise<void>;
+    importLegacyInformationPost(input: {
+        legacyInformationId: string;
+        category: SpotlightCategory;
+        title: string;
+        coverUrl: string;
+        sourceUrl: string | null;
+        bodyJson: Record<string, unknown>;
+        bodyHtml: string;
+        publishedAt: string;
+    }): Promise<{ id: number; imported: boolean }>;
+    findLegacyInformationPost(legacyInformationId: string): Promise<{ id: number } | null>;
+    listPublicSpotlightEntries(): Promise<Record<string, unknown>[]>;
+    listPublicChronicle(
+        limit: number,
+        cursor: {
+            occurredOn: string;
+            timelineOrder: number;
+            articleId: string;
+        } | null
+    ): Promise<Record<string, unknown>[]>;
+    listAdminChronicle(status?: ArticleStatus): Promise<Record<string, unknown>[]>;
+    findAdminChronicle(id: number): Promise<Record<string, unknown> | null>;
+    findPublicChronicle(id: number): Promise<Record<string, unknown> | null>;
+    deleteEditorialChronicle(id: number): Promise<boolean>;
+    updateChronicle(
+        id: number,
+        input: EditorialUpdateInput & {
+            occurredOn: string | null;
+            endedOn: string | null;
+            datePrecision: ChronicleDatePrecision | null;
+            sourceType: ChronicleSourceType | null;
+            sourceEventId: number | null;
+            location: string | null;
+            timelineOrder: number;
+            liveSourceId: string | null;
+            liveTitle: string | null;
+            liveDate: string | null;
+            liveTime: string | null;
+            liveLocation: string | null;
+            liveDetailUrl: string | null;
+            liveFranchises: string[];
+            liveBrandCodes: string[];
+        }
+    ): Promise<EditorialStatusResult>;
+    setArticleStatus(
+        articleId: number,
+        status: ArticleStatus,
+        expectedRevision: number,
+        userId: number
+    ): Promise<EditorialStatusResult>;
+    insertArticleAsset(input: {
+        articleId: number;
+        objectKey: string;
+        publicPath: string;
+        usage: 'cover' | 'body';
+        altText: string;
+        userId: number;
+    }): Promise<Record<string, unknown>>;
+    findEditorialArticle(articleId: number): Promise<Record<string, unknown> | null>;
+    findArticleAsset(articleId: number, assetId: number): Promise<Record<string, unknown> | null>;
+    listArticleAssets(articleId: number): Promise<Record<string, unknown>[]>;
+    deleteArticleAsset(articleId: number, assetId: number): Promise<Record<string, unknown> | null>;
+}
+
 export interface PendingCardInput {
     image1Url: string;
     image2Url: string;

@@ -94,12 +94,12 @@ describe("EventsCenter", () => {
     render(<EventsCenter />)
 
     expect(await screen.findByRole("heading", { name: "活动 3" })).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "加载更多活动" }))
+    await user.click(screen.getByRole("button", { name: "加载更多动态" }))
 
     expect(await screen.findByRole("heading", { name: "活动 1" })).toBeVisible()
     expect(screen.getAllByRole("heading", { name: "活动 2" })).toHaveLength(1)
     expect(screen.getAllByRole("listitem")).toHaveLength(3)
-    expect(screen.getByText("已显示本批次的全部活动")).toBeVisible()
+    expect(screen.getByText("已显示本批次的全部动态")).toBeVisible()
 
     const firstUrl = new URL(
       requestUrl(fetchMock.mock.calls[0]![0]),
@@ -133,9 +133,9 @@ describe("EventsCenter", () => {
 
     render(<EventsCenter />)
 
-    expect(await screen.findByText("活动暂时无法加载")).toBeVisible()
+    expect(await screen.findByText("社区动态暂时无法加载")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "重新加载" }))
-    expect(await screen.findByText("当前没有已发布活动")).toBeVisible()
+    expect(await screen.findByText("当前没有已发布社区动态")).toBeVisible()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -269,7 +269,7 @@ describe("EventsCenter", () => {
     ).toBeVisible()
     expect(fetchMock).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole("button", { name: "刷新活动列表" }))
+    await user.click(screen.getByRole("button", { name: "刷新社区动态列表" }))
 
     expect(await screen.findByRole("heading", { name: "活动 1" })).toBeVisible()
     expect(fetchMock).toHaveBeenCalledTimes(1)

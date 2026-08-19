@@ -19,6 +19,13 @@ export const eventListItemSchema = z.object({
   contact: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
+  summary: z.string().optional(),
+  kind: z.enum(["event", "notice"]).nullable().optional(),
+  source_url: z.string().nullable().optional(),
+  start_at: z.string().nullable().optional(),
+  end_at: z.string().nullable().optional(),
+  venue_name: z.string().nullable().optional(),
+  event_status: z.string().nullable().optional(),
 })
 
 export const eventPageInfoSchema = z.object({

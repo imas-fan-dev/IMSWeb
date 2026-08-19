@@ -1,10 +1,10 @@
 import { useRequest } from "alova/client"
 import { ArrowLeftIcon, CalendarDaysIcon, LoaderCircleIcon } from "lucide-react"
-import { Link, useParams } from "react-router"
+import { Link, Navigate, useParams } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { InformationDocumentFrame } from "~/pages/information/components/information-document-frame"
-import { getHomeInformationDetail, isApiError } from "~/lib/api"
+import { getHomeInformationDetail, getLegacyInformationPost, isApiError } from "~/lib/api"
 
 export function meta() {
   return [{ title: "活动内容 | IMSWeb" }]
@@ -17,8 +17,17 @@ export default function InformationContent() {
     { immediate: Boolean(contentId) }
   )
   onError(() => undefined)
+  const { data: legacyTarget, loading: resolvingLegacyTarget, onError: onLegacyTargetError } = useRequest(
+    getLegacyInformationPost(contentId),
+    { immediate: Boolean(contentId), initialData: { postId: null } }
+  )
+  onLegacyTargetError(() => undefined)
 
-  if (loading) {
+  if (legacyTarget.postId) {
+    return <Navigate to={`/events/${legacyTarget.postId}`} replace />
+  }
+
+  if (loading || resolvingLegacyTarget) {
     return (
       <main
         id="main-content"

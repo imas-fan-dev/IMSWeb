@@ -68,7 +68,7 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
         )}
       </span>
       <a
-        href="/events"
+        href={`/events/${event.id}`}
         className="min-w-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <span

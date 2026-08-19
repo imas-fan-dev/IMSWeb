@@ -6,6 +6,7 @@ import type {
     AuditRepository,
     AuthRepository,
     EventRepository,
+    EditorialRepository,
     NamecardRepository,
     NewsRepository,
     ReactionRepository,
@@ -44,6 +45,10 @@ export function newsRepository(c: Context<AppEnvironment>): NewsRepository {
 
 export function eventRepository(c: Context<AppEnvironment>): EventRepository {
     return requireRepository(c, 'events');
+}
+
+export function editorialRepository(c: Context<AppEnvironment>): EditorialRepository {
+    return requireRepository(c, 'editorial');
 }
 
 export function namecardRepository(c: Context<AppEnvironment>): NamecardRepository {

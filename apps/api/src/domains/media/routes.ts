@@ -21,6 +21,7 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
         '/uploads/about/member-avatars/:filename',
         '/uploads/information/:filename',
         '/uploads/information/original/:filename',
+        '/uploads/articles/:articleId/:filename',
         '/uploads/producer-map/:filename'
     ]) {
         app.get(route, handleServePublicUpload);

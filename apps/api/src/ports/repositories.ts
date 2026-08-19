@@ -3,6 +3,7 @@ import type {
     AuthRepository,
     AuditRepository,
     EventRepository,
+    EditorialRepository,
     HomepageLinkRepository,
     NamecardRepository,
     NewsRepository,
@@ -17,6 +18,7 @@ export interface RepositoryServices {
     audit: AuditRepository;
     news: NewsRepository;
     events: EventRepository;
+    editorial: EditorialRepository;
     namecards: NamecardRepository;
     reactions: ReactionRepository;
     homepageLinks: HomepageLinkRepository;

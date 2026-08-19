@@ -116,6 +116,8 @@ test('[FRT-02] real prerendered documents and selective SPA routes use build/cli
         '/admin/login/',
         '/admin/chronicle/pending',
         '/information/info-example-001',
+        '/events/36',
+        '/events/36/',
         '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
         '/chronicle/activity-1/'
     ]) {
@@ -179,6 +181,8 @@ test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', asy
         '/story-not-a-real-route',
         '/story/extra-segment',
         '/story/classic/extra-segment',
+        '/events/one/two',
+        '/events/one%2Ftwo',
         '/chronicle/one/two',
         '/chronicle/one%2Ftwo',
         '/chronicle/one%5Ctwo',

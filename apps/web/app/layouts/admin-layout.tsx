@@ -2,7 +2,6 @@ import { useRequest } from "alova/client"
 import {
   ArrowLeftIcon,
   BookOpenTextIcon,
-  CalendarDaysIcon,
   ChevronRightIcon,
   ContactRoundIcon,
   HistoryIcon,
@@ -60,8 +59,8 @@ const navigation: Array<{
   },
   {
     to: "/admin/events",
-    label: "社区活动",
-    description: "公开活动发布",
+    label: "社区帖子",
+    description: "社区动态与首页精选",
     icon: MegaphoneIcon,
     accent: "bg-franchise-765",
   },
@@ -71,13 +70,6 @@ const navigation: Array<{
     description: "导航、友链与站点支持",
     icon: LayoutDashboardIcon,
     accent: "bg-franchise-sc",
-  },
-  {
-    to: "/admin/information",
-    label: "活动资讯",
-    description: "活动资讯与同人活动",
-    icon: CalendarDaysIcon,
-    accent: "bg-franchise-cg",
   },
   {
     to: "/admin/about",
