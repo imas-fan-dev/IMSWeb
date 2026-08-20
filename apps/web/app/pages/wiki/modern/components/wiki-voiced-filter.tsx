@@ -22,11 +22,11 @@ export function WikiVoicedFilter({
       )}
     >
       {hideUnvoiced ? (
-        <CheckIcon aria-hidden="true" className="size-3.5" />
-      ) : (
         <MicOffIcon aria-hidden="true" className="size-3.5" />
+      ) : (
+        <CheckIcon aria-hidden="true" className="size-3.5" />
       )}
-      隐藏未付声
+      {hideUnvoiced ? "展示未付声" : "隐藏未付声"}
     </button>
   )
 }

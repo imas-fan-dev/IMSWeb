@@ -67,16 +67,15 @@ export function ClassicWikiContent({
             groups={selection.groups}
             ungroupedCount={selection.ungroupedIdols.length}
             disabled={groupFilterDisabled}
+            action={
+              selection.agency.code === "cg" ? (
+                <ClassicVoicedFilter
+                  hideUnvoiced={hideUnvoiced}
+                  onToggle={onToggleHideUnvoiced}
+                />
+              ) : null
+            }
           />
-
-          {selection.agency.code === "cg" ? (
-            <div className="wiki-classic-voiced-filter-row">
-              <ClassicVoicedFilter
-                hideUnvoiced={hideUnvoiced}
-                onToggle={onToggleHideUnvoiced}
-              />
-            </div>
-          ) : null}
 
           <div className="wiki-classic-groups">
             {groups.length || ungroupedIdols.length ? (
