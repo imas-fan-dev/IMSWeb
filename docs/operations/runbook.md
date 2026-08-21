@@ -62,22 +62,25 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 `.env` 仅允许运行用户读取且不进入发布制品或版本控制。模板见 `apps/api/.env.example`；
 `deploy/.env.example` 只服务本地 Compose 栈，不是正式部署模板。
 
-| 变量                        | 用途                             | 要求                                                                   |
+| 变量 | 用途 | 要求 |
 | --------------------------- | -------------------------------- | ---------------------------------------------------------------------- |
-| `IMS_BACKOFFICE_JWT_SECRET` | Backoffice JWT 签名密钥          | 生产必填，至少 32 UTF-8 字节                                           |
-| `IMS_JWT_SECRET`            | 上一版本 Backoffice JWT 签名密钥 | 只在滚动兼容/回滚窗口保留                                              |
-| `IMS_PLATFORM_JWT_SECRET`   | Platform JWT 签名密钥            | 生产必填，至少 32 UTF-8 字节，且不得与当前或兼容期 Backoffice 密钥相同 |
-| `IMS_SUPER_ADMIN_USERNAME`  | 最高管理员用户名                 | 首次启用时填写一个现有 `op` 用户名                                     |
-| `NODE_ENV`                  | 运行模式                         | 生产使用 `production`                                                  |
-| `HOST`、`PORT`              | Hono 监听地址                    | 建议 `127.0.0.1:3000`                                                  |
-| `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源                   | 直连为 `direct`；外部受信 Nginx 为 `nginx`                             |
-| `DATABASE_URL`              | PostgreSQL 连接                  | 必填，由密钥系统注入                                                   |
-| `IMS_PUBLIC_DIR`            | 不可变客户端目录                 | `/srv/ims/current/apps/api/dist/node-client`                           |
-| `IMS_COMPENSATION_DIR`      | 文件存储补偿 journal             | release 外绝对目录                                                     |
-| `IMS_UPLOADS_DIR`           | 普通上传目录                     | release 外绝对目录                                                     |
-| `IMS_EVENT_BASE_DIR`        | 编年史状态目录                   | release 外绝对目录                                                     |
-| `IMS_STORY_DATA_DIR`        | 剧情图片目录                     | release 外绝对目录                                                     |
-| `IMS_OBJECT_STORAGE`        | 媒体存储                         | `filesystem` 或 `s3`                                                   |
+| `IMS_BACKOFFICE_JWT_SECRET` | Backoffice JWT 签名密钥 | 生产必填，至少 32 UTF-8 字节 |
+| `IMS_JWT_SECRET` | 上一版本 Backoffice JWT 签名密钥 | 只在滚动兼容/回滚窗口保留 |
+| `IMS_PLATFORM_JWT_SECRET` | Platform JWT 签名密钥 | 生产必填，至少 32 UTF-8 字节，且不得与当前或兼容期 Backoffice 密钥相同 |
+| `IMS_SUPER_ADMIN_USERNAME` | 最高管理员用户名 | 首次启用时填写一个现有 `op` 用户名 |
+| `NODE_ENV` | 运行模式 | 生产使用 `production` |
+| `HOST`、`PORT` | Hono 监听地址 | 建议 `127.0.0.1:3000` |
+| `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；外部受信 Nginx 为 `nginx` |
+| `IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES` | 站点包 ZIP 上传上限 | `83886080`（80 MiB） |
+| `DATABASE_URL` | PostgreSQL 连接 | 必填，由密钥系统注入 |
+| `IMS_PUBLIC_DIR` | 不可变客户端目录 | `/srv/ims/current/apps/api/dist/node-client` |
+| `IMS_COMPENSATION_DIR` | 文件存储补偿 journal | release 外绝对目录 |
+| `IMS_UPLOADS_DIR` | 普通上传目录 | release 外绝对目录 |
+| `IMS_EVENT_BASE_DIR` | 编年史状态目录 | release 外绝对目录 |
+| `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
+| `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
+
+
 
 请求幂等记录由 PostgreSQL 持有；共享限流窗口由 Valkey 通过原子 Lua 脚本持有（键为 SHA-256 匿名散列并随窗口 TTL 自动过期），生产多副本必须指向同一 Valkey。限流窗口是可丢失的短期状态，Valkey 重启只会重置限流计数，不影响幂等与账户数据。
 

@@ -72,6 +72,7 @@ class ComposeDeploymentTests(unittest.TestCase):
             "IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}",
             "IMS_CACHE_BACKEND: ${IMS_CACHE_BACKEND:-valkey}",
             "IMS_VALKEY_URL: ${IMS_VALKEY_URL:-redis://valkey:6379}",
+            "IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES: ${IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES:-83886080}",
         ):
             self.assertIn(token, compose)
 
@@ -160,7 +161,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("proxy_set_header X-Forwarded-For $remote_addr;", config)
         self.assertIn("proxy_set_header Host $http_host;", config)
         self.assertIn("proxy_request_buffering off;", config)
-        self.assertEqual(config.count("client_max_body_size 64m;"), 2)
+        self.assertEqual(config.count("client_max_body_size 100m;"), 2)
         self.assertNotIn("client_max_body_size 0;", config)
 
 

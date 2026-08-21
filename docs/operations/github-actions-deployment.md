@@ -136,6 +136,7 @@ IMS_API_DATABASE_URL=postgresql://imsweb:<url-encoded-password>@postgres:5432/im
 IMS_JWT_SECRET=<high-entropy-secret>
 IMS_COOKIE_SECURE=true
 IMS_CLIENT_ADDRESS_SOURCE=nginx
+IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES=83886080
 
 IMS_OBJECT_STORAGE=s3
 IMS_S3_BUCKET=<production-bucket>

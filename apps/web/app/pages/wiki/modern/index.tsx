@@ -92,7 +92,7 @@ export function WikiIndexPage() {
   const loading = !requestIsCurrent
   const backgroundLoading = backgroundRequest.key !== backgroundKey
   const selection = catalog?.selection ?? null
-  const [hideUnvoiced, setHideUnvoiced] = useState(false)
+  const [hideUnvoiced, setHideUnvoiced] = useState(true)
   const showOnlyVoiced = hideUnvoiced && selection?.agency.code === "cg"
   const visibleGroups = useMemo(() => {
     const normalized = deferredQuery.trim().toLocaleLowerCase("zh-CN")
@@ -284,16 +284,15 @@ export function WikiIndexPage() {
             <WikiGroupFilter
               groups={selection.groups}
               ungroupedCount={selection.ungroupedIdols.length}
+              action={
+                selection.agency.code === "cg" ? (
+                  <WikiVoicedFilter
+                    hideUnvoiced={hideUnvoiced}
+                    onToggle={() => setHideUnvoiced((current) => !current)}
+                  />
+                ) : null
+              }
             />
-
-            {selection.agency.code === "cg" ? (
-              <div className="mt-4 flex justify-end">
-                <WikiVoicedFilter
-                  hideUnvoiced={hideUnvoiced}
-                  onToggle={() => setHideUnvoiced((current) => !current)}
-                />
-              </div>
-            ) : null}
 
             <div className="mt-6">
               {visibleGroups.length || visibleUngroupedIdols.length ? (

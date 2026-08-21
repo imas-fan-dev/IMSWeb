@@ -57,7 +57,7 @@ export function ClassicWikiPage() {
     })
   const [query, setQuery] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
-  const [hideUnvoiced, setHideUnvoiced] = useState(false)
+  const [hideUnvoiced, setHideUnvoiced] = useState(true)
   const deferredQuery = useDeferredValue(query)
   const requestKey = `${requestedAgency}\u0000${refreshVersion}`
 

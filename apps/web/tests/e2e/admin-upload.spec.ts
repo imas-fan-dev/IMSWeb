@@ -41,7 +41,7 @@ test("admin file upload uses the shared responsive interaction", async ({
   await expect(page.getByRole("heading", { name: "页面包管理" })).toBeVisible()
   const uploadZone = page.getByLabel("页面包文件选择")
   await expect(uploadZone).toContainText("选择页面包归档")
-  await expect(uploadZone).toContainText("ZIP 归档 · 最大 25 MiB")
+  await expect(uploadZone).toContainText("ZIP 归档 · 最大 80 MiB")
 
   await page.locator('input[type="file"]').setInputFiles({
     name: "global-upload-style.zip",

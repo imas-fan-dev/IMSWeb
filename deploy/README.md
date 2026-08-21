@@ -59,7 +59,8 @@ Valkey 与外部 S3 API endpoint。
 
 生产机的 `/etc/imsweb/production.env` 应将 `COMPOSE_PROFILES` 留空，并设置完整的
 `IMS_S3_*`、AWS 凭据、`IMS_CACHE_BACKEND=valkey`、`IMS_VALKEY_URL`、互不相同的高熵
-`IMS_BACKOFFICE_JWT_SECRET` 与 `IMS_PLATFORM_JWT_SECRET`、`IMS_API_DATABASE_URL`，并在首次启用管理员角色时将
+`IMS_BACKOFFICE_JWT_SECRET` 与 `IMS_PLATFORM_JWT_SECRET`、`IMS_API_DATABASE_URL`、
+`IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES=83886080`，并在首次启用管理员角色时将
 `IMS_SUPER_ADMIN_USERNAME` 设为现有 `op` 账号。若从旧版本滚动升级，按
 [运维手册](../docs/operations/runbook.md) 暂时保留旧 `IMS_JWT_SECRET`；全新安装保持其为空。
 R2 使用 `auto` region；

@@ -17,11 +17,11 @@ export function ClassicVoicedFilter({
       onClick={onToggle}
     >
       {hideUnvoiced ? (
-        <CheckIcon aria-hidden="true" />
-      ) : (
         <MicOffIcon aria-hidden="true" />
+      ) : (
+        <CheckIcon aria-hidden="true" />
       )}
-      隐藏未付声
+      {hideUnvoiced ? "展示未付声" : "隐藏未付声"}
     </button>
   )
 }

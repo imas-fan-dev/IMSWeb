@@ -158,7 +158,7 @@
   top: 20px;
   z-index: 15;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   margin-top: 14px;
@@ -275,12 +275,6 @@
   height: 8px;
   border-radius: 50%;
   background: #6b7280;
-}
-
-.wiki-classic-voiced-filter-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
 }
 
 .wiki-classic-voiced-filter {
