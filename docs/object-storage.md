@@ -329,8 +329,9 @@ site-packages/{packageId}/revisions/{revisionId}/manifest.json
 site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 ```
 
-`source.zip` 和内部 manifest 只用于审计与恢复，不直接公开。公开和预览请求先从 PostgreSQL
-读取版本记录，再按 `manifest_json` 的精确 `archivePath -> objectKey` 映射读取对象；映射目标
+`source.zip` 和内部 manifest 只用于审计与恢复，不直接公开。新版 manifest 使用带
+`schemaVersion` 的结构保存精确 `archivePath -> objectKey` 映射和可选 `iconPath`；读取端继续兼容
+历史扁平映射。公开和预览请求先从 PostgreSQL 读取版本记录，再按 manifest 映射读取对象；映射目标
 还必须等于该版本 `files/` 下的预期键，因此不能借伪造 manifest 访问 ZIP 或其他版本。站点包
 入口 HTML、CSS、JavaScript、SVG、XML 和文本响应继续由 Hono `storage.get()` 代理，避免其
 相对路径落到对象存储物理键。已发布版本的图片和字体先完成相同的版本、manifest 与对象键
@@ -355,7 +356,9 @@ site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 marker，`completed` 不表示 noncurrent version 的存储字节已经清除；生产环境必须配置经过审计的
 noncurrent-version lifecycle，或由后续 version-purge worker 使用 provider 的版本枚举与版本删除
 能力处理。任何清理策略仍不得删除 PostgreSQL 活动索引引用的对象。浏览器公开入口
-固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳；页面包本体也从主站
+固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳。外壳会继承入口 HTML 中经过 manifest
+校验的 `rel="icon"` 图片，并只在 CSP 中放行图标实际读取 origin；没有声明时兼容常见
+`favicon.*` 文件名。页面包本体也从主站
 `/site-content/...` 路径加载。iframe 的 `sandbox` 不包含 `allow-same-origin`，因此即使请求
 使用主站域名，页面包文档仍获得 opaque origin，脚本不能访问父页面、主站 Cookie 或存储。
 CSP 继续禁止网络连接、表单、frame、object 和顶层导航，且只允许主站作为
