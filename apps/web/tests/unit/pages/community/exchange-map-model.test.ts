@@ -1,3 +1,4 @@
+import type { StyleSpecification } from "maplibre-gl"
 import { describe, expect, it } from "vitest"
 
 import type { FudabaMapOffice, FudabaSeries } from "~/lib/api"
@@ -5,6 +6,7 @@ import {
   groupMapOffices,
   mergeMapOfficeResponses,
   resolveAllowedMapResourceUrl,
+  resolveMapStyleResourceUrls,
   splitViewportBounds,
 } from "~/pages/community/exchange/exchange-map-model"
 
@@ -91,7 +93,7 @@ const seriesCatalog: FudabaSeries[] = [
 ]
 
 describe("exchange map model", () => {
-  it("allows same-origin and official OpenFreeMap HTTPS resources", () => {
+  it("allows only same-origin HTTP(S) and same-origin PMTiles archives", () => {
     expect(
       resolveAllowedMapResourceUrl(
         "/api/community/exchange/map/style.json",
@@ -106,32 +108,78 @@ describe("exchange map model", () => {
     ).toBe("https://ims.test/assets/map/tile.pbf")
     expect(
       resolveAllowedMapResourceUrl(
-        "https://tiles.openfreemap.org/planet/20260726/3/6/3.pbf",
+        "pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles",
         "https://ims.test"
       )
-    ).toBe("https://tiles.openfreemap.org/planet/20260726/3/6/3.pbf")
+    ).toBe("pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles")
     expect(
       resolveAllowedMapResourceUrl(
-        "https://tiles.openfreemap.org:443/fonts/Noto%20Sans/0-255.pbf",
+        "pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles/11/1715/836",
         "https://ims.test"
       )
-    ).toBe("https://tiles.openfreemap.org/fonts/Noto%20Sans/0-255.pbf")
+    ).toBe(
+      "pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles/11/1715/836"
+    )
+
+    expect(() =>
+      resolveAllowedMapResourceUrl("/maps/exchange/map.pmtiles", "not a URL")
+    ).toThrow(/格式无效/)
 
     for (const resource of [
-      "https://tiles.example.test/map.pbf",
-      "http://tiles.openfreemap.org/map.pbf",
-      "https://tiles.openfreemap.org:444/map.pbf",
-      "https://tiles.openfreemap.org.example.test/map.pbf",
-      "https://tiles.openfreemap.org./map.pbf",
-      "https://user@tiles.openfreemap.org/map.pbf",
+      "https://tiles.openfreemap.org/planet",
+      "pmtiles://https://tiles.openfreemap.org/planet.pmtiles",
+      "pmtiles://https://user@ims.test/maps/exchange/map.pmtiles",
       "data:application/json,%7B%7D",
       "mapbox://styles/example/style",
       "file:///tmp/map.json",
     ]) {
       expect(() =>
         resolveAllowedMapResourceUrl(resource, "https://ims.test")
-      ).toThrow(/OpenFreeMap/)
+      ).toThrow(/同源/)
     }
+  })
+
+  it("resolves all same-origin style resources before MapLibre validation", () => {
+    const style: StyleSpecification = {
+      version: 8,
+      sprite: "/maps/exchange/sprites/ofm",
+      glyphs: "/maps/exchange/fonts/{fontstack}/{range}.pbf",
+      sources: {
+        openmaptiles: {
+          type: "vector",
+          url: "pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles",
+        },
+        naturalEarth: {
+          type: "raster",
+          tiles: ["/maps/exchange/natural-earth/{z}/{x}/{y}.png"],
+          tileSize: 256,
+        },
+      },
+      layers: [],
+    }
+
+    expect(
+      resolveMapStyleResourceUrls(style, "https://ims.test")
+    ).toMatchObject({
+      sprite: "https://ims.test/maps/exchange/sprites/ofm",
+      glyphs: "https://ims.test/maps/exchange/fonts/{fontstack}/{range}.pbf",
+      sources: {
+        openmaptiles: {
+          url: "pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles",
+        },
+        naturalEarth: {
+          tiles: [
+            "https://ims.test/maps/exchange/natural-earth/{z}/{x}/{y}.png",
+          ],
+        },
+      },
+    })
+    expect(() =>
+      resolveMapStyleResourceUrls(
+        { ...style, sprite: "https://tiles.openfreemap.org/sprites/ofm" },
+        "https://ims.test"
+      )
+    ).toThrow(/同源/)
   })
 
   it("keeps an ordinary viewport as one bounded request", () => {

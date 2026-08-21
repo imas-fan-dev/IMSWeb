@@ -11,6 +11,8 @@ interface MapStyleAsset {
       type?: string
       url?: string
       tiles?: string[]
+      attribution?: string
+      maxzoom?: number
     }
   >
   sprite?: string
@@ -27,24 +29,23 @@ async function readExchangeStyle() {
 }
 
 describe("exchange world map style asset", () => {
-  it("keeps the detailed OpenFreeMap world sources and label layers", async () => {
+  it("keeps the detailed OpenFreeMap layers while serving every runtime asset same-origin", async () => {
     const style = await readExchangeStyle()
     const layerIds = new Set(style.layers.map((layer) => layer.id))
 
     expect(style.version).toBe(8)
-    expect(style.sources.openmaptiles).toEqual({
+    expect(style.sources.openmaptiles).toMatchObject({
       type: "vector",
-      url: "https://tiles.openfreemap.org/planet",
+      url: "pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles",
+      maxzoom: 11,
     })
+    expect(style.sources.openmaptiles?.attribution).toContain("OpenStreetMap")
     expect(style.sources.ne2_shaded?.tiles).toEqual([
-      "https://tiles.openfreemap.org/natural_earth/ne2sr/{z}/{x}/{y}.png",
+      "/maps/exchange/natural-earth/{z}/{x}/{y}.png",
     ])
-    expect(style.sprite).toMatch(
-      /^https:\/\/tiles\.openfreemap\.org\/sprites\//
-    )
-    expect(style.glyphs).toBe(
-      "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf"
-    )
+    expect(style.sprite).toBe("/maps/exchange/sprites/ofm")
+    expect(style.glyphs).toBe("/maps/exchange/fonts/{fontstack}/{range}.pbf")
+    expect(JSON.stringify(style)).not.toContain("tiles.openfreemap.org")
     expect(style.layers.length).toBeGreaterThanOrEqual(100)
     for (const layerId of [
       "water",

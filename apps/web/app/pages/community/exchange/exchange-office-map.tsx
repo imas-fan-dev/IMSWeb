@@ -1,6 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import {
+  addProtocol,
   AttributionControl,
   GeoJSONSource,
   Map as MapLibreMap,
@@ -9,6 +10,7 @@ import {
   setWorkerUrl,
 } from "maplibre-gl"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
+import { Protocol } from "pmtiles"
 import { useEffect, useRef } from "react"
 
 import {
@@ -21,12 +23,23 @@ import {
 import type { FudabaMapOfficeGroup } from "./exchange-map-model"
 import {
   resolveAllowedMapResourceUrl,
+  resolveMapStyleResourceUrls,
   splitViewportBounds,
   type MapViewportBounds,
 } from "./exchange-map-model"
 
 const officeSourceId = "fudaba-regional-offices"
 const officeSourceLayerId = "fudaba-regional-offices-hit-area"
+const pmtilesProtocol = new Protocol()
+let pmtilesProtocolRegistered = false
+const localIdeographFontFamily =
+  "'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif"
+
+function ensurePmtilesProtocol() {
+  if (pmtilesProtocolRegistered) return
+  addProtocol("pmtiles", pmtilesProtocol.tile)
+  pmtilesProtocolRegistered = true
+}
 type PaintPropertyName = Parameters<MapLibreMap["setPaintProperty"]>[1]
 type PaintPropertyValue = Parameters<MapLibreMap["setPaintProperty"]>[2]
 
@@ -419,6 +432,10 @@ export function ExchangeOfficeMap({
       return
     }
 
+    // 协议是 MapLibre 进程级单例；在应用生命周期中只注册一次，
+    // 路由重挂载时继续复用 PMTiles header 与目录缓存。
+    ensurePmtilesProtocol()
+
     let map: MapLibreMap
     const reportFatalError = (error: unknown) => {
       if (fatalErrorSentRef.current) return
@@ -429,7 +446,6 @@ export function ExchangeOfficeMap({
     try {
       map = new MapLibreMap({
         container,
-        style: styleUrl,
         center: [127.1, 31.2],
         zoom: 4.05,
         minZoom: 2.3,
@@ -447,6 +463,7 @@ export function ExchangeOfficeMap({
         rollEnabled: false,
         attributionControl: false,
         cooperativeGestures: true,
+        localIdeographFontFamily,
         transformRequest: (url) => ({
           url: resolveAllowedMapResourceUrl(url, window.location.origin),
         }),
@@ -459,7 +476,10 @@ export function ExchangeOfficeMap({
     mapRef.current = map
     map.touchZoomRotate.disableRotation()
     map.keyboard.disableRotation()
-    map.addControl(new AttributionControl({ compact: false }), "bottom-left")
+    map.addControl(new AttributionControl({ compact: true }), "bottom-left")
+    container
+      .querySelector<HTMLElement>(".maplibregl-ctrl-attrib-button")
+      ?.click()
     map.addControl(
       new NavigationControl({ showCompass: false, showZoom: true }),
       "bottom-right"
@@ -605,6 +625,18 @@ export function ExchangeOfficeMap({
     map.on("load", handleLoad)
     map.on("moveend", handleMoveEnd)
     map.on("error", handleError)
+
+    try {
+      map.setStyle(styleUrl, {
+        transformStyle: (_previousStyle, nextStyle) =>
+          resolveMapStyleResourceUrls(nextStyle, window.location.origin),
+      })
+    } catch (error) {
+      reportFatalError(error)
+      map.remove()
+      mapRef.current = null
+      return
+    }
 
     let resizeFrame: number | null = null
     const resizeMap = () => {

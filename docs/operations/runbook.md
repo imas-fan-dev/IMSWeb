@@ -62,22 +62,22 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 `.env` 仅允许运行用户读取且不进入发布制品或版本控制。模板见 `apps/api/.env.example`；
 `deploy/.env.example` 只服务本地 Compose 栈，不是正式部署模板。
 
-| 变量 | 用途 | 要求 |
-| --- | --- | --- |
-| `IMS_BACKOFFICE_JWT_SECRET` | Backoffice JWT 签名密钥 | 生产必填，至少 32 UTF-8 字节 |
-| `IMS_JWT_SECRET` | 上一版本 Backoffice JWT 签名密钥 | 只在滚动兼容/回滚窗口保留 |
-| `IMS_PLATFORM_JWT_SECRET` | Platform JWT 签名密钥 | 生产必填，至少 32 UTF-8 字节，且不得与当前或兼容期 Backoffice 密钥相同 |
-| `IMS_SUPER_ADMIN_USERNAME` | 最高管理员用户名 | 首次启用时填写一个现有 `op` 用户名 |
-| `NODE_ENV` | 运行模式 | 生产使用 `production` |
-| `HOST`、`PORT` | Hono 监听地址 | 建议 `127.0.0.1:3000` |
-| `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；外部受信 Nginx 为 `nginx` |
-| `DATABASE_URL` | PostgreSQL 连接 | 必填，由密钥系统注入 |
-| `IMS_PUBLIC_DIR` | 不可变客户端目录 | `/srv/ims/current/apps/api/dist/node-client` |
-| `IMS_COMPENSATION_DIR` | 文件存储补偿 journal | release 外绝对目录 |
-| `IMS_UPLOADS_DIR` | 普通上传目录 | release 外绝对目录 |
-| `IMS_EVENT_BASE_DIR` | 编年史状态目录 | release 外绝对目录 |
-| `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
-| `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
+| 变量                        | 用途                             | 要求                                                                   |
+| --------------------------- | -------------------------------- | ---------------------------------------------------------------------- |
+| `IMS_BACKOFFICE_JWT_SECRET` | Backoffice JWT 签名密钥          | 生产必填，至少 32 UTF-8 字节                                           |
+| `IMS_JWT_SECRET`            | 上一版本 Backoffice JWT 签名密钥 | 只在滚动兼容/回滚窗口保留                                              |
+| `IMS_PLATFORM_JWT_SECRET`   | Platform JWT 签名密钥            | 生产必填，至少 32 UTF-8 字节，且不得与当前或兼容期 Backoffice 密钥相同 |
+| `IMS_SUPER_ADMIN_USERNAME`  | 最高管理员用户名                 | 首次启用时填写一个现有 `op` 用户名                                     |
+| `NODE_ENV`                  | 运行模式                         | 生产使用 `production`                                                  |
+| `HOST`、`PORT`              | Hono 监听地址                    | 建议 `127.0.0.1:3000`                                                  |
+| `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源                   | 直连为 `direct`；外部受信 Nginx 为 `nginx`                             |
+| `DATABASE_URL`              | PostgreSQL 连接                  | 必填，由密钥系统注入                                                   |
+| `IMS_PUBLIC_DIR`            | 不可变客户端目录                 | `/srv/ims/current/apps/api/dist/node-client`                           |
+| `IMS_COMPENSATION_DIR`      | 文件存储补偿 journal             | release 外绝对目录                                                     |
+| `IMS_UPLOADS_DIR`           | 普通上传目录                     | release 外绝对目录                                                     |
+| `IMS_EVENT_BASE_DIR`        | 编年史状态目录                   | release 外绝对目录                                                     |
+| `IMS_STORY_DATA_DIR`        | 剧情图片目录                     | release 外绝对目录                                                     |
+| `IMS_OBJECT_STORAGE`        | 媒体存储                         | `filesystem` 或 `s3`                                                   |
 
 请求幂等记录由 PostgreSQL 持有；共享限流窗口由 Valkey 通过原子 Lua 脚本持有（键为 SHA-256 匿名散列并随窗口 TTL 自动过期），生产多副本必须指向同一 Valkey。限流窗口是可丢失的短期状态，Valkey 重启只会重置限流计数，不影响幂等与账户数据。
 
@@ -198,9 +198,11 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 TLS 或其他正式入口。API 容器会在启动前幂等应用 migrations；Valkey 只承载可丢失的短期缓存，
 邮箱验证码和账户状态仍以 PostgreSQL 为准；RustFS 初始化服务创建一个
 bucket，并通过匿名读取策略拒绝 `__protected/`，用于验证签名读取和公开 CDN 路径语义。
-宿主机部署可使用 [`deploy/nginx/`](../../deploy/nginx/README.md) 中的 Nginx 模板：主域名整体代理
-到 Hono，使 Web 与 API 同源；同机 RustFS 使用独立对象域名代理到回环 S3 API，且不暴露
-Console。
+宿主机部署可使用 [`deploy/nginx/`](../../deploy/nginx/README.md) 中的 Nginx 模板：主域名除
+`/maps/exchange/` 外整体代理到 Hono，使 Web 与 API 同源；该地图路径从
+`/srv/imsweb/maps/current/` 静态提供 Range 资源；同机 RustFS 使用独立对象域名代理到回环 S3
+API，且不暴露 Console。地图 release 的准备、权限、原子切换和回滚见
+[地图资源交付](map-delivery.md)。
 
 生产入口必须在切流前确认：
 
@@ -221,10 +223,14 @@ curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
 ENTRY_ASSET=entry.client-CURRENT_HASH.js
 curl --head --header 'Accept-Encoding: br, gzip' \
   "http://127.0.0.1:3000/assets/${ENTRY_ASSET}"
+curl --silent --show-error --dump-header - --output /dev/null \
+  --header 'Range: bytes=0-16383' \
+  "https://www.example.com/maps/exchange/openfreemap-z0-11.pmtiles"
 ```
 
-还应覆盖登录、受保护写请求、Wiki SSR、普通图片、编年史和管理页，并观察应用与入口层的
-4xx/5xx、延迟和原生模块错误。压缩探测应返回 `Content-Encoding: br`、
+地图 Range 探测必须返回 `206`、`Accept-Ranges: bytes`、`Content-Length: 16384` 和正确的
+`Content-Range`。还应覆盖登录、受保护写请求、Wiki SSR、普通图片、编年史和管理页，并观察
+应用与入口层的 4xx/5xx、延迟和原生模块错误。压缩探测应返回 `Content-Encoding: br`、
 `Vary: Accept-Encoding` 和 immutable 缓存；外部入口不得剥离这些响应头或重复压缩。站点包
 内容域必须单独验证 404 默认策略与一次性预览 URL。
 

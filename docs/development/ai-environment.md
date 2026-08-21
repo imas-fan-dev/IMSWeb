@@ -92,9 +92,19 @@ pnpm dev
 ```
 
 只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。启动器会严格校验这四个
-`IMS_DEV_*` 值，再转译为 API 的 `IMS_FUDABA_*` 配置；直接继承的生产开关仍会被清除。内置
-`exchange-style.json` 与 `/maps/china-provinces.json` 都由当前 Web origin 提供，不声明外部
-tile、glyph 或 sprite，因此地图底图不会发起第三方请求。
+`IMS_DEV_*` 值，再转译为 API 的 `IMS_FUDABA_*` 配置；直接继承的生产开关仍会被清除。首次启用
+exchange map 前先准备并激活 Git 忽略的本地 z0–11 地图 release：
+
+```sh
+node scripts/maps/prepare-exchange-map.mjs
+node scripts/maps/prepare-exchange-map.mjs --apply --activate
+```
+
+第一条仅打印固定 snapshot、资源数量和目标目录，不写磁盘；第二条下载约 7.92 GiB PMTiles 以及
+glyph、sprite、Natural Earth raster，至少需要 12 GiB 可用空间。Vite 只在开发 serve 模式把
+`data/maps/current/` 映射为 `/maps/exchange/`，不会把大型地图资源复制进 Web build。内置
+`exchange-style.json`、边界 GeoJSON 和上述运行时资源都由当前 Web origin 提供，浏览器不会
+请求第三方地图 host。完整合同见[地图资源交付](../operations/map-delivery.md)。
 
 需要在 API/Web 热更新期间使用 Cloudflare R2 测试桶时，使用显式入口：
 

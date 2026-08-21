@@ -5,7 +5,9 @@
 这两个 profile，让 API 连接独立 Valkey 和 Cloudflare R2。
 API 镜像包含构建后的 Web 静态资源，并在启动前幂等应用 PostgreSQL migrations。Compose
 不包含反向代理或 TLS 入口；宿主机 Nginx 的参考配置位于
-[`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。
+[`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。Fudaba exchange map 的大型
+PMTiles/glyph/sprite/raster release 位于宿主机 `/srv/imsweb/maps/`，同样不进入 Compose volume
+或应用镜像；生成与原子切换见[地图资源交付](../docs/operations/map-delivery.md)。
 
 正式环境的默认发布入口是 [GitHub Actions 自动部署](../docs/operations/github-actions-deployment.md)：CI
 构建 API 镜像并推送到 GHCR，目标主机只按不可变 digest 拉取并启动。下面的 `--build` 命令用于

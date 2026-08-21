@@ -35,6 +35,29 @@ server {
 
     client_max_body_size 64m;
 
+    # Versioned OpenFreeMap z0-11 PMTiles plus its glyph, sprite, and low-zoom
+    # raster companions. /srv/imsweb/maps/current is an atomic symlink managed
+    # independently from the application release. Nginx static delivery keeps
+    # browser Range requests same-origin without sending 7.92 GiB through Hono.
+    location ^~ /maps/exchange/ {
+        alias /srv/imsweb/maps/current/;
+        limit_except GET HEAD { deny all; }
+        max_ranges 1;
+        sendfile on;
+        gzip off;
+        etag on;
+        types {
+            application/json json;
+            application/vnd.pmtiles pmtiles;
+            application/x-protobuf pbf;
+            image/png png;
+        }
+        default_type application/octet-stream;
+        add_header Accept-Ranges "bytes" always;
+        add_header Cache-Control "public, max-age=300, must-revalidate" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
     location / {
         proxy_pass http://imsweb_node;
         proxy_http_version 1.1;

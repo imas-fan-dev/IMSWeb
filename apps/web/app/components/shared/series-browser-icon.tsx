@@ -1,21 +1,17 @@
 import { useEffect } from "react"
 
-import { seriesWallItems } from "~/lib/series-wall"
+import { getWikiCatalog } from "~/lib/api"
 
 const cycleIntervalMs = 10_000
-const seriesIcons = seriesWallItems.map((series) => series.icon)
 
-function nextIconIndex(previousIndex: number) {
+function nextIconIndex(previousIndex: number, iconCount: number) {
+  if (iconCount <= 1) return 0
   if (previousIndex < 0) {
-    return Math.floor(Math.random() * seriesIcons.length)
+    return Math.floor(Math.random() * iconCount)
   }
 
-  const candidate = Math.floor(Math.random() * (seriesIcons.length - 1))
+  const candidate = Math.floor(Math.random() * (iconCount - 1))
   return candidate >= previousIndex ? candidate + 1 : candidate
-}
-
-function isSeriesIcon(href: string | null) {
-  return href !== null && seriesIcons.some((icon) => href.endsWith(icon))
 }
 
 export function SeriesBrowserIcon() {
@@ -26,31 +22,56 @@ export function SeriesBrowserIcon() {
     const createdIcon = existingIcon === null
     const initialIconHref = icon.getAttribute("href")
     const initialIconType = icon.getAttribute("type")
+    let active = true
+    let iconTimer: number | undefined
+    let managedIconHref: string | null = null
     let previousIconIndex = -1
 
-    if (createdIcon) {
-      icon.rel = "icon"
-      document.head.append(icon)
-    }
+    void getWikiCatalog()
+      .send()
+      .then((catalog) => {
+        if (!active) return
 
-    const updateIcon = () => {
-      previousIconIndex = nextIconIndex(previousIconIndex)
-      icon.type = "image/webp"
-      icon.href = seriesIcons[previousIconIndex]
-    }
+        const seriesIcons = catalog.agencies.flatMap((agency) =>
+          agency.iconUrl ? [agency.iconUrl] : []
+        )
+        if (seriesIcons.length === 0) return
 
-    updateIcon()
+        if (createdIcon) {
+          icon.rel = "icon"
+          document.head.append(icon)
+        }
 
-    const reducedMotion = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)"
-    ).matches
-    const iconTimer = reducedMotion
-      ? undefined
-      : window.setInterval(updateIcon, cycleIntervalMs)
+        const updateIcon = () => {
+          previousIconIndex = nextIconIndex(
+            previousIconIndex,
+            seriesIcons.length
+          )
+          managedIconHref = seriesIcons[previousIconIndex]
+          icon.type = "image/webp"
+          icon.href = managedIconHref
+        }
+
+        updateIcon()
+
+        const reducedMotion = window.matchMedia?.(
+          "(prefers-reduced-motion: reduce)"
+        ).matches
+        if (!reducedMotion && seriesIcons.length > 1) {
+          iconTimer = window.setInterval(updateIcon, cycleIntervalMs)
+        }
+      })
+      .catch(() => undefined)
 
     return () => {
+      active = false
       if (iconTimer !== undefined) window.clearInterval(iconTimer)
-      if (!isSeriesIcon(icon.getAttribute("href"))) return
+      if (
+        managedIconHref === null ||
+        icon.getAttribute("href") !== managedIconHref
+      ) {
+        return
+      }
 
       if (createdIcon) {
         icon.remove()

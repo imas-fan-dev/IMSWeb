@@ -19,18 +19,18 @@
 
 ### 系列墙与随机 icon
 
-以下六张 585 × 500 WebP 图片同时服务于首页/作品页系列墙、浏览器随机 icon 和页面漂浮
-motif。它们是 public 中唯一保留的系列视觉素材；独立系列 logo PNG 和未压缩墙面 PNG 均不再
-单独交付，避免同一素材维护多份副本。
+以下六张 585 × 500 WebP 图片仅服务于首页/作品页系列墙。页面漂浮 motif 和浏览器标签页
+随机 icon 均使用 Wiki 公开目录返回的企划 icon，不复用这些企划介绍图。它们是 public 中唯一
+保留的系列墙视觉素材；独立系列 logo PNG 和未压缩墙面 PNG 均不再单独交付，避免同一素材维护多份副本。
 
-| Web 路径 | Legacy 来源路径 | SHA-256 |
-| --- | --- | --- |
-| `public/brand/series/wall/765pro.webp` | `public/assets/images/Production/765intro.png` | `63da4813056133985026a0bdca7306fac3ec3a1623a954a573c55077a7976ef3` |
+| Web 路径                                         | Legacy 来源路径                                       | SHA-256                                                            |
+| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| `public/brand/series/wall/765pro.webp`           | `public/assets/images/Production/765intro.png`        | `63da4813056133985026a0bdca7306fac3ec3a1623a954a573c55077a7976ef3` |
 | `public/brand/series/wall/cinderella-girls.webp` | `public/assets/images/Production/Cinderellaintro.png` | `a82350e4e94c043525769a003b4a15609cdb4db742701335d13d3f727bb807c8` |
-| `public/brand/series/wall/million-live.webp` | `public/assets/images/Production/Millionintro.png` | `a271dcd8a33ce71e21f4c957a813042c9c5f54dd33f73d73d888be4f5ab66272` |
-| `public/brand/series/wall/sidem.webp` | `public/assets/images/Production/Sidemintro.png` | `bded4f68a603c8f1d060b5cf2b35ef3f95fff4939df972d9f0cf1e688598cbec` |
-| `public/brand/series/wall/shiny-colors.webp` | `public/assets/images/Production/Shinyintro.png` | `19c28aba0714205de23238a59012288b503d388d0b4922d430919070247f4bb3` |
-| `public/brand/series/wall/gakuen.webp` | `public/assets/images/Production/Gakuenintro.png` | `0205ebb95118b234635b57d5d2a7b2043f5cecf52cb8720fe80976d12816d09d` |
+| `public/brand/series/wall/million-live.webp`     | `public/assets/images/Production/Millionintro.png`    | `a271dcd8a33ce71e21f4c957a813042c9c5f54dd33f73d73d888be4f5ab66272` |
+| `public/brand/series/wall/sidem.webp`            | `public/assets/images/Production/Sidemintro.png`      | `bded4f68a603c8f1d060b5cf2b35ef3f95fff4939df972d9f0cf1e688598cbec` |
+| `public/brand/series/wall/shiny-colors.webp`     | `public/assets/images/Production/Shinyintro.png`      | `19c28aba0714205de23238a59012288b503d388d0b4922d430919070247f4bb3` |
+| `public/brand/series/wall/gakuen.webp`           | `public/assets/images/Production/Gakuenintro.png`     | `0205ebb95118b234635b57d5d2a7b2043f5cecf52cb8720fe80976d12816d09d` |
 
 文件由源图转换为 WebP，未改变构图；系列商标和人物图像的权利仍归各自权利人。浏览器
 随机 icon 使用 `image/webp` 类型，页面代码必须从 `seriesWallItems` 读取这些路径，不得
@@ -48,16 +48,22 @@ IMSWeb 公开 Web 的 Wiki 视图切换入口，不自动扩展到其他用途�
 
 ## 地图数据与样式
 
-`public/maps/exchange-style.json` 是 OpenFreeMap Bright style 的稳定副本，来源为
-`https://tiles.openfreemap.org/styles/bright`，未修改 JSON 字节，SHA-256 为
-`ada317e9b31c65b726dc46a2b3b14acb9856782051a09e3f4bc92d034373999f`。OpenFreeMap styles
-仓库整体采用 MIT；Bright 上游代码、设计、字体、图标和 Natural Earth 数据继续适用各自许可。
-IMSWeb 仅保存 style JSON，运行时通过 MapLibre paint property 覆盖配色。
+`public/maps/exchange-style.json` 以 OpenFreeMap Bright style 为基础，来源为
+`https://tiles.openfreemap.org/styles/bright`。为满足同源交付合同，仅改写了四类资源
+地址：planet source 改为 `/maps/exchange/openfreemap-z0-11.pmtiles` 的 PMTiles protocol 包装，
+Natural Earth raster、sprite 和 Noto Sans glyph 改为 `/maps/exchange/` 下的同源路径，并在 source
+内显式保留 attribution 和 `maxzoom=11`；图层定义未改。改写后文件大小为 48948 字节，SHA-256 为
+`80acb67b53fd455ca3795ac83e04d2c63f2517236fb478b0b4c240f9fd8fe6fa`。OpenFreeMap styles 仓库
+整体采用 MIT；Bright 上游代码、设计、字体、图标和 Natural Earth 数据继续适用各自许可。IMSWeb
+运行时通过 MapLibre paint property 覆盖配色。
 
-style 运行时会请求 OpenFreeMap planet TileJSON、矢量瓦片、Natural Earth raster、sprite 和
-Noto Sans glyph。请求白名单只允许当前站点 origin 与该主机的 HTTPS 默认端口。MapLibre attribution
-必须显示 OpenFreeMap、OpenMapTiles 和 `Data from OpenStreetMap`；OpenStreetMap 版权和许可说明以
-`https://www.openstreetmap.org/copyright` 为准。
+生产资源由固定 OpenFreeMap snapshot 裁剪为全球 z0–11 PMTiles，并与 Natural Earth raster、
+sprite、三套 Noto Sans glyph 一同通过当前站点 `/maps/exchange/` 提供；浏览器不再请求
+`tiles.openfreemap.org`。构建产物体积较大，位于 Git 忽略的 `data/maps/` 或生产宿主机
+`/srv/imsweb/maps/`，不进入 Web public 和应用镜像；每个 release 的来源、字节数和 SHA-256 由
+`manifest.json` 记录。具体版本与生成命令见[地图资源交付与同源托管](../operations/map-delivery.md)。
+MapLibre attribution 必须显示 OpenFreeMap、OpenMapTiles 和 `Data from OpenStreetMap`；
+OpenStreetMap 版权和许可说明以 `https://www.openstreetmap.org/copyright` 为准。
 
 `public/maps/china-provinces.json` 来源为阿里云 DataV GeoAtlas 的公开接口
 `https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json`，处理时移除了 `100000_JD`

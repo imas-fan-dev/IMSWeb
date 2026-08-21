@@ -1,3 +1,5 @@
+import type { SourceSpecification, StyleSpecification } from "maplibre-gl"
+
 import type { FudabaMapBounds, FudabaMapOffice, FudabaSeries } from "~/lib/api"
 
 export interface MapViewportBounds {
@@ -15,30 +17,96 @@ export interface FudabaMapOfficeGroup {
   colors: string[]
 }
 
-const openFreeMapOrigin = "https://tiles.openfreemap.org"
+const pmtilesProtocolPrefix = "pmtiles://"
+
+function parseMapResourceUrl(value: string, base?: URL) {
+  try {
+    return new URL(value, base)
+  } catch {
+    throw new Error("地图资源地址格式无效")
+  }
+}
+
+function sameOriginHttpResource(value: string, currentSite: URL) {
+  const resource = parseMapResourceUrl(value, currentSite)
+  const isHttp = ["http:", "https:"].includes(resource.protocol)
+  if (
+    !isHttp ||
+    resource.origin !== currentSite.origin ||
+    resource.username ||
+    resource.password
+  ) {
+    throw new Error("地图资源仅允许当前站点的同源 HTTP(S) 地址")
+  }
+  return resource
+}
 
 export function resolveAllowedMapResourceUrl(
   value: string,
   siteOrigin: string
 ) {
-  const currentSite = new URL(siteOrigin)
-  const resource = new URL(value, currentSite)
-  const isHttp = ["http:", "https:"].includes(resource.protocol)
-  const isCurrentOrigin = isHttp && resource.origin === currentSite.origin
-  const isOpenFreeMap =
-    resource.protocol === "https:" &&
-    resource.hostname === "tiles.openfreemap.org" &&
-    resource.port === "" &&
-    resource.origin === openFreeMapOrigin
-
-  if (
-    (!isCurrentOrigin && !isOpenFreeMap) ||
-    resource.username ||
-    resource.password
-  ) {
-    throw new Error("地图资源仅允许当前站点或 OpenFreeMap 官方 HTTPS 地址")
+  const currentSite = parseMapResourceUrl(siteOrigin)
+  if (value.toLowerCase().startsWith(pmtilesProtocolPrefix)) {
+    const archive = sameOriginHttpResource(
+      value.slice(pmtilesProtocolPrefix.length),
+      currentSite
+    )
+    return `${pmtilesProtocolPrefix}${archive.href}`
   }
-  return resource.href
+  return sameOriginHttpResource(value, currentSite).href
+}
+
+type ResourceSource = SourceSpecification & {
+  url?: string
+  tiles?: string[]
+}
+
+function resolveMapStyleResourceUrl(value: string, siteOrigin: string) {
+  return resolveAllowedMapResourceUrl(value, siteOrigin)
+    .replaceAll("%7B", "{")
+    .replaceAll("%7D", "}")
+}
+
+export function resolveMapStyleResourceUrls(
+  style: StyleSpecification,
+  siteOrigin: string
+): StyleSpecification {
+  const sprite = Array.isArray(style.sprite)
+    ? style.sprite.map((entry) => ({
+        ...entry,
+        url: resolveMapStyleResourceUrl(entry.url, siteOrigin),
+      }))
+    : typeof style.sprite === "string"
+      ? resolveMapStyleResourceUrl(style.sprite, siteOrigin)
+      : style.sprite
+
+  const sources = Object.fromEntries(
+    Object.entries(style.sources).map(([id, source]) => {
+      const resourceSource: ResourceSource = { ...source }
+      if (typeof resourceSource.url === "string") {
+        resourceSource.url = resolveMapStyleResourceUrl(
+          resourceSource.url,
+          siteOrigin
+        )
+      }
+      if (resourceSource.tiles) {
+        resourceSource.tiles = resourceSource.tiles.map((url) =>
+          resolveMapStyleResourceUrl(url, siteOrigin)
+        )
+      }
+      return [id, resourceSource]
+    })
+  )
+
+  return {
+    ...style,
+    sprite,
+    glyphs:
+      typeof style.glyphs === "string"
+        ? resolveMapStyleResourceUrl(style.glyphs, siteOrigin)
+        : style.glyphs,
+    sources,
+  }
 }
 
 function normalizeLongitude(longitude: number) {
