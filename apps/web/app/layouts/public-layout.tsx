@@ -15,6 +15,7 @@ export default function PublicLayout() {
   const isWikiCatalog = pathname === "/wiki" || pathname === "/wiki/modern"
   const isModernStory = pathname === "/story" || pathname === "/story/modern"
   const isNamecardWall = Boolean(useMatch("/community/cards"))
+  const isEventDetailPage = Boolean(useMatch("/events/:eventId"))
 
   return (
     <div className="relative isolate flex min-h-svh flex-col">
@@ -40,7 +41,7 @@ export default function PublicLayout() {
       <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 sm:right-6 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]">
         {isNamecardWall ? <NamecardUploadDialog /> : null}
         <BackToTop className={cn("static", isWikiCatalog && "max-md:hidden")} />
-        <AdminReturnShortcut className="static" />
+        {isEventDetailPage ? null : <AdminReturnShortcut className="static" />}
       </div>
     </div>
   )

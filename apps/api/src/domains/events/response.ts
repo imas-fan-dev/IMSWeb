@@ -12,6 +12,11 @@ export interface EventResponse {
     end_at?: string | null;
     venue_name?: string | null;
     event_status?: string | null;
+    cover_transform?: {
+        focalX: number;
+        focalY: number;
+        zoom: number;
+    };
 }
 
 export interface EditorialEventResponse extends EventResponse {
@@ -31,6 +36,7 @@ export interface EditorialEventResponse extends EventResponse {
     registration_url: string | null;
     event_status: string | null;
     source_url: string | null;
+    related_links: Array<{ label: string; url: string }>;
     spotlight_category?: string | null;
     spotlight_order?: number | null;
     published_at: string | null;
@@ -107,6 +113,34 @@ export function toEventResponse(value: unknown): EventResponse {
     };
 }
 
+function coverTransform(value: unknown): NonNullable<EventResponse['cover_transform']> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return { focalX: 0.5, focalY: 0.5, zoom: 1 };
+    }
+    const record = value as Record<string, unknown>;
+    const focalX = Number(record.focalX);
+    const focalY = Number(record.focalY);
+    const zoom = Number(record.zoom);
+    if (!Number.isFinite(focalX) || !Number.isFinite(focalY) || !Number.isFinite(zoom)) {
+        return { focalX: 0.5, focalY: 0.5, zoom: 1 };
+    }
+    return { focalX, focalY, zoom };
+}
+
+function relatedLinks(value: unknown): Array<{ label: string; url: string }> {
+    const candidate = typeof value === 'string'
+        ? (() => { try { return JSON.parse(value) as unknown; } catch { return []; } })()
+        : value;
+    if (!Array.isArray(candidate)) return [];
+    return candidate.flatMap((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+        const link = item as Record<string, unknown>;
+        return typeof link.label === 'string' && typeof link.url === 'string'
+            ? [{ label: link.label, url: link.url }]
+            : [];
+    });
+}
+
 export function toEventListResponse(value: unknown): EventResponse {
     const event = eventRecord(value);
     return {
@@ -117,7 +151,8 @@ export function toEventListResponse(value: unknown): EventResponse {
         start_at: eventTimestamp(event.start_at),
         end_at: eventTimestamp(event.end_at),
         venue_name: nullableText(event.venue_name, 'venue_name'),
-        event_status: nullableText(event.event_status, 'event_status')
+        event_status: nullableText(event.event_status, 'event_status'),
+        cover_transform: coverTransform(event.cover_transform)
     };
 }
 
@@ -141,14 +176,16 @@ export function toEditorialEventResponse(value: unknown): EditorialEventResponse
         status: nullableText(event.status, 'status') || 'published',
         revision,
         kind: nullableText(event.kind, 'kind'),
-        start_at: nullableText(event.start_at, 'start_at'),
-        end_at: nullableText(event.end_at, 'end_at'),
+        start_at: eventTimestamp(event.start_at),
+        end_at: eventTimestamp(event.end_at),
         timezone: nullableText(event.timezone, 'timezone'),
         venue_name: nullableText(event.venue_name, 'venue_name'),
         address: nullableText(event.address, 'address'),
         registration_url: nullableText(event.registration_url, 'registration_url'),
         event_status: nullableText(event.event_status, 'event_status'),
         source_url: nullableText(event.source_url, 'source_url'),
+        related_links: relatedLinks(event.related_links),
+        cover_transform: coverTransform(event.cover_transform),
         spotlight_category: nullableText(event.spotlight_category, 'spotlight_category'),
         spotlight_order: event.spotlight_order === undefined || event.spotlight_order === null
             ? null

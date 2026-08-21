@@ -1,6 +1,7 @@
 import { ArrowUpRightIcon, CalendarDaysIcon, ImageIcon } from "lucide-react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { HomeEvent, HomeNews } from "~/lib/api"
 
@@ -62,6 +63,7 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
             src={imageUrl}
             alt={`${event.title}封面`}
             className="size-full"
+            imageStyle={editorialCoverStyle(event.cover_transform)}
           />
         ) : (
           <CalendarDaysIcon aria-hidden="true" className="size-5" />

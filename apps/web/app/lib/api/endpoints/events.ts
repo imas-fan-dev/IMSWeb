@@ -12,6 +12,14 @@ const eventIdSchema = z
   .transform(String)
   .pipe(z.string().regex(/^[1-9]\d*$/))
 
+export const editorialCoverTransformSchema = z
+  .object({
+    focalX: z.coerce.number().min(0).max(1),
+    focalY: z.coerce.number().min(0).max(1),
+    zoom: z.coerce.number().min(1).max(3),
+  })
+  .default({ focalX: 0.5, focalY: 0.5, zoom: 1 })
+
 export const eventListItemSchema = z.object({
   id: eventIdSchema,
   title: z.string().trim().min(1),
@@ -26,6 +34,7 @@ export const eventListItemSchema = z.object({
   end_at: z.string().nullable().optional(),
   venue_name: z.string().nullable().optional(),
   event_status: z.string().nullable().optional(),
+  cover_transform: editorialCoverTransformSchema,
 })
 
 export const eventPageInfoSchema = z.object({

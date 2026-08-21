@@ -23,6 +23,7 @@ import {
   AdminPanel,
   adminControlClass,
 } from "~/components/admin/admin-ui"
+import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -152,6 +153,7 @@ export default function AdminEventsPage() {
       status: post.status,
       image_url: post.cover_url ?? post.image_url,
       kind: post.kind ?? "notice",
+      cover_transform: post.cover_transform,
     }])
   }
 
@@ -223,7 +225,7 @@ export default function AdminEventsPage() {
           const readiness = articleReadiness(post)
           const imageUrl = post.cover_url ?? post.image_url
           const publishedAt = stringValue(post.published_at)
-          return <article key={post.id} className="group grid gap-4 px-4 py-4 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto] sm:items-center sm:px-5"><div className="aspect-[16/10] overflow-hidden rounded-lg border bg-muted/40">{imageUrl ? <img src={imageUrl} alt="" className="size-full object-cover" /> : <div className="grid size-full place-items-center text-muted-foreground"><ImageIcon className="size-5" /></div>}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant={post.status === "published" ? "default" : "secondary"}>{statusLabel(post.status)}</Badge><Badge variant="outline">{kindLabel(post.kind)}</Badge><Badge variant={readiness.warning ? "secondary" : "outline"}>{readiness.label}</Badge>{selectedIds.has(Number(post.id)) ? <Badge variant="outline"><StarIcon className="size-3" />首页精选</Badge> : null}</div><Link to={`/admin/events/${post.id}`} className="mt-2 block w-fit font-semibold leading-6 hover:text-primary hover:underline">{post.title}</Link><p className="mt-1 line-clamp-2 text-sm/6 text-muted-foreground">{post.summary || (post.source_url ? "该文章会引导用户查看原页面。" : "尚未填写文章摘要。")}</p><p className="mt-2 text-xs text-muted-foreground">{publishedAt ? `发布于 ${formatDate(publishedAt)}` : `最近更新 ${formatDate(post.updated_at ?? post.created_at)}`}</p></div><div className="flex shrink-0 gap-2 sm:justify-self-end"><Link to={`/admin/events/${post.id}`}><Button variant="outline" size="sm"><FilePenLineIcon data-icon="inline-start" />编辑</Button></Link><Link to={`/events/${post.id}`} target="_blank"><Button variant="ghost" size="icon-sm" aria-label={`打开${post.title}的公开页面`} title="查看公开页面"><ExternalLinkIcon /></Button></Link></div></article>
+          return <article key={post.id} className="group grid gap-4 px-4 py-4 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto] sm:items-center sm:px-5"><div className="aspect-[16/10] overflow-hidden rounded-lg border bg-muted/40">{imageUrl ? <img src={imageUrl} alt="" className="size-full object-cover" style={editorialCoverStyle(post.cover_transform)} /> : <div className="grid size-full place-items-center text-muted-foreground"><ImageIcon className="size-5" /></div>}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant={post.status === "published" ? "default" : "secondary"}>{statusLabel(post.status)}</Badge><Badge variant="outline">{kindLabel(post.kind)}</Badge><Badge variant={readiness.warning ? "secondary" : "outline"}>{readiness.label}</Badge>{selectedIds.has(Number(post.id)) ? <Badge variant="outline"><StarIcon className="size-3" />首页精选</Badge> : null}</div><Link to={`/admin/events/${post.id}`} className="mt-2 block w-fit font-semibold leading-6 hover:text-primary hover:underline">{post.title}</Link><p className="mt-1 line-clamp-2 text-sm/6 text-muted-foreground">{post.summary || (post.source_url ? "该文章会引导用户查看原页面。" : "尚未填写文章摘要。")}</p><p className="mt-2 text-xs text-muted-foreground">{publishedAt ? `发布于 ${formatDate(publishedAt)}` : `最近更新 ${formatDate(post.updated_at ?? post.created_at)}`}</p></div><div className="flex shrink-0 gap-2 sm:justify-self-end"><Link to={`/admin/events/${post.id}`}><Button variant="outline" size="sm"><FilePenLineIcon data-icon="inline-start" />编辑</Button></Link><Link to={`/events/${post.id}`} target="_blank"><Button variant="ghost" size="icon-sm" aria-label={`打开${post.title}的公开页面`} title="查看公开页面"><ExternalLinkIcon /></Button></Link></div></article>
         })}</div> : <AdminEmptyState icon={FileTextIcon} title="没有符合条件的文章" description="尝试清除搜索词或调整筛选条件。" />}
       </AdminPanel> : null}
 

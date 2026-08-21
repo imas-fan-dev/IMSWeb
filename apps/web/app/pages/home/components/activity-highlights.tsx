@@ -2,6 +2,7 @@ import { useRequest } from "alova/client"
 import { ArrowRightIcon } from "lucide-react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getCommunitySpotlight } from "~/lib/api"
@@ -16,6 +17,7 @@ export function ActivityHighlights() {
     title: item.title,
     href: `/events/${item.id}`,
     image: item.image_url ?? "",
+    coverTransform: item.cover_transform,
   }))
 
   return (
@@ -62,6 +64,7 @@ export function ActivityHighlights() {
                     alt={`${item.title}封面`}
                     className="aspect-video w-full rounded-none bg-muted"
                     imageClassName="transition-transform duration-300 group-hover:scale-[1.025]"
+                    imageStyle={editorialCoverStyle(item.coverTransform)}
                   />
                   <a
                     href={item.href}

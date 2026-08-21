@@ -154,6 +154,17 @@ export interface EditorialUpdateInput {
     userId: number;
 }
 
+export interface EditorialCoverTransform {
+    focalX: number;
+    focalY: number;
+    zoom: number;
+}
+
+export interface EditorialRelatedLink {
+    label: string;
+    url: string;
+}
+
 export interface EditorialStatusResult {
     status: 'updated' | 'conflict' | 'not-found';
     revision?: number;
@@ -188,6 +199,8 @@ export interface EditorialRepository {
             address: string | null;
             registrationUrl: string | null;
             eventStatus: string | null;
+            coverTransform: EditorialCoverTransform;
+            relatedLinks: EditorialRelatedLink[];
         }
     ): Promise<EditorialStatusResult>;
     listAdminSpotlightEntries(): Promise<Record<string, unknown>[]>;

@@ -10,6 +10,8 @@ import type {
     ArticleStatus,
     ChronicleDatePrecision,
     ChronicleSourceType,
+    EditorialCoverTransform,
+    EditorialRelatedLink,
     EditorialRepository,
     EventKind
 } from '@/ports/repositories';
@@ -68,6 +70,62 @@ function sourceUrl(value: unknown): string | null {
     invalidRequest('原页面链接只允许 HTTP(S) 或站内路径');
 }
 
+function relatedLinkUrl(value: unknown): string {
+    const candidate = text(value, '相关链接地址', 1000, true)!;
+    if (candidate.startsWith('/') && !candidate.startsWith('//')) return candidate;
+    try {
+        const url = new URL(candidate);
+        if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+    } catch {
+        // Use the shared editor-facing validation message below.
+    }
+    invalidRequest('相关链接只允许 HTTP(S) 或站内路径');
+}
+
+function coverTransform(
+    value: unknown,
+    current?: Record<string, unknown>
+): EditorialCoverTransform {
+    const record = value === undefined
+        ? {}
+        : requestRecord(value, '封面构图格式无效');
+    const values = {
+        focalX: Number(record.focalX ?? current?.cover_focal_x ?? 0.5),
+        focalY: Number(record.focalY ?? current?.cover_focal_y ?? 0.5),
+        zoom: Number(record.zoom ?? current?.cover_zoom ?? 1)
+    };
+    if (!Number.isFinite(values.focalX) || values.focalX < 0 || values.focalX > 1
+        || !Number.isFinite(values.focalY) || values.focalY < 0 || values.focalY > 1
+        || !Number.isFinite(values.zoom) || values.zoom < 1 || values.zoom > 3) {
+        invalidRequest('封面构图参数无效');
+    }
+    return values;
+}
+
+function storedRelatedLinks(value: unknown): unknown {
+    if (typeof value !== 'string') return value;
+    try {
+        return JSON.parse(value) as unknown;
+    } catch {
+        return [];
+    }
+}
+
+function relatedLinks(value: unknown, current?: Record<string, unknown>): EditorialRelatedLink[] {
+    const candidate = value === undefined
+        ? storedRelatedLinks(current?.related_links) ?? []
+        : value;
+    if (!Array.isArray(candidate)) invalidRequest('相关链接格式无效');
+    if (candidate.length > 20) invalidRequest('相关链接最多添加20条');
+    return candidate.map((item) => {
+        const record = requestRecord(item, '相关链接格式无效');
+        return {
+            label: text(record.label, '链接名', 80, true)!,
+            url: relatedLinkUrl(record.url)
+        };
+    });
+}
+
 function documentHasPublicContent(value: unknown): boolean {
     if (Array.isArray(value)) return value.some(documentHasPublicContent);
     if (!value || typeof value !== 'object') return false;
@@ -108,6 +166,7 @@ async function articleFields(
     coverUrl: string | null;
     bodyJson: Record<string, unknown>;
     bodyHtml: string;
+    coverTransform: EditorialCoverTransform;
     revision: number;
     userId: number;
 }> {
@@ -133,8 +192,36 @@ async function articleFields(
         coverUrl,
         bodyJson: validated.document,
         bodyHtml: renderArticleBody(validated.document),
+        coverTransform: coverTransform(payload.coverTransform, current),
         revision: revision(payload.revision ?? current?.revision),
         userId: c.get('user')?.id || 0
+    };
+}
+
+function eventFields(
+    payload: Record<string, unknown>,
+    current: Record<string, unknown>,
+    kind: EventKind
+) {
+    const isConcreteEvent = kind === 'event';
+    return {
+        kind,
+        sourceUrl: sourceUrl(payload.sourceUrl ?? current.source_url),
+        name: isConcreteEvent ? text(payload.name ?? current.name, '主办方', 160) : null,
+        contact: isConcreteEvent ? text(payload.contact ?? current.contact, '联系方式', 500) : null,
+        startAt: isConcreteEvent ? text(payload.startAt ?? current.start_at, '开始时间', 64) : null,
+        endAt: isConcreteEvent ? text(payload.endAt ?? current.end_at, '结束时间', 64) : null,
+        timezone: text(payload.timezone ?? current.timezone, '时区', 80) || 'Asia/Shanghai',
+        venueName: isConcreteEvent ? text(payload.venueName ?? current.venue_name, '地点名称', 240) : null,
+        address: isConcreteEvent ? text(payload.address ?? current.address, '地址', 500) : null,
+        registrationUrl: isConcreteEvent
+            ? text(payload.registrationUrl ?? current.registration_url, '报名链接', 1000)
+            : null,
+        eventStatus: !isConcreteEvent || payload.eventStatus === null
+            ? null
+            : enumValue(payload.eventStatus ?? current.event_status ?? 'scheduled',
+                ['scheduled', 'ongoing', 'ended', 'cancelled'] as const, '活动状态'),
+        relatedLinks: relatedLinks(payload.relatedLinks, current)
     };
 }
 
@@ -183,23 +270,9 @@ async function handleAdminEventUpdate(c: Context): Promise<Response> {
     const payload = await jsonPayload(c);
     const fields = await articleFields(c, repository, Number(current.article_id), payload, current);
     const kind = enumValue(payload.kind ?? current.kind, ['event', 'notice'] as const, '帖子类型');
-    const isConcreteEvent = kind === 'event';
     const result = await repository.updateEditorialEvent(id, {
         ...fields,
-        kind,
-        sourceUrl: sourceUrl(payload.sourceUrl ?? current.source_url),
-        name: isConcreteEvent ? text(payload.name ?? current.name, '主办方', 160) : null,
-        contact: isConcreteEvent ? text(payload.contact ?? current.contact, '联系方式', 500) : null,
-        startAt: isConcreteEvent ? text(payload.startAt ?? current.start_at, '开始时间', 64) : null,
-        endAt: isConcreteEvent ? text(payload.endAt ?? current.end_at, '结束时间', 64) : null,
-        timezone: text(payload.timezone ?? current.timezone, '时区', 80) || 'Asia/Shanghai',
-        venueName: isConcreteEvent ? text(payload.venueName ?? current.venue_name, '地点名称', 240) : null,
-        address: isConcreteEvent ? text(payload.address ?? current.address, '地址', 500) : null,
-        registrationUrl: isConcreteEvent ? text(payload.registrationUrl ?? current.registration_url, '报名链接', 1000) : null,
-        eventStatus: !isConcreteEvent || payload.eventStatus === null
-            ? null
-            : enumValue(payload.eventStatus ?? current.event_status ?? 'scheduled',
-                ['scheduled', 'ongoing', 'ended', 'cancelled'] as const, '活动状态')
+        ...eventFields(payload, current, kind)
     });
     const conflict = statusResponse(result, c);
     if (conflict) return conflict;
@@ -242,6 +315,7 @@ async function handleAdminEventPreview(c: Context): Promise<Response> {
     const payload = await jsonPayload(c);
     const fields = await articleFields(c, repository, Number(current.article_id), payload, current);
     const kind = enumValue(payload.kind ?? current.kind, ['event', 'notice'] as const, '帖子类型');
+    const details = eventFields(payload, current, kind);
     return c.json({
         ...current,
         title: fields.title,
@@ -249,8 +323,21 @@ async function handleAdminEventPreview(c: Context): Promise<Response> {
         cover_url: fields.coverUrl,
         body_json: fields.bodyJson,
         body_html: fields.bodyHtml,
-        kind,
-        source_url: sourceUrl(payload.sourceUrl ?? current.source_url)
+        cover_focal_x: fields.coverTransform.focalX,
+        cover_focal_y: fields.coverTransform.focalY,
+        cover_zoom: fields.coverTransform.zoom,
+        kind: details.kind,
+        source_url: details.sourceUrl,
+        name: details.name,
+        contact: details.contact,
+        start_at: details.startAt,
+        end_at: details.endAt,
+        timezone: details.timezone,
+        venue_name: details.venueName,
+        address: details.address,
+        registration_url: details.registrationUrl,
+        event_status: details.eventStatus,
+        related_links: details.relatedLinks
     });
 }
 

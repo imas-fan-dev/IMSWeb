@@ -30,6 +30,8 @@ test('editorial event responses serialize PostgreSQL timestamps', () => {
         registration_url: null,
         event_status: null,
         source_url: null,
+        related_links: [{ label: '活动报名', url: 'https://example.test/register' }],
+        cover_transform: { focalX: 0.25, focalY: 0.75, zoom: 1.5 },
         published_at: publishedAt
     });
 
@@ -37,4 +39,8 @@ test('editorial event responses serialize PostgreSQL timestamps', () => {
     assert.equal(response.start_at, startAt.toJSON());
     assert.equal(response.end_at, null);
     assert.equal(response.published_at, publishedAt.toJSON());
+    assert.deepEqual(response.related_links, [
+        { label: '活动报名', url: 'https://example.test/register' }
+    ]);
+    assert.deepEqual(response.cover_transform, { focalX: 0.25, focalY: 0.75, zoom: 1.5 });
 });

@@ -54,6 +54,7 @@ export function CoverImagePreview({
   alt,
   className,
   imageClassName,
+  imageStyle,
   loading = "lazy",
   previewLabel = "封面",
   previewItems,
@@ -63,6 +64,7 @@ export function CoverImagePreview({
   alt: string
   className?: string
   imageClassName?: string
+  imageStyle?: React.CSSProperties
   loading?: React.ImgHTMLAttributes<HTMLImageElement>["loading"]
   previewLabel?: string
   previewItems?: readonly PreviewItem[]
@@ -216,6 +218,7 @@ export function CoverImagePreview({
           alt=""
           loading={loading}
           className={cn("size-full object-cover", imageClassName)}
+          style={imageStyle}
         />
         <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-colors group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
           <ZoomInIcon className="size-5 drop-shadow-sm" aria-hidden="true" />

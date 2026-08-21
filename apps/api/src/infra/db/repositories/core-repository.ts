@@ -361,7 +361,12 @@ export class SqlCoreRepository implements
             `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
                     COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
                     e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
-                    e.start_at, e.end_at, e.venue_name, e.event_status
+                    e.start_at, e.end_at, e.venue_name, e.event_status,
+                    jsonb_build_object(
+                        'focalX', COALESCE(a.cover_focal_x, 0.5),
+                        'focalY', COALESCE(a.cover_focal_y, 0.5),
+                        'zoom', COALESCE(a.cover_zoom, 1)
+                    ) AS cover_transform
              FROM events e LEFT JOIN articles a ON a.id=e.article_id
              WHERE e.publication_state='ready'
                AND (e.article_id IS NULL OR a.status='published')
@@ -391,7 +396,12 @@ export class SqlCoreRepository implements
                 `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
                         COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
                         e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
-                        e.start_at, e.end_at, e.venue_name, e.event_status
+                        e.start_at, e.end_at, e.venue_name, e.event_status,
+                        jsonb_build_object(
+                            'focalX', COALESCE(a.cover_focal_x, 0.5),
+                            'focalY', COALESCE(a.cover_focal_y, 0.5),
+                            'zoom', COALESCE(a.cover_zoom, 1)
+                        ) AS cover_transform
                  FROM events e LEFT JOIN articles a ON a.id=e.article_id
                  WHERE e.publication_state='ready' AND e.id<=? AND e.id<?
                    AND (e.article_id IS NULL OR a.status='published')
@@ -403,7 +413,12 @@ export class SqlCoreRepository implements
             `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
                     COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
                     e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
-                    e.start_at, e.end_at, e.venue_name, e.event_status
+                    e.start_at, e.end_at, e.venue_name, e.event_status,
+                    jsonb_build_object(
+                        'focalX', COALESCE(a.cover_focal_x, 0.5),
+                        'focalY', COALESCE(a.cover_focal_y, 0.5),
+                        'zoom', COALESCE(a.cover_zoom, 1)
+                    ) AS cover_transform
              FROM events e LEFT JOIN articles a ON a.id=e.article_id
              WHERE e.publication_state='ready' AND e.id<=?
                AND (e.article_id IS NULL OR a.status='published')
@@ -415,7 +430,12 @@ export class SqlCoreRepository implements
     findEvent(id: number): Promise<Record<string, unknown> | null> {
         return queryOne(this.database,
             `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
-                    COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at
+                    COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
+                    jsonb_build_object(
+                        'focalX', COALESCE(a.cover_focal_x, 0.5),
+                        'focalY', COALESCE(a.cover_focal_y, 0.5),
+                        'zoom', COALESCE(a.cover_zoom, 1)
+                    ) AS cover_transform
              FROM events e LEFT JOIN articles a ON a.id=e.article_id
              WHERE e.id=? AND e.publication_state='ready'
                AND (e.article_id IS NULL OR a.status='published')`, [id]);
@@ -489,9 +509,16 @@ export class SqlCoreRepository implements
             `SELECT e.id, e.article_id, e.title AS legacy_title, e.name, e.contact,
                     e.image_url, e.kind, e.start_at, e.end_at, e.timezone,
                     e.venue_name, e.address, e.registration_url, e.event_status, e.source_url,
+                    e.related_links,
                     s.category AS spotlight_category, s.sort_order AS spotlight_order,
                     e.publication_state, a.content_type, a.title, a.summary,
                     a.cover_url, a.body_json, a.body_html, a.status, a.revision,
+                    a.cover_focal_x, a.cover_focal_y, a.cover_zoom,
+                    jsonb_build_object(
+                        'focalX', a.cover_focal_x,
+                        'focalY', a.cover_focal_y,
+                        'zoom', a.cover_zoom
+                    ) AS cover_transform,
                     a.created_by, a.updated_by, a.published_by, a.created_at,
                     a.updated_at, a.published_at
              FROM events e JOIN articles a ON a.id=e.article_id
@@ -507,9 +534,16 @@ export class SqlCoreRepository implements
             `SELECT e.id, e.article_id, e.title AS legacy_title, e.name, e.contact,
                     e.image_url, e.kind, e.start_at, e.end_at, e.timezone,
                     e.venue_name, e.address, e.registration_url, e.event_status, e.source_url,
+                    e.related_links,
                     s.category AS spotlight_category, s.sort_order AS spotlight_order,
                     e.publication_state, a.content_type, a.title, a.summary,
                     a.cover_url, a.body_json, a.body_html, a.status, a.revision,
+                    a.cover_focal_x, a.cover_focal_y, a.cover_zoom,
+                    jsonb_build_object(
+                        'focalX', a.cover_focal_x,
+                        'focalY', a.cover_focal_y,
+                        'zoom', a.cover_zoom
+                    ) AS cover_transform,
                     a.created_by, a.updated_by, a.published_by, a.created_at,
                     a.updated_at, a.published_at
              FROM events e JOIN articles a ON a.id=e.article_id
@@ -523,8 +557,15 @@ export class SqlCoreRepository implements
                     COALESCE(a.cover_url, e.image_url) AS image_url,
                     e.kind, e.start_at, e.end_at, e.timezone, e.venue_name,
                     e.address, e.registration_url, e.event_status, e.source_url,
+                    e.related_links,
                     a.title, a.summary, a.body_json, a.body_html, a.status,
-                    a.revision, a.created_at, a.updated_at, a.published_at
+                    a.revision, a.created_at, a.updated_at, a.published_at,
+                    a.cover_focal_x, a.cover_focal_y, a.cover_zoom,
+                    jsonb_build_object(
+                        'focalX', a.cover_focal_x,
+                        'focalY', a.cover_focal_y,
+                        'zoom', a.cover_zoom
+                    ) AS cover_transform
              FROM events e JOIN articles a ON a.id=e.article_id
              WHERE e.id=? AND e.publication_state='ready'
                AND a.content_type='event' AND a.status='published'`, [id]);
@@ -551,6 +592,8 @@ export class SqlCoreRepository implements
             address: string | null;
             registrationUrl: string | null;
             eventStatus: string | null;
+            coverTransform: { focalX: number; focalY: number; zoom: number };
+            relatedLinks: Array<{ label: string; url: string }>;
         }
     ): Promise<{ status: 'updated' | 'conflict' | 'not-found'; revision?: number }> {
         return this.database.transaction(async (database) => {
@@ -562,19 +605,23 @@ export class SqlCoreRepository implements
             const article = await executeSql(database,
                 `UPDATE articles
                  SET title=?, summary=?, cover_url=?, body_json=?, body_html=?,
+                     cover_focal_x=?, cover_focal_y=?, cover_zoom=?,
                      revision=revision+1, updated_by=?, updated_at=CURRENT_TIMESTAMP
                  WHERE id=(SELECT article_id FROM events WHERE id=?) AND revision=?`,
                 [input.title, input.summary, input.coverUrl,
-                    JSON.stringify(input.bodyJson), input.bodyHtml, input.userId, id, input.revision]
+                    JSON.stringify(input.bodyJson), input.bodyHtml,
+                    input.coverTransform.focalX, input.coverTransform.focalY,
+                    input.coverTransform.zoom, input.userId, id, input.revision]
             );
             if (article.meta.changes !== 1) return { status: 'conflict', revision: input.revision };
             await executeSql(database,
                 `UPDATE events SET title=?, name=?, contact=?, kind=?, start_at=?, end_at=?,
-                    timezone=?, venue_name=?, address=?, registration_url=?, event_status=?, source_url=?
+                    timezone=?, venue_name=?, address=?, registration_url=?, event_status=?, source_url=?,
+                    related_links=?
                  WHERE id=?`,
                 [input.title, input.name, input.contact, input.kind, input.startAt, input.endAt,
                     input.timezone, input.venueName, input.address, input.registrationUrl,
-                    input.eventStatus, input.sourceUrl, id]
+                    input.eventStatus, input.sourceUrl, JSON.stringify(input.relatedLinks), id]
             );
             return { status: 'updated', revision: input.revision + 1 };
         });
@@ -583,7 +630,12 @@ export class SqlCoreRepository implements
     listAdminSpotlightEntries(): Promise<Record<string, unknown>[]> {
         return queryAll(this.database,
             `SELECT s.post_id, s.category, s.sort_order, a.title, a.status,
-                    COALESCE(a.cover_url, e.image_url) AS image_url, e.kind
+                    COALESCE(a.cover_url, e.image_url) AS image_url, e.kind,
+                    jsonb_build_object(
+                        'focalX', a.cover_focal_x,
+                        'focalY', a.cover_focal_y,
+                        'zoom', a.cover_zoom
+                    ) AS cover_transform
              FROM homepage_spotlight_entries s
              JOIN events e ON e.id=s.post_id
              JOIN articles a ON a.id=e.article_id
@@ -656,7 +708,12 @@ export class SqlCoreRepository implements
     listPublicSpotlightEntries(): Promise<Record<string, unknown>[]> {
         return queryAll(this.database,
             `SELECT e.id, a.title, COALESCE(a.cover_url, e.image_url) AS image_url,
-                    s.category, s.sort_order
+                    s.category, s.sort_order,
+                    jsonb_build_object(
+                        'focalX', a.cover_focal_x,
+                        'focalY', a.cover_focal_y,
+                        'zoom', a.cover_zoom
+                    ) AS cover_transform
              FROM homepage_spotlight_entries s
              JOIN events e ON e.id=s.post_id
              JOIN articles a ON a.id=e.article_id

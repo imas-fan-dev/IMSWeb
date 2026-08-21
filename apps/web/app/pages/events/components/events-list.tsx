@@ -6,6 +6,7 @@ import {
 } from "lucide-react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { EventListItem } from "~/lib/api"
 
@@ -62,6 +63,7 @@ export function EventRow({ event }: { event: EventListItem }) {
             src={imageUrl}
             alt={`${event.title}封面`}
             className="size-full"
+            imageStyle={editorialCoverStyle(event.cover_transform)}
           />
         ) : (
           <ImageIcon aria-hidden="true" className="size-6" />

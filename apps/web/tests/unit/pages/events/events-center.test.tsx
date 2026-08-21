@@ -47,6 +47,7 @@ function event(id: number) {
     name: "测试发布者",
     contact: `QQ群 ${id}`,
     image_url: null,
+    cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
     created_at: "2026-07-24T00:00:00.000Z",
   }
 }

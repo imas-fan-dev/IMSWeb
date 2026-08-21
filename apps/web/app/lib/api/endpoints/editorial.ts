@@ -2,8 +2,13 @@ import { z } from "zod"
 
 import { apiClient } from "../client"
 import { withCsrf } from "../types"
+import { editorialCoverTransformSchema } from "./events"
 
 const editorialId = z.coerce.number().int().positive()
+const relatedLinkSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  url: z.string().trim().min(1).max(1000),
+})
 const articleSchema = z
   .object({
     id: editorialId.optional(),
@@ -11,11 +16,12 @@ const articleSchema = z
     title: z.string(),
     summary: z.string().optional().default(""),
     cover_url: z.string().nullable().optional(),
+    cover_transform: editorialCoverTransformSchema,
     image_url: z.string().nullable().optional(),
     body_json: z.unknown().optional(),
     body_html: z.string().optional().default(""),
-    status: z.enum(["draft", "published", "archived"]),
-    revision: z.coerce.number().int().nonnegative(),
+    status: z.enum(["draft", "published", "archived"]).default("published"),
+    revision: z.coerce.number().int().nonnegative().default(0),
     kind: z.enum(["event", "notice"]).optional(),
     name: z.string().nullable().optional(),
     contact: z.string().nullable().optional(),
@@ -27,6 +33,7 @@ const articleSchema = z
     registration_url: z.string().nullable().optional(),
     event_status: z.string().nullable().optional(),
     source_url: z.string().nullable().optional(),
+    related_links: z.array(relatedLinkSchema).optional().default([]),
     spotlight_category: z.enum(["activity", "fan"]).nullable().optional(),
     spotlight_order: z.coerce.number().int().nonnegative().nullable().optional(),
     occurred_on: z.string().nullable().optional(),
@@ -73,11 +80,14 @@ const spotlightEntrySchema = z.object({
   status: z.enum(["draft", "published", "archived"]),
   image_url: z.string().nullable().optional(),
   kind: z.enum(["event", "notice"]),
+  cover_transform: editorialCoverTransformSchema,
 })
 
 export type EditorialArticle = z.infer<typeof articleSchema>
 export type EditorialAsset = z.infer<typeof assetSchema>
 export type CommunitySpotlightEntry = z.infer<typeof spotlightEntrySchema>
+export type EditorialCoverTransform = z.infer<typeof editorialCoverTransformSchema>
+export type EditorialRelatedLink = z.infer<typeof relatedLinkSchema>
 
 export function getEditorialEvent(id: string) {
   return apiClient.Get<EditorialArticle, unknown>(`/api/events/${encodeURIComponent(id)}`, {
@@ -174,9 +184,9 @@ export function replaceAdminCommunitySpotlight(
 }
 
 export function getCommunitySpotlight() {
-  return apiClient.Get<{ items: Array<{ id: number; title: string; image_url?: string | null; category: "activity" | "fan"; sort_order: number }> }, unknown>(
+  return apiClient.Get<{ items: Array<{ id: number; title: string; image_url?: string | null; category: "activity" | "fan"; sort_order: number; cover_transform: z.infer<typeof editorialCoverTransformSchema> }> }, unknown>(
     "/api/community-posts/spotlight",
-    { transform: (value) => z.object({ items: z.array(z.object({ id: editorialId, title: z.string(), image_url: z.string().nullable().optional(), category: z.enum(["activity", "fan"]), sort_order: z.coerce.number().int() })) }).parse(value) }
+    { transform: (value) => z.object({ items: z.array(z.object({ id: editorialId, title: z.string(), image_url: z.string().nullable().optional(), category: z.enum(["activity", "fan"]), sort_order: z.coerce.number().int(), cover_transform: editorialCoverTransformSchema })) }).parse(value) }
   )
 }
 

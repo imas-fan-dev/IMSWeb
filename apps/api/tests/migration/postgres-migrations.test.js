@@ -68,6 +68,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             {
                 version: '20260819090000_community_posts_unification',
                 phase: 'post-data'
+            },
+            {
+                version: '20260822100000_editorial_presentation',
+                phase: 'post-data'
             }
         ]
     );
@@ -183,6 +187,12 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(communityPosts.sql, /ADD COLUMN source_url TEXT/);
     assert.match(communityPosts.sql, /CREATE TABLE public\.homepage_spotlight_entries/);
     assert.match(communityPosts.sql, /ON DELETE CASCADE/);
+    const editorialPresentation = migrations.find(
+        ({ version }) => version === '20260822100000_editorial_presentation'
+    );
+    assert.match(editorialPresentation.sql, /ADD COLUMN cover_focal_x DOUBLE PRECISION/);
+    assert.match(editorialPresentation.sql, /ADD COLUMN related_links JSONB/);
+    assert.match(editorialPresentation.sql, /registration_url/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -206,11 +216,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 28);
+    assert.equal(catalog.count, 29);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260819090000_community_posts_unification'
+        '20260822100000_editorial_presentation'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -295,7 +305,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260814155304_shared_request_controls',
         '20260814170000_object_deletion_jobs',
         '20260818101253_editorial_content_cms',
-        '20260819090000_community_posts_unification'
+        '20260819090000_community_posts_unification',
+        '20260822100000_editorial_presentation'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);
