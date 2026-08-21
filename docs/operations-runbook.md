@@ -64,6 +64,7 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `NODE_ENV` | 运行模式 | 生产使用 `production` |
 | `HOST`、`PORT` | Hono 监听地址 | 建议 `127.0.0.1:3000` |
 | `IMS_CLIENT_ADDRESS_SOURCE` | 客户端地址来源 | 直连为 `direct`；外部受信 Nginx 为 `nginx` |
+| `IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES` | 站点包 ZIP 上传上限 | `83886080`（80 MiB） |
 | `DATABASE_URL` | PostgreSQL 连接 | 必填，由密钥系统注入 |
 | `IMS_PUBLIC_DIR` | 不可变客户端目录 | `/srv/ims/current/apps/api/dist/node-client` |
 | `IMS_COMPENSATION_DIR` | 文件存储补偿 journal | release 外绝对目录 |

@@ -51,7 +51,8 @@ API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问�
 
 生产机的 `/etc/imsweb/production.env` 应将 `COMPOSE_PROFILES` 留空，并设置完整的
 `IMS_S3_*`、AWS 凭据、高熵
-`IMS_JWT_SECRET`、`IMS_API_DATABASE_URL`，并在首次启用管理员角色时将
+`IMS_JWT_SECRET`、`IMS_API_DATABASE_URL`、
+`IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES=83886080`，并在首次启用管理员角色时将
 `IMS_SUPER_ADMIN_USERNAME` 设为现有 `op` 账号。R2 使用 `auto` region；
 `IMS_S3_ENDPOINT` 是 R2 S3 API 域名，`IMS_PUBLIC_READ_URL_BASE` 是 bucket 自定义域名，
 二者不能互换。手工排障时先指定 CI 已记录的不可变镜像，再渲染配置和启动 API 栈：

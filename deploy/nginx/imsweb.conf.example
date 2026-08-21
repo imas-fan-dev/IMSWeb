@@ -33,7 +33,7 @@ server {
     ssl_session_cache shared:IMSWebSSL:10m;
     ssl_session_timeout 1d;
 
-    client_max_body_size 64m;
+    client_max_body_size 100m;
 
     location / {
         proxy_pass http://imsweb_node;
@@ -66,7 +66,7 @@ server {
     ssl_session_cache shared:IMSWebSSL:10m;
     ssl_session_timeout 1d;
 
-    client_max_body_size 64m;
+    client_max_body_size 100m;
 
     location / {
         proxy_pass http://imsweb_rustfs;
