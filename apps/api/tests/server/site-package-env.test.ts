@@ -91,9 +91,9 @@ test('safe site-package CSP blocks scripts while allowing packaged styles', () =
 });
 
 test('site-package upload limit is bounded by the archive parser maximum', () => {
-    assert.equal(parseSitePackageMaxUploadBytes(undefined), 25 * 1024 * 1024);
+    assert.equal(parseSitePackageMaxUploadBytes(undefined), 80 * 1024 * 1024);
     assert.equal(parseSitePackageMaxUploadBytes('1048576'), 1_048_576);
-    for (const invalid of ['0', '-1', '1.5', '26214401', 'not-a-number']) {
+    for (const invalid of ['0', '-1', '1.5', '83886081', 'not-a-number']) {
         assert.throws(() => parseSitePackageMaxUploadBytes(invalid), /positive safe integer/);
     }
 });

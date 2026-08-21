@@ -30,8 +30,9 @@ sudo systemctl reload nginx
 ```
 
 模板假定 Hono 监听 `127.0.0.1:3000`、RustFS S3 API 监听 `127.0.0.1:9000`。若目标端口不同，
-只修改对应 `upstream`。两个 HTTPS 入口默认将请求体限制为 `64m`，覆盖当前应用的 `50 MiB`
-最大上传；调高应用上传限制时必须同步调整。不要把 RustFS Console 的 `9001` 端口加入公网
+只修改对应 `upstream`。两个 HTTPS 入口默认将请求体限制为 `100m`，覆盖当前站点包的
+`80 MiB` 最大上传并留出 multipart 开销；调高应用上传限制时必须同步调整。不要把 RustFS
+Console 的 `9001` 端口加入公网
 Nginx 配置；需要管理时使用 SSH 端口转发或受控的内网入口。
 
 ## 应用环境
