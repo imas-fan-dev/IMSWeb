@@ -278,6 +278,7 @@ async function assertAbuseProtectionContract(fixture) {
     for (const encodedPath of [
         '/api/%72eactions',
         '/api/%6Cogin',
+        '/api/admin/auth/%6Cogin',
         '/api/admin/%6Eews',
         '/api/wiki/parse_%62ilibili'
     ]) {
@@ -334,10 +335,24 @@ async function assertAbuseProtectionContract(fixture) {
     equal(multipart.status, 404, `${fixture.runtime} multipart bypasses JSON body limit`);
 
     const loginCount = await fixture.rateLimitCount('auth-login');
-    equal(loginCount <= 19, true, `${fixture.runtime} login contract has available quota`);
-    await fixture.primeRateLimit('auth-login', 19 - loginCount, 20, 15 * 60);
+    equal(loginCount <= 18, true, `${fixture.runtime} login contract has available quota`);
+    await fixture.primeRateLimit('auth-login', 18 - loginCount, 20, 15 * 60);
+    const beforeLegacyLogin = fixture.handlerSnapshot();
+    const legacyLogin = await fixture.request('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+    });
+    await assertJsonResponse(legacyLogin, 400, {
+        success: false,
+        message: '用户名或密码格式错误'
+    }, `${fixture.runtime} legacy login request 19 reaches handler`);
+    equal((await fixture.rateLimitCount('auth-login')), 19,
+        `${fixture.runtime} legacy login uses the shared auth bucket`);
+    deepEqual(fixture.handlerSnapshot(), beforeLegacyLogin,
+        `${fixture.runtime} malformed legacy login stops before user lookup`);
     const beforeCanonicalLogin = fixture.handlerSnapshot();
-    const canonicalLogin = await fixture.request('/api/login', {
+    const canonicalLogin = await fixture.request('/api/admin/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}'
@@ -345,23 +360,22 @@ async function assertAbuseProtectionContract(fixture) {
     await assertJsonResponse(canonicalLogin, 400, {
         success: false,
         message: '用户名或密码格式错误'
-    }, `${fixture.runtime} canonical login request 20 reaches handler`);
+    }, `${fixture.runtime} canonical Backoffice login request 20 reaches handler`);
     equal((await fixture.rateLimitCount('auth-login')), 20,
-        `${fixture.runtime} canonical login fills shared auth bucket`);
-    const afterCanonicalLogin = fixture.handlerSnapshot();
-    deepEqual(afterCanonicalLogin, beforeCanonicalLogin,
+        `${fixture.runtime} canonical and legacy login share the auth bucket`);
+    deepEqual(fixture.handlerSnapshot(), beforeCanonicalLogin,
         `${fixture.runtime} malformed canonical login stops before user lookup`);
     const beforeLoginBlocked = fixture.handlerSnapshot();
     const beforeLoginCompensation = fixture.compensationCount();
     const blockedLoginBody = unreadJsonBody();
-    const loginBlocked = await fixture.request('/api/%6Cogin', {
+    const loginBlocked = await fixture.request('/api/admin/auth/%6Cogin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: blockedLoginBody.body,
         duplex: 'half'
     });
     await assertJsonResponse(loginBlocked, 429, { error: 'Too many requests' },
-        `${fixture.runtime} percent-encoded login request 21 shares canonical bucket`);
+        `${fixture.runtime} percent-encoded canonical login request 21 shares auth bucket`);
     equal(typeof loginBlocked.headers.get('retry-after'), 'string',
         `${fixture.runtime} login limit exposes retry-after`);
     deepEqual(fixture.handlerSnapshot(), beforeLoginBlocked,
@@ -398,6 +412,9 @@ async function assertCoreAuthContract(fixture) {
     equal(claims.id, fixture.expectedUser.id, `${fixture.runtime} JWT user id`);
     equal(claims.username, fixture.expectedUser.username, `${fixture.runtime} JWT username`);
     equal(claims.dept, fixture.expectedUser.dept, `${fixture.runtime} JWT role`);
+    equal(typeof claims.iss, 'string', `${fixture.runtime} JWT issuer`);
+    equal(claims.aud, 'ims-backoffice', `${fixture.runtime} JWT audience`);
+    equal(claims.kind, 'backoffice', `${fixture.runtime} JWT realm kind`);
     equal(typeof claims.csrfSecret, 'string', `${fixture.runtime} JWT CSRF claim`);
     equal(claims.exp - claims.iat, 15 * 60, `${fixture.runtime} access JWT lifetime`);
     const loginCookies = fixture.setCookies(login.response);
@@ -578,7 +595,9 @@ async function assertReactionContract(fixture) {
 async function assertRejectedJwtContract(fixture) {
     for (const [label, token] of Object.entries(fixture.tokens)) {
         await assertJsonResponse(
-            await fixture.request('/api/check', { headers: { Authorization: token } }),
+            await fixture.request('/api/admin/auth/session', {
+                headers: { Authorization: token }
+            }),
             401,
             { success: false, message: 'token无效' },
             `${fixture.runtime} rejects ${label} JWT`
@@ -950,7 +969,10 @@ async function assertCoreMutationContract(fixture) {
         `${fixture.runtime} event replacement removes the superseded media`);
 
     fixture.setUpload({
-        fields: {},
+        fields: {
+            seriesCode: '765',
+            favoriteIdolIds: '[900001]'
+        },
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
     const namecard = await fixture.request('/api/uploadNameCard', {
@@ -989,7 +1011,10 @@ async function assertCoreMutationContract(fixture) {
         `${fixture.runtime} legacy namecard pagination has no side effects`);
 
     fixture.setUpload({
-        fields: {},
+        fields: {
+            seriesCode: '765',
+            favoriteIdolIds: '[900001]'
+        },
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
     await assertJsonResponse(
@@ -1136,7 +1161,10 @@ async function assertPostCommitMediaContract(fixture) {
     try {
         putFailureLogs = await captureConsoleErrors(async () => {
             fixture.setUpload({
-                fields: {},
+                fields: {
+                    seriesCode: '765',
+                    favoriteIdolIds: '[900001]'
+                },
                 files: {
                     images: [
                         uploadedFile('failed-card-front.png', 32, 67),
@@ -1226,7 +1254,10 @@ async function assertPostCommitMediaContract(fixture) {
         `${fixture.runtime} committed event retry response id`);
 
     fixture.setUpload({
-        fields: {},
+        fields: {
+            seriesCode: '765',
+            favoriteIdolIds: '[900001]'
+        },
         files: {
             images: [
                 uploadedFile('committed-card-front.png', 32, 65),
@@ -1358,7 +1389,10 @@ async function assertRouteUploadBoundaryContract(fixture) {
     });
 
     let before = await fixture.uploadSnapshot();
-    fixture.setUpload({ fields: {}, files: {
+    fixture.setUpload({ fields: {
+        seriesCode: '765',
+        favoriteIdolIds: '[900001]'
+    }, files: {
         images: [uploadedFile('front.png', 3 * MiB, 11), uploadedFile('back.png', 3 * MiB, 12)]
     } });
     const exactNamecard = await post('/api/uploadNameCard');
@@ -1375,7 +1409,10 @@ async function assertRouteUploadBoundaryContract(fixture) {
     equal(after.objects, before.objects + 4, `${fixture.runtime} namecard exact boundary objects`);
 
     before = after;
-    fixture.setUpload({ fields: {}, files: {
+    fixture.setUpload({ fields: {
+        seriesCode: '765',
+        favoriteIdolIds: '[900001]'
+    }, files: {
         images: [uploadedFile('front-too-large.png', 3 * MiB + 1, 13), uploadedFile('back.png', 1, 14)]
     } });
     await assertJsonResponse(
@@ -1384,7 +1421,10 @@ async function assertRouteUploadBoundaryContract(fixture) {
     );
     deepEqual(await fixture.uploadSnapshot(), before, `${fixture.runtime} rejected namecard leaves no residue`);
 
-    fixture.setUpload({ fields: {}, files: {
+    fixture.setUpload({ fields: {
+        seriesCode: '765',
+        favoriteIdolIds: '[900001]'
+    }, files: {
         images: [uploadedFile('one.png', 1, 15), uploadedFile('two.png', 1, 16), uploadedFile('three.png', 1, 17)]
     } });
     await assertJsonResponse(

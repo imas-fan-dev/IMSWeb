@@ -143,7 +143,7 @@ function isGeometryRequest(request: Request) {
 describe("ProducerMapManager", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    document.cookie = "csrf_token=; Max-Age=0; path=/"
+    document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
   })
 
   it("generates opaque community IDs outside the editor", () => {
@@ -227,7 +227,7 @@ describe("ProducerMapManager", () => {
   })
 
   it("stages dialog edits and saves them with the current revision", async () => {
-    document.cookie = "csrf_token=producer-map-manager-test; path=/"
+    document.cookie = "ims_admin_csrf=producer-map-manager-test; path=/"
     let savedBody: unknown
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -301,7 +301,7 @@ describe("ProducerMapManager", () => {
   })
 
   it("uploads, replaces, and removes dialog images without exposing paths", async () => {
-    document.cookie = "csrf_token=producer-map-upload-test; path=/"
+    document.cookie = "ims_admin_csrf=producer-map-upload-test; path=/"
     let savedBody: unknown
     const uploadedNames: string[] = []
     const uploadCsrf: Array<string | null> = []

@@ -1,6 +1,8 @@
-'use strict';
+
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {
@@ -11,6 +13,31 @@ const {
     readMigrations,
     validateMigrationFilenames
 } = require('../../scripts/migration/postgres-migrations');
+
+test('released Platform and Fudaba migrations remain byte-for-byte immutable', () => {
+    const expected = new Map([
+        ['postgresql/0020_platform_accounts.sql',
+            'b7a67b066fd49fa3191a3ecc9c05881a753ca8c83950056bc3ac63d0d9e9734f'],
+        ['postgresql/0022_fudaba_domain.sql',
+            '718e476b3db6828130a75fd4e10933c1ceac765ea203495ba0eb9320b78d905a'],
+        ['postgresql/0025_platform_email_verification.sql',
+            '987e277a19c4637244737480a28eb8cc04d156039dfe4115855c1b879a6cf2bd'],
+        ['postgresql/20260818000000_platform_password_reset.sql',
+            'e2d8080805a9f769201e48e196000c38a54f3f47314d579bf47d240492e16524'],
+        ['postgresql/20260818010000_platform_oauth_configuration.sql',
+            '228603876f6ae11ee45e013c9394d096a4c72a0ce220ccb3eed8f065a538db5c']
+    ]);
+    for (const [relativePath, checksum] of expected) {
+        const contents = fs.readFileSync(
+            path.join(__dirname, '../../migrations', relativePath)
+        );
+        assert.equal(
+            crypto.createHash('sha256').update(contents).digest('hex'),
+            checksum,
+            `${relativePath} changed after its release`
+        );
+    }
+});
 
 test('PostgreSQL migrations are ordered and split around the data import', () => {
     const migrations = readMigrations();
@@ -36,6 +63,14 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             { version: '0017_wiki_entry_types', phase: 'post-data' },
             { version: '0018_wiki_story_cover_presentation', phase: 'post-data' },
             { version: '0019_homepage_links', phase: 'post-data' },
+            { version: '0020_platform_accounts', phase: 'pre-data' },
+            { version: '0021_backoffice_persistence_names', phase: 'post-data' },
+            { version: '0022_fudaba_domain', phase: 'post-data' },
+            { version: '0023_fudaba_public_locations', phase: 'post-data' },
+            { version: '0024_fudaba_office_workflows', phase: 'post-data' },
+            { version: '0025_platform_email_verification', phase: 'post-data' },
+            { version: '0026_platform_email_verification_delivery', phase: 'post-data' },
+            { version: '0027_fudaba_agency_catalog', phase: 'post-data' },
             { version: '20260804095901_wiki_idol_url', phase: 'post-data' },
             {
                 version: '20260805090000_wiki_story_content_type_icons',
@@ -59,6 +94,18 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             },
             {
                 version: '20260814170000_object_deletion_jobs',
+                phase: 'post-data'
+            },
+            {
+                version: '20260816193000_namecard_ownership_foundation',
+                phase: 'post-data'
+            },
+            {
+                version: '20260818000000_platform_password_reset',
+                phase: 'post-data'
+            },
+            {
+                version: '20260818010000_platform_oauth_configuration',
                 phase: 'post-data'
             }
         ]
@@ -133,6 +180,289 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(homepageLinks.sql, /CREATE TABLE public\.homepage_links/);
     assert.match(homepageLinks.sql, /INSERT INTO public\.homepage_links/);
     assert.match(homepageLinks.sql, /'navigation-events'/);
+    const platformAccounts = migrations.find(
+        ({ version }) => version === '0020_platform_accounts'
+    );
+    for (const table of [
+        'platform_accounts',
+        'platform_profiles',
+        'platform_oauth_providers',
+        'platform_oauth_identities',
+        'platform_oauth_states',
+        'platform_refresh_sessions',
+        'platform_email_credentials',
+        'platform_security_events'
+    ]) {
+        assert.match(platformAccounts.sql, new RegExp(`CREATE TABLE public\\.${table}`));
+    }
+    assert.match(platformAccounts.sql, /status IN \('active', 'restricted', 'suspended', 'deleted'\)/);
+    assert.match(platformAccounts.sql, /\('google', 'Google', TRUE\)/);
+    assert.match(platformAccounts.sql, /\('github', 'GitHub', TRUE\)/);
+    assert.match(platformAccounts.sql, /UNIQUE \(account_id, provider_code\)/);
+    assert.match(platformAccounts.sql, /platform_refresh_sessions_account_idx/);
+    assert.match(platformAccounts.sql, /algorithm IN \('pbkdf2-sha256', 'bcrypt'\)/);
+    const backofficeNames = migrations.find(
+        ({ version }) => version === '0021_backoffice_persistence_names'
+    );
+    assert.match(backofficeNames.sql, /ALTER TABLE public\.users RENAME TO backoffice_accounts/);
+    assert.match(backofficeNames.sql, /RENAME COLUMN user_id TO account_id/);
+    assert.match(backofficeNames.sql, /users_id_not_null TO backoffice_accounts_id_not_null/);
+    assert.match(
+        backofficeNames.sql,
+        /auth_refresh_sessions_user_id_not_null[\s\S]+backoffice_refresh_sessions_account_id_not_null/
+    );
+    assert.match(backofficeNames.sql, /backoffice_refresh_sessions_account_idx/);
+    assert.match(backofficeNames.sql, /CREATE VIEW public\.users AS/);
+    assert.match(backofficeNames.sql, /CREATE VIEW public\.auth_refresh_sessions AS/);
+    const fudabaDomain = migrations.find(
+        ({ version }) => version === '0022_fudaba_domain'
+    );
+    for (const table of [
+        'fudaba_offices',
+        'fudaba_series_tags',
+        'fudaba_office_series_tags',
+        'fudaba_cards',
+        'fudaba_office_cards',
+        'fudaba_messages',
+        'fudaba_exchange_requests',
+        'fudaba_card_likes',
+        'fudaba_card_favorites',
+        'fudaba_moderation_cases'
+    ]) {
+        assert.match(fudabaDomain.sql, new RegExp(`CREATE TABLE public\\.${table}`));
+    }
+    for (const seriesCode of [
+        '765as',
+        'cinderella',
+        'million-live',
+        'sidem',
+        'shiny-colors',
+        'gakuen',
+        'valiv'
+    ]) {
+        assert.match(fudabaDomain.sql, new RegExp(`\\('${seriesCode}',`));
+    }
+    assert.match(fudabaDomain.sql, /REFERENCES public\.platform_accounts\(id\)/);
+    assert.match(fudabaDomain.sql, /REFERENCES public\.backoffice_accounts\(id\)/);
+    assert.match(
+        fudabaDomain.sql,
+        /FOREIGN KEY \(wanted_card_id, recipient_account_id\)[\s\S]+REFERENCES public\.fudaba_cards\(id, owner_account_id\)/
+    );
+    assert.match(
+        fudabaDomain.sql,
+        /publication_status <> 'published' OR media_rights_status = 'approved'/
+    );
+    assert.match(fudabaDomain.sql, /CREATE UNIQUE INDEX fudaba_exchange_requests_pending_idx/);
+    assert.match(fudabaDomain.sql, /CREATE FUNCTION public\.fudaba_require_active_office\(\)/);
+    assert.match(fudabaDomain.sql, /CREATE FUNCTION public\.fudaba_validate_exchange_ownership\(\)/);
+    assert.match(fudabaDomain.sql, /CREATE FUNCTION public\.fudaba_validate_exchange_transition\(\)/);
+    assert.match(fudabaDomain.sql, /FUDABA_OFFICE_ARCHIVED/);
+    assert.match(fudabaDomain.sql, /FUDABA_OFFERED_CARD_NOT_OWNED/);
+    assert.match(fudabaDomain.sql, /FUDABA_EXCHANGE_INVALID_TRANSITION/);
+    const publicLocations = migrations.find(
+        ({ version }) => version === '0023_fudaba_public_locations'
+    );
+    assert.match(
+        publicLocations.sql,
+        /CREATE TABLE public\.fudaba_office_public_locations/
+    );
+    assert.match(
+        publicLocations.sql,
+        /office_id TEXT PRIMARY KEY[\s\S]+REFERENCES public\.fudaba_offices\(id\) ON DELETE CASCADE/
+    );
+    assert.match(publicLocations.sql, /latitude_e1 BETWEEN -600 AND 600/);
+    assert.doesNotMatch(publicLocations.sql, /latitude_e1 BETWEEN -900 AND 900/);
+    assert.match(publicLocations.sql, /longitude_e1 BETWEEN -1800 AND 1800/);
+    assert.match(
+        publicLocations.sql,
+        /review_state IN \('pending', 'published', 'rejected'\)/
+    );
+    assert.match(
+        publicLocations.sql,
+        /REFERENCES public\.backoffice_accounts\(id\) ON DELETE RESTRICT/
+    );
+    assert.match(publicLocations.sql, /review_audit_id UUID UNIQUE/);
+    assert.match(
+        publicLocations.sql,
+        /reviewed_at IS NULL OR reviewed_at >= submitted_at/
+    );
+    assert.match(
+        publicLocations.sql,
+        /review_state = 'pending'[\s\S]+reviewed_at IS NULL[\s\S]+reviewed_by IS NULL[\s\S]+review_audit_id IS NULL[\s\S]+review_note = ''/
+    );
+    assert.match(
+        publicLocations.sql,
+        /review_state IN \('published', 'rejected'\)[\s\S]+reviewed_at IS NOT NULL[\s\S]+reviewed_by IS NOT NULL[\s\S]+review_audit_id IS NOT NULL/
+    );
+    assert.match(publicLocations.sql, /length\(review_note\) <= 1000/);
+    assert.match(
+        publicLocations.sql,
+        /review_state <> 'rejected'[\s\S]+length\(btrim\(review_note, E' \\t\\n\\v\\f\\r'\)\) BETWEEN 1 AND 1000/
+    );
+    assert.match(
+        publicLocations.sql,
+        /fudaba_office_public_locations_public_idx[\s\S]+latitude_e1, longitude_e1, office_id[\s\S]+WHERE review_state = 'published'/
+    );
+    assert.match(
+        publicLocations.sql,
+        /fudaba_office_public_locations_review_queue_idx[\s\S]+review_state, submitted_at, office_id[\s\S]+\);/
+    );
+    const reviewQueueIndex = publicLocations.sql.match(
+        /CREATE INDEX fudaba_office_public_locations_review_queue_idx[\s\S]+?;/
+    )?.[0];
+    assert.ok(reviewQueueIndex);
+    assert.doesNotMatch(reviewQueueIndex, /WHERE/);
+    assert.match(
+        publicLocations.sql,
+        /fudaba_office_public_locations_reviewer_idx[\s\S]+reviewed_by, reviewed_at DESC, office_id[\s\S]+WHERE reviewed_by IS NOT NULL/
+    );
+    assert.match(
+        publicLocations.sql,
+        /CREATE TABLE public\.fudaba_rate_limit_windows \([\s\S]+bucket TEXT NOT NULL[\s\S]+key_hash TEXT NOT NULL[\s\S]+hits INTEGER NOT NULL[\s\S]+window_seconds INTEGER NOT NULL[\s\S]+reset_at BIGINT NOT NULL/
+    );
+    assert.match(
+        publicLocations.sql,
+        /length\(bucket\) BETWEEN 1 AND 128[\s\S]+length\(btrim\(bucket, E' \\t\\n\\v\\f\\r'\)\) = length\(bucket\)/
+    );
+    assert.match(publicLocations.sql, /key_hash ~ '\^\[0-9a-f\]\{64\}\$'/);
+    assert.match(publicLocations.sql, /hits INTEGER NOT NULL CHECK \(hits > 0\)/);
+    assert.match(
+        publicLocations.sql,
+        /window_seconds INTEGER NOT NULL CHECK \(window_seconds > 0\)/
+    );
+    assert.match(publicLocations.sql, /reset_at BIGINT NOT NULL CHECK \(reset_at > 0\)/);
+    assert.match(publicLocations.sql, /PRIMARY KEY \(bucket, key_hash\)/);
+    assert.match(
+        publicLocations.sql,
+        /CREATE INDEX fudaba_rate_limit_windows_reset_at_idx[\s\S]+fudaba_rate_limit_windows\(reset_at\)/
+    );
+    const officeWorkflows = migrations.find(
+        ({ version }) => version === '0024_fudaba_office_workflows'
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /ADD COLUMN pending_cover_object_key TEXT[\s\S]+pending_cover_submitted_at TIMESTAMPTZ/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /pending_cover_submitted_at >= created_at[\s\S]+pending_cover_object_key IS DISTINCT FROM cover_object_key/
+    );
+    assert.match(officeWorkflows.sql, /fudaba_offices_pending_cover_idx/);
+    assert.match(
+        officeWorkflows.sql,
+        /ADD COLUMN revision INTEGER NOT NULL DEFAULT 0[\s\S]+ADD COLUMN updated_at TIMESTAMPTZ/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /UPDATE public\.fudaba_office_cards SET updated_at = pinned_at/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /fudaba_validate_placement_transition[\s\S]+NEW\.updated_at := COALESCE\(NEW\.updated_at, NEW\.pinned_at\)[\s\S]+FUDABA_PLACEMENT_STALE_UPDATE/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /hidden_by_account_id TEXT[\s\S]+REFERENCES public\.platform_accounts\(id\) ON DELETE RESTRICT/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /\(hidden_at IS NULL\) = \(hidden_by_account_id IS NULL\)/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /SELECT status INTO office_status[\s\S]+FOR NO KEY UPDATE[\s\S]+office_status IS DISTINCT FROM 'active'/
+    );
+    assert.match(
+        officeWorkflows.sql,
+        /CREATE TABLE public\.fudaba_geocoder_cache[\s\S]+PRIMARY KEY \(provider, query_hash\)/
+    );
+    assert.match(officeWorkflows.sql, /octet_length\(response_json\) BETWEEN 2 AND 65536/);
+    assert.match(
+        officeWorkflows.sql,
+        /CREATE TABLE public\.fudaba_mutation_receipts[\s\S]+PRIMARY KEY \(scope, account_id, key_hash\)/
+    );
+    assert.match(officeWorkflows.sql, /request_hash ~ '\^\[0-9a-f\]\{64\}\$'/);
+    assert.doesNotMatch(officeWorkflows.sql, /raw_(?:query|key|body)/i);
+    const emailVerification = migrations.find(
+        ({ version }) => version === '0025_platform_email_verification'
+    );
+    assert.match(
+        emailVerification.sql,
+        /CREATE TABLE public\.platform_email_verification_codes/
+    );
+    assert.match(
+        emailVerification.sql,
+        /normalized_email TEXT PRIMARY KEY[\s\S]+normalized_email = lower\(btrim\(normalized_email\)\)/
+    );
+    assert.match(
+        emailVerification.sql,
+        /code_hash TEXT NOT NULL CHECK \(code_hash ~ '\^\[a-f0-9\]\{64\}\$'\)/
+    );
+    assert.match(emailVerification.sql, /attempts_remaining BETWEEN 0 AND 5/);
+    assert.match(
+        emailVerification.sql,
+        /consumed_token IS NULL OR consumed_token ~ '\^\[a-f0-9\]\{64\}\$'/
+    );
+    assert.match(emailVerification.sql, /CHECK \(expires_at > created_at\)/);
+    assert.match(
+        emailVerification.sql,
+        /resend_after >= created_at AND resend_after <= expires_at/
+    );
+    assert.match(
+        emailVerification.sql,
+        /CREATE INDEX platform_email_verification_expiry_idx[\s\S]+platform_email_verification_codes\(expires_at\)/
+    );
+    const emailVerificationDelivery = migrations.find(
+        ({ version }) => version === '0026_platform_email_verification_delivery'
+    );
+    assert.match(
+        emailVerificationDelivery.sql,
+        /ADD COLUMN pending_token TEXT[\s\S]+ADD COLUMN delivery_token TEXT/
+    );
+    assert.match(
+        emailVerificationDelivery.sql,
+        /platform_email_verification_pending_candidate_ck[\s\S]+pending_expires_at > pending_created_at/
+    );
+    assert.match(
+        emailVerificationDelivery.sql,
+        /delivery_token ~ '\^\[a-f0-9\]\{64\}\$'/
+    );
+    const fudabaAgencyCatalog = migrations.find(
+        ({ version }) => version === '0027_fudaba_agency_catalog'
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /FUDABA_VALIV_AGENCY_RECONCILIATION_REQUIRED/
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /FUDABA_CANONICAL_AGENCY_MISSING/
+    );
+    for (const [sourceCode, agencyCode] of [
+        ['765as', '765'],
+        ['cinderella', 'cg'],
+        ['million-live', 'ml'],
+        ['sidem', 'sidem'],
+        ['shiny-colors', 'sc'],
+        ['gakuen', 'gk']
+    ]) {
+        assert.match(
+            fudabaAgencyCatalog.sql,
+            new RegExp(`WHEN '${sourceCode}' THEN '${agencyCode}'`)
+        );
+    }
+    assert.doesNotMatch(
+        fudabaAgencyCatalog.sql,
+        /WHEN 'valiv' THEN '876'/
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /REFERENCES public\.agencies\(code\) ON DELETE RESTRICT/
+    );
+    assert.match(
+        fudabaAgencyCatalog.sql,
+        /DROP TABLE public\.fudaba_series_tags/
+    );
     const idolWikiUrl = migrations.find(
         ({ version }) => version === '20260804095901_wiki_idol_url'
     );
@@ -161,6 +491,31 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(objectDeletions.sql, /lease_expires_at BIGINT/);
     assert.match(objectDeletions.sql, /object_deletion_jobs_candidates_idx/);
     assert.match(objectDeletions.sql, /object_deletion_jobs_completed_idx/);
+    const namecardOwnership = migrations.find(
+        ({ version }) => version === '20260816193000_namecard_ownership_foundation'
+    );
+    assert.match(namecardOwnership.sql, /submission_kind IN \('guest', 'legacy'\)/);
+    assert.match(namecardOwnership.sql, /UPDATE public\.cards[\s\S]+submission_kind = 'legacy'/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.namecard_idols/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_card_idols/);
+    assert.match(namecardOwnership.sql, /ADD COLUMN legacy_card_id BIGINT/);
+    assert.match(namecardOwnership.sql, /length\(favorite_idol\) <= 1000/);
+    assert.match(namecardOwnership.sql, /'draft', 'pending', 'approving', 'published'/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_card_claims/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_card_claim_idols/);
+    assert.match(namecardOwnership.sql, /CREATE TABLE public\.fudaba_claim_envelopes/);
+    assert.match(
+        namecardOwnership.sql,
+        /fudaba_card_claims_one_open_or_approved_legacy_idx[\s\S]+WHERE state IN \('pending', 'approving', 'approved'\)/
+    );
+    assert.match(
+        namecardOwnership.sql,
+        /UNIQUE \(recipient_account_id, kind, legacy_card_id\)/
+    );
+    assert.match(
+        namecardOwnership.sql,
+        /FOREIGN KEY \(legacy_card_id\) REFERENCES public\.cards\(id\) ON DELETE RESTRICT/
+    );
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -184,22 +539,22 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 26);
+    assert.equal(catalog.count, 37);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260814170000_object_deletion_jobs'
+        '20260818010000_platform_oauth_configuration'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
 
 test('PostgreSQL migration names keep the frozen sequence and use UTC timestamps after it', () => {
     assert.doesNotThrow(() => validateMigrationFilenames([
-        '0019_homepage_links.sql',
+        '0027_fudaba_agency_catalog.sql',
         '20260804095901_wiki_idol_url.sql'
     ]));
     assert.throws(
-        () => validateMigrationFilenames(['0020_new_change.sql']),
+        () => validateMigrationFilenames(['0028_new_change.sql']),
         /14-digit UTC timestamp/
     );
     assert.throws(
@@ -265,13 +620,24 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '0017_wiki_entry_types',
         '0018_wiki_story_cover_presentation',
         '0019_homepage_links',
+        '0020_platform_accounts',
+        '0021_backoffice_persistence_names',
+        '0022_fudaba_domain',
+        '0023_fudaba_public_locations',
+        '0024_fudaba_office_workflows',
+        '0025_platform_email_verification',
+        '0026_platform_email_verification_delivery',
+        '0027_fudaba_agency_catalog',
         '20260804095901_wiki_idol_url',
         '20260805090000_wiki_story_content_type_icons',
         '20260811090000_community_experience_consistency',
         '20260811100000_wiki_category_revision',
         '20260813000000_namecard_rejected_at',
         '20260814155304_shared_request_controls',
-        '20260814170000_object_deletion_jobs'
+        '20260814170000_object_deletion_jobs',
+        '20260816193000_namecard_ownership_foundation',
+        '20260818000000_platform_password_reset',
+        '20260818010000_platform_oauth_configuration'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

@@ -1,7 +1,9 @@
 import type { CacheServices } from '@/ports/cache';
+import type { EmailServices } from '@/ports/email';
 import type { HttpServices } from '@/ports/http';
 import type { MediaServices } from '@/ports/media';
 import type { ObjectStorageServices } from '@/ports/object-storage';
+import type { OAuthServices } from '@/ports/oauth';
 import type { RepositoryServices } from '@/ports/repositories';
 import type { SecurityServices } from '@/ports/security';
 
@@ -10,6 +12,10 @@ export interface NodeRuntimeConfig {
     storyMaxUploadBytes: number;
     sitePackageMaxUploadBytes: number;
     clientAddressSource: 'direct' | 'nginx';
+    fudabaPublicReadEnabled: boolean;
+    fudabaWriteEnabled: boolean;
+    fudabaMapEnabled: boolean;
+    fudabaMapStyleUrl: string;
 }
 
 export interface RuntimeHealth {
@@ -18,9 +24,11 @@ export interface RuntimeHealth {
 
 export interface RuntimeServices extends
     Partial<CacheServices>,
+    Partial<EmailServices>,
     Partial<HttpServices>,
     Partial<MediaServices>,
     Partial<ObjectStorageServices>,
+    Partial<OAuthServices>,
     Partial<RepositoryServices>,
     Partial<SecurityServices> {
     fetch?: typeof globalThis.fetch;
@@ -30,9 +38,11 @@ export interface RuntimeServices extends
 
 export interface NodeRuntimeServices extends
     CacheServices,
+    EmailServices,
     HttpServices,
     MediaServices,
     ObjectStorageServices,
+    OAuthServices,
     RepositoryServices,
     SecurityServices {
     fetch: typeof globalThis.fetch;

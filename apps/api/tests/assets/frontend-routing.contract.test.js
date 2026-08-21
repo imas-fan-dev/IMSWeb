@@ -1,4 +1,4 @@
-'use strict';
+
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -79,11 +79,14 @@ test('[FRT-01] root and index.html use the React document', async () => {
 
 test('[FRT-02] real prerendered documents and selective SPA routes use build/client', async () => {
     for (const route of [
+        'account/login',
+        'account/register',
         'about',
         'events',
         'recommendations',
         'live',
         'community',
+        'community/exchange',
         'community/cards',
         'producer-map',
         'works',
@@ -117,7 +120,11 @@ test('[FRT-02] real prerendered documents and selective SPA routes use build/cli
         '/admin/chronicle/pending',
         '/information/info-example-001',
         '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
-        '/chronicle/activity-1/'
+        '/chronicle/activity-1/',
+        '/community/exchange/me',
+        '/community/exchange/me/',
+        '/community/exchange/offices/shanghai-weekend',
+        '/community/exchange/offices/shanghai-weekend/'
     ]) {
         await assertFileResponse(route, fallback);
     }
@@ -182,6 +189,11 @@ test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', asy
         '/chronicle/one/two',
         '/chronicle/one%2Ftwo',
         '/chronicle/one%5Ctwo',
+        '/community/exchange/offices/one/two',
+        '/community/exchange/offices/one%2Ftwo',
+        '/community/exchange/offices/one%5Ctwo',
+        '/community/exchange/offices//',
+        '/community/exchange/me/extra',
         '/chro%6Eicle/activity-1',
         '/admin%2Flogin',
         '/ad%6Din/login',
@@ -216,7 +228,9 @@ test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', asy
         '/admin',
         '/recommendations',
         '/information/info-example-001',
-        '/chronicle/activity-1'
+        '/chronicle/activity-1',
+        '/community/exchange/me',
+        '/community/exchange/offices/shanghai-weekend'
     ]) {
         assert.deepEqual(
             resolveFrontendRoute({ method: 'POST', pathname }, frontendFiles),
@@ -251,33 +265,7 @@ test('[FRT-05] build assets require an exact entry in the real file set', async 
     );
 });
 
-test('[FRT-06] legacy browser URLs redirect to their modern owners', async () => {
-    const redirects = new Map([
-        ['/About.html', '/about'],
-        ['/Event.html', '/events'],
-        ['/producer.html', '/admin/login'],
-        ['/producermap.html', '/producer-map'],
-        ['/ProducerNameCard.html', '/community/cards'],
-        ['/timeline.html', '/chronicle'],
-        ['/eventchronicleadmin.html', '/admin/chronicle'],
-        ['/283Introduction.html', '/works/sc'],
-        ['/WOWSIntroduction.html', '/works/wows'],
-        ['/hiro2026.html', '/sites/hiro2026'],
-        ['/eventchronicle.html?id=activity%201', '/chronicle/activity%201']
-    ]);
-
-    for (const [legacyPath, destination] of redirects) {
-        const response = await request(legacyPath, { redirect: 'manual' });
-        assert.equal(response.status, 301, legacyPath);
-        assert.equal(
-            new URL(response.headers.get('location'), 'http://ims.test').pathname,
-            destination,
-            legacyPath
-        );
-    }
-});
-
-test('[FRT-07] every prerendered document in the build is owned by the route policy', async () => {
+test('[FRT-06] every prerendered document in the build is owned by the route policy', async () => {
     const documents = frontendFileList.filter((file) => file.endsWith('/index.html'));
     assert.ok(documents.length > 0, 'build/client must contain prerendered documents');
 

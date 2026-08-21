@@ -4,15 +4,21 @@ import {
   FileImageIcon,
   ImageUpIcon,
   UploadIcon,
+  UserRoundIcon,
 } from "lucide-react"
 import { useState } from "react"
 import type { FormEvent } from "react"
 import { Link } from "react-router"
 import { toast } from "sonner"
 
+import {
+  IdolMultiSelect,
+  type IdolSeriesOption,
+} from "~/components/community/idol-multi-select"
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { Button } from "~/components/ui/button"
+import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Dialog,
   DialogClose,
@@ -24,7 +30,20 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
-import { isApiError, uploadNamecard } from "~/lib/api"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select"
+import {
+  getWikiCatalog,
+  isApiError,
+  uploadNamecard,
+  type WikiPublicCatalog,
+} from "~/lib/api"
 import {
   namecardSubmissionManagePath,
   saveNamecardSubmissionReceipt,
@@ -32,15 +51,43 @@ import {
 } from "~/pages/community/namecard-submission-storage"
 
 export function NamecardUploadDialog() {
+  const platform = useOptionalPlatformSession()
   const [open, setOpen] = useState(false)
   const [front, setFront] = useState<File | null>(null)
   const [back, setBack] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [receipt, setReceipt] = useState<NamecardSubmissionReceipt | null>(null)
+  const [catalog, setCatalog] = useState<WikiPublicCatalog | null>(null)
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [seriesCode, setSeriesCode] = useState("")
+  const [favoriteIdolIds, setFavoriteIdolIds] = useState<number[]>([])
+
+  const series: IdolSeriesOption[] = (catalog?.agencies ?? []).map(
+    (agency) => ({
+      code: agency.code,
+      displayName: agency.name,
+      color: agency.color,
+    })
+  )
+
+  async function loadCatalog() {
+    if (catalog || catalogLoading) return
+    setCatalogLoading(true)
+    try {
+      const result = await getWikiCatalog().send()
+      setCatalog(result)
+      setSeriesCode((current) => current || result.agencies[0]?.code || "")
+    } catch {
+      toast.error("担当偶像目录载入失败，请稍后重试")
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
 
   function changeOpen(nextOpen: boolean) {
     if (!nextOpen && uploading) return
     setOpen(nextOpen)
+    if (nextOpen) void loadCatalog()
     if (!nextOpen) {
       setFront(null)
       setBack(null)
@@ -71,10 +118,17 @@ export function NamecardUploadDialog() {
       toast.error("请同时选择名片正面和背面")
       return
     }
+    if (!seriesCode || favoriteIdolIds.length === 0) {
+      toast.error("请选择主企划和至少一位担当偶像")
+      return
+    }
     setUploading(true)
     const form = event.currentTarget
     try {
-      const response = await uploadNamecard(front, back).send()
+      const response = await uploadNamecard(front, back, {
+        seriesCode,
+        favoriteIdolIds,
+      }).send()
       toast.success(response.msg)
       const nextReceipt = {
         id: response.submission.id,
@@ -141,10 +195,29 @@ export function NamecardUploadDialog() {
           <DialogHeader className="pr-8">
             <DialogTitle>提交制作人名片</DialogTitle>
             <DialogDescription>
-              请分别上传正面和背面。每张不超过 3 MiB，图片会转换为 WebP
-              并进入审核队列。
+              注册用户可自行管理名片并在审核后摆放到地图名片墙；游客投稿不可编辑。
             </DialogDescription>
           </DialogHeader>
+
+          <Alert>
+            <UserRoundIcon aria-hidden="true" />
+            <AlertTitle>
+              {platform.status === "authenticated" ||
+              platform.status === "restricted"
+                ? "使用注册用户上传"
+                : "注册用户上传"}
+            </AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>注册名片支持后续修改、担当管理和地图名片墙摆放。</p>
+              <Link
+                to="/community/exchange/me"
+                className={buttonVariants({ variant: "outline" })}
+              >
+                前往我的名片
+                <ExternalLinkIcon data-icon="inline-end" />
+              </Link>
+            </AlertDescription>
+          </Alert>
 
           {receipt ? (
             <Alert>
@@ -163,18 +236,55 @@ export function NamecardUploadDialog() {
                     <CopyIcon data-icon="inline-start" />
                     复制管理链接
                   </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    render={<Link to={manageLink(receipt)} />}
+                  <Link
+                    to={manageLink(receipt)}
+                    className={buttonVariants({ variant: "secondary" })}
                   >
                     管理这次投稿
                     <ExternalLinkIcon data-icon="inline-end" />
-                  </Button>
+                  </Link>
                 </div>
               </AlertDescription>
             </Alert>
           ) : null}
+
+          <div className="border-t pt-5">
+            <h3 className="text-sm font-medium">游客投稿</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              投稿后只能查看审核状态或在审核前撤回，不能修改图片和担当。
+            </p>
+          </div>
+
+          <Field data-disabled={uploading || undefined}>
+            <FieldLabel htmlFor="guest-namecard-series">主企划</FieldLabel>
+            <Select
+              value={seriesCode}
+              disabled={uploading || catalogLoading || series.length === 0}
+              onValueChange={(value) => setSeriesCode(String(value ?? ""))}
+            >
+              <SelectTrigger id="guest-namecard-series" className="w-full">
+                <SelectValue placeholder="选择主企划" />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectGroup>
+                  {series.map((item) => (
+                    <SelectItem key={item.code} value={item.code}>
+                      {item.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <IdolMultiSelect
+            id="guest-namecard-idols"
+            series={series}
+            idols={catalog?.searchEntries ?? []}
+            selectedIds={favoriteIdolIds}
+            disabled={uploading || catalogLoading}
+            onChange={setFavoriteIdolIds}
+          />
 
           <FieldGroup className="grid gap-5 md:grid-cols-2">
             <Field data-disabled={uploading || undefined}>
@@ -221,7 +331,17 @@ export function NamecardUploadDialog() {
             >
               取消
             </DialogClose>
-            <Button type="submit" disabled={uploading || !front || !back}>
+            <Button
+              type="submit"
+              disabled={
+                uploading ||
+                catalogLoading ||
+                !front ||
+                !back ||
+                !seriesCode ||
+                favoriteIdolIds.length === 0
+              }
+            >
               <UploadIcon data-icon="inline-start" />
               {uploading ? "正在上传" : "提交审核"}
             </Button>

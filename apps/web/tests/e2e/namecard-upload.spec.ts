@@ -17,7 +17,15 @@ type BoundingBox = {
 }
 
 async function mockNamecardApi(page: Page, cardCount = 12) {
-  await page.route("**/api/check**", async (route) => {
+  await page.context().addCookies([
+    {
+      name: "ims_admin_csrf",
+      value: "namecard-upload-e2e",
+      domain: "127.0.0.1",
+      path: "/",
+    },
+  ])
+  await page.route("**/api/admin/auth/session**", async (route) => {
     await route.fulfill({
       json: {
         success: true,
@@ -28,6 +36,46 @@ async function mockNamecardApi(page: Page, cardCount = 12) {
           dept: "op",
           adminRole: "admin",
         },
+      },
+    })
+  })
+
+  await page.route("**/api/wiki/catalog**", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "success",
+        agencies: [
+          {
+            id: 1,
+            code: "765",
+            name: "765PRO",
+            color: "#f34e6c",
+            bannerTitle: "765PRO",
+            iconUrl: null,
+            idolCount: 1,
+            entryCount: 1,
+            imageTransform: {
+              fit: "cover",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
+          },
+        ],
+        searchEntries: [
+          {
+            id: 1,
+            name: "天海春香",
+            agencyId: 1,
+            agencyCode: "765",
+            agencyName: "765PRO",
+            agencyColor: "#f34e6c",
+            entryKind: "idol",
+            entrySubtype: null,
+          },
+        ],
+        selection: null,
       },
     })
   })
@@ -113,6 +161,7 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
   await expect(backInput).toHaveAttribute("type", "file")
   await expect(submitButton).toBeDisabled()
   await expect(uploadDialog.getByRole("button", { name: "取消" })).toBeVisible()
+  await uploadDialog.getByRole("checkbox", { name: /天海春香/ }).click()
 
   await frontInput.setInputFiles({
     name: "namecard-front.png",
@@ -139,12 +188,13 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
   const multipartBody = uploadRequest.postDataBuffer()?.toString("utf8") ?? ""
 
   expect(multipartBody.match(/name="images"/g)).toHaveLength(2)
+  expect(multipartBody).toContain('name="seriesCode"')
+  expect(multipartBody).toContain('name="favoriteIdolIds"')
+  expect(multipartBody).toContain("[1]")
   expect(multipartBody).toContain('filename="namecard-front.png"')
   expect(multipartBody).toContain('filename="namecard-back.png"')
   await expect(uploadDialog).toBeVisible()
-  await expect(
-    uploadDialog.getByText("请保存投稿管理链接")
-  ).toBeVisible()
+  await expect(uploadDialog.getByText("请保存投稿管理链接")).toBeVisible()
   await expect(
     uploadDialog.getByRole("link", { name: "管理这次投稿" })
   ).toBeVisible()

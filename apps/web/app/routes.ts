@@ -10,6 +10,27 @@ const publicRoutes = [
   },
   { path: "live", file: "pages/live/index.tsx" },
   { path: "community", file: "pages/community/index.tsx" },
+  { path: "account/login", file: "pages/account/login/account-login-page.tsx" },
+  {
+    path: "account/register",
+    file: "pages/account/register/account-register-page.tsx",
+  },
+  {
+    path: "account/password-reset",
+    file: "pages/account/reset/account-password-reset-page.tsx",
+  },
+  {
+    path: "community/exchange",
+    file: "pages/community/exchange/community-exchange-page.tsx",
+  },
+  {
+    path: "community/exchange/me",
+    file: "pages/community/exchange/me/community-exchange-me-page.tsx",
+  },
+  {
+    path: "community/exchange/offices/:officeSlug",
+    file: "pages/community/exchange/community-office-page.tsx",
+  },
   {
     path: "community/cards",
     file: "pages/community/community-cards-page.tsx",
@@ -83,6 +104,10 @@ const adminRoutes = [
     file: "pages/admin/producer-map/index.tsx",
   },
   {
+    path: "community/exchange",
+    file: "pages/admin/community/exchange/admin-community-exchange-page.tsx",
+  },
+  {
     path: "information",
     file: "pages/admin/information/index.tsx",
   },
@@ -110,6 +135,10 @@ const adminRoutes = [
   {
     path: "accounts",
     file: "pages/admin/accounts/index.tsx",
+  },
+  {
+    path: "platform/oauth",
+    file: "pages/admin/platform-oauth/index.tsx",
   },
   { path: "*", file: "pages/admin/not-found/index.tsx" },
 ] satisfies RouteConfigEntry[]

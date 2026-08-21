@@ -73,7 +73,7 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
       >
         <span
           className="line-clamp-2 text-sm font-medium wrap-break-word whitespace-pre-line group-hover:text-primary"
-          title={event.title}
+          title={event.title ?? undefined}
         >
           {event.title}
         </span>

@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 function normalizeObjectKey(value: string): string {
     const key = value.replace(/^\/+/, '').replace(/\\/g, '/');
     const segments = key.split('/');
@@ -22,6 +23,24 @@ function fileParts(filename: string): { extension: string; stem: string } {
         stem: safe.slice(0, separator),
         extension: safe.slice(separator + 1).toLowerCase()
     };
+}
+
+function fudabaEntitySegment(value: string): string {
+    if (
+        !value || value === '.' || value === '..' ||
+        /[\\/\u0000-\u001f\u007f]/.test(value)
+    ) {
+        throw new Error('Invalid Fudaba media entity ID');
+    }
+    return value;
+}
+
+function fudabaImageExtension(value: string): string {
+    const extension = value.toLowerCase().replace(/^\./, '');
+    if (!['avif', 'jpg', 'png', 'webp'].includes(extension)) {
+        throw new Error('Invalid Fudaba media extension');
+    }
+    return extension;
 }
 
 export function newsOriginalObjectKey(filename: string): string {
@@ -76,7 +95,7 @@ export function namecardThumbnailPublicUrl(originalUrl: string): string {
     if (prefix !== 'uploads/namecard/original') {
         throw new Error(`Unsupported namecard media path: ${legacyKey}`);
     }
-    return `/uploads/namecard/thumbnail/${filename}.jpg`;
+    return publicUploadsPath(`/namecard/thumbnail/${filename}.jpg`);
 }
 
 export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
@@ -87,6 +106,63 @@ export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
 export function producerMapAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
+}
+
+export function fudabaAccountAvatarObjectKey(
+    accountId: string,
+    extension: string
+): string {
+    return `community/fudaba/accounts/${fudabaEntitySegment(accountId)}/` +
+        `avatar.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaAccountAvatarVersionObjectKey(
+    accountId: string,
+    version: string
+): string {
+    return `community/fudaba/accounts/${fudabaEntitySegment(accountId)}/` +
+        `avatars/${fudabaEntitySegment(version)}.webp`;
+}
+
+export function fudabaOfficeCoverObjectKey(
+    officeId: string,
+    extension: string
+): string {
+    return `community/fudaba/offices/${fudabaEntitySegment(officeId)}/` +
+        `cover.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaOfficeCoverVersionObjectKey(
+    officeId: string,
+    version: string
+): string {
+    return `community/fudaba/offices/${fudabaEntitySegment(officeId)}/` +
+        `covers/${fudabaEntitySegment(version)}.webp`;
+}
+
+export function fudabaCardFrontObjectKey(
+    cardId: string,
+    extension: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `front.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaCardBackObjectKey(
+    cardId: string,
+    extension: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `back.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaCardSideVersionObjectKey(
+    cardId: string,
+    side: 'front' | 'back',
+    version: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `versions/${fudabaEntitySegment(version)}/${side}.webp`;
 }
 
 export function publicMediaObjectKey(value: string): string {

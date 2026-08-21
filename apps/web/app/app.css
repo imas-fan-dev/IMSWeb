@@ -251,8 +251,10 @@
   top: 0;
   left: 0;
   width: 48px;
+  aspect-ratio: 1;
   max-width: none;
   height: auto;
+  object-fit: contain;
   opacity: 0;
   transform-origin: center;
   backface-visibility: hidden;
@@ -276,6 +278,15 @@
 }
 
 @media (max-width: 767px) {
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-left,
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-right {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-left {
+    max-width: calc(100% - 5rem);
+  }
+
   body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
     bottom: calc(4.25rem + env(safe-area-inset-bottom));
   }

@@ -8,13 +8,7 @@ import {
   RefreshCwIcon,
   Trash2Icon,
 } from "lucide-react"
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
@@ -178,7 +172,7 @@ export default function AdminEventsPage() {
   function editEvent(item: EventListItem) {
     setEditingEvent(item)
     setDraft({
-      title: item.title,
+      title: item.title ?? "",
       name: item.name ?? "",
       contact: item.contact ?? "",
     })

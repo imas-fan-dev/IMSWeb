@@ -1,3 +1,14 @@
+import {
+  apiPath,
+  cssPath,
+  eventChroniclePath,
+  iconPath,
+  imagePath,
+  publicAssetsPath,
+  publicUploadsPath,
+  siteContentPath,
+  sitesPath,
+} from '@imsweb/contracts/paths';
 import { isSensitiveRequestPath } from "@/middleware/static-path-policy";
 
 export type FrontendRouteDecision =
@@ -11,23 +22,26 @@ export interface FrontendRouteRequest {
 }
 
 const SERVER_PREFIXES = [
-  "/api",
-  "/site-content",
-  "/sites",
-  "/image",
-  "/icon",
-  "/css",
-  "/uploads",
-  "/eventchronicle",
-  "/assets/images/eventchronicle/events",
+  apiPath(),
+  siteContentPath(),
+  sitesPath(),
+  imagePath(),
+  iconPath(),
+  cssPath(),
+  publicUploadsPath(),
+  eventChroniclePath(),
+  publicAssetsPath('/images/eventchronicle/events'),
 ] as const;
 
 const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map([
+  ["/account/login", "account/login/index.html"],
+  ["/account/register", "account/register/index.html"],
   ["/about", "about/index.html"],
   ["/events", "events/index.html"],
   ["/recommendations", "recommendations/index.html"],
   ["/live", "live/index.html"],
   ["/community", "community/index.html"],
+  ["/community/exchange", "community/exchange/index.html"],
   ["/community/cards", "community/cards/index.html"],
   ["/producer-map", "producer-map/index.html"],
   ["/works", "works/index.html"],
@@ -138,7 +152,17 @@ export function resolveFrontendRoute(
       segments.length === 2) ||
     (hasPathPrefix(routePathname, "/chronicle") &&
       segments[0] === "chronicle" &&
-      segments.length === 2);
+      segments.length === 2) ||
+    (routePathname === "/community/exchange/me" &&
+      segments[0] === "community" &&
+      segments[1] === "exchange" &&
+      segments[2] === "me" &&
+      segments.length === 3) ||
+    (hasPathPrefix(routePathname, "/community/exchange/offices") &&
+      segments[0] === "community" &&
+      segments[1] === "exchange" &&
+      segments[2] === "offices" &&
+      segments.length === 4);
   if (usesSpaFallback) {
     return frontendFiles.has(SPA_FALLBACK)
       ? { kind: "frontend", assetPath: SPA_FALLBACK }

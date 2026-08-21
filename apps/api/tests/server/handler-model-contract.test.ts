@@ -5,6 +5,34 @@ import test from 'node:test';
 
 const domainRoot = path.resolve(__dirname, '../../src/domains');
 const routeMethods = new Set(['all', 'delete', 'get', 'on', 'options', 'patch', 'post', 'put']);
+const domainSections: Record<string, string> = {
+    'platform-auth': 'identity',
+    'platform-profile': 'identity',
+    'backoffice-auth': 'admin',
+    'admin-accounts': 'admin',
+    audit: 'admin',
+    wiki: 'content',
+    information: 'content',
+    news: 'content',
+    events: 'content',
+    chronicle: 'content',
+    about: 'content',
+    'producer-map': 'content',
+    'live-schedule': 'content',
+    'homepage-links': 'content',
+    'brand-assets': 'content',
+    fudaba: 'community',
+    namecards: 'community',
+    media: 'delivery',
+    site: 'delivery',
+    'site-packages': 'delivery'
+};
+
+function domainDirectory(domain: string): string {
+    const section = domainSections[domain];
+    if (!section) throw new Error(`Unregistered domain section for ${domain}`);
+    return path.join(domainRoot, section, domain);
+}
 
 const expectedRouteHandlers: Record<string, readonly string[]> = {
     about: [
@@ -20,12 +48,15 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
         'handleListAdminAccounts'
     ],
     audit: ['handleListAuditLogs'],
-    auth: [
-        'handleAdminLogin',
-        'handleCheckAuth',
-        'handleLogin',
-        'handleLogout',
-        'handleRefresh'
+    'backoffice-auth': [
+        'handleBackofficeAdminLogin',
+        'handleBackofficeLogin',
+        'handleBackofficeLogout',
+        'handleBackofficeRefresh',
+        'handleCanonicalBackofficeLogin',
+        'handleCheckBackofficeAuth',
+        'handleLegacyBackofficeLogout',
+        'handleLegacyBackofficeRefresh'
     ],
     'brand-assets': ['handleServeBrandAsset'],
     chronicle: [
@@ -70,15 +101,16 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
     'live-schedule': ['handleListLiveSchedule'],
     media: ['handleServeNamecard', 'handleServePublicUpload'],
     namecards: [
+        'createHandleAddReaction',
+        'createHandleDeleteReaction',
         'handleApproveNamecard',
         'handleDeleteNamecard',
         'handleGetNamecard',
         'handleGetNamecardSubmission',
         'handleListAdminNamecards',
         'handleListNamecards',
+        'handleListReactions',
         'handleRejectNamecard',
-        'handleReplaceNamecardSubmissionImage',
-        'handleResubmitNamecardSubmission',
         'handleUploadNamecard',
         'handleWithdrawNamecardSubmission'
     ],
@@ -94,8 +126,7 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
         'handleUpdateProducerMap',
         'handleUploadProducerMapImage'
     ],
-    reactions: ['createHandleAddReaction', 'createHandleDeleteReaction', 'handleListReactions'],
-    site: ['handleLegacyChronicleRedirect', 'handleLegacySiteRedirect', 'handleServeSiteIndex'],
+    site: ['handleServeSiteIndex'],
     'site-packages': [
         'handleCreateSitePackage',
         'handleCreateSitePackageRevision',
@@ -164,16 +195,27 @@ interface HandlerImport {
 
 function routeFile(domain: string): string {
     for (const filename of ['routes.ts', 'routes.tsx']) {
-        const candidate = path.join(domainRoot, domain, filename);
+        const candidate = path.join(domainDirectory(domain), filename);
         if (fs.existsSync(candidate)) return candidate;
     }
     throw new Error(`Missing route module for ${domain}`);
 }
 
-function handlerImports(domain: string): HandlerImport[] {
-    const source = fs.readFileSync(routeFile(domain), 'utf8');
+function domainRouteFiles(domain: string): string[] {
+    const directory = domainDirectory(domain);
+    const files = [routeFile(domain)];
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name === 'handlers') continue;
+        const capabilityRoutes = path.join(directory, entry.name, 'routes.ts');
+        if (fs.existsSync(capabilityRoutes)) files.push(capabilityRoutes);
+    }
+    return files;
+}
+
+function handlerImportsFromSource(source: string): HandlerImport[] {
     const imports: HandlerImport[] = [];
-    const pattern = /import\s+([^;]+?)\s+from\s+['"]@\/domains\/([^/]+)\/handlers\/([^'"]+)['"];/g;
+    const pattern =
+        /import\s+([^;]+?)\s+from\s+['"]@\/domains\/[a-z-]+\/([a-z-]+)\/((?:[a-z-]+\/)?handlers\/[^'"]+)['"];/g;
     for (const match of source.matchAll(pattern)) {
         const clause = match[1].trim();
         const body = clause.startsWith('{') ? clause.slice(1, -1) : clause;
@@ -188,9 +230,14 @@ function handlerImports(domain: string): HandlerImport[] {
     return imports;
 }
 
+function handlerImports(domain: string): HandlerImport[] {
+    return domainRouteFiles(domain).flatMap((file) =>
+        handlerImportsFromSource(fs.readFileSync(file, 'utf8')));
+}
+
 function handlerFile(entry: HandlerImport): string {
     for (const extension of ['.ts', '.tsx']) {
-        const candidate = path.join(domainRoot, entry.domain, 'handlers', `${entry.module}${extension}`);
+        const candidate = path.join(domainDirectory(entry.domain), `${entry.module}${extension}`);
         if (fs.existsSync(candidate)) return candidate;
     }
     throw new Error(`Missing handler module for ${entry.domain}/${entry.module}`);
@@ -243,7 +290,7 @@ function maskNonCode(source: string): string {
 function responseImports(source: string, domain: string): string[] {
     const escapedDomain = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const pattern = new RegExp(
-        `import\\s+(?:type\\s+)?([^;]+?)\\s+from\\s+['"]@/domains/${escapedDomain}/[^'"]*response['"];`,
+        `import\\s+(?:type\\s+)?([^;]+?)\\s+from\\s+['"]@/domains/[a-z-]+/${escapedDomain}/[^'"]*response['"];`,
         'g'
     );
     const names: string[] = [];
@@ -289,7 +336,7 @@ function firstJsonArguments(source: string): string[] {
 function routeRegistrations(source: string): string[] {
     const code = maskNonCode(source);
     const registrations: string[] = [];
-    const calls = /\bapp\s*\.\s*(all|delete|get|on|options|patch|post|put)\s*\(/g;
+    const calls = /\b(?:app|routes)\s*\.\s*(all|delete|get|on|options|patch|post|put)\s*\(/g;
     for (const match of code.matchAll(calls)) {
         if (!routeMethods.has(match[1])) continue;
         const opening = code.indexOf('(', match.index);
@@ -385,12 +432,13 @@ function constValidatorOutput(declaration: string): string | null {
     return declared?.[1] ?? null;
 }
 
-test('route handler inventory remains explicit and complete for all 18 domains', () => {
+test('route handler inventory remains explicit and complete for all 17 domains', () => {
     const actual: Record<string, string[]> = {};
     for (const domain of Object.keys(expectedRouteHandlers).sort()) {
         const imported = handlerImports(domain);
         assert.ok(imported.every((entry) => entry.domain === domain), `${domain} imports another domain handler`);
-        const registrations = routeRegistrations(fs.readFileSync(routeFile(domain), 'utf8'));
+        const registrations = domainRouteFiles(domain).flatMap((file) =>
+            routeRegistrations(fs.readFileSync(file, 'utf8')));
         for (const entry of imported) {
             assert.ok(
                 registrations.some((registration) => new RegExp(`\\b${entry.symbol}\\b`).test(registration)),
@@ -404,13 +452,56 @@ test('route handler inventory remains explicit and complete for all 18 domains',
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([domain, handlers]) => [domain, [...handlers].sort()]));
     assert.deepEqual(actual, expected);
-    assert.equal(Object.values(actual).flat().length, 128);
+    assert.equal(Object.values(actual).flat().length, 127);
+});
+
+test('capability domains compose named capabilities from their root routes', () => {
+    const mountedCapabilities = {
+        'platform-auth': ['oauth', 'password-reset', 'registration', 'sessions'],
+        fudaba: ['cards', 'claims', 'directory', 'locations', 'moderation', 'offices'],
+        namecards: ['moderation', 'public-cards', 'reactions', 'submissions']
+    } as const;
+    const composedCapabilities = {
+        wiki: ['catalog', 'media', 'stories']
+    } as const;
+    for (const [domain, names] of Object.entries(composedCapabilities)) {
+        const root = fs.readFileSync(routeFile(domain), 'utf8');
+        assert.doesNotMatch(root, /domains\/[^'"\s]+\/handlers\//);
+        for (const name of names) {
+            assert.match(
+                root,
+                new RegExp(`domains/${domainSections[domain]}/${domain}/${name}/routes`)
+            );
+            const capability = fs.readFileSync(
+                path.join(domainDirectory(domain), name, 'routes.ts'),
+                'utf8'
+            );
+            assert.match(capability, /domains\/[^'"\s]+\/handlers\//);
+        }
+    }
+    for (const [domain, names] of Object.entries(mountedCapabilities)) {
+        const root = fs.readFileSync(routeFile(domain), 'utf8');
+        assert.match(root, /\.route\(/);
+        for (const name of names) {
+            assert.match(
+                root,
+                new RegExp(`domains/${domainSections[domain]}/${domain}/${name}/routes`)
+            );
+            const capability = fs.readFileSync(
+                path.join(domainDirectory(domain), name, 'routes.ts'),
+                'utf8'
+            );
+            assert.match(capability, /domains\/[^'"\s]+\/handlers\//);
+        }
+    }
 });
 
 test('route handlers use validated request models and named multipart parsers', () => {
     const failures: string[] = [];
     for (const domain of Object.keys(expectedRouteHandlers)) {
-        const routeSource = fs.readFileSync(routeFile(domain), 'utf8');
+        const routeSource = domainRouteFiles(domain)
+            .map((file) => fs.readFileSync(file, 'utf8'))
+            .join('\n');
         const aliases = validatorAliases(routeSource);
         const routeCode = maskNonCode(routeSource);
         const entries = handlerImports(domain);
@@ -475,12 +566,13 @@ test('route handlers adopt field-level JSON DTOs or explicit non-JSON response b
     }
 
     for (const domain of Object.keys(expectedRouteHandlers)) {
-        const directory = path.join(domainRoot, domain);
-        for (const filename of fs.readdirSync(directory)) {
-            if (!/response\.tsx?$/.test(filename)) continue;
-            const source = fs.readFileSync(path.join(directory, filename), 'utf8');
+        for (const filename of domainSourceFiles(domainDirectory(domain))) {
+            if (!/(?:^|[/-])response\.tsx?$/.test(filename)) continue;
+            const source = fs.readFileSync(filename, 'utf8');
             if (/\bRecord\s*<\s*string\s*,\s*unknown\s*>/.test(maskNonCode(source))) {
-                failures.push(`${domain}/${filename}: Record<string, unknown> is not a field-level DTO`);
+                failures.push(
+                    `${path.relative(domainRoot, filename)}: Record<string, unknown> is not a field-level DTO`
+                );
             }
         }
     }
@@ -491,7 +583,7 @@ test('route handlers adopt field-level JSON DTOs or explicit non-JSON response b
 test('exported request contracts define concrete validated fields across all domains', () => {
     const failures: string[] = [];
     for (const domain of Object.keys(expectedRouteHandlers)) {
-        for (const filename of domainSourceFiles(path.join(domainRoot, domain))) {
+        for (const filename of domainSourceFiles(domainDirectory(domain))) {
             const source = fs.readFileSync(filename, 'utf8');
             const code = maskNonCode(source);
             const label = path.relative(domainRoot, filename);

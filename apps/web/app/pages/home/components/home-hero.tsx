@@ -10,16 +10,14 @@ export function SeriesWall() {
       className="relative isolate overflow-hidden bg-neutral-950 text-white"
       aria-labelledby="home-heading"
     >
-      <div
-        className="grid h-76 grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-112 lg:grid-cols-6"
-      >
+      <div className="grid h-76 grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-112 lg:grid-cols-6">
         {seriesItems.map((series) => (
           <a
             key={series.name}
             data-testid="series-band"
             href={series.href}
             className={cn(
-              "group relative min-w-0 overflow-hidden focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:ring-inset focus-visible:outline-none",
+              "group relative min-w-0 overflow-hidden focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:outline-none focus-visible:ring-inset",
               series.background
             )}
             aria-label={series.name}
@@ -43,10 +41,7 @@ export function SeriesWall() {
       />
       <div className="relative z-10 flex min-h-44 items-center justify-center bg-neutral-950 px-5 text-center lg:pointer-events-none lg:absolute lg:inset-0 lg:min-h-0 lg:bg-transparent">
         <div className="max-w-3xl text-white">
-          <h1
-            id="home-heading"
-            className="text-3xl font-semibold sm:text-5xl"
-          >
+          <h1 id="home-heading" className="text-3xl font-semibold sm:text-5xl">
             THE iDOLM@STER
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg/7 sm:text-xl/8">

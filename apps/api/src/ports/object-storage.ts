@@ -66,6 +66,9 @@ export interface ObjectStorage {
     deletePrefix(prefix: string): Promise<void>;
     close?(): void | Promise<void>;
     publish?(key: string): Promise<void>;
+    protect?(key: string): Promise<void>;
+    currentObjectId?(key: string): Promise<string | null>;
+    protectIfObjectId?(key: string, expectedObjectId: string): Promise<boolean>;
     reconcilePlacement?(key: string): Promise<boolean>;
     recoverStaleUploads?(limit?: number, staleSeconds?: number): Promise<void>;
 }

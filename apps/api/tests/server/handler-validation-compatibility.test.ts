@@ -1,3 +1,4 @@
+import { namecardPageSchema } from '@imsweb/contracts/namecards';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
@@ -6,7 +7,7 @@ import type {
     AdminAccountRepository,
     AuditLogInput,
     AuditRepository,
-    AuthRepository,
+    BackofficeAuthRepository,
     EventRepository,
     NamecardRepository,
     NewsRepository,
@@ -132,7 +133,7 @@ function createCompatibilityFixture(
         },
         async deleteNews(id) { calls.newsDelete.push(id); }
     };
-    const auth: AuthRepository = {
+    const backofficeAuth: BackofficeAuthRepository = {
         async findUserByUsername() { return null; },
         async findUserById(id) {
             calls.authFind.push(id);
@@ -180,7 +181,7 @@ function createCompatibilityFixture(
         async createAdminAccount() { throw new Error('unexpected admin account create'); },
         async deleteAdminAccount(id) {
             calls.adminDelete.push(id);
-            return true;
+            return 'deleted';
         }
     };
     const audit: AuditRepository = {
@@ -215,13 +216,13 @@ function createCompatibilityFixture(
     const services: RuntimeServices = {
         adminAccounts,
         audit,
-        auth,
+        backofficeAuth,
         events,
         namecards,
         news,
         story,
         storage,
-        tokens: {
+        backofficeTokens: {
             async sign() { return 'op-token'; },
             async verify(token) {
                 if (token === 'regular-token') {
@@ -323,6 +324,8 @@ test('a valid anonymous receipt can read and withdraw only the pending revision'
     const seenWithdrawals: Array<[number, string, number]> = [];
     const pending = {
         id: 19,
+        seriesCode: null,
+        favoriteIdols: [],
         image1_url: '/uploads/namecard/original/front.webp',
         image2_url: '/uploads/namecard/original/back.webp',
         status: 'pending' as const,
@@ -361,6 +364,8 @@ test('a valid anonymous receipt can read and withdraw only the pending revision'
         success: true,
         submission: {
             id: 19,
+            seriesCode: null,
+            favoriteIdols: [],
             image1_url: '/uploads/namecard/original/front.webp',
             image2_url: '/uploads/namecard/original/back.webp',
             status: 'withdrawn',
@@ -594,228 +599,27 @@ test('approve and reject surface 用户已撤回 (410) once the user withdraws',
     assert.deepEqual(fixture.calls.audit, []);
 });
 
-test('resubmit moves a withdrawn/rejected submission back to pending and audits it', async () => {
-    const withdrawn = {
-        id: 19,
-        image1_url: '/uploads/namecard/original/front.webp',
-        image2_url: '/uploads/namecard/original/back.webp',
-        hash1: 'front-hash',
-        hash2: 'back-hash',
-        status: 'withdrawn' as const,
-        created_at: '2026-08-11T00:00:00.000Z',
-        revision: 3
-    };
-    const seenResubmits: Array<[number, string, number]> = [];
+test('guest namecard image replacement and resubmission routes are not exposed', async () => {
     const fixture = createCompatibilityFixture({
-        async findSubmissionWithHashesByTokenHash(id) {
-            assert.equal(id, 19);
-            return withdrawn;
-        },
-        async findCardByOrderedHashes() { return null; },
-        async resubmitSubmission(id, tokenHash, expectedRevision) {
-            seenResubmits.push([id, tokenHash, expectedRevision]);
-            return {
-                status: 'updated',
-                card: { ...withdrawn, status: 'pending', revision: 4 }
-            };
-        }
-    });
-    const headers = { 'X-Namecard-Withdrawal-Token': 'a'.repeat(64) };
-    const response = await fixture.request('/api/namecards/submissions/19/resubmit', {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expected_revision: 3 })
-    });
-
-    assert.equal(response.status, 200);
-    assert.deepEqual(await responseJson(response), {
-        success: true,
-        submission: {
-            id: 19,
-            image1_url: '/uploads/namecard/original/front.webp',
-            image2_url: '/uploads/namecard/original/back.webp',
-            status: 'pending',
-            created_at: '2026-08-11T00:00:00.000Z',
-            revision: 4
-        }
-    });
-    assert.equal(seenResubmits.length, 1);
-    assert.equal(seenResubmits[0][0], 19);
-    assert.equal(seenResubmits[0][2], 3);
-    assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
-        action: '重新送审名片投稿',
-        target: 'card_id=19;revision=4'
-    }]);
-});
-
-test('resubmit rejects non-editable statuses and duplicate hashes without writing', async () => {
-    const active = {
-        id: 19,
-        image1_url: '/uploads/namecard/original/front.webp',
-        image2_url: '/uploads/namecard/original/back.webp',
-        hash1: 'front-hash',
-        hash2: 'back-hash',
-        status: 'pending' as const,
-        created_at: '2026-08-11T00:00:00.000Z',
-        revision: 2
-    };
-    const headers = {
-        'X-Namecard-Withdrawal-Token': 'a'.repeat(64),
-        'Content-Type': 'application/json'
-    };
-
-    const notEditable = createCompatibilityFixture({
-        async findSubmissionWithHashesByTokenHash() { return active; },
-        async resubmitSubmission() { throw new Error('must not resubmit'); }
-    });
-    const pendingResponse = await notEditable.request('/api/namecards/submissions/19/resubmit', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ expected_revision: 2 })
-    });
-    assert.equal(pendingResponse.status, 409);
-    assert.deepEqual(await responseJson(pendingResponse), {
-        error: 'Submission changed; refresh and retry',
-        revision: 2
-    });
-    assert.deepEqual(notEditable.calls.audit, []);
-
-    const duplicate = createCompatibilityFixture({
-        async findSubmissionWithHashesByTokenHash() {
-            return { ...active, status: 'withdrawn', revision: 3 };
-        },
-        async findCardByOrderedHashes() { return { id: 99 }; },
-        async resubmitSubmission() { throw new Error('must not resubmit'); }
-    });
-    const duplicateResponse = await duplicate.request('/api/namecards/submissions/19/resubmit', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ expected_revision: 3 })
-    });
-    assert.equal(duplicateResponse.status, 409);
-    assert.deepEqual(await responseJson(duplicateResponse), { msg: '重复上传' });
-    assert.deepEqual(duplicate.calls.audit, []);
-});
-
-test('replacing an image on a non-editable submission returns 409 without touching storage', async () => {
-    const approved = {
-        id: 19,
-        image1_url: '/uploads/namecard/original/front.webp',
-        image2_url: '/uploads/namecard/original/back.webp',
-        hash1: 'front-hash',
-        hash2: 'back-hash',
-        status: 'approved' as const,
-        created_at: '2026-08-11T00:00:00.000Z',
-        revision: 4
-    };
-    const fixture = createCompatibilityFixture({
-        async findSubmissionWithHashesByTokenHash() { return approved; },
+        async resubmitSubmission() { throw new Error('must not resubmit'); },
         async replaceSubmissionImage() { throw new Error('must not replace'); }
     });
-    const response = await fixture.request('/api/namecards/submissions/19/images/front?expected_revision=4', {
-        method: 'POST',
-        headers: { 'X-Namecard-Withdrawal-Token': 'a'.repeat(64) }
-    });
-    assert.equal(response.status, 409);
-    assert.deepEqual(await responseJson(response), {
-        error: 'Submission changed; refresh and retry',
-        revision: 4
-    });
+    for (const pathname of [
+        '/api/namecards/submissions/19/resubmit',
+        '/api/namecards/submissions/19/images/front?expected_revision=3'
+    ]) {
+        const response = await fixture.request(pathname, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Namecard-Withdrawal-Token': 'a'.repeat(64)
+            },
+            body: JSON.stringify({ expected_revision: 3 })
+        });
+        assert.equal(response.status, 404);
+    }
     assert.deepEqual(fixture.calls.audit, []);
     assert.equal(fixture.calls.storageWrites, 0);
-});
-
-test('replacing a withdrawn/rejected submission image commits the new side and cleans the old one', async () => {
-    const withdrawn = {
-        id: 19,
-        image1_url: '/uploads/namecard/original/front.webp',
-        image2_url: '/uploads/namecard/original/back.webp',
-        hash1: 'front-hash',
-        hash2: 'back-hash',
-        status: 'withdrawn' as const,
-        created_at: '2026-08-11T00:00:00.000Z',
-        revision: 3
-    };
-    const seenReplace: Array<{ id: number; side: string; revision: number; url: string; hash: string }> = [];
-    const fixture = createCompatibilityFixture({
-        async findSubmissionWithHashesByTokenHash(id) {
-            assert.equal(id, 19);
-            return withdrawn;
-        },
-        async findCardByOrderedHashes() { return null; },
-        async replaceSubmissionImage(id, _tokenHash, expectedRevision, side, imageUrl, hash) {
-            seenReplace.push({ id, side, revision: expectedRevision, url: imageUrl, hash });
-            return {
-                status: 'updated',
-                card: {
-                    ...withdrawn,
-                    image1_url: '/uploads/namecard/original/new-front.webp',
-                    revision: 4
-                }
-            };
-        }
-    }, {
-        uploads: {
-            async parse() {
-                return {
-                    fields: {},
-                    files: {
-                        image: {
-                            filename: 'replacement.png',
-                            contentType: 'image/png',
-                            body: new Uint8Array([1, 2, 3])
-                        }
-                    }
-                };
-            }
-        },
-        images: {
-            async validate() { return { format: 'png', width: 100, height: 100, contentType: 'image/png' }; },
-            async toWebp() { return new Uint8Array([4, 5, 6]); },
-            async thumbnailPng() { return new Uint8Array(); },
-            async resizeJpeg() { return new Uint8Array(); }
-        },
-        storage: {
-            async get() { return null; },
-            async put() {
-                return { body: new Uint8Array(), size: 0, contentType: 'image/webp', etag: 'etag' };
-            },
-            async delete() {},
-            async publish() {},
-            async exists() { return false; },
-            async copy() {},
-            async move() {},
-            async list() { return []; },
-            async deletePrefix() {}
-        }
-    });
-    const response = await fixture.request('/api/namecards/submissions/19/images/front?expected_revision=3', {
-        method: 'POST',
-        headers: { 'X-Namecard-Withdrawal-Token': 'a'.repeat(64) }
-    });
-
-    assert.equal(response.status, 200);
-    assert.deepEqual(await responseJson(response), {
-        success: true,
-        submission: {
-            id: 19,
-            image1_url: '/uploads/namecard/original/new-front.webp',
-            image2_url: '/uploads/namecard/original/back.webp',
-            status: 'withdrawn',
-            created_at: '2026-08-11T00:00:00.000Z',
-            revision: 4
-        }
-    });
-    assert.equal(seenReplace.length, 1);
-    assert.equal(seenReplace[0].id, 19);
-    assert.equal(seenReplace[0].side, 'front');
-    assert.equal(seenReplace[0].revision, 3);
-    assert.ok(seenReplace[0].url.startsWith('/uploads/namecard/original/'));
-    assert.match(seenReplace[0].hash, /^[a-f0-9]{32}$/);
-    assert.deepEqual(fixture.calls.audit.map(({ action, target }) => ({ action, target })), [{
-        action: '重新上传名片图片',
-        target: 'card_id=19;side=front;revision=4'
-    }]);
 });
 
 test('invalid information IDs retain not-found responses and JSON body validation precedence', async () => {
@@ -1037,7 +841,9 @@ test('namecard public and admin pagination preserve parseInt aliases and fallbac
     for (const [query, repositoryArgs] of publicCases) {
         const response = await fixture.request(`/api/cards?${query}`);
         assert.equal(response.status, 200, query);
-        assert.deepEqual(await responseJson(response), { list: [], total: 0, totalPage: 0 });
+        const cardsBody = await responseJson(response);
+        namecardPageSchema.parse(cardsBody);
+        assert.deepEqual(cardsBody, { list: [], total: 0, totalPage: 0 });
         assert.deepEqual(fixture.calls.namecardListApproved.at(-1), repositoryArgs, query);
     }
 

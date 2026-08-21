@@ -649,7 +649,7 @@ async function main() {
         parseProducerMapContent,
         serializeProducerMapContent,
         validateProducerMapDraft
-    } = require('../../src/domains/producer-map/data.ts');
+    } = require('../../src/domains/content/producer-map/data.ts');
     const source = await readLegacySource(options.sourceBaseUrl, PRODUCER_MAP_PROVINCES);
     const media = await stageSourceMedia(source, options.staging, producerMapAssetObjectKey);
     const { closeNodeServices, resolveNodeServices } = require('../../src/runtime/node-services.ts');

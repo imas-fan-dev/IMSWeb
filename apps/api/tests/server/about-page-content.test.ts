@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHonoApp } from '@/app';
-import { parseAboutPageContent, type AboutPageContent } from '@/domains/about/data';
+import { parseAboutPageContent, type AboutPageContent } from '@/domains/content/about/data';
 import type {
     ListedObject,
     ObjectStorage,
@@ -151,7 +151,7 @@ function fixture() {
             async insertAuditLog(input) { audit.push(input); },
             async listRecentAuditLogs() { return []; }
         },
-        tokens: {
+        backofficeTokens: {
             async sign() { return 'about-token'; },
             async verify() {
                 return {

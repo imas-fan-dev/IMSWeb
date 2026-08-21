@@ -3,8 +3,12 @@ import type {
     AdminAccountRepository,
     AuditLogInput,
     AuditRepository,
-    AuthRepository,
+    BackofficeAccountRecord,
+    BackofficeAuthRepository,
+    BackofficeRefreshSessionRecord,
+    CardIdolSelectionRecord,
     CardMediaRecord,
+    DeleteAdminAccountResult,
     DeleteSitePackageRevisionInput,
     EventRepository,
     EventInput,
@@ -16,34 +20,45 @@ import type {
     NamecardApprovalClaim,
     NamecardEditResult,
     NamecardMutationResult,
+    NamecardPublicRecord,
+    NamecardSubmissionKind,
     NamecardSubmissionRecord,
     NamecardSubmissionWithHashesRecord,
     NewAdminAccountInput,
     NewHomepageLinkInput,
-    NewRefreshSessionInput,
+    NewBackofficeRefreshSessionInput,
     NewSitePackageInput,
     NewSitePackageRevisionInput,
     NewsRepository,
     NewsInput,
     PendingCardInput,
     ReactionRepository,
-    RefreshSessionRecord,
     SitePackageRecord,
     SitePackagePublicationResult,
     SitePackageRepository,
     SitePackageRevisionDeletionResult,
     SitePackageRevisionRecord,
-    SitePackageWithRevisions,
-    UserRecord
+    SitePackageWithRevisions
 } from '@/ports/repositories';
 import type {
     ManagedSqlDatabase,
+    SqlDatabase,
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
 import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/query';
 
+type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_idols'>;
+
+type NamecardIdolRow = {
+    card_id: number | string;
+    idol_id: number | string;
+    agency_code: string;
+    name_cn: string;
+    display_order: number | string;
+};
+
 export class SqlCoreRepository implements
-    AuthRepository,
+    BackofficeAuthRepository,
     AdminAccountRepository,
     AuditRepository,
     NewsRepository,
@@ -68,18 +83,27 @@ export class SqlCoreRepository implements
         return this.database.close();
     }
 
-    findUserByUsername(username: string): Promise<UserRecord | null> {
-        return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE username=?', [username]);
+    findUserByUsername(username: string): Promise<BackofficeAccountRecord | null> {
+        return queryOne<BackofficeAccountRecord>(
+            this.database,
+            `SELECT * FROM ${this.backofficeAccountsTable} WHERE username=?`,
+            [username]
+        );
     }
 
-    findUserById(id: number): Promise<UserRecord | null> {
-        return queryOne<UserRecord>(this.database, 'SELECT * FROM users WHERE id=?', [id]);
+    findUserById(id: number): Promise<BackofficeAccountRecord | null> {
+        return queryOne<BackofficeAccountRecord>(
+            this.database,
+            `SELECT * FROM ${this.backofficeAccountsTable} WHERE id=?`,
+            [id]
+        );
     }
 
     async ensureSuperAdmin(username?: string): Promise<void> {
         const current = await queryAll<AdminAccountRecord>(this.database,
             `SELECT id, username, producername, admin_role
-             FROM users WHERE dept='op' AND admin_role='super_admin'`
+             FROM ${this.backofficeAccountsTable}
+             WHERE dept='op' AND admin_role='super_admin'`
         );
         if (current.length > 1) throw new Error('Multiple super administrators are configured');
         if (current.length === 1) {
@@ -100,7 +124,7 @@ export class SqlCoreRepository implements
             throw new Error('IMS_SUPER_ADMIN_USERNAME must identify an existing op account');
         }
         const result = await executeSql(this.database,
-            `UPDATE users SET admin_role='super_admin'
+            `UPDATE ${this.backofficeAccountsTable} SET admin_role='super_admin'
              WHERE id=? AND dept='op' AND admin_role='admin'`,
             [target.id]
         );
@@ -112,7 +136,7 @@ export class SqlCoreRepository implements
     listAdminAccounts(): Promise<AdminAccountRecord[]> {
         return queryAll<AdminAccountRecord>(this.database,
             `SELECT id, username, producername, admin_role
-             FROM users
+             FROM ${this.backofficeAccountsTable}
              WHERE dept='op' AND admin_role IN ('admin', 'super_admin')
              ORDER BY CASE admin_role WHEN 'super_admin' THEN 0 ELSE 1 END, id`
         );
@@ -120,7 +144,8 @@ export class SqlCoreRepository implements
 
     async createAdminAccount(input: NewAdminAccountInput): Promise<AdminAccountRecord> {
         const created = await queryOne<AdminAccountRecord>(this.database,
-            `INSERT INTO users (username, password, dept, producername, admin_role)
+            `INSERT INTO ${this.backofficeAccountsTable}
+             (username, password, dept, producername, admin_role)
              VALUES (?, ?, 'op', ?, 'admin')
              RETURNING id, username, producername, admin_role`,
             [input.username, input.passwordHash, input.producername]
@@ -129,23 +154,43 @@ export class SqlCoreRepository implements
         return created;
     }
 
-    async deleteAdminAccount(id: number): Promise<boolean> {
-        const result = await executeSql(this.database,
-            `DELETE FROM users WHERE id=? AND dept='op' AND admin_role='admin'`,
-            [id]
-        );
-        return result.meta.changes === 1;
+    async deleteAdminAccount(id: number): Promise<DeleteAdminAccountResult> {
+        try {
+            const result = await executeSql(this.database,
+                `DELETE FROM ${this.backofficeAccountsTable}
+                 WHERE id=? AND dept='op' AND admin_role='admin'`,
+                [id]
+            );
+            return result.meta.changes === 1 ? 'deleted' : 'not-deletable';
+        } catch (error) {
+            if (this.isModerationActorReference(error)) return 'moderation-history';
+            throw error;
+        }
     }
 
-    async createRefreshSession(input: NewRefreshSessionInput): Promise<void> {
+    private isModerationActorReference(error: unknown): boolean {
+        if (!(error instanceof Error)) return false;
+        const databaseError = error as Error & { code?: string; constraint?: string };
+        if (databaseError.code === '23001' || databaseError.code === '23503') {
+            return new Set([
+                'fudaba_moderation_cases_backoffice_actor_fk',
+                'fudaba_office_public_locations_reviewed_by_fkey'
+            ]).has(databaseError.constraint ?? '');
+        }
+        return databaseError.code?.startsWith('SQLITE_CONSTRAINT') === true &&
+            /FOREIGN KEY constraint failed/i.test(databaseError.message);
+    }
+
+    async createRefreshSession(input: NewBackofficeRefreshSessionInput): Promise<void> {
         await executeSql(this.database,
-            `INSERT INTO auth_refresh_sessions
-             (id, user_id, token_hash, previous_token_hash, csrf_hash,
+            `INSERT INTO ${this.backofficeRefreshSessionsTable}
+             (id, ${this.backofficeRefreshAccountIdColumn}, token_hash,
+              previous_token_hash, csrf_hash,
               expires_at, created_at, updated_at, revoked_at)
              VALUES (?, ?, ?, NULL, ?, ?, ?, ?, NULL)`,
             [
                 input.id,
-                input.userId,
+                input.accountId,
                 input.tokenHash,
                 input.csrfHash,
                 input.expiresAt,
@@ -155,9 +200,14 @@ export class SqlCoreRepository implements
         );
     }
 
-    findRefreshSessionByTokenHash(tokenHash: string): Promise<RefreshSessionRecord | null> {
-        return queryOne<RefreshSessionRecord>(this.database,
-            `SELECT * FROM auth_refresh_sessions
+    findRefreshSessionByTokenHash(
+        tokenHash: string
+    ): Promise<BackofficeRefreshSessionRecord | null> {
+        return queryOne<BackofficeRefreshSessionRecord>(this.database,
+            `SELECT id, ${this.backofficeRefreshAccountIdColumn} AS account_id,
+                    token_hash, previous_token_hash, csrf_hash, expires_at,
+                    created_at, updated_at, revoked_at
+             FROM ${this.backofficeRefreshSessionsTable}
              WHERE token_hash=? OR previous_token_hash=?
              ORDER BY CASE WHEN token_hash=? THEN 0 ELSE 1 END
              LIMIT 1`,
@@ -173,7 +223,7 @@ export class SqlCoreRepository implements
         updatedAt: number;
     }): Promise<boolean> {
         const result = await executeSql(this.database,
-            `UPDATE auth_refresh_sessions
+            `UPDATE ${this.backofficeRefreshSessionsTable}
              SET previous_token_hash=token_hash, token_hash=?, expires_at=?, updated_at=?
              WHERE id=? AND token_hash=? AND revoked_at IS NULL AND expires_at>?`,
             [
@@ -190,7 +240,7 @@ export class SqlCoreRepository implements
 
     async revokeRefreshSession(id: string, revokedAt: number): Promise<void> {
         await executeSql(this.database,
-            `UPDATE auth_refresh_sessions
+            `UPDATE ${this.backofficeRefreshSessionsTable}
              SET revoked_at=COALESCE(revoked_at, ?), updated_at=?
              WHERE id=?`,
             [revokedAt, revokedAt, id]
@@ -200,9 +250,22 @@ export class SqlCoreRepository implements
     async deleteExpiredRefreshSessions(now: number): Promise<void> {
         await executeSql(
             this.database,
-            'DELETE FROM auth_refresh_sessions WHERE expires_at<=?',
+            `DELETE FROM ${this.backofficeRefreshSessionsTable} WHERE expires_at<=?`,
             [now]
         );
+    }
+
+    private get backofficeAccountsTable(): 'backoffice_accounts' {
+        return 'backoffice_accounts';
+    }
+
+    private get backofficeRefreshSessionsTable():
+        'auth_refresh_sessions' | 'backoffice_refresh_sessions' {
+        return 'backoffice_refresh_sessions';
+    }
+
+    private get backofficeRefreshAccountIdColumn(): 'account_id' {
+        return 'account_id';
     }
 
     async insertAuditLog(input: AuditLogInput): Promise<void> {
@@ -412,22 +475,144 @@ export class SqlCoreRepository implements
         );
     }
 
-    async insertPendingCard(input: PendingCardInput): Promise<number> {
-        const result = await queryOne<{ id: number }>(this.database,
-            `INSERT INTO cards
-             (image1_url, image2_url, hash1, hash2, ip, status, withdrawal_token_hash)
-             VALUES (?, ?, ?, ?, ?, 'pending', ?) RETURNING id`,
-            [
-                input.image1Url,
-                input.image2Url,
-                input.hash1,
-                input.hash2,
-                input.ip,
-                input.withdrawalTokenHash
-            ]
+    private async validateNamecardSelection(
+        database: SqlDatabase,
+        seriesCode: string | null,
+        idolIds: readonly number[],
+        submissionKind: NamecardSubmissionKind
+    ): Promise<CardIdolSelectionRecord[]> {
+        if (submissionKind === 'guest' && !seriesCode) {
+            throw new Error('Guest namecard submissions require a series code');
+        }
+        if (submissionKind === 'guest' && (idolIds.length < 1 || idolIds.length > 20)) {
+            throw new Error('Guest namecard submissions require between 1 and 20 idols');
+        }
+        if (idolIds.length > 20 || new Set(idolIds).size !== idolIds.length) {
+            throw new Error('Namecard idol selections must be unique and contain at most 20 idols');
+        }
+        if (seriesCode) {
+            const series = await queryOne<{ code: string }>(
+                database,
+                'SELECT code FROM agencies WHERE code=?',
+                [seriesCode]
+            );
+            if (!series) throw new Error('Namecard series does not exist');
+        }
+        if (!idolIds.length) return [];
+        const placeholders = idolIds.map(() => '?').join(', ');
+        const rows = await queryAll<Omit<NamecardIdolRow, 'card_id' | 'display_order'>>(
+            database,
+            `SELECT idol.id AS idol_id, agency.code AS agency_code, idol.name_cn
+             FROM idols idol
+             JOIN agencies agency ON agency.id=idol.agency_id
+             WHERE idol.id IN (${placeholders}) AND idol.deleted_at IS NULL`,
+            idolIds
         );
-        if (!result) throw new Error('Card insert did not return an ID');
-        return result.id;
+        const byId = new Map(rows.map((row) => [Number(row.idol_id), row]));
+        if (byId.size !== idolIds.length) {
+            throw new Error('One or more selected namecard idols do not exist');
+        }
+        return idolIds.map((idolId, displayOrder) => {
+            const idol = byId.get(idolId)!;
+            return {
+                idol_id: idolId,
+                agency_code: idol.agency_code,
+                name_cn: idol.name_cn,
+                display_order: displayOrder
+            };
+        });
+    }
+
+    private async listNamecardIdols(
+        database: SqlDatabase,
+        cardIds: readonly number[]
+    ): Promise<Map<number, CardIdolSelectionRecord[]>> {
+        const grouped = new Map<number, CardIdolSelectionRecord[]>();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (!cardIds.length) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const rows = await queryAll<NamecardIdolRow>(
+            database,
+            `SELECT selected.card_id, selected.idol_id, agency.code AS agency_code,
+                    idol.name_cn, selected.display_order
+             FROM namecard_idols selected
+             JOIN idols idol ON idol.id=selected.idol_id
+             JOIN agencies agency ON agency.id=idol.agency_id
+             WHERE selected.card_id IN (${placeholders})
+             ORDER BY selected.card_id, selected.display_order`,
+            cardIds
+        );
+        for (const row of rows) {
+            grouped.get(Number(row.card_id))?.push({
+                idol_id: Number(row.idol_id),
+                agency_code: row.agency_code,
+                name_cn: row.name_cn,
+                display_order: Number(row.display_order)
+            });
+        }
+        return grouped;
+    }
+
+    private async attachNamecardIdols<Row extends NamecardSubmissionRow>(
+        database: SqlDatabase,
+        rows: readonly Row[]
+    ): Promise<Array<Row & { favorite_idols: CardIdolSelectionRecord[] }>> {
+        const idols = await this.listNamecardIdols(database, rows.map((row) => row.id));
+        return rows.map((row) => {
+            const favoriteIdols = idols.get(row.id) ?? [];
+            return {
+                ...row,
+                favorite_idols: favoriteIdols,
+                seriesCode: row.series_code ?? null,
+                submissionKind: row.submission_kind ?? 'legacy',
+                favoriteIdols
+            };
+        });
+    }
+
+    private async attachOneNamecard(
+        database: SqlDatabase,
+        row: NamecardSubmissionRow | null
+    ): Promise<NamecardSubmissionRecord | null> {
+        if (!row) return null;
+        return (await this.attachNamecardIdols(database, [row]))[0] ?? null;
+    }
+
+    async insertPendingCard(input: PendingCardInput): Promise<number> {
+        const submissionKind = input.submissionKind ?? 'guest';
+        const idolIds = input.idolIds ?? [];
+        return this.database.transaction(async (database) => {
+            const idols = await this.validateNamecardSelection(
+                database,
+                input.seriesCode ?? null,
+                idolIds,
+                submissionKind
+            );
+            const result = await queryOne<{ id: number }>(database,
+                `INSERT INTO cards
+                 (image1_url, image2_url, hash1, hash2, ip, status,
+                  withdrawal_token_hash, series_code, submission_kind)
+                 VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?) RETURNING id`,
+                [
+                    input.image1Url,
+                    input.image2Url,
+                    input.hash1,
+                    input.hash2,
+                    input.ip,
+                    input.withdrawalTokenHash,
+                    input.seriesCode ?? null,
+                    submissionKind
+                ]
+            );
+            if (!result) throw new Error('Card insert did not return an ID');
+            if (idols.length) {
+                await database.batch(idols.map((idol) => database.prepare(
+                    `INSERT INTO namecard_idols (card_id, idol_id, display_order)
+                     VALUES (?, ?, ?)`
+                ).bind(result.id, idol.idol_id, idol.display_order)));
+            }
+            return result.id;
+        });
     }
 
     async countApprovedCards(): Promise<number> {
@@ -444,45 +629,52 @@ export class SqlCoreRepository implements
         return row?.total ?? 0;
     }
 
-    listApprovedCards(limit: number, offset: number): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database,
-            `SELECT id, image1_url, image2_url, status, created_at FROM cards
+    async listApprovedCards(limit: number, offset: number): Promise<NamecardPublicRecord[]> {
+        const rows = await queryAll<NamecardSubmissionRow>(this.database,
+            `SELECT id, image1_url, image2_url, status, revision, series_code,
+                    submission_kind, created_at
+             FROM cards
              WHERE status='approved' ORDER BY id DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
+        return await this.attachNamecardIdols(this.database, rows) as NamecardPublicRecord[];
     }
 
-    findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
-        return queryOne(this.database,
-            "SELECT id, image1_url, image2_url, status FROM cards WHERE id=? AND status='approved'",
+    async findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
+        const row = await queryOne<NamecardSubmissionRow>(this.database,
+            `SELECT id, image1_url, image2_url, status, revision, series_code,
+                    submission_kind, created_at
+             FROM cards WHERE id=? AND status='approved'`,
             [id]
         );
+        return this.attachOneNamecard(this.database, row);
     }
 
-    listAdminCards(limit: number, offset: number): Promise<Record<string, unknown>[]> {
-        return queryAll(this.database,
-            `SELECT id, image1_url, image2_url, status, revision
-             FROM cards WHERE status NOT IN ('withdrawn','rejected') ORDER BY id DESC LIMIT ? OFFSET ?`,
+    async listAdminCards(limit: number, offset: number): Promise<NamecardSubmissionRecord[]> {
+        const rows = await queryAll<NamecardSubmissionRow>(this.database,
+            `SELECT id, image1_url, image2_url, status, revision, series_code,
+                    submission_kind, created_at
+             FROM cards WHERE status NOT IN ('withdrawn','rejected')
+             ORDER BY id DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
+        return this.attachNamecardIdols(this.database, rows);
     }
 
     async beginCardApproval(
         id: number,
         expectedRevision: number
     ): Promise<NamecardApprovalClaim> {
-        const claimed = await queryOne<NamecardSubmissionRecord>(this.database,
+        const claimedRow = await queryOne<NamecardSubmissionRow>(this.database,
             `UPDATE cards SET status='approving', revision=revision+1
              WHERE id=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+             RETURNING id, image1_url, image2_url, status, revision, series_code,
+                       submission_kind, created_at`,
             [id, expectedRevision]
         );
+        const claimed = await this.attachOneNamecard(this.database, claimedRow);
         if (claimed) return { status: 'claimed', card: claimed };
-        const current = await queryOne<NamecardSubmissionRecord>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, created_at
-             FROM cards WHERE id=?`,
-            [id]
-        );
+        const current = await this.findSubmission(id);
         if (!current) return { status: 'not-found' };
         if (current.status === 'withdrawn') {
             return { status: 'withdrawn', revision: current.revision };
@@ -500,18 +692,16 @@ export class SqlCoreRepository implements
         id: number,
         approvingRevision: number
     ): Promise<NamecardMutationResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
             `UPDATE cards SET status='approved', revision=revision+1
              WHERE id=? AND status='approving' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+             RETURNING id, image1_url, image2_url, status, revision, series_code,
+                       submission_kind, created_at`,
             [id, approvingRevision]
         );
+        const updated = await this.attachOneNamecard(this.database, updatedRow);
         if (updated) return { status: 'updated', card: updated };
-        const current = await queryOne<NamecardSubmissionRecord>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, created_at
-             FROM cards WHERE id=?`,
-            [id]
-        );
+        const current = await this.findSubmission(id);
         if (!current) return { status: 'not-found' };
         if (current.status === 'approved' && current.revision === approvingRevision + 1) {
             return { status: 'updated', card: current };
@@ -519,40 +709,48 @@ export class SqlCoreRepository implements
         return { status: 'conflict', revision: current.revision };
     }
 
-    findCardMedia(id: number): Promise<CardMediaRecord | null> {
-        return queryOne(this.database,
-            'SELECT id, image1_url, image2_url, status, revision FROM cards WHERE id=?',
-            [id]
-        );
+    async findCardMedia(id: number): Promise<CardMediaRecord | null> {
+        return this.findSubmission(id);
     }
 
     async deleteCard(id: number, expectedRevision: number): Promise<NamecardMutationResult> {
-        const deleted = await queryOne<NamecardSubmissionRecord>(this.database,
-            `DELETE FROM cards WHERE id=? AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
-            [id, expectedRevision]
-        );
-        if (deleted) return { status: 'updated', card: deleted };
-        const current = await queryOne<{ revision: number }>(this.database,
-            'SELECT revision FROM cards WHERE id=?', [id]);
-        return current
-            ? { status: 'conflict', revision: current.revision }
-            : { status: 'not-found' };
+        return this.database.transaction(async (database) => {
+            const currentRow = await queryOne<NamecardSubmissionRow>(database,
+                `SELECT id, image1_url, image2_url, status, revision, series_code,
+                        submission_kind, created_at
+                 FROM cards WHERE id=? FOR UPDATE`,
+                [id]
+            );
+            const current = await this.attachOneNamecard(database, currentRow);
+            if (!current) return { status: 'not-found' };
+            if (current.revision !== expectedRevision) {
+                return { status: 'conflict', revision: current.revision };
+            }
+            const deleted = await executeSql(
+                database,
+                'DELETE FROM cards WHERE id=? AND revision=?',
+                [id, expectedRevision]
+            );
+            return deleted.meta.changes === 1
+                ? { status: 'updated', card: current }
+                : { status: 'conflict', revision: current.revision };
+        });
     }
 
     async rejectSubmission(
         id: number,
         expectedRevision: number
     ): Promise<NamecardMutationResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
             `UPDATE cards SET status='rejected', rejected_at=CURRENT_TIMESTAMP, revision=revision+1
              WHERE id=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+             RETURNING id, image1_url, image2_url, status, revision, series_code,
+                       submission_kind, created_at`,
             [id, expectedRevision]
         );
+        const updated = await this.attachOneNamecard(this.database, updatedRow);
         if (updated) return { status: 'updated', card: updated };
-        const current = await queryOne<{ status: string; revision: number }>(this.database,
-            'SELECT status, revision FROM cards WHERE id=?', [id]);
+        const current = await this.findSubmission(id);
         if (!current) return { status: 'not-found' };
         if (current.status === 'withdrawn') {
             return { status: 'withdrawn', revision: current.revision };
@@ -572,26 +770,41 @@ export class SqlCoreRepository implements
         );
     }
 
+    private async findSubmission(
+        id: number,
+        tokenHash?: string
+    ): Promise<NamecardSubmissionRecord | null> {
+        const row = await queryOne<NamecardSubmissionRow>(this.database,
+            `SELECT id, image1_url, image2_url, status, revision, series_code,
+                    submission_kind, created_at
+             FROM cards WHERE id=?${tokenHash === undefined
+                ? ''
+                : ' AND withdrawal_token_hash=?'}`,
+            tokenHash === undefined ? [id] : [id, tokenHash]
+        );
+        return this.attachOneNamecard(this.database, row);
+    }
+
     findSubmissionByTokenHash(
         id: number,
         tokenHash: string
     ): Promise<NamecardSubmissionRecord | null> {
-        return queryOne(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, created_at
-             FROM cards WHERE id=? AND withdrawal_token_hash=?`,
-            [id, tokenHash]
-        );
+        return this.findSubmission(id, tokenHash);
     }
 
-    findSubmissionWithHashesByTokenHash(
+    async findSubmissionWithHashesByTokenHash(
         id: number,
         tokenHash: string
     ): Promise<NamecardSubmissionWithHashesRecord | null> {
-        return queryOne(this.database,
-            `SELECT id, image1_url, image2_url, hash1, hash2, status, revision, created_at
+        const row = await queryOne<NamecardSubmissionRow & { hash1: string; hash2: string }>(
+            this.database,
+            `SELECT id, image1_url, image2_url, hash1, hash2, status, revision,
+                    series_code, submission_kind, created_at
              FROM cards WHERE id=? AND withdrawal_token_hash=?`,
             [id, tokenHash]
         );
+        return this.attachOneNamecard(this.database, row) as
+            Promise<NamecardSubmissionWithHashesRecord | null>;
     }
 
     async withdrawSubmission(
@@ -599,12 +812,14 @@ export class SqlCoreRepository implements
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardMutationResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
             `UPDATE cards SET status='withdrawn', withdrawn_at=CURRENT_TIMESTAMP, revision=revision+1
              WHERE id=? AND withdrawal_token_hash=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+             RETURNING id, image1_url, image2_url, status, revision, series_code,
+                       submission_kind, created_at`,
             [id, tokenHash, expectedRevision]
         );
+        const updated = await this.attachOneNamecard(this.database, updatedRow);
         if (updated) return { status: 'updated', card: updated };
         const current = await this.findSubmissionByTokenHash(id, tokenHash);
         if (!current) return { status: 'not-found' };
@@ -620,12 +835,14 @@ export class SqlCoreRepository implements
         hash: string
     ): Promise<NamecardEditResult> {
         const column = side === 'front' ? 'image1_url=?, hash1=?' : 'image2_url=?, hash2=?';
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
             `UPDATE cards SET ${column}, revision=revision+1
              WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+             RETURNING id, image1_url, image2_url, status, revision, series_code,
+                       submission_kind, created_at`,
             [imageUrl, hash, id, tokenHash, expectedRevision]
         );
+        const updated = await this.attachOneNamecard(this.database, updatedRow);
         if (updated) return { status: 'updated', card: updated };
         const current = await this.findSubmissionByTokenHash(id, tokenHash);
         if (!current) return { status: 'not-found' };
@@ -637,23 +854,28 @@ export class SqlCoreRepository implements
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardEditResult> {
-        const updated = await queryOne<NamecardSubmissionRecord>(this.database,
+        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
             `UPDATE cards SET status='pending', withdrawn_at=NULL, rejected_at=NULL, revision=revision+1
              WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, created_at`,
+             RETURNING id, image1_url, image2_url, status, revision, series_code,
+                       submission_kind, created_at`,
             [id, tokenHash, expectedRevision]
         );
+        const updated = await this.attachOneNamecard(this.database, updatedRow);
         if (updated) return { status: 'updated', card: updated };
         const current = await this.findSubmissionByTokenHash(id, tokenHash);
         if (!current) return { status: 'not-found' };
         return { status: 'conflict', revision: current.revision };
     }
 
-    findCardByMediaUrl(url: string): Promise<CardMediaRecord | null> {
-        return queryOne(this.database,
-            'SELECT id, image1_url, image2_url, status FROM cards WHERE image1_url=? OR image2_url=? LIMIT 1',
+    async findCardByMediaUrl(url: string): Promise<CardMediaRecord | null> {
+        const row = await queryOne<NamecardSubmissionRow>(this.database,
+            `SELECT id, image1_url, image2_url, status, revision, series_code,
+                    submission_kind, created_at
+             FROM cards WHERE image1_url=? OR image2_url=? LIMIT 1`,
             [url, url]
         );
+        return this.attachOneNamecard(this.database, row);
     }
 
     findApprovedCard(id: number): Promise<{ id: number } | null> {

@@ -35,6 +35,8 @@ export type S3ReadUrlSigner = (
     expiresInSeconds: number
 ) => Promise<string>;
 
+class StaleObjectVersionError extends Error {}
+
 interface ResolvedObject {
     physicalKey: string;
     storageScope: S3StorageScope;
@@ -101,7 +103,9 @@ function isMissing(error: unknown): boolean {
 
 function encodeMetadata(metadata: Record<string, string> | undefined): Record<string, string> {
     return Object.fromEntries(
-        Object.entries(metadata || {}).map(([key, value]) => [key, encodeURIComponent(value)])
+        Object.entries(metadata || {})
+            .filter(([key]) => key.toLowerCase() !== 'ownertoken')
+            .map(([key, value]) => [key, encodeURIComponent(value)])
     );
 }
 
@@ -287,7 +291,6 @@ export class S3ObjectStorage implements ObjectStorage {
             return null;
         }
         const contentType = options.contentType || contentTypeForPath(logicalKey);
-        let uploaded = false;
         try {
             const result = await this.client.send(new PutObjectCommand({
                 Bucket: this.options.bucket,
@@ -297,13 +300,9 @@ export class S3ObjectStorage implements ObjectStorage {
                 Metadata: {
                     ...encodeMetadata(options.metadata),
                     sha256: digest,
-                    logicalKey: encodeURIComponent(logicalKey),
-                    ...(options.ownerToken
-                        ? { ownerToken: encodeURIComponent(options.ownerToken) }
-                        : {})
+                    logicalKey: encodeURIComponent(logicalKey)
                 }
             }));
-            uploaded = true;
             const etag = result.ETag || `"${digest}"`;
             const completed = await this.state.completeUpload(operation, {
                 size: body.byteLength,
@@ -324,7 +323,7 @@ export class S3ObjectStorage implements ObjectStorage {
             return this.storedObject(body, contentType, etag, new Date());
         } catch (error) {
             await this.state.abortUpload(operation.id).catch(() => undefined);
-            if (uploaded) await this.cleanupPhysicalObject(objectId, error);
+            await this.cleanupPhysicalObject(objectId, error);
             throw error;
         }
     }
@@ -422,10 +421,12 @@ export class S3ObjectStorage implements ObjectStorage {
     private async copyVersion(
         source: ResolvedObject,
         destinationKey: string,
-        ownerToken: string | null
+        ownerToken: string | null,
+        protectedAccess = false,
+        expectedDestinationObjectId?: string
     ): Promise<void> {
         const logicalKey = normalizeKey(destinationKey);
-        const storageScope = this.targetScope();
+        const storageScope = this.targetScope(protectedAccess);
         const objectId = crypto.randomUUID();
         const physicalKey = this.physicalObjectKey(logicalKey, objectId, storageScope);
         const operation = await this.state.beginUpload(
@@ -435,8 +436,13 @@ export class S3ObjectStorage implements ObjectStorage {
             storageScope,
             'ready'
         );
-        let copied = false;
         try {
+            if (
+                expectedDestinationObjectId !== undefined &&
+                operation.previousObjectId !== expectedDestinationObjectId
+            ) {
+                throw new StaleObjectVersionError('Concurrent S3 object mutation');
+            }
             const result = await this.client.send(new CopyObjectCommand({
                 Bucket: this.options.bucket,
                 Key: physicalKey,
@@ -446,7 +452,6 @@ export class S3ObjectStorage implements ObjectStorage {
                 ),
                 MetadataDirective: 'COPY'
             }));
-            copied = true;
             const completed = await this.state.completeUpload(operation, {
                 size: source.version.size,
                 contentType: source.version.contentType,
@@ -460,7 +465,7 @@ export class S3ObjectStorage implements ObjectStorage {
             }
         } catch (error) {
             await this.state.abortUpload(operation.id).catch(() => undefined);
-            if (copied) await this.cleanupPhysicalObject(objectId, error);
+            await this.cleanupPhysicalObject(objectId, error);
             throw error;
         }
     }
@@ -526,6 +531,52 @@ export class S3ObjectStorage implements ObjectStorage {
         const supersededObjectIds = await this.state.publish(logicalKey);
         for (const objectId of supersededObjectIds) {
             await this.cleanupPhysicalObject(objectId, undefined, true);
+        }
+    }
+
+    currentObjectId(key: string): Promise<string | null> {
+        return this.state.currentObjectId(normalizeKey(key));
+    }
+
+    async protect(key: string): Promise<void> {
+        const protectedCurrent = await this.protectCurrentVersion(key);
+        if (!protectedCurrent) throw new Error('S3 object not found');
+    }
+
+    protectIfObjectId(key: string, expectedObjectId: string): Promise<boolean> {
+        return this.protectCurrentVersion(key, expectedObjectId);
+    }
+
+    private async protectCurrentVersion(
+        key: string,
+        expectedObjectId?: string
+    ): Promise<boolean> {
+        const logicalKey = normalizeKey(key);
+        const snapshot = await this.state.snapshot(logicalKey);
+        if (!snapshot || (
+            expectedObjectId !== undefined && snapshot.objectId !== expectedObjectId
+        )) {
+            return false;
+        }
+        const resolved = {
+            physicalKey: this.physicalKeyForVersion(snapshot),
+            storageScope: snapshot.storageScope,
+            version: snapshot
+        };
+        if (!await this.physicalExists(resolved)) return false;
+        if (snapshot.storageScope === this.targetScope(true)) return true;
+        try {
+            await this.copyVersion(
+                resolved,
+                logicalKey,
+                snapshot.ownerToken,
+                true,
+                expectedObjectId ?? snapshot.objectId
+            );
+            return true;
+        } catch (error) {
+            if (error instanceof StaleObjectVersionError) return false;
+            throw error;
         }
     }
 

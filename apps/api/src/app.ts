@@ -1,3 +1,4 @@
+import { apiPath, platformAuthPath, siteContentPath, wikiPath } from '@imsweb/contracts/paths';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requestId, type RequestIdVariables } from 'hono/request-id';
@@ -9,38 +10,54 @@ import {
     validatedRequestPath
 } from '@/middleware/rate-limit';
 import type { RuntimeServices, ResolveServices } from '@/ports/runtime-services';
-import type { JwtClaims } from '@/ports/security';
+import type { BackofficeJwtClaims, PlatformJwtClaims } from '@/ports/security';
+import type { PlatformAccountWithProfile } from '@/ports/repositories';
 import { requestCompletionLogger } from '@/middleware/request-observability';
 import { isSensitiveRequestPath } from '@/middleware/static-path-policy';
-import { registerAuditRoutes } from '@/domains/audit/routes';
-import { registerAdminAccountRoutes } from '@/domains/admin-accounts/routes';
-import { registerAboutRoutes } from '@/domains/about/routes';
-import { registerAuthRoutes } from '@/domains/auth/routes';
-import { registerBrandAssetRoutes } from '@/domains/brand-assets/routes';
-import { registerChronicleRoutes } from '@/domains/chronicle/routes';
-import { registerEventRoutes } from '@/domains/events/routes';
-import { registerInformationRoutes } from '@/domains/information/routes';
-import { registerHomepageLinkRoutes } from '@/domains/homepage-links/routes';
-import { registerLiveScheduleRoutes } from '@/domains/live-schedule/routes';
-import { registerMediaRoutes } from '@/domains/media/routes';
-import { registerNamecardRoutes } from '@/domains/namecards/routes';
-import { registerNewsRoutes } from '@/domains/news/routes';
-import { registerProducerMapRoutes } from '@/domains/producer-map/routes';
-import { registerReactionRoutes } from '@/domains/reactions/routes';
-import { registerSiteRoutes } from '@/domains/site/routes';
-import { registerSitePackageRoutes } from '@/domains/site-packages/routes';
-import { registerWikiRoutes } from '@/domains/wiki/index';
+import { registerAuditRoutes } from '@/domains/admin/audit/routes';
+import { registerAdminAccountRoutes } from '@/domains/admin/admin-accounts/routes';
+import { registerAboutRoutes } from '@/domains/content/about/routes';
+import { registerBackofficeAuthRoutes } from '@/domains/admin/backoffice-auth/routes';
+import { registerBrandAssetRoutes } from '@/domains/content/brand-assets/routes';
+import { registerChronicleRoutes } from '@/domains/content/chronicle/routes';
+import { registerEventRoutes } from '@/domains/content/events/routes';
+import { registerFudabaRoutes } from '@/domains/community/fudaba/routes';
+import { registerInformationRoutes } from '@/domains/content/information/routes';
+import { registerHomepageLinkRoutes } from '@/domains/content/homepage-links/routes';
+import { registerLiveScheduleRoutes } from '@/domains/content/live-schedule/routes';
+import { registerMediaRoutes } from '@/domains/delivery/media/routes';
+import { registerNamecardRoutes } from '@/domains/community/namecards/routes';
+import { registerNewsRoutes } from '@/domains/content/news/routes';
+import { registerProducerMapRoutes } from '@/domains/content/producer-map/routes';
+import { registerPlatformAuthRoutes } from '@/domains/identity/platform-auth/routes';
+import { registerPlatformProfileRoutes } from '@/domains/identity/platform-profile/routes';
+import { registerSiteRoutes } from '@/domains/delivery/site/routes';
+import { registerSitePackageRoutes } from '@/domains/delivery/site-packages/routes';
+import { registerWikiRoutes } from '@/domains/content/wiki/routes';
 
 export interface AppEnvironment {
     Bindings: object;
     Variables: RequestIdVariables & {
         services: RuntimeServices;
-        user?: JwtClaims;
-        authSource?: 'authorization' | 'cookie';
+        backofficeUser?: BackofficeJwtClaims;
+        backofficeAuthSource?: 'authorization' | 'cookie' | 'legacy-cookie';
+        platformUser?: PlatformJwtClaims;
+        platformAccount?: PlatformAccountWithProfile;
+        platformAuthSource?: 'authorization' | 'cookie';
     };
 }
 
 export type ImsHonoApp = Hono<AppEnvironment>;
+
+function allowedCorsOrigin(origin: string): string | null {
+    try {
+        const parsed = new URL(origin);
+        const localHost = ['127.0.0.1', '::1', 'localhost'].includes(parsed.hostname);
+        return localHost && ['http:', 'https:'].includes(parsed.protocol) ? origin : null;
+    } catch {
+        return null;
+    }
+}
 
 export interface CreateHonoAppOptions {
     requestLogging?: boolean;
@@ -55,14 +72,14 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     app.use('*', requestId({ limitLength: 128 }));
     app.use('*', requestCompletionLogger(options.requestLogging === true));
     app.use('*', async (c, next) => {
-        if (c.req.path === '/api/health/live' || c.req.path === '/api/wiki/test') {
+        if (c.req.path === apiPath('/health/live') || c.req.path === wikiPath('/test')) {
             return next();
         }
         let runtime: RuntimeServices;
         try {
             runtime = await resolveServices(c.env as Bindings);
         } catch (error) {
-            if (c.req.path === '/api/health/ready') {
+            if (c.req.path === apiPath('/health/ready')) {
                 if (options.requestLogging) {
                     console.warn(JSON.stringify({
                         event: 'health_readiness_failed',
@@ -79,14 +96,20 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     });
 
     app.use('*', async (c, next) => {
-        const rawPath = new URL(c.req.raw.url).pathname;
+        let rawPath: string;
+        try {
+            rawPath = new URL(c.req.raw.url).pathname;
+        } catch {
+            return c.text('Forbidden', 403);
+        }
         if (isSensitiveRequestPath(rawPath)) {
             return c.text('Forbidden', 403);
         }
         await next();
     });
 
-    app.use('*', cors());
+    // pi-lens-ignore: cors-wildcard
+    app.use('*', cors({ origin: allowedCorsOrigin }));
     app.use('*', secureHeaders({
         crossOriginEmbedderPolicy: false,
         crossOriginResourcePolicy: 'cross-origin',
@@ -95,14 +118,24 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     }));
     app.use('*', async (c, next) => {
         await next();
-        const pathname = new URL(c.req.raw.url).pathname;
+        let pathname = '';
+        try {
+            pathname = new URL(c.req.raw.url).pathname;
+        } catch {
+            pathname = '';
+        }
         if (
-            pathname !== '/site-content' &&
-            !pathname.startsWith('/site-content/') &&
+            pathname !== siteContentPath() &&
+            !pathname.startsWith(siteContentPath('/')) &&
             !c.res.headers.has('X-Frame-Options')
         ) {
             c.header('X-Frame-Options', 'SAMEORIGIN');
         }
+    });
+    app.use(platformAuthPath('/*'), async (c, next) => {
+        await next();
+        c.header('Cache-Control', 'private, no-store');
+        c.header('Vary', 'Authorization, Cookie', { append: true });
     });
     app.use('*', requestRateLimit());
     app.use('*', jsonBodyLimit());
@@ -119,8 +152,8 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
         await next();
     });
 
-    app.get('/api/health/live', (c) => c.json({ status: 'ok' }));
-    app.get('/api/health/ready', async (c) => {
+    app.get(apiPath('/health/live'), (c) => c.json({ status: 'ok' }));
+    app.get(apiPath('/health/ready'), async (c) => {
         const health = c.get('services').health;
         if (!health) return c.json({ status: 'unavailable' }, 503);
         try {
@@ -139,16 +172,18 @@ export function createHonoApp<Bindings extends object = Record<string, unknown>>
     });
 
     // Kept as a compatibility probe for existing clients.
-    app.get('/api/wiki/test', (c) => c.json({ status: 'ok' }));
+    app.get(wikiPath('/test'), (c) => c.json({ status: 'ok' }));
 
-    registerReactionRoutes(app);
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);
     registerBrandAssetRoutes(app);
-    registerAuthRoutes(app);
+    registerBackofficeAuthRoutes(app);
+    registerPlatformAuthRoutes(app);
+    registerPlatformProfileRoutes(app);
     registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);
+    registerFudabaRoutes(app);
     registerNewsRoutes(app);
     registerHomepageLinkRoutes(app);
     registerInformationRoutes(app);

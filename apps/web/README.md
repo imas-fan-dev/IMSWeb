@@ -96,7 +96,7 @@ tests/e2e/            浏览器流程与可访问性冒烟测试
 - `components/ui/` 只承载可复用的基础原语；跨页面业务组件应在 `app/components/` 下按领域组织。
 - 所有请求函数、schema 和 API 类型统一定义在 `app/lib/api/endpoints/`，经 `~/lib/api` 出口调用。页面不得直接使用 `fetch`、`apiClient`、API 内部子路径或页面本地 `api.ts`。
 - 不再使用 `app/features/`；新增页面必须进入 `app/pages/` 对应层级。
-- `public/` 不接收私有 Legacy 资产。新增文件必须有明确用途、来源和许可状态，并登记在 [资产来源记录](docs/ASSET_PROVENANCE.md) 中。
+- `public/` 不接收私有 Legacy 资产。新增文件必须有明确用途、来源和许可状态，并登记在 [资产来源记录](../../docs/governance/assets.md) 中。
 - Hono 路由与服务端领域逻辑不进入本仓库；接口契约的源头仍是上游 `apps/api`。
 
 ## 同源 Cookie 与 CSRF
@@ -105,7 +105,11 @@ tests/e2e/            浏览器流程与可访问性冒烟测试
 
 `app/lib/api/` 对每个请求设置 `credentials: "same-origin"`，登录会话 Cookie 的签发、校验和失效仍由 Hono 负责。不要把会话 token 复制到 `localStorage`，也不要在页面中直接读取认证 Cookie。
 
-需要 Hono CSRF 保护的写请求必须显式附加 `withCsrf()` 元数据。客户端会在发送前读取当前 `csrf_token` Cookie，并写入 `X-CSRFToken` 请求头；缺少 Cookie 时请求会在浏览器端失败。`same-origin` Cookie 策略不能替代 CSRF 标记，新增写接口时必须同时核对 Hono 的中间件要求。
+需要 Hono 后台 CSRF 保护的写请求必须使用 `adminApiClient`，并显式附加
+`withBackofficeCsrf()` 元数据。客户端会在发送前读取当前后台身份域的 `csrf_token`
+Cookie，并写入 `X-CSRFToken` 请求头；缺少 Cookie 时请求会在浏览器端失败。
+`same-origin` Cookie 策略不能替代 CSRF 标记，新增写接口时必须同时核对 Hono 的
+中间件要求。公开请求继续使用 `apiClient`，不得触发后台 refresh。
 
 ## 路由所有权
 
@@ -113,7 +117,8 @@ React Router 当前拥有以下页面：
 
 - 预渲染公开页面：`/`、`/about`、`/events`、`/recommendations`、`/live`、
   `/community`、`/community/cards`、`/works`、`/works/:workSlug`
-  的已登记专题、`/wiki`、`/wiki/classic`、`/story`、`/story/classic`、`/chronicle`
+  的已登记专题、新版 `/wiki`、`/story` 及其 `/modern` 兼容入口、经典版
+  `/wiki/classic`、`/story/classic`、`/chronicle`
 - 动态前端页面：`/information/:contentId`、`/chronicle/:activityId`
 - 后台页面：`/admin`、`/admin/login`、`/admin/events`、`/admin/cards`、
   `/admin/chronicle` 与其他 `/admin/*` 业务页
@@ -151,4 +156,4 @@ React Router 预渲染在引入 loader 后可能生成 `.data` 文件。部署�
 ## 公开资产
 
 Web 不包含从私有 Legacy 仓库迁入的图片、字体、音视频或品牌标识。新增公开资产前必须完成
-[来源与许可登记](docs/ASSET_PROVENANCE.md)。
+[来源与许可登记](../../docs/governance/assets.md)。

@@ -8,7 +8,7 @@ import {
     uploadedPng,
     type WikiFixture
 } from './fixture';
-import { categoryStorageSlug } from '@/domains/wiki/service';
+import { categoryStorageSlug } from '@/domains/content/wiki/service';
 
 const WRITE_ENDPOINTS = [
     { method: 'POST', path: '/api/wiki/add_story' },

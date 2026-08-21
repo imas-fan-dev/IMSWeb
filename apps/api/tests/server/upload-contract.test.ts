@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { test } from 'node:test';
 import sharp from 'sharp';
-import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
+import { normalizeNamecardImage } from '@/domains/community/namecards/namecard-image';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
 import {
@@ -130,6 +130,33 @@ for (const [name, parser] of [
         await assert.rejects(parser.parse(request, {
             maxBytes: 64,
             fileFields: ['image']
+        }), (error: Error & { status?: number }) => error.status === 413);
+    });
+
+    test(`${name} multipart parser accepts exactly maxParts and rejects the next part`, async () => {
+        const exact = new FormData();
+        exact.append('expectedRevision', '1');
+        exact.append('image', new Blob(['image'], { type: 'text/plain' }), 'image.txt');
+        const parsed = await parser.parse(await materializedMultipartRequest(exact), {
+            maxBytes: 4096,
+            fileFields: ['image'],
+            maxFiles: 1,
+            maxFields: 1,
+            maxParts: 2
+        });
+        assert.equal(parsed.fields.expectedRevision, '1');
+        assert.equal(Array.isArray(parsed.files.image), false);
+
+        const extra = new FormData();
+        extra.append('expectedRevision', '1');
+        extra.append('cardId', 'card-1');
+        extra.append('image', new Blob(['image'], { type: 'text/plain' }), 'image.txt');
+        await assert.rejects(parser.parse(await materializedMultipartRequest(extra), {
+            maxBytes: 4096,
+            fileFields: ['image'],
+            maxFiles: 1,
+            maxFields: 3,
+            maxParts: 2
         }), (error: Error & { status?: number }) => error.status === 413);
     });
 

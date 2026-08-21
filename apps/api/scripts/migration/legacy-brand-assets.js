@@ -373,7 +373,7 @@ async function main() {
     }
     const {
         BRAND_ASSET_DEFINITIONS
-    } = require('../../src/domains/brand-assets/data.ts');
+    } = require('../../src/domains/content/brand-assets/data.ts');
     const assets = await stageAssets(
         BRAND_ASSET_DEFINITIONS,
         options.sourceBaseUrl,

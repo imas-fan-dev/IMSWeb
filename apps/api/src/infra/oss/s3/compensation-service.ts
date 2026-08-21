@@ -114,6 +114,17 @@ export class S3CompensationService implements CompensationService {
                 } else {
                     await storage.delete(payload.key);
                 }
+            } else if (job.kind === 'protect-object') {
+                if (typeof payload.key !== 'string' || !payload.key) {
+                    throw new Error('Invalid object key');
+                }
+                if (typeof payload.objectId !== 'string' || !payload.objectId) {
+                    throw new Error('Invalid S3 object ID');
+                }
+                if (!storage.protectIfObjectId) {
+                    throw new Error('Version-fenced object protection is unavailable');
+                }
+                await storage.protectIfObjectId(payload.key, payload.objectId);
             } else if (job.kind === 'delete-s3-object') {
                 if (typeof payload.objectId !== 'string' || !payload.objectId) {
                     throw new Error('Invalid S3 object ID');

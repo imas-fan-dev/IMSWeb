@@ -6,7 +6,7 @@ import {
     NAMECARD_THUMBNAIL_HEIGHT,
     NAMECARD_THUMBNAIL_MAX_INPUT_PIXELS,
     NAMECARD_THUMBNAIL_WIDTH
-} from '@/domains/namecards/media-assets';
+} from '@/domains/community/namecards/media-assets';
 import { closeNodeServices, createNodeServices } from '@/runtime/node-services';
 import {
     namecardMediaObjectKeys

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createNodeServices } from '@/runtime/node-services';
-import { agencyIconObjectKey, idolMediaObjectKey, storyObjectKey } from '@/domains/wiki/service';
+import { agencyIconObjectKey, idolMediaObjectKey, storyObjectKey } from '@/domains/content/wiki/service';
 import type { NodeRuntimeServices } from '@/ports/runtime-services';
 
 interface Options {
@@ -271,7 +271,7 @@ async function closeServices(services: NodeRuntimeServices) {
     await Promise.allSettled([
         services.storage.close?.(),
         services.story.close?.(),
-        (services.auth as { close?: () => Promise<void> }).close?.()
+        (services.backofficeAuth as { close?: () => Promise<void> }).close?.()
     ].filter((operation): operation is Promise<void> => Boolean(operation)));
 }
 

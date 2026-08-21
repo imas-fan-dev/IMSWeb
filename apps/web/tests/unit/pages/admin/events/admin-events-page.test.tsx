@@ -275,9 +275,9 @@ describe("AdminEventsPage", () => {
 
     expect(await screen.findByText("广州交流活动")).toBeVisible()
     expect(screen.queryByText("较早的活动")).not.toBeInTheDocument()
-    await userEvent.setup().click(
-      screen.getByRole("button", { name: "加载更多" })
-    )
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "加载更多" }))
     expect(await screen.findByText("较早的活动")).toBeVisible()
     expect(requestedCursors).toEqual([null, "cursor-page-2"])
   })
