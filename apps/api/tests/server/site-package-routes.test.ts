@@ -490,10 +490,23 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     const stable = await app.request('http://main.test/sites/hiro-2026');
     assert.equal(stable.status, 200);
+    const stableHtml = await stable.text();
     assert.match(
-        await stable.text(),
+        stableHtml,
         new RegExp(`src="http://main\\.test/site-content/hiro-2026/${publishedId}/"`)
     );
+    assert.match(stableHtml, /<nav aria-label="站点导航">/);
+    assert.match(
+        stableHtml,
+        /<a class="site-return" href="\/" aria-label="返回 IMSWeb 主站"/
+    );
+    assert.match(stableHtml, /bottom: max\(12px, env\(safe-area-inset-bottom\)\);/);
+    assert.match(stableHtml, /left: env\(safe-area-inset-left, 0px\);/);
+    assert.doesNotMatch(stableHtml, /top: 50%;|translateY\(-50%\)/);
+    assert.match(stableHtml, /@media \(hover: hover\) and \(pointer: fine\)/);
+    assert.match(stableHtml, /@media \(prefers-reduced-motion: reduce\)/);
+    assert.match(stableHtml, /iframe \{ display: block; width: 100%; height: 100%; height: 100dvh;/);
+    assert.doesNotMatch(stableHtml, /<header>/);
     assert.match(stable.headers.get('content-security-policy') || '',
         /frame-src http:\/\/main\.test/);
     assert.equal(stable.headers.get('x-frame-options'), 'DENY');
