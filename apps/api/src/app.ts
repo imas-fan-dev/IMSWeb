@@ -113,7 +113,7 @@ export function createHonoApp<
             }
             throw error;
         }
-        c.set('services', runtime);
+        c.set("services", runtime);
         await next();
     });
 

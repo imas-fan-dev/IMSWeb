@@ -711,7 +711,7 @@ for (const legacyRuntime of [
 const appSource = fs.readFileSync(path.join(sourceRoot, "app.ts"), "utf8");
 if (
     !appSource.includes("export function createHonoApp") ||
-    !appSource.includes("c.set('services'")
+    !/\bc\.set\((['"])services\1\s*,/.test(appSource)
 ) {
     failures.push(
         "src/app.ts: request-scoped service resolution contract is missing",
