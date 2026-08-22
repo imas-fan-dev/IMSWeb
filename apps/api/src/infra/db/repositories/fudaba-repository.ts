@@ -49,19 +49,19 @@ import type {
     SoftDeleteOwnedFudabaCardInput,
     UpdateOwnedFudabaOfficeInput,
     UpdateOwnedFudabaCardMediaInput,
-    UpdateOwnedFudabaCardMetadataInput
-} from '@/ports/repositories';
+    UpdateOwnedFudabaCardMetadataInput,
+} from "@/ports/repositories";
 import type {
     ManagedSqlDatabase,
     SqlDatabase,
-    SqlSchemaStrategy
-} from '@/infra/db/sql/database';
+    SqlSchemaStrategy,
+} from "@/infra/db/sql/database";
 import {
     executeSql,
     queryAll,
     queryOne,
-    sqlStatement
-} from '@/infra/db/sql/query';
+    sqlStatement,
+} from "@/infra/db/sql/query";
 
 const OFFICE_COLUMNS = `id, owner_account_id, slug, name, intro, city, address,
     latitude, longitude, accent, cover_object_key, pending_cover_object_key,
@@ -98,8 +98,8 @@ const MODERATION_COLUMNS = `id, resource_kind, resource_id,
     reporter_account_id, reason, details, state, backoffice_actor_id,
     resolution, created_at, updated_at, resolved_at`;
 const PUBLIC_OFFICE_COLUMNS = `office.id, office.slug, office.name, office.intro,
-    office.city, office.accent, office.cover_object_key, office.is_open,
-    office.visitor_count`;
+    office.city, office.address, office.accent, office.cover_object_key,
+    office.is_open, office.visitor_count`;
 const OFFICE_PUBLIC_LOCATION_COLUMNS = `office_id, latitude_e1, longitude_e1,
     review_state, revision, submitted_at, reviewed_at, reviewed_by, review_note`;
 const QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS = `location.office_id,
@@ -107,8 +107,8 @@ const QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS = `location.office_id,
     location.revision, location.submitted_at, location.reviewed_at,
     location.reviewed_by, location.review_note`;
 const PUBLIC_MAP_OFFICE_COLUMNS = `office.id, office.slug, office.name,
-    office.city, office.accent, office.is_open, location.latitude_e1,
-    location.longitude_e1`;
+    office.city, office.address, office.accent, office.is_open,
+    location.latitude_e1, location.longitude_e1`;
 const OFFICE_LOCATION_REVIEW_COLUMNS = `${QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS},
     office.name AS office_name, office.city AS office_city,
     office.owner_account_id`;
@@ -146,13 +146,13 @@ class InvalidCardIdolSelectionError extends Error {}
 
 type FudabaOfficeRow = Omit<
     FudabaOfficeRecord,
-    | 'is_open'
-    | 'visitor_count'
-    | 'revision'
-    | 'created_at'
-    | 'updated_at'
-    | 'archived_at'
-    | 'pending_cover_submitted_at'
+    | "is_open"
+    | "visitor_count"
+    | "revision"
+    | "created_at"
+    | "updated_at"
+    | "archived_at"
+    | "pending_cover_submitted_at"
 > & {
     is_open: boolean | number | string;
     visitor_count: number | string;
@@ -165,13 +165,13 @@ type FudabaOfficeRow = Omit<
 
 type FudabaCardRow = Omit<
     FudabaCardRecord,
-    | 'favorite_idols'
-    | 'legacy_card_id'
-    | 'available'
-    | 'revision'
-    | 'created_at'
-    | 'updated_at'
-    | 'deleted_at'
+    | "favorite_idols"
+    | "legacy_card_id"
+    | "available"
+    | "revision"
+    | "created_at"
+    | "updated_at"
+    | "deleted_at"
 > & {
     legacy_card_id: number | string | null;
     available: boolean | number | string;
@@ -191,13 +191,13 @@ type CardIdolSelectionRow = {
 
 type FudabaCardClaimRow = Omit<
     FudabaCardClaimRecord,
-    | 'favorite_idols'
-    | 'legacy_card_id'
-    | 'reviewed_by'
-    | 'reviewed_at'
-    | 'revision'
-    | 'created_at'
-    | 'updated_at'
+    | "favorite_idols"
+    | "legacy_card_id"
+    | "reviewed_by"
+    | "reviewed_at"
+    | "revision"
+    | "created_at"
+    | "updated_at"
 > & {
     legacy_card_id: number | string;
     reviewed_by: number | string | null;
@@ -213,18 +213,18 @@ type FudabaAdminCardClaimRow = FudabaCardClaimRow & {
     legacy_image2_url: string;
 };
 
-type FudabaClaimIdolRow = Omit<CardIdolSelectionRow, 'card_id'> & {
+type FudabaClaimIdolRow = Omit<CardIdolSelectionRow, "card_id"> & {
     claim_id: string;
 };
 
 type FudabaClaimEnvelopeRow = Omit<
     FudabaClaimEnvelopeRecord,
-    | 'id'
-    | 'legacy_card_id'
-    | 'read_at'
-    | 'actioned_at'
-    | 'created_at'
-    | 'revision'
+    | "id"
+    | "legacy_card_id"
+    | "read_at"
+    | "actioned_at"
+    | "created_at"
+    | "revision"
 > & {
     id: number | string;
     legacy_card_id: number | string;
@@ -240,7 +240,7 @@ type FudabaRegisteredCardReviewRow = FudabaCardRow & {
 
 type FudabaExchangeRequestRow = Omit<
     FudabaExchangeRequestRecord,
-    'version' | 'created_at' | 'updated_at' | 'resolved_at'
+    "version" | "created_at" | "updated_at" | "resolved_at"
 > & {
     version: number | string;
     created_at: TimestampValue;
@@ -250,7 +250,7 @@ type FudabaExchangeRequestRow = Omit<
 
 type FudabaModerationCaseRow = Omit<
     FudabaModerationCaseRecord,
-    'backoffice_actor_id' | 'created_at' | 'updated_at' | 'resolved_at'
+    "backoffice_actor_id" | "created_at" | "updated_at" | "resolved_at"
 > & {
     backoffice_actor_id: number | string | null;
     created_at: TimestampValue;
@@ -260,11 +260,11 @@ type FudabaModerationCaseRow = Omit<
 
 type FudabaPublicSeriesRow = Omit<
     FudabaPublicSeriesRecord,
-    'id' | 'display_order' | 'image_transform' | 'active_office_count'
+    "id" | "display_order" | "image_transform" | "active_office_count"
 > & {
     id: number | string;
     display_order: number | string;
-    icon_fit: 'cover' | 'contain';
+    icon_fit: "cover" | "contain";
     icon_focal_x: number | string;
     icon_focal_y: number | string;
     icon_zoom: number | string;
@@ -274,7 +274,7 @@ type FudabaPublicSeriesRow = Omit<
 
 type FudabaPublicOfficeRow = Omit<
     FudabaPublicOfficeRecord,
-    'is_open' | 'visitor_count' | 'series_codes'
+    "is_open" | "visitor_count" | "series_codes"
 > & {
     is_open: boolean | number | string;
     visitor_count: number | string;
@@ -296,12 +296,12 @@ type FudabaMutationReceiptRow = {
 
 type FudabaOfficePublicLocationRow = Omit<
     FudabaOfficePublicLocationRecord,
-    | 'latitude_e1'
-    | 'longitude_e1'
-    | 'revision'
-    | 'submitted_at'
-    | 'reviewed_at'
-    | 'reviewed_by'
+    | "latitude_e1"
+    | "longitude_e1"
+    | "revision"
+    | "submitted_at"
+    | "reviewed_at"
+    | "reviewed_by"
 > & {
     latitude_e1: number | string;
     longitude_e1: number | string;
@@ -313,7 +313,7 @@ type FudabaOfficePublicLocationRow = Omit<
 
 type FudabaPublicMapOfficeRow = Omit<
     FudabaPublicMapOfficeRecord,
-    'is_open' | 'series_codes' | 'latitude_e1' | 'longitude_e1'
+    "is_open" | "series_codes" | "latitude_e1" | "longitude_e1"
 > & {
     is_open: boolean | number | string;
     latitude_e1: number | string;
@@ -328,12 +328,12 @@ type FudabaOfficeLocationReviewRow = FudabaOfficePublicLocationRow & {
 
 type FudabaPublicCardRow = Omit<
     FudabaPublicCardRecord,
-    | 'available'
-    | 'created_at'
-    | 'like_count'
-    | 'favorite_count'
-    | 'viewer_liked'
-    | 'viewer_favorited'
+    | "available"
+    | "created_at"
+    | "like_count"
+    | "favorite_count"
+    | "viewer_liked"
+    | "viewer_favorited"
 > & {
     available: boolean | number | string;
     created_at: TimestampValue;
@@ -356,13 +356,13 @@ type FudabaPublicPlacedCardRow = FudabaPublicCardRow & {
 
 type FudabaCardPlacementRow = Omit<
     FudabaCardPlacementRecord,
-    | 'pinned_at'
-    | 'position_x'
-    | 'position_y'
-    | 'rotation'
-    | 'z_index'
-    | 'revision'
-    | 'updated_at'
+    | "pinned_at"
+    | "position_x"
+    | "position_y"
+    | "rotation"
+    | "z_index"
+    | "revision"
+    | "updated_at"
 > & {
     pinned_at: TimestampValue;
     position_x: number | string;
@@ -374,7 +374,7 @@ type FudabaCardPlacementRow = Omit<
 };
 
 function booleanValue(value: boolean | number | string): boolean {
-    return value === true || value === 1 || value === '1' || value === 'true';
+    return value === true || value === 1 || value === "1" || value === "true";
 }
 
 function timestampValue(value: TimestampValue): string {
@@ -397,8 +397,8 @@ function officeRecord(row: FudabaOfficeRow): FudabaOfficeRecord {
         updated_at: timestampValue(row.updated_at),
         archived_at: nullableTimestampValue(row.archived_at),
         pending_cover_submitted_at: nullableTimestampValue(
-            row.pending_cover_submitted_at
-        )
+            row.pending_cover_submitted_at,
+        ),
     };
 }
 
@@ -406,14 +406,13 @@ function cardRecord(row: FudabaCardRow): FudabaCardRecord {
     return {
         ...row,
         favorite_idols: [],
-        legacy_card_id: row.legacy_card_id === null
-            ? null
-            : Number(row.legacy_card_id),
+        legacy_card_id:
+            row.legacy_card_id === null ? null : Number(row.legacy_card_id),
         available: booleanValue(row.available),
         revision: Number(row.revision),
         created_at: timestampValue(row.created_at),
         updated_at: timestampValue(row.updated_at),
-        deleted_at: nullableTimestampValue(row.deleted_at)
+        deleted_at: nullableTimestampValue(row.deleted_at),
     };
 }
 
@@ -426,20 +425,24 @@ function claimRecord(row: FudabaCardClaimRow): FudabaCardClaimRecord {
         revision: Number(row.revision),
         created_at: timestampValue(row.created_at),
         updated_at: timestampValue(row.updated_at),
-        favorite_idols: []
+        favorite_idols: [],
     };
 }
 
-function adminClaimRecord(row: FudabaAdminCardClaimRow): FudabaAdminCardClaimRecord {
+function adminClaimRecord(
+    row: FudabaAdminCardClaimRow,
+): FudabaAdminCardClaimRecord {
     return {
         ...claimRecord(row),
         claimant_display_name: row.claimant_display_name,
         legacy_image1_url: row.legacy_image1_url,
-        legacy_image2_url: row.legacy_image2_url
+        legacy_image2_url: row.legacy_image2_url,
     };
 }
 
-function envelopeRecord(row: FudabaClaimEnvelopeRow): FudabaClaimEnvelopeRecord {
+function envelopeRecord(
+    row: FudabaClaimEnvelopeRow,
+): FudabaClaimEnvelopeRecord {
     return {
         ...row,
         id: Number(row.id),
@@ -447,42 +450,49 @@ function envelopeRecord(row: FudabaClaimEnvelopeRow): FudabaClaimEnvelopeRecord 
         read_at: nullableTimestampValue(row.read_at),
         actioned_at: nullableTimestampValue(row.actioned_at),
         created_at: timestampValue(row.created_at),
-        revision: Number(row.revision)
+        revision: Number(row.revision),
     };
 }
 
 function registeredCardReviewRecord(
-    row: FudabaRegisteredCardReviewRow
+    row: FudabaRegisteredCardReviewRow,
 ): FudabaRegisteredCardReviewRecord {
     return {
         ...cardRecord(row),
-        owner_display_name: row.owner_display_name
+        owner_display_name: row.owner_display_name,
     };
 }
 
-function exchangeRecord(row: FudabaExchangeRequestRow): FudabaExchangeRequestRecord {
+function exchangeRecord(
+    row: FudabaExchangeRequestRow,
+): FudabaExchangeRequestRecord {
     return {
         ...row,
         version: Number(row.version),
         created_at: timestampValue(row.created_at),
         updated_at: timestampValue(row.updated_at),
-        resolved_at: nullableTimestampValue(row.resolved_at)
+        resolved_at: nullableTimestampValue(row.resolved_at),
     };
 }
 
-function moderationRecord(row: FudabaModerationCaseRow): FudabaModerationCaseRecord {
+function moderationRecord(
+    row: FudabaModerationCaseRow,
+): FudabaModerationCaseRecord {
     return {
         ...row,
-        backoffice_actor_id: row.backoffice_actor_id === null
-            ? null
-            : Number(row.backoffice_actor_id),
+        backoffice_actor_id:
+            row.backoffice_actor_id === null
+                ? null
+                : Number(row.backoffice_actor_id),
         created_at: timestampValue(row.created_at),
         updated_at: timestampValue(row.updated_at),
-        resolved_at: nullableTimestampValue(row.resolved_at)
+        resolved_at: nullableTimestampValue(row.resolved_at),
     };
 }
 
-function publicSeriesRecord(row: FudabaPublicSeriesRow): FudabaPublicSeriesRecord {
+function publicSeriesRecord(
+    row: FudabaPublicSeriesRow,
+): FudabaPublicSeriesRecord {
     return {
         id: Number(row.id),
         code: row.code,
@@ -495,15 +505,15 @@ function publicSeriesRecord(row: FudabaPublicSeriesRow): FudabaPublicSeriesRecor
             focalX: Number(row.icon_focal_x),
             focalY: Number(row.icon_focal_y),
             zoom: Number(row.icon_zoom),
-            rotation: Number(row.icon_rotation) as 0 | 90 | 180 | 270
+            rotation: Number(row.icon_rotation) as 0 | 90 | 180 | 270,
         },
-        active_office_count: Number(row.active_office_count)
+        active_office_count: Number(row.active_office_count),
     };
 }
 
 function publicOfficeRecord(
     row: FudabaPublicOfficeRow,
-    seriesCodes: string[]
+    seriesCodes: string[],
 ): FudabaPublicOfficeRecord {
     return {
         id: row.id,
@@ -511,16 +521,17 @@ function publicOfficeRecord(
         name: row.name,
         intro: row.intro,
         city: row.city,
+        address: row.address,
         accent: row.accent,
         cover_object_key: row.cover_object_key,
         is_open: booleanValue(row.is_open),
         visitor_count: Number(row.visitor_count),
-        series_codes: seriesCodes
+        series_codes: seriesCodes,
     };
 }
 
 function officePublicLocationRecord(
-    row: FudabaOfficePublicLocationRow
+    row: FudabaOfficePublicLocationRow,
 ): FudabaOfficePublicLocationRecord {
     return {
         ...row,
@@ -529,35 +540,36 @@ function officePublicLocationRecord(
         revision: Number(row.revision),
         submitted_at: timestampValue(row.submitted_at),
         reviewed_at: nullableTimestampValue(row.reviewed_at),
-        reviewed_by: row.reviewed_by === null ? null : Number(row.reviewed_by)
+        reviewed_by: row.reviewed_by === null ? null : Number(row.reviewed_by),
     };
 }
 
 function publicMapOfficeRecord(
     row: FudabaPublicMapOfficeRow,
-    seriesCodes: string[]
+    seriesCodes: string[],
 ): FudabaPublicMapOfficeRecord {
     return {
         id: row.id,
         slug: row.slug,
         name: row.name,
         city: row.city,
+        address: row.address,
         accent: row.accent,
         is_open: booleanValue(row.is_open),
         series_codes: seriesCodes,
         latitude_e1: Number(row.latitude_e1),
-        longitude_e1: Number(row.longitude_e1)
+        longitude_e1: Number(row.longitude_e1),
     };
 }
 
 function officeLocationReviewRecord(
-    row: FudabaOfficeLocationReviewRow
+    row: FudabaOfficeLocationReviewRow,
 ): FudabaOfficeLocationReviewRecord {
     return {
         ...officePublicLocationRecord(row),
         office_name: row.office_name,
         office_city: row.office_city,
-        owner_account_id: row.owner_account_id
+        owner_account_id: row.owner_account_id,
     };
 }
 
@@ -582,12 +594,12 @@ function publicCardRecord(row: FudabaPublicCardRow): FudabaPublicCardRecord {
         like_count: Number(row.like_count),
         favorite_count: Number(row.favorite_count),
         viewer_liked: booleanValue(row.viewer_liked),
-        viewer_favorited: booleanValue(row.viewer_favorited)
+        viewer_favorited: booleanValue(row.viewer_favorited),
     };
 }
 
 function publicPlacedCardRecord(
-    row: FudabaPublicPlacedCardRow
+    row: FudabaPublicPlacedCardRow,
 ): FudabaPublicPlacedCardRecord {
     return {
         ...publicCardRecord(row),
@@ -598,12 +610,12 @@ function publicPlacedCardRecord(
         z_index: Number(row.z_index),
         revision: Number(row.revision),
         updated_at: timestampValue(row.updated_at),
-        viewer_owned: booleanValue(row.viewer_owned)
+        viewer_owned: booleanValue(row.viewer_owned),
     };
 }
 
 function cardPlacementRecord(
-    row: FudabaCardPlacementRow
+    row: FudabaCardPlacementRow,
 ): FudabaCardPlacementRecord {
     return {
         office_id: row.office_id,
@@ -614,7 +626,7 @@ function cardPlacementRecord(
         rotation: Number(row.rotation),
         z_index: Number(row.z_index),
         revision: Number(row.revision),
-        updated_at: timestampValue(row.updated_at)
+        updated_at: timestampValue(row.updated_at),
     };
 }
 
@@ -624,7 +636,7 @@ export class SqlFudabaRepository implements FudabaRepository {
 
     constructor(
         private readonly database: ManagedSqlDatabase,
-        private readonly schema: SqlSchemaStrategy
+        private readonly schema: SqlSchemaStrategy,
     ) {}
 
     initialize(): Promise<void> {
@@ -636,9 +648,14 @@ export class SqlFudabaRepository implements FudabaRepository {
         return this.database.close();
     }
 
-    private serializeWrite<Value>(operation: () => Promise<Value>): Promise<Value> {
+    private serializeWrite<Value>(
+        operation: () => Promise<Value>,
+    ): Promise<Value> {
         const result = this.writeTail.then(operation, operation);
-        this.writeTail = result.then(() => undefined, () => undefined);
+        this.writeTail = result.then(
+            () => undefined,
+            () => undefined,
+        );
         return result;
     }
 
@@ -648,31 +665,33 @@ export class SqlFudabaRepository implements FudabaRepository {
 
     private async validateCardIdols(
         database: SqlDatabase,
-        idolIds: readonly number[]
+        idolIds: readonly number[],
     ): Promise<CardIdolSelectionRecord[]> {
         if (idolIds.length < 1 || idolIds.length > 20) {
             throw new InvalidCardIdolSelectionError(
-                'Fudaba cards require between 1 and 20 selected idols'
+                "Fudaba cards require between 1 and 20 selected idols",
             );
         }
         if (new Set(idolIds).size !== idolIds.length) {
             throw new InvalidCardIdolSelectionError(
-                'Fudaba card idol selections must not contain duplicates'
+                "Fudaba card idol selections must not contain duplicates",
             );
         }
-        const placeholders = idolIds.map(() => '?').join(', ');
-        const rows = await queryAll<Omit<CardIdolSelectionRow, 'card_id' | 'display_order'>>(
+        const placeholders = idolIds.map(() => "?").join(", ");
+        const rows = await queryAll<
+            Omit<CardIdolSelectionRow, "card_id" | "display_order">
+        >(
             database,
             `SELECT idol.id AS idol_id, agency.code AS agency_code, idol.name_cn
              FROM idols idol
              JOIN agencies agency ON agency.id=idol.agency_id
              WHERE idol.id IN (${placeholders}) AND idol.deleted_at IS NULL`,
-            idolIds
+            idolIds,
         );
         const byId = new Map(rows.map((row) => [Number(row.idol_id), row]));
         if (byId.size !== idolIds.length) {
             throw new InvalidCardIdolSelectionError(
-                'One or more selected Fudaba card idols do not exist'
+                "One or more selected Fudaba card idols do not exist",
             );
         }
         return idolIds.map((idolId, displayOrder) => {
@@ -681,7 +700,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                 idol_id: idolId,
                 agency_code: idol.agency_code,
                 name_cn: idol.name_cn,
-                display_order: displayOrder
+                display_order: displayOrder,
             };
         });
     }
@@ -689,23 +708,33 @@ export class SqlFudabaRepository implements FudabaRepository {
     private async replaceCardIdols(
         database: SqlDatabase,
         cardId: string,
-        idols: readonly CardIdolSelectionRecord[]
+        idols: readonly CardIdolSelectionRecord[],
     ): Promise<void> {
-        await executeSql(database, 'DELETE FROM fudaba_card_idols WHERE card_id=?', [cardId]);
-        await database.batch(idols.map((idol) => database.prepare(
-            `INSERT INTO fudaba_card_idols (card_id, idol_id, display_order)
-             VALUES (?, ?, ?)`
-        ).bind(cardId, idol.idol_id, idol.display_order)));
+        await executeSql(
+            database,
+            "DELETE FROM fudaba_card_idols WHERE card_id=?",
+            [cardId],
+        );
+        await database.batch(
+            idols.map((idol) =>
+                database
+                    .prepare(
+                        `INSERT INTO fudaba_card_idols (card_id, idol_id, display_order)
+             VALUES (?, ?, ?)`,
+                    )
+                    .bind(cardId, idol.idol_id, idol.display_order),
+            ),
+        );
     }
 
     private async listCardIdolsFrom(
         database: SqlDatabase,
-        cardIds: readonly string[]
+        cardIds: readonly string[],
     ): Promise<Map<string, CardIdolSelectionRecord[]>> {
         const grouped = new Map<string, CardIdolSelectionRecord[]>();
         for (const cardId of cardIds) grouped.set(cardId, []);
         if (!cardIds.length) return grouped;
-        const placeholders = cardIds.map(() => '?').join(', ');
+        const placeholders = cardIds.map(() => "?").join(", ");
         const rows = await queryAll<CardIdolSelectionRow>(
             database,
             `SELECT selected.card_id, selected.idol_id, agency.code AS agency_code,
@@ -715,78 +744,81 @@ export class SqlFudabaRepository implements FudabaRepository {
              JOIN agencies agency ON agency.id=idol.agency_id
              WHERE selected.card_id IN (${placeholders})
              ORDER BY selected.card_id, selected.display_order`,
-            cardIds
+            cardIds,
         );
         for (const row of rows) {
             grouped.get(row.card_id)?.push({
                 idol_id: Number(row.idol_id),
                 agency_code: row.agency_code,
                 name_cn: row.name_cn,
-                display_order: Number(row.display_order)
+                display_order: Number(row.display_order),
             });
         }
         return grouped;
     }
 
     listCardIdols(
-        cardIds: string[]
+        cardIds: string[],
     ): Promise<Map<string, CardIdolSelectionRecord[]>> {
         return this.listCardIdolsFrom(this.database, cardIds);
     }
 
     attachCardIdols(
         cardId: string,
-        idolIds: number[]
+        idolIds: number[],
     ): Promise<CardIdolSelectionRecord[] | null> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const card = await queryOne<{ id: string }>(
-                database,
-                `SELECT id FROM fudaba_cards
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const card = await queryOne<{ id: string }>(
+                    database,
+                    `SELECT id FROM fudaba_cards
                  WHERE id=? AND publication_status<>'approving' FOR UPDATE`,
-                [cardId]
-            );
-            if (!card) return null;
-            let idols: CardIdolSelectionRecord[];
-            try {
-                idols = await this.validateCardIdols(database, idolIds);
-            } catch (error) {
-                if (error instanceof InvalidCardIdolSelectionError) return null;
-                throw error;
-            }
-            await this.replaceCardIdols(database, cardId, idols);
-            await executeSql(
-                database,
-                'UPDATE fudaba_cards SET favorite_idol=? WHERE id=?',
-                [idols.map((idol) => idol.name_cn).join('、'), cardId]
-            );
-            return idols;
-        }));
+                    [cardId],
+                );
+                if (!card) return null;
+                let idols: CardIdolSelectionRecord[];
+                try {
+                    idols = await this.validateCardIdols(database, idolIds);
+                } catch (error) {
+                    if (error instanceof InvalidCardIdolSelectionError)
+                        return null;
+                    throw error;
+                }
+                await this.replaceCardIdols(database, cardId, idols);
+                await executeSql(
+                    database,
+                    "UPDATE fudaba_cards SET favorite_idol=? WHERE id=?",
+                    [idols.map((idol) => idol.name_cn).join("、"), cardId],
+                );
+                return idols;
+            }),
+        );
     }
 
     private async attachCardSelections<
-        Record extends { id: string; favorite_idols: CardIdolSelectionRecord[] }
-    >(
-        database: SqlDatabase,
-        records: readonly Record[]
-    ): Promise<Record[]> {
+        Record extends {
+            id: string;
+            favorite_idols: CardIdolSelectionRecord[];
+        },
+    >(database: SqlDatabase, records: readonly Record[]): Promise<Record[]> {
         const idols = await this.listCardIdolsFrom(
             database,
-            records.map((record) => record.id)
+            records.map((record) => record.id),
         );
         return records.map((record) => ({
             ...record,
-            favorite_idols: idols.get(record.id) ?? []
+            favorite_idols: idols.get(record.id) ?? [],
         }));
     }
 
     private async listClaimIdolsFrom(
         database: SqlDatabase,
-        claimIds: readonly string[]
+        claimIds: readonly string[],
     ): Promise<Map<string, CardIdolSelectionRecord[]>> {
         const grouped = new Map<string, CardIdolSelectionRecord[]>();
         for (const claimId of claimIds) grouped.set(claimId, []);
         if (!claimIds.length) return grouped;
-        const placeholders = claimIds.map(() => '?').join(', ');
+        const placeholders = claimIds.map(() => "?").join(", ");
         const rows = await queryAll<FudabaClaimIdolRow>(
             database,
             `SELECT selected.claim_id, selected.idol_id,
@@ -797,14 +829,14 @@ export class SqlFudabaRepository implements FudabaRepository {
              JOIN agencies agency ON agency.id=idol.agency_id
              WHERE selected.claim_id IN (${placeholders})
              ORDER BY selected.claim_id, selected.display_order`,
-            claimIds
+            claimIds,
         );
         for (const row of rows) {
             grouped.get(row.claim_id)?.push({
                 idol_id: Number(row.idol_id),
                 agency_code: row.agency_code,
                 name_cn: row.name_cn,
-                display_order: Number(row.display_order)
+                display_order: Number(row.display_order),
             });
         }
         return grouped;
@@ -812,26 +844,26 @@ export class SqlFudabaRepository implements FudabaRepository {
 
     private async attachClaimSelections<Row extends FudabaCardClaimRecord>(
         database: SqlDatabase,
-        claims: readonly Row[]
+        claims: readonly Row[],
     ): Promise<Row[]> {
         const idols = await this.listClaimIdolsFrom(
             database,
-            claims.map((claim) => claim.id)
+            claims.map((claim) => claim.id),
         );
         return claims.map((claim) => ({
             ...claim,
-            favorite_idols: idols.get(claim.id) ?? []
+            favorite_idols: idols.get(claim.id) ?? [],
         }));
     }
 
     private async attachOfficeSeries(
-        rows: FudabaPublicOfficeRow[]
+        rows: FudabaPublicOfficeRow[],
     ): Promise<FudabaPublicOfficeRecord[]> {
         if (rows.length === 0) return [];
         const seriesByOffice = new Map<string, string[]>(
-            rows.map((row) => [row.id, []])
+            rows.map((row) => [row.id, []]),
         );
-        const placeholders = rows.map(() => '?').join(', ');
+        const placeholders = rows.map(() => "?").join(", ");
         const seriesRows = await queryAll<FudabaOfficeSeriesRow>(
             this.database,
             `SELECT office_id, series_code
@@ -840,19 +872,18 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON series.code=office_series.series_code AND series.wiki_enabled
              WHERE office_id IN (${placeholders})
              ORDER BY office_id, office_series.display_order, series_code`,
-            rows.map((row) => row.id)
+            rows.map((row) => row.id),
         );
         for (const series of seriesRows) {
             seriesByOffice.get(series.office_id)?.push(series.series_code);
         }
-        return rows.map((row) => publicOfficeRecord(
-            row,
-            seriesByOffice.get(row.id) ?? []
-        ));
+        return rows.map((row) =>
+            publicOfficeRecord(row, seriesByOffice.get(row.id) ?? []),
+        );
     }
 
     private ownerOfficesFromJoinedRows(
-        rows: FudabaOwnerOfficeSeriesRow[]
+        rows: FudabaOwnerOfficeSeriesRow[],
     ): FudabaOwnerOfficeRecord[] {
         const offices = new Map<string, FudabaOwnerOfficeRecord>();
         for (const row of rows) {
@@ -861,19 +892,22 @@ export class SqlFudabaRepository implements FudabaRepository {
                 office = { ...officeRecord(row), series_codes: [] };
                 offices.set(row.id, office);
             }
-            if (row.series_code !== null) office.series_codes.push(row.series_code);
+            if (row.series_code !== null)
+                office.series_codes.push(row.series_code);
         }
         return [...offices.values()];
     }
 
-    private async enabledOfficeSeriesAvailable(seriesCodes: string[]): Promise<boolean> {
+    private async enabledOfficeSeriesAvailable(
+        seriesCodes: string[],
+    ): Promise<boolean> {
         if (seriesCodes.length === 0) return true;
-        const placeholders = seriesCodes.map(() => '?').join(', ');
+        const placeholders = seriesCodes.map(() => "?").join(", ");
         const row = await queryOne<{ count: number | string }>(
             this.database,
             `SELECT COUNT(*) AS count FROM agencies
              WHERE wiki_enabled=? AND code IN (${placeholders})`,
-            [this.bindBoolean(true), ...seriesCodes]
+            [this.bindBoolean(true), ...seriesCodes],
         );
         return Number(row?.count ?? 0) === seriesCodes.length;
     }
@@ -881,13 +915,13 @@ export class SqlFudabaRepository implements FudabaRepository {
     private findMutationReceipt(
         scope: string,
         accountId: string,
-        keyHash: string
+        keyHash: string,
     ): Promise<FudabaMutationReceiptRow | null> {
         return queryOne<FudabaMutationReceiptRow>(
             this.database,
             `SELECT request_hash, resource_id FROM fudaba_mutation_receipts
              WHERE scope=? AND account_id=? AND key_hash=?`,
-            [scope, accountId, keyHash]
+            [scope, accountId, keyHash],
         );
     }
 
@@ -896,34 +930,34 @@ export class SqlFudabaRepository implements FudabaRepository {
         ownerAccountId: string,
         expectedRevision: number,
         stateAllowed?: (office: FudabaOwnerOfficeRecord) => boolean,
-        rejectPending = false
+        rejectPending = false,
     ): Promise<FudabaOfficeMutationResult> {
         const current = await this.findOfficeForOwner(officeId, ownerAccountId);
-        if (!current) return { status: 'unavailable' };
+        if (!current) return { status: "unavailable" };
         if (current.revision !== expectedRevision) {
-            return { status: 'conflict', revision: current.revision };
+            return { status: "conflict", revision: current.revision };
         }
         if (stateAllowed && !stateAllowed(current)) {
             return {
-                status: 'state-conflict',
+                status: "state-conflict",
                 revision: current.revision,
-                officeStatus: current.status
+                officeStatus: current.status,
             };
         }
         if (rejectPending && current.pending_cover_object_key) {
-            return { status: 'pending-exists', revision: current.revision };
+            return { status: "pending-exists", revision: current.revision };
         }
-        return { status: 'unavailable' };
+        return { status: "unavailable" };
     }
 
     private async attachMapOfficeSeries(
-        rows: FudabaPublicMapOfficeRow[]
+        rows: FudabaPublicMapOfficeRow[],
     ): Promise<FudabaPublicMapOfficeRecord[]> {
         if (rows.length === 0) return [];
         const seriesByOffice = new Map<string, string[]>(
-            rows.map((row) => [row.id, []])
+            rows.map((row) => [row.id, []]),
         );
-        const placeholders = rows.map(() => '?').join(', ');
+        const placeholders = rows.map(() => "?").join(", ");
         const seriesRows = await queryAll<FudabaOfficeSeriesRow>(
             this.database,
             `SELECT office_id, series_code
@@ -932,15 +966,14 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON series.code=office_series.series_code AND series.wiki_enabled
              WHERE office_id IN (${placeholders})
              ORDER BY office_id, office_series.display_order, series_code`,
-            rows.map((row) => row.id)
+            rows.map((row) => row.id),
         );
         for (const series of seriesRows) {
             seriesByOffice.get(series.office_id)?.push(series.series_code);
         }
-        return rows.map((row) => publicMapOfficeRecord(
-            row,
-            seriesByOffice.get(row.id) ?? []
-        ));
+        return rows.map((row) =>
+            publicMapOfficeRecord(row, seriesByOffice.get(row.id) ?? []),
+        );
     }
 
     async listPublicSeries(): Promise<FudabaPublicSeriesRecord[]> {
@@ -966,22 +999,22 @@ export class SqlFudabaRepository implements FudabaRepository {
                       series.icon_fit, series.icon_focal_x, series.icon_focal_y,
                       series.icon_zoom, series.icon_rotation
              ORDER BY series.display_order, series.code`,
-            [this.bindBoolean(true)]
+            [this.bindBoolean(true)],
         );
         return rows.map(publicSeriesRecord);
     }
 
     async listPublicOffices(
-        input: ListFudabaPublicOfficesInput
+        input: ListFudabaPublicOfficesInput,
     ): Promise<FudabaPublicOfficeRecord[]> {
         const conditions = [PUBLIC_OFFICE_ELIGIBILITY];
         const parameters: unknown[] = [];
         if (input.city !== undefined) {
-            conditions.push('office.city=?');
+            conditions.push("office.city=?");
             parameters.push(input.city);
         }
         if (input.seriesCodes?.length) {
-            const placeholders = input.seriesCodes.map(() => '?').join(', ');
+            const placeholders = input.seriesCodes.map(() => "?").join(", ");
             conditions.push(`EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags series_filter
                 JOIN agencies series
@@ -992,7 +1025,7 @@ export class SqlFudabaRepository implements FudabaRepository {
             parameters.push(...input.seriesCodes);
         }
         if (input.isOpen !== undefined) {
-            conditions.push('office.is_open=?');
+            conditions.push("office.is_open=?");
             parameters.push(this.bindBoolean(input.isOpen));
         }
         if (input.after) {
@@ -1004,7 +1037,7 @@ export class SqlFudabaRepository implements FudabaRepository {
             parameters.push(
                 input.after.visitorCount,
                 input.after.visitorCount,
-                input.after.id
+                input.after.id,
             );
         }
         parameters.push(input.limit);
@@ -1014,16 +1047,16 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM fudaba_offices office
              JOIN platform_accounts office_owner
                ON office_owner.id=office.owner_account_id
-             WHERE ${conditions.join(' AND ')}
+             WHERE ${conditions.join(" AND ")}
              ORDER BY office.visitor_count DESC, office.id ASC
              LIMIT ?`,
-            parameters
+            parameters,
         );
         return this.attachOfficeSeries(rows);
     }
 
     async listPublicMapOffices(
-        input: ListFudabaPublicMapOfficesInput
+        input: ListFudabaPublicMapOfficesInput,
     ): Promise<FudabaPublicMapOfficeRecord[]> {
         const conditions = [
             `location.review_state='published'`,
@@ -1037,27 +1070,27 @@ export class SqlFudabaRepository implements FudabaRepository {
                   ON eligible_series.code=eligible_office_series.series_code
                  AND eligible_series.wiki_enabled
                 WHERE eligible_office_series.office_id=office.id
-            ))`
+            ))`,
         ];
         const parameters: unknown[] = [];
         conditions.push(
-            'location.longitude_e1>=?',
-            'location.longitude_e1<=?',
-            'location.latitude_e1>=?',
-            'location.latitude_e1<=?'
+            "location.longitude_e1>=?",
+            "location.longitude_e1<=?",
+            "location.latitude_e1>=?",
+            "location.latitude_e1<=?",
         );
         parameters.push(
             input.bbox.westE1,
             input.bbox.eastE1,
             input.bbox.southE1,
-            input.bbox.northE1
+            input.bbox.northE1,
         );
         if (input.city !== undefined) {
-            conditions.push('office.city=?');
+            conditions.push("office.city=?");
             parameters.push(input.city);
         }
         if (input.seriesCodes?.length) {
-            const placeholders = input.seriesCodes.map(() => '?').join(', ');
+            const placeholders = input.seriesCodes.map(() => "?").join(", ");
             conditions.push(`EXISTS (
                 SELECT 1 FROM fudaba_office_series_tags map_series_filter
                 JOIN agencies map_series
@@ -1069,7 +1102,7 @@ export class SqlFudabaRepository implements FudabaRepository {
             parameters.push(...input.seriesCodes);
         }
         if (input.isOpen !== undefined) {
-            conditions.push('office.is_open=?');
+            conditions.push("office.is_open=?");
             parameters.push(this.bindBoolean(input.isOpen));
         }
         parameters.push(input.limit);
@@ -1080,18 +1113,18 @@ export class SqlFudabaRepository implements FudabaRepository {
              JOIN fudaba_offices office ON office.id=location.office_id
              JOIN platform_accounts office_owner
                ON office_owner.id=office.owner_account_id
-             WHERE ${conditions.join(' AND ')}
+             WHERE ${conditions.join(" AND ")}
              ORDER BY location.latitude_e1 ASC,
                       location.longitude_e1 ASC, office.id ASC
              LIMIT ?`,
-            parameters
+            parameters,
         );
         return this.attachMapOfficeSeries(rows);
     }
 
     async findPublicOfficeBySlug(
         slug: string,
-        viewerAccountId: string | null
+        viewerAccountId: string | null,
     ): Promise<FudabaPublicOfficeDetailRecord | null> {
         const row = await queryOne<FudabaPublicOfficeRow>(
             this.database,
@@ -1100,7 +1133,7 @@ export class SqlFudabaRepository implements FudabaRepository {
              JOIN platform_accounts office_owner
                ON office_owner.id=office.owner_account_id
              WHERE office.slug=? AND ${PUBLIC_OFFICE_ELIGIBILITY}`,
-            [slug]
+            [slug],
         );
         if (!row) return null;
         const [office] = await this.attachOfficeSeries([row]);
@@ -1119,32 +1152,32 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON card_series.code=card.series_code AND card_series.wiki_enabled
              WHERE placement.office_id=? AND ${PUBLIC_CARD_ELIGIBILITY}
              ORDER BY placement.z_index ASC, placement.pinned_at ASC, card.id ASC`,
-            [viewerAccountId, viewerAccountId, viewerAccountId, row.id]
+            [viewerAccountId, viewerAccountId, viewerAccountId, row.id],
         );
         return {
             ...office,
             cards: await this.attachCardSelections(
                 this.database,
-                cardRows.map(publicPlacedCardRecord)
-            )
+                cardRows.map(publicPlacedCardRecord),
+            ),
         };
     }
 
     async listPublicCards(
-        input: ListFudabaPublicCardsInput
+        input: ListFudabaPublicCardsInput,
     ): Promise<FudabaPublicCardRecord[]> {
         const conditions = [PUBLIC_CARD_ELIGIBILITY];
         const parameters: unknown[] = [
             input.viewerAccountId,
-            input.viewerAccountId
+            input.viewerAccountId,
         ];
         if (input.seriesCodes?.length) {
-            const placeholders = input.seriesCodes.map(() => '?').join(', ');
+            const placeholders = input.seriesCodes.map(() => "?").join(", ");
             conditions.push(`card.series_code IN (${placeholders})`);
             parameters.push(...input.seriesCodes);
         }
         if (input.available !== undefined) {
-            conditions.push('card.available=?');
+            conditions.push("card.available=?");
             parameters.push(this.bindBoolean(input.available));
         }
         if (input.officeSlug !== undefined) {
@@ -1169,7 +1202,7 @@ export class SqlFudabaRepository implements FudabaRepository {
             parameters.push(
                 input.after.createdAt,
                 input.after.createdAt,
-                input.after.id
+                input.after.id,
             );
         }
         parameters.push(input.limit);
@@ -1181,14 +1214,14 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON card_owner.id=card.owner_account_id
              JOIN agencies card_series
                ON card_series.code=card.series_code AND card_series.wiki_enabled
-             WHERE ${conditions.join(' AND ')}
+             WHERE ${conditions.join(" AND ")}
              ORDER BY card.created_at DESC, card.id DESC
              LIMIT ?`,
-            parameters
+            parameters,
         );
         return this.attachCardSelections(
             this.database,
-            rows.map(publicCardRecord)
+            rows.map(publicCardRecord),
         );
     }
 
@@ -1221,20 +1254,22 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.revision,
                         input.createdAt,
                         input.updatedAt,
-                        input.archivedAt
-                    ]
+                        input.archivedAt,
+                    ],
                 ),
-                ...input.seriesCodes.map((seriesCode, displayOrder) => sqlStatement(
-                    this.database,
-                    `INSERT INTO fudaba_office_series_tags
+                ...input.seriesCodes.map((seriesCode, displayOrder) =>
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO fudaba_office_series_tags
                         (office_id, series_code, display_order)
                      VALUES (?, ?, ?)`,
-                    [input.id, seriesCode, displayOrder]
-                ))
+                        [input.id, seriesCode, displayOrder],
+                    ),
+                ),
             ];
             await this.database.batch(statements);
             const created = await this.findOfficeById(input.id);
-            if (!created) throw new Error('Fudaba office was not created');
+            if (!created) throw new Error("Fudaba office was not created");
             return created;
         });
     }
@@ -1243,13 +1278,13 @@ export class SqlFudabaRepository implements FudabaRepository {
         const row = await queryOne<FudabaOfficeRow>(
             this.database,
             `SELECT ${OFFICE_COLUMNS} FROM fudaba_offices WHERE id=?`,
-            [id]
+            [id],
         );
         return row ? officeRecord(row) : null;
     }
 
     async listOfficesForOwner(
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaOwnerOfficeRecord[]> {
         const rows = await queryAll<FudabaOwnerOfficeSeriesRow>(
             this.database,
@@ -1261,14 +1296,14 @@ export class SqlFudabaRepository implements FudabaRepository {
              ORDER BY CASE office.status WHEN 'archived' THEN 1 ELSE 0 END,
                       office.updated_at DESC, office.id ASC,
                       office_series.display_order, office_series.series_code`,
-            [ownerAccountId]
+            [ownerAccountId],
         );
         return this.ownerOfficesFromJoinedRows(rows);
     }
 
     async findOfficeForOwner(
         officeId: string,
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaOwnerOfficeRecord | null> {
         const rows = await queryAll<FudabaOwnerOfficeSeriesRow>(
             this.database,
@@ -1278,23 +1313,23 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON office_series.office_id=office.id
              WHERE office.id=? AND office.owner_account_id=?
              ORDER BY office_series.display_order, office_series.series_code`,
-            [officeId, ownerAccountId]
+            [officeId, ownerAccountId],
         );
         return this.ownerOfficesFromJoinedRows(rows)[0] ?? null;
     }
 
     createOfficeForOwner(
-        input: CreateOwnedFudabaOfficeInput
+        input: CreateOwnedFudabaOfficeInput,
     ): Promise<FudabaOfficeCreateResult> {
         return this.serializeWrite(async () => {
-            const ownerAccountLockClause = ' FOR UPDATE';
+            const ownerAccountLockClause = " FOR UPDATE";
             const statements = [
                 sqlStatement(
                     this.database,
                     `SELECT account.id FROM platform_accounts account
                      WHERE account.id=? AND account.status='active'
                        AND account.deleted_at IS NULL${ownerAccountLockClause}`,
-                    [input.ownerAccountId]
+                    [input.ownerAccountId],
                 ),
                 sqlStatement(
                     this.database,
@@ -1311,8 +1346,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.requestHash,
                         input.id,
                         input.receiptCreatedAt,
-                        input.ownerAccountId
-                    ]
+                        input.ownerAccountId,
+                    ],
                 ),
                 sqlStatement(
                     this.database,
@@ -1354,12 +1389,13 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.idempotencyKeyHash,
                         input.ownerAccountId,
                         input.requestHash,
-                        input.id
-                    ]
+                        input.id,
+                    ],
                 ),
-                ...input.seriesCodes.map((seriesCode, displayOrder) => sqlStatement(
-                    this.database,
-                    `INSERT INTO fudaba_office_series_tags
+                ...input.seriesCodes.map((seriesCode, displayOrder) =>
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO fudaba_office_series_tags
                         (office_id, series_code, display_order)
                      SELECT office.id, (
                          SELECT series.code FROM agencies series
@@ -1367,49 +1403,56 @@ export class SqlFudabaRepository implements FudabaRepository {
                      ), ?
                      FROM fudaba_offices office
                      WHERE office.id=? AND office.owner_account_id=?`,
-                    [
-                        seriesCode,
-                        this.bindBoolean(true),
-                        displayOrder,
-                        input.id,
-                        input.ownerAccountId
-                    ]
-                ))
+                        [
+                            seriesCode,
+                            this.bindBoolean(true),
+                            displayOrder,
+                            input.id,
+                            input.ownerAccountId,
+                        ],
+                    ),
+                ),
             ];
             try {
                 await this.database.batch(statements);
             } catch (error) {
-                if (!await this.enabledOfficeSeriesAvailable(input.seriesCodes)) {
-                    return { status: 'unavailable' };
+                if (
+                    !(await this.enabledOfficeSeriesAvailable(
+                        input.seriesCodes,
+                    ))
+                ) {
+                    return { status: "unavailable" };
                 }
                 throw error;
             }
             const receipt = await this.findMutationReceipt(
-                'office-create',
+                "office-create",
                 input.ownerAccountId,
-                input.idempotencyKeyHash
+                input.idempotencyKeyHash,
             );
-            if (!receipt) return { status: 'unavailable' };
+            if (!receipt) return { status: "unavailable" };
             if (receipt.request_hash !== input.requestHash) {
-                return { status: 'idempotency-conflict' };
+                return { status: "idempotency-conflict" };
             }
             const created = await this.findOfficeForOwner(
                 receipt.resource_id,
-                input.ownerAccountId
+                input.ownerAccountId,
             );
             if (!created) {
-                throw new Error('Fudaba office receipt references a missing office');
+                throw new Error(
+                    "Fudaba office receipt references a missing office",
+                );
             }
             return {
-                status: 'saved',
+                status: "saved",
                 office: created,
-                previousPendingObjectKey: null
+                previousPendingObjectKey: null,
             };
         });
     }
 
     updateOfficeForOwner(
-        input: UpdateOwnedFudabaOfficeInput
+        input: UpdateOwnedFudabaOfficeInput,
     ): Promise<FudabaOfficeMutationResult> {
         return this.serializeWrite(async () => {
             const ownerRevisionGuard = `office.id=?
@@ -1425,7 +1468,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                     this.database,
                     `UPDATE fudaba_offices AS office SET revision=revision
                      WHERE ${ownerRevisionGuard}`,
-                    [input.officeId, input.ownerAccountId, input.expectedRevision]
+                    [
+                        input.officeId,
+                        input.ownerAccountId,
+                        input.expectedRevision,
+                    ],
                 ),
                 sqlStatement(
                     this.database,
@@ -1446,8 +1493,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.latitude,
                         input.longitude,
                         input.city,
-                        input.address
-                    ]
+                        input.address,
+                    ],
                 ),
                 sqlStatement(
                     this.database,
@@ -1460,12 +1507,13 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.officeId,
                         input.officeId,
                         input.ownerAccountId,
-                        input.expectedRevision
-                    ]
+                        input.expectedRevision,
+                    ],
                 ),
-                ...input.seriesCodes.map((seriesCode, displayOrder) => sqlStatement(
-                    this.database,
-                    `INSERT INTO fudaba_office_series_tags
+                ...input.seriesCodes.map((seriesCode, displayOrder) =>
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO fudaba_office_series_tags
                         (office_id, series_code, display_order)
                      SELECT office.id, (
                          SELECT series.code FROM agencies series
@@ -1473,15 +1521,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                      ), ?
                      FROM fudaba_offices office
                      WHERE ${ownerRevisionGuard}`,
-                    [
-                        seriesCode,
-                        this.bindBoolean(true),
-                        displayOrder,
-                        input.officeId,
-                        input.ownerAccountId,
-                        input.expectedRevision
-                    ]
-                )),
+                        [
+                            seriesCode,
+                            this.bindBoolean(true),
+                            displayOrder,
+                            input.officeId,
+                            input.ownerAccountId,
+                            input.expectedRevision,
+                        ],
+                    ),
+                ),
                 sqlStatement(
                     this.database,
                     `UPDATE fudaba_offices AS office
@@ -1501,16 +1550,20 @@ export class SqlFudabaRepository implements FudabaRepository {
                         input.updatedAt,
                         input.officeId,
                         input.ownerAccountId,
-                        input.expectedRevision
-                    ]
-                )
+                        input.expectedRevision,
+                    ],
+                ),
             ];
             let results;
             try {
                 results = await this.database.batch(statements);
             } catch (error) {
-                if (!await this.enabledOfficeSeriesAvailable(input.seriesCodes)) {
-                    return { status: 'unavailable' };
+                if (
+                    !(await this.enabledOfficeSeriesAvailable(
+                        input.seriesCodes,
+                    ))
+                ) {
+                    return { status: "unavailable" };
                 }
                 throw error;
             }
@@ -1521,15 +1574,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.officeId,
                     input.ownerAccountId,
                     input.expectedRevision,
-                    (office) => office.status === 'active'
+                    (office) => office.status === "active",
                 );
             }
             const office = await this.findOfficeForOwner(
                 input.officeId,
-                input.ownerAccountId
+                input.ownerAccountId,
             );
-            if (!office) throw new Error('Updated Fudaba office is unavailable');
-            return { status: 'saved', office, previousPendingObjectKey: null };
+            if (!office)
+                throw new Error("Updated Fudaba office is unavailable");
+            return { status: "saved", office, previousPendingObjectKey: null };
         });
     }
 
@@ -1557,23 +1611,24 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.archivedAt,
                     input.officeId,
                     input.ownerAccountId,
-                    input.expectedRevision
-                ]
+                    input.expectedRevision,
+                ],
             );
             if (result.meta.changes !== 1) {
                 return this.officeMutationFailure(
                     input.officeId,
                     input.ownerAccountId,
                     input.expectedRevision,
-                    (office) => office.status === 'active'
+                    (office) => office.status === "active",
                 );
             }
             const office = await this.findOfficeForOwner(
                 input.officeId,
-                input.ownerAccountId
+                input.ownerAccountId,
             );
-            if (!office) throw new Error('Archived Fudaba office is unavailable');
-            return { status: 'saved', office, previousPendingObjectKey: null };
+            if (!office)
+                throw new Error("Archived Fudaba office is unavailable");
+            return { status: "saved", office, previousPendingObjectKey: null };
         });
     }
 
@@ -1600,23 +1655,24 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.restoredAt,
                     input.officeId,
                     input.ownerAccountId,
-                    input.expectedRevision
-                ]
+                    input.expectedRevision,
+                ],
             );
             if (result.meta.changes !== 1) {
                 return this.officeMutationFailure(
                     input.officeId,
                     input.ownerAccountId,
                     input.expectedRevision,
-                    (office) => office.status === 'archived'
+                    (office) => office.status === "archived",
                 );
             }
             const office = await this.findOfficeForOwner(
                 input.officeId,
-                input.ownerAccountId
+                input.ownerAccountId,
             );
-            if (!office) throw new Error('Restored Fudaba office is unavailable');
-            return { status: 'saved', office, previousPendingObjectKey: null };
+            if (!office)
+                throw new Error("Restored Fudaba office is unavailable");
+            return { status: "saved", office, previousPendingObjectKey: null };
         });
     }
 
@@ -1647,24 +1703,25 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.submittedAt,
                     input.officeId,
                     input.ownerAccountId,
-                    input.expectedRevision
-                ]
+                    input.expectedRevision,
+                ],
             );
             if (result.meta.changes !== 1) {
                 return this.officeMutationFailure(
                     input.officeId,
                     input.ownerAccountId,
                     input.expectedRevision,
-                    (office) => office.status === 'active',
-                    true
+                    (office) => office.status === "active",
+                    true,
                 );
             }
             const office = await this.findOfficeForOwner(
                 input.officeId,
-                input.ownerAccountId
+                input.ownerAccountId,
             );
-            if (!office) throw new Error('Reserved Fudaba cover is unavailable');
-            return { status: 'saved', office, previousPendingObjectKey: null };
+            if (!office)
+                throw new Error("Reserved Fudaba cover is unavailable");
+            return { status: "saved", office, previousPendingObjectKey: null };
         });
     }
 
@@ -1689,26 +1746,27 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.officeId,
                     input.ownerAccountId,
                     input.expectedRevision,
-                    input.objectKey
-                ]
+                    input.objectKey,
+                ],
             );
             if (result.meta.changes !== 1) {
                 return this.officeMutationFailure(
                     input.officeId,
                     input.ownerAccountId,
                     input.expectedRevision,
-                    (office) => office.pending_cover_object_key !== null
+                    (office) => office.pending_cover_object_key !== null,
                 );
             }
             const office = await this.findOfficeForOwner(
                 input.officeId,
-                input.ownerAccountId
+                input.ownerAccountId,
             );
-            if (!office) throw new Error('Withdrawn Fudaba cover is unavailable');
+            if (!office)
+                throw new Error("Withdrawn Fudaba cover is unavailable");
             return {
-                status: 'saved',
+                status: "saved",
                 office,
-                previousPendingObjectKey: input.objectKey
+                previousPendingObjectKey: input.objectKey,
             };
         });
     }
@@ -1716,7 +1774,7 @@ export class SqlFudabaRepository implements FudabaRepository {
     updateOfficeStatusForOwner(input: {
         officeId: string;
         ownerAccountId: string;
-        status: FudabaOfficeRecord['status'];
+        status: FudabaOfficeRecord["status"];
         archivedAt: string | null;
         updatedAt: string;
         expectedRevision: number;
@@ -1733,8 +1791,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.updatedAt,
                     input.officeId,
                     input.ownerAccountId,
-                    input.expectedRevision
-                ]
+                    input.expectedRevision,
+                ],
             );
             return result.meta.changes === 1;
         });
@@ -1742,7 +1800,7 @@ export class SqlFudabaRepository implements FudabaRepository {
 
     async findOfficePublicLocationForOwner(
         officeId: string,
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaOfficePublicLocationRecord | null> {
         const row = await queryOne<FudabaOfficePublicLocationRow>(
             this.database,
@@ -1750,7 +1808,7 @@ export class SqlFudabaRepository implements FudabaRepository {
              FROM fudaba_office_public_locations location
              JOIN fudaba_offices office ON office.id=location.office_id
              WHERE location.office_id=? AND office.owner_account_id=?`,
-            [officeId, ownerAccountId]
+            [officeId, ownerAccountId],
         );
         return row ? officePublicLocationRecord(row) : null;
     }
@@ -1758,11 +1816,11 @@ export class SqlFudabaRepository implements FudabaRepository {
     private async findWritableOfficePublicLocationForOwner(
         officeId: string,
         ownerAccountId: string,
-        requireActiveOffice: boolean
+        requireActiveOffice: boolean,
     ): Promise<FudabaOfficePublicLocationRecord | null> {
         const activeOfficeCondition = requireActiveOffice
             ? `AND office.status='active'`
-            : '';
+            : "";
         const row = await queryOne<FudabaOfficePublicLocationRow>(
             this.database,
             `SELECT ${QUALIFIED_OFFICE_PUBLIC_LOCATION_COLUMNS}
@@ -1772,7 +1830,7 @@ export class SqlFudabaRepository implements FudabaRepository {
              WHERE location.office_id=? AND office.owner_account_id=?
                ${activeOfficeCondition}
                AND account.status='active' AND account.deleted_at IS NULL`,
-            [officeId, ownerAccountId]
+            [officeId, ownerAccountId],
         );
         return row ? officePublicLocationRecord(row) : null;
     }
@@ -1780,16 +1838,16 @@ export class SqlFudabaRepository implements FudabaRepository {
     private async officeLocationWriteFailure(
         officeId: string,
         ownerAccountId: string,
-        requireActiveOffice: boolean
+        requireActiveOffice: boolean,
     ): Promise<FudabaOfficeLocationMutationResult> {
         const current = await this.findWritableOfficePublicLocationForOwner(
             officeId,
             ownerAccountId,
-            requireActiveOffice
+            requireActiveOffice,
         );
         return current
-            ? { status: 'conflict', revision: current.revision }
-            : { status: 'unavailable' };
+            ? { status: "conflict", revision: current.revision }
+            : { status: "unavailable" };
     }
 
     saveOfficePublicLocationForOwner(input: {
@@ -1801,8 +1859,9 @@ export class SqlFudabaRepository implements FudabaRepository {
         submittedAt: string;
     }): Promise<FudabaOfficeLocationMutationResult> {
         return this.serializeWrite(async () => {
-            const result = await this.database.prepare(
-                `INSERT INTO fudaba_office_public_locations
+            const result = await this.database
+                .prepare(
+                    `INSERT INTO fudaba_office_public_locations
                     (office_id, latitude_e1, longitude_e1, review_state,
                      revision, submitted_at, reviewed_at, reviewed_by, review_note,
                      review_audit_id)
@@ -1839,29 +1898,31 @@ export class SqlFudabaRepository implements FudabaRepository {
                          AND writable_account.status='active'
                          AND writable_account.deleted_at IS NULL
                    )
-                 RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`
-            ).bind(
-                input.latitudeE1,
-                input.longitudeE1,
-                input.submittedAt,
-                input.officeId,
-                input.ownerAccountId,
-                input.expectedRevision,
-                input.expectedRevision,
-                input.expectedRevision,
-                input.ownerAccountId
-            ).run<FudabaOfficePublicLocationRow>();
+                 RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`,
+                )
+                .bind(
+                    input.latitudeE1,
+                    input.longitudeE1,
+                    input.submittedAt,
+                    input.officeId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                    input.expectedRevision,
+                    input.expectedRevision,
+                    input.ownerAccountId,
+                )
+                .run<FudabaOfficePublicLocationRow>();
             const saved = result.results[0];
             if (saved) {
                 return {
-                    status: 'saved',
-                    location: officePublicLocationRecord(saved)
+                    status: "saved",
+                    location: officePublicLocationRecord(saved),
                 };
             }
             return this.officeLocationWriteFailure(
                 input.officeId,
                 input.ownerAccountId,
-                true
+                true,
             );
         });
     }
@@ -1872,8 +1933,9 @@ export class SqlFudabaRepository implements FudabaRepository {
         expectedRevision: number;
     }): Promise<FudabaOfficeLocationMutationResult> {
         return this.serializeWrite(async () => {
-            const result = await this.database.prepare(
-                `DELETE FROM fudaba_office_public_locations
+            const result = await this.database
+                .prepare(
+                    `DELETE FROM fudaba_office_public_locations
                  WHERE office_id=? AND revision=?
                    AND EXISTS (
                        SELECT 1 FROM fudaba_offices office
@@ -1884,35 +1946,37 @@ export class SqlFudabaRepository implements FudabaRepository {
                          AND account.status='active'
                          AND account.deleted_at IS NULL
                    )
-                 RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`
-            ).bind(
-                input.officeId,
-                input.expectedRevision,
-                input.ownerAccountId
-            ).run<FudabaOfficePublicLocationRow>();
+                 RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`,
+                )
+                .bind(
+                    input.officeId,
+                    input.expectedRevision,
+                    input.ownerAccountId,
+                )
+                .run<FudabaOfficePublicLocationRow>();
             const removed = result.results[0];
             if (removed) {
                 return {
-                    status: 'saved',
-                    location: officePublicLocationRecord(removed)
+                    status: "saved",
+                    location: officePublicLocationRecord(removed),
                 };
             }
             return this.officeLocationWriteFailure(
                 input.officeId,
                 input.ownerAccountId,
-                false
+                false,
             );
         });
     }
 
     async listOfficeLocationReviews(input: {
-        reviewState?: FudabaOfficeLocationReviewRecord['review_state'];
+        reviewState?: FudabaOfficeLocationReviewRecord["review_state"];
         limit: number;
     }): Promise<FudabaOfficeLocationReviewRecord[]> {
         const conditions: string[] = [];
         const parameters: unknown[] = [];
         if (input.reviewState !== undefined) {
-            conditions.push('location.review_state=?');
+            conditions.push("location.review_state=?");
             parameters.push(input.reviewState);
         }
         parameters.push(input.limit);
@@ -1921,7 +1985,7 @@ export class SqlFudabaRepository implements FudabaRepository {
             `SELECT ${OFFICE_LOCATION_REVIEW_COLUMNS}
              FROM fudaba_office_public_locations location
              JOIN fudaba_offices office ON office.id=location.office_id
-             ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+             ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
              ORDER BY CASE location.review_state
                           WHEN 'pending' THEN 0
                           WHEN 'published' THEN 1
@@ -1929,14 +1993,14 @@ export class SqlFudabaRepository implements FudabaRepository {
                       END ASC,
                       location.submitted_at ASC, location.office_id ASC
              LIMIT ?`,
-            parameters
+            parameters,
         );
         return rows.map(officeLocationReviewRecord);
     }
 
     reviewOfficePublicLocation(input: {
         officeId: string;
-        decision: 'publish' | 'reject';
+        decision: "publish" | "reject";
         expectedRevision: number;
         reviewedAt: string;
         reviewedBy: number;
@@ -1945,44 +2009,51 @@ export class SqlFudabaRepository implements FudabaRepository {
         audit: AuditLogInput;
     }): Promise<FudabaOfficeLocationMutationResult> {
         return this.serializeWrite(async () => {
-            const [result] = await this.database.batch<FudabaOfficePublicLocationRow>([
-                this.database.prepare(
-                    `UPDATE fudaba_office_public_locations
+            const [result] =
+                await this.database.batch<FudabaOfficePublicLocationRow>([
+                    this.database
+                        .prepare(
+                            `UPDATE fudaba_office_public_locations
                      SET review_state=?, revision=revision+1, reviewed_at=?,
                          reviewed_by=?, review_note=?, review_audit_id=?
                      WHERE office_id=? AND revision=?
-                     RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`
-                ).bind(
-                    input.decision === 'publish' ? 'published' : 'rejected',
-                    input.reviewedAt,
-                    input.reviewedBy,
-                    input.reviewNote,
-                    input.reviewOperationId,
-                    input.officeId,
-                    input.expectedRevision
-                ),
-                this.database.prepare(
-                    `INSERT INTO logs
+                     RETURNING ${OFFICE_PUBLIC_LOCATION_COLUMNS}`,
+                        )
+                        .bind(
+                            input.decision === "publish"
+                                ? "published"
+                                : "rejected",
+                            input.reviewedAt,
+                            input.reviewedBy,
+                            input.reviewNote,
+                            input.reviewOperationId,
+                            input.officeId,
+                            input.expectedRevision,
+                        ),
+                    this.database
+                        .prepare(
+                            `INSERT INTO logs
                         (username, producername, action, target, ip, time)
                      SELECT ?, ?, ?, ?, ?, ?
                      FROM fudaba_office_public_locations
-                     WHERE office_id=? AND review_audit_id=?`
-                ).bind(
-                    input.audit.username,
-                    input.audit.producername,
-                    input.audit.action,
-                    input.audit.target,
-                    input.audit.ip,
-                    input.audit.time,
-                    input.officeId,
-                    input.reviewOperationId
-                )
-            ]);
+                     WHERE office_id=? AND review_audit_id=?`,
+                        )
+                        .bind(
+                            input.audit.username,
+                            input.audit.producername,
+                            input.audit.action,
+                            input.audit.target,
+                            input.audit.ip,
+                            input.audit.time,
+                            input.officeId,
+                            input.reviewOperationId,
+                        ),
+                ]);
             const saved = result?.results[0];
             if (saved) {
                 return {
-                    status: 'saved',
-                    location: officePublicLocationRecord(saved)
+                    status: "saved",
+                    location: officePublicLocationRecord(saved),
                 };
             }
             const current = await queryOne<FudabaOfficePublicLocationRow>(
@@ -1990,112 +2061,127 @@ export class SqlFudabaRepository implements FudabaRepository {
                 `SELECT ${OFFICE_PUBLIC_LOCATION_COLUMNS}
                  FROM fudaba_office_public_locations
                  WHERE office_id=?`,
-                [input.officeId]
+                [input.officeId],
             );
             return current
-                ? { status: 'conflict', revision: Number(current.revision) }
-                : { status: 'unavailable' };
+                ? { status: "conflict", revision: Number(current.revision) }
+                : { status: "unavailable" };
         });
     }
 
     createCard(input: NewFudabaCardInput): Promise<FudabaCardRecord> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const idols = await this.validateCardIdols(
-                database,
-                input.favoriteIdolIds ?? []
-            );
-            await executeSql(
-                database,
-                `INSERT INTO fudaba_cards
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const idols = await this.validateCardIdols(
+                    database,
+                    input.favoriteIdolIds ?? [],
+                );
+                await executeSql(
+                    database,
+                    `INSERT INTO fudaba_cards
                     (id, owner_account_id, producer_name, display_name,
                      series_code, favorite_idol, legacy_card_id, front_object_key,
                      back_object_key, accent, bio, trade_note, available,
                      source_url, source_label, source_credit, media_rights_status,
                      publication_status, revision, created_at, updated_at, deleted_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    input.id,
-                    input.ownerAccountId,
-                    input.producerName,
-                    input.displayName,
-                    input.seriesCode,
-                    idols.map((idol) => idol.name_cn).join('、'),
-                    input.legacyCardId ?? null,
-                    input.frontObjectKey,
-                    input.backObjectKey,
-                    input.accent,
-                    input.bio,
-                    input.tradeNote,
-                    this.bindBoolean(input.available),
-                    input.sourceUrl,
-                    input.sourceLabel,
-                    input.sourceCredit,
-                    input.mediaRightsStatus,
-                    input.publicationStatus,
-                    input.revision,
-                    input.createdAt,
-                    input.updatedAt,
-                    input.deletedAt
-                ]
-            );
-            await this.replaceCardIdols(database, input.id, idols);
-            const row = await queryOne<FudabaCardRow>(
-                database,
-                `SELECT ${CARD_COLUMNS} FROM fudaba_cards WHERE id=?`,
-                [input.id]
-            );
-            if (!row) throw new Error('Fudaba card was not created');
-            return (await this.attachCardSelections(database, [cardRecord(row)]))[0]!;
-        }));
+                    [
+                        input.id,
+                        input.ownerAccountId,
+                        input.producerName,
+                        input.displayName,
+                        input.seriesCode,
+                        idols.map((idol) => idol.name_cn).join("、"),
+                        input.legacyCardId ?? null,
+                        input.frontObjectKey,
+                        input.backObjectKey,
+                        input.accent,
+                        input.bio,
+                        input.tradeNote,
+                        this.bindBoolean(input.available),
+                        input.sourceUrl,
+                        input.sourceLabel,
+                        input.sourceCredit,
+                        input.mediaRightsStatus,
+                        input.publicationStatus,
+                        input.revision,
+                        input.createdAt,
+                        input.updatedAt,
+                        input.deletedAt,
+                    ],
+                );
+                await this.replaceCardIdols(database, input.id, idols);
+                const row = await queryOne<FudabaCardRow>(
+                    database,
+                    `SELECT ${CARD_COLUMNS} FROM fudaba_cards WHERE id=?`,
+                    [input.id],
+                );
+                if (!row) throw new Error("Fudaba card was not created");
+                return (
+                    await this.attachCardSelections(database, [cardRecord(row)])
+                )[0]!;
+            }),
+        );
     }
 
     private async findCardByIdFrom(
         database: SqlDatabase,
-        id: string
+        id: string,
     ): Promise<FudabaCardRecord | null> {
         const row = await queryOne<FudabaCardRow>(
             database,
             `SELECT ${CARD_COLUMNS} FROM fudaba_cards WHERE id=?`,
-            [id]
+            [id],
         );
         if (!row) return null;
-        return (await this.attachCardSelections(database, [cardRecord(row)]))[0] ?? null;
+        return (
+            (await this.attachCardSelections(database, [cardRecord(row)]))[0] ??
+            null
+        );
     }
 
     findCardById(id: string): Promise<FudabaCardRecord | null> {
         return this.findCardByIdFrom(this.database, id);
     }
 
-    async listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]> {
+    async listCardsForOwner(
+        ownerAccountId: string,
+    ): Promise<FudabaCardRecord[]> {
         const rows = await queryAll<FudabaCardRow>(
             this.database,
             `SELECT ${CARD_COLUMNS}
              FROM fudaba_cards
              WHERE owner_account_id=? AND deleted_at IS NULL
              ORDER BY created_at DESC, id DESC`,
-            [ownerAccountId]
+            [ownerAccountId],
         );
         return this.attachCardSelections(this.database, rows.map(cardRecord));
     }
 
     async findCardForOwner(
         cardId: string,
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaCardRecord | null> {
         const row = await queryOne<FudabaCardRow>(
             this.database,
             `SELECT ${CARD_COLUMNS}
              FROM fudaba_cards
              WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
-            [cardId, ownerAccountId]
+            [cardId, ownerAccountId],
         );
         if (!row) return null;
-        return (await this.attachCardSelections(this.database, [cardRecord(row)]))[0] ?? null;
+        return (
+            (
+                await this.attachCardSelections(this.database, [
+                    cardRecord(row),
+                ])
+            )[0] ?? null
+        );
     }
 
     private async findActiveCardForOwner(
         cardId: string,
-        ownerAccountId: string
+        ownerAccountId: string,
     ): Promise<FudabaCardRecord | null> {
         const row = await queryOne<FudabaCardRow>(
             this.database,
@@ -2107,54 +2193,64 @@ export class SqlFudabaRepository implements FudabaRepository {
                    WHERE account.id=fudaba_cards.owner_account_id
                      AND account.status='active' AND account.deleted_at IS NULL
                )`,
-            [cardId, ownerAccountId]
+            [cardId, ownerAccountId],
         );
         if (!row) return null;
-        return (await this.attachCardSelections(this.database, [cardRecord(row)]))[0] ?? null;
+        return (
+            (
+                await this.attachCardSelections(this.database, [
+                    cardRecord(row),
+                ])
+            )[0] ?? null
+        );
     }
 
     private cardWriteFailure(
         current: FudabaCardRecord | null,
-        expectedRevision: number
+        expectedRevision: number,
     ): FudabaCardMutationResult {
-        if (!current) return { status: 'unavailable' };
+        if (!current) return { status: "unavailable" };
         if (current.revision !== expectedRevision) {
-            return { status: 'conflict', revision: current.revision };
+            return { status: "conflict", revision: current.revision };
         }
-        return { status: 'unavailable' };
+        return { status: "unavailable" };
     }
 
     private async savedCardResult(
         row: FudabaCardRow,
         previousObjectKey: string | null,
-        database: SqlDatabase = this.database
+        database: SqlDatabase = this.database,
     ): Promise<FudabaCardMutationResult> {
-        const card = (await this.attachCardSelections(database, [cardRecord(row)]))[0]!;
+        const card = (
+            await this.attachCardSelections(database, [cardRecord(row)])
+        )[0]!;
         return {
-            status: 'saved',
+            status: "saved",
             card,
-            previousObjectKey
+            previousObjectKey,
         };
     }
 
     createCardForOwner(
-        input: CreateOwnedFudabaCardInput
+        input: CreateOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            let idols: CardIdolSelectionRecord[];
-            try {
-                idols = await this.validateCardIdols(
-                    database,
-                    input.favoriteIdolIds ?? []
-                );
-            } catch (error) {
-                if (error instanceof InvalidCardIdolSelectionError) {
-                    return { status: 'unavailable' };
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                let idols: CardIdolSelectionRecord[];
+                try {
+                    idols = await this.validateCardIdols(
+                        database,
+                        input.favoriteIdolIds ?? [],
+                    );
+                } catch (error) {
+                    if (error instanceof InvalidCardIdolSelectionError) {
+                        return { status: "unavailable" };
+                    }
+                    throw error;
                 }
-                throw error;
-            }
-            const result = await database.prepare(
-                `INSERT INTO fudaba_cards
+                const result = await database
+                    .prepare(
+                        `INSERT INTO fudaba_cards
                     (id, owner_account_id, producer_name, display_name,
                      series_code, favorite_idol, legacy_card_id, front_object_key,
                      back_object_key, accent, bio, trade_note, available,
@@ -2168,49 +2264,54 @@ export class SqlFudabaRepository implements FudabaRepository {
                  WHERE account.id=? AND account.status='active'
                    AND account.deleted_at IS NULL
                  ON CONFLICT(id) DO NOTHING
-                 RETURNING ${CARD_COLUMNS}`
-            ).bind(
-                input.id,
-                input.producerName,
-                input.displayName,
-                idols.map((idol) => idol.name_cn).join('、'),
-                input.frontObjectKey,
-                input.backObjectKey,
-                input.accent,
-                input.bio,
-                input.tradeNote,
-                this.bindBoolean(input.available),
-                input.createdAt,
-                input.updatedAt,
-                input.seriesCode,
-                this.bindBoolean(true),
-                input.ownerAccountId
-            ).run<FudabaCardRow>();
-            const saved = result.results[0];
-            if (!saved) return { status: 'unavailable' };
-            await this.replaceCardIdols(database, input.id, idols);
-            return this.savedCardResult(saved, null, database);
-        }));
+                 RETURNING ${CARD_COLUMNS}`,
+                    )
+                    .bind(
+                        input.id,
+                        input.producerName,
+                        input.displayName,
+                        idols.map((idol) => idol.name_cn).join("、"),
+                        input.frontObjectKey,
+                        input.backObjectKey,
+                        input.accent,
+                        input.bio,
+                        input.tradeNote,
+                        this.bindBoolean(input.available),
+                        input.createdAt,
+                        input.updatedAt,
+                        input.seriesCode,
+                        this.bindBoolean(true),
+                        input.ownerAccountId,
+                    )
+                    .run<FudabaCardRow>();
+                const saved = result.results[0];
+                if (!saved) return { status: "unavailable" };
+                await this.replaceCardIdols(database, input.id, idols);
+                return this.savedCardResult(saved, null, database);
+            }),
+        );
     }
 
     updateCardMetadataForOwner(
-        input: UpdateOwnedFudabaCardMetadataInput
+        input: UpdateOwnedFudabaCardMetadataInput,
     ): Promise<FudabaCardMutationResult> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            let idols: CardIdolSelectionRecord[];
-            try {
-                idols = await this.validateCardIdols(
-                    database,
-                    input.favoriteIdolIds ?? []
-                );
-            } catch (error) {
-                if (error instanceof InvalidCardIdolSelectionError) {
-                    return { status: 'unavailable' };
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                let idols: CardIdolSelectionRecord[];
+                try {
+                    idols = await this.validateCardIdols(
+                        database,
+                        input.favoriteIdolIds ?? [],
+                    );
+                } catch (error) {
+                    if (error instanceof InvalidCardIdolSelectionError) {
+                        return { status: "unavailable" };
+                    }
+                    throw error;
                 }
-                throw error;
-            }
-            const result = await database.prepare(
-                `UPDATE fudaba_cards
+                const result = await database
+                    .prepare(
+                        `UPDATE fudaba_cards
                  SET producer_name=?, display_name=?, series_code=?, favorite_idol=?,
                      accent=?, bio=?, trade_note=?, available=?,
                      media_rights_status='unknown', publication_status='pending',
@@ -2226,54 +2327,57 @@ export class SqlFudabaRepository implements FudabaRepository {
                        SELECT 1 FROM agencies series
                        WHERE series.code=? AND series.wiki_enabled=?
                    )
-                 RETURNING ${CARD_COLUMNS}`
-            ).bind(
-                input.producerName,
-                input.displayName,
-                input.seriesCode,
-                idols.map((idol) => idol.name_cn).join('、'),
-                input.accent,
-                input.bio,
-                input.tradeNote,
-                this.bindBoolean(input.available),
-                input.updatedAt,
-                input.cardId,
-                input.ownerAccountId,
-                input.expectedRevision,
-                input.seriesCode,
-                this.bindBoolean(true)
-            ).run<FudabaCardRow>();
-            const saved = result.results[0];
-            if (saved) {
-                await this.replaceCardIdols(database, input.cardId, idols);
-                return this.savedCardResult(saved, null, database);
-            }
-            return this.cardWriteFailure(
-                await this.findActiveCardForOwner(
-                    input.cardId,
-                    input.ownerAccountId
-                ),
-                input.expectedRevision
-            );
-        }));
+                 RETURNING ${CARD_COLUMNS}`,
+                    )
+                    .bind(
+                        input.producerName,
+                        input.displayName,
+                        input.seriesCode,
+                        idols.map((idol) => idol.name_cn).join("、"),
+                        input.accent,
+                        input.bio,
+                        input.tradeNote,
+                        this.bindBoolean(input.available),
+                        input.updatedAt,
+                        input.cardId,
+                        input.ownerAccountId,
+                        input.expectedRevision,
+                        input.seriesCode,
+                        this.bindBoolean(true),
+                    )
+                    .run<FudabaCardRow>();
+                const saved = result.results[0];
+                if (saved) {
+                    await this.replaceCardIdols(database, input.cardId, idols);
+                    return this.savedCardResult(saved, null, database);
+                }
+                return this.cardWriteFailure(
+                    await this.findActiveCardForOwner(
+                        input.cardId,
+                        input.ownerAccountId,
+                    ),
+                    input.expectedRevision,
+                );
+            }),
+        );
     }
 
     updateCardMediaForOwner(
-        input: UpdateOwnedFudabaCardMediaInput
+        input: UpdateOwnedFudabaCardMediaInput,
     ): Promise<FudabaCardMutationResult> {
         return this.serializeWrite(async () => {
             const current = await this.findActiveCardForOwner(
                 input.cardId,
-                input.ownerAccountId
+                input.ownerAccountId,
             );
             if (!current || current.revision !== input.expectedRevision) {
                 return this.cardWriteFailure(current, input.expectedRevision);
             }
-            const objectKeyColumn = input.side === 'front'
-                ? 'front_object_key'
-                : 'back_object_key';
-            const result = await this.database.prepare(
-                `UPDATE fudaba_cards
+            const objectKeyColumn =
+                input.side === "front" ? "front_object_key" : "back_object_key";
+            const result = await this.database
+                .prepare(
+                    `UPDATE fudaba_cards
                  SET ${objectKeyColumn}=?, media_rights_status='unknown',
                      publication_status='pending', revision=revision+1, updated_at=?
                  WHERE id=? AND owner_account_id=? AND revision=?
@@ -2283,39 +2387,42 @@ export class SqlFudabaRepository implements FudabaRepository {
                        WHERE account.id=fudaba_cards.owner_account_id
                          AND account.status='active' AND account.deleted_at IS NULL
                    )
-                 RETURNING ${CARD_COLUMNS}`
-            ).bind(
-                input.objectKey,
-                input.updatedAt,
-                input.cardId,
-                input.ownerAccountId,
-                input.expectedRevision
-            ).run<FudabaCardRow>();
+                 RETURNING ${CARD_COLUMNS}`,
+                )
+                .bind(
+                    input.objectKey,
+                    input.updatedAt,
+                    input.cardId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                )
+                .run<FudabaCardRow>();
             const saved = result.results[0];
             if (saved) {
                 return this.savedCardResult(
                     saved,
-                    input.side === 'front'
+                    input.side === "front"
                         ? current.front_object_key
-                        : current.back_object_key
+                        : current.back_object_key,
                 );
             }
             return this.cardWriteFailure(
                 await this.findActiveCardForOwner(
                     input.cardId,
-                    input.ownerAccountId
+                    input.ownerAccountId,
                 ),
-                input.expectedRevision
+                input.expectedRevision,
             );
         });
     }
 
     softDeleteCardForOwner(
-        input: SoftDeleteOwnedFudabaCardInput
+        input: SoftDeleteOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult> {
         return this.serializeWrite(async () => {
-            const result = await this.database.prepare(
-                `UPDATE fudaba_cards
+            const result = await this.database
+                .prepare(
+                    `UPDATE fudaba_cards
                  SET deleted_at=?, updated_at=?, media_rights_status='unknown',
                      publication_status='pending', revision=revision+1
                  WHERE id=? AND owner_account_id=? AND revision=?
@@ -2325,54 +2432,44 @@ export class SqlFudabaRepository implements FudabaRepository {
                        WHERE account.id=fudaba_cards.owner_account_id
                          AND account.status='active' AND account.deleted_at IS NULL
                    )
-                 RETURNING ${CARD_COLUMNS}`
-            ).bind(
-                input.deletedAt,
-                input.deletedAt,
-                input.cardId,
-                input.ownerAccountId,
-                input.expectedRevision
-            ).run<FudabaCardRow>();
+                 RETURNING ${CARD_COLUMNS}`,
+                )
+                .bind(
+                    input.deletedAt,
+                    input.deletedAt,
+                    input.cardId,
+                    input.ownerAccountId,
+                    input.expectedRevision,
+                )
+                .run<FudabaCardRow>();
             const saved = result.results[0];
             if (saved) return this.savedCardResult(saved, null);
             return this.cardWriteFailure(
                 await this.findActiveCardForOwner(
                     input.cardId,
-                    input.ownerAccountId
+                    input.ownerAccountId,
                 ),
-                input.expectedRevision
+                input.expectedRevision,
             );
         });
     }
 
-    private async findClaimFrom(
-        database: SqlDatabase,
-        claimId: string
-    ): Promise<FudabaCardClaimRecord | null> {
-        const row = await queryOne<FudabaCardClaimRow>(
-            database,
-            `SELECT ${CLAIM_COLUMNS} FROM fudaba_card_claims WHERE id=?`,
-            [claimId]
-        );
-        if (!row) return null;
-        return (await this.attachClaimSelections(database, [claimRecord(row)]))[0] ?? null;
-    }
-
     private async createCardClaimInTransaction(
         database: SqlDatabase,
-        input: CreateFudabaCardClaimInput
+        input: CreateFudabaCardClaimInput,
     ): Promise<FudabaClaimCreateResult> {
         let idols: CardIdolSelectionRecord[];
         try {
             idols = await this.validateCardIdols(database, input.idolIds);
         } catch (error) {
             if (error instanceof InvalidCardIdolSelectionError) {
-                return { status: 'unavailable' };
+                return { status: "unavailable" };
             }
             throw error;
         }
-        const result = await database.prepare(
-            `INSERT INTO fudaba_card_claims
+        const result = await database
+            .prepare(
+                `INSERT INTO fudaba_card_claims
                 (id, legacy_card_id, claimant_account_id, target_card_id,
                  series_code, state, message, review_note, reviewed_by,
                  reviewed_at, revision, created_at, updated_at)
@@ -2396,19 +2493,21 @@ export class SqlFudabaRepository implements FudabaRepository {
                    WHERE bound.legacy_card_id=legacy.id
                )
              ON CONFLICT DO NOTHING
-             RETURNING ${CLAIM_COLUMNS}`
-        ).bind(
-            input.id,
-            input.message,
-            input.createdAt,
-            input.updatedAt,
-            input.claimantAccountId,
-            input.seriesCode,
-            this.bindBoolean(true),
-            input.targetCardId,
-            input.legacyCardId,
-            input.targetCardId
-        ).run<FudabaCardClaimRow>();
+             RETURNING ${CLAIM_COLUMNS}`,
+            )
+            .bind(
+                input.id,
+                input.message,
+                input.createdAt,
+                input.updatedAt,
+                input.claimantAccountId,
+                input.seriesCode,
+                this.bindBoolean(true),
+                input.targetCardId,
+                input.legacyCardId,
+                input.targetCardId,
+            )
+            .run<FudabaCardClaimRow>();
         const saved = result.results[0];
         if (!saved) {
             const conflict = await queryOne<{
@@ -2419,26 +2518,31 @@ export class SqlFudabaRepository implements FudabaRepository {
                 `SELECT id, state FROM fudaba_card_claims
                  WHERE legacy_card_id=?
                    AND state IN ('pending', 'approving', 'approved')`,
-                [input.legacyCardId]
+                [input.legacyCardId],
             );
             return conflict
                 ? {
-                    status: 'conflict',
-                    claimId: conflict.id,
-                    state: conflict.state
-                }
-                : { status: 'unavailable' };
+                      status: "conflict",
+                      claimId: conflict.id,
+                      state: conflict.state,
+                  }
+                : { status: "unavailable" };
         }
-        await database.batch(idols.map((idol) => database.prepare(
-            `INSERT INTO fudaba_card_claim_idols
+        await database.batch(
+            idols.map((idol) =>
+                database
+                    .prepare(
+                        `INSERT INTO fudaba_card_claim_idols
                 (claim_id, idol_id, display_order)
-             VALUES (?, ?, ?)`
-        ).bind(input.id, idol.idol_id, idol.display_order)));
-        const claim = (await this.attachClaimSelections(
-            database,
-            [claimRecord(saved)]
-        ))[0]!;
-        return { status: 'created', claim };
+             VALUES (?, ?, ?)`,
+                    )
+                    .bind(input.id, idol.idol_id, idol.display_order),
+            ),
+        );
+        const claim = (
+            await this.attachClaimSelections(database, [claimRecord(saved)])
+        )[0]!;
+        return { status: "created", claim };
     }
 
     ensureSameIdLegacyCardEnvelopes(input: {
@@ -2446,10 +2550,11 @@ export class SqlFudabaRepository implements FudabaRepository {
         body: string;
         createdAt: string;
     }): Promise<FudabaClaimEnvelopeRecord[]> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const rows = await queryAll<FudabaClaimEnvelopeRow>(
-                database,
-                `INSERT INTO fudaba_claim_envelopes
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const rows = await queryAll<FudabaClaimEnvelopeRow>(
+                    database,
+                    `INSERT INTO fudaba_claim_envelopes
                     (recipient_account_id, legacy_card_id, kind, action_state,
                      claim_id, title, body, read_at, actioned_at, created_at,
                      revision)
@@ -2472,15 +2577,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                  ON CONFLICT (recipient_account_id, kind, legacy_card_id)
                  DO NOTHING
                  RETURNING ${ENVELOPE_COLUMNS}`,
-                [input.title, input.body, input.createdAt]
-            );
-            return rows.map(envelopeRecord);
-        }));
+                    [input.title, input.body, input.createdAt],
+                );
+                return rows.map(envelopeRecord);
+            }),
+        );
     }
 
     async listClaimEnvelopesForOwner(
         recipientAccountId: string,
-        limit: number
+        limit: number,
     ): Promise<FudabaClaimEnvelopeRecord[]> {
         const rows = await queryAll<FudabaClaimEnvelopeRow>(
             this.database,
@@ -2489,7 +2595,7 @@ export class SqlFudabaRepository implements FudabaRepository {
              WHERE recipient_account_id=?
              ORDER BY created_at DESC, id DESC
              LIMIT ?`,
-            [recipientAccountId, limit]
+            [recipientAccountId, limit],
         );
         return rows.map(envelopeRecord);
     }
@@ -2512,26 +2618,27 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.readAt,
                     input.envelopeId,
                     input.recipientAccountId,
-                    input.expectedRevision
-                ]
+                    input.expectedRevision,
+                ],
             );
-            if (updated) return { status: 'saved', envelope: envelopeRecord(updated) };
+            if (updated)
+                return { status: "saved", envelope: envelopeRecord(updated) };
             const current = await queryOne<{ revision: number }>(
                 this.database,
                 `SELECT revision FROM fudaba_claim_envelopes
                  WHERE id=? AND recipient_account_id=?`,
-                [input.envelopeId, input.recipientAccountId]
+                [input.envelopeId, input.recipientAccountId],
             );
             return current
-                ? { status: 'conflict', revision: Number(current.revision) }
-                : { status: 'unavailable' };
+                ? { status: "conflict", revision: Number(current.revision) }
+                : { status: "unavailable" };
         });
     }
 
     actionClaimEnvelope(input: {
         envelopeId: number;
         recipientAccountId: string;
-        action: 'decline';
+        action: "decline";
         expectedRevision: number;
         actionedAt: string;
     }): Promise<FudabaEnvelopeActionResult> {
@@ -2550,98 +2657,112 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.actionedAt,
                     input.envelopeId,
                     input.recipientAccountId,
-                    input.expectedRevision
-                ]
+                    input.expectedRevision,
+                ],
             );
-            if (updated) return { status: 'saved', envelope: envelopeRecord(updated) };
+            if (updated)
+                return { status: "saved", envelope: envelopeRecord(updated) };
             const current = await queryOne<{ revision: number }>(
                 this.database,
                 `SELECT revision FROM fudaba_claim_envelopes
                  WHERE id=? AND recipient_account_id=?`,
-                [input.envelopeId, input.recipientAccountId]
+                [input.envelopeId, input.recipientAccountId],
             );
             return current
-                ? { status: 'conflict', revision: Number(current.revision) }
-                : { status: 'unavailable' };
+                ? { status: "conflict", revision: Number(current.revision) }
+                : { status: "unavailable" };
         });
     }
 
     confirmLegacyCardEnvelope(
-        input: ConfirmFudabaLegacyEnvelopeInput
+        input: ConfirmFudabaLegacyEnvelopeInput,
     ): Promise<FudabaEnvelopeClaimResult> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const row = await queryOne<FudabaClaimEnvelopeRow>(
-                database,
-                `SELECT ${ENVELOPE_COLUMNS}
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const row = await queryOne<FudabaClaimEnvelopeRow>(
+                    database,
+                    `SELECT ${ENVELOPE_COLUMNS}
                  FROM fudaba_claim_envelopes
                  WHERE id=? FOR UPDATE`,
-                [input.envelopeId]
-            );
-            if (!row || row.recipient_account_id !== input.recipientAccountId) {
-                return { status: 'unavailable' };
-            }
-            const envelope = envelopeRecord(row);
-            if (
-                envelope.kind !== 'legacy-card-match' ||
-                envelope.action_state !== 'pending' ||
-                envelope.revision !== input.expectedRevision
-            ) {
-                return { status: 'conflict', revision: envelope.revision };
-            }
-            const claimResult = await this.createCardClaimInTransaction(database, {
-                id: input.id,
-                legacyCardId: envelope.legacy_card_id,
-                claimantAccountId: input.recipientAccountId,
-                targetCardId: input.targetCardId,
-                seriesCode: input.seriesCode,
-                idolIds: input.idolIds,
-                message: input.message,
-                createdAt: input.createdAt,
-                updatedAt: input.updatedAt
-            });
-            if (claimResult.status === 'unavailable') {
-                return { status: 'unavailable' };
-            }
-            if (claimResult.status === 'conflict') {
-                return { status: 'conflict', revision: envelope.revision };
-            }
-            const updated = await queryOne<FudabaClaimEnvelopeRow>(
-                database,
-                `UPDATE fudaba_claim_envelopes
+                    [input.envelopeId],
+                );
+                if (
+                    !row ||
+                    row.recipient_account_id !== input.recipientAccountId
+                ) {
+                    return { status: "unavailable" };
+                }
+                const envelope = envelopeRecord(row);
+                if (
+                    envelope.kind !== "legacy-card-match" ||
+                    envelope.action_state !== "pending" ||
+                    envelope.revision !== input.expectedRevision
+                ) {
+                    return { status: "conflict", revision: envelope.revision };
+                }
+                const claimResult = await this.createCardClaimInTransaction(
+                    database,
+                    {
+                        id: input.id,
+                        legacyCardId: envelope.legacy_card_id,
+                        claimantAccountId: input.recipientAccountId,
+                        targetCardId: input.targetCardId,
+                        seriesCode: input.seriesCode,
+                        idolIds: input.idolIds,
+                        message: input.message,
+                        createdAt: input.createdAt,
+                        updatedAt: input.updatedAt,
+                    },
+                );
+                if (claimResult.status === "unavailable") {
+                    return { status: "unavailable" };
+                }
+                if (claimResult.status === "conflict") {
+                    return { status: "conflict", revision: envelope.revision };
+                }
+                const updated = await queryOne<FudabaClaimEnvelopeRow>(
+                    database,
+                    `UPDATE fudaba_claim_envelopes
                  SET action_state='confirmed', claim_id=?, actioned_at=?,
                      read_at=COALESCE(read_at, ?), revision=revision+1
                  WHERE id=? AND recipient_account_id=?
                    AND action_state='pending' AND revision=?
                  RETURNING ${ENVELOPE_COLUMNS}`,
-                [
-                    claimResult.claim.id,
-                    input.actionedAt,
-                    input.actionedAt,
-                    input.envelopeId,
-                    input.recipientAccountId,
-                    input.expectedRevision
-                ]
-            );
-            if (!updated) throw new Error('Legacy claim envelope action lost its lock');
-            return {
-                status: 'created',
-                envelope: envelopeRecord(updated),
-                claim: claimResult.claim
-            };
-        }));
+                    [
+                        claimResult.claim.id,
+                        input.actionedAt,
+                        input.actionedAt,
+                        input.envelopeId,
+                        input.recipientAccountId,
+                        input.expectedRevision,
+                    ],
+                );
+                if (!updated)
+                    throw new Error(
+                        "Legacy claim envelope action lost its lock",
+                    );
+                return {
+                    status: "created",
+                    envelope: envelopeRecord(updated),
+                    claim: claimResult.claim,
+                };
+            }),
+        );
     }
 
     createCardClaimForOwner(
-        input: CreateFudabaCardClaimInput
+        input: CreateFudabaCardClaimInput,
     ): Promise<FudabaClaimCreateResult> {
-        return this.serializeWrite(() => this.database.transaction((database) =>
-            this.createCardClaimInTransaction(database, input)
-        ));
+        return this.serializeWrite(() =>
+            this.database.transaction((database) =>
+                this.createCardClaimInTransaction(database, input),
+            ),
+        );
     }
 
     async listCardClaimsForOwner(
         claimantAccountId: string,
-        limit: number
+        limit: number,
     ): Promise<FudabaCardClaimRecord[]> {
         const rows = await queryAll<FudabaCardClaimRow>(
             this.database,
@@ -2650,17 +2771,17 @@ export class SqlFudabaRepository implements FudabaRepository {
              WHERE claimant_account_id=?
              ORDER BY created_at DESC, id DESC
              LIMIT ?`,
-            [claimantAccountId, limit]
+            [claimantAccountId, limit],
         );
         return this.attachClaimSelections(this.database, rows.map(claimRecord));
     }
 
     async listLegacyNamecardClaimStatuses(
         legacyCardIds: number[],
-        viewerAccountId: string | null
+        viewerAccountId: string | null,
     ): Promise<LegacyNamecardClaimStatusRecord[]> {
         if (!legacyCardIds.length) return [];
-        const placeholders = legacyCardIds.map(() => '?').join(', ');
+        const placeholders = legacyCardIds.map(() => "?").join(", ");
         return queryAll<LegacyNamecardClaimStatusRecord>(
             this.database,
             `SELECT legacy.id AS legacy_card_id,
@@ -2686,28 +2807,29 @@ export class SqlFudabaRepository implements FudabaRepository {
                     ) AS viewer_claim_state
              FROM cards legacy
              WHERE legacy.id IN (${placeholders})`,
-            [viewerAccountId, ...legacyCardIds]
+            [viewerAccountId, ...legacyCardIds],
         );
     }
 
-    async findRegisteredCardForAdmin(cardId: string): Promise<FudabaCardRecord | null> {
+    async findRegisteredCardForAdmin(
+        cardId: string,
+    ): Promise<FudabaCardRecord | null> {
         const row = await queryOne<FudabaCardRow>(
             this.database,
             `SELECT ${CARD_COLUMNS}
              FROM fudaba_cards
              WHERE id=? AND deleted_at IS NULL`,
-            [cardId]
+            [cardId],
         );
         if (!row) return null;
-        const [card] = await this.attachCardSelections(
-            this.database,
-            [cardRecord(row)]
-        );
+        const [card] = await this.attachCardSelections(this.database, [
+            cardRecord(row),
+        ]);
         return card ?? null;
     }
 
     async listAdminPendingCards(
-        limit: number
+        limit: number,
     ): Promise<FudabaRegisteredCardReviewRecord[]> {
         const rows = await queryAll<FudabaRegisteredCardReviewRow>(
             this.database,
@@ -2718,16 +2840,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                AND card.deleted_at IS NULL
              ORDER BY card.created_at ASC, card.id ASC
              LIMIT ?`,
-            [limit]
+            [limit],
         );
         return this.attachCardSelections(
             this.database,
-            rows.map(registeredCardReviewRecord)
+            rows.map(registeredCardReviewRecord),
         );
     }
 
     async findAdminCardClaim(
-        claimId: string
+        claimId: string,
     ): Promise<FudabaAdminCardClaimRecord | null> {
         const row = await queryOne<FudabaAdminCardClaimRow>(
             this.database,
@@ -2737,18 +2859,17 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON profile.account_id=claim.claimant_account_id
              JOIN cards legacy ON legacy.id=claim.legacy_card_id
              WHERE claim.id=?`,
-            [claimId]
+            [claimId],
         );
         if (!row) return null;
-        const [claim] = await this.attachClaimSelections(
-            this.database,
-            [adminClaimRecord(row)]
-        );
+        const [claim] = await this.attachClaimSelections(this.database, [
+            adminClaimRecord(row),
+        ]);
         return claim ?? null;
     }
 
     async listAdminPendingClaims(
-        limit: number
+        limit: number,
     ): Promise<FudabaAdminCardClaimRecord[]> {
         const rows = await queryAll<FudabaAdminCardClaimRow>(
             this.database,
@@ -2760,68 +2881,74 @@ export class SqlFudabaRepository implements FudabaRepository {
              WHERE claim.state IN ('pending', 'approving')
              ORDER BY claim.created_at ASC, claim.id ASC
              LIMIT ?`,
-            [limit]
+            [limit],
         );
         return this.attachClaimSelections(
             this.database,
-            rows.map(adminClaimRecord)
+            rows.map(adminClaimRecord),
         );
     }
 
     beginRegisteredCardReview(
         cardId: string,
-        expectedRevision: number
+        expectedRevision: number,
     ): Promise<FudabaRegisteredCardReviewClaim> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const claimed = await queryOne<{ id: string }>(
-                database,
-                `UPDATE fudaba_cards
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const claimed = await queryOne<{ id: string }>(
+                    database,
+                    `UPDATE fudaba_cards
                  SET publication_status='approving', revision=revision+1,
                      updated_at=CURRENT_TIMESTAMP
                  WHERE id=? AND publication_status='pending' AND revision=?
                    AND deleted_at IS NULL
                  RETURNING id`,
-                [cardId, expectedRevision]
-            );
-            if (claimed) {
-                const row = await queryOne<FudabaRegisteredCardReviewRow>(
-                    database,
-                    `SELECT card.*, profile.display_name AS owner_display_name
+                    [cardId, expectedRevision],
+                );
+                if (claimed) {
+                    const row = await queryOne<FudabaRegisteredCardReviewRow>(
+                        database,
+                        `SELECT card.*, profile.display_name AS owner_display_name
                      FROM fudaba_cards card
                      JOIN platform_profiles profile
                        ON profile.account_id=card.owner_account_id
                      WHERE card.id=?`,
-                    [cardId]
-                );
-                if (!row) throw new Error('Claimed Fudaba card review disappeared');
-                const card = (await this.attachCardSelections(
-                    database,
-                    [registeredCardReviewRecord(row)]
-                ))[0]!;
-                return { status: 'claimed', card };
-            }
-            const current = await queryOne<{
-                revision: number | string;
-                publication_status: FudabaRegisteredCardReviewRecord['publication_status'];
-            }>(
-                database,
-                `SELECT revision, publication_status
-                 FROM fudaba_cards WHERE id=? AND deleted_at IS NULL`,
-                [cardId]
-            );
-            return current
-                ? {
-                    status: 'conflict',
-                    revision: Number(current.revision),
-                    publicationStatus: current.publication_status
+                        [cardId],
+                    );
+                    if (!row)
+                        throw new Error(
+                            "Claimed Fudaba card review disappeared",
+                        );
+                    const card = (
+                        await this.attachCardSelections(database, [
+                            registeredCardReviewRecord(row),
+                        ])
+                    )[0]!;
+                    return { status: "claimed", card };
                 }
-                : { status: 'unavailable' };
-        }));
+                const current = await queryOne<{
+                    revision: number | string;
+                    publication_status: FudabaRegisteredCardReviewRecord["publication_status"];
+                }>(
+                    database,
+                    `SELECT revision, publication_status
+                 FROM fudaba_cards WHERE id=? AND deleted_at IS NULL`,
+                    [cardId],
+                );
+                return current
+                    ? {
+                          status: "conflict",
+                          revision: Number(current.revision),
+                          publicationStatus: current.publication_status,
+                      }
+                    : { status: "unavailable" };
+            }),
+        );
     }
 
     rollbackRegisteredCardReview(
         cardId: string,
-        approvingRevision: number
+        approvingRevision: number,
     ): Promise<boolean> {
         return this.serializeWrite(async () => {
             const result = await executeSql(
@@ -2831,7 +2958,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                      updated_at=CURRENT_TIMESTAMP
                  WHERE id=? AND publication_status='approving' AND revision=?
                    AND deleted_at IS NULL`,
-                [cardId, approvingRevision]
+                [cardId, approvingRevision],
             );
             return result.meta.changes === 1;
         });
@@ -2840,119 +2967,126 @@ export class SqlFudabaRepository implements FudabaRepository {
     completeRegisteredCardReview(input: {
         cardId: string;
         approvingRevision: number;
-        decision: 'publish' | 'reject';
+        decision: "publish" | "reject";
         reviewedAt: string;
         audit: AuditLogInput;
     }): Promise<FudabaRegisteredCardReviewResult> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const saved = await queryOne<{ id: string }>(
-                database,
-                `UPDATE fudaba_cards
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const saved = await queryOne<{ id: string }>(
+                    database,
+                    `UPDATE fudaba_cards
                  SET publication_status=?, media_rights_status=?,
                      revision=revision+1, updated_at=?
                  WHERE id=? AND publication_status='approving' AND revision=?
                    AND deleted_at IS NULL
                  RETURNING id`,
-                [
-                    input.decision === 'publish' ? 'published' : 'rejected',
-                    input.decision === 'publish' ? 'approved' : 'denied',
-                    input.reviewedAt,
-                    input.cardId,
-                    input.approvingRevision
-                ]
-            );
-            if (saved) {
-                await executeSql(
-                    database,
-                    `INSERT INTO logs
+                    [
+                        input.decision === "publish" ? "published" : "rejected",
+                        input.decision === "publish" ? "approved" : "denied",
+                        input.reviewedAt,
+                        input.cardId,
+                        input.approvingRevision,
+                    ],
+                );
+                if (saved) {
+                    await executeSql(
+                        database,
+                        `INSERT INTO logs
                         (username, producername, action, target, ip, time)
                      VALUES (?, ?, ?, ?, ?, ?)`,
-                    [
-                        input.audit.username,
-                        input.audit.producername,
-                        input.audit.action,
-                        input.audit.target,
-                        input.audit.ip,
-                        input.audit.time
-                    ]
-                );
-                const row = await queryOne<FudabaRegisteredCardReviewRow>(
-                    database,
-                    `SELECT card.*, profile.display_name AS owner_display_name
+                        [
+                            input.audit.username,
+                            input.audit.producername,
+                            input.audit.action,
+                            input.audit.target,
+                            input.audit.ip,
+                            input.audit.time,
+                        ],
+                    );
+                    const row = await queryOne<FudabaRegisteredCardReviewRow>(
+                        database,
+                        `SELECT card.*, profile.display_name AS owner_display_name
                      FROM fudaba_cards card
                      JOIN platform_profiles profile
                        ON profile.account_id=card.owner_account_id
                      WHERE card.id=?`,
-                    [input.cardId]
-                );
-                if (!row) throw new Error('Reviewed Fudaba card disappeared');
-                const card = (await this.attachCardSelections(
-                    database,
-                    [registeredCardReviewRecord(row)]
-                ))[0]!;
-                return { status: 'saved', card };
-            }
-            const current = await queryOne<{
-                revision: number | string;
-                publication_status: FudabaRegisteredCardReviewRecord['publication_status'];
-            }>(
-                database,
-                `SELECT revision, publication_status
-                 FROM fudaba_cards WHERE id=? AND deleted_at IS NULL`,
-                [input.cardId]
-            );
-            return current
-                ? {
-                    status: 'conflict',
-                    revision: Number(current.revision),
-                    publicationStatus: current.publication_status
+                        [input.cardId],
+                    );
+                    if (!row)
+                        throw new Error("Reviewed Fudaba card disappeared");
+                    const card = (
+                        await this.attachCardSelections(database, [
+                            registeredCardReviewRecord(row),
+                        ])
+                    )[0]!;
+                    return { status: "saved", card };
                 }
-                : { status: 'unavailable' };
-        }));
+                const current = await queryOne<{
+                    revision: number | string;
+                    publication_status: FudabaRegisteredCardReviewRecord["publication_status"];
+                }>(
+                    database,
+                    `SELECT revision, publication_status
+                 FROM fudaba_cards WHERE id=? AND deleted_at IS NULL`,
+                    [input.cardId],
+                );
+                return current
+                    ? {
+                          status: "conflict",
+                          revision: Number(current.revision),
+                          publicationStatus: current.publication_status,
+                      }
+                    : { status: "unavailable" };
+            }),
+        );
     }
 
     beginCardClaimReview(
         claimId: string,
-        expectedRevision: number
+        expectedRevision: number,
     ): Promise<FudabaClaimReviewClaim> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const row = await queryOne<FudabaCardClaimRow>(
-                database,
-                `UPDATE fudaba_card_claims
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const row = await queryOne<FudabaCardClaimRow>(
+                    database,
+                    `UPDATE fudaba_card_claims
                  SET state='approving', revision=revision+1,
                      updated_at=CURRENT_TIMESTAMP
                  WHERE id=? AND state='pending' AND revision=?
                  RETURNING ${CLAIM_COLUMNS}`,
-                [claimId, expectedRevision]
-            );
-            if (row) {
-                const claim = (await this.attachClaimSelections(
-                    database,
-                    [claimRecord(row)]
-                ))[0]!;
-                return { status: 'claimed', claim };
-            }
-            const current = await queryOne<{
-                revision: number | string;
-                state: FudabaCardClaimState;
-            }>(
-                database,
-                'SELECT revision, state FROM fudaba_card_claims WHERE id=?',
-                [claimId]
-            );
-            return current
-                ? {
-                    status: 'conflict',
-                    revision: Number(current.revision),
-                    state: current.state
+                    [claimId, expectedRevision],
+                );
+                if (row) {
+                    const claim = (
+                        await this.attachClaimSelections(database, [
+                            claimRecord(row),
+                        ])
+                    )[0]!;
+                    return { status: "claimed", claim };
                 }
-                : { status: 'unavailable' };
-        }));
+                const current = await queryOne<{
+                    revision: number | string;
+                    state: FudabaCardClaimState;
+                }>(
+                    database,
+                    "SELECT revision, state FROM fudaba_card_claims WHERE id=?",
+                    [claimId],
+                );
+                return current
+                    ? {
+                          status: "conflict",
+                          revision: Number(current.revision),
+                          state: current.state,
+                      }
+                    : { status: "unavailable" };
+            }),
+        );
     }
 
     rollbackCardClaimReview(
         claimId: string,
-        approvingRevision: number
+        approvingRevision: number,
     ): Promise<boolean> {
         return this.serializeWrite(async () => {
             const result = await executeSql(
@@ -2961,45 +3095,47 @@ export class SqlFudabaRepository implements FudabaRepository {
                  SET state='pending', revision=revision+1,
                      updated_at=CURRENT_TIMESTAMP
                  WHERE id=? AND state='approving' AND revision=?`,
-                [claimId, approvingRevision]
+                [claimId, approvingRevision],
             );
             return result.meta.changes === 1;
         });
     }
 
     completeCardClaimReview(
-        input: CompleteFudabaClaimReviewInput
+        input: CompleteFudabaClaimReviewInput,
     ): Promise<FudabaClaimReviewResult> {
-        return this.serializeWrite(() => this.database.transaction(async (database) => {
-            const lockedRow = await queryOne<FudabaCardClaimRow>(
-                database,
-                `SELECT ${CLAIM_COLUMNS}
+        return this.serializeWrite(() =>
+            this.database.transaction(async (database) => {
+                const lockedRow = await queryOne<FudabaCardClaimRow>(
+                    database,
+                    `SELECT ${CLAIM_COLUMNS}
                  FROM fudaba_card_claims WHERE id=? FOR UPDATE`,
-                [input.claimId]
-            );
-            if (!lockedRow) return { status: 'unavailable' };
-            const locked = (await this.attachClaimSelections(
-                database,
-                [claimRecord(lockedRow)]
-            ))[0]!;
-            if (
-                locked.state !== 'approving' ||
-                locked.revision !== input.approvingRevision
-            ) {
-                return {
-                    status: 'conflict',
-                    revision: locked.revision,
-                    state: locked.state
-                };
-            }
+                    [input.claimId],
+                );
+                if (!lockedRow) return { status: "unavailable" };
+                const locked = (
+                    await this.attachClaimSelections(database, [
+                        claimRecord(lockedRow),
+                    ])
+                )[0]!;
+                if (
+                    locked.state !== "approving" ||
+                    locked.revision !== input.approvingRevision
+                ) {
+                    return {
+                        status: "conflict",
+                        revision: locked.revision,
+                        state: locked.state,
+                    };
+                }
 
-            let card: FudabaCardRecord | null = null;
-            let targetCardId = locked.target_card_id;
-            if (input.decision === 'approve') {
-                if (input.target.kind === 'existing') {
-                    const updated = await queryOne<FudabaCardRow>(
-                        database,
-                        `UPDATE fudaba_cards
+                let card: FudabaCardRecord | null = null;
+                let targetCardId = locked.target_card_id;
+                if (input.decision === "approve") {
+                    if (input.target.kind === "existing") {
+                        const updated = await queryOne<FudabaCardRow>(
+                            database,
+                            `UPDATE fudaba_cards
                          SET legacy_card_id=?, revision=revision+1, updated_at=?
                          WHERE id=? AND owner_account_id=? AND deleted_at IS NULL
                            AND legacy_card_id IS NULL
@@ -3009,23 +3145,25 @@ export class SqlFudabaRepository implements FudabaRepository {
                                WHERE bound.legacy_card_id=?
                            )
                          RETURNING ${CARD_COLUMNS}`,
-                        [
-                            locked.legacy_card_id,
-                            input.reviewedAt,
-                            input.target.cardId,
-                            locked.claimant_account_id,
-                            locked.legacy_card_id
-                        ]
-                    );
-                    if (!updated) return { status: 'unavailable' };
-                    targetCardId = updated.id;
-                    card = (await this.attachCardSelections(
-                        database,
-                        [cardRecord(updated)]
-                    ))[0]!;
-                } else {
-                    const created = await database.prepare(
-                        `INSERT INTO fudaba_cards
+                            [
+                                locked.legacy_card_id,
+                                input.reviewedAt,
+                                input.target.cardId,
+                                locked.claimant_account_id,
+                                locked.legacy_card_id,
+                            ],
+                        );
+                        if (!updated) return { status: "unavailable" };
+                        targetCardId = updated.id;
+                        card = (
+                            await this.attachCardSelections(database, [
+                                cardRecord(updated),
+                            ])
+                        )[0]!;
+                    } else {
+                        const created = await database
+                            .prepare(
+                                `INSERT INTO fudaba_cards
                             (id, owner_account_id, producer_name, display_name,
                              series_code, favorite_idol, legacy_card_id,
                              front_object_key, back_object_key, accent, bio,
@@ -3050,103 +3188,109 @@ export class SqlFudabaRepository implements FudabaRepository {
                                WHERE bound.legacy_card_id=claim.legacy_card_id
                            )
                          ON CONFLICT DO NOTHING
-                         RETURNING ${CARD_COLUMNS}`
-                    ).bind(
-                        input.target.card.id,
-                        input.target.card.producerName,
-                        input.target.card.displayName,
-                        locked.favorite_idols.map((idol) => idol.name_cn).join('、'),
-                        input.target.card.frontObjectKey,
-                        input.target.card.backObjectKey,
-                        input.target.card.accent,
-                        input.target.card.bio,
-                        input.target.card.tradeNote,
-                        this.bindBoolean(input.target.card.available),
-                        input.reviewedAt,
-                        input.reviewedAt,
-                        this.bindBoolean(true),
-                        input.claimId
-                    ).run<FudabaCardRow>();
-                    const saved = created.results[0];
-                    if (!saved) return { status: 'unavailable' };
-                    await this.replaceCardIdols(
-                        database,
-                        saved.id,
-                        locked.favorite_idols
-                    );
-                    targetCardId = saved.id;
-                    card = (await this.attachCardSelections(
-                        database,
-                        [cardRecord(saved)]
-                    ))[0]!;
+                         RETURNING ${CARD_COLUMNS}`,
+                            )
+                            .bind(
+                                input.target.card.id,
+                                input.target.card.producerName,
+                                input.target.card.displayName,
+                                locked.favorite_idols
+                                    .map((idol) => idol.name_cn)
+                                    .join("、"),
+                                input.target.card.frontObjectKey,
+                                input.target.card.backObjectKey,
+                                input.target.card.accent,
+                                input.target.card.bio,
+                                input.target.card.tradeNote,
+                                this.bindBoolean(input.target.card.available),
+                                input.reviewedAt,
+                                input.reviewedAt,
+                                this.bindBoolean(true),
+                                input.claimId,
+                            )
+                            .run<FudabaCardRow>();
+                        const saved = created.results[0];
+                        if (!saved) return { status: "unavailable" };
+                        await this.replaceCardIdols(
+                            database,
+                            saved.id,
+                            locked.favorite_idols,
+                        );
+                        targetCardId = saved.id;
+                        card = (
+                            await this.attachCardSelections(database, [
+                                cardRecord(saved),
+                            ])
+                        )[0]!;
+                    }
                 }
-            }
 
-            const state: FudabaCardClaimState = input.decision === 'approve'
-                ? 'approved'
-                : 'rejected';
-            const updatedClaimRow = await queryOne<FudabaCardClaimRow>(
-                database,
-                `UPDATE fudaba_card_claims
+                const state: FudabaCardClaimState =
+                    input.decision === "approve" ? "approved" : "rejected";
+                const updatedClaimRow = await queryOne<FudabaCardClaimRow>(
+                    database,
+                    `UPDATE fudaba_card_claims
                  SET state=?, target_card_id=?, review_note=?, reviewed_by=?,
                      reviewed_at=?, revision=revision+1, updated_at=?
                  WHERE id=? AND state='approving' AND revision=?
                  RETURNING ${CLAIM_COLUMNS}`,
-                [
-                    state,
-                    targetCardId,
-                    input.reviewNote,
-                    input.reviewedBy,
-                    input.reviewedAt,
-                    input.reviewedAt,
-                    input.claimId,
-                    input.approvingRevision
-                ]
-            );
-            if (!updatedClaimRow) {
-                throw new Error('Fudaba claim review lost its row lock');
-            }
-            await executeSql(
-                database,
-                `INSERT INTO fudaba_claim_envelopes
+                    [
+                        state,
+                        targetCardId,
+                        input.reviewNote,
+                        input.reviewedBy,
+                        input.reviewedAt,
+                        input.reviewedAt,
+                        input.claimId,
+                        input.approvingRevision,
+                    ],
+                );
+                if (!updatedClaimRow) {
+                    throw new Error("Fudaba claim review lost its row lock");
+                }
+                await executeSql(
+                    database,
+                    `INSERT INTO fudaba_claim_envelopes
                     (recipient_account_id, legacy_card_id, kind, action_state,
                      claim_id, title, body, read_at, actioned_at, created_at,
                      revision)
                  VALUES (?, ?, ?, 'none', ?, ?, ?, NULL, NULL, ?, 0)
                  ON CONFLICT (recipient_account_id, kind, legacy_card_id)
                  DO NOTHING`,
-                [
-                    locked.claimant_account_id,
-                    locked.legacy_card_id,
-                    input.decision === 'approve'
-                        ? 'claim-approved'
-                        : 'claim-rejected',
-                    input.claimId,
-                    input.notificationTitle,
-                    input.notificationBody,
-                    input.reviewedAt
-                ]
-            );
-            await executeSql(
-                database,
-                `INSERT INTO logs
+                    [
+                        locked.claimant_account_id,
+                        locked.legacy_card_id,
+                        input.decision === "approve"
+                            ? "claim-approved"
+                            : "claim-rejected",
+                        input.claimId,
+                        input.notificationTitle,
+                        input.notificationBody,
+                        input.reviewedAt,
+                    ],
+                );
+                await executeSql(
+                    database,
+                    `INSERT INTO logs
                     (username, producername, action, target, ip, time)
                  VALUES (?, ?, ?, ?, ?, ?)`,
-                [
-                    input.audit.username,
-                    input.audit.producername,
-                    input.audit.action,
-                    input.audit.target,
-                    input.audit.ip,
-                    input.audit.time
-                ]
-            );
-            const claim = (await this.attachClaimSelections(
-                database,
-                [claimRecord(updatedClaimRow)]
-            ))[0]!;
-            return { status: 'saved', claim, card };
-        }));
+                    [
+                        input.audit.username,
+                        input.audit.producername,
+                        input.audit.action,
+                        input.audit.target,
+                        input.audit.ip,
+                        input.audit.time,
+                    ],
+                );
+                const claim = (
+                    await this.attachClaimSelections(database, [
+                        claimRecord(updatedClaimRow),
+                    ])
+                )[0]!;
+                return { status: "saved", claim, card };
+            }),
+        );
     }
 
     placeOwnedCard(input: {
@@ -3180,8 +3324,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.pinnedAt,
                     input.cardId,
                     input.officeId,
-                    input.ownerAccountId
-                ]
+                    input.ownerAccountId,
+                ],
             );
             return result.meta.changes === 1;
         });
@@ -3209,11 +3353,11 @@ export class SqlFudabaRepository implements FudabaRepository {
                AND card.publication_status='published'
                AND card.media_rights_status='approved'
                AND card.deleted_at IS NULL AND series.wiki_enabled`,
-            [input.officeId, input.cardId, input.ownerAccountId]
+            [input.officeId, input.cardId, input.ownerAccountId],
         );
         return current
-            ? { status: 'conflict', revision: Number(current.revision) }
-            : { status: 'unavailable' };
+            ? { status: "conflict", revision: Number(current.revision) }
+            : { status: "unavailable" };
     }
 
     private async cardPlacementRemovalFailure(input: {
@@ -3238,16 +3382,16 @@ export class SqlFudabaRepository implements FudabaRepository {
              WHERE placement.office_id=? AND placement.card_id=?
                AND card.owner_account_id=?
                AND account.status='active' AND account.deleted_at IS NULL`,
-            [input.officeId, input.cardId, input.ownerAccountId]
+            [input.officeId, input.cardId, input.ownerAccountId],
         );
-        if (!current) return { status: 'unavailable' };
+        if (!current) return { status: "unavailable" };
         const revision = Number(current.revision);
         if (revision !== input.expectedRevision) {
-            return { status: 'conflict', revision };
+            return { status: "conflict", revision };
         }
         return booleanValue(current.in_use)
-            ? { status: 'in-use', revision }
-            : { status: 'conflict', revision };
+            ? { status: "in-use", revision }
+            : { status: "conflict", revision };
     }
 
     saveCardPlacementForOwner(input: {
@@ -3264,8 +3408,9 @@ export class SqlFudabaRepository implements FudabaRepository {
         return this.serializeWrite(async () => {
             let row: FudabaCardPlacementRow | undefined;
             if (input.expectedRevision === null) {
-                const result = await this.database.prepare(
-                    `INSERT INTO fudaba_office_cards
+                const result = await this.database
+                    .prepare(
+                        `INSERT INTO fudaba_office_cards
                         (office_id, card_id, pinned_at, position_x, position_y,
                          rotation, z_index, revision, updated_at)
                      SELECT office.id, card.id, ?, ?, ?, ?, ?, 0, ?
@@ -3285,22 +3430,25 @@ export class SqlFudabaRepository implements FudabaRepository {
                        AND card.deleted_at IS NULL AND series.wiki_enabled
                        AND account.status='active' AND account.deleted_at IS NULL
                      ON CONFLICT (office_id, card_id) DO NOTHING
-                     RETURNING ${CARD_PLACEMENT_COLUMNS}`
-                ).bind(
-                    input.updatedAt,
-                    input.positionX,
-                    input.positionY,
-                    input.rotation,
-                    input.zIndex,
-                    input.updatedAt,
-                    input.cardId,
-                    input.officeId,
-                    input.ownerAccountId
-                ).run<FudabaCardPlacementRow>();
+                     RETURNING ${CARD_PLACEMENT_COLUMNS}`,
+                    )
+                    .bind(
+                        input.updatedAt,
+                        input.positionX,
+                        input.positionY,
+                        input.rotation,
+                        input.zIndex,
+                        input.updatedAt,
+                        input.cardId,
+                        input.officeId,
+                        input.ownerAccountId,
+                    )
+                    .run<FudabaCardPlacementRow>();
                 row = result.results[0];
             } else {
-                const result = await this.database.prepare(
-                    `UPDATE fudaba_office_cards AS placement
+                const result = await this.database
+                    .prepare(
+                        `UPDATE fudaba_office_cards AS placement
                      SET position_x=?, position_y=?, rotation=?, z_index=?,
                          revision=placement.revision+1, updated_at=?
                      WHERE placement.office_id=? AND placement.card_id=?
@@ -3324,31 +3472,33 @@ export class SqlFudabaRepository implements FudabaRepository {
                              AND account.status='active'
                              AND account.deleted_at IS NULL
                        )
-                     RETURNING ${CARD_PLACEMENT_COLUMNS}`
-                ).bind(
-                    input.positionX,
-                    input.positionY,
-                    input.rotation,
-                    input.zIndex,
-                    input.updatedAt,
-                    input.officeId,
-                    input.cardId,
-                    input.expectedRevision,
-                    input.ownerAccountId
-                ).run<FudabaCardPlacementRow>();
+                     RETURNING ${CARD_PLACEMENT_COLUMNS}`,
+                    )
+                    .bind(
+                        input.positionX,
+                        input.positionY,
+                        input.rotation,
+                        input.zIndex,
+                        input.updatedAt,
+                        input.officeId,
+                        input.cardId,
+                        input.expectedRevision,
+                        input.ownerAccountId,
+                    )
+                    .run<FudabaCardPlacementRow>();
                 row = result.results[0];
             }
             if (row) {
                 return {
-                    status: 'saved',
+                    status: "saved",
                     placement: cardPlacementRecord(row),
-                    created: input.expectedRevision === null
+                    created: input.expectedRevision === null,
                 };
             }
             return this.cardPlacementSaveFailure({
                 officeId: input.officeId,
                 cardId: input.cardId,
-                ownerAccountId: input.ownerAccountId
+                ownerAccountId: input.ownerAccountId,
             });
         });
     }
@@ -3360,8 +3510,9 @@ export class SqlFudabaRepository implements FudabaRepository {
         expectedRevision: number;
     }): Promise<FudabaCardPlacementRemovalResult> {
         return this.serializeWrite(async () => {
-            const result = await this.database.prepare(
-                `DELETE FROM fudaba_office_cards AS placement
+            const result = await this.database
+                .prepare(
+                    `DELETE FROM fudaba_office_cards AS placement
                  WHERE placement.office_id=? AND placement.card_id=?
                    AND placement.revision=?
                    AND EXISTS (
@@ -3378,25 +3529,27 @@ export class SqlFudabaRepository implements FudabaRepository {
                        WHERE exchange_request.office_id=placement.office_id
                          AND exchange_request.wanted_card_id=placement.card_id
                    )
-                 RETURNING revision`
-            ).bind(
-                input.officeId,
-                input.cardId,
-                input.expectedRevision,
-                input.ownerAccountId
-            ).run<{ revision: number | string }>();
+                 RETURNING revision`,
+                )
+                .bind(
+                    input.officeId,
+                    input.cardId,
+                    input.expectedRevision,
+                    input.ownerAccountId,
+                )
+                .run<{ revision: number | string }>();
             const removed = result.results[0];
             if (removed) {
                 return {
-                    status: 'removed',
-                    revision: Number(removed.revision) + 1
+                    status: "removed",
+                    revision: Number(removed.revision) + 1,
                 };
             }
             return this.cardPlacementRemovalFailure({
                 officeId: input.officeId,
                 cardId: input.cardId,
                 ownerAccountId: input.ownerAccountId,
-                expectedRevision: input.expectedRevision
+                expectedRevision: input.expectedRevision,
             });
         });
     }
@@ -3422,8 +3575,8 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.authorAccountId,
                     input.content,
                     input.createdAt,
-                    input.officeId
-                ]
+                    input.officeId,
+                ],
             );
             return result.meta.changes === 1;
         });
@@ -3477,46 +3630,47 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.offeredCardId,
                     input.officeId,
                     input.wantedCardId,
-                    input.offeredCardId
-                ]
+                    input.offeredCardId,
+                ],
             );
             return row ? exchangeRecord(row) : null;
         });
     }
 
     setCardInteraction(input: {
-        kind: 'like' | 'favorite';
+        kind: "like" | "favorite";
         cardId: string;
         accountId: string;
         active: boolean;
         createdAt: string;
     }): Promise<boolean> {
-        const table = input.kind === 'like'
-            ? 'fudaba_card_likes'
-            : 'fudaba_card_favorites';
+        const table =
+            input.kind === "like"
+                ? "fudaba_card_likes"
+                : "fudaba_card_favorites";
         return this.serializeWrite(async () => {
             const result = input.active
                 ? await executeSql(
-                    this.database,
-                    `INSERT INTO ${table} (card_id, account_id, created_at)
+                      this.database,
+                      `INSERT INTO ${table} (card_id, account_id, created_at)
                      SELECT card.id, account.id, ?
                      FROM fudaba_cards card
                      JOIN platform_accounts account ON account.id=?
                      WHERE card.id=? AND card.deleted_at IS NULL
                      ON CONFLICT(card_id, account_id) DO NOTHING`,
-                    [input.createdAt, input.accountId, input.cardId]
-                )
+                      [input.createdAt, input.accountId, input.cardId],
+                  )
                 : await executeSql(
-                    this.database,
-                    `DELETE FROM ${table} WHERE card_id=? AND account_id=?`,
-                    [input.cardId, input.accountId]
-                );
+                      this.database,
+                      `DELETE FROM ${table} WHERE card_id=? AND account_id=?`,
+                      [input.cardId, input.accountId],
+                  );
             return result.meta.changes === 1;
         });
     }
 
     createModerationCase(
-        input: NewFudabaModerationCaseInput
+        input: NewFudabaModerationCaseInput,
     ): Promise<FudabaModerationCaseRecord> {
         return this.serializeWrite(async () => {
             const row = await queryOne<FudabaModerationCaseRow>(
@@ -3539,10 +3693,10 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.resolution,
                     input.createdAt,
                     input.updatedAt,
-                    input.resolvedAt
-                ]
+                    input.resolvedAt,
+                ],
             );
-            if (!row) throw new Error('Fudaba moderation case was not created');
+            if (!row) throw new Error("Fudaba moderation case was not created");
             return moderationRecord(row);
         });
     }

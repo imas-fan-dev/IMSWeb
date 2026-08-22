@@ -263,6 +263,30 @@ test.beforeEach(async ({ context, page }) => {
       })
     }
   )
+  await page.route(
+    "**/api/community/exchange/places/search**",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          items: [
+            {
+              id: "way:300",
+              label: "首钢园",
+              address: "首钢园，石景山区，北京市，中国",
+              city: "北京市",
+              location: {
+                latitude: 39.9042,
+                longitude: 116.4074,
+                precision: "exact",
+              },
+            },
+          ],
+          attribution: "© OpenStreetMap contributors",
+        },
+      })
+    }
+  )
   await page.route("**/api/community/exchange/me/offices", async (route) => {
     await route.fulfill({ json: { items: [office] } })
   })
@@ -280,6 +304,13 @@ test.beforeEach(async ({ context, page }) => {
           office: {
             ...office,
             name: submission.name,
+            city: submission.city,
+            address: submission.address,
+            location: {
+              latitude: submission.latitude,
+              longitude: submission.longitude,
+              precision: "exact",
+            },
             revision: 4,
             updatedAt: "2026-08-02T11:00:00.000Z",
           },
@@ -323,7 +354,7 @@ test.beforeEach(async ({ context, page }) => {
 test("edits the authenticated profile and card without viewport overflow", async ({
   page,
   isMobile,
-}) => {
+}, testInfo) => {
   const consoleErrors: string[] = []
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text())
@@ -331,27 +362,45 @@ test("edits the authenticated profile and card without viewport overflow", async
   await page.goto("/community/exchange/me")
 
   await expect(
-    page.getByRole("heading", { name: "我的交换名片", exact: true })
+    page.getByRole("heading", { name: "个人档案", exact: true })
   ).toBeVisible()
-  await expect(page.getByText("浏览器交换名片")).toBeVisible()
-  await expect(page.getByText("素材已核准")).toBeVisible()
-  await expect(
-    page.getByLabel("编辑名片").getByText("草稿", { exact: true })
-  ).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "显示名称" })).toBeVisible()
+  await expect(page.getByText("浏览器交换名片")).toBeHidden()
+  await page.screenshot({
+    path: `/tmp/imsweb-profile-workspace-profile-${testInfo.project.name}.png`,
+    fullPage: true,
+  })
 
   const accountTrigger = page.getByRole("button", {
     name: "帐号：浏览器制作人",
   })
   await accountTrigger.click()
-  await expect(
-    page.getByRole("link", { name: "我的交换名片" })
-  ).toHaveAttribute("href", "/community/exchange/me")
+  await expect(page.getByRole("link", { name: "个人档案" })).toHaveAttribute(
+    "href",
+    "/community/exchange/me"
+  )
   await page.keyboard.press("Escape")
 
   const profileName = page.getByRole("textbox", { name: "显示名称" })
   await profileName.fill("更新后的浏览器制作人")
   await page.getByRole("button", { name: "保存资料" }).click()
   await expect(page.getByText("制作人资料已保存。")).toBeVisible()
+  await expect(
+    page.getByText("制作人资料已保存", { exact: true })
+  ).not.toBeVisible({ timeout: 6_000 })
+
+  await page.getByRole("link", { name: "交换名片", exact: true }).click()
+  await expect(page).toHaveURL(/section=cards/)
+  await expect(page.getByText("浏览器交换名片")).toBeVisible()
+  await expect(page.getByText("素材已核准")).toBeVisible()
+  await expect(
+    page.getByLabel("编辑名片").getByText("草稿", { exact: true })
+  ).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "显示名称" })).toBeHidden()
+  await page.screenshot({
+    path: `/tmp/imsweb-profile-workspace-cards-${testInfo.project.name}.png`,
+    fullPage: true,
+  })
 
   const cardName = page.getByRole("textbox", { name: "名片标题" })
   await cardName.fill("更新后的浏览器名片")
@@ -372,28 +421,31 @@ test("edits the authenticated profile and card without viewport overflow", async
     page.getByRole("button", { name: "查看更新后的浏览器名片背面" })
   ).toBeVisible()
 
+  await page.getByRole("link", { name: "事务所与位置", exact: true }).click()
+  await expect(page).toHaveURL(/section=offices/)
   await expect(
-    page.getByRole("heading", { name: "我的事务所与地图位置" })
+    page.getByRole("heading", { name: "事务所与地图位置" })
   ).toBeVisible()
   await expect(page.getByRole("textbox", { name: "事务所名称" })).toHaveValue(
     "浏览器交换事务所"
   )
   await expect(page.getByText("已公开", { exact: true })).toBeVisible()
   await expect(page.getByText("区域范围合适")).toBeVisible()
-  await expect(page.getByRole("spinbutton", { name: "精确纬度" })).toHaveValue(
-    "31.18452"
-  )
-  await expect(page.getByRole("spinbutton", { name: "区域纬度" })).toHaveValue(
-    "31.2"
-  )
+  await expect(page.getByText("西岸艺术中心入口").first()).toBeVisible()
+  await expect(page.getByRole("spinbutton")).toHaveCount(0)
+
+  await page.getByRole("textbox", { name: "搜索地点" }).fill("首钢园")
+  await page.getByRole("button", { name: "搜索" }).click()
+  await page.getByRole("button", { name: /首钢园.*石景山区/ }).click()
 
   const officeName = page.getByRole("textbox", { name: "事务所名称" })
   await officeName.fill("更新后的浏览器事务所")
   await page.getByRole("button", { name: "保存事务所" }).click()
   await expect(page.getByText("事务所资料已保存。")).toBeVisible()
 
-  const publicLongitude = page.getByRole("spinbutton", { name: "区域经度" })
-  await publicLongitude.fill("121.6")
+  await expect(
+    page.getByText("首钢园，石景山区，北京市，中国").first()
+  ).toBeVisible()
   await page.getByRole("button", { name: "重新提交审核" }).click()
   await expect(
     page.getByText("区域位置已提交审核，审核通过前不会出现在公开地图。")
@@ -405,7 +457,7 @@ test("edits the authenticated profile and card without viewport overflow", async
   await expect(
     page.getByText("公开位置已撤回，事务所已从区域地图下线。")
   ).toBeVisible()
-  await expect(page.getByText("当前位置不在地图上")).toBeVisible()
+  await expect(page.getByText("当前地址不在地图上")).toBeVisible()
 
   expect(
     await page.evaluate(

@@ -15,6 +15,7 @@ const office: FudabaMapOffice = {
   slug: "shanghai-weekend",
   name: "上海周末交换事务所",
   city: "上海",
+  address: "徐汇滨江公共活动区",
   accent: "#f34e6c",
   isOpen: true,
   seriesCodes: ["765"],

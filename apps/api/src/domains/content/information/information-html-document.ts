@@ -1,34 +1,30 @@
+import { html as renderHtml, raw } from "hono/html";
+
 export const INFORMATION_DOCUMENT_CSP = [
-    "default-src 'none'",
-    "base-uri 'none'",
-    "connect-src 'none'",
-    "font-src 'none'",
-    "form-action 'none'",
-    "frame-src 'none'",
-    "img-src 'self' https: http: data: blob:",
-    "media-src 'self'",
-    "object-src 'none'",
-    "script-src 'none'",
-    "style-src 'unsafe-inline'"
-].join('; ');
+  "default-src 'none'",
+  "base-uri 'none'",
+  "connect-src 'none'",
+  "font-src 'none'",
+  "form-action 'none'",
+  "frame-src 'none'",
+  "img-src 'self' https: http: data: blob:",
+  "media-src 'self'",
+  "object-src 'none'",
+  "script-src 'none'",
+  "style-src 'unsafe-inline'",
+].join("; ");
 
-function escapeHtml(value: string): string {
-    return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-}
-
-export function buildInformationHtmlDocument(title: string, html: string): string {
-    return `<!doctype html>
+export function buildInformationHtmlDocument(
+  title: string,
+  html: string,
+): string {
+  return String(renderHtml`<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="${INFORMATION_DOCUMENT_CSP}">
-  <title>${escapeHtml(title)}</title>
+  <title>${title}</title>
   <style>
     :root { color-scheme: light; font-family: Geist, "Noto Sans SC", "PingFang SC", sans-serif; }
     :root[data-theme="dark"] { color-scheme: dark; }
@@ -51,6 +47,6 @@ export function buildInformationHtmlDocument(title: string, html: string): strin
     @media (max-width: 520px) { article { width: min(100% - 24px, 880px); padding: 24px 0 48px; } }
   </style>
 </head>
-<body><article>${html}</article></body>
-</html>`;
+<body><article>${raw(html)}</article></body>
+</html>`);
 }

@@ -1,6 +1,5 @@
 import {
   CircleAlertIcon,
-  CreditCardIcon,
   CircleUserRoundIcon,
   LoaderCircleIcon,
   LogInIcon,
@@ -171,7 +170,10 @@ export function PlatformAccountMenu() {
                 className: "w-full",
               })}
             >
-              <CreditCardIcon data-icon="inline-start" aria-hidden="true" />
+              <CircleUserRoundIcon
+                data-icon="inline-start"
+                aria-hidden="true"
+              />
               {t("platformAccount.myCards")}
             </Link>
             <Button

@@ -32,6 +32,7 @@ import {
   uploadFudabaCardMedia,
   saveFudabaOwnerLocation,
   saveFudabaCardPlacement,
+  searchFudabaPlaces,
   withdrawFudabaOwnerLocation,
 } from "~/lib/api/endpoints/fudaba"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
@@ -65,6 +66,7 @@ const office = {
   name: "上海周末交换事务所",
   intro: "面向线下活动的交换点。",
   city: "上海",
+  address: "西岸艺术中心入口",
   accent: "#2581c7",
   coverUrl: null,
   isOpen: true,
@@ -360,6 +362,7 @@ describe("Fudaba Web API contracts", () => {
       slug: office.slug,
       name: office.name,
       city: office.city,
+      address: office.address,
       accent: office.accent,
       isOpen: office.isOpen,
       seriesCodes: office.seriesCodes,
@@ -471,6 +474,46 @@ describe("Fudaba Web API contracts", () => {
     }
   })
 
+  it("searches places through the authenticated same-origin endpoint", async () => {
+    const requests: Array<{ url: URL; init?: RequestInit }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input), "http://ims.test")
+        requests.push({ url, init })
+        return Response.json({
+          success: true,
+          items: [
+            {
+              id: "way:200",
+              label: "西岸艺术中心",
+              address: "西岸艺术中心，徐汇区，上海市，中国",
+              city: "上海市",
+              location: {
+                latitude: 31.1842,
+                longitude: 121.4665,
+                precision: "exact",
+              },
+            },
+          ],
+          attribution: "© OpenStreetMap contributors",
+        })
+      })
+    )
+
+    const response = await searchFudabaPlaces(" 西岸艺术中心 ").send()
+
+    expect(response.items[0]?.address).toContain("徐汇区")
+    expect(requests[0]?.url.pathname).toBe(
+      "/api/community/exchange/places/search"
+    )
+    expect(requests[0]?.url.searchParams.get("q")).toBe("西岸艺术中心")
+    expect(requests[0]?.init?.credentials).toBe("same-origin")
+    expect(
+      new Headers(requests[0]?.init?.headers).get(CSRF_HEADER_NAME)
+    ).toBeNull()
+  })
+
   it("strips privacy-only fields and rejects inconsistent pagination", () => {
     expect(() =>
       fudabaOfficePageSchema.parse({
@@ -484,7 +527,7 @@ describe("Fudaba Web API contracts", () => {
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
     expect(parsed.items[0]).not.toHaveProperty("ownerAccountId")
-    expect(parsed.items[0]).not.toHaveProperty("address")
+    expect(parsed.items[0]?.address).toBe("西岸艺术中心入口")
     expect(parsed.items[0]).not.toHaveProperty("latitude")
 
     expect(() =>

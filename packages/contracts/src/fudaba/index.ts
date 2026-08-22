@@ -1,16 +1,25 @@
-import { z } from "zod"
-import { cursorPageInfoSchema, successEnvelope, successFlagSchema } from "../common.js"
+import { z } from "zod";
+import {
+  cursorPageInfoSchema,
+  successEnvelope,
+  successFlagSchema,
+} from "../common.js";
 
-import { defaultWikiImageTransform, wikiImageTransformSchema } from "../wiki.js"
+import {
+  defaultWikiImageTransform,
+  wikiImageTransformSchema,
+} from "../wiki.js";
 
-export const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-export const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i)
-export const publicMediaUrlSchema = z.string().trim().min(1)
-export const timestampSchema = z.string().datetime({ offset: true })
-export const fudabaRevisionSchema = z.number().int().safe().nonnegative()
-export const wallCoordinateSchema = z.number().finite().min(0).max(100)
-export const wallRotationSchema = z.number().finite().min(-12).max(12)
-export const wallZIndexSchema = z.number().int().min(1).max(999)
+export const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+export const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i);
+export const publicMediaUrlSchema = z.string().trim().min(1);
+export const timestampSchema = z.string().datetime({ offset: true });
+export const fudabaRevisionSchema = z.number().int().safe().nonnegative();
+export const wallCoordinateSchema = z.number().finite().min(0).max(100);
+export const wallRotationSchema = z.number().finite().min(-12).max(12);
+export const wallZIndexSchema = z.number().int().min(1).max(999);
+export const exactCoordinateSchema = (minimum: number, maximum: number) =>
+  z.number().finite().min(minimum).max(maximum);
 export const regionalCoordinateSchema = (minimum: number, maximum: number) =>
   z
     .number()
@@ -19,8 +28,8 @@ export const regionalCoordinateSchema = (minimum: number, maximum: number) =>
     .max(maximum)
     .refine(
       (value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8,
-      "regional coordinates must use the 0.1 degree grid"
-    )
+      "regional coordinates must use the 0.1 degree grid",
+    );
 
 export const fudabaSeriesSchema = z
   .object({
@@ -33,13 +42,13 @@ export const fudabaSeriesSchema = z
     displayOrder: z.number().int().nonnegative(),
     activeOfficeCount: z.number().int().nonnegative(),
   })
-  .strict()
+  .strict();
 
 export const fudabaSeriesListSchema = z
   .object({
     items: z.array(fudabaSeriesSchema),
   })
-  .strict()
+  .strict();
 
 export const fudabaOfficeSchema = z.object({
   id: z.string().min(1),
@@ -47,12 +56,13 @@ export const fudabaOfficeSchema = z.object({
   name: z.string().trim().min(1),
   intro: z.string(),
   city: z.string().trim().min(1),
+  address: z.string().trim().min(1),
   accent: accentSchema,
   coverUrl: publicMediaUrlSchema.nullable(),
   isOpen: z.boolean(),
   visitorCount: z.number().int().nonnegative(),
   seriesCodes: z.array(seriesCodeSchema),
-})
+});
 
 export const fudabaIdolSelectionSchema = z
   .object({
@@ -60,7 +70,7 @@ export const fudabaIdolSelectionSchema = z
     name: z.string().trim().min(1),
     seriesCode: seriesCodeSchema,
   })
-  .strict()
+  .strict();
 
 export const fudabaCardSchema = z.object({
   id: z.string().min(1),
@@ -89,7 +99,7 @@ export const fudabaCardSchema = z.object({
     viewerLiked: z.boolean(),
     viewerFavorited: z.boolean(),
   }),
-})
+});
 
 export const fudabaCardPlacementSchema = z
   .object({
@@ -101,38 +111,39 @@ export const fudabaCardPlacementSchema = z
     revision: fudabaRevisionSchema,
     updatedAt: timestampSchema,
   })
-  .strict()
+  .strict();
 
 export const fudabaPlacedCardSchema = fudabaCardSchema.extend({
   viewerOwned: z.boolean(),
   placement: fudabaCardPlacementSchema,
-})
+});
 
-export const fudabaPageInfoSchema = cursorPageInfoSchema
-  .superRefine((value, context) => {
+export const fudabaPageInfoSchema = cursorPageInfoSchema.superRefine(
+  (value, context) => {
     if (value.hasNextPage !== Boolean(value.nextCursor)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Fudaba pagination state is inconsistent",
-      })
+      });
     }
-  })
+  },
+);
 
 export const fudabaOfficePageSchema = z.object({
   items: z.array(fudabaOfficeSchema),
   pageInfo: fudabaPageInfoSchema,
-})
+});
 
 export const fudabaCardPageSchema = z.object({
   items: z.array(fudabaCardSchema),
   pageInfo: fudabaPageInfoSchema,
-})
+});
 
 export const fudabaOfficeDetailSchema = z.object({
   office: fudabaOfficeSchema.extend({
     cards: z.array(fudabaPlacedCardSchema),
   }),
-})
+});
 
 export const fudabaMapOfficeSchema = z
   .object({
@@ -140,6 +151,7 @@ export const fudabaMapOfficeSchema = z
     slug: z.string().min(1),
     name: z.string().trim().min(1),
     city: z.string().trim().min(1),
+    address: z.string().trim().min(1),
     accent: accentSchema,
     isOpen: z.boolean(),
     seriesCodes: z.array(seriesCodeSchema),
@@ -151,14 +163,35 @@ export const fudabaMapOfficeSchema = z
       })
       .strict(),
   })
-  .strict()
+  .strict();
 
 export const fudabaMapOfficeListSchema = z
   .object({
     items: z.array(fudabaMapOfficeSchema),
     truncated: z.boolean(),
   })
-  .strict()
+  .strict();
+
+export const fudabaPlaceSearchResultSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().trim().min(1),
+    address: z.string().trim().min(1),
+    city: z.string().trim().min(1),
+    location: z
+      .object({
+        latitude: exactCoordinateSchema(-90, 90),
+        longitude: exactCoordinateSchema(-180, 180),
+        precision: z.literal("exact"),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const fudabaPlaceSearchResponseSchema = successEnvelope({
+  items: z.array(fudabaPlaceSearchResultSchema).max(5),
+  attribution: z.string().trim().min(1),
+}).strict();
 
 export const fudabaMapConfigSchema = z
   .object({
@@ -166,7 +199,7 @@ export const fudabaMapConfigSchema = z
       .string()
       .refine(
         (value) => !hasAsciiControl(value),
-        "map style URL must not contain ASCII control characters"
+        "map style URL must not contain ASCII control characters",
       )
       .transform((value) => value.trim())
       .refine(
@@ -178,16 +211,16 @@ export const fudabaMapConfigSchema = z
           !value.includes("\\") &&
           !value.includes("?") &&
           !value.includes("#"),
-        "map style URL must be a same-origin absolute path without query or hash"
+        "map style URL must be a same-origin absolute path without query or hash",
       ),
   })
-  .strict()
+  .strict();
 
 export function hasAsciiControl(value: string) {
   return Array.from(value).some((character) => {
-    const code = character.charCodeAt(0)
-    return code <= 31 || code === 127
-  })
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  });
 }
 
 export const ownerCardIdSchema = z
@@ -196,8 +229,8 @@ export const ownerCardIdSchema = z
   .max(128)
   .refine(
     (value) =>
-      !hasAsciiControl(value) && !value.includes("/") && !value.includes("\\")
-  )
+      !hasAsciiControl(value) && !value.includes("/") && !value.includes("\\"),
+  );
 
 export const ownerCardTextSchema = (maximum: number, required = false) =>
   z
@@ -205,7 +238,7 @@ export const ownerCardTextSchema = (maximum: number, required = false) =>
     .trim()
     .min(required ? 1 : 0)
     .max(maximum)
-    .refine((value) => !hasAsciiControl(value))
+    .refine((value) => !hasAsciiControl(value));
 
 export const ownerOfficeTextSchema = (maximum: number, required = false) =>
   z
@@ -213,13 +246,11 @@ export const ownerOfficeTextSchema = (maximum: number, required = false) =>
     .trim()
     .min(required ? 1 : 0)
     .max(maximum)
-    .refine((value) => !hasAsciiControl(value))
-export const exactCoordinateSchema = (minimum: number, maximum: number) =>
-  z.number().finite().min(minimum).max(maximum)
+    .refine((value) => !hasAsciiControl(value));
 export const ownerOfficeSeriesCodesSchema = z
   .array(seriesCodeSchema.max(40))
   .max(8)
-  .refine((codes) => new Set(codes).size === codes.length)
+  .refine((codes) => new Set(codes).size === codes.length);
 
 export const fudabaOwnerCardSchema = z
   .object({
@@ -248,30 +279,27 @@ export const fudabaOwnerCardSchema = z
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
-  .strict()
+  .strict();
 
 export const fudabaOwnerCardListSchema = z
   .object({
     items: z.array(fudabaOwnerCardSchema),
   })
-  .strict()
+  .strict();
 
 export const fudabaOwnerCardDetailSchema = z
   .object({
     card: fudabaOwnerCardSchema,
   })
-  .strict()
+  .strict();
 
 export const fudabaCardMutationResponseSchema = successEnvelope({
-    card: fudabaOwnerCardSchema,
-  })
-  .strict()
+  card: fudabaOwnerCardSchema,
+}).strict();
 
 export const fudabaCardDeleteResponseSchema = successEnvelope({
-    revision: fudabaRevisionSchema,
-  })
-  .strict()
-
+  revision: fudabaRevisionSchema,
+}).strict();
 
 export const fudabaOwnerOfficeSchema = z
   .object({
@@ -301,21 +329,19 @@ export const fudabaOwnerOfficeSchema = z
     updatedAt: timestampSchema,
     archivedAt: timestampSchema.nullable(),
   })
-  .strict()
+  .strict();
 
 export const fudabaOwnerOfficeListSchema = z
   .object({ items: z.array(fudabaOwnerOfficeSchema) })
-  .strict()
+  .strict();
 
 export const fudabaOwnerOfficeDetailSchema = z
   .object({ office: fudabaOwnerOfficeSchema })
-  .strict()
-
+  .strict();
 
 export const fudabaOfficeMutationResponseSchema = successEnvelope({
-    office: fudabaOwnerOfficeSchema,
-  })
-  .strict()
+  office: fudabaOwnerOfficeSchema,
+}).strict();
 
 export const fudabaOwnerLocationSchema = z
   .object({
@@ -333,58 +359,78 @@ export const fudabaOwnerLocationSchema = z
     reviewedAt: timestampSchema.nullable(),
     reviewNote: z.string().max(1000),
   })
-  .strict()
+  .strict();
 
 export const fudabaOwnerLocationDetailSchema = z
   .object({ location: fudabaOwnerLocationSchema.nullable() })
-  .strict()
-
+  .strict();
 
 export const fudabaOwnerLocationMutationResponseSchema = successEnvelope({
-    officeLocation: fudabaOwnerLocationSchema,
-  })
-  .strict()
+  officeLocation: fudabaOwnerLocationSchema,
+}).strict();
 
-export const fudabaOwnerLocationWithdrawalResponseSchema = successFlagSchema
-  .strict()
-
+export const fudabaOwnerLocationWithdrawalResponseSchema =
+  successFlagSchema.strict();
 
 export const fudabaCardPlacementSaveResponseSchema = successEnvelope({
-    placement: fudabaCardPlacementSchema,
-  })
-  .strict()
+  placement: fudabaCardPlacementSchema,
+}).strict();
 
 export const fudabaCardPlacementDeleteResponseSchema = successEnvelope({
-    revision: fudabaRevisionSchema,
-  })
-  .strict()
+  revision: fudabaRevisionSchema,
+}).strict();
 
-
-export type FudabaSeries = z.infer<typeof fudabaSeriesSchema>
-export type FudabaSeriesList = z.infer<typeof fudabaSeriesListSchema>
-export type FudabaIdolSelection = z.infer<typeof fudabaIdolSelectionSchema>
-export type FudabaOffice = z.infer<typeof fudabaOfficeSchema>
-export type FudabaCard = z.infer<typeof fudabaCardSchema>
-export type FudabaCardPlacement = z.infer<typeof fudabaCardPlacementSchema>
-export type FudabaPlacedCard = z.infer<typeof fudabaPlacedCardSchema>
-export type FudabaOfficePage = z.infer<typeof fudabaOfficePageSchema>
-export type FudabaCardPage = z.infer<typeof fudabaCardPageSchema>
-export type FudabaOfficeDetail = z.infer<typeof fudabaOfficeDetailSchema>["office"]
-export type FudabaMapOffice = z.infer<typeof fudabaMapOfficeSchema>
-export type FudabaMapOfficeList = z.infer<typeof fudabaMapOfficeListSchema>
-export type FudabaMapConfig = z.infer<typeof fudabaMapConfigSchema>
-export type FudabaOwnerCard = z.infer<typeof fudabaOwnerCardSchema>
-export type FudabaOwnerCardList = z.infer<typeof fudabaOwnerCardListSchema>
-export type FudabaOwnerCardDetail = z.infer<typeof fudabaOwnerCardDetailSchema>
-export type FudabaCardMutationResponse = z.infer<typeof fudabaCardMutationResponseSchema>
-export type FudabaCardDeleteResponse = z.infer<typeof fudabaCardDeleteResponseSchema>
-export type FudabaOwnerOffice = z.infer<typeof fudabaOwnerOfficeSchema>
-export type FudabaOwnerOfficeList = z.infer<typeof fudabaOwnerOfficeListSchema>
-export type FudabaOwnerOfficeDetail = z.infer<typeof fudabaOwnerOfficeDetailSchema>
-export type FudabaOfficeMutationResponse = z.infer<typeof fudabaOfficeMutationResponseSchema>
-export type FudabaOwnerLocation = z.infer<typeof fudabaOwnerLocationSchema>
-export type FudabaOwnerLocationDetail = z.infer<typeof fudabaOwnerLocationDetailSchema>
-export type FudabaOwnerLocationMutationResponse = z.infer<typeof fudabaOwnerLocationMutationResponseSchema>
-export type FudabaOwnerLocationWithdrawalResponse = z.infer<typeof fudabaOwnerLocationWithdrawalResponseSchema>
-export type FudabaCardPlacementSaveResponse = z.infer<typeof fudabaCardPlacementSaveResponseSchema>
-export type FudabaCardPlacementDeleteResponse = z.infer<typeof fudabaCardPlacementDeleteResponseSchema>
+export type FudabaSeries = z.infer<typeof fudabaSeriesSchema>;
+export type FudabaSeriesList = z.infer<typeof fudabaSeriesListSchema>;
+export type FudabaIdolSelection = z.infer<typeof fudabaIdolSelectionSchema>;
+export type FudabaOffice = z.infer<typeof fudabaOfficeSchema>;
+export type FudabaCard = z.infer<typeof fudabaCardSchema>;
+export type FudabaCardPlacement = z.infer<typeof fudabaCardPlacementSchema>;
+export type FudabaPlacedCard = z.infer<typeof fudabaPlacedCardSchema>;
+export type FudabaOfficePage = z.infer<typeof fudabaOfficePageSchema>;
+export type FudabaCardPage = z.infer<typeof fudabaCardPageSchema>;
+export type FudabaOfficeDetail = z.infer<
+  typeof fudabaOfficeDetailSchema
+>["office"];
+export type FudabaMapOffice = z.infer<typeof fudabaMapOfficeSchema>;
+export type FudabaMapOfficeList = z.infer<typeof fudabaMapOfficeListSchema>;
+export type FudabaMapConfig = z.infer<typeof fudabaMapConfigSchema>;
+export type FudabaPlaceSearchResult = z.infer<
+  typeof fudabaPlaceSearchResultSchema
+>;
+export type FudabaPlaceSearchResponse = z.infer<
+  typeof fudabaPlaceSearchResponseSchema
+>;
+export type FudabaOwnerCard = z.infer<typeof fudabaOwnerCardSchema>;
+export type FudabaOwnerCardList = z.infer<typeof fudabaOwnerCardListSchema>;
+export type FudabaOwnerCardDetail = z.infer<typeof fudabaOwnerCardDetailSchema>;
+export type FudabaCardMutationResponse = z.infer<
+  typeof fudabaCardMutationResponseSchema
+>;
+export type FudabaCardDeleteResponse = z.infer<
+  typeof fudabaCardDeleteResponseSchema
+>;
+export type FudabaOwnerOffice = z.infer<typeof fudabaOwnerOfficeSchema>;
+export type FudabaOwnerOfficeList = z.infer<typeof fudabaOwnerOfficeListSchema>;
+export type FudabaOwnerOfficeDetail = z.infer<
+  typeof fudabaOwnerOfficeDetailSchema
+>;
+export type FudabaOfficeMutationResponse = z.infer<
+  typeof fudabaOfficeMutationResponseSchema
+>;
+export type FudabaOwnerLocation = z.infer<typeof fudabaOwnerLocationSchema>;
+export type FudabaOwnerLocationDetail = z.infer<
+  typeof fudabaOwnerLocationDetailSchema
+>;
+export type FudabaOwnerLocationMutationResponse = z.infer<
+  typeof fudabaOwnerLocationMutationResponseSchema
+>;
+export type FudabaOwnerLocationWithdrawalResponse = z.infer<
+  typeof fudabaOwnerLocationWithdrawalResponseSchema
+>;
+export type FudabaCardPlacementSaveResponse = z.infer<
+  typeof fudabaCardPlacementSaveResponseSchema
+>;
+export type FudabaCardPlacementDeleteResponse = z.infer<
+  typeof fudabaCardPlacementDeleteResponseSchema
+>;

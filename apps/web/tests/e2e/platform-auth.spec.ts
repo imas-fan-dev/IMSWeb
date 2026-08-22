@@ -65,7 +65,9 @@ test.beforeEach(async ({ page }) => {
   await mockOwnerWorkspace(page)
 })
 
-test("logs in and adopts the returned Platform session", async ({ page }, testInfo) => {
+test("logs in and adopts the returned Platform session", async ({
+  page,
+}, testInfo) => {
   let loginBody: unknown
   let sessionRequests = 0
   await page.route("**/api/platform/auth/login", async (route) => {
@@ -91,7 +93,7 @@ test("logs in and adopts the returned Platform session", async ({ page }, testIn
 
   await expect(page).toHaveURL(/\/community\/exchange\/me$/)
   await expect(
-    page.getByRole("heading", { name: "我的交换名片", exact: true })
+    page.getByRole("heading", { name: "个人档案", exact: true })
   ).toBeVisible()
   await expect(
     page.getByRole("button", { name: "帐号：浏览器制作人" })
@@ -159,7 +161,7 @@ test("registers after a conflict is corrected and keeps errors user-safe", async
 
   await expect(page).toHaveURL(/\/community\/exchange\/me$/)
   await expect(
-    page.getByRole("heading", { name: "我的交换名片", exact: true })
+    page.getByRole("heading", { name: "个人档案", exact: true })
   ).toBeVisible()
   expect(registrationBody).toEqual({
     email: "new@example.com",

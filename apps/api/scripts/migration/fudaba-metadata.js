@@ -3111,6 +3111,8 @@ function projectedMediaTarget(target) {
 }
 
 async function inspectMediaControlPlane(client, expected, lock = false) {
+    // This migration queries the media control plane directly; values remain parameterized.
+    // pi-lens-ignore: no-sql-in-code-js
     const result = await client.query(
         `SELECT i.state, v.object_id, v.physical_key, v.storage_scope,
                 v.byte_size, v.content_type, v.sha256, v.etag
@@ -3171,6 +3173,8 @@ async function inspectOperation(client, operation) {
     const where = operation.keyColumns
         .map((column, index) => `${quotePgIdentifier(column)} = $${index + 1}`)
         .join(" AND ");
+    // Migration tables and columns come from the fixed import plan and are quoted; row values use placeholders.
+    // pi-lens-ignore: no-sql-in-code-js
     const result = await client.query(
         `SELECT ${operation.compareColumns.map(quotePgIdentifier).join(", ")} ` +
             `FROM public.${quotePgIdentifier(operation.table)} WHERE ${where}`,
@@ -3191,6 +3195,8 @@ async function inspectOperation(client, operation) {
                 operation.table === "fudaba_exchange_requests"
                     ? " AND status = 'pending'"
                     : "";
+            // Conflict checks require the same quoted plan identifiers and parameterized key values.
+            // pi-lens-ignore: no-sql-in-code-js
             const uniqueResult = await client.query(
                 `SELECT 1 FROM public.${quotePgIdentifier(operation.table)} ` +
                     `WHERE ${uniqueWhere}${partialPredicate} LIMIT 1`,
@@ -3234,6 +3240,8 @@ function operationWithRow(operation, row) {
 async function insertOperation(client, operation, row = operation.row) {
     const columns = Object.keys(row);
     const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");
+    // The importer builds columns from its fixed plan, quotes every identifier, and parameterizes every value.
+    // pi-lens-ignore: no-sql-in-code-js
     await client.query(
         `INSERT INTO public.${quotePgIdentifier(operation.table)} ` +
             `(${columns.map(quotePgIdentifier).join(", ")}) VALUES (${placeholders})`,
@@ -3271,6 +3279,8 @@ async function transitionOperation(client, operation, fromRow, toRow) {
         ...operation.keyColumns.map((column) => fromRow[column]),
         ...operation.compareColumns.map((column) => fromRow[column]),
     ];
+    // Compare-and-swap updates need dynamic quoted plan columns; all row data stays in placeholders.
+    // pi-lens-ignore: no-sql-in-code-js
     const result = await client.query(
         `UPDATE public.${quotePgIdentifier(operation.table)} ` +
             `SET ${assignments.join(", ")} ` +

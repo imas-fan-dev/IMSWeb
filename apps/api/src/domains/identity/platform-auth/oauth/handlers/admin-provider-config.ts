@@ -1,9 +1,6 @@
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
-import {
-    parsePlatformOAuthProviderCode,
-    parsePlatformOAuthProviderUpdate,
-} from "@/domains/identity/platform-auth/oauth/request";
+import { parsePlatformOAuthProviderCode } from "@/domains/identity/platform-auth/oauth/request";
 import { services } from "@/middleware/hono-context";
 import type { ValidatedRequestContext } from "@/middleware/request-validation";
 import type { PlatformOAuthProviderUpdateInput } from "@/ports/oauth";

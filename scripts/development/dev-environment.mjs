@@ -54,6 +54,8 @@ Environment overrides:
   IMS_VALKEY_PORT
   IMS_DEV_FUDABA_PUBLIC_READ_ENABLED, IMS_DEV_FUDABA_WRITE_ENABLED
   IMS_DEV_FUDABA_MAP_ENABLED, IMS_DEV_FUDABA_MAP_STYLE_URL
+  IMS_DEV_FUDABA_GEOCODING_ENDPOINT, IMS_DEV_FUDABA_GEOCODING_USER_AGENT
+  IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES
 `;
 }
 
@@ -199,12 +201,74 @@ function developmentMapStyleUrl(environment) {
   return value;
 }
 
+function developmentGeocodingConfig(environment) {
+  const endpointValue = String(
+    environment.IMS_DEV_FUDABA_GEOCODING_ENDPOINT || "",
+  ).trim();
+  const userAgent = String(
+    environment.IMS_DEV_FUDABA_GEOCODING_USER_AGENT || "",
+  ).trim();
+  const countryCodes = String(
+    environment.IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES || "cn",
+  )
+    .trim()
+    .toLowerCase();
+  if (!endpointValue) {
+    if (userAgent) {
+      throw new Error(
+        "IMS_DEV_FUDABA_GEOCODING_ENDPOINT is required when a User-Agent is set",
+      );
+    }
+    return { endpoint: "", userAgent: "", countryCodes };
+  }
+  let endpoint;
+  try {
+    endpoint = new URL(endpointValue);
+  } catch {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_ENDPOINT must be a valid HTTPS URL",
+    );
+  }
+  if (
+    endpoint.protocol !== "https:" ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash
+  ) {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_ENDPOINT must be a credential-free HTTPS URL " +
+        "without query or hash",
+    );
+  }
+  if (
+    userAgent.length < 10 ||
+    userAgent.length > 200 ||
+    /[\0-\x1f\x7f]/.test(userAgent)
+  ) {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_USER_AGENT must be 10-200 printable characters",
+    );
+  }
+  if (!/^[a-z]{2}(?:,[a-z]{2})*$/.test(countryCodes)) {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES must be comma-separated ISO country codes",
+    );
+  }
+  return {
+    endpoint: endpoint.toString(),
+    userAgent,
+    countryCodes,
+  };
+}
+
 function resolveFudabaDevelopmentEnvironment(environment) {
   const mapEnabled = developmentBooleanFlag(
     environment,
     "IMS_DEV_FUDABA_MAP_ENABLED",
   );
   const mapStyleUrl = developmentMapStyleUrl(environment);
+  const geocoding = developmentGeocodingConfig(environment);
   if (mapEnabled === "true" && !mapStyleUrl) {
     throw new Error(
       "IMS_DEV_FUDABA_MAP_STYLE_URL is required when " +
@@ -222,6 +286,9 @@ function resolveFudabaDevelopmentEnvironment(environment) {
     ),
     IMS_FUDABA_MAP_ENABLED: mapEnabled,
     IMS_FUDABA_MAP_STYLE_URL: mapStyleUrl,
+    IMS_FUDABA_GEOCODING_ENDPOINT: geocoding.endpoint,
+    IMS_FUDABA_GEOCODING_USER_AGENT: geocoding.userAgent,
+    IMS_FUDABA_GEOCODING_COUNTRY_CODES: geocoding.countryCodes,
   };
 }
 
@@ -1093,19 +1160,7 @@ async function supervise(configuration, plan) {
     }
   } finally {
     stopChildren(requestedSignal === "SIGINT" ? "SIGINT" : "SIGTERM");
-    const childOutcomes = Promise.all(children.map((entry) => entry.outcome));
-    let killTimer;
-    const stoppedGracefully = await Promise.race([
-      childOutcomes.then(() => true),
-      new Promise((resolve) => {
-        killTimer = setTimeout(() => resolve(false), 5_000);
-      }),
-    ]);
-    clearTimeout(killTimer);
-    if (!stoppedGracefully) {
-      stopChildren("SIGKILL");
-      await childOutcomes;
-    }
+    await Promise.all(children.map((entry) => entry.outcome));
     process.removeListener("SIGINT", onSigint);
     process.removeListener("SIGTERM", onSigterm);
     if (requestedSignal === "SIGINT") process.exitCode = 130;

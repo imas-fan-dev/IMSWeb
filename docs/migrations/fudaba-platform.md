@@ -48,8 +48,10 @@ wall placement 权限。Guest 请求同样提交 primary series 和 idol IDs，�
 ### 地图与事务所
 
 公开 series、office、location 和 map 读取受 feature gate 控制；office/location 写入属于注册用户
-Platform session。区域坐标、封面、office slug 和 revision 均由现有 request/response contract
-验证，迁移不得绕过审核或位置冲突规则。
+Platform session。事务所位置由认证用户通过同源地点搜索选择，精确坐标只保留在 owner 投影；
+公开事务所与地图投影展示审核通过的地址文本，地图 marker 只使用区域化坐标且界面不显示经纬度
+数字。区域坐标、封面、office slug 和 revision 均由现有 request/response contract 验证，迁移不得
+绕过审核或位置冲突规则。
 
 ## 数据迁移流程
 

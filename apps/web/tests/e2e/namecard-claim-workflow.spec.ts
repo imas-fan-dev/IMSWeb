@@ -224,6 +224,9 @@ test("registered user submits a legacy-card claim from the public wall", async (
   await page.getByRole("button", { name: "认领这张旧名片" }).click()
   const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
   await expect(dialog).toBeVisible()
+  await expect(
+    dialog.getByLabel("绑定方式").locator('[data-slot="select-value"]')
+  ).toHaveText("创建一张可管理的注册名片")
   await dialog.getByRole("checkbox", { name: /天海春香/ }).click()
   await dialog.getByLabel("认领说明").fill("旧活动现场交换所得")
   await dialog.getByRole("button", { name: "提交认领审核" }).click()
@@ -386,6 +389,7 @@ test("same-ID envelope asks the owner before submitting an admin-reviewed claim"
   )
 
   await page.goto("/community/exchange/me")
+  await page.getByRole("link", { name: "认领消息", exact: true }).click()
   await expect(page.getByText("1 封待确认")).toBeVisible()
   await expect(page.getByText("历史名片 #42")).toBeVisible()
   await page.getByRole("button", { name: "是本人名片", exact: true }).click()

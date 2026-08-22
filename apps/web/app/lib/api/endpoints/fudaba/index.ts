@@ -18,6 +18,7 @@ import {
   fudabaOfficeDetailSchema,
   fudabaOfficeMutationResponseSchema,
   fudabaOfficePageSchema,
+  fudabaPlaceSearchResponseSchema,
   fudabaOwnerCardDetailSchema,
   fudabaOwnerCardListSchema,
   fudabaOwnerLocationDetailSchema,
@@ -54,6 +55,13 @@ const fileSchema = z.custom<File>(
   (value) => typeof File !== "undefined" && value instanceof File,
   "image must be a File"
 )
+
+const placeSearchQuerySchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(120)
+  .refine((value) => !hasAsciiControl(value))
 
 export const fudabaCardFieldsSchema = z
   .object({
@@ -308,6 +316,19 @@ export function getFudabaMapConfig() {
   return platformApiClient.Get(
     exchangePath("/map/config"),
     parsed(fudabaMapConfigSchema, {
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function searchFudabaPlaces(query: string) {
+  const search = placeSearchQuerySchema.parse(query)
+  return platformApiClient.Get(
+    withQuery(
+      exchangePath("/places/search"),
+      new URLSearchParams({ q: search })
+    ),
+    parsed(fudabaPlaceSearchResponseSchema, {
       meta: withPlatformAuth(),
     })
   )

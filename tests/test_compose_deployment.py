@@ -53,6 +53,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("required: false", compose)
         self.assertIn("node apps/api/scripts/migration/postgres-migrations.js", compose)
         self.assertIn("api-data:/app/data", compose)
+        self.assertIn("    stop_grace_period: 10m", compose)
         self.assertNotRegex(compose, r"(?i)nginx")
         self.assertNotIn("network_mode: host", compose)
 

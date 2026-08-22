@@ -1,0 +1,68 @@
+{
+  "rules": {
+    "bundler-and-runtime-conventions": {
+      "disable": [
+        "find-import-file-without-extension",
+        "hardcoded-url",
+        "no-console-except-error",
+        "console-statement",
+        "no-await-expression-member",
+        "no-typeof-undefined",
+        "prefer-query-selector"
+      ]
+    },
+    "validated-boundary-conventions": {
+      "disable": [
+        "no-unknown-parameters",
+        "no-runtime-typeof",
+        "no-unsafe-dictionary-unknown",
+        "no-known-value-widening"
+      ]
+    },
+    "maintainability-baseline": {
+      "disable": [
+        "high-complexity",
+        "high-fan-out",
+        "high-import-coupling",
+        "deep-nesting",
+        "large-class",
+        "long-parameter-list",
+        "pass-through-wrappers",
+        "nested-ternary",
+        "inline-styles",
+        "no-shape-in-symbol-names",
+        "no-conditional-empty-object-spread",
+        "no-non-null-assertion",
+        "mixed-async-styles",
+        "no-return-await",
+        "async-unnecessary-wrapper",
+        "async-noise",
+        "require-await",
+        "no-flag-argument",
+        "ts-redundant-filter-map",
+        "ts-while-index-length",
+        "ts-unnecessary-array-from",
+        "ts-string-split-index",
+        "no-array-reverse-mutation",
+        "no-array-constructor",
+        "prefer-string-slice",
+        "ts-delete-property",
+        "ts-double-negation",
+        "ts-react-antipatterns",
+        "missing-error-propagation"
+      ]
+    },
+    "repository-public-surface": {
+      "disable": [
+        "jscpd:duplicate",
+        "knip:export",
+        "knip:file",
+        "knip:dependency",
+        "knip:devDependency",
+        "ts:80001",
+        "typescript:80001",
+        "80001"
+      ]
+    }
+  }
+}

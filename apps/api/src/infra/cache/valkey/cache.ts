@@ -3,11 +3,11 @@ import type { NodeCacheConfig } from "@/config/cache";
 import type { CacheStore } from "@/ports/cache";
 
 interface ValkeyClientLike {
-    connect(): Promise<unknown>;
+    connect(): Promise<ValkeyClientLike>;
     sendCommand<T = unknown>(args: readonly string[]): Promise<T>;
     close(): Promise<void>;
     destroy?(): void;
-    on(event: "error", listener: (error: unknown) => void): unknown;
+    on(event: "error", listener: (error: unknown) => void): ValkeyClientLike;
 }
 
 function assertTtl(ttlSeconds: number): void {

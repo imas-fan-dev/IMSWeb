@@ -98,7 +98,11 @@ export class FilesystemCompensationService implements CompensationService {
         try {
             names = (await fs.readdir(this.directory))
                 .filter((name) => name.endsWith(".json"))
-                .sort();
+                .sort((left, right) => {
+                    if (left < right) return -1;
+                    if (left > right) return 1;
+                    return 0;
+                });
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
             throw error;

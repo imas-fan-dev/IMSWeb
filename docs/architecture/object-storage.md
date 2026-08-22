@@ -356,8 +356,11 @@ site-packages/{packageId}/revisions/{revisionId}/files/{archivePath}
 `site-packages/{packageId}/revisions/{revisionId}/` 前缀回收任务在同一事务提交；成功响应表示
 版本已不可预览或回滚且 OSS 回收已排队，不表示物理对象已同步删除。通用
 `ObjectDeletionWorker` 使用租约、重试和隔离状态处理任务；S3 逻辑键删除后，现有 compensation
-队列负责提交并重试 provider 的 `DeleteObject`。启用 bucket 版本控制时，该操作只创建 delete
-marker，`completed` 不表示 noncurrent version 的存储字节已经清除；生产环境必须配置经过审计的
+队列负责提交并重试 provider 的 `DeleteObject`。Node runtime 把两者交给常驻的
+`ObjectCleanupRunner`，启动后立即执行并由动态业务请求唤醒，空闲期间按固定间隔继续处理，因此
+清理不再依赖后续流量。进程关闭时先停止 HTTP 接入和 runner 调度，等待当前清理批次回到空闲，
+再关闭对象存储与 PostgreSQL；不得用并发资源关闭或进程内超时跳过这一步。启用 bucket 版本控制时，
+该操作只创建 delete marker，`completed` 不表示 noncurrent version 的存储字节已经清除；生产环境必须配置经过审计的
 noncurrent-version lifecycle，或由后续 version-purge worker 使用 provider 的版本枚举与版本删除
 能力处理。任何清理策略仍不得删除 PostgreSQL 活动索引引用的对象。浏览器公开入口
 固定为主站的 `/sites/:slug`，该路由返回无脚本页面外壳；页面包本体也从主站

@@ -5,7 +5,7 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link } from "react-router"
+import { Link, useSearchParams } from "react-router"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
@@ -36,6 +36,10 @@ import { ClaimEnvelopePanel } from "./claim-envelope-panel"
 import { apiMessage, isFeatureClosed } from "./exchange-me-model"
 import { OfficeLocationWorkspace } from "./office-location-workspace"
 import { ProfileEditor } from "./profile-editor"
+import {
+  isProfileWorkspaceSection,
+  ProfileWorkspaceNavigation,
+} from "./profile-workspace-navigation"
 
 type WorkspacePhase = "idle" | "loading" | "ready" | "closed" | "error"
 
@@ -63,22 +67,27 @@ const initialState: WorkspaceState = {
 
 export function meta() {
   return [
-    { title: "我的交换名片 | IMSWeb" },
+    { title: "个人档案 | IMSWeb" },
     {
       name: "description",
-      content: "维护制作人资料、双面交换名片与公开状态。",
+      content: "管理制作人个人资料、交换名片、事务所与认领消息。",
     },
   ]
 }
 
 export default function CommunityExchangeMePage() {
   const platform = usePlatformSession()
+  const [searchParams] = useSearchParams()
   const [state, setState] = useState<WorkspaceState>(initialState)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const workspaceGeneration = useRef(0)
   const detailGeneration = useRef(0)
+  const requestedSection = searchParams.get("section")
+  const activeSection = isProfileWorkspaceSection(requestedSection)
+    ? requestedSection
+    : "profile"
 
   const loadWorkspace = useCallback(async () => {
     const generation = ++workspaceGeneration.current
@@ -205,7 +214,7 @@ export default function CommunityExchangeMePage() {
       <main
         id="main-content"
         className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
-        aria-label="正在载入我的交换名片"
+        aria-label="正在载入个人档案"
       >
         <Skeleton className="h-7 w-44" />
         <Skeleton className="mt-5 h-20 w-full" />
@@ -286,7 +295,7 @@ export default function CommunityExchangeMePage() {
               )}
             </EmptyMedia>
             <EmptyTitle>
-              {closed ? "我的交换名片尚未开放" : "名片工作区暂时无法加载"}
+              {closed ? "个人档案尚未开放" : "个人档案暂时无法加载"}
             </EmptyTitle>
             <EmptyDescription>
               {closed
@@ -335,10 +344,10 @@ export default function CommunityExchangeMePage() {
               名片交换事务所
             </Link>
             <h1 className="mt-3 text-2xl font-semibold text-balance">
-              我的交换名片
+              个人档案
             </h1>
             <p className="mt-2 max-w-xl leading-7 text-muted-foreground">
-              维护制作人资料、名片正反面和交换状态。
+              管理你的社区身份、交换名片、事务所与历史名片认领。
             </p>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -347,7 +356,7 @@ export default function CommunityExchangeMePage() {
               type="button"
               variant="outline"
               size="icon"
-              aria-label="刷新我的交换名片"
+              aria-label="刷新个人档案"
               title="刷新"
               onClick={() => void loadWorkspace()}
             >
@@ -357,9 +366,15 @@ export default function CommunityExchangeMePage() {
         </div>
       </header>
 
-      {readOnlyReason ? (
-        <div className="border-b bg-background">
-          <div className="mx-auto w-full max-w-7xl p-4 sm:px-6 lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl min-w-0 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <ProfileWorkspaceNavigation
+          profile={state.profile}
+          cardCount={state.cards.length}
+          activeSection={activeSection}
+        />
+
+        <div className="min-w-0 px-4 py-8 sm:px-6 lg:px-8">
+          {readOnlyReason ? (
             <Alert>
               <LockKeyholeIcon aria-hidden="true" />
               <AlertTitle>
@@ -367,55 +382,88 @@ export default function CommunityExchangeMePage() {
               </AlertTitle>
               <AlertDescription>{readOnlyReason}</AlertDescription>
             </Alert>
+          ) : null}
+
+          <div
+            id="profile-workspace-section-profile"
+            className={readOnlyReason ? "mt-6" : undefined}
+            hidden={activeSection !== "profile"}
+          >
+            <ProfileEditor
+              profile={state.profile}
+              readOnly={readOnly}
+              readOnlyReason={readOnlyReason}
+              onSaved={saveProfile}
+              onReload={reloadProfile}
+              onWriteClosed={closeWrites}
+            />
+          </div>
+
+          <section
+            id="profile-workspace-section-cards"
+            className={readOnlyReason ? "mt-6" : undefined}
+            aria-labelledby="profile-workspace-cards-title"
+            hidden={activeSection !== "cards"}
+          >
+            <div className="border-b pb-5">
+              <h2
+                id="profile-workspace-cards-title"
+                className="text-xl font-semibold"
+              >
+                交换名片
+              </h2>
+              <p className="mt-2 text-sm/6 text-muted-foreground">
+                管理双面名片素材、担当偶像和公开交换状态。
+              </p>
+            </div>
+            <div className="mt-6">
+              <CardWorkspace
+                cards={state.cards}
+                selectedCardId={selectedCardId}
+                creating={creating}
+                loadingDetail={loadingDetail}
+                profile={state.profile}
+                series={state.series}
+                idols={state.idols}
+                readOnly={readOnly}
+                readOnlyReason={readOnlyReason}
+                onSelect={(cardId) => void loadCard(cardId)}
+                onCreate={() => {
+                  setCreating(true)
+                  setSelectedCardId(null)
+                  setLoadingDetail(false)
+                }}
+                onCreated={createCard}
+                onSaved={replaceCard}
+                onDeleted={deleteCard}
+                onReload={loadCard}
+                onWriteClosed={closeWrites}
+              />
+            </div>
+          </section>
+
+          <div
+            id="profile-workspace-section-offices"
+            className={readOnlyReason ? "mt-6" : undefined}
+            hidden={activeSection !== "offices"}
+          >
+            <OfficeLocationWorkspace
+              series={state.series}
+              homeCity={state.profile.homeCity}
+              readOnly={readOnly}
+              onWriteClosed={closeWrites}
+            />
+          </div>
+
+          <div
+            id="profile-workspace-section-claims"
+            className={readOnlyReason ? "mt-6" : undefined}
+            hidden={activeSection !== "claims"}
+          >
+            <ClaimEnvelopePanel readOnly={readOnly} />
           </div>
         </div>
-      ) : null}
-
-      <ClaimEnvelopePanel readOnly={readOnly} />
-
-      <div className="mx-auto grid w-full max-w-7xl min-w-0 gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[20rem_minmax(0,1fr)] lg:px-8">
-        <ProfileEditor
-          profile={state.profile}
-          readOnly={readOnly}
-          readOnlyReason={readOnlyReason}
-          onSaved={saveProfile}
-          onReload={reloadProfile}
-          onWriteClosed={closeWrites}
-        />
-        <section
-          className="min-w-0 border-t pt-8 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8"
-          aria-label="名片库存与编辑器"
-        >
-          <CardWorkspace
-            cards={state.cards}
-            selectedCardId={selectedCardId}
-            creating={creating}
-            loadingDetail={loadingDetail}
-            profile={state.profile}
-            series={state.series}
-            idols={state.idols}
-            readOnly={readOnly}
-            readOnlyReason={readOnlyReason}
-            onSelect={(cardId) => void loadCard(cardId)}
-            onCreate={() => {
-              setCreating(true)
-              setSelectedCardId(null)
-              setLoadingDetail(false)
-            }}
-            onCreated={createCard}
-            onSaved={replaceCard}
-            onDeleted={deleteCard}
-            onReload={loadCard}
-            onWriteClosed={closeWrites}
-          />
-        </section>
       </div>
-      <OfficeLocationWorkspace
-        series={state.series}
-        homeCity={state.profile.homeCity}
-        readOnly={readOnly}
-        onWriteClosed={closeWrites}
-      />
     </main>
   )
 }

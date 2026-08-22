@@ -90,15 +90,28 @@ export function parseOfficeDraft(draft: OfficeDraft) {
   } satisfies FudabaOfficeFields)
 }
 
+function regionalCoordinate(value: number, minimum: number, maximum: number) {
+  const rounded = Math.round(value * 10) / 10
+  return rounded >= minimum && rounded <= maximum ? rounded.toFixed(1) : ""
+}
+
 export function publicLocationDraft(
-  location: FudabaOwnerLocation | null
+  location: FudabaOwnerLocation | null,
+  office: FudabaOwnerOffice | null = null
 ): PublicLocationDraft {
-  return location
-    ? {
-        latitude: location.location.latitude.toFixed(1),
-        longitude: location.location.longitude.toFixed(1),
-      }
-    : { latitude: "", longitude: "" }
+  if (location) {
+    return {
+      latitude: location.location.latitude.toFixed(1),
+      longitude: location.location.longitude.toFixed(1),
+    }
+  }
+  if (office) {
+    return {
+      latitude: regionalCoordinate(office.location.latitude, -60, 60),
+      longitude: regionalCoordinate(office.location.longitude, -180, 180),
+    }
+  }
+  return { latitude: "", longitude: "" }
 }
 
 export function parsePublicLocationDraft(

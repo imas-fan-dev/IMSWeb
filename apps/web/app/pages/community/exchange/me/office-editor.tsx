@@ -35,6 +35,7 @@ import {
   type OfficeDraft,
   type WorkspaceFeedback,
 } from "./office-location-model"
+import { OfficePlaceSearch } from "./office-place-search"
 
 export function OfficeEditor({
   mode,
@@ -173,69 +174,11 @@ export function OfficeEditor({
               </Field>
             </FieldGroup>
 
-            <Field data-disabled={formDisabled || undefined}>
-              <FieldLabel htmlFor="fudaba-office-address">具体地点</FieldLabel>
-              <Input
-                id="fudaba-office-address"
-                value={draft.address}
-                maxLength={240}
-                required
-                disabled={formDisabled}
-                placeholder="例如：场馆入口或集合点"
-                onChange={(event) =>
-                  onChange({ ...draft, address: event.currentTarget.value })
-                }
-              />
-            </Field>
-
-            <FieldGroup className="grid gap-5 sm:grid-cols-2">
-              <Field data-disabled={formDisabled || undefined}>
-                <FieldLabel htmlFor="fudaba-office-latitude">
-                  精确纬度
-                </FieldLabel>
-                <Input
-                  id="fudaba-office-latitude"
-                  type="number"
-                  inputMode="decimal"
-                  min={-90}
-                  max={90}
-                  step="any"
-                  value={draft.latitude}
-                  required
-                  disabled={formDisabled}
-                  onChange={(event) =>
-                    onChange({ ...draft, latitude: event.currentTarget.value })
-                  }
-                />
-              </Field>
-              <Field data-disabled={formDisabled || undefined}>
-                <FieldLabel htmlFor="fudaba-office-longitude">
-                  精确经度
-                </FieldLabel>
-                <Input
-                  id="fudaba-office-longitude"
-                  type="number"
-                  inputMode="decimal"
-                  min={-180}
-                  max={180}
-                  step="any"
-                  value={draft.longitude}
-                  required
-                  disabled={formDisabled}
-                  onChange={(event) =>
-                    onChange({ ...draft, longitude: event.currentTarget.value })
-                  }
-                />
-              </Field>
-            </FieldGroup>
-
-            <Alert>
-              <CircleAlertIcon aria-hidden="true" />
-              <AlertTitle>精确位置不会直接公开</AlertTitle>
-              <AlertDescription>
-                这组坐标属于事务所资料，不会自动带入地图。公开地图位置必须在右侧单独输入并提交审核。
-              </AlertDescription>
-            </Alert>
+            <OfficePlaceSearch
+              draft={draft}
+              disabled={formDisabled}
+              onChange={onChange}
+            />
 
             <FieldSet disabled={formDisabled}>
               <FieldLegend>企划标签（可选）</FieldLegend>

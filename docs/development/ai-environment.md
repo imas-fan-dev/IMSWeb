@@ -91,9 +91,24 @@ IMS_DEV_FUDABA_MAP_STYLE_URL=/maps/exchange-style.json \
 pnpm dev
 ```
 
-只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。启动器会严格校验这四个
-`IMS_DEV_*` 值，再转译为 API 的 `IMS_FUDABA_*` 配置；直接继承的生产开关仍会被清除。首次启用
-exchange map 前先准备并激活 Git 忽略的本地 z0–11 地图 release：
+只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。地点搜索默认关闭；需要
+验证事务所地点选择时，配置 Nominatim-compatible HTTPS 搜索端点和可识别的 User-Agent：
+
+```sh
+IMS_DEV_FUDABA_PUBLIC_READ_ENABLED=true \
+IMS_DEV_FUDABA_WRITE_ENABLED=true \
+IMS_DEV_FUDABA_GEOCODING_ENDPOINT=https://nominatim.openstreetmap.org/search \
+IMS_DEV_FUDABA_GEOCODING_USER_AGENT='IMSWeb local development' \
+pnpm dev
+```
+
+浏览器只调用同源 Hono 代理，搜索仅由显式提交触发，不提供自动补全。代理对相同查询缓存 24 小时，
+并通过共享 rate limiter 把未缓存的上游请求限制为全应用每秒 1 次；生产可用环境变量切换到自托管
+或其他 Nominatim-compatible endpoint，无需修改 Web release。使用公共 OSMF 实例时必须遵守其
+User-Agent、attribution、缓存和流量政策。
+
+启动器会严格校验这些 `IMS_DEV_*` 值，再转译为 API 的 `IMS_FUDABA_*` 配置；直接继承的生产
+开关仍会被清除。首次启用 exchange map 前先准备并激活 Git 忽略的本地 z0–11 地图 release：
 
 ```sh
 node scripts/maps/prepare-exchange-map.mjs
@@ -126,8 +141,9 @@ connection 指向非回环主机，`pnpm dev` 和 `pnpm run dev:down` 都会在�
 Docker 与 Podman 目标变量混用时也会逐项校验，避免本地地址掩盖实际的远端目标。先切回本机
 context，不要通过远程 context 运行本地开发入口。
 
-`Ctrl+C` 只停止本次创建的 API/Web 热更新进程，保留 PostgreSQL、RustFS 和数据卷；确认不再
-使用后执行 `pnpm run dev:down`。该命令同样不会删除卷。
+`Ctrl+C` 只停止本次创建的 API/Web 热更新进程，保留 PostgreSQL、RustFS 和数据卷。启动器不会
+在固定超时后强杀子进程；它会等待 API 的当前对象清理批次回到空闲并完成其余 graceful shutdown，
+再结束主进程。确认不再使用后执行 `pnpm run dev:down`。该命令同样不会删除卷。
 
 ## 4. 定制本地数据
 

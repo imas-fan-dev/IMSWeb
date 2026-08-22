@@ -21,28 +21,24 @@ export type InformationBodyAsset = {
   url: string
 }
 
-function htmlTemplate(html: string) {
-  const template = document.createElement("template")
-  template.innerHTML = html
-  return template
+function htmlBody(html: string) {
+  return new DOMParser().parseFromString(html, "text/html").body
 }
 
 export function maskInformationBodyAssets(html: string) {
   if (!html) return { html, assets: [] as InformationBodyAsset[] }
 
-  const template = htmlTemplate(html)
+  const body = htmlBody(html)
   const assets: InformationBodyAsset[] = []
-  template.content
-    .querySelectorAll<HTMLImageElement>("img[src]")
-    .forEach((image) => {
-      const url = image.getAttribute("src")
-      if (!url) return
-      const token = `正文图片 ${assets.length + 1}`
-      assets.push({ token, url })
-      image.removeAttribute("src")
-      image.setAttribute(bodyAssetAttribute, token)
-    })
-  return { html: template.innerHTML, assets }
+  body.querySelectorAll<HTMLImageElement>("img[src]").forEach((image) => {
+    const url = image.getAttribute("src")
+    if (!url) return
+    const token = `正文图片 ${assets.length + 1}`
+    assets.push({ token, url })
+    image.removeAttribute("src")
+    image.setAttribute(bodyAssetAttribute, token)
+  })
+  return { html: body.innerHTML, assets }
 }
 
 export function appendInformationBodyAsset(
@@ -66,9 +62,9 @@ export function restoreInformationBodyAssets(
 ) {
   if (!html || !assets.length) return html
 
-  const template = htmlTemplate(html)
+  const body = htmlBody(html)
   const urlsByToken = new Map(assets.map((asset) => [asset.token, asset.url]))
-  template.content
+  body
     .querySelectorAll<HTMLImageElement>(`img[${bodyAssetAttribute}]`)
     .forEach((image) => {
       const token = image.getAttribute(bodyAssetAttribute)
@@ -77,7 +73,7 @@ export function restoreInformationBodyAssets(
       image.setAttribute("src", url)
       image.removeAttribute(bodyAssetAttribute)
     })
-  return template.innerHTML
+  return body.innerHTML
 }
 
 export function informationErrorMessage(error: unknown) {

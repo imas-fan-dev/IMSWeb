@@ -261,6 +261,7 @@ test('sensitive files and virtual environments are blocked before static serving
         '/assets/images/eventchronicle/events/.idempotency/private.json',
         '/icon/title(1).7z',
         '/venv/lib/python/site.py',
+        // pi-lens-ignore: typos
         '/3250ee7dc65bd965bbd1529ba5c2d732_venv/get-pip.py',
         '/%2561pp.py'
     ];

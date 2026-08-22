@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { execFileSync, spawnSync } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const { pathToFileURL } = require("node:url");
@@ -96,6 +97,8 @@ test("development configuration derives a fully local runtime", async () => {
       IMS_FUDABA_WRITE_ENABLED: "true",
       IMS_FUDABA_MAP_ENABLED: "true",
       IMS_FUDABA_MAP_STYLE_URL: "https://production.invalid/style.json",
+      IMS_FUDABA_GEOCODING_ENDPOINT: "https://production.invalid/search",
+      IMS_FUDABA_GEOCODING_USER_AGENT: "production agent",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
       AWS_SESSION_TOKEN: "production-session-token",
     },
@@ -140,6 +143,11 @@ test("development configuration derives a fully local runtime", async () => {
   assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "false");
   assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "false");
   assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL, "");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_GEOCODING_ENDPOINT, "");
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_USER_AGENT,
+    "",
+  );
   assert.equal(
     configuration.apiEnvironment.IMS_S3_ENDPOINT,
     "http://127.0.0.1:9900",
@@ -168,6 +176,11 @@ test("development configuration translates explicit Fudaba gates", async () => {
     IMS_DEV_FUDABA_WRITE_ENABLED: "true",
     IMS_DEV_FUDABA_MAP_ENABLED: "true",
     IMS_DEV_FUDABA_MAP_STYLE_URL: " /maps/exchange-style.json ",
+    IMS_DEV_FUDABA_GEOCODING_ENDPOINT:
+      " https://nominatim.example.test/search ",
+    IMS_DEV_FUDABA_GEOCODING_USER_AGENT:
+      "IMSWeb development (contact: op@example.test)",
+    IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES: " CN,HK ",
   };
   const configuration = resolveDevelopmentConfiguration({
     environment,
@@ -184,6 +197,18 @@ test("development configuration translates explicit Fudaba gates", async () => {
   assert.equal(
     configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
     "/maps/exchange-style.json",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_ENDPOINT,
+    "https://nominatim.example.test/search",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_USER_AGENT,
+    "IMSWeb development (contact: op@example.test)",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_COUNTRY_CODES,
+    "cn,hk",
   );
   for (const name of Object.keys(environment)) {
     assert.equal(name in configuration.apiEnvironment, false);
@@ -210,6 +235,22 @@ test("development configuration rejects unsafe Fudaba overrides", async () => {
   assert.throws(
     () => resolve({ IMS_DEV_FUDABA_MAP_ENABLED: "true" }),
     /IMS_DEV_FUDABA_MAP_STYLE_URL is required/,
+  );
+  assert.throws(
+    () =>
+      resolve({
+        IMS_DEV_FUDABA_GEOCODING_USER_AGENT: "IMSWeb development agent",
+      }),
+    /IMS_DEV_FUDABA_GEOCODING_ENDPOINT is required/,
+  );
+  assert.throws(
+    () =>
+      resolve({
+        IMS_DEV_FUDABA_GEOCODING_ENDPOINT:
+          "http://nominatim.example.test/search",
+        IMS_DEV_FUDABA_GEOCODING_USER_AGENT: "IMSWeb development agent",
+      }),
+    /credential-free HTTPS URL/,
   );
   for (const styleUrl of [
     "https://tiles.example.com/style.json",
@@ -629,6 +670,19 @@ test("development preparation stops before migration when readiness fails", asyn
   );
   assert.equal(events.includes("Applying PostgreSQL migrations"), false);
   assert.equal(events.includes("unexpected RustFS wait"), false);
+});
+
+test("development launcher waits for managed children instead of forcing cleanup shutdown", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "../scripts/development/dev-environment.mjs"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(source, /stopChildren\("SIGKILL"\)/);
+  assert.match(
+    source,
+    /await Promise\.all\(children\.map\(\(entry\) => entry\.outcome\)\)/,
+  );
 });
 
 test("development launcher help and dry-run have no runtime prerequisites", () => {

@@ -95,24 +95,21 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
   const pending = items.filter((item) => item.actionState === "pending")
 
   return (
-    <section
-      className="border-b bg-background"
-      aria-labelledby="claim-inbox-title"
-    >
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+    <section aria-labelledby="claim-inbox-title">
+      <div className="w-full">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2
               id="claim-inbox-title"
-              className="flex items-center gap-2 text-sm font-medium"
+              className="flex items-center gap-2 text-xl font-semibold"
             >
               <MailIcon className="size-4" aria-hidden="true" />
-              名片认领信封
+              认领消息
               {pending.length ? (
                 <Badge variant="secondary">{pending.length} 封待确认</Badge>
               ) : null}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm/6 text-muted-foreground">
               系统发现同 ID 的历史名片时，会在这里询问是否为本人名片。
             </p>
           </div>

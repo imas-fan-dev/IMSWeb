@@ -80,8 +80,6 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
 | `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
 
-
-
 请求幂等记录由 PostgreSQL 持有；共享限流窗口由 Valkey 通过原子 Lua 脚本持有（键为 SHA-256 匿名散列并随窗口 TTL 自动过期），生产多副本必须指向同一 Valkey。限流窗口是可丢失的短期状态，Valkey 重启只会重置限流计数，不影响幂等与账户数据。
 
 管理员会话使用 15 分钟的 access JWT 和 30 天滑动有效期的 refresh token。access 与 refresh
@@ -170,8 +168,11 @@ SHA-256 后再归档。S3 使用版本化 bucket、对象清单和数据库中�
 
 当前 PostgreSQL + R2 正式环境优先使用
 [GitHub Actions 自动部署](github-actions-deployment.md)：CI 构建一次 GHCR 镜像，生产机按 digest
-运行 Compose，并把 release metadata、数据库恢复点和部署记录保存在 `/srv/imsweb`。以下裸
-Node 目录激活流程保留给未纳入 Compose 的既有安装或迁移排障，不是 GitHub Actions 的默认路径。
+运行 Compose，并把 release metadata、数据库恢复点和部署记录保存在 `/srv/imsweb`。API 容器的
+停止宽限为 10 分钟；收到 `SIGTERM` 后，应用先停止 HTTP 接入，再停止对象清理调度并等待当前批次
+回到空闲，最后关闭对象存储和 PostgreSQL。发布操作不得用 `docker kill` 跳过该顺序；超过宽限仍
+未退出时应保留日志并人工判断，强制 `SIGKILL` 不具备清理完成保证。以下裸 Node 目录激活流程保留
+给未纳入 Compose 的既有安装或迁移排障，不是 GitHub Actions 的默认路径。
 
 准备 staging 并完成安装与验证后设置：
 

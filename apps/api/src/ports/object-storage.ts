@@ -22,7 +22,7 @@ export interface ListedObject {
 }
 
 export interface ObjectReadUrlOptions {
-    method?: 'GET' | 'HEAD';
+    method?: "GET" | "HEAD";
 }
 
 export interface PublicObjectReadUrlOptions {
@@ -31,25 +31,29 @@ export interface PublicObjectReadUrlOptions {
 
 export interface ObjectReadTarget {
     url: string;
-    visibility: 'private' | 'public';
+    visibility: "private" | "public";
 }
 
 export interface ObjectStorage {
     get(key: string): Promise<StoredObject | null>;
     createPublicReadUrl?(
         key: string,
-        options?: PublicObjectReadUrlOptions
+        options?: PublicObjectReadUrlOptions,
     ): Promise<string | null>;
     createReadUrl?(
         key: string,
-        options?: ObjectReadUrlOptions
+        options?: ObjectReadUrlOptions,
     ): Promise<ObjectReadTarget | null>;
-    put(key: string, body: Uint8Array, options?: PutObjectOptions): Promise<StoredObject>;
+    put(
+        key: string,
+        body: Uint8Array,
+        options?: PutObjectOptions,
+    ): Promise<StoredObject>;
     putIfUnchanged?(
         key: string,
         expectedEtag: string | null,
         body: Uint8Array,
-        options?: PutObjectOptions
+        options?: PutObjectOptions,
     ): Promise<StoredObject | null>;
     delete(key: string): Promise<void>;
     deleteIfObjectId?(key: string, expectedObjectId: string): Promise<boolean>;
@@ -60,7 +64,7 @@ export interface ObjectStorage {
     moveIfOwned?(
         sourceKey: string,
         destinationKey: string,
-        expectedOwnerToken: string
+        expectedOwnerToken: string,
     ): Promise<boolean>;
     list(prefix: string): Promise<ListedObject[]>;
     deletePrefix(prefix: string): Promise<void>;
@@ -83,8 +87,16 @@ export interface ObjectDeletionWorker {
     retryQuarantined(jobId: string): Promise<boolean>;
 }
 
+export interface ObjectCleanupRunner {
+    start(): void;
+    run(): Promise<void>;
+    close(): Promise<void>;
+    isIdle(): boolean;
+}
+
 export interface ObjectStorageServices {
     compensation: CompensationService;
+    objectCleanup: ObjectCleanupRunner;
     objectDeletions: ObjectDeletionWorker;
     storage: ObjectStorage;
 }

@@ -117,10 +117,7 @@ function emailAccount(
     };
 }
 
-async function createFixture(
-    t: TestContext,
-    dialect: "postgresql" = "postgresql",
-): Promise<Fixture> {
+async function createFixture(t: TestContext): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
     t.after(() => harness.close());
     const repository = new SqlPlatformAccountRepository(
@@ -201,7 +198,7 @@ async function assertFailedResendPreservesOldCode(
     t: TestContext,
     dialect: "postgresql",
 ): Promise<void> {
-    const fixture = await createFixture(t, dialect);
+    const fixture = await createFixture(t);
     const email = `failed-resend-${dialect}@example.test`;
     const expiredAt = Date.now();
     await fixture.database
@@ -355,11 +352,8 @@ async function assertFailedResendPreservesOldCode(
     await siblingRepository.close();
 }
 
-async function assertRegistrationAndLogin(
-    t: TestContext,
-    dialect: "postgresql",
-): Promise<void> {
-    const fixture = await createFixture(t, dialect);
+async function assertRegistrationAndLogin(t: TestContext): Promise<void> {
+    const fixture = await createFixture(t);
     const { app, database } = fixture;
     const registrationCode = await requestVerificationCode(
         fixture,
@@ -1220,9 +1214,9 @@ test("real PostgreSQL keeps registration atomic under normalized email races", {
         !postgresIntegrationEnabled() &&
         "set IMS_TEST_POSTGRES_ADMIN_URL to a local PostgreSQL admin database",
 }, async (t) => {
-    await assertRegistrationAndLogin(t, "postgresql");
+    await assertRegistrationAndLogin(t);
 
-    const fixture = await createFixture(t, "postgresql");
+    const fixture = await createFixture(t);
     assert.ok(fixture.databaseUrl);
     const secondConnection = PostgresConnection.create({
         connectionString: fixture.databaseUrl,

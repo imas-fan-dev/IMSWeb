@@ -1,5 +1,5 @@
 import { platformAuthPath } from "@imsweb/contracts/paths"
-import { createAlova } from "alova"
+import { createAlova, type Method } from "alova"
 import { createServerTokenAuthentication } from "alova/client"
 import adapterFetch from "alova/fetch"
 import ReactHook from "alova/react"
@@ -12,14 +12,14 @@ import { withPlatformCsrf } from "./types"
 
 // Alova clones Method objects for replays and preserves enumerable symbol fields.
 const failedRefreshReplay = Symbol("failed-platform-refresh-replay")
-const requestCsrfTokens = new WeakMap<object, string | undefined>()
+const requestCsrfTokens = new WeakMap<Method, string | undefined>()
 
-function markFailedRefreshReplay(method: object) {
+function markFailedRefreshReplay(method: Method) {
   const markedMethod = method as { [failedRefreshReplay]?: boolean }
   markedMethod[failedRefreshReplay] = true
 }
 
-function consumeFailedRefreshReplay(method: object) {
+function consumeFailedRefreshReplay(method: Method) {
   const markedMethod = method as { [failedRefreshReplay]?: boolean }
   const marked = Boolean(markedMethod[failedRefreshReplay])
   if (marked) {

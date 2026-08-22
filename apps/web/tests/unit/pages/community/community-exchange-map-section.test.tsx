@@ -62,6 +62,7 @@ const office = {
   slug: "shanghai-weekend",
   name: "上海周末交换事务所",
   city: "上海",
+  address: "西岸艺术中心入口",
   accent: "#f34e6c",
   isOpen: true,
   seriesCodes: ["765"],

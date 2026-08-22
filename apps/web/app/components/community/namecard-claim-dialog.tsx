@@ -184,7 +184,11 @@ export function NamecardClaimDialog({
                 <FieldLabel htmlFor="claim-target-card">绑定方式</FieldLabel>
                 <Select value={targetCardId} onValueChange={selectTarget}>
                   <SelectTrigger id="claim-target-card" className="w-full">
-                    <SelectValue />
+                    <SelectValue>
+                      {existingTarget
+                        ? `绑定到 ${existingTarget.displayName}`
+                        : "创建一张可管理的注册名片"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start">
                     <SelectGroup>

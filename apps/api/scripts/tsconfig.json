@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.server.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@/*": ["../src/*"]
+    },
+    "rootDir": ".."
+  },
+  "include": ["migration/*.ts"]
+}

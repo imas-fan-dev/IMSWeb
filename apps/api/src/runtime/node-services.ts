@@ -18,11 +18,12 @@ import type {
     SitePackageRepository,
     StoryRepository,
 } from "@/ports/repositories";
+import type { ManagedSqlDatabase } from "@/infra/db/sql/database";
 import type {
-    ManagedSqlDatabase,
-    SqlSchemaStrategy,
-} from "@/infra/db/sql/database";
-import type { ObjectStorageServices } from "@/ports/object-storage";
+    CompensationService,
+    ObjectStorage,
+    ObjectStorageServices,
+} from "@/ports/object-storage";
 import type {
     NodeRuntimeServices,
     RuntimeServices,
@@ -39,6 +40,7 @@ import {
     BACKOFFICE_JWT_SECRET,
     CLIENT_ADDRESS_SOURCE,
     COOKIE_OPTIONS,
+    FUDABA_GEOCODING_CONFIG,
     FUDABA_MAP_ENABLED,
     FUDABA_MAP_STYLE_URL,
     FUDABA_PUBLIC_READ_ENABLED,
@@ -88,6 +90,7 @@ import { ConfiguredPlatformOAuthClient } from "@/infra/oauth/platform-oauth-clie
 import { PlatformOAuthSecretCipher } from "@/infra/oauth/platform-oauth-secrets";
 import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service";
 import { HmacPlatformTokenService } from "@/infra/security/hmac/platform-token-service";
+import { NodeObjectCleanupRunner } from "@/runtime/node-object-cleanup-runner";
 
 interface InitializableResource {
     initialize(): Promise<void>;
@@ -186,14 +189,11 @@ async function createNodeObjectStorage(
         const storage = new FilesystemObjectStorage(filesystemRoots, {
             publicReadUrlBase: config.publicReadUrlBase,
         });
-        return {
-            compensation: new FilesystemCompensationService(COMPENSATION_DIR),
-            objectDeletions: new PostgresqlObjectDeletionWorker(
-                database,
-                storage,
-            ),
+        return createNodeObjectStorageServices(
+            database,
             storage,
-        };
+            new FilesystemCompensationService(COMPENSATION_DIR),
+        );
     }
     const client = new S3Client({
         region: config.region,
@@ -227,11 +227,25 @@ async function createNodeObjectStorage(
         state,
         compensation,
     );
-    return {
-        compensation,
-        objectDeletions: new PostgresqlObjectDeletionWorker(database, storage),
+    return createNodeObjectStorageServices(database, storage, compensation);
+}
+
+function createNodeObjectStorageServices(
+    database: ManagedSqlDatabase,
+    storage: ObjectStorage,
+    compensation: CompensationService,
+): ObjectStorageServices {
+    const objectDeletions = new PostgresqlObjectDeletionWorker(
+        database,
         storage,
-    };
+    );
+    const objectCleanup = new NodeObjectCleanupRunner(
+        objectDeletions,
+        compensation,
+        storage,
+    );
+    objectCleanup.start();
+    return { compensation, objectCleanup, objectDeletions, storage };
 }
 
 export async function initializeNodeRepositories(
@@ -240,8 +254,12 @@ export async function initializeNodeRepositories(
     try {
         for (const repository of repositories) await repository.initialize();
     } catch (error) {
+        const reverseOrdered = Array.from(
+            { length: repositories.length },
+            (_, index) => repositories[repositories.length - index - 1],
+        );
         await Promise.allSettled(
-            [...repositories].reverse().map((repository) => repository.close()),
+            reverseOrdered.map((repository) => repository.close()),
         );
         throw error;
     }
@@ -260,7 +278,10 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
     const fudaba = services.fudaba as
         | (FudabaRepository & Partial<InitializableResource>)
         | undefined;
-    const results = await Promise.allSettled(
+    const cleanupResults = await Promise.allSettled(
+        services.objectCleanup ? [services.objectCleanup.close()] : [],
+    );
+    const resourceResults = await Promise.allSettled(
         [
             services.cache?.close
                 ? Promise.resolve().then(() => services.cache?.close?.())
@@ -274,7 +295,7 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
             backofficeAuth?.close?.(),
         ].filter((operation): operation is Promise<void> => Boolean(operation)),
     );
-    const failures = results.filter(
+    const failures = [...cleanupResults, ...resourceResults].filter(
         (result): result is PromiseRejectedResult =>
             result.status === "rejected",
     );
@@ -339,6 +360,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         story,
     } = createNodeRepositories(database);
     let cacheServices: NodeCacheServices | undefined;
+    let objectStorageInfrastructure: ObjectStorageServices | undefined;
     try {
         await initializeNodeRepositories(core, platform, fudaba, story);
         if (IS_PRODUCTION || SUPER_ADMIN_USERNAME) {
@@ -358,7 +380,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             chronicleDir: EVENT_BASE,
             storyDataDir: STORY_DATA_DIR,
         };
-        const objectStorageInfrastructure = await createNodeObjectStorage(
+        objectStorageInfrastructure = await createNodeObjectStorage(
             objectStorage,
             filesystemRoots,
             connection,
@@ -412,10 +434,17 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 fudabaWriteEnabled: FUDABA_WRITE_ENABLED,
                 fudabaMapEnabled: FUDABA_MAP_ENABLED,
                 fudabaMapStyleUrl: FUDABA_MAP_STYLE_URL,
+                fudabaGeocoding: FUDABA_GEOCODING_CONFIG,
             },
         };
     } catch (error) {
+        await Promise.allSettled(
+            objectStorageInfrastructure
+                ? [objectStorageInfrastructure.objectCleanup.close()]
+                : [],
+        );
         await Promise.allSettled([
+            objectStorageInfrastructure?.storage.close?.(),
             cacheServices?.cache.close(),
             story.close(),
             fudaba.close(),

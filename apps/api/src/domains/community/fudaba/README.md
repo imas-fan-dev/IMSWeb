@@ -13,7 +13,7 @@ provider。
 | `directory` | 公开访问者 | `list-public-series`、`list-public-offices`、`get-public-office`、`list-public-cards`、`get-map-config`、`list-map-offices` |
 | `cards` | 平台用户 | `list-owner-cards`、`get-owner-card`、`create-card`、`update-card`、`delete-card`、`save-card-placement`、`remove-card-placement`、卡片媒体读写 |
 | `offices` | 平台用户 | `list-owner-offices`、`get-owner-office`、`create-office`、`update-owner-office`、归档/恢复、封面媒体 |
-| `locations` | 平台用户 | `get-owner-location`、`save-owner-location`、`withdraw-owner-location` |
+| `locations` | 平台用户 | `search-places`、`get-owner-location`、`save-owner-location`、`withdraw-owner-location` |
 | `claims` | 平台用户/系统 | `platform-card-claims` 及后续认领 action |
 | `moderation` | 后台操作员 | `admin-card-reviews`、`list-location-reviews`、`review-location` |
 

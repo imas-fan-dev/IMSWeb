@@ -22,6 +22,7 @@ const apiMocks = vi.hoisted(() => ({
   createFudabaOffice: vi.fn(),
   updateFudabaOwnerOffice: vi.fn(),
   saveFudabaOwnerLocation: vi.fn(),
+  searchFudabaPlaces: vi.fn(),
   withdrawFudabaOwnerLocation: vi.fn(),
   sendOffices: vi.fn(),
   sendOffice: vi.fn(),
@@ -29,6 +30,7 @@ const apiMocks = vi.hoisted(() => ({
   sendCreate: vi.fn(),
   sendOfficeUpdate: vi.fn(),
   sendLocationSave: vi.fn(),
+  sendPlaceSearch: vi.fn(),
   sendLocationWithdrawal: vi.fn(),
 }))
 
@@ -42,6 +44,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     createFudabaOffice: apiMocks.createFudabaOffice,
     updateFudabaOwnerOffice: apiMocks.updateFudabaOwnerOffice,
     saveFudabaOwnerLocation: apiMocks.saveFudabaOwnerLocation,
+    searchFudabaPlaces: apiMocks.searchFudabaPlaces,
     withdrawFudabaOwnerLocation: apiMocks.withdrawFudabaOwnerLocation,
   }
 })
@@ -113,6 +116,24 @@ const location = {
   reviewNote: "区域范围合适",
 } as const
 
+const placeSearchResponse = {
+  success: true as const,
+  items: [
+    {
+      id: "way:200",
+      label: "西岸艺术中心",
+      address: "西岸艺术中心，徐汇区，上海市，中国",
+      city: "上海市",
+      location: {
+        latitude: 31.1842,
+        longitude: 121.4665,
+        precision: "exact" as const,
+      },
+    },
+  ],
+  attribution: "© OpenStreetMap contributors",
+}
+
 const secondOffice = {
   ...office,
   id: "office-2",
@@ -174,6 +195,9 @@ describe("OfficeLocationWorkspace", () => {
     apiMocks.saveFudabaOwnerLocation.mockReturnValue({
       send: apiMocks.sendLocationSave,
     })
+    apiMocks.searchFudabaPlaces.mockReturnValue({
+      send: apiMocks.sendPlaceSearch,
+    })
     apiMocks.withdrawFudabaOwnerLocation.mockReturnValue({
       send: apiMocks.sendLocationWithdrawal,
     })
@@ -186,37 +210,29 @@ describe("OfficeLocationWorkspace", () => {
       success: true,
       officeLocation: { ...location, reviewState: "pending", revision: 3 },
     })
+    apiMocks.sendPlaceSearch.mockResolvedValue(placeSearchResponse)
     apiMocks.sendLocationWithdrawal.mockResolvedValue({ success: true })
   })
 
-  it("keeps exact office coordinates separate from the explicit regional location", async () => {
+  it("shows addresses while keeping exact and regional coordinates out of the UI", async () => {
     const user = userEvent.setup()
     renderWorkspace()
 
     expect(
       await screen.findByRole("heading", { name: "事务所资料" })
     ).toBeVisible()
-    expect(screen.getByRole("spinbutton", { name: "精确纬度" })).toHaveValue(
-      31.18452
-    )
-    expect(screen.getByRole("spinbutton", { name: "区域纬度" })).toHaveValue(
-      31.2
-    )
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument()
+    expect(screen.getAllByText("西岸艺术中心入口").length).toBeGreaterThan(0)
     expect(screen.getByText("审核备注")).toBeVisible()
     expect(screen.getByText("区域范围合适")).toBeVisible()
 
-    const regionalLatitude = screen.getByRole("spinbutton", {
-      name: "区域纬度",
-    })
-    await user.clear(regionalLatitude)
-    await user.type(regionalLatitude, "31.3")
     await user.click(screen.getByRole("button", { name: "重新提交审核" }))
 
     await waitFor(() => {
       expect(apiMocks.saveFudabaOwnerLocation).toHaveBeenCalledWith(
         "office-1",
         {
-          latitude: 31.3,
+          latitude: 31.2,
           longitude: 121.5,
           expectedRevision: 2,
         }
@@ -225,7 +241,7 @@ describe("OfficeLocationWorkspace", () => {
     expect(await screen.findByText(/区域位置已提交审核/)).toBeVisible()
   })
 
-  it("preserves regional input and offers reload after a CAS conflict", async () => {
+  it("keeps the selected address and offers reload after a CAS conflict", async () => {
     apiMocks.sendLocationSave.mockRejectedValue(
       new ApiError("地图位置版本冲突", {
         kind: "http",
@@ -237,15 +253,11 @@ describe("OfficeLocationWorkspace", () => {
     const user = userEvent.setup()
     renderWorkspace()
 
-    const regionalLongitude = await screen.findByRole("spinbutton", {
-      name: "区域经度",
-    })
-    await user.clear(regionalLongitude)
-    await user.type(regionalLongitude, "121.6")
+    await screen.findByText("审核备注")
     await user.click(screen.getByRole("button", { name: "重新提交审核" }))
 
     expect(await screen.findByText("地图位置版本冲突")).toBeVisible()
-    expect(regionalLongitude).toHaveValue(121.6)
+    expect(screen.getAllByText("西岸艺术中心入口").length).toBeGreaterThan(0)
     expect(
       screen.getByRole("button", { name: "载入最新地图位置" })
     ).toBeVisible()
@@ -381,16 +393,12 @@ describe("OfficeLocationWorkspace", () => {
       "新事务所"
     )
     await user.type(
-      screen.getByRole("textbox", { name: "具体地点" }),
-      "场馆入口"
+      screen.getByRole("textbox", { name: "搜索地点" }),
+      "西岸艺术中心"
     )
-    await user.type(
-      screen.getByRole("spinbutton", { name: "精确纬度" }),
-      "31.2"
-    )
-    await user.type(
-      screen.getByRole("spinbutton", { name: "精确经度" }),
-      "121.5"
+    await user.click(screen.getByRole("button", { name: "搜索" }))
+    await user.click(
+      await screen.findByRole("button", { name: /西岸艺术中心.*徐汇区/ })
     )
     await user.click(screen.getByRole("button", { name: "创建事务所" }))
 
@@ -398,10 +406,10 @@ describe("OfficeLocationWorkspace", () => {
       expect(apiMocks.createFudabaOffice).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "新事务所",
-          city: "上海",
-          address: "场馆入口",
-          latitude: 31.2,
-          longitude: 121.5,
+          city: "上海市",
+          address: "西岸艺术中心，徐汇区，上海市，中国",
+          latitude: 31.1842,
+          longitude: 121.4665,
           seriesCodes: [],
         }),
         expect.stringMatching(/^fudaba-office-/)
@@ -427,7 +435,7 @@ describe("OfficeLocationWorkspace", () => {
     expect(
       await screen.findByText("公开位置已撤回，事务所已从区域地图下线。")
     ).toBeVisible()
-    expect(screen.getByText("当前位置不在地图上")).toBeVisible()
+    expect(screen.getByText("当前地址不在地图上")).toBeVisible()
   })
 
   it("locks workspace navigation and keeps the target revision during withdrawal", async () => {
@@ -467,6 +475,6 @@ describe("OfficeLocationWorkspace", () => {
     expect(
       await screen.findByText("公开位置已撤回，事务所已从区域地图下线。")
     ).toBeVisible()
-    expect(screen.getByText("当前位置不在地图上")).toBeVisible()
+    expect(screen.getByText("当前地址不在地图上")).toBeVisible()
   })
 })

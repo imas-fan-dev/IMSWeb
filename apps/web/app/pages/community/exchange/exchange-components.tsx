@@ -102,7 +102,7 @@ export function OfficeCard({
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="inline-flex min-w-0 items-center gap-1.5">
             <MapPinIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{office.city}</span>
+            <span className="truncate">{office.address}</span>
           </span>
           <span
             className="inline-flex items-center gap-1.5"

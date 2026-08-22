@@ -126,7 +126,9 @@ export function OfficeLocationWorkspace({
       setOffice(officeResult.office)
       setLocation(locationResult.location)
       setOfficeDraftState(officeDraft(officeResult.office))
-      setLocationDraftState(publicLocationDraft(locationResult.location))
+      setLocationDraftState(
+        publicLocationDraft(locationResult.location, officeResult.office)
+      )
       setOffices((items) =>
         items.map((item) =>
           item.id === officeResult.office.id ? officeResult.office : item
@@ -217,6 +219,7 @@ export function OfficeLocationWorkspace({
     selectionTargetIdRef.current = saved.id
     setSelectedId(saved.id)
     setOfficeDraftState(officeDraft(saved))
+    setLocationDraftState(publicLocationDraft(null, saved))
   }
 
   function mutationClosed(error: unknown) {
@@ -230,7 +233,7 @@ export function OfficeLocationWorkspace({
     if (!parsed.success) {
       setOfficeFeedback({
         kind: "error",
-        message: "请填写完整有效的事务所名称、地点和精确坐标。",
+        message: "请填写事务所名称，并通过地点搜索选择有效地址。",
       })
       return
     }
@@ -254,7 +257,7 @@ export function OfficeLocationWorkspace({
         replaceOffice(result.office)
         setCreating(false)
         setLocation(null)
-        setLocationDraftState(publicLocationDraft(null))
+        setLocationDraftState(publicLocationDraft(null, result.office))
         createKey.current = null
         createFingerprint.current = null
         setOfficeFeedback({ kind: "success", message: "交换事务所已创建。" })
@@ -307,8 +310,7 @@ export function OfficeLocationWorkspace({
     if (!parsed.success) {
       setLocationFeedback({
         kind: "error",
-        message:
-          "公开位置必须位于有效范围，并严格使用 0.1 度网格，例如 31.2、121.5。",
+        message: "所选地点超出公开地图支持范围，请重新搜索地点。",
       })
       return
     }
@@ -416,23 +418,17 @@ export function OfficeLocationWorkspace({
   const mutationPending = savingOffice || savingLocation
 
   return (
-    <section
-      className="border-t bg-muted/15"
-      aria-labelledby="fudaba-office-location-title"
-    >
-      <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <section aria-labelledby="fudaba-office-location-title">
+      <div className="w-full">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <p className="text-sm font-medium text-muted-foreground">
-              OFFICE &amp; REGIONAL MAP
-            </p>
             <h2
               id="fudaba-office-location-title"
-              className="mt-2 text-xl font-semibold"
+              className="text-xl font-semibold"
             >
-              我的事务所与地图位置
+              事务所与地图位置
             </h2>
-            <p className="mt-2 leading-7 text-muted-foreground">
+            <p className="mt-2 text-sm/6 text-muted-foreground">
               事务所精确资料与公开区域位置分开维护，地图只显示审核后的 0.1
               度网格。
             </p>
@@ -570,11 +566,9 @@ export function OfficeLocationWorkspace({
             <PublicLocationEditor
               office={office}
               location={location}
-              draft={locationDraftState}
               disabled={readOnly}
               busy={savingLocation}
               feedback={locationFeedback}
-              onChange={setLocationDraftState}
               onSave={() => void submitLocation()}
               onReload={() => void reloadLocation()}
               onWithdraw={() => void withdrawLocation()}

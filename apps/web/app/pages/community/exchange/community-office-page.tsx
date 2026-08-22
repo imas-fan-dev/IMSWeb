@@ -571,9 +571,9 @@ export default function CommunityOfficePage() {
               <div>
                 <dt className="flex items-center gap-1.5 text-muted-foreground">
                   <MapPinIcon className="size-3.5" aria-hidden="true" />
-                  城市
+                  地址
                 </dt>
-                <dd className="mt-1 font-medium">{office.city}</dd>
+                <dd className="mt-1 font-medium">{office.address}</dd>
               </div>
               <div>
                 <dt className="flex items-center gap-1.5 text-muted-foreground">

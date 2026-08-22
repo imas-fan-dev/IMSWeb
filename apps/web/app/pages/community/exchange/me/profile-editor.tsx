@@ -11,7 +11,6 @@ import { toast } from "sonner"
 
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import {
@@ -152,24 +151,17 @@ export function ProfileEditor({
   const busy = saving || uploadingAvatar
 
   return (
-    <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
-      <div className="flex min-w-0 items-center gap-3 border-b pb-4">
-        <Avatar size="lg" className="size-14">
-          {profile.avatarUrl ? (
-            <AvatarImage
-              src={profile.avatarUrl}
-              alt={`${profile.displayName}的头像`}
-              referrerPolicy="no-referrer"
-            />
-          ) : null}
-          <AvatarFallback className="text-base">
-            {profile.displayName.trim().slice(0, 1) || "制"}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-medium">制作人资料</h2>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
-            {profile.homeCity || "未填写常驻城市"}
+    <section
+      className="max-w-3xl min-w-0"
+      aria-labelledby="profile-editor-title"
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3 border-b pb-5">
+        <div className="min-w-0">
+          <h2 id="profile-editor-title" className="text-xl font-semibold">
+            个人资料
+          </h2>
+          <p className="mt-2 text-sm/6 text-muted-foreground">
+            更新头像、显示名称、常驻城市和个人简介。
           </p>
         </div>
         {readOnly ? <Badge variant="secondary">只读</Badge> : null}
@@ -325,6 +317,6 @@ export function ProfileEditor({
           {saving ? "正在保存" : "保存资料"}
         </Button>
       </form>
-    </aside>
+    </section>
   )
 }

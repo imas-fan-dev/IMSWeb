@@ -44,6 +44,7 @@ const office = {
   name: "上海周末交换事务所",
   intro: "每周末开放的线下交换点，欢迎现场交换公开名片。",
   city: "上海",
+  address: "西岸艺术中心入口",
   accent: "#2581c7",
   coverUrl: "/brand/series/wall/cinderella-girls.webp",
   isOpen: true,

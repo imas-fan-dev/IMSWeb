@@ -214,7 +214,7 @@ export function ExchangeDiscoveryRail({
                         className="size-3 shrink-0"
                         aria-hidden="true"
                       />
-                      <span className="truncate">{office.city}</span>
+                      <span className="truncate">{office.address}</span>
                       <span aria-hidden="true">·</span>
                       <span className="truncate">
                         {officeSeriesLabel(office, series) || "综合企划"}

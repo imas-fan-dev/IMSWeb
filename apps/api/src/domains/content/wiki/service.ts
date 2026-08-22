@@ -1,4 +1,4 @@
-import { iconPath, imagePath } from '@imsweb/contracts/paths';
+import { iconPath, imagePath } from "@imsweb/contracts/paths";
 import type { UploadedFile } from "@/ports/http";
 import type { ImageProcessor } from "@/ports/media";
 import type { RuntimeServices } from "@/ports/runtime-services";
@@ -278,7 +278,9 @@ export function wikiGroupIconUrl(id: number): string {
 }
 
 export function idolMediaUrl(agency: string, idol: string): string {
-  return imagePath(`/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/icon.webp`);
+  return imagePath(
+    `/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/icon.webp`,
+  );
 }
 
 export function wikiStoryImageUrl(
@@ -288,7 +290,9 @@ export function wikiStoryImageUrl(
 ): string {
   if (!imageFile) return "";
   const path = imageFile.split("/").map(encodeURIComponent).join("/");
-  return imagePath(`/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/${path}`);
+  return imagePath(
+    `/${encodeURIComponent(agency)}/${encodeURIComponent(idol)}/${path}`,
+  );
 }
 
 export function aggregateStories(
@@ -530,10 +534,25 @@ export async function randomIdol(
   };
 }
 
+interface BilibiliPage {
+  page?: number;
+  part?: unknown;
+}
+
+interface BilibiliPayload {
+  title?: unknown;
+  upper?: { name?: unknown };
+  cover?: unknown;
+  pages?: BilibiliPage[];
+  owner?: { name?: unknown };
+  bvid?: unknown;
+  pic?: unknown;
+}
+
 interface BilibiliResponse {
   code?: number;
   message?: string;
-  data?: any;
+  data?: BilibiliPayload;
 }
 
 export async function parseBilibili(
@@ -572,7 +591,8 @@ export async function parseBilibili(
     const pageNumber = Number(/[?&]p=(\d+)/.exec(input)?.[1] ?? "1");
     const pages = Array.isArray(payload.data?.pages) ? payload.data.pages : [];
     const page =
-      pages.find((candidate: any) => candidate.page === pageNumber) ?? pages[0];
+      pages.find((candidate: BilibiliPage) => candidate.page === pageNumber) ??
+      pages[0];
     const title =
       pages.length > 1 && page?.part ? page.part : payload.data?.title;
     return {

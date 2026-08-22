@@ -105,9 +105,7 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xs font-semibold text-muted-foreground">
-          约 0.1° 区域位置
-        </p>
+        <p className="text-xs font-semibold text-muted-foreground">地图区域</p>
         <h3 className="mt-1 text-base font-semibold">
           {group.offices.length} 个交换事务所
         </h3>
@@ -123,7 +121,7 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
               <div className="min-w-0">
                 <h4 className="font-medium wrap-break-word">{office.name}</h4>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {office.city}
+                  {office.address}
                 </p>
               </div>
               <OfficeStatus open={office.isOpen} />
@@ -457,7 +455,9 @@ export function CommunityExchangeMapSection({
         >
           <SheetHeader className="border-b pr-14">
             <SheetTitle>区域交换事务所</SheetTitle>
-            <SheetDescription>地图仅展示约 0.1° 的区域位置。</SheetDescription>
+            <SheetDescription>
+              地图使用区域化位置，并展示事务所公开地址。
+            </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-2">
             {selectedGroup ? (
