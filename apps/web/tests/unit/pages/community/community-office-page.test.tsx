@@ -22,6 +22,7 @@ const apiMocks = vi.hoisted(() => ({
 
 const platformMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
+  useOptionalPlatformSession: vi.fn(),
 }))
 
 const toastMocks = vi.hoisted(() => ({
@@ -32,6 +33,7 @@ const toastMocks = vi.hoisted(() => ({
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
   usePlatformSession: platformMocks.usePlatformSession,
+  useOptionalPlatformSession: platformMocks.useOptionalPlatformSession,
 }))
 
 vi.mock("sonner", () => ({ toast: toastMocks }))
@@ -125,7 +127,7 @@ function renderPage() {
 }
 
 function mockAuthenticatedPlatformSession() {
-  platformMocks.usePlatformSession.mockReturnValue({
+  const authenticated = {
     status: "authenticated",
     session: {
       success: true,
@@ -141,20 +143,24 @@ function mockAuthenticatedPlatformSession() {
     acceptSession: vi.fn(),
     reload: vi.fn(),
     logout: vi.fn(),
-  })
+  }
+  platformMocks.usePlatformSession.mockReturnValue(authenticated)
+  platformMocks.useOptionalPlatformSession.mockReturnValue(authenticated)
 }
 
 describe("CommunityOfficePage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    platformMocks.usePlatformSession.mockReturnValue({
+    const anonymous = {
       status: "anonymous",
       session: null,
       error: null,
       acceptSession: vi.fn(),
       reload: vi.fn(),
       logout: vi.fn(),
-    })
+    }
+    platformMocks.usePlatformSession.mockReturnValue(anonymous)
+    platformMocks.useOptionalPlatformSession.mockReturnValue(anonymous)
     apiMocks.getFudabaOffice.mockReturnValue({ send: apiMocks.sendOffice })
     apiMocks.getFudabaOwnerCards.mockReturnValue({
       send: apiMocks.sendOwnerCards,

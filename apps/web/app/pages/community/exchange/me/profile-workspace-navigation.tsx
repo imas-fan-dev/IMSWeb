@@ -1,4 +1,5 @@
 import {
+  BookmarkIcon,
   Building2Icon,
   CreditCardIcon,
   MailIcon,
@@ -10,7 +11,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import type { PlatformProfile } from "~/lib/api"
 import { cn } from "~/lib/utils"
 
-export type ProfileWorkspaceSection = "profile" | "cards" | "offices" | "claims"
+export type ProfileWorkspaceSection =
+  | "profile"
+  | "cards"
+  | "favorites"
+  | "offices"
+  | "claims"
 
 const sections = [
   {
@@ -26,6 +32,13 @@ const sections = [
     shortLabel: "名片",
     description: "名片素材与交换状态",
     icon: CreditCardIcon,
+  },
+  {
+    id: "favorites",
+    label: "收藏夹",
+    shortLabel: "收藏",
+    description: "收藏的交换名片",
+    icon: BookmarkIcon,
   },
   {
     id: "offices",
@@ -88,7 +101,7 @@ export function ProfileWorkspaceNavigation({
       </div>
 
       <nav
-        className="grid min-w-0 grid-cols-4 border-t lg:block"
+        className="grid min-w-0 grid-cols-5 border-t lg:block"
         aria-label="个人档案菜单"
       >
         {sections.map((section) => {

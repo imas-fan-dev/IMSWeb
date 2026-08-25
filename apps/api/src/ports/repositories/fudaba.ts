@@ -573,6 +573,13 @@ export interface FudabaPublicCardRecord {
     viewer_favorited: boolean;
 }
 
+export interface FudabaCardInteractionStateRecord {
+    like_count: number;
+    favorite_count: number;
+    viewer_liked: boolean;
+    viewer_favorited: boolean;
+}
+
 export interface FudabaPublicPlacedCardRecord extends FudabaPublicCardRecord {
     pinned_at: string;
     position_x: number;
@@ -625,6 +632,7 @@ export interface ListFudabaPublicCardsInput {
     seriesCodes?: string[];
     available?: boolean;
     officeSlug?: string;
+    favoritedByAccountId?: string;
     viewerAccountId: string | null;
     limit: number;
     after?: FudabaPublicCardCursor;
@@ -645,6 +653,10 @@ export interface FudabaRepository {
     listPublicCards(
         input: ListFudabaPublicCardsInput,
     ): Promise<FudabaPublicCardRecord[]>;
+    findPublicCardInteractions(
+        cardId: string,
+        viewerAccountId: string | null,
+    ): Promise<FudabaCardInteractionStateRecord | null>;
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
     findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
     listOfficesForOwner(

@@ -1,10 +1,4 @@
-import {
-  BookmarkIcon,
-  Building2Icon,
-  EyeIcon,
-  HeartIcon,
-  MapPinIcon,
-} from "lucide-react"
+import { Building2Icon, EyeIcon, MapPinIcon } from "lucide-react"
 import { Link } from "react-router"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
@@ -17,10 +11,17 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card"
-import type { FudabaCard, FudabaOffice, FudabaSeries } from "~/lib/api"
+import type {
+  FudabaCard,
+  FudabaCardInteractions,
+  FudabaOffice,
+  FudabaSeries,
+} from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { CardInteractionBar } from "./exchange-card-interactions"
 
 export { PlacedCardWall } from "./exchange-card-wall"
+export { CardInteractionBar } from "./exchange-card-interactions"
 
 export function SeriesBadge({
   code,
@@ -151,9 +152,11 @@ function CardMediaPair({ card }: { card: FudabaCard }) {
 export function ExchangeCard({
   card,
   series,
+  onInteractionsChange,
 }: {
   card: FudabaCard
   series: ReadonlyMap<string, FudabaSeries>
+  onInteractionsChange?: (interactions: FudabaCardInteractions) => void
 }) {
   return (
     <Card
@@ -182,34 +185,7 @@ export function ExchangeCard({
       </CardContent>
       <CardFooter className="flex items-center justify-between gap-3">
         <SeriesBadge code={card.seriesCode} series={series} />
-        <span className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span
-            className="inline-flex items-center gap-1"
-            aria-label={`${card.interactions.likes} 次点赞`}
-          >
-            <HeartIcon
-              className={cn(
-                "size-3.5",
-                card.interactions.viewerLiked && "fill-current"
-              )}
-              aria-hidden="true"
-            />
-            {card.interactions.likes}
-          </span>
-          <span
-            className="inline-flex items-center gap-1"
-            aria-label={`${card.interactions.favorites} 次收藏`}
-          >
-            <BookmarkIcon
-              className={cn(
-                "size-3.5",
-                card.interactions.viewerFavorited && "fill-current"
-              )}
-              aria-hidden="true"
-            />
-            {card.interactions.favorites}
-          </span>
-        </span>
+        <CardInteractionBar card={card} onChange={onInteractionsChange} />
       </CardFooter>
     </Card>
   )

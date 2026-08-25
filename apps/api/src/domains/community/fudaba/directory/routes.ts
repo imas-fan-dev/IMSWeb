@@ -5,6 +5,7 @@ import {
 } from '@/domains/community/fudaba/access-policy';
 import { handleGetFudabaMapConfig } from '@/domains/community/fudaba/directory/handlers/get-map-config';
 import { handleGetFudabaPublicOffice } from '@/domains/community/fudaba/directory/handlers/get-public-office';
+import { handleListFudabaFavoriteCards } from '@/domains/community/fudaba/directory/handlers/list-favorite-cards';
 import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory/handlers/list-map-offices';
 import { handleListFudabaPublicCards } from '@/domains/community/fudaba/directory/handlers/list-public-cards';
 import { handleListFudabaPublicOffices } from '@/domains/community/fudaba/directory/handlers/list-public-offices';
@@ -55,5 +56,6 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         handleListFudabaMapOffices
     );
     routes.get('/me/series', platformAuth, handleListFudabaPublicSeries);
+    routes.get('/me/favorites', platformAuth, handleListFudabaFavoriteCards);
     return routes;
 }

@@ -9,6 +9,8 @@ import {
   accentSchema,
   exactCoordinateSchema,
   fudabaCardDeleteResponseSchema,
+  fudabaCardInteractionKindSchema,
+  fudabaCardInteractionResponseSchema,
   fudabaCardMutationResponseSchema,
   fudabaCardPageSchema,
   fudabaCardPlacementDeleteResponseSchema,
@@ -350,6 +352,37 @@ export function getFudabaCardPage(input: FudabaCardPageRequest = {}) {
       meta: withPlatformAuth(),
     })
   )
+}
+
+export type FudabaCardInteractionKind = z.infer<
+  typeof fudabaCardInteractionKindSchema
+>
+
+export function getFudabaFavoriteCardPage(input: FudabaCardPageRequest = {}) {
+  return platformApiClient.Get(
+    withQuery(exchangePath("/me/favorites"), cardPageParams(input)),
+    parsed(fudabaCardPageSchema, {
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function setFudabaCardInteraction(
+  cardId: string,
+  kind: FudabaCardInteractionKind,
+  active: boolean
+) {
+  const card = ownerCardIdSchema.parse(cardId)
+  const interaction = fudabaCardInteractionKindSchema.parse(kind)
+  const path = exchangePath(
+    `/cards/${encodeURIComponent(card)}/${interaction}`
+  )
+  const response = parsed(fudabaCardInteractionResponseSchema, {
+    meta: withPlatformCsrf(),
+  })
+  return active
+    ? platformApiClient.Put(path, {}, response)
+    : platformApiClient.Delete(path, {}, response)
 }
 
 export function getFudabaOwnerCards() {

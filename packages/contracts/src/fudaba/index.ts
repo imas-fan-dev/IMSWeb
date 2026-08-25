@@ -72,6 +72,17 @@ export const fudabaIdolSelectionSchema = z
   })
   .strict();
 
+export const fudabaCardInteractionsSchema = z
+  .object({
+    likes: z.number().int().nonnegative(),
+    favorites: z.number().int().nonnegative(),
+    viewerLiked: z.boolean(),
+    viewerFavorited: z.boolean(),
+  })
+  .strict();
+
+export const fudabaCardInteractionKindSchema = z.enum(["like", "favorite"]);
+
 export const fudabaCardSchema = z.object({
   id: z.string().min(1),
   producerName: z.string().trim().min(1),
@@ -93,12 +104,7 @@ export const fudabaCardSchema = z.object({
     })
     .nullable(),
   createdAt: timestampSchema,
-  interactions: z.object({
-    likes: z.number().int().nonnegative(),
-    favorites: z.number().int().nonnegative(),
-    viewerLiked: z.boolean(),
-    viewerFavorited: z.boolean(),
-  }),
+  interactions: fudabaCardInteractionsSchema,
 });
 
 export const fudabaCardPlacementSchema = z
@@ -301,6 +307,11 @@ export const fudabaCardDeleteResponseSchema = successEnvelope({
   revision: fudabaRevisionSchema,
 }).strict();
 
+export const fudabaCardInteractionResponseSchema = successEnvelope({
+  cardId: z.string().min(1),
+  interactions: fudabaCardInteractionsSchema,
+}).strict();
+
 export const fudabaOwnerOfficeSchema = z
   .object({
     id: ownerCardIdSchema,
@@ -409,6 +420,15 @@ export type FudabaCardMutationResponse = z.infer<
 >;
 export type FudabaCardDeleteResponse = z.infer<
   typeof fudabaCardDeleteResponseSchema
+>;
+export type FudabaCardInteractions = z.infer<
+  typeof fudabaCardInteractionsSchema
+>;
+export type FudabaCardInteractionKind = z.infer<
+  typeof fudabaCardInteractionKindSchema
+>;
+export type FudabaCardInteractionResponse = z.infer<
+  typeof fudabaCardInteractionResponseSchema
 >;
 export type FudabaOwnerOffice = z.infer<typeof fudabaOwnerOfficeSchema>;
 export type FudabaOwnerOfficeList = z.infer<typeof fudabaOwnerOfficeListSchema>;

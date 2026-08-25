@@ -9,6 +9,7 @@ import type {
     FudabaAdminCardClaimRecord,
     FudabaCardClaimRecord,
     FudabaCardClaimState,
+    FudabaCardInteractionStateRecord,
     FudabaCardPlacementRecord,
     FudabaCardPlacementRemovalResult,
     FudabaCardPlacementSaveResult,
@@ -1193,6 +1194,13 @@ export class SqlFudabaRepository implements FudabaRepository {
             )`);
             parameters.push(input.officeSlug);
         }
+        if (input.favoritedByAccountId !== undefined) {
+            conditions.push(`EXISTS (
+                SELECT 1 FROM fudaba_card_favorites collected
+                WHERE collected.card_id=card.id AND collected.account_id=?
+            )`);
+            parameters.push(input.favoritedByAccountId);
+        }
         if (input.after) {
             conditions.push(`(
                 card.created_at<? OR (
@@ -1223,6 +1231,50 @@ export class SqlFudabaRepository implements FudabaRepository {
             this.database,
             rows.map(publicCardRecord),
         );
+    }
+
+    async findPublicCardInteractions(
+        cardId: string,
+        viewerAccountId: string | null,
+    ): Promise<FudabaCardInteractionStateRecord | null> {
+        const row = await queryOne<{
+            like_count: number | string;
+            favorite_count: number | string;
+            viewer_liked: boolean | number;
+            viewer_favorited: boolean | number;
+        }>(
+            this.database,
+            `SELECT
+                (SELECT COUNT(*) FROM fudaba_card_likes card_like
+                 WHERE card_like.card_id=card.id) AS like_count,
+                (SELECT COUNT(*) FROM fudaba_card_favorites card_favorite
+                 WHERE card_favorite.card_id=card.id) AS favorite_count,
+                EXISTS (
+                    SELECT 1 FROM fudaba_card_likes viewer_like
+                    WHERE viewer_like.card_id=card.id
+                      AND viewer_like.account_id=?
+                ) AS viewer_liked,
+                EXISTS (
+                    SELECT 1 FROM fudaba_card_favorites viewer_favorite
+                    WHERE viewer_favorite.card_id=card.id
+                      AND viewer_favorite.account_id=?
+                ) AS viewer_favorited
+             FROM fudaba_cards card
+             JOIN platform_accounts card_owner
+               ON card_owner.id=card.owner_account_id
+             JOIN agencies card_series
+               ON card_series.code=card.series_code AND card_series.wiki_enabled
+             WHERE card.id=? AND ${PUBLIC_CARD_ELIGIBILITY}`,
+            [viewerAccountId, viewerAccountId, cardId],
+        );
+        return row
+            ? {
+                  like_count: Number(row.like_count),
+                  favorite_count: Number(row.favorite_count),
+                  viewer_liked: booleanValue(row.viewer_liked),
+                  viewer_favorited: booleanValue(row.viewer_favorited),
+              }
+            : null;
     }
 
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord> {

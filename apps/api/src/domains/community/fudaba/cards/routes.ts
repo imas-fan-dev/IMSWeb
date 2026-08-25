@@ -8,6 +8,7 @@ import { handleListFudabaOwnerCards } from '@/domains/community/fudaba/cards/han
 import { handleRemoveFudabaCardPlacement } from '@/domains/community/fudaba/cards/handlers/remove-card-placement';
 import { handleSaveFudabaCardPlacement } from '@/domains/community/fudaba/cards/handlers/save-card-placement';
 import { handleServeFudabaOwnerCardMedia } from '@/domains/community/fudaba/cards/handlers/serve-owner-card-media';
+import { createHandleFudabaCardInteraction } from '@/domains/community/fudaba/cards/handlers/set-card-interaction';
 import { handleUpdateFudabaCard } from '@/domains/community/fudaba/cards/handlers/update-card';
 import { handleUploadFudabaOwnedMedia } from '@/domains/community/fudaba/cards/handlers/upload-owned-media';
 import {
@@ -51,6 +52,26 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
         platformUploadRateLimit,
         platformWriteRateLimit,
         handleCreateFudabaCard
+    );
+    routes.put(
+        '/cards/:cardId/like',
+        ...write,
+        createHandleFudabaCardInteraction('like', true)
+    );
+    routes.delete(
+        '/cards/:cardId/like',
+        ...write,
+        createHandleFudabaCardInteraction('like', false)
+    );
+    routes.put(
+        '/cards/:cardId/favorite',
+        ...write,
+        createHandleFudabaCardInteraction('favorite', true)
+    );
+    routes.delete(
+        '/cards/:cardId/favorite',
+        ...write,
+        createHandleFudabaCardInteraction('favorite', false)
     );
     routes.put('/me/cards/:cardId', ...write, handleUpdateFudabaCard);
     routes.delete('/me/cards/:cardId', ...write, handleDeleteFudabaCard);

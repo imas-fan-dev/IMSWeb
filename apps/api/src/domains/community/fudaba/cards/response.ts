@@ -1,5 +1,22 @@
-import type { FudabaCardPlacement } from '@imsweb/contracts/fudaba';
-import type { FudabaCardPlacementRecord } from '@/ports/repositories';
+import type {
+    FudabaCardInteractions,
+    FudabaCardPlacement
+} from '@imsweb/contracts/fudaba';
+import type {
+    FudabaCardInteractionStateRecord,
+    FudabaCardPlacementRecord
+} from '@/ports/repositories';
+
+export function fudabaCardInteractionsView(
+    state: FudabaCardInteractionStateRecord
+): FudabaCardInteractions {
+    return {
+        likes: state.like_count,
+        favorites: state.favorite_count,
+        viewerLiked: state.viewer_liked,
+        viewerFavorited: state.viewer_favorited
+    };
+}
 
 export function fudabaCardPlacementView(
     placement: FudabaCardPlacementRecord

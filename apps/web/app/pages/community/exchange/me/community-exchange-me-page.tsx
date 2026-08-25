@@ -33,6 +33,7 @@ import {
 } from "~/lib/api"
 import { CardWorkspace } from "./card-workspace"
 import { ClaimEnvelopePanel } from "./claim-envelope-panel"
+import { FavoriteCollection } from "./favorite-collection"
 import { apiMessage, isFeatureClosed } from "./exchange-me-model"
 import { OfficeLocationWorkspace } from "./office-location-workspace"
 import { ProfileEditor } from "./profile-editor"
@@ -440,6 +441,15 @@ export default function CommunityExchangeMePage() {
                 onWriteClosed={closeWrites}
               />
             </div>
+          </section>
+
+          <section
+            id="profile-workspace-section-favorites"
+            className={readOnlyReason ? "mt-6" : undefined}
+            aria-labelledby="profile-workspace-favorites-title"
+            hidden={activeSection !== "favorites"}
+          >
+            <FavoriteCollection series={state.series} />
           </section>
 
           <div

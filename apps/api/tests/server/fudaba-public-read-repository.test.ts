@@ -661,6 +661,106 @@ async function assertPublicReadModels(
         }),
         [],
     );
+
+    assert.deepEqual(
+        await fixture.repository
+            .listPublicCards({
+                favoritedByAccountId: "viewer",
+                viewerAccountId: "viewer",
+                limit: 10,
+            })
+            .then((items) => items.map((item) => item.id)),
+        ["card-z-new"],
+    );
+    assert.deepEqual(
+        await fixture.repository
+            .listPublicCards({
+                favoritedByAccountId: "other-viewer",
+                viewerAccountId: "other-viewer",
+                limit: 10,
+            })
+            .then((items) => items.map((item) => item.id)),
+        ["card-y-new"],
+    );
+    assert.deepEqual(
+        await fixture.repository.listPublicCards({
+            favoritedByAccountId: "owner",
+            viewerAccountId: "owner",
+            limit: 10,
+        }),
+        [],
+    );
+
+    assert.deepEqual(
+        await fixture.repository.findPublicCardInteractions(
+            "card-z-new",
+            "viewer",
+        ),
+        {
+            like_count: 2,
+            favorite_count: 1,
+            viewer_liked: true,
+            viewer_favorited: true,
+        },
+    );
+    assert.deepEqual(
+        await fixture.repository.findPublicCardInteractions(
+            "card-z-new",
+            null,
+        ),
+        {
+            like_count: 2,
+            favorite_count: 1,
+            viewer_liked: false,
+            viewer_favorited: false,
+        },
+    );
+    for (const hiddenId of [
+        "card-deleted",
+        "card-pending",
+        "card-suspended-owner",
+        "missing-card",
+    ]) {
+        assert.equal(
+            await fixture.repository.findPublicCardInteractions(
+                hiddenId,
+                "viewer",
+            ),
+            null,
+            hiddenId,
+        );
+    }
+
+    assert.equal(
+        await fixture.repository.setCardInteraction({
+            kind: "favorite",
+            cardId: "card-z-new",
+            accountId: "viewer",
+            active: false,
+            createdAt: CARD_DELETED_AT,
+        }),
+        true,
+    );
+    assert.deepEqual(
+        await fixture.repository.findPublicCardInteractions(
+            "card-z-new",
+            "viewer",
+        ),
+        {
+            like_count: 2,
+            favorite_count: 0,
+            viewer_liked: true,
+            viewer_favorited: false,
+        },
+    );
+    assert.deepEqual(
+        await fixture.repository.listPublicCards({
+            favoritedByAccountId: "viewer",
+            viewerAccountId: "viewer",
+            limit: 10,
+        }),
+        [],
+    );
 }
 
 test("PostgreSQL exposes the same Fudaba public read models", {
