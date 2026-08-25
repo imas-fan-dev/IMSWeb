@@ -15,7 +15,7 @@ const { migratePostgres } = require('../../scripts/migration/postgres-migrations
     }): Promise<unknown>;
 };
 
-const LATEST_MIGRATION = '20260816193000_namecard_ownership_foundation.sql';
+const OWNERSHIP_MIGRATION = '20260816193000_namecard_ownership_foundation.sql';
 
 test('namecard ownership migration preserves historical rows as legacy', async (t) => {
     const migrationSource = path.resolve(__dirname, '../../migrations/postgresql');
@@ -23,8 +23,10 @@ test('namecard ownership migration preserves historical rows as legacy', async (
         path.join(os.tmpdir(), 'imsweb-namecard-previous-')
     );
     t.after(() => fs.rm(previousCatalog, { recursive: true, force: true }));
+    // Everything from the ownership migration onward is replayed by the second
+    // migratePostgres call, so newer migrations must stay out of this catalog.
     for (const filename of await fs.readdir(migrationSource)) {
-        if (!filename.endsWith('.sql') || filename === LATEST_MIGRATION) continue;
+        if (!filename.endsWith('.sql') || filename >= OWNERSHIP_MIGRATION) continue;
         await fs.copyFile(
             path.join(migrationSource, filename),
             path.join(previousCatalog, filename)
