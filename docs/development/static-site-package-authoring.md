@@ -19,6 +19,24 @@
 - manifest 由 API 解析器生成，记录每个文件的 content type、大小和 SHA-256；不要在 ZIP
   中提交伪造 manifest。
 
+## 浏览器标签图标
+
+入口 HTML 在 `<head>` 中用标准 `rel="icon"` 声明图标：
+
+```html
+<link rel="icon" href="./assets/site-icon.svg">
+```
+
+图标必须是同一个 ZIP 内的图片文件，支持 `.ico`、`.svg`、`.png`、`.jpg`、`.gif`、
+`.webp`、`.avif` 和 `.bmp`。IMSWeb 按当前 revision 的不可变资源地址加载图标。
+
+入口 HTML 没有声明时，解析器会按顺序查找常见文件名：根目录或 `assets/` 下的
+`favicon.ico`、`favicon.svg`、`favicon.png`、`favicon.webp` 和 `favicon.gif`，其他目录中的
+`favicon.*` 图片作为兼容回退。
+
+远程 URL、缺失文件和非图片文件不会被采用；上传结果会提示无效的 icon 声明，站点正文
+仍可预览。
+
 ## Runtime mode
 
 | 模式 | 用途 | 安全边界 |
@@ -33,8 +51,8 @@
 
 1. 本地构建站点包，确认 entry HTML、资源相对路径和 runtime mode。
 2. 使用后台站点包页面上传 ZIP，读取 parser warnings、文件数和总大小。
-3. 在 preview URL 中验证 HTML、CSS、字体、图片、刷新、404 和缓存头；预览 token 只用于
-   当前 revision，不写入 issue、截图或日志。
+3. 在 preview URL 中验证 HTML、CSS、字体、图片、浏览器标签标题与图标、刷新、404 和缓存头；
+   预览 token 只用于当前 revision，不写入 issue、截图或日志。
 4. 检查管理员审阅结果后再执行 publish。发布会把 revision 指针原子切换到 ready 版本；
    旧版本仍由 revision/outbox 清理流程负责，不手工删除对象。
 5. 发布后验证 `/sites/<slug>`、主站首页、登录、Cookie 边界和公开资源。回滚使用上一个
@@ -48,6 +66,10 @@
 - 发布后页面仍旧：确认 revision 状态、缓存头和当前 slug，不直接修改对象存储 key。
 - 删除历史版本后对象仍在：检查 PostgreSQL `object_deletion_jobs`，由 worker 重试，不绕过
   数据库控制面直接删 bucket 前缀。
+- 标签图标不生效：确认 `rel="icon"` 指向包内图片，而不是远程 URL 或已删除的文件。
+
+公开页面外壳让 iframe 占满视口，并在左下角保留返回 IMSWeb 的入口，站点不需要为主站导航
+预留顶部空间。
 
 ## 验证
 
