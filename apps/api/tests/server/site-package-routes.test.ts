@@ -22,8 +22,16 @@ import { createPostgresTestDatabase } from './postgres-test-database';
 async function createArchive(): Promise<Buffer> {
     const zip = new ZipFile();
     zip.addBuffer(
-        Buffer.from('<!doctype html><html><body>uploaded</body></html>'),
+        Buffer.from(
+            '<!doctype html><html><head>' +
+            '<link rel="icon" href="brand/site-icon.svg">' +
+            '</head><body>uploaded</body></html>'
+        ),
         'index.html'
+    );
+    zip.addBuffer(
+        Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+        'brand/site-icon.svg'
     );
     zip.end();
     const chunks: Buffer[] = [];
@@ -145,6 +153,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     const publishedPrefix = `site-packages/${packageId}/revisions/${publishedId}`;
     const previewPrefix = `site-packages/${packageId}/revisions/${previewId}`;
     const publishedManifest = {
+        'assets/favicon.svg': `${publishedPrefix}/files/assets/favicon.svg`,
         'index.html': `${publishedPrefix}/files/index.html`,
         'fonts.css': `${publishedPrefix}/files/fonts.css`,
         'hero.webp': `${publishedPrefix}/files/hero.webp`,
@@ -179,6 +188,11 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         2_000
     ));
     await repository.publishSitePackageRevision(packageId, publishedId, 1, 3_000);
+    await storage.put(
+        `${publishedPrefix}/files/assets/favicon.svg`,
+        new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+        { contentType: 'image/svg+xml; charset=utf-8' }
+    );
     await storage.put(
         `${publishedPrefix}/files/index.html`,
         new TextEncoder().encode(
@@ -451,6 +465,29 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     assert.ok(committedFirstRevision);
     assert.equal(await storage.exists(committedFirstRevision.source_key), true);
     assert.equal(await storage.exists(committedFirstRevision.manifest_key), true);
+    assert.deepEqual(JSON.parse(committedFirstRevision.manifest_json), {
+        schemaVersion: 1,
+        iconPath: 'brand/site-icon.svg',
+        entries: {
+            'brand/site-icon.svg': `site-packages/${ambiguousCreateBody.packageId}/revisions/` +
+                `${ambiguousCreateBody.revisionId}/files/brand/site-icon.svg`,
+            'index.html': `site-packages/${ambiguousCreateBody.packageId}/revisions/` +
+                `${ambiguousCreateBody.revisionId}/files/index.html`
+        }
+    });
+    const committedPreviewBase =
+        `http://main.test/site-content/_preview/${ambiguousCreateBody.previewToken}/`;
+    const committedPreview = await ambiguousApp.request(committedPreviewBase);
+    assert.equal(committedPreview.status, 200);
+    assert.match(await committedPreview.text(), /uploaded/);
+    const committedPreviewIcon = await ambiguousApp.request(
+        `${committedPreviewBase}brand/site-icon.svg`
+    );
+    assert.equal(committedPreviewIcon.status, 200);
+    assert.equal(
+        committedPreviewIcon.headers.get('content-type'),
+        'image/svg+xml; charset=utf-8'
+    );
 
     const ambiguousRevisionUpload = new FormData();
     ambiguousRevisionUpload.set('entryPath', 'index.html');
@@ -490,12 +527,34 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     const stable = await app.request('http://main.test/sites/hiro-2026');
     assert.equal(stable.status, 200);
+    const stableHtml = await stable.text();
     assert.match(
-        await stable.text(),
+        stableHtml,
         new RegExp(`src="http://main\\.test/site-content/hiro-2026/${publishedId}/"`)
     );
+    assert.match(
+        stableHtml,
+        new RegExp(
+            `rel="icon" href="https://assets\\.example\\.test/${publishedPrefix}/` +
+            'files/assets/favicon\\.svg"'
+        )
+    );
+    assert.match(stableHtml, /<nav aria-label="站点导航">/);
+    assert.match(
+        stableHtml,
+        /<a class="site-return" href="\/" aria-label="返回 IMSWeb 主站"/
+    );
+    assert.match(stableHtml, /bottom: max\(12px, env\(safe-area-inset-bottom\)\);/);
+    assert.match(stableHtml, /left: env\(safe-area-inset-left, 0px\);/);
+    assert.doesNotMatch(stableHtml, /top: 50%;|translateY\(-50%\)/);
+    assert.match(stableHtml, /@media \(hover: hover\) and \(pointer: fine\)/);
+    assert.match(stableHtml, /@media \(prefers-reduced-motion: reduce\)/);
+    assert.match(stableHtml, /iframe \{ display: block; width: 100%; height: 100%; height: 100dvh;/);
+    assert.doesNotMatch(stableHtml, /<header>/);
     assert.match(stable.headers.get('content-security-policy') || '',
         /frame-src http:\/\/main\.test/);
+    assert.match(stable.headers.get('content-security-policy') || '',
+        /img-src https:\/\/assets\.example\.test/);
     assert.equal(stable.headers.get('x-frame-options'), 'DENY');
 
     const published = await app.request(

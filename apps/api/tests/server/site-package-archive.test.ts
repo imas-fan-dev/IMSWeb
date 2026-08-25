@@ -114,6 +114,7 @@ test('parses a hiro-like isolated package into an immutable manifest', async () 
             path: 'hiro2026.html',
             body: Buffer.from(`<!doctype html><html><head>
                 <link rel="stylesheet" href="assets/site.css">
+                <link rel="icon" href="./assets/favicon.svg?v=2026">
                 </head><body><img src="assets/logo.webp"><script src="assets/site.js"></script>
                 </body></html>`)
         },
@@ -135,6 +136,7 @@ test('parses a hiro-like isolated package into an immutable manifest', async () 
     });
 
     assert.equal(manifest.entryPath, 'hiro2026.html');
+    assert.equal(manifest.iconPath, 'assets/favicon.svg');
     assert.equal(manifest.runtimeMode, 'isolated-script');
     assert.equal(manifest.fileCount, 8);
     assert.equal(manifest.hasScripts, true);
@@ -171,6 +173,40 @@ test('parses a hiro-like isolated package into an immutable manifest', async () 
         manifest.entries.find((entry) => entry.path === 'assets/legacy-banner.png')?.contentType,
         'image/jpeg'
     );
+});
+
+test('uses a conventional packaged icon and warns about unusable declarations', async () => {
+    const conventionalArchive = await createArchive([
+        {
+            path: 'index.html',
+            body: Buffer.from('<!doctype html><html><head></head><body></body></html>')
+        },
+        {
+            path: 'branding/favicon.svg',
+            body: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+        }
+    ]);
+    const conventional = await parseSitePackageArchive(conventionalArchive, {
+        entryPath: 'index.html',
+        runtimeMode: 'safe'
+    });
+    assert.equal(conventional.iconPath, 'branding/favicon.svg');
+    assert.doesNotMatch(conventional.warnings.join('\n'), /site-icon-ignored/);
+
+    const remoteArchive = await createArchive([{
+        path: 'index.html',
+        body: Buffer.from(
+            '<!doctype html><html><head>' +
+            '<link rel="shortcut icon" href="https://icons.example/favicon.png">' +
+            '</head><body></body></html>'
+        )
+    }]);
+    const remote = await parseSitePackageArchive(remoteArchive, {
+        entryPath: 'index.html',
+        runtimeMode: 'safe'
+    });
+    assert.equal(remote.iconPath, null);
+    assert.ok(remote.warnings.includes('site-icon-ignored:index.html'));
 });
 
 test('safe packages reject JavaScript files and active HTML handlers', async () => {
