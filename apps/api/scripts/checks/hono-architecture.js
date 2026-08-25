@@ -213,14 +213,15 @@ const portContracts = new Map([
     ],
     [
         "repositories/admin.ts",
-        ["BackofficeAuthRepository", "AdminAccountRepository", "AuditRepository"],
+        [
+            "BackofficeAuthRepository",
+            "AdminAccountRepository",
+            "AuditRepository",
+        ],
     ],
     ["repositories/platform.ts", ["PlatformAccountRepository"]],
     ["repositories/fudaba.ts", ["FudabaRepository"]],
-    [
-        "repositories/namecards.ts",
-        ["NamecardRepository", "ReactionRepository"],
-    ],
+    ["repositories/namecards.ts", ["NamecardRepository", "ReactionRepository"]],
     [
         "repositories/content.ts",
         ["NewsRepository", "EventRepository", "HomepageLinkRepository"],
@@ -549,7 +550,10 @@ const validatedRequestDomains = new Set([
 ]);
 for (const domain of validatedRequestDomains) {
     const handlerFiles = filesUnder(domainDirectory(domain)).filter((file) =>
-        path.relative(domainRoot, file).replace(/\\/g, "/").includes("/handlers/"),
+        path
+            .relative(domainRoot, file)
+            .replace(/\\/g, "/")
+            .includes("/handlers/"),
     );
     for (const file of handlerFiles) {
         const source = fs.readFileSync(file, "utf8");
@@ -596,11 +600,20 @@ for (const domain of sectionOfDomain.keys()) {
 
     const handlerRoots = [];
     const directHandlersRoot = path.join(directory, "handlers");
-    if (fs.existsSync(directHandlersRoot)) handlerRoots.push(directHandlersRoot);
-    for (const capability of fs.readdirSync(directory, { withFileTypes: true })) {
-        if (!capability.isDirectory() || capability.name === "handlers") continue;
-        const capabilityHandlersRoot = path.join(directory, capability.name, "handlers");
-        if (fs.existsSync(capabilityHandlersRoot)) handlerRoots.push(capabilityHandlersRoot);
+    if (fs.existsSync(directHandlersRoot))
+        handlerRoots.push(directHandlersRoot);
+    for (const capability of fs.readdirSync(directory, {
+        withFileTypes: true,
+    })) {
+        if (!capability.isDirectory() || capability.name === "handlers")
+            continue;
+        const capabilityHandlersRoot = path.join(
+            directory,
+            capability.name,
+            "handlers",
+        );
+        if (fs.existsSync(capabilityHandlersRoot))
+            handlerRoots.push(capabilityHandlersRoot);
     }
     if (!handlerRoots.length) {
         failures.push(
@@ -609,7 +622,9 @@ for (const domain of sectionOfDomain.keys()) {
         continue;
     }
     for (const handlersRoot of handlerRoots) {
-        const handlerFiles = fs.readdirSync(handlersRoot, { withFileTypes: true });
+        const handlerFiles = fs.readdirSync(handlersRoot, {
+            withFileTypes: true,
+        });
         for (const handler of handlerFiles) {
             const relativeHandlersRoot = path.relative(root, handlersRoot);
             if (
@@ -656,7 +671,9 @@ for (const domain of sectionOfDomain.keys()) {
             !source.includes(
                 `/domains/${sectionOfDomain.get(domain)}/${domain}/`,
             ) ||
-            (isCapabilityRoute ? !importsHandlers : !importsHandlers && !importsRoute)
+            (isCapabilityRoute
+                ? !importsHandlers
+                : !importsHandlers && !importsRoute)
         ) {
             failures.push(
                 `${path.relative(root, routePath)}: route module must import split handlers or capability routes`,
