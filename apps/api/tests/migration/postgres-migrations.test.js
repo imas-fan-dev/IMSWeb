@@ -27,7 +27,9 @@ test('released Platform and Fudaba migrations remain byte-for-byte immutable', (
         ['postgresql/20260818010000_platform_oauth_configuration.sql',
             '228603876f6ae11ee45e013c9394d096a4c72a0ce220ccb3eed8f065a538db5c'],
         ['postgresql/20260819000000_namecard_unification_foundation.sql',
-            '047f681b92d4fab968ef91245885ce00eb746e6859a75b534212aac397e33e5f']
+            '047f681b92d4fab968ef91245885ce00eb746e6859a75b534212aac397e33e5f'],
+        ['postgresql/20260820000000_namecard_guest_profile.sql',
+            '7794d905f4e11785b81f6a34067f32580a50a93e31d2853aaf41ac1990ad9070']
     ]);
     for (const [relativePath, checksum] of expected) {
         const contents = fs.readFileSync(
@@ -112,6 +114,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             },
             {
                 version: '20260819000000_namecard_unification_foundation',
+                phase: 'post-data'
+            },
+            {
+                version: '20260820000000_namecard_guest_profile',
                 phase: 'post-data'
             }
         ]
@@ -545,11 +551,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 38);
+    assert.equal(catalog.count, 39);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260819000000_namecard_unification_foundation'
+        '20260820000000_namecard_guest_profile'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -644,7 +650,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260816193000_namecard_ownership_foundation',
         '20260818000000_platform_password_reset',
         '20260818010000_platform_oauth_configuration',
-        '20260819000000_namecard_unification_foundation'
+        '20260819000000_namecard_unification_foundation',
+        '20260820000000_namecard_guest_profile'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);
