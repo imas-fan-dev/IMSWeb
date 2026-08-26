@@ -3275,6 +3275,23 @@ export class SqlFudabaRepository implements FudabaRepository {
                             ],
                         );
                         if (!updated) return { status: "unavailable" };
+                        // The legacy card now lives twice: once on the
+                        // claimant's own card (just bound above) and once as
+                        // the ownerless row the unification backfill created.
+                        // Soft delete the ownerless row instead of dropping
+                        // it so namecard_guest_attributes and
+                        // namecard_reactions history stay intact; every
+                        // compat read path already filters deleted_at IS
+                        // NULL, so this alone removes the duplicate from the
+                        // wall.
+                        await executeSql(
+                            database,
+                            `UPDATE fudaba_cards
+                         SET deleted_at=?
+                         WHERE card_number=? AND owner_account_id IS NULL
+                           AND deleted_at IS NULL`,
+                            [input.reviewedAt, locked.legacy_card_id],
+                        );
                         targetCardId = updated.id;
                         card = (
                             await this.attachCardSelections(database, [
@@ -3282,39 +3299,71 @@ export class SqlFudabaRepository implements FudabaRepository {
                             ])
                         )[0]!;
                     } else {
-                        const created = await database
+                        // The legacy card is already a row in fudaba_cards --
+                        // ownerless, origin 'legacy', card_number equal to
+                        // this claim's legacy_card_id. Upgrade it in place
+                        // instead of inserting a second row for the same
+                        // physical card: that would let the wall show it
+                        // twice and leave the numeric compat id pointing at
+                        // the now-stale ownerless copy. legacy_card_id is set
+                        // to the row's own card_number so the
+                        // already-claimed and unique-index checks keep
+                        // working; origin is left untouched because it is
+                        // immutable provenance.
+                        const updated = await database
                             .prepare(
-                                `INSERT INTO fudaba_cards
-                            (id, owner_account_id, producer_name, display_name,
-                             series_code, favorite_idol, legacy_card_id,
-                             front_object_key, back_object_key, accent, bio,
-                             trade_note, available, source_url, source_label,
-                             source_credit, media_rights_status,
-                             publication_status, revision, created_at,
-                             updated_at, deleted_at)
-                         SELECT ?, account.id, ?, ?, claim.series_code, ?,
-                                claim.legacy_card_id, ?, ?, ?, ?, ?, ?, NULL,
-                                NULL, NULL, 'approved', 'published', 0, ?, ?, NULL
-                         FROM fudaba_card_claims claim
-                         JOIN platform_accounts account
-                           ON account.id=claim.claimant_account_id
-                          AND account.status='active'
-                          AND account.deleted_at IS NULL
-                         JOIN agencies series
-                           ON series.code=claim.series_code
-                          AND series.wiki_enabled=?
-                         WHERE claim.id=?
+                                `UPDATE fudaba_cards
+                         SET owner_account_id=(
+                                 SELECT claimant_account_id
+                                 FROM fudaba_card_claims WHERE id=?
+                             ),
+                             producer_name=?,
+                             display_name=?,
+                             series_code=(
+                                 SELECT series_code
+                                 FROM fudaba_card_claims WHERE id=?
+                             ),
+                             favorite_idol=?,
+                             front_object_key=?,
+                             back_object_key=?,
+                             accent=?,
+                             bio=?,
+                             trade_note=?,
+                             available=?,
+                             legacy_card_id=card_number,
+                             media_rights_status='approved',
+                             publication_status='published',
+                             revision=revision+1,
+                             updated_at=?
+                         WHERE id=?
+                           AND card_number=(
+                               SELECT legacy_card_id
+                               FROM fudaba_card_claims WHERE id=?
+                           )
+                           AND owner_account_id IS NULL
+                           AND deleted_at IS NULL
+                           AND EXISTS (
+                               SELECT 1 FROM fudaba_card_claims claim
+                               JOIN platform_accounts account
+                                 ON account.id=claim.claimant_account_id
+                                AND account.status='active'
+                                AND account.deleted_at IS NULL
+                               JOIN agencies series
+                                 ON series.code=claim.series_code
+                                AND series.wiki_enabled=?
+                               WHERE claim.id=?
+                           )
                            AND NOT EXISTS (
                                SELECT 1 FROM fudaba_cards bound
-                               WHERE bound.legacy_card_id=claim.legacy_card_id
+                               WHERE bound.legacy_card_id=card_number
                            )
-                         ON CONFLICT DO NOTHING
                          RETURNING ${CARD_COLUMNS}`,
                             )
                             .bind(
-                                input.target.card.id,
+                                input.claimId,
                                 input.target.card.producerName,
                                 input.target.card.displayName,
+                                input.claimId,
                                 locked.favorite_idols
                                     .map((idol) => idol.name_cn)
                                     .join("、"),
@@ -3325,12 +3374,13 @@ export class SqlFudabaRepository implements FudabaRepository {
                                 input.target.card.tradeNote,
                                 this.bindBoolean(input.target.card.available),
                                 input.reviewedAt,
-                                input.reviewedAt,
+                                input.target.card.id,
+                                input.claimId,
                                 this.bindBoolean(true),
                                 input.claimId,
                             )
                             .run<FudabaCardRow>();
-                        const saved = created.results[0];
+                        const saved = updated.results[0];
                         if (!saved) return { status: "unavailable" };
                         await this.replaceCardIdols(
                             database,

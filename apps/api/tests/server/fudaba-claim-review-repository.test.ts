@@ -104,6 +104,21 @@ async function insertLegacyCard(
     database: ManagedSqlDatabase,
     suffix: string
 ): Promise<number> {
+    // A legacy id also becomes a fudaba_cards.card_number below. Exchange
+    // cards created earlier in the same test draw card_number from
+    // namecard_number_seq independently of cards_id_seq, so without this the
+    // two counters can hand out the same number from opposite directions.
+    // The real migration keeps them disjoint the same way (advance whichever
+    // sequence is behind); mirror that here instead of relying on call order.
+    await database.prepare(
+        `SELECT setval(
+            'public.cards_id_seq',
+            GREATEST(
+                (SELECT COALESCE(max(card_number), 0) FROM public.fudaba_cards),
+                (SELECT last_value FROM public.cards_id_seq)
+            )
+        )`
+    ).run();
     const row = await database.prepare(
         `INSERT INTO cards
             (image1_url, image2_url, hash1, hash2, ip, status,
@@ -118,6 +133,36 @@ async function insertLegacyCard(
         suffix.repeat(64).slice(0, 64)
     ).first<{ id: number }>();
     if (!row) throw new Error('Legacy card fixture insert failed');
+    // The unification backfill turns every legacy card into an ownerless
+    // fudaba_cards row keyed by card_number; claim approval now binds onto
+    // that row in place, so a fixture created after the migration already
+    // ran has to mirror it by hand instead of relying on a fresh backfill.
+    await database.prepare(
+        `INSERT INTO fudaba_cards
+            (id, card_number, origin, producer_name, display_name,
+             series_code, favorite_idol, accent, bio, trade_note,
+             front_object_key, back_object_key, available,
+             media_rights_status, publication_status, revision,
+             created_at, updated_at)
+         VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                 ?, ?, FALSE, 'approved', 'published', 0, ?, ?)`
+    ).bind(
+        `legacy-${row.id}`,
+        row.id,
+        `legacy/${suffix}/front.webp`,
+        `legacy/${suffix}/back.webp`,
+        CREATED_AT,
+        CREATED_AT
+    ).run();
+    // Keep namecard_number_seq ahead of the explicit card_number just used,
+    // the same way the real migration advances it past every legacy id, so a
+    // later default-assigned exchange card_number cannot collide with it.
+    await database.prepare(
+        `SELECT setval(
+            'public.namecard_number_seq',
+            GREATEST(?, (SELECT last_value FROM public.namecard_number_seq))
+        )`
+    ).bind(row.id).run();
     return row.id;
 }
 
@@ -137,6 +182,11 @@ async function insertBackofficeActor(
 async function fixture(t: TestContext) {
     const database = await createPostgresTestDatabase(t, 'fudaba-claim-review');
     const siblingDatabase = connectPostgresTestDatabase(t, database);
+    // The namecard_legacy_tables_read_only migration locks cards down for
+    // the application; this suite's fixtures simulate pre-existing legacy
+    // data directly in cards, so they bypass that guard the same way real
+    // legacy data predates it.
+    await database.prepare('ALTER TABLE public.cards DISABLE TRIGGER ALL').run();
     await seedCanonicalFudabaAgencies(database);
     const schema = new PostgresqlSchemaStrategy();
     const platform = new SqlPlatformAccountRepository(database, schema);
@@ -281,6 +331,12 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
     assert.equal(claimCompleted.claim.state, 'approved');
     assert.equal(claimCompleted.card?.legacy_card_id, legacyId);
     assert.equal((await fudaba.findCardById(matchingCardId))?.legacy_card_id, legacyId);
+    // The ownerless legacy row this claim bound onto must stop showing up
+    // twice: it stays in place (guest attributes/reactions history are not
+    // lost) but gets soft deleted so it drops off every compat read path.
+    const hiddenLegacyRow = await fudaba.findCardById(`legacy-${legacyId}`);
+    assert.equal(hiddenLegacyRow?.owner_account_id, null);
+    assert.notEqual(hiddenLegacyRow?.deleted_at, null);
     assert.deepEqual(await fudaba.listLegacyNamecardClaimStatuses(
         [legacyId],
         ownerA
@@ -407,6 +463,10 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
     assert.equal(createClaim.status, 'created');
     const createBegin = await fudaba.beginCardClaimReview('create-card-claim', 0);
     assert.equal(createBegin.status, 'claimed');
+    // The legacy card is already the ownerless row 'legacy-<id>' the
+    // unification backfill created, so the approve target binds onto that
+    // same id in place instead of minting an unrelated new row.
+    const boundCreateCardId = `legacy-${createLegacyId}`;
     const createdCardResult = await fudaba.completeCardClaimReview({
         claimId: 'create-card-claim',
         approvingRevision: 1,
@@ -414,11 +474,11 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
         target: {
             kind: 'create',
             card: {
-                id: 'claimed-created-card',
+                id: boundCreateCardId,
                 producerName: 'Claimed Producer',
                 displayName: 'Claimed Card',
-                frontObjectKey: 'community/fudaba/cards/claimed-created-card/front.webp',
-                backObjectKey: 'community/fudaba/cards/claimed-created-card/back.webp',
+                frontObjectKey: `community/fudaba/cards/${boundCreateCardId}/front.webp`,
+                backObjectKey: `community/fudaba/cards/${boundCreateCardId}/back.webp`,
                 accent: '#4f64dd',
                 bio: '',
                 tradeNote: '',
@@ -434,13 +494,29 @@ test('PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS 
     });
     assert.equal(createdCardResult.status, 'saved');
     if (createdCardResult.status !== 'saved') return;
+    assert.equal(createdCardResult.card?.id, boundCreateCardId);
     assert.equal(createdCardResult.card?.legacy_card_id, createLegacyId);
+    // origin/card_number are not part of FudabaCardRecord, so confirm the
+    // in-place upgrade directly: the row keeps its original identity and
+    // provenance instead of a second row appearing beside it.
+    const boundCreateCardRow = await database.prepare(
+        `SELECT origin, card_number FROM fudaba_cards WHERE id=?`
+    ).bind(boundCreateCardId).first<{ origin: string; card_number: number }>();
+    assert.equal(boundCreateCardRow?.origin, 'legacy');
+    assert.equal(boundCreateCardRow?.card_number, createLegacyId);
+    assert.equal(createdCardResult.card?.owner_account_id, ownerB);
+    assert.equal(createdCardResult.card?.series_code, 'cg');
     assert.equal(createdCardResult.card?.publication_status, 'published');
+    assert.equal(createdCardResult.card?.media_rights_status, 'approved');
     assert.equal(createdCardResult.card?.favorite_idol, '测试春香、测试卯月');
+    assert.equal(
+        createdCardResult.card?.front_object_key,
+        `community/fudaba/cards/${boundCreateCardId}/front.webp`
+    );
     assert.equal((await fudaba.softDeleteCardForOwner({
-        cardId: 'claimed-created-card',
+        cardId: boundCreateCardId,
         ownerAccountId: ownerB,
-        expectedRevision: 0,
+        expectedRevision: 1,
         deletedAt: REVIEWED_AT
     })).status, 'saved');
     assert.equal(

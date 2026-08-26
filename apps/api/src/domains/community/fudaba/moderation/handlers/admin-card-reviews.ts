@@ -327,9 +327,13 @@ export async function handleReviewFudabaCardClaim(
         } else {
             const storage = services(c).storage;
             if (!storage?.publish) throw new Error('Object publication unavailable');
-            const newCardId = crypto.randomUUID();
-            createdCardId = newCardId;
-            await copyLegacyMedia(storage, context, newCardId, created);
+            // The legacy card is already the ownerless fudaba_cards row
+            // 'legacy-<id>'; the review binds it in place rather than
+            // minting a new row, so media moves into that same identity
+            // instead of an unrelated random one.
+            const boundCardId = `legacy-${context.legacy_card_id}`;
+            createdCardId = boundCardId;
+            await copyLegacyMedia(storage, context, boundCardId, created);
             await Promise.all(created.map(({ key }) => storage.publish!(key)));
             completionAttempted = true;
             result = await repository.completeCardClaimReview({
@@ -338,7 +342,7 @@ export async function handleReviewFudabaCardClaim(
                 target: {
                     kind: 'create',
                     card: {
-                        id: newCardId,
+                        id: boundCardId,
                         producerName: context.claimant_display_name,
                         displayName: context.claimant_display_name,
                         frontObjectKey: created[0]!.key,
