@@ -15,6 +15,10 @@ import {
   fudabaCardPageSchema,
   fudabaCardPlacementDeleteResponseSchema,
   fudabaCardPlacementSaveResponseSchema,
+  fudabaCardReactionSchema,
+  fudabaCardReactionsResponseSchema,
+  namecardReactionEmojiSchema,
+  NAMECARD_REACTION_EMOJIS,
   fudabaMapConfigSchema,
   fudabaMapOfficeListSchema,
   fudabaOfficeDetailSchema,
@@ -383,6 +387,34 @@ export function setFudabaCardInteraction(
   return active
     ? platformApiClient.Put(path, {}, response)
     : platformApiClient.Delete(path, {}, response)
+}
+
+export type FudabaCardReaction = z.infer<typeof fudabaCardReactionSchema>
+export type NamecardReactionEmoji = z.infer<typeof namecardReactionEmojiSchema>
+
+export { NAMECARD_REACTION_EMOJIS }
+
+// Reactions are anonymous counters, so they carry no session and no CSRF token.
+export function getFudabaCardReactions(cardId: string) {
+  const card = ownerCardIdSchema.parse(cardId)
+  return platformApiClient.Get(
+    exchangePath(`/cards/${encodeURIComponent(card)}/reactions`),
+    parsed(fudabaCardReactionsResponseSchema)
+  )
+}
+
+export function setFudabaCardReaction(
+  cardId: string,
+  emoji: string,
+  active: boolean
+) {
+  const card = ownerCardIdSchema.parse(cardId)
+  const reaction = namecardReactionEmojiSchema.parse(emoji)
+  const path = exchangePath(`/cards/${encodeURIComponent(card)}/reactions`)
+  const response = parsed(fudabaCardReactionsResponseSchema)
+  return active
+    ? platformApiClient.Post(path, { emoji: reaction }, response)
+    : platformApiClient.Delete(path, { emoji: reaction }, response)
 }
 
 export function getFudabaOwnerCards() {

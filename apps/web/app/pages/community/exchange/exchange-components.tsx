@@ -19,9 +19,11 @@ import type {
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { CardInteractionBar } from "./exchange-card-interactions"
+import { CardReactionArea } from "./exchange-card-reaction-area"
 
 export { PlacedCardWall } from "./exchange-card-wall"
 export { CardInteractionBar } from "./exchange-card-interactions"
+export { CardReactionBar } from "./exchange-card-reactions"
 
 export function SeriesBadge({
   code,
@@ -183,9 +185,12 @@ export function ExchangeCard({
           {card.tradeNote || card.bio || "暂未填写交换说明。"}
         </p>
       </CardContent>
-      <CardFooter className="flex items-center justify-between gap-3">
-        <SeriesBadge code={card.seriesCode} series={series} />
-        <CardInteractionBar card={card} onChange={onInteractionsChange} />
+      <CardFooter className="flex flex-col items-stretch gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <SeriesBadge code={card.seriesCode} series={series} />
+          <CardInteractionBar card={card} onChange={onInteractionsChange} />
+        </div>
+        <CardReactionArea cardId={card.id} />
       </CardFooter>
     </Card>
   )
