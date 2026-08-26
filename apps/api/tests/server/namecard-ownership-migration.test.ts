@@ -79,15 +79,25 @@ test('namecard ownership migration preserves historical rows as legacy', async (
         series_code: null,
         submission_kind: 'legacy'
     });
-    const guest = await harness.connection.prepare(
-        `INSERT INTO cards
-            (image1_url, image2_url, hash1, hash2, ip, status,
-             withdrawal_token_hash, revision)
-         VALUES ('guest/front.webp', 'guest/back.webp', 'guest-front',
-                 'guest-back', '127.0.0.1', 'pending', ?, 0)
-         RETURNING submission_kind`
-    ).bind('b'.repeat(64)).first<{ submission_kind: string }>();
-    assert.equal(guest?.submission_kind, 'guest');
+    // This harness replays every migration from the ownership migration
+    // through HEAD in one shot, including the later archive migration that
+    // turns `cards` read-only. A fresh anonymous submission's
+    // submission_kind='guest' default (introduced right here by the
+    // ownership migration) is exercised directly by
+    // namecard-unification-migration.test.ts, which stops its own replay
+    // before the archive migration exists; this end of the chain instead
+    // has to confirm that a raw insert is rejected once every migration up
+    // to HEAD has applied.
+    await assert.rejects(
+        harness.connection.prepare(
+            `INSERT INTO cards
+                (image1_url, image2_url, hash1, hash2, ip, status,
+                 withdrawal_token_hash, revision)
+             VALUES ('guest/front.webp', 'guest/back.webp', 'guest-front',
+                     'guest-back', '127.0.0.1', 'pending', ?, 0)`
+        ).bind('b'.repeat(64)).run(),
+        /read-only archive/
+    );
     const fudaba = await harness.connection.prepare(
         `UPDATE fudaba_cards SET publication_status='approving'
          WHERE id='migration-fudaba'

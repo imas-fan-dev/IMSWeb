@@ -31,7 +31,9 @@ test('released Platform and Fudaba migrations remain byte-for-byte immutable', (
         ['postgresql/20260820000000_namecard_guest_profile.sql',
             '7794d905f4e11785b81f6a34067f32580a50a93e31d2853aaf41ac1990ad9070'],
         ['postgresql/20260821000000_namecard_reaction_reconciliation.sql',
-            '592f38a3e8b42a0158fc8d916dbdb1803755ecfdc2d4c97dc143e62da4707f05']
+            '592f38a3e8b42a0158fc8d916dbdb1803755ecfdc2d4c97dc143e62da4707f05'],
+        ['postgresql/20260826130000_namecard_legacy_tables_read_only.sql',
+            '059a6e81b65c5abf3db76813b85d0388cdc05d7829f11870d546b97b3fa31213']
     ]);
     for (const [relativePath, checksum] of expected) {
         const contents = fs.readFileSync(
@@ -124,6 +126,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             },
             {
                 version: '20260821000000_namecard_reaction_reconciliation',
+                phase: 'post-data'
+            },
+            {
+                version: '20260826130000_namecard_legacy_tables_read_only',
                 phase: 'post-data'
             }
         ]
@@ -557,11 +563,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 40);
+    assert.equal(catalog.count, 41);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260821000000_namecard_reaction_reconciliation'
+        '20260826130000_namecard_legacy_tables_read_only'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -658,7 +664,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260818010000_platform_oauth_configuration',
         '20260819000000_namecard_unification_foundation',
         '20260820000000_namecard_guest_profile',
-        '20260821000000_namecard_reaction_reconciliation'
+        '20260821000000_namecard_reaction_reconciliation',
+        '20260826130000_namecard_legacy_tables_read_only'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);
