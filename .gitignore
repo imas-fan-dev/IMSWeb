@@ -71,6 +71,9 @@ data/**
 **/public/assets/images/eventchronicle/events/.staging/
 **/public/assets/images/eventchronicle/events/.trash/
 
+# Local git worktrees managed by scripts/development/worktree.mjs
+.worktrees/
+
 # Personal notes and planning (local only)
 note/
 
