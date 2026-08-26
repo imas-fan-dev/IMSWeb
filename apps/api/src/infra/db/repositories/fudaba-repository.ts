@@ -10,6 +10,8 @@ import type {
     FudabaCardClaimRecord,
     FudabaCardClaimState,
     FudabaCardInteractionStateRecord,
+    FudabaCardReactionInput,
+    FudabaCardReactionRecord,
     FudabaCardPlacementRecord,
     FudabaCardPlacementRemovalResult,
     FudabaCardPlacementSaveResult,
@@ -1275,6 +1277,73 @@ export class SqlFudabaRepository implements FudabaRepository {
                   viewer_favorited: booleanValue(row.viewer_favorited),
               }
             : null;
+    }
+
+    // Reactions are anonymous counters shared with the compatibility namecard
+    // pages, so they key on the card id without a viewer.
+    async listPublicCardReactions(
+        cardId: string,
+    ): Promise<FudabaCardReactionRecord[]> {
+        const rows = await queryAll<{ emoji: string; count: number | string }>(
+            this.database,
+            `SELECT reaction.emoji, reaction.count
+             FROM namecard_reactions reaction
+             JOIN fudaba_cards card ON card.id=reaction.card_id
+             JOIN platform_accounts card_owner
+               ON card_owner.id=card.owner_account_id
+             JOIN agencies card_series
+               ON card_series.code=card.series_code AND card_series.wiki_enabled
+             WHERE reaction.card_id=? AND ${PUBLIC_CARD_ELIGIBILITY}
+             ORDER BY reaction.count DESC, reaction.emoji ASC`,
+            [cardId],
+        );
+        return rows.map((row) => ({
+            emoji: row.emoji,
+            count: Number(row.count),
+        }));
+    }
+
+    async applyPublicCardReaction(
+        input: FudabaCardReactionInput,
+    ): Promise<boolean> {
+        const eligible = await queryOne<{ id: string }>(
+            this.database,
+            `SELECT card.id
+             FROM fudaba_cards card
+             JOIN platform_accounts card_owner
+               ON card_owner.id=card.owner_account_id
+             JOIN agencies card_series
+               ON card_series.code=card.series_code AND card_series.wiki_enabled
+             WHERE card.id=? AND ${PUBLIC_CARD_ELIGIBILITY}`,
+            [input.cardId],
+        );
+        if (!eligible) return false;
+        if (input.delta === 1) {
+            await executeSql(
+                this.database,
+                `INSERT INTO namecard_reactions (card_id, emoji, count)
+                 VALUES (?, ?, 1)
+                 ON CONFLICT(card_id, emoji)
+                 DO UPDATE SET count=namecard_reactions.count+1`,
+                [input.cardId, input.emoji],
+            );
+            return true;
+        }
+        await this.database.batch([
+            sqlStatement(
+                this.database,
+                `UPDATE namecard_reactions SET count=count-1
+                 WHERE card_id=? AND emoji=? AND count>0`,
+                [input.cardId, input.emoji],
+            ),
+            sqlStatement(
+                this.database,
+                `DELETE FROM namecard_reactions
+                 WHERE card_id=? AND emoji=? AND count<=0`,
+                [input.cardId, input.emoji],
+            ),
+        ]);
+        return true;
     }
 
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord> {

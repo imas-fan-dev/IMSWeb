@@ -83,6 +83,25 @@ export const fudabaCardInteractionsSchema = z
 
 export const fudabaCardInteractionKindSchema = z.enum(["like", "favorite"]);
 
+// The reaction palette is shared with the compatibility namecard pages so both
+// surfaces count the same emoji.
+export const NAMECARD_REACTION_EMOJIS = [
+  "❤️", "👍", "😂", "🤣", "😭", "😍", "🥰", "😘", "🤯", "😱",
+  "😎", "🤩", "😤", "🙏", "👏", "✨", "💯", "🎉", "💥", "🌟",
+  "🐵", "🐶", "🐱", "🦊", "🐼", "🐳", "🔥", "💀", "👀", "🍀",
+  "🌈", "🐛", "💎", "🚀", "🏆", "🍕", "🍔", "🎮", "🌹", "🍭",
+  "🔨", "🔫", "❓", "🧒", "😙", "🔘",
+] as const;
+
+export const namecardReactionEmojiSchema = z.enum(NAMECARD_REACTION_EMOJIS);
+
+export const fudabaCardReactionSchema = z
+  .object({
+    emoji: namecardReactionEmojiSchema,
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
 export const fudabaCardSchema = z.object({
   id: z.string().min(1),
   producerName: z.string().trim().min(1),
@@ -312,6 +331,11 @@ export const fudabaCardInteractionResponseSchema = successEnvelope({
   interactions: fudabaCardInteractionsSchema,
 }).strict();
 
+export const fudabaCardReactionsResponseSchema = successEnvelope({
+  cardId: z.string().min(1),
+  reactions: z.array(fudabaCardReactionSchema).max(64),
+}).strict();
+
 export const fudabaOwnerOfficeSchema = z
   .object({
     id: ownerCardIdSchema,
@@ -426,6 +450,11 @@ export type FudabaCardInteractions = z.infer<
 >;
 export type FudabaCardInteractionKind = z.infer<
   typeof fudabaCardInteractionKindSchema
+>;
+export type NamecardReactionEmoji = z.infer<typeof namecardReactionEmojiSchema>;
+export type FudabaCardReaction = z.infer<typeof fudabaCardReactionSchema>;
+export type FudabaCardReactionsResponse = z.infer<
+  typeof fudabaCardReactionsResponseSchema
 >;
 export type FudabaCardInteractionResponse = z.infer<
   typeof fudabaCardInteractionResponseSchema

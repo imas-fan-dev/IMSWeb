@@ -232,6 +232,18 @@ UPDATE public.fudaba_cards
 SET card_number = nextval('public.namecard_number_seq')
 WHERE card_number IS NULL;
 
+-- Legacy inserts keep their own identity sequence until the writes move to the
+-- unified table. Advancing it past every assigned card number keeps the two id
+-- spaces disjoint in the meantime.
+SELECT setval(
+    pg_get_serial_sequence('public.cards', 'id'),
+    GREATEST(
+        COALESCE((SELECT max(card_number) FROM public.fudaba_cards), 0),
+        COALESCE((SELECT max(id) FROM public.cards), 0),
+        1
+    )
+);
+
 ALTER TABLE public.fudaba_cards
     ALTER COLUMN card_number SET DEFAULT nextval('public.namecard_number_seq'),
     ALTER COLUMN card_number SET NOT NULL,

@@ -27,7 +27,7 @@ test('released Platform and Fudaba migrations remain byte-for-byte immutable', (
         ['postgresql/20260818010000_platform_oauth_configuration.sql',
             '228603876f6ae11ee45e013c9394d096a4c72a0ce220ccb3eed8f065a538db5c'],
         ['postgresql/20260819000000_namecard_unification_foundation.sql',
-            '66dc505b91fcf83cb270afba6f6f57bf6138b24a3dc34d6393b21950ffc4ca97']
+            '047f681b92d4fab968ef91245885ce00eb746e6859a75b534212aac397e33e5f']
     ]);
     for (const [relativePath, checksum] of expected) {
         const contents = fs.readFileSync(

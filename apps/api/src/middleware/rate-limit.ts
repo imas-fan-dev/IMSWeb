@@ -15,6 +15,9 @@ const exchangeOfficeLocationPattern = new RegExp(
 const exchangeOfficeCoverPattern = new RegExp(
   `^${escapeRegExp(exchangePath('/me/offices/'))}[^/]+/cover$`,
 );
+const exchangeCardReactionPattern = new RegExp(
+  `^${escapeRegExp(exchangePath('/cards/'))}[^/]+/reactions$`,
+);
 
 export interface RateLimitOptions {
   bucket: string;
@@ -209,6 +212,14 @@ function requestSpecificLimit(
     (method === "POST" && pathname === exchangePath('/cards'))
   ) {
     return FUDABA_UPLOAD_ATTEMPT_LIMIT;
+  }
+  // Exchange card reactions are anonymous counters, so they share the namecard
+  // reaction budget instead of the account-scoped exchange write budget.
+  if (
+    (method === "POST" || method === "DELETE") &&
+    exchangeCardReactionPattern.test(pathname)
+  ) {
+    return REACTION_LIMIT;
   }
   if (
     ["POST", "PUT", "DELETE"].includes(method) &&

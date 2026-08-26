@@ -573,6 +573,17 @@ export interface FudabaPublicCardRecord {
     viewer_favorited: boolean;
 }
 
+export interface FudabaCardReactionRecord {
+    emoji: string;
+    count: number;
+}
+
+export interface FudabaCardReactionInput {
+    cardId: string;
+    emoji: string;
+    delta: 1 | -1;
+}
+
 export interface FudabaCardInteractionStateRecord {
     like_count: number;
     favorite_count: number;
@@ -657,6 +668,8 @@ export interface FudabaRepository {
         cardId: string,
         viewerAccountId: string | null,
     ): Promise<FudabaCardInteractionStateRecord | null>;
+    listPublicCardReactions(cardId: string): Promise<FudabaCardReactionRecord[]>;
+    applyPublicCardReaction(input: FudabaCardReactionInput): Promise<boolean>;
     createOffice(input: NewFudabaOfficeInput): Promise<FudabaOfficeRecord>;
     findOfficeById(id: string): Promise<FudabaOfficeRecord | null>;
     listOfficesForOwner(
