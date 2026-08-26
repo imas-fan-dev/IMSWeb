@@ -30,6 +30,8 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field"
+import { Input } from "~/components/ui/input"
+import { Textarea } from "~/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -61,6 +63,9 @@ export function NamecardUploadDialog() {
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [seriesCode, setSeriesCode] = useState("")
   const [favoriteIdolIds, setFavoriteIdolIds] = useState<number[]>([])
+  const [producerName, setProducerName] = useState("")
+  const [displayName, setDisplayName] = useState("")
+  const [bio, setBio] = useState("")
 
   const series: IdolSeriesOption[] = (catalog?.agencies ?? []).map(
     (agency) => ({
@@ -128,6 +133,11 @@ export function NamecardUploadDialog() {
       const response = await uploadNamecard(front, back, {
         seriesCode,
         favoriteIdolIds,
+        // Descriptive fields are optional, so an untouched field sends nothing
+        // rather than an empty string.
+        ...(producerName.trim() ? { producerName: producerName.trim() } : {}),
+        ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
+        ...(bio.trim() ? { bio: bio.trim() } : {}),
       }).send()
       toast.success(response.msg)
       const nextReceipt = {
@@ -275,6 +285,48 @@ export function NamecardUploadDialog() {
                 </SelectGroup>
               </SelectContent>
             </Select>
+          </Field>
+
+          <FieldGroup className="grid gap-5 md:grid-cols-2">
+            <Field data-disabled={uploading || undefined}>
+              <FieldLabel htmlFor="guest-namecard-producer">
+                制作人昵称（选填）
+              </FieldLabel>
+              <Input
+                id="guest-namecard-producer"
+                value={producerName}
+                maxLength={80}
+                disabled={uploading}
+                placeholder="署名，留空则匿名"
+                onChange={(event) => setProducerName(event.target.value)}
+              />
+            </Field>
+            <Field data-disabled={uploading || undefined}>
+              <FieldLabel htmlFor="guest-namecard-display">
+                名片名称（选填）
+              </FieldLabel>
+              <Input
+                id="guest-namecard-display"
+                value={displayName}
+                maxLength={120}
+                disabled={uploading}
+                placeholder="这张名片的称呼"
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </Field>
+          </FieldGroup>
+
+          <Field data-disabled={uploading || undefined}>
+            <FieldLabel htmlFor="guest-namecard-bio">简介（选填）</FieldLabel>
+            <Textarea
+              id="guest-namecard-bio"
+              value={bio}
+              maxLength={2000}
+              rows={3}
+              disabled={uploading}
+              placeholder="名片的设计说明或交换想法"
+              onChange={(event) => setBio(event.target.value)}
+            />
           </Field>
 
           <IdolMultiSelect

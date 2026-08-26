@@ -34,6 +34,38 @@ describe("community API contracts", () => {
     ).toThrow()
   })
 
+  it("sends only the descriptive fields a guest filled in", async () => {
+    const fetchMock = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        Promise.resolve(
+          Response.json({
+            msg: "已提交审核",
+            submission: { id: 20, status: "pending", revision: 0 },
+            withdrawalToken: "b".repeat(43),
+            init,
+          })
+        )
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    await uploadNamecard(
+      new File(["front"], "front.png", { type: "image/png" }),
+      new File(["back"], "back.png", { type: "image/png" }),
+      {
+        seriesCode: "765",
+        favoriteIdolIds: [1],
+        producerName: "  草莓P  ",
+        displayName: "",
+        bio: "   ",
+      }
+    ).send()
+
+    const body = fetchMock.mock.calls[0]?.[1]?.body as unknown as FormData
+    expect(body.get("producerName")).toBe("草莓P")
+    expect(body.has("displayName")).toBe(false)
+    expect(body.has("bio")).toBe(false)
+  })
+
   it("parses the one-time withdrawal receipt returned after upload", async () => {
     vi.stubGlobal(
       "fetch",

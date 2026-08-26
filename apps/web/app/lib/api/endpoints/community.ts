@@ -95,16 +95,35 @@ export function addNamecardReaction(cardId: number, emoji: string) {
   )
 }
 
+export interface UploadNamecardMetadata {
+  seriesCode: string
+  favoriteIdolIds: number[]
+  producerName?: string
+  displayName?: string
+  bio?: string
+  accent?: string
+}
+
 export function uploadNamecard(
   front: File,
   back: File,
-  metadata: { seriesCode: string; favoriteIdolIds: number[] }
+  metadata: UploadNamecardMetadata
 ) {
   const form = new FormData()
   form.append("images", front)
   form.append("images", back)
   form.append("seriesCode", metadata.seriesCode)
   form.append("favoriteIdolIds", JSON.stringify(metadata.favoriteIdolIds))
+  // The submission stays anonymous, so these describe the card, not a person.
+  for (const field of [
+    "producerName",
+    "displayName",
+    "bio",
+    "accent",
+  ] as const) {
+    const value = metadata[field]?.trim()
+    if (value) form.append(field, value)
+  }
   return apiClient.Post(
     apiPath("/uploadNameCard"),
     form,
