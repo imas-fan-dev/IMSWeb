@@ -103,6 +103,18 @@ export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
     return [publicMediaObjectKey(originalUrl), publicMediaObjectKey(thumbnailUrl)];
 }
 
+const NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN =
+    /^community\/namecards\/assets\/([^/]+)\/image\.([a-z0-9]+)$/;
+
+// Reverses namecardImageObjectKey so unified fudaba_cards rows (which only
+// store the object key) can hand the legacy /uploads/namecard/original/...
+// shape back to response and media-resolution code that still expects it.
+export function namecardOriginalUrlFromObjectKey(key: string): string {
+    const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(key);
+    if (!match) throw new Error(`Unsupported namecard object key: ${key}`);
+    return publicUploadsPath(`/namecard/original/${match[1]}.${match[2]}`);
+}
+
 export function producerMapAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `community/producer-map/assets/${file.stem}/image.${file.extension}`;

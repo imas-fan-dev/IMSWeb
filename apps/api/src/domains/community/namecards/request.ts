@@ -80,6 +80,10 @@ export interface UploadNamecardRequest {
     images: UploadedFile[];
     seriesCode: string;
     favoriteIdolIds: number[];
+    producerName: string | null;
+    displayName: string | null;
+    bio: string | null;
+    accent: string | null;
 }
 
 function legacyPaginationValue(value: unknown, fallback: number): number {
@@ -168,13 +172,56 @@ function uploadedFiles(
     return Array.isArray(value) ? value : [value];
 }
 
+const OPTIONAL_PROFILE_FIELDS = [
+    "producerName",
+    "displayName",
+    "bio",
+    "accent",
+] as const;
+const UPLOAD_METADATA_FIELDS = [
+    "seriesCode",
+    "favoriteIdolIds",
+    ...OPTIONAL_PROFILE_FIELDS,
+] as const;
+
+// Guest submissions may describe themselves the same way an owned Fudaba card
+// does, but every field beyond seriesCode/favoriteIdolIds stays optional --
+// an anonymous card is still valid with only its two images.
+function optionalProfileText(
+    fields: Record<string, string>,
+    key: (typeof OPTIONAL_PROFILE_FIELDS)[number],
+    label: string,
+    maximumLength: number,
+): string | null {
+    const value = fields[key];
+    if (value === undefined) return null;
+    if (typeof value !== "string" || /[\u0000-\u001f\u007f]/.test(value)) {
+        invalidRequest(`${label}无效`);
+    }
+    const normalized = value.trim();
+    if (normalized.length > maximumLength) invalidRequest(`${label}无效`);
+    return normalized || null;
+}
+
+function optionalAccent(fields: Record<string, string>): string | null {
+    const value = fields.accent;
+    if (value === undefined) return null;
+    const normalized = value.trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(normalized)) invalidRequest("主题色无效");
+    return normalized;
+}
+
 function uploadMetadata(fields: Record<string, string>): {
     seriesCode: string;
     favoriteIdolIds: number[];
+    producerName: string | null;
+    displayName: string | null;
+    bio: string | null;
+    accent: string | null;
 } {
     if (
         Object.keys(fields).some(
-            (key) => key !== "seriesCode" && key !== "favoriteIdolIds",
+            (key) => !(UPLOAD_METADATA_FIELDS as readonly string[]).includes(key),
         )
     ) {
         invalidRequest("名片投稿字段无效");
@@ -198,7 +245,14 @@ function uploadMetadata(fields: Record<string, string>): {
     ) {
         invalidRequest("担当偶像无效");
     }
-    return { seriesCode, favoriteIdolIds: favoriteIdolIds as number[] };
+    return {
+        seriesCode,
+        favoriteIdolIds: favoriteIdolIds as number[],
+        producerName: optionalProfileText(fields, "producerName", "制作人昵称", 80),
+        displayName: optionalProfileText(fields, "displayName", "名片名称", 120),
+        bio: optionalProfileText(fields, "bio", "简介", 2000),
+        accent: optionalAccent(fields),
+    };
 }
 
 export async function parseUploadNamecardRequest(
@@ -210,8 +264,8 @@ export async function parseUploadNamecardRequest(
         maxBytes: MAX_UPLOAD_BYTES,
         fileFields: ["images"],
         maxFiles: 2,
-        maxFields: 2,
-        maxParts: 4,
+        maxFields: UPLOAD_METADATA_FIELDS.length,
+        maxParts: 2 + UPLOAD_METADATA_FIELDS.length,
     });
     return {
         images: uploadedFiles(parsed.files.images),

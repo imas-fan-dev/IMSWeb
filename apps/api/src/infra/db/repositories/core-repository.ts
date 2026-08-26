@@ -46,6 +46,10 @@ import type {
     SqlSchemaStrategy
 } from '@/infra/db/sql/database';
 import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/query';
+import {
+    namecardOriginalUrlFromObjectKey,
+    publicMediaObjectKey
+} from '@/utils/storage/business-object-keys';
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_idols'>;
 
@@ -56,6 +60,31 @@ type NamecardIdolRow = {
     name_cn: string;
     display_order: number | string;
 };
+
+// The legacy/guest compatibility surface (numeric card_number ids) only ever
+// covers rows unified from the anonymous namecard flow; exchange-owned cards
+// keep their own TEXT-id routes through the Fudaba domain.
+const NAMECARD_COMPAT_ORIGIN = "origin IN ('guest', 'legacy')";
+
+const NAMECARD_COLUMNS = `id AS internal_id, card_number, front_object_key,
+    back_object_key, publication_status, revision, series_code, origin,
+    created_at`;
+
+type NamecardCardRow = {
+    internal_id: string;
+    card_number: number | string;
+    front_object_key: string;
+    back_object_key: string;
+    publication_status: string;
+    revision: number | string;
+    series_code: string | null;
+    origin: string;
+    created_at: string | Date | null;
+};
+
+function toLegacyNamecardStatus(status: string): NamecardSubmissionRecord['status'] {
+    return (status === 'published' ? 'approved' : status) as NamecardSubmissionRecord['status'];
+}
 
 export class SqlCoreRepository implements
     BackofficeAuthRepository,
@@ -470,7 +499,11 @@ export class SqlCoreRepository implements
 
     findCardByOrderedHashes(hash1: string, hash2: string): Promise<{ id: number } | null> {
         return queryOne(this.database,
-            `SELECT id FROM cards WHERE hash1=? AND hash2=? AND status NOT IN ('withdrawn','rejected')`,
+            `SELECT card.card_number AS id
+             FROM namecard_guest_attributes guest
+             JOIN fudaba_cards card ON card.id=guest.card_id
+             WHERE guest.hash1=? AND guest.hash2=?
+               AND card.publication_status NOT IN ('withdrawn','rejected')`,
             [hash1, hash2]
         );
     }
@@ -525,25 +558,25 @@ export class SqlCoreRepository implements
 
     private async listNamecardIdols(
         database: SqlDatabase,
-        cardIds: readonly number[]
-    ): Promise<Map<number, CardIdolSelectionRecord[]>> {
-        const grouped = new Map<number, CardIdolSelectionRecord[]>();
-        for (const cardId of cardIds) grouped.set(cardId, []);
-        if (!cardIds.length) return grouped;
-        const placeholders = cardIds.map(() => '?').join(', ');
+        internalIds: readonly string[]
+    ): Promise<Map<string, CardIdolSelectionRecord[]>> {
+        const grouped = new Map<string, CardIdolSelectionRecord[]>();
+        for (const internalId of internalIds) grouped.set(internalId, []);
+        if (!internalIds.length) return grouped;
+        const placeholders = internalIds.map(() => '?').join(', ');
         const rows = await queryAll<NamecardIdolRow>(
             database,
             `SELECT selected.card_id, selected.idol_id, agency.code AS agency_code,
                     idol.name_cn, selected.display_order
-             FROM namecard_idols selected
+             FROM fudaba_card_idols selected
              JOIN idols idol ON idol.id=selected.idol_id
              JOIN agencies agency ON agency.id=idol.agency_id
              WHERE selected.card_id IN (${placeholders})
              ORDER BY selected.card_id, selected.display_order`,
-            cardIds
+            internalIds
         );
         for (const row of rows) {
-            grouped.get(Number(row.card_id))?.push({
+            grouped.get(String(row.card_id))?.push({
                 idol_id: Number(row.idol_id),
                 agency_code: row.agency_code,
                 name_cn: row.name_cn,
@@ -553,18 +586,32 @@ export class SqlCoreRepository implements
         return grouped;
     }
 
-    private async attachNamecardIdols<Row extends NamecardSubmissionRow>(
+    private namecardRecordFromRow(row: NamecardCardRow): NamecardSubmissionRow {
+        return {
+            id: Number(row.card_number),
+            image1_url: namecardOriginalUrlFromObjectKey(row.front_object_key),
+            image2_url: namecardOriginalUrlFromObjectKey(row.back_object_key),
+            status: toLegacyNamecardStatus(row.publication_status),
+            revision: Number(row.revision),
+            series_code: row.series_code,
+            submission_kind: row.origin === 'guest' ? 'guest' : 'legacy',
+            created_at: row.created_at
+        };
+    }
+
+    private async attachNamecardIdols(
         database: SqlDatabase,
-        rows: readonly Row[]
-    ): Promise<Array<Row & { favorite_idols: CardIdolSelectionRecord[] }>> {
-        const idols = await this.listNamecardIdols(database, rows.map((row) => row.id));
+        rows: readonly NamecardCardRow[]
+    ): Promise<Array<NamecardSubmissionRow & { favorite_idols: CardIdolSelectionRecord[] }>> {
+        const idols = await this.listNamecardIdols(database, rows.map((row) => row.internal_id));
         return rows.map((row) => {
-            const favoriteIdols = idols.get(row.id) ?? [];
+            const favoriteIdols = idols.get(row.internal_id) ?? [];
+            const record = this.namecardRecordFromRow(row);
             return {
-                ...row,
+                ...record,
                 favorite_idols: favoriteIdols,
-                seriesCode: row.series_code ?? null,
-                submissionKind: row.submission_kind ?? 'legacy',
+                seriesCode: record.series_code ?? null,
+                submissionKind: record.submission_kind ?? 'legacy',
                 favoriteIdols
             };
         });
@@ -572,7 +619,7 @@ export class SqlCoreRepository implements
 
     private async attachOneNamecard(
         database: SqlDatabase,
-        row: NamecardSubmissionRow | null
+        row: NamecardCardRow | null
     ): Promise<NamecardSubmissionRecord | null> {
         if (!row) return null;
         return (await this.attachNamecardIdols(database, [row]))[0] ?? null;
@@ -581,6 +628,9 @@ export class SqlCoreRepository implements
     async insertPendingCard(input: PendingCardInput): Promise<number> {
         const submissionKind = input.submissionKind ?? 'guest';
         const idolIds = input.idolIds ?? [];
+        const idPrefix = submissionKind === 'legacy' ? 'legacy' : 'guest';
+        const frontKey = publicMediaObjectKey(input.image1Url);
+        const backKey = publicMediaObjectKey(input.image2Url);
         return this.database.transaction(async (database) => {
             const idols = await this.validateNamecardSelection(
                 database,
@@ -588,74 +638,97 @@ export class SqlCoreRepository implements
                 idolIds,
                 submissionKind
             );
-            const result = await queryOne<{ id: number }>(database,
-                `INSERT INTO cards
-                 (image1_url, image2_url, hash1, hash2, ip, status,
-                  withdrawal_token_hash, series_code, submission_kind)
-                 VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?) RETURNING id`,
+            const created = await queryOne<{ id: string; card_number: number | string }>(
+                database,
+                `WITH allocated AS (
+                     SELECT nextval('public.namecard_number_seq') AS card_number
+                 )
+                 INSERT INTO fudaba_cards
+                    (id, card_number, origin, series_code, producer_name,
+                     display_name, front_object_key, back_object_key, accent,
+                     bio, trade_note, available, media_rights_status,
+                     publication_status, revision, created_at, updated_at)
+                 SELECT ? || '-' || allocated.card_number::text, allocated.card_number,
+                        ?, ?, ?, ?, ?, ?, ?, ?, NULL, FALSE, 'unknown', 'pending',
+                        0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                 FROM allocated
+                 RETURNING id, card_number`,
                 [
-                    input.image1Url,
-                    input.image2Url,
-                    input.hash1,
-                    input.hash2,
-                    input.ip,
-                    input.withdrawalTokenHash,
+                    idPrefix,
+                    idPrefix,
                     input.seriesCode ?? null,
-                    submissionKind
+                    input.producerName ?? null,
+                    input.displayName ?? null,
+                    frontKey,
+                    backKey,
+                    input.accent ?? null,
+                    input.bio ?? null
                 ]
             );
-            if (!result) throw new Error('Card insert did not return an ID');
+            if (!created) throw new Error('Card insert did not return an ID');
             if (idols.length) {
                 await database.batch(idols.map((idol) => database.prepare(
-                    `INSERT INTO namecard_idols (card_id, idol_id, display_order)
+                    `INSERT INTO fudaba_card_idols (card_id, idol_id, display_order)
                      VALUES (?, ?, ?)`
-                ).bind(result.id, idol.idol_id, idol.display_order)));
+                ).bind(created.id, idol.idol_id, idol.display_order)));
             }
-            return result.id;
+            await executeSql(database,
+                `INSERT INTO namecard_guest_attributes
+                    (card_id, hash1, hash2, submitted_ip, withdrawal_token_hash)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [created.id, input.hash1, input.hash2, input.ip, input.withdrawalTokenHash]
+            );
+            return Number(created.card_number);
         });
     }
 
     async countApprovedCards(): Promise<number> {
         const row = await queryOne<{ total: number }>(this.database,
-            "SELECT CAST(COUNT(*) AS INTEGER) AS total FROM cards WHERE status='approved'"
+            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM fudaba_cards
+             WHERE ${NAMECARD_COMPAT_ORIGIN} AND publication_status='published'
+               AND deleted_at IS NULL`
         );
         return row?.total ?? 0;
     }
 
     async countAdminCards(): Promise<number> {
         const row = await queryOne<{ total: number }>(this.database,
-            "SELECT CAST(COUNT(*) AS INTEGER) AS total FROM cards WHERE status NOT IN ('withdrawn','rejected')"
+            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM fudaba_cards
+             WHERE ${NAMECARD_COMPAT_ORIGIN}
+               AND publication_status NOT IN ('withdrawn','rejected')
+               AND deleted_at IS NULL`
         );
         return row?.total ?? 0;
     }
 
     async listApprovedCards(limit: number, offset: number): Promise<NamecardPublicRecord[]> {
-        const rows = await queryAll<NamecardSubmissionRow>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, series_code,
-                    submission_kind, created_at
-             FROM cards
-             WHERE status='approved' ORDER BY id DESC LIMIT ? OFFSET ?`,
+        const rows = await queryAll<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE ${NAMECARD_COMPAT_ORIGIN} AND publication_status='published'
+               AND deleted_at IS NULL
+             ORDER BY card_number DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
         return await this.attachNamecardIdols(this.database, rows) as NamecardPublicRecord[];
     }
 
     async findApprovedCardMedia(id: number): Promise<CardMediaRecord | null> {
-        const row = await queryOne<NamecardSubmissionRow>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, series_code,
-                    submission_kind, created_at
-             FROM cards WHERE id=? AND status='approved'`,
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN}
+               AND publication_status='published' AND deleted_at IS NULL`,
             [id]
         );
         return this.attachOneNamecard(this.database, row);
     }
 
     async listAdminCards(limit: number, offset: number): Promise<NamecardSubmissionRecord[]> {
-        const rows = await queryAll<NamecardSubmissionRow>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, series_code,
-                    submission_kind, created_at
-             FROM cards WHERE status NOT IN ('withdrawn','rejected')
-             ORDER BY id DESC LIMIT ? OFFSET ?`,
+        const rows = await queryAll<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE ${NAMECARD_COMPAT_ORIGIN}
+               AND publication_status NOT IN ('withdrawn','rejected')
+               AND deleted_at IS NULL
+             ORDER BY card_number DESC LIMIT ? OFFSET ?`,
             [limit, offset]
         );
         return this.attachNamecardIdols(this.database, rows);
@@ -665,11 +738,12 @@ export class SqlCoreRepository implements
         id: number,
         expectedRevision: number
     ): Promise<NamecardApprovalClaim> {
-        const claimedRow = await queryOne<NamecardSubmissionRow>(this.database,
-            `UPDATE cards SET status='approving', revision=revision+1
-             WHERE id=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, series_code,
-                       submission_kind, created_at`,
+        const claimedRow = await queryOne<NamecardCardRow>(this.database,
+            `UPDATE fudaba_cards SET publication_status='approving', revision=revision+1,
+                    updated_at=CURRENT_TIMESTAMP
+             WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN}
+               AND publication_status='pending' AND revision=? AND deleted_at IS NULL
+             RETURNING ${NAMECARD_COLUMNS}`,
             [id, expectedRevision]
         );
         const claimed = await this.attachOneNamecard(this.database, claimedRow);
@@ -692,11 +766,13 @@ export class SqlCoreRepository implements
         id: number,
         approvingRevision: number
     ): Promise<NamecardMutationResult> {
-        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
-            `UPDATE cards SET status='approved', revision=revision+1
-             WHERE id=? AND status='approving' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, series_code,
-                       submission_kind, created_at`,
+        const updatedRow = await queryOne<NamecardCardRow>(this.database,
+            `UPDATE fudaba_cards
+             SET publication_status='published', media_rights_status='approved',
+                 revision=revision+1, updated_at=CURRENT_TIMESTAMP
+             WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN}
+               AND publication_status='approving' AND revision=? AND deleted_at IS NULL
+             RETURNING ${NAMECARD_COLUMNS}`,
             [id, approvingRevision]
         );
         const updated = await this.attachOneNamecard(this.database, updatedRow);
@@ -715,10 +791,10 @@ export class SqlCoreRepository implements
 
     async deleteCard(id: number, expectedRevision: number): Promise<NamecardMutationResult> {
         return this.database.transaction(async (database) => {
-            const currentRow = await queryOne<NamecardSubmissionRow>(database,
-                `SELECT id, image1_url, image2_url, status, revision, series_code,
-                        submission_kind, created_at
-                 FROM cards WHERE id=? FOR UPDATE`,
+            const currentRow = await queryOne<NamecardCardRow>(database,
+                `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+                 WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN} AND deleted_at IS NULL
+                 FOR UPDATE`,
                 [id]
             );
             const current = await this.attachOneNamecard(database, currentRow);
@@ -728,7 +804,7 @@ export class SqlCoreRepository implements
             }
             const deleted = await executeSql(
                 database,
-                'DELETE FROM cards WHERE id=? AND revision=?',
+                `DELETE FROM fudaba_cards WHERE card_number=? AND revision=? AND ${NAMECARD_COMPAT_ORIGIN}`,
                 [id, expectedRevision]
             );
             return deleted.meta.changes === 1
@@ -741,70 +817,102 @@ export class SqlCoreRepository implements
         id: number,
         expectedRevision: number
     ): Promise<NamecardMutationResult> {
-        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
-            `UPDATE cards SET status='rejected', rejected_at=CURRENT_TIMESTAMP, revision=revision+1
-             WHERE id=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, series_code,
-                       submission_kind, created_at`,
-            [id, expectedRevision]
-        );
-        const updated = await this.attachOneNamecard(this.database, updatedRow);
-        if (updated) return { status: 'updated', card: updated };
-        const current = await this.findSubmission(id);
-        if (!current) return { status: 'not-found' };
-        if (current.status === 'withdrawn') {
-            return { status: 'withdrawn', revision: current.revision };
-        }
-        return { status: 'conflict', revision: current.revision };
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow>(database,
+                `UPDATE fudaba_cards SET publication_status='rejected', revision=revision+1,
+                        updated_at=CURRENT_TIMESTAMP
+                 WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN}
+                   AND publication_status='pending' AND revision=? AND deleted_at IS NULL
+                 RETURNING ${NAMECARD_COLUMNS}`,
+                [id, expectedRevision]
+            );
+            if (updatedRow) {
+                await executeSql(database,
+                    'UPDATE namecard_guest_attributes SET rejected_at=CURRENT_TIMESTAMP WHERE card_id=?',
+                    [updatedRow.internal_id]
+                );
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmission(id, database);
+            if (!current) return { status: 'not-found' };
+            if (current.status === 'withdrawn') {
+                return { status: 'withdrawn', revision: current.revision };
+            }
+            return { status: 'conflict', revision: current.revision };
+        });
     }
 
     async purgeTerminalCards(
         cutoff: Date
     ): Promise<Array<{ id: number; image1_url: string; image2_url: string }>> {
-        return queryAll(this.database,
-            `DELETE FROM cards
-             WHERE status IN ('withdrawn','rejected')
-               AND COALESCE(withdrawn_at, rejected_at, created_at) <= ?
-             RETURNING id, image1_url, image2_url`,
+        const rows = await queryAll<{
+            card_number: number | string;
+            front_object_key: string;
+            back_object_key: string;
+        }>(this.database,
+            `DELETE FROM fudaba_cards
+             WHERE id IN (
+                 SELECT card.id FROM fudaba_cards card
+                 JOIN namecard_guest_attributes guest ON guest.card_id=card.id
+                 WHERE card.${NAMECARD_COMPAT_ORIGIN}
+                   AND card.publication_status IN ('withdrawn','rejected')
+                   AND COALESCE(guest.withdrawn_at, guest.rejected_at, card.created_at) <= ?
+             )
+             RETURNING card_number, front_object_key, back_object_key`,
             [cutoff]
         );
+        return rows.map((row) => ({
+            id: Number(row.card_number),
+            image1_url: namecardOriginalUrlFromObjectKey(row.front_object_key),
+            image2_url: namecardOriginalUrlFromObjectKey(row.back_object_key)
+        }));
     }
 
     private async findSubmission(
         id: number,
-        tokenHash?: string
+        database: SqlDatabase = this.database
     ): Promise<NamecardSubmissionRecord | null> {
-        const row = await queryOne<NamecardSubmissionRow>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, series_code,
-                    submission_kind, created_at
-             FROM cards WHERE id=?${tokenHash === undefined
-                ? ''
-                : ' AND withdrawal_token_hash=?'}`,
-            tokenHash === undefined ? [id] : [id, tokenHash]
+        const row = await queryOne<NamecardCardRow>(database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN} AND deleted_at IS NULL`,
+            [id]
         );
-        return this.attachOneNamecard(this.database, row);
+        return this.attachOneNamecard(database, row);
     }
 
-    findSubmissionByTokenHash(
+    async findSubmissionByTokenHash(
         id: number,
-        tokenHash: string
+        tokenHash: string,
+        database: SqlDatabase = this.database
     ): Promise<NamecardSubmissionRecord | null> {
-        return this.findSubmission(id, tokenHash);
+        const row = await queryOne<NamecardCardRow>(database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards card
+             JOIN namecard_guest_attributes guest ON guest.card_id=card.id
+             WHERE card.card_number=? AND card.${NAMECARD_COMPAT_ORIGIN}
+               AND card.deleted_at IS NULL AND guest.withdrawal_token_hash=?`,
+            [id, tokenHash]
+        );
+        return this.attachOneNamecard(database, row);
     }
 
     async findSubmissionWithHashesByTokenHash(
         id: number,
         tokenHash: string
     ): Promise<NamecardSubmissionWithHashesRecord | null> {
-        const row = await queryOne<NamecardSubmissionRow & { hash1: string; hash2: string }>(
+        const row = await queryOne<NamecardCardRow & { hash1: string; hash2: string }>(
             this.database,
-            `SELECT id, image1_url, image2_url, hash1, hash2, status, revision,
-                    series_code, submission_kind, created_at
-             FROM cards WHERE id=? AND withdrawal_token_hash=?`,
+            `SELECT ${NAMECARD_COLUMNS}, guest.hash1, guest.hash2
+             FROM fudaba_cards card
+             JOIN namecard_guest_attributes guest ON guest.card_id=card.id
+             WHERE card.card_number=? AND card.${NAMECARD_COMPAT_ORIGIN}
+               AND card.deleted_at IS NULL AND guest.withdrawal_token_hash=?`,
             [id, tokenHash]
         );
-        return this.attachOneNamecard(this.database, row) as
-            Promise<NamecardSubmissionWithHashesRecord | null>;
+        if (!row) return null;
+        const attached = await this.attachOneNamecard(this.database, row);
+        if (!attached) return null;
+        return { ...attached, hash1: row.hash1, hash2: row.hash2 };
     }
 
     async withdrawSubmission(
@@ -812,18 +920,34 @@ export class SqlCoreRepository implements
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardMutationResult> {
-        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
-            `UPDATE cards SET status='withdrawn', withdrawn_at=CURRENT_TIMESTAMP, revision=revision+1
-             WHERE id=? AND withdrawal_token_hash=? AND status='pending' AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, series_code,
-                       submission_kind, created_at`,
-            [id, tokenHash, expectedRevision]
-        );
-        const updated = await this.attachOneNamecard(this.database, updatedRow);
-        if (updated) return { status: 'updated', card: updated };
-        const current = await this.findSubmissionByTokenHash(id, tokenHash);
-        if (!current) return { status: 'not-found' };
-        return { status: 'conflict', revision: current.revision };
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow>(database,
+                `UPDATE fudaba_cards card
+                 SET publication_status='withdrawn', revision=revision+1,
+                     updated_at=CURRENT_TIMESTAMP
+                 FROM namecard_guest_attributes guest
+                 WHERE guest.card_id=card.id AND card.card_number=?
+                   AND card.${NAMECARD_COMPAT_ORIGIN}
+                   AND guest.withdrawal_token_hash=? AND card.publication_status='pending'
+                   AND card.revision=? AND card.deleted_at IS NULL
+                 RETURNING card.id AS internal_id, card.card_number,
+                           card.front_object_key, card.back_object_key,
+                           card.publication_status, card.revision,
+                           card.series_code, card.origin, card.created_at`,
+                [id, tokenHash, expectedRevision]
+            );
+            if (updatedRow) {
+                await executeSql(database,
+                    'UPDATE namecard_guest_attributes SET withdrawn_at=CURRENT_TIMESTAMP WHERE card_id=?',
+                    [updatedRow.internal_id]
+                );
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmissionByTokenHash(id, tokenHash, database);
+            if (!current) return { status: 'not-found' };
+            return { status: 'conflict', revision: current.revision };
+        });
     }
 
     async replaceSubmissionImage(
@@ -834,19 +958,37 @@ export class SqlCoreRepository implements
         imageUrl: string,
         hash: string
     ): Promise<NamecardEditResult> {
-        const column = side === 'front' ? 'image1_url=?, hash1=?' : 'image2_url=?, hash2=?';
-        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
-            `UPDATE cards SET ${column}, revision=revision+1
-             WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, series_code,
-                       submission_kind, created_at`,
-            [imageUrl, hash, id, tokenHash, expectedRevision]
-        );
-        const updated = await this.attachOneNamecard(this.database, updatedRow);
-        if (updated) return { status: 'updated', card: updated };
-        const current = await this.findSubmissionByTokenHash(id, tokenHash);
-        if (!current) return { status: 'not-found' };
-        return { status: 'conflict', revision: current.revision };
+        const objectKeyColumn = side === 'front' ? 'front_object_key' : 'back_object_key';
+        const hashColumn = side === 'front' ? 'hash1' : 'hash2';
+        const key = publicMediaObjectKey(imageUrl);
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow>(database,
+                `UPDATE fudaba_cards card
+                 SET ${objectKeyColumn}=?, revision=revision+1, updated_at=CURRENT_TIMESTAMP
+                 FROM namecard_guest_attributes guest
+                 WHERE guest.card_id=card.id AND card.card_number=?
+                   AND card.${NAMECARD_COMPAT_ORIGIN}
+                   AND guest.withdrawal_token_hash=?
+                   AND card.publication_status IN ('withdrawn','rejected')
+                   AND card.revision=? AND card.deleted_at IS NULL
+                 RETURNING card.id AS internal_id, card.card_number,
+                           card.front_object_key, card.back_object_key,
+                           card.publication_status, card.revision,
+                           card.series_code, card.origin, card.created_at`,
+                [key, id, tokenHash, expectedRevision]
+            );
+            if (updatedRow) {
+                await executeSql(database,
+                    `UPDATE namecard_guest_attributes SET ${hashColumn}=? WHERE card_id=?`,
+                    [hash, updatedRow.internal_id]
+                );
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmissionByTokenHash(id, tokenHash, database);
+            if (!current) return { status: 'not-found' };
+            return { status: 'conflict', revision: current.revision };
+        });
     }
 
     async resubmitSubmission(
@@ -854,58 +996,95 @@ export class SqlCoreRepository implements
         tokenHash: string,
         expectedRevision: number
     ): Promise<NamecardEditResult> {
-        const updatedRow = await queryOne<NamecardSubmissionRow>(this.database,
-            `UPDATE cards SET status='pending', withdrawn_at=NULL, rejected_at=NULL, revision=revision+1
-             WHERE id=? AND withdrawal_token_hash=? AND status IN ('withdrawn','rejected') AND revision=?
-             RETURNING id, image1_url, image2_url, status, revision, series_code,
-                       submission_kind, created_at`,
-            [id, tokenHash, expectedRevision]
-        );
-        const updated = await this.attachOneNamecard(this.database, updatedRow);
-        if (updated) return { status: 'updated', card: updated };
-        const current = await this.findSubmissionByTokenHash(id, tokenHash);
-        if (!current) return { status: 'not-found' };
-        return { status: 'conflict', revision: current.revision };
+        return this.database.transaction(async (database) => {
+            const updatedRow = await queryOne<NamecardCardRow>(database,
+                `UPDATE fudaba_cards card
+                 SET publication_status='pending', revision=revision+1,
+                     updated_at=CURRENT_TIMESTAMP
+                 FROM namecard_guest_attributes guest
+                 WHERE guest.card_id=card.id AND card.card_number=?
+                   AND card.${NAMECARD_COMPAT_ORIGIN}
+                   AND guest.withdrawal_token_hash=?
+                   AND card.publication_status IN ('withdrawn','rejected')
+                   AND card.revision=? AND card.deleted_at IS NULL
+                 RETURNING card.id AS internal_id, card.card_number,
+                           card.front_object_key, card.back_object_key,
+                           card.publication_status, card.revision,
+                           card.series_code, card.origin, card.created_at`,
+                [id, tokenHash, expectedRevision]
+            );
+            if (updatedRow) {
+                await executeSql(database,
+                    `UPDATE namecard_guest_attributes
+                     SET withdrawn_at=NULL, rejected_at=NULL WHERE card_id=?`,
+                    [updatedRow.internal_id]
+                );
+                const updated = await this.attachOneNamecard(database, updatedRow);
+                return { status: 'updated', card: updated! };
+            }
+            const current = await this.findSubmissionByTokenHash(id, tokenHash, database);
+            if (!current) return { status: 'not-found' };
+            return { status: 'conflict', revision: current.revision };
+        });
     }
 
     async findCardByMediaUrl(url: string): Promise<CardMediaRecord | null> {
-        const row = await queryOne<NamecardSubmissionRow>(this.database,
-            `SELECT id, image1_url, image2_url, status, revision, series_code,
-                    submission_kind, created_at
-             FROM cards WHERE image1_url=? OR image2_url=? LIMIT 1`,
-            [url, url]
+        let key: string;
+        try {
+            key = publicMediaObjectKey(url);
+        } catch {
+            return null;
+        }
+        const row = await queryOne<NamecardCardRow>(this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE (front_object_key=? OR back_object_key=?) AND ${NAMECARD_COMPAT_ORIGIN}
+               AND deleted_at IS NULL LIMIT 1`,
+            [key, key]
         );
         return this.attachOneNamecard(this.database, row);
     }
 
     findApprovedCard(id: number): Promise<{ id: number } | null> {
-        return queryOne(this.database, "SELECT id FROM cards WHERE id=? AND status='approved'", [id]);
+        return queryOne(this.database,
+            `SELECT card_number AS id FROM fudaba_cards
+             WHERE card_number=? AND ${NAMECARD_COMPAT_ORIGIN}
+               AND publication_status='published' AND deleted_at IS NULL`,
+            [id]
+        );
     }
 
     listReactions(cardId: number): Promise<Array<{ emoji: string; count: number }>> {
         return queryAll(this.database,
-            'SELECT emoji, count FROM card_emojis WHERE card_id=? ORDER BY count DESC',
+            `SELECT reaction.emoji, reaction.count
+             FROM namecard_reactions reaction
+             JOIN fudaba_cards card ON card.id=reaction.card_id
+             WHERE card.card_number=?
+             ORDER BY reaction.count DESC`,
             [cardId]
         );
     }
 
     async incrementReaction(cardId: number, emoji: string): Promise<void> {
         await executeSql(this.database,
-            `INSERT INTO card_emojis (card_id, emoji, count) VALUES (?, ?, 1)
-             ON CONFLICT(card_id, emoji) DO UPDATE SET count=card_emojis.count+1`,
-            [cardId, emoji]
+            `INSERT INTO namecard_reactions (card_id, emoji, count)
+             SELECT id, ?, 1 FROM fudaba_cards WHERE card_number=?
+             ON CONFLICT(card_id, emoji) DO UPDATE SET count=namecard_reactions.count+1`,
+            [emoji, cardId]
         );
     }
 
     async decrementAndPruneReaction(cardId: number, emoji: string): Promise<void> {
         await this.database.batch([
             sqlStatement(this.database,
-                'UPDATE card_emojis SET count=count-1 WHERE card_id=? AND emoji=?',
-                [cardId, emoji]
+                `UPDATE namecard_reactions SET count=count-1
+                 WHERE emoji=? AND count>0
+                   AND card_id=(SELECT id FROM fudaba_cards WHERE card_number=?)`,
+                [emoji, cardId]
             ),
             sqlStatement(this.database,
-                'DELETE FROM card_emojis WHERE card_id=? AND emoji=? AND count<=0',
-                [cardId, emoji]
+                `DELETE FROM namecard_reactions WHERE emoji=? AND count<=0
+                   AND card_id=(SELECT id FROM fudaba_cards WHERE card_number=?)`,
+                [emoji, cardId]
             )
         ]);
     }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
-import { queryOne } from '@/infra/db/sql/query';
+import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
@@ -10,8 +10,8 @@ const WITHDRAWAL_TOKEN_HASH = 'a'.repeat(64);
 
 function guestInput(hashSuffix: string) {
     return {
-        image1Url: `namecards/${hashSuffix}/front.webp`,
-        image2Url: `namecards/${hashSuffix}/back.webp`,
+        image1Url: `/uploads/namecard/original/${hashSuffix}-front.webp`,
+        image2Url: `/uploads/namecard/original/${hashSuffix}-back.webp`,
         hash1: `front-${hashSuffix}`,
         hash2: `back-${hashSuffix}`,
         ip: '127.0.0.1',
@@ -48,9 +48,10 @@ test('PostgreSQL guest namecards persist ordered cross-series idol metadata atom
         ]
     );
 
-    await database.prepare(
-        "UPDATE cards SET status='approved' WHERE id=?"
-    ).bind(id).run();
+    await executeSql(database,
+        "UPDATE fudaba_cards SET publication_status='published', media_rights_status='approved' WHERE card_number=?",
+        [id]
+    );
     const [publicCard] = await repository.listApprovedCards(20, 0);
     assert.equal(publicCard.id, id);
     assert.equal(publicCard.seriesCode, 'cg');
@@ -103,14 +104,14 @@ test('PostgreSQL guest namecards persist ordered cross-series idol metadata atom
     assert.equal(
         (await queryOne<{ count: number }>(
             database,
-            'SELECT CAST(COUNT(*) AS INTEGER) AS count FROM cards'
+            "SELECT CAST(COUNT(*) AS INTEGER) AS count FROM fudaba_cards WHERE origin IN ('guest', 'legacy')"
         ))?.count,
         1
     );
 
     const legacyId = await repository.insertPendingCard({
-        image1Url: 'legacy/front.webp',
-        image2Url: 'legacy/back.webp',
+        image1Url: '/uploads/namecard/original/legacy-front.webp',
+        image2Url: '/uploads/namecard/original/legacy-back.webp',
         hash1: 'legacy-front',
         hash2: 'legacy-back',
         ip: '127.0.0.1',
@@ -124,4 +125,45 @@ test('PostgreSQL guest namecards persist ordered cross-series idol metadata atom
     assert.equal(legacy?.submissionKind, 'legacy');
     assert.equal(legacy?.seriesCode, null);
     assert.deepEqual(legacy?.favoriteIdols, []);
+});
+
+test('PostgreSQL guest namecards may carry optional profile text', async (t) => {
+    const database = await createPostgresTestDatabase(t, 'namecard-metadata-profile');
+    await seedCanonicalFudabaAgencies(database);
+    const repository = new SqlCoreRepository(
+        database,
+        new PostgresqlSchemaStrategy()
+    );
+    await repository.initialize();
+
+    const id = await repository.insertPendingCard({
+        ...guestInput('profile'),
+        producerName: 'Producer Name',
+        displayName: 'Display Name',
+        bio: 'A short bio',
+        accent: '#ABCDEF'
+    });
+    const row = await queryOne<{
+        producer_name: string | null;
+        display_name: string | null;
+        bio: string | null;
+        accent: string | null;
+        owner_account_id: string | null;
+        trade_note: string | null;
+        available: boolean;
+    }>(database,
+        `SELECT producer_name, display_name, bio, accent, owner_account_id,
+                trade_note, available
+         FROM fudaba_cards WHERE card_number=?`,
+        [id]
+    );
+    assert.deepEqual(row, {
+        producer_name: 'Producer Name',
+        display_name: 'Display Name',
+        bio: 'A short bio',
+        accent: '#ABCDEF',
+        owner_account_id: null,
+        trade_note: null,
+        available: false
+    });
 });

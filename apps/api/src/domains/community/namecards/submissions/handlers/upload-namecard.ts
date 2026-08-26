@@ -57,6 +57,10 @@ export async function handleUploadNamecard(
             images: files,
             seriesCode,
             favoriteIdolIds,
+            producerName,
+            displayName,
+            bio,
+            accent,
         } = await parseUploadNamecardRequest(c);
         if (files.some((file) => !file.contentType.startsWith("image/"))) {
             return c.json(
@@ -121,6 +125,10 @@ export async function handleUploadNamecard(
             seriesCode,
             idolIds: favoriteIdolIds,
             submissionKind: "guest" as const,
+            producerName,
+            displayName,
+            bio,
+            accent,
         };
         const id = await namecardRepository(c).insertPendingCard(pendingCard);
         return c.json({

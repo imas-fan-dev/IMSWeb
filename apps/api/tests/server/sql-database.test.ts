@@ -165,7 +165,7 @@ test('PostgreSQL reaction upsert qualifies the existing count', async () => {
 
     assert.match(
         calls[0]?.sql ?? '',
-        /ON CONFLICT\(card_id, emoji\) DO UPDATE SET count=card_emojis\.count\+1/
+        /ON CONFLICT\(card_id, emoji\) DO UPDATE SET count=namecard_reactions\.count\+1/
     );
-    assert.deepEqual(calls[0]?.values, [456, '❤️']);
+    assert.deepEqual(calls[0]?.values, ['❤️', 456]);
 });

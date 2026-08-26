@@ -14,6 +14,10 @@ export interface PendingCardInput {
     seriesCode?: string | null;
     idolIds?: number[];
     submissionKind?: NamecardSubmissionKind;
+    producerName?: string | null;
+    displayName?: string | null;
+    bio?: string | null;
+    accent?: string | null;
 }
 
 export interface CardMediaRecord {
