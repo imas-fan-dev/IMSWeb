@@ -59,6 +59,10 @@ async function insertLegacyCard(client, id, overrides = {}) {
     );
 }
 
+// A soft-deleted row anchors created_at/updated_at to the caller's deleted_at
+// instead of CURRENT_TIMESTAMP: the caller's clock necessarily reads earlier
+// than the server's timestamp at INSERT time, which would trip
+// fudaba_cards' CHECK (deleted_at IS NULL OR deleted_at >= created_at).
 async function insertUnifiedCompatCard(client, id, cardNumber, overrides = {}) {
     const values = {
         origin: 'legacy',
@@ -81,8 +85,9 @@ async function insertUnifiedCompatCard(client, id, cardNumber, overrides = {}) {
              media_rights_status, publication_status, legacy_card_id,
              revision, created_at, updated_at, deleted_at)
          VALUES ($1, $2, $3, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                 $4, $5, FALSE, 'approved', $6, $7, 0, CURRENT_TIMESTAMP,
-                 CURRENT_TIMESTAMP, $8)`,
+                 $4, $5, FALSE, 'approved', $6, $7, 0,
+                 COALESCE($8::timestamptz, CURRENT_TIMESTAMP),
+                 COALESCE($8::timestamptz, CURRENT_TIMESTAMP), $8)`,
         [
             id, cardNumber, values.origin, values.front_object_key,
             values.back_object_key, values.publication_status,
