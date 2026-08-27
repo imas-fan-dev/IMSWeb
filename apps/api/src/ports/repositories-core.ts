@@ -207,7 +207,7 @@ export interface EditorialRepository {
     replaceHomepageSpotlightEntries(input: Array<{
         postId: number;
         category: SpotlightCategory;
-    }>): Promise<void>;
+    }>): Promise<{ status: 'updated' | 'invalid' }>;
     importLegacyInformationPost(input: {
         legacyInformationId: string;
         category: SpotlightCategory;

@@ -503,74 +503,25 @@ test('news publishing rejects missing bodies and unsafe links', async () => {
     assert.equal((await fetch(`${baseUrl}/api/news`)).status, 200);
 });
 
-test('information management hosts images and publishes sandboxed HTML content', async () => {
+test('legacy information remains public while management points to community posts', async () => {
     const token = await getOpToken();
     const auth = { authorization: `Bearer ${token}` };
     const unauthorized = await fetch(`${baseUrl}/api/admin/information`);
     assert.equal(unauthorized.status, 401);
 
-    const upload = new FormData();
-    upload.append('image', new Blob([validPng], { type: 'image/png' }), 'contract-cover.png');
-    const uploaded = await fetch(`${baseUrl}/api/admin/information/assets`, {
-        method: 'POST',
-        headers: auth,
-        body: upload
-    });
-    assert.equal(uploaded.status, 200);
-    const assetUrl = (await uploaded.json()).url;
-    assert.match(assetUrl, /^\/uploads\/information\/original\/.+\.webp$/);
-    const publicAsset = await fetch(`${baseUrl}${assetUrl}`);
-    assert.equal(publicAsset.status, 200);
-    assert.equal(publicAsset.headers.get('content-type'), 'image/webp');
-
-    const created = await fetch(`${baseUrl}/api/admin/information`, {
+    const retired = await fetch(`${baseUrl}/api/admin/information`, {
         method: 'POST',
         headers: { ...auth, 'content-type': 'application/json' },
-        body: JSON.stringify({
-            title: 'Node HTML contract',
-            category: 'activity',
-            contentType: 'html',
-            externalUrl: '',
-            html: `<h2>Hosted HTML</h2><img src="${assetUrl}">`,
-            image: assetUrl
-        })
+        body: JSON.stringify({ title: 'retired information endpoint' })
     });
-    assert.equal(created.status, 200);
-    const createdCard = (await created.json()).card;
+    assert.equal(retired.status, 410);
+    assert.match(
+        (await retired.json()).error,
+        /已整合至社区帖子.*\/api\/admin\/community-posts/
+    );
 
     const publicIndex = await fetch(`${baseUrl}/api/information`);
     assert.equal(publicIndex.status, 200);
-    const summary = (await publicIndex.json()).cards.find(card => card.id === createdCard.id);
-    assert.equal(summary.title, 'Node HTML contract');
-    assert.equal('html' in summary, false);
-
-    const detail = await fetch(`${baseUrl}/api/information/${createdCard.id}`);
-    assert.equal(detail.status, 200);
-    assert.match((await detail.json()).card.html, /Hosted HTML/);
-
-    const document = await fetch(`${baseUrl}/information/${createdCard.id}/content`);
-    assert.equal(document.status, 200);
-    assert.match(document.headers.get('content-type'), /^text\/html/);
-    assert.match(document.headers.get('content-security-policy'), /script-src 'none'/);
-    assert.equal(document.headers.get('x-frame-options'), 'SAMEORIGIN');
-    assert.match(await document.text(), /Hosted HTML/);
-
-    const removed = await fetch(`${baseUrl}/api/admin/information/${createdCard.id}`, {
-        method: 'DELETE',
-        headers: auth
-    });
-    assert.equal(removed.status, 200);
-    assert.equal(
-        (await fetch(`${baseUrl}/information/${createdCard.id}/content`)).status,
-        404
-    );
-    const removedAsset = await fetch(`${baseUrl}/api/admin/information/assets`, {
-        method: 'DELETE',
-        headers: { ...auth, 'content-type': 'application/json' },
-        body: JSON.stringify({ url: assetUrl })
-    });
-    assert.equal(removedAsset.status, 200);
-    assert.equal((await fetch(`${baseUrl}${assetUrl}`)).status, 404);
 });
 
 test('reactions require an approved card and a supported value', async () => {

@@ -57,8 +57,8 @@ function revision(value: unknown): number {
     return result;
 }
 
-function sourceUrl(value: unknown): string | null {
-    const candidate = text(value, '原页面链接', 1000);
+function publicUrl(value: unknown, label: string, required = false): string | null {
+    const candidate = text(value, label, 1000, required);
     if (!candidate) return null;
     if (candidate.startsWith('/') && !candidate.startsWith('//')) return candidate;
     try {
@@ -67,19 +67,15 @@ function sourceUrl(value: unknown): string | null {
     } catch {
         // The common invalid-url response below is more useful to an editor.
     }
-    invalidRequest('原页面链接只允许 HTTP(S) 或站内路径');
+    invalidRequest(`${label}只允许 HTTP(S) 或站内路径`);
+}
+
+function sourceUrl(value: unknown): string | null {
+    return publicUrl(value, '原页面链接');
 }
 
 function relatedLinkUrl(value: unknown): string {
-    const candidate = text(value, '相关链接地址', 1000, true)!;
-    if (candidate.startsWith('/') && !candidate.startsWith('//')) return candidate;
-    try {
-        const url = new URL(candidate);
-        if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
-    } catch {
-        // Use the shared editor-facing validation message below.
-    }
-    invalidRequest('相关链接只允许 HTTP(S) 或站内路径');
+    return publicUrl(value, '相关链接', true)!;
 }
 
 function coverTransform(
@@ -215,7 +211,7 @@ function eventFields(
         venueName: isConcreteEvent ? text(payload.venueName ?? current.venue_name, '地点名称', 240) : null,
         address: isConcreteEvent ? text(payload.address ?? current.address, '地址', 500) : null,
         registrationUrl: isConcreteEvent
-            ? text(payload.registrationUrl ?? current.registration_url, '报名链接', 1000)
+            ? publicUrl(payload.registrationUrl ?? current.registration_url, '报名链接')
             : null,
         eventStatus: !isConcreteEvent || payload.eventStatus === null
             ? null
@@ -362,7 +358,10 @@ async function handleAdminSpotlightReplace(c: Context): Promise<Response> {
             category: enumValue(record.category, ['activity', 'fan'] as const, '精选分类')
         };
     });
-    await editorialRepository(c).replaceHomepageSpotlightEntries(entries);
+    const result = await editorialRepository(c).replaceHomepageSpotlightEntries(entries);
+    if (result.status === 'invalid') {
+        return c.json({ error: '首页精选只能包含已发布的社区帖子' }, 400);
+    }
     return c.json({ success: true });
 }
 

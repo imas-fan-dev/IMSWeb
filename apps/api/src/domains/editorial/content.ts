@@ -104,6 +104,31 @@ export function renderArticleBody(document: Record<string, unknown>): string {
 }
 
 export function legacyHtmlToArticleDocument(html: string): Record<string, unknown> {
-    const document = generateJSON(html, extensions) as Record<string, unknown>;
+    const compatibleHtml = sanitizeHtml(html, {
+        transformTags: {
+            img: (_tagName, attribs): {
+                tagName: string;
+                attribs: Record<string, string>;
+                text: string;
+            } => {
+                const src = typeof attribs.src === 'string' ? attribs.src.trim() : '';
+                const alt = typeof attribs.alt === 'string' ? attribs.alt.trim() : '';
+                const text = alt ? `查看图片：${alt}` : '查看图片';
+                if (src && /^(?:https?:\/\/|\/(?!\/))/i.test(src)) {
+                    return {
+                        tagName: 'a',
+                        attribs: { href: src },
+                        text
+                    };
+                }
+                return {
+                    tagName: 'span',
+                    attribs: { title: '图片地址无效' },
+                    text: alt ? `[图片：${alt}]` : '[图片已省略]'
+                };
+            }
+        }
+    });
+    const document = generateJSON(compatibleHtml, extensions) as Record<string, unknown>;
     return validateArticleBody(document).document;
 }

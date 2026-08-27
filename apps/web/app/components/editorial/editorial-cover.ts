@@ -14,6 +14,6 @@ export function editorialCoverStyle(
   return {
     objectPosition: `${transform.focalX * 100}% ${transform.focalY * 100}%`,
     transform: `scale(${transform.zoom})`,
-    transformOrigin: "center",
+    transformOrigin: `${transform.focalX * 100}% ${transform.focalY * 100}%`,
   }
 }

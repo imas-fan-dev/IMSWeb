@@ -1,5 +1,6 @@
 import {
   ArrowLeftIcon,
+  AlignLeftIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -207,11 +208,11 @@ function CoverCropDialog({
               ["aspect-5/4", "5:4"],
             ].map(([value, label]) => <Button key={value} type="button" variant={ratio === value ? "default" : "outline"} size="sm" onClick={() => setRatio(value)}>{label}</Button>)}
           </div>
-          <div className="relative mx-auto w-full max-w-[42rem] overflow-hidden rounded-lg border bg-muted" style={{ aspectRatio: imageAspect }} role="presentation">
+          <div className="relative mx-auto w-full max-w-2xl overflow-hidden rounded-lg border bg-muted" style={{ aspectRatio: imageAspect }} role="presentation">
             <img src={coverUrl} alt="列表封面构图预览" draggable={false} onLoad={(event) => { const { naturalWidth, naturalHeight } = event.currentTarget; if (naturalWidth && naturalHeight) setImageSize({ width: naturalWidth, height: naturalHeight }) }} onDragStart={(event) => event.preventDefault()} className="pointer-events-none size-full select-none object-cover" />
             {imageSize ? <div
               aria-label="拖动构图框调整视觉焦点"
-              className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none border-2 border-dashed border-primary bg-primary/10 shadow-sm active:cursor-grabbing"
+              className="absolute -translate-1/2 cursor-grab touch-none border-2 border-dashed border-primary bg-primary/10 shadow-sm active:cursor-grabbing"
               role="group"
               tabIndex={0}
               style={{ left: `${frameFocalX * 100}%`, top: `${frameFocalY * 100}%`, width: `${frameWidth}%`, height: `${frameHeight}%` }}
@@ -256,7 +257,6 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
   useEffect(() => {
     if (isNew) return
     let active = true
-    setLoading(true)
     void getAdminCommunityPost(Number(params.eventId)).send().then((value) => {
       if (!active) return
       setArticle(value)
@@ -408,8 +408,28 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
       <div className="grid items-start gap-x-10 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <header className="min-w-0 lg:col-start-1">
           <div className="flex flex-wrap items-center gap-3"><select aria-label="文章类型" className={`${adminControlClass} w-auto`} value={kind} onChange={(event) => { setKind(event.target.value as typeof kind); markDirty() }}><option value="notice">社区动态</option><option value="event">具体活动</option></select><span className="text-xs text-muted-foreground">{isNew ? "新建文章" : isPublished ? "已发布文章" : "草稿编辑中"}</span></div>
-          <label className="sr-only" htmlFor="article-title">文章标题</label><Input id="article-title" value={title} maxLength={160} onChange={(event) => { setTitle(event.target.value); markDirty() }} placeholder="为这篇文章写下一个标题" className="mt-4 h-auto rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 py-3 text-3xl font-semibold tracking-tight shadow-none placeholder:text-muted-foreground/45 focus-visible:border-primary focus-visible:ring-0 sm:text-5xl" />
-          <div className="mt-6"><div className="flex justify-between gap-3"><label htmlFor="article-summary" className="text-sm font-medium">文章导语 <span className="text-muted-foreground">（可选）</span></label><span className="text-xs tabular-nums text-muted-foreground">{summary.length} / 1000</span></div><Textarea id="article-summary" value={summary} maxLength={1000} onChange={(event) => { setSummary(event.target.value); markDirty() }} placeholder="用一两句话给读者一个想继续读下去的理由。" className="mt-2 min-h-24 resize-y border-0 bg-transparent px-0 py-0 text-base/8 shadow-none placeholder:text-muted-foreground/55 focus-visible:ring-0" /></div>
+          <div className="mt-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label htmlFor="article-title" className="inline-flex items-center gap-2 text-base font-semibold">
+                <span className="grid size-8 place-items-center rounded-md border bg-primary/10 text-primary"><FileTextIcon className="size-4" aria-hidden="true" /></span>
+                文章标题
+                <span className="text-sm font-medium text-muted-foreground">必填</span>
+              </label>
+              <span className="text-sm tabular-nums text-muted-foreground">{title.length} / 160</span>
+            </div>
+            <Input id="article-title" value={title} maxLength={160} onChange={(event) => { setTitle(event.target.value); markDirty() }} placeholder="为这篇文章写下一个清晰的标题" className="mt-3 h-auto rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-0 py-3 text-4xl font-semibold tracking-tight shadow-none placeholder:text-muted-foreground/45 focus-visible:border-primary focus-visible:ring-0 sm:text-5xl" />
+          </div>
+          <div className="mt-7 rounded-xl border bg-background/70 p-4 shadow-xs sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label htmlFor="article-summary" className="inline-flex items-center gap-2 text-base font-semibold">
+                <span className="grid size-8 place-items-center rounded-md border bg-muted text-muted-foreground"><AlignLeftIcon className="size-4" aria-hidden="true" /></span>
+                文章导语
+                <span className="text-sm font-medium text-muted-foreground">可选</span>
+              </label>
+              <span className="text-sm tabular-nums text-muted-foreground">{summary.length} / 1000</span>
+            </div>
+            <Textarea id="article-summary" value={summary} maxLength={1000} onChange={(event) => { setSummary(event.target.value); markDirty() }} placeholder="用一两句话概述文章亮点，让读者愿意继续阅读。" className="mt-4 min-h-28 resize-y border-0 bg-transparent p-0 text-lg/8 shadow-none placeholder:text-muted-foreground/55 focus-visible:ring-0 sm:text-xl/9" />
+          </div>
         </header>
 
         <main className="mt-9 min-w-0 rounded-xl border bg-card/85 p-4 shadow-sm sm:p-6 lg:col-start-1 lg:row-start-2">

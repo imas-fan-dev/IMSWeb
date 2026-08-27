@@ -646,17 +646,28 @@ export class SqlCoreRepository implements
     async replaceHomepageSpotlightEntries(input: Array<{
         postId: number;
         category: SpotlightCategory;
-    }>): Promise<void> {
-        await this.database.transaction(async (database) => {
+    }>): Promise<{ status: 'updated' | 'invalid' }> {
+        return this.database.transaction(async (database) => {
+            for (const entry of input) {
+                const post = await queryOne<{ id: number }>(database,
+                    `SELECT e.id
+                     FROM events e
+                     JOIN articles a ON a.id=e.article_id
+                     WHERE e.id=? AND a.content_type='event' AND a.status='published'
+                     FOR UPDATE OF e, a`,
+                    [entry.postId]
+                );
+                if (!post) return { status: 'invalid' };
+            }
             await executeSql(database, 'DELETE FROM homepage_spotlight_entries');
             for (const [sortOrder, entry] of input.entries()) {
                 await executeSql(database,
                     `INSERT INTO homepage_spotlight_entries (post_id, category, sort_order)
-                     SELECT e.id, ?, ? FROM events e JOIN articles a ON a.id=e.article_id
-                     WHERE e.id=? AND a.content_type='event'`,
-                    [entry.category, sortOrder, entry.postId]
+                     VALUES (?, ?, ?)`,
+                    [entry.postId, entry.category, sortOrder]
                 );
             }
+            return { status: 'updated' };
         });
     }
 

@@ -71,7 +71,11 @@ export interface EventErrorResponse {
     error: string;
 }
 
-function eventRecord(value: unknown): { [key: string]: unknown } {
+interface EventSourceRecord {
+    [field: string]: unknown;
+}
+
+function eventRecord(value: unknown): EventSourceRecord {
     if (
         typeof value !== 'object' ||
         value === null ||
@@ -79,7 +83,7 @@ function eventRecord(value: unknown): { [key: string]: unknown } {
     ) {
         throw new Error('Event repository returned an invalid row');
     }
-    return value as { [key: string]: unknown };
+    return value as EventSourceRecord;
 }
 
 function eventId(value: unknown): number | string {
@@ -117,7 +121,7 @@ function coverTransform(value: unknown): NonNullable<EventResponse['cover_transf
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return { focalX: 0.5, focalY: 0.5, zoom: 1 };
     }
-    const record = value as Record<string, unknown>;
+    const record = value as EventSourceRecord;
     const focalX = Number(record.focalX);
     const focalY = Number(record.focalY);
     const zoom = Number(record.zoom);
@@ -134,7 +138,7 @@ function relatedLinks(value: unknown): Array<{ label: string; url: string }> {
     if (!Array.isArray(candidate)) return [];
     return candidate.flatMap((item) => {
         if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
-        const link = item as Record<string, unknown>;
+        const link = item as EventSourceRecord;
         return typeof link.label === 'string' && typeof link.url === 'string'
             ? [{ label: link.label, url: link.url }]
             : [];
