@@ -9,6 +9,7 @@ const repositoryRoot = path.resolve(
 const ignoredDirectories = new Set([
   ".git",
   ".venv",
+  ".worktrees",
   ".wrangler",
   "__pycache__",
   "build",
@@ -55,7 +56,9 @@ for (const directory of [...ruleDirectories].sort()) {
   const rulesPath = path.join(directory, ".rules");
   const rulesStat = lstat(rulesPath);
   if (!rulesStat?.isFile() || rulesStat.isSymbolicLink()) {
-    failures.push(`${relative(rulesPath)} must be the regular canonical rules file`);
+    failures.push(
+      `${relative(rulesPath)} must be the regular canonical rules file`,
+    );
   }
 
   for (const aliasName of ["AGENTS.md", "CLAUDE.md"]) {

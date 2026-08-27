@@ -19,6 +19,37 @@ pnpm --version
 `.nvmrc` 固定最低版本，pnpm 要求 `>=11.10.0`。可以使用现有 Node 管理器切换版本；不要
 改写系统运行时或仓库锁文件来绕过版本错误。
 
+### 并行分支使用 worktree
+
+需要在不打断 `main` 的前提下并行开发时，从主检出目录管理 worktree：
+
+```sh
+pnpm run worktree list
+pnpm run worktree add <名称> --from main
+pnpm run worktree adopt [<名称|分支|路径>] [--dry-run] [--rename] [--install]
+pnpm run worktree remove <名称> --delete-branch
+pnpm run worktree prune
+```
+
+所有 worktree 都放在主检出目录内的 `.worktrees/<名称>`。该目录已写入根 `.gitignore`，
+不会被主仓库追踪；`scripts/check-agent-rules.mjs` 也跳过它，避免重复扫描嵌套检出。
+如果 `.gitignore` 里缺了这条规则，工具会直接报错退出。
+
+`add` 默认基于 `main` 创建 `codex/<名称>` 分支，目录为 `.worktrees/<名称>`，并复制本地
+未纳入版本控制的 `.env` 配置。可用 `--branch` 指定完整分支名，`--path` 指定其他目录，
+`--install` 在创建后直接执行 `pnpm install --frozen-lockfile`；每个 worktree 都需要独立
+安装依赖。同一分支不能同时被两个 worktree 检出。目录含有未提交改动时，`remove` 需要
+显式加 `--force`。
+
+`list` 会逐个报告路径、相对基底分支的 ahead/behind、未提交文件数、依赖是否安装、缺少的
+本地 `.env`，以及目录名是否符合约定。早于本工具创建的 worktree 用 `adopt` 纳入同一套
+管理：不带参数时处理全部非主检出目录，补齐缺失的本地配置，并把剩下的人工动作（安装依赖、
+重命名、同步基底分支）列出来。`--dry-run` 只打印计划；`--rename` 会执行 `git worktree move`，
+把旧位置的目录搬进 `.worktrees/`，目录正被编辑器或开发服务占用时不要用。
+
+根 workspace 的脚本数量有上限，所以只暴露 `worktree` 一个入口；也可以直接调用
+`node scripts/development/worktree.mjs <子命令>`。
+
 ## 2. 安装依赖
 
 ```sh
