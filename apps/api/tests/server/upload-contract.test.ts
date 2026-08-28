@@ -12,7 +12,6 @@ import {
     type ImageValidationOptions,
     type WebpConversionOptions
 } from '@/ports/media';
-import type { UploadParser } from '@/ports/http';
 import { validateUploadedImage } from '@/utils/media/image-upload';
 import { md5Hex } from '@/utils/crypto/md5';
 

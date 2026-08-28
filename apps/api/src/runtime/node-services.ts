@@ -15,7 +15,7 @@ import type {
     SitePackageRepository,
     StoryRepository
 } from '@/ports/repositories';
-import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
+import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 import type { ObjectStorageServices } from '@/ports/object-storage';
 import type { NodeRuntimeServices, RuntimeServices } from '@/ports/runtime-services';
 import {

@@ -1,6 +1,6 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const { execSync } = require('node:child_process');
 const { S3Client, PutObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 
 const BUCKET_ROOT = '/var/lib/docker/volumes/imsweb-minio_minio-data/_data/imsweb-media-local';

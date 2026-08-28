@@ -977,7 +977,7 @@ export class MemoryStoryRepository implements StoryRepository {
         if (card.image_media_revision !== input.expectedRevision) {
             return { status: 'conflict' as const, revision: card.image_media_revision };
         }
-        const ids = input.links.map((link, index) => this.nextId + index);
+        const ids = input.links.map((_link, index) => this.nextId + index);
         this.stories.push(...input.links.map((link, index): MemoryStoryRecord => ({
             ...card,
             id: ids[index]!,

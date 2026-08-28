@@ -42,7 +42,12 @@ function positiveInteger(value, name, fallback) {
     return parsed;
 }
 
-function parseArguments(argv, environment = process.env) {
+// The second parameter mirrors the shared migration-script signature used by
+// semantic-object-keys, postgres-migrations and the legacy-* importers, several
+// of which are called with an explicit environment in tests. This script reads
+// nothing from the environment, so the parameter stays for shape and is marked
+// unused rather than dropped.
+function parseArguments(argv, _environment = process.env) {
     const projectRoot = path.resolve(__dirname, '../../../..');
     const options = {
         sourceOrigin: DEFAULT_SOURCE_ORIGIN,
