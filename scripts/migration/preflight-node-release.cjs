@@ -174,7 +174,7 @@ function parseHonoLockDependencies(lockBody) {
     if (importer < 0) fail('pnpm lockfile is missing the apps/api importer');
     let dependencies = -1;
     for (let index = importer + 1; index < lines.length; index += 1) {
-        if (/^\S/.test(lines[index]) || /^  \S/.test(lines[index])) break;
+        if (/^\S/.test(lines[index]) || /^ {2}\S/.test(lines[index])) break;
         if (lines[index] === '    dependencies:') {
             dependencies = index;
             break;
@@ -184,15 +184,15 @@ function parseHonoLockDependencies(lockBody) {
 
     const result = new Map();
     for (let index = dependencies + 1; index < lines.length;) {
-        if (/^\S/.test(lines[index]) || /^    \S/.test(lines[index]) || /^  \S/.test(lines[index])) break;
+        if (/^\S/.test(lines[index]) || /^ {4}\S/.test(lines[index]) || /^ {2}\S/.test(lines[index])) break;
         if (!lines[index].trim()) {
             index += 1;
             continue;
         }
-        const dependency = lines[index].match(/^      (.+):$/);
+        const dependency = lines[index].match(/^ {6}(.+):$/);
         if (!dependency) fail(`invalid apps/api lock dependency line: ${lines[index]}`);
-        const specifier = lines[index + 1]?.match(/^        specifier: (.+)$/);
-        const version = lines[index + 2]?.match(/^        version: (.+)$/);
+        const specifier = lines[index + 1]?.match(/^ {8}specifier: (.+)$/);
+        const version = lines[index + 2]?.match(/^ {8}version: (.+)$/);
         if (!specifier || !version) fail(`incomplete apps/api lock dependency: ${dependency[1]}`);
         result.set(yamlScalar(dependency[1]), {
             specifier: yamlScalar(specifier[1]),

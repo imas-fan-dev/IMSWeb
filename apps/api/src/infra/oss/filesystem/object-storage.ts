@@ -114,7 +114,7 @@ export class FilesystemObjectStorage implements ObjectStorage {
                 body,
                 size: body.byteLength,
                 contentType: contentTypeForObject(key, filePath),
-                etag: `\"${digest}\"`,
+                etag: `"${digest}"`,
                 uploadedAt: stat.mtime
             };
         } catch (error) {
@@ -156,7 +156,7 @@ export class FilesystemObjectStorage implements ObjectStorage {
             body,
             size: body.byteLength,
             contentType: options.contentType || contentTypeForPath(filePath),
-            etag: `\"${digest}\"`,
+            etag: `"${digest}"`,
             uploadedAt: new Date()
         };
     }
