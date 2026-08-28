@@ -1,0 +1,91 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
+
+  // Biome is not part of this repository's own gates -- `pnpm run check` still
+  // owns correctness through tsc, ESLint (web), the architecture and source
+  // rule checks, and the test suites. This file exists so that agent tooling
+  // running Biome ambiently uses the repository's conventions instead of
+  // Biome's defaults, which assume double quotes and would rewrite the API
+  // workspace wholesale.
+  "vcs": { "enabled": false },
+
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/.react-router",
+      "!**/coverage",
+      "!**/playwright-report",
+      "!**/test-results",
+      "!.worktrees",
+      "!data",
+      "!apps/api/data",
+      "!apps/api/js",
+      // Prettier owns apps/web, including Tailwind class ordering through
+      // prettier-plugin-tailwindcss, which Biome cannot reproduce. Its
+      // .prettierrc also disagrees with the API on every axis that matters
+      // (no semicolons, double quotes, two-space indent), so a single Biome
+      // formatter cannot serve both workspaces.
+      "!apps/web",
+      "!pnpm-lock.yaml"
+    ]
+  },
+
+  // Deliberately off. apps/api is hand-formatted and not uniform enough for any
+  // formatter to be a no-op: line width sits at p95 = 84 with a 330-column
+  // maximum, and trailing commas appear before 685 closing brackets but not
+  // before 1780 others. Enabling a formatter here reformats the workspace
+  // rather than checking it, which is a separate decision from linting.
+  "formatter": { "enabled": false },
+
+  // Import sorting would reorder every file for the same reason.
+  "assist": { "enabled": false },
+
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        // False positive against this codebase. Every hit is a path-traversal
+        // or control-character guard such as /[\\/\0-\x1f\x7f]/, where matching
+        // control characters is the point -- the regex exists to reject them.
+        "noControlCharactersInRegex": "off",
+        // apps/api uses `any` deliberately at untyped boundaries (pg rows,
+        // multipart payloads). tsconfig strictness is the real gate.
+        "noExplicitAny": "off",
+        "noImplicitAnyLet": "off",
+        "noConfusingVoidType": "off",
+        "noAssignInExpressions": "off",
+        // Flags `array.forEach((a, i) => list.push(a, i))` because push returns
+        // a number. The code is correct; the returned value is simply unused.
+        "useIterableCallbackReturn": "off"
+      },
+      "style": {
+        // The API asserts non-null in 345 places as an established convention.
+        "noNonNullAssertion": "off",
+        "useTemplate": "off",
+        "useImportType": "off"
+      },
+      "complexity": {
+        "useOptionalChain": "off",
+        "noBannedTypes": "off"
+      }
+    }
+  },
+
+  "javascript": {
+    "formatter": {
+      // Inert while formatter.enabled is false, but recorded so that any future
+      // decision to format apps/api starts from its actual style rather than
+      // Biome's double-quote default. See AGENTS.md: four spaces, semicolons,
+      // single quotes.
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "none",
+      "indentStyle": "space",
+      "indentWidth": 4
+    }
+  }
+}
