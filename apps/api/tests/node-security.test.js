@@ -927,7 +927,7 @@ test('chronicle listings share upload formats and safely encode legacy metadata'
     );
     fs.writeFileSync(path.join(metaDir, 'legacy-xss.json'), JSON.stringify({
         records: [{
-            filename: 'legacy\"><img src=x onerror=alert(1)>.jpg',
+            filename: 'legacy"><img src=x onerror=alert(1)>.jpg',
             uploader: '<img src=x onerror=alert(1)>',
             status: 'pending'
         }]
