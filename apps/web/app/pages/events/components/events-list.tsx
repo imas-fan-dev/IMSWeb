@@ -7,7 +7,7 @@ import {
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
-import type { EventListItem } from "~/lib/api"
+import { resolveSafeMediaUrl, type EventListItem } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -23,22 +23,6 @@ function formatDate(value?: string | null) {
     : `${dateFormatter.format(date)}发布`
 }
 
-function safeImageUrl(value?: string | null) {
-  if (!value) return null
-  try {
-    const origin =
-      typeof window === "undefined"
-        ? "https://imsweb.invalid"
-        : window.location.origin
-    const url = new URL(value, origin)
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.href
-      : null
-  } catch {
-    return null
-  }
-}
-
 function contactUrl(value?: string | null) {
   const candidate = value?.trim()
   if (!candidate || !/^https?:\/\/\S+$/i.test(candidate)) return null
@@ -50,7 +34,7 @@ function contactUrl(value?: string | null) {
 }
 
 export function EventRow({ event }: { event: EventListItem }) {
-  const imageUrl = safeImageUrl(event.image_url)
+  const imageUrl = resolveSafeMediaUrl(event.image_url)
   const href = contactUrl(event.contact)
 
   return (

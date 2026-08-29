@@ -2,7 +2,7 @@ import { ArrowUpRightIcon, CalendarDaysIcon, ImageIcon } from "lucide-react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
-import type { HomeEvent, HomeNews } from "~/lib/api"
+import { resolveSafeMediaUrl, type HomeEvent, type HomeNews } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -14,22 +14,6 @@ function formatDate(value?: string | null) {
   if (!value) return "日期待定"
   const date = new Date(value)
   return Number.isNaN(date.valueOf()) ? "日期待定" : dateFormatter.format(date)
-}
-
-function safeHttpUrl(value?: string | null) {
-  if (!value) return null
-  try {
-    const origin =
-      typeof window === "undefined"
-        ? "https://imsweb.invalid"
-        : window.location.origin
-    const url = new URL(value, origin)
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.href
-      : null
-  } catch {
-    return null
-  }
 }
 
 export function HomeFeedSkeleton() {
@@ -49,7 +33,7 @@ export function HomeFeedSkeleton() {
 }
 
 export function HomeEventRow({ event }: { event: HomeEvent }) {
-  const imageUrl = safeHttpUrl(event.image_url)
+  const imageUrl = resolveSafeMediaUrl(event.image_url)
   const byline = `${event.name || "发布者未署名"} · ${formatDate(
     event.created_at
   )}`
@@ -97,8 +81,8 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
 }
 
 export function HomeNewsRow({ item }: { item: HomeNews }) {
-  const href = safeHttpUrl(item.content)
-  const thumbnail = safeHttpUrl(item.thumbnail)
+  const href = resolveSafeMediaUrl(item.content)
+  const thumbnail = resolveSafeMediaUrl(item.thumbnail)
   const content = (
     <>
       <span className="flex h-16 w-20 items-center justify-center overflow-hidden rounded-md bg-warning/14 text-warning-foreground">

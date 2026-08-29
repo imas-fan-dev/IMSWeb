@@ -13,6 +13,8 @@ import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import { Protocol } from "pmtiles"
 import { useEffect, useRef } from "react"
 
+import { resolveSiteOrigin } from "~/lib/api"
+
 import {
   applyChinaBoundaryCompliance,
   CHINA_CLAIM_BOUNDARY_LAYER_ID,
@@ -465,7 +467,7 @@ export function ExchangeOfficeMap({
         cooperativeGestures: true,
         localIdeographFontFamily,
         transformRequest: (url) => ({
-          url: resolveAllowedMapResourceUrl(url, window.location.origin),
+          url: resolveAllowedMapResourceUrl(url, resolveSiteOrigin()),
         }),
       })
     } catch (error) {
@@ -629,7 +631,7 @@ export function ExchangeOfficeMap({
     try {
       map.setStyle(styleUrl, {
         transformStyle: (_previousStyle, nextStyle) =>
-          resolveMapStyleResourceUrls(nextStyle, window.location.origin),
+          resolveMapStyleResourceUrls(nextStyle, resolveSiteOrigin()),
       })
     } catch (error) {
       reportFatalError(error)

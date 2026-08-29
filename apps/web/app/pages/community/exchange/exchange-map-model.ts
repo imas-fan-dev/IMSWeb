@@ -1,6 +1,11 @@
 import type { SourceSpecification, StyleSpecification } from "maplibre-gl"
 
-import type { FudabaMapBounds, FudabaMapOffice, FudabaSeries } from "~/lib/api"
+import {
+  API_ORIGIN,
+  type FudabaMapBounds,
+  type FudabaMapOffice,
+  type FudabaSeries,
+} from "~/lib/api"
 
 export interface MapViewportBounds {
   west: number
@@ -30,9 +35,16 @@ function parseMapResourceUrl(value: string, base?: URL) {
 function sameOriginHttpResource(value: string, currentSite: URL) {
   const resource = parseMapResourceUrl(value, currentSite)
   const isHttp = ["http:", "https:"].includes(resource.protocol)
+  // Packaged (Tauri) builds serve the app from a local scheme while map
+  // resources live on the configured API origin, so both origins are
+  // trusted here rather than only the origin the caller resolved against.
+  const trustedOrigins = new Set([currentSite.origin])
+  if (API_ORIGIN) {
+    trustedOrigins.add(API_ORIGIN)
+  }
   if (
     !isHttp ||
-    resource.origin !== currentSite.origin ||
+    !trustedOrigins.has(resource.origin) ||
     resource.username ||
     resource.password
   ) {

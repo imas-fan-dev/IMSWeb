@@ -1,7 +1,7 @@
 import { ArrowUpRightIcon, ImageIcon } from "lucide-react"
 
 import { Skeleton } from "~/components/ui/skeleton"
-import type { Recommendation } from "~/lib/api"
+import { resolveSafeMediaUrl, type Recommendation } from "~/lib/api"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -17,25 +17,9 @@ function formatDate(value?: string | null) {
     : dateFormatter.format(date)
 }
 
-function safeHttpUrl(value?: string | null) {
-  if (!value) return null
-  try {
-    const origin =
-      typeof window === "undefined"
-        ? "https://imsweb.invalid"
-        : window.location.origin
-    const url = new URL(value, origin)
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.href
-      : null
-  } catch {
-    return null
-  }
-}
-
 export function RecommendationRow({ item }: { item: Recommendation }) {
-  const href = safeHttpUrl(item.content)
-  const thumbnail = safeHttpUrl(item.thumbnail)
+  const href = resolveSafeMediaUrl(item.content)
+  const thumbnail = resolveSafeMediaUrl(item.thumbnail)
 
   const content = (
     <>
