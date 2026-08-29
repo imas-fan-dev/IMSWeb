@@ -481,6 +481,69 @@ async function assertRegistrationAndLogin(t: TestContext): Promise<void> {
     );
 }
 
+test("bearer callers get tokens from registration and login, cookie callers do not", async (t) => {
+    const fixture = await createFixture(t);
+    const bearerHeaders = { "X-IMS-Auth-Mode": "bearer" };
+    const email = "bearer-producer@example.test";
+    const code = await requestVerificationCode(fixture, email);
+
+    const register = await fixture.app.request(
+        jsonRequest(
+            "/api/platform/auth/register",
+            {
+                email,
+                displayName: "Bearer Producer",
+                password: PASSWORD,
+                code,
+            },
+            bearerHeaders,
+        ),
+    );
+    assert.equal(register.status, 201, await register.clone().text());
+    const registered = (await register.json()) as {
+        accessToken?: string;
+        refreshToken?: string;
+    };
+    assert.equal(typeof registered.accessToken, "string");
+    assert.equal(typeof registered.refreshToken, "string");
+
+    const login = await fixture.app.request(
+        jsonRequest(
+            "/api/platform/auth/login",
+            { email, password: PASSWORD },
+            bearerHeaders,
+        ),
+    );
+    assert.equal(login.status, 200, await login.clone().text());
+    const loggedIn = (await login.json()) as {
+        accessToken?: string;
+        refreshToken?: string;
+    };
+    assert.ok(loggedIn.accessToken);
+    assert.ok(loggedIn.refreshToken);
+    assert.notEqual(loggedIn.accessToken, registered.accessToken);
+
+    // The returned token is the whole session for a client without a cookie jar.
+    const session = await fixture.app.request(
+        "http://ims.test/api/platform/auth/session",
+        { headers: { Authorization: `Bearer ${loggedIn.accessToken}` } },
+    );
+    assert.equal(session.status, 200, await session.clone().text());
+
+    // The same credentials without the opt-in header keep tokens in cookies only.
+    const cookieLogin = await fixture.app.request(
+        jsonRequest("/api/platform/auth/login", { email, password: PASSWORD }),
+    );
+    assert.equal(cookieLogin.status, 200);
+    const cookieBody = (await cookieLogin.clone().json()) as Record<
+        string,
+        unknown
+    >;
+    assert.equal("accessToken" in cookieBody, false);
+    assert.equal("refreshToken" in cookieBody, false);
+    assertPlatformCookies(cookieLogin);
+});
+
 test("registration verification is hashed, cached, atomically consumed, and single use", async (t) => {
     const fixture = await createFixture(t);
     const cache = new MemoryCache();

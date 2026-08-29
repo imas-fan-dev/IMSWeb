@@ -7,7 +7,7 @@ import {
     createPlatformRefreshToken,
     hashPlatformAuthSecret,
     hasValidPlatformRefreshCsrf,
-    platformRefreshTokenCookie,
+    platformRefreshTokenFromRequest,
     platformRefreshTokenVersion,
     platformSecurityEvent,
     platformSessionPayload,
@@ -23,8 +23,9 @@ function rejectRefresh(c: Context<AppEnvironment>): Response {
 }
 
 export async function handlePlatformRefresh(c: Context<AppEnvironment>): Promise<Response> {
-    const refreshToken = platformRefreshTokenCookie(c);
-    if (!refreshToken) return rejectRefresh(c);
+    const presented = platformRefreshTokenFromRequest(c);
+    if (!presented) return rejectRefresh(c);
+    const refreshToken = presented.token;
 
     const repository = platformAccountRepository(c);
     const tokenHash = await hashPlatformAuthSecret(refreshToken);
@@ -53,7 +54,10 @@ export async function handlePlatformRefresh(c: Context<AppEnvironment>): Promise
     ) {
         return rejectRefresh(c);
     }
-    if (!await hasValidPlatformRefreshCsrf(c, session)) {
+    // Cookie-borne refresh is ambient and needs the double-submit check. A token
+    // carried in an explicit header cannot be attached by a cross-site form, so
+    // requiring CSRF there would only lock out the cookie-less packaged client.
+    if (presented.source === 'cookie' && !await hasValidPlatformRefreshCsrf(c, session)) {
         return c.json({ success: false, code: 'PLATFORM_CSRF_INVALID' }, 403);
     }
 
@@ -146,5 +150,8 @@ export async function handlePlatformRefresh(c: Context<AppEnvironment>): Promise
         refreshToken: nextRefreshToken,
         csrfSecret: nextCsrfSecret
     });
-    return c.json(await platformSessionPayload(c, identity));
+    return c.json(await platformSessionPayload(c, identity, {
+        accessToken,
+        refreshToken: nextRefreshToken
+    }));
 }

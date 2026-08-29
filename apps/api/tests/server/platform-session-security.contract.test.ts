@@ -711,6 +711,73 @@ test("Platform refresh requires cookie, header, and stored CSRF before rotating 
     assert.deepEqual(await sessionRow(fixture, session.sessionId), before);
 });
 
+test("Bearer callers refresh without cookies and only they receive tokens", async (t) => {
+    const fixture = await createFixture(t);
+    const session = await fixture.seedSession({ accountId: "platform-bearer" });
+
+    // The packaged client has no cookie jar: the refresh token travels in a
+    // header, and CSRF double-submit is neither possible nor needed there.
+    const bearer = await fixture.app.request(
+        "http://ims.test/api/platform/auth/refresh",
+        {
+            method: "POST",
+            headers: {
+                "X-IMS-Auth-Mode": "bearer",
+                "X-IMS-Refresh-Token": session.refreshToken,
+                "X-Request-ID": `request-${randomUUID()}`,
+            },
+        },
+    );
+    assert.equal(bearer.status, 200);
+    const rotated = (await bearer.json()) as {
+        success: boolean;
+        accessToken?: string;
+        refreshToken?: string;
+    };
+    assert.equal(rotated.success, true);
+    assert.equal(typeof rotated.accessToken, "string");
+    assert.equal(typeof rotated.refreshToken, "string");
+    assert.notEqual(rotated.refreshToken, session.refreshToken);
+
+    const claims = await fixture.platformTokens.verify(rotated.accessToken!);
+    assert.equal(claims.id, session.accountId);
+    assert.equal(claims.sessionId, session.sessionId);
+
+    const authorized = await fixture.app.request(
+        "http://ims.test/api/platform/auth/session",
+        { headers: { Authorization: `Bearer ${rotated.accessToken}` } },
+    );
+    assert.equal(authorized.status, 200);
+
+    // The rotated refresh token keeps working through the same header path.
+    const again = await fixture.app.request(
+        "http://ims.test/api/platform/auth/refresh",
+        {
+            method: "POST",
+            headers: {
+                "X-IMS-Auth-Mode": "bearer",
+                "X-IMS-Refresh-Token": rotated.refreshToken!,
+                "X-Request-ID": `request-${randomUUID()}`,
+            },
+        },
+    );
+    assert.equal(again.status, 200);
+
+    // Browsers never send the opt-in header, so their tokens stay in cookies.
+    const cookieSession = await fixture.seedSession({
+        accountId: "platform-cookie-only",
+    });
+    const cookieRefresh = await refreshRequest(
+        fixture,
+        cookieSession.cookies,
+        cookieSession.csrfSecret,
+    );
+    assert.equal(cookieRefresh.status, 200);
+    const cookieBody = (await cookieRefresh.json()) as Record<string, unknown>;
+    assert.equal("accessToken" in cookieBody, false);
+    assert.equal("refreshToken" in cookieBody, false);
+});
+
 async function assertRotationReplayAndLogout(
     t: TestContext,
     dialect: "postgresql",

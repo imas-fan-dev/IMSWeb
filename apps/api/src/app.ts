@@ -63,9 +63,21 @@ function allowedCorsOrigin(origin: string): string | null {
         const localHost = ["127.0.0.1", "::1", "localhost"].includes(
             parsed.hostname,
         );
-        return localHost && ["http:", "https:"].includes(parsed.protocol)
-            ? origin
-            : null;
+        if (localHost && ["http:", "https:"].includes(parsed.protocol)) {
+            return origin;
+        }
+        // The packaged mobile client. Tauri serves the bundle from a custom
+        // scheme on Apple platforms and from tauri.localhost elsewhere; neither
+        // shape matches the loopback rule above.
+        //
+        // No credentials are granted to these origins: the app authenticates
+        // with a Bearer token, so cookies never need to cross the boundary.
+        const tauriScheme =
+            parsed.protocol === "tauri:" && parsed.hostname === "localhost";
+        const tauriHost =
+            parsed.hostname === "tauri.localhost" &&
+            ["http:", "https:"].includes(parsed.protocol);
+        return tauriScheme || tauriHost ? origin : null;
     } catch {
         return null;
     }
@@ -130,8 +142,10 @@ export function createHonoApp<
         await next();
     });
 
-    // pi-lens-ignore: cors-wildcard
-    app.use("*", cors({ origin: allowedCorsOrigin }));
+    // Path-less middleware runs on every route. Origins are not wildcarded:
+    // allowedCorsOrigin echoes back only loopback and packaged-client origins,
+    // and no credentials are granted because the app carries a bearer token.
+    app.use(cors({ origin: allowedCorsOrigin }));
     app.use(
         "*",
         secureHeaders({

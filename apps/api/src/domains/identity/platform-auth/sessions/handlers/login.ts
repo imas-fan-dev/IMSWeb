@@ -164,7 +164,8 @@ export async function handlePlatformLogin(
             403,
         );
     }
-    if (!(await establishPlatformSession(c, identity))) {
+    const tokens = await establishPlatformSession(c, identity);
+    if (!tokens) {
         return c.json(
             {
                 success: false,
@@ -173,5 +174,5 @@ export async function handlePlatformLogin(
             403,
         );
     }
-    return c.json(await platformSessionPayload(c, identity));
+    return c.json(await platformSessionPayload(c, identity, tokens));
 }

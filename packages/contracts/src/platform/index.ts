@@ -39,6 +39,12 @@ export const platformProfileSchema = platformSessionProfileSchema
 export const platformSessionSchema = successEnvelope({
     account: platformAccountSchema,
     profile: platformSessionProfileSchema,
+    // Only present when the caller opted into token auth with
+    // `X-IMS-Auth-Mode: bearer`. Browser clients never ask for it, so their
+    // access token stays httpOnly and out of reach of page scripts. The
+    // packaged mobile client has no cookie jar and must carry the token itself.
+    accessToken: z.string().min(1).optional(),
+    refreshToken: z.string().min(1).optional(),
   })
   .strict()
 

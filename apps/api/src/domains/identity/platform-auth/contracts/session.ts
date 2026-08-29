@@ -17,6 +17,8 @@ import { sha256Hex } from '@/utils/crypto/sha256';
 export const PLATFORM_ACCESS_TOKEN_COOKIE = 'ims_platform_access';
 export const PLATFORM_REFRESH_TOKEN_COOKIE = 'ims_platform_refresh';
 export const PLATFORM_CSRF_TOKEN_COOKIE = 'ims_platform_csrf';
+export const PLATFORM_AUTH_MODE_HEADER = 'x-ims-auth-mode';
+export const PLATFORM_REFRESH_TOKEN_HEADER = 'x-ims-refresh-token';
 export const PLATFORM_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const PLATFORM_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const PLATFORM_REFRESH_TOKEN_TTL_MS = PLATFORM_REFRESH_TOKEN_TTL_SECONDS * 1000;
@@ -78,6 +80,28 @@ export function platformRefreshTokenCookie(
     return getCookie(c, PLATFORM_REFRESH_TOKEN_COOKIE);
 }
 
+export interface PlatformSessionTokens {
+    accessToken: string;
+    refreshToken: string;
+}
+
+// 打包后的移动端没有 cookie jar，只能自己保管令牌。浏览器客户端从不发这个头，
+// 所以它们的 access token 继续只存在于 httpOnly cookie 中。
+export function wantsPlatformBearerTokens(c: Context<AppEnvironment>): boolean {
+    return (c.req.header(PLATFORM_AUTH_MODE_HEADER) ?? '').trim().toLowerCase() === 'bearer';
+}
+
+// 刷新令牌可以来自 cookie（浏览器）或显式请求头（打包客户端）。请求头无法被跨站
+// 表单伪造，因此走请求头的调用方不需要再过 CSRF 双提交。
+export function platformRefreshTokenFromRequest(
+    c: Context<AppEnvironment>
+): { token: string; source: 'cookie' | 'header' } | null {
+    const header = c.req.header(PLATFORM_REFRESH_TOKEN_HEADER)?.trim();
+    if (header) return { token: header, source: 'header' };
+    const cookie = platformRefreshTokenCookie(c);
+    return cookie ? { token: cookie, source: 'cookie' } : null;
+}
+
 export async function hashPlatformAuthSecret(value: string): Promise<string> {
     return sha256Hex(new TextEncoder().encode(value));
 }
@@ -133,7 +157,8 @@ export function platformSecurityEvent(
 
 export async function platformSessionPayload(
     c: Context<AppEnvironment>,
-    identity: PlatformAccountWithProfile
+    identity: PlatformAccountWithProfile,
+    tokens?: PlatformSessionTokens | null
 ): Promise<PlatformSession> {
     const { account, profile } = identity;
     let avatarUrl = profile.avatar_external_url;
@@ -155,7 +180,8 @@ export async function platformSessionPayload(
             avatarUrl,
             homeCity: profile.home_city,
             bio: profile.bio
-        }
+        },
+        ...(tokens && wantsPlatformBearerTokens(c) ? tokens : {})
     };
 }
 

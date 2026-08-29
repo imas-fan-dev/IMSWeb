@@ -96,7 +96,8 @@ export async function handlePlatformRegister(
         services(c).cache,
         input.normalizedEmail,
     );
-    if (!(await establishPlatformSession(c, result.identity))) {
+    const tokens = await establishPlatformSession(c, result.identity);
+    if (!tokens) {
         return c.json(
             {
                 success: false,
@@ -105,5 +106,8 @@ export async function handlePlatformRegister(
             403,
         );
     }
-    return c.json(await platformSessionPayload(c, result.identity), 201);
+    return c.json(
+        await platformSessionPayload(c, result.identity, tokens),
+        201,
+    );
 }
