@@ -9,6 +9,11 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { NavLink, useLocation } from "react-router"
 
+import {
+  isNonScrollingAppRoute,
+  normalizeAppPathname,
+  scrollAppViewToTop,
+} from "~/lib/app-shell-scroll"
 import { cn } from "~/lib/utils"
 
 /**
@@ -58,11 +63,50 @@ function activeTabIndex(pathname: string) {
   )
 }
 
+/**
+ * Modifier clicks and non-primary buttons that the browser is expected to
+ * handle itself: open in a new tab, open in a new window, download. Mirrors
+ * React Router's own link handler so an intercepted tab still behaves like the
+ * anchor it is.
+ */
+function isModifiedEvent(event: React.MouseEvent<HTMLAnchorElement>) {
+  return event.metaKey || event.altKey || event.ctrlKey || event.shiftKey
+}
+
 export function AppTabBar() {
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const activeIndex = activeTabIndex(pathname)
+  const normalizedPathname = normalizeAppPathname(pathname)
+  const activeIndex = activeTabIndex(normalizedPathname)
   const slot = Math.max(activeIndex, 0)
+
+  /**
+   * iOS convention: tapping the tab you are already on returns the view to the
+   * top. It earns its keep on the wiki catalog, where the page's own search
+   * button owns the corner a floating back-to-top would otherwise take.
+   *
+   * Only a tap *at the tab's own root* scrolls. From somewhere deeper in the
+   * tab -- a story page under `/wiki`, say -- the link keeps navigating up to
+   * the tab root exactly as it does today, which is both the existing
+   * behaviour and the other half of the iOS convention.
+   */
+  function handleTabClick(
+    event: React.MouseEvent<HTMLAnchorElement>,
+    to: string
+  ) {
+    if (normalizedPathname !== to) return
+    if (event.defaultPrevented) return
+    if (event.button !== 0 || isModifiedEvent(event)) return
+    // No tab root is a full-height pane today, so this never fires -- it keeps
+    // "only scroll things that scroll" a rule the code enforces rather than one
+    // it happens to satisfy.
+    if (isNonScrollingAppRoute(normalizedPathname)) return
+
+    // Suppresses React Router's navigation for this click only; `Link` runs
+    // this handler first and skips its own once the event is defaulted.
+    event.preventDefault()
+    scrollAppViewToTop()
+  }
 
   // How far the lens is about to travel, in slots, so it can deform in
   // proportion to the distance rather than the same amount every time.
@@ -121,6 +165,7 @@ export function AppTabBar() {
                       : "text-muted-foreground hover:text-foreground"
                   )
                 }
+                onClick={(event) => handleTabClick(event, tab.to)}
               >
                 {({ isActive }) => (
                   <>

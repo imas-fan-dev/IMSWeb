@@ -9,6 +9,10 @@ import { BackToTop } from "~/components/shared/back-to-top"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
+import {
+  isNonScrollingAppRoute,
+  normalizeAppPathname,
+} from "~/lib/app-shell-scroll"
 import { APP_FLOATING_CONTROL_OFFSET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 
@@ -26,11 +30,10 @@ import { cn } from "~/lib/utils"
 export default function AppLayout() {
   const { t } = useTranslation()
   const location = useLocation()
-  const normalizedPathname =
-    location.pathname.length > 1
-      ? location.pathname.replace(/\/+$/, "")
-      : location.pathname
-  const isExchangeMap = normalizedPathname === "/community/exchange"
+  const normalizedPathname = normalizeAppPathname(location.pathname)
+  // Shared with the tab bar, which has to know the same thing to decide whether
+  // tapping the active tab has a "top" to scroll to. See `app-shell-scroll.ts`.
+  const isExchangeMap = isNonScrollingAppRoute(normalizedPathname)
   // The wiki catalog puts its own search button in this corner below `md`, so
   // back-to-top yields the slot exactly as it does in `public-layout.tsx`.
   // Without this the two stack on the same pixels once the search button is
