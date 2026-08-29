@@ -31,9 +31,8 @@ vi.mock("~/lib/api", async (importOriginal) => {
   }
 })
 
-const { CardInteractionBar } = await import(
-  "~/pages/community/exchange/exchange-card-interactions"
-)
+const { CardInteractionBar } =
+  await import("~/pages/community/exchange/exchange-card-interactions")
 
 const card: FudabaCard = {
   id: "card-1",
@@ -119,9 +118,7 @@ describe("CardInteractionBar", () => {
       true
     )
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "取消点赞（3）" })
-      ).toBeTruthy()
+      expect(screen.getByRole("button", { name: "取消点赞（3）" })).toBeTruthy()
     })
     expect(onChange).toHaveBeenCalledWith({
       likes: 3,

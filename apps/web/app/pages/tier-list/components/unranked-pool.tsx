@@ -52,7 +52,7 @@ export function UnrankedPool({
               ) : null
             })}
             {itemIds.length === 0 ? (
-                <p className="flex min-w-full items-center justify-center py-4 text-xs text-muted-foreground/70 md:py-7">
+              <p className="flex min-w-full items-center justify-center py-4 text-xs text-muted-foreground/70 md:py-7">
                 暂无图片 —— 点击上方「导入图片」开始
               </p>
             ) : null}

@@ -185,7 +185,10 @@ export function FavoriteCollection({ series }: { series: FudabaSeries[] }) {
                 onClick={() => void loadMore()}
               >
                 {loadingMore ? (
-                  <LoaderCircleIcon className="animate-spin" aria-hidden="true" />
+                  <LoaderCircleIcon
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : null}
                 加载更多
               </Button>

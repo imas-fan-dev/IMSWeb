@@ -371,7 +371,8 @@ export const resources = {
         },
         passwordReset: {
           codeHint: "Enter the 6-digit code from the email.",
-          deliveryHint: "The code confirms your email and expires in 15 minutes.",
+          deliveryHint:
+            "The code confirms your email and expires in 15 minutes.",
           sent: "A password reset code was sent to {{email}}.",
           complete: "Password updated. Sign in with your new password.",
           unavailable: "Password recovery is unavailable. Try again later.",

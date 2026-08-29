@@ -104,7 +104,7 @@ export function CardReactionBar({
           type="button"
           disabled={pending !== null}
           aria-label="添加表情"
-          className="hover:bg-accent inline-flex size-7 items-center justify-center rounded-full"
+          className="inline-flex size-7 items-center justify-center rounded-full hover:bg-accent"
         >
           <SmilePlusIcon className="size-4" aria-hidden="true" />
         </PopoverTrigger>
@@ -115,7 +115,7 @@ export function CardReactionBar({
                 key={emoji}
                 type="button"
                 aria-label={`用 ${emoji} 回应`}
-                className="hover:bg-accent rounded-sm p-1 text-base"
+                className="rounded-sm p-1 text-base hover:bg-accent"
                 onClick={() => {
                   setPicking(false)
                   void react(emoji, true)

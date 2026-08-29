@@ -35,16 +35,15 @@ describe("community API contracts", () => {
   })
 
   it("sends only the descriptive fields a guest filled in", async () => {
-    const fetchMock = vi.fn(
-      (_input: RequestInfo | URL, init?: RequestInit) =>
-        Promise.resolve(
-          Response.json({
-            msg: "已提交审核",
-            submission: { id: 20, status: "pending", revision: 0 },
-            withdrawalToken: "b".repeat(43),
-            init,
-          })
-        )
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve(
+        Response.json({
+          msg: "已提交审核",
+          submission: { id: 20, status: "pending", revision: 0 },
+          withdrawalToken: "b".repeat(43),
+          init,
+        })
+      )
     )
     vi.stubGlobal("fetch", fetchMock)
 

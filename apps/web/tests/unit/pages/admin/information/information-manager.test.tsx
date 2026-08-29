@@ -135,7 +135,9 @@ describe("InformationManager", () => {
     expect(savedPayload.html).not.toContain("data-information-body-asset")
 
     await act(async () => {
-      resolveSave(jsonResponse({ success: true, card: informationPayload.cards[0] }))
+      resolveSave(
+        jsonResponse({ success: true, card: informationPayload.cards[0] })
+      )
       await saveResponse
     })
 
@@ -154,7 +156,9 @@ describe("InformationManager", () => {
         const method =
           input instanceof Request ? input.method : (init?.method ?? "GET")
         if (method === "PUT") {
-          return Promise.resolve(jsonResponse({ success: true, card: informationPayload.cards[0] }))
+          return Promise.resolve(
+            jsonResponse({ success: true, card: informationPayload.cards[0] })
+          )
         }
         informationLoads += 1
         if (informationLoads === 1) {

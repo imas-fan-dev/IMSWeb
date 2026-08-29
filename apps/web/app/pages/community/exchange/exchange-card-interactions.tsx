@@ -68,7 +68,10 @@ function serverState(interactions: FudabaCardInteractions): string {
  */
 export function CardInteractionBar(props: CardInteractionBarProps) {
   return (
-    <InteractionControls key={serverState(props.card.interactions)} {...props} />
+    <InteractionControls
+      key={serverState(props.card.interactions)}
+      {...props}
+    />
   )
 }
 
@@ -86,12 +89,18 @@ function InteractionControls({
   async function toggle(kind: FudabaCardInteractionKind) {
     if (pending) return
     const active =
-      kind === "like" ? !interactions.viewerLiked : !interactions.viewerFavorited
+      kind === "like"
+        ? !interactions.viewerLiked
+        : !interactions.viewerFavorited
     const previous = interactions
     setInteractions(nextInteractions(previous, kind, active))
     setPending(kind)
     try {
-      const result = await setFudabaCardInteraction(card.id, kind, active).send()
+      const result = await setFudabaCardInteraction(
+        card.id,
+        kind,
+        active
+      ).send()
       setInteractions(result.interactions)
       onChange?.(result.interactions)
     } catch (error) {
@@ -115,7 +124,10 @@ function InteractionControls({
           aria-label={`${interactions.likes} 次点赞`}
         >
           <HeartIcon
-            className={cn("size-3.5", interactions.viewerLiked && "fill-current")}
+            className={cn(
+              "size-3.5",
+              interactions.viewerLiked && "fill-current"
+            )}
             aria-hidden="true"
           />
           {interactions.likes}

@@ -378,9 +378,7 @@ export function setFudabaCardInteraction(
 ) {
   const card = ownerCardIdSchema.parse(cardId)
   const interaction = fudabaCardInteractionKindSchema.parse(kind)
-  const path = exchangePath(
-    `/cards/${encodeURIComponent(card)}/${interaction}`
-  )
+  const path = exchangePath(`/cards/${encodeURIComponent(card)}/${interaction}`)
   const response = parsed(fudabaCardInteractionResponseSchema, {
     meta: withPlatformCsrf(),
   })

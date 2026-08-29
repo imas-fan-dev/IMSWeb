@@ -45,9 +45,7 @@ export const CHINA_DASH_FILL_LAYER_ID = "boundary_china_dash_fill"
 export const CHINA_DASH_LINE_LAYER_ID = "boundary_china_dash_line"
 
 /** 南海断续线资产路径，必须同源。 */
-export const CHINA_DASH_SOURCE_URL = mapsPath(
-  "/china-boundary-dashes.json",
-)
+export const CHINA_DASH_SOURCE_URL = mapsPath("/china-boundary-dashes.json")
 
 /** 台湾省级注记插入位置：与其余注记同层级，位于国家注记之下。 */
 const TAIWAN_LABEL_ANCHOR_LAYER_ID = "label_country_3"

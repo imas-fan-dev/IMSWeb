@@ -262,9 +262,7 @@ describe("CommunityExchangeMePage", () => {
     })
     expect(await screen.findByText("制作人资料已保存。")).toBeVisible()
 
-    await user.click(
-      screen.getByRole("link", { name: "交换名片" })
-    )
+    await user.click(screen.getByRole("link", { name: "交换名片" }))
     expect(screen.getByText("素材已核准")).toBeVisible()
     expect(screen.getAllByText("草稿")).toHaveLength(2)
     expect(
@@ -300,9 +298,7 @@ describe("CommunityExchangeMePage", () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(
-      await screen.findByRole("link", { name: "交换名片" })
-    )
+    await user.click(await screen.findByRole("link", { name: "交换名片" }))
     const cardName = await screen.findByRole("textbox", { name: "名片标题" })
     await user.clear(cardName)
     await user.type(cardName, "仍需保留的输入")
@@ -320,9 +316,7 @@ describe("CommunityExchangeMePage", () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(
-      await screen.findByRole("link", { name: "交换名片" })
-    )
+    await user.click(await screen.findByRole("link", { name: "交换名片" }))
     const cardName = await screen.findByRole("textbox", { name: "名片标题" })
     await user.type(cardName, "新交换名片")
     await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
@@ -376,9 +370,7 @@ describe("CommunityExchangeMePage", () => {
 
     expect(await screen.findByText("帐号受限")).toBeVisible()
     expect(screen.getByRole("textbox", { name: "显示名称" })).toBeDisabled()
-    await user.click(
-      screen.getByRole("link", { name: "交换名片" })
-    )
+    await user.click(screen.getByRole("link", { name: "交换名片" }))
     expect(screen.getByRole("textbox", { name: "名片标题" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "新建名片" })).toBeDisabled()
     expect(screen.getByText("周末交换名片")).toBeVisible()

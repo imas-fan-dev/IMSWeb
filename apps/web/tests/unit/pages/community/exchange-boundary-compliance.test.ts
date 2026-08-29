@@ -196,7 +196,9 @@ describe("台湾按省级表示", () => {
   const filter = withoutTaiwanCountryLabel(originalCountryLabel)
 
   it("不再把台湾渲染为国家注记", () => {
-    expect(matches(originalCountryLabel, observed.taiwanCountryLabel)).toBe(true)
+    expect(matches(originalCountryLabel, observed.taiwanCountryLabel)).toBe(
+      true
+    )
     expect(matches(filter, observed.taiwanCountryLabel)).toBe(false)
   })
 
@@ -230,7 +232,9 @@ describe("国界实线修正", () => {
   })
 
   it("台海主线本就因 maritime=1 不渲染，修正后仍不渲染", () => {
-    expect(matches(originalBoundary2, observed.taiwanStraitMaritime)).toBe(false)
+    expect(matches(originalBoundary2, observed.taiwanStraitMaritime)).toBe(
+      false
+    )
     expect(matches(filter, observed.taiwanStraitMaritime)).toBe(false)
   })
 
@@ -303,8 +307,9 @@ describe("南海断续线", () => {
 
   it("南端绘至曾母暗沙以南", async () => {
     const asset = await readDashAsset()
-    const latitudes = asset.features[0].geometry.coordinates.flatMap((polygon) =>
-      polygon.flatMap((ring) => ring.map(([, latitude]) => latitude))
+    const latitudes = asset.features[0].geometry.coordinates.flatMap(
+      (polygon) =>
+        polygon.flatMap((ring) => ring.map(([, latitude]) => latitude))
     )
     // 曾母暗沙约 3.58°N；《公开地图内容表示规范》第五条要求中国全图南边绘出其以南。
     expect(Math.min(...latitudes)).toBeLessThan(3.58)
@@ -337,16 +342,16 @@ describe("争议线图层排除重复与他国主张", () => {
   const filter = withoutForeignClaimOverChina(originalBoundaryDisputed)
 
   it("中国主张线不再重复绘制为虚线", () => {
-    expect(matches(originalBoundaryDisputed, observed.chineseClaimArunachal)).toBe(
-      true
-    )
+    expect(
+      matches(originalBoundaryDisputed, observed.chineseClaimArunachal)
+    ).toBe(true)
     expect(matches(filter, observed.chineseClaimArunachal)).toBe(false)
   })
 
   it("印度主张线不再绘制", () => {
-    expect(matches(originalBoundaryDisputed, observed.indianClaimChinaIndia)).toBe(
-      true
-    )
+    expect(
+      matches(originalBoundaryDisputed, observed.indianClaimChinaIndia)
+    ).toBe(true)
     expect(matches(filter, observed.indianClaimChinaIndia)).toBe(false)
     expect(matches(filter, observed.indianClaimLac)).toBe(false)
   })
