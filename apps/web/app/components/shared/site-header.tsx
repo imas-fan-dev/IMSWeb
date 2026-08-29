@@ -42,7 +42,7 @@ function useHydrated() {
 
 function desktopLinkClass({ isActive }: { isActive: boolean }) {
   return cn(
-    "relative z-10 flex h-9 flex-1 items-center justify-center rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors duration-(--duration-fast)",
+    "glass-tab relative z-10 flex h-9 flex-1 items-center justify-center rounded-full px-3 text-sm font-medium whitespace-nowrap",
     isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
   )
 }
@@ -64,8 +64,21 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const navigationIndex = activeNavigationIndex(pathname)
+  const navigationSlot = Math.max(navigationIndex, 0)
   const hydrated = useHydrated()
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+
+  // Same travelling-lens contract as the app tab bar: the slot distance of the
+  // pending move, derived during render, so the lens deforms in proportion to
+  // how far it goes. Six entries here rather than five, so the widest jump is
+  // five slots; the amplitude is clamped in CSS to keep the website restrained.
+  const [travel, setTravel] = useState({ slot: navigationSlot, distance: 0 })
+  if (travel.slot !== navigationSlot) {
+    setTravel({
+      slot: navigationSlot,
+      distance: Math.abs(navigationSlot - travel.slot),
+    })
+  }
 
   return (
     <header className="glass-surface glass-bar glass-scroll-bar glass-refract glass-sheen sticky top-0 z-40">
@@ -100,15 +113,21 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
             className="glass-surface glass-quiet glass-sheen relative flex items-stretch rounded-full p-1 ring-1 ring-foreground/10"
             style={
               {
-                "--nav-index": Math.max(navigationIndex, 0),
+                "--nav-index": navigationSlot,
+                "--glass-lens-travel": travel.distance,
               } as React.CSSProperties
             }
           >
             <span
               aria-hidden="true"
               data-visible={navigationIndex >= 0 ? "true" : undefined}
-              className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/6)] translate-x-[calc(var(--nav-index)*100%)] rounded-full bg-foreground/8 opacity-0 ring-1 ring-foreground/10 transition-[transform,opacity] duration-(--duration-ui) ease-emphasized data-visible:opacity-100 motion-reduce:transition-none"
-            />
+              className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/6)] translate-x-[calc(var(--nav-index)*100%)] opacity-0 data-visible:opacity-100"
+            >
+              <span
+                key={travel.slot}
+                className="glass-lens-skin block size-full rounded-full bg-foreground/8 ring-1 ring-foreground/10"
+              />
+            </span>
             {navigation.map((item) => (
               <NavLink
                 key={item.to}

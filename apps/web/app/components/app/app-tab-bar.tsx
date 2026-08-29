@@ -5,6 +5,7 @@ import {
   HouseIcon,
   UsersIcon,
 } from "lucide-react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { NavLink, useLocation } from "react-router"
 
@@ -61,6 +62,17 @@ export function AppTabBar() {
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const activeIndex = activeTabIndex(pathname)
+  const slot = Math.max(activeIndex, 0)
+
+  // How far the lens is about to travel, in slots, so it can deform in
+  // proportion to the distance rather than the same amount every time.
+  // Derived from the previous slot during render: one extra render per
+  // navigation, no layout read, and nothing running per frame. Distance is 0
+  // on first paint, which holds the deformation keyframes at identity.
+  const [travel, setTravel] = useState({ slot, distance: 0 })
+  if (travel.slot !== slot) {
+    setTravel({ slot, distance: Math.abs(slot - travel.slot) })
+  }
 
   return (
     <nav
@@ -73,17 +85,27 @@ export function AppTabBar() {
       <div
         className="glass-surface glass-bar glass-refract glass-sheen pointer-events-auto relative w-full max-w-sm rounded-full p-1 shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
         style={
-          { "--tab-index": Math.max(activeIndex, 0) } as React.CSSProperties
+          {
+            "--tab-index": slot,
+            "--glass-lens-travel": travel.distance,
+          } as React.CSSProperties
         }
       >
-        {/* The lens that tracks the active tab. Transform-only so it composites
-            on the GPU: animating width or the blur radius would repaint the
-            whole translucent surface every frame. */}
+        {/* The lens that tracks the active tab. Translate and scale only, so it
+            composites on the GPU: animating width or the blur radius would
+            repaint the whole translucent surface every frame. The skin is keyed
+            by slot so React remounts it on each switch, which replays the
+            squash-and-stretch without interrupting the travel underneath. */}
         <span
           aria-hidden="true"
           data-visible={activeIndex >= 0 ? "true" : undefined}
-          className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/5)] translate-x-[calc(var(--tab-index)*100%)] rounded-full bg-foreground/8 opacity-0 ring-1 ring-foreground/10 transition-[transform,opacity] duration-(--duration-ui) ease-emphasized data-visible:opacity-100 motion-reduce:transition-none"
-        />
+          className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/5)] translate-x-[calc(var(--tab-index)*100%)] opacity-0 data-visible:opacity-100"
+        >
+          <span
+            key={travel.slot}
+            className="glass-lens-skin block size-full rounded-full bg-foreground/8 ring-1 ring-foreground/10"
+          />
+        </span>
 
         <ul className="relative flex items-stretch">
           {tabs.map((tab) => (
@@ -93,7 +115,7 @@ export function AppTabBar() {
                 end={"end" in tab ? tab.end : false}
                 className={({ isActive }) =>
                   cn(
-                    "flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem] transition-colors duration-(--duration-fast)",
+                    "glass-tab flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem]",
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground hover:text-foreground"
@@ -104,6 +126,7 @@ export function AppTabBar() {
                   <>
                     <tab.icon
                       aria-hidden="true"
+                      data-glass-tab-icon=""
                       className={cn("size-5", isActive && "fill-primary/15")}
                     />
                     <span>{t(tab.label)}</span>

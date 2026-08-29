@@ -141,6 +141,18 @@ components:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.full}"
+  glass-lens:
+    backgroundColor: "{colors.muted}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.full}"
+  glass-lens-skin:
+    backgroundColor: "{colors.muted}"
+    rounded: "{rounded.full}"
+  glass-tab:
+    backgroundColor: "{colors.background}"
+    textColor: "{colors.muted-foreground}"
+    typography: "{typography.label}"
+    rounded: "{rounded.full}"
   admin-navigation:
     backgroundColor: "{colors.admin-ink}"
     textColor: "{colors.on-admin-ink}"
@@ -301,6 +313,11 @@ glass-accent:      当前系列色，大表面 4%、面板与控件 7%
 `forced-colors: active` 时改用系统边框，不支持 `backdrop-filter` 的浏览器保留半透明底色与
 内描边。任何情况下文字对比度都不得低于无障碍要求。
 
+舌片导航使用**单枚透镜**：一枚药丸在条目之间滑动，而不是每个条目各画一块背景。透镜拆成两层，
+`glass-lens` 负责位置，只过渡 `translate`；`glass-lens-skin` 负责材质，在每次切换时重放形变关键帧。
+条目本身是 `glass-tab`，按下时缩放到 `--glass-tab-press`。App 底栏与网站顶栏共用这三个类，
+因此两处是同一个控件的两种尺寸，不是两套实现。
+
 仍然禁止：渐变光球、散景、多色霓虹背景、渐变文字，以及没有信息作用的插画。
 
 ## Motion
@@ -326,6 +343,15 @@ glass-accent:      当前系列色，大表面 4%、面板与控件 7%
 ```
 
 交互反馈统一使用 `--duration-fast`；后台列表不使用逐项 stagger 入场，避免翻页后等待数据浮现。
+
+导航透镜的形变遵循**行程越长、拉伸越大**：切换时把跨越的格数写进 `--glass-lens-travel`，
+形变幅度由 `clamp(0, 0.07 * 格数, 0.22)` 得出，相邻切换约拉伸 7%，横跨整条约 22%。形变只用
+`transform` 的 `scaleX`/`scaleY`，绝不动 `width`、`height` 或 `backdrop-filter` 的模糊半径——
+每帧重新模糊半透明表面是低端 WebView 掉帧最可靠的来源。首屏没有上一个格位，行程为 0，
+关键帧退化为恒等变换，因此加载时不会自己弹一下。
+
+`prefers-reduced-motion` 启用时，透镜的位移过渡、形变动画、图标回弹与按下缩放全部取消，
+切换变成一次即时状态改变。
 
 ## Shapes
 

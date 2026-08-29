@@ -454,6 +454,113 @@
         var(--glass-scroll-progress)
     );
   }
+
+  /*
+   * Travelling lens: one pill that moves between navigation entries instead of
+   * a background painted per entry. Shared by the app tab bar and the website
+   * header so both read as the same control at two sizes.
+   *
+   * Split over two elements on purpose. The outer .glass-lens owns position and
+   * transitions `translate`, so the travel itself is never interrupted; the
+   * inner .glass-lens-skin owns the material and replays a squash-and-stretch
+   * keyframe on every switch. Keying the skin by the active slot makes React
+   * remount it, which restarts the animation cleanly and avoids the usual
+   * force-a-reflow hack.
+   *
+   * `translate`, not `transform`: Tailwind v4 emits translate-x-* as the
+   * independent `translate` property, so a transition naming `transform` here
+   * silently never fires and the lens snaps between slots.
+   */
+  .glass-lens {
+    transition:
+      translate var(--duration-ui) var(--ease-emphasized),
+      opacity var(--duration-fast) var(--ease-ui);
+  }
+
+  /*
+   * Deformation amplitude rides the distance travelled, so a step to the
+   * neighbour barely pulls while a jump across the bar stretches hard.
+   * --glass-lens-travel is that distance in slots, written once per navigation
+   * during render and never per frame. It defaults to 0, which collapses every
+   * keyframe to the identity transform, so a first paint stays still.
+   */
+  .glass-lens-skin {
+    --glass-lens-stretch: clamp(0, 0.07 * var(--glass-lens-travel, 0), 0.22);
+    transform-origin: center;
+    animation: glass-lens-travel var(--duration-ui) var(--ease-emphasized);
+  }
+
+  /*
+   * Pressable navigation entry. Colour and press share one --duration-fast
+   * budget, and the press is a transform so it composites instead of relighting
+   * the glass underneath it.
+   */
+  .glass-tab {
+    --glass-tab-press: 0.95;
+    transition:
+      color var(--duration-fast) var(--ease-interactive),
+      transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-tab:active {
+    transform: scale(var(--glass-tab-press));
+  }
+
+  /*
+   * The icon of the entry that just became active dips, overshoots, and settles.
+   * The outgoing entry loses the animation, which restores its base transform;
+   * the transition below eases that back to rest rather than snapping it.
+   * Text-only entries carry no marked icon, so the website header gets the lens
+   * and the press without a second thing moving.
+   */
+  .glass-tab [data-glass-tab-icon] {
+    transform-origin: center;
+    transition: transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-tab[aria-current="page"] [data-glass-tab-icon] {
+    animation: glass-tab-settle var(--duration-ui) var(--ease-interactive);
+  }
+}
+
+/*
+ * Squash and stretch along the direction of travel. Both axes are pure scale on
+ * a transform, so this composites; width, height and the blur radius are left
+ * alone deliberately, because re-blurring a translucent surface every frame is
+ * what drops frames on low-end WebViews.
+ */
+@keyframes glass-lens-travel {
+  0% {
+    transform: scaleX(1) scaleY(1);
+  }
+
+  28% {
+    transform: scaleX(calc(1 + var(--glass-lens-stretch)))
+      scaleY(calc(1 - var(--glass-lens-stretch) * 0.5));
+  }
+
+  64% {
+    transform: scaleX(calc(1 - var(--glass-lens-stretch) * 0.28))
+      scaleY(calc(1 + var(--glass-lens-stretch) * 0.2));
+  }
+
+  100% {
+    transform: scaleX(1) scaleY(1);
+  }
+}
+
+@keyframes glass-tab-settle {
+  0% {
+    transform: scale(0.86);
+  }
+
+  55% {
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 /*
@@ -589,6 +696,26 @@
 
     .glass-sheen::after {
       transition: none;
+    }
+
+    /*
+     * Navigation motion collapses to an instant state change: the lens is
+     * already at the new slot on the first frame, nothing deforms, and a press
+     * reports itself through colour alone.
+     */
+    .glass-lens,
+    .glass-tab,
+    .glass-tab [data-glass-tab-icon] {
+      transition: none;
+    }
+
+    .glass-lens-skin,
+    .glass-tab[aria-current="page"] [data-glass-tab-icon] {
+      animation: none;
+    }
+
+    .glass-tab:active {
+      transform: none;
     }
   }
 }
