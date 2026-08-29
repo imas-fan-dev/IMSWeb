@@ -62,6 +62,7 @@ __pycache__/
 # Mutable application data (back up and migrate outside Git)
 data/**
 !data/.gitignore
+apps/*/data/
 **/public/uploads/
 **/public/Data/
 **/public/assets/images/eventchronicle/events/upload/
