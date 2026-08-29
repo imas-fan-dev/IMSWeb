@@ -506,6 +506,15 @@ test("bearer callers get tokens from registration and login, cookie callers do n
     };
     assert.equal(typeof registered.accessToken, "string");
     assert.equal(typeof registered.refreshToken, "string");
+    // The session record also holds a CSRF secret and a session id; neither may
+    // ride along in a response body.
+    assert.deepEqual(Object.keys(registered).sort(), [
+        "accessToken",
+        "account",
+        "profile",
+        "refreshToken",
+        "success",
+    ]);
 
     const login = await fixture.app.request(
         jsonRequest(
@@ -522,6 +531,13 @@ test("bearer callers get tokens from registration and login, cookie callers do n
     assert.ok(loggedIn.accessToken);
     assert.ok(loggedIn.refreshToken);
     assert.notEqual(loggedIn.accessToken, registered.accessToken);
+    assert.deepEqual(Object.keys(loggedIn).sort(), [
+        "accessToken",
+        "account",
+        "profile",
+        "refreshToken",
+        "success",
+    ]);
 
     // The returned token is the whole session for a client without a cookie jar.
     const session = await fixture.app.request(

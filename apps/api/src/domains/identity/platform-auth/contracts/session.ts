@@ -181,7 +181,15 @@ export async function platformSessionPayload(
             homeCity: profile.home_city,
             bio: profile.bio
         },
-        ...(tokens && wantsPlatformBearerTokens(c) ? tokens : {})
+        // Pick the two fields explicitly: callers hand over the whole result of
+        // establishPlatformSession, whose csrfSecret and sessionId must never
+        // reach a response body.
+        ...(tokens && wantsPlatformBearerTokens(c)
+            ? {
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken
+            }
+            : {})
     };
 }
 
