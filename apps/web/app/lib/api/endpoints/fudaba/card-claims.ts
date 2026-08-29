@@ -1,4 +1,8 @@
 import { adminExchangePath, exchangePath } from "@imsweb/contracts/paths"
+import {
+  normalizeFudabaAdminCardClaimList,
+  normalizeFudabaRegisteredCardReviewList,
+} from "../../media-urls"
 import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import { platformApiClient } from "../../platform-client"
@@ -75,6 +79,7 @@ export function getAdminFudabaCardReviews() {
     adminExchangePath("/card-reviews"),
     parsed(registeredCardReviewListSchema, {
       meta: withBackofficeAuth(),
+      select: normalizeFudabaRegisteredCardReviewList,
     })
   )
 }
@@ -101,6 +106,7 @@ export function getAdminFudabaCardClaims() {
     adminExchangePath("/card-claims"),
     parsed(adminCardClaimListSchema, {
       meta: withBackofficeAuth(),
+      select: normalizeFudabaAdminCardClaimList,
     })
   )
 }

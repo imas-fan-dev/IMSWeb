@@ -5,6 +5,10 @@ import {
   NO_CLIENT_CACHE,
   PUBLIC_CACHE_INVALIDATION_SOURCE,
 } from "../cache-policy"
+import {
+  normalizeNamecardPage,
+  normalizeNamecardSubmissionEnvelope,
+} from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
@@ -74,6 +78,7 @@ export function getNamecardPage(page = 1, size = 12) {
       cacheFor: NO_CLIENT_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
       params: { page, size },
+      select: normalizeNamecardPage,
     })
   )
 }
@@ -127,7 +132,9 @@ export function uploadNamecard(
   return apiClient.Post(
     apiPath("/uploadNameCard"),
     form,
-    parsed(uploadNamecardResponseSchema)
+    parsed(uploadNamecardResponseSchema, {
+      select: normalizeNamecardSubmissionEnvelope,
+    })
   )
 }
 
@@ -136,6 +143,7 @@ export function getNamecardSubmission(id: number, withdrawalToken: string) {
     apiPath(`/namecards/submissions/${id}`),
     parsed(namecardSubmissionResponseSchema, {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+      select: normalizeNamecardSubmissionEnvelope,
     })
   )
 }
@@ -150,6 +158,7 @@ export function withdrawNamecardSubmission(
     { expected_revision: expectedRevision },
     parsed(withdrawNamecardResponseSchema, {
       headers: { "X-Namecard-Withdrawal-Token": withdrawalToken },
+      select: normalizeNamecardSubmissionEnvelope,
     })
   )
 }

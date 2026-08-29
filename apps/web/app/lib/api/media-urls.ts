@@ -60,6 +60,15 @@ import type {
   FudabaSeriesList,
 } from "@imsweb/contracts/fudaba"
 import type {
+  FudabaAdminCardClaim,
+  FudabaRegisteredCardReview,
+} from "@imsweb/contracts/fudaba/card-claims"
+import type {
+  Namecard,
+  NamecardPage,
+  NamecardSubmission,
+} from "@imsweb/contracts/namecards"
+import type {
   PlatformProfileMutationResponse,
   PlatformProfileResponse,
   PlatformSession,
@@ -354,6 +363,107 @@ export function normalizeFudabaOfficeMutation(
   response: FudabaOfficeMutationResponse
 ): FudabaOfficeMutationResponse {
   return { ...response, office: fudabaOwnerOffice(response.office) }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Fudaba moderation queues                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The registered-card review queue overwrites the owner card's two media URLs
+ * with `adminExchangePath('/card-reviews/<id>/media/front?v=<rev>')`, so they
+ * are root-relative regardless of how object storage is configured — the media
+ * is still unpublished at review time and only the admin route can read it.
+ *
+ * `owner.displayName` and the claim's own fields carry no media.
+ */
+export function normalizeFudabaRegisteredCardReviewList<
+  T extends { items: FudabaRegisteredCardReview[] },
+>(response: T): T {
+  return {
+    ...response,
+    items: response.items.map((item) => ({
+      ...item,
+      card: fudabaOwnerCard(item.card),
+    })),
+  }
+}
+
+/**
+ * The claim queue reads `legacyCard` straight from the namecards table, so
+ * those are the same `/uploads/namecard/original/...` paths the community grid
+ * serves — and unlike the grid they skip `resolvePublicMediaUrl` entirely, so
+ * they are always root-relative.
+ */
+export function normalizeFudabaAdminCardClaimList<
+  T extends { items: FudabaAdminCardClaim[] },
+>(response: T): T {
+  return {
+    ...response,
+    items: response.items.map((item) => ({
+      ...item,
+      legacyCard: {
+        ...item.legacyCard,
+        frontImageUrl: apiMediaUrl(item.legacyCard.frontImageUrl),
+        backImageUrl: apiMediaUrl(item.legacyCard.backImageUrl),
+      },
+    })),
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Namecards (community grid and submissions)                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The public grid runs every image through `resolvePublicMediaUrl`, which
+ * hands back an absolute object-storage URL when a public read URL is
+ * configured and leaves the `/uploads/namecard/...` path untouched when it is
+ * not. Both shapes therefore appear under the same field names, which is the
+ * asymmetry `apiMediaUrl` already absorbs for fudaba.
+ */
+function namecard(card: Namecard): Namecard {
+  return {
+    ...card,
+    image1_url: apiMediaUrl(card.image1_url),
+    image2_url: apiMediaUrl(card.image2_url),
+    image1_thumbnail_url: apiMediaUrl(card.image1_thumbnail_url),
+    image2_thumbnail_url: apiMediaUrl(card.image2_thumbnail_url),
+  }
+}
+
+export function normalizeNamecardPage(page: NamecardPage): NamecardPage {
+  return { ...page, list: page.list.map(namecard) }
+}
+
+/**
+ * Submission payloads never reach `resolvePublicMediaUrl` — a pending card's
+ * media is not published yet — so they are always root-relative.
+ *
+ * The contract types both images `.optional()`, so an absent key has to stay
+ * absent rather than reappear as an explicit `undefined`.
+ */
+function namecardSubmission(
+  submission: NamecardSubmission
+): NamecardSubmission {
+  const resolved: NamecardSubmission = { ...submission }
+  if (resolved.image1_url !== undefined) {
+    resolved.image1_url = apiMediaUrl(resolved.image1_url)
+  }
+  if (resolved.image2_url !== undefined) {
+    resolved.image2_url = apiMediaUrl(resolved.image2_url)
+  }
+  return resolved
+}
+
+/**
+ * Shared by the upload receipt, the submission lookup and the withdrawal
+ * response: all three wrap the same submission in a different envelope.
+ */
+export function normalizeNamecardSubmissionEnvelope<
+  T extends { submission: NamecardSubmission },
+>(response: T): T {
+  return { ...response, submission: namecardSubmission(response.submission) }
 }
 
 /* -------------------------------------------------------------------------- */

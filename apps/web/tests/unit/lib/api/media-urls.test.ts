@@ -10,9 +10,13 @@ import type {
   FudabaOffice,
   FudabaOfficeDetail,
   FudabaOfficePage,
+  FudabaAdminCardClaim,
   FudabaOwnerCardList,
   FudabaOwnerOfficeList,
+  FudabaRegisteredCardReview,
   FudabaSeriesList,
+  NamecardPage,
+  NamecardSubmission,
   PlatformProfileResponse,
   PlatformSession,
   ProducerMapContent,
@@ -282,6 +286,128 @@ const ownerOfficeList: FudabaOwnerOfficeList = {
   ],
 }
 
+// The review queue overwrites the owner card's media URLs with an admin route,
+// so they arrive root-relative even when object storage is configured.
+const registeredCardReviews: { items: FudabaRegisteredCardReview[] } = {
+  items: [
+    {
+      card: {
+        id: "card-9",
+        producerName: "P",
+        displayName: "待审名片",
+        seriesCode: "765",
+        favoriteIdol: "春香",
+        favoriteIdols: [],
+        frontImageUrl: "/api/admin/exchange/card-reviews/card-9/media/front?v=1",
+        backImageUrl: "/api/admin/exchange/card-reviews/card-9/media/back?v=1",
+        accent: "#f54798",
+        bio: "",
+        tradeNote: "",
+        available: true,
+        mediaRightsStatus: "approved",
+        publicationStatus: "pending",
+        revision: 1,
+        createdAt: "2026-01-01T00:00:00+08:00",
+        updatedAt: "2026-01-02T00:00:00+08:00",
+      },
+      owner: { id: "acct-1", displayName: "制作人" },
+    },
+  ],
+}
+
+// legacyCard comes straight out of the namecards table and skips the API's
+// public-media resolution, so it is always root-relative.
+const adminCardClaims: { items: FudabaAdminCardClaim[] } = {
+  items: [
+    {
+      id: "claim-1",
+      legacyCardId: 42,
+      targetCardId: null,
+      seriesCode: "765",
+      favoriteIdols: [],
+      state: "pending",
+      message: "",
+      reviewNote: "",
+      revision: 0,
+      createdAt: "2026-01-01T00:00:00+08:00",
+      updatedAt: "2026-01-01T00:00:00+08:00",
+      reviewedAt: null,
+      claimant: { id: "acct-1", displayName: "制作人" },
+      legacyCard: {
+        id: 42,
+        frontImageUrl: "/uploads/namecard/original/abc.webp",
+        backImageUrl: "/uploads/namecard/original/def.webp",
+      },
+    },
+  ],
+}
+
+// The grid's images pass through resolvePublicMediaUrl, which leaves the path
+// alone on local disk and returns an absolute object-storage URL otherwise.
+const namecardPage: NamecardPage = {
+  list: [
+    {
+      id: 1,
+      seriesCode: "765",
+      favoriteIdols: [],
+      claimStatus: "unclaimed",
+      viewerClaimState: null,
+      image1_url: "/uploads/namecard/original/abc.webp",
+      image2_url: "/uploads/namecard/original/def.webp",
+      image1_thumbnail_url: "/uploads/namecard/thumbnail/abc.webp.jpg",
+      image2_thumbnail_url: "/uploads/namecard/thumbnail/def.webp.jpg",
+      status: "approved",
+      created_at: "2026-01-01T00:00:00+08:00",
+    },
+    {
+      id: 2,
+      seriesCode: null,
+      favoriteIdols: [],
+      claimStatus: "unclaimed",
+      viewerClaimState: null,
+      image1_url: "https://objects.example.com/namecards/2-front.webp",
+      image2_url: "https://objects.example.com/namecards/2-back.webp",
+      image1_thumbnail_url: "https://objects.example.com/namecards/2-front.jpg",
+      image2_thumbnail_url: "https://objects.example.com/namecards/2-back.jpg",
+      status: "approved",
+      created_at: null,
+    },
+  ],
+  total: 2,
+  totalPage: 1,
+}
+
+const namecardSubmission: { submission: NamecardSubmission } = {
+  submission: {
+    id: 7,
+    seriesCode: "765",
+    favoriteIdols: [],
+    claimStatus: "unclaimed",
+    viewerClaimState: null,
+    status: "pending",
+    revision: 0,
+    image1_url: "/uploads/namecard/original/ghi.webp",
+    image2_url: "/uploads/namecard/original/jkl.webp",
+    created_at: "2026-01-01T00:00:00+08:00",
+  },
+}
+
+// The contract types both images optional, so an absent key must stay absent.
+const withdrawnSubmission: { success: true; submission: NamecardSubmission } = {
+  success: true,
+  submission: {
+    id: 8,
+    seriesCode: null,
+    favoriteIdols: [],
+    claimStatus: "unclaimed",
+    viewerClaimState: null,
+    status: "withdrawn",
+    revision: 1,
+    created_at: "2026-01-01T00:00:00+08:00",
+    withdrawn_at: "2026-01-02T00:00:00+08:00",
+  },
+}
+
 const session: PlatformSession = {
   success: true,
   account: { id: "acct-1", status: "active" },
@@ -485,6 +611,31 @@ describe("media URL normalisation without a configured origin", () => {
         "producer map",
         producerMapContent,
         media.normalizeProducerMapContent(producerMapContent),
+      ],
+      [
+        "namecard page",
+        namecardPage,
+        media.normalizeNamecardPage(namecardPage),
+      ],
+      [
+        "namecard submission",
+        namecardSubmission,
+        media.normalizeNamecardSubmissionEnvelope(namecardSubmission),
+      ],
+      [
+        "withdrawn namecard submission",
+        withdrawnSubmission,
+        media.normalizeNamecardSubmissionEnvelope(withdrawnSubmission),
+      ],
+      [
+        "registered card reviews",
+        registeredCardReviews,
+        media.normalizeFudabaRegisteredCardReviewList(registeredCardReviews),
+      ],
+      [
+        "admin card claims",
+        adminCardClaims,
+        media.normalizeFudabaAdminCardClaimList(adminCardClaims),
       ],
     ]
 
@@ -701,6 +852,113 @@ describe("media URL normalisation with a configured origin", () => {
     expect(content.regions[0].linkUrl).toBe("https://example.com/gd")
     expect(content.mapSourceUrl).toBe("https://example.com/source")
     expect(content.communities[0].imageUrl).toBe(null)
+  })
+
+  it("absolutises the community namecard grid, thumbnails included", async () => {
+    const media = await loadMediaUrls(PACKAGED_ORIGIN)
+    const page = media.normalizeNamecardPage(namecardPage)
+
+    expect(page.list[0].image1_url).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/original/abc.webp`
+    )
+    expect(page.list[0].image2_url).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/original/def.webp`
+    )
+    expect(page.list[0].image1_thumbnail_url).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/thumbnail/abc.webp.jpg`
+    )
+    expect(page.list[0].image2_thumbnail_url).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/thumbnail/def.webp.jpg`
+    )
+    // Object storage already hands back absolute URLs for the same fields.
+    expect(page.list[1].image1_url).toBe(
+      "https://objects.example.com/namecards/2-front.webp"
+    )
+    expect(page.list[1].image1_thumbnail_url).toBe(
+      "https://objects.example.com/namecards/2-front.jpg"
+    )
+  })
+
+  it("absolutises namecard submission images and keeps absent ones absent", async () => {
+    const media = await loadMediaUrls(PACKAGED_ORIGIN)
+
+    const detail = media.normalizeNamecardSubmissionEnvelope(namecardSubmission)
+    expect(detail.submission.image1_url).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/original/ghi.webp`
+    )
+    expect(detail.submission.image2_url).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/original/jkl.webp`
+    )
+
+    const withdrawn =
+      media.normalizeNamecardSubmissionEnvelope(withdrawnSubmission)
+    expect(withdrawn.success).toBe(true)
+    expect("image1_url" in withdrawn.submission).toBe(false)
+    expect("image2_url" in withdrawn.submission).toBe(false)
+  })
+
+  it("absolutises the fudaba moderation queues", async () => {
+    const media = await loadMediaUrls(PACKAGED_ORIGIN)
+
+    const reviews =
+      media.normalizeFudabaRegisteredCardReviewList(registeredCardReviews)
+    expect(reviews.items[0].card.frontImageUrl).toBe(
+      `${PACKAGED_ORIGIN}/api/admin/exchange/card-reviews/card-9/media/front?v=1`
+    )
+    expect(reviews.items[0].card.backImageUrl).toBe(
+      `${PACKAGED_ORIGIN}/api/admin/exchange/card-reviews/card-9/media/back?v=1`
+    )
+    expect(reviews.items[0].owner.displayName).toBe("制作人")
+
+    const claims = media.normalizeFudabaAdminCardClaimList(adminCardClaims)
+    expect(claims.items[0].legacyCard.frontImageUrl).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/original/abc.webp`
+    )
+    expect(claims.items[0].legacyCard.backImageUrl).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/original/def.webp`
+    )
+    expect(claims.items[0].state).toBe("pending")
+  })
+
+  it("keeps bundle-owned paths relative in the namecard grid too", async () => {
+    const media = await loadMediaUrls(PACKAGED_ORIGIN)
+    const bundled: NamecardPage = {
+      ...namecardPage,
+      list: [
+        {
+          ...namecardPage.list[0],
+          image1_url: "/brand/namecard-placeholder.png",
+          image1_thumbnail_url: "/brand/namecard-placeholder.png",
+        },
+      ],
+    }
+    const page = media.normalizeNamecardPage(bundled)
+
+    expect(page.list[0].image1_url).toBe("/brand/namecard-placeholder.png")
+    expect(page.list[0].image1_thumbnail_url).toBe(
+      "/brand/namecard-placeholder.png"
+    )
+    expect(page.list[0].image2_url).toBe(
+      `${PACKAGED_ORIGIN}/uploads/namecard/original/def.webp`
+    )
+  })
+
+  it("passes namecard data URIs and protocol-relative thumbnails through", async () => {
+    const media = await loadMediaUrls(PACKAGED_ORIGIN)
+    const mixed: NamecardPage = {
+      ...namecardPage,
+      list: [
+        {
+          ...namecardPage.list[0],
+          image1_url: "data:image/png;base64,AAAA",
+          image1_thumbnail_url: "//cdn.example.com/thumb.jpg",
+        },
+      ],
+    }
+    const page = media.normalizeNamecardPage(mixed)
+
+    expect(page.list[0].image1_url).toBe("data:image/png;base64,AAAA")
+    expect(page.list[0].image1_thumbnail_url).toBe("//cdn.example.com/thumb.jpg")
   })
 
   it("passes protocol-relative URLs and data URIs through untouched", async () => {
