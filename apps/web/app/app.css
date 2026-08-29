@@ -670,6 +670,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /*
+   * `html { scroll-behavior: smooth }` further down is unconditional, and
+   * CSSOM-View defines `scrollTo`'s default `behavior: "auto"` as "defer to the
+   * element's computed scroll-behavior". So every scripted scroll that asks for
+   * `auto` animates anyway, including the ones that explicitly downgrade
+   * themselves when this query matches. Turning the property off here fixes the
+   * whole class at once: back-to-top, anchor jumps and router scroll
+   * restoration alike.
+   */
+  html {
+    scroll-behavior: auto;
+  }
+
   @layer components {
     .glass-control,
     .media-hover,
