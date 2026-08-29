@@ -79,36 +79,20 @@ import type {
   WikiStoryCoverAssets,
 } from "@imsweb/contracts/wiki"
 
+import { ownedByWebBundle } from "./bundle-assets"
 import { resolveMediaUrl } from "./origin"
 
 /**
- * First path segments that the web bundle serves itself, taken from
- * `apps/web/public/`. They are deliberately absent from the Vite dev proxy
- * list in `vite.config.ts`, which is the repo's statement of what the API
- * owns: `/api`, `/assets`, `/css`, `/Data`, `/eventchronicle`, `/icon`,
- * `/image`, `/runninggame`, `/site-content`, `/sites` and `/uploads` are
- * forwarded to Hono, and everything else resolves against the frontend.
+ * `resolveMediaUrl`, skipping paths the web bundle serves itself.
  *
- * This matters because API payloads mix the two. `GET /api/about` returns
+ * API payloads mix the two ownerships: `GET /api/about` returns
  * `/brand/about/gakuen-arisa.png` next to
- * `/uploads/about/member-avatars/<hash>.jpg_128w`. The first is a checked-in
- * asset that ships inside the packaged bundle, the second is user-uploaded
- * media only the API can serve. Sending `/brand/...` to the API origin makes
- * it 404 — verified against a live API on 127.0.0.1:3010, where the rewritten
- * request came back `text/plain` and the browser blocked it via ORB.
- *
- * Leaving these relative is also what the packaged client wants: a local
- * scheme resolves `/brand/...` against the bundle, where the file actually is.
+ * `/uploads/about/member-avatars/<hash>.jpg_128w`. The first ships inside the
+ * packaged bundle, the second is user-uploaded media only the API can serve.
+ * Sending `/brand/...` to the API origin makes it 404 — verified against a
+ * live API, where the rewritten request came back `text/plain` and the browser
+ * blocked it via ORB.
  */
-const WEB_BUNDLE_ROOTS = new Set(["brand", "maps", "favicon.ico"])
-
-function ownedByWebBundle(url: string): boolean {
-  if (!url.startsWith("/") || url.startsWith("//")) return false
-  const [, firstSegment = ""] = url.split("/")
-  return WEB_BUNDLE_ROOTS.has(firstSegment)
-}
-
-/** `resolveMediaUrl`, skipping paths the web bundle serves itself. */
 function apiMediaUrl(url: string): string {
   return ownedByWebBundle(url) ? url : resolveMediaUrl(url)
 }
