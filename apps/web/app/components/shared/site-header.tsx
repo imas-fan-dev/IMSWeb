@@ -1,7 +1,7 @@
 import { BookOpenTextIcon, HouseIcon, MenuIcon } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, NavLink } from "react-router"
+import { Link, NavLink, useLocation } from "react-router"
 
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { PlatformAccountMenu } from "~/components/platform/platform-account-menu"
@@ -42,14 +42,28 @@ function useHydrated() {
 
 function desktopLinkClass({ isActive }: { isActive: boolean }) {
   return cn(
-    "relative flex h-16 items-center px-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-    "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary after:transition-transform",
-    isActive ? "text-foreground after:scale-x-100" : "after:scale-x-0"
+    "relative z-10 flex h-9 flex-1 items-center justify-center rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors duration-(--duration-fast)",
+    isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+  )
+}
+
+/**
+ * Index of the nav entry owning the current URL, mirroring NavLink's own rules.
+ * A single lens sliding between entries is the iOS 26 navigation idiom; letting
+ * each entry paint its own background would cross-fade instead of travel.
+ */
+function activeNavigationIndex(pathname: string) {
+  return navigation.findIndex((item) =>
+    item.end
+      ? pathname === item.to
+      : pathname === item.to || pathname.startsWith(`${item.to}/`)
   )
 }
 
 export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
+  const { pathname } = useLocation()
+  const navigationIndex = activeNavigationIndex(pathname)
   const hydrated = useHydrated()
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
 
@@ -76,19 +90,36 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
         </Link>
 
         <nav
-          className="ml-auto hidden items-center gap-5 lg:flex"
+          className="ml-auto hidden items-center lg:flex"
           aria-label={t("navigation.mainLabel")}
         >
-          {navigation.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={desktopLinkClass}
-            >
-              {t(item.label)}
-            </NavLink>
-          ))}
+          {/* Glass segment, not a backdrop-filter surface of its own: the header
+              behind it is already blurred, so a second blur layer would cost
+              compositing for no visible gain. */}
+          <div
+            className="glass-surface glass-quiet glass-sheen relative flex items-stretch rounded-full p-1 ring-1 ring-foreground/10"
+            style={
+              {
+                "--nav-index": Math.max(navigationIndex, 0),
+              } as React.CSSProperties
+            }
+          >
+            <span
+              aria-hidden="true"
+              data-visible={navigationIndex >= 0 ? "true" : undefined}
+              className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/6)] translate-x-[calc(var(--nav-index)*100%)] rounded-full bg-foreground/8 opacity-0 ring-1 ring-foreground/10 transition-[transform,opacity] duration-(--duration-ui) ease-emphasized data-visible:opacity-100 motion-reduce:transition-none"
+            />
+            {navigation.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={desktopLinkClass}
+              >
+                {t(item.label)}
+              </NavLink>
+            ))}
+          </div>
         </nav>
 
         <Link

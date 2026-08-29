@@ -64,7 +64,7 @@ export default function AppLayout() {
           <Outlet />
         </div>
         {isExchangeMap ? null : (
-          <div className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2">
+          <div className="fixed right-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2">
             {isNamecardWall ? <NamecardUploadDialog /> : null}
             <BackToTop className="static" />
           </div>
