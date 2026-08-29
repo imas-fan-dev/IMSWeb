@@ -9,6 +9,7 @@ import { SeriesBrowserIcon } from "~/components/shared/series-browser-icon"
 import { ThemeColorSync } from "~/components/shared/theme-toggle"
 import { Toaster } from "~/components/ui/sonner"
 import { I18nProvider } from "~/i18n/provider"
+import { VIEWPORT_CONTENT } from "~/lib/app-target"
 import { defaultLanguage } from "~/i18n/resources"
 
 export function RootDocumentLayout({ children }: { children: ReactNode }) {
@@ -24,7 +25,7 @@ export function RootDocumentLayout({ children }: { children: ReactNode }) {
     >
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content={VIEWPORT_CONTENT} />
         <meta name="theme-color" content="#171717" />
         <Meta />
         <Links />

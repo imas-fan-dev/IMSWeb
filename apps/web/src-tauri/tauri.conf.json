@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../build/client",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm run dev",
-    "beforeBuildCommand": "pnpm run build"
+    "beforeDevCommand": "VITE_IMS_APP_TARGET=app pnpm run dev",
+    "beforeBuildCommand": "pnpm run build:app"
   },
   "app": {
     "windows": [
