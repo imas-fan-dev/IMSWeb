@@ -18,7 +18,7 @@ class DocumentationStructureTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("17 Markdown files", result.stdout)
+        self.assertIn("20 Markdown files", result.stdout)
 
     def test_docs_taxonomy_and_metadata_are_present(self):
         index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
@@ -36,7 +36,7 @@ class DocumentationStructureTests(unittest.TestCase):
             self.assertTrue((DOCS_ROOT / directory).is_dir(), directory)
 
         documents = sorted(DOCS_ROOT.rglob("*.md"))
-        self.assertEqual(len(documents), 17)
+        self.assertEqual(len(documents), 20)
         for document in documents:
             content = document.read_text(encoding="utf-8")
             self.assertIsNotNone(re.search(r"^# .+", content, re.MULTILINE), document)

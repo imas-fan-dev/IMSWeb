@@ -29,6 +29,7 @@ Issue、release record 或私有运维记录中。
 - [缓存架构](architecture/cache.md)：Valkey、Memory fallback、限流和非权威缓存边界。
 - [Wiki 管理架构](architecture/wiki-management.md)：Wiki 数据模型、公开/后台 API 和媒体关系。
 - [URL 与公共路径架构](architecture/url-paths.md)：共享路径 builders、路由所有权和变更流程。
+- [玻璃折射的平台策略](architecture/glass-refraction-platform-strategy.md)：伪折射地板、Chromium 真折射封顶和跨引擎降级。
 - [@imsweb/contracts](../packages/contracts/README.md)：API↔Web wire contracts、路径 builders 和 zod 封装。
 
 ## 开发
@@ -36,6 +37,8 @@ Issue、release record 或私有运维记录中。
 - [AI 开发环境](development/ai-environment.md)：安装、启动器、端口覆盖、R2 模式和验证边界。
 - [测试规范](development/testing.md)：按风险选择测试、测试位置和提交前门禁。
 - [静态站点包编写规范](development/static-site-package-authoring.md)：归档、manifest、预览和发布约束。
+- [Tauri 移动端基础设施](development/tauri-mobile.md)：移动外壳现状、前置条件、跨源 API 契约和阻塞项。
+- [液态玻璃升级与 App 外壳实施计划](development/liquid-glass-app-shell-plan.md)：分层模型、并发轨道编排、三批交付和验证门。
 
 ## 运维与迁移
 
