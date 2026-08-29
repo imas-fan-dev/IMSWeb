@@ -5,5 +5,6 @@ export {
   API_ORIGIN,
   resolveMediaUrl,
   resolveSafeMediaUrl,
+  resolveShareableOrigin,
   resolveSiteOrigin,
 } from "./origin"

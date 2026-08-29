@@ -17,6 +17,7 @@
 - `tauri.conf.json` 的 `frontendDist` 指向 `../build/client`，即 `react-router build` 的 SPA 产物。
   该产物已包含 `__spa-fallback.html`，客户端路由无需额外的服务端回退。
 - `apps/web/app/lib/api/origin.ts` 提供跨源 origin 契约，三个 alova client 均已接入 `baseURL`。
+- 站点公开地址由 `VITE_IMS_PUBLIC_SITE_ORIGIN` 单独表达，供复制外发的链接使用，见第 4 节。
 - Rust 侧 `cargo check` 通过；iOS 与 Android 的 Rust target 已安装。
 
 - 跨源认证走 `Authorization: Bearer`，CORS 已放行打包客户端 origin，见第 5 节。
@@ -78,10 +79,41 @@ VITE_IMS_API_ORIGIN=https://idol-master.top pnpm --filter @imsweb/web run tauri 
 - 非空时三个 alova client 统一加前缀，且请求 `credentials` 从 `same-origin` 切换为 `omit`：
   打包客户端用 Bearer 令牌认证，不需要任何 cookie 越过边界，API 也不下发凭据许可。
 - API 响应里回传的媒体 URL 用 `resolveMediaUrl()` 归一化；绝对地址、协议相对地址和 data URI 原样透传。
-- 需要拼接站点 origin 的位置用 `resolveSiteOrigin()`，不要直接读 `window.location.origin`。
+- 需要拼接站点 origin 的位置用 `resolveSiteOrigin()`，不要直接读 `window.location.origin`；
+  但要离开本进程的链接改用 `resolveShareableOrigin()`，理由见下一节。
 
 路径 builder 本身仍由 `@imsweb/contracts/paths` 单一持有，前缀注入只发生在 client 层，
 详见 [URL 与公共路径架构](../architecture/url-paths.md)。
+
+### 站点公开地址
+
+`VITE_IMS_API_ORIGIN` 回答的是「请求发到哪里」。但还有一类 URL 不由本进程加载，
+而是被复制进剪贴板、由人在此后任意一个浏览器里打开——名片投稿的管理链接就是这一类，
+用户靠它回来查看或撤回自己的投稿。
+
+这类链接要的是**提供页面的那台主机**的地址，而打包客户端手上的两个常量都给不出来：
+API origin 指向只应答 API、不提供该页面的主机；document origin 是出了设备就毫无意义的
+本地 WebView scheme。于是引入第二个构建期变量 `VITE_IMS_PUBLIC_SITE_ORIGIN`：
+
+```sh
+VITE_IMS_API_ORIGIN=https://idol-master.top \
+VITE_IMS_PUBLIC_SITE_ORIGIN=https://idol-master.top \
+pnpm --filter @imsweb/web run tauri android build
+```
+
+约定与 `VITE_IMS_API_ORIGIN` 逐条对齐：同样由 Vite 内联进浏览器代码，同样属于公开值、
+不得写入任何密钥，同样留空即 Web 行为不变。
+
+- 留空时 `PUBLIC_SITE_ORIGIN` 为空串，`resolveShareableOrigin()` 退回 `resolveSiteOrigin()`。
+  Web 构建下这就是 document origin，链接与改造前逐字节一致。
+- 打包构建漏配时同样退回 `resolveSiteOrigin()`，即 API origin。当前站点与 API 共用一台主机，
+  这个兜底恰好是对的；更要紧的是它保证产物永远是可粘贴的 `http(s)` 地址，绝不会漏出 `tauri://`。
+  漏配在开发模式下打一条 `console.warn` 暴露出来，生产不拿用户的链接当惩罚。
+- 两个 helper 的分工要在调用点一眼可辨：
+  - `resolveSiteOrigin()`——本进程要去加载的 URL，即 API 与媒体路由。
+  - `resolveShareableOrigin()`——要离开本进程的 URL，即复制、分享、外部浏览器打开。
+
+变量声明在 `apps/web/app/env.d.ts`，示例见 `apps/web/.env.example`。
 
 ## 5. Platform 令牌认证
 
@@ -121,3 +153,6 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
 3. **应用图标**：`src-tauri/icons/` 仍是 Tauri 默认占位图。仓库现有品牌资源是 545×188 字标，
    不能直接用作方形应用图标，需要单独产出 1024×1024 图源后用 `tauri icon` 生成。
 4. **真机验证**：以上链路目前只有契约测试覆盖，尚未在真实设备上完成一次登录到拉取列表的联调。
+5. **打包流水线变量**：`VITE_IMS_PUBLIC_SITE_ORIGIN` 目前只有契约和文档，尚未接进任何
+   打包脚本或 CI，也没有构建期断言在跨源产物漏配时中断构建。漏配不会崩，但会退回 API origin，
+   等站点与 API 分家后就是错的。

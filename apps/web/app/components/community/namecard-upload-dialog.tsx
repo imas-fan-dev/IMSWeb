@@ -43,7 +43,7 @@ import {
 import {
   getWikiCatalog,
   isApiError,
-  resolveSiteOrigin,
+  resolveShareableOrigin,
   uploadNamecard,
   type WikiPublicCatalog,
 } from "~/lib/api"
@@ -168,7 +168,7 @@ export function NamecardUploadDialog() {
       toast.error("浏览器不支持复制，请手动保存投稿管理链接")
       return
     }
-    const link = new URL(manageLink(nextReceipt), resolveSiteOrigin()).href
+    const link = new URL(manageLink(nextReceipt), resolveShareableOrigin()).href
     try {
       await navigator.clipboard.writeText(link)
       toast.success("投稿管理链接已复制")
