@@ -11,6 +11,7 @@ import { z } from "@imsweb/contracts/z"
 import { parsed } from "../../parsed"
 import { readCookie } from "../../cookies"
 import { platformApiClient } from "../../platform-client"
+import { hasStoredPlatformSession } from "../../platform-token-store"
 import { PLATFORM_CSRF_COOKIE_NAME } from "../../request"
 import { withPlatformAuth, withPlatformCsrf } from "../../types"
 
@@ -140,8 +141,17 @@ export type PlatformProfileUpdate = z.input<typeof platformProfileUpdateSchema>
 
 export type PlatformAvatarUpload = z.input<typeof platformAvatarUploadSchema>
 
+/**
+ * Whether a session restore is worth a network round trip on boot.
+ *
+ * Browser builds look for the readable CSRF cookie that accompanies the
+ * httpOnly session cookies. The packaged client has no cookie jar, so it looks
+ * for the tokens it stored itself.
+ */
 export function hasPlatformSessionHint() {
-  return Boolean(readCookie(PLATFORM_CSRF_COOKIE_NAME))
+  return (
+    Boolean(readCookie(PLATFORM_CSRF_COOKIE_NAME)) || hasStoredPlatformSession()
+  )
 }
 
 export function getPlatformOAuthProviders() {

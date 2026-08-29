@@ -7,13 +7,40 @@ import ReactHook from "alova/react"
 import { normalizeRequestError } from "./api-error"
 import { readCookie } from "./cookies"
 import { API_ORIGIN } from "./origin"
+import {
+  capturePlatformTokens,
+  clearPlatformTokens,
+  PLATFORM_REFRESH_TOKEN_HEADER,
+  readPlatformAccessToken,
+  readPlatformRefreshToken,
+  usesPlatformBearerAuth,
+} from "./platform-token-store"
 import { applyApiRequestPolicy, PLATFORM_CSRF_COOKIE_NAME } from "./request"
 import { handleApiResponse } from "./response"
 import { withPlatformCsrf } from "./types"
 
+const PLATFORM_LOGOUT_PATH = platformAuthPath("/logout")
+
+/**
+ * Identifies the session a request was issued under, so a refresh triggered by
+ * a stale 401 can tell whether another tab already rotated it. Cookie builds
+ * read the CSRF cookie; the packaged client compares its stored access token.
+ */
+function currentSessionMarker(): string | undefined {
+  return usesPlatformBearerAuth
+    ? (readPlatformAccessToken() ?? undefined)
+    : readCookie(PLATFORM_CSRF_COOKIE_NAME)
+}
+
+function refreshRequestHeaders(): Record<string, string> {
+  if (!usesPlatformBearerAuth) return {}
+  const refreshToken = readPlatformRefreshToken()
+  return refreshToken ? { [PLATFORM_REFRESH_TOKEN_HEADER]: refreshToken } : {}
+}
+
 // Alova clones Method objects for replays and preserves enumerable symbol fields.
 const failedRefreshReplay = Symbol("failed-platform-refresh-replay")
-const requestCsrfTokens = new WeakMap<Method, string | undefined>()
+const requestSessionMarkers = new WeakMap<Method, string | undefined>()
 
 function markFailedRefreshReplay(method: Method) {
   const markedMethod = method as { [failedRefreshReplay]?: boolean }
@@ -52,18 +79,22 @@ const platformAuthentication = createServerTokenAuthentication<
       return response.status === 401
     },
     handler: async (_response, method) => {
-      const requestCsrfToken = requestCsrfTokens.get(method)
+      const requestSessionMarker = requestSessionMarkers.get(method)
       try {
         await withPlatformRefreshLock(async () => {
-          // Another tab may have rotated the cookies while this request was in flight.
-          if (readCookie(PLATFORM_CSRF_COOKIE_NAME) !== requestCsrfToken) {
+          // Another tab may have rotated the session while this request was in flight.
+          if (currentSessionMarker() !== requestSessionMarker) {
             return
           }
           await method.context.Post(platformAuthPath("/refresh"), undefined, {
             meta: withPlatformCsrf({ authRole: "refreshToken" }),
+            headers: refreshRequestHeaders(),
           })
         })
       } catch {
+        // A refused refresh means the stored tokens are spent; keeping them
+        // would replay a dead session on every later request.
+        clearPlatformTokens()
         markRefreshWaveFailed(method)
       }
     },
@@ -86,19 +117,28 @@ export const platformApiClient = createAlova({
   requestAdapter: adapterFetch(),
   cacheFor: null,
   beforeRequest: onAuthRequired((method) => {
-    requestCsrfTokens.set(method, readCookie(PLATFORM_CSRF_COOKIE_NAME))
+    requestSessionMarkers.set(method, currentSessionMarker())
     applyApiRequestPolicy(method, {
       authRealm: "platform",
       csrfCookieName: PLATFORM_CSRF_COOKIE_NAME,
     })
   }),
   responded: onResponseRefreshToken({
-    onSuccess: (response, method) =>
-      handleApiResponse(response, {
+    onSuccess: async (response, method) => {
+      const payload = await handleApiResponse(response, {
         method: method.type,
         url: method.url,
         meta: method.meta,
-      }),
+      })
+      if (usesPlatformBearerAuth) {
+        if (method.url === PLATFORM_LOGOUT_PATH) {
+          clearPlatformTokens()
+        } else {
+          capturePlatformTokens(payload)
+        }
+      }
+      return payload
+    },
     onError: (error, method) => {
       consumeFailedRefreshReplay(method)
       throw normalizeRequestError(error, {
