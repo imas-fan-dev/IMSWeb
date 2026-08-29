@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog"
 import type { WikiPublicAgency } from "~/lib/api"
+import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
 
@@ -28,6 +29,12 @@ interface WikiAgencyDialProps {
   selectedAgency: string | null
   disabled?: boolean
   visibilityClassName?: string
+  /**
+   * Which wiki shell hosts the dial, named to match `WikiMobileSearch`. Only
+   * `modern` renders inside a layout, so only it has an app tab bar to clear;
+   * `/wiki/classic` is a standalone route with no chrome underneath it.
+   */
+  view: "classic" | "modern"
   onSelectAgency: (agency: string) => void
 }
 
@@ -123,7 +130,11 @@ function InteractiveWikiAgencyDial({
   disabled = false,
   visibilityClassName = "md:hidden",
   onSelectAgency,
+  view,
 }: WikiAgencyDialProps) {
+  // Only the closed trigger needs lifting. `IS_APP_TARGET` is inlined by Vite,
+  // so the web bundle folds this to `false` and drops the branch.
+  const clearsAppTabBar = IS_APP_TARGET && view === "modern"
   const selectedIndex = Math.max(
     0,
     agencies.findIndex((agency) => agency.name === selectedAgency)
@@ -370,6 +381,7 @@ function InteractiveWikiAgencyDial({
             size="icon"
             className={cn(
               "fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 size-14 rounded-full bg-background/95 shadow-lg backdrop-blur-md transition-[opacity,transform,box-shadow] duration-200 aria-expanded:scale-75 aria-expanded:opacity-0 motion-reduce:transition-none",
+              clearsAppTabBar && APP_FLOATING_CONTROL_OFFSET,
               visibilityClassName
             )}
             style={{
@@ -402,6 +414,15 @@ function InteractiveWikiAgencyDial({
         showCloseButton={false}
         overlayClassName="bg-black/30 backdrop-blur-[2px] duration-300 motion-reduce:duration-0"
         className={cn(
+          // Deliberately NOT lifted for the app build. The disc is decorative
+          // geometry that is meant to bleed off the bottom of the screen so the
+          // user reads it as an arc; lifting it to clear the tab bar brings the
+          // whole outer rim inside the viewport and it stops looking anchored.
+          // It does not need to clear the bar anyway: the dialog overlay paints
+          // over the capsule and swallows its pointer events, so nothing here is
+          // obscured or blocked while the dial is open. The item arc is capped
+          // at `CAROUSEL_WINDOW_MAX_ANGLE` (129deg), which already keeps every
+          // selectable icon out of the region the capsule covers.
           "top-auto right-auto bottom-[calc(2.75rem+env(safe-area-inset-bottom))] left-11 block w-auto max-w-none -translate-x-1/2 translate-y-1/2 rounded-full bg-transparent p-0 shadow-none ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none",
           visibilityClassName
         )}

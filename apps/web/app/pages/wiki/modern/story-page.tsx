@@ -34,6 +34,7 @@ import { SCardCastFilter } from "~/pages/wiki/modern/components/s-card-cast-filt
 import { StoryCategorySection } from "~/pages/wiki/modern/components/story-category-section"
 import { StoryNavigationPanel } from "~/pages/wiki/modern/components/story-navigation-panel"
 import { safeWikiColor, storyCardMatches } from "~/pages/wiki/wiki-model"
+import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { getWikiStories, isApiError } from "~/lib/api"
 import type { WikiPublicStories } from "~/lib/api"
@@ -413,7 +414,13 @@ export function StoryPage() {
               render={
                 <Button
                   type="button"
-                  className="fixed bottom-4 left-4 z-40 shadow-lg lg:hidden"
+                  className={cn(
+                    "fixed bottom-4 left-4 z-40 shadow-lg lg:hidden",
+                    // Only the modern story page renders inside a layout, so
+                    // only it has a tab bar to clear. `/story/classic` is a
+                    // separate standalone module. Inlined to `false` on web.
+                    IS_APP_TARGET && APP_FLOATING_CONTROL_OFFSET
+                  )}
                   aria-label={`打开${stories.idol.name}剧情导航`}
                 />
               }

@@ -323,6 +323,7 @@ export function WikiIndexPage() {
         agencies={availableCatalog?.agencies ?? []}
         selectedAgency={selection?.agency.name || requestedAgency || null}
         disabled={!requestIsCurrent}
+        view="modern"
         onSelectAgency={selectAgency}
       />
       <WikiMobileSearch

@@ -12,6 +12,7 @@ import {
 import { Input } from "~/components/ui/input"
 import { WikiGlobalSearchResults } from "~/components/wiki/wiki-global-search-results"
 import type { WikiPublicSearchEntry } from "~/lib/api"
+import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 
 export function WikiMobileSearch({
@@ -27,6 +28,11 @@ export function WikiMobileSearch({
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
   const classic = view === "classic"
+  // `/wiki/classic` is a standalone route: it renders with no layout, so the app
+  // build has no tab bar there and the button keeps its edge position. Only the
+  // modern view sits inside `app-layout.tsx`. `IS_APP_TARGET` is inlined, so the
+  // web bundle evaluates this to `false` and keeps the original offset.
+  const clearsAppTabBar = IS_APP_TARGET && !classic
 
   function changeOpen(nextOpen: boolean) {
     setOpen(nextOpen)
@@ -55,6 +61,7 @@ export function WikiMobileSearch({
               "fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 size-12 rounded-full shadow-lg",
               classic &&
                 "border-[3px] border-white bg-(--classic-accent) text-white hover:bg-(--classic-accent)",
+              clearsAppTabBar && APP_FLOATING_CONTROL_OFFSET,
               className
             )}
             data-wiki-mobile-search={view}

@@ -9,6 +9,7 @@ import { BackToTop } from "~/components/shared/back-to-top"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
+import { APP_FLOATING_CONTROL_OFFSET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 
 /**
@@ -30,6 +31,12 @@ export default function AppLayout() {
       ? location.pathname.replace(/\/+$/, "")
       : location.pathname
   const isExchangeMap = normalizedPathname === "/community/exchange"
+  // The wiki catalog puts its own search button in this corner below `md`, so
+  // back-to-top yields the slot exactly as it does in `public-layout.tsx`.
+  // Without this the two stack on the same pixels once the search button is
+  // lifted clear of the tab bar.
+  const isWikiCatalog =
+    normalizedPathname === "/wiki" || normalizedPathname === "/wiki/modern"
   const isNamecardWall = Boolean(useMatch("/community/cards"))
 
   return (
@@ -64,9 +71,16 @@ export default function AppLayout() {
           <Outlet />
         </div>
         {isExchangeMap ? null : (
-          <div className="fixed right-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2">
+          <div
+            className={cn(
+              "fixed right-4 z-40 flex flex-col items-end gap-2",
+              APP_FLOATING_CONTROL_OFFSET
+            )}
+          >
             {isNamecardWall ? <NamecardUploadDialog /> : null}
-            <BackToTop className="static" />
+            <BackToTop
+              className={cn("static", isWikiCatalog && "max-md:hidden")}
+            />
           </div>
         )}
         <AppTabBar />
