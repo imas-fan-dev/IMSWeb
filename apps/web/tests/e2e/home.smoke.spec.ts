@@ -201,15 +201,46 @@ test("work detail loads its character and font directly from R2", async ({
       character.evaluate((image: HTMLImageElement) => image.naturalWidth)
     )
     .toBeGreaterThan(0)
-  await expect
-    .poll(() => page.evaluate(() => document.fonts.check("16px idolFont")))
-    .toBe(true)
-
-  expect(assetResponses.size).toBeGreaterThanOrEqual(2)
+  // The font response lands after the artwork. Wait for it on purpose: this
+  // used to ride on an unrelated `document.fonts.check()` poll that happened to
+  // burn enough time, which made the count look deterministic when it was not.
+  await expect.poll(() => assetResponses.size).toBeGreaterThanOrEqual(2)
   expect([...assetResponses.values()].every((status) => status === 200)).toBe(
     true
   )
   expect(legacyAssetRequests).toEqual([])
+})
+
+// The idolFont face does not actually render anywhere today. R2 serves
+// iris-idol.ttf without an Access-Control-Allow-Origin header, and webfonts are
+// always fetched in CORS mode, so every engine rejects it and /works/* silently
+// falls back to Georgia. `font-display: swap` hides the failure, which is why it
+// went unnoticed.
+//
+// This test previously lived inside the R2 sourcing test as a bare
+// `document.fonts.check()` poll. That call does not trigger a load, so it
+// returned true on Chromium while the font was never fetched -- a vacuous pass
+// that made the suite look like it covered rendering. Requesting the load first
+// makes the real failure visible on every engine.
+//
+// Fix belongs in the bucket/CDN config, not here: send CORS headers for
+// /brand/fonts/**. Un-fixme once that ships.
+test.fixme("work detail actually renders the idolFont face", async ({
+  page,
+}) => {
+  await page.goto("/works/sc")
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          // load() requests the face; check() alone never does.
+          await document.fonts.load("16px idolFont")
+          return document.fonts.check("16px idolFont")
+        }),
+      { timeout: 15000 }
+    )
+    .toBe(true)
 })
 
 test("work detail carries the lightweight global series background", async ({
