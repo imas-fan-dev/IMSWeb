@@ -2,16 +2,16 @@ import { Link } from "react-router"
 import { useTranslation } from "react-i18next"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
+import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Card } from "~/components/ui/card"
 
 /**
- * Account tab for the packaged app. Static shell for now.
+ * Account tab for the packaged app.
  *
- * The session panel below will read anonymous on a real device no matter who is
- * logged in, because the app talks to the API cross-origin and cannot see the
- * platform session cookie. That is expected until Bearer-token auth lands; it
- * is not a defect to file against this screen.
+ * This screen owns every session action the app has: the site header that
+ * normally carries PlatformAccountMenu is dropped from the app layout, so
+ * without a logout control here a signed-in session would have no way out.
  */
 const secondaryDestinations = [
   { to: "/recommendations", label: "navigation.recommendations" },
@@ -36,11 +36,56 @@ export default function AccountMePage() {
       <Card variant="glass" className="mt-5 p-5">
         {platform.status === "authenticated" ||
         platform.status === "restricted" ? (
-          <p className="text-sm font-medium">
-            {t("platformAccount.authenticatedLabel", {
-              name: platform.session?.profile.displayName ?? "",
-            })}
+          <>
+            <p className="text-sm font-medium">
+              {t("platformAccount.authenticatedLabel", {
+                name: platform.session?.profile.displayName ?? "",
+              })}
+            </p>
+            {platform.status === "restricted" ? (
+              <Badge
+                variant="secondary"
+                className="mt-2 bg-warning/25 text-warning-foreground"
+              >
+                {t("platformAccount.restricted")}
+              </Badge>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                render={<Link to="/community/exchange/me" />}
+                nativeButton={false}
+              >
+                {t("platformAccount.myCards")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void platform.logout()}
+              >
+                {t("platformAccount.logout")}
+              </Button>
+            </div>
+          </>
+        ) : platform.status === "loading" ? (
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {t("platformAccount.loading")}
           </p>
+        ) : platform.status === "error" ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {t("platformAccount.error")}
+            </p>
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void platform.reload()}
+              >
+                {t("platformAccount.retry")}
+              </Button>
+            </div>
+          </>
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
