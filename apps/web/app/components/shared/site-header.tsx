@@ -54,7 +54,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur-sm">
+    <header className="glass-surface glass-bar glass-scroll-bar glass-refract glass-sheen sticky top-0 z-40">
       <div
         className={cn(
           "mx-auto flex w-full max-w-7xl items-center sm:h-16 sm:gap-3 sm:px-6 lg:gap-6 lg:px-8",

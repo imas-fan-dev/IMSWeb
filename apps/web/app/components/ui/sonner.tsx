@@ -26,15 +26,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
+          // Sonner paints the toast with the `background` shorthand, so the
+          // glass tint has to arrive through its own variable.
+          "--normal-bg": "rgb(var(--glass-rgb) / var(--glass-alpha-panel))",
           "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
+          "--normal-border": "var(--glass-edge)",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast glass-surface glass-panel",
         },
       }}
       {...props}

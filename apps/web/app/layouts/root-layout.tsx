@@ -2,6 +2,8 @@ import { ThemeProvider } from "next-themes"
 import type { ReactNode } from "react"
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
 
+import { GlassFilterDefs } from "~/components/shared/glass-filter-defs"
+import { GlassSheenTracker } from "~/components/shared/glass-sheen-tracker"
 import { ImageLoadingIndicator } from "~/components/shared/image-loading-indicator"
 import { SeriesBrowserIcon } from "~/components/shared/series-browser-icon"
 import { ThemeColorSync } from "~/components/shared/theme-toggle"
@@ -11,7 +13,15 @@ import { defaultLanguage } from "~/i18n/resources"
 
 export function RootDocumentLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang={defaultLanguage} suppressHydrationWarning>
+    <html
+      lang={defaultLanguage}
+      // Enables the Chromium-only refraction ceiling. Safe to leave on for every
+      // engine because the filter is attached to a decorative overlay: a hostile
+      // engine costs a rim highlight, not the surface. Verified on chromium,
+      // firefox and webkit; see the ADR for the measurement.
+      data-glass-refraction="on"
+      suppressHydrationWarning
+    >
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -31,6 +41,8 @@ export function RootDocumentLayout({ children }: { children: ReactNode }) {
 export function RootAppLayout() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <GlassFilterDefs />
+      <GlassSheenTracker />
       <ImageLoadingIndicator />
       <SeriesBrowserIcon />
       <ThemeColorSync />

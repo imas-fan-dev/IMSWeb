@@ -67,8 +67,23 @@
   --radius-4xl: var(--radius);
 }
 
+/*
+ * Motion contract. Four curves, no more. Every transition in the product picks
+ * one of these; ad-hoc cubic-beziers are the main source of motion noise.
+ */
+@theme {
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-interactive: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-ui: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-card: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 :root {
   color-scheme: light;
+  --duration-fast: 140ms;
+  --duration-ui: 240ms;
+  --duration-reveal: 560ms;
+  --duration-hero: 720ms;
   --background: oklch(0.995 0.002 90);
   --foreground: oklch(0.17 0.008 270);
   --card: oklch(1 0 0);
@@ -120,6 +135,57 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  /*
+   * Liquid glass material.
+   * blur + saturate + inset white highlight + float shadow is the full recipe;
+   * dropping saturate() is what makes cheap glass look grey.
+   */
+  --glass-rgb: 255 255 255;
+  --glass-blur: 16px;
+  --glass-saturate: 180%;
+  --glass-alpha-bar: 0.62;
+  --glass-alpha-panel: 0.78;
+  --glass-alpha-rest: 0.5;
+  --glass-alpha-hover: 0.68;
+  --glass-alpha-active: 0.82;
+  --glass-highlight: rgb(255 255 255 / 80%);
+  --glass-edge: rgb(255 255 255 / 55%);
+  --glass-hairline: rgb(24 20 26 / 10%);
+  --glass-shadow-float:
+    0 12px 34px rgb(60 34 48 / 13%), 0 2px 6px rgb(60 34 48 / 6%);
+  --glass-shadow-panel: 0 24px 60px rgb(60 34 48 / 16%);
+  /* Accent wash: the directional light source that makes glass read as liquid. */
+  --glass-accent: var(--primary);
+  --glass-accent-strength: 7%;
+}
+
+/*
+ * Series-tinted glass. Set data-glass-accent on any ancestor and every glass
+ * surface beneath it picks up that franchise hue at --glass-accent-strength.
+ */
+[data-glass-accent="765"] {
+  --glass-accent: var(--franchise-765);
+}
+
+[data-glass-accent="cg"] {
+  --glass-accent: var(--franchise-cg);
+}
+
+[data-glass-accent="ml"] {
+  --glass-accent: var(--franchise-ml);
+}
+
+[data-glass-accent="sidem"] {
+  --glass-accent: var(--franchise-sidem);
+}
+
+[data-glass-accent="sc"] {
+  --glass-accent: var(--franchise-sc);
+}
+
+[data-glass-accent="gk"] {
+  --glass-accent: var(--franchise-gk);
 }
 
 .dark {
@@ -163,6 +229,368 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  /* Dark glass: the white highlight drops an order of magnitude or it chalks. */
+  --glass-rgb: 26 26 31;
+  --glass-alpha-bar: 0.58;
+  --glass-alpha-panel: 0.74;
+  --glass-alpha-rest: 0.46;
+  --glass-alpha-hover: 0.64;
+  --glass-alpha-active: 0.8;
+  --glass-highlight: rgb(255 255 255 / 14%);
+  --glass-edge: rgb(255 255 255 / 10%);
+  --glass-hairline: rgb(255 255 255 / 12%);
+  --glass-shadow-float:
+    0 12px 34px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 28%);
+  --glass-shadow-panel: 0 24px 60px rgb(0 0 0 / 52%);
+  --glass-accent-strength: 10%;
+}
+
+@layer components {
+  /*
+   * Material law: glass belongs to the floating system layer only
+   * (top bar, dock, dialog, sheet, popover, toast, FAB). Dense content
+   * surfaces use .glass-quiet, which has the same edge treatment and zero
+   * backdrop-filter cost.
+   */
+  .glass-surface {
+    --glass-alpha: var(--glass-alpha-rest);
+    --glass-shadow: var(--glass-shadow-float);
+    position: relative;
+    background-color: rgb(var(--glass-rgb) / var(--glass-alpha));
+    background-image: linear-gradient(
+      165deg,
+      color-mix(
+          in oklch,
+          var(--glass-accent) var(--glass-accent-strength),
+          transparent
+        )
+        0%,
+      transparent 58%
+    );
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      inset 0 0 0 1px var(--glass-edge),
+      var(--glass-shadow);
+  }
+
+  /*
+   * Sticky top bar: sits on the page edge, so no float shadow, hairline
+   * instead. Bars are wide, so the accent wash is halved to stay a highlight
+   * rather than a colour field.
+   */
+  .glass-bar {
+    --glass-alpha: var(--glass-alpha-bar);
+    --glass-accent-strength: 4%;
+    --glass-shadow: 0 1px 0 0 var(--glass-hairline);
+  }
+
+  /* Overlay surfaces: opaque enough for body copy, lifted by the panel shadow. */
+  .glass-panel {
+    --glass-alpha: var(--glass-alpha-panel);
+    --glass-shadow: var(--glass-shadow-panel);
+  }
+
+  /*
+   * Interactive glass. Level is expressed by opacity, not by border colour:
+   * rest -> hover -> active is a single readable ladder.
+   */
+  .glass-control {
+    transition:
+      background-color var(--duration-fast) var(--ease-interactive),
+      box-shadow var(--duration-fast) var(--ease-interactive),
+      transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-control:hover {
+    --glass-alpha: var(--glass-alpha-hover);
+  }
+
+  .glass-control:active {
+    --glass-alpha: var(--glass-alpha-active);
+  }
+
+  /*
+   * Non-blurred glass for content. Same edge language, no compositing cost, so
+   * it is safe inside long lists, tables and virtualised grids.
+   */
+  .glass-quiet {
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      inset 0 0 0 1px var(--glass-edge);
+  }
+
+  /*
+   * Two layers moving at different speeds is what sells depth: the frame lifts
+   * quickly, the image inside drifts. Neither touches layout.
+   */
+  .media-hover {
+    transition:
+      transform var(--duration-ui) var(--ease-card),
+      box-shadow var(--duration-ui) var(--ease-card);
+  }
+
+  .media-hover [data-media-zoom] {
+    transition: transform 500ms var(--ease-card);
+  }
+
+  .media-hover:hover,
+  .media-hover:focus-visible,
+  a:focus-visible .media-hover,
+  a:hover .media-hover {
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-float);
+  }
+
+  .media-hover:hover [data-media-zoom],
+  a:hover .media-hover [data-media-zoom] {
+    transform: scale(1.04);
+  }
+
+  /* Horizontal scrollers fade at the edges instead of shouting with a shadow. */
+  .edge-fade-x {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 6%,
+      black 94%,
+      transparent 100%
+    );
+  }
+
+  /*
+   * Faux refraction, the all-engine floor.
+   *
+   * Real refraction needs `backdrop-filter: url(#svg)`, which only Chromium
+   * renders. Rather than let WebKit and Gecko fall back to flat frosted glass,
+   * every engine gets this: a rim that brightens over the last few pixels and
+   * darkens on the opposite edge, which is how a bullnose edge reads when it
+   * bends the light passing through it. It distorts nothing, but it carries the
+   * thickness cue that plain blur throws away.
+   */
+  .glass-refract {
+    --glass-rim: 10px;
+    position: relative;
+    /*
+     * Isolate so the decoration can sit at z-index -1: above this surface's own
+     * background, below its text. Painting a bright rim over body copy is the
+     * fastest way to fail the contrast gate.
+     */
+    isolation: isolate;
+  }
+
+  .glass-refract::before {
+    position: absolute;
+    z-index: -1;
+    content: "";
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.55;
+    background:
+      linear-gradient(
+        to bottom,
+        var(--glass-highlight) 0,
+        transparent var(--glass-rim)
+      ),
+      linear-gradient(
+        to top,
+        var(--glass-hairline) 0,
+        transparent var(--glass-rim)
+      ),
+      linear-gradient(
+        to right,
+        var(--glass-edge) 0,
+        transparent var(--glass-rim)
+      ),
+      linear-gradient(
+        to left,
+        var(--glass-edge) 0,
+        transparent var(--glass-rim)
+      );
+    pointer-events: none;
+  }
+
+  /*
+   * Pointer-tracked specular highlight. The position arrives as two custom
+   * properties written by the sheen tracker; the gradient itself is pure CSS,
+   * so this costs one paint and works on every engine.
+   */
+  .glass-sheen {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .glass-sheen::after {
+    position: absolute;
+    z-index: -1;
+    content: "";
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    background: radial-gradient(
+      circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
+      var(--glass-highlight) 0%,
+      transparent 42%
+    );
+    transition: opacity var(--duration-ui) var(--ease-ui);
+    pointer-events: none;
+  }
+
+  .glass-sheen:hover::after,
+  .glass-sheen:focus-within::after {
+    opacity: 0.6;
+  }
+
+  /*
+   * Scroll-driven bar. The bar starts light over the page top and condenses as
+   * content slides under it. Only alpha moves; the blur radius is deliberately
+   * left alone, because animating it forces a full-surface re-blur every frame
+   * and that is the single most reliable way to drop frames on mobile WebViews.
+   */
+  .glass-scroll-bar {
+    --glass-alpha: calc(
+      var(--glass-alpha-rest) +
+        (var(--glass-alpha-bar) - var(--glass-alpha-rest)) *
+        var(--glass-scroll-progress)
+    );
+  }
+}
+
+/*
+ * Defaults to 1 (fully condensed) so engines without scroll-driven animation
+ * get the higher-contrast bar rather than the translucent one.
+ */
+@property --glass-scroll-progress {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@supports (animation-timeline: scroll()) {
+  @layer components {
+    .glass-scroll-bar {
+      animation: glass-scroll-settle linear both;
+      animation-range: 0 160px;
+      animation-timeline: scroll();
+    }
+  }
+}
+
+@keyframes glass-scroll-settle {
+  from {
+    --glass-scroll-progress: 0;
+  }
+
+  to {
+    --glass-scroll-progress: 1;
+  }
+}
+
+/*
+ * Real refraction, the Chromium ceiling. Off by default.
+ *
+ * `backdrop-filter: url()` is rendered by Chromium, silently dropped by WebKit,
+ * and reported to stop Gecko rendering the element outright (Firefox bug
+ * 1787623). It is therefore attached to `.glass-refract::before`, a decorative
+ * overlay that carries no content, so the worst case on a hostile engine costs
+ * a rim highlight rather than the surface itself.
+ *
+ * Enabling is an explicit opt-in on the root element. Do not turn it on until
+ * the effect has been verified on all three engines; see
+ * docs/architecture/glass-refraction-platform-strategy.md.
+ */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  @layer components {
+    [data-glass-refraction="on"] .glass-refract::before {
+      -webkit-backdrop-filter: url("#glass-displacement");
+      backdrop-filter: url("#glass-displacement");
+    }
+  }
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  @layer components {
+    .glass-surface {
+      -webkit-backdrop-filter: blur(var(--glass-blur))
+        saturate(var(--glass-saturate));
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    }
+  }
+}
+
+/* Transparency is a preference, not a requirement. Fall back to solid surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  @layer components {
+    .glass-surface {
+      --glass-alpha: 1;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-color: var(--popover);
+      background-image: none;
+    }
+
+    .glass-bar {
+      background-color: var(--background);
+    }
+
+    .glass-refract::before,
+    .glass-sheen::after {
+      display: none;
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  @layer components {
+    .glass-surface,
+    .glass-quiet {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-image: none;
+      box-shadow: none;
+      border: 1px solid CanvasText;
+    }
+
+    .edge-fade-x {
+      mask-image: none;
+    }
+
+    .glass-refract::before,
+    .glass-sheen::after {
+      display: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @layer components {
+    .glass-control,
+    .media-hover,
+    .media-hover [data-media-zoom] {
+      transition: none;
+    }
+
+    .media-hover:hover,
+    .media-hover:focus-visible,
+    a:hover .media-hover {
+      transform: none;
+    }
+
+    .media-hover:hover [data-media-zoom],
+    a:hover .media-hover [data-media-zoom] {
+      transform: none;
+    }
+
+    /* Hold the bar at its condensed value instead of tracking the scroller. */
+    .glass-scroll-bar {
+      --glass-scroll-progress: 1;
+      animation: none;
+    }
+
+    .glass-sheen::after {
+      transition: none;
+    }
+  }
 }
 
 @layer base {
