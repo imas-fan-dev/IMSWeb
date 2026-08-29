@@ -1,5 +1,13 @@
 import type { RouteConfig, RouteConfigEntry } from "@react-router/dev/routes"
 
+// Build-time target switch. `app` produces the Tauri-packaged manifest with
+// admin routes excluded; unset or any other value produces the web manifest,
+// byte-for-byte identical to before this switch existed. See `env.d.ts` and
+// `.env.example` for `VITE_IMS_APP_TARGET`. Excluding entries here (rather
+// than filtering after the fact) keeps admin page modules out of the app
+// build's module graph entirely, not just tree-shaken from it.
+const isAppTarget = import.meta.env.VITE_IMS_APP_TARGET === "app"
+
 const publicRoutes = [
   { index: true, file: "pages/home/index.tsx" },
   { path: "about", file: "pages/about/index.tsx" },
@@ -88,7 +96,9 @@ const standaloneRoutes = [
     path: "story/classic",
     file: "pages/wiki/classic/classic-story-page.tsx",
   },
-  { path: "admin/login", file: "pages/admin/login/index.tsx" },
+  ...(isAppTarget
+    ? []
+    : [{ path: "admin/login", file: "pages/admin/login/index.tsx" }]),
 ] satisfies RouteConfigEntry[]
 
 const adminRoutes = [
@@ -144,11 +154,29 @@ const adminRoutes = [
 ] satisfies RouteConfigEntry[]
 
 export default [
-  { file: "layouts/public-layout.tsx", children: publicRoutes },
-  ...standaloneRoutes,
   {
-    path: "admin",
-    file: "layouts/admin-layout.tsx",
-    children: adminRoutes,
+    // Two chrome shells over the same pages. The app shell is a separate module
+    // rather than a branch inside the web one so the web build never imports
+    // the tab bar, cold-start mask, or account tab at all.
+    file: isAppTarget ? "layouts/app-layout.tsx" : "layouts/public-layout.tsx",
+    children: isAppTarget
+      ? [
+          ...publicRoutes,
+          {
+            path: "account/me",
+            file: "pages/account/me/account-me-page.tsx",
+          },
+        ]
+      : publicRoutes,
   },
+  ...standaloneRoutes,
+  ...(isAppTarget
+    ? []
+    : [
+        {
+          path: "admin",
+          file: "layouts/admin-layout.tsx",
+          children: adminRoutes,
+        },
+      ]),
 ] satisfies RouteConfig
