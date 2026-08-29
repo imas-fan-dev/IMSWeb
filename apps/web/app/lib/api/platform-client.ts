@@ -6,6 +6,7 @@ import ReactHook from "alova/react"
 
 import { normalizeRequestError } from "./api-error"
 import { readCookie } from "./cookies"
+import { API_ORIGIN } from "./origin"
 import { applyApiRequestPolicy, PLATFORM_CSRF_COOKIE_NAME } from "./request"
 import { handleApiResponse } from "./response"
 import { withPlatformCsrf } from "./types"
@@ -80,6 +81,7 @@ markRefreshWaveFailed = (method) => {
 }
 
 export const platformApiClient = createAlova({
+  baseURL: API_ORIGIN,
   statesHook: ReactHook,
   requestAdapter: adapterFetch(),
   cacheFor: null,

@@ -8,6 +8,9 @@ import { localExchangeMapAssets } from "./vite-exchange-map-assets"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
 const workspaceRoot = fileURLToPath(new URL("../..", import.meta.url))
+// `tauri android dev` and `tauri ios dev` export this when the app runs on a
+// real device, which reaches this server over the LAN instead of loopback.
+const tauriDevHost = process.env.TAURI_DEV_HOST
 
 export default defineConfig({
   build: {
@@ -53,6 +56,13 @@ export default defineConfig({
     fs: {
       allow: [workspaceRoot],
     },
+    ...(tauriDevHost
+      ? {
+          host: tauriDevHost,
+          strictPort: true,
+          hmr: { protocol: "ws", host: tauriDevHost, port: 1421 },
+        }
+      : {}),
     proxy: Object.fromEntries(
       [
         "/api",

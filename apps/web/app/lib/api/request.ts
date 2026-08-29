@@ -1,5 +1,6 @@
 import { ApiError } from "./api-error"
 import { readCookie } from "./cookies"
+import { isCrossOriginApi } from "./origin"
 import type { ApiAuthRealm, ApiMethodMeta } from "./types"
 
 export const BACKOFFICE_CSRF_COOKIE_NAME = "ims_admin_csrf"
@@ -42,7 +43,10 @@ export function applyApiRequestPolicy(
   request: ApiRequestPolicyTarget,
   options: ApiRequestPolicyOptions = {}
 ): void {
-  request.config.credentials = "same-origin"
+  // Packaged builds reach the API cross-origin, where "same-origin" would drop
+  // the session cookies. The API must allow the caller's origin and echo
+  // Access-Control-Allow-Credentials for this to succeed.
+  request.config.credentials = isCrossOriginApi ? "include" : "same-origin"
 
   if (request.meta?.authRealm && request.meta.authRealm !== options.authRealm) {
     throw new Error(

@@ -213,7 +213,8 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         self.assertLessEqual(len(root_scripts), 52)
         self.assertLessEqual(len(api_scripts), 37)
-        self.assertLessEqual(len(web_scripts), 13)
+        # 15 covers the Tauri passthrough plus build:app, the app-target build.
+        self.assertLessEqual(len(web_scripts), 15)
         self.assertTrue(
             {
                 "build",

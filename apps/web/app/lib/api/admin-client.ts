@@ -5,6 +5,7 @@ import adapterFetch from "alova/fetch"
 import ReactHook from "alova/react"
 
 import { normalizeRequestError } from "./api-error"
+import { API_ORIGIN } from "./origin"
 import {
   applyApiRequestPolicy,
   BACKOFFICE_CSRF_COOKIE_NAME,
@@ -53,6 +54,7 @@ markRefreshWaveFailed = () => {
 }
 
 export const adminApiClient = createAlova({
+  baseURL: API_ORIGIN,
   statesHook: ReactHook,
   requestAdapter: adapterFetch(),
   cacheFor: null,

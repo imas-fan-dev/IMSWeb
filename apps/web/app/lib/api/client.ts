@@ -3,10 +3,12 @@ import adapterFetch from "alova/fetch"
 import ReactHook from "alova/react"
 
 import { normalizeRequestError } from "./api-error"
+import { API_ORIGIN } from "./origin"
 import { applyApiRequestPolicy } from "./request"
 import { handleApiResponse } from "./response"
 
 export const apiClient = createAlova({
+  baseURL: API_ORIGIN,
   statesHook: ReactHook,
   requestAdapter: adapterFetch(),
   cacheFor: null,
