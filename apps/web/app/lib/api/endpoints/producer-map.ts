@@ -5,6 +5,7 @@ import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   STABLE_CONTENT_CACHE_FOR,
 } from "../cache-policy"
+import { bundleAssetClient } from "../bundle-client"
 import { apiClient } from "../client"
 import {
   normalizeProducerMapAdminSnapshot,
@@ -25,8 +26,16 @@ export * from "@imsweb/contracts/producer-map"
 
 import type { ProducerMapContent } from "@imsweb/contracts/producer-map"
 
+/**
+ * Province geometry for the ECharts map.
+ *
+ * `apps/web/public/maps/china-provinces.json` ships inside the web bundle, not
+ * with the API, so this goes through `bundleAssetClient` and stays relative to
+ * the document. Through an API client it would gain `VITE_IMS_API_ORIGIN` in a
+ * packaged build and 404, leaving the map with no geometry to draw.
+ */
 export function getProducerMapGeometry() {
-  return apiClient.Get(
+  return bundleAssetClient.Get(
     mapsPath("/china-provinces.json"),
     parsed(producerMapGeometrySchema, {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
