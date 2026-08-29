@@ -7,6 +7,15 @@ import {
   WIKI_PUBLIC_CACHE,
 } from "../../cache-policy"
 import { apiClient } from "../../client"
+import {
+  normalizeWikiAdminCatalog,
+  normalizeWikiAdminStories,
+  normalizeWikiPublicCatalog,
+  normalizeWikiPublicStories,
+  normalizeWikiRandomBackground,
+  normalizeWikiRandomIdol,
+  normalizeWikiStoryCoverAssets,
+} from "../../media-urls"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
 import {
   bilibiliResultSchema,
@@ -111,6 +120,7 @@ export function getWikiCatalog(agency?: string) {
       cacheFor: WIKI_PUBLIC_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
       params: agency ? { agency } : undefined,
+      select: normalizeWikiPublicCatalog,
     })
   )
 }
@@ -122,6 +132,7 @@ export function getWikiStories(agency: string, idol: string) {
       cacheFor: WIKI_PUBLIC_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
       params: { agency, idol },
+      select: normalizeWikiPublicStories,
     })
   )
 }
@@ -131,6 +142,7 @@ export function getWikiRandomBackground() {
     wikiPath("/random_bg"),
     parsed(wikiRandomBackgroundSchema, {
       cacheFor: NO_CLIENT_CACHE,
+      select: normalizeWikiRandomBackground,
     })
   )
 }
@@ -140,6 +152,7 @@ export function getWikiRandomIdol() {
     wikiPath("/random_idol"),
     parsed(wikiRandomIdolSchema, {
       cacheFor: NO_CLIENT_CACHE,
+      select: normalizeWikiRandomIdol,
     })
   )
 }
@@ -193,6 +206,7 @@ export function getAdminWikiCatalog() {
     adminWikiPath("/catalog"),
     parsed(wikiAdminCatalogSchema, {
       meta: withBackofficeAuth(),
+      select: normalizeWikiAdminCatalog,
     })
   )
 }
@@ -203,6 +217,7 @@ export function getAdminWikiStories(agency: string, idol: string) {
     parsed(wikiAdminStoriesSchema, {
       meta: withBackofficeAuth(),
       params: { agency, idol },
+      select: normalizeWikiAdminStories,
     })
   )
 }
@@ -212,6 +227,7 @@ export function getAdminWikiStoryCoverAssets(agencyId: number) {
     adminWikiPath(`/agencies/${agencyId}/story-cover-assets`),
     parsed(wikiStoryCoverAssetsSchema, {
       meta: withBackofficeAuth(),
+      select: normalizeWikiStoryCoverAssets,
     })
   )
 }

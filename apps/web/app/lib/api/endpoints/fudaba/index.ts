@@ -1,6 +1,18 @@
 import { exchangePath } from "@imsweb/contracts/paths"
 import { z } from "@imsweb/contracts/z"
 
+import {
+  normalizeFudabaCardMutation,
+  normalizeFudabaCardPage,
+  normalizeFudabaOfficeDetail,
+  normalizeFudabaOfficeMutation,
+  normalizeFudabaOfficePage,
+  normalizeFudabaOwnerCardDetail,
+  normalizeFudabaOwnerCardList,
+  normalizeFudabaOwnerOfficeDetail,
+  normalizeFudabaOwnerOfficeList,
+  normalizeFudabaSeriesList,
+} from "../../media-urls"
 import { parsed } from "../../parsed"
 import { platformApiClient } from "../../platform-client"
 import { withPlatformAuth, withPlatformCsrf } from "../../types"
@@ -286,6 +298,7 @@ export function getFudabaSeries() {
     exchangePath("/series"),
     parsed(fudabaSeriesListSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaSeriesList,
     })
   )
 }
@@ -295,6 +308,7 @@ export function getFudabaOwnerSeries() {
     exchangePath("/me/series"),
     parsed(fudabaSeriesListSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaSeriesList,
     })
   )
 }
@@ -304,6 +318,7 @@ export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
     withQuery(exchangePath("/offices"), officePageParams(input)),
     parsed(fudabaOfficePageSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaOfficePage,
     })
   )
 }
@@ -313,7 +328,7 @@ export function getFudabaOffice(officeSlug: string) {
     exchangePath(`/offices/${encodeURIComponent(officeSlug)}`),
     parsed(fudabaOfficeDetailSchema, {
       meta: withPlatformAuth(),
-      select: (data) => data.office,
+      select: (data) => normalizeFudabaOfficeDetail(data.office),
     })
   )
 }
@@ -354,6 +369,7 @@ export function getFudabaCardPage(input: FudabaCardPageRequest = {}) {
     withQuery(exchangePath("/cards"), cardPageParams(input)),
     parsed(fudabaCardPageSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaCardPage,
     })
   )
 }
@@ -367,6 +383,7 @@ export function getFudabaFavoriteCardPage(input: FudabaCardPageRequest = {}) {
     withQuery(exchangePath("/me/favorites"), cardPageParams(input)),
     parsed(fudabaCardPageSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaCardPage,
     })
   )
 }
@@ -420,6 +437,7 @@ export function getFudabaOwnerCards() {
     exchangePath("/me/cards"),
     parsed(fudabaOwnerCardListSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaOwnerCardList,
     })
   )
 }
@@ -429,6 +447,7 @@ export function getFudabaOwnerCard(cardId: string) {
     exchangePath(`/me/cards/${encodeURIComponent(cardId)}`),
     parsed(fudabaOwnerCardDetailSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaOwnerCardDetail,
     })
   )
 }
@@ -438,6 +457,7 @@ export function getFudabaOwnerOffices() {
     exchangePath("/me/offices"),
     parsed(fudabaOwnerOfficeListSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaOwnerOfficeList,
     })
   )
 }
@@ -447,6 +467,7 @@ export function getFudabaOwnerOffice(officeId: string) {
     exchangePath(`/me/offices/${encodeURIComponent(officeId)}`),
     parsed(fudabaOwnerOfficeDetailSchema, {
       meta: withPlatformAuth(),
+      select: normalizeFudabaOwnerOfficeDetail,
     })
   )
 }
@@ -463,6 +484,7 @@ export function createFudabaOffice(
     parsed(fudabaOfficeMutationResponseSchema, {
       headers: { "Idempotency-Key": key },
       meta: withPlatformCsrf(),
+      select: normalizeFudabaOfficeMutation,
     })
   )
 }
@@ -477,6 +499,7 @@ export function updateFudabaOwnerOffice(
     submission,
     parsed(fudabaOfficeMutationResponseSchema, {
       meta: withPlatformCsrf(),
+      select: normalizeFudabaOfficeMutation,
     })
   )
 }
@@ -540,6 +563,7 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
     form,
     parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
+      select: normalizeFudabaCardMutation,
     })
   )
 }
@@ -551,6 +575,7 @@ export function updateFudabaCard(cardId: string, input: UpdateFudabaCardInput) {
     submission,
     parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
+      select: normalizeFudabaCardMutation,
     })
   )
 }
@@ -576,6 +601,7 @@ export function uploadFudabaCardMedia(
     form,
     parsed(fudabaCardMutationResponseSchema, {
       meta: withPlatformCsrf(),
+      select: normalizeFudabaCardMutation,
     })
   )
 }

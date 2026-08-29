@@ -6,6 +6,11 @@ import {
   STABLE_CONTENT_CACHE_FOR,
 } from "../cache-policy"
 import { apiClient } from "../client"
+import {
+  normalizeProducerMapAdminSnapshot,
+  normalizeProducerMapAdminUpdate,
+  normalizeProducerMapContent,
+} from "../media-urls"
 import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
 import {
@@ -35,6 +40,7 @@ export function getProducerMapContent() {
     parsed(producerMapContentSchema, {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
+      select: normalizeProducerMapContent,
     })
   )
 }
@@ -44,6 +50,7 @@ export function getAdminProducerMapContent() {
     adminApiPath("/producer-map"),
     parsed(producerMapAdminSnapshotSchema, {
       meta: withBackofficeAuth(),
+      select: normalizeProducerMapAdminSnapshot,
     })
   )
 }
@@ -58,6 +65,7 @@ export function updateAdminProducerMapContent(
     parsed(producerMapAdminUpdateSchema, {
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
+      select: normalizeProducerMapAdminUpdate,
     })
   )
 }

@@ -6,6 +6,11 @@ import {
   STABLE_CONTENT_CACHE_FOR,
 } from "../cache-policy"
 import { apiClient } from "../client"
+import {
+  normalizeAboutAdminSnapshot,
+  normalizeAboutAdminUpdate,
+  normalizeAboutPageContent,
+} from "../media-urls"
 import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
 import {
@@ -25,6 +30,7 @@ export function getAboutPageContent() {
     parsed(aboutPageContentSchema, {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
+      select: normalizeAboutPageContent,
     })
   )
 }
@@ -34,6 +40,7 @@ export function getAdminAboutPageContent() {
     adminApiPath("/about"),
     parsed(aboutAdminSnapshotSchema, {
       meta: withBackofficeAuth(),
+      select: normalizeAboutAdminSnapshot,
     })
   )
 }
@@ -48,6 +55,7 @@ export function updateAdminAboutPageContent(
     parsed(aboutAdminUpdateSchema, {
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
+      select: normalizeAboutAdminUpdate,
     })
   )
 }

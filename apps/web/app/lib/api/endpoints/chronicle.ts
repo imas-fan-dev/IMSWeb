@@ -5,6 +5,10 @@ import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   PUBLIC_QUERY_CACHE_FOR,
 } from "../cache-policy"
+import {
+  normalizeChronicleActivity,
+  normalizeChronicleActivitySummaries,
+} from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
 
@@ -30,6 +34,7 @@ export function getChronicleActivities() {
     parsed(z.array(chronicleActivitySummarySchema), {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
+      select: normalizeChronicleActivitySummaries,
     })
   )
 }
@@ -40,6 +45,7 @@ export function getChronicleActivity(activityId: string) {
     parsed(chronicleActivitySchema, {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
+      select: normalizeChronicleActivity,
     })
   )
 }

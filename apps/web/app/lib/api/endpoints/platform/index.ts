@@ -8,6 +8,11 @@ import { successFlagSchema } from "@imsweb/contracts/common"
 import { passwordResetIssueResponseSchema } from "@imsweb/contracts/platform"
 import { z } from "@imsweb/contracts/z"
 
+import {
+  normalizePlatformProfileMutation,
+  normalizePlatformProfileResponse,
+  normalizePlatformSession,
+} from "../../media-urls"
 import { parsed } from "../../parsed"
 import { readCookie } from "../../cookies"
 import { platformApiClient } from "../../platform-client"
@@ -192,6 +197,7 @@ export function getPlatformSession() {
     platformAuthPath("/session"),
     parsed(platformSessionSchema, {
       meta: withPlatformAuth(),
+      select: normalizePlatformSession,
     })
   )
 }
@@ -203,6 +209,7 @@ export function loginPlatform(input: PlatformLoginInput) {
     submission,
     parsed(platformSessionSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
+      select: normalizePlatformSession,
     })
   )
 }
@@ -227,6 +234,7 @@ export function registerPlatform(input: PlatformRegisterInput) {
     submission,
     parsed(platformSessionSchema, {
       meta: withPlatformAuth({ authRole: "login" }),
+      select: normalizePlatformSession,
     })
   )
 }
@@ -236,6 +244,7 @@ export function getPlatformProfile() {
     platformApiPath("/me"),
     parsed(platformProfileResponseSchema, {
       meta: withPlatformAuth(),
+      select: normalizePlatformProfileResponse,
     })
   )
 }
@@ -247,6 +256,7 @@ export function updatePlatformProfile(input: PlatformProfileUpdate) {
     submission,
     parsed(platformProfileMutationResponseSchema, {
       meta: withPlatformCsrf(),
+      select: normalizePlatformProfileMutation,
     })
   )
 }
@@ -261,6 +271,7 @@ export function uploadPlatformAvatar(input: PlatformAvatarUpload) {
     form,
     parsed(platformProfileMutationResponseSchema, {
       meta: withPlatformCsrf(),
+      select: normalizePlatformProfileMutation,
     })
   )
 }
