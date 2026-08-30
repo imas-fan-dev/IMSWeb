@@ -53,12 +53,12 @@ export default function AppLayout() {
       >
         <a
           href="#main-content"
-          className="fixed top-2 left-2 z-100 -translate-y-16 rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm focus:translate-y-0"
+          className="fixed top-[calc(0.5rem+var(--safe-area-top))] left-[calc(0.5rem+var(--safe-area-left))] z-100 translate-y-[calc(-100%-var(--safe-area-top)-0.5rem)] rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm focus-visible:translate-y-0"
         >
           {t("accessibility.skipToContent")}
         </a>
         {isExchangeMap ? null : <SeriesIconBackground />}
-        <header className="glass-surface glass-bar glass-scroll-bar glass-refract sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
+        <header className="glass-surface glass-bar glass-scroll-bar glass-refract sticky top-0 z-40 shrink-0 pt-[env(safe-area-inset-top)]">
           <div className="relative z-10 flex h-12 items-center justify-between px-4">
             <BrandWordmark className="h-6" />
             <ThemeToggle />
@@ -76,7 +76,7 @@ export default function AppLayout() {
         {isExchangeMap ? null : (
           <div
             className={cn(
-              "fixed right-4 z-40 flex flex-col items-end gap-2",
+              "fixed right-[calc(1rem+var(--safe-area-right))] z-40 flex flex-col items-end gap-2",
               APP_FLOATING_CONTROL_OFFSET
             )}
           >

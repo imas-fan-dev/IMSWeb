@@ -27,9 +27,15 @@ import type {
 
 const PACKAGED_ORIGIN = "https://idol-master.top"
 
-async function loadMediaUrls(configuredOrigin: string) {
+async function loadMediaUrls(
+  configuredOrigin: string,
+  publicSiteOrigin = configuredOrigin,
+  appTarget: "web" | "app" = configuredOrigin ? "app" : "web"
+) {
   vi.resetModules()
   vi.stubEnv("VITE_IMS_API_ORIGIN", configuredOrigin)
+  vi.stubEnv("VITE_IMS_PUBLIC_SITE_ORIGIN", publicSiteOrigin)
+  vi.stubEnv("VITE_IMS_APP_TARGET", appTarget)
   return import("~/lib/api/media-urls")
 }
 
@@ -298,7 +304,8 @@ const registeredCardReviews: { items: FudabaRegisteredCardReview[] } = {
         seriesCode: "765",
         favoriteIdol: "春香",
         favoriteIdols: [],
-        frontImageUrl: "/api/admin/exchange/card-reviews/card-9/media/front?v=1",
+        frontImageUrl:
+          "/api/admin/exchange/card-reviews/card-9/media/front?v=1",
         backImageUrl: "/api/admin/exchange/card-reviews/card-9/media/back?v=1",
         accent: "#f54798",
         bio: "",
@@ -508,6 +515,15 @@ const aboutContent: AboutPageContent = {
           profileUrl: null,
           avatarUrl: null,
         },
+        {
+          id: "p3",
+          name: "丙",
+          role: "协力",
+          description: "",
+          since: "2022",
+          profileUrl: null,
+          avatarUrl: "/brand/about/staff/helper.webp",
+        },
       ],
     },
   ],
@@ -673,6 +689,7 @@ describe("media URL normalisation without a configured origin", () => {
     // so a future refactor cannot quietly swap them.
     vi.resetModules()
     vi.stubEnv("VITE_IMS_API_ORIGIN", "")
+    vi.stubEnv("VITE_IMS_APP_TARGET", "web")
     const { resolveSafeMediaUrl } = await import("~/lib/api/origin")
 
     expect(resolveSafeMediaUrl("/wiki-groups/1.webp")).toBe(
@@ -826,20 +843,25 @@ describe("media URL normalisation with a configured origin", () => {
     ])
   })
 
-  it("absolutises the about hero and credit avatars but not profile links", async () => {
-    const media = await loadMediaUrls(PACKAGED_ORIGIN)
+  it("routes About heroes by ownership and all member avatars to the API", async () => {
+    const apiOrigin = "https://api.idol-master.top"
+    const publicSiteOrigin = "https://idol-master.top"
+    const media = await loadMediaUrls(apiOrigin, publicSiteOrigin)
     const content = media.normalizeAboutPageContent(aboutContent)
 
-    // /brand is served by the bundle, so it must stay relative.
-    expect(content.heroImageUrl).toBe("/brand/about/gakuen-arisa.png")
-    // /uploads is API-owned, so it must be rewritten.
+    expect(content.heroImageUrl).toBe(
+      `${publicSiteOrigin}/brand/about/gakuen-arisa.png`
+    )
     expect(content.groups[0].people[0].avatarUrl).toBe(
-      `${PACKAGED_ORIGIN}/uploads/about/member-avatars/abc123.jpg_128w`
+      `${apiOrigin}/uploads/about/member-avatars/abc123.jpg_128w`
     )
     expect(content.groups[0].people[0].profileUrl).toBe(
       "https://github.com/example"
     )
     expect(content.groups[0].people[1].avatarUrl).toBe(null)
+    expect(content.groups[0].people[2].avatarUrl).toBe(
+      `${apiOrigin}/brand/about/staff/helper.webp`
+    )
   })
 
   it("absolutises producer-map dialog images but not external community links", async () => {
@@ -900,8 +922,9 @@ describe("media URL normalisation with a configured origin", () => {
   it("absolutises the fudaba moderation queues", async () => {
     const media = await loadMediaUrls(PACKAGED_ORIGIN)
 
-    const reviews =
-      media.normalizeFudabaRegisteredCardReviewList(registeredCardReviews)
+    const reviews = media.normalizeFudabaRegisteredCardReviewList(
+      registeredCardReviews
+    )
     expect(reviews.items[0].card.frontImageUrl).toBe(
       `${PACKAGED_ORIGIN}/api/admin/exchange/card-reviews/card-9/media/front?v=1`
     )
@@ -958,7 +981,9 @@ describe("media URL normalisation with a configured origin", () => {
     const page = media.normalizeNamecardPage(mixed)
 
     expect(page.list[0].image1_url).toBe("data:image/png;base64,AAAA")
-    expect(page.list[0].image1_thumbnail_url).toBe("//cdn.example.com/thumb.jpg")
+    expect(page.list[0].image1_thumbnail_url).toBe(
+      "//cdn.example.com/thumb.jpg"
+    )
   })
 
   it("passes protocol-relative URLs and data URIs through untouched", async () => {

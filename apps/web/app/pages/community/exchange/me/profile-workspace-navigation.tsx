@@ -5,11 +5,11 @@ import {
   MailIcon,
   UserRoundIcon,
 } from "lucide-react"
-import { Link } from "react-router"
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import type { PlatformProfile } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export type ProfileWorkspaceSection =
   | "profile"
@@ -112,7 +112,7 @@ export function ProfileWorkspaceNavigation({
               ? "/community/exchange/me"
               : `/community/exchange/me?section=${section.id}`
           return (
-            <Link
+            <NavigationLink
               key={section.id}
               to={href}
               className={cn(
@@ -146,7 +146,7 @@ export function ProfileWorkspaceNavigation({
                   {section.description}
                 </span>
               </span>
-            </Link>
+            </NavigationLink>
           )
         })}
       </nav>

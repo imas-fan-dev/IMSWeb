@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Device builds can load development resources or call a controlled private
+	  LAN backend over HTTP. ATS exempts localhost but not private addresses,
+	  so the Simulator works while a real device does not.
+	  NSAllowsLocalNetworking relaxes cleartext only for private/link-local
+	  addresses and .local names; public TLS requirements are untouched.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!--
+	  iOS 14+ gates connections to local addresses behind an explicit consent
+	  prompt. The key is surfaced only when the app reaches a local development
+	  resource or private LAN backend.
+	-->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>连接同一局域网内的 IMSWeb 服务，以加载数据和媒体。</string>
+</dict>
+</plist>

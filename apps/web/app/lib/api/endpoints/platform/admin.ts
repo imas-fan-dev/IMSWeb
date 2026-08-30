@@ -8,7 +8,12 @@ import {
   platformOAuthAdminProviderMutationSchema,
 } from "@imsweb/contracts/platform/admin"
 
-export * from "@imsweb/contracts/platform/admin"
+export {
+  platformOAuthAdminProviderSchema,
+  platformOAuthAdminProviderListSchema,
+  platformOAuthAdminProviderMutationSchema,
+} from "@imsweb/contracts/platform/admin"
+export type * from "@imsweb/contracts/platform/admin"
 
 import type { PlatformOAuthAdminProvider } from "@imsweb/contracts/platform/admin"
 

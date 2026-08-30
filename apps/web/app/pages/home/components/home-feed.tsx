@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { getHomeEvents, getHomeNews } from "~/lib/api"
 import { useHomeSummaryCount } from "../hooks/use-home-summary-count"
 import { HomeEventRow, HomeFeedSkeleton, HomeNewsRow } from "./home-feed-items"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function HomeFeed() {
   const summaryCount = useHomeSummaryCount()
@@ -67,13 +68,13 @@ export function HomeFeed() {
               <h3 id="events-heading" className="font-semibold">
                 国内活动
               </h3>
-              <a
+              <NavigationLink
                 href="/events"
                 className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 查看全部活动
                 <ArrowRightIcon aria-hidden="true" className="size-4" />
-              </a>
+              </NavigationLink>
             </div>
             {eventsLoading ? (
               <HomeFeedSkeleton />
@@ -105,13 +106,13 @@ export function HomeFeed() {
               <h3 id="news-heading" className="font-semibold">
                 向您推荐
               </h3>
-              <a
+              <NavigationLink
                 href="/recommendations"
                 className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 查看全部推荐
                 <ArrowRightIcon aria-hidden="true" className="size-4" />
-              </a>
+              </NavigationLink>
             </div>
             {newsLoading ? (
               <HomeFeedSkeleton />

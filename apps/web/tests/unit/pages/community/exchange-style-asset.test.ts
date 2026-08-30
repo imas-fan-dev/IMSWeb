@@ -10,6 +10,7 @@ interface MapStyleAsset {
     {
       type?: string
       url?: string
+      data?: string
       tiles?: string[]
       attribution?: string
       maxzoom?: number
@@ -20,9 +21,9 @@ interface MapStyleAsset {
   layers: Array<{ id: string; type: string; source?: string }>
 }
 
-async function readExchangeStyle() {
+async function readExchangeStyle(filename = "exchange-style.json") {
   const raw = await readFile(
-    resolve(process.cwd(), "public/maps/exchange-style.json"),
+    resolve(process.cwd(), `public/maps/${filename}`),
     "utf8"
   )
   return JSON.parse(raw) as MapStyleAsset
@@ -57,5 +58,29 @@ describe("exchange world map style asset", () => {
       expect(layerIds).toContain(layerId)
     }
     expect(JSON.stringify(style)).not.toContain("china-provinces")
+  })
+})
+
+describe("exchange test map style asset", () => {
+  it("uses the bundled province geometry without PMTiles or remote runtime assets", async () => {
+    const style = await readExchangeStyle("exchange-test-style.json")
+    const layerIds = style.layers.map((layer) => layer.id)
+
+    expect(style.version).toBe(8)
+    expect(style.sources["china-provinces"]).toMatchObject({
+      type: "geojson",
+      data: "/maps/china-provinces.json",
+    })
+    expect(style.sources["china-provinces"]?.attribution).toContain(
+      "DataV GeoAtlas"
+    )
+    expect(style.sprite).toBeUndefined()
+    expect(style.glyphs).toBe("/maps/exchange/fonts/{fontstack}/{range}.pbf")
+    expect(layerIds).toEqual([
+      "background",
+      "province-fill",
+      "province-boundary",
+    ])
+    expect(JSON.stringify(style.sources)).not.toContain("pmtiles://")
   })
 })

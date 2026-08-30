@@ -1,6 +1,6 @@
-import * as React from "react"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
+import { useSafeAreaCollisionBoundary } from "~/components/ui/use-safe-area-collision-boundary"
 import { cn } from "~/lib/utils"
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
@@ -23,9 +23,12 @@ function PopoverContent({
     PopoverPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
   >) {
+  const collisionBoundary = useSafeAreaCollisionBoundary()
+
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
+        collisionBoundary={collisionBoundary}
         side={side}
         sideOffset={sideOffset}
         align={align}

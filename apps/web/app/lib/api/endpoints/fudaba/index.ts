@@ -1,4 +1,4 @@
-import { exchangePath } from "@imsweb/contracts/paths"
+import { adminExchangePath, exchangePath } from "@imsweb/contracts/paths"
 import { z } from "@imsweb/contracts/z"
 
 import {
@@ -13,9 +13,15 @@ import {
   normalizeFudabaOwnerOfficeList,
   normalizeFudabaSeriesList,
 } from "../../media-urls"
+import { adminApiClient } from "../../admin-client"
 import { parsed } from "../../parsed"
 import { platformApiClient } from "../../platform-client"
-import { withPlatformAuth, withPlatformCsrf } from "../../types"
+import {
+  withBackofficeAuth,
+  withBackofficeCsrf,
+  withPlatformAuth,
+  withPlatformCsrf,
+} from "../../types"
 
 import {
   accentSchema,
@@ -32,6 +38,8 @@ import {
   namecardReactionEmojiSchema,
   NAMECARD_REACTION_EMOJIS,
   fudabaMapConfigSchema,
+  fudabaMapDeliveryMutationSchema,
+  fudabaMapDeliverySnapshotSchema,
   fudabaMapOfficeListSchema,
   fudabaOfficeDetailSchema,
   fudabaOfficeMutationResponseSchema,
@@ -58,7 +66,70 @@ import {
   wallZIndexSchema,
 } from "@imsweb/contracts/fudaba"
 
-export * from "@imsweb/contracts/fudaba"
+export {
+  seriesCodeSchema,
+  accentSchema,
+  publicMediaUrlSchema,
+  timestampSchema,
+  fudabaRevisionSchema,
+  wallCoordinateSchema,
+  wallRotationSchema,
+  wallZIndexSchema,
+  exactCoordinateSchema,
+  regionalCoordinateSchema,
+  fudabaSeriesSchema,
+  fudabaSeriesListSchema,
+  fudabaOfficeSchema,
+  fudabaIdolSelectionSchema,
+  fudabaCardInteractionsSchema,
+  fudabaCardInteractionKindSchema,
+  namecardReactionEmojiSchema,
+  fudabaCardReactionSchema,
+  fudabaCardSchema,
+  fudabaCardPlacementSchema,
+  fudabaPlacedCardSchema,
+  fudabaPageInfoSchema,
+  fudabaOfficePageSchema,
+  fudabaCardPageSchema,
+  fudabaOfficeDetailSchema,
+  fudabaMapOfficeSchema,
+  fudabaMapOfficeListSchema,
+  fudabaPlaceSearchResultSchema,
+  fudabaPlaceSearchResponseSchema,
+  fudabaMapConfigSchema,
+  ownerCardIdSchema,
+  ownerCardTextSchema,
+  ownerOfficeTextSchema,
+  ownerOfficeSeriesCodesSchema,
+  fudabaOwnerCardSchema,
+  fudabaOwnerCardListSchema,
+  fudabaOwnerCardDetailSchema,
+  fudabaCardMutationResponseSchema,
+  fudabaCardDeleteResponseSchema,
+  fudabaCardInteractionResponseSchema,
+  fudabaCardReactionsResponseSchema,
+  fudabaOwnerOfficeSchema,
+  fudabaOwnerOfficeListSchema,
+  fudabaOwnerOfficeDetailSchema,
+  fudabaOfficeMutationResponseSchema,
+  fudabaOwnerLocationSchema,
+  fudabaOwnerLocationDetailSchema,
+  fudabaOwnerLocationMutationResponseSchema,
+  fudabaOwnerLocationWithdrawalResponseSchema,
+  fudabaCardPlacementSaveResponseSchema,
+  fudabaCardPlacementDeleteResponseSchema,
+  fudabaMapAssetName,
+  fudabaMapDeliveryMutationSchema,
+  fudabaMapDeliverySnapshotSchema,
+  fudabaMapDeliveryUpdateSchema,
+  fudabaMapPrefixFromStyleUrl,
+  fudabaMapPrefixSchema,
+  fudabaMapStyleUrlForPrefix,
+  isFudabaMapPrefix,
+  isFudabaMapStyleUrl,
+  hasAsciiControl,
+} from "@imsweb/contracts/fudaba"
+export type * from "@imsweb/contracts/fudaba"
 
 const idempotencyKeySchema = z
   .string()
@@ -338,6 +409,28 @@ export function getFudabaMapConfig() {
     exchangePath("/map/config"),
     parsed(fudabaMapConfigSchema, {
       meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function getAdminFudabaMapDelivery() {
+  return adminApiClient.Get(
+    adminExchangePath("/map-delivery"),
+    parsed(fudabaMapDeliverySnapshotSchema, {
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+export function updateAdminFudabaMapDelivery(
+  prefix: string,
+  revision: string | null
+) {
+  return adminApiClient.Put(
+    adminExchangePath("/map-delivery"),
+    { prefix, revision },
+    parsed(fudabaMapDeliveryMutationSchema, {
+      meta: withBackofficeCsrf(),
     })
   )
 }

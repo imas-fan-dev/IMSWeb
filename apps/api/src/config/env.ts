@@ -1,3 +1,5 @@
+import { isFudabaMapPrefix } from "@imsweb/contracts/fudaba/map-delivery";
+
 export type RuntimeEnvironment = "development" | "test" | "production";
 
 export interface CookieOptions {
@@ -233,6 +235,7 @@ export function parseFudabaWriteEnabled(value: string | undefined): boolean {
 export interface FudabaMapConfig {
     enabled: boolean;
     styleUrl: string;
+    prefixes: string[];
 }
 
 export interface FudabaGeocodingConfig {
@@ -276,6 +279,33 @@ export function parseFudabaMapStyleUrl(value: string | undefined): string {
     return normalized;
 }
 
+/**
+ * Deployment allowlist of map delivery prefixes an operator may select.
+ *
+ * This is the trust boundary for operator-editable delivery: the stored
+ * selection is checked against this list on both the write path and the read
+ * path, so a poisoned object-store value falls back to the env default
+ * instead of reaching a browser. An unset variable means no prefix may be
+ * selected and the deployment stays on IMS_FUDABA_MAP_STYLE_URL.
+ */
+export function parseFudabaMapPrefixes(value: string | undefined): string[] {
+    if (value === undefined) return [];
+    const prefixes: string[] = [];
+    for (const entry of value.split(",")) {
+        const prefix = entry.trim();
+        if (!prefix) continue;
+        if (!isFudabaMapPrefix(prefix)) {
+            throw new Error(
+                "IMS_FUDABA_MAP_PREFIXES entries must be root-relative paths or " +
+                    "absolute http(s) URLs ending with / and carrying no " +
+                    `credentials, query, or hash (received ${prefix})`,
+            );
+        }
+        if (!prefixes.includes(prefix)) prefixes.push(prefix);
+    }
+    return prefixes;
+}
+
 export function parseFudabaMapConfig(
     environment: NodeJS.ProcessEnv = process.env,
 ): FudabaMapConfig {
@@ -288,7 +318,10 @@ export function parseFudabaMapConfig(
             "IMS_FUDABA_MAP_STYLE_URL is required when IMS_FUDABA_MAP_ENABLED=true",
         );
     }
-    return { enabled, styleUrl };
+    const prefixes = parseFudabaMapPrefixes(
+        environment.IMS_FUDABA_MAP_PREFIXES,
+    );
+    return { enabled, styleUrl, prefixes };
 }
 
 export function parseFudabaGeocodingConfig(
@@ -361,6 +394,7 @@ export const FUDABA_WRITE_ENABLED = parseFudabaWriteEnabled(
 export const FUDABA_MAP_CONFIG = parseFudabaMapConfig();
 export const FUDABA_MAP_ENABLED = FUDABA_MAP_CONFIG.enabled;
 export const FUDABA_MAP_STYLE_URL = FUDABA_MAP_CONFIG.styleUrl;
+export const FUDABA_MAP_PREFIXES = FUDABA_MAP_CONFIG.prefixes;
 export const FUDABA_GEOCODING_CONFIG = parseFudabaGeocodingConfig();
 const COOKIE_SECURE = envFlag("IMS_COOKIE_SECURE", IS_PRODUCTION);
 

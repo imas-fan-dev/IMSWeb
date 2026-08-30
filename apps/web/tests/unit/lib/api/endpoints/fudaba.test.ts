@@ -415,10 +415,15 @@ describe("Fudaba Web API contracts", () => {
         styleUrl: " /api/community/exchange/map/style.json ",
       }).styleUrl
     ).toBe("/api/community/exchange/map/style.json")
+    expect(
+      fudabaMapConfigSchema.parse({
+        styleUrl: " https://maps.example/releases/v3/exchange-style.json ",
+      }).styleUrl
+    ).toBe("https://maps.example/releases/v3/exchange-style.json")
     for (const styleUrl of [
       "",
       "style.json",
-      "https://maps.example/style",
+      "https://user:secret@maps.example/style",
       "//maps.example/style",
       "/styles//map.json",
       "/styles\\map.json",

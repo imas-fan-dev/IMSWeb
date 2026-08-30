@@ -6,11 +6,16 @@ import { describe, expect, it } from "vitest"
 
 import {
   andFilter,
+  applyChinaBoundaryCompliance,
   chinaBoundaryDashFillLayer,
   chinaBoundaryDashLineLayer,
+  CHINA_CLAIM_BOUNDARY_LAYER_ID,
+  CHINA_DASH_FILL_LAYER_ID,
+  CHINA_DASH_LINE_LAYER_ID,
   CHINA_DASH_SOURCE_URL,
   chinaClaimBoundaryFilter,
   chinaClaimBoundaryLayer,
+  TAIWAN_PROVINCE_LABEL_LAYER_ID,
   taiwanProvinceLabelLayer,
   withoutDisputedChinaCountryBoundary,
   withoutForeignClaimOverChina,
@@ -358,5 +363,28 @@ describe("争议线图层排除重复与他国主张", () => {
 
   it("无归属的实控线仍按争议虚线保留", () => {
     expect(matches(filter, observed.unattributedLac)).toBe(true)
+  })
+})
+
+describe("轻量测试样式", () => {
+  it("没有 OpenMapTiles source 时只追加同源断续线图层", () => {
+    const sources = new Set(["china-provinces"])
+    const layers = new Map<string, { id: string }>()
+    const map = {
+      getLayer: (id: string) => layers.get(id),
+      getFilter: () => undefined,
+      setFilter: () => undefined,
+      getSource: (id: string) => (sources.has(id) ? {} : undefined),
+      addSource: (id: string) => sources.add(id),
+      addLayer: (layer: { id: string }) => layers.set(layer.id, layer),
+    } as unknown as Parameters<typeof applyChinaBoundaryCompliance>[0]
+
+    applyChinaBoundaryCompliance(map)
+
+    expect(sources.has("china-boundary-dashes")).toBe(true)
+    expect(layers.has(CHINA_DASH_FILL_LAYER_ID)).toBe(true)
+    expect(layers.has(CHINA_DASH_LINE_LAYER_ID)).toBe(true)
+    expect(layers.has(CHINA_CLAIM_BOUNDARY_LAYER_ID)).toBe(false)
+    expect(layers.has(TAIWAN_PROVINCE_LABEL_LAYER_ID)).toBe(false)
   })
 })

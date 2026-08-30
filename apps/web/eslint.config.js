@@ -13,6 +13,7 @@ export default defineConfig(
     // whatever lands there is operator data or one-off scripts, not shipped code.
     ignores: [
       "build/**",
+      "build-app/**",
       ".react-router/**",
       "data/**",
       "node_modules/**",
@@ -42,6 +43,64 @@ export default defineConfig(
     },
     rules: {
       "better-tailwindcss/enforce-canonical-classes": "error",
+    },
+  },
+  {
+    files: ["app/**/*.{ts,tsx}"],
+    ignores: [
+      "app/components/navigation/navigation-link.tsx",
+      "app/lib/navigation/use-navigation.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "react-router",
+              importNames: ["Link", "NavLink", "useNavigate"],
+              message:
+                "Use the shared NavigationLink, NavigationNavLink, or useNavigation abstraction.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.object.object.name='window'][callee.object.property.name='location'][callee.property.name=/^(assign|replace)$/]",
+          message: "Use useNavigation() for document navigation.",
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='window'][callee.property.name='open']",
+          message: "Use the shared navigation system opener.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["app/**/*.tsx"],
+    ignores: [
+      "app/components/navigation/navigation-link.tsx",
+      "app/layouts/app-layout.tsx",
+      "app/layouts/public-layout.tsx",
+      "app/pages/wiki/classic/components/wiki/classic-group-filter.tsx",
+      "app/pages/wiki/modern/components/story-navigation-panel.tsx",
+      "app/pages/wiki/modern/components/wiki-group-filter.tsx",
+      "app/pages/wiki/modern/story-page.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "JSXOpeningElement[name.name='a'] > JSXAttribute[name.name='href']",
+          message:
+            "Use NavigationLink for navigation; raw anchors are reserved for audited hash, skip, and download links.",
+        },
+      ],
     },
   }
 )

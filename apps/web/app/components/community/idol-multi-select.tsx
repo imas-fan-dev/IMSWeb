@@ -118,7 +118,7 @@ export function IdolMultiSelect({
         </div>
 
         <div
-          className="h-56 overflow-y-auto p-2"
+          className="h-44 overflow-y-auto overscroll-contain p-2 sm:h-56"
           role="group"
           aria-label="担当偶像候选"
         >
@@ -164,7 +164,7 @@ export function IdolMultiSelect({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-5"
+                  className="size-6 sm:size-5"
                   disabled={disabled}
                   aria-label={`移除担当 ${idol.name}`}
                   title="移除"

@@ -171,6 +171,35 @@ describe("navigation lens motion", () => {
     }
   })
 
+  it("scopes contact feedback to explicitly interactive glass", () => {
+    const passiveSheen = ruleBody("  .glass-control::after")
+    expect(passiveSheen).toContain("transparent 42%")
+    expect(declaredProperties(passiveSheen)).not.toContain("transform")
+    expect(declaredProperties(passiveSheen)).not.toContain("animation")
+
+    expect(stylesheet).toContain(
+      ".glass-sheen[data-glass-interactive][data-glass-pressed]::after"
+    )
+    expect(stylesheet).not.toContain(
+      "\n  .glass-sheen[data-glass-pressed]::after"
+    )
+    expect(stylesheet).not.toContain(".glass-sheen:focus-within::after")
+    expect(stylesheet).toContain("@media (hover: hover) and (pointer: fine)")
+    expect(stylesheet).toContain(
+      ".glass-sheen[data-glass-interactive][data-glass-exiting]::after"
+    )
+    expect(
+      new Set(declaredProperties(keyframesBody("glass-touch-glow")))
+    ).toEqual(new Set(["opacity", "transform"]))
+    expect(
+      new Set(declaredProperties(keyframesBody("glass-touch-exit")))
+    ).toEqual(new Set(["opacity", "transform"]))
+    expect(
+      new Set(declaredProperties(keyframesBody("glass-control-release")))
+    ).toEqual(new Set(["transform"]))
+    expect(ruleBody("  .glass-tab")).toContain("touch-action: none")
+  })
+
   it("never animates a property that re-blurs or relayouts", () => {
     const animated = [
       ruleBody("  .glass-lens"),
@@ -179,6 +208,9 @@ describe("navigation lens motion", () => {
       ruleBody("  .glass-tab [data-glass-tab-icon]"),
       keyframesBody("glass-lens-travel"),
       keyframesBody("glass-tab-settle"),
+      keyframesBody("glass-touch-glow"),
+      keyframesBody("glass-touch-exit"),
+      keyframesBody("glass-control-release"),
     ].join("\n")
 
     for (const property of expensiveToAnimate) {
@@ -201,6 +233,9 @@ describe("navigation lens motion", () => {
       '.glass-tab[aria-current="page"] [data-glass-tab-icon]'
     )
     expect(reduced).toContain(".glass-tab:active")
+    expect(reduced).toContain(".glass-control[data-glass-pressed]")
+    expect(reduced).toContain(".glass-tab[data-glass-releasing]")
+    expect(reduced).toContain(".glass-control[data-glass-exiting]")
   })
 
   it("registers the lens components in the design reference", () => {

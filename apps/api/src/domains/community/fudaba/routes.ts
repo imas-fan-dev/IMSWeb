@@ -5,6 +5,7 @@ import { fudabaCardRoutes } from '@/domains/community/fudaba/cards/routes';
 import { fudabaClaimRoutes } from '@/domains/community/fudaba/claims/routes';
 import { fudabaDirectoryRoutes } from '@/domains/community/fudaba/directory/routes';
 import { fudabaLocationRoutes } from '@/domains/community/fudaba/locations/routes';
+import { fudabaMapDeliveryRoutes } from '@/domains/community/fudaba/map-delivery/routes';
 import { fudabaModerationRoutes } from '@/domains/community/fudaba/moderation/routes';
 import { fudabaOfficeRoutes } from '@/domains/community/fudaba/offices/routes';
 
@@ -20,4 +21,5 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
     app.route(EXCHANGE_PREFIX, fudabaLocationRoutes());
     app.route(EXCHANGE_PREFIX, fudabaClaimRoutes());
     app.route(EXCHANGE_ADMIN_PREFIX, fudabaModerationRoutes());
+    app.route(EXCHANGE_ADMIN_PREFIX, fudabaMapDeliveryRoutes());
 }

@@ -2,7 +2,7 @@
 
 > 文档类型：开发
 > 状态：Active
-> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/app/lib/api/origin.ts` 和 `apps/web/package.json`
+> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
 
 本文件描述 Web workspace 中 Tauri 2 移动端外壳的当前状态、前置条件和尚未打通的契约。
 桌面与移动构建复用同一份 React Router SPA 产物，不存在第二套前端源码。
@@ -14,12 +14,25 @@
 已经落地的部分：
 
 - `apps/web/src-tauri/` 由官方 CLI 生成，crate 名 `imsweb`，bundle identifier `top.idol-master.imsweb`。
-- `tauri.conf.json` 的 `frontendDist` 指向 `../build/client`，即 `react-router build` 的 SPA 产物。
-  该产物已包含 `__spa-fallback.html`，客户端路由无需额外的服务端回退。
+- `tauri.conf.json` 保存各平台共用的构建、窗口与图标设置；其 `frontendDist` 指向
+  `../build-app/client`，即 app target 独立的 SPA 产物。普通 Web 产物仍写入
+  `../build/client`，两种构建不会互相覆盖。app 产物已包含 `__spa-fallback.html`，客户端路由
+  无需额外的服务端回退。
+- Tauri 自动将 `tauri.android.conf.json` 或 `tauri.ios.conf.json` 合并到基础配置。Android 配置
+  只管理调试 application ID 后缀，iOS 配置只管理最低系统版本。平台文件以 JSON Merge Patch
+  覆盖基础字段，数组会整体替换，因此共享字段必须继续留在基础配置。
+- `Info.ios.plist` 是 iOS 专属声明，Tauri 会在生成 Apple 工程时自动合并。
 - `apps/web/app/lib/api/origin.ts` 提供跨源 origin 契约，三个 alova client 均已接入 `baseURL`。
+- `build:app` 默认注入并校验 `https://idol-master.top`；`dev:app` 清空 API origin，
+  让 Tauri dev URL 同源转发请求至本地 1420，再由 Vite 代理到 Hono。
 - 站点公开地址由 `VITE_IMS_PUBLIC_SITE_ORIGIN` 单独表达，供复制外发的链接使用，见第 4 节。
+- 外部 URL 在真实 Tauri runtime 中由 opener 插件交给系统浏览器或已注册 App，不替换当前
+  WebView。支持 HTTP(S)、邮件、电话和自定义 App scheme；前端与 capability 都拒绝可执行或
+  本地资源 scheme。
 - Rust 侧 `cargo check` 通过；iOS 与 Android 的 Rust target 已安装。
-
+- iOS 26 及以上通过仓库内 `native-glass` Tauri 插件安装系统 `UITabBarController` 底栏；它使用与
+  React 相同的 Lucide 图标，宽度和安全区间距由 UIKit 自适应。iOS 26 以下与 Android 保留 Web 底栏，
+  但不启用手指位置追踪或白色触点高光。
 - 跨源认证走 `Authorization: Bearer`，CORS 已放行打包客户端 origin，见第 5 节。
 
 尚未落地的部分见第 6 节。**打包后的应用可以登录并调用 Platform API，
@@ -51,27 +64,87 @@ export NDK_HOME="$ANDROID_HOME/ndk/$(ls -1 $ANDROID_HOME/ndk | tail -1)"
 Web workspace 只暴露一个 `tauri` 透传脚本，子命令原样传给 Tauri CLI：
 
 ```sh
+pnpm --filter @imsweb/web run dev:app              # 只启动 1420 App Web 开发服务
 pnpm --filter @imsweb/web run tauri dev            # 桌面 WebView 联调
-pnpm --filter @imsweb/web run tauri ios init       # 生成 gen/ios，仅需一次
-pnpm --filter @imsweb/web run tauri ios dev
+pnpm --filter @imsweb/web run tauri ios init       # 生成 gen/apple，仅需一次
+pnpm --filter @imsweb/web run tauri ios dev        # iOS 模拟器
+pnpm --filter @imsweb/web run tauri ios dev --host <开发机局域网 IP> [设备名]
 pnpm --filter @imsweb/web run tauri android init   # 生成 gen/android，仅需一次
-pnpm --filter @imsweb/web run tauri android dev
+pnpm --filter @imsweb/web run tauri android dev    # Android 模拟器
+pnpm --filter @imsweb/web run tauri android dev --host <开发机局域网 IP> [设备名]
 ```
 
 `init` 会在 `src-tauri/gen/` 下生成平台工程。执行前先确认 identifier 与签名归属，
-identifier 变更后需要重新生成。
+identifier 变更后需要重新生成。`gen/` 始终是派生产物；iOS 原生源码放在
+`src-tauri/plugins/native-glass/ios/`，由插件 `build.rs` 在每次生成时接入 Swift Package，
+不得把实现写进 `gen/apple`。
 
-真机联调时 Tauri 会导出 `TAURI_DEV_HOST`，`vite.config.ts` 据此把 dev server 绑定到 LAN 地址
-并固定 HMR 端口；未设置时开发行为与纯 Web 完全一致。
+### iOS 26 原生 Liquid Glass
+
+App 底栏采用运行时能力协商，而不是只解析 User-Agent：React 仅在真实 iOS Tauri runtime 调用
+`plugin:native-glass|configure`，Swift 再用 `#available(iOS 26.0, *)` 判断系统 API。原生视图成功
+安装并返回 `supported: true` 前，Web 回退保持可见；返回不支持或调用失败时继续使用回退，因此旧
+iOS 与 Android 不会失去导航。原生 tab 选择通过 `ims:native-tab-select` DOM 事件交回 React Router，
+路由或主题变化则通过 `update` 命令同步。卸载布局时调用 `destroy`，并通过把 `effect` 动画到 `nil`
+移除材质，不用 alpha 隐藏原生玻璃。
+
+Web 回退保留现有表面、单枚透镜和 tab 按压缩放，但根节点只标记 `data-glass-fallback`；不得恢复
+`glass-sheen` 或 `data-glass-interactive`。这是移动端稳定性边界：旧 iOS 与 Android 不追踪指针或
+手指坐标，也不显示白色触点光斑。
+
+Tauri 开发服务固定使用 `1420`，普通 Web 开发服务继续使用 `5173`。普通 Web 的启动、构建、
+预览和类型生成命令会显式使用 web target，不继承 shell 中残留的 app target；Tauri 开发命令
+通过 `dev:app` 启动 React Router。两者可以同时运行，浏览器访问 `5173` 时不会再误用 app
+目标的路由和外壳。
+
+真机联调必须传 `--host <开发机局域网 IP>`。Tauri 会据此重写设备实际加载的 dev URL，并导出
+`TAURI_DEV_HOST`。`dev:app` 用它生成
+`http://<局域网地址>:1420` 作为公共站点地址，但显式清空 API origin。Tauri 的 dev URL
+scheme 会把设备上的同源 API、媒体、`/sites` 和 `/site-content` 请求转发到 1420，再由 Vite
+代理至本机 Hono。API 返回的本地 RustFS 绝对地址会按 `IMS_RUSTFS_BUCKET` 改写为同源桶路径，
+再由 1420 代理到回环地址上的 `IMS_RUSTFS_API_PORT`；设备不直接访问 9000。这样既能使用本地
+数据库、对象存储和站点包，也避免 iOS WebKit 为 API 单独发起局域网跨源请求。未设置时使用
+`http://localhost:1420`。需要其他私网入口时设置
+`IMS_APP_DEV_ORIGIN`；启动器拒绝公网、`0.0.0.0`、带凭据、路径、查询或 hash 的值。
 
 ## 4. 跨源 API 契约
 
-Web 构建中前端与 Hono 同源，请求保持相对路径。移动端 WebView 从本地 scheme 加载页面，
-相对路径无法抵达 API，因此引入构建期变量 `VITE_IMS_API_ORIGIN`：
+Web 构建中前端与 Hono 同源，请求保持相对路径。发布 App 的 WebView 从本地 scheme 加载页面，
+相对路径无法抵达 API，因此 `build:app` 会设置构建期变量 `VITE_IMS_API_ORIGIN`。默认值为
+`https://idol-master.top`；只有验证其他部署时才需要覆盖：
 
 ```sh
-VITE_IMS_API_ORIGIN=https://idol-master.top pnpm --filter @imsweb/web run tauri ios build
+VITE_IMS_API_ORIGIN=https://api.example.test \
+VITE_IMS_PUBLIC_SITE_ORIGIN=https://www.example.test \
+pnpm --filter @imsweb/web run tauri ios build
 ```
+
+受控私网环境可以构建一个直接连接 HTTP 局域网 API 的已签名 App。必须显式设置
+`IMS_ALLOW_INSECURE_LAN_APP_ORIGIN=1`；构建脚本只会在该开关存在时接受 RFC1918 IPv4 地址，
+并继续拒绝任何公网 HTTP origin：
+
+```sh
+IMS_ALLOW_INSECURE_LAN_APP_ORIGIN=1 \
+VITE_IMS_API_ORIGIN=http://192.168.31.169:3000 \
+pnpm --filter @imsweb/web run tauri ios build --release
+```
+
+这个开关不能用于公网部署，且不应写入仓库或长期 shell 配置。若公开网站与 API 不同主机，
+仍需设置 HTTPS 的 `VITE_IMS_PUBLIC_SITE_ORIGIN`，供分享和系统浏览器跳转使用。
+
+MapLibre 的样式、PMTiles、字体和精灵图可以单独指定
+`VITE_IMS_MAP_TRANSPORT_ORIGIN`，不会改变 API 或分享链接的 host。局域网部署应让这个
+origin 指向提供完整 `/maps/exchange/**` 树、支持 HTTP Range 且为 Tauri WebView 回显 CORS origin
+的静态地图服务。当前本地工作区以 `dev:app` 的 `1420` 服务满足该契约：
+
+```sh
+IMS_ALLOW_INSECURE_LAN_APP_ORIGIN=1 \
+VITE_IMS_API_ORIGIN=http://192.168.31.169:3000 \
+VITE_IMS_MAP_TRANSPORT_ORIGIN=http://192.168.31.169:1420 \
+pnpm --filter @imsweb/web run tauri ios build --release
+```
+
+Dev 包不使用这个线上默认值，按第 3 节通过 Tauri dev URL 的同源转发和本地代理获取配置与数据。
 
 该变量由 Vite 内联进浏览器代码，属于公开值，不得写入任何密钥。约定如下：
 
@@ -96,10 +169,11 @@ API origin 指向只应答 API、不提供该页面的主机；document origin �
 本地 WebView scheme。于是引入第二个构建期变量 `VITE_IMS_PUBLIC_SITE_ORIGIN`：
 
 ```sh
-VITE_IMS_API_ORIGIN=https://idol-master.top \
-VITE_IMS_PUBLIC_SITE_ORIGIN=https://idol-master.top \
 pnpm --filter @imsweb/web run tauri android build
 ```
+
+当前组合部署使用脚本默认的 `https://idol-master.top`。API 与站点分开部署时，按上一节示例
+同时覆盖两个 origin。
 
 约定与 `VITE_IMS_API_ORIGIN` 逐条对齐：同样由 Vite 内联进浏览器代码，同样属于公开值、
 不得写入任何密钥，同样留空即 Web 行为不变。
@@ -114,6 +188,38 @@ pnpm --filter @imsweb/web run tauri android build
   - `resolveShareableOrigin()`——要离开本进程的 URL，即复制、分享、外部浏览器打开。
 
 变量声明在 `apps/web/app/env.d.ts`，示例见 `apps/web/.env.example`。
+
+### 统一导航
+
+页面和业务组件不直接判断 `VITE_IMS_APP_TARGET`，也不直接使用 React Router 的 `Link`、
+`NavLink`、`useNavigate` 或浏览器的 `window.location` 跳转。声明式入口统一使用
+`NavigationLink`/`NavigationNavLink`，命令式入口使用 `useNavigation()`；纯决策逻辑位于
+`apps/web/app/lib/navigation/`。
+
+导航层按目标语义处理运行环境：
+
+- `to` 是前端路由，Web 和 App 都交给 React Router。
+- `href` 保留文档导航语义；HTTP(S)、邮件、电话及自定义 App scheme 在 App 中交给系统应用。
+- `publicSite(slug)` 代表网站提供的公开页面。Web 使用根相对地址，App 使用
+  `VITE_IMS_PUBLIC_SITE_ORIGIN` 生成绝对地址并打开系统浏览器。
+- `webOnly(to)` 代表未进入 App 路由清单的页面，App 构建不渲染对应入口。
+- skip link、页内 hash 和下载链接保留原生 `<a>`，不经过路由抽象。
+
+ESLint 禁止页面重新直接导入 React Router 导航 API或调用 `window.open`、
+`location.assign`、`location.replace`。原生 `href` 只在已审计的 skip/hash 文件中放行。
+
+### 静态站点包
+
+App 的 `/packages/<slug>` 先从当前 API 获取站点信息，再通过 `publicSite(slug)` 构造公开页面目标，
+不使用 API 请求 origin 推导站点地址。普通浏览器继续访问 `/sites/<slug>`；真实 Tauri runtime
+调用 `@tauri-apps/plugin-opener`，把绝对 HTTPS 地址交给系统浏览器，因此上传的站点脚本不会在
+App WebView 中执行。
+
+Tauri capability 允许系统处理 HTTP(S)、`mailto:`、`tel:`、`sms:`、`geo:`、`intent:` 及
+第三方 App 注册的自定义 scheme。前端和 capability 同时拒绝带用户名密码的 URL，以及
+`javascript:`、`data:`、`file:`、`content:`、`tauri:` 等可执行或本地资源 scheme。Dev 包用
+`VITE_IMS_PUBLIC_SITE_ORIGIN` 指向本地 1420/LAN Vite 代理，发布包默认指向
+`https://idol-master.top`。
 
 ## 5. Platform 令牌认证
 
@@ -150,9 +256,10 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
    关于页头图、制作人地图、直播、编年史封面）跨源后仍会失效。
 2. **Backoffice realm**：令牌通道只做了 Platform。app 产物已排除全部 admin 路由，
    所以这不阻塞打包客户端；若将来要在移动端进入后台，需要同样的改造。
-3. **应用图标**：`src-tauri/icons/` 仍是 Tauri 默认占位图。仓库现有品牌资源是 545×188 字标，
+3. **Platform OAuth**：当前 callback 建立 cookie session，并重定向到 API origin 下的页面；
+   这与 App 的 Bearer token 和本地 WebView 返回地址不兼容。App 暂不显示 OAuth provider，
+   后续需要 deep link 与一次性 token exchange 后才能开放。
+4. **应用图标**：`src-tauri/icons/` 仍是 Tauri 默认占位图。仓库现有品牌资源是 545×188 字标，
    不能直接用作方形应用图标，需要单独产出 1024×1024 图源后用 `tauri icon` 生成。
-4. **真机验证**：以上链路目前只有契约测试覆盖，尚未在真实设备上完成一次登录到拉取列表的联调。
-5. **打包流水线变量**：`VITE_IMS_PUBLIC_SITE_ORIGIN` 目前只有契约和文档，尚未接进任何
-   打包脚本或 CI，也没有构建期断言在跨源产物漏配时中断构建。漏配不会崩，但会退回 API origin，
-   等站点与 API 分家后就是错的。
+5. **真机验证**：Platform 登录到拉取列表的完整链路仍需纳入发布前设备门禁；站点包的本地
+   LAN 访问和系统浏览器跳转已由构建、组件与浏览器回归测试覆盖。

@@ -22,7 +22,20 @@ import {
   reviewMutationSchema,
 } from "@imsweb/contracts/fudaba/card-claims"
 
-export * from "@imsweb/contracts/fudaba/card-claims"
+export {
+  fudabaClaimEnvelopeSchema,
+  fudabaCardClaimSchema,
+  claimEnvelopeListSchema,
+  ownerClaimListSchema,
+  claimMutationSchema,
+  envelopeMutationSchema,
+  fudabaRegisteredCardReviewSchema,
+  fudabaAdminCardClaimSchema,
+  registeredCardReviewListSchema,
+  adminCardClaimListSchema,
+  reviewMutationSchema,
+} from "@imsweb/contracts/fudaba/card-claims"
+export type * from "@imsweb/contracts/fudaba/card-claims"
 
 export function getFudabaClaimEnvelopes() {
   return platformApiClient.Get(

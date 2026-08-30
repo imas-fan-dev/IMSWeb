@@ -5,6 +5,7 @@ import {
   AttributionControl,
   GeoJSONSource,
   Map as MapLibreMap,
+  type MapSourceDataEvent,
   Marker,
   NavigationControl,
   setWorkerUrl,
@@ -13,19 +14,22 @@ import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import { Protocol } from "pmtiles"
 import { useEffect, useRef } from "react"
 
-import { resolveSiteOrigin } from "~/lib/api"
+import { resolveMapTransportOrigin } from "~/lib/api"
 
 import {
   applyChinaBoundaryCompliance,
   CHINA_CLAIM_BOUNDARY_LAYER_ID,
   CHINA_DASH_FILL_LAYER_ID,
   CHINA_DASH_LINE_LAYER_ID,
+  CHINA_DASH_SOURCE_URL,
   TAIWAN_PROVINCE_LABEL_LAYER_ID,
 } from "./exchange-boundary-compliance"
 import type { FudabaMapOfficeGroup } from "./exchange-map-model"
 import {
+  createMapDeliveryContext,
   resolveAllowedMapResourceUrl,
   resolveMapStyleResourceUrls,
+  resolveMapStyleUrl,
   splitViewportBounds,
   type MapViewportBounds,
 } from "./exchange-map-model"
@@ -428,8 +432,15 @@ export function ExchangeOfficeMap({
     const container = containerRef.current
     if (!container) return
 
+    container.dataset.mapState = "loading"
+    const deliveryContext = createMapDeliveryContext(
+      resolveMapTransportOrigin(),
+      styleUrl
+    )
+    const resolvedStyleUrl = resolveMapStyleUrl(styleUrl, deliveryContext)
     const webglProbe = document.createElement("canvas")
     if (!webglProbe.getContext("webgl2")) {
+      container.dataset.mapState = "error"
       onFatalErrorRef.current(new Error("当前浏览器不支持 WebGL 2 地图"))
       return
     }
@@ -442,6 +453,7 @@ export function ExchangeOfficeMap({
     const reportFatalError = (error: unknown) => {
       if (fatalErrorSentRef.current) return
       fatalErrorSentRef.current = true
+      container.dataset.mapState = "error"
       onFatalErrorRef.current(mapError(error))
     }
 
@@ -467,7 +479,7 @@ export function ExchangeOfficeMap({
         cooperativeGestures: true,
         localIdeographFontFamily,
         transformRequest: (url) => ({
-          url: resolveAllowedMapResourceUrl(url, resolveSiteOrigin()),
+          url: resolveAllowedMapResourceUrl(url, deliveryContext.scope),
         }),
       })
     } catch (error) {
@@ -494,12 +506,40 @@ export function ExchangeOfficeMap({
 
     const refreshMarkers = () => {
       const source = map.getSource(officeSourceId)
-      if (!(source instanceof GeoJSONSource)) return
+      if (!source) return
 
       const groupsByKey = new Map(
         groupsRef.current.map((group) => [group.key, group])
       )
       const seen = new Set<string>()
+      const renderOfficeGroupMarker = (group: FudabaMapOfficeGroup) => {
+        const groupKey = group.key
+        if (seen.has(groupKey)) return
+        seen.add(groupKey)
+        const signature = JSON.stringify({
+          offices: group.offices.map(({ id, name }) => [id, name]),
+          colors: group.colors,
+        })
+        let rendered = markersRef.current.get(groupKey)
+        if (!rendered || rendered.signature !== signature) {
+          rendered?.marker.remove()
+          const element = createOfficeGroupMarker(
+            group,
+            selectedGroupKeyRef.current === groupKey
+          )
+          element.addEventListener("click", () =>
+            onSelectGroupRef.current(groupKey)
+          )
+          rendered = {
+            marker: new Marker({ element, anchor: "bottom" })
+              .setLngLat([group.longitude, group.latitude])
+              .addTo(map),
+            signature,
+          }
+          markersRef.current.set(groupKey, rendered)
+        }
+        rendered.marker.setLngLat([group.longitude, group.latitude])
+      }
 
       for (const feature of map.querySourceFeatures(officeSourceId)) {
         if (feature.geometry.type !== "Point") continue
@@ -508,6 +548,7 @@ export function ExchangeOfficeMap({
 
         const isCluster = Boolean(feature.properties?.cluster)
         if (isCluster) {
+          if (!(source instanceof GeoJSONSource)) continue
           const clusterId = Number(feature.properties?.cluster_id)
           const count = Number(
             feature.properties?.officeCount ?? feature.properties?.point_count
@@ -540,31 +581,13 @@ export function ExchangeOfficeMap({
 
         const groupKey = String(feature.properties?.groupKey ?? "")
         const group = groupsByKey.get(groupKey)
-        if (!group || seen.has(groupKey)) continue
-        seen.add(groupKey)
-        const signature = JSON.stringify({
-          offices: group.offices.map(({ id, name }) => [id, name]),
-          colors: group.colors,
-        })
-        let rendered = markersRef.current.get(groupKey)
-        if (!rendered || rendered.signature !== signature) {
-          rendered?.marker.remove()
-          const element = createOfficeGroupMarker(
-            group,
-            selectedGroupKeyRef.current === groupKey
-          )
-          element.addEventListener("click", () =>
-            onSelectGroupRef.current(groupKey)
-          )
-          rendered = {
-            marker: new Marker({ element, anchor: "bottom" })
-              .setLngLat([group.longitude, group.latitude])
-              .addTo(map),
-            signature,
-          }
-          markersRef.current.set(groupKey, rendered)
-        }
-        rendered.marker.setLngLat([group.longitude, group.latitude])
+        if (group) renderOfficeGroupMarker(group)
+      }
+
+      // A source can be ready to accept data before its worker tile is exposed
+      // to querySourceFeatures. Keep the public locations visible in that gap.
+      if (seen.size === 0) {
+        for (const group of groupsRef.current) renderOfficeGroupMarker(group)
       }
 
       for (const [key, { marker }] of markersRef.current) {
@@ -574,6 +597,19 @@ export function ExchangeOfficeMap({
       }
     }
     refreshMarkersRef.current = refreshMarkers
+    let markerRefreshFrame: number | null = null
+    const scheduleMarkerRefresh = () => {
+      if (markerRefreshFrame !== null) {
+        cancelAnimationFrame(markerRefreshFrame)
+      }
+      markerRefreshFrame = requestAnimationFrame(() => {
+        markerRefreshFrame = null
+        refreshMarkers()
+      })
+    }
+    const handleOfficeSourceData = (event: MapSourceDataEvent) => {
+      if (event.sourceId === officeSourceId) scheduleMarkerRefresh()
+    }
 
     const queryViewport = () => {
       const bounds = splitViewportBounds(currentViewport(map))
@@ -588,8 +624,17 @@ export function ExchangeOfficeMap({
       )
       // 先按《公开地图内容表示规范》修正边界与注记，再统一配色，
       // 使新增图层与既有图层走同一套门户配色。
-      applyChinaBoundaryCompliance(map)
+      applyChinaBoundaryCompliance(
+        map,
+        resolveAllowedMapResourceUrl(
+          CHINA_DASH_SOURCE_URL,
+          deliveryContext.scope
+        )
+      )
       applyPortalMapPalette(map)
+      // Do not wait for global `idle`: a PMTiles base map can keep loading
+      // while the office source is already ready to render on iOS.
+      map.on("sourcedata", handleOfficeSourceData)
       map.addSource(officeSourceId, {
         type: "geojson",
         data: featureCollection(groupsRef.current),
@@ -614,12 +659,13 @@ export function ExchangeOfficeMap({
         },
       })
       queryViewport()
-      map.once("idle", refreshMarkers)
+      container.dataset.mapState = "ready"
+      scheduleMarkerRefresh()
     }
 
     const handleMoveEnd = () => {
       queryViewport()
-      map.once("idle", refreshMarkers)
+      scheduleMarkerRefresh()
     }
     const handleError = (event: { error: Error }) =>
       reportFatalError(event.error)
@@ -629,9 +675,9 @@ export function ExchangeOfficeMap({
     map.on("error", handleError)
 
     try {
-      map.setStyle(styleUrl, {
+      map.setStyle(resolvedStyleUrl, {
         transformStyle: (_previousStyle, nextStyle) =>
-          resolveMapStyleResourceUrls(nextStyle, resolveSiteOrigin()),
+          resolveMapStyleResourceUrls(nextStyle, deliveryContext),
       })
     } catch (error) {
       reportFatalError(error)
@@ -661,8 +707,10 @@ export function ExchangeOfficeMap({
       window.removeEventListener("resize", resizeMap)
       window.visualViewport?.removeEventListener("resize", resizeMap)
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
+      if (markerRefreshFrame !== null) cancelAnimationFrame(markerRefreshFrame)
       clearMarkers()
       map.off("load", handleLoad)
+      map.off("sourcedata", handleOfficeSourceData)
       map.off("moveend", handleMoveEnd)
       map.off("error", handleError)
       map.remove()
@@ -676,7 +724,6 @@ export function ExchangeOfficeMap({
     const source = map?.getSource(officeSourceId)
     if (!map || !(source instanceof GeoJSONSource)) return
     source.setData(featureCollection(groups))
-    map.once("idle", () => refreshMarkersRef.current())
   }, [groups])
 
   useEffect(() => {
@@ -698,6 +745,7 @@ export function ExchangeOfficeMap({
       ref={containerRef}
       className="size-full min-h-0 bg-[#e8f2f4]"
       data-exchange-office-map
+      data-map-state="loading"
       aria-label="区域事务所地图工作面"
     />
   )

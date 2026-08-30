@@ -32,6 +32,7 @@ import {
     parseFudabaGeocodingConfig,
     parseFudabaMapConfig,
     parseFudabaMapEnabled,
+    parseFudabaMapPrefixes,
     parseFudabaMapStyleUrl,
     parseFudabaPublicReadEnabled,
     parseFudabaWriteEnabled,
@@ -159,6 +160,7 @@ test("Fudaba map configuration is disabled by default and strictly parsed", () =
     assert.deepEqual(parseFudabaMapConfig({}), {
         enabled: false,
         styleUrl: "",
+        prefixes: [],
     });
     assert.equal(parseFudabaMapEnabled(" true "), true);
     assert.equal(parseFudabaMapEnabled("FALSE"), false);
@@ -177,6 +179,7 @@ test("Fudaba map configuration is disabled by default and strictly parsed", () =
         {
             enabled: true,
             styleUrl: "/api/community/exchange/map/style.json",
+            prefixes: [],
         },
     );
     assert.throws(
@@ -242,6 +245,31 @@ test("Fudaba geocoding requires an identifiable configurable HTTPS provider", ()
             }),
         /comma-separated ISO country codes/,
     );
+});
+
+test("Fudaba map delivery allowlist accepts bounded path-carrying prefixes", () => {
+    assert.deepEqual(parseFudabaMapPrefixes(undefined), []);
+    assert.deepEqual(
+        parseFudabaMapPrefixes(
+            " /maps/, https://objects.example.test/exchange/v3/, /maps/ ",
+        ),
+        ["/maps/", "https://objects.example.test/exchange/v3/"],
+    );
+    for (const value of [
+        "maps/",
+        "/maps",
+        "//objects.example.test/maps/",
+        "https://user:secret@objects.example.test/maps/",
+        "https://objects.example.test/maps/?release=v3",
+        "https://objects.example.test/maps/#v3",
+        "https://objects.example.test/maps\\v3/",
+        "data:text/plain,maps/",
+    ]) {
+        assert.throws(
+            () => parseFudabaMapPrefixes(value),
+            /IMS_FUDABA_MAP_PREFIXES entries must be/,
+        );
+    }
 });
 
 test("Fudaba map style accepts only a same-origin absolute path", () => {
@@ -417,7 +445,8 @@ test("Node object storage defaults to S3 and requires explicit filesystem compat
             IMS_OBJECT_STORAGE: " S3 ",
             IMS_S3_BUCKET: "ims-media-prod",
             AWS_REGION: "ap-northeast-1",
-            IMS_S3_ENDPOINT: "https://objects.example.test/",
+            IMS_S3_ENDPOINT: "https://rustfs.internal.test/",
+            IMS_S3_PUBLIC_ENDPOINT: "https://objects.example.test/",
             IMS_S3_FORCE_PATH_STYLE: "yes",
             IMS_S3_PREFIX: "/ims/production/",
         }),
@@ -425,7 +454,8 @@ test("Node object storage defaults to S3 and requires explicit filesystem compat
             type: "s3",
             bucket: "ims-media-prod",
             region: "ap-northeast-1",
-            endpoint: "https://objects.example.test",
+            endpoint: "https://rustfs.internal.test",
+            publicEndpoint: "https://objects.example.test",
             forcePathStyle: true,
             prefix: "ims/production",
             readUrlTtlSeconds: 300,

@@ -16,6 +16,11 @@ interface ImportMetaEnv {
    */
   readonly VITE_IMS_PUBLIC_SITE_ORIGIN?: string
   /**
+   * Optional HTTP(S) host for MapLibre styles, tiles, fonts, and sprites.
+   * It leaves API requests and outward-facing website links unchanged.
+   */
+  readonly VITE_IMS_MAP_TRANSPORT_ORIGIN?: string
+  /**
    * Build-time target switch. `"app"` produces the Tauri-packaged route
    * manifest with admin routes excluded; unset or any other value produces
    * the web manifest unchanged. See `app/routes.ts`.

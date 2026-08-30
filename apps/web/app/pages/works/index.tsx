@@ -1,5 +1,3 @@
-import { Link } from "react-router"
-
 import { Card, CardContent } from "~/components/ui/card"
 import { cn } from "~/lib/utils"
 import {
@@ -7,6 +5,7 @@ import {
   officialEntries,
   fanEntries,
 } from "./works-content"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "系列作品 | IMSWeb" }]
@@ -27,7 +26,7 @@ export default function Works() {
         </h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {officialEntries.map((entry) => (
-            <Link
+            <NavigationLink
               key={entry.slug}
               to={getWorkDestination(entry)}
               aria-label={
@@ -52,7 +51,7 @@ export default function Works() {
                   </p>
                 </CardContent>
               </Card>
-            </Link>
+            </NavigationLink>
           ))}
         </div>
       </section>
@@ -67,7 +66,7 @@ export default function Works() {
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {fanEntries.map((entry) => (
-            <Link
+            <NavigationLink
               key={entry.slug}
               to={getWorkDestination(entry)}
               aria-label={
@@ -92,7 +91,7 @@ export default function Works() {
                   </p>
                 </CardContent>
               </Card>
-            </Link>
+            </NavigationLink>
           ))}
         </div>
       </section>

@@ -5,15 +5,26 @@ import {
   HouseIcon,
   UsersIcon,
 } from "lucide-react"
-import { useState } from "react"
+import { useTheme } from "next-themes"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { NavLink, useLocation } from "react-router"
+import { useLocation } from "react-router"
 
+import { NavigationNavLink } from "~/components/navigation/navigation-link"
 import {
   isNonScrollingAppRoute,
   normalizeAppPathname,
   scrollAppViewToTop,
 } from "~/lib/app-shell-scroll"
+import {
+  configureNativeGlass,
+  destroyNativeGlass,
+  nativeTabRoute,
+  NATIVE_TAB_SELECT_EVENT,
+  shouldAttemptNativeGlass,
+  updateNativeGlass,
+} from "~/lib/native-glass"
+import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
 
 /**
@@ -43,11 +54,37 @@ const BAR_OFFSET = "bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)-9px))]"
 // editing the shared i18n resources, which would change the web bundle and cost
 // the byte-identical guarantee this build fork is verified against.
 const tabs = [
-  { to: "/", label: "navigation.home", icon: HouseIcon, end: true },
-  { to: "/events", label: "navigation.events", icon: CalendarDaysIcon },
-  { to: "/wiki", label: "navigation.storySite", icon: BookOpenTextIcon },
-  { to: "/community", label: "navigation.community", icon: UsersIcon },
-  { to: "/account/me", label: "platformAccount.title", icon: CircleUserIcon },
+  {
+    to: "/",
+    label: "navigation.home",
+    icon: HouseIcon,
+    lucideIcon: "house",
+    end: true,
+  },
+  {
+    to: "/events",
+    label: "navigation.events",
+    icon: CalendarDaysIcon,
+    lucideIcon: "calendar-days",
+  },
+  {
+    to: "/wiki",
+    label: "navigation.storySite",
+    icon: BookOpenTextIcon,
+    lucideIcon: "book-open-text",
+  },
+  {
+    to: "/community",
+    label: "navigation.community",
+    icon: UsersIcon,
+    lucideIcon: "users",
+  },
+  {
+    to: "/account/me",
+    label: "platformAccount.title",
+    icon: CircleUserIcon,
+    lucideIcon: "circle-user",
+  },
 ] as const
 
 /**
@@ -75,10 +112,105 @@ function isModifiedEvent(event: React.MouseEvent<HTMLAnchorElement>) {
 
 export function AppTabBar() {
   const { t } = useTranslation()
+  const { resolvedTheme } = useTheme()
+  const navigate = useNavigation()
   const { pathname } = useLocation()
   const normalizedPathname = normalizeAppPathname(pathname)
   const activeIndex = activeTabIndex(normalizedPathname)
   const slot = Math.max(activeIndex, 0)
+  const [initialSlot] = useState(slot)
+  const [nativeGlassActive, setNativeGlassActive] = useState(false)
+  const nativeItems = useMemo(
+    () =>
+      tabs.map((tab) => ({
+        route: tab.to,
+        lucideIcon: tab.lucideIcon,
+        title: t(tab.label),
+      })),
+    [t]
+  )
+
+  const activateTab = useCallback(
+    (to: string) => {
+      if (normalizedPathname === to) {
+        if (!isNonScrollingAppRoute(normalizedPathname)) {
+          scrollAppViewToTop()
+        }
+        return
+      }
+      navigate(to)
+    },
+    [navigate, normalizedPathname]
+  )
+
+  useEffect(() => {
+    if (!shouldAttemptNativeGlass()) return
+
+    const handleNativeSelection = (event: Event) => {
+      const route = nativeTabRoute(event)
+      if (!route || !tabs.some((tab) => tab.to === route)) return
+      activateTab(route)
+    }
+
+    window.addEventListener(NATIVE_TAB_SELECT_EVENT, handleNativeSelection)
+    return () => {
+      window.removeEventListener(NATIVE_TAB_SELECT_EVENT, handleNativeSelection)
+    }
+  }, [activateTab])
+
+  useEffect(() => {
+    if (!shouldAttemptNativeGlass()) return
+    let disposed = false
+
+    void configureNativeGlass({
+      dark: document.documentElement.classList.contains("dark"),
+      items: nativeItems,
+      selectedIndex: initialSlot,
+    })
+      .then((status) => {
+        if (disposed) {
+          if (status.supported) void destroyNativeGlass().catch(() => {})
+          return
+        }
+        setNativeGlassActive(status.supported)
+      })
+      .catch(() => {
+        if (!disposed) setNativeGlassActive(false)
+      })
+
+    return () => {
+      disposed = true
+      void destroyNativeGlass().catch(() => {})
+    }
+  }, [initialSlot, nativeItems])
+
+  useEffect(() => {
+    if (!nativeGlassActive || activeIndex < 0) return
+    let disposed = false
+
+    void updateNativeGlass({
+      dark:
+        resolvedTheme === "dark" ||
+        (!resolvedTheme && document.documentElement.classList.contains("dark")),
+      selectedIndex: activeIndex,
+    })
+      .then((status) => {
+        if (!disposed && !status.supported) {
+          setNativeGlassActive(false)
+          void destroyNativeGlass().catch(() => {})
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setNativeGlassActive(false)
+          void destroyNativeGlass().catch(() => {})
+        }
+      })
+
+    return () => {
+      disposed = true
+    }
+  }, [activeIndex, nativeGlassActive, resolvedTheme])
 
   /**
    * iOS convention: tapping the tab you are already on returns the view to the
@@ -118,6 +250,8 @@ export function AppTabBar() {
     setTravel({ slot, distance: Math.abs(slot - travel.slot) })
   }
 
+  if (nativeGlassActive) return null
+
   return (
     <nav
       aria-label={t("navigation.mainLabel")}
@@ -127,7 +261,8 @@ export function AppTabBar() {
       )}
     >
       <div
-        className="glass-surface glass-bar glass-refract glass-sheen pointer-events-auto relative w-full max-w-sm rounded-full p-1 shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
+        data-glass-fallback=""
+        className="glass-surface glass-bar glass-refract pointer-events-auto relative w-full max-w-sm rounded-full p-1 shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
         style={
           {
             "--tab-index": slot,
@@ -154,7 +289,7 @@ export function AppTabBar() {
         <ul className="relative flex items-stretch">
           {tabs.map((tab) => (
             <li key={tab.to} className="flex-1">
-              <NavLink
+              <NavigationNavLink
                 to={tab.to}
                 end={"end" in tab ? tab.end : false}
                 className={({ isActive }) =>
@@ -177,7 +312,7 @@ export function AppTabBar() {
                     <span>{t(tab.label)}</span>
                   </>
                 )}
-              </NavLink>
+              </NavigationNavLink>
             </li>
           ))}
         </ul>

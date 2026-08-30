@@ -5,7 +5,6 @@ import {
   HistoryIcon,
   MapPinIcon,
 } from "lucide-react"
-import { Link } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
@@ -19,6 +18,7 @@ import {
 import { Skeleton } from "~/components/ui/skeleton"
 import { getChronicleActivity } from "~/lib/api"
 import type { Route } from "./+types/activity-page"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "活动纪年 | IMSWeb" }]
@@ -76,13 +76,13 @@ export default function ChronicleActivityPage({
 
       {!loading && !error && data ? (
         <>
-          <Link
+          <NavigationLink
             to="/chronicle"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
             返回编年史
-          </Link>
+          </NavigationLink>
 
           <h1 className="mt-4 text-3xl font-semibold tracking-tight">
             {data.title}
@@ -110,7 +110,7 @@ export default function ChronicleActivityPage({
               </h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {data.images.map((url, index) => (
-                  <a
+                  <NavigationLink
                     key={index}
                     href={url}
                     target="_blank"
@@ -123,7 +123,7 @@ export default function ChronicleActivityPage({
                       className="aspect-4/3 w-full object-cover transition-transform group-hover:scale-105"
                       loading="lazy"
                     />
-                  </a>
+                  </NavigationLink>
                 ))}
               </div>
             </section>

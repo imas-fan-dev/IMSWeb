@@ -42,10 +42,11 @@
 | 模式 | 用途 | 安全边界 |
 | --- | --- | --- |
 | `safe` | 默认的静态内容 | 阻断活动 HTML、事件属性、危险 scheme 和活动 SVG/CSS；不执行脚本 |
-| `isolated-script` | 明确需要脚本的受控内容 | 使用隔离站点路径、独立 CSP 和无主站 Cookie 的上下文；仍须通过 archive inspection |
+| `isolated-script` | 明确需要脚本的受控内容 | 使用隔离站点路径、独立 CSP 和无主站 Cookie 的上下文；可 `fetch` 当前 revision 内的相对资源，仍须通过 archive inspection |
 
-管理员选择 `isolated-script` 不等于内容可信。脚本站点必须使用与主站不同的 Cookie 作用域，
-并通过 CSP 和 frame-ancestors 限制嵌入来源。
+管理员选择 `isolated-script` 不等于内容可信。iframe 不启用 `allow-same-origin`，脚本请求使用
+不透明 origin；API 只对 `/site-content/` 响应回显该 `null` origin，不允许凭据。`connect-src`
+只覆盖当前 revision 路径，远程 API、字体和其他跨源请求仍会被 CSP 拒绝。
 
 ## 上传与发布流程
 
@@ -62,6 +63,8 @@
 
 - `entryPath` 带目录：把入口 HTML 放到 ZIP 根目录，并重新上传。
 - 资源引用绝对 URL：改为包内相对路径；跨源资源必须有明确的部署和 CSP 决策。
+- 包内 JSON 请求失败：使用相对于 entry HTML 的 URL，并确认 runtime mode 为 `isolated-script`；
+  `safe` 模式不执行脚本，也不开放 `connect-src`。
 - 被拒绝的扩展名或文件名：删除源代码、锁文件、密钥和构建临时文件。
 - 发布后页面仍旧：确认 revision 状态、缓存头和当前 slug，不直接修改对象存储 key。
 - 删除历史版本后对象仍在：检查 PostgreSQL `object_deletion_jobs`，由 worker 重试，不绕过

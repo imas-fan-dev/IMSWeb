@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
-import { Link, useSearchParams } from "react-router"
+import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
@@ -57,6 +57,7 @@ import {
   NAMECARD_REACTIONS,
 } from "~/lib/api"
 import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const SESSION_REACTION_LIMIT = 10
@@ -429,13 +430,13 @@ export default function CommunityCardsPage() {
         }}
       />
 
-      <Link
+      <NavigationLink
         to="/community"
         className={buttonVariants({ variant: "ghost", size: "sm" })}
       >
         <ArrowLeftIcon data-icon="inline-start" />
         返回社区
-      </Link>
+      </NavigationLink>
 
       <header className="mt-8 max-w-3xl">
         <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">

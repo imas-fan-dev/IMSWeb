@@ -28,6 +28,7 @@ import {
   type PendingChronicleMedia,
   type UsedChronicleMedia,
 } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "活动纪年审核 | IMSWeb" }]
@@ -113,7 +114,7 @@ function PendingSection() {
                 key={item.filename}
                 className="flex items-start gap-4 rounded-lg border bg-card p-4"
               >
-                <a
+                <NavigationLink
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -125,7 +126,7 @@ function PendingSection() {
                     className="size-full object-cover"
                     loading="lazy"
                   />
-                </a>
+                </NavigationLink>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
                     {item.filename}
@@ -236,7 +237,7 @@ function UsedSection() {
                 key={item.filename}
                 className="flex items-start gap-4 rounded-lg border bg-card p-4"
               >
-                <a
+                <NavigationLink
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -248,7 +249,7 @@ function UsedSection() {
                     className="size-full object-cover"
                     loading="lazy"
                   />
-                </a>
+                </NavigationLink>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
                     {item.filename}

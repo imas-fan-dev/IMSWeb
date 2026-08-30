@@ -5,6 +5,12 @@ import { extname, resolve, sep } from "node:path"
 import type { Plugin } from "vite"
 
 const exchangeMapPrefix = "/maps/exchange/"
+export const TAURI_MAP_ORIGINS = [
+  "tauri://localhost",
+  "http://tauri.localhost",
+  "https://tauri.localhost",
+] as const
+const tauriMapOrigins: ReadonlySet<string> = new Set(TAURI_MAP_ORIGINS)
 const exchangeMapMimeTypes: Readonly<Record<string, string>> = {
   ".json": "application/json; charset=utf-8",
   ".pbf": "application/x-protobuf",
@@ -48,6 +54,10 @@ export function resolveExchangeMapAssetPath(
   return assetPath.startsWith(`${exchangeMapRoot}${sep}`)
     ? assetPath
     : undefined
+}
+
+export function tauriMapAssetCorsOrigin(origin: string | undefined) {
+  return origin && tauriMapOrigins.has(origin) ? origin : undefined
 }
 
 /** 仅开发服务器启用；生产由宿主机 Nginx 提供同一个只读 URL 合同。 */
@@ -105,6 +115,12 @@ export function localExchangeMapAssets(workspaceRoot: string): Plugin {
           response.statusCode = 404
           response.end()
           return
+        }
+
+        const tauriOrigin = tauriMapAssetCorsOrigin(request.headers.origin)
+        if (tauriOrigin) {
+          response.setHeader("Access-Control-Allow-Origin", tauriOrigin)
+          response.setHeader("Vary", "Origin")
         }
 
         const rangeHeader = request.headers.range

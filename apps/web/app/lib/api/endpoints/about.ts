@@ -20,7 +20,15 @@ import {
   aboutPageContentSchema,
 } from "@imsweb/contracts/about"
 
-export * from "@imsweb/contracts/about"
+export {
+  aboutPersonSchema,
+  aboutGroupSchema,
+  aboutPageContentSchema,
+  aboutAdminSnapshotSchema,
+  aboutAdminUpdateSchema,
+  aboutImageUploadSchema,
+} from "@imsweb/contracts/about"
+export type * from "@imsweb/contracts/about"
 
 import type { AboutPageContent } from "@imsweb/contracts/about"
 

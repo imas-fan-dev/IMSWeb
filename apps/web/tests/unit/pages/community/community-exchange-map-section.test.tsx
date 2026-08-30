@@ -238,12 +238,16 @@ describe("CommunityExchangeMapSection", () => {
 
   it("keeps a directory escape hatch when map config fails", async () => {
     const switchDirectory = vi.fn()
-    apiMocks.sendConfig.mockRejectedValue(new Error("map disabled"))
+    apiMocks.sendConfig.mockRejectedValue(new Error("Not Found"))
     const user = userEvent.setup()
     renderSection({ onSwitchDirectory: switchDirectory })
 
-    expect(await screen.findByText("地图暂时不可用")).toBeVisible()
-    expect(screen.getByText("map disabled")).toBeVisible()
+    const status = await screen.findByRole("status")
+    expect(status).toHaveAccessibleName("地图暂时不可用")
+    expect(
+      screen.getByText("区域地图尚未启用，公开事务所和名片仍可在名录中查看。")
+    ).toBeVisible()
+    expect(screen.queryByText("Not Found")).not.toBeInTheDocument()
     expect(mapModule.renders).not.toHaveBeenCalled()
     expect(apiMocks.getFudabaMapOffices).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "查看事务所名录" }))

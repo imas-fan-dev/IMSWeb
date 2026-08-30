@@ -358,6 +358,25 @@ test('about page rejects unsafe image links before persistence', async () => {
     assert.match((await response.json() as { error: string }).error, /角色主视觉图链接无效/);
 });
 
+test('about page only persists member avatars returned by the upload endpoint', async () => {
+    const { request } = fixture();
+    const content = aboutPageContent();
+    content.groups[0]!.people[0]!.avatarUrl = '/brand/about/staff/legacy.webp';
+    const response = await request('/api/admin/about', {
+        method: 'PUT',
+        headers: {
+            Authorization: 'Bearer about-token',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content, revision: null })
+    });
+    assert.equal(response.status, 400);
+    assert.match(
+        (await response.json() as { error: string }).error,
+        /必须使用成员头像上传地址/
+    );
+});
+
 test('about page rejects invalid hero layout and gradient values', async () => {
     const { request } = fixture();
     const headers = {

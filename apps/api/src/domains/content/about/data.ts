@@ -1,7 +1,13 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
+
 const MAX_GROUPS = 8;
 const MAX_PEOPLE_PER_GROUP = 24;
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const ABOUT_MEMBER_AVATAR_PATH_PREFIX =
+    publicUploadsPath('/about/member-avatars/');
+const ABOUT_MEMBER_AVATAR_FILENAME_PATTERN =
+    /^[a-z0-9._-]+\.webp$/i;
 
 export interface AboutPerson {
     id: string;
@@ -134,7 +140,35 @@ function imageUrl(
     return normalized;
 }
 
-function person(value: unknown, groupIndex: number, personIndex: number): AboutPerson {
+export function isAboutMemberAvatarUrl(value: string): boolean {
+    if (!value.startsWith(ABOUT_MEMBER_AVATAR_PATH_PREFIX)) return false;
+    return ABOUT_MEMBER_AVATAR_FILENAME_PATTERN.test(
+        value.slice(ABOUT_MEMBER_AVATAR_PATH_PREFIX.length)
+    );
+}
+
+function memberAvatarUrl(
+    value: unknown,
+    label: string,
+    allowLegacy: boolean
+): string | null {
+    const normalized = imageUrl(value, label);
+    if (
+        normalized !== null &&
+        !allowLegacy &&
+        !isAboutMemberAvatarUrl(normalized)
+    ) {
+        invalid(`${label}必须使用成员头像上传地址`);
+    }
+    return normalized;
+}
+
+function person(
+    value: unknown,
+    groupIndex: number,
+    personIndex: number,
+    allowLegacyAvatarUrls: boolean
+): AboutPerson {
     const source = record(value);
     const prefix = `第${groupIndex + 1}组第${personIndex + 1}位成员`;
     return {
@@ -144,16 +178,26 @@ function person(value: unknown, groupIndex: number, personIndex: number): AboutP
         description: text(source.description, `${prefix}简介`, 500, true),
         since: text(source.since, `${prefix}加入时间`, 40, true),
         profileUrl: profileUrl(source.profileUrl, `${prefix}主页链接`),
-        avatarUrl: imageUrl(source.avatarUrl, `${prefix}头像链接`)
+        avatarUrl: memberAvatarUrl(
+            source.avatarUrl,
+            `${prefix}头像链接`,
+            allowLegacyAvatarUrls
+        )
     };
 }
 
-function group(value: unknown, index: number): AboutGroup {
+function group(
+    value: unknown,
+    index: number,
+    allowLegacyAvatarUrls: boolean
+): AboutGroup {
     const source = record(value);
     if (!Array.isArray(source.people) || source.people.length > MAX_PEOPLE_PER_GROUP) {
         invalid(`第${index + 1}组成员数量必须为0-${MAX_PEOPLE_PER_GROUP}人`);
     }
-    const people = source.people.map((item, personIndex) => person(item, index, personIndex));
+    const people = source.people.map((item, personIndex) =>
+        person(item, index, personIndex, allowLegacyAvatarUrls)
+    );
     const personIds = new Set(people.map((item) => item.id));
     if (personIds.size !== people.length) invalid(`第${index + 1}组成员 ID 不能重复`);
     return {
@@ -164,7 +208,10 @@ function group(value: unknown, index: number): AboutGroup {
     };
 }
 
-export function validateAboutPageDraft(value: unknown): AboutPageDraft {
+function validateAboutPageDraftWithOptions(
+    value: unknown,
+    allowLegacyAvatarUrls: boolean
+): AboutPageDraft {
     const source = record(value);
     if (source.version !== 1) invalid('关于页配置版本无效');
     const sinceYear = Number(source.sinceYear);
@@ -174,7 +221,9 @@ export function validateAboutPageDraft(value: unknown): AboutPageDraft {
     if (!Array.isArray(source.groups) || source.groups.length > MAX_GROUPS) {
         invalid(`名单分组数量必须为0-${MAX_GROUPS}组`);
     }
-    const groups = source.groups.map(group);
+    const groups = source.groups.map((item, index) =>
+        group(item, index, allowLegacyAvatarUrls)
+    );
     const groupIds = new Set(groups.map((item) => item.id));
     if (groupIds.size !== groups.length) invalid('名单分组 ID 不能重复');
     const heroImageUrl = imageUrl(source.heroImageUrl, '角色主视觉图链接');
@@ -231,6 +280,10 @@ export function validateAboutPageDraft(value: unknown): AboutPageDraft {
     };
 }
 
+export function validateAboutPageDraft(value: unknown): AboutPageDraft {
+    return validateAboutPageDraftWithOptions(value, false);
+}
+
 export function parseAboutPageContent(body: Uint8Array): AboutPageContent {
     let value: unknown;
     try {
@@ -250,7 +303,10 @@ export function parseAboutPageContent(body: Uint8Array): AboutPageContent {
         throw new Error('Stored about page update time is invalid');
     }
     try {
-        return { ...validateAboutPageDraft(source), updatedAt };
+        return {
+            ...validateAboutPageDraftWithOptions(source, true),
+            updatedAt
+        };
     } catch (error) {
         throw new Error('Stored about page config is invalid', { cause: error });
     }

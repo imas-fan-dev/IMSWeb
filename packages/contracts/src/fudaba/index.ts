@@ -1,14 +1,35 @@
 import { z } from "zod";
 import {
   cursorPageInfoSchema,
+  hasAsciiControl,
   successEnvelope,
   successFlagSchema,
 } from "../common.js";
+
+import { isFudabaMapStyleUrl } from "./map-delivery.js";
 
 import {
   defaultWikiImageTransform,
   wikiImageTransformSchema,
 } from "../wiki.js";
+
+export {
+  fudabaMapAssetName,
+  fudabaMapDeliveryMutationSchema,
+  fudabaMapDeliverySnapshotSchema,
+  fudabaMapDeliveryUpdateSchema,
+  fudabaMapPrefixFromStyleUrl,
+  fudabaMapPrefixSchema,
+  fudabaMapStyleUrlForPrefix,
+  isFudabaMapPrefix,
+  isFudabaMapStyleUrl,
+} from "./map-delivery.js";
+export type {
+  FudabaMapDeliveryMutation,
+  FudabaMapDeliverySnapshot,
+  FudabaMapDeliveryUpdate,
+} from "./map-delivery.js";
+export { hasAsciiControl };
 
 export const seriesCodeSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 export const accentSchema = z.string().regex(/^#[0-9a-f]{6}$/i);
@@ -228,25 +249,12 @@ export const fudabaMapConfigSchema = z
       )
       .transform((value) => value.trim())
       .refine(
-        (value) =>
-          value.length > 0 &&
-          value.length <= 2048 &&
-          value.startsWith("/") &&
-          !value.includes("//") &&
-          !value.includes("\\") &&
-          !value.includes("?") &&
-          !value.includes("#"),
-        "map style URL must be a same-origin absolute path without query or hash",
+        isFudabaMapStyleUrl,
+        "map style URL must be a same-origin absolute path or an absolute " +
+          "http(s) URL without credentials, query, or hash",
       ),
   })
   .strict();
-
-export function hasAsciiControl(value: string) {
-  return Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || code === 127;
-  });
-}
 
 export const ownerCardIdSchema = z
   .string()

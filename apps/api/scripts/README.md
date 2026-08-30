@@ -14,6 +14,7 @@ S3-compatible 对象存储。
 | Fudaba 元数据 | `migration/fudaba-command.js` | 默认导出或对账；导入命令写 PostgreSQL | `pnpm --filter @imsweb/api run migration:fudaba -- extract` / `pnpm run migration:fudaba:{import,reconcile}` |
 | Fudaba 媒体 | `migration/fudaba-media-sync.js` | 默认生成计划；显式 `--apply` 写对象存储 | `pnpm run media:fudaba:sync` |
 | 品牌素材导入 | `migration/legacy-brand-assets.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:brand-assets:sync` |
+| 关于页头像 | `migration/legacy-about-avatars.js` | 默认只读；显式确认后写头像对象与关于页配置 | `pnpm run media:about-avatars:sync` |
 | 首页资讯媒体 | `migration/legacy-information-media.js` | 默认只读；`--apply` 写对象索引 | `pnpm run media:information:sync` |
 | 名片媒体导入 | `migration/legacy-namecards.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:namecards:sync` |
 | 制作人地图导入 | `migration/legacy-producer-map.js` | 默认只读；显式确认后写对象与索引 | `pnpm run media:producer-map:sync` |
@@ -67,6 +68,26 @@ pnpm run media:information:sync -- --apply
 pnpm run media:uploads:sync
 pnpm run media:uploads:sync -- --apply
 ```
+
+关于页成员头像统一使用 `/uploads/about/member-avatars/...`。迁移命令会盘点当前配置，将同一公开
+站点下的 `/brand/about/staff/...` 旧头像转为 WebP 并写入标准对象键。第一次运行只生成计划；
+`--apply` 必须读取这份计划，并同时确认来源 origin 和目标 bucket：
+
+```sh
+pnpm run media:about-avatars:sync
+pnpm run media:about-avatars:sync -- --apply \
+  --plan data/migration/about-avatar-migration.json \
+  --confirm-source https://idol-master.top \
+  --confirm-bucket <bucket>
+```
+
+执行阶段会重新下载来源并核对配置 ETag、图片 SHA-256、对象键、bucket 和 prefix。任一项偏离计划，
+或存在未知来源、缺失的已上传对象，都会在写入前停止。配置 CAS 冲突时，命令只回收当前配置未
+引用的本次新建对象；无法确认回收安全性时会保留对象并报错。已有但内容不符的目标对象不会被覆盖。计划和执行结果分别写入 Git 忽略的
+`data/migration/about-avatar-migration.json` 和 `data/migration/about-avatar-apply.json`。
+
+发布把成员头像统一解释为 API 媒体的 App/Web 版本前，必须先完成 `--apply`，再运行一次只读盘点。
+只有 `configStatus: "unchanged"`、`migrated: 0`、`unsupported: 0` 和 `missingObjects: 0` 时才能继续。
 
 默认审计报告写到被 Git 忽略的 `data/migration/upload-media-manifest.json`。相同内容再次执行
 会标记为 `unchanged`，不会创建新对象版本。可用 `--source` 和 `--manifest` 覆盖本地输入与报告

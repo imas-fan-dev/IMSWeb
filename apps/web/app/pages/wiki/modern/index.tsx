@@ -137,7 +137,11 @@ export function WikiIndexPage() {
       <WikiHero
         background={backgroundRequest.data}
         loading={backgroundLoading}
-        classicHref={`/wiki/classic${requestedAgency ? `?agency=${encodeURIComponent(requestedAgency)}` : ""}`}
+        classicHref={
+          import.meta.env.VITE_IMS_APP_TARGET === "app"
+            ? undefined
+            : `/wiki/classic${requestedAgency ? `?agency=${encodeURIComponent(requestedAgency)}` : ""}`
+        }
         onRefresh={() => setBackgroundVersion((current) => current + 1)}
       />
 

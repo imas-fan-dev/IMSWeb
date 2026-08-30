@@ -2,6 +2,7 @@ import { ArrowUpRightIcon, ImageIcon } from "lucide-react"
 
 import { Skeleton } from "~/components/ui/skeleton"
 import { resolveSafeMediaUrl, type Recommendation } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -57,9 +58,14 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
     "group grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)_auto] gap-4 border-b py-5 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:gap-6"
 
   return href ? (
-    <a href={href} target="_blank" rel="noreferrer" className={className}>
+    <NavigationLink
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={className}
+    >
       {content}
-    </a>
+    </NavigationLink>
   ) : (
     <article className={className}>{content}</article>
   )

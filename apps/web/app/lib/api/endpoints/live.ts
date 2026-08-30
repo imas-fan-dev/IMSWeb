@@ -7,7 +7,8 @@ import { apiClient } from "../client"
 
 import { liveEventSchema } from "@imsweb/contracts/live"
 
-export * from "@imsweb/contracts/live"
+export { liveEventSchema } from "@imsweb/contracts/live"
+export type * from "@imsweb/contracts/live"
 
 export function getLiveEvents(months: string[]) {
   const search = new URLSearchParams({ months: months.join(",") })

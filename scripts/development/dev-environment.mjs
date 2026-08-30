@@ -23,6 +23,7 @@ const localInfrastructureDefaults = Object.freeze({
   IMS_POSTGRES_DB: "imsweb",
   IMS_POSTGRES_USER: "imsweb",
   IMS_POSTGRES_PASSWORD: "imsweb-local-password",
+  IMS_RUSTFS_API_BIND_ADDRESS: "127.0.0.1",
   IMS_RUSTFS_API_PORT: "9000",
   IMS_RUSTFS_CONSOLE_PORT: "9001",
   IMS_RUSTFS_ACCESS_KEY: "imsweb-local",
@@ -159,6 +160,7 @@ function sanitizedApplicationEnvironment(environment) {
   for (const name of Object.keys(sanitized)) {
     if (
       name.startsWith("IMS_") ||
+      name === "VITE_IMS_APP_TARGET" ||
       name === "DATABASE_URL" ||
       name === "AWS_ACCESS_KEY_ID" ||
       name === "AWS_SECRET_ACCESS_KEY" ||
@@ -311,6 +313,29 @@ function requiredR2Value(environment, name) {
   const value = String(environment[name] || "").trim();
   if (!value) throw new Error(`${name} is required for R2 hot reload`);
   return value;
+}
+
+function parseRustfsPublicOrigin(value) {
+  const name = "IMS_RUSTFS_PUBLIC_ORIGIN";
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid HTTP(S) URL`);
+  }
+  if (
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    (parsed.pathname !== "/" && parsed.pathname !== "")
+  ) {
+    throw new Error(
+      `${name} must be a credential-free HTTP(S) origin without a path, query, or hash`,
+    );
+  }
+  return parsed.toString().replace(/\/+$/, "");
 }
 
 function parseCredentialFreeUrl(name, value, { r2Endpoint = false } = {}) {
@@ -509,7 +534,10 @@ export function resolveDevelopmentConfiguration({
 
   const apiOrigin = `http://${loopbackHost}:${options.apiPort}`;
   const webOrigin = `http://${loopbackHost}:${options.webPort}`;
-  const rustfsOrigin = `http://${loopbackHost}:${rustfsPort}`;
+  const rustfsOrigin = parseRustfsPublicOrigin(
+    infrastructure.IMS_RUSTFS_PUBLIC_ORIGIN ||
+      `http://${loopbackHost}:${rustfsPort}`,
+  );
   const rustfsConsoleOrigin = `http://${loopbackHost}:${rustfsConsolePort}`;
   const valkeyUrl = `redis://${loopbackHost}:${valkeyPort}`;
   const databaseUrl = encodedPostgresUrl({
@@ -540,6 +568,7 @@ export function resolveDevelopmentConfiguration({
         IMS_S3_PUBLIC_BUCKET: "",
         IMS_S3_REGION: "us-east-1",
         IMS_S3_ENDPOINT: rustfsOrigin,
+        IMS_S3_PUBLIC_ENDPOINT: rustfsOrigin,
         IMS_S3_FORCE_PATH_STYLE: "true",
         IMS_S3_PREFIX: "",
         IMS_S3_READ_URL_TTL_SECONDS: "300",

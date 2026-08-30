@@ -6,6 +6,7 @@ import {
   PackageIcon,
 } from "lucide-react"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import {
@@ -17,6 +18,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getPublicSitePackage } from "~/lib/api"
+import { publicSite } from "~/lib/navigation/navigation-target"
 import type { Route } from "./+types/site-detail-page"
 
 function SiteDetailLoading() {
@@ -71,13 +73,13 @@ export default function SiteDetailPage({ params }: Route.ComponentProps) {
 
       {!loading && !error && data ? (
         <>
-          <a
-            href="/works"
+          <NavigationLink
+            to="/works"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
             返回作品中心
-          </a>
+          </NavigationLink>
 
           <h1 className="mt-4 text-3xl font-semibold tracking-tight">
             {data.title}
@@ -97,13 +99,13 @@ export default function SiteDetailPage({ params }: Route.ComponentProps) {
             </Badge>
           </div>
 
-          <a
-            href={data.siteUrl}
+          <NavigationLink
+            to={publicSite(data.slug)}
             className="mt-8 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/80 active:translate-y-px"
           >
             打开站点
             <ExternalLinkIcon className="size-4" aria-hidden="true" />
-          </a>
+          </NavigationLink>
         </>
       ) : null}
     </main>

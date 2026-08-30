@@ -8,7 +8,6 @@ import {
   UserPlusIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
@@ -20,6 +19,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "~/components/ui/popover"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function PlatformAccountMenu() {
   const { t } = useTranslation()
@@ -86,7 +86,7 @@ export function PlatformAccountMenu() {
               {t("platformAccount.anonymous")}
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <Link
+              <NavigationLink
                 to="/account/login"
                 className={buttonVariants({
                   variant: "default",
@@ -96,8 +96,8 @@ export function PlatformAccountMenu() {
               >
                 <LogInIcon data-icon="inline-start" aria-hidden="true" />
                 {t("platformAccount.login")}
-              </Link>
-              <Link
+              </NavigationLink>
+              <NavigationLink
                 to="/account/register"
                 className={buttonVariants({
                   variant: "outline",
@@ -107,7 +107,7 @@ export function PlatformAccountMenu() {
               >
                 <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
                 {t("platformAccount.register")}
-              </Link>
+              </NavigationLink>
             </div>
           </div>
         ) : platform.status === "loading" ? (
@@ -162,7 +162,7 @@ export function PlatformAccountMenu() {
                 )}
               </div>
             </div>
-            <Link
+            <NavigationLink
               to="/community/exchange/me"
               className={buttonVariants({
                 variant: "outline",
@@ -175,7 +175,7 @@ export function PlatformAccountMenu() {
                 aria-hidden="true"
               />
               {t("platformAccount.myCards")}
-            </Link>
+            </NavigationLink>
             <Button
               type="button"
               variant="outline"

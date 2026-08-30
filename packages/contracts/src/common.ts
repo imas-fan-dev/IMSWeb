@@ -3,6 +3,14 @@ import { z } from "zod"
 // 跨域公共响应结构：各业务模块通过组合（extend/引用）复用，
 // 不直接对外承诺独立端点契约。
 
+/** ASCII 控制字符检测：跨域字符串净化的共用原子。 */
+export function hasAsciiControl(value: string) {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0)
+    return code <= 31 || code === 127
+  })
+}
+
 /** 成功信封原子：{ success: true } */
 export const successFlagSchema = z.object({ success: z.literal(true) })
 

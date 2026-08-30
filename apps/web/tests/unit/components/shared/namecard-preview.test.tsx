@@ -41,7 +41,15 @@ describe("NamecardPreview", () => {
     const user = userEvent.setup()
     render(<PreviewHarness />)
 
-    expect(screen.getAllByRole("dialog")).toHaveLength(1)
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveAttribute("data-safe-area", "viewport")
+    expect(dialog).toHaveClass("inset-0", "h-dvh", "w-screen")
+    expect(
+      screen.getByRole("button", { name: "关闭名片预览" }).closest("header")
+    ).toHaveClass("pt-(--safe-area-top)")
+    expect(
+      screen.getByRole("button", { name: "背面" }).closest("footer")
+    ).toHaveClass("pb-[calc(0.5rem+var(--safe-area-bottom))]")
     expect(
       screen.getByRole("img", { name: "制作人名片 42 正面" })
     ).toBeVisible()

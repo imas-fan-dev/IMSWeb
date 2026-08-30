@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "top.idol-master.imsweb",
   "build": {
-    "frontendDist": "../build/client",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "VITE_IMS_APP_TARGET=app pnpm run dev",
+    "frontendDist": "../build-app/client",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm run dev:app",
     "beforeBuildCommand": "pnpm run build:app"
   },
   "app": {
@@ -32,9 +32,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "android": {
-      "debugApplicationIdSuffix": ".debug"
-    }
+    ]
   }
 }

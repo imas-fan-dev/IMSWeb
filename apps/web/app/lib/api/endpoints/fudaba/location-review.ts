@@ -13,7 +13,12 @@ import type {
   FudabaLocationReviewState,
 } from "@imsweb/contracts/fudaba/location-review"
 
-export * from "@imsweb/contracts/fudaba/location-review"
+export {
+  fudabaLocationReviewSchema,
+  fudabaLocationReviewListSchema,
+  fudabaLocationReviewMutationSchema,
+} from "@imsweb/contracts/fudaba/location-review"
+export type * from "@imsweb/contracts/fudaba/location-review"
 
 export function getFudabaLocationReviews(
   state: FudabaLocationReviewState,

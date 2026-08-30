@@ -104,8 +104,10 @@ alpha、高光位置和 transform 则可以留在合成线程上。
 - 品牌冷启动遮罩落在 `root.tsx` 的 `RootDocumentLayout`，随 prerender 进入每页，hydration 后移除。
   遮罩只解决冷启动白屏，不等待会话、不承担引导。
 - app layout 顶部只保留极简标题栏，去掉汉堡抽屉。
-- 底部玻璃 tab bar 五项：首页、活动、故事站、社区、我的。
-  推荐、直播、关于降级为首页卡片入口或收进「我的」。
+- 底部玻璃 tab bar 五项：首页、活动、故事站、社区、我的。iOS 26 及以上由仓库内 Tauri 插件
+  使用系统 `UITabBarController` 和与 React 一致的 Lucide 图标，宽度及安全区由 UIKit 自适应；iOS 26
+  以下与 Android 保留 Web 回退，但禁用手指位置追踪和白色触点高光。推荐、直播、关于降级为首页卡片入口
+  或收进「我的」。
 - 新增「我的」路由。当前仅做静态壳，承载账户状态占位、我的名片入口（`/community/exchange/me`）、
   主题切换和降级下来的三个入口。
 - 底部悬浮簇与 tab bar 重新分配 `env(safe-area-inset-bottom)`，`AdminReturnShortcut` 从 app 产物移除。
@@ -118,7 +120,8 @@ alpha、高光位置和 transform 则可以留在合成线程上。
 ### 退出条件
 
 - web 产物与本批改动前逐字节一致。
-- app 产物在 Android 与 iOS 真机上冷启动无白屏，tab bar 与安全区表现正常。
+- app 产物在 Android 与 iOS 真机上冷启动无白屏，tab bar 与安全区表现正常；iOS 26+ 不得同时
+  出现原生栏和 Web 回退，旧 iOS 与 Android 不得出现白色触点追踪高光。
 - 记录一次真机帧率基线，不设阈值门。
 
 ## 第三批 跨源打通
@@ -149,7 +152,7 @@ alpha、高光位置和 transform 则可以留在合成线程上。
 | 跨引擎正确性 | 新增 Firefox 的 Playwright project | 守住真折射导致元素不渲染这条正确性风险 |
 | 视觉回归 | 不建立截图基线 | `backdrop-filter` 渲染跨 GPU 与平台存在像素差异，玻璃表面的基线会成为持续假阳性来源 |
 | 移动端性能 | 一次真机帧率基线记录 | 目前没有任何测量数据，先取基线再谈阈值 |
-| 跨平台观感 | 写入验收标准 | iOS 与 Android 的折射差异是平台能力决定的预期行为，不是缺陷 |
+| 跨平台观感 | 写入验收标准 | iOS 26+ 原生底栏、旧 iOS Web 回退与 Android 真折射的差异是预期行为，不是缺陷 |
 
 ## 遗留开放项
 

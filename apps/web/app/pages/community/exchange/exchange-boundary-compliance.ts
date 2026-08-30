@@ -271,7 +271,8 @@ export function applyChinaBoundaryCompliance(
     )
   }
 
-  if (!map.getLayer(CHINA_CLAIM_BOUNDARY_LAYER_ID)) {
+  const hasOpenMapTiles = Boolean(map.getSource("openmaptiles"))
+  if (hasOpenMapTiles && !map.getLayer(CHINA_CLAIM_BOUNDARY_LAYER_ID)) {
     map.addLayer(
       chinaClaimBoundaryLayer(),
       map.getLayer(CHINA_CLAIM_ANCHOR_LAYER_ID)
@@ -296,7 +297,7 @@ export function applyChinaBoundaryCompliance(
     map.addLayer(chinaBoundaryDashLineLayer(), dashAnchor)
   }
 
-  if (!map.getLayer(TAIWAN_PROVINCE_LABEL_LAYER_ID)) {
+  if (hasOpenMapTiles && !map.getLayer(TAIWAN_PROVINCE_LABEL_LAYER_ID)) {
     map.addLayer(
       taiwanProvinceLabelLayer(),
       map.getLayer(TAIWAN_LABEL_ANCHOR_LAYER_ID)

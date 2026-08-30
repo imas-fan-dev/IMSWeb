@@ -39,6 +39,7 @@ import {
   upcomingLiveEvents,
 } from "~/pages/live/live-schedule-model"
 import { getLiveEvents, type LiveEvent } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "Live 日程 | IMSWeb" }]
@@ -125,7 +126,7 @@ function LiveCard({ event }: { event: LiveEvent }) {
               )
             })}
             {event.detailUrl ? (
-              <a
+              <NavigationLink
                 href={event.detailUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -133,7 +134,7 @@ function LiveCard({ event }: { event: LiveEvent }) {
               >
                 详情
                 <ExternalLinkIcon className="size-3" aria-hidden="true" />
-              </a>
+              </NavigationLink>
             ) : null}
           </div>
         </div>

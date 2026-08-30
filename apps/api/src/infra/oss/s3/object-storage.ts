@@ -124,7 +124,8 @@ export class S3ObjectStorage implements ObjectStorage {
         private readonly options: S3ObjectStorageOptions,
         private readonly signReadUrl: S3ReadUrlSigner,
         private readonly state: S3UploadStateMachine,
-        private readonly compensation?: CompensationService
+        private readonly compensation?: CompensationService,
+        private readonly signingClient?: Pick<S3Client, 'destroy'>
     ) {}
 
     private physicalObjectKey(
@@ -606,5 +607,6 @@ export class S3ObjectStorage implements ObjectStorage {
 
     close(): void {
         this.client.destroy();
+        this.signingClient?.destroy();
     }
 }

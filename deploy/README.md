@@ -49,8 +49,14 @@ pnpm run dev:node
 ```
 
 API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问数据库、通过 `valkey:6379`
-访问本地缓存；本地 storage profile 通过 `rustfs:9000` 访问对象存储，生产使用配置的独立
+访问本地缓存；本地 storage profile 默认通过 `rustfs:9000` 访问对象存储，生产使用配置的独立
 Valkey 与外部 S3 API endpoint。
+
+RustFS S3 API 默认也只绑定回环地址。需要让局域网浏览器直接读取公开对象时，在 Git 忽略的
+`deploy/.env` 设置 `IMS_RUSTFS_API_BIND_ADDRESS=0.0.0.0`，并把
+`IMS_RUSTFS_PUBLIC_ORIGIN`、`IMS_PUBLIC_READ_URL_BASE` 和 `IMS_S3_PUBLIC_ENDPOINT` 都改为
+宿主机稳定的 LAN URL。Compose 内的 `IMS_S3_ENDPOINT` 保持 `http://rustfs:9000`，它只用于
+服务端读写；`IMS_S3_PUBLIC_ENDPOINT` 用于受保护对象的浏览器签名 URL。Console 保持回环绑定。
 `api-data` 卷保存 Hono 的本地运行状态，停止单个 API 容器不会删除该卷。不要把
 `deploy/.env.example` 中的本地默认凭据用于共享或生产环境；共享或生产环境的数据库、对象
 存储和应用秘密必须由目标平台或密钥管理服务注入。

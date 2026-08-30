@@ -1,10 +1,10 @@
-import { Link } from "react-router"
 import { useTranslation } from "react-i18next"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Card } from "~/components/ui/card"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 /**
  * Account tab for the packaged app.
@@ -53,7 +53,7 @@ export default function AccountMePage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
                 variant="outline"
-                render={<Link to="/community/exchange/me" />}
+                render={<NavigationLink to="/community/exchange/me" />}
                 nativeButton={false}
               >
                 {t("platformAccount.myCards")}
@@ -93,14 +93,14 @@ export default function AccountMePage() {
             </p>
             <div className="mt-4 flex gap-2">
               <Button
-                render={<Link to="/account/login" />}
+                render={<NavigationLink to="/account/login" />}
                 nativeButton={false}
               >
                 {t("platformAccount.login")}
               </Button>
               <Button
                 variant="outline"
-                render={<Link to="/account/register" />}
+                render={<NavigationLink to="/account/register" />}
                 nativeButton={false}
               >
                 {t("platformAccount.register")}
@@ -116,12 +116,12 @@ export default function AccountMePage() {
       <ul className="mt-3 grid grid-cols-2 gap-2">
         {secondaryDestinations.map((destination) => (
           <li key={destination.to}>
-            <Link
+            <NavigationLink
               to={destination.to}
               className="glass-surface glass-control flex h-14 items-center rounded-lg px-4 text-sm font-medium"
             >
               {t(destination.label)}
-            </Link>
+            </NavigationLink>
           </li>
         ))}
       </ul>

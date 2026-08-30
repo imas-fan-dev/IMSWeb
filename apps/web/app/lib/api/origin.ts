@@ -1,21 +1,81 @@
+import { IS_APP_TARGET } from "../app-target"
+
 /**
- * Origin that serves the Hono API and the public media routes it owns.
- *
- * Browser builds leave this empty. Web assets and the API share a single
- * origin in development (through the Vite proxy) and in production (through
- * the release reverse proxy), so requests stay relative and no CORS exchange
- * happens.
- *
- * Packaged Tauri builds must set `VITE_IMS_API_ORIGIN` at build time. A mobile
- * WebView serves the bundled frontend from a local scheme, so a relative URL
- * resolves against the WebView itself and never reaches the API.
+ * Origins only compose hostnames with root-relative paths. `IS_APP_TARGET`
+ * decides whether the current runtime needs that composition: the website
+ * keeps resources same-origin, while a packaged App may need an HTTP(S) host.
+ * App development intentionally leaves the API origin empty so Tauri sends
+ * root-relative requests through the Vite proxy.
  */
 function normalizeOrigin(value: string | undefined): string {
   const trimmed = (value ?? "").trim()
   return trimmed ? trimmed.replace(/\/+$/, "") : ""
 }
 
+function normalizePathPrefix(value: string | undefined): string {
+  const trimmed = (value ?? "").trim().replace(/^\/+|\/+$/g, "")
+  return trimmed ? `/${trimmed}` : ""
+}
+
 export const API_ORIGIN = normalizeOrigin(import.meta.env.VITE_IMS_API_ORIGIN)
+
+// The variable names remain compatible with the local RustFS service, but the
+// resolver treats the target as generic S3-compatible object storage.
+const LOCAL_OBJECT_STORAGE_PROXY_PATH_PREFIX = normalizePathPrefix(
+  import.meta.env.VITE_IMS_LOCAL_MEDIA_PATH_PREFIX
+)
+
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split(".").map(Number)
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false
+  }
+  return (
+    parts[0] === 10 ||
+    parts[0] === 127 ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168)
+  )
+}
+
+function isAppObjectStorageProxyPath(value: string): boolean {
+  return Boolean(
+    LOCAL_OBJECT_STORAGE_PROXY_PATH_PREFIX &&
+    (value === LOCAL_OBJECT_STORAGE_PROXY_PATH_PREFIX ||
+      value.startsWith(`${LOCAL_OBJECT_STORAGE_PROXY_PATH_PREFIX}/`))
+  )
+}
+
+/**
+ * Routes a local S3-compatible object-store URL through the App development
+ * proxy. Public R2 and other external object-store URLs remain unchanged.
+ */
+function appObjectStorageProxyPath(url: string | null | undefined): string {
+  const value = (url ?? "").trim()
+  if (!IS_APP_TARGET || !value || !LOCAL_OBJECT_STORAGE_PROXY_PATH_PREFIX) {
+    return value
+  }
+  try {
+    const parsed = new URL(value)
+    const localHost =
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "[::1]" ||
+      isPrivateIpv4(parsed.hostname)
+    if (
+      parsed.protocol === "http:" &&
+      localHost &&
+      isAppObjectStorageProxyPath(parsed.pathname)
+    ) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`
+    }
+  } catch {
+    // Root-relative paths already reach the App development proxy.
+  }
+  return value
+}
 
 /** True when the frontend and the API are served from different origins. */
 export const isCrossOriginApi = API_ORIGIN !== ""
@@ -41,6 +101,11 @@ export const PUBLIC_SITE_ORIGIN = normalizeOrigin(
   import.meta.env.VITE_IMS_PUBLIC_SITE_ORIGIN
 )
 
+/** Explicit HTTP(S) host for MapLibre styles, tiles, fonts, and sprites. */
+export const MAP_TRANSPORT_ORIGIN = normalizeOrigin(
+  import.meta.env.VITE_IMS_MAP_TRANSPORT_ORIGIN
+)
+
 /**
  * Origin that root-relative URLs resolve against **for this runtime to load**.
  *
@@ -53,8 +118,19 @@ export const PUBLIC_SITE_ORIGIN = normalizeOrigin(
  * `resolveShareableOrigin()` for anything a person will open in a browser.
  */
 export function resolveSiteOrigin(): string {
-  if (API_ORIGIN) {
+  if (IS_APP_TARGET && API_ORIGIN) {
     return API_ORIGIN
+  }
+  return typeof window === "undefined" ? "" : window.location.origin
+}
+
+/**
+ * HTTP(S) base used exclusively by MapLibre for styles, sprites, tiles, and
+ * PMTiles. A packaged App must never use the `tauri://` document origin here.
+ */
+export function resolveMapTransportOrigin(): string {
+  if (IS_APP_TARGET) {
+    return MAP_TRANSPORT_ORIGIN || PUBLIC_SITE_ORIGIN || API_ORIGIN
   }
   return typeof window === "undefined" ? "" : window.location.origin
 }
@@ -100,18 +176,40 @@ export function resolveShareableOrigin(): string {
  * Resolves a URL that the API returned into one the current runtime can load.
  *
  * Absolute URLs, protocol-relative URLs and data URIs pass through untouched,
- * so object-storage and OAuth avatar links keep working. Root-relative URLs
- * gain the configured origin.
+ * so object-storage and OAuth avatar links keep working. Only the App target
+ * composes root-relative API paths with its configured origin.
  */
-export function resolveMediaUrl(url: string | null | undefined): string {
+function resolveRootRelativeUrl(
+  url: string | null | undefined,
+  origin: string
+): string {
   const value = (url ?? "").trim()
-  if (!value || !API_ORIGIN) {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    !IS_APP_TARGET
+  ) {
     return value
   }
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value) || value.startsWith("//")) {
-    return value
-  }
-  return value.startsWith("/") ? `${API_ORIGIN}${value}` : value
+  return origin ? `${origin}${value}` : value
+}
+
+export function resolveMediaUrl(url: string | null | undefined): string {
+  return resolveRootRelativeUrl(appObjectStorageProxyPath(url), API_ORIGIN)
+}
+
+/**
+ * Resolves media hosted by the public website instead of the API or app bundle.
+ *
+ * Browser builds keep root-relative paths unchanged. Packaged builds use the
+ * configured public site origin, falling back to the API origin while both are
+ * served by the same host.
+ */
+export function resolvePublicSiteMediaUrl(
+  url: string | null | undefined
+): string {
+  return resolveRootRelativeUrl(url, PUBLIC_SITE_ORIGIN || API_ORIGIN)
 }
 
 /**
@@ -119,11 +217,12 @@ export function resolveMediaUrl(url: string | null | undefined): string {
  * anything that is not a safe `http:`/`https:` link once resolved.
  *
  * Wraps `resolveMediaUrl` so root-relative asset paths gain the configured
- * origin first, then parses the result against the current site origin
- * (falling back to a placeholder origin during SSR, where there is no
- * document to resolve against) and drops unexpected schemes such as
- * `javascript:`. Use this instead of hand-rolled `window.location.origin`
- * resolution for any `*Url` field returned by the API.
+ * origin first. App development proxy paths stay root-relative, which lets
+ * Tauri's custom development protocol forward them to Vite. Other results are parsed
+ * against the current site origin (falling back to a placeholder origin during
+ * SSR, where there is no document) and unexpected schemes such as
+ * `javascript:` are dropped. Use this instead of hand-rolled
+ * `window.location.origin` resolution for any `*Url` field returned by the API.
  */
 export function resolveSafeMediaUrl(
   url: string | null | undefined
@@ -131,6 +230,14 @@ export function resolveSafeMediaUrl(
   const resolved = resolveMediaUrl(url)
   if (!resolved) {
     return null
+  }
+  if (
+    IS_APP_TARGET &&
+    !API_ORIGIN &&
+    resolved.startsWith("/") &&
+    !resolved.startsWith("//")
+  ) {
+    return resolved
   }
   const base = resolveSiteOrigin() || "https://imsweb.invalid"
   try {

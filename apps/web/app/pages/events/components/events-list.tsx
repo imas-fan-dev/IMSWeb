@@ -7,7 +7,8 @@ import {
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
-import { resolveSafeMediaUrl, type EventListItem } from "~/lib/api"
+import type { EventListItem } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -33,8 +34,25 @@ function contactUrl(value?: string | null) {
   }
 }
 
+function safeImageUrl(value?: string | null) {
+  const candidate = value?.trim()
+  if (!candidate || candidate.startsWith("//")) return null
+  if (candidate.startsWith("/")) return candidate
+
+  try {
+    const url = new URL(candidate)
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? candidate
+      : null
+  } catch {
+    return null
+  }
+}
+
 export function EventRow({ event }: { event: EventListItem }) {
-  const imageUrl = resolveSafeMediaUrl(event.image_url)
+  // The endpoint normalizer owns API-origin resolution. The contract accepts a
+  // plain string, so this render boundary only rejects unsafe URL schemes.
+  const imageUrl = safeImageUrl(event.image_url)
   const href = contactUrl(event.contact)
 
   return (
@@ -73,14 +91,14 @@ export function EventRow({ event }: { event: EventListItem }) {
               className="mt-0.5 size-3.5 shrink-0"
             />
             {href ? (
-              <a
+              <NavigationLink
                 href={href}
                 target="_blank"
                 rel="noreferrer"
                 className="min-w-0 break-all text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 {event.contact}
-              </a>
+              </NavigationLink>
             ) : (
               <span className="min-w-0 wrap-anywhere whitespace-pre-line">
                 {event.contact}

@@ -28,7 +28,19 @@ import {
   platformSessionSchema,
 } from "@imsweb/contracts/platform"
 
-export * from "@imsweb/contracts/platform"
+export {
+  platformOAuthProviderSchema,
+  platformOAuthProvidersResponseSchema,
+  platformAccountSchema,
+  platformSessionProfileSchema,
+  platformProfileSchema,
+  platformSessionSchema,
+  platformRegistrationVerificationResponseSchema,
+  platformProfileResponseSchema,
+  platformProfileMutationResponseSchema,
+  passwordResetIssueResponseSchema,
+} from "@imsweb/contracts/platform"
+export type * from "@imsweb/contracts/platform"
 
 const utf8Encoder = new TextEncoder()
 

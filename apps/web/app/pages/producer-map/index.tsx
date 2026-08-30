@@ -30,6 +30,7 @@ import {
   type ProducerMapRegion,
   type ProducerMapSeries,
 } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const chinaCommunityMapModule =
   import("~/components/producer-map/china-community-map")
@@ -278,7 +279,11 @@ function CommunityCard({
               variant="outline"
               size="sm"
               render={
-                <a href={community.linkUrl} target="_blank" rel="noreferrer" />
+                <NavigationLink
+                  href={community.linkUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                />
               }
               nativeButton={false}
             >
@@ -486,14 +491,14 @@ export default function ProducerMapPage() {
           <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               地图来源：{" "}
-              <a
+              <NavigationLink
                 href={data.mapSourceUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="underline decoration-border underline-offset-4 hover:text-foreground"
               >
                 {data.mapSourceLabel}
-              </a>
+              </NavigationLink>
             </p>
             <Button
               type="button"

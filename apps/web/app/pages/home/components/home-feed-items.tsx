@@ -3,6 +3,7 @@ import { ArrowUpRightIcon, CalendarDaysIcon, ImageIcon } from "lucide-react"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
 import { resolveSafeMediaUrl, type HomeEvent, type HomeNews } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -51,7 +52,7 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
           <CalendarDaysIcon aria-hidden="true" className="size-5" />
         )}
       </span>
-      <a
+      <NavigationLink
         href="/events"
         className="min-w-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
@@ -75,7 +76,7 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
             {event.contact}
           </span>
         ) : null}
-      </a>
+      </NavigationLink>
     </div>
   )
 }
@@ -121,9 +122,14 @@ export function HomeNewsRow({ item }: { item: HomeNews }) {
     "group grid min-h-24 grid-cols-[5rem_minmax(0,1fr)_auto] gap-3 py-4 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
 
   return href ? (
-    <a href={href} target="_blank" rel="noreferrer" className={className}>
+    <NavigationLink
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={className}
+    >
       {content}
-    </a>
+    </NavigationLink>
   ) : (
     <div className={className}>{content}</div>
   )

@@ -7,10 +7,18 @@ import {
 } from "../cache-policy"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
+import { normalizeEventPage } from "../media-urls"
 
 import { eventPageSchema } from "@imsweb/contracts/events"
 
-export * from "@imsweb/contracts/events"
+export {
+  eventIdSchema,
+  eventListItemSchema,
+  eventPageInfoSchema,
+  eventPageSchema,
+  createEventResponseSchema,
+} from "@imsweb/contracts/events"
+export type * from "@imsweb/contracts/events"
 
 import type { EventPage } from "@imsweb/contracts/events"
 
@@ -29,6 +37,7 @@ export function getEventPage({ limit = 20, cursor }: EventPageRequest = {}) {
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
       params,
+      select: normalizeEventPage,
     })
   )
 }

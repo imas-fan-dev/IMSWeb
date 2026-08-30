@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { getAboutPageContent, isApiError } from "~/lib/api"
 import type { AboutGroup, AboutPerson } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const groupAccents = [
   {
@@ -126,7 +127,7 @@ function PersonCard({
             ) : null}
           </div>
           {person.profileUrl ? (
-            <a
+            <NavigationLink
               href={person.profileUrl}
               target="_blank"
               rel="noreferrer"
@@ -134,7 +135,7 @@ function PersonCard({
             >
               访问个人主页
               <ArrowUpRightIcon className="size-4" aria-hidden="true" />
-            </a>
+            </NavigationLink>
           ) : null}
         </div>
       </div>

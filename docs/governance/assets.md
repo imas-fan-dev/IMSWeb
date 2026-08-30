@@ -17,6 +17,21 @@
 `dc6dc2bc6572103a14bacf478aacb42a4aa7af1a64a9ec4f4f540ceead5bc072`。源 PNG 不进入 public；
 运行时和测试统一使用 WebP。
 
+### App icon
+
+`public/brand/imsweb-app-icon.png` 是桌面/移动客户端的应用图标源文件，画布 1024 x 1024。它由仓库维护者通过已配置的
+`gpt-image-2` 图像生成 API 创建：生成服务输出的 1254 x 1254 PNG 由 `sips` 等比标准化为仓库中的 1024 x 1024
+源文件。提示词限定与主站 logo 呼应的左上 `im`、右下 `@s` 阶梯布局、红色 `@`、银色金属字面、黑白双层描边和右倾斜体；
+只借用构图节奏，不复制主站的中文字形，也未导入第三方图像。仓库维护者随后重建无框的银色底面，移除全画布暗影和
+生成图外框，保留字标、描边及紧贴字标的局部阴影，使 iOS 系统圆角成为唯一的应用图标外形。
+
+| Web 路径                           | 字节数 | SHA-256                                                            |
+| ---------------------------------- | ------ | ------------------------------------------------------------------ |
+| `public/brand/imsweb-app-icon.png` | 388230 | `b0f0371701d633d5123aa2af5ce5be7d69a12790572bd7f92cc0a813d39c1b8d` |
+
+`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 PNG 经
+`tauri icon` 派生，不单独登记；替换图标必须改 PNG 后重新生成，并同步更新上表的字节数与 SHA-256。
+
 ### 系列墙与随机 icon
 
 以下六张 585 × 500 WebP 图片仅服务于首页/作品页系列墙。页面漂浮 motif 和浏览器标签页
@@ -56,6 +71,13 @@ Natural Earth raster、sprite 和 Noto Sans glyph 改为 `/maps/exchange/` 下�
 `80acb67b53fd455ca3795ac83e04d2c63f2517236fb478b0b4c240f9fd8fe6fa`。OpenFreeMap styles 仓库
 整体采用 MIT；Bright 上游代码、设计、字体、图标和 Natural Earth 数据继续适用各自许可。IMSWeb
 运行时通过 MapLibre paint property 覆盖配色。
+
+`public/maps/exchange-test-style.json` 是仓库维护的 MapLibre GL 测试样式，仅组合现有
+`china-provinces.json`、运行时追加的 `china-boundary-dashes.json` 和 API 返回的事务所点。该样式
+不包含 PMTiles 或 sprite，只有为 MapLibre schema 保留的同源 glyph 模板；由于测试样式没有文字
+图层，浏览器不会请求 glyph 文件。它不是生产底图。文件大小为 1031 字节，SHA-256 为
+`f6f9ee3226e11534230e4e1eca8a6ece4eb878e1c9fe0290f2ba4c3dbe5e3fd1`。GeoJSON 的来源、处理方式和
+许可边界仍以下文登记为准。
 
 生产资源由固定 OpenFreeMap snapshot 裁剪为全球 z0–11 PMTiles，并与 Natural Earth raster、
 sprite、三套 Noto Sans glyph 一同通过当前站点 `/maps/exchange/` 提供；浏览器不再请求

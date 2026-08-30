@@ -8,8 +8,9 @@ import {
   SearchIcon,
 } from "lucide-react"
 import { useDeferredValue, useEffect, useMemo, useState } from "react"
-import { Link, useLocation, useSearchParams } from "react-router"
+import { useLocation, useSearchParams } from "react-router"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
@@ -35,9 +36,10 @@ import { StoryCategorySection } from "~/pages/wiki/modern/components/story-categ
 import { StoryNavigationPanel } from "~/pages/wiki/modern/components/story-navigation-panel"
 import { safeWikiColor, storyCardMatches } from "~/pages/wiki/wiki-model"
 import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
-import { cn } from "~/lib/utils"
 import { getWikiStories, isApiError } from "~/lib/api"
 import type { WikiPublicStories } from "~/lib/api"
+import { webOnly } from "~/lib/navigation/navigation-target"
+import { cn } from "~/lib/utils"
 
 const TARGET_CARD_HIGHLIGHT_MS = 1800
 
@@ -121,7 +123,12 @@ export function StoryPage() {
         setHighlightedCardId(null)
         return
       }
-      targetCard.focus()
+      targetCard.focus({ preventScroll: true })
+      targetCard.scrollIntoView({
+        block: "start",
+        inline: "nearest",
+        behavior: "auto",
+      })
       setHighlightedCardId(targetCardId)
       highlightTimer = window.setTimeout(() => {
         if (document.activeElement === targetCard) targetCard.blur()
@@ -178,12 +185,12 @@ export function StoryPage() {
         <p className="mt-2 text-muted-foreground">
           剧情地址缺少企划或内容页信息。
         </p>
-        <Link
+        <NavigationLink
           to="/wiki"
           className={cn(buttonVariants({ variant: "default" }), "mt-6")}
         >
           返回剧情档案
-        </Link>
+        </NavigationLink>
       </main>
     )
   }
@@ -206,12 +213,12 @@ export function StoryPage() {
                 >
                   重新加载
                 </Button>
-                <Link
+                <NavigationLink
                   to={`/wiki?agency=${encodeURIComponent(agencyName)}`}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   返回内容目录
-                </Link>
+                </NavigationLink>
               </div>
             </AlertDescription>
           </Alert>
@@ -247,13 +254,13 @@ export function StoryPage() {
                 />
               </div>
               <div className="min-w-0">
-                <Link
+                <NavigationLink
                   to={`/wiki?agency=${encodeURIComponent(stories.agency.name)}`}
                   className="inline-flex max-w-full items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
                 >
                   <ArrowLeftIcon className="size-4 shrink-0" />
                   <span className="truncate">{stories.agency.name}</span>
-                </Link>
+                </NavigationLink>
                 <h1 className="mt-2 min-w-0 text-2xl font-semibold wrap-break-word sm:mt-3 sm:text-3xl">
                   {stories.idol.name}
                 </h1>
@@ -263,17 +270,19 @@ export function StoryPage() {
                   <span>{linkCount ?? 0} 个内容来源</span>
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 sm:mt-4">
-                  <Link
-                    to={`/story/classic?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
+                  <NavigationLink
+                    to={webOnly(
+                      `/story/classic?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`
+                    )}
                     className={cn(
                       buttonVariants({ variant: "outline", size: "sm" })
                     )}
                   >
                     <WikiViewSwitchIcon data-icon="inline-start" />
                     经典视图
-                  </Link>
+                  </NavigationLink>
                   {stories.idol.wikiUrl ? (
-                    <a
+                    <NavigationLink
                       href={stories.idol.wikiUrl}
                       target="_blank"
                       rel="noreferrer"
@@ -283,7 +292,7 @@ export function StoryPage() {
                     >
                       <ExternalLinkIcon data-icon="inline-start" />
                       查看 Wiki
-                    </a>
+                    </NavigationLink>
                   ) : null}
                 </div>
               </div>
@@ -430,7 +439,7 @@ export function StoryPage() {
             </SheetTrigger>
             <SheetContent
               side="bottom"
-              className="max-h-[82svh] overflow-y-auto rounded-t-lg"
+              className="max-h-[min(82svh,var(--safe-viewport-height))] overflow-y-auto rounded-t-lg"
             >
               <SheetHeader className="border-b pr-14">
                 <SheetTitle>{stories.idol.name} · 快捷导航</SheetTitle>

@@ -22,7 +22,17 @@ import {
   producerMapImageUploadSchema,
 } from "@imsweb/contracts/producer-map"
 
-export * from "@imsweb/contracts/producer-map"
+export {
+  producerMapSeriesSchema,
+  producerMapRegionSchema,
+  producerMapCommunitySchema,
+  producerMapContentSchema,
+  producerMapAdminSnapshotSchema,
+  producerMapAdminUpdateSchema,
+  producerMapImageUploadSchema,
+  producerMapGeometrySchema,
+} from "@imsweb/contracts/producer-map"
+export type * from "@imsweb/contracts/producer-map"
 
 import type { ProducerMapContent } from "@imsweb/contracts/producer-map"
 

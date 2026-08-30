@@ -1,9 +1,9 @@
 import { useRequest } from "alova/client"
 import { LayoutDashboardIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { getAdminSession, hasBackofficeSessionHint } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function AdminReturnShortcut({ className }: { className?: string }) {
   const shouldValidateSession = hasBackofficeSessionHint()
@@ -17,7 +17,7 @@ export function AdminReturnShortcut({ className }: { className?: string }) {
   }
 
   return (
-    <Link
+    <NavigationLink
       to="/admin"
       data-admin-return-shortcut
       className={cn(
@@ -28,6 +28,6 @@ export function AdminReturnShortcut({ className }: { className?: string }) {
     >
       <LayoutDashboardIcon className="size-4" aria-hidden="true" />
       <span>管理工作台</span>
-    </Link>
+    </NavigationLink>
   )
 }

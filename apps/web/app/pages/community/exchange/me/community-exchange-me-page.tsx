@@ -5,7 +5,7 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useSearchParams } from "react-router"
+import { useSearchParams } from "react-router"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
@@ -41,6 +41,7 @@ import {
   isProfileWorkspaceSection,
   ProfileWorkspaceNavigation,
 } from "./profile-workspace-navigation"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type WorkspacePhase = "idle" | "loading" | "ready" | "closed" | "error"
 
@@ -243,12 +244,12 @@ export default function CommunityExchangeMePage() {
               登录后可以维护制作人资料、双面名片与交换状态。
             </EmptyDescription>
           </EmptyHeader>
-          <Link
+          <NavigationLink
             to="/community/exchange"
             className={buttonVariants({ variant: "outline" })}
           >
             返回交换事务所
-          </Link>
+          </NavigationLink>
         </Empty>
       </main>
     )
@@ -311,12 +312,12 @@ export default function CommunityExchangeMePage() {
                 重新载入
               </Button>
             ) : null}
-            <Link
+            <NavigationLink
               to="/community/exchange"
               className={buttonVariants({ variant: "outline" })}
             >
               返回交换事务所
-            </Link>
+            </NavigationLink>
           </div>
         </Empty>
       </main>
@@ -338,12 +339,12 @@ export default function CommunityExchangeMePage() {
         <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
           <div className="max-w-2xl min-w-0">
-            <Link
+            <NavigationLink
               to="/community/exchange"
               className="text-sm font-medium text-muted-foreground hover:text-foreground"
             >
               名片交换事务所
-            </Link>
+            </NavigationLink>
             <h1 className="mt-3 text-2xl font-semibold text-balance">
               个人档案
             </h1>

@@ -61,6 +61,7 @@ export function eventPosterObjectKey(filename: string): string {
 export const INFORMATION_INDEX_OBJECT_KEY = 'editorial/information/index.json';
 export const ABOUT_PAGE_OBJECT_KEY = 'editorial/about/config.json';
 export const PRODUCER_MAP_OBJECT_KEY = 'community/producer-map/config.json';
+export const FUDABA_MAP_DELIVERY_OBJECT_KEY = 'community/fudaba/map-delivery.json';
 
 export function aboutHeroObjectKey(filename: string): string {
     const file = fileParts(filename);

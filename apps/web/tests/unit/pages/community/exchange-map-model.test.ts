@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest"
 
 import type { FudabaMapOffice, FudabaSeries } from "~/lib/api"
 import {
+  createMapDeliveryContext,
   groupMapOffices,
+  mapDeliveryPrefixFromStyleUrl,
   mergeMapOfficeResponses,
   resolveAllowedMapResourceUrl,
   resolveMapStyleResourceUrls,
+  resolveMapStyleUrl,
   splitViewportBounds,
 } from "~/pages/community/exchange/exchange-map-model"
 
@@ -94,37 +97,50 @@ const seriesCatalog: FudabaSeries[] = [
 ]
 
 describe("exchange map model", () => {
-  it("allows only same-origin HTTP(S) and same-origin PMTiles archives", () => {
+  it("keeps URL resolution separate from the trusted origin set", () => {
+    const scope = {
+      base: "https://ims.test",
+      trustedOrigins: ["https://ims.test"],
+    }
     expect(
       resolveAllowedMapResourceUrl(
         "/api/community/exchange/map/style.json",
-        "https://ims.test"
+        scope
       )
     ).toBe("https://ims.test/api/community/exchange/map/style.json")
     expect(
       resolveAllowedMapResourceUrl(
         "https://ims.test/assets/map/tile.pbf",
-        "https://ims.test"
+        scope
       )
     ).toBe("https://ims.test/assets/map/tile.pbf")
     expect(
       resolveAllowedMapResourceUrl(
         "pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles",
-        "https://ims.test"
+        scope
       )
     ).toBe("pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles")
     expect(
       resolveAllowedMapResourceUrl(
         "pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles/11/1715/836",
-        "https://ims.test"
+        scope
       )
     ).toBe(
       "pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles/11/1715/836"
     )
 
     expect(() =>
-      resolveAllowedMapResourceUrl("/maps/exchange/map.pmtiles", "not a URL")
+      resolveAllowedMapResourceUrl("/maps/exchange/map.pmtiles", {
+        base: "not a URL",
+        trustedOrigins: ["https://ims.test"],
+      })
     ).toThrow(/格式无效/)
+    expect(() =>
+      resolveAllowedMapResourceUrl("/maps/exchange/map.pmtiles", {
+        base: "https://untrusted.test",
+        trustedOrigins: ["https://ims.test"],
+      })
+    ).toThrow(/同源/)
 
     for (const resource of [
       "https://tiles.openfreemap.org/planet",
@@ -134,13 +150,86 @@ describe("exchange map model", () => {
       "mapbox://styles/example/style",
       "file:///tmp/map.json",
     ]) {
-      expect(() =>
-        resolveAllowedMapResourceUrl(resource, "https://ims.test")
-      ).toThrow(/同源/)
+      expect(() => resolveAllowedMapResourceUrl(resource, scope)).toThrow(
+        /同源/
+      )
     }
   })
 
-  it("resolves all same-origin style resources before MapLibre validation", () => {
+  it("keeps the default map delivery paths byte-identical", () => {
+    const context = createMapDeliveryContext(
+      "https://ims.test",
+      "/maps/exchange-style.json",
+      "https://ims.test"
+    )
+    expect(context).toEqual({
+      deliveryPrefix: "/maps/",
+      scope: {
+        base: "https://ims.test",
+        trustedOrigins: ["https://ims.test"],
+      },
+    })
+    expect(mapDeliveryPrefixFromStyleUrl("/maps/exchange-style.json")).toBe(
+      "/maps/"
+    )
+    expect(resolveMapStyleUrl("/maps/exchange-style.json", context)).toBe(
+      "https://ims.test/maps/exchange-style.json"
+    )
+
+    const pathContext = createMapDeliveryContext(
+      "https://ims.test",
+      "/releases/map-v3/exchange-style.json",
+      "https://ims.test"
+    )
+    expect(
+      resolveMapStyleResourceUrls(
+        {
+          version: 8,
+          sprite: "/maps/exchange/sprites/ofm",
+          sources: {},
+          layers: [],
+        },
+        pathContext
+      ).sprite
+    ).toBe("https://ims.test/releases/map-v3/exchange/sprites/ofm")
+  })
+
+  it("keeps packaged-App map resources on the trusted HTTP transport", () => {
+    const context = createMapDeliveryContext(
+      "https://site.imsweb.test",
+      "/maps/exchange-style.json"
+    )
+
+    expect(context.scope).toEqual({
+      base: "https://site.imsweb.test",
+      trustedOrigins: ["https://site.imsweb.test"],
+    })
+    expect(
+      resolveAllowedMapResourceUrl(
+        "/maps/china-boundary-dashes.json",
+        context.scope
+      )
+    ).toBe("https://site.imsweb.test/maps/china-boundary-dashes.json")
+    expect(
+      resolveMapStyleResourceUrls(
+        {
+          version: 8,
+          sources: {
+            openmaptiles: {
+              type: "vector",
+              url: "pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles",
+            },
+          },
+          layers: [],
+        },
+        context
+      ).sources.openmaptiles
+    ).toMatchObject({
+      url: "pmtiles://https://site.imsweb.test/maps/exchange/openfreemap-z0-11.pmtiles",
+    })
+  })
+
+  it("rewrites every style child onto an absolute host-and-path prefix", () => {
     const style: StyleSpecification = {
       version: 8,
       sprite: "/maps/exchange/sprites/ofm",
@@ -158,27 +247,38 @@ describe("exchange map model", () => {
       },
       layers: [],
     }
+    const context = createMapDeliveryContext(
+      "https://api.test",
+      "https://objects.test/releases/map-v3/exchange-style.json",
+      "https://app.test"
+    )
 
-    expect(
-      resolveMapStyleResourceUrls(style, "https://ims.test")
-    ).toMatchObject({
-      sprite: "https://ims.test/maps/exchange/sprites/ofm",
-      glyphs: "https://ims.test/maps/exchange/fonts/{fontstack}/{range}.pbf",
+    expect(context).toEqual({
+      deliveryPrefix: "https://objects.test/releases/map-v3/",
+      scope: {
+        base: "https://api.test",
+        trustedOrigins: ["https://app.test", "https://objects.test"],
+      },
+    })
+    expect(resolveMapStyleResourceUrls(style, context)).toMatchObject({
+      sprite: "https://objects.test/releases/map-v3/exchange/sprites/ofm",
+      glyphs:
+        "https://objects.test/releases/map-v3/exchange/fonts/{fontstack}/{range}.pbf",
       sources: {
         openmaptiles: {
-          url: "pmtiles://https://ims.test/maps/exchange/openfreemap-z0-11.pmtiles",
+          url: "pmtiles://https://objects.test/releases/map-v3/exchange/openfreemap-z0-11.pmtiles",
         },
         naturalEarth: {
           tiles: [
-            "https://ims.test/maps/exchange/natural-earth/{z}/{x}/{y}.png",
+            "https://objects.test/releases/map-v3/exchange/natural-earth/{z}/{x}/{y}.png",
           ],
         },
       },
     })
     expect(() =>
       resolveMapStyleResourceUrls(
-        { ...style, sprite: "https://tiles.openfreemap.org/sprites/ofm" },
-        "https://ims.test"
+        { ...style, sprite: "https://foreign.test/sprites/ofm" },
+        context
       )
     ).toThrow(/同源/)
   })

@@ -169,6 +169,17 @@ for (const filePath of productionFiles) {
     failures.push(`${file}: Web tests belong under apps/web/tests`);
   }
 
+  if (
+    file.startsWith("apps/web/app/") &&
+    /export\s*\*\s*from\s*["']@imsweb\/contracts(?:\/[^"']*)?["']/.test(
+      source,
+    )
+  ) {
+    failures.push(
+      `${file}: use named runtime exports from @imsweb/contracts; export type * is allowed`,
+    );
+  }
+
   if (file === "packages/contracts/src/paths.ts") continue;
   for (const literal of stringLiterals(source)) {
     if (
@@ -187,5 +198,5 @@ if (failures.length) {
 }
 
 process.stdout.write(
-  `Source rules check passed: ${productionFiles.length} production source files respect shared path, zod, and ownership boundaries\n`,
+  `Source rules check passed: ${productionFiles.length} production source files respect shared path, contract export, zod, and ownership boundaries\n`,
 );

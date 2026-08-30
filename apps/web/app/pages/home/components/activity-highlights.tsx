@@ -5,6 +5,7 @@ import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getHomeInformation } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function isExternalLink(href: string) {
   return href.startsWith("http://") || href.startsWith("https://")
@@ -70,7 +71,7 @@ export function ActivityHighlights() {
                     className="aspect-video w-full rounded-none bg-muted"
                     imageClassName="transition-transform duration-300 group-hover:scale-[1.025]"
                   />
-                  <a
+                  <NavigationLink
                     href={item.href}
                     target={external ? "_blank" : undefined}
                     rel={external ? "noreferrer" : undefined}
@@ -88,7 +89,7 @@ export function ActivityHighlights() {
                       className="size-4 shrink-0 text-muted-foreground"
                       aria-hidden="true"
                     />
-                  </a>
+                  </NavigationLink>
                 </article>
               )
             })}

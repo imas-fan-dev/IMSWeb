@@ -9,6 +9,7 @@ import { Skeleton } from "~/components/ui/skeleton"
 import type { HomepageLink } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { useHomepageLinks } from "../hooks/use-homepage-links"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function isExternalLink(href: string) {
   return href.startsWith("http://") || href.startsWith("https://")
@@ -19,7 +20,7 @@ function PortalLink({ item }: { item: HomepageLink }) {
   const external = isExternalLink(item.href)
 
   return (
-    <a
+    <NavigationLink
       href={item.href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
@@ -57,7 +58,7 @@ function PortalLink({ item }: { item: HomepageLink }) {
           aria-hidden="true"
         />
       )}
-    </a>
+    </NavigationLink>
   )
 }
 
@@ -65,7 +66,7 @@ function FriendLink({ item }: { item: HomepageLink }) {
   const external = isExternalLink(item.href)
 
   return (
-    <a
+    <NavigationLink
       href={item.href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
@@ -88,7 +89,7 @@ function FriendLink({ item }: { item: HomepageLink }) {
         className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
         aria-hidden="true"
       />
-    </a>
+    </NavigationLink>
   )
 }
 

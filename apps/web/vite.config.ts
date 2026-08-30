@@ -4,13 +4,30 @@ import { reactRouter } from "@react-router/dev/vite"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
 
-import { localExchangeMapAssets } from "./vite-exchange-map-assets"
+import {
+  API_PROXY_PATH_PREFIXES,
+  PUBLIC_SITE_PROXY_PATH_PREFIXES,
+} from "./app/lib/bundle-path-policy"
+import {
+  localExchangeMapAssets,
+  TAURI_MAP_ORIGINS,
+} from "./vite-exchange-map-assets"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
+const publicSiteProxyOrigin =
+  process.env.IMS_PUBLIC_SITE_ORIGIN ?? "https://idol-master.top"
 const workspaceRoot = fileURLToPath(new URL("../..", import.meta.url))
 // `tauri android dev` and `tauri ios dev` export this when the app runs on a
 // real device, which reaches this server over the LAN instead of loopback.
-const tauriDevHost = process.env.TAURI_DEV_HOST
+const isAppTarget = process.env.VITE_IMS_APP_TARGET === "app"
+const localMediaBucket = process.env.IMS_RUSTFS_BUCKET ?? "imsweb-media-local"
+const localMediaProxyOrigin =
+  process.env.IMS_LOCAL_MEDIA_PROXY_ORIGIN ??
+  (isAppTarget ? "http://127.0.0.1:9000" : undefined)
+const localMediaPathPrefix =
+  process.env.VITE_IMS_LOCAL_MEDIA_PATH_PREFIX ??
+  (isAppTarget ? `/${localMediaBucket}` : undefined)
+const tauriDevHost = isAppTarget ? process.env.TAURI_DEV_HOST : undefined
 
 export default defineConfig({
   build: {
@@ -53,30 +70,42 @@ export default defineConfig({
     external: ["@imsweb/contracts"],
   },
   server: {
+    cors: { origin: [...TAURI_MAP_ORIGINS] },
     fs: {
       allow: [workspaceRoot],
     },
-    ...(tauriDevHost
+    ...(isAppTarget
       ? {
-          host: tauriDevHost,
+          host: true,
           strictPort: true,
-          hmr: { protocol: "ws", host: tauriDevHost, port: 1421 },
+          ...(tauriDevHost
+            ? {
+                hmr: { protocol: "ws", host: tauriDevHost, port: 1421 },
+              }
+            : {}),
         }
       : {}),
-    proxy: Object.fromEntries(
-      [
-        "/api",
-        "/assets",
-        "/css",
-        "/Data",
-        "/eventchronicle",
-        "/icon",
-        "/image",
-        "/runninggame",
-        "/site-content",
-        "/sites",
-        "/uploads",
-      ].map((path) => [path, { target: honoOrigin, changeOrigin: false }])
-    ),
+    proxy: {
+      ...(isAppTarget && localMediaProxyOrigin && localMediaPathPrefix
+        ? {
+            [localMediaPathPrefix]: {
+              target: localMediaProxyOrigin,
+              changeOrigin: true,
+            },
+          }
+        : {}),
+      ...Object.fromEntries(
+        PUBLIC_SITE_PROXY_PATH_PREFIXES.map((path) => [
+          path,
+          { target: publicSiteProxyOrigin, changeOrigin: true },
+        ])
+      ),
+      ...Object.fromEntries(
+        API_PROXY_PATH_PREFIXES.map((path) => [
+          path,
+          { target: honoOrigin, changeOrigin: false },
+        ])
+      ),
+    },
   },
 })

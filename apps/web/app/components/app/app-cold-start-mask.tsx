@@ -16,14 +16,22 @@ export function AppColdStartMask() {
 
   useEffect(() => {
     // Wait for a painted frame rather than dismissing on mount, otherwise the
-    // mask can disappear while the first route is still blank.
-    const frame = requestAnimationFrame(() => setDismissed(true))
-    return () => cancelAnimationFrame(frame)
+    // mask can disappear while the first route is still blank. iOS can defer
+    // the first WebView frame while the native tab bar is materializing, so a
+    // timer releases the mask if that callback does not arrive promptly.
+    const dismiss = () => setDismissed(true)
+    const frame = requestAnimationFrame(dismiss)
+    const fallback = window.setTimeout(dismiss, 250)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(fallback)
+    }
   }, [])
 
   return (
     <div
       aria-hidden="true"
+      data-app-cold-start-mask=""
       data-dismissed={dismissed || undefined}
       className="pointer-events-none fixed inset-0 z-100 flex items-center justify-center bg-background transition-opacity duration-500 ease-out data-dismissed:opacity-0 motion-reduce:transition-none"
     >

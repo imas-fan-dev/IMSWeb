@@ -108,12 +108,13 @@ pnpm dev --api-port 3100 --web-port 5174
 启动器会把实际 API 地址传给 Web，并把实际 Web 地址传给 API，不需要手工同步两个 origin。
 本地数据库、对象存储和相互独立的 Backoffice/Platform 开发 JWT 配置由启动器注入，不需要
 先创建 `apps/api/.env`。统一入口
-设置空的 `IMS_ENV_FILE`，并在启动 API/Web 前移除继承的 `IMS_*`、数据库和 AWS 凭据，再只
-注入本地所需值；生产 `.env` 或 shell 配置不会污染本地 API。细粒度 API 入口仍按原契约读取
+设置空的 `IMS_ENV_FILE`，并在启动 API/Web 前移除继承的 `IMS_*`、`VITE_IMS_APP_TARGET`、
+数据库和 AWS 凭据，再只注入本地所需值；生产 `.env` 或 shell 配置不会污染本地 API，app
+构建目标也不会污染普通 Web。细粒度 API 入口仍按原契约读取
 `apps/api/.env`。
 
 统一启动器默认把 Fudaba 公开读取、写入和区域地图三个开关保持为 `false`。需要本地验证只读
-区域地图时，使用专用开发变量显式启用，并指向仓库内置的同源样式：
+区域地图时，使用专用开发变量显式启用，并指向同源 OpenFreeMap PMTiles 样式：
 
 ```sh
 IMS_DEV_FUDABA_PUBLIC_READ_ENABLED=true \
@@ -121,6 +122,10 @@ IMS_DEV_FUDABA_MAP_ENABLED=true \
 IMS_DEV_FUDABA_MAP_STYLE_URL=/maps/exchange-style.json \
 pnpm dev
 ```
+
+事务所点由 Hono 区域查询动态叠加在 OpenFreeMap 世界底图上。启动前必须准备并激活本地地图 release；
+完整步骤见下文。`/maps/exchange-test-style.json` 仅用于无 PMTiles 资源的组件和端到端测试，不是
+本地开发实例的默认地图类型。
 
 只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。地点搜索默认关闭；需要
 验证事务所地点选择时，配置 Nominatim-compatible HTTPS 搜索端点和可识别的 User-Agent：
@@ -139,7 +144,7 @@ pnpm dev
 User-Agent、attribution、缓存和流量政策。
 
 启动器会严格校验这些 `IMS_DEV_*` 值，再转译为 API 的 `IMS_FUDABA_*` 配置；直接继承的生产
-开关仍会被清除。首次启用 exchange map 前先准备并激活 Git 忽略的本地 z0–11 地图 release：
+开关仍会被清除。OpenFreeMap PMTiles 底图需要先准备并激活 Git 忽略的本地 z0–11 地图 release：
 
 ```sh
 node scripts/maps/prepare-exchange-map.mjs
@@ -148,9 +153,9 @@ node scripts/maps/prepare-exchange-map.mjs --apply --activate
 
 第一条仅打印固定 snapshot、资源数量和目标目录，不写磁盘；第二条下载约 7.92 GiB PMTiles 以及
 glyph、sprite、Natural Earth raster，至少需要 12 GiB 可用空间。Vite 只在开发 serve 模式把
-`data/maps/current/` 映射为 `/maps/exchange/`，不会把大型地图资源复制进 Web build。内置
-`exchange-style.json`、边界 GeoJSON 和上述运行时资源都由当前 Web origin 提供，浏览器不会
-请求第三方地图 host。完整合同见[地图资源交付](../operations/map-delivery.md)。
+`data/maps/current/` 映射为 `/maps/exchange/`，不会把大型地图资源复制进 Web build。内置测试
+样式、生产样式、边界 GeoJSON 和上述运行时资源都由当前 Web origin 提供。完整合同见
+[地图资源交付](../operations/map-delivery.md)。
 
 需要在 API/Web 热更新期间使用 Cloudflare R2 测试桶时，使用显式入口：
 
@@ -188,6 +193,21 @@ pnpm dev
 
 启动器会让宿主机 API 配置自动对齐 `deploy/.env` 中的 `IMS_POSTGRES_*` 和
 `IMS_RUSTFS_*`，并把同一组解析后的字面值传给 Compose；不要在该文件中嵌套 `${...}` 引用。
+
+RustFS 默认只绑定到回环地址。需要让局域网设备直接读取公开对象时，在 Git 忽略的
+`deploy/.env` 同时设置实际宿主机地址，并重启 RustFS：
+
+```sh
+IMS_RUSTFS_API_BIND_ADDRESS=0.0.0.0
+IMS_RUSTFS_PUBLIC_ORIGIN=http://192.168.1.20:9000
+IMS_PUBLIC_READ_URL_BASE=http://192.168.1.20:9000/imsweb-media-local
+IMS_S3_ENDPOINT=http://rustfs:9000
+IMS_S3_PUBLIC_ENDPOINT=http://192.168.1.20:9000
+```
+
+将示例 IP 替换为宿主机稳定的局域网 IP。Compose 内的 API 通过 `IMS_S3_ENDPOINT`
+使用 `rustfs:9000` 读写对象，`IMS_S3_PUBLIC_ENDPOINT` 专门用于生成浏览器可访问的受保护对象
+签名 URL。RustFS Console 仍只绑定 `127.0.0.1:9001`。
 API 独立启动时自动读取 `apps/api/.env`，已有 shell 或进程管理器变量优先；
 `migration:postgresql` 也读取同一文件。`apps/api/.env.example` 是生产和高级配置模板，不能在
 未填写必需值时原样用于开发。
@@ -217,23 +237,25 @@ docker compose -f deploy/compose.yaml ps postgres rustfs rustfs-init
 ```
 
 Valkey 位于 `redis://127.0.0.1:6379`，可用上述 Compose 命令单独启动；缓存数据
-是短期数据，不执行业务数据恢复。RustFS S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
-`http://127.0.0.1:9001`。`pnpm run dev:rustfs:down` 默认保留 `rustfs-data` 卷；只有明确
+是短期数据，不执行业务数据恢复。默认情况下，RustFS S3 API 位于 `http://127.0.0.1:9000`，管理控制台位于
+`http://127.0.0.1:9001`。配置 `IMS_RUSTFS_API_BIND_ADDRESS=0.0.0.0` 和
+`IMS_RUSTFS_PUBLIC_ORIGIN` 后，局域网客户端应使用后者。`pnpm run dev:rustfs:down` 默认保留 `rustfs-data` 卷；只有明确
 需要清空测试对象时才可另外执行带 `--volumes` 的 Compose 清理。
 `imsweb-media-local` 对公开对象开放下载，但匿名策略拒绝包含 `__protected/` 的路径；本地公开
 URL 由该 bucket 的 path-style 基址继续拼接可选 `IMS_S3_PREFIX` 和业务语义物理路径。
 
 需要把线上 R2 测试桶复制到本地 RustFS 时，将只读/对象读取凭据保存在 Git 忽略的
-`deploy/.env.r2-test`。先做只读盘点，再显式同步；同步命令拒绝非测试桶，也不会删除 RustFS
-中的目标独有对象：
+`deploy/.env.r2-test`。先做只读盘点；只有明确需要 RustFS 与 R2 测试桶具有完全相同的
+当前对象键集合时，才执行同步并删除 RustFS 独有对象：
 
 ```sh
 pnpm run dev:rustfs:sync-r2
-pnpm run dev:rustfs:sync-r2 -- --apply
+pnpm run dev:rustfs:sync-r2 -- --apply --prune-target
 ```
 
-写入结束后命令会重新列举源和目标，要求对象键集合与逐对象字节数完全一致。本地默认
-`IMS_S3_PREFIX` 为空，因此从测试桶复制下来的物理键可直接由同构的数据库对象索引引用。
+`--prune-target` 只能与 `--apply` 一起使用。写入结束后命令会重新列举源和目标，要求对象键集合
+与逐对象字节数完全一致。本地默认 `IMS_S3_PREFIX` 为空，因此从测试桶复制下来的物理键可直接由
+同构的数据库对象索引引用。
 
 `data/` 被 Git 忽略，不得把数据库、上传或日志移动到 `public/`，也不得提交。
 数据库职责、PostgreSQL 选项、生产路径和完整性检查见
@@ -248,6 +270,11 @@ pnpm run dev:rustfs:sync-r2 -- --apply
 ```sh
 pnpm run media:uploads:sync
 pnpm run media:uploads:sync -- --apply
+pnpm run media:about-avatars:sync
+pnpm run media:about-avatars:sync -- --apply \
+  --plan data/migration/about-avatar-migration.json \
+  --confirm-source https://idol-master.top \
+  --confirm-bucket <bucket>
 pnpm run media:information:sync
 pnpm run media:information:sync -- --apply
 pnpm run wiki:media:sync -- --upload-existing
@@ -255,8 +282,11 @@ pnpm run wiki:metadata:audit
 pnpm run wiki:metadata:audit -- --apply --strict
 ```
 
-每组的第二条命令才会写入，且会通过当前对象状态机维护 PostgreSQL 索引并从 RustFS 回读核对。
-前一组迁移 Event、News 和名片上传，后一组迁移首页活动资讯索引及其 6 张历史原图。
+每组的写入命令都必须在审计计划确认后执行，并通过当前对象状态机维护 PostgreSQL 索引，再从
+RustFS 回读核对。关于页头像的 `--apply` 必须在发布把头像统一解释为 API 媒体的 App/Web
+版本前完成；随后重新运行只读盘点，确认 `configStatus` 为 `unchanged`，且 `migrated`、
+`unsupported`、`missingObjects` 都为 0。前一组迁移 Event、News 和名片上传，后一组迁移首页
+活动资讯索引及其 6 张历史原图。
 Wiki 媒体先按清单同步，再由元数据审计关联数据库逻辑键；活动数据报告未归零时不得切换 Wiki
 读模型。`--apply` 不创建业务实体，只关联已经存在且可回读的企划图标和偶像头像。
 已有 S3-compatible bucket 的旧逻辑 key 使用 `pnpm run migration:object-keys` 盘点，再以

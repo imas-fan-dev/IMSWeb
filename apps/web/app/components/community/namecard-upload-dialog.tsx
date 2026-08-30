@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import type { FormEvent } from "react"
-import { Link } from "react-router"
+
 import { toast } from "sonner"
 
 import {
@@ -52,6 +52,7 @@ import {
   saveNamecardSubmissionReceipt,
   type NamecardSubmissionReceipt,
 } from "~/pages/community/namecard-submission-storage"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function NamecardUploadDialog() {
   const platform = useOptionalPlatformSession()
@@ -196,187 +197,192 @@ export function NamecardUploadDialog() {
       </DialogTrigger>
 
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl"
+        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         aria-busy={uploading}
       >
         <form
-          className="flex flex-col gap-5"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onSubmit={(event) => void submit(event)}
         >
-          <DialogHeader className="pr-8">
+          <DialogHeader className="shrink-0 p-4 pr-12 pb-0">
             <DialogTitle>提交制作人名片</DialogTitle>
             <DialogDescription>
               注册用户可自行管理名片并在审核后摆放到地图名片墙；游客投稿不可编辑。
             </DialogDescription>
           </DialogHeader>
 
-          <Alert>
-            <UserRoundIcon aria-hidden="true" />
-            <AlertTitle>
-              {platform.status === "authenticated" ||
-              platform.status === "restricted"
-                ? "使用注册用户上传"
-                : "注册用户上传"}
-            </AlertTitle>
-            <AlertDescription className="space-y-3">
-              <p>注册名片支持后续修改、担当管理和地图名片墙摆放。</p>
-              <Link
-                to="/community/exchange/me"
-                className={buttonVariants({ variant: "outline" })}
-              >
-                前往我的名片
-                <ExternalLinkIcon data-icon="inline-end" />
-              </Link>
-            </AlertDescription>
-          </Alert>
-
-          {receipt ? (
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-5"
+            data-namecard-upload-body
+          >
             <Alert>
-              <ExternalLinkIcon aria-hidden="true" />
-              <AlertTitle>请保存投稿管理链接</AlertTitle>
+              <UserRoundIcon aria-hidden="true" />
+              <AlertTitle>
+                {platform.status === "authenticated" ||
+                platform.status === "restricted"
+                  ? "使用注册用户上传"
+                  : "注册用户上传"}
+              </AlertTitle>
               <AlertDescription className="space-y-3">
-                <p>
-                  审核完成前，你可以凭这个链接查看状态或撤回投稿。链接丢失后无法自行找回。
-                </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void copyManageLink(receipt)}
-                  >
-                    <CopyIcon data-icon="inline-start" />
-                    复制管理链接
-                  </Button>
-                  <Link
-                    to={manageLink(receipt)}
-                    className={buttonVariants({ variant: "secondary" })}
-                  >
-                    管理这次投稿
-                    <ExternalLinkIcon data-icon="inline-end" />
-                  </Link>
-                </div>
+                <p>注册名片支持后续修改、担当管理和地图名片墙摆放。</p>
+                <NavigationLink
+                  to="/community/exchange/me"
+                  className={buttonVariants({ variant: "outline" })}
+                >
+                  前往我的名片
+                  <ExternalLinkIcon data-icon="inline-end" />
+                </NavigationLink>
               </AlertDescription>
             </Alert>
-          ) : null}
 
-          <div className="border-t pt-5">
-            <h3 className="text-sm font-medium">游客投稿</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              投稿后只能查看审核状态或在审核前撤回，不能修改图片和担当。
-            </p>
+            {receipt ? (
+              <Alert>
+                <ExternalLinkIcon aria-hidden="true" />
+                <AlertTitle>请保存投稿管理链接</AlertTitle>
+                <AlertDescription className="space-y-3">
+                  <p>
+                    审核完成前，你可以凭这个链接查看状态或撤回投稿。链接丢失后无法自行找回。
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void copyManageLink(receipt)}
+                    >
+                      <CopyIcon data-icon="inline-start" />
+                      复制管理链接
+                    </Button>
+                    <NavigationLink
+                      to={manageLink(receipt)}
+                      className={buttonVariants({ variant: "secondary" })}
+                    >
+                      管理这次投稿
+                      <ExternalLinkIcon data-icon="inline-end" />
+                    </NavigationLink>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="border-t pt-5">
+              <h3 className="text-sm font-medium">游客投稿</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                投稿后只能查看审核状态或在审核前撤回，不能修改图片和担当。
+              </p>
+            </div>
+
+            <Field data-disabled={uploading || undefined}>
+              <FieldLabel htmlFor="guest-namecard-series">主企划</FieldLabel>
+              <Select
+                value={seriesCode}
+                disabled={uploading || catalogLoading || series.length === 0}
+                onValueChange={(value) => setSeriesCode(String(value ?? ""))}
+              >
+                <SelectTrigger id="guest-namecard-series" className="w-full">
+                  <SelectValue placeholder="选择主企划" />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectGroup>
+                    {series.map((item) => (
+                      <SelectItem key={item.code} value={item.code}>
+                        {item.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <FieldGroup className="grid gap-5 md:grid-cols-2">
+              <Field data-disabled={uploading || undefined}>
+                <FieldLabel htmlFor="guest-namecard-producer">
+                  制作人昵称（选填）
+                </FieldLabel>
+                <Input
+                  id="guest-namecard-producer"
+                  value={producerName}
+                  maxLength={80}
+                  disabled={uploading}
+                  placeholder="署名，留空则匿名"
+                  onChange={(event) => setProducerName(event.target.value)}
+                />
+              </Field>
+              <Field data-disabled={uploading || undefined}>
+                <FieldLabel htmlFor="guest-namecard-display">
+                  名片名称（选填）
+                </FieldLabel>
+                <Input
+                  id="guest-namecard-display"
+                  value={displayName}
+                  maxLength={120}
+                  disabled={uploading}
+                  placeholder="这张名片的称呼"
+                  onChange={(event) => setDisplayName(event.target.value)}
+                />
+              </Field>
+            </FieldGroup>
+
+            <Field data-disabled={uploading || undefined}>
+              <FieldLabel htmlFor="guest-namecard-bio">简介（选填）</FieldLabel>
+              <Textarea
+                id="guest-namecard-bio"
+                value={bio}
+                maxLength={2000}
+                rows={3}
+                disabled={uploading}
+                placeholder="名片的设计说明或交换想法"
+                onChange={(event) => setBio(event.target.value)}
+              />
+            </Field>
+
+            <IdolMultiSelect
+              id="guest-namecard-idols"
+              series={series}
+              idols={catalog?.searchEntries ?? []}
+              selectedIds={favoriteIdolIds}
+              disabled={uploading || catalogLoading}
+              onChange={setFavoriteIdolIds}
+            />
+
+            <FieldGroup className="grid gap-5 md:grid-cols-2">
+              <Field data-disabled={uploading || undefined}>
+                <FieldLabel htmlFor="namecard-front">名片正面</FieldLabel>
+                <FileUploadControl
+                  id="namecard-front"
+                  compact
+                  accept="image/*"
+                  emptyTitle="选择名片正面"
+                  emptyDetail="图片文件 · 不超过 3 MiB"
+                  fileKind="名片正面"
+                  file={front}
+                  uploading={uploading}
+                  required
+                  selectedIcon={FileImageIcon}
+                  emptyIcon={ImageUpIcon}
+                  onSelect={(file) => chooseFile(file, "front")}
+                />
+              </Field>
+              <Field data-disabled={uploading || undefined}>
+                <FieldLabel htmlFor="namecard-back">名片背面</FieldLabel>
+                <FileUploadControl
+                  id="namecard-back"
+                  compact
+                  accept="image/*"
+                  emptyTitle="选择名片背面"
+                  emptyDetail="图片文件 · 不超过 3 MiB"
+                  fileKind="名片背面"
+                  file={back}
+                  uploading={uploading}
+                  required
+                  selectedIcon={FileImageIcon}
+                  emptyIcon={ImageUpIcon}
+                  onSelect={(file) => chooseFile(file, "back")}
+                />
+              </Field>
+            </FieldGroup>
           </div>
 
-          <Field data-disabled={uploading || undefined}>
-            <FieldLabel htmlFor="guest-namecard-series">主企划</FieldLabel>
-            <Select
-              value={seriesCode}
-              disabled={uploading || catalogLoading || series.length === 0}
-              onValueChange={(value) => setSeriesCode(String(value ?? ""))}
-            >
-              <SelectTrigger id="guest-namecard-series" className="w-full">
-                <SelectValue placeholder="选择主企划" />
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectGroup>
-                  {series.map((item) => (
-                    <SelectItem key={item.code} value={item.code}>
-                      {item.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <FieldGroup className="grid gap-5 md:grid-cols-2">
-            <Field data-disabled={uploading || undefined}>
-              <FieldLabel htmlFor="guest-namecard-producer">
-                制作人昵称（选填）
-              </FieldLabel>
-              <Input
-                id="guest-namecard-producer"
-                value={producerName}
-                maxLength={80}
-                disabled={uploading}
-                placeholder="署名，留空则匿名"
-                onChange={(event) => setProducerName(event.target.value)}
-              />
-            </Field>
-            <Field data-disabled={uploading || undefined}>
-              <FieldLabel htmlFor="guest-namecard-display">
-                名片名称（选填）
-              </FieldLabel>
-              <Input
-                id="guest-namecard-display"
-                value={displayName}
-                maxLength={120}
-                disabled={uploading}
-                placeholder="这张名片的称呼"
-                onChange={(event) => setDisplayName(event.target.value)}
-              />
-            </Field>
-          </FieldGroup>
-
-          <Field data-disabled={uploading || undefined}>
-            <FieldLabel htmlFor="guest-namecard-bio">简介（选填）</FieldLabel>
-            <Textarea
-              id="guest-namecard-bio"
-              value={bio}
-              maxLength={2000}
-              rows={3}
-              disabled={uploading}
-              placeholder="名片的设计说明或交换想法"
-              onChange={(event) => setBio(event.target.value)}
-            />
-          </Field>
-
-          <IdolMultiSelect
-            id="guest-namecard-idols"
-            series={series}
-            idols={catalog?.searchEntries ?? []}
-            selectedIds={favoriteIdolIds}
-            disabled={uploading || catalogLoading}
-            onChange={setFavoriteIdolIds}
-          />
-
-          <FieldGroup className="grid gap-5 md:grid-cols-2">
-            <Field data-disabled={uploading || undefined}>
-              <FieldLabel htmlFor="namecard-front">名片正面</FieldLabel>
-              <FileUploadControl
-                id="namecard-front"
-                compact
-                accept="image/*"
-                emptyTitle="选择名片正面"
-                emptyDetail="图片文件 · 不超过 3 MiB"
-                fileKind="名片正面"
-                file={front}
-                uploading={uploading}
-                required
-                selectedIcon={FileImageIcon}
-                emptyIcon={ImageUpIcon}
-                onSelect={(file) => chooseFile(file, "front")}
-              />
-            </Field>
-            <Field data-disabled={uploading || undefined}>
-              <FieldLabel htmlFor="namecard-back">名片背面</FieldLabel>
-              <FileUploadControl
-                id="namecard-back"
-                compact
-                accept="image/*"
-                emptyTitle="选择名片背面"
-                emptyDetail="图片文件 · 不超过 3 MiB"
-                fileKind="名片背面"
-                file={back}
-                uploading={uploading}
-                required
-                selectedIcon={FileImageIcon}
-                emptyIcon={ImageUpIcon}
-                onSelect={(file) => chooseFile(file, "back")}
-              />
-            </Field>
-          </FieldGroup>
-
-          <DialogFooter>
+          <DialogFooter className="m-0 shrink-0 rounded-none">
             <DialogClose
               render={
                 <Button type="button" variant="outline" disabled={uploading} />

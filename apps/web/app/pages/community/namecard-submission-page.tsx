@@ -8,7 +8,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useParams } from "react-router"
+import { useParams } from "react-router"
 import { toast } from "sonner"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
@@ -28,6 +28,7 @@ import {
   getNamecardSubmissionReceipt,
   saveNamecardSubmissionReceipt,
 } from "./namecard-submission-storage"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const STATUS_COPY: Record<
   NamecardSubmissionStatus,
@@ -189,13 +190,13 @@ export default function NamecardSubmissionPage() {
   const copy = submission ? STATUS_COPY[submission.status] : null
   return (
     <main id="main-content" className="mx-auto w-full max-w-4xl px-6 py-12">
-      <Link
+      <NavigationLink
         to="/community/cards"
         className={buttonVariants({ variant: "ghost", size: "sm" })}
       >
         <ArrowLeftIcon data-icon="inline-start" />
         返回名片墙
-      </Link>
+      </NavigationLink>
 
       <header className="mt-8 max-w-2xl">
         <p className="text-sm font-semibold text-primary">Submission receipt</p>

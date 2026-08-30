@@ -20,6 +20,14 @@ export const VIEWPORT_CONTENT = IS_APP_TARGET
   : "width=device-width, initial-scale=1"
 
 /**
+ * Top offset for page-owned sticky controls below the App title bar.
+ *
+ * The bar contributes a 3rem control row after the iOS safe-area inset. Web
+ * pages keep their existing 4rem site-header offset instead.
+ */
+export const APP_STICKY_HEADER_OFFSET = "top-[calc(3rem+var(--safe-area-top))]"
+
+/**
  * Where a floating control has to sit in the app build to clear the tab bar.
  *
  * Derived from the capsule geometry in `components/app/app-tab-bar.tsx`: its

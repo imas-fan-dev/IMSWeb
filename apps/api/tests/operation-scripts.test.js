@@ -267,7 +267,12 @@ test('RustFS sync reports exact inventory differences and parses apply mode', ()
         extra: ['objects/c']
     });
     assert.deepEqual(summarizeInventory(source), { objects: 2, bytes: 32 });
-    const options = parseRustfsSyncArguments(['--apply']);
+    const options = parseRustfsSyncArguments(['--apply', '--prune-target']);
     assert.equal(options.apply, true);
+    assert.equal(options.pruneTarget, true);
     assert.equal(options.help, false);
+    assert.throws(
+        () => parseRustfsSyncArguments(['--prune-target']),
+        /--prune-target requires --apply/
+    );
 });

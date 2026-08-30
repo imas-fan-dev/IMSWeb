@@ -42,6 +42,7 @@ import {
     COOKIE_OPTIONS,
     FUDABA_GEOCODING_CONFIG,
     FUDABA_MAP_ENABLED,
+    FUDABA_MAP_PREFIXES,
     FUDABA_MAP_STYLE_URL,
     FUDABA_PUBLIC_READ_ENABLED,
     FUDABA_WRITE_ENABLED,
@@ -200,6 +201,13 @@ async function createNodeObjectStorage(
         endpoint: config.endpoint,
         forcePathStyle: config.forcePathStyle,
     });
+    const signingClient = config.publicEndpoint
+        ? new S3Client({
+            region: config.region,
+            endpoint: config.publicEndpoint,
+            forcePathStyle: config.forcePathStyle,
+        })
+        : client;
     const options = {
         bucket: config.bucket,
         publicReadUrlBase: config.publicReadUrlBase,
@@ -211,6 +219,7 @@ async function createNodeObjectStorage(
         await state.initialize();
     } catch (error) {
         client.destroy();
+        if (signingClient !== client) signingClient.destroy();
         throw error;
     }
     let storage: S3ObjectStorage;
@@ -223,9 +232,10 @@ async function createNodeObjectStorage(
     storage = new S3ObjectStorage(
         client,
         options,
-        (command, expiresIn) => getSignedUrl(client, command, { expiresIn }),
+        (command, expiresIn) => getSignedUrl(signingClient, command, { expiresIn }),
         state,
         compensation,
+        signingClient === client ? undefined : signingClient,
     );
     return createNodeObjectStorageServices(database, storage, compensation);
 }
@@ -434,6 +444,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 fudabaWriteEnabled: FUDABA_WRITE_ENABLED,
                 fudabaMapEnabled: FUDABA_MAP_ENABLED,
                 fudabaMapStyleUrl: FUDABA_MAP_STYLE_URL,
+                fudabaMapPrefixes: FUDABA_MAP_PREFIXES,
                 fudabaGeocoding: FUDABA_GEOCODING_CONFIG,
             },
         };

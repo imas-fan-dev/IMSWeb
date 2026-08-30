@@ -1,5 +1,4 @@
 import { Building2Icon, EyeIcon, MapPinIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
@@ -20,6 +19,7 @@ import type {
 import { cn } from "~/lib/utils"
 import { CardInteractionBar } from "./exchange-card-interactions"
 import { CardReactionArea } from "./exchange-card-reaction-area"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export { PlacedCardWall } from "./exchange-card-wall"
 export { CardInteractionBar } from "./exchange-card-interactions"
@@ -84,12 +84,12 @@ export function OfficeCard({
       <CardHeader className="gap-2">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <CardTitle className="min-w-0 truncate text-base">
-            <Link
+            <NavigationLink
               to={`/community/exchange/offices/${encodeURIComponent(office.slug)}`}
               className="rounded-sm outline-none after:absolute after:inset-0 focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               {office.name}
-            </Link>
+            </NavigationLink>
           </CardTitle>
           <Badge
             variant="secondary"

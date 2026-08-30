@@ -14,18 +14,11 @@ import {
   useState,
   type ComponentType,
 } from "react"
-import { Link } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "~/components/ui/empty"
+import { Empty, EmptyDescription, EmptyTitle } from "~/components/ui/empty"
 import {
   Sheet,
   SheetContent,
@@ -40,6 +33,7 @@ import {
   type FudabaMapOffice,
   type FudabaSeries,
 } from "~/lib/api"
+import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import {
   groupMapOffices,
@@ -47,6 +41,7 @@ import {
   type FudabaMapOfficeGroup,
 } from "./exchange-map-model"
 import type { ExchangeOfficeMapProps } from "./exchange-office-map"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type MapComponent = ComponentType<ExchangeOfficeMapProps>
 type ConfigState =
@@ -126,7 +121,7 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
               </div>
               <OfficeStatus open={office.isOpen} />
             </div>
-            <Link
+            <NavigationLink
               to={`/community/exchange/offices/${encodeURIComponent(office.slug)}`}
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
@@ -134,12 +129,20 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
               )}
             >
               查看事务所
-            </Link>
+            </NavigationLink>
           </article>
         ))}
       </div>
     </div>
   )
+}
+
+function mapUnavailableDescription(message: string) {
+  const normalized = message.trim().toLowerCase()
+  if (normalized === "not found" || normalized === "map disabled") {
+    return "区域地图尚未启用，公开事务所和名片仍可在名录中查看。"
+  }
+  return "地图服务暂时无法连接，公开事务所和名片仍可在名录中查看。"
 }
 
 function MapUnavailable({
@@ -152,23 +155,49 @@ function MapUnavailable({
   onSwitchDirectory: () => void
 }) {
   return (
-    <Empty className="absolute inset-0 bg-[#e8f2f4] px-5">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <MapPinOffIcon aria-hidden="true" />
-        </EmptyMedia>
-        <EmptyTitle>地图暂时不可用</EmptyTitle>
-        <EmptyDescription>{message}</EmptyDescription>
-      </EmptyHeader>
-      <div className="flex flex-wrap justify-center gap-2">
-        <Button type="button" variant="outline" onClick={onRetry}>
-          <RefreshCwIcon aria-hidden="true" />
-          重试地图
-        </Button>
-        <Button type="button" onClick={onSwitchDirectory}>
-          <Building2Icon aria-hidden="true" />
-          查看事务所名录
-        </Button>
+    <Empty className="absolute inset-0 z-10 gap-0 rounded-none border-0 bg-[#e8f2f4] p-4 text-left sm:p-6">
+      <div
+        role="status"
+        aria-labelledby="exchange-map-unavailable-title"
+        className="w-full max-w-sm rounded-lg border border-slate-200/90 bg-white/95 p-5 text-slate-950 shadow-[0_18px_50px_rgba(15,23,42,0.14)] backdrop-blur-sm sm:p-6"
+      >
+        <div className="flex items-start gap-3.5">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+            <MapPinOffIcon className="size-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <EmptyTitle
+              id="exchange-map-unavailable-title"
+              className="text-base font-semibold text-slate-950"
+            >
+              地图暂时不可用
+            </EmptyTitle>
+            <EmptyDescription className="mt-1.5 text-left text-sm/6 text-slate-600">
+              {mapUnavailableDescription(message)}
+            </EmptyDescription>
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            onClick={onSwitchDirectory}
+          >
+            <Building2Icon aria-hidden="true" />
+            查看事务所名录
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="w-full border-slate-300 bg-white text-slate-800 hover:bg-slate-100 hover:text-slate-950"
+            onClick={onRetry}
+          >
+            <RefreshCwIcon aria-hidden="true" />
+            重试地图
+          </Button>
+        </div>
       </div>
     </Empty>
   )
@@ -373,7 +402,12 @@ export function CommunityExchangeMapSection({
 
       {!mapFailure && data.phase !== "error" ? (
         <div
-          className="pointer-events-none absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm md:bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
+          className={cn(
+            "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
+            IS_APP_TARGET
+              ? APP_FLOATING_CONTROL_OFFSET
+              : "bottom-[calc(8.5rem+env(safe-area-inset-bottom))] md:bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
+          )}
           aria-live="polite"
         >
           <span className="inline-flex items-center gap-1.5">
@@ -402,7 +436,14 @@ export function CommunityExchangeMapSection({
       ) : null}
 
       {data.phase === "error" && !mapFailure ? (
-        <Alert className="absolute inset-x-3 bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))] z-10 bg-background/95 shadow-sm sm:left-auto sm:w-96">
+        <Alert
+          className={cn(
+            "absolute inset-x-3 z-10 bg-background/95 shadow-sm sm:left-auto sm:w-96",
+            IS_APP_TARGET
+              ? APP_FLOATING_CONTROL_OFFSET
+              : "bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
+          )}
+        >
           <RefreshCwIcon aria-hidden="true" />
           <AlertTitle>地图数据更新失败</AlertTitle>
           <AlertDescription>
@@ -451,7 +492,7 @@ export function CommunityExchangeMapSection({
       >
         <SheetContent
           side="bottom"
-          className="max-h-[78dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]"
+          className="max-h-[min(78dvh,var(--safe-viewport-height))] overflow-y-auto pb-4"
         >
           <SheetHeader className="border-b pr-14">
             <SheetTitle>区域交换事务所</SheetTitle>

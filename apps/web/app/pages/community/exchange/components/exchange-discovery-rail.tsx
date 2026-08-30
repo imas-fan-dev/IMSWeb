@@ -10,7 +10,6 @@ import {
   UserRoundCogIcon,
 } from "lucide-react"
 import type { FormEvent } from "react"
-import { Link } from "react-router"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -20,6 +19,7 @@ import { Label } from "~/components/ui/label"
 import type { FudabaOffice, FudabaSeries } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { ExchangeSeriesFilter } from "./exchange-series-filter"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 interface ExchangeDiscoveryRailProps {
   cityDraft: string
@@ -195,7 +195,7 @@ export function ExchangeDiscoveryRail({
           {offices.length ? (
             <div className="divide-y">
               {offices.map((office) => (
-                <Link
+                <NavigationLink
                   key={office.id}
                   to={`/community/exchange/offices/${encodeURIComponent(office.slug)}`}
                   className="group relative flex min-w-0 gap-3 px-5 py-3 transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
@@ -229,7 +229,7 @@ export function ExchangeDiscoveryRail({
                     className="mt-3 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
                     aria-hidden="true"
                   />
-                </Link>
+                </NavigationLink>
               ))}
             </div>
           ) : (
@@ -261,13 +261,13 @@ export function ExchangeDiscoveryRail({
           <CreditCardIcon aria-hidden="true" />
           名片
         </Button>
-        <Link
+        <NavigationLink
           to="/community/exchange/me"
           className={buttonVariants({ variant: "outline" })}
         >
           <UserRoundCogIcon aria-hidden="true" />
           管理
-        </Link>
+        </NavigationLink>
       </nav>
     </aside>
   )

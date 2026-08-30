@@ -12,7 +12,15 @@ import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
 import { homepageLinksSchema } from "@imsweb/contracts/homepage-links"
 
-export * from "@imsweb/contracts/homepage-links"
+export {
+  homepageLinkSectionSchema,
+  homepageLinkIconSchema,
+  homepageLinkAccentSchema,
+  homepageLinkSchema,
+  homepageLinksSchema,
+  homepageLinkMutationSchema,
+} from "@imsweb/contracts/homepage-links"
+export type * from "@imsweb/contracts/homepage-links"
 
 import type {
   HomepageLink,

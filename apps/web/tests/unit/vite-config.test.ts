@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import {
   parseByteRange,
   resolveExchangeMapAssetPath,
+  tauriMapAssetCorsOrigin,
 } from "../../vite-exchange-map-assets"
 
 describe("local exchange map asset delivery", () => {
@@ -25,6 +26,19 @@ describe("local exchange map asset delivery", () => {
     ]) {
       expect(parseByteRange(value, 10)).toBeNull()
     }
+  })
+
+  it("allows only the packaged Tauri origins to fetch LAN map assets", () => {
+    for (const origin of [
+      "tauri://localhost",
+      "http://tauri.localhost",
+      "https://tauri.localhost",
+    ]) {
+      expect(tauriMapAssetCorsOrigin(origin)).toBe(origin)
+    }
+
+    expect(tauriMapAssetCorsOrigin("https://attacker.example")).toBeUndefined()
+    expect(tauriMapAssetCorsOrigin(undefined)).toBeUndefined()
   })
 
   it("keeps decoded paths inside data/maps/current", () => {

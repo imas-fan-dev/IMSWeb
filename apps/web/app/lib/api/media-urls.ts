@@ -13,21 +13,23 @@
  * site to forget. Normalising here rather than in the API keeps the origin out
  * of the payload, so multi-host and CDN access are unaffected.
  *
- * Every function is a no-op when `VITE_IMS_API_ORIGIN` is empty, which is the
- * only configuration the website ever ships. See `origin.ts`.
+ * The web target preserves root-relative paths regardless of configured
+ * origins. App builds compose those paths with their target-specific origins.
+ * See `origin.ts`.
  *
- * Two helpers, one rule:
+ * The shared helpers apply the ownership rule:
  *
- * - `apiMediaUrl` (wrapping `resolveMediaUrl`) for fields the contract types as
- *   non-nullable `string`, so the field type stays `string` and no call site
- *   has to learn about null.
- * - `nullableMediaUrl` for fields the contract already types `string | null`.
- *   It preserves `null` instead of collapsing it to `""`.
+ * - `apiMediaUrl` routes bundle, public-site and API media without changing a
+ *   non-nullable `string` field into a nullable one.
+ * - `nullableMediaUrl` applies the same routing to `string | null` fields while
+ *   preserving `null` instead of collapsing it to `""`.
+ * - About member avatars use `resolveMediaUrl` directly because the upload
+ *   endpoint owns every valid avatar path.
  *
  * `resolveSafeMediaUrl` is deliberately *not* used here even though it also
  * accepts nullable input. It parses its result against `resolveSiteOrigin()`,
- * so with no configured origin it rewrites `/a.webp` into
- * `http://<document-origin>/a.webp` — and into `https://imsweb.invalid/a.webp`
+ * so the web target rewrites `/a.webp` into
+ * `http://<document-origin>/a.webp`, and into `https://imsweb.invalid/a.webp`
  * during SSR and prerendering, where there is no document. That would change
  * what the website renders, which this layer must never do. It remains the
  * right tool at a render-time call site in the browser, which is where the
@@ -42,6 +44,7 @@ import type {
   ChronicleActivity,
   ChronicleActivitySummary,
 } from "@imsweb/contracts/chronicle"
+import type { EventPage } from "@imsweb/contracts/events"
 import type {
   FudabaCard,
   FudabaCardMutationResponse,
@@ -88,27 +91,32 @@ import type {
   WikiStoryCoverAssets,
 } from "@imsweb/contracts/wiki"
 
-import { ownedByWebBundle } from "./bundle-assets"
-import { resolveMediaUrl } from "./origin"
+import { ownedByPublicSite, ownedByWebBundle } from "./bundle-assets"
+import { resolveMediaUrl, resolvePublicSiteMediaUrl } from "./origin"
 
 /**
- * `resolveMediaUrl`, skipping paths the web bundle serves itself.
+ * Resolves an API-provided media URL according to its runtime owner.
  *
- * API payloads mix the two ownerships: `GET /api/about` returns
- * `/brand/about/gakuen-arisa.png` next to
- * `/uploads/about/member-avatars/<hash>.jpg_128w`. The first ships inside the
- * packaged bundle, the second is user-uploaded media only the API can serve.
- * Sending `/brand/...` to the API origin makes it 404 — verified against a
- * live API, where the rewritten request came back `text/plain` and the browser
- * blocked it via ORB.
+ * Checked-in bundle assets stay relative, website-hosted About assets use the
+ * public site origin, and API-owned media uses the API origin. Browser builds
+ * leave both root-relative forms unchanged because the page already shares the
+ * public origin.
  */
 function apiMediaUrl(url: string): string {
-  return ownedByWebBundle(url) ? url : resolveMediaUrl(url)
+  if (ownedByWebBundle(url)) return url
+  return ownedByPublicSite(url)
+    ? resolvePublicSiteMediaUrl(url)
+    : resolveMediaUrl(url)
 }
 
 /** `apiMediaUrl` for nullable fields, preserving `null` over `""`. */
 function nullableMediaUrl(url: string | null): string | null {
   return url === null ? null : apiMediaUrl(url)
+}
+
+/** About member avatars are always owned by the API upload service. */
+function nullableAboutMemberAvatarUrl(url: string | null): string | null {
+  return url === null ? null : resolveMediaUrl(url)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -512,8 +520,19 @@ export function normalizePlatformProfileMutation(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Chronicle                                                                  */
+/* Events and chronicle                                                       */
 /* -------------------------------------------------------------------------- */
+
+type EventListItem = EventPage["items"][number]
+
+function eventListItem(event: EventListItem): EventListItem {
+  if (event.image_url === undefined) return event
+  return { ...event, image_url: nullableMediaUrl(event.image_url) }
+}
+
+export function normalizeEventPage(page: EventPage): EventPage {
+  return { ...page, items: page.items.map(eventListItem) }
+}
 
 export function normalizeChronicleActivitySummaries(
   activities: ChronicleActivitySummary[]
@@ -548,7 +567,7 @@ export function normalizeAboutPageContent(
       ...group,
       people: group.people.map((person) => ({
         ...person,
-        avatarUrl: nullableMediaUrl(person.avatarUrl),
+        avatarUrl: nullableAboutMemberAvatarUrl(person.avatarUrl),
       })),
     })),
   }

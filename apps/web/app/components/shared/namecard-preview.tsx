@@ -196,11 +196,12 @@ export function NamecardPreview({
     >
       <DialogContent
         showCloseButton={false}
+        safeArea="viewport"
         overlayClassName="bg-background/85 supports-backdrop-filter:bg-background/45 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150"
-        className="top-0 left-0 grid h-svh max-h-none w-screen max-w-none translate-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-transparent p-0 text-foreground ring-0 sm:max-w-none data-open:zoom-in-100 data-closed:zoom-out-100"
+        className="grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-transparent p-0 text-foreground ring-0 data-open:zoom-in-100 data-closed:zoom-out-100"
         onKeyDown={handleKeyDown}
       >
-        <header className="flex h-16 min-w-0 items-center gap-3 px-4 sm:px-6">
+        <header className="flex min-h-[calc(4rem+var(--safe-area-top))] min-w-0 items-center gap-3 pt-(--safe-area-top) pr-[calc(1rem+var(--safe-area-right))] pl-[calc(1rem+var(--safe-area-left))]">
           <DialogTitle className="min-w-0 flex-1 truncate text-sm text-foreground drop-shadow-sm">
             制作人名片 {card?.id} · {sideLabel(side)}
           </DialogTitle>
@@ -280,7 +281,7 @@ export function NamecardPreview({
           ) : null}
         </div>
 
-        <footer className="flex min-h-20 flex-wrap items-center justify-center gap-2 px-3 py-2">
+        <footer className="flex min-h-[calc(5rem+var(--safe-area-bottom))] flex-wrap items-center justify-center gap-2 pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]">
           <div className="flex items-center gap-1 rounded-lg border border-foreground/10 bg-background/35 p-1 shadow-lg backdrop-blur-xl">
             {(["front", "back"] as const).map((nextSide) => (
               <Button

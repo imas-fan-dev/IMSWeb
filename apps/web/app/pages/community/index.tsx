@@ -5,10 +5,10 @@ import {
   UsersIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
-import { Link } from "react-router"
 
 import { Card, CardContent } from "~/components/ui/card"
 import { getFudabaSeries, isApiError } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const communitySections = [
   {
@@ -116,24 +116,24 @@ export default function Community() {
 
           if ("href" in section) {
             return (
-              <a
+              <NavigationLink
                 key={section.href}
                 href={section.href}
                 className="block rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 {content}
-              </a>
+              </NavigationLink>
             )
           }
 
           return (
-            <Link
+            <NavigationLink
               key={section.to}
               to={section.to}
               className="block rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               {content}
-            </Link>
+            </NavigationLink>
           )
         })}
       </div>

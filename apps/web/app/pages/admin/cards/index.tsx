@@ -35,6 +35,7 @@ import {
   type AdminNamecard,
   type AdminNamecardList,
 } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "名片审核 | IMSWeb" }]
@@ -260,7 +261,7 @@ export default function AdminCardsPage() {
                         <div className="grid grid-cols-2 gap-px bg-border">
                           {[card.image1_url, card.image2_url].map(
                             (image, index) => (
-                              <a
+                              <NavigationLink
                                 key={`${card.id}-${index}`}
                                 href={image}
                                 target="_blank"
@@ -272,7 +273,7 @@ export default function AdminCardsPage() {
                                   className="aspect-3/2 w-full bg-muted object-cover"
                                   loading="lazy"
                                 />
-                              </a>
+                              </NavigationLink>
                             )
                           )}
                         </div>

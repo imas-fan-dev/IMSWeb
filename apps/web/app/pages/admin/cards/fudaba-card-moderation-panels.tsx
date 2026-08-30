@@ -23,6 +23,7 @@ import {
   type FudabaRegisteredCardReview,
 } from "~/lib/api"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function staleReview(error: unknown) {
   return isApiError(error) && error.status === 409
@@ -153,7 +154,7 @@ export function RegisteredCardReviewPanel() {
                 <div className="grid grid-cols-2 gap-px bg-border">
                   {[item.card.frontImageUrl, item.card.backImageUrl].map(
                     (image, index) => (
-                      <a
+                      <NavigationLink
                         key={`${item.card.id}-${index}`}
                         href={image}
                         target="_blank"
@@ -164,7 +165,7 @@ export function RegisteredCardReviewPanel() {
                           alt={`${item.card.displayName}${index === 0 ? "正面" : "背面"}`}
                           className="aspect-3/2 w-full bg-muted object-contain"
                         />
-                      </a>
+                      </NavigationLink>
                     )
                   )}
                 </div>
@@ -375,7 +376,7 @@ export function CardClaimReviewPanel() {
                     item.legacyCard.frontImageUrl,
                     item.legacyCard.backImageUrl,
                   ].map((image, index) => (
-                    <a
+                    <NavigationLink
                       key={`${item.id}-${index}`}
                       href={image}
                       target="_blank"
@@ -386,7 +387,7 @@ export function CardClaimReviewPanel() {
                         alt={`历史名片 #${item.legacyCardId}${index === 0 ? "正面" : "背面"}`}
                         className="aspect-3/2 w-full bg-muted object-contain"
                       />
-                    </a>
+                    </NavigationLink>
                   ))}
                 </div>
                 <div className="space-y-3 p-4">

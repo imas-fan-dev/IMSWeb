@@ -20,7 +20,24 @@ import {
   withdrawNamecardResponseSchema,
 } from "@imsweb/contracts/namecards"
 
-export * from "@imsweb/contracts/namecards"
+export {
+  cardIdSchema,
+  namecardIdolSchema,
+  namecardMetadataSchema,
+  namecardSchema,
+  namecardPageSchema,
+  reactionSchema,
+  namecardSubmissionStatusSchema,
+  namecardSubmissionSchema,
+  uploadNamecardResponseSchema,
+  namecardSubmissionResponseSchema,
+  withdrawNamecardResponseSchema,
+  adminNamecardSchema,
+  adminNamecardListSchema,
+  adminNamecardMutationSchema,
+  reactionMutationSchema,
+} from "@imsweb/contracts/namecards"
+export type * from "@imsweb/contracts/namecards"
 
 export const NAMECARD_REACTIONS = [
   "❤️",

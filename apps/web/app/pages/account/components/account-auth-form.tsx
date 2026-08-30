@@ -17,8 +17,11 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router"
 
+import {
+  NavigationBoundary,
+  NavigationLink,
+} from "~/components/navigation/navigation-link"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import type { PlatformOAuthProvider } from "~/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -43,6 +46,7 @@ import {
   sendPlatformPasswordResetVerificationCode,
   sendPlatformRegistrationVerificationCode,
 } from "~/lib/api"
+import { useNavigation } from "~/lib/navigation/use-navigation"
 
 type AccountAuthMode = "login" | "register" | "reset"
 type FieldName =
@@ -60,7 +64,7 @@ interface AccountAuthFormProps {
 
 export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const navigate = useNavigation()
   const platform = usePlatformSession()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -375,7 +379,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                   })}
             </AlertDescription>
           </Alert>
-          <Link
+          <NavigationLink
             to="/community/exchange/me"
             className={buttonVariants({
               size: "lg",
@@ -383,7 +387,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
             })}
           >
             {t("platformAuth.enterWorkspace")}
-          </Link>
+          </NavigationLink>
         </section>
       </main>
     )
@@ -692,13 +696,13 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                       {t("platformAuth.password")}
                     </FieldLabel>
                     {!isRegister && !isReset ? (
-                      <Link
+                      <NavigationLink
                         to="/account/password-reset"
                         className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-primary"
                       >
                         <KeyRoundIcon className="size-3.5" aria-hidden="true" />
                         {t("platformAuth.forgotPassword")}
-                      </Link>
+                      </NavigationLink>
                     ) : null}
                   </div>
                   <div className="relative">
@@ -818,40 +822,42 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
               </Button>
 
               {!isReset && oauthProviders.length > 0 ? (
-                <div className="space-y-3 pt-1">
-                  <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
-                    <span className="h-px flex-1 bg-border" />
-                    <span>{t("platformAuth.oauth.continueWith")}</span>
-                    <span className="h-px flex-1 bg-border" />
+                <NavigationBoundary availability="web">
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+                      <span className="h-px flex-1 bg-border" />
+                      <span>{t("platformAuth.oauth.continueWith")}</span>
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {oauthProviders.map((provider) => {
+                        const ProviderIcon =
+                          provider.icon === "github" ? Code2Icon : Globe2Icon
+                        return (
+                          <NavigationLink
+                            key={provider.code}
+                            href={platformAuthOAuthPath(
+                              `/${provider.code}/start?returnPath=${encodeURIComponent("/community/exchange/me")}`
+                            )}
+                            className={buttonVariants({
+                              variant: "outline",
+                              size: "lg",
+                              className: "h-11 min-w-0 justify-center",
+                            })}
+                          >
+                            <ProviderIcon
+                              data-icon="inline-start"
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">
+                              {provider.displayName}
+                            </span>
+                          </NavigationLink>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {oauthProviders.map((provider) => {
-                      const ProviderIcon =
-                        provider.icon === "github" ? Code2Icon : Globe2Icon
-                      return (
-                        <a
-                          key={provider.code}
-                          href={platformAuthOAuthPath(
-                            `/${provider.code}/start?returnPath=${encodeURIComponent("/community/exchange/me")}`
-                          )}
-                          className={buttonVariants({
-                            variant: "outline",
-                            size: "lg",
-                            className: "h-11 min-w-0 justify-center",
-                          })}
-                        >
-                          <ProviderIcon
-                            data-icon="inline-start"
-                            aria-hidden="true"
-                          />
-                          <span className="truncate">
-                            {provider.displayName}
-                          </span>
-                        </a>
-                      )
-                    })}
-                  </div>
-                </div>
+                </NavigationBoundary>
               ) : null}
 
               <p className="text-center text-sm text-muted-foreground">
@@ -862,7 +868,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                       ? "platformAuth.reset.switchPrompt"
                       : "platformAuth.login.switchPrompt"
                 )}{" "}
-                <Link
+                <NavigationLink
                   to={
                     isRegister || isReset
                       ? "/account/login"
@@ -877,7 +883,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                         ? "platformAuth.reset.switchAction"
                         : "platformAuth.login.switchAction"
                   )}
-                </Link>
+                </NavigationLink>
               </p>
             </form>
           </div>

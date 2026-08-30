@@ -412,6 +412,7 @@ function InteractiveWikiAgencyDial({
       <DialogContent
         initialFocus={dialRef}
         showCloseButton={false}
+        safeArea="custom"
         overlayClassName="bg-black/30 backdrop-blur-[2px] duration-300 motion-reduce:duration-0"
         className={cn(
           // Deliberately NOT lifted for the app build. The disc is decorative

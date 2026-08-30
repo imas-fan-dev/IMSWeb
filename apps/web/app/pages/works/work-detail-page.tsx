@@ -1,5 +1,4 @@
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
 import { IDOL_FONT_URL } from "~/pages/works/brand-assets"
@@ -12,6 +11,7 @@ import {
 } from "~/components/ui/card"
 import { getWorkDestination, getWorkEntry } from "~/pages/works/works-content"
 import type { Route } from "./+types/work-detail-page"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta({ params }: Route.MetaArgs) {
   const entry = getWorkEntry(params.workSlug)
@@ -49,7 +49,7 @@ function WorkNavCard({
               variant="ghost"
               size="sm"
               className="justify-start"
-              render={<Link to={navLink.href} />}
+              render={<NavigationLink to={navLink.href} />}
               nativeButton={false}
             >
               {navLink.label}
@@ -62,7 +62,7 @@ function WorkNavCard({
               variant="ghost"
               size="sm"
               className="justify-start"
-              render={<a href={link.href} />}
+              render={<NavigationLink href={link.href} />}
               nativeButton={false}
             >
               {link.label}
@@ -74,7 +74,7 @@ function WorkNavCard({
             variant="ghost"
             size="sm"
             className="justify-start"
-            render={<Link to="/works" />}
+            render={<NavigationLink to="/works" />}
             nativeButton={false}
           >
             <ArrowLeftIcon data-icon="inline-start" />
@@ -90,7 +90,7 @@ function WorkNavCard({
             key={navLink.href}
             variant="outline"
             size="sm"
-            render={<Link to={navLink.href} />}
+            render={<NavigationLink to={navLink.href} />}
             nativeButton={false}
           >
             {navLink.label}
@@ -101,7 +101,7 @@ function WorkNavCard({
             key={link.href}
             variant="outline"
             size="sm"
-            render={<a href={link.href} />}
+            render={<NavigationLink href={link.href} />}
             nativeButton={false}
           >
             {link.label}
@@ -111,7 +111,7 @@ function WorkNavCard({
         <Button
           variant="outline"
           size="sm"
-          render={<Link to="/works" />}
+          render={<NavigationLink to="/works" />}
           nativeButton={false}
         >
           <ArrowLeftIcon data-icon="inline-start" />
@@ -269,7 +269,7 @@ export default function WorkDetailPage({ params }: Route.ComponentProps) {
         <Button
           className="mt-8"
           variant="outline"
-          render={<Link to="/works" />}
+          render={<NavigationLink to="/works" />}
           nativeButton={false}
         >
           <ArrowLeftIcon data-icon="inline-start" />

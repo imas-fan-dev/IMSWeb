@@ -69,6 +69,19 @@ class SourceRulesTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("import z through @imsweb/contracts/z", result.stderr)
 
+    def test_runtime_contract_star_reexport_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-source-rules-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            page = root / "apps/web/app/pages/orders/page.tsx"
+            page.write_text(
+                'export * from "@imsweb/contracts/orders"\n', encoding="utf-8"
+            )
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("use named runtime exports", result.stderr)
+
     def test_domain_infra_import_and_forbidden_paths_are_rejected(self):
         with tempfile.TemporaryDirectory(prefix="ims-source-rules-") as temporary:
             root = Path(temporary)

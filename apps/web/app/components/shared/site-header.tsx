@@ -1,7 +1,7 @@
 import { BookOpenTextIcon, HouseIcon, MenuIcon } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, NavLink, useLocation } from "react-router"
+import { useLocation } from "react-router"
 
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { PlatformAccountMenu } from "~/components/platform/platform-account-menu"
@@ -16,6 +16,10 @@ import {
   SheetTrigger,
 } from "~/components/ui/sheet"
 import { cn } from "~/lib/utils"
+import {
+  NavigationLink,
+  NavigationNavLink,
+} from "~/components/navigation/navigation-link"
 
 const navigation = [
   { to: "/", label: "navigation.home", end: true },
@@ -88,7 +92,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           compact ? "h-12 gap-1.5 px-3" : "h-16 gap-2 px-4"
         )}
       >
-        <Link
+        <NavigationLink
           to="/"
           className="flex min-w-0 items-center gap-3"
           aria-label={t("brand.homeLabel")}
@@ -100,7 +104,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
             {t("brand.name")}
           </span>
-        </Link>
+        </NavigationLink>
 
         <nav
           className="ml-auto hidden items-center lg:flex"
@@ -110,6 +114,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
               behind it is already blurred, so a second blur layer would cost
               compositing for no visible gain. */}
           <div
+            data-glass-interactive=""
             className="glass-surface glass-quiet glass-sheen relative flex items-stretch rounded-full p-1 ring-1 ring-foreground/10"
             style={
               {
@@ -129,25 +134,25 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
               />
             </span>
             {navigation.map((item) => (
-              <NavLink
+              <NavigationNavLink
                 key={item.to}
                 to={item.to}
                 end={item.end}
                 className={desktopLinkClass}
               >
                 {t(item.label)}
-              </NavLink>
+              </NavigationNavLink>
             ))}
           </div>
         </nav>
 
-        <Link
+        <NavigationLink
           to="/wiki"
           className="hidden items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none lg:inline-flex"
         >
           {t("navigation.storySite")}
           <BookOpenTextIcon aria-hidden="true" className="size-3.5" />
-        </Link>
+        </NavigationLink>
 
         <div
           className={cn(
@@ -156,7 +161,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           )}
         >
           {compact ? (
-            <Link
+            <NavigationLink
               to="/"
               className={cn(
                 buttonVariants({ variant: "outline", size: "icon" }),
@@ -166,7 +171,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
               title="返回首页"
             >
               <HouseIcon aria-hidden="true" />
-            </Link>
+            </NavigationLink>
           ) : null}
           <PlatformAccountMenu />
           <ThemeToggle />
@@ -201,7 +206,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
                 aria-label={t("navigation.mobileLabel")}
               >
                 {navigation.map((item) => (
-                  <NavLink
+                  <NavigationNavLink
                     key={item.to}
                     to={item.to}
                     end={item.end}
@@ -214,16 +219,16 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
                     }
                   >
                     {t(item.label)}
-                  </NavLink>
+                  </NavigationNavLink>
                 ))}
-                <Link
+                <NavigationLink
                   to="/wiki"
                   onClick={() => setMobileNavigationOpen(false)}
                   className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary p-3 text-sm font-medium text-primary-foreground"
                 >
                   {t("navigation.storySite")}
                   <BookOpenTextIcon aria-hidden="true" className="size-3.5" />
-                </Link>
+                </NavigationLink>
               </nav>
             </SheetContent>
           </Sheet>

@@ -4,7 +4,7 @@ import {
   ShieldCheckIcon,
 } from "lucide-react"
 import { useEffect, useState, type FormEvent } from "react"
-import { Link } from "react-router"
+
 import { toast } from "sonner"
 
 import {
@@ -42,6 +42,7 @@ import {
   type Namecard,
   type WikiPublicCatalog,
 } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NEW_CARD_VALUE = "__new__"
 
@@ -163,12 +164,12 @@ export function NamecardClaimDialog({
                     : "只有注册用户可以认领历史名片。"}
                 </p>
                 {!restricted ? (
-                  <Link
+                  <NavigationLink
                     to="/community/exchange"
                     className={buttonVariants({ variant: "outline" })}
                   >
                     前往登录或注册
-                  </Link>
+                  </NavigationLink>
                 ) : null}
               </AlertDescription>
             </Alert>

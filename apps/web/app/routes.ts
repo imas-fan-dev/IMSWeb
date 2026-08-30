@@ -87,19 +87,19 @@ const publicRoutes = [
   },
 ] satisfies RouteConfigEntry[]
 
-const standaloneRoutes = [
-  {
-    path: "wiki/classic",
-    file: "pages/wiki/classic/index.tsx",
-  },
-  {
-    path: "story/classic",
-    file: "pages/wiki/classic/classic-story-page.tsx",
-  },
-  ...(isAppTarget
-    ? []
-    : [{ path: "admin/login", file: "pages/admin/login/index.tsx" }]),
-] satisfies RouteConfigEntry[]
+const standaloneRoutes = isAppTarget
+  ? []
+  : ([
+      {
+        path: "wiki/classic",
+        file: "pages/wiki/classic/index.tsx",
+      },
+      {
+        path: "story/classic",
+        file: "pages/wiki/classic/classic-story-page.tsx",
+      },
+      { path: "admin/login", file: "pages/admin/login/index.tsx" },
+    ] satisfies RouteConfigEntry[])
 
 const adminRoutes = [
   { index: true, file: "pages/admin/index.tsx" },
@@ -149,6 +149,10 @@ const adminRoutes = [
   {
     path: "platform/oauth",
     file: "pages/admin/platform-oauth/index.tsx",
+  },
+  {
+    path: "system",
+    file: "pages/admin/system/index.tsx",
   },
   { path: "*", file: "pages/admin/not-found/index.tsx" },
 ] satisfies RouteConfigEntry[]

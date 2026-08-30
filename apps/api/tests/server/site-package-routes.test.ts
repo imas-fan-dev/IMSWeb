@@ -567,7 +567,9 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     assert.doesNotMatch(publishedText, /fonts\/fonts\.css|@import/);
     assert.equal(published.headers.get('cache-control'), 'public, max-age=0, must-revalidate');
     assert.equal(published.headers.get('x-frame-options'), null);
+    assert.equal(published.headers.get('access-control-allow-origin'), 'null');
     assert.match(published.headers.get('content-security-policy') || '', /script-src 'none'/);
+    assert.match(published.headers.get('content-security-policy') || '', /connect-src 'none'/);
     assert.match(published.headers.get('content-security-policy') || '', /frame-ancestors http:\/\/main\.test/);
     assert.match(
         published.headers.get('content-security-policy') || '',
@@ -611,6 +613,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         directAsset.headers.get('cache-control'),
         'public, max-age=31536000, immutable'
     );
+    assert.equal(directAsset.headers.get('access-control-allow-origin'), 'null');
     assert.equal(storage.reads.length, readsBeforeDirectAsset);
     const directAssetHead = await app.request(directAssetUrl, { method: 'HEAD' });
     assert.equal(directAssetHead.status, 307);
@@ -633,6 +636,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(preview.status, 200);
     assert.equal(preview.headers.get('cache-control'), 'private, no-store');
+    assert.equal(preview.headers.get('access-control-allow-origin'), 'null');
     const previewCsp = preview.headers.get('content-security-policy') || '';
     assert.match(
         previewCsp,
@@ -646,6 +650,13 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         new RegExp(
             `style-src http:\\/\\/main\\.test\\/site-content\\/_preview\\/` +
             `${'b'.repeat(64)}\\/ 'unsafe-inline'`
+        )
+    );
+    assert.match(
+        previewCsp,
+        new RegExp(
+            `connect-src http://main.test/site-content/_preview/` +
+            `${'b'.repeat(64)}/`
         )
     );
     assert.match(previewCsp, /sandbox allow-scripts/);
@@ -662,12 +673,14 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         'text/javascript; charset=utf-8'
     );
     assert.equal(await previewScript.text(), 'document.body.dataset.ok = "1";');
+    assert.equal(previewScript.headers.get('access-control-allow-origin'), 'null');
     assert.equal(previewScript.headers.get('content-security-policy'), previewCsp);
     const previewAsset = await app.request(
         `http://main.test/site-content/_preview/${'b'.repeat(64)}/preview.webp`
     );
     assert.equal(previewAsset.status, 200);
     assert.equal(previewAsset.headers.get('cache-control'), 'private, no-store');
+    assert.equal(previewAsset.headers.get('access-control-allow-origin'), 'null');
     assert.equal(previewAsset.headers.get('location'), null);
 
     const rotated = await app.request(

@@ -5,7 +5,6 @@ import {
   HistoryIcon,
   MapPinIcon,
 } from "lucide-react"
-import { Link } from "react-router"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import {
@@ -25,6 +24,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getChronicleActivities } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "活动编年史 | IMSWeb" }]
@@ -87,7 +87,7 @@ export default function ChronicleIndexPage() {
         {!loading && !error && data?.length ? (
           <div className="grid gap-4 md:grid-cols-2">
             {data.map((activity) => (
-              <Link
+              <NavigationLink
                 key={activity.id}
                 to={`/chronicle/${encodeURIComponent(activity.id)}`}
                 className="group rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -123,7 +123,7 @@ export default function ChronicleIndexPage() {
                     />
                   </CardFooter>
                 </Card>
-              </Link>
+              </NavigationLink>
             ))}
           </div>
         ) : null}

@@ -53,9 +53,11 @@ without `meta.parsed` warn in dev and fail under vitest, and
 `meta.skipContractCheck` is an explicit reviewed opt-out for infra tests and
 raw probes only. Request-side input
 validation, `File`/`FormData` schemas, and UI-only types stay in the endpoint
-module. Modules mapping 1:1 to one package module re-export it via `export *`;
-multi-source modules use named imports and named re-exports only, keeping the
-endpoints barrel free of ambiguous exports. Import `z` from
+module. Modules mapping 1:1 to one package module use named re-exports for runtime
+values and `export type *` for types; the contracts package builds CommonJS, so
+runtime `export *` is not allowed in Web modules. Multi-source modules also use
+named imports and named re-exports, keeping the endpoints barrel free of
+ambiguous exports. Import `z` from
 `@imsweb/contracts/z`, never from `zod` directly.
 Wire types come from the package alongside their schemas; endpoint modules keep
 only UI-semantic aliases, request/input types, and upload shapes. All API and

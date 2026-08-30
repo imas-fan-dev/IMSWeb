@@ -76,7 +76,8 @@ pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
 | `IMS_S3_PUBLIC_READ_URL_BASE` | `IMS_PUBLIC_READ_URL_BASE` 的 S3 兼容别名；新配置应使用通用名称 |
 | `IMS_S3_REGION` | S3 模式必填；未设置时读取 `AWS_REGION` |
 | `IMS_S3_PREFIX` | 可选；同一 bucket 内的隔离前缀，不含开头/结尾 `/` |
-| `IMS_S3_ENDPOINT` | S3-compatible 服务可选；无凭据的 HTTP(S) URL |
+| `IMS_S3_ENDPOINT` | S3-compatible 服务可选；服务端连接使用的无凭据 HTTP(S) URL |
+| `IMS_S3_PUBLIC_ENDPOINT` | 可选；受保护对象签名 URL 使用的浏览器可访问 S3 API origin，未设置时复用 `IMS_S3_ENDPOINT` |
 | `IMS_S3_FORCE_PATH_STYLE` | 默认 `false`；RustFS、MinIO 等服务通常使用 `true` |
 | `IMS_S3_READ_URL_TTL_SECONDS` | 签名读取 URL 有效期，默认 `300`，允许 `30..3600` 秒 |
 
@@ -88,8 +89,10 @@ S3/R2 会拼接版本化物理对象键。RustFS path-style URL 应
 包含 bucket，例如 `https://objects.example.com/imsweb-media-prod`；R2 自定义域名已绑定
 bucket，因此只填写 `https://media.example.com`。两者都会继续拼接相同的 prefix 与物理路径。
 
-`IMS_S3_ENDPOINT` 会进入私有签名 URL，因此必须是浏览器可访问且由后端也能连接的地址。生产
-RustFS 应使用独立 HTTPS 域名或对象入口，不要把容器内 DNS 名或回环地址签发给远端浏览器。
+未设置 `IMS_S3_PUBLIC_ENDPOINT` 时，`IMS_S3_ENDPOINT` 会进入私有签名 URL，因此必须是浏览器
+可访问且由后端也能连接的地址。若服务端通过 Compose 内的 `rustfs:9000` 或其他私有入口连接，
+使用 `IMS_S3_PUBLIC_ENDPOINT` 配置独立 HTTPS 域名或局域网对象入口，避免把容器 DNS 名或回环地址
+签发给浏览器。
 RustFS 与 Hono 位于同一宿主机时，可使用 [`deploy/nginx/`](../../deploy/nginx/README.md) 的双域名
 模板：主域名代理完整 Web/API，独立对象域名在保留 Host 和 URI 的情况下代理 RustFS S3 API。
 R2 S3 endpoint 始终需要签名；待审核名片和编年史图片只在 Hono 鉴权通过后获得短期 URL。
@@ -123,7 +126,8 @@ S3-compatible 示例：
 export IMS_OBJECT_STORAGE=s3
 export IMS_S3_BUCKET=imsweb-media-prod
 export IMS_S3_REGION=us-east-1
-export IMS_S3_ENDPOINT=https://objects.example.com
+export IMS_S3_ENDPOINT=http://rustfs:9000
+export IMS_S3_PUBLIC_ENDPOINT=https://objects.example.com
 export IMS_S3_FORCE_PATH_STYLE=true
 export IMS_S3_PREFIX=v1
 export IMS_S3_READ_URL_TTL_SECONDS=300
@@ -200,6 +204,7 @@ export IMS_S3_BUCKET=imsweb-media-local
 export IMS_PUBLIC_READ_URL_BASE=http://127.0.0.1:9000/imsweb-media-local
 export IMS_S3_REGION=us-east-1
 export IMS_S3_ENDPOINT=http://127.0.0.1:9000
+export IMS_S3_PUBLIC_ENDPOINT=http://127.0.0.1:9000
 export IMS_S3_FORCE_PATH_STYLE=true
 export IMS_S3_PREFIX=
 export IMS_S3_READ_URL_TTL_SECONDS=300

@@ -84,6 +84,30 @@
   --duration-ui: 240ms;
   --duration-reveal: 560ms;
   --duration-hero: 720ms;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-viewport-width: calc(
+    100vw - var(--safe-area-left) - var(--safe-area-right)
+  );
+  --safe-viewport-height: calc(
+    100dvh - var(--safe-area-top) - var(--safe-area-bottom)
+  );
+  --overlay-safe-block-inset: max(
+    calc(1rem + var(--safe-area-top)),
+    calc(1rem + var(--safe-area-bottom))
+  );
+  --overlay-safe-inline-inset: max(
+    calc(1rem + var(--safe-area-left)),
+    calc(1rem + var(--safe-area-right))
+  );
+  --overlay-safe-width: calc(
+    100vw - var(--overlay-safe-inline-inset) - var(--overlay-safe-inline-inset)
+  );
+  --overlay-safe-height: calc(
+    100dvh - var(--overlay-safe-block-inset) - var(--overlay-safe-block-inset)
+  );
   --background: oklch(0.995 0.002 90);
   --foreground: oklch(0.17 0.008 270);
   --card: oklch(1 0 0);
@@ -411,16 +435,18 @@
   }
 
   /*
-   * Pointer-tracked specular highlight. The position arrives as two custom
-   * properties written by the sheen tracker; the gradient itself is pure CSS,
-   * so this costs one paint and works on every engine.
+   * Pointer-tracked specular highlight. Passive surfaces keep the original
+   * single-gradient sheen. Only explicitly interactive surfaces replace it
+   * with a contact glow that spreads from the press point.
    */
-  .glass-sheen {
+  .glass-sheen,
+  .glass-control {
     position: relative;
     isolation: isolate;
   }
 
-  .glass-sheen::after {
+  .glass-sheen::after,
+  .glass-control::after {
     position: absolute;
     z-index: -1;
     content: "";
@@ -436,9 +462,64 @@
     pointer-events: none;
   }
 
-  .glass-sheen:hover::after,
-  .glass-sheen:focus-within::after {
+  .glass-sheen[data-glass-interactive]::after,
+  .glass-control::after {
+    background:
+      radial-gradient(
+        circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
+        rgb(255 255 255 / 58%) 0%,
+        color-mix(in oklch, var(--glass-accent) 14%, transparent) 28%,
+        transparent 64%
+      ),
+      radial-gradient(
+        circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
+        var(--glass-highlight) 0%,
+        transparent 48%
+      );
+    transform: scale(0.84);
+    transform-origin: var(--glass-pointer-x, 50%) var(--glass-pointer-y, 50%);
+    transition:
+      opacity var(--duration-ui) var(--ease-ui),
+      transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-sheen[data-glass-interactive]:has(.glass-tab:focus-visible)::after,
+  .glass-control:focus-visible::after {
     opacity: 0.6;
+    transform: scale(1);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .glass-sheen:hover::after,
+    .glass-control:hover::after {
+      opacity: 0.6;
+    }
+
+    .glass-sheen[data-glass-interactive]:hover::after,
+    .glass-control:hover::after {
+      transform: scale(1);
+    }
+  }
+
+  .glass-sheen[data-glass-interactive][data-glass-pressed]::after,
+  .glass-control[data-glass-pressed]::after {
+    opacity: 1;
+    transform: scale(1);
+    animation: glass-touch-glow var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-sheen[data-glass-interactive][data-glass-releasing]::after,
+  .glass-control[data-glass-releasing]::after {
+    opacity: 0;
+    transform: scale(0.84);
+    animation: none;
+    transition-duration: var(--duration-fast);
+  }
+
+  .glass-sheen[data-glass-interactive][data-glass-exiting]::after,
+  .glass-control[data-glass-exiting]::after {
+    animation: glass-touch-exit var(--duration-fast) var(--ease-interactive)
+      both;
   }
 
   /*
@@ -497,6 +578,7 @@
    */
   .glass-tab {
     --glass-tab-press: 0.95;
+    touch-action: none;
     transition:
       color var(--duration-fast) var(--ease-interactive),
       transform var(--duration-fast) var(--ease-interactive);
@@ -504,6 +586,29 @@
 
   .glass-tab:active {
     transform: scale(var(--glass-tab-press));
+  }
+
+  /*
+   * The contact point becomes the transform origin. Pointer movement updates
+   * these values once per frame, with JS clamping the pull and stretch so the
+   * control flexes without leaving its hit target or shifting layout.
+   */
+  .glass-control[data-glass-pressed],
+  .glass-tab[data-glass-pressed] {
+    transform-origin: var(--glass-press-origin-x, 50%)
+      var(--glass-press-origin-y, 50%);
+    transform: translate3d(
+        var(--glass-press-offset-x, 0),
+        var(--glass-press-offset-y, 0),
+        0
+      )
+      scaleX(var(--glass-press-scale-x, 0.975))
+      scaleY(var(--glass-press-scale-y, 0.94));
+  }
+
+  .glass-control[data-glass-releasing],
+  .glass-tab[data-glass-releasing] {
+    animation: glass-control-release var(--duration-ui) var(--ease-interactive);
   }
 
   /*
@@ -560,6 +665,71 @@
 
   100% {
     transform: scale(1);
+  }
+}
+
+/* The contact glow lights immediately, then settles across the whole surface. */
+@keyframes glass-touch-glow {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.35);
+  }
+
+  48% {
+    opacity: 1;
+    transform: scale(0.86);
+  }
+
+  78% {
+    opacity: 0.92;
+    transform: scale(1.03);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Exit fades from the exact crossed edge without accepting stale transitions. */
+@keyframes glass-touch-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+}
+
+/* Release carries one small overshoot and counter-squash before resting. */
+@keyframes glass-control-release {
+  0% {
+    transform: translate3d(
+        var(--glass-press-offset-x, 0),
+        var(--glass-press-offset-y, 0),
+        0
+      )
+      scaleX(var(--glass-press-scale-x, 0.975))
+      scaleY(var(--glass-press-scale-y, 0.94));
+  }
+
+  38% {
+    transform: translate3d(0, 0, 0) scaleX(1.025) scaleY(0.985);
+  }
+
+  68% {
+    transform: translate3d(0, 0, 0) scaleX(0.992) scaleY(1.012);
+  }
+
+  84% {
+    transform: translate3d(0, 0, 0) scaleX(1.006) scaleY(0.997);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(1) scaleY(1);
   }
 }
 
@@ -641,7 +811,8 @@
     }
 
     .glass-refract::before,
-    .glass-sheen::after {
+    .glass-sheen::after,
+    .glass-control::after {
       display: none;
     }
   }
@@ -663,7 +834,8 @@
     }
 
     .glass-refract::before,
-    .glass-sheen::after {
+    .glass-sheen::after,
+    .glass-control::after {
       display: none;
     }
   }
@@ -707,8 +879,20 @@
       animation: none;
     }
 
-    .glass-sheen::after {
+    .glass-sheen::after,
+    .glass-control::after {
       transition: none;
+      animation: none;
+    }
+
+    .glass-control[data-glass-pressed],
+    .glass-control[data-glass-releasing],
+    .glass-control[data-glass-exiting],
+    .glass-tab[data-glass-pressed],
+    .glass-tab[data-glass-releasing],
+    .glass-tab[data-glass-exiting] {
+      transform: none;
+      animation: none;
     }
 
     /*

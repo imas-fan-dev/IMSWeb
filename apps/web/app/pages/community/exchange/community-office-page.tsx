@@ -13,7 +13,7 @@ import {
   RefreshCwIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useParams } from "react-router"
+import { useParams } from "react-router"
 import { toast } from "sonner"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
@@ -58,6 +58,7 @@ import {
   SeriesBadge,
 } from "./exchange-components"
 import type { WallPlacement } from "./exchange-card-wall"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type DetailPhase = "loading" | "ready" | "closed" | "missing" | "error"
 
@@ -492,12 +493,12 @@ export default function CommunityOfficePage() {
                 重新加载
               </Button>
             ) : null}
-            <Link
+            <NavigationLink
               to="/community/exchange"
               className={buttonVariants({ variant: "outline" })}
             >
               返回事务所列表
-            </Link>
+            </NavigationLink>
           </div>
         </Empty>
       </main>
@@ -510,13 +511,13 @@ export default function CommunityOfficePage() {
   return (
     <main id="main-content">
       <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <Link
+        <NavigationLink
           to="/community/exchange"
           className={buttonVariants({ variant: "ghost", size: "sm" })}
         >
           <ArrowLeftIcon aria-hidden="true" />
           返回事务所列表
-        </Link>
+        </NavigationLink>
       </div>
 
       <section className="mt-4 border-y bg-background">
@@ -600,13 +601,13 @@ export default function CommunityOfficePage() {
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {platform.status === "anonymous" ? (
-                <Link
+                <NavigationLink
                   to="/account/login"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   <LogInIcon aria-hidden="true" />
                   登录后布置
-                </Link>
+                </NavigationLink>
               ) : null}
               {platform.status === "restricted" ? (
                 <Badge variant="secondary">帐号受限，仅可浏览</Badge>
@@ -623,12 +624,12 @@ export default function CommunityOfficePage() {
               ) : null}
               {platform.status === "authenticated" &&
               wallEditor.phase === "error" ? (
-                <Link
+                <NavigationLink
                   to="/community/exchange/me"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   管理我的名片
-                </Link>
+                </NavigationLink>
               ) : null}
               {canEditWall &&
               (eligibleOwnerCards.length > 0 || hasOwnedPlacedCard) ? (
@@ -649,12 +650,12 @@ export default function CommunityOfficePage() {
               {canEditWall &&
               eligibleOwnerCards.length === 0 &&
               !hasOwnedPlacedCard ? (
-                <Link
+                <NavigationLink
                   to="/community/exchange/me"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   创建可公开名片
-                </Link>
+                </NavigationLink>
               ) : null}
               {platform.status === "authenticated" &&
               wallEditor.phase === "ready" &&
@@ -704,12 +705,12 @@ export default function CommunityOfficePage() {
                 </Select>
               </div>
               <div className="flex gap-2">
-                <Link
+                <NavigationLink
                   to="/community/exchange/me"
                   className={buttonVariants({ variant: "outline" })}
                 >
                   管理名片
-                </Link>
+                </NavigationLink>
                 <Button
                   type="button"
                   disabled={!selectedOwnerCardId || wallMutationPending}

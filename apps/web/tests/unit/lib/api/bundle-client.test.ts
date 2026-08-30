@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import {
+  API_PROXY_PATH_PREFIXES,
+  PUBLIC_SITE_PROXY_PATH_PREFIXES,
+  isPublicSiteOwnedPath,
+  isWebBundleOwnedPath,
+} from "~/lib/bundle-path-policy"
+
 /**
  * The bug these cover: all three alova clients set `baseURL: API_ORIGIN`, so a
  * root-relative path gains the API origin in a packaged Tauri build. That is
@@ -53,6 +60,47 @@ afterEach(() => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   vi.resetModules()
+})
+
+describe("asset ownership", () => {
+  it("keeps checked-in brand, map, and favicon assets in the bundle", () => {
+    expect(isWebBundleOwnedPath("/brand/imsweb-logo.webp")).toBe(true)
+    expect(isWebBundleOwnedPath("/maps/china-provinces.json")).toBe(true)
+    expect(isWebBundleOwnedPath("/favicon.ico")).toBe(true)
+    expect(isPublicSiteOwnedPath("/brand/imsweb-logo.webp")).toBe(false)
+  })
+
+  it("routes About brand assets to the public website", () => {
+    const url = "/brand/about/gakuen-arisa.png"
+
+    expect(isPublicSiteOwnedPath(url)).toBe(true)
+    expect(isWebBundleOwnedPath(url)).toBe(false)
+  })
+
+  it("keeps API-proxied and absolute paths out of the bundle", () => {
+    expect(isWebBundleOwnedPath("/api/producer-map")).toBe(false)
+    expect(isWebBundleOwnedPath("/uploads/card.webp")).toBe(false)
+    expect(isWebBundleOwnedPath("https://cdn.example/maps/other.json")).toBe(
+      false
+    )
+  })
+
+  it("keeps Vite's static proxy route contract in the shared policy", () => {
+    expect(API_PROXY_PATH_PREFIXES).toEqual([
+      "/api",
+      "/assets",
+      "/css",
+      "/Data",
+      "/eventchronicle",
+      "/icon",
+      "/image",
+      "/runninggame",
+      "/site-content",
+      "/sites",
+      "/uploads",
+    ])
+    expect(PUBLIC_SITE_PROXY_PATH_PREFIXES).toEqual(["/brand/about"])
+  })
 })
 
 describe("bundle-owned asset routing", () => {
@@ -126,6 +174,7 @@ describe("routeBundleOwnedRequest", () => {
   it.each([
     "/api/producer-map",
     "/uploads/card.webp",
+    "/brand/about/gakuen-arisa.png",
     "/assets/app.css",
     "/site-content/page.html",
     "https://cdn.example/maps/other.json",

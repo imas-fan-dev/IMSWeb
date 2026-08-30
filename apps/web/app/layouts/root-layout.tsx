@@ -6,6 +6,7 @@ import { GlassFilterDefs } from "~/components/shared/glass-filter-defs"
 import { GlassSheenTracker } from "~/components/shared/glass-sheen-tracker"
 import { ImageLoadingIndicator } from "~/components/shared/image-loading-indicator"
 import { SeriesBrowserIcon } from "~/components/shared/series-browser-icon"
+import { TauriInteractionGuard } from "~/components/shared/tauri-interaction-guard"
 import { ThemeColorSync } from "~/components/shared/theme-toggle"
 import { Toaster } from "~/components/ui/sonner"
 import { I18nProvider } from "~/i18n/provider"
@@ -47,6 +48,7 @@ export function RootAppLayout() {
       <ImageLoadingIndicator />
       <SeriesBrowserIcon />
       <ThemeColorSync />
+      <TauriInteractionGuard />
       <Outlet />
       <Toaster position="top-right" richColors closeButton />
     </ThemeProvider>

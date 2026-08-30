@@ -99,6 +99,7 @@ test("development configuration derives a fully local runtime", async () => {
       IMS_FUDABA_MAP_STYLE_URL: "https://production.invalid/style.json",
       IMS_FUDABA_GEOCODING_ENDPOINT: "https://production.invalid/search",
       IMS_FUDABA_GEOCODING_USER_AGENT: "production agent",
+      VITE_IMS_APP_TARGET: "app",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
       AWS_SESSION_TOKEN: "production-session-token",
     },
@@ -166,6 +167,40 @@ test("development configuration derives a fully local runtime", async () => {
   assert.equal(
     configuration.webEnvironment.IMS_API_ORIGIN,
     "http://127.0.0.1:3100",
+  );
+  assert.equal("VITE_IMS_APP_TARGET" in configuration.apiEnvironment, false);
+  assert.equal("VITE_IMS_APP_TARGET" in configuration.webEnvironment, false);
+});
+
+test("development configuration uses the configured browser-reachable RustFS origin", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+  const configuration = resolveDevelopmentConfiguration({
+    environment: {},
+    deployEnvironment: {
+      IMS_RUSTFS_PUBLIC_ORIGIN: "http://192.168.1.20:9900",
+    },
+    options: parseArguments([], {}),
+  });
+
+  assert.equal(configuration.rustfsOrigin, "http://192.168.1.20:9900");
+  assert.equal(
+    configuration.apiEnvironment.IMS_S3_ENDPOINT,
+    "http://192.168.1.20:9900",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_PUBLIC_READ_URL_BASE,
+    "http://192.168.1.20:9900/imsweb-media-local",
+  );
+  assert.throws(
+    () =>
+      resolveDevelopmentConfiguration({
+        environment: {},
+        deployEnvironment: {
+          IMS_RUSTFS_PUBLIC_ORIGIN: "http://192.168.1.20:9900/s3",
+        },
+        options: parseArguments([], {}),
+      }),
+    /must be a credential-free HTTP\(S\) origin/,
   );
 });
 

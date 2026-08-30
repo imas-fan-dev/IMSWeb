@@ -31,6 +31,11 @@
       "require": "./dist/fudaba/index.js",
       "default": "./dist/fudaba/index.js"
     },
+    "./fudaba/map-delivery": {
+      "types": "./dist/fudaba/map-delivery.d.ts",
+      "require": "./dist/fudaba/map-delivery.js",
+      "default": "./dist/fudaba/map-delivery.js"
+    },
     "./fudaba/card-claims": {
       "types": "./dist/fudaba/card-claims.d.ts",
       "require": "./dist/fudaba/card-claims.js",

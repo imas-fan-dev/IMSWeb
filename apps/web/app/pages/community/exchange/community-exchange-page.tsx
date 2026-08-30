@@ -18,7 +18,7 @@ import {
   useState,
   type FormEvent,
 } from "react"
-import { Link, useSearchParams } from "react-router"
+import { useSearchParams } from "react-router"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -59,6 +59,7 @@ import { ExchangeDiscoveryRail } from "./components/exchange-discovery-rail"
 import { ExchangeMobileNavigation } from "./components/exchange-mobile-navigation"
 import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
 import { ExchangeCard, OfficeCard } from "./exchange-components"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type DiscoveryPhase = "loading" | "ready" | "closed" | "error"
 type DirectoryView = "offices" | "cards"
@@ -738,7 +739,7 @@ export default function CommunityExchangePage() {
                         >
                           <CreditCardIcon aria-hidden="true" />
                         </Button>
-                        <Link
+                        <NavigationLink
                           to="/community/exchange/me"
                           className={buttonVariants({
                             variant: "outline",
@@ -748,7 +749,7 @@ export default function CommunityExchangePage() {
                           title="账号管理"
                         >
                           <UserRoundCogIcon aria-hidden="true" />
-                        </Link>
+                        </NavigationLink>
                       </div>
                     </div>
                   </div>
@@ -774,7 +775,7 @@ export default function CommunityExchangePage() {
           <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
             <SheetContent
               side="bottom"
-              className="max-h-[82dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]"
+              className="max-h-[min(82dvh,var(--safe-viewport-height))] overflow-y-auto pb-4"
             >
               <SheetHeader className="border-b pr-14">
                 <SheetTitle>筛选地图</SheetTitle>
@@ -796,8 +797,8 @@ export default function CommunityExchangePage() {
               className={cn(
                 "min-h-0 gap-0 overflow-hidden",
                 isNarrow
-                  ? "max-h-[86dvh]"
-                  : "h-dvh w-[min(92vw,30rem)] sm:max-w-120"
+                  ? "max-h-[min(86dvh,var(--safe-viewport-height))]"
+                  : "w-[min(92vw,30rem)] sm:max-w-120"
               )}
             >
               <SheetHeader className="shrink-0 pr-14">
@@ -849,12 +850,12 @@ export default function CommunityExchangePage() {
                   事务所与名片完成公开审核后会在这里显示。
                 </EmptyDescription>
               </EmptyHeader>
-              <Link
+              <NavigationLink
                 to="/community"
                 className={buttonVariants({ variant: "outline" })}
               >
                 返回制作人社区
-              </Link>
+              </NavigationLink>
             </Empty>
           ) : (
             <Alert

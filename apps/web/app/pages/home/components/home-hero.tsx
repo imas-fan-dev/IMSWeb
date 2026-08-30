@@ -3,6 +3,7 @@ import { CakeSliceIcon } from "lucide-react"
 import { cn } from "~/lib/utils"
 import { getBirthdaysOn } from "../birthday-data"
 import { seriesItems } from "../home-content"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function SeriesWall() {
   return (
@@ -12,7 +13,7 @@ export function SeriesWall() {
     >
       <div className="grid h-76 grid-cols-2 sm:h-80 sm:grid-cols-3 lg:h-112 lg:grid-cols-6">
         {seriesItems.map((series) => (
-          <a
+          <NavigationLink
             key={series.name}
             data-testid="series-band"
             href={series.href}
@@ -31,7 +32,7 @@ export function SeriesWall() {
               decoding="async"
               draggable={false}
             />
-          </a>
+          </NavigationLink>
         ))}
       </div>
 

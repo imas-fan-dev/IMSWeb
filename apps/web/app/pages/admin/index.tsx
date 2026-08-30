@@ -9,8 +9,8 @@ import {
   MapPinnedIcon,
   NewspaperIcon,
   PackageOpenIcon,
+  Settings2Icon,
 } from "lucide-react"
-import { Link } from "react-router"
 
 import { Badge } from "~/components/ui/badge"
 import {
@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/card"
 import { cn } from "~/lib/utils"
 import { AdminPageHeader } from "~/components/admin/admin-ui"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const workspaces = [
   {
@@ -97,6 +98,14 @@ const workspaces = [
     accent: "bg-franchise-765",
     scope: ["Google", "GitHub", "加密存储"],
   },
+  {
+    title: "系统配置",
+    description: "运行时基础设施与公共服务",
+    to: "/admin/system",
+    icon: Settings2Icon,
+    accent: "bg-franchise-gk",
+    scope: ["地图分发", "访问前缀"],
+  },
 ]
 
 export function meta() {
@@ -119,7 +128,7 @@ export default function AdminIndex() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {workspaces.map((workspace) => (
-          <Link
+          <NavigationLink
             key={workspace.to}
             to={workspace.to}
             className="group rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
@@ -153,7 +162,7 @@ export default function AdminIndex() {
                 />
               </CardFooter>
             </Card>
-          </Link>
+          </NavigationLink>
         ))}
       </div>
     </div>

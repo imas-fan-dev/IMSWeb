@@ -2,7 +2,7 @@
 
 > 文档类型：架构
 > 状态：Decision
-> 权威来源：`apps/web/app/app.css` 的玻璃工具类、`apps/web/playwright.config.ts` 和 MDN `backdrop-filter` 兼容表
+> 权威来源：`apps/web/app/app.css`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/playwright.config.ts` 和 MDN `backdrop-filter` 兼容表
 
 本决策记录液态玻璃中「折射」这一层的实现路线，以及由此产生的跨平台观感差异。
 实施步骤见 [液态玻璃升级与 App 外壳实施计划](../development/liquid-glass-app-shell-plan.md)。
@@ -22,8 +22,9 @@ Web 上实现真折射的唯一可行路径是 `backdrop-filter: url(#svg-filter
 | Web Chrome / Edge | Chromium | 正常渲染 |
 | Web Safari | WebKit | 静默丢弃，无软件回退 |
 | Web Firefox | Gecko | 元素不渲染 |
-| App Android | Chromium WebView | 正常渲染 |
-| App iOS | WKWebView | 静默丢弃，无软件回退 |
+| App Android Web 内容与底栏 | Chromium WebView | 正常渲染 |
+| App iOS Web 内容与旧系统回退底栏 | WKWebView | 静默丢弃，无软件回退 |
+| App iOS 26+ 原生底栏 | UIKit `UITabBarController` | 系统原生材质与自适应宽度，不经过 CSS |
 
 WebKit 的丢弃发生在 `RenderLayerBacking::updateBackdropFilters()`，它在 `hasReferenceFilter()` 处短路。
 与 `filter: url()` 不同，这条路径没有软件回退。
@@ -34,7 +35,7 @@ Firefox 的表现是正确性事故而非保真度问题：应用了引用滤镜
 
 ## 决策
 
-采用地板加封顶的两层结构。
+WebView 和浏览器内容采用地板加封顶的两层结构；iOS 26 及以上的 App 底栏采用 UIKit 原生例外。
 
 **地板：伪折射，全平台生效。** 用边缘渐变带、内阴影和高光模拟透镜边缘，产生厚度与折射的观感，
 不扭曲背后的真实内容。所有引擎都能看到，包括 iOS 应用与 Safari。
@@ -48,6 +49,12 @@ Firefox 的表现是正确性事故而非保真度问题：应用了引用滤镜
 关闭开关，理由见下方实测。
 
 两层叠加时需要保证边缘处理不重复，避免出现双重轮廓。
+
+**iOS 26+ App 底栏：原生 Liquid Glass。** 仓库内 Tauri 插件在 WKWebView 上方安装系统
+`UITabBarController`，由 UIKit 负责原生材质、按压反馈、安全区和宽度。原生 tab 复用 React 的 Lucide
+图标 ID。Web 底栏只有在插件返回 `supported: true` 后才隐藏。iOS 26 以下与 Android 保留 Web 回退，
+但移动 App 底栏不启用手指位置追踪或白色触点高光；旧系统只保留静态玻璃、单枚透镜与按压缩放。此例外
+只属于 App 导航层，不改变页面内 CSS 玻璃的两层策略。
 
 ## 实测结果
 
@@ -85,18 +92,21 @@ Firefox 与 WebKit 的基线不稳定，推测与系列图标背景的持续动�
 
 ## 后果
 
-- iOS 应用与 Android 应用会有可见的观感差异。两者都有伪折射地板，只有 Android 拿到真折射封顶。
-  该差异必须写入验收标准并标注为预期行为，否则会被反复当作缺陷提交。
+- iOS 与 Android 应用会有可见的观感差异。Android 的 WebView 表面可拿到真折射封顶；iOS 页面
+  内容仍使用伪折射地板，但 iOS 26+ 底栏改用系统原生 Liquid Glass。iOS 26 以下使用无白色触点高光
+  的 Web 回退。该差异必须写入验收标准并标注为预期行为，否则会被反复当作缺陷提交。
 - 折射需要维护两套实现，各自调参。
 - Firefox 的关闭属于正确性措施，需要有自动化守护。
   现有 `playwright.config.ts` 只有 `chromium-desktop` 与 `chromium-mobile` 两个 project，
   全部基于 Chromium，因此必须新增 Firefox project，否则元素消失事故在持续集成中必然漏网。
 - 真折射的开销集中在移动端。已有公开实践只在有能力的桌面浏览器上开启该滤镜，手机与低端设备一律关闭。
   低端 Android WebView 上的帧率尚无实测数据，需要先取基线再决定是否收窄启用条件。
-- 若未来 WebKit 支持引用式 `backdrop-filter`，iOS 可以直接复用封顶层，无需改动地板。
+- 若未来 WebKit 支持引用式 `backdrop-filter`，iOS 页面内容和旧系统回退可以直接复用封顶层；
+  iOS 26+ 原生底栏不受这项变化影响。
 
 ## 证据
 
+- Apple WWDC25「Meet Liquid Glass」与 UIKit Liquid Glass 开发讲座，说明交互式原生玻璃 API。
 - MDN `backdrop-filter` 属性页与浏览器兼容表。
 - WebKit Pull Request 68614，说明引用式 backdrop filter 被静默丢弃且无软件回退。
 - WebKit Bug 245510，`backdrop-filter: url()` 与 `feDisplacementMap` 不工作。
