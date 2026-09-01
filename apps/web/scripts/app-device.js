@@ -287,11 +287,19 @@ function listIosDevices() {
         device.hardwareProperties?.platform === "iOS" &&
         device.connectionProperties?.pairingState === "paired"
     )
-    .map((device) => ({
-      name: device.deviceProperties?.name ?? "iOS device",
-      identifier: device.hardwareProperties?.udid ?? "",
-      state: device.connectionProperties?.tunnelState ?? "unknown",
-    }))
+    .map((device) => {
+      // `tunnelState` is the live CoreDevice tunnel, not reachability. A paired
+      // device on the local network parks at "disconnected" and only opens the
+      // tunnel when a command needs it, so reporting that raw value made every
+      // installable device look unusable. Pairing is the real gate.
+      const tunnelUp = device.connectionProperties?.tunnelState === "connected"
+      return {
+        name: device.deviceProperties?.name ?? "iOS device",
+        identifier: device.hardwareProperties?.udid ?? "",
+        state: tunnelUp ? "connected" : "paired",
+        lastConnected: device.connectionProperties?.lastConnectionDate ?? "",
+      }
+    })
 }
 
 export function selectTarget(candidates, requested, { kind, prefer }) {
@@ -567,7 +575,10 @@ function runDevices(options, environment) {
     const devices = listIosDevices()
     if (!devices.length) log("  未检测到已配对设备")
     for (const device of devices) {
-      log(`    ${device.name} ${device.identifier} [${device.state}]`)
+      log(
+        `    ${device.name} ${device.identifier} [${device.state}]` +
+          (device.lastConnected ? ` last ${device.lastConnected}` : "")
+      )
     }
     log("")
   }
