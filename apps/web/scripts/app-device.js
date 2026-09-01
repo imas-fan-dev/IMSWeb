@@ -191,15 +191,20 @@ function log(message) {
   globalThis.console.log(message)
 }
 
+function readJsonFile(path) {
+  // A bare SyntaxError names neither the file nor the field, which is useless
+  // when two configs are read back to back.
+  try {
+    return JSON.parse(readFileSync(path, "utf8"))
+  } catch (error) {
+    throw new Error(`无法解析 ${path}：${error.message}`, { cause: error })
+  }
+}
+
 function tauriConfiguration(workspaceRoot) {
-  const base = JSON.parse(
-    readFileSync(join(workspaceRoot, "src-tauri/tauri.conf.json"), "utf8")
-  )
-  const android = JSON.parse(
-    readFileSync(
-      join(workspaceRoot, "src-tauri/tauri.android.conf.json"),
-      "utf8"
-    )
+  const base = readJsonFile(join(workspaceRoot, "src-tauri/tauri.conf.json"))
+  const android = readJsonFile(
+    join(workspaceRoot, "src-tauri/tauri.android.conf.json")
   )
   return { base, android }
 }
@@ -254,7 +259,14 @@ function listIosSimulators() {
     "--json",
   ])
   if (status !== 0) return []
-  const parsed = JSON.parse(stdout)
+  // Listing is best-effort: an unreadable simctl payload should leave the
+  // other target lists intact rather than take the whole command down.
+  let parsed
+  try {
+    parsed = JSON.parse(stdout)
+  } catch {
+    return []
+  }
   return Object.entries(parsed.devices ?? {}).flatMap(([runtime, devices]) =>
     devices.map((device) => ({
       name: device.name,
@@ -279,8 +291,15 @@ function listIosDevices() {
     output,
   ])
   if (status !== 0 || !existsSync(output)) return []
-  const parsed = JSON.parse(readFileSync(output, "utf8"))
-  rmSync(output, { force: true })
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync(output, "utf8"))
+  } catch {
+    return []
+  } finally {
+    // The temp file goes either way; a parse failure used to leak it.
+    rmSync(output, { force: true })
+  }
   return (parsed.result?.devices ?? [])
     .filter(
       (device) =>
