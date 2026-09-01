@@ -34,7 +34,7 @@ export const resources = {
         image: {
           label: "上传图片",
           emptyTitle: "选择一张图片",
-          emptyDetail: "PNG、JPEG、WebP 或 AVIF",
+          emptyDetail: "PNG、JPEG、WebP、AVIF、HEIC 或 HEIF",
           emptyDetailWithGif: "PNG、JPEG、WebP、AVIF 或 GIF",
           conversionDetail:
             "支持 PNG、JPEG、WebP、AVIF 或 GIF，保存时统一转换为 WebP。",
@@ -276,7 +276,7 @@ export const resources = {
         image: {
           label: "Upload image",
           emptyTitle: "Choose an image",
-          emptyDetail: "PNG, JPEG, WebP, or AVIF",
+          emptyDetail: "PNG, JPEG, WebP, AVIF, HEIC, or HEIF",
           emptyDetailWithGif: "PNG, JPEG, WebP, AVIF, or GIF",
           conversionDetail:
             "PNG, JPEG, WebP, AVIF, or GIF. Images are converted to WebP when saved.",
