@@ -47,6 +47,7 @@ import {
   uploadNamecard,
   type WikiPublicCatalog,
 } from "~/lib/api"
+import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import {
   namecardSubmissionManagePath,
   saveNamecardSubmissionReceipt,
@@ -54,11 +55,19 @@ import {
 } from "~/pages/community/namecard-submission-storage"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
+const MAX_NAMECARD_IMAGE_BYTES = 3 * 1024 * 1024
+
+function validateNamecardImage(file: File): string | null {
+  if (!file.type.startsWith("image/")) return "只能上传图片文件"
+  if (file.size > MAX_NAMECARD_IMAGE_BYTES) {
+    return "每张名片图片不能超过 3 MiB"
+  }
+  return null
+}
+
 export function NamecardUploadDialog() {
   const platform = useOptionalPlatformSession()
   const [open, setOpen] = useState(false)
-  const [front, setFront] = useState<File | null>(null)
-  const [back, setBack] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [receipt, setReceipt] = useState<NamecardSubmissionReceipt | null>(null)
   const [catalog, setCatalog] = useState<WikiPublicCatalog | null>(null)
@@ -68,6 +77,20 @@ export function NamecardUploadDialog() {
   const [producerName, setProducerName] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [bio, setBio] = useState("")
+  const frontImage = useAppPreparedImage({
+    mediaKind: "guest-namecard",
+    validate: validateNamecardImage,
+    onError: (message) => toast.error(message),
+  })
+  const backImage = useAppPreparedImage({
+    mediaKind: "guest-namecard",
+    validate: validateNamecardImage,
+    onError: (message) => toast.error(message),
+  })
+  const front = frontImage.file
+  const back = backImage.file
+  const preparing = frontImage.preparing || backImage.preparing
+  const busy = uploading || preparing
 
   const series: IdolSeriesOption[] = (catalog?.agencies ?? []).map(
     (agency) => ({
@@ -92,31 +115,13 @@ export function NamecardUploadDialog() {
   }
 
   function changeOpen(nextOpen: boolean) {
-    if (!nextOpen && uploading) return
+    if (!nextOpen && busy) return
     setOpen(nextOpen)
     if (nextOpen) void loadCatalog()
     if (!nextOpen) {
-      setFront(null)
-      setBack(null)
+      frontImage.clear()
+      backImage.clear()
     }
-  }
-
-  function chooseFile(file: File | null, side: "front" | "back") {
-    if (!file) {
-      if (side === "front") setFront(null)
-      else setBack(null)
-      return
-    }
-    if (!file.type.startsWith("image/")) {
-      toast.error("只能上传图片文件")
-      return
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error("每张名片图片不能超过 3 MiB")
-      return
-    }
-    if (side === "front") setFront(file)
-    else setBack(file)
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -148,8 +153,8 @@ export function NamecardUploadDialog() {
       }
       saveNamecardSubmissionReceipt(nextReceipt)
       setReceipt(nextReceipt)
-      setFront(null)
-      setBack(null)
+      frontImage.clear()
+      backImage.clear()
       form.reset()
     } catch (error) {
       toast.error(
@@ -198,7 +203,7 @@ export function NamecardUploadDialog() {
 
       <DialogContent
         className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
-        aria-busy={uploading}
+        aria-busy={busy}
       >
         <form
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -271,11 +276,11 @@ export function NamecardUploadDialog() {
               </p>
             </div>
 
-            <Field data-disabled={uploading || undefined}>
+            <Field data-disabled={busy || undefined}>
               <FieldLabel htmlFor="guest-namecard-series">主企划</FieldLabel>
               <Select
                 value={seriesCode}
-                disabled={uploading || catalogLoading || series.length === 0}
+                disabled={busy || catalogLoading || series.length === 0}
                 onValueChange={(value) => setSeriesCode(String(value ?? ""))}
               >
                 <SelectTrigger id="guest-namecard-series" className="w-full">
@@ -294,7 +299,7 @@ export function NamecardUploadDialog() {
             </Field>
 
             <FieldGroup className="grid gap-5 md:grid-cols-2">
-              <Field data-disabled={uploading || undefined}>
+              <Field data-disabled={busy || undefined}>
                 <FieldLabel htmlFor="guest-namecard-producer">
                   制作人昵称（选填）
                 </FieldLabel>
@@ -302,12 +307,12 @@ export function NamecardUploadDialog() {
                   id="guest-namecard-producer"
                   value={producerName}
                   maxLength={80}
-                  disabled={uploading}
+                  disabled={busy}
                   placeholder="署名，留空则匿名"
                   onChange={(event) => setProducerName(event.target.value)}
                 />
               </Field>
-              <Field data-disabled={uploading || undefined}>
+              <Field data-disabled={busy || undefined}>
                 <FieldLabel htmlFor="guest-namecard-display">
                   名片名称（选填）
                 </FieldLabel>
@@ -315,21 +320,21 @@ export function NamecardUploadDialog() {
                   id="guest-namecard-display"
                   value={displayName}
                   maxLength={120}
-                  disabled={uploading}
+                  disabled={busy}
                   placeholder="这张名片的称呼"
                   onChange={(event) => setDisplayName(event.target.value)}
                 />
               </Field>
             </FieldGroup>
 
-            <Field data-disabled={uploading || undefined}>
+            <Field data-disabled={busy || undefined}>
               <FieldLabel htmlFor="guest-namecard-bio">简介（选填）</FieldLabel>
               <Textarea
                 id="guest-namecard-bio"
                 value={bio}
                 maxLength={2000}
                 rows={3}
-                disabled={uploading}
+                disabled={busy}
                 placeholder="名片的设计说明或交换想法"
                 onChange={(event) => setBio(event.target.value)}
               />
@@ -340,12 +345,12 @@ export function NamecardUploadDialog() {
               series={series}
               idols={catalog?.searchEntries ?? []}
               selectedIds={favoriteIdolIds}
-              disabled={uploading || catalogLoading}
+              disabled={busy || catalogLoading}
               onChange={setFavoriteIdolIds}
             />
 
             <FieldGroup className="grid gap-5 md:grid-cols-2">
-              <Field data-disabled={uploading || undefined}>
+              <Field data-disabled={busy || undefined}>
                 <FieldLabel htmlFor="namecard-front">名片正面</FieldLabel>
                 <FileUploadControl
                   id="namecard-front"
@@ -355,14 +360,17 @@ export function NamecardUploadDialog() {
                   emptyDetail="图片文件 · 不超过 3 MiB"
                   fileKind="名片正面"
                   file={front}
+                  disabled={busy && !frontImage.preparing}
+                  preparing={frontImage.preparing}
                   uploading={uploading}
                   required
                   selectedIcon={FileImageIcon}
                   emptyIcon={ImageUpIcon}
-                  onSelect={(file) => chooseFile(file, "front")}
+                  onBrowse={frontImage.browse}
+                  onSelect={frontImage.selectFile}
                 />
               </Field>
-              <Field data-disabled={uploading || undefined}>
+              <Field data-disabled={busy || undefined}>
                 <FieldLabel htmlFor="namecard-back">名片背面</FieldLabel>
                 <FileUploadControl
                   id="namecard-back"
@@ -372,11 +380,14 @@ export function NamecardUploadDialog() {
                   emptyDetail="图片文件 · 不超过 3 MiB"
                   fileKind="名片背面"
                   file={back}
+                  disabled={busy && !backImage.preparing}
+                  preparing={backImage.preparing}
                   uploading={uploading}
                   required
                   selectedIcon={FileImageIcon}
                   emptyIcon={ImageUpIcon}
-                  onSelect={(file) => chooseFile(file, "back")}
+                  onBrowse={backImage.browse}
+                  onSelect={backImage.selectFile}
                 />
               </Field>
             </FieldGroup>
@@ -385,7 +396,7 @@ export function NamecardUploadDialog() {
           <DialogFooter className="m-0 shrink-0 rounded-none">
             <DialogClose
               render={
-                <Button type="button" variant="outline" disabled={uploading} />
+                <Button type="button" variant="outline" disabled={busy} />
               }
             >
               取消
@@ -393,7 +404,7 @@ export function NamecardUploadDialog() {
             <Button
               type="submit"
               disabled={
-                uploading ||
+                busy ||
                 catalogLoading ||
                 !front ||
                 !back ||

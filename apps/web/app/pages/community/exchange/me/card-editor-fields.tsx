@@ -250,7 +250,9 @@ export function CardImageFields({
   backFile,
   disabled,
   saving,
+  preparingSide,
   uploadingSide,
+  onBrowse,
   onSelect,
   onUpload,
 }: {
@@ -259,7 +261,9 @@ export function CardImageFields({
   backFile: File | null
   disabled: boolean
   saving: boolean
+  preparingSide: FudabaCardMediaSide | null
   uploadingSide: FudabaCardMediaSide | null
+  onBrowse?: Partial<Record<FudabaCardMediaSide, () => void | Promise<void>>>
   onSelect: (file: File | null, side: FudabaCardMediaSide) => void
   onUpload?: (side: FudabaCardMediaSide) => void
 }) {
@@ -284,10 +288,12 @@ export function CardImageFields({
             fileKind={`名片${label}`}
             file={file}
             disabled={disabled}
+            preparing={preparingSide === side}
             uploading={mode === "create" ? saving : uploadingSide === side}
             required={mode === "create"}
             selectedIcon={FileImageIcon}
             emptyIcon={ImageUpIcon}
+            onBrowse={onBrowse?.[side]}
             onSelect={(nextFile) => onSelect(nextFile, side)}
           />
           {mode === "replace" ? (

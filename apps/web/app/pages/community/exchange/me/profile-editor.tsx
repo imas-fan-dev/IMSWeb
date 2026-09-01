@@ -26,6 +26,7 @@ import {
   uploadPlatformAvatar,
   type PlatformProfile,
 } from "~/lib/api"
+import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import {
   apiMessage,
   isFeatureClosed,
@@ -53,24 +54,21 @@ export function ProfileEditor({
   onWriteClosed: () => void
 }) {
   const [draft, setDraft] = useState(() => profileFields(profile))
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null)
-
-  function selectAvatar(file: File | null) {
-    if (!file) {
-      setAvatarFile(null)
-      return
-    }
-    const invalid = validateImage(file, MAX_AVATAR_BYTES)
-    if (invalid) {
-      setFeedback({ kind: "error", message: invalid })
-      return
-    }
-    setFeedback(null)
-    setAvatarFile(file)
-  }
+  const {
+    browse: browseAvatar,
+    clear: clearAvatar,
+    file: avatarFile,
+    preparing: preparingAvatar,
+    selectFile: selectAvatar,
+  } = useAppPreparedImage({
+    mediaKind: "platform-avatar",
+    validate: (file) => validateImage(file, MAX_AVATAR_BYTES),
+    onError: (message) => setFeedback({ kind: "error", message }),
+    onSelected: () => setFeedback(null),
+  })
 
   function mutationFailure(error: unknown, fallback: string) {
     if (isProfileConflict(error)) {
@@ -125,7 +123,7 @@ export function ProfileEditor({
       }).send()
       setDraft(profileFields(result.profile))
       onSaved(result.profile)
-      setAvatarFile(null)
+      clearAvatar()
       setFeedback({ kind: "success", message: "头像已更新。" })
       toast.success("头像已更新")
     } catch (error) {
@@ -148,7 +146,7 @@ export function ProfileEditor({
     }
   }
 
-  const busy = saving || uploadingAvatar
+  const busy = saving || preparingAvatar || uploadingAvatar
 
   return (
     <section
@@ -218,9 +216,11 @@ export function ProfileEditor({
             fileKind="头像"
             file={avatarFile}
             disabled={readOnly || saving}
+            preparing={preparingAvatar}
             uploading={uploadingAvatar}
             selectedIcon={UserRoundIcon}
             emptyIcon={ImageUpIcon}
+            onBrowse={browseAvatar}
             onSelect={selectAvatar}
           />
           <Button

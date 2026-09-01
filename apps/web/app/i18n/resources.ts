@@ -18,6 +18,9 @@ export const resources = {
       upload: {
         dropZoneLabel: "{{fileKind}}文件选择",
         dropTitle: "松开以选择{{fileKind}}",
+        preparingTitle: "正在处理{{fileKind}}",
+        preparingDetail: "正在修正方向并压缩图片",
+        preparingStatus: "处理中",
         uploadingTitle: "正在上传{{fileKind}}",
         uploadingDetail: "上传完成前请勿关闭页面",
         uploadingStatus: "上传中",
@@ -257,6 +260,9 @@ export const resources = {
       upload: {
         dropZoneLabel: "{{fileKind}} file picker",
         dropTitle: "Drop to select {{fileKind}}",
+        preparingTitle: "Preparing {{fileKind}}",
+        preparingDetail: "Correcting orientation and compressing the image",
+        preparingStatus: "Preparing",
         uploadingTitle: "Uploading {{fileKind}}",
         uploadingDetail: "Keep this page open until the upload is complete",
         uploadingStatus: "Uploading",

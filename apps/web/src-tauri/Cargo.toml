@@ -25,6 +25,11 @@ log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 tauri-plugin-native-glass = { path = "plugins/native-glass" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+tauri-plugin-native-image = { path = "plugins/native-image" }
