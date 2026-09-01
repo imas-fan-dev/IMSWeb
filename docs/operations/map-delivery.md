@@ -1,49 +1,50 @@
-# 地图资源交付与同源托管
+# 地图资源交付
 
 > 文档类型：运维
 > 状态：Active
-> 权威来源：`apps/web/public/maps/`、地图组件资源 allowlist、`@imsweb/contracts/paths` 和部署入口配置
-> 适用环境：公开 Producer Map、Fudaba exchange map 与自托管地图资源
+> 权威来源：`apps/web/public/maps/`、地图资源信任策略、后台 map-delivery 配置和部署入口配置
+> 适用环境：公开 Producer Map、Fudaba exchange map 与可选自托管地图资源
 
-公开地图需要稳定、可审计且不泄露 provider key 的资源链。生产设计以同源交付为目标：style、
-tile、glyph、sprite 和行政边界均由受控 origin 提供，Web 代码不硬编码第三方 token 或临时 host。
+公开地图需要稳定、可审计且不泄露 provider key 的资源链。Fudaba exchange map 默认从官方
+OpenFreeMap HTTPS 服务读取 style、tile、glyph 和 sprite；App 只内置小型合规边界 GeoJSON，
+不包含 PMTiles 归档。Web 代码不硬编码第三方 token 或临时 host。
 
 ## 资源分类
 
-| 资源               | 作用                                       | 权威来源                                     |
-| ------------------ | ------------------------------------------ | -------------------------------------------- |
-| Style JSON         | source、layer、font、sprite 与 attribution | `apps/web/public/maps/` 中的版本化文件       |
-| Vector/raster tile | 底图数据                                   | 经许可的上游快照或自托管 PMTiles/tile tree   |
-| Glyph              | 中文和拉丁文字形                           | 与 style font stack 对应的许可字体产物       |
-| Sprite             | 底图图标和 symbol                          | style 对应的 sprite JSON/PNG                 |
-| 行政边界           | Producer Map 和合规边界显示                | `apps/web/public/maps/` 中登记来源的 GeoJSON |
+| 资源               | 作用                                       | 权威来源                                       |
+| ------------------ | ------------------------------------------ | ---------------------------------------------- |
+| Style JSON         | source、layer、font、sprite 与 attribution | 官方 OpenFreeMap HTTPS style 或自托管版本      |
+| Vector/raster tile | 底图数据                                   | OpenFreeMap 公共服务或自托管 PMTiles/tile tree |
+| Glyph              | 中文和拉丁文字形                           | style 声明的 OpenFreeMap font stack            |
+| Sprite             | 底图图标和 symbol                          | style 声明的 OpenFreeMap sprite                |
+| 行政边界           | Producer Map 和合规边界显示                | `apps/web/public/maps/` 中登记来源的 GeoJSON   |
 
-只镜像 tile 而继续远程读取 glyph 或 sprite 不算同源。所有 URL 必须使用 shared path builder 或
-style 中的相对路径，并通过客户端 allowlist。
+在线资源必须与 API 返回的 style origin 一致并通过客户端 allowlist。自托管时，tile、glyph、sprite
+和 style 必须整体迁移，不能只镜像其中一部分。
 
 ## 当前生产合同
 
-Fudaba exchange map 固定使用 OpenFreeMap snapshot `20260816_080001_pt`：planet 从官方远程
-PMTiles 裁剪为全球 z0–11 单文件，Natural Earth z0–6、Bright sprite 和三套 Noto Sans BMP glyph
-完整镜像。浏览器通过 `pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles` 读取归档；PMTiles
-protocol 将根相对地址解析为当前 origin 的 HTTP Range 请求。style、raster、glyph、sprite 和
-PMTiles 均不包含第三方运行时 host。
+Fudaba exchange map 默认使用 `https://tiles.openfreemap.org/styles/positron`。该服务无需 API key，
+style、OpenMapTiles vector tile、Natural Earth raster、Noto Sans glyph 和 sprite 均通过 HTTPS
+加载，并返回允许 App WebView 读取的 CORS 响应。MapLibre attribution 必须保持可见。
 
-大型产物不进入 `apps/web/public/` 或应用镜像：
+`public/maps/china-boundary-dashes.json` 只有约 7.7 KiB，随 Web/App 静态资源发布。客户端先从自身
+origin 读取它，再以内联 GeoJSON 交给 MapLibre，因此不要求 OpenFreeMap 或 API 主机提供
+`/maps/` 静态目录。App release 不包含 `data/maps/`、PMTiles、远程 glyph 镜像或 raster tile tree。
 
-```text
-# 开发机（Git 忽略）
-data/maps/releases/openfreemap-20260816_080001_pt-z0-11/
-data/maps/current -> releases/openfreemap-20260816_080001_pt-z0-11
+部署配置如下：
 
-# 生产宿主机
-/srv/imsweb/maps/releases/openfreemap-20260816_080001_pt-z0-11/
-/srv/imsweb/maps/current -> releases/openfreemap-20260816_080001_pt-z0-11
+```dotenv
+IMS_FUDABA_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/positron
+IMS_FUDABA_MAP_STYLE_URLS=/maps/exchange-style.json
 ```
 
-开发 Vite 只在 serve 模式把 `data/maps/current/` 映射为 `/maps/exchange/`；生产 Nginx 用同一个
-URL prefix 静态读取宿主机 current symlink。生产 Range 请求不经过 Hono，应用 release 和地图
-release 可以独立发布、回滚。
+默认 style URL 和 `IMS_FUDABA_MAP_STYLE_URLS` 中的完整 URL 只用于首次生成后台配置集合，或在
+持久化对象缺失、损坏时恢复。管理员在“系统配置 > 交换地图源”中新增、编辑、删除配置，并选择
+唯一的线上激活项；修改保存后无需重启 API。公共 map-config API 只返回激活项的完整 `styleUrl`。
+需要自托管时按下文准备独立地图 release，再在后台新增其 style URL。
+S3-compatible storage 的对象键、CORS、上传和验证合同见
+[OpenMap S3 发布规范](openmap-s3-publication.md)。
 
 ## 数据源与许可
 
@@ -60,12 +61,18 @@ release 可以独立发布、回滚。
 
 ## 交付方案
 
+### 在线 OpenFreeMap（当前采用）
+
+API 返回官方 HTTPS style URL。客户端仅信任 App/Web document origin 和 style origin，style 中的
+source、glyph 与 sprite 必须位于这两个 origin。该方案不会增加 App 包体，也不需要发布地图主机；
+运行时依赖终端能够访问 `tiles.openfreemap.org`。
+
 ### 解包静态 tile
 
 服务端或对象存储按稳定路径提供 `/{z}/{x}/{y}.pbf`。该方案浏览器无需 PMTiles protocol，
 适合现有 style 和 CDN；缺点是文件数较多，更新和原子切换需要版本目录。
 
-### PMTiles（当前采用）
+### PMTiles（可选自托管）
 
 浏览器注册 PMTiles protocol 并向同源 Nginx 发起 Range 请求。该方案只有一个约 7.92 GiB 的
 planet 文件，避免数百万 inode，版本切换只涉及一个目录软链接。Nginx 限制为单 Range、关闭
@@ -103,7 +110,7 @@ rename 的 partial 可恢复，但 `go-pmtiles extract` 不支持续传未完成
 会从头执行。每个 release 最终写入 `manifest.json`，记录 snapshot、zoom、归档字节数、SHA-256、
 伴随资源数量和 attribution。
 
-## 生产发布与回滚
+## 自托管发布与回滚（可选）
 
 先在具备稳定国际出口和足够磁盘的受控机器生成 release，再同步到生产主机的新目录。不要覆盖
 current 指向的目录：
@@ -171,7 +178,7 @@ curl --fail --silent --show-error --dump-header - --output /dev/null \
 - MapLibre attribution 始终可见，许可证链接可访问；
 - 响应 MIME、gzip、Range、ETag、cache-control 和 404 正确；
 - 桌面和移动视口无溢出，地图交互、筛选、详情和返回流程正常；
-- 断开上游网络后，自托管生产资源仍可加载；
+- 在线模式在上游不可达时显示可重试错误，自托管模式在断开上游网络后仍可加载；
 - 回滚到前一版本不要求重新构建应用。
 
 任何需要第三方运行时 token、未登记来源或无法原子回滚的方案，都不能作为生产默认值。

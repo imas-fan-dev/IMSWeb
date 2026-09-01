@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("alova/client", () => ({ useRequest: mocks.useRequest }))
 vi.mock("~/lib/api", () => ({
+  API_ORIGIN: "",
+  PUBLIC_SITE_ORIGIN: "",
   getPublicSitePackage: mocks.getPublicSitePackage,
 }))
 

@@ -2,12 +2,15 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual"
 import { LoaderCircleIcon, NewspaperIcon, RefreshCwIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
   RecommendationRow,
   RecommendationsSkeleton,
 } from "./components/recommendations-list"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 import { useRecommendationsFeed } from "./hooks/use-recommendations-feed"
 
 export function meta() {
@@ -85,42 +88,56 @@ export function RecommendationsCenter() {
   }, [loadMore, loadingMore, pageInfo.hasNextPage])
 
   return (
-    <main id="main-content">
-      <section className="border-b bg-muted/25">
-        <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-            <div className="max-w-2xl">
+    <PageShell width="wide">
+      <header
+        className={cn("border-b bg-muted/25", IS_APP_TARGET ? "pb-5" : "pb-8")}
+      >
+        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+          <div className="max-w-2xl min-w-0">
+            {!IS_APP_TARGET ? (
               <p className="text-xs font-semibold text-primary">
                 RECOMMENDATIONS
               </p>
-              <h1 className="mt-2 text-3xl font-semibold">向您推荐</h1>
-              <p className="mt-3 leading-7 text-muted-foreground">
-                持续收录制作人社区近期值得关注的内容。
-              </p>
-            </div>
-            {phase === "ready" && items.length ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  已加载 {items.length} 条
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void refresh()}
-                  aria-label="刷新推荐列表"
-                  title="刷新推荐列表"
-                >
-                  <RefreshCwIcon aria-hidden="true" />
-                  刷新
-                </Button>
-              </div>
             ) : null}
+            <h1
+              className={cn(
+                "font-semibold wrap-anywhere",
+                IS_APP_TARGET ? "text-2xl" : "mt-2 text-3xl"
+              )}
+            >
+              向您推荐
+            </h1>
+            <p
+              className={cn(
+                "leading-7 wrap-anywhere text-muted-foreground",
+                IS_APP_TARGET ? "mt-2 text-sm" : "mt-3"
+              )}
+            >
+              持续收录制作人社区近期值得关注的内容。
+            </p>
           </div>
+          {phase === "ready" && items.length ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                已加载 {items.length} 条
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void refresh()}
+                aria-label="刷新推荐列表"
+                title="刷新推荐列表"
+              >
+                <RefreshCwIcon aria-hidden="true" />
+                刷新
+              </Button>
+            </div>
+          ) : null}
         </div>
-      </section>
+      </header>
 
       <section
-        className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8"
+        className="min-w-0 pt-6"
         aria-labelledby="recommendations-list-heading"
       >
         <h2 id="recommendations-list-heading" className="sr-only">
@@ -220,7 +237,7 @@ export function RecommendationsCenter() {
           </>
         )}
       </section>
-    </main>
+    </PageShell>
   )
 }
 

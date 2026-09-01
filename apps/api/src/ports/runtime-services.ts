@@ -23,8 +23,8 @@ export interface NodeRuntimeConfig {
     fudabaWriteEnabled: boolean;
     fudabaMapEnabled: boolean;
     fudabaMapStyleUrl: string;
-    /** Deployment allowlist of selectable map delivery prefixes. */
-    fudabaMapPrefixes: string[];
+    /** Deployment seed choices used before a managed source collection exists. */
+    fudabaMapStyleUrls: string[];
     fudabaGeocoding: FudabaGeocodingRuntimeConfig;
 }
 

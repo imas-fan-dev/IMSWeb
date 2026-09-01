@@ -70,10 +70,13 @@ function anonymousState() {
   }
 }
 
-function renderPage(mode: "login" | "register") {
+function renderPage(
+  mode: "login" | "register",
+  initialEntry = `/account/${mode}`
+) {
   const path = `/account/${mode}`
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <I18nextProvider i18n={i18n}>
         <Routes>
           <Route
@@ -82,10 +85,7 @@ function renderPage(mode: "login" | "register") {
               mode === "login" ? <AccountLoginPage /> : <AccountRegisterPage />
             }
           />
-          <Route
-            path="/community/exchange/me"
-            element={<h1>我的交换空间</h1>}
-          />
+          <Route path="/community/exchange/me" element={<h1>个人档案</h1>} />
         </Routes>
       </I18nextProvider>
     </MemoryRouter>
@@ -214,6 +214,12 @@ describe("Platform account auth pages", () => {
     ).toBeVisible()
   })
 
+  it("shows password reset completion feedback from the login URL", () => {
+    renderPage("login", "/account/login?reset=success")
+
+    expect(screen.getByText("密码已更新，请使用新密码登录。")).toBeVisible()
+  })
+
   it("maps login authentication, rate-limit, and network failures", async () => {
     apiMocks.loginSend
       .mockRejectedValueOnce(
@@ -282,7 +288,7 @@ describe("Platform account auth pages", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("adopts a successful login session and enters the owner workspace", async () => {
+  it("adopts a successful login session and enters the Web exchange workspace", async () => {
     apiMocks.loginSend.mockResolvedValue(activeSession)
     renderPage("login")
     const user = await fillLogin()
@@ -290,9 +296,7 @@ describe("Platform account auth pages", () => {
 
     expect(sessionMocks.acceptSession).toHaveBeenCalledWith(activeSession)
     await waitFor(() =>
-      expect(
-        screen.getByRole("heading", { name: "我的交换空间" })
-      ).toBeVisible()
+      expect(screen.getByRole("heading", { name: "个人档案" })).toBeVisible()
     )
   })
 

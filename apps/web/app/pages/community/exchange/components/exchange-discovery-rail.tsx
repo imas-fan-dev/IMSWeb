@@ -17,6 +17,7 @@ import { Checkbox } from "~/components/ui/checkbox"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import type { FudabaOffice, FudabaSeries } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { ExchangeSeriesFilter } from "./exchange-series-filter"
 import { NavigationLink } from "~/components/navigation/navigation-link"
@@ -75,7 +76,10 @@ export function ExchangeDiscoveryRail({
 }: ExchangeDiscoveryRailProps) {
   return (
     <aside
-      className="relative z-10 hidden h-full w-80 shrink-0 flex-col overflow-hidden border-r bg-background/97 shadow-[8px_0_24px_rgb(15_23_42/0.08)] lg:flex"
+      className={cn(
+        "relative z-10 hidden w-80 shrink-0 flex-col overflow-hidden border-r bg-background/97 shadow-[8px_0_24px_rgb(15_23_42/0.08)] lg:flex",
+        IS_APP_TARGET ? "h-(--app-content-height) self-start" : "h-full"
+      )}
       aria-label="交换发现栏"
     >
       <SeriesAccentStrip className="absolute inset-x-0 top-0 z-10 h-1" />

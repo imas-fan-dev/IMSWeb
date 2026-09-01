@@ -404,6 +404,7 @@ export function CommunityExchangeMapSection({
         <div
           className={cn(
             "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
+            IS_APP_TARGET && "exchange-map-app-surface",
             IS_APP_TARGET
               ? APP_FLOATING_CONTROL_OFFSET
               : "bottom-[calc(8.5rem+env(safe-area-inset-bottom))] md:bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
@@ -469,7 +470,14 @@ export function CommunityExchangeMapSection({
       ) : null}
 
       {selectedGroup ? (
-        <aside className="absolute top-3 right-3 z-10 hidden max-h-[calc(100%-1.5rem)] w-80 overflow-y-auto rounded-lg border bg-background/97 p-4 shadow-md backdrop-blur-sm lg:block">
+        <aside
+          className={cn(
+            "absolute top-3 right-3 z-10 hidden w-80 overflow-y-auto rounded-lg border bg-background/97 p-4 shadow-md backdrop-blur-sm lg:block",
+            IS_APP_TARGET
+              ? "max-h-[calc(var(--app-content-height)-1.5rem)]"
+              : "max-h-[calc(100%-1.5rem)]"
+          )}
+        >
           <Button
             type="button"
             variant="ghost"
@@ -492,7 +500,7 @@ export function CommunityExchangeMapSection({
       >
         <SheetContent
           side="bottom"
-          className="max-h-[min(78dvh,var(--safe-viewport-height))] overflow-y-auto pb-4"
+          className="exchange-map-detail-sheet overflow-y-auto"
         >
           <SheetHeader className="border-b pr-14">
             <SheetTitle>区域交换事务所</SheetTitle>

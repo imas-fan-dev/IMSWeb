@@ -2,8 +2,6 @@ import { platformAuthOAuthPath } from "@imsweb/contracts/paths"
 import {
   ArrowRightIcon,
   CircleCheckIcon,
-  Code2Icon,
-  Globe2Icon,
   KeyRoundIcon,
   EyeIcon,
   EyeOffIcon,
@@ -17,12 +15,15 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useSearchParams } from "react-router"
 
 import {
   NavigationBoundary,
   NavigationLink,
 } from "~/components/navigation/navigation-link"
+import { PlatformOAuthProviderIcon } from "~/components/platform/platform-oauth-provider-icon"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
+import { PageShell } from "~/components/shared/page-shell"
 import type { PlatformOAuthProvider } from "~/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -46,7 +47,9 @@ import {
   sendPlatformPasswordResetVerificationCode,
   sendPlatformRegistrationVerificationCode,
 } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { useNavigation } from "~/lib/navigation/use-navigation"
+import { cn } from "~/lib/utils"
 
 type AccountAuthMode = "login" | "register" | "reset"
 type FieldName =
@@ -66,6 +69,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const { t } = useTranslation()
   const navigate = useNavigation()
   const platform = usePlatformSession()
+  const [searchParams] = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [displayName, setDisplayName] = useState("")
@@ -89,7 +93,10 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
 
   const isRegister = mode === "register"
   const isReset = mode === "reset"
+  const resetSucceeded =
+    mode === "login" && searchParams.get("reset") === "success"
   const hasVerificationCode = isRegister || isReset
+  const accountHome = IS_APP_TARGET ? "/account/me" : "/community/exchange/me"
   const verificationCoolingDown = verificationCooldownSeconds > 0
   const title = t(
     isRegister
@@ -108,15 +115,14 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
 
   useEffect(() => {
     if (completed) {
-      void navigate(
-        isReset ? "/account/login?reset=success" : "/community/exchange/me",
-        { replace: true }
-      )
+      void navigate(isReset ? "/account/login?reset=success" : accountHome, {
+        replace: true,
+      })
     }
-  }, [completed, isReset, navigate])
+  }, [accountHome, completed, isReset, navigate])
 
   useEffect(() => {
-    if (isReset) return
+    if (isReset || IS_APP_TARGET) return
     let active = true
     void getPlatformOAuthProviders()
       .send()
@@ -295,7 +301,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
     }
   }
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     setRequestError("")
     const submission = validate()
@@ -334,10 +340,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
 
   if (platform.status === "loading") {
     return (
-      <main
-        id="main-content"
-        className="mx-auto flex w-full max-w-xl flex-1 items-center px-4 py-12 sm:px-6 lg:px-8"
-      >
+      <PageShell width="read" className="flex flex-1 items-center">
         <Alert>
           <LoaderCircleIcon
             className="animate-spin motion-reduce:animate-none"
@@ -345,16 +348,13 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
           />
           <AlertTitle>{t("platformAuth.checkingSession")}</AlertTitle>
         </Alert>
-      </main>
+      </PageShell>
     )
   }
 
   if (platform.session) {
     return (
-      <main
-        id="main-content"
-        className="mx-auto flex w-full max-w-xl flex-1 items-center px-4 py-12 sm:px-6 lg:px-8"
-      >
+      <PageShell width="read" className="flex flex-1 items-center">
         <section className="w-full space-y-5" aria-labelledby="signed-in-title">
           <Alert>
             <CircleCheckIcon aria-hidden="true" />
@@ -369,107 +369,133 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
             </AlertTitle>
             <AlertDescription>
               {completed
-                ? t(
-                    isRegister
-                      ? "platformAuth.register.successDescription"
-                      : "platformAuth.login.successDescription"
-                  )
+                ? IS_APP_TARGET
+                  ? t("platformAccount.app.authSuccessDescription")
+                  : t(
+                      isRegister
+                        ? "platformAuth.register.successDescription"
+                        : "platformAuth.login.successDescription"
+                    )
                 : t("platformAuth.signedInDescription", {
                     name: platform.session.profile.displayName,
                   })}
             </AlertDescription>
           </Alert>
           <NavigationLink
-            to="/community/exchange/me"
+            to={accountHome}
             className={buttonVariants({
               size: "lg",
               className: "h-11 w-full",
             })}
           >
-            {t("platformAuth.enterWorkspace")}
+            {t(
+              IS_APP_TARGET
+                ? "platformAccount.app.enterAccount"
+                : "platformAuth.enterWorkspace"
+            )}
           </NavigationLink>
         </section>
-      </main>
+      </PageShell>
     )
   }
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto flex w-full max-w-6xl flex-1 items-center px-4 py-8 sm:px-6 sm:py-12 lg:px-8"
+    <PageShell
+      width={IS_APP_TARGET ? "read" : "wide"}
+      className={cn(
+        "flex flex-1",
+        IS_APP_TARGET
+          ? "min-h-(--app-content-height) items-start overflow-x-hidden pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+          : "items-center py-8 sm:py-12"
+      )}
     >
-      <div className="grid w-full overflow-hidden rounded-xl border border-foreground/10 bg-card shadow-sm md:grid-cols-[1.18fr_0.82fr]">
-        <aside className="relative hidden min-h-136 flex-col overflow-hidden bg-admin-ink p-8 text-admin-ink-foreground md:flex lg:p-10">
-          <div
-            className="flex h-1.5 w-full overflow-hidden rounded-full"
-            aria-hidden="true"
-          >
-            <span className="flex-1 bg-franchise-765" />
-            <span className="flex-1 bg-franchise-cg" />
-            <span className="flex-1 bg-franchise-ml" />
-            <span className="flex-1 bg-franchise-sidem" />
-            <span className="flex-1 bg-franchise-sc" />
-            <span className="flex-1 bg-franchise-gk" />
-          </div>
-          <div className="mt-8 flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-admin-ink-subtle uppercase">
-            <SparklesIcon
-              className="size-4 text-franchise-765"
+      <div
+        data-account-auth-layout={IS_APP_TARGET ? "app" : "web"}
+        className={cn(
+          "w-full",
+          IS_APP_TARGET
+            ? "mx-auto max-w-md"
+            : "grid overflow-hidden rounded-xl border border-foreground/10 bg-card shadow-sm md:grid-cols-[1.18fr_0.82fr]"
+        )}
+      >
+        {!IS_APP_TARGET ? (
+          <aside className="relative hidden min-h-136 flex-col overflow-hidden bg-admin-ink p-8 text-admin-ink-foreground md:flex lg:p-10">
+            <div
+              className="flex h-1.5 w-full overflow-hidden rounded-full"
               aria-hidden="true"
-            />
-            IMSWeb / Platform
-          </div>
-          <div className="mt-auto">
-            <p className="text-sm font-medium text-admin-ink-subtle">
-              制作人身份空间
-            </p>
-            <h2 className="mt-3 text-3xl/tight font-semibold text-balance">
+            >
+              <span className="flex-1 bg-franchise-765" />
+              <span className="flex-1 bg-franchise-cg" />
+              <span className="flex-1 bg-franchise-ml" />
+              <span className="flex-1 bg-franchise-sidem" />
+              <span className="flex-1 bg-franchise-sc" />
+              <span className="flex-1 bg-franchise-gk" />
+            </div>
+            <div className="mt-8 flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-admin-ink-subtle uppercase">
+              <SparklesIcon
+                className="size-4 text-franchise-765"
+                aria-hidden="true"
+              />
+              IMSWeb / Platform
+            </div>
+            <div className="mt-auto">
+              <p className="text-sm font-medium text-admin-ink-subtle">
+                制作人身份空间
+              </p>
+              <h2 className="mt-3 text-3xl/tight font-semibold text-balance">
+                {isRegister
+                  ? "从这里开始，建立你的制作人身份"
+                  : isReset
+                    ? "重新掌握你的帐号"
+                    : "欢迎回到交换空间"}
+              </h2>
+              <p className="mt-4 max-w-sm text-sm/6 text-admin-ink-subtle">
+                {isRegister
+                  ? "用邮箱确认帐号归属，之后即可管理自己的资料与交换名片。"
+                  : isReset
+                    ? "验证邮箱归属后设置新密码，已有登录会话会同时失效。"
+                    : "登录后继续管理你的制作人资料、名片与交换事务所。"}
+              </p>
+              <ul className="mt-8 space-y-4 text-sm text-admin-ink-foreground">
+                <li className="flex items-start gap-3">
+                  <ShieldCheckIcon
+                    className="mt-0.5 size-4 shrink-0 text-franchise-sidem"
+                    aria-hidden="true"
+                  />
+                  <span>帐号与公开资料分开管理</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <MailCheckIcon
+                    className="mt-0.5 size-4 shrink-0 text-franchise-ml"
+                    aria-hidden="true"
+                  />
+                  <span>邮箱验证保护注册归属</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <ArrowRightIcon
+                    className="mt-0.5 size-4 shrink-0 text-franchise-cg"
+                    aria-hidden="true"
+                  />
+                  <span>登录后直达我的交换空间</span>
+                </li>
+              </ul>
+            </div>
+            <p className="mt-10 text-xs text-admin-ink-subtle">
               {isRegister
-                ? "从这里开始，建立你的制作人身份"
+                ? "注册完成后即可继续完善资料。"
                 : isReset
-                  ? "重新掌握你的帐号"
-                  : "欢迎回到交换空间"}
-            </h2>
-            <p className="mt-4 max-w-sm text-sm/6 text-admin-ink-subtle">
-              {isRegister
-                ? "用邮箱确认帐号归属，之后即可管理自己的资料与交换名片。"
-                : isReset
-                  ? "验证邮箱归属后设置新密码，已有登录会话会同时失效。"
-                  : "登录后继续管理你的制作人资料、名片与交换事务所。"}
+                  ? "密码更新后，请重新登录所有需要访问的设备。"
+                  : "你的名片和资料会留在自己的工作区。"}
             </p>
-            <ul className="mt-8 space-y-4 text-sm text-admin-ink-foreground">
-              <li className="flex items-start gap-3">
-                <ShieldCheckIcon
-                  className="mt-0.5 size-4 shrink-0 text-franchise-sidem"
-                  aria-hidden="true"
-                />
-                <span>帐号与公开资料分开管理</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <MailCheckIcon
-                  className="mt-0.5 size-4 shrink-0 text-franchise-ml"
-                  aria-hidden="true"
-                />
-                <span>邮箱验证保护注册归属</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <ArrowRightIcon
-                  className="mt-0.5 size-4 shrink-0 text-franchise-cg"
-                  aria-hidden="true"
-                />
-                <span>登录后直达我的交换空间</span>
-              </li>
-            </ul>
-          </div>
-          <p className="mt-10 text-xs text-admin-ink-subtle">
-            {isRegister
-              ? "注册完成后即可继续完善资料。"
-              : isReset
-                ? "密码更新后，请重新登录所有需要访问的设备。"
-                : "你的名片和资料会留在自己的工作区。"}
-          </p>
-        </aside>
+          </aside>
+        ) : null}
 
-        <section className="min-w-0 bg-card p-5 sm:p-8 lg:p-10">
+        <section
+          className={cn(
+            "min-w-0",
+            IS_APP_TARGET ? "w-full py-1" : "bg-card p-5 sm:p-8 lg:p-10"
+          )}
+        >
           <header className="border-b pb-5">
             <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.16em] text-primary uppercase">
               <span
@@ -499,6 +525,15 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
               noValidate
               aria-describedby={`${mode}-description`}
             >
+              {resetSucceeded ? (
+                <Alert>
+                  <CircleCheckIcon aria-hidden="true" />
+                  <AlertTitle>
+                    {t("platformAuth.passwordReset.complete")}
+                  </AlertTitle>
+                </Alert>
+              ) : null}
+
               {requestError ? (
                 <Alert variant="destructive">
                   <AlertTitle>{t("platformAuth.requestFailed")}</AlertTitle>
@@ -519,7 +554,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                       name="displayName"
                       autoComplete="name"
                       maxLength={80}
-                      autoFocus
+                      autoFocus={!IS_APP_TARGET}
                       value={displayName}
                       aria-invalid={Boolean(fieldErrors.displayName)}
                       aria-describedby={
@@ -551,7 +586,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                     maxLength={320}
                     autoCapitalize="none"
                     spellCheck={false}
-                    autoFocus={!isRegister}
+                    autoFocus={!IS_APP_TARGET && !isRegister}
                     value={email}
                     aria-invalid={Boolean(fieldErrors.email)}
                     aria-describedby={
@@ -830,31 +865,29 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                       <span className="h-px flex-1 bg-border" />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {oauthProviders.map((provider) => {
-                        const ProviderIcon =
-                          provider.icon === "github" ? Code2Icon : Globe2Icon
-                        return (
-                          <NavigationLink
-                            key={provider.code}
-                            href={platformAuthOAuthPath(
-                              `/${provider.code}/start?returnPath=${encodeURIComponent("/community/exchange/me")}`
-                            )}
-                            className={buttonVariants({
-                              variant: "outline",
-                              size: "lg",
-                              className: "h-11 min-w-0 justify-center",
-                            })}
-                          >
-                            <ProviderIcon
-                              data-icon="inline-start"
-                              aria-hidden="true"
-                            />
-                            <span className="truncate">
-                              {provider.displayName}
-                            </span>
-                          </NavigationLink>
-                        )
-                      })}
+                      {oauthProviders.map((provider) => (
+                        <NavigationLink
+                          key={provider.code}
+                          href={platformAuthOAuthPath(
+                            `/${provider.code}/start?returnPath=${encodeURIComponent(accountHome)}`
+                          )}
+                          className={buttonVariants({
+                            variant: "outline",
+                            size: "lg",
+                            className: "h-11 min-w-0 justify-center",
+                          })}
+                        >
+                          <PlatformOAuthProviderIcon
+                            provider={provider.icon}
+                            className="size-4"
+                            data-icon="inline-start"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">
+                            {provider.displayName}
+                          </span>
+                        </NavigationLink>
+                      ))}
                     </div>
                   </div>
                 </NavigationBoundary>
@@ -889,6 +922,6 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
           </div>
         </section>
       </div>
-    </main>
+    </PageShell>
   )
 }

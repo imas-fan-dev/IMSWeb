@@ -13,13 +13,13 @@ Issue、release record 或私有运维记录中。
 
 ## 文档地图
 
-| 分类 | 用途 | 内容边界 |
-| --- | --- | --- |
-| `architecture/` | 系统结构、领域边界、端口、数据面和共享 contract | 解释为什么以及模块如何协作，不记录发布快照 |
-| `development/` | 本地开发、测试和内容编写规范 | 提供可重复流程，不记录某次执行结果 |
-| `operations/` | 配置、部署、备份、回滚和资源交付 | 描述长期 runbook，具体 release 数据进入运维记录 |
-| `migrations/` | 可重复的数据导入、对账、切流和恢复合同 | 记录不变量和步骤，具体来源/数量/日期进入私有 manifest |
-| `governance/` | 资产来源、许可、安全和发布治理 | 保存可追溯权利信息，不保存需求过程或测试反馈 |
+| 分类            | 用途                                            | 内容边界                                              |
+| --------------- | ----------------------------------------------- | ----------------------------------------------------- |
+| `architecture/` | 系统结构、领域边界、端口、数据面和共享 contract | 解释为什么以及模块如何协作，不记录发布快照            |
+| `development/`  | 本地开发、测试和内容编写规范                    | 提供可重复流程，不记录某次执行结果                    |
+| `operations/`   | 配置、部署、备份、回滚和资源交付                | 描述长期 runbook，具体 release 数据进入运维记录       |
+| `migrations/`   | 可重复的数据导入、对账、切流和恢复合同          | 记录不变量和步骤，具体来源/数量/日期进入私有 manifest |
+| `governance/`   | 资产来源、许可、安全和发布治理                  | 保存可追溯权利信息，不保存需求过程或测试反馈          |
 
 ## 架构
 
@@ -46,6 +46,7 @@ Issue、release record 或私有运维记录中。
 - [部署与发布](operations/github-actions-deployment.md)
 - [现网运行手册](operations/runbook.md)
 - [地图资源交付](operations/map-delivery.md)
+- [OpenMap S3 发布规范](operations/openmap-s3-publication.md)
 - [Fudaba Platform 数据迁移合同](migrations/fudaba-platform.md)
 - [Producer Map 数据迁移与对账](migrations/producer-map-online.md)
 

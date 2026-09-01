@@ -741,4 +741,29 @@ describe("WikiIndexPage", () => {
       screen.queryByRole("button", { name: /未付声/ })
     ).not.toBeInTheDocument()
   })
+
+  it("renders the empty catalog state after loading completes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          window.location.origin
+        )
+        return url.pathname === "/api/wiki/random_bg"
+          ? response({ url: "" })
+          : response({
+              status: "success",
+              agencies: [],
+              searchEntries: [],
+              selection: null,
+            })
+      })
+    )
+
+    renderWiki("/wiki")
+
+    expect(await screen.findByText("当前没有可展示的 Wiki 数据")).toBeVisible()
+    expect(screen.queryByLabelText("正在加载内容目录")).not.toBeInTheDocument()
+  })
 })

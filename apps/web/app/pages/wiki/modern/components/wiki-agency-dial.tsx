@@ -415,16 +415,10 @@ function InteractiveWikiAgencyDial({
         safeArea="custom"
         overlayClassName="bg-black/30 backdrop-blur-[2px] duration-300 motion-reduce:duration-0"
         className={cn(
-          // Deliberately NOT lifted for the app build. The disc is decorative
-          // geometry that is meant to bleed off the bottom of the screen so the
-          // user reads it as an arc; lifting it to clear the tab bar brings the
-          // whole outer rim inside the viewport and it stops looking anchored.
-          // It does not need to clear the bar anyway: the dialog overlay paints
-          // over the capsule and swallows its pointer events, so nothing here is
-          // obscured or blocked while the dial is open. The item arc is capped
-          // at `CAROUSEL_WINDOW_MAX_ANGLE` (129deg), which already keeps every
-          // selectable icon out of the region the capsule covers.
-          "top-auto right-auto bottom-[calc(2.75rem+env(safe-area-inset-bottom))] left-11 block w-auto max-w-none -translate-x-1/2 translate-y-1/2 rounded-full bg-transparent p-0 shadow-none ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none",
+          "top-auto right-auto block w-auto max-w-none rounded-full bg-transparent p-0 shadow-none ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none",
+          clearsAppTabBar
+            ? "bottom-[calc(var(--app-bottom-clearance)+1rem)] left-1/2 -translate-x-1/2 translate-y-0"
+            : "bottom-[calc(2.75rem+env(safe-area-inset-bottom))] left-11 -translate-x-1/2 translate-y-1/2",
           visibilityClassName
         )}
         data-wiki-agency-dial-popup
@@ -443,7 +437,9 @@ function InteractiveWikiAgencyDial({
           data-wiki-agency-dial-position={carouselPosition.toFixed(3)}
           className="relative aspect-square cursor-grab touch-none overflow-visible rounded-full border border-foreground/15 bg-background/96 shadow-2xl outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing"
           style={{
-            width: "min(92vw, calc(100dvh - 6rem), 22rem)",
+            width: clearsAppTabBar
+              ? "min(calc(var(--safe-viewport-width) - 2rem), calc(var(--app-viewport-height) - var(--app-bottom-clearance) - 2rem), 22rem)"
+              : "min(92vw, calc(100dvh - 6rem), 22rem)",
             borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
             boxShadow: `0 22px 60px color-mix(in srgb, ${accent} 24%, rgb(0 0 0 / 0.28))`,
           }}

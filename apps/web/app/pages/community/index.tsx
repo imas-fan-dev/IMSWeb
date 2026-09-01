@@ -6,9 +6,12 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { PageShell } from "~/components/shared/page-shell"
 import { Card, CardContent } from "~/components/ui/card"
 import { getFudabaSeries, isApiError } from "~/lib/api"
-import { NavigationLink } from "~/components/navigation/navigation-link"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 
 const communitySections = [
   {
@@ -70,6 +73,9 @@ export default function Community() {
     }
   }, [])
 
+  const availableCommunitySections = IS_APP_TARGET
+    ? communitySections.filter((section) => "to" in section)
+    : communitySections
   const visibleSections =
     exchangeAvailability === "available" || exchangeAvailability === "error"
       ? [
@@ -80,14 +86,26 @@ export default function Community() {
                 ? "交换区状态暂时无法确认，可直接进入重试。"
                 : exchangeSection.description,
           },
-          ...communitySections,
+          ...availableCommunitySections,
         ]
-      : communitySections
+      : availableCommunitySections
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-5xl px-6 py-16">
-      <h1 className="text-3xl font-semibold">制作人社区</h1>
-      <p className="mt-4 leading-7 text-muted-foreground">
+    <PageShell width="default">
+      <h1
+        className={cn(
+          "font-semibold wrap-anywhere",
+          IS_APP_TARGET ? "text-2xl" : "text-3xl"
+        )}
+      >
+        制作人社区
+      </h1>
+      <p
+        className={cn(
+          "leading-7 wrap-anywhere text-muted-foreground",
+          IS_APP_TARGET ? "mt-2" : "mt-4"
+        )}
+      >
         浏览制作人社群、名片与共同创作的社区内容。
       </p>
       {exchangeAvailability === "checking" ? (
@@ -96,7 +114,12 @@ export default function Community() {
         </span>
       ) : null}
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        className={cn(
+          "grid gap-4 sm:grid-cols-2 lg:grid-cols-3",
+          IS_APP_TARGET ? "mt-6" : "mt-10"
+        )}
+      >
         {visibleSections.map((section) => {
           const content = (
             <Card className="group h-full transition-colors hover:border-foreground/25 hover:bg-muted/30">
@@ -137,6 +160,6 @@ export default function Community() {
           )
         })}
       </div>
-    </main>
+    </PageShell>
   )
 }

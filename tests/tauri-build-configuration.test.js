@@ -42,8 +42,14 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
     );
     assert.equal(tauriConfig.build.frontendDist, "../build-app/client");
     assert.equal(tauriConfig.build.devUrl, "http://localhost:1420");
-    assert.equal(tauriConfig.build.beforeDevCommand, "pnpm run dev:app");
-    assert.equal(tauriConfig.build.beforeBuildCommand, "pnpm run build:app");
+    assert.equal(
+      tauriConfig.build.beforeDevCommand,
+      "pnpm run icon:app && pnpm run dev:app",
+    );
+    assert.equal(
+      tauriConfig.build.beforeBuildCommand,
+      "pnpm run icon:app && pnpm run build:app",
+    );
     assert.equal(tauriConfig.bundle.android, undefined);
     assert.equal(tauriConfig.bundle.iOS, undefined);
     assert.equal(
@@ -80,6 +86,44 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
     );
     assert.equal(webPackage.scripts["build:app"], "node scripts/build-app.js");
     assert.equal(webPackage.scripts["dev:app"], "node scripts/dev-app.js");
+    assert.equal(
+      webPackage.scripts["icon:app"],
+      "tauri icon src-tauri/icon-sources/app-icon.json",
+    );
+
+    const appIconManifestPath = path.resolve(
+      webRoot,
+      "src-tauri/icon-sources/app-icon.json",
+    );
+    const appIconManifest = JSON.parse(
+      await readFile(appIconManifestPath, "utf8"),
+    );
+    assert.deepEqual(appIconManifest, {
+      default: "../../public/brand/imsweb-app-icon.png",
+      bg_color: "#e0e1e3",
+      android_bg: "android-background.png",
+      android_fg: "android-foreground.png",
+      android_fg_scale: 88,
+      android_monochrome: "android-monochrome.png",
+    });
+
+    for (const source of [
+      appIconManifest.android_bg,
+      appIconManifest.android_fg,
+      appIconManifest.android_monochrome,
+    ]) {
+      const png = await readFile(
+        path.resolve(path.dirname(appIconManifestPath), source),
+      );
+      assert.deepEqual(
+        png.subarray(0, 8),
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      );
+      assert.equal(png.readUInt32BE(16), 1024);
+      assert.equal(png.readUInt32BE(20), 1024);
+      assert.equal(png[25], 6);
+    }
+
     assert.equal(
       webPackage.scripts.postbuild,
       "VITE_IMS_APP_TARGET=web node ../../scripts/check-classic-wiki-css-build.mjs",

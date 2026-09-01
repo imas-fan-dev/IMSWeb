@@ -3,18 +3,18 @@ import {
   CheckCircle2Icon,
   Code2Icon,
   KeyRoundIcon,
-  LoaderCircleIcon,
+  PencilIcon,
   RefreshCwIcon,
-  SaveIcon,
   ShieldCheckIcon,
 } from "lucide-react"
 import { useState } from "react"
 import { useOutletContext } from "react-router"
 import { toast } from "sonner"
 
+import { AdminConfigDialog } from "~/components/admin/admin-config-dialog"
+import { PlatformOAuthProviderIcon } from "~/components/platform/platform-oauth-provider-icon"
 import {
   AdminEmptyState,
-  AdminField,
   AdminPageHeader,
   AdminPanel,
 } from "~/components/admin/admin-ui"
@@ -22,10 +22,16 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
-import { isApiError } from "~/lib/api"
 import {
   getAdminPlatformOAuthProviders,
+  isApiError,
   updateAdminPlatformOAuthProvider,
   type PlatformOAuthAdminProvider,
 } from "~/lib/api"
@@ -45,9 +51,7 @@ function errorMessage(error: unknown) {
 }
 
 function providerDescription(code: PlatformOAuthAdminProvider["code"]) {
-  return code === "google"
-    ? "使用 Google OpenID Connect 登录，回调地址必须与 Google 控制台完全一致。"
-    : "使用 GitHub OAuth 登录，回调地址必须与 GitHub OAuth App 完全一致。"
+  return code === "google" ? "Google OpenID Connect" : "GitHub OAuth App"
 }
 
 function toDraft(provider: PlatformOAuthAdminProvider): ProviderDraft {
@@ -59,83 +63,84 @@ function toDraft(provider: PlatformOAuthAdminProvider): ProviderDraft {
   }
 }
 
-function ProviderConfigForm({
+function ProviderConfigDialog({
   provider,
   saving,
+  onOpenChange,
   onSave,
 }: {
   provider: ProviderDraft
   saving: boolean
-  onSave: (provider: ProviderDraft) => Promise<void>
+  onOpenChange: (open: boolean) => void
+  onSave: (provider: ProviderDraft) => void | Promise<void>
 }) {
   const [draft, setDraft] = useState(provider)
+  const valid = Boolean(
+    draft.displayName.trim() && draft.redirectUriInput.trim()
+  )
 
   return (
-    <section className="flex min-w-0 flex-col gap-5 rounded-lg border bg-background p-5">
-      <div className="flex min-w-0 items-start justify-between gap-4 border-b pb-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-            <Code2Icon className="size-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold">{provider.displayName}</h2>
-            <p className="mt-1 text-sm/5 text-muted-foreground">
-              {providerDescription(provider.code)}
-            </p>
-          </div>
-        </div>
-        <Badge
-          variant={
-            provider.enabled && provider.configured ? "default" : "outline"
-          }
-        >
-          {provider.enabled && provider.configured
-            ? "登录入口已启用"
-            : provider.configured
-              ? "已配置，未启用"
-              : "未配置"}
-        </Badge>
-      </div>
-
-      <div className="grid min-w-0 gap-5 sm:grid-cols-2">
-        <AdminField
-          label="显示名称"
-          htmlFor={`oauth-${provider.code}-display-name`}
-        >
+    <AdminConfigDialog
+      open
+      title={`配置 ${provider.displayName}`}
+      description={providerDescription(provider.code)}
+      icon={
+        <PlatformOAuthProviderIcon
+          provider={provider.icon}
+          className="size-5"
+          aria-hidden="true"
+        />
+      }
+      submitLabel="保存 OAuth 配置"
+      submitDisabled={!valid}
+      saving={saving}
+      onOpenChange={onOpenChange}
+      onSubmit={() => onSave(draft)}
+    >
+      <FieldGroup className="grid sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor={`oauth-${provider.code}-display-name`}>
+            显示名称
+          </FieldLabel>
           <Input
             id={`oauth-${provider.code}-display-name`}
-            value={draft.displayName}
+            required
             maxLength={80}
+            autoFocus
+            value={draft.displayName}
             onChange={(event) =>
-              setDraft({ ...draft, displayName: event.target.value })
+              setDraft((current) => ({
+                ...current,
+                displayName: event.target.value,
+              }))
             }
           />
-        </AdminField>
-        <AdminField
-          label="回调地址"
-          htmlFor={`oauth-${provider.code}-redirect-uri`}
-          description="生产环境使用 HTTPS；本地开发可使用 localhost HTTP。"
-        >
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`oauth-${provider.code}-redirect-uri`}>
+            回调地址
+          </FieldLabel>
           <Input
             id={`oauth-${provider.code}-redirect-uri`}
             type="url"
-            value={draft.redirectUriInput}
-            placeholder="https://example.com/api/platform/auth/oauth/google/callback"
+            required
             maxLength={2048}
+            value={draft.redirectUriInput}
             onChange={(event) =>
-              setDraft({ ...draft, redirectUriInput: event.target.value })
+              setDraft((current) => ({
+                ...current,
+                redirectUriInput: event.target.value,
+              }))
             }
           />
-        </AdminField>
-        <AdminField
-          label="Client ID"
-          htmlFor={`oauth-${provider.code}-client-id`}
-          description={
-            provider.clientIdMasked
-              ? `当前已保存：${provider.clientIdMasked}。留空表示保持不变。`
-              : "首次配置时必须填写。"
-          }
-        >
+          <FieldDescription>
+            必须与 provider 控制台登记值完全一致。
+          </FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`oauth-${provider.code}-client-id`}>
+            Client ID
+          </FieldLabel>
           <Input
             id={`oauth-${provider.code}-client-id`}
             value={draft.clientId}
@@ -143,15 +148,22 @@ function ProviderConfigForm({
             maxLength={512}
             placeholder={provider.clientIdMasked ?? "输入 Client ID"}
             onChange={(event) =>
-              setDraft({ ...draft, clientId: event.target.value })
+              setDraft((current) => ({
+                ...current,
+                clientId: event.target.value,
+              }))
             }
           />
-        </AdminField>
-        <AdminField
-          label="Client secret"
-          htmlFor={`oauth-${provider.code}-client-secret`}
-          description="不会回填明文；留空表示保持已保存的密钥。"
-        >
+          <FieldDescription>
+            {provider.clientIdMasked
+              ? `当前已保存：${provider.clientIdMasked}`
+              : "首次配置时填写"}
+          </FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`oauth-${provider.code}-client-secret`}>
+            Client secret
+          </FieldLabel>
           <Input
             id={`oauth-${provider.code}-client-secret`}
             type="password"
@@ -164,39 +176,31 @@ function ProviderConfigForm({
                 : "输入 Client secret"
             }
             onChange={(event) =>
-              setDraft({ ...draft, clientSecret: event.target.value })
+              setDraft((current) => ({
+                ...current,
+                clientSecret: event.target.value,
+              }))
             }
           />
-        </AdminField>
-      </div>
-
-      <div className="flex flex-col gap-4 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <label className="flex min-w-0 items-center gap-3 text-sm font-medium">
+          <FieldDescription>留空时保持已保存的密钥。</FieldDescription>
+        </Field>
+        <Field className="sm:col-span-2" orientation="horizontal">
           <Checkbox
+            id={`oauth-${provider.code}-enabled`}
             checked={draft.enabled}
             onCheckedChange={(checked) =>
-              setDraft({ ...draft, enabled: checked === true })
+              setDraft((current) => ({
+                ...current,
+                enabled: checked === true,
+              }))
             }
           />
-          <span>允许用户使用此 provider 登录</span>
-        </label>
-        <Button
-          type="button"
-          disabled={saving}
-          onClick={() => void onSave(draft)}
-        >
-          {saving ? (
-            <LoaderCircleIcon
-              className="animate-spin"
-              data-icon="inline-start"
-            />
-          ) : (
-            <SaveIcon data-icon="inline-start" />
-          )}
-          保存 {provider.displayName} 配置
-        </Button>
-      </div>
-    </section>
+          <FieldLabel htmlFor={`oauth-${provider.code}-enabled`}>
+            允许用户使用此 provider 登录
+          </FieldLabel>
+        </Field>
+      </FieldGroup>
+    </AdminConfigDialog>
   )
 }
 
@@ -214,6 +218,9 @@ export default function AdminPlatformOAuthPage() {
   } = useRequest(getAdminPlatformOAuthProviders(), {
     initialData: { success: true as const, providers: [] },
   })
+  const [editingProvider, setEditingProvider] = useState<ProviderDraft | null>(
+    null
+  )
   const [savingCode, setSavingCode] = useState<string | null>(null)
 
   if (adminSession.adminRole !== "super_admin") {
@@ -244,8 +251,9 @@ export default function AdminPlatformOAuthPage() {
         expectedUpdatedAt: provider.updatedAt,
       }
       if (provider.clientId.trim()) input.clientId = provider.clientId.trim()
-      if (provider.clientSecret.trim())
+      if (provider.clientSecret.trim()) {
         input.clientSecret = provider.clientSecret.trim()
+      }
       if (provider.redirectUriInput !== (provider.redirectUri ?? "")) {
         input.redirectUri = provider.redirectUriInput.trim()
       }
@@ -253,11 +261,13 @@ export default function AdminPlatformOAuthPage() {
         provider.code,
         input
       ).send()
+      setEditingProvider(null)
       await refresh()
       toast.success(`${result.provider.displayName} 配置已保存`)
     } catch (saveError) {
       if (isApiError(saveError) && saveError.status === 409) {
         toast.error("配置版本已变化，请刷新后再保存")
+        await refresh()
       } else {
         toast.error(errorMessage(saveError))
       }
@@ -271,12 +281,12 @@ export default function AdminPlatformOAuthPage() {
       <AdminPageHeader
         eyebrow="PLATFORM AUTH"
         title="OAuth 登录配置"
-        description="动态管理 Google 与 GitHub 登录参数。凭据加密保存于后端数据库，保存后无需重启服务。"
+        description="配置固定支持的 Google 与 GitHub 登录参数。凭据加密保存于后端数据库，保存后无需重启服务。"
         actions={
           <Button
             type="button"
             variant="outline"
-            disabled={loading}
+            disabled={loading || savingCode !== null}
             onClick={() => void refresh()}
           >
             <RefreshCwIcon
@@ -292,8 +302,8 @@ export default function AdminPlatformOAuthPage() {
         <div className="flex items-center gap-3 rounded-lg border bg-muted/20 p-4">
           <KeyRoundIcon className="size-5 text-primary" aria-hidden="true" />
           <div>
-            <p className="text-xs text-muted-foreground">配置入口</p>
-            <p className="font-semibold">后台动态管理</p>
+            <p className="text-xs text-muted-foreground">Provider 类型</p>
+            <p className="font-semibold">Google、GitHub</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border bg-muted/20 p-4">
@@ -316,8 +326,8 @@ export default function AdminPlatformOAuthPage() {
       </div>
 
       <AdminPanel
-        title="第三方登录 provider"
-        description="启用前请先在对应服务商控制台登记完全一致的回调地址。"
+        title="支持的登录方式"
+        description="Provider 类型由应用固定，只能编辑连接参数和启用状态。"
         icon={Code2Icon}
         contentClassName="pt-1"
       >
@@ -331,24 +341,80 @@ export default function AdminPlatformOAuthPage() {
             正在读取 provider 配置
           </p>
         ) : data.providers.length ? (
-          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+          <div className="flex min-w-0 flex-col divide-y border-y">
             {data.providers.map((provider) => (
-              <ProviderConfigForm
-                key={`${provider.code}-${provider.updatedAt}`}
-                provider={toDraft(provider)}
-                saving={savingCode === provider.code}
-                onSave={save}
-              />
+              <div
+                key={provider.code}
+                className="flex min-w-0 flex-col gap-4 px-3 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                    <PlatformOAuthProviderIcon
+                      provider={provider.icon}
+                      className="size-5"
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-sm font-semibold">
+                        {provider.displayName}
+                      </h2>
+                      <Badge
+                        variant={
+                          provider.enabled && provider.configured
+                            ? "default"
+                            : "outline"
+                        }
+                      >
+                        {provider.enabled && provider.configured
+                          ? "登录入口已启用"
+                          : provider.configured
+                            ? "已配置，未启用"
+                            : "未配置"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {providerDescription(provider.code)}
+                    </p>
+                    <p className="mt-1 font-mono text-xs break-all text-muted-foreground">
+                      {provider.redirectUri ?? "尚未设置回调地址"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={savingCode !== null}
+                  onClick={() => setEditingProvider(toDraft(provider))}
+                >
+                  <PencilIcon data-icon="inline-start" />
+                  编辑配置
+                </Button>
+              </div>
             ))}
           </div>
         ) : (
           <AdminEmptyState
             icon={Code2Icon}
-            title="没有可配置的 provider"
-            description="请先完成平台 OAuth provider 的数据库迁移。"
+            title="登录方式尚未初始化"
+            description="请检查 Google 与 GitHub OAuth 配置迁移。"
           />
         )}
       </AdminPanel>
+
+      {editingProvider ? (
+        <ProviderConfigDialog
+          key={`${editingProvider.code}-${editingProvider.updatedAt}`}
+          provider={editingProvider}
+          saving={savingCode === editingProvider.code}
+          onOpenChange={(open) => {
+            if (!open) setEditingProvider(null)
+          }}
+          onSave={save}
+        />
+      ) : null}
     </div>
   )
 }

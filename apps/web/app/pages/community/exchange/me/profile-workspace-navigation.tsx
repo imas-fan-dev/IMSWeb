@@ -5,6 +5,7 @@ import {
   MailIcon,
   UserRoundIcon,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import type { PlatformProfile } from "~/lib/api"
@@ -18,65 +19,83 @@ export type ProfileWorkspaceSection =
   | "offices"
   | "claims"
 
-const sections = [
+export const profileWorkspaceSections = [
   {
     id: "profile",
     label: "个人资料",
+    labelKey: "platformAccount.app.sections.profile.label",
     shortLabel: "个人",
     description: "头像、名称与简介",
+    descriptionKey: "platformAccount.app.sections.profile.description",
     icon: UserRoundIcon,
   },
   {
     id: "cards",
     label: "交换名片",
+    labelKey: "platformAccount.app.sections.cards.label",
     shortLabel: "名片",
     description: "名片素材与交换状态",
+    descriptionKey: "platformAccount.app.sections.cards.description",
     icon: CreditCardIcon,
   },
   {
     id: "favorites",
     label: "收藏夹",
+    labelKey: "platformAccount.app.sections.favorites.label",
     shortLabel: "收藏",
     description: "收藏的交换名片",
+    descriptionKey: "platformAccount.app.sections.favorites.description",
     icon: BookmarkIcon,
   },
   {
     id: "offices",
     label: "事务所与位置",
+    labelKey: "platformAccount.app.sections.offices.label",
     shortLabel: "事务所",
     description: "事务所资料与地图公开",
+    descriptionKey: "platformAccount.app.sections.offices.description",
     icon: Building2Icon,
   },
   {
     id: "claims",
     label: "认领消息",
+    labelKey: "platformAccount.app.sections.claims.label",
     shortLabel: "认领",
     description: "历史名片身份确认",
+    descriptionKey: "platformAccount.app.sections.claims.description",
     icon: MailIcon,
   },
 ] as const satisfies ReadonlyArray<{
   id: ProfileWorkspaceSection
   label: string
+  labelKey: string
   shortLabel: string
   description: string
+  descriptionKey: string
   icon: typeof UserRoundIcon
 }>
 
 export function isProfileWorkspaceSection(
   value: string | null
 ): value is ProfileWorkspaceSection {
-  return sections.some((section) => section.id === value)
+  return profileWorkspaceSections.some((section) => section.id === value)
 }
 
 export function ProfileWorkspaceNavigation({
   profile,
   cardCount,
   activeSection,
+  sectionBasePath,
 }: {
   profile: PlatformProfile
   cardCount: number
   activeSection: ProfileWorkspaceSection
+  sectionBasePath?: string
 }) {
+  const { t } = useTranslation()
+
+  if (sectionBasePath) return null
+
   return (
     <aside className="min-w-0 border-b bg-muted/15 lg:sticky lg:top-16 lg:max-h-[calc(100svh-4rem)] lg:self-start lg:overflow-y-auto lg:border-r lg:border-b-0">
       <div className="flex min-w-0 items-center gap-3 p-4 sm:px-6 lg:p-5">
@@ -104,7 +123,7 @@ export function ProfileWorkspaceNavigation({
         className="grid min-w-0 grid-cols-5 border-t lg:block"
         aria-label="个人档案菜单"
       >
-        {sections.map((section) => {
+        {profileWorkspaceSections.map((section) => {
           const active = activeSection === section.id
           const Icon = section.icon
           const href =
@@ -121,7 +140,7 @@ export function ProfileWorkspaceNavigation({
                   ? "border-primary bg-accent/60 text-foreground lg:border-l-primary"
                   : "text-muted-foreground lg:border-l-transparent"
               )}
-              aria-label={section.label}
+              aria-label={t(section.labelKey)}
               aria-current={active ? "page" : undefined}
               aria-controls={`profile-workspace-section-${section.id}`}
             >
@@ -137,13 +156,13 @@ export function ProfileWorkspaceNavigation({
                   className="hidden font-medium text-current lg:block"
                   aria-hidden="true"
                 >
-                  {section.label}
+                  {t(section.labelKey)}
                 </span>
                 <span
                   className="mt-0.5 hidden truncate text-xs text-muted-foreground lg:block"
                   aria-hidden="true"
                 >
-                  {section.description}
+                  {t(section.descriptionKey)}
                 </span>
               </span>
             </NavigationLink>

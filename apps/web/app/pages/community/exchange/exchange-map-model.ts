@@ -10,6 +10,138 @@ export interface MapViewportBounds {
   north: number
 }
 
+export interface ExchangeMapViewport {
+  center: [number, number]
+  zoom: number
+}
+
+export interface ExchangeMapFilters {
+  city: string
+  seriesCodes: string[]
+  openOnly: boolean
+}
+
+export const EXCHANGE_MAP_MIN_ZOOM = 2.3
+export const EXCHANGE_MAP_MAX_ZOOM = 11
+export const DEFAULT_EXCHANGE_MAP_VIEWPORT: Readonly<ExchangeMapViewport> = {
+  center: [127.1, 31.2],
+  zoom: 4.05,
+}
+
+const exchangeMapSessionKey = "ims:community-exchange-map"
+const exchangeMapFilterKeys = ["city", "series", "open"] as const
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+function readExchangeMapSessionState() {
+  if (typeof window === "undefined") return {}
+  try {
+    const stored = window.sessionStorage.getItem(exchangeMapSessionKey)
+    if (!stored) return {}
+    const parsed: unknown = JSON.parse(stored)
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeExchangeMapSessionState(update: Record<string, unknown>) {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.setItem(
+      exchangeMapSessionKey,
+      JSON.stringify({ ...readExchangeMapSessionState(), ...update })
+    )
+  } catch {
+    // Storage is optional in hardened WebViews. The map remains usable without it.
+  }
+}
+
+export function exchangeMapFilterDefaults(currentSearch: URLSearchParams) {
+  if (exchangeMapFilterKeys.some((key) => currentSearch.has(key))) {
+    return undefined
+  }
+
+  const stored = readExchangeMapSessionState().filters
+  if (!isRecord(stored)) return undefined
+
+  const city = typeof stored.city === "string" ? stored.city.trim() : ""
+  const seriesCodes = Array.isArray(stored.seriesCodes)
+    ? Array.from(
+        new Set(
+          stored.seriesCodes.filter(
+            (value): value is string =>
+              typeof value === "string" && Boolean(value.trim())
+          )
+        )
+      )
+        .map((value) => value.trim())
+        .slice(0, 8)
+    : []
+  const openOnly = stored.openOnly === true
+  const defaults = new URLSearchParams()
+  if (city) defaults.set("city", city)
+  for (const seriesCode of seriesCodes) defaults.append("series", seriesCode)
+  if (openOnly) defaults.set("open", "true")
+  return defaults.size ? defaults : undefined
+}
+
+export function rememberExchangeMapFilters(filters: ExchangeMapFilters) {
+  writeExchangeMapSessionState({
+    filters: {
+      city: filters.city.trim(),
+      seriesCodes: Array.from(
+        new Set(
+          filters.seriesCodes.map((value) => value.trim()).filter(Boolean)
+        )
+      ).slice(0, 8),
+      openOnly: filters.openOnly,
+    },
+  })
+}
+
+function validExchangeMapViewport(
+  value: unknown
+): value is ExchangeMapViewport {
+  if (!isRecord(value) || !Array.isArray(value.center)) return false
+  const [longitude, latitude] = value.center
+  return (
+    value.center.length === 2 &&
+    typeof longitude === "number" &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180 &&
+    typeof latitude === "number" &&
+    Number.isFinite(latitude) &&
+    latitude >= -85.051129 &&
+    latitude <= 85.051129 &&
+    typeof value.zoom === "number" &&
+    Number.isFinite(value.zoom) &&
+    value.zoom >= EXCHANGE_MAP_MIN_ZOOM &&
+    value.zoom <= EXCHANGE_MAP_MAX_ZOOM
+  )
+}
+
+export function exchangeMapInitialViewport(): ExchangeMapViewport {
+  const stored = readExchangeMapSessionState().viewport
+  const viewport = validExchangeMapViewport(stored)
+    ? stored
+    : DEFAULT_EXCHANGE_MAP_VIEWPORT
+  return { center: [...viewport.center], zoom: viewport.zoom }
+}
+
+export function rememberExchangeMapViewport(viewport: ExchangeMapViewport) {
+  if (!validExchangeMapViewport(viewport)) return
+  writeExchangeMapSessionState({
+    viewport: {
+      center: viewport.center.map(stableCoordinate),
+      zoom: Number(viewport.zoom.toFixed(4)),
+    },
+  })
+}
+
 export interface FudabaMapOfficeGroup {
   key: string
   latitude: number

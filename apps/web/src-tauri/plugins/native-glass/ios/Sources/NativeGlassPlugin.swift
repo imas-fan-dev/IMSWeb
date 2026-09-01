@@ -10,6 +10,29 @@ private func logNativeGlass(_ message: String) {
 }
 #endif
 
+private let imsTabBarSelectedColor = UIColor(
+  red: 1,
+  green: 23.0 / 255.0,
+  blue: 79.0 / 255.0,
+  alpha: 1
+)
+
+private struct NativeColor: Decodable {
+  let red: Double
+  let green: Double
+  let blue: Double
+  let alpha: Double
+
+  var uiColor: UIColor {
+    UIColor(
+      red: CGFloat(min(max(red, 0), 1)),
+      green: CGFloat(min(max(green, 0), 1)),
+      blue: CGFloat(min(max(blue, 0), 1)),
+      alpha: CGFloat(min(max(alpha, 0), 1))
+    )
+  }
+}
+
 private struct NativeTabItem: Decodable {
   let route: String
   let lucideIcon: String
@@ -18,13 +41,17 @@ private struct NativeTabItem: Decodable {
 
 private struct ConfigureArgs: Decodable {
   let dark: Bool
+  let hidden: Bool?
   let items: [NativeTabItem]
+  let selectedColor: NativeColor?
   let selectedIndex: Int
 }
 
 private struct UpdateArgs: Decodable {
   let dark: Bool
-  let selectedIndex: Int
+  let hidden: Bool?
+  let selectedColor: NativeColor?
+  let selectedIndex: Int?
 }
 
 private final class NativeTabContentViewController: UIViewController {
@@ -96,6 +123,7 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
 final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   private weak var webview: WKWebView?
   private var items: [NativeTabItem] = []
+  private var selectedColor = imsTabBarSelectedColor
   private var selectedIndex = 0
   private var isSynchronizingSelection = false
   private var tabBarController: UITabBarController?
@@ -103,6 +131,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
 
   override func load(webview: WKWebView) {
     self.webview = webview
+    webview.scrollView.bounces = false
     #if DEBUG
     logNativeGlass("plugin loaded")
     #endif
@@ -159,8 +188,14 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
         invoke.resolve(["supported": false, "reason": "native-glass-inactive"])
         return
       }
-      self.selectTab(at: args.selectedIndex)
+      if let selectedIndex = args.selectedIndex {
+        self.selectTab(at: selectedIndex)
+      }
+      if let selectedColor = args.selectedColor {
+        self.selectedColor = selectedColor.uiColor
+      }
       self.applyAppearance(dark: args.dark)
+      self.setBarHidden(args.hidden ?? false, animated: true)
       invoke.resolve(["supported": true])
     }
   }
@@ -176,6 +211,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   private func install(in hostController: UIViewController, args: ConfigureArgs) -> Bool {
     removeBar(animated: false)
     items = args.items
+    selectedColor = args.selectedColor?.uiColor ?? imsTabBarSelectedColor
     guard let tabs = makeTabs() else {
       items = []
       return false
@@ -204,6 +240,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     self.tabBarHost = tabBarHost
     selectTab(at: args.selectedIndex)
     applyAppearance(dark: args.dark)
+    setBarHidden(args.hidden ?? false, animated: false)
     return true
   }
 
@@ -250,8 +287,13 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   @available(iOS 26.0, *)
   private func applyAppearance(dark: Bool) {
     tabBarController?.overrideUserInterfaceStyle = dark ? .dark : .light
-    tabBarController?.tabBar.tintColor = .systemPink
+    tabBarController?.tabBar.tintColor = selectedColor
     tabBarController?.tabBar.unselectedItemTintColor = .secondaryLabel
+  }
+
+  @available(iOS 18.0, *)
+  private func setBarHidden(_ hidden: Bool, animated: Bool) {
+    tabBarController?.setTabBarHidden(hidden, animated: animated)
   }
 
   @available(iOS 18.0, *)

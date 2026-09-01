@@ -40,21 +40,22 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 
 常用命令：
 
-| 命令               | 用途                                     |
-| ------------------ | ---------------------------------------- |
-| `pnpm dev`         | 启动网站目标 React Router 开发服务器     |
-| `pnpm dev:app`     | 在 1420 启动 App 目标及本地 API 代理     |
-| `pnpm build`       | 生成生产前端产物与预渲染页面             |
-| `pnpm build:app`   | 生成带已验证远程 origin 的 App 静态产物  |
-| `pnpm design:lint` | 校验根目录 `DESIGN.md` 设计规范          |
-| `pnpm preview`     | 在 `127.0.0.1` 上预览已构建产物          |
-| `pnpm lint`        | 执行 ESLint 与 Tailwind canonical 类检查 |
-| `pnpm typecheck`   | 生成路由类型并执行 TypeScript 检查       |
-| `pnpm test:unit`   | 运行 Vitest 单元与组件测试               |
-| `pnpm test:e2e`    | 运行 Playwright 桌面端和移动端测试       |
-| `pnpm test`        | 依次运行单元测试与端到端测试             |
-| `pnpm check`       | 运行 lint、类型检查、单元测试和生产构建  |
-| `pnpm format`      | 使用 Prettier 格式化 TypeScript/TSX 文件 |
+| 命令                | 用途                                     |
+| ------------------- | ---------------------------------------- |
+| `pnpm dev`          | 启动网站目标 React Router 开发服务器     |
+| `pnpm dev:app`      | 在 1420 启动 App 目标及本地 API 代理     |
+| `pnpm build`        | 生成生产前端产物与预渲染页面             |
+| `pnpm build:app`    | 生成带已验证远程 origin 的 App 静态产物  |
+| `pnpm design:lint`  | 校验根目录 `DESIGN.md` 设计规范          |
+| `pnpm preview`      | 在 `127.0.0.1` 上预览已构建产物          |
+| `pnpm lint`         | 执行 ESLint 与 Tailwind canonical 类检查 |
+| `pnpm typecheck`    | 生成路由类型并执行 TypeScript 检查       |
+| `pnpm test:unit`    | 运行 Vitest 单元与组件测试               |
+| `pnpm test:e2e`     | 运行网站目标的 Playwright 测试           |
+| `pnpm test:e2e:app` | 运行 App 安全区与底栏 Playwright 矩阵    |
+| `pnpm test`         | 依次运行单元测试与端到端测试             |
+| `pnpm check`        | 运行 lint、类型检查、单元测试和生产构建  |
+| `pnpm format`       | 使用 Prettier 格式化 TypeScript/TSX 文件 |
 
 `dev:app` 根据 `TAURI_DEV_HOST` 生成本地 1420 origin。真机请求仍是同源 URL，由 Vite 代理
 到本机 Hono，因此读取本地数据库、对象存储和站点包；它不会继承生产
@@ -63,10 +64,13 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 `build:app` 默认把 API 和公共站点 origin 设为 `https://idol-master.top`，并拒绝带凭据、路径、
 查询参数或非 HTTPS 公网地址的覆盖值。
 
+`test:e2e:app` 单独启动 1420 的 App target，覆盖 320px 手机、iPhone、Pixel、横屏和 WebKit。
+它验证 Web 回退底栏与模拟安全区；iOS 26 的 UIKit 底栏仍需在模拟器或真机检查。
+
 首次运行 Playwright 前，如本机还没有浏览器二进制，可执行：
 
 ```sh
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium webkit
 ```
 
 ## 目录边界
@@ -170,16 +174,16 @@ Web 不包含从私有 Legacy 仓库迁入的图片、字体、音视频或品�
 
 ## App icon
 
-`public/brand/imsweb-app-icon.png` 是客户端 1:1 图标的唯一源文件。图标由 `gpt-image-2` 生成，采用与主站 logo 呼应的左上 `im`、右下 `@s` 阶梯布局，以红色 `@` 为重心，并沿用银色金属字面、黑白双层描边和右倾斜体；32 px 下仍保留清晰的 `@` 强调。
+`public/brand/imsweb-app-icon.png` 是客户端 1:1 图标的默认源文件。图标经 `gpt-image-2` 生成与图像编辑，采用与主站 logo 呼应的左上 `im` 与右下 `@s` 阶梯布局；两层保持原有的纵向位置，仅横向向中心收拢，整组字标居中于画布。红色 `@` 位于前景并压住相邻银色字面，所有字形保留连续的金属字面、黑白双层描边和右倾斜体。32 px 下仍保留清晰的 `@` 强调。
 
-`src-tauri/icons/` 下的全部 PNG、`icon.icns` 和 `icon.ico` 都是派生产物，不要手改。替换图标时先更新 PNG，
-再从本 workspace 重新生成：
+Android 另外使用 `src-tauri/icon-sources/` 中的背景、透明前景和单色图层。前景字标位于 adaptive icon 安全区，旧版 launcher 图标通过 `android_fg_scale` 提高占比；Android 13 及以上可以使用单色层生成主题图标。`app-icon.json` 是 Tauri icon manifest，默认图仍供 iOS、桌面和商店图标使用。
+
+`src-tauri/icons/` 下的全部 PNG、`icon.icns` 和 `icon.ico` 都是派生产物，不要手改。替换默认图或 Android 图层后，从本 workspace 重新生成：
 
 ```sh
-pnpm exec tauri icon public/brand/imsweb-app-icon.png
+pnpm run icon:app
 ```
 
-该命令直接读取 PNG，无需额外的位图工具链。`tauri.conf.json` 的 `bundle.icon` 列表保持不变。
-图标的字形来源、许可与 SHA-256 记录在[来源与许可登记](../../docs/governance/assets.md)，重新生成后需同步更新。
+Tauri 的 `dev` 与 `build` 入口会在启动前自动运行这条命令，确保被忽略的 `src-tauri/gen/android/` 使用同一套图层。`tauri.conf.json` 的 `bundle.icon` 列表保持不变。图标的字形来源、许可与 SHA-256 记录在[来源与许可登记](../../docs/governance/assets.md)，替换源文件后需同步更新。
 
 站点 `public/favicon.ico` 不由这条命令产出，仍是独立的 fallback 资产。

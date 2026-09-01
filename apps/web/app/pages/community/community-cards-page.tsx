@@ -7,7 +7,7 @@ import {
   ShieldCheckIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import type { FormEvent } from "react"
+import type { SubmitEvent } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
@@ -17,6 +17,7 @@ import {
   NamecardPreview,
   type NamecardSide,
 } from "~/components/shared/namecard-preview"
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -57,6 +58,8 @@ import {
   NAMECARD_REACTIONS,
 } from "~/lib/api"
 import type { Namecard, NamecardPage, NamecardReactions } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
@@ -384,7 +387,7 @@ export default function CommunityCardsPage() {
     })
   }
 
-  function jumpToPage(event: FormEvent<HTMLFormElement>) {
+  function jumpToPage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const totalPages = Math.max(result?.totalPage ?? 0, 1)
     const nextPage = Number(targetPage)
@@ -396,7 +399,7 @@ export default function CommunityCardsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-12">
+    <PageShell width="wide">
       <NamecardPreview
         card={selectedCard}
         side={selectedSide}
@@ -430,27 +433,44 @@ export default function CommunityCardsPage() {
         }}
       />
 
-      <NavigationLink
-        to="/community"
-        className={buttonVariants({ variant: "ghost", size: "sm" })}
-      >
-        <ArrowLeftIcon data-icon="inline-start" />
-        返回社区
-      </NavigationLink>
+      {!IS_APP_TARGET ? (
+        <NavigationLink
+          to="/community"
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          <ArrowLeftIcon data-icon="inline-start" />
+          返回社区
+        </NavigationLink>
+      ) : null}
 
-      <header className="mt-8 max-w-3xl">
-        <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
-          Producer cards
-        </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">
+      <header className={cn("max-w-3xl", !IS_APP_TARGET && "mt-8")}>
+        {!IS_APP_TARGET ? (
+          <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
+            Producer cards
+          </p>
+        ) : null}
+        <h1
+          className={cn(
+            "font-semibold tracking-tight wrap-anywhere",
+            IS_APP_TARGET ? "text-2xl" : "mt-3 text-4xl"
+          )}
+        >
           制作人名片墙
         </h1>
-        <p className="mt-4 leading-7 text-muted-foreground">
+        <p
+          className={cn(
+            "leading-7 wrap-anywhere text-muted-foreground",
+            IS_APP_TARGET ? "mt-2" : "mt-4"
+          )}
+        >
           浏览制作人公开提交的双面名片，并用表情留下回应。新投稿将在运营审核后显示。
         </p>
       </header>
 
-      <section className="mt-10" aria-label="公开名片">
+      <section
+        className={IS_APP_TARGET ? "mt-6" : "mt-10"}
+        aria-label="公开名片"
+      >
         {loading ? (
           <div className="grid gap-4 md:grid-cols-2">
             {Array.from({ length: 4 }, (_, index) => (
@@ -586,6 +606,6 @@ export default function CommunityCardsPage() {
           </>
         ) : null}
       </section>
-    </main>
+    </PageShell>
   )
 }

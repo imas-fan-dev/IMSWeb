@@ -2,8 +2,9 @@ import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 import { useTranslation } from "react-i18next"
 
-import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
+import { NativeTabBarSuppression } from "~/components/ui/native-tab-bar-suppression"
+import { cn } from "~/lib/utils"
 import { XIcon } from "lucide-react"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -49,17 +50,25 @@ function SheetContent({
 
   return (
     <SheetPortal>
+      <NativeTabBarSuppression />
       <SheetOverlay />
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "glass-surface glass-panel fixed z-50 flex max-h-(--safe-viewport-height) flex-col gap-4 bg-clip-padding text-sm text-popover-foreground transition duration-200 ease-emphasized data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:right-(--safe-area-right) data-[side=bottom]:bottom-(--safe-area-bottom) data-[side=bottom]:left-(--safe-area-left) data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-10 data-[side=bottom]:data-starting-style:translate-y-10 data-[side=left]:top-(--safe-area-top) data-[side=left]:bottom-(--safe-area-bottom) data-[side=left]:left-(--safe-area-left) data-[side=left]:h-auto data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:-translate-x-10 data-[side=left]:data-starting-style:-translate-x-10 data-[side=right]:top-(--safe-area-top) data-[side=right]:right-(--safe-area-right) data-[side=right]:bottom-(--safe-area-bottom) data-[side=right]:h-auto data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-10 data-[side=right]:data-starting-style:translate-x-10 data-[side=top]:top-(--safe-area-top) data-[side=top]:right-(--safe-area-right) data-[side=top]:left-(--safe-area-left) data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:-translate-y-10 data-[side=top]:data-starting-style:-translate-y-10 data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
+          "glass-surface glass-panel fixed z-50 flex max-h-(--safe-viewport-height) flex-col gap-4 bg-clip-padding text-sm text-popover-foreground transition duration-200 ease-emphasized data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:right-(--safe-area-right) data-[side=bottom]:bottom-0 data-[side=bottom]:left-(--safe-area-left) data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-10 data-[side=bottom]:data-starting-style:translate-y-10 data-[side=left]:top-(--safe-area-top) data-[side=left]:bottom-(--safe-area-bottom) data-[side=left]:left-(--safe-area-left) data-[side=left]:h-auto data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:-translate-x-10 data-[side=left]:data-starting-style:-translate-x-10 data-[side=right]:top-(--safe-area-top) data-[side=right]:right-(--safe-area-right) data-[side=right]:bottom-(--safe-area-bottom) data-[side=right]:h-auto data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-10 data-[side=right]:data-starting-style:translate-x-10 data-[side=top]:top-(--safe-area-top) data-[side=top]:right-(--safe-area-right) data-[side=top]:left-(--safe-area-left) data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:-translate-y-10 data-[side=top]:data-starting-style:-translate-y-10 data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
           className
         )}
         {...props}
       >
         {children}
+        {side === "bottom" ? (
+          <div
+            aria-hidden="true"
+            data-slot="sheet-bottom-safe-area"
+            className="h-(--safe-area-bottom) shrink-0"
+          />
+        ) : null}
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"

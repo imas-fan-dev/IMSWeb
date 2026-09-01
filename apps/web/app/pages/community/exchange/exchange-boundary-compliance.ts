@@ -2,6 +2,7 @@ import { mapsPath } from "@imsweb/contracts/paths"
 import type {
   FillLayerSpecification,
   FilterSpecification,
+  GeoJSONSourceSpecification,
   LineLayerSpecification,
   Map as MapLibreMap,
   SymbolLayerSpecification,
@@ -44,7 +45,7 @@ const CHINA_DASH_SOURCE_ID = "china-boundary-dashes"
 export const CHINA_DASH_FILL_LAYER_ID = "boundary_china_dash_fill"
 export const CHINA_DASH_LINE_LAYER_ID = "boundary_china_dash_line"
 
-/** 南海断续线资产路径，必须同源。 */
+/** 南海断续线资产路径。App 从自身静态资源读取后以内联 GeoJSON 传给 MapLibre。 */
 export const CHINA_DASH_SOURCE_URL = mapsPath("/china-boundary-dashes.json")
 
 /** 台湾省级注记插入位置：与其余注记同层级，位于国家注记之下。 */
@@ -250,7 +251,7 @@ export function chinaBoundaryDashLineLayer(): LineLayerSpecification {
  */
 export function applyChinaBoundaryCompliance(
   map: MapLibreMap,
-  dashSourceUrl: string = CHINA_DASH_SOURCE_URL
+  dashSource: GeoJSONSourceSpecification["data"] = CHINA_DASH_SOURCE_URL
 ) {
   for (const layerId of COUNTRY_LABEL_LAYER_IDS) {
     if (!map.getLayer(layerId)) continue
@@ -284,7 +285,7 @@ export function applyChinaBoundaryCompliance(
   if (!map.getSource(CHINA_DASH_SOURCE_ID)) {
     map.addSource(CHINA_DASH_SOURCE_ID, {
       type: "geojson",
-      data: dashSourceUrl,
+      data: dashSource,
     })
   }
   const dashAnchor = map.getLayer(CHINA_CLAIM_ANCHOR_LAYER_ID)

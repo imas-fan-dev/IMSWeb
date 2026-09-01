@@ -76,20 +76,27 @@ export function WikiMobileSearch({
       <DialogContent
         initialFocus={inputRef}
         showCloseButton={false}
-        safeArea="viewport"
+        safeArea={clearsAppTabBar ? "custom" : "viewport"}
         overlayClassName={cn(
           "bg-background/92 duration-300 supports-backdrop-filter:bg-background/45 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150 motion-reduce:duration-0",
           classic && "bg-[#fff8fb]/92 supports-backdrop-filter:bg-[#fff8fb]/48"
         )}
         className={cn(
           "flex flex-col gap-0 overflow-hidden rounded-none bg-transparent p-0 ring-0 duration-300 motion-reduce:duration-0 data-open:zoom-in-100 data-closed:zoom-out-100",
+          clearsAppTabBar &&
+            "inset-x-0 top-(--app-header-inset) bottom-0 h-(--app-viewport-height) max-h-none w-screen max-w-none translate-0",
           classic && "text-[#292a2f]"
         )}
         data-wiki-mobile-search-dialog={view}
         onClick={closeFromBackground}
       >
         <div
-          className="min-h-0 flex-1 pt-[calc(1.5rem+var(--safe-area-top))] pr-[calc(1rem+var(--safe-area-right))] pb-[calc(1rem+var(--safe-area-bottom))] pl-[calc(1rem+var(--safe-area-left))]"
+          className={cn(
+            "min-h-0 flex-1",
+            clearsAppTabBar
+              ? "px-(--app-safe-inline) pt-4 pb-[calc(var(--app-bottom-clearance)-4.25rem)]"
+              : "pt-[calc(1.5rem+var(--safe-area-top))] pr-[calc(1rem+var(--safe-area-right))] pb-[calc(1rem+var(--safe-area-bottom))] pl-[calc(1rem+var(--safe-area-left))]"
+          )}
           data-wiki-mobile-search-surface={view}
           data-wiki-mobile-search-dismiss={view}
         >

@@ -1,5 +1,12 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
+import {
+  androidReleaseAllowsCleartext,
+  configureGeneratedAndroidCleartext,
+} from "../../../scripts/android-release-network.js"
 import {
   DEFAULT_APP_ORIGIN,
   appBuildEnvironment,
@@ -89,6 +96,90 @@ describe("App build environment", () => {
         VITE_IMS_API_ORIGIN: "http://192.168.31.169:3000",
       })
     ).toThrow()
+  })
+
+  it("enables Android Release cleartext only for an opted-in LAN build", () => {
+    const allowsCleartext = (environment: NodeJS.ProcessEnv) =>
+      androidReleaseAllowsCleartext(
+        environment,
+        appBuildEnvironment(environment)
+      )
+
+    expect(
+      allowsCleartext({
+        IMS_ALLOW_INSECURE_LAN_APP_ORIGIN: "1",
+        VITE_IMS_API_ORIGIN: "http://10.0.2.2:3001",
+        VITE_IMS_PUBLIC_SITE_ORIGIN: "http://10.0.2.2:1420",
+      })
+    ).toBe(true)
+    expect(
+      allowsCleartext({
+        VITE_IMS_API_ORIGIN: "http://127.0.0.1:3000",
+      })
+    ).toBe(false)
+    expect(
+      allowsCleartext({
+        IMS_ALLOW_INSECURE_LAN_APP_ORIGIN: "1",
+        VITE_IMS_API_ORIGIN: "https://api.idol-master.top",
+      })
+    ).toBe(false)
+  })
+
+  it("patches only the Android Release cleartext placeholder", () => {
+    const directory = mkdtempSync(join(tmpdir(), "imsweb-android-gradle-"))
+    const gradlePath = join(directory, "build.gradle.kts")
+    const source = `defaultConfig {
+  manifestPlaceholders["usesCleartextTraffic"] = "false"
+}
+buildTypes {
+  getByName("debug") {
+    manifestPlaceholders["usesCleartextTraffic"] = "true"
+  }
+}
+`
+    writeFileSync(gradlePath, source)
+
+    try {
+      expect(
+        configureGeneratedAndroidCleartext({
+          environment: {
+            IMS_ALLOW_INSECURE_LAN_APP_ORIGIN: "1",
+            VITE_IMS_API_ORIGIN: "http://10.0.2.2:3001",
+          },
+          buildEnvironment: {
+            VITE_IMS_API_ORIGIN: "http://10.0.2.2:3001",
+            VITE_IMS_PUBLIC_SITE_ORIGIN: "https://idol-master.top",
+            VITE_IMS_MAP_TRANSPORT_ORIGIN: "",
+          },
+          gradlePath,
+        })
+      ).toBe(true)
+      expect(readFileSync(gradlePath, "utf8")).toContain(
+        'defaultConfig {\n  manifestPlaceholders["usesCleartextTraffic"] = "true"'
+      )
+      expect(
+        readFileSync(gradlePath, "utf8").match(
+          /manifestPlaceholders\["usesCleartextTraffic"\] = "true"/g
+        )
+      ).toHaveLength(2)
+
+      expect(
+        configureGeneratedAndroidCleartext({
+          environment: {},
+          buildEnvironment: {
+            VITE_IMS_API_ORIGIN: "https://idol-master.top",
+            VITE_IMS_PUBLIC_SITE_ORIGIN: "https://idol-master.top",
+            VITE_IMS_MAP_TRANSPORT_ORIGIN: "",
+          },
+          gradlePath,
+        })
+      ).toBe(false)
+      expect(readFileSync(gradlePath, "utf8")).toContain(
+        'defaultConfig {\n  manifestPlaceholders["usesCleartextTraffic"] = "false"'
+      )
+    } finally {
+      rmSync(directory, { force: true, recursive: true })
+    }
   })
 })
 

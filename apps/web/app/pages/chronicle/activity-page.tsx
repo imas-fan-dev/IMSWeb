@@ -6,6 +6,7 @@ import {
   MapPinIcon,
 } from "lucide-react"
 
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import {
@@ -17,6 +18,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getChronicleActivity } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import type { Route } from "./+types/activity-page"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
@@ -51,7 +53,7 @@ export default function ChronicleActivityPage({
   )
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-16">
+    <PageShell width="wide">
       {loading ? <ActivityLoading /> : null}
 
       {error ? (
@@ -76,35 +78,55 @@ export default function ChronicleActivityPage({
 
       {!loading && !error && data ? (
         <>
-          <NavigationLink
-            to="/chronicle"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeftIcon className="size-4" aria-hidden="true" />
-            返回编年史
-          </NavigationLink>
+          {!IS_APP_TARGET ? (
+            <NavigationLink
+              to="/chronicle"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeftIcon className="size-4" aria-hidden="true" />
+              返回编年史
+            </NavigationLink>
+          ) : null}
 
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+          <h1
+            className={
+              IS_APP_TARGET
+                ? "text-2xl font-semibold tracking-tight wrap-anywhere"
+                : "mt-4 text-3xl font-semibold tracking-tight wrap-anywhere"
+            }
+          >
             {data.title}
           </h1>
 
           <div className="mt-4 flex flex-wrap gap-2">
             {data.date ? (
-              <Badge variant="secondary" className="gap-1.5">
-                <CalendarDaysIcon className="size-3.5" aria-hidden="true" />
-                {data.date}
+              <Badge
+                variant="secondary"
+                className="h-auto max-w-full min-w-0 gap-1.5 py-1 whitespace-normal"
+              >
+                <CalendarDaysIcon
+                  className="size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 wrap-anywhere">{data.date}</span>
               </Badge>
             ) : null}
             {data.location ? (
-              <Badge variant="secondary" className="gap-1.5">
-                <MapPinIcon className="size-3.5" aria-hidden="true" />
-                {data.location}
+              <Badge
+                variant="secondary"
+                className="h-auto max-w-full min-w-0 gap-1.5 py-1 whitespace-normal"
+              >
+                <MapPinIcon className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 wrap-anywhere">{data.location}</span>
               </Badge>
             ) : null}
           </div>
 
           {data.images.length > 0 ? (
-            <section className="mt-10" aria-label="活动照片">
+            <section
+              className={IS_APP_TARGET ? "mt-6" : "mt-10"}
+              aria-label="活动照片"
+            >
               <h2 className="mb-4 text-lg font-semibold">
                 活动照片（{data.images.length}）
               </h2>
@@ -128,7 +150,11 @@ export default function ChronicleActivityPage({
               </div>
             </section>
           ) : (
-            <Empty className="mt-10 min-h-48 border">
+            <Empty
+              className={
+                IS_APP_TARGET ? "mt-6 min-h-48 border" : "mt-10 min-h-48 border"
+              }
+            >
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <HistoryIcon aria-hidden="true" />
@@ -142,6 +168,6 @@ export default function ChronicleActivityPage({
           )}
         </>
       ) : null}
-    </main>
+    </PageShell>
   )
 }

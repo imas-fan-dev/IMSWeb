@@ -66,8 +66,12 @@ describe("AppLayout", () => {
       "sticky",
       "top-0",
       "shrink-0",
-      "pt-[env(safe-area-inset-top)]"
+      "pt-(--safe-area-top)"
     )
+    expect(shell).toHaveAttribute("data-app-shell")
+    expect(shell).not.toHaveAttribute("data-app-immersive")
+    expect(document.documentElement).not.toHaveAttribute("data-app-immersive")
+    expect(screen.getByText("活动", { selector: "p" })).toBeVisible()
     expect(header).not.toHaveClass("fixed", "inset-x-0")
     expect(screen.getByText("活动中心内容")).toBeVisible()
     expect(screen.getByText("跳到主要内容")).toHaveClass(
@@ -78,5 +82,42 @@ describe("AppLayout", () => {
     expect(screen.getByText("跳到主要内容")).not.toHaveClass(
       "focus:translate-y-0"
     )
+  })
+
+  it("removes the global header from the full-screen exchange map", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/community/exchange"]}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route
+                path="community/exchange"
+                element={<main>交换地图内容</main>}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    const content = screen.getByText("交换地图内容")
+    const shell = screen.getByTestId(
+      "platform-session-boundary"
+    ).firstElementChild
+
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument()
+    expect(screen.queryByText("偶像大师交流站")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "切换主题" })
+    ).not.toBeInTheDocument()
+    expect(shell).toHaveClass("h-dvh", "overflow-hidden")
+    expect(shell).toHaveAttribute("data-app-shell")
+    expect(shell).toHaveAttribute("data-app-immersive")
+    expect(document.documentElement).toHaveAttribute("data-app-immersive")
+    expect(content.parentElement).toHaveClass("bg-background")
+    expect(content.parentElement).not.toHaveClass(
+      "pt-[env(safe-area-inset-top)]"
+    )
+    expect(screen.getByRole("navigation", { name: "App 导航" })).toBeVisible()
   })
 })

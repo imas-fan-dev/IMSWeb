@@ -19,6 +19,8 @@ vi.mock("alova/client", () => ({
 }))
 
 vi.mock("~/lib/api", () => ({
+  API_ORIGIN: "",
+  PUBLIC_SITE_ORIGIN: "",
   getAdminSession: mocks.getAdminSession,
   isApiError: (error: unknown) =>
     typeof error === "object" &&

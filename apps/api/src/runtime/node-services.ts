@@ -42,7 +42,7 @@ import {
     COOKIE_OPTIONS,
     FUDABA_GEOCODING_CONFIG,
     FUDABA_MAP_ENABLED,
-    FUDABA_MAP_PREFIXES,
+    FUDABA_MAP_STYLE_URLS,
     FUDABA_MAP_STYLE_URL,
     FUDABA_PUBLIC_READ_ENABLED,
     FUDABA_WRITE_ENABLED,
@@ -99,7 +99,8 @@ interface InitializableResource {
 }
 
 interface CoreRepositoryAdapter
-    extends InitializableResource,
+    extends
+        InitializableResource,
         BackofficeAuthRepository,
         AdminAccountRepository,
         AuditRepository,
@@ -111,16 +112,13 @@ interface CoreRepositoryAdapter
         SitePackageRepository {}
 
 interface StoryRepositoryAdapter
-    extends InitializableResource,
-        StoryRepository {}
+    extends InitializableResource, StoryRepository {}
 
 interface PlatformAccountRepositoryAdapter
-    extends InitializableResource,
-        PlatformAccountRepository {}
+    extends InitializableResource, PlatformAccountRepository {}
 
 interface FudabaRepositoryAdapter
-    extends InitializableResource,
-        FudabaRepository {}
+    extends InitializableResource, FudabaRepository {}
 
 interface NodeRepositories {
     database: ManagedSqlDatabase;
@@ -203,10 +201,10 @@ async function createNodeObjectStorage(
     });
     const signingClient = config.publicEndpoint
         ? new S3Client({
-            region: config.region,
-            endpoint: config.publicEndpoint,
-            forcePathStyle: config.forcePathStyle,
-        })
+              region: config.region,
+              endpoint: config.publicEndpoint,
+              forcePathStyle: config.forcePathStyle,
+          })
         : client;
     const options = {
         bucket: config.bucket,
@@ -232,7 +230,8 @@ async function createNodeObjectStorage(
     storage = new S3ObjectStorage(
         client,
         options,
-        (command, expiresIn) => getSignedUrl(signingClient, command, { expiresIn }),
+        (command, expiresIn) =>
+            getSignedUrl(signingClient, command, { expiresIn }),
         state,
         compensation,
         signingClient === client ? undefined : signingClient,
@@ -444,7 +443,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 fudabaWriteEnabled: FUDABA_WRITE_ENABLED,
                 fudabaMapEnabled: FUDABA_MAP_ENABLED,
                 fudabaMapStyleUrl: FUDABA_MAP_STYLE_URL,
-                fudabaMapPrefixes: FUDABA_MAP_PREFIXES,
+                fudabaMapStyleUrls: FUDABA_MAP_STYLE_URLS,
                 fudabaGeocoding: FUDABA_GEOCODING_CONFIG,
             },
         };

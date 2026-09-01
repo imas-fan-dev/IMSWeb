@@ -55,6 +55,7 @@ export const resources = {
         description: "IMSWeb 公共页面与资料入口",
         home: "首页",
         events: "活动",
+        apps: "站内应用",
         recommendations: "推荐",
         live: "Live",
         community: "社区",
@@ -64,6 +65,7 @@ export const resources = {
         chronicle: "编年史",
         about: "关于",
         storySite: "剧情站",
+        back: "返回",
         open: "打开导航",
       },
       footer: {
@@ -100,6 +102,49 @@ export const resources = {
         logout: "退出帐号",
         avatarAlt: "{{name}}的头像",
         fallback: "制",
+        app: {
+          preferences: "偏好与帮助",
+          theme: "主题",
+          access: "帐号入口",
+          identity: "帐号身份",
+          enterAccount: "进入帐号",
+          authSuccessDescription: "正在进入帐号页。",
+          signedOut: "已退出帐号",
+          signedOutDescription: "这个设备上的帐号会话已经结束。",
+          logoutPending: "正在退出帐号",
+          logoutFailed: "退出帐号失败",
+          logoutFailedDescription: "退出请求未完成，请检查连接后重试。",
+          sessionUnavailableDescription: "无法确认当前帐号状态，请重新载入。",
+          retryLogout: "重试退出",
+          cityMissing: "未填写常驻城市",
+          restrictedTitle: "帐号当前为只读",
+          restrictedDescription:
+            "个人资料、名片、收藏夹、事务所和认领消息仍可查看，但不能修改。",
+          profileGroup: "我的资料",
+          sessionGroup: "当前会话",
+          sections: {
+            profile: {
+              label: "个人资料",
+              description: "头像、名称与简介",
+            },
+            cards: {
+              label: "交换名片",
+              description: "名片素材与交换状态",
+            },
+            favorites: {
+              label: "收藏夹",
+              description: "收藏的交换名片",
+            },
+            offices: {
+              label: "事务所与位置",
+              description: "事务所资料与地图公开",
+            },
+            claims: {
+              label: "认领消息",
+              description: "历史名片身份确认",
+            },
+          },
+        },
       },
       platformAuth: {
         login: {
@@ -249,6 +294,7 @@ export const resources = {
         description: "IMSWeb public pages and knowledge base",
         home: "Home",
         events: "Events",
+        apps: "Apps",
         recommendations: "Features",
         live: "Live",
         community: "Community",
@@ -258,6 +304,7 @@ export const resources = {
         chronicle: "Chronicle",
         about: "About",
         storySite: "Story Archive",
+        back: "Back",
         open: "Open navigation",
       },
       footer: {
@@ -294,6 +341,51 @@ export const resources = {
         logout: "Sign out",
         avatarAlt: "{{name}}'s avatar",
         fallback: "P",
+        app: {
+          preferences: "Preferences and help",
+          theme: "Theme",
+          access: "Account access",
+          identity: "Account identity",
+          enterAccount: "Open account",
+          authSuccessDescription: "Opening your account.",
+          signedOut: "Signed out",
+          signedOutDescription: "The account session on this device has ended.",
+          logoutPending: "Signing out",
+          logoutFailed: "Could not sign out",
+          logoutFailedDescription:
+            "The sign-out request did not finish. Check the connection and try again.",
+          sessionUnavailableDescription:
+            "The current account status could not be confirmed. Reload and try again.",
+          retryLogout: "Retry sign out",
+          cityMissing: "Home city not set",
+          restrictedTitle: "Account is read-only",
+          restrictedDescription:
+            "You can still view your profile, cards, favorites, offices, and claims, but you cannot make changes.",
+          profileGroup: "My profile",
+          sessionGroup: "Current session",
+          sections: {
+            profile: {
+              label: "Profile",
+              description: "Avatar, display name, and bio",
+            },
+            cards: {
+              label: "Exchange cards",
+              description: "Card media and exchange status",
+            },
+            favorites: {
+              label: "Favorites",
+              description: "Saved exchange cards",
+            },
+            offices: {
+              label: "Offices and location",
+              description: "Office details and map visibility",
+            },
+            claims: {
+              label: "Claim messages",
+              description: "Confirm identities on historical cards",
+            },
+          },
+        },
       },
       platformAuth: {
         login: {

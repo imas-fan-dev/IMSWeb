@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { EventRow, EventsSkeleton } from "./components/events-list"
 import { useEventsFeed } from "./hooks/use-events-feed"
 
@@ -83,39 +84,72 @@ export function EventsCenter() {
 
   return (
     <main id="main-content">
-      <section className="border-b bg-muted/25">
-        <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold text-primary">EVENTS</p>
-              <h1 className="mt-2 text-3xl font-semibold">活动中心</h1>
-              <p className="mt-3 leading-7 text-muted-foreground">
-                汇集制作人社区正在进行和近期发布的国内活动。
+      {IS_APP_TARGET ? (
+        <section className="border-b" aria-labelledby="events-app-heading">
+          <div className="flex min-h-14 items-center justify-between gap-4 px-(--app-safe-inline) py-2">
+            <div className="min-w-0">
+              <h1 id="events-app-heading" className="text-base font-semibold">
+                近期活动
+              </h1>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {phase === "ready" && items.length
+                  ? `已加载 ${items.length} 条`
+                  : "制作人社区发布的国内活动"}
               </p>
             </div>
             {phase === "ready" && items.length ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  已加载 {items.length} 条
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void refresh()}
-                  aria-label="刷新活动列表"
-                  title="刷新活动列表"
-                >
-                  <RefreshCwIcon aria-hidden="true" />
-                  刷新
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => void refresh()}
+                aria-label="刷新活动列表"
+                title="刷新活动列表"
+              >
+                <RefreshCwIcon aria-hidden="true" />
+              </Button>
             ) : null}
           </div>
-        </div>
-      </section>
+        </section>
+      ) : (
+        <section className="border-b bg-muted/25">
+          <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+            <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+              <div className="max-w-2xl">
+                <p className="text-xs font-semibold text-primary">EVENTS</p>
+                <h1 className="mt-2 text-3xl font-semibold">活动中心</h1>
+                <p className="mt-3 leading-7 text-muted-foreground">
+                  汇集制作人社区正在进行和近期发布的国内活动。
+                </p>
+              </div>
+              {phase === "ready" && items.length ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">
+                    已加载 {items.length} 条
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void refresh()}
+                    aria-label="刷新活动列表"
+                    title="刷新活动列表"
+                  >
+                    <RefreshCwIcon aria-hidden="true" />
+                    刷新
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section
-        className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8"
+        className={
+          IS_APP_TARGET
+            ? "w-full px-(--app-safe-inline) py-3"
+            : "mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8"
+        }
         aria-labelledby="events-list-heading"
       >
         <h2 id="events-list-heading" className="sr-only">

@@ -2,6 +2,7 @@ import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable"
 
 import { Badge } from "~/components/ui/badge"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import type { TierListActions } from "../hooks/use-tier-list-state"
 import type { TierItem } from "../tier-list-model"
@@ -23,7 +24,10 @@ export function UnrankedPool({
   return (
     <div
       ref={setNodeRef}
-      className="sticky bottom-2 z-20 mt-5 flex items-center gap-2 rounded-xl border-2 border-dashed bg-background/95 p-2 shadow-sm backdrop-blur supports-backdrop-filter:bg-background/80 md:static md:block md:bg-transparent md:p-3 md:shadow-none md:backdrop-blur-none"
+      className={cn(
+        "sticky z-20 mt-5 flex items-center gap-2 rounded-xl border-2 border-dashed bg-background/95 p-2 shadow-sm backdrop-blur supports-backdrop-filter:bg-background/80 md:static md:block md:bg-transparent md:p-3 md:shadow-none md:backdrop-blur-none",
+        IS_APP_TARGET ? "bottom-(--app-bottom-clearance)" : "bottom-2"
+      )}
       data-testid="unranked-pool"
     >
       <div className="flex shrink-0 items-center gap-2 px-1 md:mb-2">
@@ -53,7 +57,7 @@ export function UnrankedPool({
             })}
             {itemIds.length === 0 ? (
               <p className="flex min-w-full items-center justify-center py-4 text-xs text-muted-foreground/70 md:py-7">
-                暂无图片 —— 点击上方「导入图片」开始
+                暂无图片，点击上方「导入图片」开始
               </p>
             ) : null}
           </div>

@@ -73,13 +73,14 @@ IMS_S3_READ_URL_TTL_SECONDS=300
 不要用主域名的 `/s3/` 前缀转发到 RustFS。代理移除或增加路径前缀会改变 SigV4 的 canonical
 URI，受保护对象的签名 URL 会返回 `SignatureDoesNotMatch`。对象域名应保留原始 Host 和 URI。
 
-## Exchange Map 静态资源
+## Exchange Map 自分发资源（可选）
 
-主域名的 `/maps/exchange/` 不代理到 Hono，而是从 `/srv/imsweb/maps/current/` 读取 PMTiles、
-glyph、sprite 和 Natural Earth raster。该 location 只允许 GET/HEAD，支持单 Range，关闭 gzip，
-并设置 PMTiles/PBF/JSON/PNG MIME。准备、发布、权限、原子切换和回滚命令见
-[地图资源交付与同源托管](../../docs/operations/map-delivery.md)。安装模板前至少创建当前 release
-软链接并确保 Nginx worker group 可读；没有资源时该路径会返回 404，不会回退到 SPA HTML。
+默认官方 OpenFreeMap 模式不使用 `/maps/exchange/`。后台选择自分发 style 后，该路径不代理到
+Hono，而是从 `/srv/imsweb/maps/current/` 读取 PMTiles、glyph、sprite 和 Natural Earth raster。
+该 location 只允许 GET/HEAD，支持单 Range，关闭 gzip，并设置 PMTiles/PBF/JSON/PNG MIME。
+准备、发布、权限、原子切换和回滚命令见[地图资源交付](../../docs/operations/map-delivery.md)。启用
+自分发前至少创建当前 release 软链接并确保 Nginx worker group 可读；没有资源时该路径返回 404，
+不会回退到 SPA HTML。
 
 RustFS bucket 策略仍是访问控制的权威来源：公开对象允许匿名 `GetObject`，任何层级中的
 `__protected/` 路径拒绝匿名读取，只有应用签发的短期 URL 可以读取。仓库的
@@ -95,6 +96,6 @@ curl --fail --silent --show-error \
   https://objects.example.com/health >/dev/null
 ```
 
-随后验证一个公开对象、一个经鉴权后获得的受保护对象签名 URL、登录刷新和最大尺寸上传；再按
-地图交付文档验证 PMTiles `Range: bytes=0-16383` 返回 `206`。确认公网不能直连 `3000`、`9000`、
+随后验证一个公开对象、一个经鉴权后获得的受保护对象签名 URL、登录刷新和最大尺寸上传；若后台
+选择自分发地图，再按地图交付文档验证 PMTiles `Range: bytes=0-16383` 返回 `206`。确认公网不能直连 `3000`、`9000`、
 `9001`，并检查 Nginx 与应用日志中的 4xx/5xx。

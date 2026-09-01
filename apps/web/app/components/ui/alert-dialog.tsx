@@ -3,8 +3,9 @@
 import * as React from "react"
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog"
 
-import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
+import { NativeTabBarSuppression } from "~/components/ui/native-tab-bar-suppression"
+import { cn } from "~/lib/utils"
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
@@ -47,6 +48,7 @@ function AlertDialogContent({
 }) {
   return (
     <AlertDialogPortal>
+      <NativeTabBarSuppression />
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"

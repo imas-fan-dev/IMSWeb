@@ -6,6 +6,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AppTabBar } from "~/components/app/app-tab-bar"
 import { i18n } from "~/i18n/config"
 
+const nativeSelectedColor = {
+  red: 1,
+  green: 23 / 255,
+  blue: 79 / 255,
+  alpha: 1,
+}
+
+const themeMocks = vi.hoisted(() => ({ resolvedTheme: "light" }))
+
 const nativeMocks = vi.hoisted(() => ({
   configure: vi.fn(),
   destroy: vi.fn(),
@@ -14,7 +23,7 @@ const nativeMocks = vi.hoisted(() => ({
 }))
 
 vi.mock("next-themes", () => ({
-  useTheme: () => ({ resolvedTheme: "light" }),
+  useTheme: () => themeMocks,
 }))
 
 vi.mock("~/lib/native-glass", () => ({
@@ -46,6 +55,8 @@ function renderTabBar(initialEntry = "/") {
 
 describe("AppTabBar platform material", () => {
   beforeEach(() => {
+    themeMocks.resolvedTheme = "light"
+    document.documentElement.classList.remove("dark")
     nativeMocks.configure.mockReset()
     nativeMocks.configure.mockResolvedValue({ supported: false })
     nativeMocks.destroy.mockReset()
@@ -78,6 +89,7 @@ describe("AppTabBar platform material", () => {
       expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
     })
     const [configuredOptions] = nativeMocks.configure.mock.calls[0]
+    expect(configuredOptions.selectedColor).toEqual(nativeSelectedColor)
     expect(
       configuredOptions.items.map(
         (item: { lucideIcon: string }) => item.lucideIcon
@@ -85,8 +97,8 @@ describe("AppTabBar platform material", () => {
     ).toEqual([
       "house",
       "calendar-days",
-      "book-open-text",
-      "users",
+      "layout-grid",
+      "map-pinned",
       "circle-user",
     ])
 
@@ -101,7 +113,68 @@ describe("AppTabBar platform material", () => {
     })
     expect(nativeMocks.update).toHaveBeenLastCalledWith({
       dark: false,
+      hidden: false,
+      selectedColor: nativeSelectedColor,
       selectedIndex: 1,
+    })
+  })
+
+  it("keeps the exchange map native glass light in dark mode", async () => {
+    themeMocks.resolvedTheme = "dark"
+    document.documentElement.classList.add("dark")
+    nativeMocks.shouldAttempt.mockReturnValue(true)
+    nativeMocks.configure.mockResolvedValue({ supported: true })
+    renderTabBar("/community/exchange")
+
+    await waitFor(() => {
+      expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
+    })
+    expect(nativeMocks.configure).toHaveBeenCalledWith(
+      expect.objectContaining({ dark: false, selectedIndex: 3 })
+    )
+    expect(nativeMocks.update).toHaveBeenLastCalledWith({
+      dark: false,
+      hidden: false,
+      selectedColor: nativeSelectedColor,
+      selectedIndex: 3,
+    })
+  })
+
+  it("hides the native bar while a modal surface is present", async () => {
+    nativeMocks.shouldAttempt.mockReturnValue(true)
+    nativeMocks.configure.mockResolvedValue({ supported: true })
+    renderTabBar()
+
+    await waitFor(() => {
+      expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
+    })
+
+    window.dispatchEvent(
+      new CustomEvent("ims:native-tab-bar-suppression", {
+        detail: { suppressed: true },
+      })
+    )
+    await waitFor(() => {
+      expect(nativeMocks.update).toHaveBeenLastCalledWith({
+        dark: false,
+        hidden: true,
+        selectedColor: nativeSelectedColor,
+        selectedIndex: 0,
+      })
+    })
+
+    window.dispatchEvent(
+      new CustomEvent("ims:native-tab-bar-suppression", {
+        detail: { suppressed: false },
+      })
+    )
+    await waitFor(() => {
+      expect(nativeMocks.update).toHaveBeenLastCalledWith({
+        dark: false,
+        hidden: false,
+        selectedColor: nativeSelectedColor,
+        selectedIndex: 0,
+      })
     })
   })
 
@@ -120,14 +193,47 @@ describe("AppTabBar platform material", () => {
     expect(nativeMocks.update).not.toHaveBeenCalled()
   })
 
-  it("does not reselect the home tab for non-tab routes", async () => {
+  it("keeps secondary content routes under the Apps tab", async () => {
     nativeMocks.shouldAttempt.mockReturnValue(true)
-    nativeMocks.configure.mockResolvedValue({ supported: true })
     renderTabBar("/works")
 
     await waitFor(() => {
-      expect(nativeMocks.configure).toHaveBeenCalled()
+      expect(nativeMocks.configure).toHaveBeenCalledWith(
+        expect.objectContaining({ selectedIndex: 2 })
+      )
     })
-    expect(nativeMocks.update).not.toHaveBeenCalled()
+    expect(screen.getByRole("link", { name: "站内应用" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+  })
+
+  it("assigns the personal exchange workspace to Account before Map", async () => {
+    nativeMocks.shouldAttempt.mockReturnValue(true)
+    renderTabBar("/community/exchange/me")
+
+    await waitFor(() => {
+      expect(nativeMocks.configure).toHaveBeenCalledWith(
+        expect.objectContaining({ selectedIndex: 4 })
+      )
+    })
+    expect(screen.getByRole("link", { name: "帐号" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+  })
+
+  it("does not reselect Home for an unowned route", async () => {
+    nativeMocks.shouldAttempt.mockReturnValue(true)
+    nativeMocks.configure.mockResolvedValue({ supported: true })
+    renderTabBar("/not-found")
+
+    await waitFor(() => {
+      expect(nativeMocks.update).toHaveBeenLastCalledWith({
+        dark: false,
+        hidden: false,
+        selectedColor: nativeSelectedColor,
+      })
+    })
   })
 })

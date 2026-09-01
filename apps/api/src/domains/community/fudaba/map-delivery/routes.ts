@@ -1,14 +1,17 @@
 import { requireFudabaMap } from '@/domains/community/fudaba/access-policy';
+import { handleActivateFudabaMapSource } from '@/domains/community/fudaba/map-delivery/handlers/activate-map-source';
+import { handleCreateFudabaMapSource } from '@/domains/community/fudaba/map-delivery/handlers/create-map-source';
+import { handleDeleteFudabaMapSource } from '@/domains/community/fudaba/map-delivery/handlers/delete-map-source';
 import { handleGetFudabaMapDelivery } from '@/domains/community/fudaba/map-delivery/handlers/get-map-delivery';
-import { handleUpdateFudabaMapDelivery } from '@/domains/community/fudaba/map-delivery/handlers/update-map-delivery';
+import { handleUpdateFudabaMapSource } from '@/domains/community/fudaba/map-delivery/handlers/update-map-source';
 import {
     backofficeAuth,
     backofficeCsrf,
-    currentBackofficeOp
+    currentBackofficeOp,
 } from '@/middleware/hono-auth';
 import {
     createCapabilityRouter,
-    type ImsCapabilityRouter
+    type ImsCapabilityRouter,
 } from '@/routing/capability-router';
 
 export function fudabaMapDeliveryRoutes(): ImsCapabilityRouter {
@@ -18,15 +21,39 @@ export function fudabaMapDeliveryRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         currentBackofficeOp,
         requireFudabaMap,
-        handleGetFudabaMapDelivery
+        handleGetFudabaMapDelivery,
     );
-    routes.put(
-        '/map-delivery',
+    routes.post(
+        '/map-delivery/sources',
         backofficeAuth,
         currentBackofficeOp,
         requireFudabaMap,
         backofficeCsrf,
-        handleUpdateFudabaMapDelivery
+        handleCreateFudabaMapSource,
+    );
+    routes.put(
+        '/map-delivery/sources/:sourceId',
+        backofficeAuth,
+        currentBackofficeOp,
+        requireFudabaMap,
+        backofficeCsrf,
+        handleUpdateFudabaMapSource,
+    );
+    routes.delete(
+        '/map-delivery/sources/:sourceId',
+        backofficeAuth,
+        currentBackofficeOp,
+        requireFudabaMap,
+        backofficeCsrf,
+        handleDeleteFudabaMapSource,
+    );
+    routes.put(
+        '/map-delivery/active',
+        backofficeAuth,
+        currentBackofficeOp,
+        requireFudabaMap,
+        backofficeCsrf,
+        handleActivateFudabaMapSource,
     );
     return routes;
 }

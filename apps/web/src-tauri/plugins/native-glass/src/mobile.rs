@@ -15,6 +15,9 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
 ) -> crate::Result<NativeGlass<R>> {
     #[cfg(target_os = "ios")]
     let handle = api.register_ios_plugin(init_plugin_native_glass)?;
+    #[cfg(target_os = "android")]
+    let handle =
+        api.register_android_plugin("top.idol_master.imsweb.nativeglass", "NativeGlassPlugin")?;
     Ok(NativeGlass(handle))
 }
 

@@ -97,7 +97,7 @@ describe("CommunityExchangeMapSection", () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
-        matches: false,
+        matches: true,
         media: "(max-width: 1023px)",
         onchange: null,
         addEventListener: vi.fn(),
@@ -155,6 +155,9 @@ describe("CommunityExchangeMapSection", () => {
       name: /上海周末交换事务所、同区域交换事务所，2 个事务所/,
     })
     await user.click(regions[0]!)
+    expect(screen.getByRole("dialog", { name: "区域交换事务所" })).toHaveClass(
+      "exchange-map-detail-sheet"
+    )
     expect(screen.getAllByText("上海周末交换事务所")[0]).toBeVisible()
     expect(screen.getAllByText("同区域交换事务所")[0]).toBeVisible()
     expect(screen.getByText(/当前范围结果较多/)).toBeVisible()

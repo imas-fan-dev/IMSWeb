@@ -10,27 +10,36 @@ import {
   NavigationControl,
   setWorkerUrl,
 } from "maplibre-gl"
-import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-csp-worker.js?url"
 import { Protocol } from "pmtiles"
 import { useEffect, useRef } from "react"
 
-import { resolveMapTransportOrigin } from "~/lib/api"
+import {
+  getFudabaChinaBoundaryDashSource,
+  resolveMapTransportOrigin,
+} from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 
 import {
   applyChinaBoundaryCompliance,
   CHINA_CLAIM_BOUNDARY_LAYER_ID,
   CHINA_DASH_FILL_LAYER_ID,
   CHINA_DASH_LINE_LAYER_ID,
-  CHINA_DASH_SOURCE_URL,
   TAIWAN_PROVINCE_LABEL_LAYER_ID,
 } from "./exchange-boundary-compliance"
 import type { FudabaMapOfficeGroup } from "./exchange-map-model"
 import {
   createMapDeliveryContext,
+  DEFAULT_EXCHANGE_MAP_VIEWPORT,
+  exchangeMapInitialViewport,
+  EXCHANGE_MAP_MAX_ZOOM,
+  EXCHANGE_MAP_MIN_ZOOM,
+  rememberExchangeMapViewport,
   resolveAllowedMapResourceUrl,
   resolveMapStyleResourceUrls,
   resolveMapStyleUrl,
   splitViewportBounds,
+  type ExchangeMapViewport,
   type MapViewportBounds,
 } from "./exchange-map-model"
 
@@ -287,6 +296,14 @@ function currentViewport(map: MapLibreMap): MapViewportBounds {
   }
 }
 
+function currentSessionViewport(map: MapLibreMap): ExchangeMapViewport {
+  const center = map.getCenter()
+  return {
+    center: [center.lng, center.lat],
+    zoom: map.getZoom(),
+  }
+}
+
 function setPaintProperties(
   map: MapLibreMap,
   layerId: string,
@@ -439,9 +456,9 @@ export function ExchangeOfficeMap({
     )
     const resolvedStyleUrl = resolveMapStyleUrl(styleUrl, deliveryContext)
     const webglProbe = document.createElement("canvas")
-    if (!webglProbe.getContext("webgl2")) {
+    if (!webglProbe.getContext("webgl2") && !webglProbe.getContext("webgl")) {
       container.dataset.mapState = "error"
-      onFatalErrorRef.current(new Error("当前浏览器不支持 WebGL 2 地图"))
+      onFatalErrorRef.current(new Error("当前浏览器不支持 WebGL 地图"))
       return
     }
 
@@ -457,15 +474,19 @@ export function ExchangeOfficeMap({
       onFatalErrorRef.current(mapError(error))
     }
 
+    const initialViewport = IS_APP_TARGET
+      ? exchangeMapInitialViewport()
+      : DEFAULT_EXCHANGE_MAP_VIEWPORT
+
     try {
       map = new MapLibreMap({
         container,
-        center: [127.1, 31.2],
-        zoom: 4.05,
-        minZoom: 2.3,
+        center: initialViewport.center,
+        zoom: initialViewport.zoom,
+        minZoom: EXCHANGE_MAP_MIN_ZOOM,
         // 公开点为 0.1 度网格（约 11 km），再放大既无信息增益，也会让
         // 区域位置在视觉上退化为近似精确位置，违反区域投影的隐私合同。
-        maxZoom: 11,
+        maxZoom: EXCHANGE_MAP_MAX_ZOOM,
         bearing: 0,
         pitch: 0,
         roll: 0,
@@ -476,7 +497,7 @@ export function ExchangeOfficeMap({
         pitchWithRotate: false,
         rollEnabled: false,
         attributionControl: false,
-        cooperativeGestures: true,
+        cooperativeGestures: false,
         localIdeographFontFamily,
         transformRequest: (url) => ({
           url: resolveAllowedMapResourceUrl(url, deliveryContext.scope),
@@ -616,54 +637,67 @@ export function ExchangeOfficeMap({
       if (bounds.length) onViewportChangeRef.current(bounds)
     }
 
-    const handleLoad = () => {
-      const canvas = map.getCanvas()
-      canvas.setAttribute(
-        "aria-label",
-        "区域事务所地图。使用方向键移动地图，使用加减按钮缩放。"
-      )
-      // 先按《公开地图内容表示规范》修正边界与注记，再统一配色，
-      // 使新增图层与既有图层走同一套门户配色。
-      applyChinaBoundaryCompliance(
-        map,
-        resolveAllowedMapResourceUrl(
-          CHINA_DASH_SOURCE_URL,
-          deliveryContext.scope
+    let disposed = false
+    const handleLoad = async () => {
+      try {
+        const chinaBoundaryDashSource =
+          await getFudabaChinaBoundaryDashSource().send()
+        if (disposed) return
+        const canvas = map.getCanvas()
+        canvas.setAttribute(
+          "aria-label",
+          "区域事务所地图。使用方向键移动地图，使用加减按钮缩放。"
         )
-      )
-      applyPortalMapPalette(map)
-      // Do not wait for global `idle`: a PMTiles base map can keep loading
-      // while the office source is already ready to render on iOS.
-      map.on("sourcedata", handleOfficeSourceData)
-      map.addSource(officeSourceId, {
-        type: "geojson",
-        data: featureCollection(groupsRef.current),
-        cluster: true,
-        clusterRadius: 56,
-        clusterMaxZoom: 10,
-        clusterProperties: {
-          officeCount: ["+", ["get", "officeCount"]],
-        },
-      })
-      map.addLayer({
-        id: officeSourceLayerId,
-        type: "circle",
-        source: officeSourceId,
-        paint: {
-          "circle-color": ["coalesce", ["get", "accent"], "#f34e6c"],
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 2, 8, 10, 12],
-          "circle-opacity": 0.24,
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-opacity": 0.9,
-          "circle-stroke-width": 2,
-        },
-      })
-      queryViewport()
-      container.dataset.mapState = "ready"
-      scheduleMarkerRefresh()
+        // 先按《公开地图内容表示规范》修正边界与注记，再统一配色，
+        // 使新增图层与既有图层走同一套门户配色。
+        applyChinaBoundaryCompliance(map, chinaBoundaryDashSource)
+        applyPortalMapPalette(map)
+        // Do not wait for global `idle`: a PMTiles base map can keep loading
+        // while the office source is already ready to render on iOS.
+        map.on("sourcedata", handleOfficeSourceData)
+        map.addSource(officeSourceId, {
+          type: "geojson",
+          data: featureCollection(groupsRef.current),
+          cluster: true,
+          clusterRadius: 56,
+          clusterMaxZoom: 10,
+          clusterProperties: {
+            officeCount: ["+", ["get", "officeCount"]],
+          },
+        })
+        map.addLayer({
+          id: officeSourceLayerId,
+          type: "circle",
+          source: officeSourceId,
+          paint: {
+            "circle-color": ["coalesce", ["get", "accent"], "#f34e6c"],
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              2,
+              8,
+              10,
+              12,
+            ],
+            "circle-opacity": 0.24,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-opacity": 0.9,
+            "circle-stroke-width": 2,
+          },
+        })
+        queryViewport()
+        container.dataset.mapState = "ready"
+        scheduleMarkerRefresh()
+      } catch (error) {
+        if (!disposed) reportFatalError(error)
+      }
     }
 
     const handleMoveEnd = () => {
+      if (IS_APP_TARGET) {
+        rememberExchangeMapViewport(currentSessionViewport(map))
+      }
       queryViewport()
       scheduleMarkerRefresh()
     }
@@ -703,6 +737,7 @@ export function ExchangeOfficeMap({
     resizeMap()
 
     return () => {
+      disposed = true
       resizeObserver.disconnect()
       window.removeEventListener("resize", resizeMap)
       window.visualViewport?.removeEventListener("resize", resizeMap)
@@ -713,6 +748,9 @@ export function ExchangeOfficeMap({
       map.off("sourcedata", handleOfficeSourceData)
       map.off("moveend", handleMoveEnd)
       map.off("error", handleError)
+      if (IS_APP_TARGET) {
+        rememberExchangeMapViewport(currentSessionViewport(map))
+      }
       map.remove()
       mapRef.current = null
       refreshMarkersRef.current = () => undefined
@@ -745,6 +783,7 @@ export function ExchangeOfficeMap({
       ref={containerRef}
       className="size-full min-h-0 bg-[#e8f2f4]"
       data-exchange-office-map
+      data-app-target={IS_APP_TARGET ? "" : undefined}
       data-map-state="loading"
       aria-label="区域事务所地图工作面"
     />

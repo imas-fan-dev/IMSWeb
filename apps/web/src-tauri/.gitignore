@@ -3,8 +3,8 @@
 /target/
 
 # Platform projects produced by `tauri ios init` / `tauri android init`.
-# They are fully derived from tauri.conf.json, Cargo.toml and the CLI version,
-# carry no decision of ours yet, and ship with trailing whitespace that trips
-# the repository's staged-whitespace gate. Regenerate them instead of tracking
-# them; revisit this once signing config or manifest edits live in there.
+# They are derived from tauri.conf.json, Cargo.toml and the CLI version, and
+# ship with trailing whitespace that trips the staged-whitespace gate. Build
+# scripts reapply conditional Android manifest values after generation; keep
+# those decisions in tracked scripts instead of checking in this directory.
 /gen/

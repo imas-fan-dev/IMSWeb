@@ -1,3 +1,5 @@
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { PageShell } from "~/components/shared/page-shell"
 import { Card, CardContent } from "~/components/ui/card"
 import { cn } from "~/lib/utils"
 import {
@@ -5,7 +7,6 @@ import {
   officialEntries,
   fanEntries,
 } from "./works-content"
-import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "系列作品 | IMSWeb" }]
@@ -13,7 +14,7 @@ export function meta() {
 
 export default function Works() {
   return (
-    <main id="main-content" className="mx-auto w-full max-w-5xl px-6 py-16">
+    <PageShell width="default">
       <h1 className="text-3xl font-semibold">系列作品</h1>
       <p className="mt-4 leading-7 text-muted-foreground">
         偶像大师系列官方企划介绍，以及由制作人创作和维护的游戏与专题内容。
@@ -95,6 +96,6 @@ export default function Works() {
           ))}
         </div>
       </section>
-    </main>
+    </PageShell>
   )
 }

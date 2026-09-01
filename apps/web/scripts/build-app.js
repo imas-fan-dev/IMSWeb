@@ -4,6 +4,8 @@ import { resolve } from "node:path"
 import process from "node:process"
 import { pathToFileURL, URL } from "node:url"
 
+import { configureGeneratedAndroidCleartext } from "./android-release-network.js"
+
 export const DEFAULT_APP_ORIGIN = "https://idol-master.top"
 
 function webWorkspaceRoot() {
@@ -118,7 +120,18 @@ export function runAppBuild(environment = process.env) {
   })
 
   if (result.error) throw result.error
-  return result.status ?? 1
+  const status = result.status ?? 1
+  if (status === 0) {
+    configureGeneratedAndroidCleartext({
+      environment,
+      buildEnvironment,
+      gradlePath: resolve(
+        webWorkspaceRoot(),
+        "src-tauri/gen/android/app/build.gradle.kts"
+      ),
+    })
+  }
+  return status
 }
 
 const entryUrl = process.argv[1]

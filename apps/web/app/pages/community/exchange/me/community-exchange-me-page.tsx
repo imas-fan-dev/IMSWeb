@@ -5,7 +5,7 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useSearchParams } from "react-router"
+import { useLocation, useSearchParams } from "react-router"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
@@ -31,6 +31,7 @@ import {
   type PlatformProfile,
   type WikiPublicSearchEntry,
 } from "~/lib/api"
+import { cn } from "~/lib/utils"
 import { CardWorkspace } from "./card-workspace"
 import { ClaimEnvelopePanel } from "./claim-envelope-panel"
 import { FavoriteCollection } from "./favorite-collection"
@@ -40,6 +41,7 @@ import { ProfileEditor } from "./profile-editor"
 import {
   isProfileWorkspaceSection,
   ProfileWorkspaceNavigation,
+  type ProfileWorkspaceSection,
 } from "./profile-workspace-navigation"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
@@ -77,8 +79,17 @@ export function meta() {
   ]
 }
 
-export default function CommunityExchangeMePage() {
+type CommunityExchangeMePageProps = {
+  section?: ProfileWorkspaceSection
+  sectionBasePath?: string
+}
+
+export default function CommunityExchangeMePage({
+  section,
+  sectionBasePath,
+}: CommunityExchangeMePageProps = {}) {
   const platform = usePlatformSession()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const [state, setState] = useState<WorkspaceState>(initialState)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
@@ -87,9 +98,12 @@ export default function CommunityExchangeMePage() {
   const workspaceGeneration = useRef(0)
   const detailGeneration = useRef(0)
   const requestedSection = searchParams.get("section")
-  const activeSection = isProfileWorkspaceSection(requestedSection)
-    ? requestedSection
-    : "profile"
+  const accountSectionBasePath =
+    sectionBasePath ??
+    (location.pathname.startsWith("/account/me/") ? "/account/me" : undefined)
+  const activeSection =
+    section ??
+    (isProfileWorkspaceSection(requestedSection) ? requestedSection : "profile")
 
   const loadWorkspace = useCallback(async () => {
     const generation = ++workspaceGeneration.current
@@ -334,48 +348,83 @@ export default function CommunityExchangeMePage() {
       : null
 
   return (
-    <main id="main-content" className="min-w-0">
-      <header className="relative border-b bg-muted/25">
-        <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
-          <div className="max-w-2xl min-w-0">
-            <NavigationLink
-              to="/community/exchange"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              名片交换事务所
-            </NavigationLink>
-            <h1 className="mt-3 text-2xl font-semibold text-balance">
-              个人档案
-            </h1>
-            <p className="mt-2 max-w-xl leading-7 text-muted-foreground">
-              管理你的社区身份、交换名片、事务所与历史名片认领。
-            </p>
+    <main
+      id="main-content"
+      className="min-w-0"
+      data-account-section-layout={accountSectionBasePath ? "stack" : undefined}
+    >
+      {accountSectionBasePath ? null : (
+        <header className="relative border-b bg-muted/25">
+          <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
+            <div className="max-w-2xl min-w-0">
+              <NavigationLink
+                to="/community/exchange"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                名片交换事务所
+              </NavigationLink>
+              <h1 className="mt-3 text-2xl font-semibold text-balance">
+                个人档案
+              </h1>
+              <p className="mt-2 max-w-xl leading-7 text-muted-foreground">
+                管理你的社区身份、交换名片、事务所与历史名片认领。
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>{state.cards.length} 张名片</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="刷新个人档案"
+                title="刷新"
+                onClick={() => void loadWorkspace()}
+              >
+                <RefreshCwIcon aria-hidden="true" />
+              </Button>
+            </div>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span>{state.cards.length} 张名片</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="刷新个人档案"
-              title="刷新"
-              onClick={() => void loadWorkspace()}
-            >
-              <RefreshCwIcon aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <div className="mx-auto grid w-full max-w-7xl min-w-0 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div
+        className={cn(
+          "mx-auto grid w-full min-w-0",
+          accountSectionBasePath
+            ? "max-w-3xl"
+            : "max-w-7xl lg:grid-cols-[15rem_minmax(0,1fr)]"
+        )}
+      >
         <ProfileWorkspaceNavigation
           profile={state.profile}
           cardCount={state.cards.length}
           activeSection={activeSection}
+          sectionBasePath={accountSectionBasePath}
         />
 
-        <div className="min-w-0 px-4 py-8 sm:px-6 lg:px-8">
+        <div
+          className={cn(
+            "min-w-0",
+            accountSectionBasePath
+              ? "px-(--app-safe-inline) py-5"
+              : "px-4 py-8 sm:px-6 lg:px-8"
+          )}
+        >
+          {accountSectionBasePath ? (
+            <div className="mb-4 flex items-center justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="刷新个人档案"
+                title="刷新"
+                onClick={() => void loadWorkspace()}
+              >
+                <RefreshCwIcon aria-hidden="true" />
+              </Button>
+            </div>
+          ) : null}
           {readOnlyReason ? (
             <Alert>
               <LockKeyholeIcon aria-hidden="true" />

@@ -1,4 +1,4 @@
-import { isFudabaMapPrefix } from "@imsweb/contracts/fudaba/map-delivery";
+import { isFudabaMapStyleUrl } from "@imsweb/contracts/fudaba/map-delivery";
 
 export type RuntimeEnvironment = "development" | "test" | "production";
 
@@ -235,7 +235,7 @@ export function parseFudabaWriteEnabled(value: string | undefined): boolean {
 export interface FudabaMapConfig {
     enabled: boolean;
     styleUrl: string;
-    prefixes: string[];
+    styleUrls: string[];
 }
 
 export interface FudabaGeocodingConfig {
@@ -255,55 +255,39 @@ export function parseFudabaMapEnabled(value: string | undefined): boolean {
 
 export function parseFudabaMapStyleUrl(value: string | undefined): string {
     if (value === undefined || value === "") return "";
-    if (/[\0-\x1f\x7f]/.test(value)) {
-        throw new Error(
-            "IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path " +
-                "without query or hash",
-        );
-    }
     const normalized = value.trim();
     if (!normalized) return "";
-    if (
-        normalized.length > 2048 ||
-        !normalized.startsWith("/") ||
-        normalized.includes("//") ||
-        normalized.includes("\\") ||
-        normalized.includes("?") ||
-        normalized.includes("#")
-    ) {
+    if (/[\0-\x1f\x7f]/.test(value) || !isFudabaMapStyleUrl(normalized)) {
         throw new Error(
-            "IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path " +
-                "without query or hash",
+            "IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path or " +
+                "a credential-free absolute HTTP(S) URL without query or hash",
         );
     }
     return normalized;
 }
 
 /**
- * Deployment allowlist of map delivery prefixes an operator may select.
+ * Deployment seed choices used when no valid managed source collection exists.
  *
- * This is the trust boundary for operator-editable delivery: the stored
- * selection is checked against this list on both the write path and the read
- * path, so a poisoned object-store value falls back to the env default
- * instead of reaching a browser. An unset variable means no prefix may be
- * selected and the deployment stays on IMS_FUDABA_MAP_STYLE_URL.
+ * Once an administrator persists the collection, its validated URLs remain
+ * authoritative until the stored object is missing or invalid.
  */
-export function parseFudabaMapPrefixes(value: string | undefined): string[] {
+export function parseFudabaMapStyleUrls(value: string | undefined): string[] {
     if (value === undefined) return [];
-    const prefixes: string[] = [];
+    const styleUrls: string[] = [];
     for (const entry of value.split(",")) {
-        const prefix = entry.trim();
-        if (!prefix) continue;
-        if (!isFudabaMapPrefix(prefix)) {
+        const styleUrl = entry.trim();
+        if (!styleUrl) continue;
+        if (!isFudabaMapStyleUrl(styleUrl)) {
             throw new Error(
-                "IMS_FUDABA_MAP_PREFIXES entries must be root-relative paths or " +
-                    "absolute http(s) URLs ending with / and carrying no " +
-                    `credentials, query, or hash (received ${prefix})`,
+                "IMS_FUDABA_MAP_STYLE_URLS entries must be root-relative paths or " +
+                    "credential-free absolute HTTP(S) URLs without query or hash " +
+                    `(received ${styleUrl})`,
             );
         }
-        if (!prefixes.includes(prefix)) prefixes.push(prefix);
+        if (!styleUrls.includes(styleUrl)) styleUrls.push(styleUrl);
     }
-    return prefixes;
+    return styleUrls;
 }
 
 export function parseFudabaMapConfig(
@@ -318,10 +302,16 @@ export function parseFudabaMapConfig(
             "IMS_FUDABA_MAP_STYLE_URL is required when IMS_FUDABA_MAP_ENABLED=true",
         );
     }
-    const prefixes = parseFudabaMapPrefixes(
-        environment.IMS_FUDABA_MAP_PREFIXES,
+    const configuredStyleUrls = parseFudabaMapStyleUrls(
+        environment.IMS_FUDABA_MAP_STYLE_URLS,
     );
-    return { enabled, styleUrl, prefixes };
+    const styleUrls = styleUrl
+        ? [
+              styleUrl,
+              ...configuredStyleUrls.filter((entry) => entry !== styleUrl),
+          ]
+        : configuredStyleUrls;
+    return { enabled, styleUrl, styleUrls };
 }
 
 export function parseFudabaGeocodingConfig(
@@ -394,7 +384,7 @@ export const FUDABA_WRITE_ENABLED = parseFudabaWriteEnabled(
 export const FUDABA_MAP_CONFIG = parseFudabaMapConfig();
 export const FUDABA_MAP_ENABLED = FUDABA_MAP_CONFIG.enabled;
 export const FUDABA_MAP_STYLE_URL = FUDABA_MAP_CONFIG.styleUrl;
-export const FUDABA_MAP_PREFIXES = FUDABA_MAP_CONFIG.prefixes;
+export const FUDABA_MAP_STYLE_URLS = FUDABA_MAP_CONFIG.styleUrls;
 export const FUDABA_GEOCODING_CONFIG = parseFudabaGeocodingConfig();
 const COOKIE_SECURE = envFlag("IMS_COOKIE_SECURE", IS_PRODUCTION);
 

@@ -9,6 +9,7 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog"
 import { Sheet, SheetContent, SheetTitle } from "~/components/ui/sheet"
 import { useSafeAreaCollisionBoundary } from "~/components/ui/use-safe-area-collision-boundary"
+import { isNativeTabBarSuppressed } from "~/lib/native-tab-bar-suppression"
 
 const SAFE_AREA_PROPERTIES = [
   "--safe-area-top",
@@ -25,7 +26,7 @@ describe("overlay safe-area contracts", () => {
     window.dispatchEvent(new Event("resize"))
   })
   it("constrains dialogs to the interactive viewport by default", () => {
-    render(
+    const view = render(
       <Dialog open>
         <DialogContent>
           <DialogTitle>安全对话框</DialogTitle>
@@ -38,6 +39,9 @@ describe("overlay safe-area contracts", () => {
       "max-h-(--overlay-safe-height)",
       "overflow-y-auto"
     )
+    expect(isNativeTabBarSuppressed()).toBe(true)
+    view.unmount()
+    expect(isNativeTabBarSuppressed()).toBe(false)
   })
 
   it("allows immersive dialogs to manage safe controls inside the viewport", () => {
@@ -58,7 +62,7 @@ describe("overlay safe-area contracts", () => {
   })
 
   it("constrains alert dialogs to the interactive viewport", () => {
-    render(
+    const view = render(
       <AlertDialog open>
         <AlertDialogContent>
           <AlertDialogTitle>安全确认框</AlertDialogTitle>
@@ -71,6 +75,9 @@ describe("overlay safe-area contracts", () => {
       "max-h-(--overlay-safe-height)",
       "overflow-y-auto"
     )
+    expect(isNativeTabBarSuppressed()).toBe(true)
+    view.unmount()
+    expect(isNativeTabBarSuppressed()).toBe(false)
   })
 
   it("provides safe collision bounds to anchored overlays", async () => {
@@ -91,8 +98,20 @@ describe("overlay safe-area contracts", () => {
     })
   })
 
-  it("keeps bottom sheets above the system navigation area", () => {
+  it("does not suppress the native tab bar for a closed sheet", () => {
     render(
+      <Sheet open={false}>
+        <SheetContent side="bottom">
+          <SheetTitle>已关闭面板</SheetTitle>
+        </SheetContent>
+      </Sheet>
+    )
+
+    expect(isNativeTabBarSuppressed()).toBe(false)
+  })
+
+  it("extends bottom sheets through the system safe area", () => {
+    const view = render(
       <Sheet open>
         <SheetContent side="bottom">
           <SheetTitle>安全底部面板</SheetTitle>
@@ -100,9 +119,16 @@ describe("overlay safe-area contracts", () => {
       </Sheet>
     )
 
-    expect(screen.getByRole("dialog", { name: "安全底部面板" })).toHaveClass(
-      "data-[side=bottom]:bottom-(--safe-area-bottom)",
+    const sheet = screen.getByRole("dialog", { name: "安全底部面板" })
+    expect(sheet).toHaveClass(
+      "data-[side=bottom]:bottom-0",
       "max-h-(--safe-viewport-height)"
     )
+    expect(
+      sheet.querySelector('[data-slot="sheet-bottom-safe-area"]')
+    ).toHaveClass("h-(--safe-area-bottom)", "shrink-0")
+    expect(isNativeTabBarSuppressed()).toBe(true)
+    view.unmount()
+    expect(isNativeTabBarSuppressed()).toBe(false)
   })
 })

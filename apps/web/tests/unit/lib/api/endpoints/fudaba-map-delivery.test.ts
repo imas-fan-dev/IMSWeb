@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
-  fudabaMapPrefixSchema,
-  fudabaMapStyleUrlForPrefix,
+  activateAdminFudabaMapSource,
+  createAdminFudabaMapSource,
+  deleteAdminFudabaMapSource,
+  fudabaMapDeliverySnapshotSchema,
+  fudabaMapSourceNameSchema,
+  fudabaMapStyleUrlSchema,
   getAdminFudabaMapDelivery,
-  updateAdminFudabaMapDelivery,
+  updateAdminFudabaMapSource,
 } from "~/lib/api"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
@@ -14,10 +18,22 @@ function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
     : new Request(new URL(String(input), "http://ims.test"), init)
 }
 
+const activeSource = {
+  id: "source-r2",
+  name: "R2 test",
+  styleUrl: "https://objects.example.test/exchange/v3/exchange-style.json",
+}
 const snapshot = {
-  selectedPrefix: "https://objects.example.test/exchange/v3/",
-  availablePrefixes: ["/maps/", "https://objects.example.test/exchange/v3/"],
-  effectivePrefix: "https://objects.example.test/exchange/v3/",
+  sources: [
+    {
+      id: "source-official",
+      name: "OpenFreeMap Positron",
+      styleUrl: "https://tiles.openfreemap.org/styles/positron",
+    },
+    activeSource,
+  ],
+  activeSourceId: activeSource.id,
+  effectiveStyleUrl: activeSource.styleUrl,
   revision: '"revision-1"',
 }
 
@@ -27,37 +43,31 @@ afterEach(() => {
 })
 
 describe("Fudaba map delivery API", () => {
-  it("validates path-carrying prefixes and derives the style asset URL", () => {
-    expect(fudabaMapPrefixSchema.parse(" /maps/releases/v3/ ")).toBe(
-      "/maps/releases/v3/"
+  it("validates source names, complete style URLs, and active snapshot integrity", () => {
+    expect(fudabaMapSourceNameSchema.parse(" R2 test ")).toBe("R2 test")
+    expect(fudabaMapStyleUrlSchema.parse(" /maps/exchange-style.json ")).toBe(
+      "/maps/exchange-style.json"
     )
-    expect(
-      fudabaMapPrefixSchema.parse(
-        "https://objects.example.test/exchange/releases/v3/"
-      )
-    ).toBe("https://objects.example.test/exchange/releases/v3/")
-    expect(
-      fudabaMapStyleUrlForPrefix(
-        "https://objects.example.test/exchange/releases/v3/",
-        "/maps/exchange-style.json"
-      )
-    ).toBe(
-      "https://objects.example.test/exchange/releases/v3/exchange-style.json"
-    )
+    expect(fudabaMapDeliverySnapshotSchema.parse(snapshot)).toEqual(snapshot)
 
-    for (const prefix of [
-      "maps/",
-      "/maps",
-      "//objects.example.test/maps/",
-      "https://user:secret@objects.example.test/maps/",
-      "https://objects.example.test/maps/?release=v3",
-      "https://objects.example.test/maps/#v3",
+    expect(() =>
+      fudabaMapDeliverySnapshotSchema.parse({
+        ...snapshot,
+        activeSourceId: "source-missing",
+      })
+    ).toThrow()
+    for (const styleUrl of [
+      "maps/exchange-style.json",
+      "//objects.example.test/maps/style.json",
+      "https://user:secret@objects.example.test/maps/style.json",
+      "https://objects.example.test/maps/style.json?release=v3",
+      "https://objects.example.test/maps/style.json#v3",
     ]) {
-      expect(() => fudabaMapPrefixSchema.parse(prefix)).toThrow()
+      expect(() => fudabaMapStyleUrlSchema.parse(styleUrl)).toThrow()
     }
   })
 
-  it("loads the operator snapshot with Backoffice auth policy", async () => {
+  it("loads the dynamic source snapshot with Backoffice auth policy", async () => {
     let request: Request | undefined
     vi.stubGlobal(
       "fetch",
@@ -77,32 +87,61 @@ describe("Fudaba map delivery API", () => {
     expect(request?.headers.get(CSRF_HEADER_NAME)).toBeNull()
   })
 
-  it("updates the selected prefix with revision and Backoffice CSRF", async () => {
+  it("creates, edits, activates, and deletes sources with revision and CSRF", async () => {
     document.cookie = "ims_admin_csrf=map-delivery-csrf; path=/"
-    let request: Request | undefined
+    const requests: Request[] = []
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        request = requestFrom(input, init).clone()
+        requests.push(requestFrom(input, init).clone())
         return Response.json({ success: true, delivery: snapshot })
       })
     )
 
-    await expect(
-      updateAdminFudabaMapDelivery(
-        "https://objects.example.test/exchange/v3/",
-        '"revision-1"'
-      ).send()
-    ).resolves.toEqual({ success: true, delivery: snapshot })
+    await createAdminFudabaMapSource(
+      "R2 test",
+      activeSource.styleUrl,
+      '"revision-1"'
+    ).send()
+    await updateAdminFudabaMapSource(
+      activeSource.id,
+      "R2 test v2",
+      activeSource.styleUrl,
+      '"revision-2"'
+    ).send()
+    await activateAdminFudabaMapSource(activeSource.id, '"revision-3"').send()
+    await deleteAdminFudabaMapSource(activeSource.id, '"revision-4"').send()
 
-    expect(request?.method).toBe("PUT")
-    expect(new URL(request!.url).pathname).toBe(
-      "/api/admin/community/exchange/map-delivery"
-    )
-    expect(request?.headers.get(CSRF_HEADER_NAME)).toBe("map-delivery-csrf")
-    await expect(request?.json()).resolves.toEqual({
-      prefix: "https://objects.example.test/exchange/v3/",
+    expect(
+      requests.map((request) => [request.method, new URL(request.url).pathname])
+    ).toEqual([
+      ["POST", "/api/admin/community/exchange/map-delivery/sources"],
+      ["PUT", "/api/admin/community/exchange/map-delivery/sources/source-r2"],
+      ["PUT", "/api/admin/community/exchange/map-delivery/active"],
+      [
+        "DELETE",
+        "/api/admin/community/exchange/map-delivery/sources/source-r2",
+      ],
+    ])
+    for (const request of requests) {
+      expect(request.headers.get(CSRF_HEADER_NAME)).toBe("map-delivery-csrf")
+    }
+    await expect(requests[0]?.json()).resolves.toEqual({
+      name: "R2 test",
+      styleUrl: activeSource.styleUrl,
       revision: '"revision-1"',
+    })
+    await expect(requests[1]?.json()).resolves.toEqual({
+      name: "R2 test v2",
+      styleUrl: activeSource.styleUrl,
+      revision: '"revision-2"',
+    })
+    await expect(requests[2]?.json()).resolves.toEqual({
+      sourceId: activeSource.id,
+      revision: '"revision-3"',
+    })
+    await expect(requests[3]?.json()).resolves.toEqual({
+      revision: '"revision-4"',
     })
   })
 })

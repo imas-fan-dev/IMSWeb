@@ -22,10 +22,10 @@ export const VIEWPORT_CONTENT = IS_APP_TARGET
 /**
  * Top offset for page-owned sticky controls below the App title bar.
  *
- * The bar contributes a 3rem control row after the iOS safe-area inset. Web
- * pages keep their existing 4rem site-header offset instead.
+ * AppLayout defines the inset from its current chrome mode. Web pages keep
+ * their existing site-header offset instead.
  */
-export const APP_STICKY_HEADER_OFFSET = "top-[calc(3rem+var(--safe-area-top))]"
+export const APP_STICKY_HEADER_OFFSET = "top-[var(--app-header-inset)]"
 
 /**
  * Where a floating control has to sit in the app build to clear the tab bar.
@@ -43,5 +43,4 @@ export const APP_STICKY_HEADER_OFFSET = "top-[calc(3rem+var(--safe-area-top))]"
  * would pull it into the web module graph. Gate every use on `IS_APP_TARGET` so
  * the web bundle keeps the constant `false` and drops the branch.
  */
-export const APP_FLOATING_CONTROL_OFFSET =
-  "bottom-[calc(6rem+env(safe-area-inset-bottom))]"
+export const APP_FLOATING_CONTROL_OFFSET = "bottom-[var(--app-floating-bottom)]"

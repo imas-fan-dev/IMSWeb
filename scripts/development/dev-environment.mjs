@@ -55,6 +55,7 @@ Environment overrides:
   IMS_VALKEY_PORT
   IMS_DEV_FUDABA_PUBLIC_READ_ENABLED, IMS_DEV_FUDABA_WRITE_ENABLED
   IMS_DEV_FUDABA_MAP_ENABLED, IMS_DEV_FUDABA_MAP_STYLE_URL
+  IMS_DEV_FUDABA_MAP_STYLE_URLS
   IMS_DEV_FUDABA_GEOCODING_ENDPOINT, IMS_DEV_FUDABA_GEOCODING_USER_AGENT
   IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES
 `;
@@ -186,21 +187,47 @@ function developmentMapStyleUrl(environment) {
   const rawValue = String(environment.IMS_DEV_FUDABA_MAP_STYLE_URL || "");
   const value = rawValue.trim();
   if (!value) return "";
+
+  let absoluteUrl = null;
+  try {
+    absoluteUrl = new URL(value);
+  } catch {
+    absoluteUrl = null;
+  }
+  const isCredentialFreeHttpUrl = Boolean(
+    absoluteUrl &&
+    ["http:", "https:"].includes(absoluteUrl.protocol) &&
+    !absoluteUrl.username &&
+    !absoluteUrl.password,
+  );
+  const isSameOriginPath = value.startsWith("/") && !value.includes("//");
   if (
     value.length > 2_048 ||
     /[\0-\x1f\x7f]/.test(rawValue) ||
-    !value.startsWith("/") ||
-    value.includes("//") ||
+    (!isSameOriginPath && !isCredentialFreeHttpUrl) ||
     value.includes("\\") ||
     value.includes("?") ||
     value.includes("#")
   ) {
     throw new Error(
-      "IMS_DEV_FUDABA_MAP_STYLE_URL must be a same-origin absolute path " +
-        "without query or hash",
+      "IMS_DEV_FUDABA_MAP_STYLE_URL must be a same-origin absolute path or " +
+        "a credential-free absolute HTTP(S) URL without query or hash",
     );
   }
   return value;
+}
+
+function developmentMapStyleUrls(environment) {
+  const values = [];
+  for (const entry of String(
+    environment.IMS_DEV_FUDABA_MAP_STYLE_URLS || "",
+  ).split(",")) {
+    const styleUrl = developmentMapStyleUrl({
+      IMS_DEV_FUDABA_MAP_STYLE_URL: entry,
+    });
+    if (styleUrl && !values.includes(styleUrl)) values.push(styleUrl);
+  }
+  return values.join(",");
 }
 
 function developmentGeocodingConfig(environment) {
@@ -270,6 +297,7 @@ function resolveFudabaDevelopmentEnvironment(environment) {
     "IMS_DEV_FUDABA_MAP_ENABLED",
   );
   const mapStyleUrl = developmentMapStyleUrl(environment);
+  const mapStyleUrls = developmentMapStyleUrls(environment);
   const geocoding = developmentGeocodingConfig(environment);
   if (mapEnabled === "true" && !mapStyleUrl) {
     throw new Error(
@@ -288,6 +316,7 @@ function resolveFudabaDevelopmentEnvironment(environment) {
     ),
     IMS_FUDABA_MAP_ENABLED: mapEnabled,
     IMS_FUDABA_MAP_STYLE_URL: mapStyleUrl,
+    IMS_FUDABA_MAP_STYLE_URLS: mapStyleUrls,
     IMS_FUDABA_GEOCODING_ENDPOINT: geocoding.endpoint,
     IMS_FUDABA_GEOCODING_USER_AGENT: geocoding.userAgent,
     IMS_FUDABA_GEOCODING_COUNTRY_CODES: geocoding.countryCodes,

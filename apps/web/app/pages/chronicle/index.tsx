@@ -6,6 +6,7 @@ import {
   MapPinIcon,
 } from "lucide-react"
 
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import {
   Card,
@@ -24,6 +25,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getChronicleActivities } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
@@ -45,21 +47,38 @@ export default function ChronicleIndexPage() {
   onError(() => undefined)
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-6xl px-6 py-16">
+    <PageShell width="wide">
       <div className="max-w-3xl">
-        <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
-          Community archive
-        </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">
+        {!IS_APP_TARGET ? (
+          <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
+            Community archive
+          </p>
+        ) : null}
+        <h1
+          className={
+            IS_APP_TARGET
+              ? "text-2xl font-semibold tracking-tight"
+              : "mt-3 text-4xl font-semibold tracking-tight"
+          }
+        >
           活动编年史
         </h1>
-        <p className="mt-4 text-base/7 text-muted-foreground">
+        <p
+          className={
+            IS_APP_TARGET
+              ? "mt-2 text-sm/6 text-muted-foreground"
+              : "mt-4 text-base/7 text-muted-foreground"
+          }
+        >
           由制作人共同整理的线下活动记录。进入活动页面可以浏览已审核照片，
           也可以提交你保存的现场影像。
         </p>
       </div>
 
-      <section className="mt-10" aria-label="活动列表">
+      <section
+        className={IS_APP_TARGET ? "mt-6" : "mt-10"}
+        aria-label="活动列表"
+      >
         {loading ? <ChronicleLoading /> : null}
 
         {error ? (
@@ -101,17 +120,27 @@ export default function ChronicleIndexPage() {
                       loading="lazy"
                     />
                   ) : null}
-                  <CardHeader>
-                    <CardTitle>{activity.title}</CardTitle>
-                    <CardDescription>活动编号 {activity.id}</CardDescription>
+                  <CardHeader className="min-w-0">
+                    <CardTitle className="wrap-anywhere">
+                      {activity.title}
+                    </CardTitle>
+                    <CardDescription className="wrap-anywhere">
+                      活动编号 {activity.id}
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="grid gap-2 text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-2">
-                      <CalendarDaysIcon className="size-4" aria-hidden="true" />
+                  <CardContent className="grid min-w-0 gap-2 text-sm text-muted-foreground">
+                    <span className="inline-flex min-w-0 items-center gap-2 wrap-anywhere">
+                      <CalendarDaysIcon
+                        className="size-4 shrink-0"
+                        aria-hidden="true"
+                      />
                       {activity.date}
                     </span>
-                    <span className="inline-flex items-center gap-2">
-                      <MapPinIcon className="size-4" aria-hidden="true" />
+                    <span className="inline-flex min-w-0 items-center gap-2 wrap-anywhere">
+                      <MapPinIcon
+                        className="size-4 shrink-0"
+                        aria-hidden="true"
+                      />
                       {activity.location}
                     </span>
                   </CardContent>
@@ -128,6 +157,6 @@ export default function ChronicleIndexPage() {
           </div>
         ) : null}
       </section>
-    </main>
+    </PageShell>
   )
 }

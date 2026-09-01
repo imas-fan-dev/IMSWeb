@@ -10,7 +10,7 @@ import { TauriInteractionGuard } from "~/components/shared/tauri-interaction-gua
 import { ThemeColorSync } from "~/components/shared/theme-toggle"
 import { Toaster } from "~/components/ui/sonner"
 import { I18nProvider } from "~/i18n/provider"
-import { VIEWPORT_CONTENT } from "~/lib/app-target"
+import { IS_APP_TARGET, VIEWPORT_CONTENT } from "~/lib/app-target"
 import { defaultLanguage } from "~/i18n/resources"
 
 export function RootDocumentLayout({ children }: { children: ReactNode }) {
@@ -22,6 +22,7 @@ export function RootDocumentLayout({ children }: { children: ReactNode }) {
       // engine costs a rim highlight, not the surface. Verified on chromium,
       // firefox and webkit; see the ADR for the measurement.
       data-glass-refraction="on"
+      data-app-target={IS_APP_TARGET ? "app" : undefined}
       suppressHydrationWarning
     >
       <head>

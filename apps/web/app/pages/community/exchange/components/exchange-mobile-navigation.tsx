@@ -11,7 +11,8 @@ import { useState } from "react"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
-import { IS_APP_TARGET } from "~/lib/app-target"
+import { Button } from "~/components/ui/button"
+import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 
 interface ExchangeMobileNavigationProps {
@@ -27,6 +28,7 @@ interface ExchangeMobileNavigationProps {
 
 interface ExchangeMapNavigationActionsProps extends ExchangeMobileNavigationProps {
   itemClassName: string
+  localToolsOnly?: boolean
   onNavigate?: () => void
 }
 
@@ -46,6 +48,7 @@ function ExchangeMapNavigationActions({
   officesActive,
   cardsActive,
   itemClassName,
+  localToolsOnly = false,
   onNavigate,
   onShowMap,
   onOpenFilter,
@@ -63,15 +66,17 @@ function ExchangeMapNavigationActions({
 
   return (
     <>
-      <button
-        type="button"
-        className={cn(itemClassName, itemStateClass(mapActive))}
-        aria-current={mapActive ? "page" : undefined}
-        onClick={navigate(onShowMap)}
-      >
-        <MapIcon className="size-5" aria-hidden="true" />
-        <span>地图</span>
-      </button>
+      {localToolsOnly ? null : (
+        <button
+          type="button"
+          className={cn(itemClassName, itemStateClass(mapActive))}
+          aria-current={mapActive ? "page" : undefined}
+          onClick={navigate(onShowMap)}
+        >
+          <MapIcon className="size-5" aria-hidden="true" />
+          <span>地图</span>
+        </button>
+      )}
       <button
         type="button"
         className={cn(itemClassName, itemStateClass(filterActive))}
@@ -110,15 +115,17 @@ function ExchangeMapNavigationActions({
         <CreditCardIcon className="size-5" aria-hidden="true" />
         <span aria-hidden="true">名片</span>
       </button>
-      <NavigationLink
-        to="/community/exchange/me"
-        className={itemClassName}
-        aria-label="管理我的交换账号"
-        onClick={onNavigate}
-      >
-        <UserRoundIcon className="size-5" aria-hidden="true" />
-        <span aria-hidden="true">我的</span>
-      </NavigationLink>
+      {localToolsOnly ? null : (
+        <NavigationLink
+          to="/community/exchange/me"
+          className={itemClassName}
+          aria-label="管理我的交换账号"
+          onClick={onNavigate}
+        >
+          <UserRoundIcon className="size-5" aria-hidden="true" />
+          <span aria-hidden="true">我的</span>
+        </NavigationLink>
+      )}
     </>
   )
 }
@@ -127,35 +134,59 @@ function AppExchangeMapNavigation(props: ExchangeMobileNavigationProps) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="pointer-events-none absolute top-16 right-3 z-30 md:hidden">
-      <button
+    <div
+      className={cn(
+        "pointer-events-none absolute right-3 z-30 lg:hidden",
+        APP_FLOATING_CONTROL_OFFSET
+      )}
+    >
+      <Button
         type="button"
-        className="pointer-events-auto grid size-11 place-items-center rounded-full border bg-background/95 text-foreground shadow-lg backdrop-blur-md transition-[transform,background-color] duration-200 hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none"
-        aria-label={expanded ? "收起交换地图导航" : "展开交换地图导航"}
-        aria-controls="exchange-map-navigation"
+        variant="outline"
+        size="icon"
+        className="exchange-map-app-control pointer-events-auto size-10 rounded-lg transition-[transform,background-color] duration-200 active:scale-95 motion-reduce:transition-none"
+        aria-label={expanded ? "收起地图工具" : "展开地图工具"}
+        aria-controls="exchange-map-tools"
         aria-expanded={expanded}
-        title={expanded ? "收起地图导航" : "展开地图导航"}
+        title={expanded ? "收起地图工具" : "展开地图工具"}
         onClick={() => setExpanded((current) => !current)}
       >
-        {expanded ? (
-          <XIcon className="size-5" aria-hidden="true" />
-        ) : (
-          <MenuIcon className="size-5" aria-hidden="true" />
+        <span className="relative size-5" aria-hidden="true">
+          <MenuIcon
+            className={cn(
+              "absolute inset-0 size-5 transition-[opacity,transform] duration-200 motion-reduce:transition-none",
+              expanded ? "rotate-90 opacity-0" : "rotate-0 opacity-100"
+            )}
+          />
+          <XIcon
+            className={cn(
+              "absolute inset-0 size-5 transition-[opacity,transform] duration-200 motion-reduce:transition-none",
+              expanded ? "rotate-0 opacity-100" : "-rotate-90 opacity-0"
+            )}
+          />
+        </span>
+      </Button>
+      <div
+        id="exchange-map-tools"
+        role="toolbar"
+        inert={!expanded}
+        className={cn(
+          "exchange-map-app-surface pointer-events-auto absolute right-[calc(100%+0.5rem)] bottom-0 w-36 origin-bottom-right overflow-hidden rounded-lg border p-1.5 transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none",
+          expanded
+            ? "visible translate-x-0 scale-100 opacity-100"
+            : "invisible translate-x-2 scale-95 opacity-0"
         )}
-      </button>
-      <nav
-        id="exchange-map-navigation"
-        hidden={!expanded}
-        className="pointer-events-auto absolute top-0 right-[calc(100%+0.5rem)] w-40 overflow-hidden rounded-lg border bg-background/95 p-1.5 shadow-lg backdrop-blur-md"
-        aria-label="交换地图导航"
+        aria-label="交换地图工具"
+        aria-hidden={!expanded}
       >
         <SeriesAccentStrip className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5" />
         <ExchangeMapNavigationActions
           {...props}
           itemClassName={sideItemClassName}
+          localToolsOnly
           onNavigate={() => setExpanded(false)}
         />
-      </nav>
+      </div>
     </div>
   )
 }

@@ -4,6 +4,13 @@ import { IS_APP_TARGET } from "~/lib/app-target"
 
 export const NATIVE_TAB_SELECT_EVENT = "ims:native-tab-select"
 
+export type NativeGlassColor = {
+  red: number
+  green: number
+  blue: number
+  alpha: number
+}
+
 export type NativeGlassTabItem = {
   route: string
   lucideIcon: string
@@ -12,14 +19,18 @@ export type NativeGlassTabItem = {
 
 export type NativeGlassConfigureOptions = {
   dark: boolean
+  hidden: boolean
   items: NativeGlassTabItem[]
+  selectedColor: NativeGlassColor
   selectedIndex: number
 }
 
 export type NativeGlassUpdateOptions = Pick<
   NativeGlassConfigureOptions,
-  "dark" | "selectedIndex"
->
+  "dark" | "hidden" | "selectedColor"
+> & {
+  selectedIndex?: number
+}
 
 export type NativeGlassStatus = {
   reason?: string

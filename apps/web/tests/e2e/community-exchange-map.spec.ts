@@ -557,6 +557,7 @@ test("fills the public workspace with a responsive map and keeps both directorie
 
 test("falls back to the directory without hiding cards when config fails", async ({
   page,
+  isMobile,
 }) => {
   await page.route("**/api/community/exchange/map/config", async (route) => {
     await route.fulfill({ status: 503, json: { error: "map disabled" } })
@@ -609,6 +610,32 @@ test("falls back to the directory without hiding cards when config fails", async
   await expect(
     fallbackDirectory.getByRole("link", { name: "上海周末交换事务所" })
   ).toBeVisible()
+  if (isMobile) {
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--safe-area-bottom", "34px")
+    })
+    await expect
+      .poll(() =>
+        fallbackDirectory.evaluate((element) =>
+          Math.abs(element.getBoundingClientRect().bottom - window.innerHeight)
+        )
+      )
+      .toBeLessThanOrEqual(1)
+    const safeAreaHeight = await fallbackDirectory.evaluate((element) => {
+      const safeArea = element.querySelector(
+        '[data-slot="sheet-bottom-safe-area"]'
+      )
+      return safeArea instanceof HTMLElement
+        ? safeArea.getBoundingClientRect().height
+        : null
+    })
+    expect(safeAreaHeight).toBe(34)
+    if (process.env.CAPTURE_FUDABA_QA === "1") {
+      await page.screenshot({
+        path: "/tmp/imsweb-fudaba-directory-safe-area-mobile.png",
+      })
+    }
+  }
   await fallbackDirectory.getByRole("tab", { name: "名片" }).click()
   await expect(fallbackDirectory.getByText("周末交换会名片")).toBeVisible()
   await fallbackDirectory

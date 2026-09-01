@@ -70,16 +70,29 @@ describe("native glass bridge", () => {
 
   it("uses the scoped plugin commands", async () => {
     mocks.invoke.mockResolvedValue({ supported: true })
+    const selectedColor = {
+      red: 1,
+      green: 23 / 255,
+      blue: 79 / 255,
+      alpha: 1,
+    }
     const options = {
       dark: false,
+      hidden: false,
       items: [{ route: "/", lucideIcon: "house", title: "首页" }],
+      selectedColor,
       selectedIndex: 0,
     }
 
     await expect(configureNativeGlass(options)).resolves.toEqual({
       supported: true,
     })
-    await updateNativeGlass({ dark: true, selectedIndex: 1 })
+    await updateNativeGlass({
+      dark: true,
+      hidden: true,
+      selectedColor,
+      selectedIndex: 1,
+    })
     await destroyNativeGlass()
 
     expect(mocks.invoke).toHaveBeenNthCalledWith(
@@ -90,7 +103,9 @@ describe("native glass bridge", () => {
     expect(mocks.invoke).toHaveBeenNthCalledWith(
       2,
       "plugin:native-glass|update",
-      { options: { dark: true, selectedIndex: 1 } }
+      {
+        options: { dark: true, hidden: true, selectedColor, selectedIndex: 1 },
+      }
     )
     expect(mocks.invoke).toHaveBeenNthCalledWith(
       3,

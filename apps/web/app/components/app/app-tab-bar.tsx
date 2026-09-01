@@ -1,19 +1,29 @@
 import {
-  BookOpenTextIcon,
   CalendarDaysIcon,
   CircleUserIcon,
   HouseIcon,
-  UsersIcon,
+  LayoutGridIcon,
+  MapPinnedIcon,
+  type LucideIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
-import { NavigationNavLink } from "~/components/navigation/navigation-link"
 import {
+  APP_TABS,
+  type AppTabId,
+  appTabIdForPathname,
+  appTabIndexForPathname,
+  appTabRoot,
+} from "~/components/app/app-tab-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import {
+  appTabScrollPosition,
   isNonScrollingAppRoute,
   normalizeAppPathname,
+  rememberAppTabScrollPosition,
   scrollAppViewToTop,
 } from "~/lib/app-shell-scroll"
 import {
@@ -22,20 +32,25 @@ import {
   nativeTabRoute,
   NATIVE_TAB_SELECT_EVENT,
   shouldAttemptNativeGlass,
+  type NativeGlassColor,
   updateNativeGlass,
 } from "~/lib/native-glass"
+import {
+  isNativeTabBarSuppressed,
+  nativeTabBarSuppressed,
+  NATIVE_TAB_BAR_SUPPRESSION_EVENT,
+} from "~/lib/native-tab-bar-suppression"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
 
 /**
- * Height the tab bar occupies, excluding the safe-area inset. Layouts pad their
+ * Complete tab-bar clearance, including the safe-area inset. Layouts pad their
  * scroll container by this much so the last row of content clears the bar.
  *
  * The bar floats clear of the screen edge, so this budgets the capsule itself
  * plus the gap beneath it, not just the row height.
  */
-export const APP_TAB_BAR_CLEARANCE =
-  "pb-[calc(5.25rem+env(safe-area-inset-bottom))]"
+export const APP_TAB_BAR_CLEARANCE = "pb-[var(--app-bottom-clearance)]"
 
 /**
  * Geometry copied from iOS 26's own floating tab bar, measured off a simulator
@@ -48,57 +63,27 @@ export const APP_TAB_BAR_CLEARANCE =
  * of the gesture handle on a Pixel emulator. 24px clears it and lands within a
  * pixel of what iOS computes from its own inset.
  */
-const BAR_OFFSET = "bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)-9px))]"
+const BAR_OFFSET = "bottom-[max(1.5rem,calc(var(--safe-area-bottom)-9px))]"
 
-// Labels reuse existing translation keys on purpose. Adding app-only keys means
-// editing the shared i18n resources, which would change the web bundle and cost
-// the byte-identical guarantee this build fork is verified against.
-const tabs = [
-  {
-    to: "/",
-    label: "navigation.home",
-    icon: HouseIcon,
-    lucideIcon: "house",
-    end: true,
-  },
-  {
-    to: "/events",
-    label: "navigation.events",
-    icon: CalendarDaysIcon,
-    lucideIcon: "calendar-days",
-  },
-  {
-    to: "/wiki",
-    label: "navigation.storySite",
-    icon: BookOpenTextIcon,
-    lucideIcon: "book-open-text",
-  },
-  {
-    to: "/community",
-    label: "navigation.community",
-    icon: UsersIcon,
-    lucideIcon: "users",
-  },
-  {
-    to: "/account/me",
-    label: "platformAccount.title",
-    icon: CircleUserIcon,
-    lucideIcon: "circle-user",
-  },
-] as const
+const NATIVE_TAB_BAR_SELECTED_COLOR = {
+  red: 1,
+  green: 23 / 255,
+  blue: 79 / 255,
+  alpha: 1,
+} satisfies NativeGlassColor
 
-/**
- * Which tab owns the current URL, using the same rules NavLink applies below.
- * Returning an index (rather than letting each tab draw its own background)
- * is what lets a single lens slide between tabs instead of cross-fading.
- */
-function activeTabIndex(pathname: string) {
-  return tabs.findIndex((tab) =>
-    "end" in tab && tab.end
-      ? pathname === tab.to
-      : pathname === tab.to || pathname.startsWith(`${tab.to}/`)
-  )
-}
+const tabIcons = {
+  home: HouseIcon,
+  events: CalendarDaysIcon,
+  apps: LayoutGridIcon,
+  map: MapPinnedIcon,
+  account: CircleUserIcon,
+} satisfies Record<AppTabId, LucideIcon>
+
+const tabs = APP_TABS.map((tab) => ({
+  ...tab,
+  icon: tabIcons[tab.id],
+}))
 
 /**
  * Modifier clicks and non-primary buttons that the browser is expected to
@@ -116,9 +101,26 @@ export function AppTabBar() {
   const navigate = useNavigation()
   const { pathname } = useLocation()
   const normalizedPathname = normalizeAppPathname(pathname)
-  const activeIndex = activeTabIndex(normalizedPathname)
+  const activeId = appTabIdForPathname(normalizedPathname)
+  const activeIndex = appTabIndexForPathname(normalizedPathname)
+  const activeRoot = activeId ? appTabRoot(activeId) : null
   const slot = Math.max(activeIndex, 0)
+  const useLightMapGlass = isNonScrollingAppRoute(normalizedPathname)
+  const nativeGlassDark =
+    !useLightMapGlass &&
+    (resolvedTheme === "dark" ||
+      (!resolvedTheme &&
+        typeof document !== "undefined" &&
+        document.documentElement.classList.contains("dark")))
   const [initialSlot] = useState(slot)
+  const [initialNativeGlassDark] = useState(() =>
+    useLightMapGlass || typeof document === "undefined"
+      ? false
+      : document.documentElement.classList.contains("dark")
+  )
+  const [nativeTabBarSuppressedState, setNativeTabBarSuppressedState] =
+    useState(isNativeTabBarSuppressed)
+  const [initialNativeTabBarSuppressed] = useState(nativeTabBarSuppressedState)
   const [nativeGlassActive, setNativeGlassActive] = useState(false)
   const nativeItems = useMemo(
     () =>
@@ -129,6 +131,40 @@ export function AppTabBar() {
       })),
     [t]
   )
+
+  useEffect(() => {
+    if (
+      !activeId ||
+      normalizedPathname !== activeRoot ||
+      isNonScrollingAppRoute(normalizedPathname)
+    ) {
+      return
+    }
+
+    const savedTop = appTabScrollPosition(activeId)
+    if (savedTop === null || savedTop === 0 || savedTop === window.scrollY) {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: savedTop, behavior: "instant" })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeId, activeRoot, normalizedPathname])
+
+  useEffect(() => {
+    if (
+      !activeId ||
+      normalizedPathname !== activeRoot ||
+      isNonScrollingAppRoute(normalizedPathname)
+    ) {
+      return
+    }
+
+    return () => {
+      rememberAppTabScrollPosition(activeId, window.scrollY)
+    }
+  }, [activeId, activeRoot, normalizedPathname])
 
   const activateTab = useCallback(
     (to: string) => {
@@ -160,11 +196,33 @@ export function AppTabBar() {
 
   useEffect(() => {
     if (!shouldAttemptNativeGlass()) return
+
+    const handleSuppressionChange = (event: Event) => {
+      const suppressed = nativeTabBarSuppressed(event)
+      if (suppressed !== null) setNativeTabBarSuppressedState(suppressed)
+    }
+
+    window.addEventListener(
+      NATIVE_TAB_BAR_SUPPRESSION_EVENT,
+      handleSuppressionChange
+    )
+    return () => {
+      window.removeEventListener(
+        NATIVE_TAB_BAR_SUPPRESSION_EVENT,
+        handleSuppressionChange
+      )
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!shouldAttemptNativeGlass()) return
     let disposed = false
 
     void configureNativeGlass({
-      dark: document.documentElement.classList.contains("dark"),
+      dark: initialNativeGlassDark,
+      hidden: initialNativeTabBarSuppressed,
       items: nativeItems,
+      selectedColor: NATIVE_TAB_BAR_SELECTED_COLOR,
       selectedIndex: initialSlot,
     })
       .then((status) => {
@@ -182,18 +240,25 @@ export function AppTabBar() {
       disposed = true
       void destroyNativeGlass().catch(() => {})
     }
-  }, [initialSlot, nativeItems])
+  }, [
+    initialNativeGlassDark,
+    initialNativeTabBarSuppressed,
+    initialSlot,
+    nativeItems,
+  ])
 
   useEffect(() => {
-    if (!nativeGlassActive || activeIndex < 0) return
+    if (!nativeGlassActive) return
     let disposed = false
 
-    void updateNativeGlass({
-      dark:
-        resolvedTheme === "dark" ||
-        (!resolvedTheme && document.documentElement.classList.contains("dark")),
-      selectedIndex: activeIndex,
-    })
+    const options = {
+      dark: nativeGlassDark,
+      hidden: nativeTabBarSuppressedState,
+      selectedColor: NATIVE_TAB_BAR_SELECTED_COLOR,
+      ...(activeIndex >= 0 ? { selectedIndex: activeIndex } : {}),
+    }
+
+    void updateNativeGlass(options)
       .then((status) => {
         if (!disposed && !status.supported) {
           setNativeGlassActive(false)
@@ -210,7 +275,12 @@ export function AppTabBar() {
     return () => {
       disposed = true
     }
-  }, [activeIndex, nativeGlassActive, resolvedTheme])
+  }, [
+    activeIndex,
+    nativeGlassActive,
+    nativeGlassDark,
+    nativeTabBarSuppressedState,
+  ])
 
   /**
    * iOS convention: tapping the tab you are already on returns the view to the
@@ -237,6 +307,7 @@ export function AppTabBar() {
     // Suppresses React Router's navigation for this click only; `Link` runs
     // this handler first and skips its own once the event is defaulted.
     event.preventDefault()
+    if (activeId) rememberAppTabScrollPosition(activeId, 0)
     scrollAppViewToTop()
   }
 
@@ -289,30 +360,27 @@ export function AppTabBar() {
         <ul className="relative flex items-stretch">
           {tabs.map((tab) => (
             <li key={tab.to} className="flex-1">
-              <NavigationNavLink
+              <NavigationLink
                 to={tab.to}
-                end={"end" in tab ? tab.end : false}
-                className={({ isActive }) =>
-                  cn(
-                    "glass-tab flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem]",
-                    isActive
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  )
-                }
+                aria-current={tab.id === activeId ? "page" : undefined}
+                className={cn(
+                  "glass-tab flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem]",
+                  tab.id === activeId
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
                 onClick={(event) => handleTabClick(event, tab.to)}
               >
-                {({ isActive }) => (
-                  <>
-                    <tab.icon
-                      aria-hidden="true"
-                      data-glass-tab-icon=""
-                      className={cn("size-5", isActive && "fill-primary/15")}
-                    />
-                    <span>{t(tab.label)}</span>
-                  </>
-                )}
-              </NavigationNavLink>
+                <tab.icon
+                  aria-hidden="true"
+                  data-glass-tab-icon=""
+                  className={cn(
+                    "size-5",
+                    tab.id === activeId && "fill-primary/15"
+                  )}
+                />
+                <span>{t(tab.label)}</span>
+              </NavigationLink>
             </li>
           ))}
         </ul>

@@ -210,7 +210,9 @@ test("development configuration translates explicit Fudaba gates", async () => {
     IMS_DEV_FUDABA_PUBLIC_READ_ENABLED: " TRUE ",
     IMS_DEV_FUDABA_WRITE_ENABLED: "true",
     IMS_DEV_FUDABA_MAP_ENABLED: "true",
-    IMS_DEV_FUDABA_MAP_STYLE_URL: " /maps/exchange-style.json ",
+    IMS_DEV_FUDABA_MAP_STYLE_URL:
+      " https://tiles.openfreemap.org/styles/positron ",
+    IMS_DEV_FUDABA_MAP_STYLE_URLS: " /maps/exchange-style.json ",
     IMS_DEV_FUDABA_GEOCODING_ENDPOINT:
       " https://nominatim.example.test/search ",
     IMS_DEV_FUDABA_GEOCODING_USER_AGENT:
@@ -231,6 +233,10 @@ test("development configuration translates explicit Fudaba gates", async () => {
   assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "true");
   assert.equal(
     configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
+    "https://tiles.openfreemap.org/styles/positron",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URLS,
     "/maps/exchange-style.json",
   );
   assert.equal(
@@ -288,14 +294,15 @@ test("development configuration rejects unsafe Fudaba overrides", async () => {
     /credential-free HTTPS URL/,
   );
   for (const styleUrl of [
-    "https://tiles.example.com/style.json",
     "//tiles.example.com/style.json",
+    "https://user:secret@tiles.example.com/style.json",
+    "data:application/json,%7B%7D",
     "/maps/exchange-style.json?token=secret",
     "/maps/exchange-style.json#fragment",
   ]) {
     assert.throws(
       () => resolve({ IMS_DEV_FUDABA_MAP_STYLE_URL: styleUrl }),
-      /must be a same-origin absolute path/,
+      /must be a same-origin absolute path or/,
     );
   }
 });

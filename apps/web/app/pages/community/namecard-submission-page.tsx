@@ -12,6 +12,7 @@ import { useParams } from "react-router"
 import { toast } from "sonner"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -23,6 +24,8 @@ import {
   withdrawNamecardSubmission,
 } from "~/lib/api"
 import type { NamecardSubmission, NamecardSubmissionStatus } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 
 import {
   getNamecardSubmissionReceipt,
@@ -189,19 +192,37 @@ export default function NamecardSubmissionPage() {
 
   const copy = submission ? STATUS_COPY[submission.status] : null
   return (
-    <main id="main-content" className="mx-auto w-full max-w-4xl px-6 py-12">
-      <NavigationLink
-        to="/community/cards"
-        className={buttonVariants({ variant: "ghost", size: "sm" })}
-      >
-        <ArrowLeftIcon data-icon="inline-start" />
-        返回名片墙
-      </NavigationLink>
+    <PageShell width="read">
+      {!IS_APP_TARGET ? (
+        <NavigationLink
+          to="/community/cards"
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          <ArrowLeftIcon data-icon="inline-start" />
+          返回名片墙
+        </NavigationLink>
+      ) : null}
 
-      <header className="mt-8 max-w-2xl">
-        <p className="text-sm font-semibold text-primary">Submission receipt</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">投稿管理</h1>
-        <p className="mt-4 leading-7 text-muted-foreground">
+      <header className={cn("max-w-2xl", !IS_APP_TARGET && "mt-8")}>
+        {!IS_APP_TARGET ? (
+          <p className="text-sm font-semibold text-primary">
+            Submission receipt
+          </p>
+        ) : null}
+        <h1
+          className={cn(
+            "font-semibold tracking-tight",
+            IS_APP_TARGET ? "text-2xl" : "mt-3 text-4xl"
+          )}
+        >
+          投稿管理
+        </h1>
+        <p
+          className={cn(
+            "leading-7 wrap-anywhere text-muted-foreground",
+            IS_APP_TARGET ? "mt-2" : "mt-4"
+          )}
+        >
           这里仅管理这一次匿名投稿。请妥善保管投稿管理链接。
         </p>
       </header>
@@ -244,13 +265,13 @@ export default function NamecardSubmissionPage() {
       ) : null}
 
       {!loading && submission && copy ? (
-        <Card className="mt-10">
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div className="space-y-2">
+        <Card className={IS_APP_TARGET ? "mt-6" : "mt-10"}>
+          <CardHeader className="flex-col items-start justify-between gap-4 sm:flex-row">
+            <div className="min-w-0 space-y-2">
               <CardTitle
                 ref={statusHeadingRef}
                 tabIndex={-1}
-                className="flex items-center gap-2 focus:outline-none"
+                className="flex min-w-0 items-center gap-2 wrap-anywhere focus:outline-none"
               >
                 {statusIcon(submission.status)}
                 {copy.label}
@@ -260,6 +281,7 @@ export default function NamecardSubmissionPage() {
               </p>
             </div>
             <Badge
+              className="shrink-0"
               variant={
                 submission.status === "approved"
                   ? "secondary"
@@ -298,11 +320,13 @@ export default function NamecardSubmissionPage() {
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">投稿编号</dt>
-                <dd className="mt-1 font-mono">{submission.id}</dd>
+                <dd className="mt-1 font-mono wrap-anywhere">
+                  {submission.id}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">提交时间</dt>
-                <dd className="mt-1 flex items-center gap-1.5">
+                <dd className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 wrap-anywhere">
                   <CalendarDaysIcon aria-hidden="true" className="size-4" />
                   {submission.created_at
                     ? DATE_FORMATTER.format(new Date(submission.created_at))
@@ -337,6 +361,6 @@ export default function NamecardSubmissionPage() {
         confirmLabel="确认撤回"
         cancelLabel="继续等待审核"
       />
-    </main>
+    </PageShell>
   )
 }

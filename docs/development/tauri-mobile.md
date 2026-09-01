@@ -2,7 +2,7 @@
 
 > 文档类型：开发
 > 状态：Active
-> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
+> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/icon-sources/app-icon.json`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
 
 本文件描述 Web workspace 中 Tauri 2 移动端外壳的当前状态、前置条件和尚未打通的契约。
 桌面与移动构建复用同一份 React Router SPA 产物，不存在第二套前端源码。
@@ -21,6 +21,8 @@
 - Tauri 自动将 `tauri.android.conf.json` 或 `tauri.ios.conf.json` 合并到基础配置。Android 配置
   只管理调试 application ID 后缀，iOS 配置只管理最低系统版本。平台文件以 JSON Merge Patch
   覆盖基础字段，数组会整体替换，因此共享字段必须继续留在基础配置。
+- `src-tauri/icon-sources/app-icon.json` 为 iOS、桌面和 Android 统一生成图标。Android 使用独立背景、
+  透明前景和单色图层；adaptive icon 的字标位于安全区，旧版 launcher 图标单独放大前景。
 - `Info.ios.plist` 是 iOS 专属声明，Tauri 会在生成 Apple 工程时自动合并。
 - `apps/web/app/lib/api/origin.ts` 提供跨源 origin 契约，三个 alova client 均已接入 `baseURL`。
 - `build:app` 默认注入并校验 `https://idol-master.top`；`dev:app` 清空 API origin，
@@ -50,12 +52,18 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 iOS 还需要完整 Xcode（非仅 Command Line Tools）和 CocoaPods。
 
 Android 需要 Android Studio 安装 SDK Platform、Platform-Tools、Build-Tools、Command-line Tools
-和 NDK (Side by side)，并导出：
+和 NDK (Side by side)，并使用 Gradle 8.14 支持的 Java 21。Java 25/26 会在 `:buildSrc` 配置阶段
+失败。导出：
 
 ```sh
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export NDK_HOME="$ANDROID_HOME/ndk/$(ls -1 $ANDROID_HOME/ndk | tail -1)"
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 ```
+
+未配置 Release signing key 时，Tauri 会生成 unsigned APK，不能直接安装。模拟器验证可用 Android
+SDK `zipalign` 与 `apksigner` 加本机 debug keystore 签名；正式分发必须按 Android 发布流程使用
+受管上传密钥，不能复用 debug keystore。
 
 本地环境的其余部分沿用 [AI 开发环境](ai-environment.md)。
 
@@ -65,6 +73,8 @@ Web workspace 只暴露一个 `tauri` 透传脚本，子命令原样传给 Tauri
 
 ```sh
 pnpm --filter @imsweb/web run dev:app              # 只启动 1420 App Web 开发服务
+pnpm --filter @imsweb/web run test:e2e:app          # App 安全区与底栏浏览器矩阵
+pnpm --filter @imsweb/web run icon:app              # 从 manifest 重建所有平台图标
 pnpm --filter @imsweb/web run tauri dev            # 桌面 WebView 联调
 pnpm --filter @imsweb/web run tauri ios init       # 生成 gen/apple，仅需一次
 pnpm --filter @imsweb/web run tauri ios dev        # iOS 模拟器
@@ -73,6 +83,9 @@ pnpm --filter @imsweb/web run tauri android init   # 生成 gen/android，仅需
 pnpm --filter @imsweb/web run tauri android dev    # Android 模拟器
 pnpm --filter @imsweb/web run tauri android dev --host <开发机局域网 IP> [设备名]
 ```
+
+Tauri 的 `dev` 和 `build` 会先运行 `icon:app`，因此 Android 生成工程被删除或重建后仍会恢复专用图层。
+修改 `public/brand/imsweb-app-icon.png` 或 `src-tauri/icon-sources/` 后，也可以单独运行该命令检查派生图标。
 
 `init` 会在 `src-tauri/gen/` 下生成平台工程。执行前先确认 identifier 与签名归属，
 identifier 变更后需要重新生成。`gen/` 始终是派生产物；iOS 原生源码放在
@@ -85,12 +98,17 @@ App 底栏采用运行时能力协商，而不是只解析 User-Agent：React �
 `plugin:native-glass|configure`，Swift 再用 `#available(iOS 26.0, *)` 判断系统 API。原生视图成功
 安装并返回 `supported: true` 前，Web 回退保持可见；返回不支持或调用失败时继续使用回退，因此旧
 iOS 与 Android 不会失去导航。原生 tab 选择通过 `ims:native-tab-select` DOM 事件交回 React Router，
-路由或主题变化则通过 `update` 命令同步。卸载布局时调用 `destroy`，并通过把 `effect` 动画到 `nil`
-移除材质，不用 alpha 隐藏原生玻璃。
+路由、主题和模态弹层显隐通过 `update` 命令同步。Dialog、AlertDialog 或 Sheet 打开时临时隐藏
+系统 tab bar，最后一个弹层关闭后恢复，避免 UIKit 层截获 Web 弹层的触点。卸载布局时调用
+`destroy`，并通过把 `effect` 动画到 `nil` 移除材质，不用 alpha 隐藏原生玻璃。
 
 Web 回退保留现有表面、单枚透镜和 tab 按压缩放，但根节点只标记 `data-glass-fallback`；不得恢复
 `glass-sheen` 或 `data-glass-interactive`。这是移动端稳定性边界：旧 iOS 与 Android 不追踪指针或
 手指坐标，也不显示白色触点光斑。
+
+`test:e2e:app` 使用独立 Playwright 配置启动 1420 App target，覆盖 320px 手机、iPhone、Pixel、
+横屏和 WebKit，并注入可重复的安全区变量。浏览器只能验证 Web 回退底栏；iOS 26 的系统
+`UITabBarController` 仍需在模拟器或真机检查。
 
 Tauri 开发服务固定使用 `1420`，普通 Web 开发服务继续使用 `5173`。普通 Web 的启动、构建、
 预览和类型生成命令会显式使用 web target，不继承 shell 中残留的 app target；Tauri 开发命令
@@ -129,13 +147,17 @@ VITE_IMS_API_ORIGIN=http://192.168.31.169:3000 \
 pnpm --filter @imsweb/web run tauri ios build --release
 ```
 
-这个开关不能用于公网部署，且不应写入仓库或长期 shell 配置。若公开网站与 API 不同主机，
-仍需设置 HTTPS 的 `VITE_IMS_PUBLIC_SITE_ORIGIN`，供分享和系统浏览器跳转使用。
+这个开关不能用于公网部署，且不应写入仓库或长期 shell 配置。Android Release 构建会在该开关
+存在且至少一个已校验 origin 使用 HTTP 时，把生成工程的 `usesCleartextTraffic` placeholder 设为
+`true`；其他构建一律恢复为 `false`，避免 LAN 设置污染线上包。`src-tauri/gen/` 仍是忽略的派生目录，
+该条件由 `scripts/android-release-network.js` 在每次 App build 后重新应用。若公开网站与 API 不同
+主机，仍需设置 HTTPS 的 `VITE_IMS_PUBLIC_SITE_ORIGIN`，供分享和系统浏览器跳转使用。
 
-MapLibre 的样式、PMTiles、字体和精灵图可以单独指定
-`VITE_IMS_MAP_TRANSPORT_ORIGIN`，不会改变 API 或分享链接的 host。局域网部署应让这个
-origin 指向提供完整 `/maps/exchange/**` 树、支持 HTTP Range 且为 Tauri WebView 回显 CORS origin
-的静态地图服务。当前本地工作区以 `dev:app` 的 `1420` 服务满足该契约：
+地图源由后台 map-config 返回的完整 `styleUrl` 决定。官方 OpenFreeMap 使用绝对 HTTPS URL，
+App 直接按该地址加载；自分发 style 可以使用绝对 URL，也可以使用根相对路径。只有根相对路径需要
+`VITE_IMS_MAP_TRANSPORT_ORIGIN` 作为解析基址，该变量不会改变 API、后台选择或分享链接的 host。
+局域网自分发应让这个 origin 指向提供完整 `/maps/exchange/**` 树、支持 HTTP Range 且为 Tauri
+WebView 回显 CORS origin 的静态地图服务。当前本地工作区以 `dev:app` 的 `1420` 服务满足该契约：
 
 ```sh
 IMS_ALLOW_INSECURE_LAN_APP_ORIGIN=1 \
@@ -259,7 +281,5 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
 3. **Platform OAuth**：当前 callback 建立 cookie session，并重定向到 API origin 下的页面；
    这与 App 的 Bearer token 和本地 WebView 返回地址不兼容。App 暂不显示 OAuth provider，
    后续需要 deep link 与一次性 token exchange 后才能开放。
-4. **应用图标**：`src-tauri/icons/` 仍是 Tauri 默认占位图。仓库现有品牌资源是 545×188 字标，
-   不能直接用作方形应用图标，需要单独产出 1024×1024 图源后用 `tauri icon` 生成。
-5. **真机验证**：Platform 登录到拉取列表的完整链路仍需纳入发布前设备门禁；站点包的本地
+4. **真机验证**：Platform 登录到拉取列表的完整链路仍需纳入发布前设备门禁；站点包的本地
    LAN 访问和系统浏览器跳转已由构建、组件与浏览器回归测试覆盖。

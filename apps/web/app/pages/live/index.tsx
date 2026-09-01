@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -39,6 +40,8 @@ import {
   upcomingLiveEvents,
 } from "~/pages/live/live-schedule-model"
 import { getLiveEvents, type LiveEvent } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
@@ -87,7 +90,9 @@ function LiveCard({ event }: { event: LiveEvent }) {
         </time>
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-base/snug font-semibold">{event.title}</h3>
+          <h3 className="text-base/snug font-semibold wrap-anywhere">
+            {event.title}
+          </h3>
 
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
             {event.time ? (
@@ -96,11 +101,13 @@ function LiveCard({ event }: { event: LiveEvent }) {
                   className="size-4 shrink-0 text-primary/70"
                   aria-hidden="true"
                 />
-                <span className="tabular-nums">{event.time}</span>
+                <span className="min-w-0 tabular-nums wrap-anywhere">
+                  {event.time}
+                </span>
               </span>
             ) : null}
             {event.location ? (
-              <span className="inline-flex min-w-0 items-center gap-2">
+              <span className="inline-flex min-w-0 items-center gap-2 wrap-anywhere">
                 <MapPinIcon
                   className="size-4 shrink-0 text-primary/70"
                   aria-hidden="true"
@@ -118,7 +125,10 @@ function LiveCard({ event }: { event: LiveEvent }) {
                   {hasLiveBrandLogo(code) ? (
                     <LiveBrandLogo code={code} name={franchise} />
                   ) : (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge
+                      variant="outline"
+                      className="h-auto max-w-full min-w-0 py-1 text-xs wrap-anywhere whitespace-normal"
+                    >
                       {franchise}
                     </Badge>
                   )}
@@ -202,15 +212,27 @@ export default function Live() {
   const archiveError = usesInitialData ? initialError : selectedError
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-4xl px-6 py-16">
+    <PageShell width="default">
       <div className="max-w-3xl">
-        <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
-          Live schedule
-        </p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">
+        {!IS_APP_TARGET ? (
+          <p className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
+            Live schedule
+          </p>
+        ) : null}
+        <h1
+          className={cn(
+            "font-semibold tracking-tight",
+            IS_APP_TARGET ? "text-2xl" : "mt-3 text-4xl"
+          )}
+        >
           Live 日程
         </h1>
-        <p className="mt-4 text-base/7 text-muted-foreground">
+        <p
+          className={cn(
+            "text-muted-foreground",
+            IS_APP_TARGET ? "mt-2 text-sm/6" : "mt-4 text-base/7"
+          )}
+        >
           查看各企划已公布的演出安排与线上活动信息。
         </p>
         <Alert className="mt-4">
@@ -219,7 +241,10 @@ export default function Live() {
         </Alert>
       </div>
 
-      <section className="mt-10" aria-labelledby="featured-live-title">
+      <section
+        className={IS_APP_TARGET ? "mt-6" : "mt-10"}
+        aria-labelledby="featured-live-title"
+      >
         <div className="mb-5 flex items-end justify-between gap-4">
           <h2 id="featured-live-title" className="text-xl font-semibold">
             未来两周
@@ -265,7 +290,7 @@ export default function Live() {
       </section>
 
       <section
-        className="mt-12 border-t pt-10"
+        className={cn("border-t", IS_APP_TARGET ? "mt-8 pt-6" : "mt-12 pt-10")}
         aria-labelledby="archive-live-title"
       >
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -366,6 +391,6 @@ export default function Live() {
           </nav>
         ) : null}
       </section>
-    </main>
+    </PageShell>
   )
 }

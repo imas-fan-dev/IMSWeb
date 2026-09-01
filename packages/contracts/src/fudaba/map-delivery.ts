@@ -2,20 +2,14 @@ import { z } from "zod";
 import { hasAsciiControl, successEnvelope } from "../common.js";
 
 /**
- * Where the exchange map's static assets are fetched from.
+ * The complete style URL selected by an administrator.
  *
- * A delivery prefix names a host and a path, so one value can point at the
- * Nginx static location that serves the map today (`/maps/`) or at an
- * S3/RustFS base later (`https://assets.example.com/exchange-map/v3/`). The
- * assets never enter the app package and never proxy through Hono; only the
- * prefix that addresses them is operator-editable.
- *
- * Accepted shapes, both required to end in `/`:
- *   - a root-relative path with no `//` (`/maps/`)
- *   - an absolute `http(s)` URL with no embedded credentials
- *
- * Rejected in either shape: ASCII control characters, 2048+ characters,
- * `?`, `#`, `\`, and — for absolute URLs — a `//` inside the path.
+ * Storing the full URL lets one managed collection contain official
+ * OpenFreeMap styles and self-distributed styles whose asset names differ. The
+ * URL may be a
+ * same-origin absolute path or an absolute HTTP(S) URL. Query strings,
+ * fragments, embedded credentials, backslashes, and ASCII control characters
+ * are rejected.
  */
 
 const MAX_MAP_URL_LENGTH = 2048;
@@ -48,83 +42,93 @@ export function isFudabaMapStyleUrl(value: string): boolean {
   return isAbsoluteMapUrl(value);
 }
 
-/** A style URL location that additionally addresses a directory. */
-export function isFudabaMapPrefix(value: string): boolean {
-  return value.endsWith("/") && isFudabaMapStyleUrl(value);
-}
-
-/**
- * The final path segment of a style URL — the asset name a delivery prefix
- * is joined with. `/maps/exchange-style.json` yields `exchange-style.json`.
- */
-export function fudabaMapAssetName(styleUrl: string): string {
-  const withoutQuery = styleUrl.split(/[?#]/)[0] ?? "";
-  return withoutQuery.slice(withoutQuery.lastIndexOf("/") + 1);
-}
-
-/**
- * Join a delivery prefix with the asset name carried by the deployment's
- * fallback style URL. Prefixes always end in `/`, so this is concatenation.
- * An asset-less fallback (a bare directory) yields the fallback unchanged.
- */
-export function fudabaMapStyleUrlForPrefix(
-  prefix: string,
-  fallbackStyleUrl: string,
-): string {
-  const assetName = fudabaMapAssetName(fallbackStyleUrl);
-  return assetName ? `${prefix}${assetName}` : fallbackStyleUrl;
-}
-
-/**
- * The delivery prefix a style URL already sits under — the inverse of
- * `fudabaMapStyleUrlForPrefix`. `/maps/exchange-style.json` yields `/maps/`.
- * This is the effective prefix before an operator selects anything.
- */
-export function fudabaMapPrefixFromStyleUrl(styleUrl: string): string {
-  const withoutQuery = styleUrl.split(/[?#]/)[0] ?? "";
-  return withoutQuery.slice(0, withoutQuery.lastIndexOf("/") + 1);
-}
-
-export const fudabaMapPrefixSchema = z
+export const fudabaMapStyleUrlSchema = z
   .string()
   .refine(
     (value) => !hasAsciiControl(value),
-    "map delivery prefix must not contain ASCII control characters",
+    "map style URL must not contain ASCII control characters",
   )
   .transform((value) => value.trim())
   .refine(
-    isFudabaMapPrefix,
-    "map delivery prefix must be a root-relative path or an absolute " +
-      "http(s) URL, end with /, and carry no credentials, query, or hash",
+    isFudabaMapStyleUrl,
+    "map style URL must be a root-relative path or an absolute http(s) URL " +
+      "without credentials, query, or hash",
   );
 
-/** Operator view: what is selected, what may be selected, what is in force. */
+export const fudabaMapSourceIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+
+export const fudabaMapSourceNameSchema = z
+  .string()
+  .transform((value) => value.trim())
+  .pipe(z.string().min(1).max(80));
+
+export const fudabaMapSourceSchema = z
+  .object({
+    id: fudabaMapSourceIdSchema,
+    name: fudabaMapSourceNameSchema,
+    styleUrl: fudabaMapStyleUrlSchema,
+  })
+  .strict();
+
+/** Operator view of the persisted source collection and its live selection. */
 export const fudabaMapDeliverySnapshotSchema = z
   .object({
-    selectedPrefix: fudabaMapPrefixSchema.nullable(),
-    availablePrefixes: z.array(fudabaMapPrefixSchema),
-    effectivePrefix: fudabaMapPrefixSchema,
+    sources: z.array(fudabaMapSourceSchema).min(1).max(50),
+    activeSourceId: fudabaMapSourceIdSchema,
+    effectiveStyleUrl: fudabaMapStyleUrlSchema,
+    revision: z.string().nullable(),
+  })
+  .strict()
+  .superRefine((snapshot, context) => {
+    const active = snapshot.sources.find(
+      (source) => source.id === snapshot.activeSourceId,
+    );
+    if (!active || active.styleUrl !== snapshot.effectiveStyleUrl) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "active map source must match the effective style URL",
+        path: ["activeSourceId"],
+      });
+    }
+  });
+
+export const fudabaMapSourceWriteSchema = z
+  .object({
+    name: fudabaMapSourceNameSchema,
+    styleUrl: fudabaMapStyleUrlSchema,
     revision: z.string().nullable(),
   })
   .strict();
 
-export const fudabaMapDeliveryUpdateSchema = z
+export const fudabaMapSourceActivationSchema = z
   .object({
-    prefix: fudabaMapPrefixSchema,
+    sourceId: fudabaMapSourceIdSchema,
     revision: z.string().nullable(),
   })
+  .strict();
+
+export const fudabaMapSourceDeleteSchema = z
+  .object({ revision: z.string().nullable() })
   .strict();
 
 export const fudabaMapDeliveryMutationSchema = successEnvelope({
   delivery: fudabaMapDeliverySnapshotSchema,
 }).strict();
 
+export type FudabaMapSource = z.infer<typeof fudabaMapSourceSchema>;
 export type FudabaMapDeliverySnapshot = z.infer<
   typeof fudabaMapDeliverySnapshotSchema
 >;
-export type FudabaMapDeliveryUpdate = z.infer<
-  typeof fudabaMapDeliveryUpdateSchema
+export type FudabaMapSourceWrite = z.infer<typeof fudabaMapSourceWriteSchema>;
+export type FudabaMapSourceActivation = z.infer<
+  typeof fudabaMapSourceActivationSchema
 >;
+export type FudabaMapSourceDelete = z.infer<typeof fudabaMapSourceDeleteSchema>;
 export type FudabaMapDeliveryMutation = z.infer<
   typeof fudabaMapDeliveryMutationSchema
 >;

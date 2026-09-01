@@ -114,18 +114,21 @@ pnpm dev --api-port 3100 --web-port 5174
 `apps/api/.env`。
 
 统一启动器默认把 Fudaba 公开读取、写入和区域地图三个开关保持为 `false`。需要本地验证只读
-区域地图时，使用专用开发变量显式启用，并指向同源 OpenFreeMap PMTiles 样式：
+区域地图时，使用专用开发变量显式启用，并指向官方在线 OpenFreeMap 样式：
 
 ```sh
 IMS_DEV_FUDABA_PUBLIC_READ_ENABLED=true \
 IMS_DEV_FUDABA_MAP_ENABLED=true \
-IMS_DEV_FUDABA_MAP_STYLE_URL=/maps/exchange-style.json \
+IMS_DEV_FUDABA_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/positron \
+IMS_DEV_FUDABA_MAP_STYLE_URLS=/maps/exchange-style.json \
 pnpm dev
 ```
 
-事务所点由 Hono 区域查询动态叠加在 OpenFreeMap 世界底图上。启动前必须准备并激活本地地图 release；
-完整步骤见下文。`/maps/exchange-test-style.json` 仅用于无 PMTiles 资源的组件和端到端测试，不是
-本地开发实例的默认地图类型。
+事务所点由 Hono 区域查询动态叠加在后台当前选择的 OpenFreeMap 世界底图上。默认 URL 和
+`IMS_DEV_FUDABA_MAP_STYLE_URLS` 中的完整 URL 只初始化后台配置集合；管理员随后可以直接新增、
+编辑、删除并激活官方在线源或自分发源，客户端只消费 map-config 返回的 `styleUrl`。在线模式
+不需要准备本地地图 release。
+`/maps/exchange-test-style.json` 仅用于无 PMTiles 资源的组件和端到端测试，不是开发实例的默认地图。
 
 只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。地点搜索默认关闭；需要
 验证事务所地点选择时，配置 Nominatim-compatible HTTPS 搜索端点和可识别的 User-Agent：
@@ -144,7 +147,7 @@ pnpm dev
 User-Agent、attribution、缓存和流量政策。
 
 启动器会严格校验这些 `IMS_DEV_*` 值，再转译为 API 的 `IMS_FUDABA_*` 配置；直接继承的生产
-开关仍会被清除。OpenFreeMap PMTiles 底图需要先准备并激活 Git 忽略的本地 z0–11 地图 release：
+开关仍会被清除。需要验证自分发 PMTiles 时，再准备并激活 Git 忽略的本地 z0–11 地图 release：
 
 ```sh
 node scripts/maps/prepare-exchange-map.mjs
@@ -153,9 +156,10 @@ node scripts/maps/prepare-exchange-map.mjs --apply --activate
 
 第一条仅打印固定 snapshot、资源数量和目标目录，不写磁盘；第二条下载约 7.92 GiB PMTiles 以及
 glyph、sprite、Natural Earth raster，至少需要 12 GiB 可用空间。Vite 只在开发 serve 模式把
-`data/maps/current/` 映射为 `/maps/exchange/`，不会把大型地图资源复制进 Web build。内置测试
-样式、生产样式、边界 GeoJSON 和上述运行时资源都由当前 Web origin 提供。完整合同见
-[地图资源交付](../operations/map-delivery.md)。
+`data/maps/current/` 映射为 `/maps/exchange/`，不会把大型地图资源复制进 Web 或 App build。
+可用 `IMS_DEV_FUDABA_MAP_STYLE_URLS` 首次生成 `/maps/exchange-style.json` 配置，也可以在后台
+直接新增该自分发源；保存后无需重启开发服务。
+完整合同见[地图资源交付](../operations/map-delivery.md)。
 
 需要在 API/Web 热更新期间使用 Cloudflare R2 测试桶时，使用显式入口：
 

@@ -13,23 +13,41 @@ vi.mock("sonner", () => ({
   toast: toasts,
 }))
 
-const nginxPrefix = "/maps/releases/v2/"
-const objectStoragePrefix = "https://objects.example.test/exchange/releases/v3/"
+const officialSource = {
+  id: "source-official",
+  name: "OpenFreeMap Positron",
+  styleUrl: "https://tiles.openfreemap.org/styles/positron",
+}
+const r2Source = {
+  id: "source-r2",
+  name: "R2 测试桶",
+  styleUrl:
+    "https://test.imas-assets.texasoct.tech/openmap/v1/exchange-style.json",
+}
+const selfHostedSource = {
+  id: "source-self-hosted",
+  name: "站点自托管",
+  styleUrl: "/maps/exchange-style.json",
+}
+const edgeSource = {
+  id: "source-edge",
+  name: "边缘地图源",
+  styleUrl: "https://edge.example.test/openmap/exchange-style.json",
+}
+
+type Source = typeof officialSource
 
 function snapshot(
-  overrides: Partial<{
-    selectedPrefix: string | null
-    availablePrefixes: string[]
-    effectivePrefix: string
-    revision: string | null
-  }> = {}
+  sources: Source[] = [officialSource, r2Source, selfHostedSource],
+  activeSourceId = officialSource.id,
+  revision = "etag-1"
 ) {
+  const active = sources.find((source) => source.id === activeSourceId)!
   return {
-    selectedPrefix: null,
-    availablePrefixes: [nginxPrefix, objectStoragePrefix],
-    effectivePrefix: "/maps/",
-    revision: "etag-1",
-    ...overrides,
+    sources,
+    activeSourceId,
+    effectiveStyleUrl: active.styleUrl,
+    revision,
   }
 }
 
@@ -47,123 +65,200 @@ afterEach(() => {
 })
 
 describe("AdminSystemPage", () => {
-  it("lists server options and saves the selected prefix with its revision", async () => {
+  it("adds and edits map sources through the shared configuration dialog", async () => {
     document.cookie = "ims_admin_csrf=system-csrf; path=/"
+    let current = snapshot()
     const requests: Request[] = []
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = requestFrom(input, init)
         requests.push(request.clone())
-
-        if (request.method === "GET") {
-          return Response.json(snapshot())
+        const pathname = new URL(request.url).pathname
+        if (request.method === "GET") return Response.json(current)
+        if (
+          request.method === "POST" &&
+          pathname.endsWith("/map-delivery/sources")
+        ) {
+          current = snapshot(
+            [...current.sources, edgeSource],
+            current.activeSourceId,
+            "etag-2"
+          )
+          return Response.json({ success: true, delivery: current })
         }
-        if (request.method === "PUT") {
-          return Response.json({
-            success: true,
-            delivery: snapshot({
-              selectedPrefix: objectStoragePrefix,
-              effectivePrefix: objectStoragePrefix,
-              revision: "etag-2",
-            }),
-          })
+        if (
+          request.method === "PUT" &&
+          pathname.endsWith("/map-delivery/sources/source-edge")
+        ) {
+          const edited = { ...edgeSource, name: "边缘地图源 v2" }
+          current = snapshot(
+            current.sources.map((source) =>
+              source.id === edited.id ? edited : source
+            ),
+            current.activeSourceId,
+            "etag-3"
+          )
+          return Response.json({ success: true, delivery: current })
         }
         throw new Error(`Unexpected request: ${request.method} ${request.url}`)
-      }
+      })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<AdminSystemPage />)
 
-    expect(await screen.findByText("部署默认值")).toBeVisible()
-    expect(screen.getByRole("radio", { name: nginxPrefix })).toBeVisible()
-    await user.click(screen.getByRole("radio", { name: objectStoragePrefix }))
-    await user.click(screen.getByRole("button", { name: "保存配置" }))
+    expect(
+      (await screen.findAllByText("OpenFreeMap Positron")).length
+    ).toBeGreaterThan(0)
+    await user.click(screen.getByRole("button", { name: "添加地图源" }))
+    expect(screen.getByRole("dialog", { name: "新增地图源" })).toBeVisible()
+    await user.type(screen.getByLabelText("配置名称"), edgeSource.name)
+    await user.type(screen.getByLabelText("地图样式地址"), edgeSource.styleUrl)
+    await user.click(screen.getByRole("button", { name: "添加地图源" }))
 
-    await waitFor(() => expect(requests).toHaveLength(2))
-    const update = requests[1]!
-    expect(new URL(update.url).pathname).toBe(
-      "/api/admin/community/exchange/map-delivery"
+    expect(await screen.findByText(edgeSource.name)).toBeVisible()
+    expect(toasts.success).toHaveBeenCalledWith("地图源已添加")
+    await user.click(
+      screen.getByRole("button", { name: `编辑 ${edgeSource.name}` })
     )
-    expect(await update.json()).toEqual({
-      prefix: objectStoragePrefix,
+    const nameInput = screen.getByLabelText("配置名称")
+    await user.clear(nameInput)
+    await user.type(nameInput, "边缘地图源 v2")
+    await user.click(screen.getByRole("button", { name: "保存地图源" }))
+
+    expect(await screen.findByText("边缘地图源 v2")).toBeVisible()
+    const post = requests.find((request) => request.method === "POST")
+    expect(await post?.json()).toEqual({
+      name: edgeSource.name,
+      styleUrl: edgeSource.styleUrl,
       revision: "etag-1",
     })
-    expect(toasts.success).toHaveBeenCalledWith("地图分发配置已保存")
-    expect(await screen.findByText("运营选择")).toBeVisible()
+    const put = requests.find(
+      (request) =>
+        request.method === "PUT" && request.url.endsWith("source-edge")
+    )
+    expect(await put?.json()).toEqual({
+      name: "边缘地图源 v2",
+      styleUrl: edgeSource.styleUrl,
+      revision: "etag-2",
+    })
   })
 
-  it("reloads the latest snapshot after a revision conflict", async () => {
+  it("activates one source, protects it from deletion, and deletes an inactive source", async () => {
     document.cookie = "ims_admin_csrf=system-csrf; path=/"
-    let getCount = 0
-    const latestPrefix = "/maps/releases/v4/"
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
+    let current = snapshot()
+    const requests: Request[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = requestFrom(input, init)
-
-        if (request.method === "GET") {
-          getCount += 1
-          return Response.json(
-            getCount === 1
-              ? snapshot({
-                  selectedPrefix: nginxPrefix,
-                  effectivePrefix: nginxPrefix,
-                })
-              : snapshot({
-                  selectedPrefix: latestPrefix,
-                  availablePrefixes: [latestPrefix, objectStoragePrefix],
-                  effectivePrefix: latestPrefix,
-                  revision: "etag-2",
-                })
-          )
+        requests.push(request.clone())
+        const pathname = new URL(request.url).pathname
+        if (request.method === "GET") return Response.json(current)
+        if (
+          request.method === "PUT" &&
+          pathname.endsWith("/map-delivery/active")
+        ) {
+          current = snapshot(current.sources, r2Source.id, "etag-2")
+          return Response.json({ success: true, delivery: current })
         }
-        if (request.method === "PUT") {
-          return Response.json(
-            { error: "Map delivery revision conflict" },
-            { status: 409 }
+        if (
+          request.method === "DELETE" &&
+          pathname.endsWith("/source-self-hosted")
+        ) {
+          current = snapshot(
+            current.sources.filter(
+              (source) => source.id !== selfHostedSource.id
+            ),
+            current.activeSourceId,
+            "etag-3"
           )
+          return Response.json({ success: true, delivery: current })
         }
         throw new Error(`Unexpected request: ${request.method} ${request.url}`)
-      }
+      })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<AdminSystemPage />)
 
     await user.click(
-      await screen.findByRole("radio", { name: objectStoragePrefix })
+      await screen.findByRole("radio", { name: `选择 ${r2Source.name}` })
     )
-    await user.click(screen.getByRole("button", { name: "保存配置" }))
+    await user.click(screen.getByRole("button", { name: "设为线上源" }))
+    await user.click(screen.getByRole("button", { name: "确认激活" }))
+
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith(
+        `${r2Source.name} 已设为线上地图源`
+      )
+    )
+    expect(
+      screen.getByRole("button", { name: `删除 ${r2Source.name}` })
+    ).toBeDisabled()
+
+    await user.click(
+      screen.getByRole("button", { name: `删除 ${selfHostedSource.name}` })
+    )
+    await user.click(screen.getByRole("button", { name: "删除地图源" }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText(selfHostedSource.styleUrl)
+      ).not.toBeInTheDocument()
+    )
+    expect(
+      requests.map((request) => [request.method, new URL(request.url).pathname])
+    ).toContainEqual([
+      "PUT",
+      "/api/admin/community/exchange/map-delivery/active",
+    ])
+    expect(
+      requests.map((request) => [request.method, new URL(request.url).pathname])
+    ).toContainEqual([
+      "DELETE",
+      "/api/admin/community/exchange/map-delivery/sources/source-self-hosted",
+    ])
+  })
+
+  it("reloads the latest collection after a revision conflict", async () => {
+    document.cookie = "ims_admin_csrf=system-csrf; path=/"
+    let getCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestFrom(input, init)
+        if (request.method === "GET") {
+          getCount += 1
+          return Response.json(
+            getCount === 1
+              ? snapshot()
+              : snapshot([officialSource, r2Source], r2Source.id, "etag-2")
+          )
+        }
+        return Response.json(
+          { error: "Map delivery revision conflict" },
+          { status: 409 }
+        )
+      })
+    )
+    const user = userEvent.setup()
+
+    render(<AdminSystemPage />)
+
+    await user.click(
+      await screen.findByRole("radio", { name: `选择 ${r2Source.name}` })
+    )
+    await user.click(screen.getByRole("button", { name: "设为线上源" }))
+    await user.click(screen.getByRole("button", { name: "确认激活" }))
 
     await waitFor(() => expect(getCount).toBe(2))
     expect(toasts.error).toHaveBeenCalledWith(
       "配置已被其他管理员更新，正在重新读取"
     )
-    expect((await screen.findAllByText(latestPrefix)).length).toBeGreaterThan(0)
-  })
-
-  it("disables saving when the deployment provides no allowed prefixes", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json(
-          snapshot({
-            availablePrefixes: [],
-            effectivePrefix: "/maps/",
-            revision: null,
-          })
-        )
-      )
-    )
-
-    render(<AdminSystemPage />)
-
-    expect(await screen.findByText("没有可选的地图分发前缀")).toBeVisible()
     expect(
-      screen.queryByRole("button", { name: "保存配置" })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument()
+      screen.getByRole("button", { name: `删除 ${r2Source.name}` })
+    ).toBeDisabled()
   })
 })

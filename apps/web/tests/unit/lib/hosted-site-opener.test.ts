@@ -8,10 +8,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: mocks.isTauri }))
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: mocks.openUrl }))
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
-vi.mock("~/lib/api/origin", () => ({
-  API_ORIGIN: "https://idol-master.top",
-  PUBLIC_SITE_ORIGIN: "https://idol-master.top",
-}))
+vi.mock("~/lib/api/origin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/api/origin")>()
+  return {
+    ...actual,
+    API_ORIGIN: "https://idol-master.top",
+    isCrossOriginApi: true,
+    PUBLIC_SITE_ORIGIN: "https://idol-master.top",
+  }
+})
 
 import {
   isAllowedHostedSiteUrl,

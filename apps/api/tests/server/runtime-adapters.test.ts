@@ -32,7 +32,7 @@ import {
     parseFudabaGeocodingConfig,
     parseFudabaMapConfig,
     parseFudabaMapEnabled,
-    parseFudabaMapPrefixes,
+    parseFudabaMapStyleUrls,
     parseFudabaMapStyleUrl,
     parseFudabaPublicReadEnabled,
     parseFudabaWriteEnabled,
@@ -160,7 +160,7 @@ test("Fudaba map configuration is disabled by default and strictly parsed", () =
     assert.deepEqual(parseFudabaMapConfig({}), {
         enabled: false,
         styleUrl: "",
-        prefixes: [],
+        styleUrls: [],
     });
     assert.equal(parseFudabaMapEnabled(" true "), true);
     assert.equal(parseFudabaMapEnabled("FALSE"), false);
@@ -179,7 +179,7 @@ test("Fudaba map configuration is disabled by default and strictly parsed", () =
         {
             enabled: true,
             styleUrl: "/api/community/exchange/map/style.json",
-            prefixes: [],
+            styleUrls: ["/api/community/exchange/map/style.json"],
         },
     );
     assert.throws(
@@ -247,42 +247,51 @@ test("Fudaba geocoding requires an identifiable configurable HTTPS provider", ()
     );
 });
 
-test("Fudaba map delivery allowlist accepts bounded path-carrying prefixes", () => {
-    assert.deepEqual(parseFudabaMapPrefixes(undefined), []);
+test("Fudaba map source seeds accept complete style URLs", () => {
+    assert.deepEqual(parseFudabaMapStyleUrls(undefined), []);
     assert.deepEqual(
-        parseFudabaMapPrefixes(
-            " /maps/, https://objects.example.test/exchange/v3/, /maps/ ",
+        parseFudabaMapStyleUrls(
+            " /maps/exchange-style.json, https://tiles.openfreemap.org/styles/positron, /maps/exchange-style.json ",
         ),
-        ["/maps/", "https://objects.example.test/exchange/v3/"],
+        [
+            "/maps/exchange-style.json",
+            "https://tiles.openfreemap.org/styles/positron",
+        ],
     );
     for (const value of [
-        "maps/",
-        "/maps",
-        "//objects.example.test/maps/",
-        "https://user:secret@objects.example.test/maps/",
-        "https://objects.example.test/maps/?release=v3",
-        "https://objects.example.test/maps/#v3",
-        "https://objects.example.test/maps\\v3/",
-        "data:text/plain,maps/",
+        "maps/exchange-style.json",
+        "//objects.example.test/maps/style.json",
+        "https://user:secret@objects.example.test/maps/style.json",
+        "https://objects.example.test/maps/style.json?release=v3",
+        "https://objects.example.test/maps/style.json#v3",
+        "https://objects.example.test/maps\\style.json",
+        "data:text/plain,maps",
     ]) {
         assert.throws(
-            () => parseFudabaMapPrefixes(value),
-            /IMS_FUDABA_MAP_PREFIXES entries must be/,
+            () => parseFudabaMapStyleUrls(value),
+            /IMS_FUDABA_MAP_STYLE_URLS entries must be/,
         );
     }
 });
 
-test("Fudaba map style accepts only a same-origin absolute path", () => {
+test("Fudaba map style accepts trusted deployment URL shapes", () => {
     assert.equal(parseFudabaMapStyleUrl(undefined), "");
     assert.equal(parseFudabaMapStyleUrl("   "), "");
     assert.equal(
         parseFudabaMapStyleUrl("/api/community/exchange/map/style.json"),
         "/api/community/exchange/map/style.json",
     );
+    assert.equal(
+        parseFudabaMapStyleUrl(
+            " https://tiles.openfreemap.org/styles/positron ",
+        ),
+        "https://tiles.openfreemap.org/styles/positron",
+    );
     for (const value of [
         "style.json",
-        "https://tiles.example.test/style.json",
         "//tiles.example.test/style.json",
+        "https://user:secret@tiles.example.test/style.json",
+        "data:application/json,%7B%7D",
         "/styles//map.json",
         "/styles\\map.json",
         "/styles/map.json?key=secret",
@@ -292,7 +301,7 @@ test("Fudaba map style accepts only a same-origin absolute path", () => {
     ]) {
         assert.throws(
             () => parseFudabaMapStyleUrl(value),
-            /IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path/,
+            /IMS_FUDABA_MAP_STYLE_URL must be a same-origin absolute path or/,
         );
     }
 });

@@ -20,17 +20,26 @@
 ### App icon
 
 `public/brand/imsweb-app-icon.png` 是桌面/移动客户端的应用图标源文件，画布 1024 x 1024。它由仓库维护者通过已配置的
-`gpt-image-2` 图像生成 API 创建：生成服务输出的 1254 x 1254 PNG 由 `sips` 等比标准化为仓库中的 1024 x 1024
-源文件。提示词限定与主站 logo 呼应的左上 `im`、右下 `@s` 阶梯布局、红色 `@`、银色金属字面、黑白双层描边和右倾斜体；
-只借用构图节奏，不复制主站的中文字形，也未导入第三方图像。仓库维护者随后重建无框的银色底面，移除全画布暗影和
-生成图外框，保留字标、描边及紧贴字标的局部阴影，使 iOS 系统圆角成为唯一的应用图标外形。
+`gpt-image-2` 图像生成及图像编辑 API 创建：服务输出的 1254 x 1254 PNG 被标准化为仓库中的 1024 x 1024 源文件。
+提示词限定与主站 logo 呼应的左上 `im`、右下 `@s` 阶梯布局、红色 `@`、银色金属字面、黑白双层描边和右倾斜体；只借用
+构图节奏，不复制主站的中文字形，也未导入第三方图像。仓库维护者随后重建无框的银色底面，移除全画布暗影和生成图外框，
+使 iOS 系统圆角成为唯一的应用图标外形；最后通过图像编辑保留原有上下阶梯位置，仅横向向中心收拢，并让红色 `@`
+以前景层覆盖相邻银色字面，修复重叠处的断裂描边、残片和背景拼接痕迹。仓库维护者随后将完整字标组作为单层移动到画布中心，
+不改变字形间距、大小或前后层级；最终可见字标包围范围的中心为 `(511, 511)`，与 1024 px 画布中心相差不足 1 px。
 
 | Web 路径                           | 字节数 | SHA-256                                                            |
 | ---------------------------------- | ------ | ------------------------------------------------------------------ |
-| `public/brand/imsweb-app-icon.png` | 388230 | `b0f0371701d633d5123aa2af5ce5be7d69a12790572bd7f92cc0a813d39c1b8d` |
+| `public/brand/imsweb-app-icon.png` | 356397 | `de20945c1ebba390dd658120a3aaf46c3bd3d1b9b282d2f359b76923935520fa` |
 
-`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 PNG 经
-`tauri icon` 派生，不单独登记；替换图标必须改 PNG 后重新生成，并同步更新上表的字节数与 SHA-256。
+Android launcher icon 另有三张仓库内图层源文件。背景层按主图每行两侧的无字标像素重建，保留银色横向纹理；前景层从同一主图分离字标和局部阴影，并缩放到 adaptive icon 安全区；单色层复用前景 alpha，供 Android 13 及以上的主题图标使用。这些处理未引入第三方图像。
+
+| 仓库路径                                                 | 字节数 | SHA-256                                                            |
+| -------------------------------------------------------- | ------ | ------------------------------------------------------------------ |
+| `apps/web/src-tauri/icon-sources/android-background.png` | 8652   | `f7cca8cae5d0b051c89302a346cc488cdd77968ac52b1c4f9ba2df4fde64326a` |
+| `apps/web/src-tauri/icon-sources/android-foreground.png` | 488011 | `239f26fe661906c19fcb28e62f378568457b5bb900d1a4c7c78807f3f60dd3e7` |
+| `apps/web/src-tauri/icon-sources/android-monochrome.png` | 105269 | `2b320c63a2abc6b2e9cc00a19dcbd23c66141ef59d0e72d4fca84c73559bb0ef` |
+
+`apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm run icon:app` 派生，不单独登记；替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
 
 ### 系列墙与随机 icon
 
@@ -79,11 +88,11 @@ Natural Earth raster、sprite 和 Noto Sans glyph 改为 `/maps/exchange/` 下�
 `f6f9ee3226e11534230e4e1eca8a6ece4eb878e1c9fe0290f2ba4c3dbe5e3fd1`。GeoJSON 的来源、处理方式和
 许可边界仍以下文登记为准。
 
-生产资源由固定 OpenFreeMap snapshot 裁剪为全球 z0–11 PMTiles，并与 Natural Earth raster、
-sprite、三套 Noto Sans glyph 一同通过当前站点 `/maps/exchange/` 提供；浏览器不再请求
-`tiles.openfreemap.org`。构建产物体积较大，位于 Git 忽略的 `data/maps/` 或生产宿主机
-`/srv/imsweb/maps/`，不进入 Web public 和应用镜像；每个 release 的来源、字节数和 SHA-256 由
-`manifest.json` 记录。具体版本与生成命令见[地图资源交付与同源托管](../operations/map-delivery.md)。
+生产默认直接使用官方 `https://tiles.openfreemap.org/styles/positron`。运行时通过 HTTPS 读取
+OpenFreeMap style、OpenMapTiles vector tile、Natural Earth raster、sprite 和 Noto Sans glyph，
+无需 API key；App 不包含 PMTiles 或 tile tree。自托管仍可使用固定 OpenFreeMap snapshot，产物位于
+Git 忽略的 `data/maps/` 或生产宿主机 `/srv/imsweb/maps/`，每个 release 的来源、字节数和 SHA-256
+由 `manifest.json` 记录。两种模式的配置与验证方式见[地图资源交付](../operations/map-delivery.md)。
 MapLibre attribution 必须显示 OpenFreeMap、OpenMapTiles 和 `Data from OpenStreetMap`；
 OpenStreetMap 版权和许可说明以 `https://www.openstreetmap.org/copyright` 为准。
 

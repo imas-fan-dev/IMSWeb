@@ -18,8 +18,9 @@ import {
   useState,
   type FormEvent,
 } from "react"
-import { useSearchParams } from "react-router"
+import { useLocation, useSearchParams } from "react-router"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -53,13 +54,18 @@ import {
   type FudabaOfficePage,
   type FudabaSeries,
 } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { CommunityExchangeMapSection } from "./community-exchange-map-section"
 import { ExchangeDiscoveryRail } from "./components/exchange-discovery-rail"
 import { ExchangeMobileNavigation } from "./components/exchange-mobile-navigation"
 import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
 import { ExchangeCard, OfficeCard } from "./exchange-components"
-import { NavigationLink } from "~/components/navigation/navigation-link"
+import {
+  exchangeMapFilterDefaults,
+  rememberExchangeMapFilters,
+} from "./exchange-map-model"
+import "./exchange-office-map.css"
 
 type DiscoveryPhase = "loading" | "ready" | "closed" | "error"
 type DirectoryView = "offices" | "cards"
@@ -256,10 +262,7 @@ function DirectoryResults({
         </TabsList>
       </div>
 
-      <TabsContent
-        value="offices"
-        className="min-h-0 overflow-y-auto px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
-      >
+      <TabsContent value="offices" className="min-h-0 overflow-y-auto p-4">
         <div className="mb-4">
           <h3 className="text-sm font-semibold">公开事务所</h3>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -316,10 +319,7 @@ function DirectoryResults({
         )}
       </TabsContent>
 
-      <TabsContent
-        value="cards"
-        className="min-h-0 overflow-y-auto px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
-      >
+      <TabsContent value="cards" className="min-h-0 overflow-y-auto p-4">
         <div className="mb-4">
           <h3 className="text-sm font-semibold">可交换名片</h3>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -385,7 +385,15 @@ export function meta() {
 }
 
 export default function CommunityExchangePage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const [restoredFilterDefaults] = useState(() =>
+    IS_APP_TARGET
+      ? exchangeMapFilterDefaults(new URLSearchParams(location.search))
+      : undefined
+  )
+  const [searchParams, setSearchParams] = useSearchParams(
+    restoredFilterDefaults
+  )
   const city = searchParams.get("city")?.trim() ?? ""
   const seriesCodes = useMemo(
     () =>
@@ -474,6 +482,11 @@ export default function CommunityExchangePage() {
   useEffect(() => {
     setCityDraft(city)
   }, [city])
+
+  useEffect(() => {
+    if (!IS_APP_TARGET) return
+    rememberExchangeMapFilters({ city, seriesCodes, openOnly })
+  }, [city, openOnly, seriesCodes])
 
   useEffect(() => {
     if (!searchParams.has("bbox") && !searchParams.has("view")) return
@@ -629,11 +642,34 @@ export default function CommunityExchangePage() {
     onSeriesToggle: toggleSeriesFilter,
     onReset: resetFilters,
   }
+  const refreshControl = (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      className={cn(
+        IS_APP_TARGET &&
+          "exchange-map-app-control pointer-events-auto size-10 rounded-lg"
+      )}
+      aria-label="刷新交换区"
+      title="刷新"
+      disabled={refreshing}
+      onClick={() => void loadFirstPage()}
+    >
+      <RefreshCwIcon
+        className={cn(refreshing && "animate-spin motion-reduce:animate-none")}
+        aria-hidden="true"
+      />
+    </Button>
+  )
 
   return (
     <main
       id="main-content"
-      className="relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]"
+      className={cn(
+        "relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]",
+        IS_APP_TARGET && "exchange-map-app-viewport"
+      )}
     >
       {state.phase === "ready" ? (
         <>
@@ -671,89 +707,87 @@ export default function CommunityExchangePage() {
               />
 
               <section
-                className="pointer-events-none absolute inset-x-2 top-2 z-20 sm:inset-x-3 sm:top-3 lg:hidden"
+                className={cn(
+                  "pointer-events-none absolute z-20 lg:hidden",
+                  IS_APP_TARGET
+                    ? "top-[calc(env(safe-area-inset-top)+0.75rem)] right-3"
+                    : "inset-x-2 top-2 sm:inset-x-3 sm:top-3"
+                )}
+                style={
+                  IS_APP_TARGET
+                    ? { top: "calc(var(--app-header-inset) + 0.75rem)" }
+                    : undefined
+                }
                 aria-label="地图工具"
               >
-                <div className="pointer-events-auto relative overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur-sm sm:rounded-lg">
-                  <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
-                  <div className="flex min-w-0 items-center gap-1.5 px-2.5 pt-2 pb-1 sm:gap-2 sm:px-3 sm:pt-3 sm:pb-2">
-                    <MapPinnedIcon
-                      className="size-3.5 shrink-0 text-primary sm:size-4"
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h1 className="truncate text-sm font-semibold sm:text-base">
-                        名片交换事务所
-                      </h1>
-                      <p className="hidden truncate text-xs text-muted-foreground sm:block">
-                        {state.offices.length} 个事务所 · {state.cards.length}{" "}
-                        张名片
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label="刷新交换区"
-                        title="刷新"
-                        disabled={refreshing}
-                        onClick={() => void loadFirstPage()}
-                      >
-                        <RefreshCwIcon
-                          className={cn(
-                            refreshing &&
-                              "animate-spin motion-reduce:animate-none"
-                          )}
-                          aria-hidden="true"
-                        />
-                      </Button>
-                      <div className="hidden shrink-0 items-center gap-1 md:flex">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="打开筛选"
-                          title="筛选"
-                          onClick={() => setFilterOpen(true)}
-                        >
-                          <ListFilterIcon aria-hidden="true" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="打开事务所名录"
-                          title="事务所名录"
-                          onClick={() => openDirectory("offices")}
-                        >
-                          <Building2Icon aria-hidden="true" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="打开名片名录"
-                          title="名片名录"
-                          onClick={() => openDirectory("cards")}
-                        >
-                          <CreditCardIcon aria-hidden="true" />
-                        </Button>
-                        <NavigationLink
-                          to="/community/exchange/me"
-                          className={buttonVariants({
-                            variant: "outline",
-                            size: "icon",
-                          })}
-                          aria-label="管理我的交换账号"
-                          title="账号管理"
-                        >
-                          <UserRoundCogIcon aria-hidden="true" />
-                        </NavigationLink>
+                {IS_APP_TARGET ? (
+                  refreshControl
+                ) : (
+                  <div className="pointer-events-auto relative overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur-sm sm:rounded-lg">
+                    <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
+                    <div className="flex min-w-0 items-center gap-1.5 px-2.5 pt-2 pb-1 sm:gap-2 sm:px-3 sm:pt-3 sm:pb-2">
+                      <MapPinnedIcon
+                        className="size-3.5 shrink-0 text-primary sm:size-4"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h1 className="truncate text-sm font-semibold sm:text-base">
+                          名片交换事务所
+                        </h1>
+                        <p className="hidden truncate text-xs text-muted-foreground sm:block">
+                          {state.offices.length} 个事务所 · {state.cards.length}{" "}
+                          张名片
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {refreshControl}
+                        <div className="hidden shrink-0 items-center gap-1 md:flex">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="打开筛选"
+                            title="筛选"
+                            onClick={() => setFilterOpen(true)}
+                          >
+                            <ListFilterIcon aria-hidden="true" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="打开事务所名录"
+                            title="事务所名录"
+                            onClick={() => openDirectory("offices")}
+                          >
+                            <Building2Icon aria-hidden="true" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="打开名片名录"
+                            title="名片名录"
+                            onClick={() => openDirectory("cards")}
+                          >
+                            <CreditCardIcon aria-hidden="true" />
+                          </Button>
+                          <NavigationLink
+                            to="/community/exchange/me"
+                            className={buttonVariants({
+                              variant: "outline",
+                              size: "icon",
+                            })}
+                            aria-label="管理我的交换账号"
+                            title="账号管理"
+                          >
+                            <UserRoundCogIcon aria-hidden="true" />
+                          </NavigationLink>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </section>
 
               <ExchangeMobileNavigation
@@ -775,7 +809,7 @@ export default function CommunityExchangePage() {
           <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
             <SheetContent
               side="bottom"
-              className="max-h-[min(82dvh,var(--safe-viewport-height))] overflow-y-auto pb-4"
+              className="exchange-map-filter-sheet overflow-y-auto pb-4"
             >
               <SheetHeader className="border-b pr-14">
                 <SheetTitle>筛选地图</SheetTitle>
@@ -797,7 +831,7 @@ export default function CommunityExchangePage() {
               className={cn(
                 "min-h-0 gap-0 overflow-hidden",
                 isNarrow
-                  ? "max-h-[min(86dvh,var(--safe-viewport-height))]"
+                  ? "exchange-map-directory-sheet"
                   : "w-[min(92vw,30rem)] sm:max-w-120"
               )}
             >

@@ -11,6 +11,9 @@ export const TAURI_MAP_ORIGINS = [
   "https://tauri.localhost",
 ] as const
 const tauriMapOrigins: ReadonlySet<string> = new Set(TAURI_MAP_ORIGINS)
+const tauriMapExposedHeaders =
+  "Content-Length, Content-Range, ETag, Cache-Control, Expires"
+const mapAssetPrefix = "/maps/"
 const exchangeMapMimeTypes: Readonly<Record<string, string>> = {
   ".json": "application/json; charset=utf-8",
   ".pbf": "application/x-protobuf",
@@ -60,6 +63,23 @@ export function tauriMapAssetCorsOrigin(origin: string | undefined) {
   return origin && tauriMapOrigins.has(origin) ? origin : undefined
 }
 
+function hasMapAssetPath(requestUrl: string | undefined) {
+  return new URL(requestUrl ?? "/", "http://localhost").pathname.startsWith(
+    mapAssetPrefix
+  )
+}
+
+function applyTauriMapAssetCors(
+  response: { setHeader(name: string, value: string): void },
+  origin: string | undefined
+) {
+  const tauriOrigin = tauriMapAssetCorsOrigin(origin)
+  if (!tauriOrigin) return
+  response.setHeader("Access-Control-Allow-Origin", tauriOrigin)
+  response.setHeader("Access-Control-Expose-Headers", tauriMapExposedHeaders)
+  response.setHeader("Vary", "Origin")
+}
+
 /** 仅开发服务器启用；生产由宿主机 Nginx 提供同一个只读 URL 合同。 */
 export function localExchangeMapAssets(workspaceRoot: string): Plugin {
   const exchangeMapRoot = resolve(workspaceRoot, "data/maps/current")
@@ -67,6 +87,14 @@ export function localExchangeMapAssets(workspaceRoot: string): Plugin {
     name: "imsweb-local-exchange-map-assets",
     apply: "serve",
     configureServer(server) {
+      // Vite serves /maps/*.json from public before this plugin's exchange
+      // middleware. Set the same restricted CORS header for every map asset.
+      server.middlewares.use((request, response, next) => {
+        if (hasMapAssetPath(request.url)) {
+          applyTauriMapAssetCors(response, request.headers.origin)
+        }
+        next()
+      })
       server.middlewares.use(async (request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://localhost")
           .pathname
@@ -115,12 +143,6 @@ export function localExchangeMapAssets(workspaceRoot: string): Plugin {
           response.statusCode = 404
           response.end()
           return
-        }
-
-        const tauriOrigin = tauriMapAssetCorsOrigin(request.headers.origin)
-        if (tauriOrigin) {
-          response.setHeader("Access-Control-Allow-Origin", tauriOrigin)
-          response.setHeader("Vary", "Origin")
         }
 
         const rangeHeader = request.headers.range

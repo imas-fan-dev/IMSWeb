@@ -139,6 +139,17 @@ function renderPage() {
   )
 }
 
+function renderAccountSection() {
+  return render(
+    <MemoryRouter initialEntries={["/account/me/profile"]}>
+      <CommunityExchangeMePage
+        section="profile"
+        sectionBasePath="/account/me"
+      />
+    </MemoryRouter>
+  )
+}
+
 describe("CommunityExchangeMePage", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -374,6 +385,21 @@ describe("CommunityExchangeMePage", () => {
     expect(screen.getByRole("textbox", { name: "名片标题" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "新建名片" })).toBeDisabled()
     expect(screen.getByText("周末交换名片")).toBeVisible()
+  })
+
+  it("uses a single App section without the legacy workspace header or tab grid", async () => {
+    renderAccountSection()
+
+    expect(
+      await screen.findByRole("heading", { name: "个人资料" })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("navigation", { name: "个人档案菜单" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: "名片交换事务所" })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "刷新个人档案" })).toBeVisible()
   })
 
   it("does not probe owner APIs for an anonymous visitor", () => {

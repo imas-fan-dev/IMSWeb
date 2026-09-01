@@ -439,7 +439,12 @@ export function StoryPage() {
             </SheetTrigger>
             <SheetContent
               side="bottom"
-              className="max-h-[min(82svh,var(--safe-viewport-height))] overflow-y-auto rounded-t-lg"
+              className={cn(
+                "overflow-y-auto rounded-t-lg",
+                IS_APP_TARGET
+                  ? "max-h-[min(82svh,var(--app-viewport-height))]"
+                  : "max-h-[min(82svh,var(--safe-viewport-height))]"
+              )}
             >
               <SheetHeader className="border-b pr-14">
                 <SheetTitle>{stories.idol.name} · 快捷导航</SheetTitle>

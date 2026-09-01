@@ -38,7 +38,7 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
       </div>
       <div className="min-w-0 py-0.5">
         <p className="text-xs font-medium text-primary">推荐 #{item.id}</p>
-        <h2 className="mt-1.5 text-base/6 font-semibold group-hover:text-primary sm:text-lg/7">
+        <h2 className="mt-1.5 text-base/6 font-semibold wrap-anywhere group-hover:text-primary sm:text-lg/7">
           {item.title}
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">
@@ -55,7 +55,7 @@ export function RecommendationRow({ item }: { item: Recommendation }) {
   )
 
   const className =
-    "group grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)_auto] gap-4 border-b py-5 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:gap-6"
+    "group grid min-h-36 min-w-0 max-w-full grid-cols-[6.5rem_minmax(0,1fr)_auto] gap-4 border-b py-5 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:gap-6"
 
   return href ? (
     <NavigationLink

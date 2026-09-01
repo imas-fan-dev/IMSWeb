@@ -31,6 +31,45 @@ export function isNonScrollingAppRoute(pathname: string) {
   return normalizeAppPathname(pathname) === "/community/exchange"
 }
 
+const APP_TAB_SCROLL_KEY = "ims:app-tab-scroll"
+
+type AppTabScrollState = Record<string, number>
+
+function readAppTabScrollState(): AppTabScrollState {
+  if (typeof window === "undefined") return {}
+  try {
+    const stored = window.sessionStorage.getItem(APP_TAB_SCROLL_KEY)
+    if (!stored) return {}
+    const parsed: unknown = JSON.parse(stored)
+    return parsed && typeof parsed === "object"
+      ? (parsed as AppTabScrollState)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+export function rememberAppTabScrollPosition(tabId: string, top: number) {
+  if (typeof window === "undefined" || !Number.isFinite(top)) return
+  try {
+    window.sessionStorage.setItem(
+      APP_TAB_SCROLL_KEY,
+      JSON.stringify({
+        ...readAppTabScrollState(),
+        [tabId]: Math.max(0, top),
+      })
+    )
+  } catch {
+    // Storage can be unavailable in hardened WebViews. Scroll restoration is
+    // a convenience, so the navigation itself must continue to work.
+  }
+}
+
+export function appTabScrollPosition(tabId: string) {
+  const value = readAppTabScrollState()[tabId]
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
 /**
  * Send the shell back to the top.
  *

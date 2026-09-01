@@ -22,6 +22,7 @@ async function loadApi(configuredOrigin: string) {
   return {
     bundle: await import("~/lib/api/bundle-client"),
     client: await import("~/lib/api/client"),
+    fudaba: await import("~/lib/api/endpoints/fudaba"),
     producerMap: await import("~/lib/api/endpoints/producer-map"),
   }
 }
@@ -150,6 +151,26 @@ describe("bundle-owned asset routing", () => {
     const { producerMap } = await loadApi("http://127.0.0.1:3010")
 
     await expect(producerMap.getProducerMapGeometry()).rejects.toMatchObject({
+      kind: "contract",
+    })
+  })
+
+  it("keeps the exchange boundary source in the bundle", async () => {
+    const urls = captureRequestUrl(GEOMETRY_BODY)
+    const { fudaba } = await loadApi("http://127.0.0.1:3010")
+
+    await fudaba.getFudabaChinaBoundaryDashSource()
+
+    expect(urls).toEqual(["/maps/china-boundary-dashes.json"])
+  })
+
+  it("validates the exchange boundary source payload", async () => {
+    captureRequestUrl({ type: "FeatureCollection", features: "not-an-array" })
+    const { fudaba } = await loadApi("http://127.0.0.1:3010")
+
+    await expect(
+      fudaba.getFudabaChinaBoundaryDashSource()
+    ).rejects.toMatchObject({
       kind: "contract",
     })
   })

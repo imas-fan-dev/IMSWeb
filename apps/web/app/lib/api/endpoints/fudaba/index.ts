@@ -1,5 +1,11 @@
-import { adminExchangePath, exchangePath } from "@imsweb/contracts/paths"
+import {
+  adminExchangePath,
+  exchangePath,
+  mapsPath,
+} from "@imsweb/contracts/paths"
+import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
+import type { GeoJSONSourceSpecification } from "maplibre-gl"
 
 import {
   normalizeFudabaCardMutation,
@@ -14,6 +20,8 @@ import {
   normalizeFudabaSeriesList,
 } from "../../media-urls"
 import { adminApiClient } from "../../admin-client"
+import { bundleAssetClient } from "../../bundle-client"
+import { STABLE_CONTENT_CACHE_FOR } from "../../cache-policy"
 import { parsed } from "../../parsed"
 import { platformApiClient } from "../../platform-client"
 import {
@@ -118,14 +126,15 @@ export {
   fudabaOwnerLocationWithdrawalResponseSchema,
   fudabaCardPlacementSaveResponseSchema,
   fudabaCardPlacementDeleteResponseSchema,
-  fudabaMapAssetName,
   fudabaMapDeliveryMutationSchema,
   fudabaMapDeliverySnapshotSchema,
-  fudabaMapDeliveryUpdateSchema,
-  fudabaMapPrefixFromStyleUrl,
-  fudabaMapPrefixSchema,
-  fudabaMapStyleUrlForPrefix,
-  isFudabaMapPrefix,
+  fudabaMapSourceActivationSchema,
+  fudabaMapSourceDeleteSchema,
+  fudabaMapSourceIdSchema,
+  fudabaMapSourceNameSchema,
+  fudabaMapSourceSchema,
+  fudabaMapSourceWriteSchema,
+  fudabaMapStyleUrlSchema,
   isFudabaMapStyleUrl,
   hasAsciiControl,
 } from "@imsweb/contracts/fudaba"
@@ -413,6 +422,16 @@ export function getFudabaMapConfig() {
   )
 }
 
+export function getFudabaChinaBoundaryDashSource() {
+  return bundleAssetClient.Get(
+    mapsPath("/china-boundary-dashes.json"),
+    parsed(producerMapGeometrySchema, {
+      cacheFor: STABLE_CONTENT_CACHE_FOR,
+      select: (data) => data as GeoJSONSourceSpecification["data"],
+    })
+  )
+}
+
 export function getAdminFudabaMapDelivery() {
   return adminApiClient.Get(
     adminExchangePath("/map-delivery"),
@@ -422,13 +441,55 @@ export function getAdminFudabaMapDelivery() {
   )
 }
 
-export function updateAdminFudabaMapDelivery(
-  prefix: string,
+export function createAdminFudabaMapSource(
+  name: string,
+  styleUrl: string,
+  revision: string | null
+) {
+  return adminApiClient.Post(
+    adminExchangePath("/map-delivery/sources"),
+    { name, styleUrl, revision },
+    parsed(fudabaMapDeliveryMutationSchema, {
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function updateAdminFudabaMapSource(
+  sourceId: string,
+  name: string,
+  styleUrl: string,
   revision: string | null
 ) {
   return adminApiClient.Put(
-    adminExchangePath("/map-delivery"),
-    { prefix, revision },
+    adminExchangePath(`/map-delivery/sources/${encodeURIComponent(sourceId)}`),
+    { name, styleUrl, revision },
+    parsed(fudabaMapDeliveryMutationSchema, {
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function deleteAdminFudabaMapSource(
+  sourceId: string,
+  revision: string | null
+) {
+  return adminApiClient.Delete(
+    adminExchangePath(`/map-delivery/sources/${encodeURIComponent(sourceId)}`),
+    { revision },
+    parsed(fudabaMapDeliveryMutationSchema, {
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function activateAdminFudabaMapSource(
+  sourceId: string,
+  revision: string | null
+) {
+  return adminApiClient.Put(
+    adminExchangePath("/map-delivery/active"),
+    { sourceId, revision },
     parsed(fudabaMapDeliveryMutationSchema, {
       meta: withBackofficeCsrf(),
     })

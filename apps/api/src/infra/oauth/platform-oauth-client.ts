@@ -113,8 +113,11 @@ export class ConfiguredPlatformOAuthClient implements PlatformOAuthClient {
 
     async listProviders(): Promise<PlatformOAuthProviderSummary[]> {
         const rows = await this.store.listOAuthProviderConfigs();
+        const rowsByCode = new Map(rows.map((row) => [row.code, row]));
         const providers: PlatformOAuthProviderSummary[] = [];
-        for (const row of rows) {
+        for (const definition of this.definitions.values()) {
+            const row = rowsByCode.get(definition.code);
+            if (!row) continue;
             const provider = await this.configuredProvider(row);
             if (provider) {
                 providers.push({
@@ -129,9 +132,14 @@ export class ConfiguredPlatformOAuthClient implements PlatformOAuthClient {
 
     async listProviderSettings(): Promise<PlatformOAuthProviderAdminView[]> {
         const rows = await this.store.listOAuthProviderConfigs();
-        return rows.flatMap((row) => {
-            const definition = this.definitions.get(row.code);
-            if (!definition) return [];
+        const rowsByCode = new Map(rows.map((row) => [row.code, row]));
+        return [...this.definitions.values()].map((definition) => {
+            const row = rowsByCode.get(definition.code);
+            if (!row) {
+                throw new Error(
+                    `OAuth provider ${definition.code} is not initialized`,
+                );
+            }
             let clientId: string | null = null;
             if (row.clientIdCiphertext) {
                 try {
@@ -140,22 +148,20 @@ export class ConfiguredPlatformOAuthClient implements PlatformOAuthClient {
                     clientId = null;
                 }
             }
-            return [
-                {
-                    code: row.code,
-                    displayName: row.displayName || definition.displayName,
-                    icon: definition.icon,
-                    enabled: row.enabled,
-                    configured: Boolean(
-                        row.clientIdCiphertext &&
-                            row.clientSecretCiphertext &&
-                            row.redirectUri,
-                    ),
-                    clientIdMasked: maskClientId(clientId),
-                    redirectUri: row.redirectUri,
-                    updatedAt: row.updatedAt,
-                },
-            ];
+            return {
+                code: row.code,
+                displayName: row.displayName || definition.displayName,
+                icon: definition.icon,
+                enabled: row.enabled,
+                configured: Boolean(
+                    row.clientIdCiphertext &&
+                        row.clientSecretCiphertext &&
+                        row.redirectUri,
+                ),
+                clientIdMasked: maskClientId(clientId),
+                redirectUri: row.redirectUri,
+                updatedAt: row.updatedAt,
+            };
         });
     }
 

@@ -87,6 +87,10 @@ const publicRoutes = [
   },
 ] satisfies RouteConfigEntry[]
 
+const appOnlyRoutes = [
+  { path: "apps", file: "pages/apps/index.tsx" },
+] satisfies RouteConfigEntry[]
+
 const standaloneRoutes = isAppTarget
   ? []
   : ([
@@ -166,9 +170,14 @@ export default [
     children: isAppTarget
       ? [
           ...publicRoutes,
+          ...appOnlyRoutes,
           {
             path: "account/me",
             file: "pages/account/me/account-me-page.tsx",
+          },
+          {
+            path: "account/me/:section",
+            file: "pages/account/me/account-me-section-page.tsx",
           },
         ]
       : publicRoutes,

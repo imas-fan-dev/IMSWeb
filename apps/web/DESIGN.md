@@ -258,14 +258,17 @@ YAML 令牌是设计意图的规范值，当前实现位于 `apps/web/app/app.cs
 公开页面不自行声明宽度与边距，而是从 `PageShell` 的**三档阅读节奏**中选一，依据是内容怎么被
 读，不是页面恰好有多少内容：
 
-```
+```text
 read     max-w-3xl   长文档、声明、单篇资料
 default  max-w-5xl   常规页面与卡片栏目
 wide     max-w-7xl   需要横向密度的索引页，与顶栏、页脚对齐
 ```
 
 三档共用同一套边距 `px-4 sm:px-6 lg:px-8` 和纵向节奏 `py-12 sm:py-16`，因此跨路由切换时
-标题不会左右跳动。`PageShell` 同时拥有 `id="main-content"`，页面不得重复声明。
+标题不会左右跳动。`PageShell` 同时拥有 `id="main-content"`，页面不得重复声明。App target
+由 `[data-app-shell]` 统一提供 `--app-header-inset`、`--app-bottom-clearance`、
+`--app-floating-bottom`、`--app-safe-inline`、`--app-viewport-height` 和
+`--app-content-height`；页面不得自行推算顶栏、底栏或安全区尺寸。
 
 间距基于 4px 单元，以 8px、16px、24px、32px 构成主要节奏。移动、平板和桌面页面边距
 分别为 16px、24px、32px。固定格式的表格、工具栏、图标按钮和媒体区域应使用稳定尺寸与
@@ -289,7 +292,7 @@ wide     max-w-7xl   需要横向密度的索引页，与顶栏、页脚对齐
 `blur()` 而不加 `saturate()` 会让底色发灰，那是廉价玻璃和高级玻璃的分界线；内描边高光才是
 “玻璃厚度”的来源。
 
-```
+```text
 glass-blur:        16px
 glass-saturate:    180%
 glass-alpha-bar:   0.62 (light) / 0.58 (dark)
@@ -319,7 +322,8 @@ glass-accent:      当前系列色，大表面 4%、面板与控件 7%
 这三个类，因此回退实现仍是同一个控件的两种尺寸。iOS 26 及以上的 Tauri App 是唯一例外：底栏
 由 Swift 的系统 `UITabBarController` 承载，不叠加 Web 透镜。原生 tab 使用与 React 相同的 Lucide
 图标 ID；材质、圆角、阴影、选中动画、按压动画、最小化行为、宽度和安全区间距完全由 UIKit 按设备尺寸
-决定，不维护固定胶囊几何或手写原生动画。
+决定，不维护固定胶囊几何或手写原生动画。Dialog、AlertDialog 与 Sheet 打开时暂时隐藏原生 tab，
+最后一个弹层关闭后再恢复，避免位于 WKWebView 上方的 UIKit 视图截获弹层区域的触点。
 
 嵌套玻璃必须隔离交互层。只有带 `data-glass-interactive` 的分段控件，以及自身就是
 `glass-control` 的独立控件，才接收触点光效和按压状态。Header 外层、面板、卡片等非交互玻璃
@@ -342,13 +346,12 @@ Android 与 iOS 26 以下的 App 底栏只保留 Web 玻璃材质、透镜和按
 
 缓动曲线只有四条，不得写临时的 `cubic-bezier`：
 
-```
---ease-emphasized:  cubic-bezier(0.16, 1, 0.3, 1)    入场、揭示、转场
---ease-interactive: cubic-bezier(0.22, 1, 0.36, 1)   hover、focus、按下
---ease-ui:          cubic-bezier(0.4, 0, 0.2, 1)     尺寸与展收
---ease-card:        cubic-bezier(0.2, 0.8, 0.2, 1)   卡片与媒体
---duration-fast:    140ms    --duration-ui:     240ms
---duration-reveal:  560ms    --duration-hero:   720ms
+```css
+--ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1) 入场、揭示、转场
+  --ease-interactive: cubic-bezier(0.22, 1, 0.36, 1) hover、focus、按下
+  --ease-ui: cubic-bezier(0.4, 0, 0.2, 1) 尺寸与展收
+  --ease-card: cubic-bezier(0.2, 0.8, 0.2, 1) 卡片与媒体 --duration-fast: 140ms
+  --duration-ui: 240ms --duration-reveal: 560ms --duration-hero: 720ms;
 ```
 
 交互反馈统一使用 `--duration-fast`；后台列表不使用逐项 stagger 入场，避免翻页后等待数据浮现。
@@ -400,7 +403,7 @@ CSS hover，避免抬手或链接获得焦点后残留高光。文字与图标�
 
 ## Do's and Don'ts
 
-**Do**
+### Do
 
 - 优先中文界面，同时保持现有 i18n 键和语言切换能力。
 - 使用真实业务内容、真实路由和真实 API 状态；先验证数据来源再设计统计或摘要。
@@ -408,7 +411,7 @@ CSS hover，避免抬手或链接获得焦点后残留高光。文字与图标�
 - 覆盖桌面和移动布局、键盘焦点、reduced motion、loading、error、empty 和 success 状态。
 - 保持运营工具紧凑、安静、易扫描；让主要动作在重复工作流中容易找到。
 
-**Don't**
+### Don't
 
 - 不引入与偶像大师系列无关的通用 SaaS 主题、虚构指标、营销式 hero 或装饰性卡片墙。
 - 不让单一洋红、紫蓝、深蓝或暖棕色系支配整个界面；六系列色必须保持平衡且有业务依据。

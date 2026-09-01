@@ -16,6 +16,8 @@ vi.mock("alova/client", () => ({
 }))
 
 vi.mock("~/lib/api", () => ({
+  API_ORIGIN: "",
+  PUBLIC_SITE_ORIGIN: "",
   getAdminSession: mocks.getAdminSession,
   hasBackofficeSessionHint: mocks.hasBackofficeSessionHint,
 }))

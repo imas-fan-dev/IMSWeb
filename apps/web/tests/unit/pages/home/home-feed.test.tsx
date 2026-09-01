@@ -1,5 +1,6 @@
 import { useRequest } from "alova/client"
 import { act, render, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { getHomeNews } from "~/lib/api"
@@ -26,6 +27,14 @@ function NewsProbe({ onSuccess }: { onSuccess: (data: unknown) => void }) {
   if (loading) return <p>loading</p>
   if (error) return <p>error: {error.message}</p>
   return <p>{data.items.map((item) => item.title).join(", ") || "empty"}</p>
+}
+
+function renderHomeFeed() {
+  return render(
+    <MemoryRouter>
+      <HomeFeed />
+    </MemoryRouter>
+  )
 }
 
 describe("home feed alova integration", () => {
@@ -117,7 +126,7 @@ describe("home feed alova integration", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    const { container } = render(<HomeFeed />)
+    const { container } = renderHomeFeed()
 
     expect(await screen.findByText("首页活动 4")).toBeVisible()
     expect(screen.queryByText("首页活动 5")).not.toBeInTheDocument()
@@ -235,7 +244,7 @@ describe("home feed alova integration", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    render(<HomeFeed />)
+    renderHomeFeed()
 
     expect(await screen.findByText("窄屏活动 3")).toBeVisible()
     expect(screen.queryByText("窄屏活动 4")).not.toBeInTheDocument()
