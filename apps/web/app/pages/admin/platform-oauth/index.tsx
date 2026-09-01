@@ -3,205 +3,61 @@ import {
   CheckCircle2Icon,
   Code2Icon,
   KeyRoundIcon,
+  LoaderCircleIcon,
   PencilIcon,
+  PlusIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { useState } from "react"
 import { useOutletContext } from "react-router"
 import { toast } from "sonner"
 
-import { AdminConfigDialog } from "~/components/admin/admin-config-dialog"
-import { PlatformOAuthProviderIcon } from "~/components/platform/platform-oauth-provider-icon"
 import {
   AdminEmptyState,
   AdminPageHeader,
   AdminPanel,
 } from "~/components/admin/admin-ui"
+import { platformOAuthButtonStyle } from "~/components/platform/platform-oauth-button-theme"
+import { PlatformOAuthProviderIcon } from "~/components/platform/platform-oauth-provider-icon"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
-import { Checkbox } from "~/components/ui/checkbox"
 import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "~/components/ui/field"
-import { Input } from "~/components/ui/input"
-import {
+  createAdminPlatformOAuthProvider,
+  deleteAdminPlatformOAuthProvider,
   getAdminPlatformOAuthProviders,
   isApiError,
   updateAdminPlatformOAuthProvider,
   type PlatformOAuthAdminProvider,
+  type PlatformOAuthProviderCreateInput,
+  type PlatformOAuthProviderUpdateInput,
 } from "~/lib/api"
+import { ProviderConfigDialog } from "~/pages/admin/platform-oauth/components/provider-config-dialog"
+import {
+  emptyDraft,
+  providerInput,
+  toDraft,
+  type ProviderDraft,
+} from "~/pages/admin/platform-oauth/platform-oauth-model"
 
 interface AdminOutletContext {
   adminSession: { adminRole: string | null }
 }
 
-type ProviderDraft = PlatformOAuthAdminProvider & {
-  clientId: string
-  clientSecret: string
-  redirectUriInput: string
-}
-
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "请求失败，请稍后重试"
-}
-
-function providerDescription(code: PlatformOAuthAdminProvider["code"]) {
-  return code === "google" ? "Google OpenID Connect" : "GitHub OAuth App"
-}
-
-function toDraft(provider: PlatformOAuthAdminProvider): ProviderDraft {
-  return {
-    ...provider,
-    clientId: "",
-    clientSecret: "",
-    redirectUriInput: provider.redirectUri ?? "",
-  }
-}
-
-function ProviderConfigDialog({
-  provider,
-  saving,
-  onOpenChange,
-  onSave,
-}: {
-  provider: ProviderDraft
-  saving: boolean
-  onOpenChange: (open: boolean) => void
-  onSave: (provider: ProviderDraft) => void | Promise<void>
-}) {
-  const [draft, setDraft] = useState(provider)
-  const valid = Boolean(
-    draft.displayName.trim() && draft.redirectUriInput.trim()
-  )
-
-  return (
-    <AdminConfigDialog
-      open
-      title={`配置 ${provider.displayName}`}
-      description={providerDescription(provider.code)}
-      icon={
-        <PlatformOAuthProviderIcon
-          provider={provider.icon}
-          className="size-5"
-          aria-hidden="true"
-        />
-      }
-      submitLabel="保存 OAuth 配置"
-      submitDisabled={!valid}
-      saving={saving}
-      onOpenChange={onOpenChange}
-      onSubmit={() => onSave(draft)}
-    >
-      <FieldGroup className="grid sm:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor={`oauth-${provider.code}-display-name`}>
-            显示名称
-          </FieldLabel>
-          <Input
-            id={`oauth-${provider.code}-display-name`}
-            required
-            maxLength={80}
-            autoFocus
-            value={draft.displayName}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                displayName: event.target.value,
-              }))
-            }
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`oauth-${provider.code}-redirect-uri`}>
-            回调地址
-          </FieldLabel>
-          <Input
-            id={`oauth-${provider.code}-redirect-uri`}
-            type="url"
-            required
-            maxLength={2048}
-            value={draft.redirectUriInput}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                redirectUriInput: event.target.value,
-              }))
-            }
-          />
-          <FieldDescription>
-            必须与 provider 控制台登记值完全一致。
-          </FieldDescription>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`oauth-${provider.code}-client-id`}>
-            Client ID
-          </FieldLabel>
-          <Input
-            id={`oauth-${provider.code}-client-id`}
-            value={draft.clientId}
-            autoComplete="off"
-            maxLength={512}
-            placeholder={provider.clientIdMasked ?? "输入 Client ID"}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                clientId: event.target.value,
-              }))
-            }
-          />
-          <FieldDescription>
-            {provider.clientIdMasked
-              ? `当前已保存：${provider.clientIdMasked}`
-              : "首次配置时填写"}
-          </FieldDescription>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`oauth-${provider.code}-client-secret`}>
-            Client secret
-          </FieldLabel>
-          <Input
-            id={`oauth-${provider.code}-client-secret`}
-            type="password"
-            value={draft.clientSecret}
-            autoComplete="new-password"
-            maxLength={2048}
-            placeholder={
-              provider.configured
-                ? "已保存，输入新值可替换"
-                : "输入 Client secret"
-            }
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                clientSecret: event.target.value,
-              }))
-            }
-          />
-          <FieldDescription>留空时保持已保存的密钥。</FieldDescription>
-        </Field>
-        <Field className="sm:col-span-2" orientation="horizontal">
-          <Checkbox
-            id={`oauth-${provider.code}-enabled`}
-            checked={draft.enabled}
-            onCheckedChange={(checked) =>
-              setDraft((current) => ({
-                ...current,
-                enabled: checked === true,
-              }))
-            }
-          />
-          <FieldLabel htmlFor={`oauth-${provider.code}-enabled`}>
-            允许用户使用此 provider 登录
-          </FieldLabel>
-        </Field>
-      </FieldGroup>
-    </AdminConfigDialog>
-  )
 }
 
 export function meta() {
@@ -218,10 +74,13 @@ export default function AdminPlatformOAuthPage() {
   } = useRequest(getAdminPlatformOAuthProviders(), {
     initialData: { success: true as const, providers: [] },
   })
-  const [editingProvider, setEditingProvider] = useState<ProviderDraft | null>(
-    null
-  )
-  const [savingCode, setSavingCode] = useState<string | null>(null)
+  const [editor, setEditor] = useState<{
+    draft: ProviderDraft
+    creating: boolean
+  } | null>(null)
+  const [deleteProvider, setDeleteProvider] =
+    useState<PlatformOAuthAdminProvider | null>(null)
+  const [pendingAction, setPendingAction] = useState<string | null>(null)
 
   if (adminSession.adminRole !== "super_admin") {
     return (
@@ -242,51 +101,70 @@ export default function AdminPlatformOAuthPage() {
     )
   }
 
-  async function save(provider: ProviderDraft) {
-    setSavingCode(provider.code)
+  async function save(draft: ProviderDraft, creating: boolean) {
+    setPendingAction(creating ? "create" : `update-${draft.code}`)
     try {
-      const input: Parameters<typeof updateAdminPlatformOAuthProvider>[1] = {
-        displayName: provider.displayName,
-        enabled: provider.enabled,
-        expectedUpdatedAt: provider.updatedAt,
-      }
-      if (provider.clientId.trim()) input.clientId = provider.clientId.trim()
-      if (provider.clientSecret.trim()) {
-        input.clientSecret = provider.clientSecret.trim()
-      }
-      if (provider.redirectUriInput !== (provider.redirectUri ?? "")) {
-        input.redirectUri = provider.redirectUriInput.trim()
-      }
-      const result = await updateAdminPlatformOAuthProvider(
-        provider.code,
-        input
-      ).send()
-      setEditingProvider(null)
+      const input = providerInput(draft)
+      const result = creating
+        ? await createAdminPlatformOAuthProvider({
+            code: draft.code,
+            ...input,
+          } satisfies PlatformOAuthProviderCreateInput).send()
+        : await updateAdminPlatformOAuthProvider(draft.code, {
+            ...input,
+            expectedUpdatedAt: draft.updatedAt,
+          } satisfies PlatformOAuthProviderUpdateInput).send()
+      setEditor(null)
       await refresh()
       toast.success(`${result.provider.displayName} 配置已保存`)
     } catch (saveError) {
       if (isApiError(saveError) && saveError.status === 409) {
         toast.error("配置版本已变化，请刷新后再保存")
+        setEditor(null)
         await refresh()
       } else {
         toast.error(errorMessage(saveError))
       }
     } finally {
-      setSavingCode(null)
+      setPendingAction(null)
     }
   }
+
+  async function confirmDelete() {
+    if (!deleteProvider) return
+    setPendingAction(`delete-${deleteProvider.code}`)
+    try {
+      await deleteAdminPlatformOAuthProvider(
+        deleteProvider.code,
+        deleteProvider.updatedAt
+      ).send()
+      toast.success(`${deleteProvider.displayName} 已删除`)
+      setDeleteProvider(null)
+      await refresh()
+    } catch (deleteError) {
+      toast.error(errorMessage(deleteError))
+      if (isApiError(deleteError) && deleteError.status === 409) {
+        setDeleteProvider(null)
+        await refresh()
+      }
+    } finally {
+      setPendingAction(null)
+    }
+  }
+
+  const busy = pendingAction !== null
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
       <AdminPageHeader
         eyebrow="PLATFORM AUTH"
         title="OAuth 登录配置"
-        description="配置固定支持的 Google 与 GitHub 登录参数。凭据加密保存于后端数据库，保存后无需重启服务。"
+        description="管理 OAuth 2.0 与 OpenID Connect 登录方式。"
         actions={
           <Button
             type="button"
             variant="outline"
-            disabled={loading || savingCode !== null}
+            disabled={loading || busy}
             onClick={() => void refresh()}
           >
             <RefreshCwIcon
@@ -302,8 +180,8 @@ export default function AdminPlatformOAuthPage() {
         <div className="flex items-center gap-3 rounded-lg border bg-muted/20 p-4">
           <KeyRoundIcon className="size-5 text-primary" aria-hidden="true" />
           <div>
-            <p className="text-xs text-muted-foreground">Provider 类型</p>
-            <p className="font-semibold">Google、GitHub</p>
+            <p className="text-xs text-muted-foreground">Provider</p>
+            <p className="font-semibold">{data.providers.length} 个配置</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border bg-muted/20 p-4">
@@ -326,10 +204,21 @@ export default function AdminPlatformOAuthPage() {
       </div>
 
       <AdminPanel
-        title="支持的登录方式"
-        description="Provider 类型由应用固定，只能编辑连接参数和启用状态。"
+        title="登录方式"
+        description="OAuth provider 与前端按钮显示配置。"
         icon={Code2Icon}
         contentClassName="pt-1"
+        action={
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy}
+            onClick={() => setEditor({ draft: emptyDraft(), creating: true })}
+          >
+            <PlusIcon data-icon="inline-start" />
+            添加 provider
+          </Button>
+        }
       >
         {error ? (
           <Alert variant="destructive">
@@ -348,7 +237,10 @@ export default function AdminPlatformOAuthPage() {
                 className="flex min-w-0 flex-col gap-4 px-3 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex min-w-0 items-start gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                  <span
+                    className="flex size-9 shrink-0 items-center justify-center rounded-lg border"
+                    style={platformOAuthButtonStyle(provider.buttonColor)}
+                  >
                     <PlatformOAuthProviderIcon
                       provider={provider.icon}
                       className="size-5"
@@ -360,6 +252,7 @@ export default function AdminPlatformOAuthPage() {
                       <h2 className="text-sm font-semibold">
                         {provider.displayName}
                       </h2>
+                      <Badge variant="secondary">{provider.code}</Badge>
                       <Badge
                         variant={
                           provider.enabled && provider.configured
@@ -374,47 +267,102 @@ export default function AdminPlatformOAuthPage() {
                             : "未配置"}
                       </Badge>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {providerDescription(provider.code)}
+                    <p className="mt-1 font-mono text-xs break-all text-muted-foreground">
+                      {provider.authorizationEndpoint}
                     </p>
                     <p className="mt-1 font-mono text-xs break-all text-muted-foreground">
                       {provider.redirectUri ?? "尚未设置回调地址"}
                     </p>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={savingCode !== null}
-                  onClick={() => setEditingProvider(toDraft(provider))}
-                >
-                  <PencilIcon data-icon="inline-start" />
-                  编辑配置
-                </Button>
+                <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    title={`编辑 ${provider.displayName}`}
+                    aria-label={`编辑 ${provider.displayName}`}
+                    disabled={busy}
+                    onClick={() =>
+                      setEditor({ draft: toDraft(provider), creating: false })
+                    }
+                  >
+                    <PencilIcon />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    title={`删除 ${provider.displayName}`}
+                    aria-label={`删除 ${provider.displayName}`}
+                    disabled={busy}
+                    onClick={() => setDeleteProvider(provider)}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
         ) : (
           <AdminEmptyState
             icon={Code2Icon}
-            title="登录方式尚未初始化"
-            description="请检查 Google 与 GitHub OAuth 配置迁移。"
+            title="没有 OAuth provider"
+            description="添加 provider 后即可配置登录入口。"
           />
         )}
       </AdminPanel>
 
-      {editingProvider ? (
+      {editor ? (
         <ProviderConfigDialog
-          key={`${editingProvider.code}-${editingProvider.updatedAt}`}
-          provider={editingProvider}
-          saving={savingCode === editingProvider.code}
+          key={`${editor.creating ? "create" : editor.draft.code}-${editor.draft.updatedAt}`}
+          provider={editor.draft}
+          creating={editor.creating}
+          saving={
+            pendingAction === "create" ||
+            pendingAction === `update-${editor.draft.code}`
+          }
           onOpenChange={(open) => {
-            if (!open) setEditingProvider(null)
+            if (!open) setEditor(null)
           }}
-          onSave={save}
+          onSave={(draft) => save(draft, editor.creating)}
         />
       ) : null}
+
+      <AlertDialog
+        open={Boolean(deleteProvider)}
+        onOpenChange={(open) => {
+          if (!open && !busy) setDeleteProvider(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除 OAuth provider？</AlertDialogTitle>
+            <AlertDialogDescription>
+              将删除 {deleteProvider?.displayName}
+              。已有用户绑定或未完成登录流程时，系统会拒绝删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busy}
+              onClick={confirmDelete}
+            >
+              {busy ? (
+                <LoaderCircleIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <Trash2Icon data-icon="inline-start" />
+              )}
+              删除 provider
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

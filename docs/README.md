@@ -47,6 +47,7 @@ Issue、release record 或私有运维记录中。
 - [现网运行手册](operations/runbook.md)
 - [地图资源交付](operations/map-delivery.md)
 - [OpenMap S3 发布规范](operations/openmap-s3-publication.md)
+- [Platform OAuth Provider 运维](operations/platform-oauth-providers.md)
 - [Fudaba Platform 数据迁移合同](migrations/fudaba-platform.md)
 - [Producer Map 数据迁移与对账](migrations/producer-map-online.md)
 

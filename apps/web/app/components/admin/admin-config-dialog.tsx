@@ -16,6 +16,7 @@ export function AdminConfigDialog({
   title,
   description,
   icon,
+  contentClassName,
   submitLabel,
   submitDisabled = false,
   saving,
@@ -27,6 +28,7 @@ export function AdminConfigDialog({
   title: string
   description: string
   icon?: ReactNode
+  contentClassName?: string
   submitLabel: string
   submitDisabled?: boolean
   saving: boolean
@@ -47,7 +49,7 @@ export function AdminConfigDialog({
       }}
     >
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
+        className={`max-h-[calc(100dvh-2rem)] overflow-y-auto ${contentClassName ?? "sm:max-w-lg"}`}
         showCloseButton={!saving}
       >
         <form className="contents" onSubmit={submit}>

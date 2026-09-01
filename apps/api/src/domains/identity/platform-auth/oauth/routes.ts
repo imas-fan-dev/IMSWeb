@@ -1,23 +1,22 @@
+import { backofficeAuth, backofficeCsrf, superAdminOnly } from '@/middleware/hono-auth';
 import {
-    backofficeAuth,
-    backofficeCsrf,
-    superAdminOnly
-} from '@/middleware/hono-auth';
-import {
+    handleCreateAdminPlatformOAuthProvider,
+    handleDeleteAdminPlatformOAuthProvider,
     handleGetAdminPlatformOAuthProviders,
-    handleUpdateAdminPlatformOAuthProvider
+    handleUpdateAdminPlatformOAuthProvider,
 } from '@/domains/identity/platform-auth/oauth/handlers/admin-provider-config';
 import {
     handlePlatformOAuthCallback,
     handlePlatformOAuthProviders,
-    handlePlatformOAuthStart
+    handlePlatformOAuthStart,
 } from '@/domains/identity/platform-auth/oauth/handlers/oauth-login';
 import { jsonValidator } from '@/middleware/request-validation';
-import { parsePlatformOAuthProviderUpdate } from '@/domains/identity/platform-auth/oauth/request';
 import {
-    createCapabilityRouter,
-    type ImsCapabilityRouter
-} from '@/routing/capability-router';
+    parsePlatformOAuthProviderCreate,
+    parsePlatformOAuthProviderDelete,
+    parsePlatformOAuthProviderUpdate,
+} from '@/domains/identity/platform-auth/oauth/request';
+import { createCapabilityRouter, type ImsCapabilityRouter } from '@/routing/capability-router';
 
 export function platformOAuthRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
@@ -29,11 +28,16 @@ export function platformOAuthRoutes(): ImsCapabilityRouter {
 
 export function platformOAuthAdminRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
-    routes.get(
+    routes.get('/providers', backofficeAuth, superAdminOnly, handleGetAdminPlatformOAuthProviders);
+    routes.post(
         '/providers',
         backofficeAuth,
         superAdminOnly,
-        handleGetAdminPlatformOAuthProviders
+        backofficeCsrf,
+        jsonValidator(parsePlatformOAuthProviderCreate, {
+            malformedMessage: '请求正文必须为 JSON',
+        }),
+        handleCreateAdminPlatformOAuthProvider,
     );
     routes.put(
         '/:provider',
@@ -41,9 +45,19 @@ export function platformOAuthAdminRoutes(): ImsCapabilityRouter {
         superAdminOnly,
         backofficeCsrf,
         jsonValidator(parsePlatformOAuthProviderUpdate, {
-            malformedMessage: '请求正文必须为 JSON'
+            malformedMessage: '请求正文必须为 JSON',
         }),
-        handleUpdateAdminPlatformOAuthProvider
+        handleUpdateAdminPlatformOAuthProvider,
+    );
+    routes.delete(
+        '/:provider',
+        backofficeAuth,
+        superAdminOnly,
+        backofficeCsrf,
+        jsonValidator(parsePlatformOAuthProviderDelete, {
+            malformedMessage: '请求正文必须为 JSON',
+        }),
+        handleDeleteAdminPlatformOAuthProvider,
     );
     return routes;
 }

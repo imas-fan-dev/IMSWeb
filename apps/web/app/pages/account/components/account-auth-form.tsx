@@ -21,6 +21,7 @@ import {
   NavigationBoundary,
   NavigationLink,
 } from "~/components/navigation/navigation-link"
+import { platformOAuthButtonStyle } from "~/components/platform/platform-oauth-button-theme"
 import { PlatformOAuthProviderIcon } from "~/components/platform/platform-oauth-provider-icon"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { PageShell } from "~/components/shared/page-shell"
@@ -874,8 +875,10 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                           className={buttonVariants({
                             variant: "outline",
                             size: "lg",
-                            className: "h-11 min-w-0 justify-center",
+                            className:
+                              "h-11 min-w-0 justify-center hover:opacity-90",
                           })}
+                          style={platformOAuthButtonStyle(provider.buttonColor)}
                         >
                           <PlatformOAuthProviderIcon
                             provider={provider.icon}

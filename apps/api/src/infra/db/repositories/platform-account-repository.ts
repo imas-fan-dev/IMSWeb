@@ -56,10 +56,22 @@ interface PlatformAccountProfileRow extends PlatformAccountRecord {
 interface PlatformOAuthProviderRow {
     code: PlatformOAuthProviderConfigRecord['code'];
     display_name: string;
+    icon: string;
+    button_color: string;
     enabled: boolean | number | string;
     client_id_ciphertext: string | null;
     client_secret_ciphertext: string | null;
     redirect_uri: string | null;
+    authorization_endpoint: string;
+    token_endpoint: string;
+    user_info_endpoint: string;
+    scopes_json: unknown;
+    token_auth_method: PlatformOAuthProviderConfigRecord['tokenAuthMethod'];
+    pkce_enabled: boolean | number | string;
+    profile_subject_path: string;
+    profile_display_name_path: string;
+    profile_display_name_fallback_path: string | null;
+    profile_avatar_url_path: string | null;
     updated_at: number;
 }
 
@@ -167,6 +179,60 @@ function isOAuthIdentityConflict(error: unknown): boolean {
         candidate.message.includes('platform_oauth_identities');
 }
 
+function isOAuthProviderReference(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const candidate = error as { code?: unknown; constraint?: unknown };
+    return ['23001', '23503'].includes(String(candidate.code || '')) && new Set([
+        'platform_oauth_identities_provider_code_fkey',
+        'platform_oauth_states_provider_code_fkey'
+    ]).has(String(candidate.constraint || ''));
+}
+
+function oauthProviderRecord(
+    row: PlatformOAuthProviderRow
+): PlatformOAuthProviderConfigRecord {
+    let scopes: string[] = [];
+    if (Array.isArray(row.scopes_json)) {
+        scopes = row.scopes_json.filter(
+            (scope): scope is string => typeof scope === 'string'
+        );
+    } else if (typeof row.scopes_json === 'string') {
+        try {
+            const parsed = JSON.parse(row.scopes_json) as unknown;
+            if (Array.isArray(parsed)) {
+                scopes = parsed.filter(
+                    (scope): scope is string => typeof scope === 'string'
+                );
+            }
+        } catch {
+            scopes = [];
+        }
+    }
+    return {
+        code: row.code,
+        displayName: row.display_name,
+        icon: row.icon,
+        buttonColor: row.button_color,
+        enabled: row.enabled === true || row.enabled === 1 || row.enabled === 't',
+        clientIdCiphertext: row.client_id_ciphertext,
+        clientSecretCiphertext: row.client_secret_ciphertext,
+        redirectUri: row.redirect_uri,
+        authorizationEndpoint: row.authorization_endpoint,
+        tokenEndpoint: row.token_endpoint,
+        userInfoEndpoint: row.user_info_endpoint,
+        scopes,
+        tokenAuthMethod: row.token_auth_method,
+        pkceEnabled:
+            row.pkce_enabled === true || row.pkce_enabled === 1 ||
+            row.pkce_enabled === 't',
+        profileSubjectPath: row.profile_subject_path,
+        profileDisplayNamePath: row.profile_display_name_path,
+        profileDisplayNameFallbackPath: row.profile_display_name_fallback_path,
+        profileAvatarUrlPath: row.profile_avatar_url_path,
+        updatedAt: row.updated_at
+    };
+}
+
 function conditionalSecurityEventValues(event: PlatformSecurityEventInput): unknown[] {
     return [
         event.id,
@@ -246,34 +312,76 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
     async listOAuthProviderConfigs(): Promise<PlatformOAuthProviderConfigRecord[]> {
         const result = await sqlStatement(
             this.database,
-            `SELECT code, display_name, enabled, client_id_ciphertext,
-                    client_secret_ciphertext, redirect_uri, updated_at
+            `SELECT code, display_name, icon, button_color, enabled,
+                    client_id_ciphertext, client_secret_ciphertext, redirect_uri,
+                    authorization_endpoint, token_endpoint, user_info_endpoint,
+                    scopes_json, token_auth_method, pkce_enabled,
+                    profile_subject_path, profile_display_name_path,
+                    profile_display_name_fallback_path, profile_avatar_url_path,
+                    updated_at
              FROM platform_oauth_providers
-             ORDER BY code`,
+             ORDER BY sort_order, code`,
             []
         ).all<PlatformOAuthProviderRow>();
-        return result.results.map((row) => ({
-            code: row.code,
-            displayName: row.display_name,
-            icon: row.code,
-            enabled: row.enabled === true || row.enabled === 1 || row.enabled === 't',
-            clientIdCiphertext: row.client_id_ciphertext,
-            clientSecretCiphertext: row.client_secret_ciphertext,
-            redirectUri: row.redirect_uri,
-            updatedAt: row.updated_at
-        }));
+        return result.results.map(oauthProviderRecord);
     }
 
-    async updateOAuthProviderConfig(input: {
-        code: PlatformOAuthProviderConfigRecord['code'];
-        displayName: string;
-        enabled: boolean;
-        clientIdCiphertext: string | null;
-        clientSecretCiphertext: string | null;
-        redirectUri: string | null;
-        expectedUpdatedAt: number;
-        updatedAt: number;
-    }): Promise<
+    async createOAuthProviderConfig(
+        input: PlatformOAuthProviderConfigRecord
+    ): Promise<
+        | { status: 'created'; provider: PlatformOAuthProviderConfigRecord }
+        | { status: 'conflict'; provider: PlatformOAuthProviderConfigRecord }
+    > {
+        const result = await sqlStatement(
+            this.database,
+            `INSERT INTO platform_oauth_providers
+                (code, display_name, icon, button_color, enabled,
+                 client_id_ciphertext, client_secret_ciphertext, redirect_uri,
+                 authorization_endpoint, token_endpoint, user_info_endpoint,
+                 scopes_json, token_auth_method, pkce_enabled,
+                 profile_subject_path, profile_display_name_path,
+                 profile_display_name_fallback_path, profile_avatar_url_path,
+                 updated_at, sort_order)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?,
+                    COALESCE(MAX(sort_order), 0) + 10
+             FROM platform_oauth_providers
+             ON CONFLICT (code) DO NOTHING
+             RETURNING code`,
+            [
+                input.code,
+                input.displayName,
+                input.icon,
+                input.buttonColor,
+                input.enabled,
+                input.clientIdCiphertext,
+                input.clientSecretCiphertext,
+                input.redirectUri,
+                input.authorizationEndpoint,
+                input.tokenEndpoint,
+                input.userInfoEndpoint,
+                JSON.stringify(input.scopes),
+                input.tokenAuthMethod,
+                input.pkceEnabled,
+                input.profileSubjectPath,
+                input.profileDisplayNamePath,
+                input.profileDisplayNameFallbackPath,
+                input.profileAvatarUrlPath,
+                input.updatedAt
+            ]
+        ).all<{ code: string }>();
+        const provider = (await this.listOAuthProviderConfigs()).find(
+            (candidate) => candidate.code === input.code
+        );
+        if (!provider) throw new Error('OAuth provider was not returned after create');
+        return {
+            status: result.results[0] ? 'created' : 'conflict',
+            provider
+        };
+    }
+
+    async updateOAuthProviderConfig(
+        input: PlatformOAuthProviderConfigRecord & { expectedUpdatedAt: number }
+    ): Promise<
         | { status: 'saved'; provider: PlatformOAuthProviderConfigRecord }
         | { status: 'conflict'; provider: PlatformOAuthProviderConfigRecord }
         | { status: 'not-found' }
@@ -281,34 +389,68 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
         const result = await sqlStatement(
             this.database,
             `UPDATE platform_oauth_providers
-             SET display_name=?, enabled=?, client_id_ciphertext=?,
-                 client_secret_ciphertext=?, redirect_uri=?, updated_at=?
+             SET display_name=?, icon=?, button_color=?, enabled=?,
+                 client_id_ciphertext=?, client_secret_ciphertext=?, redirect_uri=?,
+                 authorization_endpoint=?, token_endpoint=?, user_info_endpoint=?,
+                 scopes_json=?::jsonb, token_auth_method=?, pkce_enabled=?,
+                 profile_subject_path=?, profile_display_name_path=?,
+                 profile_display_name_fallback_path=?, profile_avatar_url_path=?,
+                 updated_at=?
              WHERE code=? AND updated_at=?
-             RETURNING code, display_name, enabled, client_id_ciphertext,
-                       client_secret_ciphertext, redirect_uri, updated_at`,
+             RETURNING code`,
             [
                 input.displayName,
+                input.icon,
+                input.buttonColor,
                 input.enabled,
                 input.clientIdCiphertext,
                 input.clientSecretCiphertext,
                 input.redirectUri,
+                input.authorizationEndpoint,
+                input.tokenEndpoint,
+                input.userInfoEndpoint,
+                JSON.stringify(input.scopes),
+                input.tokenAuthMethod,
+                input.pkceEnabled,
+                input.profileSubjectPath,
+                input.profileDisplayNamePath,
+                input.profileDisplayNameFallbackPath,
+                input.profileAvatarUrlPath,
                 input.updatedAt,
                 input.code,
                 input.expectedUpdatedAt
             ]
-        ).all<PlatformOAuthProviderRow>();
-        const row = result.results[0];
-        if (row) {
-            const provider = (await this.listOAuthProviderConfigs()).find(
-                (candidate) => candidate.code === row.code
-            );
-            if (!provider) throw new Error('OAuth provider was not returned after update');
-            return { status: 'saved', provider };
-        }
+        ).all<{ code: string }>();
         const current = (await this.listOAuthProviderConfigs()).find(
             (candidate) => candidate.code === input.code
         );
-        return current ? { status: 'conflict', provider: current } : { status: 'not-found' };
+        if (!current) return { status: 'not-found' };
+        return result.results[0]
+            ? { status: 'saved', provider: current }
+            : { status: 'conflict', provider: current };
+    }
+
+    async deleteOAuthProviderConfig(
+        code: PlatformOAuthProviderCode,
+        expectedUpdatedAt: number
+    ): Promise<'deleted' | 'conflict' | 'in-use' | 'not-found'> {
+        try {
+            const result = await sqlStatement(
+                this.database,
+                `DELETE FROM platform_oauth_providers
+                 WHERE code=? AND updated_at=?
+                 RETURNING code`,
+                [code, expectedUpdatedAt]
+            ).all<{ code: string }>();
+            if (result.results[0]) return 'deleted';
+        } catch (error) {
+            if (isOAuthProviderReference(error)) return 'in-use';
+            throw error;
+        }
+        const current = (await this.listOAuthProviderConfigs()).find(
+            (candidate) => candidate.code === code
+        );
+        return current ? 'conflict' : 'not-found';
     }
 
     async createOAuthState(input: NewPlatformOAuthStateInput): Promise<void> {

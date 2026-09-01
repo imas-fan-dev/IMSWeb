@@ -29,6 +29,9 @@ import {
 } from "@imsweb/contracts/platform"
 
 export {
+  platformOAuthProviderCodeSchema,
+  platformOAuthProviderIconSchema,
+  platformOAuthButtonColorSchema,
   platformOAuthProviderSchema,
   platformOAuthProvidersResponseSchema,
   platformAccountSchema,
