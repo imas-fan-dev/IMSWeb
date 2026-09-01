@@ -150,6 +150,9 @@ export function resolveFrontendRoute(
     (hasPathPrefix(routePathname, "/information") &&
       segments[0] === "information" &&
       segments.length === 2) ||
+    (hasPathPrefix(routePathname, "/events") &&
+      segments[0] === "events" &&
+      segments.length === 2) ||
     (hasPathPrefix(routePathname, "/chronicle") &&
       segments[0] === "chronicle" &&
       segments.length === 2) ||

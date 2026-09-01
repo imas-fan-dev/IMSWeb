@@ -1,23 +1,12 @@
 import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
-import { handleCreateInformation } from '@/domains/content/information/handlers/create-information';
-import { handleDeleteInformation } from '@/domains/content/information/handlers/delete-information';
-import { handleDeleteInformationAsset } from '@/domains/content/information/handlers/delete-information-asset';
 import { handleGetInformation } from '@/domains/content/information/handlers/get-information';
-import { handleListAdminInformation } from '@/domains/content/information/handlers/list-admin-information';
 import { handleListInformation } from '@/domains/content/information/handlers/list-information';
-import { handleReorderInformation } from '@/domains/content/information/handlers/reorder-information';
+import { handleRetiredAdminInformation } from '@/domains/content/information/handlers/retire-admin-information';
 import { handleServeInformationContent } from '@/domains/content/information/handlers/serve-information-content';
-import { handleUpdateInformation } from '@/domains/content/information/handlers/update-information';
-import { handleUploadInformationAsset } from '@/domains/content/information/handlers/upload-information-asset';
-import { validateInformationSubmission } from '@/domains/content/information/content-store';
-import {
-    validateInformationAssetDeletionRequest,
-    validateInformationOrderRequest
-} from '@/domains/content/information/data';
 import { validateInformationCardParams } from '@/domains/content/information/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
-import { jsonValidator, paramValidator } from '@/middleware/request-validation';
+import { paramValidator } from '@/middleware/request-validation';
 
 const informationCardParamValidator = paramValidator(validateInformationCardParams);
 
@@ -29,53 +18,52 @@ export function registerInformationRoutes(app: ImsHonoApp): void {
     );
     app.get(apiPath('/information'), handleListInformation);
     app.get(apiPath('/information/:id'), informationCardParamValidator, handleGetInformation);
-    app.get(adminApiPath('/information'), backofficeAuth, opOnly, handleListAdminInformation);
-    app.post(
-        adminApiPath('/information/assets'),
+    app.get(
+        adminApiPath('/information'),
         backofficeAuth,
         opOnly,
-        backofficeCsrf,
-        handleUploadInformationAsset
+        handleRetiredAdminInformation
     );
     app.post(
         adminApiPath('/information'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateInformationSubmission),
-        handleCreateInformation
+        handleRetiredAdminInformation
     );
     app.put(
         adminApiPath('/information/order'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateInformationOrderRequest),
-        handleReorderInformation
+        handleRetiredAdminInformation
     );
     app.put(
         adminApiPath('/information/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateInformationSubmission),
-        informationCardParamValidator,
-        handleUpdateInformation
-    );
-    app.delete(
-        adminApiPath('/information/assets'),
-        backofficeAuth,
-        opOnly,
-        backofficeCsrf,
-        jsonValidator(validateInformationAssetDeletionRequest),
-        handleDeleteInformationAsset
+        handleRetiredAdminInformation
     );
     app.delete(
         adminApiPath('/information/:id'),
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        informationCardParamValidator,
-        handleDeleteInformation
+        handleRetiredAdminInformation
+    );
+    app.post(
+        adminApiPath('/information/assets'),
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        handleRetiredAdminInformation
+    );
+    app.delete(
+        adminApiPath('/information/assets'),
+        backofficeAuth,
+        opOnly,
+        backofficeCsrf,
+        handleRetiredAdminInformation
     );
 }

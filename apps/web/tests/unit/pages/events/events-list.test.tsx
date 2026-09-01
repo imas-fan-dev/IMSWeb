@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react"
+import { MemoryRouter } from "react-router"
 import { describe, expect, it } from "vitest"
 
 import { EventRow } from "~/pages/events/components/events-list"
@@ -12,13 +13,16 @@ function event(image_url: EventListItem["image_url"]): EventListItem {
     contact: null,
     image_url,
     created_at: null,
+    cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
   }
 }
 
 describe("EventRow", () => {
   it("uses the normalized root-relative poster URL", () => {
     const { container } = render(
-      <EventRow event={event("/uploads/events/summer/poster.webp")} />
+      <MemoryRouter>
+        <EventRow event={event("/uploads/events/summer/poster.webp")} />
+      </MemoryRouter>
     )
 
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
@@ -28,7 +32,9 @@ describe("EventRow", () => {
 
   it("rejects non-HTTP(S) poster URLs before rendering an image", () => {
     const { container } = render(
-      <EventRow event={event("data:image/svg+xml,<svg></svg>")} />
+      <MemoryRouter>
+        <EventRow event={event("data:image/svg+xml,<svg></svg>")} />
+      </MemoryRouter>
     )
 
     expect(container.querySelector("img")).toBeNull()

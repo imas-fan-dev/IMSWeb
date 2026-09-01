@@ -5,16 +5,16 @@ import { describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   useRequest: vi.fn(),
-  getChronicleActivities: vi.fn(),
-  getChronicleActivity: vi.fn(),
+  getEditorialChroniclePage: vi.fn(),
+  getEditorialChronicle: vi.fn(),
 }))
 
 vi.mock("alova/client", () => ({ useRequest: mocks.useRequest }))
 vi.mock("~/lib/api", () => ({
   API_ORIGIN: "",
   PUBLIC_SITE_ORIGIN: "",
-  getChronicleActivities: mocks.getChronicleActivities,
-  getChronicleActivity: mocks.getChronicleActivity,
+  getEditorialChroniclePage: mocks.getEditorialChroniclePage,
+  getEditorialChronicle: mocks.getEditorialChronicle,
 }))
 
 import ChronicleActivityPage from "~/pages/chronicle/activity-page"
@@ -24,23 +24,27 @@ const longValue =
   "没有分隔符的超长活动标题与地点https://example.test/chronicle/continuous/path/for/mobile"
 
 describe("ChronicleIndexPage", () => {
-  it("uses the wide PageShell and contains long activity metadata", () => {
+  it("uses the wide PageShell and wraps long timeline metadata", () => {
     mocks.useRequest.mockReturnValue({
-      data: [
-        {
-          id: longValue,
-          title: longValue,
-          date: "2026-08-30",
-          location: longValue,
-          cover: null,
-        },
-      ],
+      data: {
+        items: [
+          {
+            article_id: 7,
+            title: longValue,
+            occurred_on: "2026-08-30",
+            date_precision: "day",
+            source_type: "official",
+            location: longValue,
+          },
+        ],
+        pageInfo: { hasNextPage: false, nextCursor: null },
+      },
       loading: false,
       error: null,
       onError: vi.fn(),
     })
 
-    const { container } = render(
+    render(
       <MemoryRouter>
         <ChronicleIndexPage />
       </MemoryRouter>
@@ -52,10 +56,9 @@ describe("ChronicleIndexPage", () => {
       "sm:px-6",
       "lg:px-8"
     )
-    const cardTitle = container.querySelector('[data-slot="card-title"]')
-    expect(cardTitle).toHaveTextContent(longValue)
-    expect(cardTitle).toHaveClass("wrap-anywhere")
-    expect(screen.getByText(`活动编号 ${longValue}`)).toHaveClass(
+    const entry = screen.getByRole("link", { name: new RegExp(longValue) })
+    expect(entry).toHaveAttribute("href", "/chronicle/7")
+    expect(screen.getByRole("heading", { level: 2 })).toHaveClass(
       "wrap-anywhere"
     )
     expect(screen.getByText(longValue, { selector: "span" })).toHaveClass(
@@ -63,21 +66,24 @@ describe("ChronicleIndexPage", () => {
     )
   })
 
-  it("allows long activity locations to wrap inside detail badges", () => {
+  it("allows long entry locations to wrap inside detail badges", () => {
     mocks.useRequest.mockReturnValue({
       data: {
-        id: "activity-1",
+        article_id: 7,
         title: longValue,
-        date: "2026-08-30",
+        occurred_on: "2026-08-30",
+        date_precision: "day",
+        source_type: "official",
         location: longValue,
-        images: [],
+        body_html: "<p>记录正文</p>",
       },
       loading: false,
       error: null,
+      onError: vi.fn(),
     })
 
     const props = {
-      params: { activityId: "activity-1" },
+      params: { activityId: "7" },
     } as ComponentProps<typeof ChronicleActivityPage>
 
     render(

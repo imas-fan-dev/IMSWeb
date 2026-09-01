@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
 
 import { EventsCenter } from "~/pages/events/index"
@@ -48,16 +49,20 @@ vi.mock("@tanstack/react-virtual", () => ({
 describe("EventsCenter in the App target", () => {
   it("uses a compact title and icon refresh control", async () => {
     const user = userEvent.setup()
-    render(<EventsCenter />)
+    render(
+      <MemoryRouter>
+        <EventsCenter />
+      </MemoryRouter>
+    )
 
-    expect(screen.getByRole("heading", { name: "近期活动" })).toBeVisible()
+    expect(screen.getByRole("heading", { name: "社区动态" })).toBeVisible()
     expect(
-      screen.queryByRole("heading", { name: "活动中心" })
+      screen.queryByRole("heading", { name: "COMMUNITY" })
     ).not.toBeInTheDocument()
     expect(screen.queryByText("EVENTS")).not.toBeInTheDocument()
     expect(screen.getByText("已加载 1 条")).toBeVisible()
 
-    await user.click(screen.getByRole("button", { name: "刷新活动列表" }))
+    await user.click(screen.getByRole("button", { name: "刷新社区动态列表" }))
     expect(feed.refresh).toHaveBeenCalledOnce()
   })
 })

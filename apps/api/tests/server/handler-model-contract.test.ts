@@ -15,6 +15,7 @@ const domainSections: Record<string, string> = {
     information: 'content',
     news: 'content',
     events: 'content',
+    editorial: 'content',
     chronicle: 'content',
     about: 'content',
     'producer-map': 'content',
@@ -87,16 +88,34 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
         'handleUpdateHomepageLink'
     ],
     information: [
-        'handleCreateInformation',
-        'handleDeleteInformation',
-        'handleDeleteInformationAsset',
         'handleGetInformation',
-        'handleListAdminInformation',
         'handleListInformation',
-        'handleReorderInformation',
-        'handleServeInformationContent',
-        'handleUpdateInformation',
-        'handleUploadInformationAsset'
+        'handleRetiredAdminInformation',
+        'handleServeInformationContent'
+    ],
+    editorial: [
+        'createHandleChronicleEntryStatus',
+        'createHandleCommunityPostStatus',
+        'handleCreateChronicleEntry',
+        'handleCreateCommunityPost',
+        'handleDeleteArticleAsset',
+        'handleDeleteChronicleEntry',
+        'handleDeleteCommunityPost',
+        'handleGetAdminChronicleEntry',
+        'handleGetCommunityPost',
+        'handleGetLegacyInformationPost',
+        'handleGetPublicChronicleEntry',
+        'handleListAdminChronicleEntries',
+        'handleListAdminSpotlight',
+        'handleListArticleAssets',
+        'handleListCommunityPosts',
+        'handleListPublicChronicleEntries',
+        'handleListPublicSpotlight',
+        'handlePreviewCommunityPost',
+        'handleReplaceAdminSpotlight',
+        'handleUpdateChronicleEntry',
+        'handleUpdateCommunityPost',
+        'handleUploadArticleAsset'
     ],
     'live-schedule': ['handleListLiveSchedule'],
     media: ['handleServeNamecard', 'handleServePublicUpload'],
@@ -432,7 +451,7 @@ function constValidatorOutput(declaration: string): string | null {
     return declared?.[1] ?? null;
 }
 
-test('route handler inventory remains explicit and complete for all 17 domains', () => {
+test('route handler inventory remains explicit and complete for all 18 domains', () => {
     const actual: Record<string, string[]> = {};
     for (const domain of Object.keys(expectedRouteHandlers).sort()) {
         const imported = handlerImports(domain);
@@ -452,13 +471,14 @@ test('route handler inventory remains explicit and complete for all 17 domains',
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([domain, handlers]) => [domain, [...handlers].sort()]));
     assert.deepEqual(actual, expected);
-    assert.equal(Object.values(actual).flat().length, 127);
+    assert.equal(Object.values(actual).flat().length, 143);
 });
 
 test('capability domains compose named capabilities from their root routes', () => {
     const mountedCapabilities = {
         'platform-auth': ['oauth', 'password-reset', 'registration', 'sessions'],
         fudaba: ['cards', 'claims', 'directory', 'locations', 'moderation', 'offices'],
+        editorial: ['assets', 'chronicle', 'posts', 'spotlight'],
         namecards: ['moderation', 'public-cards', 'reactions', 'submissions']
     } as const;
     const composedCapabilities = {

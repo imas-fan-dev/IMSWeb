@@ -12,7 +12,11 @@ vi.mock("~/components/community/namecard-upload-dialog", () => ({
 }))
 
 vi.mock("~/components/shared/admin-return-shortcut", () => ({
-  AdminReturnShortcut: () => null,
+  AdminReturnShortcut: () => (
+    <a href="/admin" data-testid="admin-return-shortcut">
+      返回管理工作台
+    </a>
+  ),
 }))
 
 vi.mock("~/components/shared/back-to-top", () => ({
@@ -180,5 +184,43 @@ describe("PublicLayout", () => {
     expect(screen.getByTestId("series-icon-background")).toBeVisible()
     expect(screen.getByText("站点页脚")).toBeVisible()
     expect(screen.getByText("交换帐号内容")).toBeVisible()
+  })
+
+  it("removes the floating admin shortcut on event detail routes", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/events/42"]}>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route
+                path="events/:eventId"
+                element={<main>活动详情内容</main>}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    expect(screen.getByText("活动详情内容")).toBeVisible()
+    expect(
+      screen.queryByTestId("admin-return-shortcut")
+    ).not.toBeInTheDocument()
+  })
+
+  it("keeps the floating admin shortcut on other public routes", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/events"]}>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route path="events" element={<main>活动中心内容</main>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    expect(screen.getByTestId("admin-return-shortcut")).toBeVisible()
   })
 })

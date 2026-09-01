@@ -1,26 +1,27 @@
 import { useRequest } from "alova/client"
-import { ArrowUpRightIcon } from "lucide-react"
+import { ArrowRightIcon } from "lucide-react"
 
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
-import { getHomeInformation } from "~/lib/api"
+import { getCommunitySpotlight } from "~/lib/api"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
-function isExternalLink(href: string) {
-  return href.startsWith("http://") || href.startsWith("https://")
-}
-
 export function ActivityHighlights() {
-  const { data, loading, error, onError } = useRequest(getHomeInformation(), {
-    initialData: { cards: [] },
-  })
+  const { data, loading, error, onError } = useRequest(
+    getCommunitySpotlight(),
+    {
+      initialData: { items: [] },
+    }
+  )
   onError(() => undefined)
-  const items = data.cards.map((card) => ({
-    category: card.category === "activity" ? "活动资讯" : "同人活动",
-    title: card.title,
-    href: card.link,
-    image: card.image,
+  const items = data.items.map((item) => ({
+    category: item.category === "activity" ? "活动资讯" : "同人活动",
+    title: item.title,
+    href: `/events/${item.id}`,
+    image: item.image_url ?? "",
+    coverTransform: item.cover_transform,
   }))
 
   return (
@@ -58,41 +59,35 @@ export function ActivityHighlights() {
           </Alert>
         ) : items.length ? (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-            {items.map((item) => {
-              const external = isExternalLink(item.href)
-              return (
-                <article
-                  key={item.href + item.title}
-                  className="group overflow-hidden rounded-md border bg-card transition-colors hover:border-foreground/25"
+            {items.map((item) => (
+              <article
+                key={item.href + item.title}
+                className="group overflow-hidden rounded-md border bg-card transition-colors hover:border-foreground/25"
+              >
+                <CoverImagePreview
+                  src={item.image}
+                  alt={`${item.title}封面`}
+                  className="aspect-video w-full rounded-none bg-muted"
+                  imageClassName="transition-transform duration-300 group-hover:scale-[1.025]"
+                  imageStyle={editorialCoverStyle(item.coverTransform)}
+                />
+                <NavigationLink
+                  href={item.href}
+                  className="flex min-h-20 items-center gap-3 px-4 py-3 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
-                  <CoverImagePreview
-                    src={item.image}
-                    alt={`${item.title}封面`}
-                    className="aspect-video w-full rounded-none bg-muted"
-                    imageClassName="transition-transform duration-300 group-hover:scale-[1.025]"
-                  />
-                  <NavigationLink
-                    href={item.href}
-                    target={external ? "_blank" : undefined}
-                    rel={external ? "noreferrer" : undefined}
-                    className="flex min-h-20 items-center gap-3 px-4 py-3 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-medium text-primary">
-                        {item.category}
-                      </span>
-                      <span className="mt-1 block font-medium">
-                        {item.title}
-                      </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-medium text-primary">
+                      {item.category}
                     </span>
-                    <ArrowUpRightIcon
-                      className="size-4 shrink-0 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                  </NavigationLink>
-                </article>
-              )
-            })}
+                    <span className="mt-1 block font-medium">{item.title}</span>
+                  </span>
+                  <ArrowRightIcon
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                </NavigationLink>
+              </article>
+            ))}
           </div>
         ) : (
           <p className="border-y py-8 text-sm text-muted-foreground">

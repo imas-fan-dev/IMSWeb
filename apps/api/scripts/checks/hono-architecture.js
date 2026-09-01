@@ -485,6 +485,7 @@ const domainSections = new Map([
             "news",
             "events",
             "chronicle",
+            "editorial",
             "about",
             "producer-map",
             "live-schedule",

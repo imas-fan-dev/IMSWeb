@@ -101,7 +101,7 @@ function LiveCard({ event }: { event: LiveEvent }) {
                   className="size-4 shrink-0 text-primary/70"
                   aria-hidden="true"
                 />
-                <span className="min-w-0 tabular-nums wrap-anywhere">
+                <span className="min-w-0 wrap-anywhere tabular-nums">
                   {event.time}
                 </span>
               </span>

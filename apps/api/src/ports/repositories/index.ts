@@ -10,6 +10,7 @@ import type {
     ReactionRepository,
 } from "@/ports/repositories/namecards";
 import type {
+    EditorialRepository,
     EventRepository,
     HomepageLinkRepository,
     NewsRepository,
@@ -25,6 +26,7 @@ export interface RepositoryServices {
     audit: AuditRepository;
     news: NewsRepository;
     events: EventRepository;
+    editorial: EditorialRepository;
     namecards: NamecardRepository;
     reactions: ReactionRepository;
     homepageLinks: HomepageLinkRepository;

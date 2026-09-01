@@ -61,6 +61,11 @@
       "require": "./dist/events.js",
       "default": "./dist/events.js"
     },
+    "./editorial": {
+      "types": "./dist/editorial.d.ts",
+      "require": "./dist/editorial.js",
+      "default": "./dist/editorial.js"
+    },
     "./news": {
       "types": "./dist/news.d.ts",
       "require": "./dist/news.js",

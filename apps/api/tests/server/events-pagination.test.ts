@@ -182,6 +182,7 @@ test('event updates require the expected current image reference', async (t) => 
             name: replacement.name,
             contact: replacement.contact,
             image_url: replacement.imageUrl,
+            cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
             created_at: (await fixture.find(1))?.created_at
         }
     );

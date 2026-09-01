@@ -1,5 +1,9 @@
 import { z } from "zod"
 import { snapshotPageInfoSchema, successEnvelope } from "./common.js"
+import {
+  editorialCoverTransformSchema,
+  editorialEventKindSchema,
+} from "./editorial.js"
 
 export const eventIdSchema = z
   .union([z.string(), z.number().int().positive()])
@@ -13,6 +17,15 @@ export const eventListItemSchema = z.object({
   contact: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
+  // 文章 CMS 接管活动列表后补充的展示字段，旧写入路径不产出它们。
+  summary: z.string().optional(),
+  kind: editorialEventKindSchema.nullable().optional(),
+  source_url: z.string().nullable().optional(),
+  start_at: z.string().nullable().optional(),
+  end_at: z.string().nullable().optional(),
+  venue_name: z.string().nullable().optional(),
+  event_status: z.string().nullable().optional(),
+  cover_transform: editorialCoverTransformSchema,
 })
 
 export const eventPageInfoSchema = snapshotPageInfoSchema

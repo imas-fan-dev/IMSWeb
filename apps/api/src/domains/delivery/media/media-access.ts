@@ -19,6 +19,13 @@ export function publicUploadKey(pathname: string): string | null {
     if (segments.length === 4 && lower.slice(0, 3).join('/') === 'uploads/information/original') {
         return publicMediaObjectKey(segments.join('/'));
     }
+    if (segments.length === 4 && lower.slice(0, 2).join('/') === 'uploads/articles') {
+        try {
+            return publicMediaObjectKey(segments.join('/'));
+        } catch {
+            return null;
+        }
+    }
     if (segments.length === 3 && lower.slice(0, 2).join('/') === 'uploads/producer-map') {
         return publicMediaObjectKey(segments.join('/'));
     }

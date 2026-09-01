@@ -49,7 +49,9 @@ test("keeps the Works detail within the App content viewport", async ({
   await page.goto("/works/765")
   await applySafeArea(page)
 
-  await expect(page.getByRole("heading", { name: "THE IDOLM@STER" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "THE IDOLM@STER" })
+  ).toBeVisible()
   await expect(page.locator("[data-testid=work-detail-surface]")).toHaveClass(
     /min-h-\(--app-content-height\)/
   )

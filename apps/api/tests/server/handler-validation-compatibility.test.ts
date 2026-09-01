@@ -622,7 +622,7 @@ test('guest namecard image replacement and resubmission routes are not exposed',
     assert.equal(fixture.calls.storageWrites, 0);
 });
 
-test('invalid information IDs retain not-found responses and JSON body validation precedence', async () => {
+test('legacy Information reads remain available while the retired admin write API is gone', async () => {
     const fixture = createCompatibilityFixture();
     const detail = await fixture.request('/api/information/not-valid');
     assert.equal(detail.status, 404);
@@ -641,8 +641,10 @@ test('invalid information IDs retain not-found responses and JSON body validatio
         },
         body: '{}'
     });
-    assert.equal(update.status, 400);
-    assert.deepEqual(await responseJson(update), { error: '请填写 1-200 字的标题' });
+    assert.equal(update.status, 410);
+    assert.deepEqual(await responseJson(update), {
+        error: '活动资讯后台已整合至社区帖子，请使用 /api/admin/community-posts'
+    });
     assert.equal(fixture.calls.storageGet, readsBeforeUpdate);
     assert.equal(fixture.calls.storageWrites, 0);
     assert.deepEqual(fixture.calls.audit, []);

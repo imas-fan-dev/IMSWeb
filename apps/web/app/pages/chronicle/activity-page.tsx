@@ -6,6 +6,7 @@ import {
   MapPinIcon,
 } from "lucide-react"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
@@ -17,156 +18,109 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
-import { getChronicleActivity } from "~/lib/api"
-import { IS_APP_TARGET } from "~/lib/app-target"
+import { getEditorialChronicle } from "~/lib/api"
 import type { Route } from "./+types/activity-page"
-import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "活动纪年 | IMSWeb" }]
 }
 
-function ActivityLoading() {
-  return (
-    <div className="space-y-6" aria-label="正在加载活动详情">
-      <Skeleton className="h-6 w-24" />
-      <Skeleton className="h-10 w-2/3" />
-      <div className="flex gap-2">
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-6 w-24" />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="aspect-4/3 rounded-lg" />
-        ))}
-      </div>
-    </div>
-  )
+function formatDate(value: string, precision?: string | null) {
+  if (precision === "year") return value.slice(0, 4)
+  if (precision === "month") return value.slice(0, 7)
+  return value
 }
 
 export default function ChronicleActivityPage({
   params,
 }: Route.ComponentProps) {
-  const { activityId } = params
-  const { data, loading, error } = useRequest(() =>
-    getChronicleActivity(activityId)
+  const { data, loading, error, onError } = useRequest(() =>
+    getEditorialChronicle(params.activityId)
   )
+  onError(() => undefined)
 
   return (
-    <PageShell width="wide">
-      {loading ? <ActivityLoading /> : null}
+    <PageShell>
+      {loading ? (
+        <div className="space-y-5">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-12 w-2/3" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive">
-          <HistoryIcon aria-hidden="true" />
-          <AlertTitle>暂时无法读取活动详情</AlertTitle>
-          <AlertDescription>请稍后刷新页面重试。</AlertDescription>
+          <HistoryIcon />
+          <AlertTitle>无法读取编年史详情</AlertTitle>
+          <AlertDescription>该记录不存在或尚未公开。</AlertDescription>
         </Alert>
       ) : null}
 
       {!loading && !error && !data ? (
         <Empty className="min-h-64 border">
           <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <HistoryIcon aria-hidden="true" />
-            </EmptyMedia>
-            <EmptyTitle>未找到该活动</EmptyTitle>
-            <EmptyDescription>该活动编号不存在或尚未收录。</EmptyDescription>
+            <EmptyMedia />
+            <EmptyTitle>未找到记录</EmptyTitle>
+            <EmptyDescription>该记录不存在或尚未公开。</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : null}
 
-      {!loading && !error && data ? (
-        <>
-          {!IS_APP_TARGET ? (
-            <NavigationLink
-              to="/chronicle"
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeftIcon className="size-4" aria-hidden="true" />
-              返回编年史
-            </NavigationLink>
-          ) : null}
-
-          <h1
-            className={
-              IS_APP_TARGET
-                ? "text-2xl font-semibold tracking-tight wrap-anywhere"
-                : "mt-4 text-3xl font-semibold tracking-tight wrap-anywhere"
-            }
+      {data ? (
+        <article>
+          <NavigationLink
+            href="/chronicle"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
           >
-            {data.title}
-          </h1>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {data.date ? (
-              <Badge
-                variant="secondary"
-                className="h-auto max-w-full min-w-0 gap-1.5 py-1 whitespace-normal"
-              >
-                <CalendarDaysIcon
-                  className="size-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 wrap-anywhere">{data.date}</span>
+            <ArrowLeftIcon className="size-4" />
+            返回编年史
+          </NavigationLink>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Badge>{data.source_type === "official" ? "官方" : "民间"}</Badge>
+            {data.occurred_on ? (
+              <Badge variant="secondary">
+                <CalendarDaysIcon className="mr-1 size-3.5" />
+                {formatDate(data.occurred_on, data.date_precision)}
               </Badge>
             ) : null}
             {data.location ? (
               <Badge
                 variant="secondary"
-                className="h-auto max-w-full min-w-0 gap-1.5 py-1 whitespace-normal"
+                className="h-auto max-w-full whitespace-normal"
               >
-                <MapPinIcon className="size-3.5 shrink-0" aria-hidden="true" />
-                <span className="min-w-0 wrap-anywhere">{data.location}</span>
+                <MapPinIcon className="mr-1 size-3.5" />
+                <span className="wrap-anywhere">{data.location}</span>
               </Badge>
             ) : null}
           </div>
-
-          {data.images.length > 0 ? (
-            <section
-              className={IS_APP_TARGET ? "mt-6" : "mt-10"}
-              aria-label="活动照片"
-            >
-              <h2 className="mb-4 text-lg font-semibold">
-                活动照片（{data.images.length}）
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {data.images.map((url, index) => (
-                  <NavigationLink
-                    key={index}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group block overflow-hidden rounded-lg border bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                  >
-                    <img
-                      src={url}
-                      alt={`${data.title} — 照片 ${index + 1}`}
-                      className="aspect-4/3 w-full object-cover transition-transform group-hover:scale-105"
-                      loading="lazy"
-                    />
-                  </NavigationLink>
-                ))}
-              </div>
-            </section>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight wrap-anywhere sm:text-4xl">
+            {data.title}
+          </h1>
+          {data.cover_url ? (
+            <img
+              src={data.cover_url}
+              alt=""
+              className="mt-8 max-h-120 w-full rounded-xl border object-cover"
+            />
+          ) : null}
+          {data.body_html ? (
+            // 正文在服务端已经过节点白名单与 sanitize-html 两道处理。
+            <div
+              className="prose prose-neutral dark:prose-invert mt-10 max-w-none"
+              dangerouslySetInnerHTML={{ __html: data.body_html }}
+            />
           ) : (
-            <Empty
-              className={
-                IS_APP_TARGET ? "mt-6 min-h-48 border" : "mt-10 min-h-48 border"
-              }
-            >
+            <Empty className="mt-10 border">
               <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <HistoryIcon aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>暂无照片</EmptyTitle>
+                <EmptyTitle>暂无正文</EmptyTitle>
                 <EmptyDescription>
-                  该活动还没有审核通过的照片。
+                  管理员尚未补充这条记录的正文。
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
           )}
-        </>
+        </article>
       ) : null}
     </PageShell>
   )
