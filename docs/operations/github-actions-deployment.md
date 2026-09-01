@@ -17,10 +17,14 @@ blue/green 或零停机。
 
 仓库包含两个工作流：
 
-- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上运行 `pnpm run check` 与
-  `pnpm run test`；
+- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上先运行 `pnpm run check`，
+  再分步运行基础设施契约、API 运行时、服务端、Wiki、迁移和 Web 路由测试；
 - `.github/workflows/deploy.yml`：发布稳定 SemVer Tag，并允许从 GitHub Actions 页面重新部署
   已存在的 Tag。
+
+CI、发布构建和部署配置校验都从 `.nvmrc` 读取当前 Node.js 版本，API 镜像的
+`ARG NODE_VERSION` 必须与它一致；基础设施测试会检查这项约束。各 workspace 的
+`engines.node` 仍表示最低兼容版本，不是 CI 或生产运行时的版本选择器。
 
 Tag 必须使用 `vMAJOR.MINOR.PATCH`，例如 `v1.4.0`，并指向 `origin/main` 已包含的 commit。
 Tag push 会运行完整门禁、构建 `apps/api/Dockerfile`、把镜像推送到 GHCR、生成 provenance，

@@ -83,7 +83,8 @@ class ComposeDeploymentTests(unittest.TestCase):
             "FROM pnpm-base AS build", maxsplit=1
         )[0]
 
-        self.assertIn("ARG NODE_VERSION=24.18.0", dockerfile)
+        node_version = (PROJECT_ROOT / ".nvmrc").read_text(encoding="utf-8").strip()
+        self.assertIn(f"ARG NODE_VERSION={node_version}", dockerfile)
         self.assertEqual(dockerfile.count("ARG NPM_REGISTRY="), 2)
         self.assertEqual(dockerfile.count("ENV COREPACK_NPM_REGISTRY="), 2)
         self.assertIn(

@@ -295,6 +295,12 @@ jobs:
           sparse-checkout: scripts/deployment/run-authenticated-compose-release.sh
           sparse-checkout-cone-mode: false
 
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
       - name: Validate deployment configuration
         env:
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}

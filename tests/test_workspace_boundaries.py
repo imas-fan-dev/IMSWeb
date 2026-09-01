@@ -211,10 +211,10 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
         )["scripts"]
 
-        self.assertLessEqual(len(root_scripts), 52)
-        self.assertLessEqual(len(api_scripts), 37)
-        # 15 covers the Tauri passthrough plus build:app, the app-target build.
-        self.assertLessEqual(len(web_scripts), 15)
+        self.assertLessEqual(len(root_scripts), 53)
+        self.assertLessEqual(len(api_scripts), 39)
+        # 18 covers the Tauri CLI plus app-target build, dev, icon, and E2E commands.
+        self.assertLessEqual(len(web_scripts), 18)
         self.assertTrue(
             {
                 "build",

@@ -59,5 +59,20 @@ jobs:
       - name: Run static and architecture checks
         run: pnpm run check
 
-      - name: Run repository tests
-        run: pnpm run test
+      - name: Test infrastructure contracts
+        run: pnpm run test:infra
+
+      - name: Test Node API runtime
+        run: pnpm --filter @imsweb/api run test:node
+
+      - name: Test API server
+        run: pnpm --filter @imsweb/api run test:server
+
+      - name: Test Wiki API
+        run: pnpm --filter @imsweb/api run test:wiki
+
+      - name: Test migrations
+        run: pnpm --filter @imsweb/api run test:migration
+
+      - name: Test Web routing contract
+        run: pnpm --filter @imsweb/api run test:web-routing

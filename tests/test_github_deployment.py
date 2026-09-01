@@ -19,6 +19,9 @@ AUTH_DEPLOY_SCRIPT = (
 )
 COMPOSE = PROJECT_ROOT / "deploy/compose.yaml"
 DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/operations/github-actions-deployment.md"
+NODE_SETUP_ACTION = (
+    "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6"
+)
 PNPM_SETUP_ACTION = (
     "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10"
 )
@@ -147,8 +150,14 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "pull_request:",
             "push:",
             "pnpm install --frozen-lockfile",
-            "pnpm run check",
-            "pnpm run test",
+            "run: pnpm run check",
+            "run: pnpm run test:infra",
+            "run: pnpm --filter @imsweb/api run test:node",
+            "run: pnpm --filter @imsweb/api run test:server",
+            "run: pnpm --filter @imsweb/api run test:wiki",
+            "run: pnpm --filter @imsweb/api run test:migration",
+            "run: pnpm --filter @imsweb/api run test:web-routing",
+            NODE_SETUP_ACTION,
             PNPM_SETUP_ACTION,
         ):
             self.assertIn(token, ci)
@@ -160,6 +169,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "refs/remotes/origin/main",
             'image_name="ghcr.io/${REPOSITORY,,}-api"',
             "IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}",
+            NODE_SETUP_ACTION,
             PNPM_SETUP_ACTION,
             DOCKER_BUILD_PUSH_ACTION,
             "actions/attest-build-provenance@",
@@ -186,6 +196,11 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             'grep -Fxq "Deployment completed." "$deployment_log"',
         ):
             self.assertIn(token, deployment)
+
+        self.assertEqual(ci.count("node-version-file: .nvmrc"), 1)
+        self.assertEqual(deployment.count("node-version-file: .nvmrc"), 2)
+        self.assertEqual(ci.count(NODE_SETUP_ACTION), 1)
+        self.assertEqual(deployment.count(NODE_SETUP_ACTION), 2)
 
         expected_docker_actions = [
             DOCKER_SETUP_BUILDX_ACTION,
