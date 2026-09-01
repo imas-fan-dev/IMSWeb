@@ -490,7 +490,8 @@ function installOnIosDevice({ device, bundlePath, identifier, launch }) {
   ])
   if (installed !== 0) return installed
   if (!launch) return 0
-  return run("xcrun", [
+
+  const { status, stdout, stderr } = capture("xcrun", [
     "devicectl",
     "device",
     "process",
@@ -499,6 +500,24 @@ function installOnIosDevice({ device, bundlePath, identifier, launch }) {
     device.identifier,
     identifier,
   ])
+  const output = `${stdout}${stderr}`.trim()
+  if (status === 0) {
+    if (output) log(output)
+    return 0
+  }
+
+  // A locked phone refuses the launch but keeps the install. Reporting that as
+  // a delivery failure sends people back to a rebuild they do not need.
+  if (/could not be, unlocked|BSErrorCodeDescription = Locked/.test(output)) {
+    log(
+      `已安装 ${identifier}，但 ${device.name} 正处于锁屏状态，无法自动启动。`
+    )
+    log("解锁设备后在主屏点按图标，或重新运行同一条命令并加上 --skip-build。")
+    return 0
+  }
+
+  if (output) log(output)
+  return status
 }
 
 export function signApkLocally({ apkPath, buildTools, environment }) {
