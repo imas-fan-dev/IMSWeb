@@ -38,6 +38,7 @@ Issue、release record 或私有运维记录中。
 - [测试规范](development/testing.md)：按风险选择测试、测试位置和提交前门禁。
 - [静态站点包编写规范](development/static-site-package-authoring.md)：归档、manifest、预览和发布约束。
 - [Tauri 移动端基础设施](development/tauri-mobile.md)：移动外壳现状、前置条件、跨源 API 契约和阻塞项。
+- [App 设备安装与前置依赖](development/app-device-delivery.md)：设备体检、安装命令矩阵、产物定位和签名边界。
 - [液态玻璃升级与 App 外壳实施计划](development/liquid-glass-app-shell-plan.md)：分层模型、并发轨道编排、三批交付和验证门。
 
 ## 运维与迁移

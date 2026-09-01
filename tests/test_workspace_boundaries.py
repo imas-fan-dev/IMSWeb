@@ -211,10 +211,13 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
         )["scripts"]
 
-        self.assertLessEqual(len(root_scripts), 53)
+        # 55 adds the two app delivery entries to the previous 53.
+        self.assertLessEqual(len(root_scripts), 55)
         self.assertLessEqual(len(api_scripts), 39)
-        # 18 covers the Tauri CLI plus app-target build, dev, icon, and E2E commands.
-        self.assertLessEqual(len(web_scripts), 18)
+        # 20 covers the Tauri CLI, app-target build, dev, icon, and E2E commands,
+        # plus the app device delivery entry and its prerequisite doctor. Device
+        # target, profile, and selection stay flags on `app`, never new scripts.
+        self.assertLessEqual(len(web_scripts), 20)
         self.assertTrue(
             {
                 "build",

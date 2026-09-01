@@ -35,6 +35,27 @@ preflight, local data configuration, service startup, and validation evidence.
 - `pnpm run test:web`: run Web unit and Playwright tests.
 - `pnpm run test:web-routing`: validate the built Web client against Hono route ownership.
 
+### Tauri App Delivery
+
+The Tauri mobile shell lives in `apps/web`. Device work goes through the `app:*` scripts, which wrap
+`apps/web/scripts/app-device.js`; do not call the Tauri CLI directly from new scripts or shell
+wrappers. Prerequisites, the install command matrix, artifact locations, and signing boundaries are
+documented in `docs/development/app-device-delivery.md`.
+
+- `pnpm run app:doctor`: check iOS and Android prerequisites and print the fix for each failure.
+- `pnpm run app devices`: list simulators, emulators, paired devices, and available AVDs.
+- `pnpm run app ios` / `pnpm run app android`: build, install, and launch a debug package on a
+  simulator or emulator. Add `--target device` for a physical device and `--release` for a Release
+  build, so the four-cell install matrix is flags on one entry rather than named scripts.
+- `pnpm run app ios --live`: hot-reload session instead of a self-contained package. Add `--host`
+  for physical-device sessions.
+
+Target, profile, and device selection stay arguments; do not add a package script per combination.
+Run `pnpm run app:doctor` before reporting a device build as blocked. `src-tauri/gen/` is derived
+output and is never committed or hand-edited. Release distribution requires managed signing keys;
+the local debug-keystore switch is an opt-in for on-device verification only and must not be
+persisted in the repository or a shell profile.
+
 ## Coding Style & Naming Conventions
 
 Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and the `@/` alias rooted at `apps/api/src`; Web and contracts code use their local `.rules` formatting conventions. New or substantially edited API files must follow the API style; do not create unrelated formatter churn solely to normalize historical files. Run `pnpm --filter @imsweb/web format` and `pnpm --filter @imsweb/web lint` for frontend changes. Use kebab-case filenames and PascalCase React components.

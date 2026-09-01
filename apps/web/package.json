@@ -4,6 +4,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "app": "node scripts/app-device.js",
+    "app:doctor": "node scripts/app-device.js doctor",
     "build": "VITE_IMS_APP_TARGET=web react-router build",
     "build:app": "node scripts/build-app.js",
     "postbuild": "VITE_IMS_APP_TARGET=web node ../../scripts/check-classic-wiki-css-build.mjs",

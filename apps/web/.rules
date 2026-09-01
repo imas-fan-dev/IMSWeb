@@ -27,6 +27,16 @@ pnpm run format
 
 `check` runs ESLint, route type generation, TypeScript, unit tests, and a production build. `test` adds Playwright desktop and mobile suites. Use `pnpm run test:watch` for focused Vitest work and `pnpm run preview` to inspect a production build. Run root `pnpm run test:web-routing` when route ownership or fallback behavior changes.
 
+## App Shell & Device Delivery
+
+`scripts/` owns the App target's build, launch, and install wrappers. `build-app.js` is the only place that validates and injects packaged origins, `dev-app.js` owns the 1420 development server, `android-release-network.js` reapplies conditional values into the generated Android project, `app-toolchain.js` detects host prerequisites, and `app-device.js` is the single entry point for building, installing, and launching on simulators, emulators, and physical devices. Keep each concern in its owning module: `app-device.js` must not construct API, site, or map origins, and no module may hand-roll a second prerequisite list.
+
+The workspace exposes exactly two entries: `app`, which forwards its arguments to `app-device.js`, and `app:doctor`, the prerequisite shortcut. Target, profile, and device are flags on `app`, so do not add a package script per combination, do not add shell wrappers, and do not call the Tauri CLI directly for device work. `tests/tauri-device-delivery.test.js` and the bounded script surface in `../../tests/test_workspace_boundaries.py` both fix this shape. Selection stays deterministic: when target, profile, or device cannot be resolved to exactly one candidate, fail with the candidate list instead of guessing.
+
+`src-tauri/gen/` is derived output. Never commit it, hand-edit it, or move native source into it; iOS plugin sources live under `src-tauri/plugins/<plugin>/ios/` and are wired in by each plugin's `build.rs`. Distribution builds must use managed signing keys. The local debug-keystore signing switch exists only for on-device verification of a Release build, stays opt-in through an environment variable, and must not be written into the repository or a long-lived shell profile.
+
+Prerequisites have two synchronized surfaces and no third: the executable checks in `app-toolchain.js` and the prose in `../../docs/development/app-device-delivery.md`. Update both in the same change when a tool, version range, or environment variable requirement moves.
+
 ## Style & Components
 
 Before changing user-visible UI, read the repository-level `DESIGN.md`. Its YAML
