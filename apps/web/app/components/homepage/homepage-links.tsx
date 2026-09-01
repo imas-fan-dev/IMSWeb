@@ -1,3 +1,5 @@
+import { ArrowRightIcon, ExternalLinkIcon } from "lucide-react"
+
 import {
   homepageLinkAccentClasses,
   homepageLinkIcons,
@@ -44,7 +46,7 @@ function HomepageLinkTile({ item }: { item: HomepageLink }) {
         </span>
         {external ? <span className="sr-only">（外部链接）</span> : null}
       </span>
-      {/*{external ? (
+      {external ? (
         <ExternalLinkIcon
           className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
           aria-hidden="true"
@@ -55,7 +57,7 @@ function HomepageLinkTile({ item }: { item: HomepageLink }) {
           className="hidden size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:block"
           aria-hidden="true"
         />
-      )}*/}
+      )}
     </NavigationLink>
   )
 }
