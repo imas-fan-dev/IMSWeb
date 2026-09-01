@@ -1,3 +1,4 @@
 .tauri/
 target/
 ios/.build/
+Cargo.lock
