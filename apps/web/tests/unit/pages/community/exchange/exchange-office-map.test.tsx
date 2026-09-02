@@ -1,4 +1,6 @@
-import { render } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import type { StyleSpecification } from "maplibre-gl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ExchangeOfficeMap } from "~/pages/community/exchange/exchange-office-map"
@@ -22,6 +24,7 @@ const maplibreMocks = vi.hoisted(() => {
     on = vi.fn()
     off = vi.fn()
     setStyle = vi.fn()
+    easeTo = vi.fn()
     resize = vi.fn()
     remove = vi.fn()
 
@@ -150,5 +153,70 @@ describe("ExchangeOfficeMap App viewport memory", () => {
       center: [121.473701, 31.230416],
       zoom: 8.125,
     })
+  })
+
+  it("applies the portal palette before MapLibre receives the first style", () => {
+    render(<ExchangeOfficeMap {...mapProps} />)
+    const map = maplibreMocks.instances[0]
+    if (!map) throw new Error("地图实例未创建")
+
+    const styleOptions = map.setStyle.mock.calls[0]?.[1] as
+      | {
+          transformStyle: (
+            previousStyle: StyleSpecification | undefined,
+            nextStyle: StyleSpecification
+          ) => StyleSpecification
+        }
+      | undefined
+    if (!styleOptions) throw new Error("地图样式变换未配置")
+
+    const transformed = styleOptions.transformStyle(undefined, {
+      version: 8,
+      sources: {},
+      layers: [
+        {
+          id: "background",
+          type: "background",
+          paint: { "background-color": "#111111" },
+        },
+      ],
+    })
+
+    expect(transformed.layers[0]).toMatchObject({
+      id: "background",
+      paint: { "background-color": "#edf3f8" },
+    })
+  })
+
+  it("animates back to the current user location", async () => {
+    const user = userEvent.setup()
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({
+        coords: { longitude: 121.473701, latitude: 31.230416 },
+      } as GeolocationPosition)
+    })
+    vi.stubGlobal("navigator", {
+      geolocation: { getCurrentPosition },
+    })
+
+    render(<ExchangeOfficeMap {...mapProps} />)
+    await user.click(screen.getByRole("button", { name: "回到我的位置" }))
+
+    expect(getCurrentPosition).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      {
+        enableHighAccuracy: false,
+        timeout: 10_000,
+        maximumAge: 30_000,
+      }
+    )
+    expect(maplibreMocks.instances[0]?.easeTo).toHaveBeenCalledWith({
+      center: [121.473701, 31.230416],
+      zoom: 8,
+      duration: 900,
+      essential: false,
+    })
+    expect(screen.getByText("已回到您的位置")).toHaveClass("sr-only")
   })
 })

@@ -44,7 +44,7 @@ import {
   getWikiCatalog,
   isApiError,
   resolveShareableOrigin,
-  uploadNamecard,
+  uploadFudabaGuestSubmission,
   type WikiPublicCatalog,
 } from "~/lib/api"
 import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
@@ -137,7 +137,7 @@ export function NamecardUploadDialog() {
     setUploading(true)
     const form = event.currentTarget
     try {
-      const response = await uploadNamecard(front, back, {
+      const response = await uploadFudabaGuestSubmission(front, back, {
         seriesCode,
         favoriteIdolIds,
         // Descriptive fields are optional, so an untouched field sends nothing
@@ -146,7 +146,7 @@ export function NamecardUploadDialog() {
         ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
         ...(bio.trim() ? { bio: bio.trim() } : {}),
       }).send()
-      toast.success(response.msg)
+      toast.success(response.message)
       const nextReceipt = {
         id: response.submission.id,
         token: response.withdrawalToken,

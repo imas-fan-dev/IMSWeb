@@ -186,6 +186,8 @@ pnpm run app ios --live --host
 | iOS 归档缺少签名身份     | 未设置 `TAURI_APPLE_DEVELOPMENT_TEAM`                          |
 | 提示存在多个目标         | 用 `--device` 指定，或先运行 `pnpm run app devices`            |
 | 找不到产物               | 上一次构建失败，去掉 `--skip-build` 重新构建                   |
+| `failed to rename app … Directory not empty` | `gen/apple/build/` 里残留了上一次的同名产物，删掉对应架构目录和 `imsweb_iOS.xcarchive` 后重试 |
+| iOS 热重载会话上传图片返回 500 | scheme handler 丢弃 `Blob`/`File` 请求体，改用 `pnpm run app ios` 自包含包验收；见 [Tauri 移动端基础设施](tauri-mobile.md) 第 3 节 |
 
 改动安装链路、脚本参数或平台工具契约时，同一变更更新本文件并运行：
 

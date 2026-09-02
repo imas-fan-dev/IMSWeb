@@ -43,6 +43,23 @@ export function parsePlatformProfileSubmission(
     };
 }
 
+// Avatar removal carries the same optimistic fence as every other profile
+// write, so a stale tab cannot erase an avatar the owner just replaced.
+export function parsePlatformAvatarRemoval(value: unknown): number {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw badRequest('请求体必须是对象');
+    }
+    const body = value as Record<string, unknown>;
+    if (Object.keys(body).some((key) => key !== 'expectedUpdatedAt')) {
+        throw badRequest('请求体包含未知字段');
+    }
+    if (!Number.isSafeInteger(body.expectedUpdatedAt) ||
+        Number(body.expectedUpdatedAt) < 0) {
+        throw badRequest('expectedUpdatedAt 必须是非负整数');
+    }
+    return Number(body.expectedUpdatedAt);
+}
+
 export function parseExpectedProfileTimestamp(value: string | undefined): number {
     const expected = Number(value);
     if (!Number.isSafeInteger(expected) || expected < 0) {

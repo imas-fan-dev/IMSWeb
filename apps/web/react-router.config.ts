@@ -26,6 +26,12 @@ export default {
     "/community",
     "/account/login",
     "/account/register",
+    // Both of these are reachable by typing the URL or from a bookmark, so they
+    // need a real document. Without one the Hono policy answers 404 and only
+    // client-side navigation works. Every entry here must also be registered in
+    // apps/api PRERENDERED_ROUTES or [FRT-06] fails.
+    "/account/password-reset",
+    "/account/security",
     "/community/exchange",
     "/community/cards",
     "/producer-map",

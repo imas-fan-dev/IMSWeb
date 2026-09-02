@@ -19,6 +19,19 @@ const exchangeCardReactionPattern = new RegExp(
   `^${escapeRegExp(exchangePath('/cards/'))}[^/]+/reactions$`,
 );
 
+// Both the collection and the single-session form share one budget: revoking
+// devices one by one must not buy a larger allowance than revoking them at once.
+const platformSessionPattern = new RegExp(
+  `^${escapeRegExp(platformApiPath('/me/sessions'))}(?:/[^/]+)?$`,
+);
+
+// The listing and the per-provider unlink share one budget, for the same reason
+// the session routes do: unlinking one provider at a time must not buy a larger
+// allowance than reading the list.
+const platformOAuthLinkPattern = new RegExp(
+  `^${escapeRegExp(platformApiPath('/me/oauth-links'))}(?:/[^/]+)?$`,
+);
+
 export interface RateLimitOptions {
   bucket: string;
   limit: number;
@@ -101,6 +114,35 @@ export const CHRONICLE_UPLOAD_WRITE_LIMIT = {
 
 export const FUDABA_UPLOAD_ATTEMPT_LIMIT = {
   bucket: "fudaba-upload-attempt",
+  limit: 60,
+  windowSeconds: 60 * 60,
+} as const;
+
+// Avatar uploads left the Fudaba upload budget when they moved to the Platform
+// identity domain, so a closed card rollout can no longer starve them.
+export const PLATFORM_AVATAR_UPLOAD_LIMIT = {
+  bucket: "platform-avatar-upload-attempt",
+  limit: 60,
+  windowSeconds: 60 * 60,
+} as const;
+
+// Account security endpoints are sensitive enough to need their own path-level
+// bucket. The existing password-reset endpoints lean on the global budget and a
+// database cooldown instead; that gap is not worth copying.
+export const PLATFORM_SECURITY_PASSWORD_LIMIT = {
+  bucket: "platform-security-password-ip",
+  limit: 20,
+  windowSeconds: 60 * 60,
+} as const;
+
+export const PLATFORM_SECURITY_SESSION_LIMIT = {
+  bucket: "platform-security-session-ip",
+  limit: 120,
+  windowSeconds: 60 * 60,
+} as const;
+
+export const PLATFORM_SECURITY_OAUTH_LIMIT = {
+  bucket: "platform-security-oauth-ip",
   limit: 60,
   windowSeconds: 60 * 60,
 } as const;
@@ -204,6 +246,24 @@ function requestSpecificLimit(
   ) {
     return FUDABA_LOCATION_WRITE_LIMIT;
   }
+  if (method === "PUT" && pathname === platformApiPath('/me/avatar')) {
+    return PLATFORM_AVATAR_UPLOAD_LIMIT;
+  }
+  if (method === "POST" && pathname === platformApiPath('/me/password')) {
+    return PLATFORM_SECURITY_PASSWORD_LIMIT;
+  }
+  if (
+    ["GET", "DELETE"].includes(method) &&
+    platformSessionPattern.test(pathname)
+  ) {
+    return PLATFORM_SECURITY_SESSION_LIMIT;
+  }
+  if (
+    ["GET", "DELETE"].includes(method) &&
+    platformOAuthLinkPattern.test(pathname)
+  ) {
+    return PLATFORM_SECURITY_OAUTH_LIMIT;
+  }
   if (
     (method === "PUT" && (
       pathname.startsWith(exchangePath('/uploads/')) ||
@@ -224,6 +284,9 @@ function requestSpecificLimit(
   if (
     ["POST", "PUT", "DELETE"].includes(method) &&
     (pathname === platformApiPath('/me') ||
+      // Avatar removal is a profile write, not an upload, so it shares the
+      // profile write budget. The upload branch above already took the PUT.
+      (method === "DELETE" && pathname === platformApiPath('/me/avatar')) ||
       pathname.startsWith(exchangePath('/')))
   ) {
     return FUDABA_WRITE_ATTEMPT_LIMIT;

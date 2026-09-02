@@ -1,5 +1,5 @@
 import type { AppEnvironment } from '@/app';
-import { resolveNamecardThumbnailUrl } from '@/domains/community/namecards/media-assets';
+import { resolveNamecardThumbnailUrl } from '@/domains/community/fudaba/card-media-assets';
 import type { NamecardListQuery } from '@/domains/community/namecards/request';
 import {
     toPublicNamecardResponse,

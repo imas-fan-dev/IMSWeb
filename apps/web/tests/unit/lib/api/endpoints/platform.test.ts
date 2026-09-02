@@ -6,11 +6,13 @@ import {
   platformLoginInputSchema,
   platformLoginPasswordSchema,
   platformPasswordSchema,
+  platformAvatarRemovalSchema,
   platformProfileResponseSchema,
   platformProfileUpdateSchema,
   platformRegistrationVerificationInputSchema,
   platformRegisterInputSchema,
   registerPlatform,
+  removePlatformAvatar,
   sendPlatformRegistrationVerificationCode,
   updatePlatformProfile,
   uploadPlatformAvatar,
@@ -284,7 +286,7 @@ describe("Platform profile API contracts", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(new URL(String(input), "http://ims.test").pathname).toBe(
-          "/api/community/exchange/uploads/avatar"
+          "/api/platform/me/avatar"
         )
         request = init
         return Response.json({
@@ -307,5 +309,45 @@ describe("Platform profile API contracts", () => {
     const form = request?.body as FormData
     expect(form.get("image")).toBe(image)
     expect(form.get("expectedUpdatedAt")).toBe("1000")
+  })
+
+  it("removes avatars as fenced DELETE requests", async () => {
+    document.cookie = "ims_platform_csrf=remove-csrf; path=/"
+    let request: RequestInit | undefined
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(new URL(String(input), "http://ims.test").pathname).toBe(
+          "/api/platform/me/avatar"
+        )
+        request = init
+        return Response.json({
+          success: true,
+          profile: { ...profile, avatarUrl: null, updatedAt: 1001 },
+        })
+      })
+    )
+
+    await expect(removePlatformAvatar(1000).send()).resolves.toMatchObject({
+      profile: { avatarUrl: null, updatedAt: 1001 },
+    })
+
+    expect(request?.method).toBe("DELETE")
+    expect(new Headers(request?.headers).get(CSRF_HEADER_NAME)).toBe(
+      "remove-csrf"
+    )
+    expect(JSON.parse(String(request?.body))).toEqual({
+      expectedUpdatedAt: 1000,
+    })
+  })
+
+  it("rejects avatar removals without a usable fence", () => {
+    expect(() => removePlatformAvatar(-1)).toThrow()
+    expect(() => removePlatformAvatar(1.5)).toThrow()
+    expect(platformAvatarRemovalSchema.parse({ expectedUpdatedAt: 0 })).toEqual(
+      {
+        expectedUpdatedAt: 0,
+      }
+    )
   })
 })

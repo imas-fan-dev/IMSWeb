@@ -210,23 +210,24 @@ describe("exchange map model", () => {
         context.scope
       )
     ).toBe("https://site.imsweb.test/maps/china-boundary-dashes.json")
-    expect(
-      resolveMapStyleResourceUrls(
-        {
-          version: 8,
-          sources: {
-            openmaptiles: {
-              type: "vector",
-              url: "pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles",
-            },
+    const transformedStyle = resolveMapStyleResourceUrls(
+      {
+        version: 8,
+        sources: {
+          openmaptiles: {
+            type: "vector",
+            url: "pmtiles:///maps/exchange/openfreemap-z0-11.pmtiles",
           },
-          layers: [],
         },
-        context
-      ).sources.openmaptiles
-    ).toMatchObject({
+        layers: [],
+      },
+      context
+    )
+    expect(transformedStyle.sources.openmaptiles).toMatchObject({
       url: "pmtiles://https://site.imsweb.test/maps/exchange/openfreemap-z0-11.pmtiles",
     })
+    expect(transformedStyle).not.toHaveProperty("sprite")
+    expect(transformedStyle).not.toHaveProperty("glyphs")
   })
 
   it("rewrites every style child onto an absolute host-and-path prefix", () => {

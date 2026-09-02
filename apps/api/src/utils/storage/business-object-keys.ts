@@ -121,6 +121,9 @@ export function producerMapAssetObjectKey(filename: string): string {
     return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
 }
 
+// Legacy layout produced by the historical media migration
+// (`scripts/migration/fudaba-media.js`). Runtime uploads no longer mint this
+// shape, but the migration still needs it to address pre-existing objects.
 export function fudabaAccountAvatarObjectKey(
     accountId: string,
     extension: string
@@ -129,11 +132,15 @@ export function fudabaAccountAvatarObjectKey(
         `avatar.${fudabaImageExtension(extension)}`;
 }
 
-export function fudabaAccountAvatarVersionObjectKey(
+// Account avatars belong to the Platform identity, not to Fudaba, so new keys
+// land under `platform/`. Avatars uploaded before that move keep their old
+// `community/fudaba/accounts/` keys, which stay readable because every key is
+// stored on its own profile row rather than rebuilt from this generator.
+export function platformAccountAvatarVersionObjectKey(
     accountId: string,
     version: string
 ): string {
-    return `community/fudaba/accounts/${fudabaEntitySegment(accountId)}/` +
+    return `platform/accounts/${fudabaEntitySegment(accountId)}/` +
         `avatars/${fudabaEntitySegment(version)}.webp`;
 }
 

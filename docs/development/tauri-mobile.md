@@ -129,6 +129,12 @@ scheme 会把设备上的同源 API、媒体、`/sites` 和 `/site-content` 请�
 `http://localhost:1420`。需要其他私网入口时设置
 `IMS_APP_DEV_ORIGIN`；启动器拒绝公网、`0.0.0.0`、带凭据、路径、查询或 hash 的值。
 
+这条转发链有一个已知边界：iOS 上带 `Blob`/`File` 的请求体到不了 1420。WebKit 把这类请求体
+作为流交给 scheme handler，转发时被丢弃，Hono 只收到 `content-length: 0`，头像与名片上传因此
+返回 500。纯文本和只含字符串字段的 `FormData` 不受影响，实测 256 KiB 仍完整送达。上传路径的
+联调必须改用自包含包（`pnpm run app ios`），它的 `VITE_IMS_API_ORIGIN` 是绝对地址，请求不经过
+scheme handler。原生图片选择本身在热重载会话里是正常的，失败只发生在随后的上传请求。
+
 ## 4. 跨源 API 契约
 
 Web 构建中前端与 Hono 同源，请求保持相对路径。发布 App 的 WebView 从本地 scheme 加载页面，

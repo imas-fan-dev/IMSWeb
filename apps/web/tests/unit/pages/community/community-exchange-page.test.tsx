@@ -409,7 +409,10 @@ describe("CommunityExchangePage", () => {
     await user.click(
       await screen.findByRole("button", { name: "模拟地图内容" })
     )
-    await user.click(screen.getByRole("button", { name: "加载更多事务所" }))
+    // The rail pages itself now, so wait for that second request to be in
+    // flight rather than clicking a button. It is the one that must not land
+    // on the filtered list further down.
+    await waitFor(() => expect(apiMocks.sendOffices).toHaveBeenCalledTimes(2))
     await user.click(screen.getByRole("button", { name: "关闭" }))
     await waitFor(() => {
       expect(
@@ -428,17 +431,18 @@ describe("CommunityExchangePage", () => {
     })
     await user.click(screen.getByRole("button", { name: "模拟地图内容" }))
     expect((await screen.findAllByText("筛选后的开放事务所"))[0]).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "加载更多事务所" }))
-
-    expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith({
-      city: undefined,
-      series: undefined,
-      open: true,
-      cursor: "filtered-cursor",
-      limit: 12,
-    })
+    // The filtered rail pages itself as well, with the filter still applied.
+    await waitFor(() =>
+      expect(apiMocks.getFudabaOfficePage).toHaveBeenLastCalledWith({
+        city: undefined,
+        series: undefined,
+        open: true,
+        cursor: "filtered-cursor",
+        limit: 12,
+      })
+    )
     const requestCount = apiMocks.getFudabaOfficePage.mock.calls.length
-    expect(screen.getByRole("button", { name: "正在加载" })).toBeDisabled()
+    expect(screen.getAllByText("正在加载更多事务所")[0]).toBeVisible()
 
     await act(async () => {
       stalePage.resolve({
@@ -455,8 +459,9 @@ describe("CommunityExchangePage", () => {
       await stalePage.promise
     })
 
-    expect(screen.getByRole("button", { name: "正在加载" })).toBeDisabled()
-    await user.click(screen.getByRole("button", { name: "正在加载" }))
+    // The stale page belongs to the pre-filter request. Resolving it must
+    // neither land its rows nor free the rail to ask for another page.
+    expect(screen.getAllByText("正在加载更多事务所")[0]).toBeVisible()
     expect(apiMocks.getFudabaOfficePage).toHaveBeenCalledTimes(requestCount)
     expect(screen.queryByText("过期分页结果")).not.toBeInTheDocument()
 

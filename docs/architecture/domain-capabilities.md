@@ -40,6 +40,7 @@ Domain、模块和 handler 清单由 `apps/api/scripts/checks/hono-architecture.
 | --- | --- | --- | --- | --- |
 | identity | `platform-auth` | 平台账号访问 | sessions、registration、password-reset、oauth | M |
 | identity | `platform-profile` | 平台个人资料与头像 | profile、avatar | S |
+| identity | `platform-account-security` | 已登录账号安全 | password、email、oauth-links、sessions、deletion | M |
 | admin | `backoffice-auth` | 后台操作员会话 | sessions | M |
 | admin | `admin-accounts` | 后台账号生命周期 | accounts | S |
 | admin | `audit` | 后台审计记录写入与查询 | write、read | 横切 |

@@ -2,17 +2,14 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual"
 import { CalendarDaysIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
+import { PullToRefresh } from "~/components/shared/pull-to-refresh"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
-import { cn } from "~/lib/utils"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { useInfiniteScroll } from "~/lib/use-infinite-scroll"
 import { EventRow, EventsSkeleton } from "./components/events-list"
-import { PullToRefreshIndicator } from "./components/pull-to-refresh-indicator"
 import { useEventsFeed } from "./hooks/use-events-feed"
-import { usePullToRefresh } from "./hooks/use-pull-to-refresh"
-
-/** How close to the end of the document a scroll gets before the next page. */
-const LOAD_MORE_MARGIN = 480
 
 export function meta() {
   return [
@@ -38,13 +35,13 @@ export function EventsCenter() {
     loadMore,
     refresh,
   } = useEventsFeed()
-  const loadTriggerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
 
-  const pull = usePullToRefresh({
-    onRefresh: refresh,
-    enabled: phase === "ready" || phase === "error",
+  const sentinelRef = useInfiniteScroll({
+    hasNextPage: pageInfo.hasNextPage,
+    loading: loadingMore,
+    onLoadMore: loadMore,
   })
 
   const getItemKey = useCallback(
@@ -73,56 +70,6 @@ export function EventsCenter() {
     window.addEventListener("resize", updateScrollMargin)
     return () => window.removeEventListener("resize", updateScrollMargin)
   }, [])
-
-  useEffect(() => {
-    const trigger = loadTriggerRef.current
-    if (
-      !trigger ||
-      !pageInfo.hasNextPage ||
-      loadingMore ||
-      typeof IntersectionObserver === "undefined"
-    ) {
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void loadMore()
-      },
-      { rootMargin: `${LOAD_MORE_MARGIN}px 0px` }
-    )
-    observer.observe(trigger)
-    return () => observer.disconnect()
-  }, [loadMore, loadingMore, pageInfo.hasNextPage])
-
-  // Scroll-position fallback for engines without IntersectionObserver. Without
-  // it those browsers would reach the end of the list with no way forward,
-  // because the manual "load more" button is gone.
-  useEffect(() => {
-    if (
-      !pageInfo.hasNextPage ||
-      loadingMore ||
-      typeof IntersectionObserver !== "undefined"
-    ) {
-      return
-    }
-
-    const loadWhenNearBottom = () => {
-      const remaining =
-        document.documentElement.scrollHeight -
-        (window.scrollY + window.innerHeight)
-      if (remaining <= LOAD_MORE_MARGIN) void loadMore()
-    }
-
-    // A first page shorter than the viewport never fires a scroll event.
-    loadWhenNearBottom()
-    window.addEventListener("scroll", loadWhenNearBottom, { passive: true })
-    window.addEventListener("resize", loadWhenNearBottom)
-    return () => {
-      window.removeEventListener("scroll", loadWhenNearBottom)
-      window.removeEventListener("resize", loadWhenNearBottom)
-    }
-  }, [loadMore, loadingMore, pageInfo.hasNextPage])
 
   return (
     <main id="main-content">
@@ -161,7 +108,7 @@ export function EventsCenter() {
                     {refreshing ? (
                       <LoaderCircleIcon
                         aria-hidden="true"
-                        className="animate-spin"
+                        className="animate-spin motion-reduce:animate-none"
                       />
                     ) : (
                       <RefreshCwIcon aria-hidden="true" />
@@ -175,21 +122,10 @@ export function EventsCenter() {
         </section>
       )}
 
-      {/* The pull band moves the list with a transform rather than by growing a
-          spacer: `offsetTop` is untouched by transforms, so the window
-          virtualizer's `scrollMargin` stays correct while the band is open.
-          The indicator lives inside the band so it rides the same transform and
-          stays anchored below the header instead of under it. */}
-      <div
-        className={cn(
-          "relative",
-          !pull.dragging && "transition-transform duration-300 ease-out",
-          "motion-reduce:transition-none"
-        )}
-        style={{ transform: `translateY(${pull.distance}px)` }}
+      <PullToRefresh
+        onRefresh={refresh}
+        enabled={phase === "ready" || phase === "error"}
       >
-        <PullToRefreshIndicator status={pull.status} progress={pull.progress} />
-
         <section
           className={
             IS_APP_TARGET
@@ -263,52 +199,18 @@ export function EventsCenter() {
                 })}
               </div>
 
-              <div
-                ref={loadTriggerRef}
-                className="flex flex-col items-center py-8"
-              >
-                {loadMoreError ? (
-                  <>
-                    <p role="alert" className="mb-3 text-sm text-destructive">
-                      后续活动加载失败：{loadMoreError}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      onClick={() => void loadMore()}
-                      disabled={loadingMore}
-                    >
-                      {loadingMore ? (
-                        <LoaderCircleIcon
-                          aria-hidden="true"
-                          className="animate-spin"
-                        />
-                      ) : null}
-                      {loadingMore ? "正在加载" : "重试加载"}
-                    </Button>
-                  </>
-                ) : pageInfo.hasNextPage ? (
-                  <p
-                    role="status"
-                    className="flex items-center gap-2 text-sm text-muted-foreground"
-                  >
-                    <LoaderCircleIcon
-                      aria-hidden="true"
-                      className="size-4 animate-spin"
-                    />
-                    正在加载更多活动
-                  </p>
-                ) : (
-                  <p role="status" className="text-sm text-muted-foreground">
-                    已显示本批次的全部活动
-                  </p>
-                )}
-              </div>
+              <InfiniteScrollFooter
+                sentinelRef={sentinelRef}
+                label="活动"
+                hasNextPage={pageInfo.hasNextPage}
+                loading={loadingMore}
+                error={loadMoreError}
+                onRetry={() => void loadMore()}
+              />
             </>
           )}
         </section>
-      </div>
+      </PullToRefresh>
     </main>
   )
 }

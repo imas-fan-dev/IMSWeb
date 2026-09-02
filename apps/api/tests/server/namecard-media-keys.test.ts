@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ensureNamecardThumbnails } from '@/domains/community/namecards/media-assets';
+import { ensureNamecardThumbnails } from '@/domains/community/fudaba/card-media-assets';
 import {
     namecardMediaObjectKeys,
     namecardThumbnailObjectKey,

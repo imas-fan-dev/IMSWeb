@@ -7,10 +7,6 @@ import type {
     NamecardIdolInput,
     NamecardInput,
     NamecardPageInput,
-    NamecardSubmissionDetailInput,
-    NamecardSubmissionInput,
-    UploadNamecardReceiptInput,
-    WithdrawNamecardInput,
 } from '@imsweb/contracts/namecards';
 
 export type NamecardResponseId = number | string;
@@ -18,15 +14,6 @@ export type NamecardResponseId = number | string;
 export type NamecardIdolResponse = NamecardIdolInput;
 export type PublicNamecardResponse = NamecardInput;
 export type AdminNamecardResponse = AdminNamecardInput;
-export type NamecardSubmissionResponse = NamecardSubmissionInput;
-export type NamecardSubmissionReceiptResponse = UploadNamecardReceiptInput;
-export type NamecardSubmissionDetailResponse = NamecardSubmissionDetailInput;
-export type NamecardWithdrawalResponse = WithdrawNamecardInput;
-
-export interface NamecardResubmitResponse {
-    success: true;
-    submission: NamecardSubmissionResponse;
-}
 
 export interface NamecardDetailResponse {
     image1_url: string;
@@ -48,14 +35,6 @@ export type AdminNamecardListResponse =
 export type NamecardMutationResponse =
     | { success: true; revision?: number }
     | { success: false; error?: string; revision?: number };
-
-export interface NamecardMessageResponse {
-    msg: string;
-}
-
-export interface NamecardRateLimitResponse {
-    error: string;
-}
 
 export interface NamecardErrorResponse {
     error: string;
@@ -148,21 +127,4 @@ export function toAdminNamecardResponse(row: NamecardRow): AdminNamecardResponse
 function responseRevision(value: unknown): number {
     if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value;
     throw new Error('Namecard response has an invalid revision');
-}
-
-export function toNamecardSubmissionResponse(row: NamecardRow): NamecardSubmissionResponse {
-    const status = responseString(row.status, 'status');
-    if (!['pending', 'approving', 'approved', 'rejected', 'withdrawn'].includes(status)) {
-        throw new Error('Namecard response has an invalid status');
-    }
-    return {
-        id: responseId(row.id),
-        seriesCode: responseSeriesCode(row.series_code),
-        favoriteIdols: responseFavoriteIdols(row.favorite_idols),
-        image1_url: responseString(row.image1_url, 'image1_url'),
-        image2_url: responseString(row.image2_url, 'image2_url'),
-        status: status as NamecardSubmissionResponse['status'],
-        created_at: responseTimestamp(row.created_at),
-        revision: responseRevision(row.revision)
-    };
 }

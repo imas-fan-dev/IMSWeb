@@ -27,6 +27,7 @@ Issue、release record 或私有运维记录中。
 - [数据库架构](architecture/database.md)：PostgreSQL、repository ports、事务、幂等和迁移边界。
 - [对象存储架构](architecture/object-storage.md)：S3-compatible 数据面、保护对象、状态机和补偿。
 - [缓存架构](architecture/cache.md)：Valkey、Memory fallback、限流和非权威缓存边界。
+- [平台账号安全中心架构](architecture/platform-account-security.md)：已登录身份能力的 domain 边界、软删约束和验证码模型。
 - [Wiki 管理架构](architecture/wiki-management.md)：Wiki 数据模型、公开/后台 API 和媒体关系。
 - [URL 与公共路径架构](architecture/url-paths.md)：共享路径 builders、路由所有权和变更流程。
 - [玻璃折射的平台策略](architecture/glass-refraction-platform-strategy.md)：伪折射地板、Chromium 真折射封顶和跨引擎降级。

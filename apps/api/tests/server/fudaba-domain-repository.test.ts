@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {
     ManagedSqlDatabase,
@@ -481,12 +481,12 @@ async function assertModerationActorRetention(
         updatedAt: UPDATED_AT,
         resolvedAt: UPDATED_AT
     });
-    const core = new SqlCoreRepository(
-        fixture.database,
-        initializedPostgresSchema
-    );
+    const adminAccounts = new SqlAdminAccountRepository(fixture.database);
 
-    assert.equal(await core.deleteAdminAccount(actorId), 'moderation-history');
+    assert.equal(
+        await adminAccounts.deleteAdminAccount(actorId),
+        'moderation-history'
+    );
     assert.equal(await fixture.database.prepare(
         'SELECT COUNT(*) AS count FROM backoffice_accounts WHERE id=?'
     ).bind(actorId).first<number>('count'), 1);

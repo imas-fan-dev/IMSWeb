@@ -9,7 +9,7 @@ const apiMocks = vi.hoisted(() => ({
   sendCatalog: vi.fn(),
   sendUpload: vi.fn(),
   getWikiCatalog: vi.fn(),
-  uploadNamecard: vi.fn(),
+  uploadFudabaGuestSubmission: vi.fn(),
 }))
 
 const toastMocks = vi.hoisted(() => ({
@@ -22,7 +22,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return {
     ...actual,
     getWikiCatalog: apiMocks.getWikiCatalog,
-    uploadNamecard: apiMocks.uploadNamecard,
+    uploadFudabaGuestSubmission: apiMocks.uploadFudabaGuestSubmission,
   }
 })
 
@@ -71,11 +71,18 @@ describe("NamecardUploadDialog", () => {
     })
     apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendCatalog })
     apiMocks.sendUpload.mockResolvedValue({
-      msg: "已提交审核",
-      submission: { id: 81, status: "pending", revision: 0 },
+      success: true,
+      message: "已提交审核",
+      submission: {
+        id: 81,
+        publicationStatus: "pending",
+        revision: 0,
+      },
       withdrawalToken: "a".repeat(43),
     })
-    apiMocks.uploadNamecard.mockReturnValue({ send: apiMocks.sendUpload })
+    apiMocks.uploadFudabaGuestSubmission.mockReturnValue({
+      send: apiMocks.sendUpload,
+    })
   })
 
   it("opens from the floating action and submits both namecard sides", async () => {
@@ -134,10 +141,14 @@ describe("NamecardUploadDialog", () => {
     await user.click(submitButton)
 
     await waitFor(() => {
-      expect(apiMocks.uploadNamecard).toHaveBeenCalledWith(front, back, {
-        seriesCode: "765",
-        favoriteIdolIds: [1],
-      })
+      expect(apiMocks.uploadFudabaGuestSubmission).toHaveBeenCalledWith(
+        front,
+        back,
+        {
+          seriesCode: "765",
+          favoriteIdolIds: [1],
+        }
+      )
       expect(apiMocks.sendUpload).toHaveBeenCalledOnce()
     })
     expect(await screen.findByText("请保存投稿管理链接")).toBeVisible()
@@ -157,15 +168,25 @@ describe("NamecardUploadDialog", () => {
   it("keeps the dialog locked while an upload continues", async () => {
     let resolveUpload:
       | ((value: {
-          msg: string
-          submission: { id: number; status: "pending"; revision: number }
+          success: true
+          message: string
+          submission: {
+            id: number
+            publicationStatus: "pending"
+            revision: number
+          }
           withdrawalToken: string
         }) => void)
       | undefined
     apiMocks.sendUpload.mockReturnValue(
       new Promise<{
-        msg: string
-        submission: { id: number; status: "pending"; revision: number }
+        success: true
+        message: string
+        submission: {
+          id: number
+          publicationStatus: "pending"
+          revision: number
+        }
         withdrawalToken: string
       }>((resolve) => {
         resolveUpload = resolve
@@ -196,8 +217,13 @@ describe("NamecardUploadDialog", () => {
     expect(screen.getByRole("dialog")).toBeVisible()
 
     resolveUpload?.({
-      msg: "已提交审核",
-      submission: { id: 82, status: "pending", revision: 0 },
+      success: true,
+      message: "已提交审核",
+      submission: {
+        id: 82,
+        publicationStatus: "pending",
+        revision: 0,
+      },
       withdrawalToken: "b".repeat(43),
     })
     await waitFor(() =>

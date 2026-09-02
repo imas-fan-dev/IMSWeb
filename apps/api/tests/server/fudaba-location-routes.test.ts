@@ -257,6 +257,9 @@ class LocationRouteFixture {
         created_at: Date.now(),
         updated_at: Date.now(),
         revoked_at: null,
+        user_agent: null,
+        ip_address: null,
+        last_seen_at: null,
     };
 
     readonly fudaba = {

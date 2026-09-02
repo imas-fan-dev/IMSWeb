@@ -3,8 +3,12 @@ import type {
     SqlSchemaStrategy,
 } from "@/infra/db/sql/database";
 
+// Must name the newest migration whose columns production code already reads.
+// Session device columns are selected by listRefreshSessionsByAccount, so a
+// deploy that skipped this migration has to fail at startup with an actionable
+// message instead of throwing "column does not exist" on the first query.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    "20260818010000_platform_oauth_configuration";
+    "20260902120000_platform_session_devices";
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<

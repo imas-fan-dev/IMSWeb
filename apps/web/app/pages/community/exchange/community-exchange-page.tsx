@@ -2,7 +2,6 @@ import {
   Building2Icon,
   CreditCardIcon,
   ListFilterIcon,
-  LoaderCircleIcon,
   MapPinnedIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -21,6 +20,7 @@ import {
 import { useLocation, useSearchParams } from "react-router"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
+import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -43,6 +43,7 @@ import {
 } from "~/components/ui/sheet"
 import { Skeleton } from "~/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import { useInfiniteScroll } from "~/lib/use-infinite-scroll"
 import {
   getFudabaCardPage,
   getFudabaOfficePage,
@@ -243,6 +244,24 @@ function DirectoryResults({
   onLoadMoreOffices,
   onLoadMoreCards,
 }: DirectoryResultsProps) {
+  // Each rail is its own scroller inside a full-height pane, so the sentinels
+  // are watched against the viewport and use a rail-sized margin rather than
+  // the page-sized one a document feed wants. Pull-to-refresh has no place
+  // here: this route never scrolls the window, so the gesture could not tell a
+  // pull from an ordinary drag. The toolbar keeps its refresh button.
+  const officesSentinelRef = useInfiniteScroll({
+    hasNextPage: state.officePageInfo.hasNextPage,
+    loading: loadingMoreOffices,
+    onLoadMore: onLoadMoreOffices,
+    rootMargin: 200,
+  })
+  const cardsSentinelRef = useInfiniteScroll({
+    hasNextPage: state.cardPageInfo.hasNextPage,
+    loading: loadingMoreCards,
+    onLoadMore: onLoadMoreCards,
+    rootMargin: 200,
+  })
+
   return (
     <Tabs
       value={view}
@@ -281,23 +300,13 @@ function DirectoryResults({
             {state.offices.map((office) => (
               <OfficeCard key={office.id} office={office} series={seriesMap} />
             ))}
-            {state.officePageInfo.hasNextPage ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={loadingMoreOffices}
-                onClick={onLoadMoreOffices}
-              >
-                {loadingMoreOffices ? (
-                  <LoaderCircleIcon
-                    className="animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                {loadingMoreOffices ? "正在加载" : "加载更多事务所"}
-              </Button>
-            ) : null}
+            <InfiniteScrollFooter
+              sentinelRef={officesSentinelRef}
+              label="事务所"
+              hasNextPage={state.officePageInfo.hasNextPage}
+              loading={loadingMoreOffices}
+              className="py-2"
+            />
           </div>
         ) : (
           <Empty className="min-h-56 border-y">
@@ -338,23 +347,13 @@ function DirectoryResults({
             {state.cards.map((card) => (
               <ExchangeCard key={card.id} card={card} series={seriesMap} />
             ))}
-            {state.cardPageInfo.hasNextPage ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={loadingMoreCards}
-                onClick={onLoadMoreCards}
-              >
-                {loadingMoreCards ? (
-                  <LoaderCircleIcon
-                    className="animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                {loadingMoreCards ? "正在加载" : "加载更多名片"}
-              </Button>
-            ) : null}
+            <InfiniteScrollFooter
+              sentinelRef={cardsSentinelRef}
+              label="名片"
+              hasNextPage={state.cardPageInfo.hasNextPage}
+              loading={loadingMoreCards}
+              className="py-2"
+            />
           </div>
         ) : (
           <Empty className="min-h-56 border-y">

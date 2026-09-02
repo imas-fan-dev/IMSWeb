@@ -8,7 +8,7 @@
     "fs:allow-read-file",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$APPCACHE/native-image/**" }]
+      "allow": [{ "path": "$CACHE/native-image/**" }]
     },
     "native-image:default"
   ]

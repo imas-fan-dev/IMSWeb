@@ -64,9 +64,17 @@ import { createValkeyClient, ValkeyCache } from "@/infra/cache/valkey/cache";
 import { ValkeyRateLimiter } from "@/infra/cache/valkey/rate-limiter";
 import { PostgresConnection } from "@/infra/db/postgresql/connection";
 import { PostgresqlSchemaStrategy } from "@/infra/db/postgresql/schema-strategy";
+import { SqlAdminAccountRepository } from "@/infra/db/repositories/admin-account-repository";
+import { SqlAuditRepository } from "@/infra/db/repositories/audit-repository";
+import { SqlBackofficeAuthRepository } from "@/infra/db/repositories/backoffice-auth-repository";
 import { SqlCoreRepository } from "@/infra/db/repositories/core-repository";
+import { SqlEventRepository } from "@/infra/db/repositories/event-repository";
 import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
+import { SqlHomepageLinkRepository } from "@/infra/db/repositories/homepage-link-repository";
+import { SqlNewsRepository } from "@/infra/db/repositories/news-repository";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
+import { SqlReactionRepository } from "@/infra/db/repositories/reaction-repository";
+import { SqlSitePackageRepository } from "@/infra/db/repositories/site-package-repository";
 import { SqlStoryRepository } from "@/infra/db/repositories/story-repository";
 import { StreamingUploadParser } from "@/infra/http/busboy/upload-parser";
 import { FilesystemCompensationService } from "@/infra/oss/filesystem/compensation-service";
@@ -99,17 +107,7 @@ interface InitializableResource {
 }
 
 interface CoreRepositoryAdapter
-    extends
-        InitializableResource,
-        BackofficeAuthRepository,
-        AdminAccountRepository,
-        AuditRepository,
-        NewsRepository,
-        EventRepository,
-        NamecardRepository,
-        ReactionRepository,
-        HomepageLinkRepository,
-        SitePackageRepository {}
+    extends InitializableResource, NamecardRepository {}
 
 interface StoryRepositoryAdapter
     extends InitializableResource, StoryRepository {}
@@ -123,6 +121,14 @@ interface FudabaRepositoryAdapter
 interface NodeRepositories {
     database: ManagedSqlDatabase;
     core: CoreRepositoryAdapter;
+    backofficeAuth: BackofficeAuthRepository;
+    adminAccounts: AdminAccountRepository;
+    audit: AuditRepository;
+    news: NewsRepository;
+    events: EventRepository;
+    reactions: ReactionRepository;
+    homepageLinks: HomepageLinkRepository;
+    sitePackages: SitePackageRepository;
     platform: PlatformAccountRepositoryAdapter;
     fudaba: FudabaRepositoryAdapter;
     story: StoryRepositoryAdapter;
@@ -173,6 +179,14 @@ function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
     return {
         database,
         core: new SqlCoreRepository(database, schema),
+        backofficeAuth: new SqlBackofficeAuthRepository(database),
+        adminAccounts: new SqlAdminAccountRepository(database),
+        audit: new SqlAuditRepository(database),
+        news: new SqlNewsRepository(database),
+        events: new SqlEventRepository(database),
+        reactions: new SqlReactionRepository(database),
+        homepageLinks: new SqlHomepageLinkRepository(database),
+        sitePackages: new SqlSitePackageRepository(database),
         platform: new SqlPlatformAccountRepository(database, schema),
         fudaba: new SqlFudabaRepository(database, schema),
         story: new SqlStoryRepository(database, schema),
@@ -278,6 +292,11 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
     const backofficeAuth = services.backofficeAuth as
         | (BackofficeAuthRepository & Partial<InitializableResource>)
         | undefined;
+    // SqlCoreRepository remains the database lifecycle owner until the
+    // Namecard capability is extracted.
+    const core = services.namecards as
+        | (NamecardRepository & Partial<InitializableResource>)
+        | undefined;
     const story = services.story as
         | (StoryRepository & Partial<InitializableResource>)
         | undefined;
@@ -302,6 +321,7 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
             fudaba?.close?.(),
             platform?.close?.(),
             backofficeAuth?.close?.(),
+            core?.close?.(),
         ].filter((operation): operation is Promise<void> => Boolean(operation)),
     );
     const failures = [...cleanupResults, ...resourceResults].filter(
@@ -364,6 +384,14 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
     const {
         database: connection,
         core,
+        backofficeAuth,
+        adminAccounts,
+        audit,
+        news,
+        events,
+        reactions,
+        homepageLinks,
+        sitePackages,
         platform,
         fudaba,
         story,
@@ -373,7 +401,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
     try {
         await initializeNodeRepositories(core, platform, fudaba, story);
         if (IS_PRODUCTION || SUPER_ADMIN_USERNAME) {
-            await core.ensureSuperAdmin(SUPER_ADMIN_USERNAME);
+            await adminAccounts.ensureSuperAdmin(SUPER_ADMIN_USERNAME);
         }
         const platformOAuth = new ConfiguredPlatformOAuthClient(
             platformOAuthConfig,
@@ -395,17 +423,17 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             connection,
         );
         return {
-            backofficeAuth: core,
-            adminAccounts: core,
+            backofficeAuth,
+            adminAccounts,
             platformAccounts: platform,
             fudaba,
-            audit: core,
-            news: core,
-            events: core,
+            audit,
+            news,
+            events,
             namecards: core,
-            reactions: core,
-            homepageLinks: core,
-            sitePackages: core,
+            reactions,
+            homepageLinks,
+            sitePackages,
             story,
             ...objectStorageInfrastructure,
             cache,

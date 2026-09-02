@@ -102,15 +102,23 @@ async function mockNamecardApi(page: Page, cardCount = 12) {
     await route.fulfill({ json: {} })
   })
 
-  await page.route("**/api/uploadNameCard", async (route) => {
-    await route.fulfill({
-      json: {
-        msg: "名片已提交审核",
-        submission: { id: 1, status: "pending", revision: 0 },
-        withdrawalToken: "a".repeat(64),
-      },
-    })
-  })
+  await page.route(
+    "**/api/community/exchange/guest-submissions",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          message: "名片已提交审核",
+          submission: {
+            id: 1,
+            publicationStatus: "pending",
+            revision: 0,
+          },
+          withdrawalToken: "a".repeat(64),
+        },
+      })
+    }
+  )
 }
 
 async function requireBoundingBox(locator: Locator) {
@@ -180,7 +188,8 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
 
   const uploadRequestPromise = page.waitForRequest(
     (request) =>
-      new URL(request.url()).pathname === "/api/uploadNameCard" &&
+      new URL(request.url()).pathname ===
+        "/api/community/exchange/guest-submissions" &&
       request.method() === "POST"
   )
   await submitButton.click()

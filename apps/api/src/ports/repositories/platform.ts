@@ -93,6 +93,44 @@ export interface PlatformOAuthIdentity extends PlatformAccountWithProfile {
     };
 }
 
+/**
+ * One row of "which third-party logins does this account have", joined to its
+ * provider so the caller can tell a usable link from a disabled one.
+ *
+ * Deliberately not `PlatformOAuthIdentity`: that type is the sign-in path's
+ * record and drags a whole account and profile along with it. This one is the
+ * account-security projection, and it omits `provider_subject` by
+ * construction — the third-party's internal user id is not something the
+ * listing needs, so it never leaves the database.
+ */
+export interface PlatformOAuthLinkRecord {
+    provider_code: PlatformOAuthProviderCode;
+    /** `platform_oauth_providers.display_name`: the provider's own name. */
+    provider_label: string;
+    provider_enabled: boolean;
+    /** The user's display name at the provider; empty string when unknown. */
+    provider_display_name: string;
+    provider_avatar_url: string;
+    created_at: number;
+}
+
+export interface DeletePlatformOAuthIdentityInput {
+    accountId: string;
+    providerCode: PlatformOAuthProviderCode;
+    event: PlatformSecurityEventInput;
+}
+
+/**
+ * `last-login-method` means the row is there but removing it would leave the
+ * account with no way back in. It is reported separately from `not-found` on
+ * purpose: the caller already owns the link, so telling them why the refusal
+ * happened leaks nothing they did not already know.
+ */
+export type DeletePlatformOAuthIdentityResult =
+    | { status: "deleted" }
+    | { status: "not-found" }
+    | { status: "last-login-method" };
+
 export interface NewPlatformOAuthAccountInput extends NewPlatformAccountInput {
     oauth: {
         providerCode: PlatformOAuthProviderCode;
@@ -213,6 +251,38 @@ export type PlatformProfileSaveResult =
     | { status: "conflict"; updatedAt: number }
     | { status: "unavailable" };
 
+/**
+ * Changing a password rewrites the credential, bumps `token_version` so every
+ * issued access token dies, revokes every session except the caller's, and
+ * re-arms that kept session with a refresh token minted for the new version.
+ * All of it in one transaction: a partial apply would either strand the caller
+ * on a dead token or leave a stolen session alive next to a new password.
+ */
+export interface UpdatePlatformPasswordInput {
+    accountId: string;
+    expectedPasswordHash: string;
+    expectedUpdatedAt: number;
+    passwordHash: string;
+    parametersJson: string;
+    keepSessionId: string;
+    keepSessionTokenHash: string;
+    keepSessionExpiresAt: number;
+    updatedAt: number;
+    event: PlatformSecurityEventInput;
+}
+
+export type UpdatePlatformPasswordResult =
+    | { status: "saved"; tokenVersion: number; revokedSessionCount: number }
+    | { status: "conflict" }
+    | { status: "unavailable" };
+
+export interface RevokePlatformRefreshSessionsInput {
+    accountId: string;
+    keepSessionId: string;
+    revokedAt: number;
+    event: PlatformSecurityEventInput;
+}
+
 export interface PlatformRefreshSessionRecord {
     id: string;
     account_id: string;
@@ -223,6 +293,9 @@ export interface PlatformRefreshSessionRecord {
     created_at: number;
     updated_at: number;
     revoked_at: number | null;
+    user_agent: string | null;
+    ip_address: string | null;
+    last_seen_at: number | null;
 }
 
 export type PlatformSecurityEventType =
@@ -232,7 +305,10 @@ export type PlatformSecurityEventType =
     | "auth.logout"
     | "auth.account_blocked"
     | "auth.oauth.account_created"
-    | "auth.password_reset.completed";
+    | "auth.password_reset.completed"
+    | "auth.password.changed"
+    | "auth.oauth.unlinked"
+    | "auth.session.revoked";
 
 export interface PlatformSecurityEventInput {
     id: string;
@@ -253,6 +329,10 @@ export interface NewPlatformRefreshSessionInput {
     csrfHash: string;
     expiresAt: number;
     createdAt: number;
+    // Optional because imported and bootstrap sessions have no request behind
+    // them; the columns are nullable for the same reason.
+    userAgent?: string | null;
+    ipAddress?: string | null;
     event: PlatformSecurityEventInput;
 }
 
@@ -270,6 +350,18 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
         providerCode: PlatformOAuthProviderCode,
         providerSubject: string,
     ): Promise<PlatformOAuthIdentity | null>;
+    listOAuthIdentitiesByAccount(
+        accountId: string,
+    ): Promise<PlatformOAuthLinkRecord[]>;
+    /**
+     * Unlinks one provider, refusing when it is the account's last usable way
+     * to sign in. The check lives inside the delete statement, not in a read
+     * before it: two concurrent unlinks that each read "there is still another
+     * one" would otherwise both commit and lock the account out.
+     */
+    deleteOAuthIdentity(
+        input: DeletePlatformOAuthIdentityInput,
+    ): Promise<DeletePlatformOAuthIdentityResult>;
     createOAuthAccount(
         input: NewPlatformOAuthAccountInput,
     ): Promise<CreatePlatformOAuthAccountResult>;
@@ -311,6 +403,12 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
     findEmailIdentity(
         normalizedEmail: string,
     ): Promise<PlatformEmailIdentity | null>;
+    findEmailCredentialByAccountId(
+        accountId: string,
+    ): Promise<PlatformEmailCredentialRecord | null>;
+    updatePasswordForAccount(
+        input: UpdatePlatformPasswordInput,
+    ): Promise<UpdatePlatformPasswordResult>;
     upgradeEmailCredentialToBcrypt(input: {
         normalizedEmail: string;
         expectedAlgorithm: "pbkdf2-sha256";
@@ -335,6 +433,12 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
     findRefreshSessionByTokenHash(
         tokenHash: string,
     ): Promise<PlatformRefreshSessionRecord | null>;
+    // `activeAt` is the caller's clock, matching deleteExpiredRefreshSessions:
+    // the repository never decides on its own what counts as expired.
+    listRefreshSessionsByAccount(
+        accountId: string,
+        activeAt: number,
+    ): Promise<PlatformRefreshSessionRecord[]>;
     rotateRefreshSession(input: {
         id: string;
         accountTokenVersion: number;
@@ -351,6 +455,9 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
         revokedAt: number;
         event: PlatformSecurityEventInput;
     }): Promise<boolean>;
+    revokeAllRefreshSessionsExcept(
+        input: RevokePlatformRefreshSessionsInput,
+    ): Promise<number>;
     revokeRefreshSessionForReplay(input: {
         id: string;
         accountId: string;

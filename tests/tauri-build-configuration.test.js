@@ -181,3 +181,39 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
     }
   }
 });
+
+// The Swift side writes prepared uploads into the iOS caches root and the Web
+// side reads them back through the fs plugin, so the capability scope and the
+// plugin's directory have to name the same place. They live in different
+// languages and drift silently: a mismatch only shows up on device, as every
+// avatar and namecard pick failing with "forbidden path".
+test("native image capability reads the directory the iOS plugin writes", async () => {
+  const capability = JSON.parse(
+    await readFile(`${webRoot}/src-tauri/capabilities/native-image.json`, "utf8"),
+  );
+  assert.deepEqual(capability.platforms, ["iOS"]);
+  assert.ok(capability.permissions.includes("fs:allow-read-file"));
+
+  const scope = capability.permissions.find(
+    (permission) =>
+      typeof permission === "object" && permission.identifier === "fs:scope",
+  );
+  assert.ok(scope);
+  assert.deepEqual(
+    scope.allow.map(({ path: allowed }) => allowed),
+    ["$CACHE/native-image/**"],
+  );
+
+  // `$CACHE` is the iOS caches root. `$APPCACHE` would add the bundle
+  // identifier as an extra segment that the plugin never creates.
+  const plugin = await readFile(
+    `${webRoot}/src-tauri/plugins/native-image/ios/Sources/NativeImagePlugin.swift`,
+    "utf8",
+  );
+  assert.match(plugin, /urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]/);
+  assert.match(
+    plugin,
+    /base\.appendingPathComponent\("native-image", isDirectory: true\)/,
+  );
+  assert.ok(!plugin.includes("bundleIdentifier"));
+});

@@ -4,7 +4,7 @@ import {
     toAdminNamecardResponse,
     type AdminNamecardListResponse
 } from '@/domains/community/namecards/response';
-import { purgeExpiredNamecardSubmissions } from '@/domains/community/namecards/ttl-purge';
+import { purgeExpiredNamecardSubmissions } from '@/domains/community/fudaba/guest-submissions/ttl-purge';
 import { namecardRepository } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 

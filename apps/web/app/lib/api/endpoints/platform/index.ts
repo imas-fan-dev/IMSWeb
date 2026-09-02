@@ -1,10 +1,16 @@
 import {
-  exchangePath,
   platformApiPath,
   platformAuthOAuthPath,
   platformAuthPath,
 } from "@imsweb/contracts/paths"
 import { successFlagSchema } from "@imsweb/contracts/common"
+import {
+  platformOAuthLinkListResponseSchema,
+  platformOAuthUnlinkResponseSchema,
+  platformPasswordChangeResponseSchema,
+  platformSessionListResponseSchema,
+  platformSessionRevocationResponseSchema,
+} from "@imsweb/contracts/platform/account-security"
 import { passwordResetIssueResponseSchema } from "@imsweb/contracts/platform"
 import { z } from "@imsweb/contracts/z"
 
@@ -21,6 +27,7 @@ import { PLATFORM_CSRF_COOKIE_NAME } from "../../request"
 import { withPlatformAuth, withPlatformCsrf } from "../../types"
 
 import {
+  platformOAuthProviderCodeSchema,
   platformOAuthProvidersResponseSchema,
   platformProfileMutationResponseSchema,
   platformProfileResponseSchema,
@@ -44,6 +51,17 @@ export {
   passwordResetIssueResponseSchema,
 } from "@imsweb/contracts/platform"
 export type * from "@imsweb/contracts/platform"
+
+export {
+  platformSessionDeviceSchema,
+  platformSessionListResponseSchema,
+  platformSessionRevocationResponseSchema,
+  platformOAuthLinkSchema,
+  platformOAuthLinkListResponseSchema,
+  platformOAuthUnlinkResponseSchema,
+  platformPasswordChangeResponseSchema,
+} from "@imsweb/contracts/platform/account-security"
+export type * from "@imsweb/contracts/platform/account-security"
 
 const utf8Encoder = new TextEncoder()
 
@@ -141,6 +159,38 @@ export const platformAvatarUploadSchema = z
   })
   .strict()
 
+export const platformAvatarRemovalSchema = z
+  .object({
+    expectedUpdatedAt: z.number().int().safe().nonnegative(),
+  })
+  .strict()
+
+/**
+ * Mirrors the two different normalizations the API applies. The current
+ * password is only ever compared against a stored digest, so it takes the
+ * lenient login rule: a legacy credential may sit below today's strength floor
+ * and its owner must still be able to replace it. The replacement takes the
+ * registration rule, which is where the 8-character and 72-byte bcrypt limits
+ * live. Sending a request that the server would only reject wastes one of the
+ * account's rate-limit slots.
+ */
+export const platformPasswordChangeInputSchema = z
+  .object({
+    currentPassword: platformLoginPasswordSchema,
+    newPassword: platformPasswordSchema,
+  })
+  .strict()
+
+// Session ids are server-minted and travel as a path segment; the bounds match
+// `parsePlatformSessionId` on the API side.
+export const platformSessionIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what this rejects
+  .refine((value) => !/[\u0000-\u001f\u007f]/.test(value))
+
 export type PlatformLoginInput = z.input<typeof platformLoginInputSchema>
 
 export type PlatformRegisterInput = z.input<typeof platformRegisterInputSchema>
@@ -160,6 +210,10 @@ export type PlatformRegistrationVerificationInput = z.input<
 export type PlatformProfileUpdate = z.input<typeof platformProfileUpdateSchema>
 
 export type PlatformAvatarUpload = z.input<typeof platformAvatarUploadSchema>
+
+export type PlatformPasswordChangeInput = z.input<
+  typeof platformPasswordChangeInputSchema
+>
 
 /**
  * Whether a session restore is worth a network round trip on boot.
@@ -282,11 +336,101 @@ export function uploadPlatformAvatar(input: PlatformAvatarUpload) {
   form.append("image", upload.image)
   form.append("expectedUpdatedAt", String(upload.expectedUpdatedAt))
   return platformApiClient.Put(
-    exchangePath("/uploads/avatar"),
+    platformApiPath("/me/avatar"),
     form,
     parsed(platformProfileMutationResponseSchema, {
       meta: withPlatformCsrf(),
       select: normalizePlatformProfileMutation,
+    })
+  )
+}
+
+export function removePlatformAvatar(expectedUpdatedAt: number) {
+  const submission = platformAvatarRemovalSchema.parse({ expectedUpdatedAt })
+  return platformApiClient.Delete(
+    platformApiPath("/me/avatar"),
+    submission,
+    parsed(platformProfileMutationResponseSchema, {
+      meta: withPlatformCsrf(),
+      select: normalizePlatformProfileMutation,
+    })
+  )
+}
+
+/**
+ * Replace the account password.
+ *
+ * The API runs this inside one transaction that bumps `token_version` (killing
+ * every access token the account has issued) and re-issues the caller's own
+ * pair, so a success means every *other* device was signed out. Callers must
+ * treat `revokedSessionCount` as real state change and refresh anything that
+ * renders the device list. Packaged clients get the rotated tokens in the body;
+ * the platform client's response interceptor stores them, so nothing else here
+ * has to know about bearer mode.
+ */
+export function changePlatformPassword(input: PlatformPasswordChangeInput) {
+  const submission = platformPasswordChangeInputSchema.parse(input)
+  return platformApiClient.Post(
+    platformApiPath("/me/password"),
+    submission,
+    parsed(platformPasswordChangeResponseSchema, {
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+export function getPlatformSessionDevices() {
+  return platformApiClient.Get(
+    platformApiPath("/me/sessions"),
+    parsed(platformSessionListResponseSchema, {
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+export function revokePlatformSessionDevice(sessionId: string) {
+  const id = platformSessionIdSchema.parse(sessionId)
+  return platformApiClient.Delete(
+    platformApiPath(`/me/sessions/${encodeURIComponent(id)}`),
+    undefined,
+    parsed(platformSessionRevocationResponseSchema, {
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/** Sign out every device except the one making the request. */
+export function revokeOtherPlatformSessions() {
+  return platformApiClient.Delete(
+    platformApiPath("/me/sessions"),
+    undefined,
+    parsed(platformSessionRevocationResponseSchema, {
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+export function getPlatformOAuthLinks() {
+  return platformApiClient.Get(
+    platformApiPath("/me/oauth-links"),
+    parsed(platformOAuthLinkListResponseSchema, {
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+/**
+ * Unlink a provider. Whether a given link may be removed is decided by the
+ * server (`PlatformOAuthLink.removable`): the guard also weighs whether the
+ * remaining providers are still `enabled`, which this client cannot see.
+ */
+export function unlinkPlatformOAuthLink(provider: string) {
+  const code = platformOAuthProviderCodeSchema.parse(provider)
+  return platformApiClient.Delete(
+    platformApiPath(`/me/oauth-links/${encodeURIComponent(code)}`),
+    undefined,
+    parsed(platformOAuthUnlinkResponseSchema, {
+      meta: withPlatformCsrf(),
     })
   )
 }

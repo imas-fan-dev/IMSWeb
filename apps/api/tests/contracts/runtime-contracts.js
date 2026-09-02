@@ -975,7 +975,7 @@ async function assertCoreMutationContract(fixture) {
         },
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
-    const namecard = await fixture.request('/api/uploadNameCard', {
+    const namecard = await fixture.request('/api/community/exchange/guest-submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'multipart/form-data; boundary=contract' },
         body: '--contract--'
@@ -983,11 +983,13 @@ async function assertCoreMutationContract(fixture) {
     assertJsonContentType(namecard, `${fixture.runtime} namecard mutation`);
     equal(namecard.status, 200, `${fixture.runtime} namecard mutation status`);
     const namecardBody = await json(namecard, `${fixture.runtime} namecard mutation`);
-    equal(namecardBody.msg, '上传成功，等待审核',
+    equal(namecardBody.success, true,
+        `${fixture.runtime} namecard mutation success`);
+    equal(namecardBody.message, '上传成功，等待审核',
         `${fixture.runtime} namecard mutation message`);
     equal(Number.isSafeInteger(namecardBody.submission?.id), true,
         `${fixture.runtime} namecard submission id`);
-    equal(namecardBody.submission?.status, 'pending',
+    equal(namecardBody.submission?.publicationStatus, 'pending',
         `${fixture.runtime} namecard submission status`);
     equal(namecardBody.submission?.revision, 0,
         `${fixture.runtime} namecard submission revision`);
@@ -1018,7 +1020,7 @@ async function assertCoreMutationContract(fixture) {
         files: { images: [uploadedFile('front.png', 24, 3), uploadedFile('back.png', 24, 4)] }
     });
     await assertJsonResponse(
-        await fixture.request('/api/uploadNameCard', {
+        await fixture.request('/api/community/exchange/guest-submissions', {
             method: 'POST',
             headers: { 'Content-Type': 'multipart/form-data; boundary=contract' },
             body: '--contract--'
@@ -1173,14 +1175,18 @@ async function assertPostCommitMediaContract(fixture) {
                 }
             });
             await assertPrivateServerError(
-                await post('/api/uploadNameCard', false), { msg: '服务器错误' },
+                await post('/api/community/exchange/guest-submissions', false), { msg: '服务器错误' },
                 'unmarked object put failure'
             );
         });
     } finally {
         fixture.failObjectPuts(false);
     }
-    assertLoggedErrors(putFailureLogs, ['Failed to upload namecard'], 'object put failure');
+    assertLoggedErrors(
+        putFailureLogs,
+        ['Failed to upload Fudaba guest submission'],
+        'object put failure'
+    );
     deepEqual(await fixture.postCommitSnapshot(), before,
         `${fixture.runtime} object put failure leaves no staged objects or rows`);
 
@@ -1265,16 +1271,16 @@ async function assertPostCommitMediaContract(fixture) {
             ]
         }
     });
-    const committedNamecard = await post('/api/uploadNameCard', false);
+    const committedNamecard = await post('/api/community/exchange/guest-submissions', false);
     equal(committedNamecard.status, 200,
         `${fixture.runtime} namecard setup for committed deletion status`);
     const committedNamecardBody = await json(
         committedNamecard,
         `${fixture.runtime} namecard setup for committed deletion`
     );
-    equal(committedNamecardBody.msg, '上传成功，等待审核',
+    equal(committedNamecardBody.message, '上传成功，等待审核',
         `${fixture.runtime} namecard setup message`);
-    equal(committedNamecardBody.submission?.status, 'pending',
+    equal(committedNamecardBody.submission?.publicationStatus, 'pending',
         `${fixture.runtime} namecard setup status`);
     const committedNamecardRevision = committedNamecardBody.submission?.revision;
     equal(Number.isSafeInteger(committedNamecardRevision), true,
@@ -1395,12 +1401,12 @@ async function assertRouteUploadBoundaryContract(fixture) {
     }, files: {
         images: [uploadedFile('front.png', 3 * MiB, 11), uploadedFile('back.png', 3 * MiB, 12)]
     } });
-    const exactNamecard = await post('/api/uploadNameCard');
+    const exactNamecard = await post('/api/community/exchange/guest-submissions');
     equal(exactNamecard.status, 200, `${fixture.runtime} namecard exact boundary status`);
     const exactNamecardBody = await json(exactNamecard, `${fixture.runtime} namecard exact boundary`);
-    equal(exactNamecardBody.msg, '上传成功，等待审核',
+    equal(exactNamecardBody.message, '上传成功，等待审核',
         `${fixture.runtime} namecard exact boundary message`);
-    equal(exactNamecardBody.submission?.status, 'pending',
+    equal(exactNamecardBody.submission?.publicationStatus, 'pending',
         `${fixture.runtime} namecard exact boundary submission status`);
     equal(/^[a-f0-9]{64}$/.test(exactNamecardBody.withdrawalToken), true,
         `${fixture.runtime} namecard exact boundary withdrawal token`);
@@ -1416,7 +1422,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
         images: [uploadedFile('front-too-large.png', 3 * MiB + 1, 13), uploadedFile('back.png', 1, 14)]
     } });
     await assertJsonResponse(
-        await post('/api/uploadNameCard'), 400, { msg: '文件过大' },
+        await post('/api/community/exchange/guest-submissions'), 400, { msg: '文件过大' },
         `${fixture.runtime} namecard boundary plus one`
     );
     deepEqual(await fixture.uploadSnapshot(), before, `${fixture.runtime} rejected namecard leaves no residue`);
@@ -1428,7 +1434,7 @@ async function assertRouteUploadBoundaryContract(fixture) {
         images: [uploadedFile('one.png', 1, 15), uploadedFile('two.png', 1, 16), uploadedFile('three.png', 1, 17)]
     } });
     await assertJsonResponse(
-        await post('/api/uploadNameCard'), 400, { msg: '必须上传2张图片' },
+        await post('/api/community/exchange/guest-submissions'), 400, { msg: '必须上传2张图片' },
         `${fixture.runtime} namecard excess file count`
     );
     deepEqual(await fixture.uploadSnapshot(), before, `${fixture.runtime} excess namecard leaves no residue`);

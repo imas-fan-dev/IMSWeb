@@ -106,13 +106,10 @@ const expectedRouteHandlers: Record<string, readonly string[]> = {
         'handleApproveNamecard',
         'handleDeleteNamecard',
         'handleGetNamecard',
-        'handleGetNamecardSubmission',
         'handleListAdminNamecards',
         'handleListNamecards',
         'handleListReactions',
-        'handleRejectNamecard',
-        'handleUploadNamecard',
-        'handleWithdrawNamecardSubmission'
+        'handleRejectNamecard'
     ],
     news: [
         'handleCreateNews',
@@ -452,14 +449,22 @@ test('route handler inventory remains explicit and complete for all 17 domains',
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([domain, handlers]) => [domain, [...handlers].sort()]));
     assert.deepEqual(actual, expected);
-    assert.equal(Object.values(actual).flat().length, 127);
+    assert.equal(Object.values(actual).flat().length, 124);
 });
 
 test('capability domains compose named capabilities from their root routes', () => {
     const mountedCapabilities = {
         'platform-auth': ['oauth', 'password-reset', 'registration', 'sessions'],
-        fudaba: ['cards', 'claims', 'directory', 'locations', 'moderation', 'offices'],
-        namecards: ['moderation', 'public-cards', 'reactions', 'submissions']
+        fudaba: [
+            'cards',
+            'claims',
+            'directory',
+            'guest-submissions',
+            'locations',
+            'moderation',
+            'offices'
+        ],
+        namecards: ['moderation', 'public-cards', 'reactions']
     } as const;
     const composedCapabilities = {
         wiki: ['catalog', 'media', 'stories']
