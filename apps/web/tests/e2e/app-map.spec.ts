@@ -20,12 +20,9 @@ async function installMapMocks(page: import("@playwright/test").Page) {
       json: { styleUrl: "/maps/exchange-test-style.json" },
     })
   })
-  await page.route(
-    "**/api/community/exchange/map/offices?*",
-    async (route) => {
-      await route.fulfill({ json: { items: [], truncated: false } })
-    }
-  )
+  await page.route("**/api/community/exchange/map/offices?*", async (route) => {
+    await route.fulfill({ json: { items: [], truncated: false } })
+  })
 }
 
 async function applySafeArea(page: import("@playwright/test").Page) {
@@ -76,9 +73,7 @@ test("renders the exchange map behind non-overlapping local and global controls"
     globalNavigation.getByRole("link", { name: "地图" })
   ).toHaveAttribute("aria-current", "page")
 
-  const toolTrigger = page.locator(
-    'button[aria-controls="exchange-map-tools"]'
-  )
+  const toolTrigger = page.locator('button[aria-controls="exchange-map-tools"]')
   await expect(toolTrigger).toHaveAccessibleName("展开地图工具")
   await expect(toolTrigger).toBeVisible()
   await toolTrigger.click()

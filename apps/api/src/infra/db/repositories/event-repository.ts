@@ -88,7 +88,9 @@ export class SqlEventRepository implements EventRepository {
         const row = await queryOne<{ total: number }>(
             this.database,
             `SELECT CAST(COUNT(*) AS INTEGER) AS total
-             FROM events WHERE publication_state='ready'`,
+             FROM events e LEFT JOIN articles a ON a.id=e.article_id
+             WHERE e.publication_state='ready'
+               AND (e.article_id IS NULL OR a.status='published')`,
         );
         return row?.total ?? 0;
     }
@@ -99,9 +101,19 @@ export class SqlEventRepository implements EventRepository {
     ): Promise<Record<string, unknown>[]> {
         return queryAll(
             this.database,
-            `SELECT id, title, name, contact, image_url, created_at
-             FROM events WHERE publication_state='ready'
-             ORDER BY id DESC LIMIT ? OFFSET ?`,
+            `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
+                    COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
+                    e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
+                    e.start_at, e.end_at, e.venue_name, e.event_status,
+                    jsonb_build_object(
+                        'focalX', COALESCE(a.cover_focal_x, 0.5),
+                        'focalY', COALESCE(a.cover_focal_y, 0.5),
+                        'zoom', COALESCE(a.cover_zoom, 1)
+                    ) AS cover_transform
+             FROM events e LEFT JOIN articles a ON a.id=e.article_id
+             WHERE e.publication_state='ready'
+               AND (e.article_id IS NULL OR a.status='published')
+             ORDER BY e.id DESC LIMIT ? OFFSET ?`,
             [limit, offset],
         );
     }
@@ -109,8 +121,10 @@ export class SqlEventRepository implements EventRepository {
     async findLatestEventId(): Promise<string | null> {
         const row = await queryOne<{ id: string | null }>(
             this.database,
-            `SELECT CAST(MAX(id) AS TEXT) AS id
-             FROM events WHERE publication_state='ready'`,
+            `SELECT CAST(MAX(e.id) AS TEXT) AS id
+             FROM events e LEFT JOIN articles a ON a.id=e.article_id
+             WHERE e.publication_state='ready'
+               AND (e.article_id IS NULL OR a.status='published')`,
         );
         return row?.id ?? null;
     }
@@ -123,17 +137,37 @@ export class SqlEventRepository implements EventRepository {
         if (afterId) {
             return queryAll(
                 this.database,
-                `SELECT id, title, name, contact, image_url, created_at FROM events
-                 WHERE publication_state='ready' AND id<=? AND id<?
-                 ORDER BY id DESC LIMIT ?`,
+                `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
+                        COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
+                        e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
+                        e.start_at, e.end_at, e.venue_name, e.event_status,
+                        jsonb_build_object(
+                            'focalX', COALESCE(a.cover_focal_x, 0.5),
+                            'focalY', COALESCE(a.cover_focal_y, 0.5),
+                            'zoom', COALESCE(a.cover_zoom, 1)
+                        ) AS cover_transform
+                 FROM events e LEFT JOIN articles a ON a.id=e.article_id
+                 WHERE e.publication_state='ready' AND e.id<=? AND e.id<?
+                   AND (e.article_id IS NULL OR a.status='published')
+                 ORDER BY e.id DESC LIMIT ?`,
                 [snapshotId, afterId, limit],
             );
         }
         return queryAll(
             this.database,
-            `SELECT id, title, name, contact, image_url, created_at FROM events
-             WHERE publication_state='ready' AND id<=?
-             ORDER BY id DESC LIMIT ?`,
+            `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
+                    COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
+                    e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
+                    e.start_at, e.end_at, e.venue_name, e.event_status,
+                    jsonb_build_object(
+                        'focalX', COALESCE(a.cover_focal_x, 0.5),
+                        'focalY', COALESCE(a.cover_focal_y, 0.5),
+                        'zoom', COALESCE(a.cover_zoom, 1)
+                    ) AS cover_transform
+             FROM events e LEFT JOIN articles a ON a.id=e.article_id
+             WHERE e.publication_state='ready' AND e.id<=?
+               AND (e.article_id IS NULL OR a.status='published')
+             ORDER BY e.id DESC LIMIT ?`,
             [snapshotId, limit],
         );
     }
@@ -141,8 +175,16 @@ export class SqlEventRepository implements EventRepository {
     findEvent(id: number): Promise<Record<string, unknown> | null> {
         return queryOne(
             this.database,
-            `SELECT id, title, name, contact, image_url, created_at FROM events
-             WHERE id=? AND publication_state='ready'`,
+            `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
+                    COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
+                    jsonb_build_object(
+                        'focalX', COALESCE(a.cover_focal_x, 0.5),
+                        'focalY', COALESCE(a.cover_focal_y, 0.5),
+                        'zoom', COALESCE(a.cover_zoom, 1)
+                    ) AS cover_transform
+             FROM events e LEFT JOIN articles a ON a.id=e.article_id
+             WHERE e.id=? AND e.publication_state='ready'
+               AND (e.article_id IS NULL OR a.status='published')`,
             [id],
         );
     }

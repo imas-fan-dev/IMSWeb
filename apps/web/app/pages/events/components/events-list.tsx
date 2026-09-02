@@ -5,7 +5,7 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 
-import { CoverImagePreview } from "~/components/shared/cover-image-preview"
+import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { EventListItem } from "~/lib/api"
 import { NavigationLink } from "~/components/navigation/navigation-link"
@@ -56,58 +56,76 @@ export function EventRow({ event }: { event: EventListItem }) {
   const href = contactUrl(event.contact)
 
   return (
-    <article className="grid min-h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-4 border-b py-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
-      <div className="flex aspect-4/3 w-full items-center justify-center self-start overflow-hidden rounded-md bg-info/12 text-info">
-        {imageUrl ? (
-          <CoverImagePreview
-            src={imageUrl}
-            alt={`${event.title}封面`}
-            className="size-full"
+    <NavigationLink
+      href={`/events/${encodeURIComponent(event.id)}`}
+      className="group block rounded-lg focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      <article className="relative grid gap-4 border-b px-4 py-6 transition-colors duration-200 group-hover:bg-muted/30 group-active:bg-muted/45 sm:grid-cols-[10.5rem_minmax(0,1fr)] sm:gap-5 sm:px-5">
+        <span
+          className="absolute inset-y-5 left-0 w-px bg-border transition-colors duration-200 group-hover:bg-primary"
+          aria-hidden="true"
+        />
+        <div className="relative flex aspect-4/3 w-full items-center justify-center self-center overflow-hidden rounded-md border bg-muted/55 text-muted-foreground shadow-xs">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={`${event.title}封面`}
+              loading="lazy"
+              className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+              style={editorialCoverStyle(event.cover_transform)}
+            />
+          ) : (
+            <ImageIcon aria-hidden="true" className="size-6" />
+          )}
+          <span
+            className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-linear-to-b from-black/20 to-transparent"
+            aria-hidden="true"
           />
-        ) : (
-          <ImageIcon aria-hidden="true" className="size-6" />
-        )}
-      </div>
-
-      <div className="min-w-0 py-0.5">
-        <p className="text-xs font-medium text-primary">活动 #{event.id}</p>
-        <h2 className="mt-1.5 text-base/6 font-semibold whitespace-pre-line sm:text-lg/7">
-          {event.title}
-        </h2>
-        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <UserRoundIcon aria-hidden="true" className="size-3.5" />
-            {event.name || "发布者未署名"}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarDaysIcon aria-hidden="true" className="size-3.5" />
-            {formatDate(event.created_at)}
+          <span className="pointer-events-none absolute top-2 left-2 rounded-md bg-background/88 px-2 py-1 text-xs font-medium text-foreground opacity-0 shadow-sm backdrop-blur-sm transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+            {event.kind === "event" ? "具体活动" : "社区动态"}
           </span>
         </div>
-        {event.contact ? (
-          <div className="mt-2 flex min-w-0 items-start gap-1.5 text-sm text-muted-foreground">
-            <ContactRoundIcon
-              aria-hidden="true"
-              className="mt-0.5 size-3.5 shrink-0"
-            />
-            {href ? (
-              <NavigationLink
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                className="min-w-0 break-all text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+
+        <div className="flex min-w-0 flex-col py-0.5">
+          <h2 className="text-base/6 font-semibold whitespace-pre-line sm:text-lg/7">
+            {event.title}
+          </h2>
+          {event.summary ? (
+            <p className="mt-2 line-clamp-2 text-sm/6 text-muted-foreground">
+              {event.summary}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-border/70 pt-3 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <UserRoundIcon aria-hidden="true" className="size-3.5" />
+              {event.name || "发布者未署名"}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarDaysIcon aria-hidden="true" className="size-3.5" />
+              {formatDate(event.created_at)}
+            </span>
+          </div>
+          {event.contact ? (
+            <div className="mt-2 flex min-w-0 items-start gap-1.5 text-sm text-muted-foreground">
+              <ContactRoundIcon
+                aria-hidden="true"
+                className="mt-0.5 size-3.5 shrink-0"
+              />
+              {/* 整行已经是通往详情页的链接，联系方式不能再嵌一个 a。 */}
+              <span
+                className={
+                  href
+                    ? "min-w-0 break-all text-primary"
+                    : "min-w-0 wrap-anywhere whitespace-pre-line"
+                }
               >
                 {event.contact}
-              </NavigationLink>
-            ) : (
-              <span className="min-w-0 wrap-anywhere whitespace-pre-line">
-                {event.contact}
               </span>
-            )}
-          </div>
-        ) : null}
-      </div>
-    </article>
+            </div>
+          ) : null}
+        </div>
+      </article>
+    </NavigationLink>
   )
 }
 

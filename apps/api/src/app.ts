@@ -28,6 +28,7 @@ import { registerAboutRoutes } from "@/domains/content/about/routes";
 import { registerBackofficeAuthRoutes } from "@/domains/admin/backoffice-auth/routes";
 import { registerBrandAssetRoutes } from "@/domains/content/brand-assets/routes";
 import { registerChronicleRoutes } from "@/domains/content/chronicle/routes";
+import { registerEditorialRoutes } from "@/domains/content/editorial/routes";
 import { registerEventRoutes } from "@/domains/content/events/routes";
 import { registerFudabaRoutes } from "@/domains/community/fudaba/routes";
 import { registerInformationRoutes } from "@/domains/content/information/routes";
@@ -239,6 +240,7 @@ export function createHonoApp<
     registerNamecardRoutes(app);
     registerEventRoutes(app);
     registerFudabaRoutes(app);
+    registerEditorialRoutes(app);
     registerNewsRoutes(app);
     registerHomepageLinkRoutes(app);
     registerInformationRoutes(app);

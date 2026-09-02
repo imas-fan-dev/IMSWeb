@@ -9,6 +9,7 @@ import type {
     AuditRepository,
     BackofficeAuthRepository,
     EventRepository,
+    EditorialRepository,
     FudabaRepository,
     HomepageLinkRepository,
     NamecardRepository,
@@ -68,6 +69,7 @@ import { SqlAdminAccountRepository } from "@/infra/db/repositories/admin-account
 import { SqlAuditRepository } from "@/infra/db/repositories/audit-repository";
 import { SqlBackofficeAuthRepository } from "@/infra/db/repositories/backoffice-auth-repository";
 import { SqlCoreRepository } from "@/infra/db/repositories/core-repository";
+import { SqlEditorialRepository } from "@/infra/db/repositories/editorial-repository";
 import { SqlEventRepository } from "@/infra/db/repositories/event-repository";
 import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
 import { SqlHomepageLinkRepository } from "@/infra/db/repositories/homepage-link-repository";
@@ -126,6 +128,7 @@ interface NodeRepositories {
     audit: AuditRepository;
     news: NewsRepository;
     events: EventRepository;
+    editorial: EditorialRepository;
     reactions: ReactionRepository;
     homepageLinks: HomepageLinkRepository;
     sitePackages: SitePackageRepository;
@@ -184,6 +187,7 @@ function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
         audit: new SqlAuditRepository(database),
         news: new SqlNewsRepository(database),
         events: new SqlEventRepository(database),
+        editorial: new SqlEditorialRepository(database),
         reactions: new SqlReactionRepository(database),
         homepageLinks: new SqlHomepageLinkRepository(database),
         sitePackages: new SqlSitePackageRepository(database),
@@ -389,6 +393,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         audit,
         news,
         events,
+        editorial,
         reactions,
         homepageLinks,
         sitePackages,
@@ -430,6 +435,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             audit,
             news,
             events,
+            editorial,
             namecards: core,
             reactions,
             homepageLinks,

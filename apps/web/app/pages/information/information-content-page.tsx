@@ -1,11 +1,15 @@
 import { useRequest } from "alova/client"
 import { ArrowLeftIcon, CalendarDaysIcon, LoaderCircleIcon } from "lucide-react"
-import { useParams } from "react-router"
+import { Navigate, useParams } from "react-router"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { getHomeInformationDetail, isApiError } from "~/lib/api"
+import {
+  getHomeInformationDetail,
+  getLegacyInformationPost,
+  isApiError,
+} from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { InformationDocumentFrame } from "~/pages/information/components/information-document-frame"
 
@@ -20,8 +24,21 @@ export default function InformationContent() {
     { immediate: Boolean(contentId) }
   )
   onError(() => undefined)
+  const {
+    data: legacyTarget,
+    loading: resolvingLegacyTarget,
+    onError: onLegacyTargetError,
+  } = useRequest(getLegacyInformationPost(contentId), {
+    immediate: Boolean(contentId),
+    initialData: { postId: null },
+  })
+  onLegacyTargetError(() => undefined)
 
-  if (loading) {
+  if (legacyTarget.postId) {
+    return <Navigate to={`/events/${legacyTarget.postId}`} replace />
+  }
+
+  if (loading || resolvingLegacyTarget) {
     return (
       <PageShell
         width="read"

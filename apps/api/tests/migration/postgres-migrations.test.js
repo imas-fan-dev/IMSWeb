@@ -117,7 +117,15 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
                 phase: 'post-data'
             },
             {
+                version: '20260818101253_editorial_content_cms',
+                phase: 'post-data'
+            },
+            {
                 version: '20260819000000_namecard_unification_foundation',
+                phase: 'post-data'
+            },
+            {
+                version: '20260819090000_community_posts_unification',
                 phase: 'post-data'
             },
             {
@@ -126,6 +134,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             },
             {
                 version: '20260821000000_namecard_reaction_reconciliation',
+                phase: 'post-data'
+            },
+            {
+                version: '20260822100000_editorial_presentation',
                 phase: 'post-data'
             },
             {
@@ -569,6 +581,26 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
         namecardOwnership.sql,
         /FOREIGN KEY \(legacy_card_id\) REFERENCES public\.cards\(id\) ON DELETE RESTRICT/
     );
+    const editorialContent = migrations.find(
+        ({ version }) => version === '20260818101253_editorial_content_cms'
+    );
+    assert.match(editorialContent.sql, /CREATE TABLE public\.articles/);
+    assert.match(editorialContent.sql, /CREATE TABLE public\.article_assets/);
+    assert.match(editorialContent.sql, /CREATE TABLE public\.chronicle_entries/);
+    assert.match(editorialContent.sql, /ALTER TABLE public\.events/);
+    assert.match(editorialContent.sql, /INSERT INTO public\.articles/);
+    const communityPosts = migrations.find(
+        ({ version }) => version === '20260819090000_community_posts_unification'
+    );
+    assert.match(communityPosts.sql, /ADD COLUMN source_url TEXT/);
+    assert.match(communityPosts.sql, /CREATE TABLE public\.homepage_spotlight_entries/);
+    assert.match(communityPosts.sql, /ON DELETE CASCADE/);
+    const editorialPresentation = migrations.find(
+        ({ version }) => version === '20260822100000_editorial_presentation'
+    );
+    assert.match(editorialPresentation.sql, /ADD COLUMN cover_focal_x DOUBLE PRECISION/);
+    assert.match(editorialPresentation.sql, /ADD COLUMN related_links JSONB/);
+    assert.match(editorialPresentation.sql, /registration_url/);
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -592,7 +624,7 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 43);
+    assert.equal(catalog.count, 46);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
@@ -691,9 +723,12 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260816193000_namecard_ownership_foundation',
         '20260818000000_platform_password_reset',
         '20260818010000_platform_oauth_configuration',
+        '20260818101253_editorial_content_cms',
         '20260819000000_namecard_unification_foundation',
+        '20260819090000_community_posts_unification',
         '20260820000000_namecard_guest_profile',
         '20260821000000_namecard_reaction_reconciliation',
+        '20260822100000_editorial_presentation',
         '20260826130000_namecard_legacy_tables_read_only',
         '20260901140000_dynamic_platform_oauth_providers',
         '20260902120000_platform_session_devices'

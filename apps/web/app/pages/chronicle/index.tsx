@@ -1,50 +1,73 @@
 import { useRequest } from "alova/client"
-import {
-  ArrowRightIcon,
-  CalendarDaysIcon,
-  HistoryIcon,
-  MapPinIcon,
-} from "lucide-react"
+import { HistoryIcon, MapPinIcon } from "lucide-react"
+import { useState } from "react"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "~/components/ui/empty"
+import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
-import { getChronicleActivities } from "~/lib/api"
+import { getEditorialChroniclePage, type EditorialArticle } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
-import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [{ title: "活动编年史 | IMSWeb" }]
 }
 
-function ChronicleLoading() {
-  return (
-    <div className="grid gap-4 md:grid-cols-2" aria-label="正在加载活动编年史">
-      {Array.from({ length: 4 }, (_, index) => (
-        <Skeleton key={index} className="h-48 rounded-xl" />
-      ))}
-    </div>
-  )
+interface ChroniclePage {
+  items: EditorialArticle[]
+  pageInfo: { hasNextPage: boolean; nextCursor: string | null }
+}
+
+const EMPTY_PAGE: ChroniclePage = {
+  items: [],
+  pageInfo: { hasNextPage: false, nextCursor: null },
+}
+
+const LANES = [
+  ["official", "官方记录"],
+  ["community", "民间记录"],
+] as const
+
+function formatDate(item: EditorialArticle) {
+  const value = item.occurred_on
+  if (!value) return "日期待补充"
+  if (item.date_precision === "year") return value.slice(0, 4)
+  if (item.date_precision === "month") return value.slice(0, 7)
+  return value
 }
 
 export default function ChronicleIndexPage() {
-  const { data, loading, error, onError } = useRequest(getChronicleActivities())
+  const { data, loading, error, onError } = useRequest(
+    getEditorialChroniclePage(),
+    { initialData: EMPTY_PAGE }
+  )
   onError(() => undefined)
+  const [loadedPage, setLoadedPage] = useState<ChroniclePage | null>(null)
+  const page = loadedPage ?? data ?? EMPTY_PAGE
+  const items = page.items
+  // 时间轴从左到右由远及近，接口按倒序返回，这里翻回来再分泳道。
+  const older = items.slice().reverse()
+  const lanes = {
+    official: older.filter((item) => item.source_type === "official"),
+    community: older.filter((item) => item.source_type === "community"),
+  }
+
+  async function loadEarlier() {
+    if (!page.pageInfo.nextCursor) return
+    const next = await getEditorialChroniclePage(
+      24,
+      page.pageInfo.nextCursor
+    ).send()
+    const merged = [
+      ...items,
+      ...next.items.filter(
+        (item) =>
+          !items.some((current) => current.article_id === item.article_id)
+      ),
+    ]
+    setLoadedPage({ items: merged, pageInfo: next.pageInfo })
+  }
 
   return (
     <PageShell width="wide">
@@ -70,93 +93,80 @@ export default function ChronicleIndexPage() {
               : "mt-4 text-base/7 text-muted-foreground"
           }
         >
-          由制作人共同整理的线下活动记录。进入活动页面可以浏览已审核照片，
-          也可以提交你保存的现场影像。
+          从左到右回看圈内发生过的官方与同好活动，时间轴节点进入完整记录。
         </p>
       </div>
 
-      <section
-        className={IS_APP_TARGET ? "mt-6" : "mt-10"}
-        aria-label="活动列表"
-      >
-        {loading ? <ChronicleLoading /> : null}
+      {loading ? (
+        <div className="mt-10 grid gap-4 sm:grid-cols-2">
+          <Skeleton className="h-40" />
+          <Skeleton className="h-40" />
+        </div>
+      ) : null}
 
-        {error ? (
-          <Alert variant="destructive">
-            <HistoryIcon aria-hidden="true" />
-            <AlertTitle>暂时无法读取编年史</AlertTitle>
-            <AlertDescription>请稍后刷新页面重试。</AlertDescription>
-          </Alert>
-        ) : null}
+      {error ? (
+        <Alert className="mt-10" variant="destructive">
+          <HistoryIcon />
+          <AlertTitle>暂时无法读取编年史</AlertTitle>
+          <AlertDescription>请稍后刷新页面重试。</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {!loading && !error && data?.length === 0 ? (
-          <Empty className="min-h-64 border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <HistoryIcon aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>尚无公开活动记录</EmptyTitle>
-              <EmptyDescription>
-                活动资料完成整理和审核后会显示在这里。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : null}
-
-        {!loading && !error && data?.length ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {data.map((activity) => (
-              <NavigationLink
-                key={activity.id}
-                to={`/chronicle/${encodeURIComponent(activity.id)}`}
-                className="group rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      {!loading && !error ? (
+        <section
+          className="mt-10 overflow-x-auto rounded-xl border bg-muted/10 p-4"
+          aria-label="官方与民间活动时间轴"
+        >
+          <div className="min-w-200 space-y-8">
+            {LANES.map(([lane, label]) => (
+              <div
+                key={lane}
+                className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4"
               >
-                <Card className="h-full transition-[box-shadow,transform] group-hover:-translate-y-0.5 group-hover:shadow-md">
-                  {activity.cover ? (
-                    <img
-                      src={activity.cover}
-                      alt=""
-                      className="aspect-16/7 w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : null}
-                  <CardHeader className="min-w-0">
-                    <CardTitle className="wrap-anywhere">
-                      {activity.title}
-                    </CardTitle>
-                    <CardDescription className="wrap-anywhere">
-                      活动编号 {activity.id}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid min-w-0 gap-2 text-sm text-muted-foreground">
-                    <span className="inline-flex min-w-0 items-center gap-2 wrap-anywhere">
-                      <CalendarDaysIcon
-                        className="size-4 shrink-0"
-                        aria-hidden="true"
-                      />
-                      {activity.date}
-                    </span>
-                    <span className="inline-flex min-w-0 items-center gap-2 wrap-anywhere">
-                      <MapPinIcon
-                        className="size-4 shrink-0"
-                        aria-hidden="true"
-                      />
-                      {activity.location}
-                    </span>
-                  </CardContent>
-                  <CardFooter className="mt-auto justify-between">
-                    查看活动记录
-                    <ArrowRightIcon
-                      className="size-4 transition-transform group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </CardFooter>
-                </Card>
-              </NavigationLink>
+                <div className="pt-5 text-sm font-semibold text-muted-foreground">
+                  {label}
+                </div>
+                <div className="relative grid min-h-36 auto-cols-[15rem] grid-flow-col gap-4 border-t pt-5">
+                  {lanes[lane].map((item) => (
+                    <NavigationLink
+                      key={item.article_id}
+                      href={`/chronicle/${item.article_id}`}
+                      className="group rounded-lg border bg-background p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <span className="text-xs text-primary">
+                        {formatDate(item)}
+                      </span>
+                      <h2 className="mt-2 line-clamp-2 font-semibold wrap-anywhere">
+                        {item.title}
+                      </h2>
+                      {item.location ? (
+                        <span className="mt-3 flex items-center gap-1 text-xs wrap-anywhere text-muted-foreground">
+                          <MapPinIcon className="size-3" />
+                          {item.location}
+                        </span>
+                      ) : null}
+                    </NavigationLink>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
+
+      {!loading && !error && !items.length ? (
+        <div className="mt-10 flex min-h-48 items-center justify-center border text-muted-foreground">
+          尚无公开活动记录
+        </div>
+      ) : null}
+
+      {page.pageInfo.hasNextPage ? (
+        <div className="mt-5 flex justify-center">
+          <Button variant="outline" onClick={() => void loadEarlier()}>
+            加载更早记录
+          </Button>
+        </div>
+      ) : null}
     </PageShell>
   )
 }

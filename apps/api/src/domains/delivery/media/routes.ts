@@ -22,6 +22,7 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
         publicUploadsPath('/about/member-avatars/:filename'),
         publicUploadsPath('/information/:filename'),
         publicUploadsPath('/information/original/:filename'),
+        publicUploadsPath('/articles/:articleId/:filename'),
         publicUploadsPath('/producer-map/:filename')
     ]) {
         app.get(route, handleServePublicUpload);

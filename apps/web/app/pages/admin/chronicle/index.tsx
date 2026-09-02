@@ -283,6 +283,13 @@ export default function AdminChronicle() {
         eyebrow="CHRONICLE REVIEW"
         title="活动纪年审核"
         description="审核活动纪年投稿与图片素材。"
+        actions={
+          <NavigationLink href="/admin/chronicle/new">
+            <Button type="button" variant="outline">
+              新建编年史文章
+            </Button>
+          </NavigationLink>
+        }
       />
 
       <AdminPanel

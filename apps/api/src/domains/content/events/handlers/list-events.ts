@@ -10,7 +10,7 @@ import type {
     EventLegacyPageResponse,
     EventResponse
 } from '@/domains/content/events/response';
-import { toEventResponse } from '@/domains/content/events/response';
+import { toEventListResponse } from '@/domains/content/events/response';
 import { eventRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { resolvePublicMediaFields } from '@/utils/storage/public-object-url';
@@ -23,7 +23,7 @@ async function publicEventRows(
     const resolved = storage
         ? Promise.all(rows.map((row) => resolvePublicMediaFields(storage, row, ['image_url'])))
         : Promise.resolve(rows);
-    return (await resolved).map(toEventResponse);
+    return (await resolved).map(toEventListResponse);
 }
 
 async function listCursorEvents(

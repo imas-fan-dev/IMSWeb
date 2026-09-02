@@ -66,13 +66,13 @@ export function HomeFeed() {
                 aria-hidden="true"
               />
               <h3 id="events-heading" className="font-semibold">
-                国内活动
+                社区动态
               </h3>
               <NavigationLink
                 href="/events"
                 className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
-                查看全部活动
+                查看全部动态
                 <ArrowRightIcon aria-hidden="true" className="size-4" />
               </NavigationLink>
             </div>

@@ -23,6 +23,7 @@ export default function PublicLayout() {
   const isModernStory =
     normalizedPathname === "/story" || normalizedPathname === "/story/modern"
   const isNamecardWall = Boolean(useMatch("/community/cards"))
+  const isEventDetailPage = Boolean(useMatch("/events/:eventId"))
 
   return (
     <PlatformSessionProvider>
@@ -59,7 +60,10 @@ export default function PublicLayout() {
               <BackToTop
                 className={cn("static", isWikiCatalog && "max-md:hidden")}
               />
-              <AdminReturnShortcut className="static" />
+              {/* 文章详情页自带后台入口，不再叠一个悬浮按钮。 */}
+              {isEventDetailPage ? null : (
+                <AdminReturnShortcut className="static" />
+              )}
             </div>
           </>
         )}

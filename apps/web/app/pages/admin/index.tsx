@@ -51,12 +51,12 @@ const workspaces = [
     scope: ["地图地区", "社群条目", "联络入口"],
   },
   {
-    title: "活动内容",
-    description: "外链、站内 HTML 与托管图片",
-    to: "/admin/information",
+    title: "社区帖子",
+    description: "社区动态、站内正文与首页精选",
+    to: "/admin/events",
     icon: CalendarDaysIcon,
     accent: "bg-franchise-cg",
-    scope: ["外部链接", "站内 HTML", "图片托管"],
+    scope: ["富文本", "原页面链接", "首页精选"],
   },
   {
     title: "向您推荐",

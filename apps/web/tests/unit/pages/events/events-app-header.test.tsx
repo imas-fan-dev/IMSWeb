@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
 
 import { EventsCenter } from "~/pages/events/index"
@@ -55,22 +56,30 @@ function touchEvent(type: "touchstart" | "touchmove" | "touchend", y: number) {
   return event
 }
 
+function renderEventsCenter() {
+  return render(
+    <MemoryRouter>
+      <EventsCenter />
+    </MemoryRouter>
+  )
+}
+
 describe("EventsCenter in the App target", () => {
   it("drops the page header in favour of the title bar", () => {
-    render(<EventsCenter />)
+    renderEventsCenter()
 
     expect(
       screen.queryByRole("heading", { name: "近期活动" })
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole("button", { name: "刷新活动列表" })
+      screen.queryByRole("button", { name: "刷新社区动态列表" })
     ).not.toBeInTheDocument()
     expect(screen.queryByText("已加载 1 条")).not.toBeInTheDocument()
     expect(screen.queryByText("EVENTS")).not.toBeInTheDocument()
 
     // The visible title is gone, not the accessible one.
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "活动中心"
+      "社区动态"
     )
   })
 
@@ -82,7 +91,7 @@ describe("EventsCenter in the App target", () => {
           settleRefresh = resolve
         })
     )
-    render(<EventsCenter />)
+    renderEventsCenter()
 
     act(() => {
       window.dispatchEvent(touchEvent("touchstart", 0))
@@ -113,7 +122,7 @@ describe("EventsCenter in the App target", () => {
   })
 
   it("docks the indicator inside the band so the header cannot cover it", () => {
-    render(<EventsCenter />)
+    renderEventsCenter()
 
     act(() => {
       window.dispatchEvent(touchEvent("touchstart", 0))
@@ -145,7 +154,7 @@ describe("EventsCenter in the App target", () => {
 
   it("ignores a pull that stops short of the threshold", () => {
     feed.refresh.mockReset()
-    render(<EventsCenter />)
+    renderEventsCenter()
 
     act(() => {
       window.dispatchEvent(touchEvent("touchstart", 0))

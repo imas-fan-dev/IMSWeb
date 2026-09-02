@@ -174,6 +174,7 @@ const databaseLayout = new Map([
             "audit-repository.ts",
             "backoffice-auth-repository.ts",
             "core-repository.ts",
+            "editorial-repository.ts",
             "event-repository.ts",
             "fudaba-repository.ts",
             "homepage-link-repository.ts",
@@ -210,6 +211,10 @@ const singleCapabilityRepositories = new Map([
     [
         "backoffice-auth-repository.ts",
         ["SqlBackofficeAuthRepository", "BackofficeAuthRepository", "admin"],
+    ],
+    [
+        "editorial-repository.ts",
+        ["SqlEditorialRepository", "EditorialRepository", "content"],
     ],
     ["event-repository.ts", ["SqlEventRepository", "EventRepository", "content"]],
     [
@@ -554,6 +559,7 @@ const domainSections = new Map([
             "news",
             "events",
             "chronicle",
+            "editorial",
             "about",
             "producer-map",
             "live-schedule",
