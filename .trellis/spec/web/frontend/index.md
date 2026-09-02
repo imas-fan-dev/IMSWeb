@@ -1,39 +1,45 @@
-# Frontend Development Guidelines
+# IMSWeb Web frontend specification
 
-> Best practices for frontend development in this project.
+This directory applies to `apps/web`. The Web workspace is a React 19 and React
+Router 7 client application built with Vite, Tailwind CSS 4, shadcn Base UI,
+alova, Vitest, Testing Library, and Playwright. It also owns the Tauri app shell
+and device wrapper scripts.
 
----
+The authoritative sources are `apps/web/.rules`, `apps/web/README.md`,
+`apps/web/DESIGN.md`, and `apps/web/app/`. These specs provide an implementation
+index and do not replace those files.
 
-## Overview
+## Spec map
 
-This directory contains guidelines for frontend development. Fill in each file with your project's specific conventions.
+| File | Use it for |
+| --- | --- |
+| [Architecture](./architecture.md) | Routes, pages, layouts, shared modules, app shell |
+| [API, state, and contracts](./api-state-and-contracts.md) | Endpoints, parsing, CSRF, request state |
+| [Components and UX](./components-and-ux.md) | Component ownership, design tokens, accessibility |
+| [Testing](./testing.md) | Unit, component, browser, and routing tests |
 
----
+## Pre-Development Checklist
 
-## Guidelines Index
+- [ ] Read `apps/web/.rules` and the relevant page or component tests.
+- [ ] For visible changes, read `apps/web/DESIGN.md` and inspect the matching
+      tokens in `apps/web/app/app.css`.
+- [ ] Confirm whether the code belongs to a page, layout, reusable component,
+      UI primitive, or `app/lib` infrastructure.
+- [ ] Check `~/lib/api` and `@imsweb/contracts` before creating request code or
+      a local wire type.
+- [ ] Identify loading, error, empty, and success behavior.
+- [ ] Identify desktop, mobile, keyboard, and accessibility coverage.
 
-| Guide | Description | Status |
-|-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
-| [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
-| [State Management](./state-management.md) | Local state, global state, server state | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
+## Quality Check
 
----
-
-## How to Fill These Guidelines
-
-For each guideline file:
-
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
-
-The goal is to help AI assistants and new team members understand how YOUR project works.
-
----
-
-**Language**: All documentation should be written in **English**.
+- [ ] `pnpm --filter @imsweb/web run format`
+- [ ] `pnpm --filter @imsweb/web run lint`
+- [ ] `pnpm --filter @imsweb/web run typecheck`
+- [ ] `pnpm --filter @imsweb/web run test:unit`
+- [ ] Run focused Playwright tests for a changed workflow.
+- [ ] Run `pnpm --filter @imsweb/web run build` for routes, assets, API modules,
+      or target-specific code.
+- [ ] Run root `pnpm run test:web-routing` when route ownership or fallback
+      behavior changes.
+- [ ] Confirm visible changes at desktop and mobile sizes with no overlap or
+      horizontal overflow.
