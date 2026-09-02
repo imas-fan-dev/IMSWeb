@@ -84,3 +84,13 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Trellis-generated local tooling
+# Regenerate integration files in a fresh clone with: trellis init --pi
+.trellis/*
+!.trellis/tasks/
+!.trellis/spec/
+!.trellis/workspace/
+!.trellis/.gitignore
+.agents/
+.pi/
