@@ -2,7 +2,7 @@
 
 > 文档类型：开发
 > 状态：Active
-> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/icon-sources/app-icon.json`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
+> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/Cargo.toml`、`apps/web/src-tauri/src/lib.rs`、`apps/web/src-tauri/capabilities/geolocation.json`、`apps/web/src-tauri/icon-sources/app-icon.json`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/geolocation.ts`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
 
 本文件描述 Web workspace 中 Tauri 2 移动端外壳的当前状态、前置条件和尚未打通的契约。
 桌面与移动构建复用同一份 React Router SPA 产物，不存在第二套前端源码。
@@ -24,7 +24,7 @@
   覆盖基础字段，数组会整体替换，因此共享字段必须继续留在基础配置。
 - `src-tauri/icon-sources/app-icon.json` 为 iOS、桌面和 Android 统一生成图标。Android 使用独立背景、
   透明前景和单色图层；adaptive icon 的字标位于安全区，旧版 launcher 图标单独放大前景。
-- `Info.ios.plist` 是 iOS 专属声明，Tauri 会在生成 Apple 工程时自动合并。
+- `Info.ios.plist` 是 iOS 专属声明，Tauri 会在生成 Apple 工程时自动合并。它包含事务所地图使用期间定位的用途说明。
 - `apps/web/app/lib/api/origin.ts` 提供跨源 origin 契约，三个 alova client 均已接入 `baseURL`。
 - `build:app` 默认注入并校验 `https://idol-master.top`；`dev:app` 清空 API origin，
   让 Tauri dev URL 同源转发请求至本地 1420，再由 Vite 代理到 Hono。
@@ -109,6 +109,27 @@ iOS 与 Android 不会失去导航。原生 tab 选择通过 `ims:native-tab-sel
 Web 回退保留现有表面、单枚透镜和 tab 按压缩放，但根节点只标记 `data-glass-fallback`；不得恢复
 `glass-sheen` 或 `data-glass-interactive`。这是移动端稳定性边界：旧 iOS 与 Android 不追踪指针或
 手指坐标，也不显示白色触点光斑。
+
+### 事务所地图一次性定位
+
+真实 iOS 和 Android Tauri runtime 通过官方 geolocation 插件获取一次当前位置。前端先检查权限；
+只有 `location` 和 `coarseLocation` 都未授权，且其中一项仍是 `prompt` 或
+`prompt-with-rationale` 时，才请求 `location`。Android 用户只授予大致位置时仍可回到当前位置。
+权限被拒绝后不调用定位命令。
+
+`capabilities/geolocation.json` 只向移动端 `main` 窗口开放权限检查、权限请求和单次定位命令。
+不得加入持续监听、清除监听或后台定位权限。插件在 Android 构建中声明粗略和精确位置权限；iOS
+由 `Info.ios.plist` 声明 `NSLocationWhenInUseUsageDescription`，说明位置只用于在事务所地图上
+显示并回到用户当前位置。
+
+原生插件在 Android 单次定位和 iOS 上不执行传入的 `timeout`，因此
+`app/lib/geolocation.ts` 另设 10 秒截止时间，并清理已经完成的计时器。非真实 Tauri runtime
+继续使用 `navigator.geolocation`；这条回退同时服务普通 Web 和 App Playwright，选项保持低精度、
+10 秒超时和 30 秒缓存上限。
+
+发布前必须在权限尚未决定的 Android 和 iOS 真机上点击“回到我的位置”，分别检查系统权限提示、
+精确或大致位置授权后的地图回中，以及拒绝后的页面提示。设备构建、安装和启动仍使用
+`pnpm run app ios --release` 与 `pnpm run app android --release`。
 
 `test:e2e:app` 使用独立 Playwright 配置启动 1420 App target，覆盖 320px 手机、iPhone、Pixel、
 横屏和 WebKit，并注入可重复的安全区变量。浏览器只能验证 Web 回退底栏；iOS 26 的系统

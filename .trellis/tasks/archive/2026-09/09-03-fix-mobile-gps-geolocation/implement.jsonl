@@ -1,0 +1,6 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web and Tauri ownership, pre-development checklist, and required quality gates"}
+{"file":".trellis/spec/web/frontend/architecture.md","reason":"Placement rules for app/lib runtime infrastructure and Tauri mobile boundaries"}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Location button loading, error, accessibility, and mobile behavior"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Required unit and App Playwright coverage patterns"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Keep the cross-runtime geolocation adapter focused and avoid page-level duplication"}
+{"file":".trellis/tasks/09-03-fix-mobile-gps-geolocation/research/geolocation.md","reason":"Repository root-cause evidence and official Tauri 2 geolocation contract"}

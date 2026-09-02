@@ -1,12 +1,18 @@
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { StyleSpecification } from "maplibre-gl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { GeolocationFailure } from "~/lib/geolocation"
 import { ExchangeOfficeMap } from "~/pages/community/exchange/exchange-office-map"
+
+const geolocationMocks = vi.hoisted(() => ({
+  getCurrentCoordinates: vi.fn(),
+}))
 
 const maplibreMocks = vi.hoisted(() => {
   const instances: MapMock[] = []
+  const markerInstances: MarkerMock[] = []
 
   class GeoJSONSourceMock {
     setData = vi.fn()
@@ -45,25 +51,33 @@ const maplibreMocks = vi.hoisted(() => {
   }
 
   class MarkerMock {
-    setLngLat() {
-      return this
-    }
+    setLngLat = vi.fn(() => this)
+    addTo = vi.fn(() => this)
+    remove = vi.fn()
 
-    addTo() {
-      return this
+    constructor() {
+      markerInstances.push(this)
     }
-
-    remove() {}
 
     getElement() {
       return document.createElement("button")
     }
   }
 
-  return { GeoJSONSourceMock, MapMock, MarkerMock, instances }
+  return {
+    GeoJSONSourceMock,
+    MapMock,
+    MarkerMock,
+    instances,
+    markerInstances,
+  }
 })
 
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
+vi.mock("~/lib/geolocation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/geolocation")>()),
+  getCurrentCoordinates: geolocationMocks.getCurrentCoordinates,
+}))
 vi.mock("~/lib/api", () => ({
   getFudabaChinaBoundaryDashSource: () => ({
     send: async () => ({ type: "FeatureCollection", features: [] }),
@@ -108,8 +122,13 @@ const mapProps = {
 describe("ExchangeOfficeMap App viewport memory", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    geolocationMocks.getCurrentCoordinates.mockResolvedValue({
+      longitude: 121.473701,
+      latitude: 31.230416,
+    })
     window.sessionStorage.clear()
     maplibreMocks.instances.length = 0
+    maplibreMocks.markerInstances.length = 0
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
       (() => ({})) as unknown as typeof HTMLCanvasElement.prototype.getContext
     )
@@ -190,33 +209,128 @@ describe("ExchangeOfficeMap App viewport memory", () => {
 
   it("animates back to the current user location", async () => {
     const user = userEvent.setup()
-    const getCurrentPosition = vi.fn((success: PositionCallback) => {
-      success({
-        coords: { longitude: 121.473701, latitude: 31.230416 },
-      } as GeolocationPosition)
-    })
-    vi.stubGlobal("navigator", {
-      geolocation: { getCurrentPosition },
-    })
 
     render(<ExchangeOfficeMap {...mapProps} />)
     await user.click(screen.getByRole("button", { name: "回到我的位置" }))
 
-    expect(getCurrentPosition).toHaveBeenCalledWith(
-      expect.any(Function),
-      expect.any(Function),
-      {
-        enableHighAccuracy: false,
-        timeout: 10_000,
-        maximumAge: 30_000,
-      }
-    )
-    expect(maplibreMocks.instances[0]?.easeTo).toHaveBeenCalledWith({
+    expect(geolocationMocks.getCurrentCoordinates).toHaveBeenCalledOnce()
+    const map = maplibreMocks.instances[0]
+    expect(map?.easeTo).toHaveBeenCalledWith({
       center: [121.473701, 31.230416],
       zoom: 8,
       duration: 900,
       essential: false,
     })
+    expect(maplibreMocks.markerInstances).toHaveLength(1)
+    expect(
+      maplibreMocks.markerInstances[0]?.setLngLat
+    ).toHaveBeenLastCalledWith([121.473701, 31.230416])
+    expect(maplibreMocks.markerInstances[0]?.addTo).toHaveBeenCalledWith(map)
     expect(screen.getByText("已回到您的位置")).toHaveClass("sr-only")
+  })
+
+  it("reuses the location marker and avoids animation for reduced motion", async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true }))
+    )
+    geolocationMocks.getCurrentCoordinates
+      .mockResolvedValueOnce({ longitude: 121.473701, latitude: 31.230416 })
+      .mockResolvedValueOnce({ longitude: 116.4074, latitude: 39.9042 })
+
+    render(<ExchangeOfficeMap {...mapProps} />)
+    const locationButton = screen.getByRole("button", {
+      name: "回到我的位置",
+    })
+    await user.click(locationButton)
+    await user.click(locationButton)
+
+    expect(maplibreMocks.markerInstances).toHaveLength(1)
+    expect(
+      maplibreMocks.markerInstances[0]?.setLngLat
+    ).toHaveBeenLastCalledWith([116.4074, 39.9042])
+    expect(maplibreMocks.instances[0]?.easeTo).toHaveBeenLastCalledWith({
+      center: [116.4074, 39.9042],
+      zoom: 8,
+      duration: 0,
+      essential: false,
+    })
+  })
+
+  it.each([
+    ["permission-denied", "未获得位置权限"],
+    ["timeout", "获取位置超时，请重试"],
+    ["unavailable", "暂时无法获取您的位置"],
+    ["unsupported", "当前设备不支持位置服务"],
+  ] as const)("shows the %s location failure", async (kind, message) => {
+    const user = userEvent.setup()
+    geolocationMocks.getCurrentCoordinates.mockRejectedValue(
+      new GeolocationFailure(kind)
+    )
+
+    render(<ExchangeOfficeMap {...mapProps} />)
+    await user.click(screen.getByRole("button", { name: "回到我的位置" }))
+
+    expect(await screen.findByText(message)).toBeVisible()
+    expect(maplibreMocks.instances[0]?.easeTo).not.toHaveBeenCalled()
+  })
+
+  it("ignores a location result after the map is unmounted", async () => {
+    const user = userEvent.setup()
+    let resolveCoordinates: (coordinates: {
+      longitude: number
+      latitude: number
+    }) => void = () => undefined
+    geolocationMocks.getCurrentCoordinates.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCoordinates = resolve
+      })
+    )
+
+    const route = render(<ExchangeOfficeMap {...mapProps} />)
+    await user.click(screen.getByRole("button", { name: "回到我的位置" }))
+    const map = maplibreMocks.instances[0]
+    route.unmount()
+
+    await act(async () => {
+      resolveCoordinates({ longitude: 116.4074, latitude: 39.9042 })
+    })
+
+    expect(map?.easeTo).not.toHaveBeenCalled()
+  })
+
+  it("invalidates an in-flight location request when the map style changes", async () => {
+    const user = userEvent.setup()
+    let resolveCoordinates: (coordinates: {
+      longitude: number
+      latitude: number
+    }) => void = () => undefined
+    geolocationMocks.getCurrentCoordinates.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCoordinates = resolve
+      })
+    )
+
+    const route = render(<ExchangeOfficeMap {...mapProps} />)
+    const locationButton = screen.getByRole("button", {
+      name: "回到我的位置",
+    })
+    await user.click(locationButton)
+    expect(locationButton).toBeDisabled()
+
+    route.rerender(
+      <ExchangeOfficeMap {...mapProps} styleUrl="/maps/alternate-style.json" />
+    )
+    expect(locationButton).toBeEnabled()
+    const oldMap = maplibreMocks.instances[0]
+
+    await act(async () => {
+      resolveCoordinates({ longitude: 116.4074, latitude: 39.9042 })
+    })
+
+    expect(oldMap?.easeTo).not.toHaveBeenCalled()
+    expect(maplibreMocks.instances[1]?.easeTo).not.toHaveBeenCalled()
+    expect(screen.queryByText("已回到您的位置")).not.toBeInTheDocument()
   })
 })

@@ -16,6 +16,7 @@ index and do not replace those files.
 | [Architecture](./architecture.md) | Routes, pages, layouts, shared modules, app shell |
 | [API, state, and contracts](./api-state-and-contracts.md) | Endpoints, parsing, CSRF, request state |
 | [Components and UX](./components-and-ux.md) | Component ownership, design tokens, accessibility |
+| [Tauri mobile integration](./tauri-mobile-integration.md) | Native plugin, capability, permission, and platform metadata contracts |
 | [Testing](./testing.md) | Unit, component, browser, and routing tests |
 
 ## Pre-Development Checklist

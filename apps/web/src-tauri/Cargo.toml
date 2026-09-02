@@ -29,6 +29,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+tauri-plugin-geolocation = "=2.3.2"
 tauri-plugin-native-glass = { path = "plugins/native-glass" }
 
 [target.'cfg(target_os = "ios")'.dependencies]

@@ -182,6 +182,72 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
   }
 });
 
+test("mobile geolocation keeps its native access narrowly scoped", async () => {
+  const webPackage = JSON.parse(
+    await readFile(`${webRoot}/package.json`, "utf8"),
+  );
+  assert.equal(
+    webPackage.dependencies["@tauri-apps/plugin-geolocation"],
+    "2.3.2",
+  );
+
+  const cargoManifest = await readFile(
+    `${webRoot}/src-tauri/Cargo.toml`,
+    "utf8",
+  );
+  const mobileDependenciesHeader =
+    '[target.\'cfg(any(target_os = "ios", target_os = "android"))\'.dependencies]';
+  const mobileDependenciesStart = cargoManifest.indexOf(
+    mobileDependenciesHeader,
+  );
+  assert.notEqual(mobileDependenciesStart, -1);
+  const nextCargoSection = cargoManifest.indexOf(
+    "\n[",
+    mobileDependenciesStart + mobileDependenciesHeader.length,
+  );
+  const mobileDependencies = cargoManifest.slice(
+    mobileDependenciesStart,
+    nextCargoSection === -1 ? undefined : nextCargoSection,
+  );
+  assert.match(mobileDependencies, /tauri-plugin-geolocation = "=2\.3\.2"/);
+  assert.equal(cargoManifest.match(/tauri-plugin-geolocation/g)?.length, 1);
+
+  const cargoLock = await readFile(`${webRoot}/src-tauri/Cargo.lock`, "utf8");
+  assert.match(
+    cargoLock,
+    /\[\[package\]\]\s+name = "tauri-plugin-geolocation"\s+version = "2\.3\.2"/,
+  );
+
+  const rustEntry = await readFile(`${webRoot}/src-tauri/src/lib.rs`, "utf8");
+  assert.match(
+    rustEntry,
+    /#\[cfg\(mobile\)\]\s+let builder = builder\.plugin\(tauri_plugin_geolocation::init\(\)\);/,
+  );
+
+  const capability = JSON.parse(
+    await readFile(
+      `${webRoot}/src-tauri/capabilities/geolocation.json`,
+      "utf8",
+    ),
+  );
+  assert.deepEqual(capability.windows, ["main"]);
+  assert.deepEqual(capability.platforms, ["iOS", "android"]);
+  assert.deepEqual(capability.permissions, [
+    "geolocation:allow-check-permissions",
+    "geolocation:allow-request-permissions",
+    "geolocation:allow-get-current-position",
+  ]);
+
+  const iosPlist = await readFile(
+    `${webRoot}/src-tauri/Info.ios.plist`,
+    "utf8",
+  );
+  assert.match(
+    iosPlist,
+    /<key>NSLocationWhenInUseUsageDescription<\/key>\s*<string>位置仅用于在事务所地图上显示您的当前位置并将地图移回该位置。<\/string>/,
+  );
+});
+
 // The Swift side writes prepared uploads into the iOS caches root and the Web
 // side reads them back through the fs plugin, so the capability scope and the
 // plugin's directory have to name the same place. They live in different
@@ -189,7 +255,10 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
 // avatar and namecard pick failing with "forbidden path".
 test("native image capability reads the directory the iOS plugin writes", async () => {
   const capability = JSON.parse(
-    await readFile(`${webRoot}/src-tauri/capabilities/native-image.json`, "utf8"),
+    await readFile(
+      `${webRoot}/src-tauri/capabilities/native-image.json`,
+      "utf8",
+    ),
   );
   assert.deepEqual(capability.platforms, ["iOS"]);
   assert.ok(capability.permissions.includes("fs:allow-read-file"));
@@ -210,7 +279,10 @@ test("native image capability reads the directory the iOS plugin writes", async 
     `${webRoot}/src-tauri/plugins/native-image/ios/Sources/NativeImagePlugin.swift`,
     "utf8",
   );
-  assert.match(plugin, /urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]/);
+  assert.match(
+    plugin,
+    /urls\(for: \.cachesDirectory, in: \.userDomainMask\)\[0\]/,
+  );
   assert.match(
     plugin,
     /base\.appendingPathComponent\("native-image", isDirectory: true\)/,

@@ -58,6 +58,44 @@ test.beforeEach(async ({ page }, testInfo) => {
   await installMapMocks(page)
 })
 
+test("uses browser geolocation to return to the current position", async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(["geolocation"])
+  await context.setGeolocation({
+    longitude: 121.473701,
+    latitude: 31.230416,
+  })
+  await page.goto("/community/exchange")
+
+  const canvas = page.locator("canvas.maplibregl-canvas")
+  await expect(canvas).toBeVisible({ timeout: 15_000 })
+  await page.getByRole("button", { name: "回到我的位置" }).click()
+
+  await expect(page.getByText("已回到您的位置")).toBeAttached()
+  const marker = page.getByRole("img", { name: "您的当前位置" })
+  await expect(marker).toBeVisible()
+  await expect
+    .poll(async () => {
+      const [canvasBox, markerBox] = await Promise.all([
+        canvas.boundingBox(),
+        marker.boundingBox(),
+      ])
+      if (!canvasBox || !markerBox) return false
+      const horizontalDistance = Math.abs(
+        canvasBox.x + canvasBox.width / 2 - (markerBox.x + markerBox.width / 2)
+      )
+      const verticalDistance = Math.abs(
+        canvasBox.y +
+          canvasBox.height / 2 -
+          (markerBox.y + markerBox.height / 2)
+      )
+      return horizontalDistance < 2 && verticalDistance < 2
+    })
+    .toBe(true)
+})
+
 test("renders the exchange map behind non-overlapping local and global controls", async ({
   page,
 }, testInfo) => {

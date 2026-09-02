@@ -28,6 +28,7 @@ import {
   resolveMapTransportOrigin,
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
 import { cn } from "~/lib/utils"
 
 import {
@@ -478,9 +479,13 @@ function createUserLocationElement() {
   return element
 }
 
-function geolocationErrorMessage(error: GeolocationPositionError) {
-  if (error.code === error.PERMISSION_DENIED) return "未获得位置权限"
-  if (error.code === error.TIMEOUT) return "获取位置超时，请重试"
+function geolocationErrorMessage(error: unknown) {
+  if (!(error instanceof GeolocationFailure)) {
+    return "暂时无法获取您的位置"
+  }
+  if (error.kind === "permission-denied") return "未获得位置权限"
+  if (error.kind === "timeout") return "获取位置超时，请重试"
+  if (error.kind === "unsupported") return "当前设备不支持位置服务"
   return "暂时无法获取您的位置"
 }
 
@@ -509,56 +514,52 @@ export function ExchangeOfficeMap({
     message: string
   }>({ phase: "idle", message: "" })
 
-  const locateUser = useCallback(() => {
+  const locateUser = useCallback(async () => {
     const map = mapRef.current
     if (!map) return
-    if (!navigator.geolocation) {
-      setLocationState({
-        phase: "error",
-        message: "当前设备不支持位置服务",
-      })
-      return
-    }
 
     const request = ++locationRequestRef.current
     setLocationState({ phase: "locating", message: "正在获取您的位置" })
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        if (locationRequestRef.current !== request || mapRef.current !== map) {
-          return
-        }
-        const center: [number, number] = [coords.longitude, coords.latitude]
-        let marker = userLocationMarkerRef.current
-        if (!marker) {
-          marker = new Marker({
-            element: createUserLocationElement(),
-            anchor: "center",
-          })
-            .setLngLat(center)
-            .addTo(map)
-          userLocationMarkerRef.current = marker
-        }
-        marker.setLngLat(center)
-        const reducedMotion = window.matchMedia?.(
-          "(prefers-reduced-motion: reduce)"
-        ).matches
-        map.easeTo({
-          center,
-          zoom: Math.max(map.getZoom(), 8),
-          duration: reducedMotion ? 0 : 900,
-          essential: false,
+    try {
+      const coordinates = await getCurrentCoordinates()
+      if (locationRequestRef.current !== request || mapRef.current !== map) {
+        return
+      }
+
+      const center: [number, number] = [
+        coordinates.longitude,
+        coordinates.latitude,
+      ]
+      let marker = userLocationMarkerRef.current
+      if (!marker) {
+        marker = new Marker({
+          element: createUserLocationElement(),
+          anchor: "center",
         })
-        setLocationState({ phase: "success", message: "已回到您的位置" })
-      },
-      (error) => {
-        if (locationRequestRef.current !== request) return
-        setLocationState({
-          phase: "error",
-          message: geolocationErrorMessage(error),
-        })
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 }
-    )
+          .setLngLat(center)
+          .addTo(map)
+        userLocationMarkerRef.current = marker
+      }
+      marker.setLngLat(center)
+      const reducedMotion = window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)"
+      ).matches
+      map.easeTo({
+        center,
+        zoom: Math.max(map.getZoom(), 8),
+        duration: reducedMotion ? 0 : 900,
+        essential: false,
+      })
+      setLocationState({ phase: "success", message: "已回到您的位置" })
+    } catch (error) {
+      if (locationRequestRef.current !== request || mapRef.current !== map) {
+        return
+      }
+      setLocationState({
+        phase: "error",
+        message: geolocationErrorMessage(error),
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -573,6 +574,7 @@ export function ExchangeOfficeMap({
     const container = containerRef.current
     if (!container) return
 
+    setLocationState({ phase: "idle", message: "" })
     container.dataset.mapState = "loading"
     const deliveryContext = createMapDeliveryContext(
       resolveMapTransportOrigin(),
