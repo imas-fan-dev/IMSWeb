@@ -29,6 +29,14 @@ const publicRoutes = [
     file: "pages/account/reset/account-password-reset-page.tsx",
   },
   {
+    // Identity domain, same layer as the other `account/*` entries, so both
+    // build targets get it. It is deliberately not a `profileWorkspaceSections`
+    // entry: that array drives `/account/me/:section`, which renders the
+    // community exchange workspace.
+    path: "account/security",
+    file: "pages/account/security/account-security-page.tsx",
+  },
+  {
     path: "community/exchange",
     file: "pages/community/exchange/community-exchange-page.tsx",
   },

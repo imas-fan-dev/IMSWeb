@@ -1,5 +1,5 @@
 import { writeAudit } from '@/domains/admin/audit/write-audit';
-import { deleteNamecardMedia } from '@/domains/community/namecards/media-assets';
+import { deleteNamecardMedia } from '@/domains/community/fudaba/card-media-assets';
 import type { NamecardDeleteContext } from '@/domains/community/namecards/request';
 import type {
     NamecardErrorResponse,

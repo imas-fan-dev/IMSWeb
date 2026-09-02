@@ -137,6 +137,18 @@ function boundedHeader(value: string | undefined, maximum: number): string | nul
     return normalized ? normalized.slice(0, maximum) : null;
 }
 
+// The session row carries the device that opened it. The security event stream
+// answers "where did this login come from", which drifts from "which device
+// holds this session now" as soon as the session is rotated.
+function platformSessionDevice(
+    c: Context<AppEnvironment>
+): { userAgent: string | null; ipAddress: string | null } {
+    return {
+        userAgent: boundedHeader(c.req.header('user-agent'), 1024),
+        ipAddress: boundedHeader(getClientAddress(c), 64)
+    };
+}
+
 export function platformSecurityEvent(
     c: Context<AppEnvironment>,
     accountId: string,
@@ -231,6 +243,7 @@ export async function establishPlatformSession(
         csrfHash,
         expiresAt: createdAt + PLATFORM_REFRESH_TOKEN_TTL_MS,
         createdAt,
+        ...platformSessionDevice(c),
         event: platformSecurityEvent(
             c,
             identity.account.id,

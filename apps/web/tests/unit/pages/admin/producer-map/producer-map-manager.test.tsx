@@ -386,7 +386,7 @@ describe("ProducerMapManager", () => {
     const communityUpload = within(dialog).getByLabelText("上传社群联络图片")
     expect(communityUpload).toHaveAttribute(
       "accept",
-      "image/png,image/jpeg,image/webp,image/avif"
+      "image/png,image/jpeg,image/webp,image/avif,image/heic,image/heif"
     )
     await user.upload(
       communityUpload,

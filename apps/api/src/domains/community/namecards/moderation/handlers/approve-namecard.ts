@@ -2,7 +2,7 @@ import { writeAudit } from '@/domains/admin/audit/write-audit';
 import {
     ensureNamecardThumbnails,
     publishNamecardMedia
-} from '@/domains/community/namecards/media-assets';
+} from '@/domains/community/fudaba/card-media-assets';
 import type { NamecardMutationContext } from '@/domains/community/namecards/request';
 import type {
     NamecardErrorResponse,

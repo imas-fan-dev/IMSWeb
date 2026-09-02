@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { test } from "node:test";
 import sharp from "sharp";
-import { normalizeNamecardImage } from "@/domains/community/namecards/namecard-image";
+import { normalizeNamecardImage } from "@/domains/community/fudaba/guest-submissions/image";
 import { StreamingUploadParser } from "@/infra/http/busboy/upload-parser";
 import { SharpImageProcessor } from "@/infra/media/sharp/image-processor";
 import {
@@ -271,6 +271,31 @@ test("shared image upload contract rejects extension, MIME, decoded format, and 
         ).format,
         "jpeg",
     );
+    await assert.rejects(
+        validateUploadedImage(
+            { filename: "payload.heic", contentType: "image/heif", body },
+            new FixtureImages("heif"),
+        ),
+        /扩展名与 MIME/,
+    );
+});
+
+test("shared image upload contract accepts standard HEIC and HEIF uploads", async () => {
+    const body = new Uint8Array([1, 2, 3]);
+    for (const [filename, contentType] of [
+        ["iphone-photo.heic", "image/heic"],
+        ["generic-photo.heif", "image/heif"],
+    ] as const) {
+        assert.equal(
+            (
+                await validateUploadedImage(
+                    { filename, contentType, body },
+                    new FixtureImages("heif"),
+                )
+            ).format,
+            "heif",
+        );
+    }
 });
 
 test("namecard normalization bounds only oversized JPEG output", async () => {
@@ -343,6 +368,7 @@ test("Sharp runtime includes the libvips fixes for inherited image decoder CVEs"
         versionAtLeast(sharp.versions.vips, [8, 18, 3]),
         sharp.versions.vips,
     );
+    assert.equal(sharp.format.heif.input.buffer, true);
 });
 
 test("Sharp image processor validates and converts real image bytes with stable dimensions", async () => {

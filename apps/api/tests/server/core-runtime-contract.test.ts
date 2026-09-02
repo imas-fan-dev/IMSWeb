@@ -15,17 +15,18 @@ import { FakeValkeyRateLimitServer } from './fake-valkey';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
+import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+import { SqlReactionRepository } from '@/infra/db/repositories/reaction-repository';
 import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { CompensationService } from '@/ports/object-storage';
 import type {
-    AuditRepository,
-    BackofficeAuthRepository,
     EventRepository,
-    NamecardRepository,
-    NewsRepository,
-    ReactionRepository
+    NewsRepository
 } from '@/ports/repositories';
 import type { ImageProcessor } from '@/ports/media';
 import type { ObjectStorage } from '@/ports/object-storage';
@@ -178,6 +179,11 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
 
     const connection = await createPostgresTestDatabase(t, 'core-runtime');
     const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
+    const backofficeAuth = new SqlBackofficeAuthRepository(connection);
+    const audit = new SqlAuditRepository(connection);
+    const news = new SqlNewsRepository(connection);
+    const events = new SqlEventRepository(connection);
+    const reactions = new SqlReactionRepository(connection);
     await core.initialize();
     await seedCanonicalFudabaAgencies(connection);
     await executeSql(connection,
@@ -253,7 +259,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     let publishFailure = false;
     let compensationEnqueueFailure = false;
     let storageMutations = 0;
-    const repository = new Proxy(core, {
+    const newsRepository = new Proxy(news, {
         get(target, property, receiver) {
             if (property === 'insertNews') {
                 return async (...args: Parameters<NewsRepository['insertNews']>) => {
@@ -261,6 +267,12 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                     return target.insertNews(...args);
                 };
             }
+            const value = Reflect.get(target, property, receiver) as unknown;
+            return typeof value === 'function' ? value.bind(target) : value;
+        }
+    }) as NewsRepository;
+    const eventRepository = new Proxy(events, {
+        get(target, property, receiver) {
             if (property === 'insertEvent') {
                 return async (...args: Parameters<EventRepository['insertEvent']>) => {
                     if (businessInsertFailure) throw new Error('injected event insert failure');
@@ -270,8 +282,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
             const value = Reflect.get(target, property, receiver) as unknown;
             return typeof value === 'function' ? value.bind(target) : value;
         }
-    }) as BackofficeAuthRepository & AuditRepository & NewsRepository & EventRepository &
-        NamecardRepository & ReactionRepository;
+    }) as EventRepository;
     const compensation = new Proxy(compensationDelegate, {
         get(target, property, receiver) {
             if (property === 'enqueue') {
@@ -320,12 +331,12 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         }
     }) as ObjectStorage;
     const runtime: RuntimeServices = {
-        backofficeAuth: repository,
-        audit: repository,
-        news: repository,
-        events: repository,
-        namecards: repository,
-        reactions: repository,
+        backofficeAuth,
+        audit,
+        news: newsRepository,
+        events: eventRepository,
+        namecards: core,
+        reactions,
         compensation,
         storage,
         objectDeletions: new PostgresqlObjectDeletionWorker(connection, storage),

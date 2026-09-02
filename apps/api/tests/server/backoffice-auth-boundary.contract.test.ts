@@ -3,7 +3,8 @@ import test, { type TestContext } from 'node:test';
 import { sign as signJwt } from 'hono/utils/jwt/jwt';
 import { createHonoApp } from '@/app';
 import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
@@ -28,7 +29,7 @@ const LEGACY_SUCCESSORS = new Map([
 interface Fixture {
     app: ReturnType<typeof createHonoApp>;
     connection: PostgresConnection;
-    repository: SqlCoreRepository;
+    repository: SqlBackofficeAuthRepository;
     tokens: HmacBackofficeTokenService;
     close(): Promise<void>;
 }
@@ -104,8 +105,9 @@ async function createFixture(
     legacySecret: string | null = LEGACY_SECRET
 ): Promise<Fixture> {
     const connection = await createPostgresTestDatabase(t, 'backoffice-boundary');
-    const repository = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
-    await repository.initialize();
+    await new PostgresqlSchemaStrategy().initializeCore(connection);
+    const repository = new SqlBackofficeAuthRepository(connection);
+    const audit = new SqlAuditRepository(connection);
     await connection.prepare(
         `INSERT INTO backoffice_accounts
             (username, password, dept, producername, admin_role)
@@ -114,7 +116,7 @@ async function createFixture(
     const tokens = new HmacBackofficeTokenService(SECRET, legacySecret ?? undefined);
     const runtime: RuntimeServices = {
         backofficeAuth: repository,
-        audit: repository,
+        audit,
         passwords: {
             async verify(value, digest) {
                 return value === PASSWORD && digest === 'backoffice-boundary-digest';
@@ -129,7 +131,7 @@ async function createFixture(
         repository,
         tokens,
         async close() {
-            await repository.close();
+            await connection.close();
         }
     };
 }

@@ -36,6 +36,8 @@ const SERVER_PREFIXES = [
 const PRERENDERED_ROUTES: ReadonlyMap<string, string> = new Map([
   ["/account/login", "account/login/index.html"],
   ["/account/register", "account/register/index.html"],
+  ["/account/password-reset", "account/password-reset/index.html"],
+  ["/account/security", "account/security/index.html"],
   ["/about", "about/index.html"],
   ["/events", "events/index.html"],
   ["/recommendations", "recommendations/index.html"],

@@ -16,7 +16,6 @@ import type {
   FudabaRegisteredCardReview,
   FudabaSeriesList,
   NamecardPage,
-  NamecardSubmission,
   PlatformProfileResponse,
   PlatformSession,
   ProducerMapContent,
@@ -384,37 +383,6 @@ const namecardPage: NamecardPage = {
   totalPage: 1,
 }
 
-const namecardSubmission: { submission: NamecardSubmission } = {
-  submission: {
-    id: 7,
-    seriesCode: "765",
-    favoriteIdols: [],
-    claimStatus: "unclaimed",
-    viewerClaimState: null,
-    status: "pending",
-    revision: 0,
-    image1_url: "/uploads/namecard/original/ghi.webp",
-    image2_url: "/uploads/namecard/original/jkl.webp",
-    created_at: "2026-01-01T00:00:00+08:00",
-  },
-}
-
-// The contract types both images optional, so an absent key must stay absent.
-const withdrawnSubmission: { success: true; submission: NamecardSubmission } = {
-  success: true,
-  submission: {
-    id: 8,
-    seriesCode: null,
-    favoriteIdols: [],
-    claimStatus: "unclaimed",
-    viewerClaimState: null,
-    status: "withdrawn",
-    revision: 1,
-    created_at: "2026-01-01T00:00:00+08:00",
-    withdrawn_at: "2026-01-02T00:00:00+08:00",
-  },
-}
-
 const session: PlatformSession = {
   success: true,
   account: { id: "acct-1", status: "active" },
@@ -632,16 +600,6 @@ describe("media URL normalisation without a configured origin", () => {
         "namecard page",
         namecardPage,
         media.normalizeNamecardPage(namecardPage),
-      ],
-      [
-        "namecard submission",
-        namecardSubmission,
-        media.normalizeNamecardSubmissionEnvelope(namecardSubmission),
-      ],
-      [
-        "withdrawn namecard submission",
-        withdrawnSubmission,
-        media.normalizeNamecardSubmissionEnvelope(withdrawnSubmission),
       ],
       [
         "registered card reviews",
@@ -899,24 +857,6 @@ describe("media URL normalisation with a configured origin", () => {
     expect(page.list[1].image1_thumbnail_url).toBe(
       "https://objects.example.com/namecards/2-front.jpg"
     )
-  })
-
-  it("absolutises namecard submission images and keeps absent ones absent", async () => {
-    const media = await loadMediaUrls(PACKAGED_ORIGIN)
-
-    const detail = media.normalizeNamecardSubmissionEnvelope(namecardSubmission)
-    expect(detail.submission.image1_url).toBe(
-      `${PACKAGED_ORIGIN}/uploads/namecard/original/ghi.webp`
-    )
-    expect(detail.submission.image2_url).toBe(
-      `${PACKAGED_ORIGIN}/uploads/namecard/original/jkl.webp`
-    )
-
-    const withdrawn =
-      media.normalizeNamecardSubmissionEnvelope(withdrawnSubmission)
-    expect(withdrawn.success).toBe(true)
-    expect("image1_url" in withdrawn.submission).toBe(false)
-    expect("image2_url" in withdrawn.submission).toBe(false)
   })
 
   it("absolutises the fudaba moderation queues", async () => {

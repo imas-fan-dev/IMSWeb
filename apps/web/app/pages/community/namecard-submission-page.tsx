@@ -19,11 +19,15 @@ import { Button, buttonVariants } from "~/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
-  getNamecardSubmission,
+  getFudabaGuestSubmission,
+  getFudabaGuestSubmissionMedia,
   isApiError,
-  withdrawNamecardSubmission,
+  withdrawFudabaGuestSubmission,
 } from "~/lib/api"
-import type { NamecardSubmission, NamecardSubmissionStatus } from "~/lib/api"
+import type {
+  FudabaGuestSubmission,
+  FudabaGuestSubmissionStatus,
+} from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 
@@ -34,7 +38,7 @@ import {
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const STATUS_COPY: Record<
-  NamecardSubmissionStatus,
+  FudabaGuestSubmissionStatus,
   { label: string; description: string }
 > = {
   pending: {
@@ -45,7 +49,7 @@ const STATUS_COPY: Record<
     label: "审核处理中",
     description: "运营正在发布两面的图片，当前不能撤回。",
   },
-  approved: {
+  published: {
     label: "已通过",
     description: "名片已经公开。如需下架，请联系管理员处理。",
   },
@@ -73,8 +77,8 @@ export function meta() {
   return [{ title: "投稿管理 | IMSWeb" }]
 }
 
-function statusIcon(status: NamecardSubmissionStatus) {
-  if (status === "approved") {
+function statusIcon(status: FudabaGuestSubmissionStatus) {
+  if (status === "published") {
     return <CircleCheckIcon aria-hidden="true" className="size-5" />
   }
   if (status === "rejected" || status === "withdrawn") {
@@ -106,7 +110,13 @@ export default function NamecardSubmissionPage() {
       hashToken ?? getNamecardSubmissionReceipt(submissionId)?.token ?? null
     )
   })
-  const [submission, setSubmission] = useState<NamecardSubmission | null>(null)
+  const [submission, setSubmission] = useState<FudabaGuestSubmission | null>(
+    null
+  )
+  const [privateMediaUrls, setPrivateMediaUrls] = useState<{
+    front: string
+    back: string
+  } | null>(null)
   const [loading, setLoading] = useState(validId && token !== null)
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -136,7 +146,7 @@ export default function NamecardSubmissionPage() {
     setLoading(true)
     setError(null)
     try {
-      const next = await getNamecardSubmission(submissionId, token).send()
+      const next = await getFudabaGuestSubmission(submissionId, token).send()
       setSubmission(next.submission)
     } catch (loadError) {
       setError(errorCopy(loadError))
@@ -148,7 +158,7 @@ export default function NamecardSubmissionPage() {
   useEffect(() => {
     if (!validId || !token) return
     let active = true
-    void getNamecardSubmission(submissionId, token)
+    void getFudabaGuestSubmission(submissionId, token)
       .send()
       .then((next) => {
         if (active) setSubmission(next.submission)
@@ -164,12 +174,45 @@ export default function NamecardSubmissionPage() {
     }
   }, [submissionId, token, validId])
 
+  useEffect(() => {
+    if (
+      !submission ||
+      !token ||
+      submission.publicationStatus === "published" ||
+      typeof URL.createObjectURL !== "function"
+    ) {
+      return
+    }
+    let active = true
+    const objectUrls: string[] = []
+    void Promise.all([
+      getFudabaGuestSubmissionMedia(submission.id, "front", token).send(),
+      getFudabaGuestSubmissionMedia(submission.id, "back", token).send(),
+    ])
+      .then(([front, back]) => {
+        if (!active) return
+        const frontUrl = URL.createObjectURL(front)
+        const backUrl = URL.createObjectURL(back)
+        objectUrls.push(frontUrl, backUrl)
+        setPrivateMediaUrls({ front: frontUrl, back: backUrl })
+      })
+      .catch(() => {
+        if (active) {
+          setError("投稿状态已读取，但暂时无法加载图片。")
+        }
+      })
+    return () => {
+      active = false
+      for (const url of objectUrls) URL.revokeObjectURL(url)
+    }
+  }, [submission, token])
+
   async function withdraw() {
     if (!submission || !token || withdrawing) return
     setWithdrawing(true)
     setError(null)
     try {
-      const response = await withdrawNamecardSubmission(
+      const response = await withdrawFudabaGuestSubmission(
         submission.id,
         token,
         submission.revision
@@ -190,7 +233,15 @@ export default function NamecardSubmissionPage() {
     }
   }
 
-  const copy = submission ? STATUS_COPY[submission.status] : null
+  const copy = submission ? STATUS_COPY[submission.publicationStatus] : null
+  const mediaUrls = submission
+    ? submission.publicationStatus === "published"
+      ? {
+          front: submission.frontImageUrl,
+          back: submission.backImageUrl,
+        }
+      : privateMediaUrls
+    : null
   return (
     <PageShell width="read">
       {!IS_APP_TARGET ? (
@@ -273,7 +324,7 @@ export default function NamecardSubmissionPage() {
                 tabIndex={-1}
                 className="flex min-w-0 items-center gap-2 wrap-anywhere focus:outline-none"
               >
-                {statusIcon(submission.status)}
+                {statusIcon(submission.publicationStatus)}
                 {copy.label}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -283,10 +334,10 @@ export default function NamecardSubmissionPage() {
             <Badge
               className="shrink-0"
               variant={
-                submission.status === "approved"
+                submission.publicationStatus === "published"
                   ? "secondary"
-                  : submission.status === "rejected" ||
-                      submission.status === "withdrawn"
+                  : submission.publicationStatus === "rejected" ||
+                      submission.publicationStatus === "withdrawn"
                     ? "destructive"
                     : "outline"
               }
@@ -295,12 +346,12 @@ export default function NamecardSubmissionPage() {
             </Badge>
           </CardHeader>
           <CardContent className="space-y-5">
-            {submission.image1_url && submission.image2_url ? (
+            {mediaUrls ? (
               <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border">
                 {(
                   [
-                    [submission.image1_url, "正面", "front"],
-                    [submission.image2_url, "背面", "back"],
+                    [mediaUrls.front, "正面", "front"],
+                    [mediaUrls.back, "背面", "back"],
                   ] as const
                 ).map(([src, label, side]) => (
                   <figure key={side} className="bg-muted">
@@ -328,14 +379,14 @@ export default function NamecardSubmissionPage() {
                 <dt className="text-muted-foreground">提交时间</dt>
                 <dd className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 wrap-anywhere">
                   <CalendarDaysIcon aria-hidden="true" className="size-4" />
-                  {submission.created_at
-                    ? DATE_FORMATTER.format(new Date(submission.created_at))
+                  {submission.createdAt
+                    ? DATE_FORMATTER.format(new Date(submission.createdAt))
                     : "待补充"}
                 </dd>
               </div>
             </dl>
 
-            {submission.status === "pending" ? (
+            {submission.publicationStatus === "pending" ? (
               <Button
                 type="button"
                 variant="destructive"

@@ -470,7 +470,7 @@ test('spoofed image uploads are rejected without leaving files behind', async ()
     form.append('images', new Blob(['not an image'], { type: 'image/jpeg' }), 'front.jpg');
     form.append('images', new Blob(['still not an image'], { type: 'image/jpeg' }), 'back.jpg');
 
-    const response = await fetch(`${baseUrl}/api/uploadNameCard`, {
+    const response = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
         method: 'POST',
         body: form
     });
@@ -1062,7 +1062,7 @@ test('public upload limiter rejects before Multer writes to disk', async () => {
     for (let attempt = 0; attempt < 35; attempt += 1) {
         const form = new FormData();
         form.append('images', new Blob(['invalid'], { type: 'text/plain' }), 'invalid.txt');
-        const response = await fetch(`${baseUrl}/api/uploadNameCard`, {
+        const response = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
             method: 'POST',
             body: form
         });
@@ -1078,7 +1078,7 @@ test('public upload limiter rejects before Multer writes to disk', async () => {
     const validNamecard = new FormData();
     validNamecard.append('images', new Blob([validPng], { type: 'image/png' }), 'front.png');
     validNamecard.append('images', new Blob([validPng], { type: 'image/png' }), 'back.png');
-    const namecardResponse = await fetch(`${baseUrl}/api/uploadNameCard`, {
+    const namecardResponse = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
         method: 'POST',
         body: validNamecard
     });

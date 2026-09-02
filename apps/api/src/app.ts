@@ -38,6 +38,7 @@ import { registerMediaRoutes } from "@/domains/delivery/media/routes";
 import { registerNamecardRoutes } from "@/domains/community/namecards/routes";
 import { registerNewsRoutes } from "@/domains/content/news/routes";
 import { registerProducerMapRoutes } from "@/domains/content/producer-map/routes";
+import { registerPlatformAccountSecurityRoutes } from "@/domains/identity/platform-account-security/routes";
 import { registerPlatformAuthRoutes } from "@/domains/identity/platform-auth/routes";
 import { registerPlatformProfileRoutes } from "@/domains/identity/platform-profile/routes";
 import { registerSiteRoutes } from "@/domains/delivery/site/routes";
@@ -232,6 +233,9 @@ export function createHonoApp<
     registerBackofficeAuthRoutes(app);
     registerPlatformAuthRoutes(app);
     registerPlatformProfileRoutes(app);
+    // After the profile domain: its `/me/*` private-response middleware must be
+    // registered before these routes match.
+    registerPlatformAccountSecurityRoutes(app);
     registerAdminAccountRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);

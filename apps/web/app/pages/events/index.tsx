@@ -2,9 +2,12 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual"
 import { CalendarDaysIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
+import { PullToRefresh } from "~/components/shared/pull-to-refresh"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { useInfiniteScroll } from "~/lib/use-infinite-scroll"
 import { EventRow, EventsSkeleton } from "./components/events-list"
 import { useEventsFeed } from "./hooks/use-events-feed"
 
@@ -24,15 +27,22 @@ export function EventsCenter() {
     items,
     pageInfo,
     loadingMore,
+    refreshing,
     error,
     loadMoreError,
+    refreshError,
     loadFirstPage,
     loadMore,
     refresh,
   } = useEventsFeed()
-  const loadTriggerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
+
+  const sentinelRef = useInfiniteScroll({
+    hasNextPage: pageInfo.hasNextPage,
+    loading: loadingMore,
+    onLoadMore: loadMore,
+  })
 
   const getItemKey = useCallback(
     (index: number) => items[index]?.id ?? index,
@@ -61,56 +71,13 @@ export function EventsCenter() {
     return () => window.removeEventListener("resize", updateScrollMargin)
   }, [])
 
-  useEffect(() => {
-    const trigger = loadTriggerRef.current
-    if (
-      !trigger ||
-      !pageInfo.hasNextPage ||
-      loadingMore ||
-      typeof IntersectionObserver === "undefined"
-    ) {
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void loadMore()
-      },
-      { rootMargin: "480px 0px" }
-    )
-    observer.observe(trigger)
-    return () => observer.disconnect()
-  }, [loadMore, loadingMore, pageInfo.hasNextPage])
-
   return (
     <main id="main-content">
       {IS_APP_TARGET ? (
-        <section className="border-b" aria-labelledby="events-app-heading">
-          <div className="flex min-h-14 items-center justify-between gap-4 px-(--app-safe-inline) py-2">
-            <div className="min-w-0">
-              <h1 id="events-app-heading" className="text-base font-semibold">
-                社区动态
-              </h1>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {phase === "ready" && items.length
-                  ? `已加载 ${items.length} 条`
-                  : "制作人社区发布的公告、招募与活动"}
-              </p>
-            </div>
-            {phase === "ready" && items.length ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => void refresh()}
-                aria-label="刷新社区动态列表"
-                title="刷新社区动态列表"
-              >
-                <RefreshCwIcon aria-hidden="true" />
-              </Button>
-            ) : null}
-          </div>
-        </section>
+        // The app title bar already names this tab, and refreshing is a pull
+        // now, so the page adds no second header of its own. The heading stays
+        // for assistive technology, which has no title bar to read.
+        <h1 className="sr-only">社区动态</h1>
       ) : (
         <section className="border-b bg-muted/25">
           <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
@@ -127,14 +94,25 @@ export function EventsCenter() {
                   <span className="text-sm text-muted-foreground">
                     已加载 {items.length} 条
                   </span>
+                  {/* Touch viewports refresh by pulling the list. A mouse has
+                      no such gesture, so the pointer layout keeps a button. */}
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => void refresh()}
+                    disabled={refreshing}
                     aria-label="刷新社区动态列表"
                     title="刷新社区动态列表"
+                    className="max-sm:hidden"
                   >
-                    <RefreshCwIcon aria-hidden="true" />
+                    {refreshing ? (
+                      <LoaderCircleIcon
+                        aria-hidden="true"
+                        className="animate-spin motion-reduce:animate-none"
+                      />
+                    ) : (
+                      <RefreshCwIcon aria-hidden="true" />
+                    )}
                     刷新
                   </Button>
                 </div>
@@ -144,111 +122,95 @@ export function EventsCenter() {
         </section>
       )}
 
-      <section
-        className={
-          IS_APP_TARGET
-            ? "w-full px-(--app-safe-inline) py-3"
-            : "mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8"
-        }
-        aria-labelledby="events-list-heading"
+      <PullToRefresh
+        onRefresh={refresh}
+        enabled={phase === "ready" || phase === "error"}
       >
-        <h2 id="events-list-heading" className="sr-only">
-          社区动态列表
-        </h2>
+        <section
+          className={
+            IS_APP_TARGET
+              ? "w-full px-(--app-safe-inline) py-3"
+              : "mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8"
+          }
+          aria-labelledby="events-list-heading"
+        >
+          <h2 id="events-list-heading" className="sr-only">
+            社区动态列表
+          </h2>
 
-        {phase === "idle" || phase === "loading" ? (
-          <EventsSkeleton />
-        ) : phase === "error" ? (
-          <Alert className="my-8 py-4">
-            <CalendarDaysIcon aria-hidden="true" />
-            <AlertTitle>社区动态暂时无法加载</AlertTitle>
-            <AlertDescription>{error || "请稍后重新加载。"}</AlertDescription>
-            <div className="col-start-2 mt-3">
-              <Button type="button" onClick={() => void loadFirstPage()}>
-                重新加载
-              </Button>
+          {phase === "idle" || phase === "loading" ? (
+            <EventsSkeleton />
+          ) : phase === "error" ? (
+            <Alert className="my-8 py-4">
+              <CalendarDaysIcon aria-hidden="true" />
+              <AlertTitle>社区动态暂时无法加载</AlertTitle>
+              <AlertDescription>{error || "请稍后重新加载。"}</AlertDescription>
+              <div className="col-start-2 mt-3">
+                <Button type="button" onClick={() => void loadFirstPage()}>
+                  重新加载
+                </Button>
+              </div>
+            </Alert>
+          ) : items.length === 0 ? (
+            <div className="flex min-h-64 flex-col items-center justify-center border-y text-center">
+              <CalendarDaysIcon
+                aria-hidden="true"
+                className="size-7 text-muted-foreground"
+              />
+              <p className="mt-4 font-medium">当前没有已发布社区动态</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                新帖子发布后会显示在这里。
+              </p>
             </div>
-          </Alert>
-        ) : items.length === 0 ? (
-          <div className="flex min-h-64 flex-col items-center justify-center border-y text-center">
-            <CalendarDaysIcon
-              aria-hidden="true"
-              className="size-7 text-muted-foreground"
-            />
-            <p className="mt-4 font-medium">当前没有已发布社区动态</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              新帖子发布后会显示在这里。
-            </p>
-          </div>
-        ) : (
-          <>
-            <div
-              ref={attachList}
-              role="list"
-              aria-label="社区动态列表"
-              className="relative w-full"
-              style={{ height: virtualizer.getTotalSize() }}
-            >
-              {virtualItems.map((virtualItem) => {
-                const event = items[virtualItem.index]
-                if (!event) return null
-                return (
-                  <div
-                    key={virtualItem.key}
-                    ref={virtualizer.measureElement}
-                    role="listitem"
-                    aria-posinset={virtualItem.index + 1}
-                    aria-setsize={items.length}
-                    data-index={virtualItem.index}
-                    className="absolute top-0 left-0 w-full"
-                    style={{
-                      transform: `translateY(${virtualItem.start - scrollMargin}px)`,
-                    }}
-                  >
-                    <EventRow event={event} />
-                  </div>
-                )
-              })}
-            </div>
-
-            <div
-              ref={loadTriggerRef}
-              className="flex flex-col items-center py-8"
-            >
-              {loadMoreError ? (
-                <p role="alert" className="mb-3 text-sm text-destructive">
-                  后续动态加载失败：{loadMoreError}
+          ) : (
+            <>
+              {refreshError ? (
+                <p role="alert" className="pb-3 text-sm text-destructive">
+                  刷新失败：{refreshError}
                 </p>
               ) : null}
-              {pageInfo.hasNextPage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => void loadMore()}
-                  disabled={loadingMore}
-                >
-                  {loadingMore ? (
-                    <LoaderCircleIcon
-                      aria-hidden="true"
-                      className="animate-spin"
-                    />
-                  ) : null}
-                  {loadingMore
-                    ? "正在加载"
-                    : loadMoreError
-                      ? "重试加载"
-                      : "加载更多动态"}
-                </Button>
-              ) : (
-                <p role="status" className="text-sm text-muted-foreground">
-                  已显示本批次的全部动态
-                </p>
-              )}
-            </div>
-          </>
-        )}
-      </section>
+
+              <div
+                ref={attachList}
+                role="list"
+                aria-label="社区动态列表"
+                className="relative w-full"
+                style={{ height: virtualizer.getTotalSize() }}
+              >
+                {virtualItems.map((virtualItem) => {
+                  const event = items[virtualItem.index]
+                  if (!event) return null
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      ref={virtualizer.measureElement}
+                      role="listitem"
+                      aria-posinset={virtualItem.index + 1}
+                      aria-setsize={items.length}
+                      data-index={virtualItem.index}
+                      className="absolute top-0 left-0 w-full"
+                      style={{
+                        transform: `translateY(${virtualItem.start - scrollMargin}px)`,
+                      }}
+                    >
+                      <EventRow event={event} />
+                    </div>
+                  )
+                })}
+              </div>
+
+              <InfiniteScrollFooter
+                sentinelRef={sentinelRef}
+                label="动态"
+                hasNextPage={pageInfo.hasNextPage}
+                loading={loadingMore}
+                error={loadMoreError}
+                onRetry={() => void loadMore()}
+              />
+            </>
+          )}
+        </section>
+      </PullToRefresh>
     </main>
   )
 }

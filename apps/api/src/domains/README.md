@@ -18,6 +18,7 @@ capability 内的技术角色。
 | --- | --- | --- | --- |
 | Identity | `platform-auth` | 平台登录、注册、OAuth、密码找回 | `sessions` `registration` `password-reset` `oauth` |
 | Identity | `platform-profile` | 个人资料和头像 | `profile` `avatar` |
+| Identity | `platform-account-security` | 已登录账号安全操作 | `password` `email` `oauth-links` `sessions` `deletion` |
 | Admin | `backoffice-auth` | 后台操作员会话 | `sessions` |
 | Admin | `admin-accounts` | 后台账号管理 | `accounts` |
 | Admin | `audit` | 后台审计写入和查询 | `write` `read` |

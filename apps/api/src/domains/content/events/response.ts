@@ -70,6 +70,7 @@ export function toEventResponse(value: unknown): EventResponse {
         name: nullableText(event.name, 'name'),
         contact: nullableText(event.contact, 'contact'),
         image_url: nullableText(event.image_url, 'image_url'),
+        cover_transform: coverTransform(event.cover_transform),
         created_at: eventTimestamp(event.created_at)
     };
 }

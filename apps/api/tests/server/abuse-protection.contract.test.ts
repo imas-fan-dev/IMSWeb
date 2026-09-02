@@ -16,11 +16,13 @@ test('[SECURITY] shared JSON and abuse limits use the Node memory limiter', asyn
     let rejectNextGlobal = false;
     let compensationRuns = 0;
     const calls = { userLookups: 0, reactionLookups: 0, reactionMutations: 0 };
-    const core = {
+    const backofficeAuth = {
         async findUserByUsername() {
             calls.userLookups += 1;
             return null;
-        },
+        }
+    } as unknown as BackofficeAuthRepository;
+    const reactions = {
         async findApprovedCard(id: number) {
             calls.reactionLookups += 1;
             return id === CARD_ID ? { id } : null;
@@ -31,10 +33,10 @@ test('[SECURITY] shared JSON and abuse limits use the Node memory limiter', asyn
         async listReactions() {
             return [];
         }
-    } as unknown as BackofficeAuthRepository & ReactionRepository;
+    } as unknown as ReactionRepository;
     const runtime: RuntimeServices = {
-        backofficeAuth: core,
-        reactions: core,
+        backofficeAuth,
+        reactions,
         compensation: {
             async enqueue() { return 'unused'; },
             async run() { compensationRuns += 1; }

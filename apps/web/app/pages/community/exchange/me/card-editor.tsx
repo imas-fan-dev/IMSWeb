@@ -32,6 +32,7 @@ import {
   type PlatformProfile,
   type WikiPublicSearchEntry,
 } from "~/lib/api"
+import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import { CardDeleteDialog } from "./card-delete-dialog"
 import {
   CardFields,
@@ -82,31 +83,32 @@ export function CardEditor({
   const [draft, setDraft] = useState<FudabaCardFields>(() =>
     card ? cardFields(card) : emptyCardFields(profile, series)
   )
-  const [frontFile, setFrontFile] = useState<File | null>(null)
-  const [backFile, setBackFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploadingSide, setUploadingSide] =
     useState<FudabaCardMediaSide | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null)
+  const frontImage = useAppPreparedImage({
+    mediaKind: "fudaba-card-front",
+    validate: (file) => validateImage(file, MAX_CARD_IMAGE_BYTES),
+    onError: (message) => setFeedback({ kind: "error", message }),
+    onSelected: () => setFeedback(null),
+  })
+  const backImage = useAppPreparedImage({
+    mediaKind: "fudaba-card-back",
+    validate: (file) => validateImage(file, MAX_CARD_IMAGE_BYTES),
+    onError: (message) => setFeedback({ kind: "error", message }),
+    onSelected: () => setFeedback(null),
+  })
+  const frontFile = frontImage.file
+  const backFile = backImage.file
   const frontObjectUrl = useObjectUrl(frontFile)
   const backObjectUrl = useObjectUrl(backFile)
 
   function selectImage(file: File | null, side: FudabaCardMediaSide) {
-    if (!file) {
-      if (side === "front") setFrontFile(null)
-      else setBackFile(null)
-      return
-    }
-    const invalid = validateImage(file, MAX_CARD_IMAGE_BYTES)
-    if (invalid) {
-      setFeedback({ kind: "error", message: invalid })
-      return
-    }
-    setFeedback(null)
-    if (side === "front") setFrontFile(file)
-    else setBackFile(file)
+    if (side === "front") frontImage.selectFile(file)
+    else backImage.selectFile(file)
   }
 
   function mutationFailure(error: unknown, fallback: string) {
@@ -145,8 +147,8 @@ export function CardEditor({
       }).send()
       setDraft(cardFields(result.card))
       onCreated(result.card)
-      setFrontFile(null)
-      setBackFile(null)
+      frontImage.clear()
+      backImage.clear()
       setFeedback({ kind: "success", message: "名片草稿已创建。" })
       toast.success("名片草稿已创建")
     } catch (error) {
@@ -192,8 +194,8 @@ export function CardEditor({
       ).send()
       setDraft(cardFields(result.card))
       onSaved(result.card)
-      if (side === "front") setFrontFile(null)
-      else setBackFile(null)
+      if (side === "front") frontImage.clear()
+      else backImage.clear()
       const label = side === "front" ? "正面" : "背面"
       setFeedback({ kind: "success", message: `名片${label}已更新。` })
       toast.success(`名片${label}已更新`)
@@ -235,7 +237,13 @@ export function CardEditor({
     }
   }
 
-  const busy = saving || uploadingSide !== null || deleting
+  const preparingSide: FudabaCardMediaSide | null = frontImage.preparing
+    ? "front"
+    : backImage.preparing
+      ? "back"
+      : null
+  const busy =
+    saving || preparingSide !== null || uploadingSide !== null || deleting
   const editDisabled = readOnly || busy
   const previewFront = frontObjectUrl ?? card?.frontImageUrl ?? null
   const previewBack = backObjectUrl ?? card?.backImageUrl ?? null
@@ -348,7 +356,12 @@ export function CardEditor({
               backFile={backFile}
               disabled={editDisabled}
               saving={saving}
+              preparingSide={preparingSide}
               uploadingSide={uploadingSide}
+              onBrowse={{
+                front: frontImage.browse,
+                back: backImage.browse,
+              }}
               onSelect={selectImage}
             />
           </div>
@@ -410,7 +423,12 @@ export function CardEditor({
               backFile={backFile}
               disabled={editDisabled}
               saving={saving}
+              preparingSide={preparingSide}
               uploadingSide={uploadingSide}
+              onBrowse={{
+                front: frontImage.browse,
+                back: backImage.browse,
+              }}
               onSelect={selectImage}
               onUpload={(side) => void uploadSide(side)}
             />

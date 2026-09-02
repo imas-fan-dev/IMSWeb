@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { queryOne } from '@/infra/db/sql/query';
@@ -15,7 +17,8 @@ const SECRET = 'admin-accounts-contract-secret-at-least-thirty-two-bytes';
 interface Fixture {
     app: ReturnType<typeof createHonoApp>;
     connection: PostgresConnection;
-    repository: SqlCoreRepository;
+    repository: SqlBackofficeAuthRepository;
+    audit: SqlAuditRepository;
     tokens: HmacBackofficeTokenService;
     ids: { superAdmin: number; admin: number; editor: number };
     close(): Promise<void>;
@@ -38,8 +41,10 @@ async function insertAccount(
 
 async function createFixture(t: TestContext): Promise<Fixture> {
     const connection = await createPostgresTestDatabase(t, 'admin-accounts');
-    const repository = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
-    await repository.initialize();
+    await new PostgresqlSchemaStrategy().initializeCore(connection);
+    const repository = new SqlBackofficeAuthRepository(connection);
+    const adminAccounts = new SqlAdminAccountRepository(connection);
+    const audit = new SqlAuditRepository(connection);
     const ids = {
         superAdmin: await insertAccount(connection, 'super-operator', 'op', 'super_admin'),
         admin: await insertAccount(connection, 'regular-operator', 'op', 'admin'),
@@ -48,8 +53,8 @@ async function createFixture(t: TestContext): Promise<Fixture> {
     const tokens = new HmacBackofficeTokenService(SECRET);
     const services: RuntimeServices = {
         backofficeAuth: repository,
-        adminAccounts: repository,
-        audit: repository,
+        adminAccounts,
+        audit,
         passwords: {
             async verify() { return false; },
             async hash(value) { return `hashed:${value}`; }
@@ -61,10 +66,11 @@ async function createFixture(t: TestContext): Promise<Fixture> {
         app: createHonoApp(() => services),
         connection,
         repository,
+        audit,
         tokens,
         ids,
         async close() {
-            await repository.close();
+            await connection.close();
         }
     };
 }
@@ -172,7 +178,7 @@ test('super administrator creates only regular op accounts and audits the mutati
     });
     assert.equal(duplicate.status, 409);
 
-    const logs = await fixture.repository.listRecentAuditLogs(10);
+    const logs = await fixture.audit.listRecentAuditLogs(10);
     assert.equal(logs[0]?.action, '新增管理员');
     assert.equal(logs[0]?.target, 'new-operator');
 });

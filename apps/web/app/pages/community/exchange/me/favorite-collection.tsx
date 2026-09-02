@@ -1,6 +1,7 @@
-import { BookmarkIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
+import { BookmarkIcon, RefreshCwIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import {
@@ -11,6 +12,7 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
+import { useInfiniteScroll } from "~/lib/use-infinite-scroll"
 import {
   getFudabaFavoriteCardPage,
   type FudabaCard,
@@ -38,6 +40,15 @@ export function FavoriteCollection({ series }: { series: FudabaSeries[] }) {
   const [error, setError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const generation = useRef(0)
+  // The panel scrolls with the page, so the sentinel reaches the viewport the
+  // same way it does on a feed page. Pull-to-refresh is deliberately absent:
+  // this is one tab among several, and a page-level gesture would refresh
+  // whichever panel happened to be hidden. The header button stays scoped.
+  const loadMoreSentinelRef = useInfiniteScroll({
+    hasNextPage: pageInfo.hasNextPage,
+    loading: loadingMore,
+    onLoadMore: () => void loadMore(),
+  })
   const seriesMap = new Map(series.map((entry) => [entry.code, entry]))
 
   const accept = useCallback((page: FudabaCardPage, requested: number) => {
@@ -176,24 +187,15 @@ export function FavoriteCollection({ series }: { series: FudabaSeries[] }) {
               />
             ))}
           </div>
-          {pageInfo.hasNextPage ? (
-            <div className="mt-6 flex justify-center">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loadingMore}
-                onClick={() => void loadMore()}
-              >
-                {loadingMore ? (
-                  <LoaderCircleIcon
-                    className="animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                加载更多
-              </Button>
-            </div>
-          ) : null}
+          {/* A failed page shows up in the panel's own alert above, so the
+              footer only reports progress. */}
+          <InfiniteScrollFooter
+            sentinelRef={loadMoreSentinelRef}
+            label="收藏"
+            hasNextPage={pageInfo.hasNextPage}
+            loading={loadingMore}
+            className="py-6"
+          />
         </>
       ) : null}
     </div>

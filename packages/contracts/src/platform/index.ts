@@ -1,38 +1,44 @@
-import { z } from "zod";
-import { successEnvelope } from "../common.js";
+import { z } from "zod"
+import { successEnvelope } from "../common.js"
 
-export const PLATFORM_OAUTH_PROVIDER_CODES = ["google", "github"] as const;
-export const platformOAuthProviderCodeSchema = z.enum(
-  PLATFORM_OAUTH_PROVIDER_CODES,
-);
+export const platformOAuthProviderCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(32)
+  .regex(/^[a-z][a-z0-9-]*$/)
+
+export const platformOAuthProviderIconSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+
+export const platformOAuthButtonColorSchema = z
+  .string()
+  .regex(/^#[0-9a-f]{6}$/i)
+  .transform((value) => value.toLowerCase())
 
 export const platformOAuthProviderSchema = z
   .object({
     code: platformOAuthProviderCodeSchema,
     displayName: z.string().min(1).max(80),
-    icon: platformOAuthProviderCodeSchema,
+    icon: platformOAuthProviderIconSchema,
+    buttonColor: platformOAuthButtonColorSchema,
   })
   .strict()
-  .superRefine((provider, context) => {
-    if (provider.icon !== provider.code) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "OAuth provider icon must match its fixed code",
-        path: ["icon"],
-      });
-    }
-  });
 
 export const platformOAuthProvidersResponseSchema = successEnvelope({
-  providers: z.array(platformOAuthProviderSchema),
-}).strict();
+  providers: z.array(platformOAuthProviderSchema).max(30),
+}).strict()
 
 export const platformAccountSchema = z
   .object({
     id: z.string().min(1),
     status: z.enum(["active", "restricted"]),
   })
-  .strict();
+  .strict()
 
 export const platformSessionProfileSchema = z
   .object({
@@ -41,28 +47,26 @@ export const platformSessionProfileSchema = z
     homeCity: z.string().nullable(),
     bio: z.string(),
   })
-  .strict();
+  .strict()
 
 export const platformProfileSchema = platformSessionProfileSchema
   .extend({
     updatedAt: z.number().int().safe().nonnegative(),
   })
-  .strict();
+  .strict()
 
 export const platformSessionSchema = successEnvelope({
   account: platformAccountSchema,
   profile: platformSessionProfileSchema,
-  // Only present when the caller opted into token auth with
-  // `X-IMS-Auth-Mode: bearer`. Browser clients never ask for it, so their
-  // access token stays httpOnly and out of reach of page scripts. The
-  // packaged mobile client has no cookie jar and must carry the token itself.
+  // Browser sessions use httpOnly cookies. Packaged mobile clients opt into
+  // bearer mode and receive tokens because their WebView has no shared jar.
   accessToken: z.string().min(1).optional(),
   refreshToken: z.string().min(1).optional(),
-}).strict();
+}).strict()
 
 export const platformRegistrationVerificationResponseSchema = successEnvelope({
   retryAfterSeconds: z.number().int().positive(),
-}).strict();
+}).strict()
 
 export const platformProfileResponseSchema = successEnvelope({
   account: platformAccountSchema,
@@ -72,33 +76,37 @@ export const platformProfileResponseSchema = successEnvelope({
       fudabaWrite: z.boolean(),
     })
     .strict(),
-}).strict();
+}).strict()
 
 export const platformProfileMutationResponseSchema = successEnvelope({
   profile: platformProfileSchema,
-}).strict();
+}).strict()
 
-export type PlatformOAuthProvider = z.infer<typeof platformOAuthProviderSchema>;
+export type PlatformOAuthProvider = z.infer<typeof platformOAuthProviderSchema>
 export type PlatformOAuthProvidersResponse = z.infer<
   typeof platformOAuthProvidersResponseSchema
->;
-export type PlatformSession = z.infer<typeof platformSessionSchema>;
-export type PlatformProfile = z.infer<typeof platformProfileSchema>;
+>
+export type PlatformSession = z.infer<typeof platformSessionSchema>
+export type PlatformProfile = z.infer<typeof platformProfileSchema>
 export type PlatformRegistrationVerificationResponse = z.infer<
   typeof platformRegistrationVerificationResponseSchema
->;
+>
 export type PlatformProfileResponse = z.infer<
   typeof platformProfileResponseSchema
->;
+>
 export type PlatformProfileMutationResponse = z.infer<
   typeof platformProfileMutationResponseSchema
->;
+>
+
+export type PlatformAccountStatus = z.infer<
+  typeof platformAccountSchema
+>["status"]
 
 export const passwordResetIssueResponseSchema = successEnvelope({
   sent: z.literal(true),
   retryAfterSeconds: z.number().int().positive().optional(),
-});
+})
 
 export type PasswordResetIssueResponse = z.infer<
   typeof passwordResetIssueResponseSchema
->;
+>

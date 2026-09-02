@@ -51,6 +51,10 @@ describe("AdminImageUploadField", () => {
     )
 
     expect(onSelect).toHaveBeenCalledWith(file)
+    expect(screen.getByLabelText("封面图片")).toHaveAttribute(
+      "accept",
+      "image/png,image/jpeg,image/webp,image/avif,image/heic,image/heif"
+    )
     expect(screen.getByRole("group", { name: "图片文件选择" })).toHaveClass(
       "min-h-0"
     )
@@ -124,7 +128,9 @@ describe("AdminImageUploadField", () => {
     await act(() => i18n.changeLanguage("en"))
 
     expect(screen.getByText("选择一张图片")).toBeVisible()
-    expect(screen.getByText("PNG、JPEG、WebP 或 AVIF")).toBeVisible()
+    expect(
+      screen.getByText("PNG、JPEG、WebP、AVIF、HEIC 或 HEIF")
+    ).toBeVisible()
     expect(screen.getByRole("button", { name: "选择文件" })).toBeVisible()
 
     rerender(

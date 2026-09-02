@@ -406,9 +406,10 @@ export function CommunityExchangeMapSection({
             "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-5.5rem)] rounded-lg border bg-background/95 px-2.5 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
             IS_APP_TARGET && "exchange-map-app-surface",
             IS_APP_TARGET
-              ? APP_FLOATING_CONTROL_OFFSET
-              : "bottom-[calc(8.5rem+env(safe-area-inset-bottom))] md:bottom-[max(2.75rem,calc(env(safe-area-inset-bottom)+2.25rem))]"
+              ? "top-[calc(var(--app-header-inset)+0.75rem)]"
+              : "top-17 sm:top-19 lg:top-3"
           )}
+          data-map-point-count
           aria-live="polite"
         >
           <span className="inline-flex items-center gap-1.5">

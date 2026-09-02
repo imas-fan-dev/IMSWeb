@@ -340,12 +340,20 @@ export default function CommunityExchangeMePage({
 
   const restricted =
     platform.status === "restricted" || state.accountStatus === "restricted"
-  const readOnly = restricted || !state.writeEnabled
-  const readOnlyReason = restricted
-    ? "帐号当前受限，资料和名片保持可查看，但不能修改。"
+  // Profile fields are platform identity and only a restricted account freezes
+  // them. Cards, offices, and claims are Fudaba content and also wait on the
+  // exchange rollout switch, so the two surfaces need separate verdicts.
+  const restrictedReason = "帐号当前受限，资料和名片保持可查看，但不能修改。"
+  const profileReadOnly = restricted
+  const profileReadOnlyReason = restricted ? restrictedReason : null
+  const exchangeReadOnly = restricted || !state.writeEnabled
+  const exchangeReadOnlyReason = restricted
+    ? restrictedReason
     : !state.writeEnabled
-      ? "编辑功能正在分阶段开放，当前资料和名片保持只读。"
+      ? "名片与事务所编辑正在分阶段开放，当前保持只读。"
       : null
+  const sectionReadOnlyReason =
+    activeSection === "profile" ? profileReadOnlyReason : exchangeReadOnlyReason
 
   return (
     <main
@@ -425,25 +433,25 @@ export default function CommunityExchangeMePage({
               </Button>
             </div>
           ) : null}
-          {readOnlyReason ? (
+          {sectionReadOnlyReason ? (
             <Alert>
               <LockKeyholeIcon aria-hidden="true" />
               <AlertTitle>
                 {restricted ? "帐号受限" : "编辑暂未开放"}
               </AlertTitle>
-              <AlertDescription>{readOnlyReason}</AlertDescription>
+              <AlertDescription>{sectionReadOnlyReason}</AlertDescription>
             </Alert>
           ) : null}
 
           <div
             id="profile-workspace-section-profile"
-            className={readOnlyReason ? "mt-6" : undefined}
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
             hidden={activeSection !== "profile"}
           >
             <ProfileEditor
               profile={state.profile}
-              readOnly={readOnly}
-              readOnlyReason={readOnlyReason}
+              readOnly={profileReadOnly}
+              readOnlyReason={profileReadOnlyReason}
               onSaved={saveProfile}
               onReload={reloadProfile}
               onWriteClosed={closeWrites}
@@ -452,7 +460,7 @@ export default function CommunityExchangeMePage({
 
           <section
             id="profile-workspace-section-cards"
-            className={readOnlyReason ? "mt-6" : undefined}
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
             aria-labelledby="profile-workspace-cards-title"
             hidden={activeSection !== "cards"}
           >
@@ -476,8 +484,8 @@ export default function CommunityExchangeMePage({
                 profile={state.profile}
                 series={state.series}
                 idols={state.idols}
-                readOnly={readOnly}
-                readOnlyReason={readOnlyReason}
+                readOnly={exchangeReadOnly}
+                readOnlyReason={exchangeReadOnlyReason}
                 onSelect={(cardId) => void loadCard(cardId)}
                 onCreate={() => {
                   setCreating(true)
@@ -495,7 +503,7 @@ export default function CommunityExchangeMePage({
 
           <section
             id="profile-workspace-section-favorites"
-            className={readOnlyReason ? "mt-6" : undefined}
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
             aria-labelledby="profile-workspace-favorites-title"
             hidden={activeSection !== "favorites"}
           >
@@ -504,23 +512,23 @@ export default function CommunityExchangeMePage({
 
           <div
             id="profile-workspace-section-offices"
-            className={readOnlyReason ? "mt-6" : undefined}
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
             hidden={activeSection !== "offices"}
           >
             <OfficeLocationWorkspace
               series={state.series}
               homeCity={state.profile.homeCity}
-              readOnly={readOnly}
+              readOnly={exchangeReadOnly}
               onWriteClosed={closeWrites}
             />
           </div>
 
           <div
             id="profile-workspace-section-claims"
-            className={readOnlyReason ? "mt-6" : undefined}
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
             hidden={activeSection !== "claims"}
           >
-            <ClaimEnvelopePanel readOnly={readOnly} />
+            <ClaimEnvelopePanel readOnly={exchangeReadOnly} />
           </div>
         </div>
       </div>

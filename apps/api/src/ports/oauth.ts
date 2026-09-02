@@ -1,10 +1,32 @@
-export type PlatformOAuthProviderCode = "google" | "github";
-export type PlatformOAuthProviderIcon = "google" | "github";
+export type PlatformOAuthProviderCode = string;
 
-export interface PlatformOAuthProviderConfigRecord {
+export class PlatformOAuthProviderValidationError extends Error {
+    override readonly name = 'PlatformOAuthProviderValidationError';
+}
+export type PlatformOAuthTokenAuthMethod = 'client_secret_post' | 'client_secret_basic';
+
+export interface PlatformOAuthProviderDisplay {
     code: PlatformOAuthProviderCode;
     displayName: string;
-    icon: PlatformOAuthProviderIcon;
+    icon: string;
+    buttonColor: string;
+}
+
+export interface PlatformOAuthProviderProtocol {
+    authorizationEndpoint: string;
+    tokenEndpoint: string;
+    userInfoEndpoint: string;
+    scopes: string[];
+    tokenAuthMethod: PlatformOAuthTokenAuthMethod;
+    pkceEnabled: boolean;
+    profileSubjectPath: string;
+    profileDisplayNamePath: string;
+    profileDisplayNameFallbackPath: string | null;
+    profileAvatarUrlPath: string | null;
+}
+
+export interface PlatformOAuthProviderConfigRecord
+    extends PlatformOAuthProviderDisplay, PlatformOAuthProviderProtocol {
     enabled: boolean;
     clientIdCiphertext: string | null;
     clientSecretCiphertext: string | null;
@@ -12,13 +34,10 @@ export interface PlatformOAuthProviderConfigRecord {
     updatedAt: number;
 }
 
-export interface PlatformOAuthProviderSummary {
-    code: PlatformOAuthProviderCode;
-    displayName: string;
-    icon: PlatformOAuthProviderIcon;
-}
+export type PlatformOAuthProviderSummary = PlatformOAuthProviderDisplay;
 
-export interface PlatformOAuthProviderAdminView extends PlatformOAuthProviderSummary {
+export interface PlatformOAuthProviderAdminView
+    extends PlatformOAuthProviderDisplay, PlatformOAuthProviderProtocol {
     enabled: boolean;
     configured: boolean;
     clientIdMasked: string | null;
@@ -26,32 +45,41 @@ export interface PlatformOAuthProviderAdminView extends PlatformOAuthProviderSum
     updatedAt: number;
 }
 
-export interface PlatformOAuthProviderUpdateInput {
-    code: PlatformOAuthProviderCode;
-    displayName: string;
+export interface PlatformOAuthProviderWriteInput
+    extends PlatformOAuthProviderDisplay, PlatformOAuthProviderProtocol {
     enabled: boolean;
-    clientId: string | undefined;
-    clientSecret: string | undefined;
-    redirectUri: string | undefined;
+    clientId?: string;
+    clientSecret?: string;
+    redirectUri?: string;
+}
+
+export interface PlatformOAuthProviderCreateInput extends PlatformOAuthProviderWriteInput {}
+
+export interface PlatformOAuthProviderUpdateInput extends PlatformOAuthProviderWriteInput {
     expectedUpdatedAt: number;
 }
 
 export interface PlatformOAuthProviderStore {
     listOAuthProviderConfigs(): Promise<PlatformOAuthProviderConfigRecord[]>;
-    updateOAuthProviderConfig(input: {
-        code: PlatformOAuthProviderCode;
-        displayName: string;
-        enabled: boolean;
-        clientIdCiphertext: string | null;
-        clientSecretCiphertext: string | null;
-        redirectUri: string | null;
-        expectedUpdatedAt: number;
-        updatedAt: number;
-    }): Promise<
-        | { status: "saved"; provider: PlatformOAuthProviderConfigRecord }
-        | { status: "conflict"; provider: PlatformOAuthProviderConfigRecord }
-        | { status: "not-found" }
+    createOAuthProviderConfig(
+        input: Omit<PlatformOAuthProviderConfigRecord, 'updatedAt'> & { updatedAt: number },
+    ): Promise<
+        | { status: 'created'; provider: PlatformOAuthProviderConfigRecord }
+        | { status: 'conflict'; provider: PlatformOAuthProviderConfigRecord }
     >;
+    updateOAuthProviderConfig(
+        input: PlatformOAuthProviderConfigRecord & {
+            expectedUpdatedAt: number;
+        },
+    ): Promise<
+        | { status: 'saved'; provider: PlatformOAuthProviderConfigRecord }
+        | { status: 'conflict'; provider: PlatformOAuthProviderConfigRecord }
+        | { status: 'not-found' }
+    >;
+    deleteOAuthProviderConfig(
+        code: PlatformOAuthProviderCode,
+        expectedUpdatedAt: number,
+    ): Promise<'deleted' | 'conflict' | 'in-use' | 'not-found'>;
 }
 
 export interface PlatformOAuthSecretBox {
@@ -68,22 +96,32 @@ export interface PlatformOAuthIdentityProfile {
 
 export interface PlatformOAuthClient {
     listProviders(): Promise<PlatformOAuthProviderSummary[]>;
+    createProvider(
+        input: PlatformOAuthProviderCreateInput,
+    ): Promise<
+        | { status: 'created'; provider: PlatformOAuthProviderAdminView }
+        | { status: 'conflict'; provider: PlatformOAuthProviderAdminView }
+    >;
     createAuthorizationUrl(
         providerCode: PlatformOAuthProviderCode,
-        input: { state: string; codeChallenge: string }
+        input: { state: string; codeChallenge: string },
     ): Promise<URL | null>;
     exchangeAuthorizationCode(
         providerCode: PlatformOAuthProviderCode,
-        input: { code: string; codeVerifier: string }
+        input: { code: string; codeVerifier: string },
     ): Promise<PlatformOAuthIdentityProfile>;
     listProviderSettings(): Promise<PlatformOAuthProviderAdminView[]>;
     updateProvider(
-        input: PlatformOAuthProviderUpdateInput
+        input: PlatformOAuthProviderUpdateInput,
     ): Promise<
-        | { status: "saved"; provider: PlatformOAuthProviderAdminView }
-        | { status: "conflict"; provider: PlatformOAuthProviderAdminView }
-        | { status: "not-found" }
+        | { status: 'saved'; provider: PlatformOAuthProviderAdminView }
+        | { status: 'conflict'; provider: PlatformOAuthProviderAdminView }
+        | { status: 'not-found' }
     >;
+    deleteProvider(
+        code: PlatformOAuthProviderCode,
+        expectedUpdatedAt: number,
+    ): Promise<'deleted' | 'conflict' | 'in-use' | 'not-found'>;
 }
 
 export interface OAuthServices {

@@ -41,46 +41,10 @@ export const namecardPageSchema = z.object({
 })
 
 export const reactionSchema = z.record(z.string(), z.number().int().nonnegative())
-export const namecardSubmissionStatusSchema = z.enum([
-  "pending",
-  "approving",
-  "approved",
-  "rejected",
-  "withdrawn",
-])
-
-export const namecardSubmissionSchema = z.object({
-  id: cardIdSchema,
-  ...namecardMetadataSchema,
-  status: namecardSubmissionStatusSchema,
-  revision: z.number().int().nonnegative(),
-  image1_url: z.string().min(1).optional(),
-  image2_url: z.string().min(1).optional(),
-  created_at: z.string().nullable().optional(),
-  withdrawn_at: z.string().nullable().optional(),
-})
-
-export const uploadNamecardResponseSchema = z.object({
-  msg: z.string().min(1),
-  submission: namecardSubmissionSchema,
-  withdrawalToken: z.string().min(32),
-})
-
-export const namecardSubmissionResponseSchema = z.object({
-  submission: namecardSubmissionSchema,
-})
-
-export const withdrawNamecardResponseSchema = successEnvelope({
-  submission: namecardSubmissionSchema,
-})
-
 
 export type Namecard = z.infer<typeof namecardSchema>
 export type NamecardPage = z.infer<typeof namecardPageSchema>
 export type NamecardReactions = z.infer<typeof reactionSchema>
-export type NamecardSubmission = z.infer<typeof namecardSubmissionSchema>
-export type NamecardSubmissionStatus = z.infer<typeof namecardSubmissionStatusSchema>
-export type UploadNamecardResponse = z.infer<typeof uploadNamecardResponseSchema>
 
 export const adminNamecardSchema = z.object({
   id: z
@@ -106,16 +70,6 @@ export type NamecardInput = z.input<typeof namecardSchema>
 export type NamecardIdolInput = z.input<typeof namecardIdolSchema>
 
 export type NamecardPageInput = z.input<typeof namecardPageSchema>
-
-export type NamecardSubmissionInput = z.input<typeof namecardSubmissionSchema>
-
-export type UploadNamecardReceiptInput = z.input<typeof uploadNamecardResponseSchema>
-
-export type NamecardSubmissionDetailInput = z.input<
-  typeof namecardSubmissionResponseSchema
->
-
-export type WithdrawNamecardInput = z.input<typeof withdrawNamecardResponseSchema>
 
 export type AdminNamecardInput = z.input<typeof adminNamecardSchema>
 

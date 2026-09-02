@@ -234,11 +234,12 @@ test("fills the public workspace with a responsive map and keeps both directorie
   await expect(page.locator(".maplibregl-ctrl-compass")).toHaveCount(0)
   await expect(page.locator(".maplibregl-ctrl-zoom-in")).toBeVisible()
   await expect(page.locator(".maplibregl-ctrl-zoom-out")).toBeVisible()
+  await expect(page.getByRole("button", { name: "回到我的位置" })).toBeVisible()
   expect(requests.some((url) => url.includes("/exchange/map/config"))).toBe(
     true
   )
   await expect
-    .poll(() => requests.some((url) => url.includes("maplibre-gl-worker")))
+    .poll(() => requests.some((url) => /maplibre-gl(?:-csp)?-worker/.test(url)))
     .toBe(true)
 
   if (!isMobile) {
@@ -264,6 +265,19 @@ test("fills the public workspace with a responsive map and keeps both directorie
       name: /上海周末交换事务所、上海活动交换事务所，2 个事务所/,
     })
   await expect(groupMarker).toBeVisible()
+  const pointCount = page.locator("[data-map-point-count]")
+  await expect(pointCount).toContainText("1 个区域点")
+  await expect
+    .poll(async () => {
+      const countBox = await pointCount.boundingBox()
+      const mapBox = await canvas.boundingBox()
+      if (!countBox || !mapBox) return false
+      return (
+        countBox.x < mapBox.x + mapBox.width / 2 &&
+        countBox.y < mapBox.y + mapBox.height / 2
+      )
+    })
+    .toBe(true)
   await expect
     .poll(async () => {
       const screenshot = await canvas.screenshot()

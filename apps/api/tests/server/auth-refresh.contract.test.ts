@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { executeSql, queryOne } from '@/infra/db/sql/query';
@@ -17,7 +18,7 @@ const PASSWORD = 'refresh-contract-password';
 interface AuthFixture {
     app: ReturnType<typeof createHonoApp>;
     connection: PostgresConnection;
-    repository: SqlCoreRepository;
+    repository: SqlBackofficeAuthRepository;
     close(): Promise<void>;
 }
 
@@ -45,8 +46,9 @@ function jwtPayload(token: string): Record<string, unknown> {
 
 async function createFixture(t: TestContext): Promise<AuthFixture> {
     const connection = await createPostgresTestDatabase(t, 'auth-refresh');
-    const repository = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
-    await repository.initialize();
+    await new PostgresqlSchemaStrategy().initializeCore(connection);
+    const repository = new SqlBackofficeAuthRepository(connection);
+    const audit = new SqlAuditRepository(connection);
     await executeSql(connection,
         `INSERT INTO users (username, password, dept, producername, admin_role)
          VALUES (?, 'refresh-contract-digest', 'op', 'Refresh Contract Producer', 'admin')`,
@@ -59,7 +61,7 @@ async function createFixture(t: TestContext): Promise<AuthFixture> {
     );
     const runtime: RuntimeServices = {
         backofficeAuth: repository,
-        audit: repository,
+        audit,
         passwords: {
             async verify(value, digest) {
                 return value === PASSWORD && digest === 'refresh-contract-digest';
@@ -75,7 +77,7 @@ async function createFixture(t: TestContext): Promise<AuthFixture> {
         connection,
         repository,
         async close() {
-            await repository.close();
+            await connection.close();
         }
     };
 }

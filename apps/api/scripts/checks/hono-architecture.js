@@ -170,9 +170,18 @@ const databaseLayout = new Map([
     [
         "repositories",
         [
+            "admin-account-repository.ts",
+            "audit-repository.ts",
+            "backoffice-auth-repository.ts",
             "core-repository.ts",
+            "editorial-repository.ts",
+            "event-repository.ts",
             "fudaba-repository.ts",
+            "homepage-link-repository.ts",
+            "news-repository.ts",
             "platform-account-repository.ts",
+            "reaction-repository.ts",
+            "site-package-repository.ts",
             "story-repository.ts",
             "story-catalog-repository.ts",
             "story-conflicts.ts",
@@ -190,6 +199,68 @@ for (const [directory, requiredFiles] of databaseLayout) {
                 `src/infra/db/${directory}/${requiredFile}: missing database adapter responsibility`,
             );
         }
+    }
+}
+
+const singleCapabilityRepositories = new Map([
+    [
+        "admin-account-repository.ts",
+        ["SqlAdminAccountRepository", "AdminAccountRepository", "admin"],
+    ],
+    ["audit-repository.ts", ["SqlAuditRepository", "AuditRepository", "admin"]],
+    [
+        "backoffice-auth-repository.ts",
+        ["SqlBackofficeAuthRepository", "BackofficeAuthRepository", "admin"],
+    ],
+    [
+        "editorial-repository.ts",
+        ["SqlEditorialRepository", "EditorialRepository", "content"],
+    ],
+    ["event-repository.ts", ["SqlEventRepository", "EventRepository", "content"]],
+    [
+        "homepage-link-repository.ts",
+        ["SqlHomepageLinkRepository", "HomepageLinkRepository", "content"],
+    ],
+    ["news-repository.ts", ["SqlNewsRepository", "NewsRepository", "content"]],
+    [
+        "reaction-repository.ts",
+        ["SqlReactionRepository", "ReactionRepository", "namecards"],
+    ],
+    [
+        "site-package-repository.ts",
+        ["SqlSitePackageRepository", "SitePackageRepository", "site-packages"],
+    ],
+]);
+for (const [filename, [className, contractName, portModule]] of
+    singleCapabilityRepositories) {
+    const file = path.join(infraRoot, "db", "repositories", filename);
+    if (!fs.existsSync(file)) continue;
+    const source = fs.readFileSync(file, "utf8");
+    if (
+        !source.includes(
+            `from '@/ports/repositories/${portModule}'`,
+        ) &&
+        !source.includes(
+            `from "@/ports/repositories/${portModule}"`,
+        )
+    ) {
+        failures.push(
+            `src/infra/db/repositories/${filename}: repository must import its direct capability port`,
+        );
+    }
+    if (/from ['"]@\/ports\/repositories['"]/.test(source)) {
+        failures.push(
+            `src/infra/db/repositories/${filename}: repository must not import the aggregate repository barrel`,
+        );
+    }
+    if (
+        !source.includes(
+            `export class ${className} implements ${contractName} {`,
+        )
+    ) {
+        failures.push(
+            `src/infra/db/repositories/${filename}: repository must implement only ${contractName}`,
+        );
     }
 }
 
@@ -475,7 +546,10 @@ for (const file of filesUnder(domainRoot)) {
 }
 
 const domainSections = new Map([
-    ["identity", ["platform-auth", "platform-profile"]],
+    [
+        "identity",
+        ["platform-auth", "platform-profile", "platform-account-security"],
+    ],
     ["admin", ["backoffice-auth", "admin-accounts", "audit"]],
     [
         "content",
@@ -756,6 +830,7 @@ for (const implementation of [
     "PostgresqlObjectDeletionWorker",
     "PostgresConnection",
     "SqlFudabaRepository",
+    "SqlSitePackageRepository",
     "FilesystemObjectStorage",
     "S3ObjectStorage",
     "StreamingUploadParser",

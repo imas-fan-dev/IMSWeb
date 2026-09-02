@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlHomepageLinkRepository } from '@/infra/db/repositories/homepage-link-repository';
 import { executeSql } from '@/infra/db/sql/query';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
@@ -19,17 +20,15 @@ function adminRequest(method: string, pathname: string, body?: unknown): Request
 
 test('homepage links are database-backed and reorder only complete section inventories', async (t) => {
     const connection = await createPostgresTestDatabase(t, 'homepage-links');
-    const repository = new SqlCoreRepository(
-        connection,
-        new PostgresqlSchemaStrategy()
-    );
-    t.after(() => repository.close());
-    await repository.initialize();
+    await new PostgresqlSchemaStrategy().initializeCore(connection);
+    const audit = new SqlAuditRepository(connection);
+    const repository = new SqlHomepageLinkRepository(connection);
+    t.after(() => connection.close());
     await executeSql(connection, 'DELETE FROM homepage_links');
 
     const app = createHonoApp(() => ({
         homepageLinks: repository,
-        audit: repository,
+        audit,
         backofficeTokens: {
             sign: async () => 'op-token',
             verify: async () => ({

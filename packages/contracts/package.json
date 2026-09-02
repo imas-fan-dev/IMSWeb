@@ -31,6 +31,11 @@
       "require": "./dist/fudaba/index.js",
       "default": "./dist/fudaba/index.js"
     },
+    "./fudaba/guest-submissions": {
+      "types": "./dist/fudaba/guest-submissions.d.ts",
+      "require": "./dist/fudaba/guest-submissions.js",
+      "default": "./dist/fudaba/guest-submissions.js"
+    },
     "./fudaba/map-delivery": {
       "types": "./dist/fudaba/map-delivery.d.ts",
       "require": "./dist/fudaba/map-delivery.js",
@@ -50,6 +55,11 @@
       "types": "./dist/platform/admin.d.ts",
       "require": "./dist/platform/admin.js",
       "default": "./dist/platform/admin.js"
+    },
+    "./platform/account-security": {
+      "types": "./dist/platform/account-security.d.ts",
+      "require": "./dist/platform/account-security.js",
+      "default": "./dist/platform/account-security.js"
     },
     "./live": {
       "types": "./dist/live.d.ts",

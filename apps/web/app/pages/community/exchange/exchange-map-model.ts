@@ -400,11 +400,10 @@ export function resolveMapStyleResourceUrls(
 
   return {
     ...style,
-    sprite,
-    glyphs:
-      typeof style.glyphs === "string"
-        ? resolveMapStyleResourceUrl(style.glyphs, context)
-        : style.glyphs,
+    ...(sprite === undefined ? {} : { sprite }),
+    ...(typeof style.glyphs === "string"
+      ? { glyphs: resolveMapStyleResourceUrl(style.glyphs, context) }
+      : {}),
     sources,
   }
 }

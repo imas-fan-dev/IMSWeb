@@ -7,7 +7,8 @@
 本文件描述 Web workspace 中 Tauri 2 移动端外壳的当前状态、前置条件和尚未打通的契约。
 桌面与移动构建复用同一份 React Router SPA 产物，不存在第二套前端源码。
 
-本文件不描述应用商店发布、签名证书管理和灰度策略。
+本文件不描述应用商店发布、签名证书管理和灰度策略。设备安装链路的前置依赖体检、命令矩阵和
+签名边界见 [App 设备安装与前置依赖](app-device-delivery.md)。
 
 ## 1. 当前状态
 
@@ -65,11 +66,14 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 SDK `zipalign` 与 `apksigner` 加本机 debug keystore 签名；正式分发必须按 Android 发布流程使用
 受管上传密钥，不能复用 debug keystore。
 
-本地环境的其余部分沿用 [AI 开发环境](ai-environment.md)。
+以上前置条件由 `pnpm run app:doctor` 逐项检查并给出修复命令，安装步骤见
+[App 设备安装与前置依赖](app-device-delivery.md)。本地环境的其余部分沿用
+[AI 开发环境](ai-environment.md)。
 
 ## 3. 命令
 
-Web workspace 只暴露一个 `tauri` 透传脚本，子命令原样传给 Tauri CLI：
+设备安装走 `app:*` 封装脚本，见 [App 设备安装与前置依赖](app-device-delivery.md)；
+下列命令是它们底层使用的 Tauri 透传入口，子命令原样传给 Tauri CLI：
 
 ```sh
 pnpm --filter @imsweb/web run dev:app              # 只启动 1420 App Web 开发服务
@@ -124,6 +128,12 @@ scheme 会把设备上的同源 API、媒体、`/sites` 和 `/site-content` 请�
 数据库、对象存储和站点包，也避免 iOS WebKit 为 API 单独发起局域网跨源请求。未设置时使用
 `http://localhost:1420`。需要其他私网入口时设置
 `IMS_APP_DEV_ORIGIN`；启动器拒绝公网、`0.0.0.0`、带凭据、路径、查询或 hash 的值。
+
+这条转发链有一个已知边界：iOS 上带 `Blob`/`File` 的请求体到不了 1420。WebKit 把这类请求体
+作为流交给 scheme handler，转发时被丢弃，Hono 只收到 `content-length: 0`，头像与名片上传因此
+返回 500。纯文本和只含字符串字段的 `FormData` 不受影响，实测 256 KiB 仍完整送达。上传路径的
+联调必须改用自包含包（`pnpm run app ios`），它的 `VITE_IMS_API_ORIGIN` 是绝对地址，请求不经过
+scheme handler。原生图片选择本身在热重载会话里是正常的，失败只发生在随后的上传请求。
 
 ## 4. 跨源 API 契约
 

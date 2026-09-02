@@ -160,6 +160,11 @@ describe("CommunityExchangeMapSection", () => {
     )
     expect(screen.getAllByText("上海周末交换事务所")[0]).toBeVisible()
     expect(screen.getAllByText("同区域交换事务所")[0]).toBeVisible()
+    const pointCount = screen
+      .getByText("1 个区域点")
+      .closest("[data-map-point-count]")
+    expect(pointCount).toHaveClass("top-17", "sm:top-19", "lg:top-3")
+    expect(pointCount?.className).not.toMatch(/(?:^|\s)bottom-/)
     expect(screen.getByText(/当前范围结果较多/)).toBeVisible()
   })
 

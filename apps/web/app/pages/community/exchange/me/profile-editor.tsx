@@ -4,9 +4,11 @@ import {
   LoaderCircleIcon,
   RefreshCwIcon,
   SaveIcon,
+  Trash2Icon,
   UserRoundIcon,
 } from "lucide-react"
 import { useState, type FormEvent } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
 import { FileUploadControl } from "~/components/shared/file-upload-control"
@@ -23,9 +25,11 @@ import { Input } from "~/components/ui/input"
 import { Textarea } from "~/components/ui/textarea"
 import {
   updatePlatformProfile,
+  removePlatformAvatar,
   uploadPlatformAvatar,
   type PlatformProfile,
 } from "~/lib/api"
+import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import {
   apiMessage,
   isFeatureClosed,
@@ -52,32 +56,30 @@ export function ProfileEditor({
   onReload: () => Promise<PlatformProfile>
   onWriteClosed: () => void
 }) {
+  const { t } = useTranslation()
   const [draft, setDraft] = useState(() => profileFields(profile))
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [removingAvatar, setRemovingAvatar] = useState(false)
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null)
-
-  function selectAvatar(file: File | null) {
-    if (!file) {
-      setAvatarFile(null)
-      return
-    }
-    const invalid = validateImage(file, MAX_AVATAR_BYTES)
-    if (invalid) {
-      setFeedback({ kind: "error", message: invalid })
-      return
-    }
-    setFeedback(null)
-    setAvatarFile(file)
-  }
+  const {
+    browse: browseAvatar,
+    clear: clearAvatar,
+    file: avatarFile,
+    preparing: preparingAvatar,
+    selectFile: selectAvatar,
+  } = useAppPreparedImage({
+    mediaKind: "platform-avatar",
+    validate: (file) => validateImage(file, MAX_AVATAR_BYTES),
+    onError: (message) => setFeedback({ kind: "error", message }),
+    onSelected: () => setFeedback(null),
+  })
 
   function mutationFailure(error: unknown, fallback: string) {
     if (isProfileConflict(error)) {
       setFeedback({
         kind: "conflict",
-        message:
-          "资料已在其他窗口更新。当前输入仍保留，请载入最新版本后再修改。",
+        message: t("platformAccount.profileEditor.conflictMessage"),
       })
       return
     }
@@ -85,7 +87,7 @@ export function ProfileEditor({
       onWriteClosed()
       setFeedback({
         kind: "error",
-        message: "资料与名片编辑当前未开放。",
+        message: t("platformAccount.profileEditor.writeClosed"),
       })
       return
     }
@@ -105,10 +107,13 @@ export function ProfileEditor({
       }).send()
       setDraft(profileFields(result.profile))
       onSaved(result.profile)
-      setFeedback({ kind: "success", message: "制作人资料已保存。" })
-      toast.success("制作人资料已保存")
+      setFeedback({
+        kind: "success",
+        message: t("platformAccount.profileEditor.saved"),
+      })
+      toast.success(t("platformAccount.profileEditor.savedToast"))
     } catch (error) {
-      mutationFailure(error, "制作人资料保存失败，请重试。")
+      mutationFailure(error, t("platformAccount.profileEditor.saveFailed"))
     } finally {
       setSaving(false)
     }
@@ -125,13 +130,44 @@ export function ProfileEditor({
       }).send()
       setDraft(profileFields(result.profile))
       onSaved(result.profile)
-      setAvatarFile(null)
-      setFeedback({ kind: "success", message: "头像已更新。" })
-      toast.success("头像已更新")
+      clearAvatar()
+      setFeedback({
+        kind: "success",
+        message: t("platformAccount.profileEditor.avatar.updated"),
+      })
+      toast.success(t("platformAccount.profileEditor.avatar.updatedToast"))
     } catch (error) {
-      mutationFailure(error, "头像上传失败，请检查图片后重试。")
+      mutationFailure(
+        error,
+        t("platformAccount.profileEditor.avatar.uploadFailed")
+      )
     } finally {
       setUploadingAvatar(false)
+    }
+  }
+
+  // `clearAvatar()` only drops the locally staged file. This removes the avatar
+  // the server already stores, under the same optimistic fence as a save.
+  async function removeAvatar() {
+    setRemovingAvatar(true)
+    setFeedback(null)
+    try {
+      const result = await removePlatformAvatar(profile.updatedAt).send()
+      setDraft(profileFields(result.profile))
+      onSaved(result.profile)
+      clearAvatar()
+      setFeedback({
+        kind: "success",
+        message: t("platformAccount.profileEditor.avatar.removed"),
+      })
+      toast.success(t("platformAccount.profileEditor.avatar.removedToast"))
+    } catch (error) {
+      mutationFailure(
+        error,
+        t("platformAccount.profileEditor.avatar.removeFailed")
+      )
+    } finally {
+      setRemovingAvatar(false)
     }
   }
 
@@ -139,16 +175,22 @@ export function ProfileEditor({
     try {
       const latest = await onReload()
       setDraft(profileFields(latest))
-      setFeedback({ kind: "success", message: "已载入最新制作人资料。" })
+      setFeedback({
+        kind: "success",
+        message: t("platformAccount.profileEditor.reloaded"),
+      })
     } catch (error) {
       setFeedback({
         kind: "error",
-        message: apiMessage(error, "最新资料载入失败，请重试。"),
+        message: apiMessage(
+          error,
+          t("platformAccount.profileEditor.reloadFailed")
+        ),
       })
     }
   }
 
-  const busy = saving || uploadingAvatar
+  const busy = saving || preparingAvatar || uploadingAvatar || removingAvatar
 
   return (
     <section
@@ -158,19 +200,25 @@ export function ProfileEditor({
       <div className="flex min-w-0 items-start justify-between gap-3 border-b pb-5">
         <div className="min-w-0">
           <h2 id="profile-editor-title" className="text-xl font-semibold">
-            个人资料
+            {t("platformAccount.profileEditor.title")}
           </h2>
           <p className="mt-2 text-sm/6 text-muted-foreground">
-            更新头像、显示名称、常驻城市和个人简介。
+            {t("platformAccount.profileEditor.description")}
           </p>
         </div>
-        {readOnly ? <Badge variant="secondary">只读</Badge> : null}
+        {readOnly ? (
+          <Badge variant="secondary">
+            {t("platformAccount.profileEditor.readOnlyBadge")}
+          </Badge>
+        ) : null}
       </div>
 
       {readOnlyReason ? (
         <Alert className="mt-4">
           <CircleAlertIcon aria-hidden="true" />
-          <AlertTitle>资料暂时只读</AlertTitle>
+          <AlertTitle>
+            {t("platformAccount.profileEditor.readOnlyTitle")}
+          </AlertTitle>
           <AlertDescription>{readOnlyReason}</AlertDescription>
         </Alert>
       ) : null}
@@ -183,10 +231,10 @@ export function ProfileEditor({
           <CircleAlertIcon aria-hidden="true" />
           <AlertTitle>
             {feedback.kind === "success"
-              ? "操作成功"
+              ? t("platformAccount.profileEditor.feedback.successTitle")
               : feedback.kind === "conflict"
-                ? "资料版本冲突"
-                : "操作未完成"}
+                ? t("platformAccount.profileEditor.feedback.conflictTitle")
+                : t("platformAccount.profileEditor.feedback.errorTitle")}
           </AlertTitle>
           <AlertDescription>
             <p>{feedback.message}</p>
@@ -199,7 +247,7 @@ export function ProfileEditor({
                 onClick={() => void reloadLatest()}
               >
                 <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
-                载入最新资料
+                {t("platformAccount.profileEditor.feedback.reload")}
               </Button>
             ) : null}
           </AlertDescription>
@@ -208,19 +256,23 @@ export function ProfileEditor({
 
       <div className="mt-5">
         <Field data-disabled={readOnly || undefined}>
-          <FieldLabel htmlFor="exchange-profile-avatar">头像</FieldLabel>
+          <FieldLabel htmlFor="exchange-profile-avatar">
+            {t("platformAccount.profileEditor.avatar.label")}
+          </FieldLabel>
           <FileUploadControl
             id="exchange-profile-avatar"
             compact
             accept="image/*"
-            emptyTitle="选择新头像"
-            emptyDetail="图片文件 · 不超过 5 MiB"
-            fileKind="头像"
+            emptyTitle={t("platformAccount.profileEditor.avatar.emptyTitle")}
+            emptyDetail={t("platformAccount.profileEditor.avatar.emptyDetail")}
+            fileKind={t("platformAccount.profileEditor.avatar.fileKind")}
             file={avatarFile}
             disabled={readOnly || saving}
+            preparing={preparingAvatar}
             uploading={uploadingAvatar}
             selectedIcon={UserRoundIcon}
             emptyIcon={ImageUpIcon}
+            onBrowse={browseAvatar}
             onSelect={selectAvatar}
           />
           <Button
@@ -240,15 +292,42 @@ export function ProfileEditor({
             ) : (
               <ImageUpIcon data-icon="inline-start" aria-hidden="true" />
             )}
-            {uploadingAvatar ? "正在上传" : "上传头像"}
+            {uploadingAvatar
+              ? t("platformAccount.profileEditor.avatar.uploading")
+              : t("platformAccount.profileEditor.avatar.upload")}
           </Button>
+          {profile.avatarUrl ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              disabled={readOnly || busy}
+              onClick={() => void removeAvatar()}
+            >
+              {removingAvatar ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Trash2Icon data-icon="inline-start" aria-hidden="true" />
+              )}
+              {removingAvatar
+                ? t("platformAccount.profileEditor.avatar.removing")
+                : t("platformAccount.profileEditor.avatar.remove")}
+            </Button>
+          ) : null}
         </Field>
       </div>
 
       <form className="mt-6" onSubmit={(event) => void saveProfile(event)}>
         <FieldGroup>
           <Field data-disabled={readOnly || undefined}>
-            <FieldLabel htmlFor="exchange-profile-name">显示名称</FieldLabel>
+            <FieldLabel htmlFor="exchange-profile-name">
+              {t("platformAccount.profileEditor.fields.displayName")}
+            </FieldLabel>
             <Input
               id="exchange-profile-name"
               value={draft.displayName}
@@ -265,13 +344,17 @@ export function ProfileEditor({
             />
           </Field>
           <Field data-disabled={readOnly || undefined}>
-            <FieldLabel htmlFor="exchange-profile-city">常驻城市</FieldLabel>
+            <FieldLabel htmlFor="exchange-profile-city">
+              {t("platformAccount.profileEditor.fields.homeCity")}
+            </FieldLabel>
             <Input
               id="exchange-profile-city"
               value={draft.homeCity}
               maxLength={100}
               disabled={readOnly || busy}
-              placeholder="例如：上海"
+              placeholder={t(
+                "platformAccount.profileEditor.fields.homeCityPlaceholder"
+              )}
               onChange={(event) => {
                 const homeCity = event.currentTarget.value
                 setDraft((current) => ({
@@ -280,10 +363,14 @@ export function ProfileEditor({
                 }))
               }}
             />
-            <FieldDescription>用于交换资料展示，可留空。</FieldDescription>
+            <FieldDescription>
+              {t("platformAccount.profileEditor.fields.homeCityDescription")}
+            </FieldDescription>
           </Field>
           <Field data-disabled={readOnly || undefined}>
-            <FieldLabel htmlFor="exchange-profile-bio">个人简介</FieldLabel>
+            <FieldLabel htmlFor="exchange-profile-bio">
+              {t("platformAccount.profileEditor.fields.bio")}
+            </FieldLabel>
             <Textarea
               id="exchange-profile-bio"
               value={draft.bio}
@@ -314,7 +401,9 @@ export function ProfileEditor({
           ) : (
             <SaveIcon data-icon="inline-start" aria-hidden="true" />
           )}
-          {saving ? "正在保存" : "保存资料"}
+          {saving
+            ? t("platformAccount.profileEditor.saving")
+            : t("platformAccount.profileEditor.save")}
         </Button>
       </form>
     </section>

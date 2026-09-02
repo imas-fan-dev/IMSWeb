@@ -6,7 +6,7 @@ import {
     NAMECARD_THUMBNAIL_HEIGHT,
     NAMECARD_THUMBNAIL_MAX_INPUT_PIXELS,
     NAMECARD_THUMBNAIL_WIDTH,
-} from "../../src/domains/community/namecards/media-assets";
+} from "../../src/domains/community/fudaba/card-media-assets";
 import {
     closeNodeServices,
     createNodeServices,

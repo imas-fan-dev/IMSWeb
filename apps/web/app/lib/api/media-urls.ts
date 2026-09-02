@@ -66,11 +66,8 @@ import type {
   FudabaAdminCardClaim,
   FudabaRegisteredCardReview,
 } from "@imsweb/contracts/fudaba/card-claims"
-import type {
-  Namecard,
-  NamecardPage,
-  NamecardSubmission,
-} from "@imsweb/contracts/namecards"
+import type { FudabaGuestSubmission } from "@imsweb/contracts/fudaba/guest-submissions"
+import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
 import type {
   PlatformProfileMutationResponse,
   PlatformProfileResponse,
@@ -444,34 +441,17 @@ export function normalizeNamecardPage(page: NamecardPage): NamecardPage {
   return { ...page, list: page.list.map(namecard) }
 }
 
-/**
- * Submission payloads never reach `resolvePublicMediaUrl` — a pending card's
- * media is not published yet — so they are always root-relative.
- *
- * The contract types both images `.optional()`, so an absent key has to stay
- * absent rather than reappear as an explicit `undefined`.
- */
-function namecardSubmission(
-  submission: NamecardSubmission
-): NamecardSubmission {
-  const resolved: NamecardSubmission = { ...submission }
-  if (resolved.image1_url !== undefined) {
-    resolved.image1_url = apiMediaUrl(resolved.image1_url)
-  }
-  if (resolved.image2_url !== undefined) {
-    resolved.image2_url = apiMediaUrl(resolved.image2_url)
-  }
-  return resolved
-}
-
-/**
- * Shared by the upload receipt, the submission lookup and the withdrawal
- * response: all three wrap the same submission in a different envelope.
- */
-export function normalizeNamecardSubmissionEnvelope<
-  T extends { submission: NamecardSubmission },
+export function normalizeFudabaGuestSubmissionEnvelope<
+  T extends { submission: FudabaGuestSubmission },
 >(response: T): T {
-  return { ...response, submission: namecardSubmission(response.submission) }
+  return {
+    ...response,
+    submission: {
+      ...response.submission,
+      frontImageUrl: apiMediaUrl(response.submission.frontImageUrl),
+      backImageUrl: apiMediaUrl(response.submission.backImageUrl),
+    },
+  }
 }
 
 /* -------------------------------------------------------------------------- */

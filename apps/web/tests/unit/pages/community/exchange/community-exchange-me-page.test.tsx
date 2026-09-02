@@ -387,6 +387,27 @@ describe("CommunityExchangeMePage", () => {
     expect(screen.getByText("周末交换名片")).toBeVisible()
   })
 
+  it("keeps profile editing open while the exchange rollout switch is closed", async () => {
+    apiMocks.sendProfile.mockResolvedValue({
+      success: true,
+      account: { id: "platform-1", status: "active" },
+      capabilities: { fudabaWrite: false },
+      profile,
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(
+      await screen.findByRole("textbox", { name: "显示名称" })
+    ).toBeEnabled()
+    expect(screen.getByRole("button", { name: "保存资料" })).toBeEnabled()
+    expect(screen.queryByText("编辑暂未开放")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("link", { name: "交换名片" }))
+    expect(screen.getByText("编辑暂未开放")).toBeVisible()
+    expect(screen.getByRole("button", { name: "新建名片" })).toBeDisabled()
+  })
+
   it("uses a single App section without the legacy workspace header or tab grid", async () => {
     renderAccountSection()
 

@@ -56,6 +56,21 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 | `pnpm test`         | 依次运行单元测试与端到端测试             |
 | `pnpm check`        | 运行 lint、类型检查、单元测试和生产构建  |
 | `pnpm format`       | 使用 Prettier 格式化 TypeScript/TSX 文件 |
+| `pnpm app:doctor`   | 检查 iOS/Android 打包与安装前置依赖      |
+| `pnpm app`          | 设备安装入口，参数选目标、配置与设备     |
+
+`app` 是唯一的设备入口，目标与配置都是参数：
+
+```sh
+pnpm app devices                            # 列出模拟器、模拟机、真机与 AVD
+pnpm app ios                                # Debug 包装进 iOS 模拟器
+pnpm app ios --target device --release      # Release 包装进 iPhone/iPad
+pnpm app android --target device            # Debug 包装进 Android 真机
+```
+
+完整安装矩阵、前置依赖安装步骤和签名边界见
+[App 设备安装与前置依赖](../../docs/development/app-device-delivery.md)。先跑
+`pnpm app:doctor`：它逐项报告缺失的工具并给出修复命令。
 
 `dev:app` 根据 `TAURI_DEV_HOST` 生成本地 1420 origin。真机请求仍是同源 URL，由 Vite 代理
 到本机 Hono，因此读取本地数据库、对象存储和站点包；它不会继承生产

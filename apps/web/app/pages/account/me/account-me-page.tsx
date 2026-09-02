@@ -6,6 +6,7 @@ import {
   LoaderCircleIcon,
   LogInIcon,
   LogOutIcon,
+  ShieldCheckIcon,
 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -296,6 +297,44 @@ export default function AccountMePage() {
               </li>
             )
           })}
+        </ul>
+      </section>
+
+      {/*
+        Account security is an identity-domain page, so it is a sibling route
+        (`/account/security`) rather than a `profileWorkspaceSections` entry:
+        that array drives `/account/me/:section`, which renders the community
+        exchange workspace. Listing it here would put identity UI inside a
+        community page.
+      */}
+      <section aria-labelledby="account-security-title">
+        <h2 id="account-security-title" className="text-sm font-medium">
+          {t("platformAccount.app.securityGroup")}
+        </h2>
+        <ul className="mt-3 divide-y border-y">
+          <li>
+            <NavigationLink
+              to="/account/security"
+              className="flex min-h-16 min-w-0 items-center gap-3 py-3 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <ShieldCheckIcon
+                className="size-5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">
+                  {t("platformAccount.security.title")}
+                </span>
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                  {t("platformAccount.security.entryDescription")}
+                </span>
+              </span>
+              <ChevronRightIcon
+                className="size-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </NavigationLink>
+          </li>
         </ul>
       </section>
 

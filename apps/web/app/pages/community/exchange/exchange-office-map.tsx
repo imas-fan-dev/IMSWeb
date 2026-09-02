@@ -1,5 +1,6 @@
 import "maplibre-gl/dist/maplibre-gl.css"
 
+import { LoaderCircleIcon, LocateFixedIcon } from "lucide-react"
 import {
   addProtocol,
   AttributionControl,
@@ -9,16 +10,25 @@ import {
   Marker,
   NavigationControl,
   setWorkerUrl,
+  type StyleSpecification,
 } from "maplibre-gl"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-csp-worker.js?url"
 import { Protocol } from "pmtiles"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
+import { Button } from "~/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip"
 import {
   getFudabaChinaBoundaryDashSource,
   resolveMapTransportOrigin,
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 
 import {
   applyChinaBoundaryCompliance,
@@ -319,103 +329,159 @@ function setPaintProperties(
   }
 }
 
-function applyPortalMapPalette(map: MapLibreMap) {
-  for (const [layerId, paint] of Object.entries(portalMapLayerPaint)) {
-    setPaintProperties(map, layerId, paint)
-  }
+const railwayLayerIds = [
+  "railway-transit",
+  "railway-service",
+  "railway",
+  "bridge-railway",
+  "tunnel-railway",
+]
+const poiLabelLayerIds = ["poi_r20", "poi_r7", "poi_r1", "poi_transit"]
+const highwayLabelLayerIds = [
+  "highway-name-path",
+  "highway-name-minor",
+  "highway-name-major",
+]
+const cityLabelLayerIds = [
+  "label_city",
+  "label_city_capital",
+  "label_country_1",
+  "label_country_2",
+  "label_country_3",
+]
+const waterLabelLayerIds = [
+  "water_name_point_label",
+  "water_name_line_label",
+  "waterway_line_label",
+]
+const portalStyledLayerIds = [
+  ...new Set([
+    ...Object.keys(portalMapLayerPaint),
+    ...waterwayLayerIds,
+    ...roadCasingLayerIds,
+    ...minorRoadLayerIds,
+    ...collectorRoadLayerIds,
+    ...arterialRoadLayerIds,
+    ...motorwayLayerIds,
+    ...railwayLayerIds,
+    ...labelLayerIds,
+  ]),
+]
 
-  for (const layerId of waterwayLayerIds) {
-    setPaintProperties(map, layerId, {
+function portalPaintForLayer(layerId: string) {
+  const paint: Record<string, unknown> = {
+    ...portalMapLayerPaint[layerId],
+  }
+  if (waterwayLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "line-color": "#a8d6ed",
       "line-opacity": 0.84,
     })
   }
-  for (const layerId of roadCasingLayerIds) {
-    setPaintProperties(map, layerId, {
+  if (roadCasingLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "line-color": "#c7d4e2",
       "line-opacity": 0.58,
     })
   }
-  for (const layerId of minorRoadLayerIds) {
-    setPaintProperties(map, layerId, {
+  if (minorRoadLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "line-color": "#ffffff",
       "line-opacity": 0.88,
     })
   }
-  for (const layerId of collectorRoadLayerIds) {
-    setPaintProperties(map, layerId, {
+  if (collectorRoadLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "line-color": "#edf3f9",
       "line-opacity": 0.94,
     })
   }
-  for (const layerId of arterialRoadLayerIds) {
-    setPaintProperties(map, layerId, {
+  if (arterialRoadLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "line-color": "#d6dff0",
       "line-opacity": 0.96,
     })
   }
-  for (const layerId of motorwayLayerIds) {
-    setPaintProperties(map, layerId, {
+  if (motorwayLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "line-color": "#adcbea",
       "line-opacity": 0.96,
     })
   }
-  for (const layerId of [
-    "railway-transit",
-    "railway-service",
-    "railway",
-    "bridge-railway",
-    "tunnel-railway",
-  ]) {
-    setPaintProperties(map, layerId, {
+  if (railwayLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "line-color": "#bdc8d5",
       "line-opacity": 0.5,
     })
   }
-  for (const layerId of labelLayerIds) {
-    setPaintProperties(map, layerId, {
+  if (labelLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "text-color": "#687489",
       "text-halo-color": "#f7faff",
       "text-halo-width": 1.35,
       "text-opacity": 0.86,
     })
   }
-  for (const layerId of ["poi_r20", "poi_r7", "poi_r1", "poi_transit"]) {
-    setPaintProperties(map, layerId, { "text-opacity": 0.56 })
+  if (poiLabelLayerIds.includes(layerId)) {
+    Object.assign(paint, { "text-opacity": 0.56 })
   }
-  for (const layerId of [
-    "highway-name-path",
-    "highway-name-minor",
-    "highway-name-major",
-  ]) {
-    setPaintProperties(map, layerId, { "text-opacity": 0.66 })
+  if (highwayLabelLayerIds.includes(layerId)) {
+    Object.assign(paint, { "text-opacity": 0.66 })
   }
-  for (const layerId of [
-    "label_city",
-    "label_city_capital",
-    "label_country_1",
-    "label_country_2",
-    "label_country_3",
-  ]) {
-    setPaintProperties(map, layerId, {
+  if (cityLabelLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "text-color": "#3d485b",
       "text-halo-color": "#f7faff",
       "text-halo-width": 1.6,
       "text-opacity": 0.94,
     })
   }
-  for (const layerId of [
-    "water_name_point_label",
-    "water_name_line_label",
-    "waterway_line_label",
-  ]) {
-    setPaintProperties(map, layerId, {
+  if (waterLabelLayerIds.includes(layerId)) {
+    Object.assign(paint, {
       "text-color": "#5b89a5",
       "text-halo-color": "#e8f5fb",
       "text-halo-width": 1.2,
       "text-opacity": 0.88,
     })
   }
+  return Object.keys(paint).length ? paint : null
+}
+
+function applyPortalMapStyle(style: StyleSpecification): StyleSpecification {
+  return {
+    ...style,
+    layers: style.layers.map((layer) => {
+      const portalPaint = portalPaintForLayer(layer.id)
+      if (!portalPaint) return layer
+      const currentPaint = "paint" in layer ? (layer.paint ?? {}) : {}
+      return {
+        ...layer,
+        paint: { ...currentPaint, ...portalPaint },
+      } as StyleSpecification["layers"][number]
+    }),
+  }
+}
+
+function applyPortalMapPalette(map: MapLibreMap) {
+  for (const layerId of portalStyledLayerIds) {
+    const paint = portalPaintForLayer(layerId)
+    if (paint) setPaintProperties(map, layerId, paint)
+  }
+}
+
+function createUserLocationElement() {
+  const element = document.createElement("span")
+  element.className =
+    "block size-4 rounded-full border-[3px] border-white bg-primary shadow-[0_2px_8px_rgb(23_29_38/35%)] ring-2 ring-primary/30"
+  element.setAttribute("role", "img")
+  element.setAttribute("aria-label", "您的当前位置")
+  return element
+}
+
+function geolocationErrorMessage(error: GeolocationPositionError) {
+  if (error.code === error.PERMISSION_DENIED) return "未获得位置权限"
+  if (error.code === error.TIMEOUT) return "获取位置超时，请重试"
+  return "暂时无法获取您的位置"
 }
 
 export function ExchangeOfficeMap({
@@ -435,7 +501,65 @@ export function ExchangeOfficeMap({
   const onViewportChangeRef = useRef(onViewportChange)
   const onFatalErrorRef = useRef(onFatalError)
   const refreshMarkersRef = useRef<() => void>(() => undefined)
+  const userLocationMarkerRef = useRef<Marker | null>(null)
+  const locationRequestRef = useRef(0)
   const fatalErrorSentRef = useRef(false)
+  const [locationState, setLocationState] = useState<{
+    phase: "idle" | "locating" | "success" | "error"
+    message: string
+  }>({ phase: "idle", message: "" })
+
+  const locateUser = useCallback(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (!navigator.geolocation) {
+      setLocationState({
+        phase: "error",
+        message: "当前设备不支持位置服务",
+      })
+      return
+    }
+
+    const request = ++locationRequestRef.current
+    setLocationState({ phase: "locating", message: "正在获取您的位置" })
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (locationRequestRef.current !== request || mapRef.current !== map) {
+          return
+        }
+        const center: [number, number] = [coords.longitude, coords.latitude]
+        let marker = userLocationMarkerRef.current
+        if (!marker) {
+          marker = new Marker({
+            element: createUserLocationElement(),
+            anchor: "center",
+          })
+            .setLngLat(center)
+            .addTo(map)
+          userLocationMarkerRef.current = marker
+        }
+        marker.setLngLat(center)
+        const reducedMotion = window.matchMedia?.(
+          "(prefers-reduced-motion: reduce)"
+        ).matches
+        map.easeTo({
+          center,
+          zoom: Math.max(map.getZoom(), 8),
+          duration: reducedMotion ? 0 : 900,
+          essential: false,
+        })
+        setLocationState({ phase: "success", message: "已回到您的位置" })
+      },
+      (error) => {
+        if (locationRequestRef.current !== request) return
+        setLocationState({
+          phase: "error",
+          message: geolocationErrorMessage(error),
+        })
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 30_000 }
+    )
+  }, [])
 
   useEffect(() => {
     groupsRef.current = groups
@@ -648,8 +772,8 @@ export function ExchangeOfficeMap({
           "aria-label",
           "区域事务所地图。使用方向键移动地图，使用加减按钮缩放。"
         )
-        // 先按《公开地图内容表示规范》修正边界与注记，再统一配色，
-        // 使新增图层与既有图层走同一套门户配色。
+        // 基础底图在 transformStyle 阶段已经完成配色。边界合规图层需要
+        // 等样式加载后创建，再重用同一套配置补齐新增图层。
         applyChinaBoundaryCompliance(map, chinaBoundaryDashSource)
         applyPortalMapPalette(map)
         // Do not wait for global `idle`: a PMTiles base map can keep loading
@@ -711,7 +835,9 @@ export function ExchangeOfficeMap({
     try {
       map.setStyle(resolvedStyleUrl, {
         transformStyle: (_previousStyle, nextStyle) =>
-          resolveMapStyleResourceUrls(nextStyle, deliveryContext),
+          applyPortalMapStyle(
+            resolveMapStyleResourceUrls(nextStyle, deliveryContext)
+          ),
       })
     } catch (error) {
       reportFatalError(error)
@@ -743,6 +869,9 @@ export function ExchangeOfficeMap({
       window.visualViewport?.removeEventListener("resize", resizeMap)
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
       if (markerRefreshFrame !== null) cancelAnimationFrame(markerRefreshFrame)
+      locationRequestRef.current += 1
+      userLocationMarkerRef.current?.remove()
+      userLocationMarkerRef.current = null
       clearMarkers()
       map.off("load", handleLoad)
       map.off("sourcedata", handleOfficeSourceData)
@@ -778,14 +907,71 @@ export function ExchangeOfficeMap({
     }
   }, [selectedGroupKey])
 
+  const locationControlOffset = IS_APP_TARGET
+    ? "right-3 bottom-[calc(var(--app-floating-bottom)+8.75rem)] size-10 md:right-2.5 md:bottom-20 md:size-8"
+    : "right-2.5 bottom-20"
+
   return (
-    <div
-      ref={containerRef}
-      className="size-full min-h-0 bg-[#e8f2f4]"
-      data-exchange-office-map
-      data-app-target={IS_APP_TARGET ? "" : undefined}
-      data-map-state="loading"
-      aria-label="区域事务所地图工作面"
-    />
+    <div className="relative size-full min-h-0 bg-[#e8f2f4]">
+      <div
+        ref={containerRef}
+        className="size-full min-h-0"
+        data-exchange-office-map
+        data-app-target={IS_APP_TARGET ? "" : undefined}
+        data-map-state="loading"
+        aria-label="区域事务所地图工作面"
+      />
+
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(
+                  "absolute z-10 bg-background/95 shadow-sm backdrop-blur-sm",
+                  IS_APP_TARGET && "exchange-map-app-control",
+                  locationControlOffset
+                )}
+                aria-label="回到我的位置"
+                aria-busy={locationState.phase === "locating"}
+                disabled={locationState.phase === "locating"}
+                onClick={locateUser}
+              >
+                {locationState.phase === "locating" ? (
+                  <LoaderCircleIcon
+                    className="animate-spin motion-reduce:animate-none"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <LocateFixedIcon aria-hidden="true" />
+                )}
+              </Button>
+            }
+          />
+          <TooltipContent side="left">回到我的位置</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <div
+        className={cn(
+          "pointer-events-none absolute z-10 max-w-56",
+          IS_APP_TARGET
+            ? "right-16 bottom-[calc(var(--app-floating-bottom)+8.75rem)] md:right-12 md:bottom-20"
+            : "right-12 bottom-20"
+        )}
+        aria-live="polite"
+      >
+        {locationState.phase === "error" ? (
+          <p className="rounded-md border bg-background/95 px-2.5 py-2 text-xs text-foreground shadow-sm backdrop-blur-sm">
+            {locationState.message}
+          </p>
+        ) : (
+          <span className="sr-only">{locationState.message}</span>
+        )}
+      </div>
+    </div>
   )
 }

@@ -132,8 +132,8 @@ function InteractiveWikiAgencyDial({
   onSelectAgency,
   view,
 }: WikiAgencyDialProps) {
-  // Only the closed trigger needs lifting. `IS_APP_TARGET` is inlined by Vite,
-  // so the web bundle folds this to `false` and drops the branch.
+  // Anchor the App trigger and lower-left dial from the native tab bar clearance.
+  // `IS_APP_TARGET` is inlined by Vite, so the web bundle drops this branch.
   const clearsAppTabBar = IS_APP_TARGET && view === "modern"
   const selectedIndex = Math.max(
     0,
@@ -417,7 +417,7 @@ function InteractiveWikiAgencyDial({
         className={cn(
           "top-auto right-auto block w-auto max-w-none rounded-full bg-transparent p-0 shadow-none ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none",
           clearsAppTabBar
-            ? "bottom-[calc(var(--app-bottom-clearance)+1rem)] left-1/2 -translate-x-1/2 translate-y-0"
+            ? "bottom-[calc(var(--app-bottom-clearance)+1rem)] left-11 -translate-x-1/2 translate-y-1/2"
             : "bottom-[calc(2.75rem+env(safe-area-inset-bottom))] left-11 -translate-x-1/2 translate-y-1/2",
           visibilityClassName
         )}

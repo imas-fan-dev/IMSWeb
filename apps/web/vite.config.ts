@@ -53,6 +53,7 @@ export default defineConfig({
     entries: ["app/**/*.{ts,tsx}"],
     include: [
       "@imsweb/contracts/**",
+      "@imsweb/contracts/fudaba/guest-submissions",
       "@base-ui/react > use-sync-external-store/shim",
       "@base-ui/react > use-sync-external-store/shim/with-selector",
       "@tanstack/react-virtual",

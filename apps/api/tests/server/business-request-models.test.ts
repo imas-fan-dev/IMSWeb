@@ -5,9 +5,9 @@ import {
     validateEventIdParams,
     validateEventListQuery
 } from '@/domains/content/events/request';
+import { validateFudabaGuestSubmissionIdParams } from '@/domains/community/fudaba/guest-submissions/request';
 import {
     validateAdminNamecardListQuery,
-    validateNamecardIdParams,
     validateNamecardListQuery
 } from '@/domains/community/namecards/request';
 import {
@@ -82,8 +82,14 @@ test('news request models validate IDs, cursors, URLs, and normalized text', () 
 });
 
 test('namecard request models enforce IDs and preserve legacy parseInt pagination', () => {
-    assert.deepEqual(validateNamecardIdParams({ id: '9' }), { id: 9 });
-    rejects(() => validateNamecardIdParams({ id: '-1' }), /名片 ID/);
+    assert.deepEqual(
+        validateFudabaGuestSubmissionIdParams({ submissionId: '9' }),
+        { id: 9 }
+    );
+    rejects(
+        () => validateFudabaGuestSubmissionIdParams({ submissionId: '-1' }),
+        /名片 ID/
+    );
     assert.deepEqual(validateNamecardListQuery({}), { page: 1, size: 25 });
     assert.deepEqual(validateNamecardListQuery({ page: '3', size: '12' }), {
         page: 3,
