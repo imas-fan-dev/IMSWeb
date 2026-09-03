@@ -225,25 +225,77 @@ export class SqlEditorialRepository implements EditorialRepository {
         });
     }
 
+    async replaceLegacyInformationSpotlightEntries(input: Array<{
+        postId: number;
+        category: SpotlightCategory;
+        sortOrder: number;
+    }>): Promise<void> {
+        await this.database.transaction(async (database) => {
+            const manualEntries = await queryAll<{
+                post_id: number;
+                category: SpotlightCategory;
+            }>(database,
+                `SELECT s.post_id, s.category
+                 FROM homepage_spotlight_entries s
+                 JOIN events e ON e.id=s.post_id
+                 WHERE e.legacy_information_id IS NULL
+                 ORDER BY s.sort_order ASC, s.post_id ASC
+                 FOR UPDATE OF s, e`
+            );
+            await executeSql(database, 'DELETE FROM homepage_spotlight_entries');
+            for (const entry of [...input].sort((left, right) => left.sortOrder - right.sortOrder)) {
+                await executeSql(database,
+                    `INSERT INTO homepage_spotlight_entries (post_id, category, sort_order)
+                     VALUES (?, ?, ?)`,
+                    [entry.postId, entry.category, entry.sortOrder]
+                );
+            }
+            for (const [index, entry] of manualEntries.entries()) {
+                await executeSql(database,
+                    `INSERT INTO homepage_spotlight_entries (post_id, category, sort_order)
+                     VALUES (?, ?, ?)`,
+                    [entry.post_id, entry.category, input.length + index]
+                );
+            }
+        });
+    }
+
     async importLegacyInformationPost(input: {
         legacyInformationId: string;
         category: SpotlightCategory;
         title: string;
         coverUrl: string;
         sourceUrl: string | null;
-        bodyJson: Record<string, unknown>;
-        bodyHtml: string;
         publishedAt: string;
-    }): Promise<{ id: number; imported: boolean }> {
+    }): Promise<{
+        id: number;
+        articleId: number;
+        bodyJson: Record<string, unknown>;
+        imported: boolean;
+    }> {
         return this.database.transaction(async (database) => {
-            const existing = await queryOne<{ id: number }>(database,
-                'SELECT id FROM events WHERE legacy_information_id=?', [input.legacyInformationId]);
-            if (existing) return { id: existing.id, imported: false };
+            const existing = await queryOne<{
+                id: number;
+                article_id: number;
+                body_json: Record<string, unknown>;
+            }>(database,
+                `SELECT e.id, e.article_id, a.body_json
+                 FROM events e JOIN articles a ON a.id=e.article_id
+                 WHERE e.legacy_information_id=? AND e.article_id IS NOT NULL`,
+                [input.legacyInformationId]);
+            if (existing) {
+                return {
+                    id: existing.id,
+                    articleId: existing.article_id,
+                    bodyJson: existing.body_json,
+                    imported: false
+                };
+            }
             const article = await queryOne<{ id: number }>(database,
                 `INSERT INTO articles
                  (content_type, title, cover_url, body_json, body_html, status, created_at, updated_at, published_at)
                  VALUES ('event', ?, ?, ?, ?, 'published', ?, ?, ?) RETURNING id`,
-                [input.title, input.coverUrl, JSON.stringify(input.bodyJson), input.bodyHtml,
+                [input.title, input.coverUrl, JSON.stringify({ type: 'doc', content: [] }), '',
                     input.publishedAt, input.publishedAt, input.publishedAt]
             );
             if (!article) throw new Error('Legacy Information article insert did not return an ID');
@@ -254,18 +306,34 @@ export class SqlEditorialRepository implements EditorialRepository {
                 [article.id, input.title, input.sourceUrl, input.legacyInformationId]
             );
             if (!event) throw new Error('Legacy Information post insert did not return an ID');
-            await executeSql(database,
-                `INSERT INTO homepage_spotlight_entries (post_id, category, sort_order)
-                 VALUES (?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM homepage_spotlight_entries), 0))`,
-                [event.id, input.category]
-            );
-            return { id: event.id, imported: true };
+            return {
+                id: event.id,
+                articleId: article.id,
+                bodyJson: { type: 'doc', content: [] },
+                imported: true
+            };
         });
     }
 
-    findLegacyInformationPost(legacyInformationId: string): Promise<{ id: number } | null> {
+    async replaceLegacyInformationPostBody(input: {
+        legacyInformationId: string;
+        bodyJson: Record<string, unknown>;
+        bodyHtml: string;
+    }): Promise<void> {
+        const result = await executeSql(this.database,
+            `UPDATE articles
+             SET body_json=?, body_html=?, updated_at=CURRENT_TIMESTAMP
+             WHERE id=(SELECT article_id FROM events WHERE legacy_information_id=?)`,
+            [JSON.stringify(input.bodyJson), input.bodyHtml, input.legacyInformationId]
+        );
+        if (result.meta.changes !== 1) {
+            throw new Error(`Legacy Information post ${input.legacyInformationId} was not found`);
+        }
+    }
+
+    findLegacyInformationPost(legacyInformationId: string): Promise<{ id: number; articleId: number } | null> {
         return queryOne(this.database,
-            `SELECT e.id FROM events e JOIN articles a ON a.id=e.article_id
+            `SELECT e.id, e.article_id AS "articleId" FROM events e JOIN articles a ON a.id=e.article_id
              WHERE e.legacy_information_id=? AND a.status='published'
                AND e.publication_state='ready'`, [legacyInformationId]);
     }
@@ -443,7 +511,7 @@ export class SqlEditorialRepository implements EditorialRepository {
         publicPath: string;
         usage: 'cover' | 'body';
         altText: string;
-        userId: number;
+        userId: number | null;
     }): Promise<Record<string, unknown>> {
         return queryOne<Record<string, unknown>>(this.database,
             `INSERT INTO article_assets
@@ -467,6 +535,16 @@ export class SqlEditorialRepository implements EditorialRepository {
         return queryOne(this.database,
             `SELECT id, article_id, object_key, public_path, asset_usage, alt_text, created_at
              FROM article_assets WHERE article_id=? AND id=?`, [articleId, assetId]);
+    }
+
+    findArticleAssetByObjectKey(
+        articleId: number,
+        objectKey: string
+    ): Promise<Record<string, unknown> | null> {
+        return queryOne(this.database,
+            `SELECT id, article_id, object_key, public_path, asset_usage, alt_text, created_at
+             FROM article_assets WHERE article_id=? AND object_key=?`,
+            [articleId, objectKey]);
     }
 
     listArticleAssets(articleId: number): Promise<Record<string, unknown>[]> {

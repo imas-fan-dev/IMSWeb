@@ -72,6 +72,10 @@ describe("HomepageLinkManager", () => {
     renderManager()
 
     expect(await screen.findByText("活动中心")).toBeVisible()
+    expect(screen.getByRole("link", { name: "管理首页精选" })).toHaveAttribute(
+      "href",
+      "/admin/events#homepage-spotlight"
+    )
     expect(
       screen.getByRole("button", { name: "拖动排序：活动中心" })
     ).toBeVisible()

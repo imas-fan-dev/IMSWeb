@@ -93,7 +93,11 @@ export function meta() {
 }
 
 export default function AdminEventsPage() {
-  const [tab, setTab] = useState<Tab>("articles")
+  const [tab, setTab] = useState<Tab>(() =>
+    typeof window !== "undefined" && window.location.hash === "#homepage-spotlight"
+      ? "spotlight"
+      : "articles"
+  )
   const [posts, setPosts] = useState<EditorialArticle[]>([])
   const [spotlight, setSpotlight] = useState<CommunitySpotlightEntry[]>([])
   const [query, setQuery] = useState("")
@@ -461,7 +465,10 @@ export default function AdminEventsPage() {
       ) : null}
 
       {!loading && !error && tab === "spotlight" ? (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]">
+        <div
+          id="homepage-spotlight"
+          className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]"
+        >
           <AdminPanel
             title="首页精选顺序"
             description="这是分发配置，不会复制或修改文章正文。撤回文章后，其精选项会自动对用户隐藏。"

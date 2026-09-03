@@ -27,6 +27,16 @@ export interface ArticleImageReference {
     src: string;
 }
 
+export interface LegacyArticleImageReference {
+    sourceUrl: string;
+    altText: string;
+}
+
+export interface LegacyArticleImageResolution {
+    assetId: number;
+    publicPath: string;
+}
+
 export const emptyArticleDocument: Record<string, unknown> = {
     type: 'doc',
     content: []
@@ -106,8 +116,55 @@ export function renderArticleBody(document: Record<string, unknown>): string {
     });
 }
 
-export function legacyHtmlToArticleDocument(html: string): Record<string, unknown> {
+export function legacyHtmlImageReferences(html: string): LegacyArticleImageReference[] {
+    const images: LegacyArticleImageReference[] = [];
+    sanitizeHtml(html, {
+        allowedTags: ['img'],
+        allowedAttributes: { img: ['src', 'alt'] },
+        transformTags: {
+            img: (_tagName, attribs) => {
+                const sourceUrl = typeof attribs.src === 'string' ? attribs.src.trim() : '';
+                if (sourceUrl) {
+                    images.push({
+                        sourceUrl,
+                        altText: typeof attribs.alt === 'string' ? attribs.alt.trim() : ''
+                    });
+                }
+                return { tagName: 'img', attribs };
+            }
+        }
+    });
+    return images;
+}
+
+function assignLegacyImageAssetIds(
+    value: unknown,
+    resolutions: ReadonlyMap<string, LegacyArticleImageResolution>
+): void {
+    if (Array.isArray(value)) {
+        value.forEach((item) => assignLegacyImageAssetIds(item, resolutions));
+        return;
+    }
+    if (!value || typeof value !== 'object') return;
+    const record = value as Record<string, unknown>;
+    if (record.type === 'image' && record.attrs && typeof record.attrs === 'object') {
+        const attrs = record.attrs as Record<string, unknown>;
+        const resolution = [...resolutions.values()].find((item) => item.publicPath === attrs.src);
+        if (resolution) attrs.assetId = resolution.assetId;
+    }
+    Object.values(record).forEach((child) => assignLegacyImageAssetIds(child, resolutions));
+}
+
+export function legacyHtmlToArticleDocument(
+    html: string,
+    resolutions: ReadonlyMap<string, LegacyArticleImageResolution> = new Map()
+): Record<string, unknown> {
     const compatibleHtml = sanitizeHtml(html, {
+        allowedTags: [...sanitizeHtml.defaults.allowedTags, 'img'],
+        allowedAttributes: {
+            ...sanitizeHtml.defaults.allowedAttributes,
+            img: ['src', 'alt']
+        },
         transformTags: {
             img: (_tagName, attribs): {
                 tagName: string;
@@ -116,6 +173,14 @@ export function legacyHtmlToArticleDocument(html: string): Record<string, unknow
             } => {
                 const src = typeof attribs.src === 'string' ? attribs.src.trim() : '';
                 const alt = typeof attribs.alt === 'string' ? attribs.alt.trim() : '';
+                const resolution = resolutions.get(src);
+                if (resolution) {
+                    return {
+                        tagName: 'img',
+                        attribs: { src: resolution.publicPath, alt },
+                        text: ''
+                    };
+                }
                 const text = alt ? `查看图片：${alt}` : '查看图片';
                 if (src && /^(?:https?:\/\/|\/(?!\/))/i.test(src)) {
                     return {
@@ -133,5 +198,6 @@ export function legacyHtmlToArticleDocument(html: string): Record<string, unknow
         }
     });
     const document = generateJSON(compatibleHtml, extensions) as Record<string, unknown>;
+    assignLegacyImageAssetIds(document, resolutions);
     return validateArticleBody(document).document;
 }

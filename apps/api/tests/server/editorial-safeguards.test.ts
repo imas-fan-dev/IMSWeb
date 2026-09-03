@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
-import { legacyHtmlToArticleDocument } from '@/domains/content/editorial/article-body';
+import {
+    legacyHtmlImageReferences,
+    legacyHtmlToArticleDocument
+} from '@/domains/content/editorial/article-body';
 import type { EditorialRepository } from '@/ports/repositories';
 
 const currentEvent = {
@@ -56,15 +59,20 @@ function requestOptions(body: Record<string, unknown>): RequestInit {
     };
 }
 
-test('legacy HTML images become readable links during editorial migration', () => {
+test('legacy HTML images become article assets during editorial migration', () => {
+    const sourceUrl = '/uploads/information/poster.webp';
     const document = legacyHtmlToArticleDocument(
-        '<p>活动海报 <img src="/uploads/information/poster.webp" alt="十周年主视觉"></p>'
+        `<p>活动海报 <img src="${sourceUrl}" alt="十周年主视觉"></p>`,
+        new Map([[sourceUrl, { assetId: 17, publicPath: '/uploads/articles/42/legacy-poster.webp' }]])
     );
     const serialized = JSON.stringify(document);
 
-    assert.doesNotMatch(serialized, /"type":"image"/);
-    assert.match(serialized, /"href":"\/uploads\/information\/poster\.webp"/);
-    assert.match(serialized, /查看图片：十周年主视觉/);
+    assert.match(serialized, /"type":"image"/);
+    assert.match(serialized, /"assetId":17/);
+    assert.match(serialized, /"src":"\/uploads\/articles\/42\/legacy-poster\.webp"/);
+    assert.deepEqual(legacyHtmlImageReferences(
+        `<p>活动海报 <img src="${sourceUrl}" alt="十周年主视觉"></p>`
+    ), [{ sourceUrl, altText: '十周年主视觉' }]);
 });
 
 test('event registration URLs only accept public HTTP(S) or local paths', async () => {

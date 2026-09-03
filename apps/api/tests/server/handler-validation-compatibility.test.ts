@@ -270,8 +270,10 @@ test('invalid event IDs preserve legacy 404 bodies without repository side effec
         method: 'DELETE',
         headers: { Authorization: 'Bearer op-token' }
     });
-    assert.equal(deletion.status, 404);
-    assert.deepEqual(await responseJson(deletion), { error: '不存在' });
+    assert.equal(deletion.status, 410);
+    assert.deepEqual(await responseJson(deletion), {
+        error: '旧活动写入接口已停用，请使用社区文章工作台'
+    });
     assert.deepEqual(fixture.calls.eventFind, []);
     assert.deepEqual(fixture.calls.eventFindMedia, []);
     assert.deepEqual(fixture.calls.eventDelete, []);
@@ -279,16 +281,16 @@ test('invalid event IDs preserve legacy 404 bodies without repository side effec
     assert.equal(fixture.calls.storageWrites, 0);
 });
 
-test('event creation rejects a missing idempotency key before parsing uploads', async () => {
+test('retired event creation does not parse uploads or create an orphaned record', async () => {
     const fixture = createCompatibilityFixture();
     const response = await fixture.request('/api/events', {
         method: 'POST',
         headers: { Authorization: 'Bearer op-token' }
     });
 
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 410);
     assert.deepEqual(await responseJson(response), {
-        error: 'Idempotency-Key is required'
+        error: '旧活动写入接口已停用，请使用社区文章工作台'
     });
     assert.equal(fixture.calls.storageWrites, 0);
     assert.deepEqual(fixture.calls.audit, []);

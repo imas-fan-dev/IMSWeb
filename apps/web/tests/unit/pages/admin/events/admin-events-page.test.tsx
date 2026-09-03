@@ -106,4 +106,22 @@ describe("AdminEventsPage", () => {
     ).toBe(true)
     expect(screen.getByRole("button", { name: "保存精选" })).toBeEnabled()
   })
+
+  it("opens the spotlight workspace for the homepage management link", async () => {
+    window.history.pushState({}, "", "/admin/events#homepage-spotlight")
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = input instanceof Request ? input.url : String(input)
+        return Promise.resolve(
+          jsonResponse(url.includes("/spotlight") ? { items: [] } : posts)
+        )
+      })
+    )
+
+    renderPage()
+
+    expect(await screen.findByText("首页精选顺序")).toBeVisible()
+    expect(document.getElementById("homepage-spotlight")).toBeVisible()
+  })
 })

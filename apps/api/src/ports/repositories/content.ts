@@ -162,19 +162,34 @@ export interface EditorialRepository {
     replaceHomepageSpotlightEntries(
         input: Array<{ postId: number; category: SpotlightCategory }>,
     ): Promise<{ status: "updated" | "invalid" }>;
+    replaceLegacyInformationSpotlightEntries(
+        input: Array<{
+            postId: number;
+            category: SpotlightCategory;
+            sortOrder: number;
+        }>,
+    ): Promise<void>;
     importLegacyInformationPost(input: {
         legacyInformationId: string;
         category: SpotlightCategory;
         title: string;
         coverUrl: string;
         sourceUrl: string | null;
+        publishedAt: string;
+    }): Promise<{
+        id: number;
+        articleId: number;
+        bodyJson: Record<string, unknown>;
+        imported: boolean;
+    }>;
+    replaceLegacyInformationPostBody(input: {
+        legacyInformationId: string;
         bodyJson: Record<string, unknown>;
         bodyHtml: string;
-        publishedAt: string;
-    }): Promise<{ id: number; imported: boolean }>;
+    }): Promise<void>;
     findLegacyInformationPost(
         legacyInformationId: string,
-    ): Promise<{ id: number } | null>;
+    ): Promise<{ id: number; articleId: number } | null>;
     listPublicSpotlightEntries(): Promise<Record<string, unknown>[]>;
     listPublicChronicle(
         limit: number,
@@ -202,7 +217,7 @@ export interface EditorialRepository {
         publicPath: string;
         usage: "cover" | "body";
         altText: string;
-        userId: number;
+        userId: number | null;
     }): Promise<Record<string, unknown>>;
     findEditorialArticle(
         articleId: number,
@@ -210,6 +225,10 @@ export interface EditorialRepository {
     findArticleAsset(
         articleId: number,
         assetId: number,
+    ): Promise<Record<string, unknown> | null>;
+    findArticleAssetByObjectKey(
+        articleId: number,
+        objectKey: string,
     ): Promise<Record<string, unknown> | null>;
     listArticleAssets(articleId: number): Promise<Record<string, unknown>[]>;
     deleteArticleAsset(

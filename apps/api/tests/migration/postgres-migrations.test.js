@@ -151,6 +151,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             {
                 version: '20260902120000_platform_session_devices',
                 phase: 'post-data'
+            },
+            {
+                version: '20260903110000_editorial_legacy_event_cutover',
+                phase: 'post-data'
             }
         ]
     );
@@ -595,6 +599,11 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(communityPosts.sql, /ADD COLUMN source_url TEXT/);
     assert.match(communityPosts.sql, /CREATE TABLE public\.homepage_spotlight_entries/);
     assert.match(communityPosts.sql, /ON DELETE CASCADE/);
+    const legacyEventCutover = migrations.find(
+        ({ version }) => version === '20260903110000_editorial_legacy_event_cutover'
+    );
+    assert.match(legacyEventCutover.sql, /WHERE e\.article_id IS NULL/);
+    assert.match(legacyEventCutover.sql, /SET article_id = created_article_id/);
     const editorialPresentation = migrations.find(
         ({ version }) => version === '20260822100000_editorial_presentation'
     );
@@ -624,11 +633,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 46);
+    assert.equal(catalog.count, 47);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260902120000_platform_session_devices'
+        '20260903110000_editorial_legacy_event_cutover'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -731,7 +740,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260822100000_editorial_presentation',
         '20260826130000_namecard_legacy_tables_read_only',
         '20260901140000_dynamic_platform_oauth_providers',
-        '20260902120000_platform_session_devices'
+        '20260902120000_platform_session_devices',
+        '20260903110000_editorial_legacy_event_cutover'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);
