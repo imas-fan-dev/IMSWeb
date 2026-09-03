@@ -4,8 +4,8 @@ import {
     emptyArticleDocument,
     legacyHtmlToArticleDocument,
     renderArticleBody
-} from '@/domains/editorial/content';
-import { readInformationIndex } from '@/domains/information/content-store';
+} from '@/domains/content/editorial/article-body';
+import { readInformationIndex } from '@/domains/content/information/content-store';
 import { closeNodeServices, resolveNodeServices } from '@/runtime/node-services';
 
 interface Options {
@@ -15,7 +15,7 @@ interface Options {
 
 const projectRoot = path.resolve(__dirname, '../../../..');
 
-function parseArguments(argv: string[]): Options {
+export function parseInformationPostMigrationArguments(argv: string[]): Options {
     let apply = false;
     let report = path.join(projectRoot, 'data/migration/information-to-community-posts-dry-run.json');
     for (let index = 0; index < argv.length; index += 1) {
@@ -50,7 +50,7 @@ async function writeReport(target: string, value: unknown): Promise<void> {
 }
 
 async function main(): Promise<void> {
-    const options = parseArguments(process.argv.slice(2));
+    const options = parseInformationPostMigrationArguments(process.argv.slice(2));
     if (process.exitCode === 0 && process.argv.includes('--help')) return;
     const runtime = await resolveNodeServices();
     if (!runtime.storage || !runtime.editorial) throw new Error('Object storage and editorial repository are required');
@@ -98,7 +98,9 @@ async function main(): Promise<void> {
     }
 }
 
-void main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.stack || error.message : error);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    void main().catch((error: unknown) => {
+        console.error(error instanceof Error ? error.stack || error.message : error);
+        process.exitCode = 1;
+    });
+}
