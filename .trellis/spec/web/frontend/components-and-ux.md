@@ -41,6 +41,24 @@ Existing Playwright tests such as
 accessibility scans, viewport geometry, and overflow assertions. Follow those
 patterns for user-visible workflows.
 
+### Travelling lens geometry
+
+The website header and App fallback tab bar share `.glass-lens` motion, but each
+component owns its capsule dimensions. Choose the local vertical inset so the
+lens skin and its outward ring remain inside the segment at the maximum
+`scaleY`; do not shrink the navigation link or its hit target to create this
+space.
+
+```text
+visible gap = inset - ring outset - vertical transform growth / 2
+```
+
+Do not use `overflow-hidden` or `overflow-clip` to hide an oversized lens. Those
+rules mask the geometry defect and can cut off the pointer sheen. A browser
+regression must measure the resting gap after accounting for the ring and sample
+the `0%`, `28%`, `64%`, and `100%` animation states after the longest supported
+slot transition.
+
 ## Public assets
 
 Files added to `apps/web/public/` need a clear runtime purpose and an entry in

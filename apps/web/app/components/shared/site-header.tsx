@@ -126,7 +126,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
             <span
               aria-hidden="true"
               data-visible={navigationIndex >= 0 ? "true" : undefined}
-              className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/6)] translate-x-[calc(var(--nav-index)*100%)] opacity-0 data-visible:opacity-100"
+              className="glass-lens absolute inset-y-1.5 left-1 w-[calc((100%-0.5rem)/6)] translate-x-[calc(var(--nav-index)*100%)] opacity-0 data-visible:opacity-100"
             >
               <span
                 key={travel.slot}

@@ -322,6 +322,86 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
   expect(consoleErrors).toEqual([])
 })
 
+test("desktop navigation lens stays within its glass segment", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "desktop navigation is hidden on mobile")
+
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.goto("/", { waitUntil: "domcontentloaded" })
+
+  const navigation = page.getByRole("navigation", {
+    name: /主导航|Main navigation/,
+  })
+  const segment = navigation.locator("[data-glass-interactive]")
+  const lens = segment.locator(".glass-lens")
+  const links = navigation.getByRole("link")
+  const ringOutset = 1
+
+  await expect(links).toHaveCount(6)
+  await expect(lens).toHaveAttribute("data-visible", "true")
+  await expect(lens).toHaveCSS("opacity", "1")
+
+  const [segmentBounds, lensBounds] = await Promise.all([
+    segment.boundingBox(),
+    lens.boundingBox(),
+  ])
+  expect(segmentBounds).not.toBeNull()
+  expect(lensBounds).not.toBeNull()
+  const restingTopGap = lensBounds!.y - segmentBounds!.y
+  const restingBottomGap =
+    segmentBounds!.y +
+    segmentBounds!.height -
+    (lensBounds!.y + lensBounds!.height)
+  expect(restingTopGap - ringOutset).toBeGreaterThanOrEqual(5)
+  expect(restingBottomGap - ringOutset).toBeGreaterThanOrEqual(5)
+
+  for (let index = 0; index < 6; index += 1) {
+    const linkBounds = await links.nth(index).boundingBox()
+    expect(linkBounds).not.toBeNull()
+    expect(linkBounds!.height).toBeCloseTo(36, 1)
+  }
+
+  await page.addStyleTag({
+    content: "[data-glass-interactive] { --duration-ui: 10s !important; }",
+  })
+
+  const aboutLink = navigation.locator('a[href="/about"]')
+  await aboutLink.click()
+  await expect(page).toHaveURL(/\/about$/)
+  await expect(aboutLink).toHaveAttribute("aria-current", "page")
+
+  const skin = segment.locator(".glass-lens-skin")
+  await expect(skin).toBeVisible()
+  const motionBounds = await skin.evaluate((element) => {
+    const animation = element.getAnimations()[0]
+    const segmentElement = element.parentElement?.parentElement
+    if (!animation || !segmentElement) {
+      throw new Error("desktop navigation lens animation is missing")
+    }
+
+    animation.pause()
+    const samples = [0, 2_800, 6_400, 9_999].map((currentTime) => {
+      animation.currentTime = currentTime
+      const segmentRect = segmentElement.getBoundingClientRect()
+      const skinRect = element.getBoundingClientRect()
+      return {
+        topGap: skinRect.top - segmentRect.top,
+        bottomGap: segmentRect.bottom - skinRect.bottom,
+      }
+    })
+
+    return {
+      minimumTopGap: Math.min(...samples.map((sample) => sample.topGap)),
+      minimumBottomGap: Math.min(...samples.map((sample) => sample.bottomGap)),
+    }
+  })
+
+  expect(motionBounds.minimumTopGap - ringOutset).toBeGreaterThan(0)
+  expect(motionBounds.minimumBottomGap - ringOutset).toBeGreaterThan(0)
+})
+
 test("homepage navigation keeps secondary destinations in the directory", async ({
   page,
   isMobile,
