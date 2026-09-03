@@ -44,7 +44,7 @@ const agencies: WikiPublicAgency[] = [
 ]
 
 describe("WikiAgencyDial App geometry", () => {
-  it("anchors the lower-left dial with shared App variables", async () => {
+  it("anchors the App dial inside the safe inline viewport", async () => {
     const user = userEvent.setup()
 
     render(
@@ -68,14 +68,13 @@ describe("WikiAgencyDial App geometry", () => {
     const dialog = screen.getByRole("dialog", { name: "选择企划" })
     expect(dialog).toHaveClass(
       "bottom-[calc(var(--app-bottom-clearance)+1rem)]",
-      "left-11",
-      "-translate-x-1/2",
-      "translate-y-1/2"
+      "left-(--app-safe-inline)"
     )
+    expect(dialog).not.toHaveClass("left-11")
+    expect(dialog).not.toHaveClass("-translate-x-1/2")
+    expect(dialog).not.toHaveClass("translate-y-1/2")
     expect(dialog).not.toHaveClass(
-      "bottom-[calc(2.75rem+env(safe-area-inset-bottom))]",
-      "left-1/2",
-      "translate-y-0"
+      "bottom-[calc(2.75rem+env(safe-area-inset-bottom))]"
     )
 
     const dial = screen.getByTestId("wiki-agency-dial")

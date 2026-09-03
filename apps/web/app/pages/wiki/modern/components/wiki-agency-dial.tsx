@@ -417,7 +417,7 @@ function InteractiveWikiAgencyDial({
         className={cn(
           "top-auto right-auto block w-auto max-w-none rounded-full bg-transparent p-0 shadow-none ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none",
           clearsAppTabBar
-            ? "bottom-[calc(var(--app-bottom-clearance)+1rem)] left-11 -translate-x-1/2 translate-y-1/2"
+            ? "bottom-[calc(var(--app-bottom-clearance)+1rem)] left-(--app-safe-inline)"
             : "bottom-[calc(2.75rem+env(safe-area-inset-bottom))] left-11 -translate-x-1/2 translate-y-1/2",
           visibilityClassName
         )}

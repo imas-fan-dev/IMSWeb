@@ -19,6 +19,9 @@ AUTH_DEPLOY_SCRIPT = (
 )
 COMPOSE = PROJECT_ROOT / "deploy/compose.yaml"
 DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/operations/github-actions-deployment.md"
+CHECKOUT_ACTION = (
+    "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6"
+)
 NODE_SETUP_ACTION = (
     "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6"
 )
@@ -142,25 +145,155 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             package,
         )
 
-    def test_ci_and_deployment_workflows_use_expected_gates(self):
+    def test_ci_workflow_splits_affected_validation_lanes(self):
         ci = CI_WORKFLOW.read_text(encoding="utf-8")
-        deployment = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+        jobs_text = ci.split("\njobs:\n", maxsplit=1)[1]
+        job_matches = list(
+            re.finditer(r"^  ([a-z][a-z0-9-]*):\n", jobs_text, re.MULTILINE)
+        )
+        job_names = [match.group(1) for match in job_matches]
+        jobs = {}
+        for index, match in enumerate(job_matches):
+            end = (
+                job_matches[index + 1].start()
+                if index + 1 < len(job_matches)
+                else len(jobs_text)
+            )
+            jobs[match.group(1)] = jobs_text[match.start():end]
 
+        self.assertEqual(
+            job_names,
+            ["changes", "repository", "app", "web", "api", "integration", "result"],
+        )
         for token in (
             "pull_request:",
             "push:",
-            "pnpm install --frozen-lockfile",
-            "run: pnpm run check",
-            "run: pnpm run test:infra",
-            "run: pnpm --filter @imsweb/api run test:node",
-            "run: pnpm --filter @imsweb/api run test:server",
-            "run: pnpm --filter @imsweb/api run test:wiki",
-            "run: pnpm --filter @imsweb/api run test:migration",
-            "run: pnpm --filter @imsweb/api run test:web-routing",
-            NODE_SETUP_ACTION,
-            PNPM_SETUP_ACTION,
+            "branches:\n      - main",
+            "permissions:\n  contents: read",
+            "group: ci-${{ github.workflow }}-${{ github.ref }}",
+            "cancel-in-progress: true",
         ):
             self.assertIn(token, ci)
+
+        changes = jobs["changes"]
+        self.assertIn("fetch-depth: 0", changes)
+        self.assertIn("persist-credentials: false", changes)
+        self.assertIn("id: affected", changes)
+        self.assertIn("node scripts/ci/detect-affected-workspaces.mjs", changes)
+        for token in (
+            "CI_EVENT_NAME: ${{ github.event_name }}",
+            "CI_BEFORE_SHA: ${{ github.event.before }}",
+            "CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+            "CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && "
+            "github.event.pull_request.head.sha || github.sha }}",
+        ):
+            self.assertIn(token, changes)
+        for output in ("repo", "app", "web", "api", "integration"):
+            self.assertIn(
+                f"{output}: ${{{{ steps.affected.outputs.{output} }}}}",
+                changes,
+            )
+
+        lane_outputs = {
+            "repository": "repo",
+            "app": "app",
+            "web": "web",
+            "api": "api",
+            "integration": "integration",
+        }
+        for job_name, output in lane_outputs.items():
+            job = jobs[job_name]
+            self.assertIn("needs: changes", job)
+            self.assertIn(f"needs.changes.outputs.{output} == 'true'", job)
+            self.assertIn(CHECKOUT_ACTION, job)
+            self.assertIn("persist-credentials: false", job)
+            self.assertIn(NODE_SETUP_ACTION, job)
+            self.assertIn("node-version-file: .nvmrc", job)
+            self.assertIn(PNPM_SETUP_ACTION, job)
+            self.assertIn("version: 11.10.0", job)
+            self.assertIn("run_install: false", job)
+            self.assertIn("run: pnpm install --frozen-lockfile", job)
+
+        repository = jobs["repository"]
+        for token in (
+            "run: pnpm run check:root",
+            "tests/development-environment.test.js",
+            "tests/exchange-map-assets.test.js",
+            "tests/ci-affected-workspaces.test.js",
+            "tests/test_agent_rules.py",
+            "tests/test_source_rules.py",
+            "tests/test_docs.py",
+            "tests/test_git_hooks.py",
+            "tests/test_release_activation.py",
+            "tests/test_github_deployment.py",
+            "tests/test_operations_docs.py",
+            "tests/test_compose_deployment.py",
+            "tests/test_workspace_boundaries.py",
+        ):
+            self.assertIn(token, repository)
+
+        app = jobs["app"]
+        for token in (
+            "tests/tauri-build-configuration.test.js",
+            "tests/tauri-device-delivery.test.js",
+            "test:unit tests/unit/scripts/build-app.test.ts",
+            "playwright install --with-deps chromium webkit",
+            "run build:app",
+            "run test:e2e:app",
+        ):
+            self.assertIn(token, app)
+
+        web = jobs["web"]
+        self.assertIn("pnpm --filter @imsweb/web run check", web)
+        self.assertIn("python3 -m unittest tests/test_public_assets.py", web)
+        self.assertNotIn("playwright install", web)
+        self.assertNotIn("test:e2e", web)
+
+        api = jobs["api"]
+        for command in ("check", "test:node", "test:server", "test:wiki", "test:migration"):
+            self.assertIn(f"pnpm --filter @imsweb/api run {command}", api)
+
+        integration = jobs["integration"]
+        self.assertIn("pnpm run test:web-routing", integration)
+        self.assertIn("pnpm --filter @imsweb/api run check:assets", integration)
+
+        for job_name, job in jobs.items():
+            if job_name == "api":
+                self.assertIn("IMS_TEST_DATABASE_URL:", job)
+                self.assertIn("services:\n      postgres:", job)
+            else:
+                self.assertNotIn("IMS_TEST_DATABASE_URL:", job)
+                self.assertNotIn("services:\n      postgres:", job)
+
+        result = jobs["result"]
+        self.assertIn("name: Validate repository", result)
+        self.assertIn("if: always()", result)
+        for dependency in job_names[:-1]:
+            self.assertIn(f"- {dependency}", result)
+        self.assertIn("needs.changes.result", result)
+        for lane, prefix in (
+            ("repository", "REPOSITORY"),
+            ("app", "APP"),
+            ("web", "WEB"),
+            ("api", "API"),
+            ("integration", "INTEGRATION"),
+        ):
+            self.assertIn(
+                f'verify_lane {lane} "${prefix}_SELECTED" "${prefix}_RESULT"',
+                result,
+            )
+        self.assertIn("success|skipped", result)
+        self.assertIn("validation selection/result mismatch", result)
+        self.assertNotIn("success|skipped|cancelled", result)
+
+        self.assertEqual(ci.count(CHECKOUT_ACTION), 6)
+        self.assertEqual(ci.count(NODE_SETUP_ACTION), 6)
+        self.assertEqual(ci.count(PNPM_SETUP_ACTION), 5)
+        self.assertEqual(ci.count("node-version-file: .nvmrc"), 6)
+        self.assertEqual(ci.count("run: pnpm install --frozen-lockfile"), 5)
+
+    def test_deployment_workflow_uses_complete_release_gates(self):
+        deployment = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
 
         for token in (
             '      - "v*.*.*"',
@@ -197,9 +330,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn(token, deployment)
 
-        self.assertEqual(ci.count("node-version-file: .nvmrc"), 1)
         self.assertEqual(deployment.count("node-version-file: .nvmrc"), 2)
-        self.assertEqual(ci.count(NODE_SETUP_ACTION), 1)
         self.assertEqual(deployment.count(NODE_SETUP_ACTION), 2)
 
         expected_docker_actions = [

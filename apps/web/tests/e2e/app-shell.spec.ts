@@ -98,7 +98,7 @@ test("keeps the five App roots usable inside the safe area", async ({
 
   const navigation = page.getByRole("navigation", { name: "主导航" })
   await expect(navigation).toBeVisible()
-  for (const label of ["首页", "活动", "站内应用", "地图", "帐号"]) {
+  for (const label of ["首页", "社区动态", "站内应用", "地图", "帐号"]) {
     await expect(navigation.getByRole("link", { name: label })).toBeVisible()
   }
 

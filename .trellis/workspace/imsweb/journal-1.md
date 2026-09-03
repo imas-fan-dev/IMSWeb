@@ -94,3 +94,36 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: Split CI by affected workspace
+<!-- trellis-session: v=2 fp=c90eda7aa7984cff -->
+
+**Date**: 2026-09-03
+**Task**: Split CI by affected workspace
+**Branch**: `release/v1.1`
+
+### Summary
+
+将 ci.yml 单一 validate 任务按变更路径拆分为检测器与五个条件校验任务及聚合结果任务，新增可单元测试的受影响工作区检测器，并先修复 App Playwright 基线再将其设为必需门禁。
+
+### Main Changes
+
+- 新增 scripts/ci/detect-affected-workspaces.mjs 与 tests/ci-affected-workspaces.test.js，覆盖 merge-base/push 基线、NUL 分隔 name-status、有序路径分类、删除与重命名、fail-open 语义。
+- ci.yml 拆分 changes/repository/app/web/api/integration/result；PostgreSQL 仅属于 api 任务；result 保留 Validate repository 显示名并校验选中与跳过一致性。
+- App 端 Wiki dial 弹层改为安全内边距锚点，普通 Web 保持原左下裁剪布局；app-shell E2E 导航断言更新为 社区动态。
+- 新增 .trellis/spec/repository/ci.md，固化受影响工作区 CI 的可执行契约。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `squashed` | feat(ci): split validation by affected workspace |
+
+### Testing
+
+- [OK] 受影响检测 26/26、workflow 契约 13/13、test:infra 60 Node + 87 Python、Web check 838 测试与生产构建、App Playwright CI 模式 29 通过 16 预期跳过、完整 API 数据库套件本地通过。
+
+### Status
+
+[OK] **Completed**
