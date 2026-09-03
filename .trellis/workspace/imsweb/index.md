@@ -28,7 +28,7 @@
 
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
-|---|------|-------|---------|--------|
+| --- | ------ | ------- | --------- | -------- |
 | 4 | 2026-09-03 | Split CI by affected workspace | `squashed` | `release/v1.1` |
 | 3 | 2026-09-03 | 优化社区动态响应式布局 | `57face2`, `2e6f301` | `release/v1.1` |
 | 2 | 2026-09-03 | 社区动态移动端适配 | `763dd43`, `195031b` | `release/v1.1` |

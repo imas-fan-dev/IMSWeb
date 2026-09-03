@@ -95,7 +95,6 @@
 
 [OK] **Completed**
 
-
 ## Session 4: Split CI by affected workspace
 <!-- trellis-session: v=2 fp=c90eda7aa7984cff -->
 
