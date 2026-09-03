@@ -147,15 +147,26 @@ describe("home feed alova integration", () => {
       "href",
       "/events/1"
     )
+    expect(screen.getByRole("link", { name: /首页活动 1/ })).toHaveClass(
+      "min-h-11",
+      "min-w-0"
+    )
+    expect(screen.getByRole("link", { name: "查看全部动态" })).toHaveClass(
+      "min-h-11"
+    )
     expect(screen.getByText("首页活动 1")).toHaveClass("line-clamp-2")
     expect(screen.getByText("首页活动 1")).toHaveAttribute(
       "title",
       "首页活动 1"
     )
     expect(screen.getAllByTitle("测试发布者 · 2026/07/24")[0]).toHaveClass(
-      "truncate"
+      "line-clamp-1",
+      "wrap-anywhere"
     )
-    expect(screen.getByText(longContact)).toHaveClass("truncate")
+    expect(screen.getByText(longContact)).toHaveClass(
+      "line-clamp-1",
+      "break-all"
+    )
     expect(screen.getByText(longContact)).toHaveAttribute("title", longContact)
     expect(screen.getByText("首页资讯 1")).toHaveClass("line-clamp-2")
     expect(container.querySelector('a[href="/Event.html"]')).toBeNull()

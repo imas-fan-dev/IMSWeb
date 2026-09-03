@@ -1,11 +1,13 @@
 import { useWatcher } from "alova/client"
 import { ArrowRightIcon, CalendarDaysIcon, NewspaperIcon } from "lucide-react"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { getHomeEvents, getHomeNews } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 import { useHomeSummaryCount } from "../hooks/use-home-summary-count"
 import { HomeEventRow, HomeFeedSkeleton, HomeNewsRow } from "./home-feed-items"
-import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function HomeFeed() {
   const summaryCount = useHomeSummaryCount()
@@ -50,7 +52,12 @@ export function HomeFeed() {
 
   return (
     <section className="border-t bg-muted/25" aria-labelledby="latest-heading">
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto w-full max-w-7xl py-12",
+          IS_APP_TARGET ? "px-(--app-safe-inline)" : "px-4 sm:px-6 lg:px-8"
+        )}
+      >
         <div className="mb-7">
           <p className="text-xs font-semibold text-primary">LATEST</p>
           <h2 id="latest-heading" className="mt-2 text-2xl font-semibold">
@@ -60,7 +67,7 @@ export function HomeFeed() {
 
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
           <section aria-labelledby="events-heading">
-            <div className="mb-1 flex min-h-8 items-center gap-2">
+            <div className="mb-1 flex min-h-11 flex-wrap items-center gap-2">
               <CalendarDaysIcon
                 className="size-4 text-primary"
                 aria-hidden="true"
@@ -70,7 +77,7 @@ export function HomeFeed() {
               </h3>
               <NavigationLink
                 href="/events"
-                className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 查看全部动态
                 <ArrowRightIcon aria-hidden="true" className="size-4" />
@@ -98,7 +105,7 @@ export function HomeFeed() {
           </section>
 
           <section aria-labelledby="news-heading">
-            <div className="mb-1 flex min-h-8 items-center gap-2">
+            <div className="mb-1 flex min-h-11 flex-wrap items-center gap-2">
               <NewspaperIcon
                 className="size-4 text-primary"
                 aria-hidden="true"
@@ -108,7 +115,7 @@ export function HomeFeed() {
               </h3>
               <NavigationLink
                 href="/recommendations"
-                className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 查看全部推荐
                 <ArrowRightIcon aria-hidden="true" className="size-4" />

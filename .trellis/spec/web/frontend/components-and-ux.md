@@ -35,6 +35,10 @@ not self-explanatory.
 - Verify that text, dialogs, fixed actions, maps, and navigation do not overlap
   or create horizontal overflow at mobile and desktop sizes.
 - Preserve Tauri safe areas for app-target fixed UI.
+- Keep essential labels and actions visible by default. A hover-only presentation may
+  hide them only under the combined `hover: hover` and `pointer: fine` media query;
+  restore them for both hover and `:focus-visible`, and cover the exact media variant
+  with a component regression test.
 
 Existing Playwright tests such as
 `apps/web/tests/e2e/community-exchange.spec.ts` use role-based interaction,

@@ -1,10 +1,10 @@
 import { ArrowUpRightIcon, CalendarDaysIcon, ImageIcon } from "lucide-react"
 
-import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
 import { resolveSafeMediaUrl, type HomeEvent, type HomeNews } from "~/lib/api"
-import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -56,7 +56,7 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
       </span>
       <NavigationLink
         href={`/events/${event.id}`}
-        className="min-w-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="min-h-11 min-w-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <span
           className="line-clamp-2 text-sm font-medium wrap-break-word whitespace-pre-line group-hover:text-primary"
@@ -65,14 +65,14 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
           {event.title}
         </span>
         <span
-          className="mt-1.5 block truncate text-xs text-muted-foreground"
+          className="mt-1.5 line-clamp-1 block text-xs wrap-anywhere text-muted-foreground"
           title={byline}
         >
           {byline}
         </span>
         {event.contact ? (
           <span
-            className="mt-1 block truncate text-xs text-muted-foreground"
+            className="mt-1 line-clamp-1 block text-xs break-all text-muted-foreground"
             title={event.contact}
           >
             {event.contact}

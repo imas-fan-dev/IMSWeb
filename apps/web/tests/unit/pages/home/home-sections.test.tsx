@@ -149,9 +149,21 @@ describe("home supporting sections", () => {
     expect(
       screen.getByRole("region", { name: "活动资讯与同人活动" })
     ).toBeVisible()
-    expect(
-      await screen.findByRole("link", { name: /存储中的活动资讯/ })
-    ).toHaveAttribute("href", "/events/35")
+    const activityLink = await screen.findByRole("link", {
+      name: /存储中的活动资讯/,
+    })
+    expect(activityLink).toHaveAttribute("href", "/events/35")
+    expect(activityLink).toHaveClass("min-h-20")
+    expect(screen.getByText("存储中的活动资讯")).toHaveClass(
+      "line-clamp-2",
+      "wrap-anywhere"
+    )
+    expect(activityLink.closest("article")?.parentElement).toHaveClass(
+      "grid-cols-1",
+      "min-[360px]:grid-cols-2",
+      "md:grid-cols-3"
+    )
+    expect(screen.getByText("活动资讯")).toBeVisible()
     expect(screen.queryByText("篠泽广研讨会")).not.toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: /雨云|云计算/ })).toHaveLength(3)
   })

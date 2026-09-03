@@ -1,6 +1,7 @@
 import { useRequest } from "alova/client"
 
 import { CommunityPostDetail } from "~/components/editorial/community-post-detail"
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import {
   Empty,
@@ -11,6 +12,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getEditorialEvent } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import type { Route } from "./+types/event-detail-page"
 
 export function meta() {
@@ -22,10 +24,7 @@ export default function EventDetailPage({ params }: Route.ComponentProps) {
     getEditorialEvent(params.eventId)
   )
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12"
-    >
+    <PageShell width="wide" className="py-8 sm:py-12">
       {loading ? (
         <div className="mx-auto max-w-4xl space-y-6">
           <Skeleton className="h-8 w-32" />
@@ -48,7 +47,9 @@ export default function EventDetailPage({ params }: Route.ComponentProps) {
           </EmptyHeader>
         </Empty>
       ) : null}
-      {data ? <CommunityPostDetail article={data} showBackLink /> : null}
-    </main>
+      {data ? (
+        <CommunityPostDetail article={data} showBackLink={!IS_APP_TARGET} />
+      ) : null}
+    </PageShell>
   )
 }

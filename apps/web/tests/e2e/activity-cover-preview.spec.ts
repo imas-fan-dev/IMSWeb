@@ -127,30 +127,35 @@ test("activity covers open in an accessible zoomable viewer", async ({
 test("public activity covers use the same full-page viewer", async ({
   page,
 }, testInfo) => {
+  const publicActivity = {
+    id: 1,
+    title: "公开夏日活动",
+    name: "公开活动发布者",
+    contact: null,
+    image_url: coverUrl,
+    cover_url: coverUrl,
+    cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+    created_at: "2026-07-26T00:00:00.000Z",
+  }
   await page.route("**/api/events?**", async (route) => {
     await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        items: [
-          {
-            id: 1,
-            title: "公开夏日活动",
-            name: "公开活动发布者",
-            contact: null,
-            image_url: coverUrl,
-            created_at: "2026-07-26T00:00:00.000Z",
-          },
-        ],
+      json: {
+        items: [publicActivity],
         pageInfo: {
           nextCursor: null,
           hasNextPage: false,
           snapshotAt: "1",
         },
-      }),
+      },
     })
+  })
+  await page.route("**/api/events/1", async (route) => {
+    await route.fulfill({ json: publicActivity })
   })
 
   await page.goto("/events")
+  await expect(page.getByRole("heading", { name: "公开夏日活动" })).toBeVisible()
+  await page.getByRole("listitem").getByRole("link").click()
   await page.getByRole("button", { name: "查看公开夏日活动封面" }).click()
 
   const dialog = page.getByRole("dialog", { name: "公开夏日活动封面" })

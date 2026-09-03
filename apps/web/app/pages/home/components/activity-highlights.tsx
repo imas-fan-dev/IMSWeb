@@ -1,12 +1,14 @@
 import { useRequest } from "alova/client"
 import { ArrowRightIcon } from "lucide-react"
 
-import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getCommunitySpotlight } from "~/lib/api"
-import { NavigationLink } from "~/components/navigation/navigation-link"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 
 export function ActivityHighlights() {
   const { data, loading, error, onError } = useRequest(
@@ -29,7 +31,12 @@ export function ActivityHighlights() {
       className="border-y bg-muted/20"
       aria-labelledby="highlights-heading"
     >
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto w-full max-w-7xl py-12",
+          IS_APP_TARGET ? "px-(--app-safe-inline)" : "px-4 sm:px-6 lg:px-8"
+        )}
+      >
         <div className="mb-7">
           <p className="text-xs font-semibold text-primary">SPOTLIGHTS</p>
           <h2 id="highlights-heading" className="mt-2 text-2xl font-semibold">
@@ -38,7 +45,7 @@ export function ActivityHighlights() {
         </div>
         {loading ? (
           <div
-            className="grid grid-cols-2 gap-4 lg:grid-cols-3"
+            className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 md:grid-cols-3"
             role="status"
             aria-label="正在加载活动资讯"
           >
@@ -58,7 +65,7 @@ export function ActivityHighlights() {
             <AlertDescription>稍后刷新即可重新获取。</AlertDescription>
           </Alert>
         ) : items.length ? (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 md:grid-cols-3">
             {items.map((item) => (
               <article
                 key={item.href + item.title}
@@ -79,7 +86,9 @@ export function ActivityHighlights() {
                     <span className="block text-xs font-medium text-primary">
                       {item.category}
                     </span>
-                    <span className="mt-1 block font-medium">{item.title}</span>
+                    <span className="mt-1 line-clamp-2 block font-medium wrap-anywhere">
+                      {item.title}
+                    </span>
                   </span>
                   <ArrowRightIcon
                     className="size-4 shrink-0 text-muted-foreground"

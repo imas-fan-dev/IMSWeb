@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { describe, expect, it } from "vitest"
 
@@ -155,6 +155,53 @@ describe("CommunityPostDetail", () => {
 
     expect(cover.closest("section")).toHaveClass("rounded-xl")
     expect(body.closest("section")).toBe(cover.closest("section"))
+  })
+
+  it("contains long rich content and keeps wide preformatted content locally scrollable", () => {
+    const longValue = `https://example.test/${"unbroken".repeat(30)}`
+    renderDetail({
+      ...baseArticle,
+      title: longValue,
+      summary: longValue,
+      kind: "event",
+      contact: longValue,
+      body_html: `<p>${longValue}</p><p><a href="${longValue}">${longValue}</a></p><pre><code>${longValue}</code></pre><table><tbody><tr><td>${longValue}</td></tr></tbody></table>`,
+      related_links: [{ label: longValue, url: longValue }],
+    })
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveClass(
+      "wrap-anywhere"
+    )
+    expect(screen.getByTestId("editorial-article-body")).toHaveClass(
+      "min-w-0",
+      "max-w-full",
+      "wrap-anywhere",
+      "[&_a]:break-all",
+      "[&_pre]:overflow-x-auto",
+      "[&_table]:overflow-x-auto"
+    )
+    expect(
+      screen.getByTestId("editorial-article-body").querySelector("pre")
+    ).toHaveTextContent(longValue)
+    const relatedLinks = screen
+      .getByRole("heading", { name: "相关链接" })
+      .closest("section")
+    expect(relatedLinks).not.toBeNull()
+    expect(
+      within(relatedLinks as HTMLElement).getByRole("link", {
+        name: longValue,
+      })
+    ).toHaveClass("min-h-11", "break-all")
+  })
+
+  it("keeps the admin preview default free of public navigation", () => {
+    renderDetail(baseArticle)
+
+    expect(
+      screen.queryByRole("link", { name: "返回社区动态" })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("article")).toHaveClass("lg:grid")
+    expect(screen.getByText("欢迎各位制作人参与本次活动。")).toBeVisible()
   })
 
   it("keeps detail and body images at their natural proportions", () => {
