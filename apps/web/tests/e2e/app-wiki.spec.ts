@@ -1,4 +1,56 @@
-import { expect, test } from "@playwright/test"
+import type { WikiPublicCatalog } from "@imsweb/contracts/wiki"
+import { expect, test, type Page } from "@playwright/test"
+
+const TEST_IMAGE_TRANSFORM = {
+  fit: "cover",
+  focalX: 0.5,
+  focalY: 0.5,
+  zoom: 1,
+  rotation: 0,
+} as const
+
+const TEST_WIKI_CATALOG = {
+  status: "success",
+  agencies: [
+    {
+      id: 1,
+      code: "765",
+      name: "765PRO",
+      color: "#f34f6d",
+      bannerTitle: "765PRO ALLSTARS",
+      iconUrl: null,
+      idolCount: 1,
+      entryCount: 1,
+      imageTransform: TEST_IMAGE_TRANSFORM,
+    },
+    {
+      id: 2,
+      code: "cg",
+      name: "灰姑娘女孩",
+      color: "#2581c7",
+      bannerTitle: "CINDERELLA GIRLS",
+      iconUrl: null,
+      idolCount: 1,
+      entryCount: 1,
+      imageTransform: TEST_IMAGE_TRANSFORM,
+    },
+  ],
+  searchEntries: [],
+  selection: null,
+} satisfies WikiPublicCatalog
+
+async function mockWikiApis(page: Page) {
+  await page.route("**/api/wiki/catalog**", async (route) => {
+    await route.fulfill({ json: TEST_WIKI_CATALOG })
+  })
+  await page.route("**/api/wiki/random_bg", async (route) => {
+    await route.fulfill({
+      json: {
+        url: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=",
+      },
+    })
+  })
+}
 
 test.beforeEach(async ({ page }, testInfo) => {
   const landscape = testInfo.project.name === "app-landscape"
@@ -14,6 +66,7 @@ test.beforeEach(async ({ page }, testInfo) => {
       ? { top: "0px", right: "47px", bottom: "21px", left: "47px" }
       : { top: "47px", right: "0px", bottom: "34px", left: "0px" }
   )
+  await mockWikiApis(page)
 })
 
 test("keeps the modern Wiki dial and search inside the App viewport", async ({
