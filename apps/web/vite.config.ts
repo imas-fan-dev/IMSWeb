@@ -30,14 +30,46 @@ const localMediaPathPrefix =
   (isAppTarget ? `/${localMediaBucket}` : undefined)
 const tauriDevHost = isAppTarget ? process.env.TAURI_DEV_HOST : undefined
 
+// Keep heavy lazy dependencies separate so page edits do not invalidate their
+// cached library code.
+const VENDOR_CHUNK_GROUPS = [
+  {
+    name: "vendor-maplibre",
+    test: /[\\/]node_modules[\\/]maplibre-gl[\\/]/,
+  },
+  {
+    name: "vendor-pmtiles",
+    test: /[\\/]node_modules[\\/]pmtiles[\\/]/,
+  },
+  {
+    name: "vendor-echarts",
+    test: /[\\/]node_modules[\\/](echarts|zrender)[\\/]/,
+  },
+  {
+    name: "vendor-tiptap",
+    test: /[\\/]node_modules[\\/](@tiptap[\\/]|prosemirror-)/,
+  },
+]
+
 export default defineConfig({
   build: {
-    rollupOptions: {
+    // The largest output is the lazily loaded maplibre vendor chunk.
+    chunkSizeWarningLimit: 1050,
+    rolldownOptions: {
+      checks: {
+        // React Router must process lucide's full dynamic icon registry so
+        // persisted icon names remain renderable. That known module graph makes
+        // plugin timing ratios noisy even when wall-clock build time is healthy.
+        pluginTimings: false,
+      },
       output: {
         assetFileNames: (assetInfo) =>
           assetInfo.names.some((name) => name.endsWith(".mjs"))
             ? "assets/[name]-[hash].js"
             : "assets/[name]-[hash][extname]",
+        codeSplitting: {
+          groups: VENDOR_CHUNK_GROUPS,
+        },
       },
     },
   },
