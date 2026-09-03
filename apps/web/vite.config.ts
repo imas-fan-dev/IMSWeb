@@ -12,6 +12,7 @@ import {
   localExchangeMapAssets,
   TAURI_MAP_ORIGINS,
 } from "./vite-exchange-map-assets"
+import { GENERATED_BUILD_WATCH_OPTIONS } from "./vite-watch"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
 const publicSiteProxyOrigin =
@@ -75,6 +76,8 @@ export default defineConfig({
     fs: {
       allow: [workspaceRoot],
     },
+    // Web and Tauri builds must not feed generated changes back into Vite.
+    watch: GENERATED_BUILD_WATCH_OPTIONS,
     ...(isAppTarget
       ? {
           host: true,

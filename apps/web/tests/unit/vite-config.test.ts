@@ -7,6 +7,19 @@ import {
   resolveExchangeMapAssetPath,
   tauriMapAssetCorsOrigin,
 } from "../../vite-exchange-map-assets"
+import { GENERATED_BUILD_WATCH_OPTIONS } from "../../vite-watch"
+
+describe("Vite file watching", () => {
+  it("ignores Web and Tauri build artifacts", () => {
+    expect(GENERATED_BUILD_WATCH_OPTIONS.ignored).toEqual([
+      "**/build/**",
+      "**/build-app/**",
+      "**/src-tauri/gen/**",
+      "**/src-tauri/icons/**",
+      "**/src-tauri/target/**",
+    ])
+  })
+})
 
 describe("local exchange map asset delivery", () => {
   it("parses closed, open-ended, and suffix byte ranges", () => {
