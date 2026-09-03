@@ -14,17 +14,19 @@ const { virtualizerOptions } = vi.hoisted(() => ({
 vi.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: (options: {
     count: number
+    estimateSize: () => number
     getItemKey: (index: number) => string | number
   }) => {
     virtualizerOptions(options)
     const renderedCount = Math.min(options.count, 12)
+    const estimatedSize = options.estimateSize()
     return {
-      getTotalSize: () => options.count * 176,
+      getTotalSize: () => options.count * estimatedSize,
       getVirtualItems: () =>
         Array.from({ length: renderedCount }, (_, index) => ({
           index,
           key: options.getItemKey(index),
-          start: index * 176,
+          start: index * estimatedSize,
         })),
       measureElement: vi.fn(),
     }
@@ -251,6 +253,7 @@ describe("EventsCenter", () => {
         useFlushSync: false,
       })
     )
+    expect(virtualizerOptions.mock.lastCall?.[0].estimateSize()).toBe(144)
   })
 
   it("bypasses the Alova snapshot when the user refreshes", async () => {

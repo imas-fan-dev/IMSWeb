@@ -50,7 +50,7 @@ export function EventsCenter() {
   )
   const virtualizer = useWindowVirtualizer({
     count: items.length,
-    estimateSize: () => 176,
+    estimateSize: () => 144,
     getItemKey,
     overscan: 6,
     scrollMargin,

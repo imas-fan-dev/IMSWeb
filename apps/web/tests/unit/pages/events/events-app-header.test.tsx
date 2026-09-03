@@ -40,8 +40,8 @@ vi.mock("~/pages/events/hooks/use-events-feed", () => ({
   }),
 }))
 vi.mock("@tanstack/react-virtual", () => ({
-  useWindowVirtualizer: () => ({
-    getTotalSize: () => 176,
+  useWindowVirtualizer: (options: { estimateSize: () => number }) => ({
+    getTotalSize: () => options.estimateSize(),
     getVirtualItems: () => [{ index: 0, key: "1", start: 0 }],
     measureElement: vi.fn(),
   }),

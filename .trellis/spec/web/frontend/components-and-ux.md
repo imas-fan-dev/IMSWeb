@@ -45,6 +45,22 @@ Existing Playwright tests such as
 accessibility scans, viewport geometry, and overflow assertions. Follow those
 patterns for user-visible workflows.
 
+### Fixed-height virtualized rows
+
+Treat a virtualized row's rendered height, loading skeleton, virtualizer estimate,
+and test mock as one contract. Change them together, and make test doubles derive
+positions and total size from the supplied estimate instead of repeating a numeric
+height.
+
+Keep metadata in normal document flow across breakpoints unless the product design
+explicitly calls for a different desktop order. Absolute positioning can make a row
+look denser while breaking reading order, centering, and skeleton parity.
+
+Browser geometry assertions must preserve signed viewport coordinates. Virtualized
+rows can sit above the viewport and return negative `DOMRect` values; clamping those
+values to zero creates false overflow failures. Compare relative centers, edges, and
+adjacent row bounds directly.
+
 ### Travelling lens geometry
 
 The website header and App fallback tab bar share `.glass-lens` motion, but each

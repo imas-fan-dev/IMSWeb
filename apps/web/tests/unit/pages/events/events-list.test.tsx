@@ -44,7 +44,7 @@ describe("EventRow", () => {
     expect(container.querySelector("img")).toBeNull()
   })
 
-  it("contains long mobile copy and exposes category text without hover", () => {
+  it("contains long mobile copy in a centered, fixed-height information block", () => {
     const longValue = `https://example.test/${"long-segment".repeat(20)}`
     render(
       <MemoryRouter>
@@ -52,7 +52,7 @@ describe("EventRow", () => {
           event={event(null, {
             kind: "event",
             title: longValue,
-            summary: longValue,
+            summary: "列表中不应显示的摘要",
             name: "长文本发布者",
             contact: longValue,
           })}
@@ -61,26 +61,69 @@ describe("EventRow", () => {
     )
 
     const title = screen.getByRole("heading", { name: longValue })
-    expect(title).toHaveClass("line-clamp-2", "wrap-anywhere")
-    expect(screen.getByText("具体活动")).toHaveClass(
-      "opacity-100",
-      "[@media(hover:hover)_and_(pointer:fine)]:opacity-0",
-      "group-hover:opacity-100",
-      "group-focus-visible:opacity-100"
+    const category = screen.getByText("具体活动")
+    const publisher = screen.getByText("长文本发布者")
+    const date = screen.getByText("发布时间待补充")
+    const contact = screen.getByText(longValue, { selector: "span" })
+    const content = title.parentElement
+    const publisherRow = publisher.parentElement
+    const dateRow = date
+    const contactRow = contact.parentElement
+
+    expect(title).toHaveClass("line-clamp-1", "wrap-anywhere")
+    expect(category).toBeVisible()
+    expect(category.parentElement).toBe(content)
+    expect(content).toHaveClass("justify-center", "overflow-hidden")
+    expect(screen.queryByText("列表中不应显示的摘要")).not.toBeInTheDocument()
+    expect(publisher).toHaveClass("truncate")
+    expect(contact).toHaveClass("truncate")
+    expect(publisherRow).not.toBe(dateRow)
+    expect(dateRow).not.toBe(contactRow)
+    expect(Array.from(dateRow?.parentElement?.children ?? [])).toEqual([
+      publisherRow,
+      dateRow,
+      contactRow,
+    ])
+    expect(dateRow).not.toHaveClass(
+      "absolute",
+      "lg:absolute",
+      "lg:right-3",
+      "lg:bottom-3"
     )
-    expect(screen.getByText(longValue, { selector: "span" })).toHaveClass(
-      "line-clamp-1",
-      "break-all"
-    )
-    expect(screen.getByText("长文本发布者")).toHaveClass("truncate")
+    expect(contactRow).not.toHaveClass("lg:pr-40")
     expect(title.closest("article")).toHaveClass(
-      "h-44",
+      "relative",
+      "h-36",
       "grid-cols-[6.5rem_minmax(0,1fr)]",
-      "sm:grid-cols-[10.5rem_minmax(0,1fr)]"
+      "gap-3",
+      "p-3",
+      "sm:grid-cols-[9rem_minmax(0,1fr)]",
+      "sm:gap-4"
     )
   })
 
-  it("uses the same fixed estimated height and media tracks for skeleton and rows", () => {
+  it("keeps the category beside the text instead of overlaying the cover", () => {
+    render(
+      <MemoryRouter>
+        <EventRow
+          event={event("/uploads/events/summer/poster.webp", {
+            kind: "notice",
+          })}
+        />
+      </MemoryRouter>
+    )
+
+    const cover = screen.getByRole("img", {
+      name: "夏日活动封面",
+    }).parentElement
+    const category = screen.getByText("社区动态")
+    expect(cover).not.toContainElement(category)
+    expect(category.parentElement).toBe(
+      screen.getByRole("heading", { name: "夏日活动" }).parentElement
+    )
+  })
+
+  it("uses the same fixed height and media tracks for skeleton and rows", () => {
     const { container } = render(
       <MemoryRouter>
         <EventRow event={event(null)} />
@@ -93,17 +136,37 @@ describe("EventRow", () => {
       '[aria-label="正在加载活动"] > div'
     )
     for (const className of [
-      "h-44",
+      "h-36",
       "grid-cols-[6.5rem_minmax(0,1fr)]",
-      "gap-4",
-      "p-4",
-      "sm:grid-cols-[10.5rem_minmax(0,1fr)]",
-      "sm:gap-5",
-      "sm:px-5",
+      "gap-3",
+      "p-3",
+      "sm:grid-cols-[9rem_minmax(0,1fr)]",
+      "sm:gap-4",
     ]) {
       expect(row).toHaveClass(className)
       expect(skeleton).toHaveClass(className)
     }
+    expect(row).toHaveClass("relative")
+    expect(skeleton).not.toHaveClass("relative")
     expect(skeleton?.firstElementChild).toHaveClass("self-center")
+    expect(skeleton?.lastElementChild).toHaveClass(
+      "justify-center",
+      "overflow-hidden"
+    )
+    const skeletonMetadata = skeleton?.lastElementChild?.lastElementChild
+    const skeletonPublisherRow = skeletonMetadata?.children[0]
+    const skeletonDateRow = skeletonMetadata?.children[1]
+    const skeletonContactRow = skeletonMetadata?.children[2]
+    expect(skeletonMetadata).toHaveClass("mt-1", "min-w-0")
+    expect(skeletonDateRow).not.toHaveClass(
+      "absolute",
+      "lg:absolute",
+      "lg:right-3",
+      "lg:bottom-3"
+    )
+    expect(skeletonDateRow?.firstElementChild).toHaveClass("w-1/2")
+    expect(skeletonDateRow?.firstElementChild).not.toHaveClass("lg:w-32")
+    expect(skeletonContactRow).not.toHaveClass("lg:pr-40")
+    expect(skeletonPublisherRow).not.toHaveClass("lg:pr-40")
   })
 })

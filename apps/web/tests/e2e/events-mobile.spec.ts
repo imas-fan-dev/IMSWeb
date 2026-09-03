@@ -16,7 +16,7 @@ const events = Array.from({ length: 8 }, (_, index) => ({
   name: index === 0 ? longUrl : "测试发布者",
   contact: index === 0 ? longUrl : null,
   image_url: index === 0 ? delayedCoverUrl : null,
-  created_at: "2026-09-03T09:30:00.000Z",
+  created_at: "2026-12-31T09:30:00.000Z",
   cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
 }))
 const nextEvents = [9, 10].map((id) => ({
@@ -121,11 +121,11 @@ async function rowPositions(page: Page) {
     .getByRole("region", { name: "社区动态列表" })
     .getByRole("listitem")
     .evaluateAll((rows) =>
-    rows.slice(0, 3).map((row) => {
-      const box = row.getBoundingClientRect()
-      return { top: box.top, height: box.height }
-    })
-  )
+      rows.slice(0, 3).map((row) => {
+        const box = row.getBoundingClientRect()
+        return { top: box.top, height: box.height }
+      })
+    )
 }
 
 async function stableRowPositions(page: Page) {
@@ -156,6 +156,138 @@ async function expectMinimumHeight(locator: Locator) {
   expect(box).not.toBeNull()
   if (!box) return
   expect(box.height).toBeGreaterThanOrEqual(44)
+}
+
+async function expectEventRowLayout(row: Locator, metadataCount: number) {
+  const geometry = await row.evaluate((listItem) => {
+    const article = listItem.querySelector("article")
+    const columns = article
+      ? Array.from(article.children).filter(
+          (element) => element.tagName === "DIV"
+        )
+      : []
+    const cover = columns[0] as HTMLElement | undefined
+    const content = columns[1] as HTMLElement | undefined
+    const title = content?.querySelector("h2") as HTMLElement | null
+    const category = title?.nextElementSibling as HTMLElement | null
+    const metadata = category?.nextElementSibling as HTMLElement | null
+    const metadataRows = metadata
+      ? Array.from(metadata.children).filter(
+          (element): element is HTMLElement => element instanceof HTMLElement
+        )
+      : []
+
+    if (!article || !cover || !content || !title || !category) return null
+
+    const articleRect = article.getBoundingClientRect()
+    const coverRect = cover.getBoundingClientRect()
+    const contentRect = content.getBoundingClientRect()
+    const titleRect = title.getBoundingClientRect()
+    const categoryRect = category.getBoundingClientRect()
+    const metadataRects = metadataRows.map((row) => {
+      const rect = row.getBoundingClientRect()
+      return { top: rect.top, bottom: rect.bottom }
+    })
+    const finalMetadataRect = metadataRects.at(-1)
+    const titleLineHeight = Number.parseFloat(
+      getComputedStyle(title).lineHeight
+    )
+
+    const textMeasurements = metadataRows.map((metadataRow) => {
+      const rowRect = metadataRow.getBoundingClientRect()
+      const textElement = metadataRow.querySelector("span")
+      let textRect: DOMRect | null =
+        textElement?.getBoundingClientRect() ?? null
+
+      if (!textRect) {
+        const textNode = Array.from(metadataRow.childNodes).find(
+          (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()
+        )
+        if (textNode) {
+          const range = document.createRange()
+          range.selectNodeContents(textNode)
+          textRect = range.getBoundingClientRect()
+        }
+      }
+
+      return {
+        fullWidth: textRect?.width ?? 0,
+        visibleWidth: textRect
+          ? Math.max(
+              0,
+              Math.min(rowRect.right, textRect.right) -
+                Math.max(rowRect.left, textRect.left)
+            )
+          : 0,
+      }
+    })
+
+    return {
+      rowHeight: articleRect.height,
+      articleTop: articleRect.top,
+      articleBottom: articleRect.bottom,
+      articleCenter: articleRect.top + articleRect.height / 2,
+      coverWidth: coverRect.width,
+      coverHeight: coverRect.height,
+      expectedCoverWidth: window.innerWidth >= 640 ? 144 : 104,
+      coverCenter: coverRect.top + coverRect.height / 2,
+      textCenter: finalMetadataRect
+        ? (titleRect.top + finalMetadataRect.bottom) / 2
+        : 0,
+      coverRight: coverRect.right,
+      contentLeft: contentRect.left,
+      contentRight: contentRect.right,
+      titleTop: titleRect.top,
+      titleHeight: titleRect.height,
+      titleLineHeight,
+      titleBottom: titleRect.bottom,
+      categoryLeft: categoryRect.left,
+      categoryRight: categoryRect.right,
+      categoryTop: categoryRect.top,
+      finalMetadataBottom: finalMetadataRect?.bottom ?? articleRect.top,
+      metadataCount: metadataRows.length,
+      metadataRects,
+      textMeasurements,
+    }
+  })
+
+  expect(geometry).not.toBeNull()
+  if (!geometry) return
+
+  expect(geometry.rowHeight).toBeCloseTo(144, 0)
+  expect(geometry.coverWidth).toBeCloseTo(geometry.expectedCoverWidth, 0)
+  expect(geometry.coverWidth / geometry.coverHeight).toBeCloseTo(4 / 3, 2)
+  expect(
+    Math.abs(geometry.coverCenter - geometry.articleCenter)
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(geometry.textCenter - geometry.articleCenter)
+  ).toBeLessThanOrEqual(1)
+  expect(geometry.categoryTop).toBeGreaterThanOrEqual(geometry.titleBottom)
+  expect(geometry.categoryLeft).toBeGreaterThanOrEqual(geometry.coverRight)
+  expect(geometry.categoryLeft).toBeGreaterThanOrEqual(geometry.contentLeft)
+  expect(geometry.categoryRight).toBeLessThanOrEqual(geometry.contentRight + 1)
+  expect(geometry.titleHeight).toBeLessThanOrEqual(geometry.titleLineHeight + 1)
+  expect(geometry.titleTop).toBeGreaterThanOrEqual(geometry.articleTop)
+  expect(geometry.finalMetadataBottom).toBeLessThanOrEqual(
+    geometry.articleBottom
+  )
+  expect(geometry.metadataCount).toBe(metadataCount)
+  geometry.metadataRects.slice(1).forEach((rect, index) => {
+    expect(rect.top).toBeGreaterThanOrEqual(
+      geometry.metadataRects[index]!.bottom - 1
+    )
+  })
+  expect(geometry.textMeasurements[0]!.visibleWidth).toBeGreaterThanOrEqual(40)
+  expect(geometry.textMeasurements[1]!.visibleWidth).toBeGreaterThanOrEqual(80)
+  expect(geometry.textMeasurements[1]!.visibleWidth).toBeGreaterThanOrEqual(
+    geometry.textMeasurements[1]!.fullWidth - 1
+  )
+  if (metadataCount === 3) {
+    expect(geometry.textMeasurements[2]!.visibleWidth).toBeGreaterThanOrEqual(
+      40
+    )
+  }
 }
 
 test.beforeEach(async ({ page }) => {
@@ -190,19 +322,23 @@ test("mobile Web keeps community discovery, list, and detail stable", async ({
     })
   ).toBeVisible()
   const list = page.getByRole("region", { name: "社区动态列表" })
-  await expect(list.getByRole("listitem")).toHaveCount(8)
+  await expect(list.getByRole("heading", { name: longTitle })).toBeVisible()
   await coverRequested
 
   const firstRow = list.getByRole("listitem").first()
+  const secondRow = list.getByRole("listitem").nth(1)
   const category = firstRow.getByText("具体活动")
-  if (isMobile) {
-    await expect(category).toHaveCSS("opacity", "1")
-  } else {
+  await expect(category).toHaveCSS("opacity", "1")
+  if (!isMobile) {
     await firstRow.getByRole("link").focus()
-    await expect(category).toHaveCSS("opacity", "1")
+    await expect(firstRow.getByRole("link")).toBeFocused()
   }
+  await expectEventRowLayout(firstRow, 3)
+  await expectEventRowLayout(secondRow, 2)
+  await expect(list.getByText("第 2 条动态摘要")).toHaveCount(0)
 
   const before = await stableRowPositions(page)
+  before.forEach((position) => expect(position.height).toBeCloseTo(144, 0))
   const scrollBefore = await page.evaluate(() => window.scrollY)
   releaseCover()
   await expect
@@ -223,6 +359,9 @@ test("mobile Web keeps community discovery, list, and detail stable", async ({
   })
   expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(2)
   await expectNoPageOverflow(page)
+  await page.screenshot({
+    path: `/tmp/imsweb-events-list-${testInfo.project.name}.png`,
+  })
 
   await page.evaluate(() =>
     window.scrollTo(0, document.documentElement.scrollHeight)
