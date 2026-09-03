@@ -3,7 +3,6 @@ import type { ReactNode } from "react"
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
 
 import { GlassFilterDefs } from "~/components/shared/glass-filter-defs"
-import { GlassSheenTracker } from "~/components/shared/glass-sheen-tracker"
 import { ImageLoadingIndicator } from "~/components/shared/image-loading-indicator"
 import { SeriesBrowserIcon } from "~/components/shared/series-browser-icon"
 import { TauriInteractionGuard } from "~/components/shared/tauri-interaction-guard"
@@ -45,7 +44,6 @@ export function RootAppLayout() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <GlassFilterDefs />
-      <GlassSheenTracker />
       <ImageLoadingIndicator />
       <SeriesBrowserIcon />
       <ThemeColorSync />

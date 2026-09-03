@@ -327,6 +327,7 @@ test("desktop navigation lens stays within its glass segment", async ({
   isMobile,
 }) => {
   test.skip(isMobile, "desktop navigation is hidden on mobile")
+  test.slow()
 
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.goto("/", { waitUntil: "domcontentloaded" })
@@ -334,12 +335,97 @@ test("desktop navigation lens stays within its glass segment", async ({
   const navigation = page.getByRole("navigation", {
     name: /主导航|Main navigation/,
   })
-  const segment = navigation.locator("[data-glass-interactive]")
-  const lens = segment.locator(".glass-lens")
+  const lens = navigation.locator(".glass-lens")
+  const segment = lens.locator("..")
+  const skin = lens.locator(".glass-lens-skin")
   const links = navigation.getByRole("link")
+  const interactiveHighlight = page.locator(
+    ".glass-sheen, .glass-control, [data-glass-interactive]"
+  )
   const ringOutset = 1
+  const navigationPaths = [
+    "/",
+    "/events",
+    "/recommendations",
+    "/live",
+    "/community",
+    "/about",
+  ]
+  const expectedKeyframes = [
+    { progress: 0, scaleX: 1, scaleY: 1 },
+    { progress: 28, scaleX: 1.22, scaleY: 0.89 },
+    { progress: 64, scaleX: 0.9384, scaleY: 1.044 },
+    { progress: 100, scaleX: 1, scaleY: 1 },
+  ]
+
+  async function waitForMeasuredTarget(activeLink: typeof links) {
+    await expect
+      .poll(
+        async () => {
+          try {
+            return await activeLink.evaluate((link) => {
+              if (!(link instanceof HTMLElement)) return false
+
+              const lensElement =
+                link.parentElement?.querySelector(".glass-lens")
+              if (!(lensElement instanceof HTMLElement)) return false
+              if (lensElement.dataset.visible !== "true") return false
+
+              return (
+                Math.abs(
+                  Number.parseFloat(lensElement.style.translate) -
+                    link.offsetLeft
+                ) <= 1 &&
+                Math.abs(
+                  Number.parseFloat(lensElement.style.width) - link.offsetWidth
+                ) <= 1
+              )
+            })
+          } catch {
+            return false
+          }
+        },
+        {
+          message: "desktop navigation lens should measure its active link",
+          timeout: 15_000,
+        }
+      )
+      .toBe(true)
+  }
+
+  async function waitForMeasuredGeometry(activeLink: typeof links) {
+    await waitForMeasuredTarget(activeLink)
+    await expect
+      .poll(
+        async () => {
+          try {
+            return await activeLink.evaluate((link) => {
+              const lensElement =
+                link.parentElement?.querySelector(".glass-lens")
+              if (!(lensElement instanceof HTMLElement)) return false
+
+              const linkBounds = link.getBoundingClientRect()
+              const lensBounds = lensElement.getBoundingClientRect()
+              return (
+                Math.abs(lensBounds.left - linkBounds.left) <= 1 &&
+                Math.abs(lensBounds.width - linkBounds.width) <= 1
+              )
+            })
+          } catch {
+            return false
+          }
+        },
+        {
+          message: "desktop navigation lens should settle over its active link",
+          timeout: 15_000,
+        }
+      )
+      .toBe(true)
+  }
 
   await expect(links).toHaveCount(6)
+  await expect(interactiveHighlight).toHaveCount(0)
+  await waitForMeasuredGeometry(links.first())
   await expect(lens).toHaveAttribute("data-visible", "true")
   await expect(lens).toHaveCSS("opacity", "1")
 
@@ -357,49 +443,200 @@ test("desktop navigation lens stays within its glass segment", async ({
   expect(restingTopGap - ringOutset).toBeGreaterThanOrEqual(5)
   expect(restingBottomGap - ringOutset).toBeGreaterThanOrEqual(5)
 
-  for (let index = 0; index < 6; index += 1) {
-    const linkBounds = await links.nth(index).boundingBox()
-    expect(linkBounds).not.toBeNull()
-    expect(linkBounds!.height).toBeCloseTo(36, 1)
+  for (let index = 0; index < navigationPaths.length; index += 1) {
+    if (index > 0) {
+      await page.goto(navigationPaths[index], {
+        waitUntil: "domcontentloaded",
+      })
+    }
+
+    const activeLink = navigation.locator(`a[href="${navigationPaths[index]}"]`)
+    await expect(activeLink).toHaveAttribute("aria-current", "page")
+    await waitForMeasuredGeometry(activeLink)
+    await expect(skin).toBeVisible()
+    await skin.evaluate((element) => {
+      for (const animation of element.getAnimations()) animation.finish()
+    })
+
+    const geometry = await activeLink.evaluate((link, ringWidth) => {
+      const lensElement = link.parentElement?.querySelector(".glass-lens")
+      const skinElement = lensElement?.querySelector(".glass-lens-skin")
+      if (
+        !(lensElement instanceof HTMLElement) ||
+        !(skinElement instanceof HTMLElement)
+      ) {
+        throw new Error("desktop navigation lens geometry is unavailable")
+      }
+
+      const linkBounds = link.getBoundingClientRect()
+      const lensBounds = lensElement.getBoundingClientRect()
+      const skinBounds = skinElement.getBoundingClientRect()
+      const textRange = document.createRange()
+      textRange.selectNodeContents(link)
+      const textBounds = textRange.getBoundingClientRect()
+      const computedTransform = window.getComputedStyle(skinElement).transform
+      const transform =
+        computedTransform === "none"
+          ? new DOMMatrixReadOnly()
+          : new DOMMatrixReadOnly(computedTransform)
+      const scaleX = Math.hypot(transform.a, transform.b)
+      const paintedLeft = skinBounds.left - ringWidth * scaleX
+      const paintedRight = skinBounds.right + ringWidth * scaleX
+
+      return {
+        link: {
+          left: linkBounds.left,
+          right: linkBounds.right,
+          width: linkBounds.width,
+          height: linkBounds.height,
+        },
+        lens: {
+          left: lensBounds.left,
+          right: lensBounds.right,
+          width: lensBounds.width,
+        },
+        paintedLeft,
+        paintedRight,
+        paintedWidth: paintedRight - paintedLeft,
+        paintedCenter: (paintedLeft + paintedRight) / 2,
+        textWidth: textBounds.width,
+      }
+    }, ringOutset)
+
+    expect(
+      geometry.lens.left,
+      `${navigationPaths[index]} lens frame should match its active link`
+    ).toBeCloseTo(geometry.link.left, 0)
+    expect(geometry.lens.width).toBeCloseTo(geometry.link.width, 0)
+    expect(
+      geometry.paintedLeft,
+      `${navigationPaths[index]} lens ring should stay inside the left frame edge`
+    ).toBeGreaterThanOrEqual(geometry.lens.left - 0.5)
+    expect(
+      geometry.paintedRight,
+      `${navigationPaths[index]} lens ring should stay inside the right frame edge`
+    ).toBeLessThanOrEqual(geometry.lens.right + 0.5)
+    expect(
+      geometry.paintedWidth,
+      `${navigationPaths[index]} selected material should support its text`
+    ).toBeGreaterThanOrEqual(geometry.textWidth)
+    expect(geometry.paintedCenter).toBeCloseTo(
+      (geometry.link.left + geometry.link.right) / 2,
+      0
+    )
+    expect(geometry.link.height).toBeCloseTo(36, 1)
   }
 
-  await page.addStyleTag({
-    content: "[data-glass-interactive] { --duration-ui: 10s !important; }",
+  const aboutLink = navigation.locator('a[href="/about"]')
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 1600, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport)
+    await waitForMeasuredGeometry(aboutLink)
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth
+      ),
+      `${viewport.width}px page should not overflow horizontally`
+    ).toBe(true)
+  }
+
+  await page.goto("/", { waitUntil: "domcontentloaded" })
+  await waitForMeasuredGeometry(navigation.locator('a[href="/"]'))
+  await segment.evaluate((element) => {
+    element.style.setProperty("--duration-ui", "10s", "important")
   })
 
-  const aboutLink = navigation.locator('a[href="/about"]')
   await aboutLink.click()
   await expect(page).toHaveURL(/\/about$/)
   await expect(aboutLink).toHaveAttribute("aria-current", "page")
+  await waitForMeasuredTarget(aboutLink)
 
-  const skin = segment.locator(".glass-lens-skin")
   await expect(skin).toBeVisible()
-  const motionBounds = await skin.evaluate((element) => {
-    const animation = element.getAnimations()[0]
-    const segmentElement = element.parentElement?.parentElement
-    if (!animation || !segmentElement) {
+  const motionSamples = await skin.evaluate((element, ringWidth) => {
+    const lensElement = element.parentElement
+    const segmentElement = lensElement?.parentElement
+    const animation = element.getAnimations().find((candidate) => {
+      const effect = candidate.effect
+      return (
+        effect instanceof KeyframeEffect &&
+        effect.target === element &&
+        "animationName" in candidate &&
+        candidate.animationName === "glass-lens-travel"
+      )
+    })
+    const transition = lensElement?.getAnimations().find((candidate) => {
+      const effect = candidate.effect
+      return (
+        effect instanceof KeyframeEffect &&
+        effect.target === lensElement &&
+        "transitionProperty" in candidate &&
+        candidate.transitionProperty === "translate"
+      )
+    })
+    if (!animation || !transition || !lensElement || !segmentElement) {
       throw new Error("desktop navigation lens animation is missing")
     }
 
     animation.pause()
-    const samples = [0, 2_800, 6_400, 9_999].map((currentTime) => {
-      animation.currentTime = currentTime
+    transition.pause()
+    const animationDuration = animation.effect?.getComputedTiming().duration
+    const transitionDuration = transition.effect?.getComputedTiming().duration
+    if (
+      typeof animationDuration !== "number" ||
+      typeof transitionDuration !== "number"
+    ) {
+      throw new Error("desktop navigation lens duration is unavailable")
+    }
+    if (animationDuration !== 10_000 || transitionDuration !== 10_000) {
+      throw new Error("desktop navigation lens duration override was lost")
+    }
+
+    return [0, 0.28, 0.64, 1].map((progress) => {
+      animation.currentTime = animationDuration * progress
+      transition.currentTime = transitionDuration * progress
+
       const segmentRect = segmentElement.getBoundingClientRect()
+      const lensRect = lensElement.getBoundingClientRect()
       const skinRect = element.getBoundingClientRect()
+      const computedTransform = window.getComputedStyle(element).transform
+      const transform =
+        computedTransform === "none"
+          ? new DOMMatrixReadOnly()
+          : new DOMMatrixReadOnly(computedTransform)
+      const scaleX = Math.hypot(transform.a, transform.b)
+      const scaleY = Math.hypot(transform.c, transform.d)
+      const horizontalRingOutset = ringWidth * scaleX
+      const verticalRingOutset = ringWidth * scaleY
+
       return {
-        topGap: skinRect.top - segmentRect.top,
-        bottomGap: segmentRect.bottom - skinRect.bottom,
+        progress: Math.round(progress * 100),
+        scaleX,
+        scaleY,
+        leftGap: skinRect.left - horizontalRingOutset - lensRect.left,
+        rightGap: lensRect.right - (skinRect.right + horizontalRingOutset),
+        topGap: skinRect.top - verticalRingOutset - segmentRect.top,
+        bottomGap: segmentRect.bottom - (skinRect.bottom + verticalRingOutset),
       }
     })
+  }, ringOutset)
 
-    return {
-      minimumTopGap: Math.min(...samples.map((sample) => sample.topGap)),
-      minimumBottomGap: Math.min(...samples.map((sample) => sample.bottomGap)),
-    }
-  })
-
-  expect(motionBounds.minimumTopGap - ringOutset).toBeGreaterThan(0)
-  expect(motionBounds.minimumBottomGap - ringOutset).toBeGreaterThan(0)
+  for (const [index, sample] of motionSamples.entries()) {
+    expect(sample.progress).toBe(expectedKeyframes[index].progress)
+    expect(sample.scaleX).toBeCloseTo(expectedKeyframes[index].scaleX, 3)
+    expect(sample.scaleY).toBeCloseTo(expectedKeyframes[index].scaleY, 3)
+    expect(
+      sample.leftGap,
+      `${sample.progress}% lens ring should stay inside the moving frame's left edge`
+    ).toBeGreaterThanOrEqual(0)
+    expect(
+      sample.rightGap,
+      `${sample.progress}% lens ring should stay inside the moving frame's right edge`
+    ).toBeGreaterThanOrEqual(0)
+    expect(sample.topGap).toBeGreaterThan(0)
+    expect(sample.bottomGap).toBeGreaterThan(0)
+  }
 })
 
 test("homepage navigation keeps secondary destinations in the directory", async ({

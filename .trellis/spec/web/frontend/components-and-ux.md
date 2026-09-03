@@ -58,10 +58,15 @@ visible gap = inset - ring outset - vertical transform growth / 2
 ```
 
 Do not use `overflow-hidden` or `overflow-clip` to hide an oversized lens. Those
-rules mask the geometry defect and can cut off the pointer sheen. A browser
-regression must measure the resting gap after accounting for the ring and sample
-the `0%`, `28%`, `64%`, and `100%` animation states after the longest supported
-slot transition.
+rules mask the geometry defect and can cut off the ring or moving material. A
+browser regression must measure the resting gap after accounting for the ring
+and sample the `0%`, `28%`, `64%`, and `100%` animation states after the longest
+supported slot transition.
+
+Pointer-tracked glass highlights are disabled in production. Do not mount the
+tracker or add `glass-sheen`, `glass-control`, or `data-glass-interactive` to a
+production surface without a new interaction review covering nested ownership,
+pointer exit, keyboard focus, touch behavior, and reduced motion.
 
 ## Public assets
 

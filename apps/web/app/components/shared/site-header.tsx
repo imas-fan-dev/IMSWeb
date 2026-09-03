@@ -1,5 +1,5 @@
 import { BookOpenTextIcon, HouseIcon, MenuIcon } from "lucide-react"
-import { useState, useSyncExternalStore } from "react"
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
@@ -64,6 +64,12 @@ function activeNavigationIndex(pathname: string) {
   )
 }
 
+type LensGeometry = {
+  slot: number
+  offsetLeft: number
+  width: number
+}
+
 export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
@@ -71,6 +77,9 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const navigationSlot = Math.max(navigationIndex, 0)
   const hydrated = useHydrated()
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+  const navigationSegmentRef = useRef<HTMLDivElement>(null)
+  const navigationLinkRefs = useRef<Array<HTMLAnchorElement | null>>([])
+  const [lensGeometry, setLensGeometry] = useState<LensGeometry | null>(null)
 
   // Same travelling-lens contract as the app tab bar: the slot distance of the
   // pending move, derived during render, so the lens deforms in proportion to
@@ -84,8 +93,64 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
     })
   }
 
+  useLayoutEffect(() => {
+    if (navigationIndex < 0) return
+
+    const segment = navigationSegmentRef.current
+    const activeLink = navigationLinkRefs.current[navigationIndex]
+    if (!segment || !activeLink) return
+
+    const measuredLink = activeLink
+    let disposed = false
+
+    function measureLens() {
+      if (disposed) return
+
+      const offsetLeft = measuredLink.offsetLeft
+      const width = measuredLink.offsetWidth
+      if (
+        !Number.isFinite(offsetLeft) ||
+        !Number.isFinite(width) ||
+        width <= 0
+      ) {
+        return
+      }
+
+      setLensGeometry((current) => {
+        if (
+          current?.slot === navigationIndex &&
+          current.offsetLeft === offsetLeft &&
+          current.width === width
+        ) {
+          return current
+        }
+
+        return { slot: navigationIndex, offsetLeft, width }
+      })
+    }
+
+    measureLens()
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measureLens)
+    resizeObserver?.observe(segment)
+    resizeObserver?.observe(measuredLink)
+
+    void document.fonts?.ready.then(measureLens)
+
+    return () => {
+      disposed = true
+      resizeObserver?.disconnect()
+    }
+  }, [navigationIndex])
+
+  const lensVisible =
+    navigationIndex >= 0 && lensGeometry?.slot === navigationIndex
+
   return (
-    <header className="glass-surface glass-bar glass-scroll-bar glass-refract glass-sheen sticky top-0 z-40">
+    <header className="glass-surface glass-bar glass-scroll-bar glass-refract sticky top-0 z-40">
       <div
         className={cn(
           "mx-auto flex w-full max-w-7xl items-center sm:h-16 sm:gap-3 sm:px-6 lg:gap-6 lg:px-8",
@@ -114,28 +179,38 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
               behind it is already blurred, so a second blur layer would cost
               compositing for no visible gain. */}
           <div
-            data-glass-interactive=""
-            className="glass-surface glass-quiet glass-sheen relative flex items-stretch rounded-full p-1 ring-1 ring-foreground/10"
+            ref={navigationSegmentRef}
+            className="glass-surface glass-quiet relative flex items-stretch rounded-full p-1 ring-1 ring-foreground/10"
             style={
               {
-                "--nav-index": navigationSlot,
                 "--glass-lens-travel": travel.distance,
               } as React.CSSProperties
             }
           >
             <span
               aria-hidden="true"
-              data-visible={navigationIndex >= 0 ? "true" : undefined}
-              className="glass-lens absolute inset-y-1.5 left-1 w-[calc((100%-0.5rem)/6)] translate-x-[calc(var(--nav-index)*100%)] opacity-0 data-visible:opacity-100"
+              data-visible={lensVisible ? "true" : undefined}
+              className="glass-lens absolute inset-y-1.5 left-0 opacity-0 data-visible:opacity-100"
+              style={
+                lensGeometry
+                  ? {
+                      width: `${lensGeometry.width}px`,
+                      translate: `${lensGeometry.offsetLeft}px`,
+                    }
+                  : undefined
+              }
             >
               <span
                 key={travel.slot}
-                className="glass-lens-skin block size-full rounded-full bg-foreground/8 ring-1 ring-foreground/10"
+                className="glass-lens-skin absolute inset-x-[12%] inset-y-0 rounded-full bg-foreground/8 ring-1 ring-foreground/10"
               />
             </span>
-            {navigation.map((item) => (
+            {navigation.map((item, index) => (
               <NavigationNavLink
                 key={item.to}
+                ref={(element) => {
+                  navigationLinkRefs.current[index] = element
+                }}
                 to={item.to}
                 end={item.end}
                 className={desktopLinkClass}
