@@ -5,7 +5,6 @@
 
 ---
 
-
 ## Session 1: 修复移动端 GPS 定位
 <!-- trellis-session: v=2 fp=254ab737f091bd69 -->
 
@@ -26,7 +25,6 @@
 ### Status
 
 [OK] **Completed**
-
 
 ## Session 2: 社区动态移动端适配
 <!-- trellis-session: v=2 fp=01d827c543aaadcd -->
@@ -58,6 +56,40 @@
 - [OK] Web lint、typecheck、836 个完整单元测试、生产构建与 build:app 通过。
 - [OK] Web Playwright 6/6、App 五视口 Playwright 5/5 通过。
 - [OK] app:doctor 通过；iOS 与 Android 模拟器均完成构建、安装和启动。
+
+### Status
+
+[OK] **Completed**
+
+## Session 3: 优化社区动态响应式布局
+<!-- trellis-session: v=2 fp=47433fc0181f4860 -->
+
+**Date**: 2026-09-03
+**Task**: 优化社区动态响应式布局
+**Branch**: `release/v1.1`
+
+### Summary
+
+将公开社区动态列表统一收紧为 144px 固定行高，重排右侧标题、分类与元信息，并同步虚拟列表、骨架和响应式回归测试。
+
+### Main Changes
+
+- 社区动态条目、骨架和虚拟列表估高统一为 144px。
+- 分类标签移到右侧标题下方，发布者、日期与可选联系方式保持独立纵向行。
+- 补充固定高度、中心对齐、文本可读性、溢出和图片加载稳定性的 Web/App 覆盖。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `57face2` | fix(web): refine community update list layout |
+| `2e6f301` | chore(trellis): archive community feed layout task |
+
+### Testing
+
+- [OK] Events 单元测试 14/14 通过。
+- [OK] Web Playwright 2/2、App Playwright 5/5 通过。
+- [OK] 规则检查、LSP、lint、类型检查和生产构建通过。
 
 ### Status
 

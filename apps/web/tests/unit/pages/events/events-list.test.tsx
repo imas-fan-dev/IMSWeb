@@ -95,7 +95,7 @@ describe("EventRow", () => {
       "relative",
       "h-36",
       "grid-cols-[6.5rem_minmax(0,1fr)]",
-      "gap-3",
+      "gap-2",
       "p-3",
       "sm:grid-cols-[9rem_minmax(0,1fr)]",
       "sm:gap-4"
@@ -138,7 +138,7 @@ describe("EventRow", () => {
     for (const className of [
       "h-36",
       "grid-cols-[6.5rem_minmax(0,1fr)]",
-      "gap-3",
+      "gap-2",
       "p-3",
       "sm:grid-cols-[9rem_minmax(0,1fr)]",
       "sm:gap-4",
