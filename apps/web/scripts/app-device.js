@@ -321,19 +321,46 @@ function listIosDevices() {
     })
 }
 
+function describeTargets(candidates) {
+  return candidates
+    .map((candidate) =>
+      candidate.identifier
+        ? `${candidate.name} (${candidate.identifier})`
+        : candidate.name
+    )
+    .join(", ")
+}
+
 export function selectTarget(candidates, requested, { kind, prefer }) {
   if (requested) {
-    const match = candidates.find(
-      (candidate) =>
-        candidate.identifier === requested ||
-        candidate.name.toLowerCase().includes(requested.toLowerCase())
+    const byIdentifier = candidates.find(
+      (candidate) => candidate.identifier === requested
     )
-    if (!match) {
+    if (byIdentifier) return byIdentifier
+
+    // An exact name outranks a substring so "iPhone 17 Pro" cannot be swallowed
+    // by "iPhone 17 Pro Max". Substrings stay available as a short form, but an
+    // ambiguous one reports its candidates instead of taking the first hit.
+    const wanted = requested.toLowerCase()
+    const named = candidates.filter(
+      (candidate) => candidate.name.toLowerCase() === wanted
+    )
+    const matches = named.length
+      ? named
+      : candidates.filter((candidate) =>
+          candidate.name.toLowerCase().includes(wanted)
+        )
+
+    if (matches.length === 1) return matches[0]
+    if (matches.length > 1) {
       throw new Error(
-        `找不到名称或标识为 ${requested} 的 ${kind}；先运行 devices 查看可用目标`
+        `${requested} 同时匹配多个 ${kind}，请用完整名称或 UDID 指定：` +
+          describeTargets(matches)
       )
     }
-    return match
+    throw new Error(
+      `找不到名称或标识为 ${requested} 的 ${kind}；先运行 devices 查看可用目标`
+    )
   }
 
   if (!candidates.length) {
@@ -342,8 +369,9 @@ export function selectTarget(candidates, requested, { kind, prefer }) {
   const preferred = prefer ? candidates.filter(prefer) : []
   if (preferred.length) return preferred[0]
   if (candidates.length > 1) {
-    const names = candidates.map((candidate) => candidate.name).join(", ")
-    throw new Error(`存在多个 ${kind}，请用 --device 指定：${names}`)
+    throw new Error(
+      `存在多个 ${kind}，请用 --device 指定：${describeTargets(candidates)}`
+    )
   }
   return candidates[0]
 }
@@ -686,6 +714,22 @@ function simulatorBundlePath(buildRoot, productName) {
   )
 }
 
+// Tauri renames each freshly built bundle into place, so a product directory
+// left by an earlier run fails the build with `Directory not empty` (os error
+// 66). Everything under gen/ is derived, so drop exactly the paths this build
+// is about to rewrite: the archive always, plus the matching product slice.
+export function cleanIosBuildProducts(buildRoot, simulatorBuild) {
+  if (!existsSync(buildRoot)) return
+  for (const entry of readdirSync(buildRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue
+    const archive = entry.name.endsWith(".xcarchive")
+    const simulatorProduct = entry.name.endsWith("-sim")
+    const targeted = simulatorBuild ? simulatorProduct : !simulatorProduct
+    if (!archive && !targeted) continue
+    rmSync(join(buildRoot, entry.name), { force: true, recursive: true })
+  }
+}
+
 function deviceArchivePath(buildRoot) {
   const ipaPath = newestPath(
     walk(buildRoot, (entryPath) => entryPath.endsWith(".ipa"))
@@ -701,6 +745,7 @@ function runIosDelivery(options, workspaceRoot, environment) {
   const productName = base.productName
   const simulatorBuild = options.target === "simulator"
   const rustTarget = simulatorBuild ? iosSimulatorRustTarget() : "aarch64"
+  const buildRoot = join(workspaceRoot, "src-tauri/gen/apple/build")
 
   const target = simulatorBuild
     ? selectTarget(listIosSimulators(), options.device, {
@@ -715,6 +760,7 @@ function runIosDelivery(options, workspaceRoot, environment) {
   if (options.build) {
     reportBuildOrigins(environment)
     ensurePlatformProject(workspaceRoot, "ios", environment)
+    cleanIosBuildProducts(buildRoot, simulatorBuild)
     const args = iosBuildArguments({
       target: rustTarget,
       profile: options.profile,
@@ -728,7 +774,6 @@ function runIosDelivery(options, workspaceRoot, environment) {
     if (status !== 0) return status
   }
 
-  const buildRoot = join(workspaceRoot, "src-tauri/gen/apple/build")
   const bundlePath = simulatorBuild
     ? simulatorBundlePath(buildRoot, productName)
     : extractIpa(workspaceRoot, deviceArchivePath(buildRoot))

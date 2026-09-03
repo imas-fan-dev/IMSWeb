@@ -109,8 +109,10 @@ pnpm run app ios --target device -- --verbose
 
 选项语义：
 
-- `--device <名称|UDID|序列号>`：名称按不区分大小写的子串匹配。省略时，iOS 模拟器优先选择已启动
-  的那台，iOS 真机优先选择已连接的那台；仍无法判定唯一目标时报错并列出候选，不随机挑选。
+- `--device <名称|UDID|序列号>`：按 UDID 全等 → 名称全等（不区分大小写）→ 唯一子串的顺序解析。
+  全名优于子串，因此 `iPhone 17 Pro` 不会被 `iPhone 17 Pro Max` 吞掉；子串命中多个目标时
+  报错并列出候选的名称与 UDID。省略时，iOS 模拟器优先选择已启动的那台，iOS 真机优先选择
+  已连接的那台；仍无法判定唯一目标时报错并列出候选，不随机挑选。
 - `--skip-build`：复用产物目录中最新的匹配包，用于重复安装同一次构建。
 - `--no-launch`：安装后不拉起。
 - `--open`：打开 Xcode 或 Android Studio，不直接运行。
@@ -186,7 +188,7 @@ pnpm run app ios --live --host
 | iOS 归档缺少签名身份     | 未设置 `TAURI_APPLE_DEVELOPMENT_TEAM`                          |
 | 提示存在多个目标         | 用 `--device` 指定，或先运行 `pnpm run app devices`            |
 | 找不到产物               | 上一次构建失败，去掉 `--skip-build` 重新构建                   |
-| `failed to rename app … Directory not empty` | `gen/apple/build/` 里残留了上一次的同名产物，删掉对应架构目录和 `imsweb_iOS.xcarchive` 后重试 |
+| `failed to rename app … Directory not empty` | 已由脚本处理：iOS 构建前自动删除 `*.xcarchive` 和本次目标对应的产物目录。仍出现时手动清空 `gen/apple/build/` |
 | iOS 热重载会话上传图片返回 500 | scheme handler 丢弃 `Blob`/`File` 请求体，改用 `pnpm run app ios` 自包含包验收；见 [Tauri 移动端基础设施](tauri-mobile.md) 第 3 节 |
 
 改动安装链路、脚本参数或平台工具契约时，同一变更更新本文件并运行：

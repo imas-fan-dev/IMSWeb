@@ -1,5 +1,13 @@
 const assert = require("node:assert/strict");
-const { readFile } = require("node:fs/promises");
+const {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const { pathToFileURL } = require("node:url");
@@ -175,6 +183,41 @@ test("target selection prefers running targets and rejects ambiguity", async () 
     "AAA",
   );
 
+  // A full name must win over a longer sibling that contains it, otherwise
+  // "iPhone 17 Pro" silently resolves to whichever simctl listed first.
+  const overlapping = [
+    { name: "iPhone 17 Pro", identifier: "AAA", state: "Shutdown" },
+    { name: "iPhone 17 Pro Max", identifier: "BBB", state: "Shutdown" },
+  ];
+  assert.equal(
+    selectTarget(overlapping, "iPhone 17 Pro", { kind: "iOS 模拟器", prefer })
+      .identifier,
+    "AAA",
+  );
+  assert.equal(
+    selectTarget(overlapping, "iphone 17 pro max", {
+      kind: "iOS 模拟器",
+      prefer,
+    }).identifier,
+    "BBB",
+  );
+  assert.equal(
+    selectTarget(overlapping, "BBB", { kind: "iOS 模拟器", prefer }).identifier,
+    "BBB",
+  );
+
+  // An ambiguous substring reports its candidates rather than guessing.
+  assert.throws(
+    () => selectTarget(overlapping, "17 Pro", { kind: "iOS 模拟器", prefer }),
+    /iPhone 17 Pro \(AAA\).*iPhone 17 Pro Max \(BBB\)/,
+  );
+
+  // The no-selection error carries UDIDs so the retry can be copy-pasted.
+  assert.throws(
+    () => selectTarget(overlapping, "", { kind: "iOS 模拟器", prefer }),
+    /--device.*iPhone 17 Pro \(AAA\)/,
+  );
+
   assert.throws(
     () => selectTarget(simulators, "Pixel", { kind: "iOS 模拟器", prefer }),
     /Pixel/,
@@ -192,6 +235,53 @@ test("target selection prefers running targets and rejects ambiguity", async () 
       ),
     /--device/,
   );
+});
+
+test("iOS builds clear only the products they are about to rewrite", async () => {
+  const { cleanIosBuildProducts } = await import(appDeviceUrl.href);
+
+  const buildRoot = await mkdtemp(path.join(os.tmpdir(), "imsweb-ios-build-"));
+  const seed = async () => {
+    for (const directory of [
+      // Tauri renames the archived bundle into place; a leftover here is what
+      // fails the build with `Directory not empty` (os error 66).
+      "imsweb_iOS.xcarchive/Products/Applications/IMSWeb.app",
+      "aarch64-sim/IMSWeb.app",
+      "arm64",
+      ".device-install/Payload",
+    ]) {
+      await mkdir(path.join(buildRoot, directory), { recursive: true });
+    }
+    await writeFile(path.join(buildRoot, "arm64", "IMSWeb.ipa"), "ipa");
+  };
+
+  try {
+    // A simulator build drops the archive and the simulator slice, and keeps
+    // the device IPA and the install scratch directory.
+    await seed();
+    cleanIosBuildProducts(buildRoot, true);
+    assert.deepEqual((await readdir(buildRoot)).sort(), [
+      ".device-install",
+      "arm64",
+    ]);
+
+    await rm(buildRoot, { recursive: true, force: true });
+    await mkdir(buildRoot, { recursive: true });
+
+    // A device build drops the archive and the device slice instead.
+    await seed();
+    cleanIosBuildProducts(buildRoot, false);
+    assert.deepEqual((await readdir(buildRoot)).sort(), [
+      ".device-install",
+      "aarch64-sim",
+    ]);
+
+    // A missing build root is the first-run case, not a failure.
+    await rm(buildRoot, { recursive: true, force: true });
+    cleanIosBuildProducts(buildRoot, true);
+  } finally {
+    await rm(buildRoot, { recursive: true, force: true });
+  }
 });
 
 test("prerequisite report groups checks and surfaces blocking failures", async () => {
