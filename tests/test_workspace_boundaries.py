@@ -213,8 +213,8 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         # 55 adds the two app delivery entries to the previous 53.
         self.assertLessEqual(len(root_scripts), 55)
-        # 40 adds the editorial content migration entry to the previous 39.
-        self.assertLessEqual(len(api_scripts), 40)
+        # 41 adds the CMS title backfill after the editorial content migration.
+        self.assertLessEqual(len(api_scripts), 41)
         # 20 covers the Tauri CLI, app-target build, dev, icon, and E2E commands,
         # plus the app device delivery entry and its prerequisite doctor. Device
         # target, profile, and selection stay flags on `app`, never new scripts.
