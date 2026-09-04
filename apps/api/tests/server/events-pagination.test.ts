@@ -4,9 +4,9 @@ import { createHonoApp } from '@/app';
 import {
     decodeEventCursor,
     encodeEventCursor
-} from '@/domains/events/event-cursor';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+} from '@/domains/content/events/event-cursor';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
 interface EventListItem {
@@ -47,34 +47,34 @@ interface EventFixture {
 
 async function createFixture(t: TestContext, count: number): Promise<EventFixture> {
     const connection = await createPostgresTestDatabase(t, 'events-pagination');
-    const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
-    await core.initialize();
+    await new PostgresqlSchemaStrategy().initializeCore(connection);
+    const repository = new SqlEventRepository(connection);
     for (let id = 1; id <= count; id += 1) {
-        await core.insertEvent({
+        await repository.insertEvent({
             title: `Event ${id}`,
             name: 'Fixture',
             contact: 'fixture@example.test',
             imageUrl: `/uploads/events/${id}.webp`
         });
     }
-    const app = createHonoApp(() => ({ events: core }));
-    t.after(() => core.close());
+    const app = createHonoApp(() => ({ events: repository }));
+    t.after(() => connection.close());
     return {
         request(pathname) {
             return Promise.resolve(app.request(`http://ims.test${pathname}`));
         },
         insert(title) {
-            return core.insertEvent({
+            return repository.insertEvent({
                 title,
                 name: 'Fixture',
                 contact: 'fixture@example.test',
                 imageUrl: '/uploads/events/new.webp'
             });
         },
-        find: (id) => core.findEvent(id),
-        references: (imageUrl) => core.countEventMediaReferences(imageUrl),
+        find: (id) => repository.findEvent(id),
+        references: (imageUrl) => repository.countEventMediaReferences(imageUrl),
         update: (id, input, expectedImageUrl) =>
-            core.updateEvent(id, input, expectedImageUrl)
+            repository.updateEvent(id, input, expectedImageUrl)
     };
 }
 
@@ -182,6 +182,7 @@ test('event updates require the expected current image reference', async (t) => 
             name: replacement.name,
             contact: replacement.contact,
             image_url: replacement.imageUrl,
+            cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
             created_at: (await fixture.find(1))?.created_at
         }
     );

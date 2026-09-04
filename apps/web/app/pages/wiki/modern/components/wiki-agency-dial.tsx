@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog"
 import type { WikiPublicAgency } from "~/lib/api"
+import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
 import { safeWikiColor } from "~/pages/wiki/wiki-model"
 
@@ -28,6 +29,12 @@ interface WikiAgencyDialProps {
   selectedAgency: string | null
   disabled?: boolean
   visibilityClassName?: string
+  /**
+   * Which wiki shell hosts the dial, named to match `WikiMobileSearch`. Only
+   * `modern` renders inside a layout, so only it has an app tab bar to clear;
+   * `/wiki/classic` is a standalone route with no chrome underneath it.
+   */
+  view: "classic" | "modern"
   onSelectAgency: (agency: string) => void
 }
 
@@ -123,7 +130,11 @@ function InteractiveWikiAgencyDial({
   disabled = false,
   visibilityClassName = "md:hidden",
   onSelectAgency,
+  view,
 }: WikiAgencyDialProps) {
+  // Anchor the App trigger and lower-left dial from the native tab bar clearance.
+  // `IS_APP_TARGET` is inlined by Vite, so the web bundle drops this branch.
+  const clearsAppTabBar = IS_APP_TARGET && view === "modern"
   const selectedIndex = Math.max(
     0,
     agencies.findIndex((agency) => agency.name === selectedAgency)
@@ -370,6 +381,7 @@ function InteractiveWikiAgencyDial({
             size="icon"
             className={cn(
               "fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 size-14 rounded-full bg-background/95 shadow-lg backdrop-blur-md transition-[opacity,transform,box-shadow] duration-200 aria-expanded:scale-75 aria-expanded:opacity-0 motion-reduce:transition-none",
+              clearsAppTabBar && APP_FLOATING_CONTROL_OFFSET,
               visibilityClassName
             )}
             style={{
@@ -400,9 +412,13 @@ function InteractiveWikiAgencyDial({
       <DialogContent
         initialFocus={dialRef}
         showCloseButton={false}
+        safeArea="custom"
         overlayClassName="bg-black/30 backdrop-blur-[2px] duration-300 motion-reduce:duration-0"
         className={cn(
-          "top-auto right-auto bottom-[calc(2.75rem+env(safe-area-inset-bottom))] left-11 block w-auto max-w-none -translate-x-1/2 translate-y-1/2 rounded-full bg-transparent p-0 shadow-none ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none",
+          "top-auto right-auto block w-auto max-w-none rounded-full bg-transparent p-0 shadow-none ring-0 duration-300 motion-reduce:duration-0 sm:max-w-none",
+          clearsAppTabBar
+            ? "bottom-[calc(var(--app-bottom-clearance)+1rem)] left-(--app-safe-inline)"
+            : "bottom-[calc(2.75rem+env(safe-area-inset-bottom))] left-11 -translate-x-1/2 translate-y-1/2",
           visibilityClassName
         )}
         data-wiki-agency-dial-popup
@@ -421,7 +437,9 @@ function InteractiveWikiAgencyDial({
           data-wiki-agency-dial-position={carouselPosition.toFixed(3)}
           className="relative aspect-square cursor-grab touch-none overflow-visible rounded-full border border-foreground/15 bg-background/96 shadow-2xl outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing"
           style={{
-            width: "min(92vw, calc(100dvh - 6rem), 22rem)",
+            width: clearsAppTabBar
+              ? "min(calc(var(--safe-viewport-width) - 2rem), calc(var(--app-viewport-height) - var(--app-bottom-clearance) - 2rem), 22rem)"
+              : "min(92vw, calc(100dvh - 6rem), 22rem)",
             borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
             boxShadow: `0 22px 60px color-mix(in srgb, ${accent} 24%, rgb(0 0 0 / 0.28))`,
           }}

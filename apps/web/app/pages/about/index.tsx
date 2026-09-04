@@ -2,11 +2,15 @@ import { useRequest } from "alova/client"
 import { ArrowUpRightIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
 import type { CSSProperties } from "react"
 
+import { PageShell } from "~/components/shared/page-shell"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { getAboutPageContent, isApiError } from "~/lib/api"
 import type { AboutGroup, AboutPerson } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const groupAccents = [
   {
@@ -61,15 +65,15 @@ export function meta() {
 
 function AboutLoading() {
   return (
-    <main
-      id="main-content"
-      className="flex min-h-[65svh] items-center justify-center px-4 py-16"
+    <PageShell
+      width="read"
+      className="flex min-h-48 items-center justify-center"
     >
       <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
         正在读取关于本站
       </p>
-    </main>
+    </PageShell>
   )
 }
 
@@ -116,7 +120,7 @@ function PersonCard({
         </div>
         <div className="col-span-2 flex min-w-0 items-center justify-between gap-4 border-t border-foreground/10 pt-4 md:col-span-1 md:block md:border-t-0 md:border-l md:pt-0 md:pl-6">
           <div>
-            <p className={`text-sm font-semibold ${accent.text}`}>
+            <p className={`text-sm font-semibold wrap-anywhere ${accent.text}`}>
               {person.role}
             </p>
             {person.since ? (
@@ -126,7 +130,7 @@ function PersonCard({
             ) : null}
           </div>
           {person.profileUrl ? (
-            <a
+            <NavigationLink
               href={person.profileUrl}
               target="_blank"
               rel="noreferrer"
@@ -134,7 +138,7 @@ function PersonCard({
             >
               访问个人主页
               <ArrowUpRightIcon className="size-4" aria-hidden="true" />
-            </a>
+            </NavigationLink>
           ) : null}
         </div>
       </div>
@@ -153,15 +157,20 @@ function PeopleGroup({
 
   return (
     <section
-      className="border-t py-12 sm:py-16"
+      className={cn("border-t", IS_APP_TARGET ? "py-6" : "py-12 sm:py-16")}
       aria-labelledby={`about-${group.id}`}
     >
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 text-center sm:mb-10">
-          <p className={`text-xs font-semibold uppercase ${accent.text}`}>
+          <p
+            className={`text-xs font-semibold wrap-anywhere uppercase ${accent.text}`}
+          >
             {group.subtitle || "IMSWeb"}
           </p>
-          <h2 id={`about-${group.id}`} className="mt-2 text-2xl font-semibold">
+          <h2
+            id={`about-${group.id}`}
+            className="mt-2 text-2xl font-semibold wrap-anywhere"
+          >
             {group.title}
           </h2>
           <span
@@ -204,9 +213,9 @@ export default function About() {
   if (error || !data) {
     const unconfigured = isApiError(error) && error.status === 404
     return (
-      <main
-        id="main-content"
-        className="mx-auto flex min-h-[65svh] w-full max-w-3xl items-center px-4 py-16 sm:px-6"
+      <PageShell
+        width="read"
+        className="flex min-h-48 items-center justify-center"
       >
         <Alert variant={unconfigured ? "default" : "destructive"}>
           <AlertTitle>
@@ -224,12 +233,12 @@ export default function About() {
             </Button>
           </AlertDescription>
         </Alert>
-      </main>
+      </PageShell>
     )
   }
 
   return (
-    <main id="main-content" className="relative isolate overflow-clip">
+    <PageShell width="wide" className="relative isolate overflow-clip">
       <div className="relative z-10">
         <section
           className="relative overflow-hidden border-b"
@@ -241,7 +250,7 @@ export default function About() {
             } as AboutAccentStyle
           }
         >
-          {data.heroImageUrl ? (
+          {!IS_APP_TARGET && data.heroImageUrl ? (
             <div className="pointer-events-none absolute inset-y-0 right-[-12%] w-[72%] overflow-hidden sm:right-[-8%] sm:w-[60%] lg:top-12 lg:right-auto lg:left-0 lg:w-[44%]">
               <img
                 src={data.heroImageUrl}
@@ -258,27 +267,51 @@ export default function About() {
               />
             </div>
           ) : null}
-          <div className="relative mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:min-h-244 lg:px-8 lg:py-20">
-            <div className="relative z-10 max-w-2xl lg:ml-[44%]">
+          <div className={cn("relative", !IS_APP_TARGET && "lg:min-h-244")}>
+            <div
+              className={cn(
+                "relative z-10 max-w-2xl min-w-0",
+                !IS_APP_TARGET && "lg:ml-[44%]"
+              )}
+            >
               <h1
                 id="about-title"
-                className="bg-clip-text text-4xl/tight font-semibold text-transparent sm:text-5xl lg:text-6xl"
-                style={titleGradientStyle}
+                className={cn(
+                  "font-semibold wrap-anywhere",
+                  IS_APP_TARGET
+                    ? "text-2xl/tight text-foreground"
+                    : "bg-clip-text text-4xl/tight text-transparent sm:text-5xl lg:text-6xl"
+                )}
+                style={IS_APP_TARGET ? undefined : titleGradientStyle}
               >
                 {data.siteName}
               </h1>
               {data.siteNameEn ? (
-                <p className="mt-4 text-base font-semibold text-muted-foreground sm:text-xl">
+                <p
+                  className={cn(
+                    "font-semibold wrap-anywhere text-muted-foreground",
+                    IS_APP_TARGET ? "mt-2 text-sm" : "mt-4 text-base sm:text-xl"
+                  )}
+                >
                   {data.siteNameEn}
                 </p>
               ) : null}
-              <div className="mt-10 space-y-3">
+              <div
+                className={cn("space-y-3", IS_APP_TARGET ? "mt-5" : "mt-10")}
+              >
                 {[data.welcome, ...data.manifesto].map(
                   (line: string, index: number) => (
                     <p key={`${index}-${line}`}>
                       <span
-                        className="inline-block px-4 py-2 text-base/7 font-semibold sm:text-lg"
-                        style={highlightGradientStyle}
+                        className={cn(
+                          "inline-block font-semibold wrap-anywhere",
+                          IS_APP_TARGET
+                            ? "text-sm/6"
+                            : "px-4 py-2 text-base/7 sm:text-lg"
+                        )}
+                        style={
+                          IS_APP_TARGET ? undefined : highlightGradientStyle
+                        }
                       >
                         {line}
                       </span>
@@ -287,15 +320,23 @@ export default function About() {
                 )}
               </div>
               <p
-                className="mt-9 text-right text-3xl font-semibold italic sm:text-4xl"
+                className={cn(
+                  "font-semibold italic",
+                  IS_APP_TARGET
+                    ? "mt-4 text-right text-base"
+                    : "mt-9 text-right text-3xl sm:text-4xl"
+                )}
                 style={sinceGradientStyle}
               >
                 Since{data.sinceYear}
               </p>
-              <div className="mt-12 sm:mt-16">
+              <div className={IS_APP_TARGET ? "mt-6" : "mt-12 sm:mt-16"}>
                 <h2
                   id="about-overview"
-                  className="text-center text-2xl font-semibold"
+                  className={cn(
+                    "text-center font-semibold wrap-anywhere",
+                    IS_APP_TARGET ? "text-xl" : "text-2xl"
+                  )}
                 >
                   {data.overviewTitle}
                 </h2>
@@ -319,12 +360,12 @@ export default function About() {
           />
         </section>
 
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="w-full min-w-0">
           {data.groups.map((group: AboutGroup, groupIndex: number) => (
             <PeopleGroup key={group.id} group={group} groupIndex={groupIndex} />
           ))}
         </div>
       </div>
-    </main>
+    </PageShell>
   )
 }

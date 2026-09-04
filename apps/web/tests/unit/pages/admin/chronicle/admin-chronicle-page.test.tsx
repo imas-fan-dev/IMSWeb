@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import AdminChronicle from "~/pages/admin/chronicle/index"
@@ -56,7 +57,11 @@ describe("AdminChronicle", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<AdminChronicle />)
+    render(
+      <MemoryRouter>
+        <AdminChronicle />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText("pending.webp")).toBeVisible()
     expect(screen.getByText("上传者：制作人A")).toBeVisible()

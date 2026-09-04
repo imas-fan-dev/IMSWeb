@@ -1,12 +1,6 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
-import { seriesWallItems } from "~/lib/series-wall"
-
-const seriesIcons = seriesWallItems.map((series) => ({
-  src: series.icon,
-  width: series.iconWidth,
-  height: series.iconHeight,
-}))
+import { getWikiCatalog } from "~/lib/api"
 
 const motifCount = 12
 const mobileMotifCount = 8
@@ -20,7 +14,6 @@ const rotationPerFrame = 0.16
 type MovingMotif = {
   element: HTMLImageElement
   index: number
-  aspectRatio: number
   sizeFactor: number
   opacityFactor: number
   active: boolean
@@ -54,7 +47,7 @@ function updateMotifAppearance(motif: MovingMotif, compactViewport: boolean) {
     : 0.22 + motif.opacityFactor * 0.2
 
   motif.width = width
-  motif.height = width / motif.aspectRatio
+  motif.height = width
   motif.active = motif.index < (compactViewport ? mobileMotifCount : motifCount)
   motif.element.hidden = !motif.active
   motif.element.style.width = `${width}px`
@@ -62,9 +55,35 @@ function updateMotifAppearance(motif: MovingMotif, compactViewport: boolean) {
 }
 
 export function SeriesIconBackground() {
+  const [seriesIcons, setSeriesIcons] = useState<
+    Array<{ id: number; src: string }>
+  >([])
   const motifElements = useRef<Array<HTMLImageElement | null>>([])
 
   useEffect(() => {
+    let active = true
+
+    void getWikiCatalog()
+      .send()
+      .then((catalog) => {
+        if (!active) return
+
+        setSeriesIcons(
+          catalog.agencies.flatMap((agency) =>
+            agency.iconUrl ? [{ id: agency.id, src: agency.iconUrl }] : []
+          )
+        )
+      })
+      .catch(() => undefined)
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (seriesIcons.length === 0) return
+
     let viewportWidth = window.innerWidth
     let viewportHeight = window.innerHeight
     let compactViewport = viewportWidth < mobileBreakpoint
@@ -72,15 +91,13 @@ export function SeriesIconBackground() {
     const motifs = motifElements.current.flatMap((element, index) => {
       if (!element) return []
 
-      const icon = seriesIcons[index % seriesIcons.length]
       const sizeFactor = Math.random()
       const opacityFactor = Math.random()
       const width = getMotifWidth(sizeFactor, compactViewport)
-      const height = width / (icon.width / icon.height)
+      const height = width
       const motif: MovingMotif = {
         element,
         index,
-        aspectRatio: icon.width / icon.height,
         sizeFactor,
         opacityFactor,
         active: true,
@@ -205,7 +222,7 @@ export function SeriesIconBackground() {
       document.removeEventListener("pointermove", repelFromPointer)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
-  }, [])
+  }, [seriesIcons])
 
   return (
     <div
@@ -213,26 +230,29 @@ export function SeriesIconBackground() {
       data-testid="series-icon-background"
       aria-hidden="true"
     >
-      {Array.from({ length: motifCount }, (_, index) => {
-        const icon = seriesIcons[index % seriesIcons.length]
+      {Array.from(
+        { length: seriesIcons.length > 0 ? motifCount : 0 },
+        (_, index) => {
+          const icon = seriesIcons[index % seriesIcons.length]
 
-        return (
-          <img
-            key={index}
-            ref={(element) => {
-              motifElements.current[index] = element
-            }}
-            className="series-icon-motif"
-            src={icon.src}
-            alt=""
-            width={icon.width}
-            height={icon.height}
-            draggable={false}
-            decoding="async"
-            fetchPriority="low"
-          />
-        )
-      })}
+          return (
+            <img
+              key={`${icon.id}-${index}`}
+              ref={(element) => {
+                motifElements.current[index] = element
+              }}
+              className="series-icon-motif"
+              src={icon.src}
+              alt=""
+              width={1}
+              height={1}
+              draggable={false}
+              decoding="async"
+              fetchPriority="low"
+            />
+          )
+        }
+      )}
     </div>
   )
 }

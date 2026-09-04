@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test"
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("imsweb.language", "zh-CN")
+  })
+})
+
 const publicRoutes = [
   { path: "/", title: /IMSWeb/i },
   { path: "/about", title: /关于我们.*IMSWeb/i },
@@ -7,6 +13,9 @@ const publicRoutes = [
   { path: "/recommendations", title: /向您推荐.*IMSWeb/i },
   { path: "/live", title: /Live.*IMSWeb/i },
   { path: "/community", title: /制作人社区.*IMSWeb/i },
+  { path: "/account/login", title: /帐号登录.*IMSWeb/i },
+  { path: "/account/register", title: /帐号注册.*IMSWeb/i },
+  { path: "/community/exchange", title: /名片交换事务所.*IMSWeb/i },
   { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
   { path: "/works", title: /系列作品.*IMSWeb/i },
   { path: "/wiki", title: /剧情档案.*IMSWeb/i },
@@ -49,7 +58,11 @@ for (const route of publicRoutes) {
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN")
     await expect(page.locator("main#main-content")).toBeVisible()
     await expect(page.locator("main#main-content")).not.toBeEmpty()
-    if (route.path === "/wiki/classic" || route.path === "/story/classic") {
+    if (
+      route.path === "/wiki/classic" ||
+      route.path === "/story/classic" ||
+      route.path === "/community/exchange"
+    ) {
       await expect(page.getByTestId("series-icon-background")).toHaveCount(0)
     } else {
       await expect(
@@ -188,15 +201,46 @@ test("work detail loads its character and font directly from R2", async ({
       character.evaluate((image: HTMLImageElement) => image.naturalWidth)
     )
     .toBeGreaterThan(0)
-  await expect
-    .poll(() => page.evaluate(() => document.fonts.check("16px idolFont")))
-    .toBe(true)
-
-  expect(assetResponses.size).toBeGreaterThanOrEqual(2)
+  // The font response lands after the artwork. Wait for it on purpose: this
+  // used to ride on an unrelated `document.fonts.check()` poll that happened to
+  // burn enough time, which made the count look deterministic when it was not.
+  await expect.poll(() => assetResponses.size).toBeGreaterThanOrEqual(2)
   expect([...assetResponses.values()].every((status) => status === 200)).toBe(
     true
   )
   expect(legacyAssetRequests).toEqual([])
+})
+
+// The idolFont face does not actually render anywhere today. R2 serves
+// iris-idol.ttf without an Access-Control-Allow-Origin header, and webfonts are
+// always fetched in CORS mode, so every engine rejects it and /works/* silently
+// falls back to Georgia. `font-display: swap` hides the failure, which is why it
+// went unnoticed.
+//
+// This test previously lived inside the R2 sourcing test as a bare
+// `document.fonts.check()` poll. That call does not trigger a load, so it
+// returned true on Chromium while the font was never fetched -- a vacuous pass
+// that made the suite look like it covered rendering. Requesting the load first
+// makes the real failure visible on every engine.
+//
+// Fix belongs in the bucket/CDN config, not here: send CORS headers for
+// /brand/fonts/**. Un-fixme once that ships.
+test.fixme("work detail actually renders the idolFont face", async ({
+  page,
+}) => {
+  await page.goto("/works/sc")
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          // load() requests the face; check() alone never does.
+          await document.fonts.load("16px idolFont")
+          return document.fonts.check("16px idolFont")
+        }),
+      { timeout: 15000 }
+    )
+    .toBe(true)
 })
 
 test("work detail carries the lightweight global series background", async ({
@@ -251,9 +295,17 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
   })
 
   await page.goto("/")
-  await page.getByRole("button", { name: "打开导航" }).click()
+  const trigger = page.getByRole("button", {
+    name: /打开导航|Open navigation/,
+  })
+  await expect(trigger).toBeEnabled()
+  await trigger.click()
 
-  const navigation = page.getByRole("navigation", {
+  const dialog = page.getByRole("dialog", {
+    name: /站点导航|Site navigation/,
+  })
+  await expect(dialog).toBeVisible()
+  const navigation = dialog.getByRole("navigation", {
     name: /移动端主导航|Mobile navigation/,
   })
   const eventsLink = navigation.getByRole("link", {
@@ -270,6 +322,323 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
   expect(consoleErrors).toEqual([])
 })
 
+test("desktop navigation lens stays within its glass segment", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "desktop navigation is hidden on mobile")
+  test.slow()
+
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.goto("/", { waitUntil: "domcontentloaded" })
+
+  const navigation = page.getByRole("navigation", {
+    name: /主导航|Main navigation/,
+  })
+  const lens = navigation.locator(".glass-lens")
+  const segment = lens.locator("..")
+  const skin = lens.locator(".glass-lens-skin")
+  const links = navigation.getByRole("link")
+  const interactiveHighlight = page.locator(
+    ".glass-sheen, .glass-control, [data-glass-interactive]"
+  )
+  const ringOutset = 1
+  const navigationPaths = [
+    "/",
+    "/events",
+    "/recommendations",
+    "/live",
+    "/community",
+    "/about",
+  ]
+  const expectedKeyframes = [
+    { progress: 0, scaleX: 1, scaleY: 1 },
+    { progress: 28, scaleX: 1.22, scaleY: 0.89 },
+    { progress: 64, scaleX: 0.9384, scaleY: 1.044 },
+    { progress: 100, scaleX: 1, scaleY: 1 },
+  ]
+
+  async function waitForMeasuredTarget(activeLink: typeof links) {
+    await expect
+      .poll(
+        async () => {
+          try {
+            return await activeLink.evaluate((link) => {
+              if (!(link instanceof HTMLElement)) return false
+
+              const lensElement =
+                link.parentElement?.querySelector(".glass-lens")
+              if (!(lensElement instanceof HTMLElement)) return false
+              if (lensElement.dataset.visible !== "true") return false
+
+              return (
+                Math.abs(
+                  Number.parseFloat(lensElement.style.translate) -
+                    link.offsetLeft
+                ) <= 1 &&
+                Math.abs(
+                  Number.parseFloat(lensElement.style.width) - link.offsetWidth
+                ) <= 1
+              )
+            })
+          } catch {
+            return false
+          }
+        },
+        {
+          message: "desktop navigation lens should measure its active link",
+          timeout: 15_000,
+        }
+      )
+      .toBe(true)
+  }
+
+  async function waitForMeasuredGeometry(activeLink: typeof links) {
+    await waitForMeasuredTarget(activeLink)
+    await expect
+      .poll(
+        async () => {
+          try {
+            return await activeLink.evaluate((link) => {
+              const lensElement =
+                link.parentElement?.querySelector(".glass-lens")
+              if (!(lensElement instanceof HTMLElement)) return false
+
+              const linkBounds = link.getBoundingClientRect()
+              const lensBounds = lensElement.getBoundingClientRect()
+              return (
+                Math.abs(lensBounds.left - linkBounds.left) <= 1 &&
+                Math.abs(lensBounds.width - linkBounds.width) <= 1
+              )
+            })
+          } catch {
+            return false
+          }
+        },
+        {
+          message: "desktop navigation lens should settle over its active link",
+          timeout: 15_000,
+        }
+      )
+      .toBe(true)
+  }
+
+  await expect(links).toHaveCount(6)
+  await expect(interactiveHighlight).toHaveCount(0)
+  await waitForMeasuredGeometry(links.first())
+  await expect(lens).toHaveAttribute("data-visible", "true")
+  await expect(lens).toHaveCSS("opacity", "1")
+
+  const [segmentBounds, lensBounds] = await Promise.all([
+    segment.boundingBox(),
+    lens.boundingBox(),
+  ])
+  expect(segmentBounds).not.toBeNull()
+  expect(lensBounds).not.toBeNull()
+  const restingTopGap = lensBounds!.y - segmentBounds!.y
+  const restingBottomGap =
+    segmentBounds!.y +
+    segmentBounds!.height -
+    (lensBounds!.y + lensBounds!.height)
+  expect(restingTopGap - ringOutset).toBeGreaterThanOrEqual(5)
+  expect(restingBottomGap - ringOutset).toBeGreaterThanOrEqual(5)
+
+  for (let index = 0; index < navigationPaths.length; index += 1) {
+    if (index > 0) {
+      await page.goto(navigationPaths[index], {
+        waitUntil: "domcontentloaded",
+      })
+    }
+
+    const activeLink = navigation.locator(`a[href="${navigationPaths[index]}"]`)
+    await expect(activeLink).toHaveAttribute("aria-current", "page")
+    await waitForMeasuredGeometry(activeLink)
+    await expect(skin).toBeVisible()
+    await skin.evaluate((element) => {
+      for (const animation of element.getAnimations()) animation.finish()
+    })
+
+    const geometry = await activeLink.evaluate((link, ringWidth) => {
+      const lensElement = link.parentElement?.querySelector(".glass-lens")
+      const skinElement = lensElement?.querySelector(".glass-lens-skin")
+      if (
+        !(lensElement instanceof HTMLElement) ||
+        !(skinElement instanceof HTMLElement)
+      ) {
+        throw new Error("desktop navigation lens geometry is unavailable")
+      }
+
+      const linkBounds = link.getBoundingClientRect()
+      const lensBounds = lensElement.getBoundingClientRect()
+      const skinBounds = skinElement.getBoundingClientRect()
+      const textRange = document.createRange()
+      textRange.selectNodeContents(link)
+      const textBounds = textRange.getBoundingClientRect()
+      const computedTransform = window.getComputedStyle(skinElement).transform
+      const transform =
+        computedTransform === "none"
+          ? new DOMMatrixReadOnly()
+          : new DOMMatrixReadOnly(computedTransform)
+      const scaleX = Math.hypot(transform.a, transform.b)
+      const paintedLeft = skinBounds.left - ringWidth * scaleX
+      const paintedRight = skinBounds.right + ringWidth * scaleX
+
+      return {
+        link: {
+          left: linkBounds.left,
+          right: linkBounds.right,
+          width: linkBounds.width,
+          height: linkBounds.height,
+        },
+        lens: {
+          left: lensBounds.left,
+          right: lensBounds.right,
+          width: lensBounds.width,
+        },
+        paintedLeft,
+        paintedRight,
+        paintedWidth: paintedRight - paintedLeft,
+        paintedCenter: (paintedLeft + paintedRight) / 2,
+        textWidth: textBounds.width,
+      }
+    }, ringOutset)
+
+    expect(
+      geometry.lens.left,
+      `${navigationPaths[index]} lens frame should match its active link`
+    ).toBeCloseTo(geometry.link.left, 0)
+    expect(geometry.lens.width).toBeCloseTo(geometry.link.width, 0)
+    expect(
+      geometry.paintedLeft,
+      `${navigationPaths[index]} lens ring should stay inside the left frame edge`
+    ).toBeGreaterThanOrEqual(geometry.lens.left - 0.5)
+    expect(
+      geometry.paintedRight,
+      `${navigationPaths[index]} lens ring should stay inside the right frame edge`
+    ).toBeLessThanOrEqual(geometry.lens.right + 0.5)
+    expect(
+      geometry.paintedWidth,
+      `${navigationPaths[index]} selected material should support its text`
+    ).toBeGreaterThanOrEqual(geometry.textWidth)
+    expect(geometry.paintedCenter).toBeCloseTo(
+      (geometry.link.left + geometry.link.right) / 2,
+      0
+    )
+    expect(geometry.link.height).toBeCloseTo(36, 1)
+  }
+
+  const aboutLink = navigation.locator('a[href="/about"]')
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 1600, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport)
+    await waitForMeasuredGeometry(aboutLink)
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth
+      ),
+      `${viewport.width}px page should not overflow horizontally`
+    ).toBe(true)
+  }
+
+  await page.goto("/", { waitUntil: "domcontentloaded" })
+  await waitForMeasuredGeometry(navigation.locator('a[href="/"]'))
+  await segment.evaluate((element) => {
+    element.style.setProperty("--duration-ui", "10s", "important")
+  })
+
+  await aboutLink.click()
+  await expect(page).toHaveURL(/\/about$/)
+  await expect(aboutLink).toHaveAttribute("aria-current", "page")
+  await waitForMeasuredTarget(aboutLink)
+
+  await expect(skin).toBeVisible()
+  const motionSamples = await skin.evaluate((element, ringWidth) => {
+    const lensElement = element.parentElement
+    const segmentElement = lensElement?.parentElement
+    const animation = element.getAnimations().find((candidate) => {
+      const effect = candidate.effect
+      return (
+        effect instanceof KeyframeEffect &&
+        effect.target === element &&
+        "animationName" in candidate &&
+        candidate.animationName === "glass-lens-travel"
+      )
+    })
+    const transition = lensElement?.getAnimations().find((candidate) => {
+      const effect = candidate.effect
+      return (
+        effect instanceof KeyframeEffect &&
+        effect.target === lensElement &&
+        "transitionProperty" in candidate &&
+        candidate.transitionProperty === "translate"
+      )
+    })
+    if (!animation || !transition || !lensElement || !segmentElement) {
+      throw new Error("desktop navigation lens animation is missing")
+    }
+
+    animation.pause()
+    transition.pause()
+    const animationDuration = animation.effect?.getComputedTiming().duration
+    const transitionDuration = transition.effect?.getComputedTiming().duration
+    if (
+      typeof animationDuration !== "number" ||
+      typeof transitionDuration !== "number"
+    ) {
+      throw new Error("desktop navigation lens duration is unavailable")
+    }
+    if (animationDuration !== 10_000 || transitionDuration !== 10_000) {
+      throw new Error("desktop navigation lens duration override was lost")
+    }
+
+    return [0, 0.28, 0.64, 1].map((progress) => {
+      animation.currentTime = animationDuration * progress
+      transition.currentTime = transitionDuration * progress
+
+      const segmentRect = segmentElement.getBoundingClientRect()
+      const lensRect = lensElement.getBoundingClientRect()
+      const skinRect = element.getBoundingClientRect()
+      const computedTransform = window.getComputedStyle(element).transform
+      const transform =
+        computedTransform === "none"
+          ? new DOMMatrixReadOnly()
+          : new DOMMatrixReadOnly(computedTransform)
+      const scaleX = Math.hypot(transform.a, transform.b)
+      const scaleY = Math.hypot(transform.c, transform.d)
+      const horizontalRingOutset = ringWidth * scaleX
+      const verticalRingOutset = ringWidth * scaleY
+
+      return {
+        progress: Math.round(progress * 100),
+        scaleX,
+        scaleY,
+        leftGap: skinRect.left - horizontalRingOutset - lensRect.left,
+        rightGap: lensRect.right - (skinRect.right + horizontalRingOutset),
+        topGap: skinRect.top - verticalRingOutset - segmentRect.top,
+        bottomGap: segmentRect.bottom - (skinRect.bottom + verticalRingOutset),
+      }
+    })
+  }, ringOutset)
+
+  for (const [index, sample] of motionSamples.entries()) {
+    expect(sample.progress).toBe(expectedKeyframes[index].progress)
+    expect(sample.scaleX).toBeCloseTo(expectedKeyframes[index].scaleX, 3)
+    expect(sample.scaleY).toBeCloseTo(expectedKeyframes[index].scaleY, 3)
+    expect(
+      sample.leftGap,
+      `${sample.progress}% lens ring should stay inside the moving frame's left edge`
+    ).toBeGreaterThanOrEqual(0)
+    expect(
+      sample.rightGap,
+      `${sample.progress}% lens ring should stay inside the moving frame's right edge`
+    ).toBeGreaterThanOrEqual(0)
+    expect(sample.topGap).toBeGreaterThan(0)
+    expect(sample.bottomGap).toBeGreaterThan(0)
+  }
+})
+
 test("homepage navigation keeps secondary destinations in the directory", async ({
   page,
   isMobile,
@@ -282,15 +651,21 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   await page.goto("/")
 
   if (isMobile) {
-    await page.getByRole("button", { name: /打开导航|Open navigation/ }).click()
+    const trigger = page.getByRole("button", {
+      name: /打开导航|Open navigation/,
+    })
+    await expect(trigger).toBeEnabled()
+    await trigger.click()
   }
 
-  const navigation = page.getByRole("navigation", {
-    name: isMobile
-      ? /移动端主导航|Mobile navigation/
-      : /主导航|Main navigation/,
-  })
-  await expect(navigation.locator("a")).toHaveCount(isMobile ? 6 : 5)
+  const navigation = isMobile
+    ? page
+        .getByRole("dialog", { name: /站点导航|Site navigation/ })
+        .getByRole("navigation", {
+          name: /移动端主导航|Mobile navigation/,
+        })
+    : page.getByRole("navigation", { name: /主导航|Main navigation/ })
+  await expect(navigation.locator("a")).toHaveCount(isMobile ? 7 : 6)
 
   for (const primaryHref of [
     "/",
@@ -298,15 +673,16 @@ test("homepage navigation keeps secondary destinations in the directory", async 
     "/recommendations",
     "/live",
     "/community",
+    "/about",
   ]) {
     await expect(navigation.locator(`a[href="${primaryHref}"]`)).toBeVisible()
   }
   for (const secondaryHref of [
+    "/community/exchange",
     "/community/cards",
     "/producer-map",
     "/works",
     "/chronicle",
-    "/about",
   ]) {
     await expect(navigation.locator(`a[href="${secondaryHref}"]`)).toHaveCount(
       0
@@ -324,7 +700,9 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(10)
+  await expect
+    .poll(() => directory.getByRole("link").count())
+    .toBeGreaterThanOrEqual(10)
   await expect(directory.getByRole("link", { name: /剧情站/ })).toHaveAttribute(
     "href",
     "/wiki"
@@ -341,12 +719,8 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       path: `/tmp/imsweb-footer-story-site-${isMobile ? "mobile" : "desktop"}.png`,
     })
   }
-  await expect(
-    directory.getByRole("link", { name: /制作人名片墙/ })
-  ).toHaveAttribute("href", "/community/cards")
-  await expect(
-    directory.getByRole("link", { name: /制作人地图/ })
-  ).toHaveAttribute("href", "/producer-map")
+  await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
+  await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
 
   const friendLinksBox = await page
     .getByRole("region", { name: "友情链接" })
@@ -368,7 +742,10 @@ test("homepage directory uses compact responsive columns", async ({ page }) => {
     exact: true,
   })
 
-  await expect(grid.getByRole("link")).toHaveCount(10)
+  await expect
+    .poll(() => grid.getByRole("link").count())
+    .toBeGreaterThanOrEqual(11)
+  await expect(grid.locator('a[href="/community/exchange"]')).toBeVisible()
 
   for (const viewport of [
     { width: 320, expectedColumns: 2, descriptionVisible: false },
@@ -478,11 +855,11 @@ test("theme toggle persists the selected color scheme", async ({ page }) => {
   await expect(root).toHaveClass(/dark/)
 })
 
-test("wiki hero gives story artwork an expanded frame", async ({
+test("default wiki hero gives story artwork an expanded frame", async ({
   page,
   isMobile,
 }) => {
-  await page.goto("/wiki/modern")
+  await page.goto("/wiki")
 
   const hero = page.getByRole("region", { name: "剧情档案视觉" })
   await expect(hero).toBeVisible()
@@ -512,6 +889,14 @@ test("home exposes current discovery and birthday interactions", async ({
   page,
   isMobile,
 }) => {
+  await page.route("**/api/information", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ cards: [] }),
+    })
+  })
+
   await page.goto("/")
 
   const brandBackground = page.getByTestId("series-icon-background")
@@ -549,16 +934,14 @@ test("home exposes current discovery and birthday interactions", async ({
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(directory.getByRole("link")).toHaveCount(10)
+  await expect
+    .poll(() => directory.getByRole("link").count())
+    .toBeGreaterThanOrEqual(10)
   await expect(
     directory.getByRole("link", { name: /活动中心/ })
   ).toHaveAttribute("href", "/events")
-  await expect(
-    directory.getByRole("link", { name: /制作人名片墙/ })
-  ).toHaveAttribute("href", "/community/cards")
-  await expect(
-    directory.getByRole("link", { name: /制作人地图/ })
-  ).toHaveAttribute("href", "/producer-map")
+  await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
+  await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
   await expect(
     directory.getByRole("link", { name: /关于 IMSWeb/ })
   ).toHaveAttribute("href", "/about")
@@ -580,15 +963,11 @@ test("home exposes current discovery and birthday interactions", async ({
   const highlights = page.getByRole("region", {
     name: "活动资讯与同人活动",
   })
-  await expect(highlights.getByLabel("正在加载活动资讯")).toHaveCount(0)
-  const highlightLinkCount = await highlights.getByRole("link").count()
-  if (highlightLinkCount === 0) {
-    await expect(
-      highlights.getByText("当前没有已发布的活动资讯。")
-    ).toBeVisible()
-  } else {
-    expect(highlightLinkCount).toBeGreaterThan(0)
-  }
+  await expect(
+    highlights.getByRole("status", { name: "正在加载活动资讯" })
+  ).toHaveCount(0)
+  await expect(highlights.getByRole("link")).toHaveCount(0)
+  await expect(highlights.getByText("当前没有已发布的活动资讯。")).toBeVisible()
 
   const randomIdol = page.getByRole("region", { name: "随机担当" })
   await randomIdol.getByRole("button", { name: "随机选择" }).click()

@@ -7,7 +7,7 @@ import {
     parseSitePackageArchive,
     SITE_PACKAGE_ARCHIVE_LIMITS,
     SitePackageArchiveError
-} from '@/domains/site-packages/package-archive';
+} from '@/domains/delivery/site-packages/package-archive';
 
 interface ArchiveFixtureEntry {
     readonly path: string;
@@ -231,6 +231,7 @@ test('safe packages reject JavaScript files and active HTML handlers', async () 
     const encodedScheme = await createArchive([{
         path: 'index.html',
         body: Buffer.from(
+            // pi-lens-ignore: typos
             '<!doctype html><html><a href="java&#x000000073;cript:alert(1)">unsafe</a></html>'
         )
     }]);

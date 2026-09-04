@@ -12,6 +12,13 @@ const themeState = vi.hoisted(() => ({
   resolvedTheme: "light",
   setTheme: vi.fn(),
 }))
+const runtimeState = vi.hoisted(() => ({
+  isTauri: vi.fn(() => false),
+}))
+
+vi.mock("@tauri-apps/api/core", () => ({
+  isTauri: runtimeState.isTauri,
+}))
 
 vi.mock("next-themes", () => ({
   useTheme: () => themeState,
@@ -29,6 +36,8 @@ describe("theme controls", () => {
   beforeEach(async () => {
     themeState.resolvedTheme = "light"
     themeState.setTheme.mockReset()
+    runtimeState.isTauri.mockReset()
+    runtimeState.isTauri.mockReturnValue(false)
     await i18n.changeLanguage(defaultLanguage)
   })
 
@@ -40,6 +49,7 @@ describe("theme controls", () => {
     Reflect.deleteProperty(document.documentElement, "animate")
     document.head.querySelector('meta[name="theme-color"]')?.remove()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it("falls back to a global fade when view transitions are unavailable", async () => {
@@ -78,7 +88,45 @@ describe("theme controls", () => {
     ).toBeInTheDocument()
   })
 
-  it("reveals the new theme from the center of the toggle", async () => {
+  it("uses the fade fallback in an Android Tauri WebView", async () => {
+    runtimeState.isTauri.mockReturnValue(true)
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (Linux; Android 17; wv) AppleWebKit/537.36"
+    )
+    const animate = vi.fn()
+    const startViewTransition = vi.fn()
+    Object.defineProperty(document.documentElement, "animate", {
+      configurable: true,
+      value: animate,
+    })
+    Object.defineProperty(document, "startViewTransition", {
+      configurable: true,
+      value: startViewTransition,
+    })
+
+    const user = userEvent.setup()
+    render(<ThemeToggle />, { wrapper: TestI18nProvider })
+    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
+
+    expect(themeState.setTheme).toHaveBeenCalledWith("dark")
+    expect(document.documentElement).toHaveAttribute(
+      "data-theme-transition",
+      "fade"
+    )
+    expect(startViewTransition).not.toHaveBeenCalled()
+    expect(animate).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveAttribute(
+        "data-theme-transition"
+      )
+    })
+  })
+
+  it("keeps the circular reveal in an iOS Tauri WebView", async () => {
+    runtimeState.isTauri.mockReturnValue(true)
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15"
+    )
     let finishAnimation: () => void = () => {}
     const animationFinished = new Promise<void>((resolve) => {
       finishAnimation = resolve
@@ -106,6 +154,12 @@ describe("theme controls", () => {
     })
     themeState.setTheme.mockImplementation((theme: string) => {
       document.documentElement.classList.toggle("dark", theme === "dark")
+    })
+    vi.stubGlobal("visualViewport", {
+      height: 640,
+      offsetLeft: 8,
+      offsetTop: 24,
+      width: 360,
     })
 
     const user = userEvent.setup()
@@ -137,8 +191,10 @@ describe("theme controls", () => {
       { clipPath: string[] },
       KeyframeAnimationOptions,
     ]
-    expect(keyframes.clipPath[0]).toBe("circle(0px at 116px 56px)")
-    expect(keyframes.clipPath[1]).toMatch(/^circle\([\d.]+px at 116px 56px\)$/)
+    expect(keyframes.clipPath[0]).toBe("circle(0px at 108px 32px)")
+    expect(keyframes.clipPath[1]).toBe(
+      `circle(${Math.hypot(252, 608)}px at 108px 32px)`
+    )
     expect(options).toMatchObject({
       duration: 500,
       pseudoElement: "::view-transition-new(root)",

@@ -1,22 +1,22 @@
-import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
-import { test } from 'node:test';
-import sharp from 'sharp';
-import { normalizeNamecardImage } from '@/domains/namecards/namecard-image';
-import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
-import { SharpImageProcessor } from '@/infra/media/sharp/image-processor';
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { test } from "node:test";
+import sharp from "sharp";
+import { normalizeNamecardImage } from "@/domains/community/fudaba/guest-submissions/image";
+import { StreamingUploadParser } from "@/infra/http/busboy/upload-parser";
+import { SharpImageProcessor } from "@/infra/media/sharp/image-processor";
 import {
     ImagePixelLimitError,
     type ImageInfo,
     type ImageProcessor,
     type ImageValidationOptions,
-    type WebpConversionOptions
-} from '@/ports/media';
-import { validateUploadedImage } from '@/utils/media/image-upload';
-import { md5Hex } from '@/utils/crypto/md5';
+    type WebpConversionOptions,
+} from "@/ports/media";
+import { validateUploadedImage } from "@/utils/media/image-upload";
+import { md5Hex } from "@/utils/crypto/md5";
 
 function versionAtLeast(actual: string, minimum: readonly number[]): boolean {
-    const parts = actual.split('.').map(Number);
+    const parts = actual.split(".").map(Number);
     for (const [index, part] of minimum.entries()) {
         if ((parts[index] ?? 0) > part) return true;
         if ((parts[index] ?? 0) < part) return false;
@@ -29,73 +29,95 @@ class FixtureImages implements ImageProcessor {
     conversionOptions: Array<WebpConversionOptions | undefined> = [];
 
     constructor(
-        private readonly format = 'png',
+        private readonly format = "png",
         private readonly validationFailure?: Error,
         private readonly conversionFailure?: Error,
-        private readonly dimensions = { width: 1, height: 1 }
+        private readonly dimensions = { width: 1, height: 1 },
     ) {}
     async validate(
         _body: Uint8Array,
         _declaredType?: string,
-        options?: ImageValidationOptions
+        options?: ImageValidationOptions,
     ): Promise<ImageInfo> {
         this.validationOptions.push(options);
         if (this.validationFailure) throw this.validationFailure;
-        return { format: this.format, ...this.dimensions, contentType: `image/${this.format}` };
+        return {
+            format: this.format,
+            ...this.dimensions,
+            contentType: `image/${this.format}`,
+        };
     }
-    async toWebp(body: Uint8Array, _quality?: number, options?: WebpConversionOptions) {
+    async toWebp(
+        body: Uint8Array,
+        _quality?: number,
+        options?: WebpConversionOptions,
+    ) {
         this.conversionOptions.push(options);
         if (this.conversionFailure) throw this.conversionFailure;
         return body;
     }
-    async thumbnailPng(body: Uint8Array) { return body; }
-    async resizeJpeg(body: Uint8Array) { return body; }
+    async thumbnailPng(body: Uint8Array) {
+        return body;
+    }
+    async resizeJpeg(body: Uint8Array) {
+        return body;
+    }
 }
 
 async function materializedMultipartRequest(form: FormData): Promise<Request> {
-    const encoded = new Request('http://ims.test/upload', { method: 'POST', body: form });
-    const contentType = encoded.headers.get('content-type');
+    const encoded = new Request("http://ims.test/upload", {
+        method: "POST",
+        body: form,
+    });
+    const contentType = encoded.headers.get("content-type");
     assert.ok(contentType);
     const body = await encoded.arrayBuffer();
-    return new Request('http://ims.test/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': contentType },
-        body
+    return new Request("http://ims.test/upload", {
+        method: "POST",
+        headers: { "Content-Type": contentType },
+        body,
     });
 }
 
 for (const [name, parser] of [
-    ['Node streaming', new StreamingUploadParser()]
+    ["Node streaming", new StreamingUploadParser()],
 ] as const) {
     test(`${name} multipart parser counts unknown files against the file limit without Content-Length`, async () => {
         const form = new FormData();
-        form.append('known', new Blob(['a'], { type: 'text/plain' }), 'a.txt');
-        form.append('unknown', new Blob(['b'], { type: 'text/plain' }), 'b.txt');
+        form.append("known", new Blob(["a"], { type: "text/plain" }), "a.txt");
+        form.append(
+            "unknown",
+            new Blob(["b"], { type: "text/plain" }),
+            "b.txt",
+        );
         const request = await materializedMultipartRequest(form);
-        assert.equal(request.headers.get('content-length'), null);
-        await assert.rejects(parser.parse(request, {
-            maxBytes: 4096,
-            fileFields: ['known'],
-            maxFiles: 1,
-            maxFields: 2,
-            maxParts: 3
-        }), (error: Error & { status?: number }) => error.status === 413);
+        assert.equal(request.headers.get("content-length"), null);
+        await assert.rejects(
+            parser.parse(request, {
+                maxBytes: 4096,
+                fileFields: ["known"],
+                maxFiles: 1,
+                maxFields: 2,
+                maxParts: 3,
+            }),
+            (error: Error & { status?: number }) => error.status === 413,
+        );
     });
 
     test(`${name} multipart parser accepts exactly the configured part limit`, async () => {
         const form = new FormData();
         form.append(
-            'image',
-            new Blob([new Uint8Array(137 * 1024)], { type: 'image/png' }),
-            'avatar.png'
+            "image",
+            new Blob([new Uint8Array(137 * 1024)], { type: "image/png" }),
+            "avatar.png",
         );
         const request = await materializedMultipartRequest(form);
         const parsed = await parser.parse(request, {
             maxBytes: 256 * 1024,
-            fileFields: ['image'],
+            fileFields: ["image"],
             maxFiles: 1,
             maxFields: 0,
-            maxParts: 1
+            maxParts: 1,
         });
         const image = parsed.files.image;
         assert.ok(image && !Array.isArray(image));
@@ -104,200 +126,373 @@ for (const [name, parser] of [
 
     test(`${name} multipart parser rejects one part beyond the configured limit`, async () => {
         const form = new FormData();
-        form.append('image', new Blob(['a'], { type: 'image/png' }), 'a.png');
-        form.append('image', new Blob(['b'], { type: 'image/png' }), 'b.png');
+        form.append("image", new Blob(["a"], { type: "image/png" }), "a.png");
+        form.append("image", new Blob(["b"], { type: "image/png" }), "b.png");
         const request = await materializedMultipartRequest(form);
-        await assert.rejects(parser.parse(request, {
-            maxBytes: 4096,
-            fileFields: ['image'],
-            maxFiles: 2,
-            maxFields: 0,
-            maxParts: 1
-        }), (error: Error & { status?: number }) =>
-            error.status === 413 && error.message === 'multipart parts exceed limit'
+        await assert.rejects(
+            parser.parse(request, {
+                maxBytes: 4096,
+                fileFields: ["image"],
+                maxFiles: 2,
+                maxFields: 0,
+                maxParts: 1,
+            }),
+            (error: Error & { status?: number }) =>
+                error.status === 413 &&
+                error.message === "multipart parts exceed limit",
         );
     });
 
     test(`${name} multipart parser rejects raw boundary overhead at maxBytes + 1`, async () => {
-        const boundary = 'ims-boundary';
+        const boundary = "ims-boundary";
         const body = new Uint8Array(65);
-        const request = new Request('http://ims.test/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-            body
+        const request = new Request("http://ims.test/upload", {
+            method: "POST",
+            headers: {
+                "Content-Type": `multipart/form-data; boundary=${boundary}`,
+            },
+            body,
         });
-        await assert.rejects(parser.parse(request, {
-            maxBytes: 64,
-            fileFields: ['image']
-        }), (error: Error & { status?: number }) => error.status === 413);
+        await assert.rejects(
+            parser.parse(request, {
+                maxBytes: 64,
+                fileFields: ["image"],
+            }),
+            (error: Error & { status?: number }) => error.status === 413,
+        );
+    });
+
+    test(`${name} multipart parser accepts exactly maxParts and rejects the next part`, async () => {
+        const exact = new FormData();
+        exact.append("expectedRevision", "1");
+        exact.append(
+            "image",
+            new Blob(["image"], { type: "text/plain" }),
+            "image.txt",
+        );
+        const parsed = await parser.parse(
+            await materializedMultipartRequest(exact),
+            {
+                maxBytes: 4096,
+                fileFields: ["image"],
+                maxFiles: 1,
+                maxFields: 1,
+                maxParts: 2,
+            },
+        );
+        assert.equal(parsed.fields.expectedRevision, "1");
+        assert.equal(Array.isArray(parsed.files.image), false);
+
+        const extra = new FormData();
+        extra.append("expectedRevision", "1");
+        extra.append("cardId", "card-1");
+        extra.append(
+            "image",
+            new Blob(["image"], { type: "text/plain" }),
+            "image.txt",
+        );
+        await assert.rejects(
+            parser.parse(await materializedMultipartRequest(extra), {
+                maxBytes: 4096,
+                fileFields: ["image"],
+                maxFiles: 1,
+                maxFields: 3,
+                maxParts: 2,
+            }),
+            (error: Error & { status?: number }) => error.status === 413,
+        );
     });
 
     test(`${name} multipart parser reports interrupted bodies`, async () => {
         const body = new ReadableStream<Uint8Array>({
             start(controller) {
-                controller.enqueue(new TextEncoder().encode('--broken\r\n'));
-                controller.error(new Error('connection reset'));
-            }
+                controller.enqueue(new TextEncoder().encode("--broken\r\n"));
+                controller.error(new Error("connection reset"));
+            },
         });
-        const request = new Request('http://ims.test/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'multipart/form-data; boundary=broken' },
+        const request = new Request("http://ims.test/upload", {
+            method: "POST",
+            headers: { "Content-Type": "multipart/form-data; boundary=broken" },
             body,
-            duplex: 'half'
-        } as RequestInit & { duplex: 'half' });
-        await assert.rejects(parser.parse(request, {
-            maxBytes: 4096,
-            fileFields: ['image']
-        }));
+            duplex: "half",
+        } as RequestInit & { duplex: "half" });
+        await assert.rejects(
+            parser.parse(request, {
+                maxBytes: 4096,
+                fileFields: ["image"],
+            }),
+        );
     });
 }
 
-test('shared image upload contract rejects extension, MIME, decoded format, and corrupt payload mismatches', async () => {
+test("shared image upload contract rejects extension, MIME, decoded format, and corrupt payload mismatches", async () => {
     const body = new Uint8Array([1, 2, 3]);
-    await assert.rejects(validateUploadedImage(
-        { filename: 'payload.txt', contentType: 'text/plain', body }, new FixtureImages()
-    ), /图片格式不支持/);
-    await assert.rejects(validateUploadedImage(
-        { filename: 'payload.jpg', contentType: 'image/png', body }, new FixtureImages()
-    ), /扩展名与 MIME/);
-    await assert.rejects(validateUploadedImage(
-        { filename: 'payload.png', contentType: 'image/png', body }, new FixtureImages('jpeg')
-    ), /内容与文件格式/);
-    await assert.rejects(validateUploadedImage(
-        { filename: 'payload.png', contentType: 'image/png', body },
-        new FixtureImages('png', new Error('decode failed'))
-    ), /损坏或无法解码/);
-    await assert.rejects(validateUploadedImage(
-        { filename: 'payload.png', contentType: 'image/png', body },
-        new FixtureImages('png', new ImagePixelLimitError(40_000_000))
-    ), /图片像素过大，最多允许4000万像素/);
-    assert.equal((await validateUploadedImage(
-        { filename: 'payload.jfif', contentType: 'image/pjpeg', body }, new FixtureImages('jpeg')
-    )).format, 'jpeg');
+    await assert.rejects(
+        validateUploadedImage(
+            { filename: "payload.txt", contentType: "text/plain", body },
+            new FixtureImages(),
+        ),
+        /图片格式不支持/,
+    );
+    await assert.rejects(
+        validateUploadedImage(
+            { filename: "payload.jpg", contentType: "image/png", body },
+            new FixtureImages(),
+        ),
+        /扩展名与 MIME/,
+    );
+    await assert.rejects(
+        validateUploadedImage(
+            { filename: "payload.png", contentType: "image/png", body },
+            new FixtureImages("jpeg"),
+        ),
+        /内容与文件格式/,
+    );
+    await assert.rejects(
+        validateUploadedImage(
+            { filename: "payload.png", contentType: "image/png", body },
+            new FixtureImages("png", new Error("decode failed")),
+        ),
+        /损坏或无法解码/,
+    );
+    await assert.rejects(
+        validateUploadedImage(
+            { filename: "payload.png", contentType: "image/png", body },
+            new FixtureImages("png", new ImagePixelLimitError(40_000_000)),
+        ),
+        /图片像素过大，最多允许4000万像素/,
+    );
+    assert.equal(
+        (
+            await validateUploadedImage(
+                { filename: "payload.jfif", contentType: "image/pjpeg", body },
+                new FixtureImages("jpeg"),
+            )
+        ).format,
+        "jpeg",
+    );
+    await assert.rejects(
+        validateUploadedImage(
+            { filename: "payload.heic", contentType: "image/heif", body },
+            new FixtureImages("heif"),
+        ),
+        /扩展名与 MIME/,
+    );
 });
 
-test('namecard normalization bounds only oversized JPEG output', async () => {
+test("shared image upload contract accepts standard HEIC and HEIF uploads", async () => {
+    const body = new Uint8Array([1, 2, 3]);
+    for (const [filename, contentType] of [
+        ["iphone-photo.heic", "image/heic"],
+        ["generic-photo.heif", "image/heif"],
+    ] as const) {
+        assert.equal(
+            (
+                await validateUploadedImage(
+                    { filename, contentType, body },
+                    new FixtureImages("heif"),
+                )
+            ).format,
+            "heif",
+        );
+    }
+});
+
+test("namecard normalization bounds only oversized JPEG output", async () => {
     const body = Uint8Array.of(1, 2, 3);
-    const processor = new FixtureImages(
-        'jpeg',
-        undefined,
-        undefined,
-        { width: 10_630, height: 6_378 }
+    const processor = new FixtureImages("jpeg", undefined, undefined, {
+        width: 10_630,
+        height: 6_378,
+    });
+    assert.equal(
+        await normalizeNamecardImage(
+            { filename: "card.jpg", contentType: "image/jpeg", body },
+            processor,
+        ),
+        body,
     );
-    assert.equal(await normalizeNamecardImage(
-        { filename: 'card.jpg', contentType: 'image/jpeg', body }, processor
-    ), body);
-    assert.deepEqual(processor.validationOptions, [{
-        maxInputPixels: 70_000_000,
-        fullDecode: false
-    }]);
-    assert.deepEqual(processor.conversionOptions, [{
-        maxInputPixels: 70_000_000,
-        maxOutputPixels: 16_000_000
-    }]);
+    assert.deepEqual(processor.validationOptions, [
+        {
+            maxInputPixels: 70_000_000,
+            fullDecode: false,
+        },
+    ]);
+    assert.deepEqual(processor.conversionOptions, [
+        {
+            maxInputPixels: 70_000_000,
+            maxOutputPixels: 16_000_000,
+        },
+    ]);
     const pngProcessor = new FixtureImages();
     await normalizeNamecardImage(
-        { filename: 'card.png', contentType: 'image/png', body }, pngProcessor
+        { filename: "card.png", contentType: "image/png", body },
+        pngProcessor,
     );
-    assert.deepEqual(pngProcessor.validationOptions, [{
-        maxInputPixels: 40_000_000,
-        fullDecode: false
-    }]);
-    assert.deepEqual(pngProcessor.conversionOptions, [{
-        maxInputPixels: 40_000_000
-    }]);
-    const regularJpegProcessor = new FixtureImages('jpeg');
+    assert.deepEqual(pngProcessor.validationOptions, [
+        {
+            maxInputPixels: 40_000_000,
+            fullDecode: false,
+        },
+    ]);
+    assert.deepEqual(pngProcessor.conversionOptions, [
+        {
+            maxInputPixels: 40_000_000,
+        },
+    ]);
+    const regularJpegProcessor = new FixtureImages("jpeg");
     await normalizeNamecardImage(
-        { filename: 'regular.jpg', contentType: 'image/jpeg', body }, regularJpegProcessor
+        { filename: "regular.jpg", contentType: "image/jpeg", body },
+        regularJpegProcessor,
     );
-    assert.deepEqual(regularJpegProcessor.conversionOptions, [{
-        maxInputPixels: 70_000_000
-    }]);
+    assert.deepEqual(regularJpegProcessor.conversionOptions, [
+        {
+            maxInputPixels: 70_000_000,
+        },
+    ]);
     await assert.rejects(
         normalizeNamecardImage(
-            { filename: 'card.png', contentType: 'image/png', body },
-            new FixtureImages('png', undefined, new Error('decode failed'))
+            { filename: "card.png", contentType: "image/png", body },
+            new FixtureImages("png", undefined, new Error("decode failed")),
         ),
         (error: Error & { status?: number }) =>
-            error.status === 400 && error.message === '图片内容损坏或无法解码'
+            error.status === 400 && error.message === "图片内容损坏或无法解码",
     );
 });
 
-test('Sharp runtime includes the libvips fixes for inherited image decoder CVEs', () => {
-    assert.ok(versionAtLeast(sharp.versions.sharp, [0, 35, 0]), sharp.versions.sharp);
-    assert.ok(versionAtLeast(sharp.versions.vips, [8, 18, 3]), sharp.versions.vips);
+test("Sharp runtime includes the libvips fixes for inherited image decoder CVEs", () => {
+    assert.ok(
+        versionAtLeast(sharp.versions.sharp, [0, 35, 0]),
+        sharp.versions.sharp,
+    );
+    assert.ok(
+        versionAtLeast(sharp.versions.vips, [8, 18, 3]),
+        sharp.versions.vips,
+    );
+    assert.equal(sharp.format.heif.input.buffer, true);
 });
 
-test('Sharp image processor validates and converts real image bytes with stable dimensions', async () => {
+test("Sharp image processor validates and converts real image bytes with stable dimensions", async () => {
     const processor = new SharpImageProcessor();
     const source = await sharp({
         create: {
             width: 8,
             height: 4,
             channels: 3,
-            background: { r: 120, g: 40, b: 200 }
-        }
-    }).png().toBuffer();
+            background: { r: 120, g: 40, b: 200 },
+        },
+    })
+        .png()
+        .toBuffer();
 
-    assert.deepEqual(await processor.validate(source, 'image/png'), {
-        format: 'png',
+    assert.deepEqual(await processor.validate(source, "image/png"), {
+        format: "png",
         width: 8,
         height: 4,
-        contentType: 'image/png'
+        contentType: "image/png",
     });
     for (const [format, contentType, declaredType, encoded] of [
-        ['gif', 'image/gif', 'image/gif', await sharp(source).gif().toBuffer()],
-        ['tiff', 'image/tiff', undefined, await sharp(source).tiff().toBuffer()]
+        ["gif", "image/gif", "image/gif", await sharp(source).gif().toBuffer()],
+        [
+            "tiff",
+            "image/tiff",
+            undefined,
+            await sharp(source).tiff().toBuffer(),
+        ],
     ] as const) {
         assert.deepEqual(await processor.validate(encoded, declaredType), {
             format,
             width: 8,
             height: 4,
-            contentType
+            contentType,
         });
     }
-    await assert.rejects(processor.validate(source, 'image/jpeg'), /图片类型与内容不匹配/);
-    await assert.rejects(processor.validate(Uint8Array.of(1, 2, 3)), /unsupported image format|Input buffer/);
+    await assert.rejects(
+        processor.validate(source, "image/jpeg"),
+        /图片类型与内容不匹配/,
+    );
+    await assert.rejects(
+        processor.validate(Uint8Array.of(1, 2, 3)),
+        /unsupported image format|Input buffer/,
+    );
     await assert.rejects(
         processor.validate(source, undefined, { maxInputPixels: 31 }),
-        (error: unknown) => error instanceof ImagePixelLimitError && error.maxPixels === 31
+        (error: unknown) =>
+            error instanceof ImagePixelLimitError && error.maxPixels === 31,
     );
 
     const webp = await sharp(await processor.toWebp(source, 82)).metadata();
-    assert.deepEqual({ format: webp.format, width: webp.width, height: webp.height }, {
-        format: 'webp', width: 8, height: 4
-    });
-    const boundedWebp = await sharp(await processor.toWebp(source, 82, {
-        maxInputPixels: 32,
-        maxOutputPixels: 8
-    })).metadata();
     assert.deepEqual(
-        { format: boundedWebp.format, width: boundedWebp.width, height: boundedWebp.height },
-        { format: 'webp', width: 4, height: 2 }
+        { format: webp.format, width: webp.width, height: webp.height },
+        {
+            format: "webp",
+            width: 8,
+            height: 4,
+        },
     );
-    const thumbnail = await sharp(await processor.thumbnailPng(source, 3, 3)).metadata();
-    assert.deepEqual({ format: thumbnail.format, width: thumbnail.width, height: thumbnail.height }, {
-        format: 'png', width: 3, height: 3
-    });
-    const jpeg = await sharp(await processor.resizeJpeg(source, 20, 20)).metadata();
-    assert.deepEqual({ format: jpeg.format, width: jpeg.width, height: jpeg.height }, {
-        format: 'jpeg', width: 8, height: 4
-    });
+    const boundedWebp = await sharp(
+        await processor.toWebp(source, 82, {
+            maxInputPixels: 32,
+            maxOutputPixels: 8,
+        }),
+    ).metadata();
+    assert.deepEqual(
+        {
+            format: boundedWebp.format,
+            width: boundedWebp.width,
+            height: boundedWebp.height,
+        },
+        { format: "webp", width: 4, height: 2 },
+    );
+    const thumbnail = await sharp(
+        await processor.thumbnailPng(source, 3, 3),
+    ).metadata();
+    assert.deepEqual(
+        {
+            format: thumbnail.format,
+            width: thumbnail.width,
+            height: thumbnail.height,
+        },
+        {
+            format: "png",
+            width: 3,
+            height: 3,
+        },
+    );
+    const jpeg = await sharp(
+        await processor.resizeJpeg(source, 20, 20),
+    ).metadata();
+    assert.deepEqual(
+        { format: jpeg.format, width: jpeg.width, height: jpeg.height },
+        {
+            format: "jpeg",
+            width: 8,
+            height: 4,
+        },
+    );
     await assert.rejects(
         processor.resizeJpeg(source, 20, 20, { maxInputPixels: 31 }),
-        /Input image exceeds pixel limit/
+        /Input image exceeds pixel limit/,
     );
-    const raisedLimitJpeg = await sharp(await processor.resizeJpeg(source, 20, 20, {
-        maxInputPixels: 32
-    })).metadata();
-    assert.deepEqual({ format: raisedLimitJpeg.format, width: raisedLimitJpeg.width }, {
-        format: 'jpeg', width: 8
-    });
+    const raisedLimitJpeg = await sharp(
+        await processor.resizeJpeg(source, 20, 20, {
+            maxInputPixels: 32,
+        }),
+    ).metadata();
+    assert.deepEqual(
+        { format: raisedLimitJpeg.format, width: raisedLimitJpeg.width },
+        {
+            format: "jpeg",
+            width: 8,
+        },
+    );
 });
 
-test('shared MD5 implementation matches RFC vectors and legacy Node hashes', () => {
-    for (const value of ['', 'a', 'abc', 'message digest', 'IMS WebP bytes']) {
+test("shared MD5 implementation matches RFC vectors and legacy Node hashes", () => {
+    for (const value of ["", "a", "abc", "message digest", "IMS WebP bytes"]) {
         const bytes = new TextEncoder().encode(value);
-        assert.equal(md5Hex(bytes), crypto.createHash('md5').update(bytes).digest('hex'));
+        assert.equal(
+            md5Hex(bytes),
+            crypto.createHash("md5").update(bytes).digest("hex"),
+        );
     }
 });

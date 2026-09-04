@@ -4,6 +4,7 @@ import { resolve } from "node:path"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ReactNode } from "react"
+import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ProducerMapContent, ProducerMapRegion } from "~/lib/api"
@@ -140,10 +141,18 @@ function isGeometryRequest(request: Request) {
   return new URL(request.url).pathname === "/maps/china-provinces.json"
 }
 
+function renderManager() {
+  return render(
+    <MemoryRouter>
+      <ProducerMapManager />
+    </MemoryRouter>
+  )
+}
+
 describe("ProducerMapManager", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    document.cookie = "csrf_token=; Max-Age=0; path=/"
+    document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
   })
 
   it("generates opaque community IDs outside the editor", () => {
@@ -186,7 +195,7 @@ describe("ProducerMapManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     expect(await screen.findByLabelText("页面标题")).toHaveValue("")
     expect(screen.getByRole("tab", { name: "地图地点" })).toBeVisible()
@@ -227,7 +236,7 @@ describe("ProducerMapManager", () => {
   })
 
   it("stages dialog edits and saves them with the current revision", async () => {
-    document.cookie = "csrf_token=producer-map-manager-test; path=/"
+    document.cookie = "ims_admin_csrf=producer-map-manager-test; path=/"
     let savedBody: unknown
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -251,7 +260,7 @@ describe("ProducerMapManager", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     expect(await screen.findByText("广东制作人社群")).toBeVisible()
     expect(
@@ -301,7 +310,7 @@ describe("ProducerMapManager", () => {
   })
 
   it("uploads, replaces, and removes dialog images without exposing paths", async () => {
-    document.cookie = "csrf_token=producer-map-upload-test; path=/"
+    document.cookie = "ims_admin_csrf=producer-map-upload-test; path=/"
     let savedBody: unknown
     const uploadedNames: string[] = []
     const uploadCsrf: Array<string | null> = []
@@ -337,7 +346,7 @@ describe("ProducerMapManager", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     await user.click(
       await screen.findByRole("button", { name: "地图选择广东省" })
@@ -377,7 +386,7 @@ describe("ProducerMapManager", () => {
     const communityUpload = within(dialog).getByLabelText("上传社群联络图片")
     expect(communityUpload).toHaveAttribute(
       "accept",
-      "image/png,image/jpeg,image/webp,image/avif"
+      "image/png,image/jpeg,image/webp,image/avif,image/heic,image/heif"
     )
     await user.upload(
       communityUpload,
@@ -449,7 +458,7 @@ describe("ProducerMapManager", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     await screen.findByText("广东制作人社群")
     await user.click(screen.getByRole("tab", { name: "社群名录" }))
@@ -495,7 +504,7 @@ describe("ProducerMapManager", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     await screen.findByText("广东制作人社群")
     await user.click(screen.getByRole("button", { name: "公开顺序" }))
@@ -535,7 +544,7 @@ describe("ProducerMapManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     await screen.findByText("广东制作人社群")
     await user.click(screen.getByRole("button", { name: "公开顺序" }))
@@ -578,7 +587,7 @@ describe("ProducerMapManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     expect(await screen.findByText("地图边界暂时无法加载。")).toBeVisible()
     expect(screen.getByText("广东制作人社群")).toBeVisible()
@@ -600,7 +609,7 @@ describe("ProducerMapManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<ProducerMapManager />)
+    renderManager()
 
     await user.click(
       await screen.findByRole("button", { name: "删除广东制作人社群" })

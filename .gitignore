@@ -62,6 +62,7 @@ __pycache__/
 # Mutable application data (back up and migrate outside Git)
 data/**
 !data/.gitignore
+apps/*/data/
 **/public/uploads/
 **/public/Data/
 **/public/assets/images/eventchronicle/events/upload/
@@ -83,3 +84,13 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Trellis-generated local tooling
+# Regenerate integration files in a fresh clone with: trellis init --pi
+.trellis/*
+!.trellis/tasks/
+!.trellis/spec/
+!.trellis/workspace/
+!.trellis/.gitignore
+.agents/
+.pi/

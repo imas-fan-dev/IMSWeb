@@ -46,6 +46,10 @@ infra/security/  bcrypt、bcryptjs、hmac
 `infra/db/sql`，共享仓储实现属于 `infra/db/repositories`，
 具体中间件实现不得进入 `utils`。
 
+Domain 内部按业务能力组织的目录、命名和渐进迁移规则见
+[Domain 能力分层与编写结构](../../docs/architecture/domain-capabilities.md)，当前能力导航见
+[`src/domains/README.md`](src/domains/README.md)。
+
 ## 本地验证
 
 JavaScript 工具链要求 Node.js `>=22.13.0`，包管理器固定为 pnpm `11.10.0`。
@@ -84,9 +88,10 @@ pnpm run build
 pnpm run start
 ```
 
-生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度 `IMS_JWT_SECRET`。管理员登录使用
-15 分钟 access JWT 与可轮换、可撤销的 30 天 refresh token；发布前必须应用最新 PostgreSQL
-迁移。数据库导入、媒体迁移和部署配置分别见下方专项文档。
+生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度
+`IMS_BACKOFFICE_JWT_SECRET`。管理员登录使用 15 分钟 access JWT 与可轮换、可撤销的 30 天
+refresh token；旧 `IMS_JWT_SECRET` 只用于 Backoffice 滚动兼容和代码回滚。发布前必须应用
+最新 PostgreSQL 迁移。数据库导入、媒体迁移和部署配置分别见下方专项文档。
 
 ## 静态资源
 
@@ -96,7 +101,7 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 
 ## 部署入口
 
-`deploy/compose.yaml` 可以构建并启动 Hono API、本地 PostgreSQL 和 RustFS，但不提供反向代理
+`deploy/compose.yaml` 可以构建并启动 Hono API、本地 PostgreSQL、Valkey 和 RustFS，但不提供反向代理
 或 TLS。API 镜像包含 Web 发布物，Compose 启动时会先幂等应用 PostgreSQL migrations。由外部
 受信 Nginx 接入时，将 `IMS_CLIENT_ADDRESS_SOURCE=nginx` 注入 Hono，并确保入口覆盖客户端
 提供的转发头。直接访问 Hono 时保留默认 `direct`，不要信任代理头。
@@ -105,9 +110,10 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 
 ## 文档
 
-- [数据库配置](../../docs/database-configuration.md)
-- [Node 文件对象存储](../../docs/object-storage.md)
-- [部署、备份与回滚](../../docs/operations-runbook.md)
+- [数据库配置](../../docs/operations/database-configuration.md)
+- [缓存架构与 Valkey](../../docs/architecture/cache.md)
+- [Node 文件对象存储](../../docs/architecture/object-storage.md)
+- [部署、备份与回滚](../../docs/operations/runbook.md)
 - [本地依赖服务](../../deploy/README.md)
 - [Hono 操作脚本](scripts/README.md)
 

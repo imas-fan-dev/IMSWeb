@@ -3,8 +3,7 @@ import test from 'node:test';
 import crypto from 'node:crypto';
 import type { ManagedSqlDatabase, SqlResult } from '@/infra/db/sql/database';
 import { executeSql, queryOne } from '@/infra/db/sql/query';
-import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlSitePackageRepository } from '@/infra/db/repositories/site-package-repository';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
 function revision(packageId: string, id: string, token: string, createdAt: number) {
@@ -31,10 +30,7 @@ function revision(packageId: string, id: string, token: string, createdAt: numbe
 
 test('PostgreSQL site packages create revisions and atomically switch rollback pointers', async (t) => {
     const database = await createPostgresTestDatabase(t, 'site-package');
-    const schema = new PostgresqlSchemaStrategy();
-    const repository = new SqlCoreRepository(database, schema);
-    t.after(() => repository.close());
-    await repository.initialize();
+    const repository = new SqlSitePackageRepository(database);
 
     const packageId = '11111111-1111-4111-8111-111111111111';
     const firstId = '22222222-2222-4222-8222-222222222222';
@@ -122,7 +118,7 @@ test('PostgreSQL site packages create revisions and atomically switch rollback p
             return typeof value === 'function' ? value.bind(target) : value;
         }
     }) as ManagedSqlDatabase;
-    const overlappingRepository = new SqlCoreRepository(overlappingDatabase, schema);
+    const overlappingRepository = new SqlSitePackageRepository(overlappingDatabase);
     const overlappingRollback = await overlappingRepository.publishSitePackageRevision(
         packageId,
         firstId,

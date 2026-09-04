@@ -1,3 +1,4 @@
+import { publicUploadsPath } from '@imsweb/contracts/paths';
 function normalizeObjectKey(value: string): string {
     const key = value.replace(/^\/+/, '').replace(/\\/g, '/');
     const segments = key.split('/');
@@ -24,6 +25,24 @@ function fileParts(filename: string): { extension: string; stem: string } {
     };
 }
 
+function fudabaEntitySegment(value: string): string {
+    if (
+        !value || value === '.' || value === '..' ||
+        /[\\/\u0000-\u001f\u007f]/.test(value)
+    ) {
+        throw new Error('Invalid Fudaba media entity ID');
+    }
+    return value;
+}
+
+function fudabaImageExtension(value: string): string {
+    const extension = value.toLowerCase().replace(/^\./, '');
+    if (!['avif', 'jpg', 'png', 'webp'].includes(extension)) {
+        throw new Error('Invalid Fudaba media extension');
+    }
+    return extension;
+}
+
 export function newsOriginalObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `editorial/news/assets/${file.stem}/original.${file.extension}`;
@@ -39,9 +58,18 @@ export function eventPosterObjectKey(filename: string): string {
     return `editorial/events/assets/${file.stem}/poster.${file.extension}`;
 }
 
+export function articleAssetObjectKey(articleId: number, filename: string): string {
+    if (!Number.isSafeInteger(articleId) || articleId <= 0) {
+        throw new Error('Invalid article ID');
+    }
+    const file = fileParts(filename);
+    return `editorial/articles/${articleId}/assets/${file.stem}.${file.extension}`;
+}
+
 export const INFORMATION_INDEX_OBJECT_KEY = 'editorial/information/index.json';
 export const ABOUT_PAGE_OBJECT_KEY = 'editorial/about/config.json';
 export const PRODUCER_MAP_OBJECT_KEY = 'community/producer-map/config.json';
+export const FUDABA_MAP_DELIVERY_OBJECT_KEY = 'community/fudaba/map-delivery.json';
 
 export function aboutHeroObjectKey(filename: string): string {
     const file = fileParts(filename);
@@ -76,7 +104,7 @@ export function namecardThumbnailPublicUrl(originalUrl: string): string {
     if (prefix !== 'uploads/namecard/original') {
         throw new Error(`Unsupported namecard media path: ${legacyKey}`);
     }
-    return `/uploads/namecard/thumbnail/${filename}.jpg`;
+    return publicUploadsPath(`/namecard/thumbnail/${filename}.jpg`);
 }
 
 export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
@@ -84,9 +112,85 @@ export function namecardMediaObjectKeys(originalUrl: string): [string, string] {
     return [publicMediaObjectKey(originalUrl), publicMediaObjectKey(thumbnailUrl)];
 }
 
+const NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN =
+    /^community\/namecards\/assets\/([^/]+)\/image\.([a-z0-9]+)$/;
+
+// Reverses namecardImageObjectKey so unified fudaba_cards rows (which only
+// store the object key) can hand the legacy /uploads/namecard/original/...
+// shape back to response and media-resolution code that still expects it.
+export function namecardOriginalUrlFromObjectKey(key: string): string {
+    const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(key);
+    if (!match) throw new Error(`Unsupported namecard object key: ${key}`);
+    return publicUploadsPath(`/namecard/original/${match[1]}.${match[2]}`);
+}
+
 export function producerMapAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
+}
+
+// Legacy layout produced by the historical media migration
+// (`scripts/migration/fudaba-media.js`). Runtime uploads no longer mint this
+// shape, but the migration still needs it to address pre-existing objects.
+export function fudabaAccountAvatarObjectKey(
+    accountId: string,
+    extension: string
+): string {
+    return `community/fudaba/accounts/${fudabaEntitySegment(accountId)}/` +
+        `avatar.${fudabaImageExtension(extension)}`;
+}
+
+// Account avatars belong to the Platform identity, not to Fudaba, so new keys
+// land under `platform/`. Avatars uploaded before that move keep their old
+// `community/fudaba/accounts/` keys, which stay readable because every key is
+// stored on its own profile row rather than rebuilt from this generator.
+export function platformAccountAvatarVersionObjectKey(
+    accountId: string,
+    version: string
+): string {
+    return `platform/accounts/${fudabaEntitySegment(accountId)}/` +
+        `avatars/${fudabaEntitySegment(version)}.webp`;
+}
+
+export function fudabaOfficeCoverObjectKey(
+    officeId: string,
+    extension: string
+): string {
+    return `community/fudaba/offices/${fudabaEntitySegment(officeId)}/` +
+        `cover.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaOfficeCoverVersionObjectKey(
+    officeId: string,
+    version: string
+): string {
+    return `community/fudaba/offices/${fudabaEntitySegment(officeId)}/` +
+        `covers/${fudabaEntitySegment(version)}.webp`;
+}
+
+export function fudabaCardFrontObjectKey(
+    cardId: string,
+    extension: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `front.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaCardBackObjectKey(
+    cardId: string,
+    extension: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `back.${fudabaImageExtension(extension)}`;
+}
+
+export function fudabaCardSideVersionObjectKey(
+    cardId: string,
+    side: 'front' | 'back',
+    version: string
+): string {
+    return `community/fudaba/cards/${fudabaEntitySegment(cardId)}/` +
+        `versions/${fudabaEntitySegment(version)}/${side}.webp`;
 }
 
 export function publicMediaObjectKey(value: string): string {
@@ -97,6 +201,16 @@ export function publicMediaObjectKey(value: string): string {
     const segments = legacyKey.split('/');
     const filename = segments.at(-1)!;
     const prefix = segments.slice(0, -1).join('/').toLowerCase();
+    if (
+        segments.length === 4 && segments[0]?.toLowerCase() === 'uploads' &&
+        segments[1]?.toLowerCase() === 'articles'
+    ) {
+        const articleId = Number(segments[2]);
+        if (!Number.isSafeInteger(articleId) || articleId <= 0) {
+            throw new Error(`Unsupported article asset path: ${legacyKey}`);
+        }
+        return articleAssetObjectKey(articleId, filename);
+    }
     switch (prefix) {
         case 'uploads/news/original':
             return newsOriginalObjectKey(filename);

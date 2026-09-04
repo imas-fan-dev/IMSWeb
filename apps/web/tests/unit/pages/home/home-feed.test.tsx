@@ -1,5 +1,6 @@
 import { useRequest } from "alova/client"
 import { act, render, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { getHomeNews } from "~/lib/api"
@@ -26,6 +27,14 @@ function NewsProbe({ onSuccess }: { onSuccess: (data: unknown) => void }) {
   if (loading) return <p>loading</p>
   if (error) return <p>error: {error.message}</p>
   return <p>{data.items.map((item) => item.title).join(", ") || "empty"}</p>
+}
+
+function renderHomeFeed() {
+  return render(
+    <MemoryRouter>
+      <HomeFeed />
+    </MemoryRouter>
+  )
 }
 
 describe("home feed alova integration", () => {
@@ -117,14 +126,14 @@ describe("home feed alova integration", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    const { container } = render(<HomeFeed />)
+    const { container } = renderHomeFeed()
 
     expect(await screen.findByText("首页活动 4")).toBeVisible()
     expect(screen.queryByText("首页活动 5")).not.toBeInTheDocument()
     expect(screen.queryByText(/条活动/)).not.toBeInTheDocument()
     expect(screen.queryByText(/显示其余/)).not.toBeInTheDocument()
     expect(screen.queryByRole("group")).not.toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "查看全部活动" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "查看全部动态" })).toHaveAttribute(
       "href",
       "/events"
     )
@@ -136,7 +145,14 @@ describe("home feed alova integration", () => {
     expect(screen.queryByText("首页资讯 5")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: /首页活动 1/ })).toHaveAttribute(
       "href",
-      "/events"
+      "/events/1"
+    )
+    expect(screen.getByRole("link", { name: /首页活动 1/ })).toHaveClass(
+      "min-h-11",
+      "min-w-0"
+    )
+    expect(screen.getByRole("link", { name: "查看全部动态" })).toHaveClass(
+      "min-h-11"
     )
     expect(screen.getByText("首页活动 1")).toHaveClass("line-clamp-2")
     expect(screen.getByText("首页活动 1")).toHaveAttribute(
@@ -144,9 +160,13 @@ describe("home feed alova integration", () => {
       "首页活动 1"
     )
     expect(screen.getAllByTitle("测试发布者 · 2026/07/24")[0]).toHaveClass(
-      "truncate"
+      "line-clamp-1",
+      "wrap-anywhere"
     )
-    expect(screen.getByText(longContact)).toHaveClass("truncate")
+    expect(screen.getByText(longContact)).toHaveClass(
+      "line-clamp-1",
+      "break-all"
+    )
     expect(screen.getByText(longContact)).toHaveAttribute("title", longContact)
     expect(screen.getByText("首页资讯 1")).toHaveClass("line-clamp-2")
     expect(container.querySelector('a[href="/Event.html"]')).toBeNull()
@@ -235,7 +255,7 @@ describe("home feed alova integration", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    render(<HomeFeed />)
+    renderHomeFeed()
 
     expect(await screen.findByText("窄屏活动 3")).toBeVisible()
     expect(screen.queryByText("窄屏活动 4")).not.toBeInTheDocument()

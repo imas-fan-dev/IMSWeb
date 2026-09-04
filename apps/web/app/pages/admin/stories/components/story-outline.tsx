@@ -32,6 +32,7 @@ import type {
   WikiAdminStory,
   WikiAdminStoryCard,
 } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type StoryCard = WikiAdminStoryCard & {
   category: string
@@ -438,7 +439,11 @@ function CardBranch({
                       size="xs"
                       variant="ghost"
                       render={
-                        <a href={story.url} target="_blank" rel="noreferrer" />
+                        <NavigationLink
+                          href={story.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        />
                       }
                       nativeButton={false}
                     >

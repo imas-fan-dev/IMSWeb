@@ -1,0 +1,62 @@
+# Shared Contracts Contributor Guide
+
+This file supplements the repository-level `AGENTS.md` for `@imsweb/contracts`.
+The package is a private workspace dependency of `@imsweb/api` and `@imsweb/web`;
+it is the only shared source for cross-workspace wire contracts.
+
+## Ownership and boundaries
+
+- Keep API↔Web response schemas, their `z.infer`/`z.input` wire types, shared
+  success envelopes, page-info combinators, and URL path definitions here.
+- Keep Web-only request/input schemas, `File`/`FormData` shapes, UI-semantic
+  aliases, and endpoint functions in `apps/web`.
+- Keep API ports, persistence Records, database models, error bodies, redirects,
+  and media stream boundaries in `apps/api`.
+- The package must never depend on either application workspace, API runtime
+  modules, Web UI modules, database drivers, or object-storage adapters.
+
+## Layout and exports
+
+Use flat-first organization: one file per business domain. Promote a domain to a
+folder only after it needs multiple related files, and mirror that folder with an
+`exports` subpath in `package.json`. The root `src/index.ts` exposes only
+camelCase namespaces; business code imports the narrow subpath instead of the
+root namespace. Shared atoms are exported only by their owning core module.
+Admin schemas use an `admin` prefix, and multi-source modules place public
+schemas before admin schemas.
+
+`src/common.ts` owns composable success envelopes and page-info schemas.
+`src/paths.ts` owns shared API, middleware, cookie-scope, and public-delivery
+prefixes. Prefixes are declared once; callers keep only business suffixes and
+dynamic parameters. A path change must be made here and consumed by both
+applications.
+
+## zod and build contract
+
+This is the only package allowed to declare or directly import `zod`. The
+package's `src/z.ts` is the supported zod entry point for consumers. Keep schema
+output as the wire contract; export `z.input` variants only where coercion or
+transformation means the API's emitted shape requires them. The package builds
+CommonJS with declarations under `dist/`, and `prepare` must remain safe when
+source files are not present during a Docker manifest-only install.
+
+Every new wire-contract module must be added to the package `exports` map, the
+root camelCase namespace index, and `packages/contracts/README.md`; repository-level documentation standards are in
+`docs/README.md`. Avoid
+barrel re-exports that make sibling atom names ambiguous.
+
+## Validation
+
+Run from the repository root:
+
+```sh
+pnpm --filter @imsweb/contracts run build
+pnpm run check:rules
+pnpm run check:boundaries
+pnpm --filter @imsweb/web run typecheck
+pnpm --filter @imsweb/api run typecheck
+```
+
+When a schema changes, update the consuming endpoint and API response aliases
+and add or extend an HTTP response conformance assertion. Do not edit generated
+contract copies: there is no generated Web/API duplicate ledger.

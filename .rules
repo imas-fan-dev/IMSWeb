@@ -2,10 +2,11 @@
 
 ## Project Structure & Module Organization
 
-IMSWeb is a pnpm monorepo with two application workspaces:
+IMSWeb is a pnpm monorepo with two application workspaces and one shared contracts package:
 
 - `apps/api/`: Hono backend for Node; source is in `src/` and tests in `tests/`.
 - `apps/web/`: React Router 7 frontend; the typed route manifest lives in `app/routes.ts` and points directly to route-ready page modules in `app/pages/`; layouts live in `app/layouts/`, shared UI in `app/components/`, API contracts and clients in `app/lib/api/`, and assets in `public/`.
+- `packages/contracts/`: @imsweb/contracts workspace package holding cross-workspace wire-format contracts (zod schemas as the single source of truth; both apps depend on it via workspace:*).
 - `data/`: ignored local databases, uploads, and migration inputs; only `.gitignore` is tracked.
 
 Migration, deployment, and boundary tooling lives in `scripts/`, `deploy/`, `docs/`, and root `tests/`. Keep dependencies inside their owning workspace.
@@ -19,10 +20,10 @@ corepack enable
 pnpm install --frozen-lockfile
 ```
 
-AI coding agents must follow `docs/ai-development-environment.md` for workspace
+AI coding agents must follow `docs/development/ai-environment.md` for workspace
 preflight, local data configuration, service startup, and validation evidence.
 
-- `pnpm dev`: start PostgreSQL, RustFS, migrations, Hono, and Web with hot reload.
+- `pnpm dev`: start PostgreSQL, Valkey, RustFS, migrations, Hono, and Web with hot reload.
 - `pnpm run dev:doctor`: diagnose local prerequisites without changing state.
 - `pnpm run dev:down`: stop local data services without deleting their volumes.
 - `pnpm run dev:node`: watch only the Hono Node server.
@@ -34,13 +35,73 @@ preflight, local data configuration, service startup, and validation evidence.
 - `pnpm run test:web`: run Web unit and Playwright tests.
 - `pnpm run test:web-routing`: validate the built Web client against Hono route ownership.
 
+### Tauri App Delivery
+
+The Tauri mobile shell lives in `apps/web`. Device work goes through the `app:*` scripts, which wrap
+`apps/web/scripts/app-device.js`; do not call the Tauri CLI directly from new scripts or shell
+wrappers. Prerequisites, the install command matrix, artifact locations, and signing boundaries are
+documented in `docs/development/app-device-delivery.md`.
+
+- `pnpm run app:doctor`: check iOS and Android prerequisites and print the fix for each failure.
+- `pnpm run app devices`: list simulators, emulators, paired devices, and available AVDs.
+- `pnpm run app ios` / `pnpm run app android`: build, install, and launch a debug package on a
+  simulator or emulator. Add `--target device` for a physical device and `--release` for a Release
+  build, so the four-cell install matrix is flags on one entry rather than named scripts.
+- `pnpm run app ios --live`: hot-reload session instead of a self-contained package. Add `--host`
+  for physical-device sessions.
+
+Target, profile, and device selection stay arguments; do not add a package script per combination.
+Run `pnpm run app:doctor` before reporting a device build as blocked. `src-tauri/gen/` is derived
+output and is never committed or hand-edited. Release distribution requires managed signing keys;
+the local debug-keystore switch is an opt-in for on-device verification only and must not be
+persisted in the repository or a shell profile.
+
 ## Coding Style & Naming Conventions
 
-Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and the `@/` alias rooted at `apps/api/src`. Web code uses two spaces, no semicolons, double quotes, 80 columns, and the `~/` app alias. Run `pnpm --filter @imsweb/web format` and `pnpm --filter @imsweb/web lint` for frontend changes. Use kebab-case filenames and PascalCase React components.
+Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and the `@/` alias rooted at `apps/api/src`; Web and contracts code use their local `.rules` formatting conventions. New or substantially edited API files must follow the API style; do not create unrelated formatter churn solely to normalize historical files. Run `pnpm --filter @imsweb/web format` and `pnpm --filter @imsweb/web lint` for frontend changes. Use kebab-case filenames and PascalCase React components.
 
 ## Testing Guidelines
 
 Tests use Node's runner, Vitest, Testing Library, Playwright, and Python `unittest`. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. No numeric coverage threshold exists; API persistence changes must cover the active Node runtime.
+
+## Documentation
+
+Repository-level documentation lives under `docs/` and follows [`docs/README.md`](docs/README.md):
+architecture, development, operations, migrations, governance, and archive are separate scopes. Every
+`docs/**/*.md` file has the required metadata header, valid relative links, and an explicit authority
+source. Run `pnpm run check:rules` to run the documentation checker as well as agent/source rules.
+Workspace-specific behavior stays in the owning workspace README, DESIGN, or `.rules`; do not duplicate
+wire contracts, path prefixes, migration ledgers, or deployment shell flows in prose.
+
+## Wire Contracts (@imsweb/contracts)
+
+`packages/contracts` zod schemas are the single source of truth for API↔Web wire
+formats; static types derive via `z.infer`, and `apps/api/src/contracts` is
+forbidden. The package is flat-first: one file per business domain, promoted to a
+folder when a domain gains a second file, with `exports` subpaths mirroring file
+paths and the root index exposing only camelCase namespaces (no flat
+re-exports). Shared atom schemas export only from their owning core module;
+sibling-internal atoms stay unexported to keep barrels ambiguity-free. Admin
+schemas take an `admin` prefix and multi-source domains order public before
+admin. Wire types (`z.infer` aliases and their indexed derivations) live beside
+their schemas in the package; Web keeps only UI-semantic aliases, request/input
+types, and `File`/`FormData` shapes. zod itself is encapsulated by the package: import `z` from
+`@imsweb/contracts/z`; only `packages/contracts` may declare the zod dependency.
+Cross-domain response commons (success envelope, cursor/snapshot/numbered
+page-info) live in `@imsweb/contracts/common` and domain schemas compose them
+via `successEnvelope`/shared refs instead of redefining inline. Shared API and
+public delivery URL prefixes live in `@imsweb/contracts/paths`; both API route
+registration/middleware and Web endpoints must use its path builders, keeping
+only business-specific suffixes local. `pnpm run check:rules` runs the source
+boundary checker for forbidden directories, direct zod imports, domain-to-infra
+imports, Web test placement, and raw shared URL prefixes. API response
+modules must not hand-write wire shapes: they alias package types (output
+types, or `z.input` variants where schemas transform/coerce) and view builders
+annotate returns with contract types; only API-local boundaries (media/site
+streams, redirects, error bodies) stay local. API code imports contract types
+as type-only so zod never loads in production runtime; runtime conformance is enforced by
+`apps/api/tests/wiki/wire-contract-conformance.test.ts` and inline
+`schema.parse` calls at HTTP test response read points.
 
 ## Commit & Pull Request Guidelines
 
@@ -50,5 +111,7 @@ History is short, but the latest commit uses Conventional Commit style (`feat: .
 
 Copy settings from the owner-specific templates in `apps/api/.env.example`,
 `apps/web/.env.example`, and `deploy/.env.example`; never commit secrets, databases, uploads, or
-generated build output. Production requires a high-entropy `IMS_JWT_SECRET`.
+generated build output. Production requires distinct high-entropy
+`IMS_BACKOFFICE_JWT_SECRET` and `IMS_PLATFORM_JWT_SECRET` values; `IMS_JWT_SECRET` is only the
+temporary legacy Backoffice verification secret.
 PostgreSQL migration work must keep credentials outside the repository and preserve the existing Core/Story data reconciliation gates. Historical Express/Flask source, data, and assets belong to a separate private repository and must not be copied into this public tree.

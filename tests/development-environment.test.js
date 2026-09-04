@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { execFileSync, spawnSync } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const { pathToFileURL } = require("node:url");
@@ -8,6 +9,17 @@ const scriptUrl = pathToFileURL(
   path.resolve(__dirname, "../scripts/development/dev-environment.mjs"),
 ).href;
 const launcher = import(scriptUrl);
+
+function assertIsolatedPlatformSecret(configuration) {
+  const platformSecret = configuration.apiEnvironment.IMS_PLATFORM_JWT_SECRET;
+  assert.equal(typeof platformSecret, "string");
+  assert.equal(Buffer.byteLength(platformSecret, "utf8") >= 32, true);
+  assert.notEqual(
+    platformSecret,
+    configuration.apiEnvironment.IMS_BACKOFFICE_JWT_SECRET,
+  );
+  assert.notEqual(platformSecret, "production-platform-secret");
+}
 
 const r2TestEnvironment = Object.freeze({
   IMS_OBJECT_STORAGE: "s3",
@@ -80,6 +92,14 @@ test("development configuration derives a fully local runtime", async () => {
       PATH: "/test/bin",
       IMS_ENV_FILE: "/production/api.env",
       IMS_SUPER_ADMIN_USERNAME: "production-admin",
+      IMS_PLATFORM_JWT_SECRET: "production-platform-secret",
+      IMS_FUDABA_PUBLIC_READ_ENABLED: "true",
+      IMS_FUDABA_WRITE_ENABLED: "true",
+      IMS_FUDABA_MAP_ENABLED: "true",
+      IMS_FUDABA_MAP_STYLE_URL: "https://production.invalid/style.json",
+      IMS_FUDABA_GEOCODING_ENDPOINT: "https://production.invalid/search",
+      IMS_FUDABA_GEOCODING_USER_AGENT: "production agent",
+      VITE_IMS_APP_TARGET: "app",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
       AWS_SESSION_TOKEN: "production-session-token",
     },
@@ -101,6 +121,11 @@ test("development configuration derives a fully local runtime", async () => {
     "postgresql://dev%20user:p%40ss%2Fword@127.0.0.1:55432/ims%2Fweb",
   );
   assert.equal(configuration.apiEnvironment.NODE_ENV, "development");
+  assert.equal(configuration.apiEnvironment.IMS_CACHE_BACKEND, "valkey");
+  assert.equal(
+    configuration.apiEnvironment.IMS_VALKEY_URL,
+    "redis://127.0.0.1:6379",
+  );
   assert.equal(configuration.apiEnvironment.PATH, "/test/bin");
   assert.equal(configuration.apiEnvironment.IMS_ENV_FILE, "");
   assert.equal(
@@ -111,6 +136,19 @@ test("development configuration derives a fully local runtime", async () => {
   assert.equal(configuration.apiEnvironment.IMS_PROJECT_ROOT, repositoryRoot);
   assert.equal("IMS_DATABASE" in configuration.apiEnvironment, false);
   assert.equal(configuration.apiEnvironment.IMS_OBJECT_STORAGE, "s3");
+  assertIsolatedPlatformSecret(configuration);
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_PUBLIC_READ_ENABLED,
+    "false",
+  );
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "false");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "false");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL, "");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_GEOCODING_ENDPOINT, "");
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_USER_AGENT,
+    "",
+  );
   assert.equal(
     configuration.apiEnvironment.IMS_S3_ENDPOINT,
     "http://127.0.0.1:9900",
@@ -130,6 +168,143 @@ test("development configuration derives a fully local runtime", async () => {
     configuration.webEnvironment.IMS_API_ORIGIN,
     "http://127.0.0.1:3100",
   );
+  assert.equal("VITE_IMS_APP_TARGET" in configuration.apiEnvironment, false);
+  assert.equal("VITE_IMS_APP_TARGET" in configuration.webEnvironment, false);
+});
+
+test("development configuration uses the configured browser-reachable RustFS origin", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+  const configuration = resolveDevelopmentConfiguration({
+    environment: {},
+    deployEnvironment: {
+      IMS_RUSTFS_PUBLIC_ORIGIN: "http://192.168.1.20:9900",
+    },
+    options: parseArguments([], {}),
+  });
+
+  assert.equal(configuration.rustfsOrigin, "http://192.168.1.20:9900");
+  assert.equal(
+    configuration.apiEnvironment.IMS_S3_ENDPOINT,
+    "http://192.168.1.20:9900",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_PUBLIC_READ_URL_BASE,
+    "http://192.168.1.20:9900/imsweb-media-local",
+  );
+  assert.throws(
+    () =>
+      resolveDevelopmentConfiguration({
+        environment: {},
+        deployEnvironment: {
+          IMS_RUSTFS_PUBLIC_ORIGIN: "http://192.168.1.20:9900/s3",
+        },
+        options: parseArguments([], {}),
+      }),
+    /must be a credential-free HTTP\(S\) origin/,
+  );
+});
+
+test("development configuration translates explicit Fudaba gates", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+  const environment = {
+    IMS_DEV_FUDABA_PUBLIC_READ_ENABLED: " TRUE ",
+    IMS_DEV_FUDABA_WRITE_ENABLED: "true",
+    IMS_DEV_FUDABA_MAP_ENABLED: "true",
+    IMS_DEV_FUDABA_MAP_STYLE_URL:
+      " https://tiles.openfreemap.org/styles/positron ",
+    IMS_DEV_FUDABA_MAP_STYLE_URLS: " /maps/exchange-style.json ",
+    IMS_DEV_FUDABA_GEOCODING_ENDPOINT:
+      " https://nominatim.example.test/search ",
+    IMS_DEV_FUDABA_GEOCODING_USER_AGENT:
+      "IMSWeb development (contact: op@example.test)",
+    IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES: " CN,HK ",
+  };
+  const configuration = resolveDevelopmentConfiguration({
+    environment,
+    deployEnvironment: {},
+    options: parseArguments([], environment),
+  });
+
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_PUBLIC_READ_ENABLED,
+    "true",
+  );
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "true");
+  assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "true");
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
+    "https://tiles.openfreemap.org/styles/positron",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URLS,
+    "/maps/exchange-style.json",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_ENDPOINT,
+    "https://nominatim.example.test/search",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_USER_AGENT,
+    "IMSWeb development (contact: op@example.test)",
+  );
+  assert.equal(
+    configuration.apiEnvironment.IMS_FUDABA_GEOCODING_COUNTRY_CODES,
+    "cn,hk",
+  );
+  for (const name of Object.keys(environment)) {
+    assert.equal(name in configuration.apiEnvironment, false);
+    assert.equal(name in configuration.webEnvironment, false);
+  }
+});
+
+test("development configuration rejects unsafe Fudaba overrides", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+  const resolve = (environment) =>
+    resolveDevelopmentConfiguration({
+      environment,
+      deployEnvironment: {},
+      options: parseArguments([], environment),
+    });
+
+  for (const name of [
+    "IMS_DEV_FUDABA_PUBLIC_READ_ENABLED",
+    "IMS_DEV_FUDABA_WRITE_ENABLED",
+    "IMS_DEV_FUDABA_MAP_ENABLED",
+  ]) {
+    assert.throws(() => resolve({ [name]: "yes" }), new RegExp(`${name} must`));
+  }
+  assert.throws(
+    () => resolve({ IMS_DEV_FUDABA_MAP_ENABLED: "true" }),
+    /IMS_DEV_FUDABA_MAP_STYLE_URL is required/,
+  );
+  assert.throws(
+    () =>
+      resolve({
+        IMS_DEV_FUDABA_GEOCODING_USER_AGENT: "IMSWeb development agent",
+      }),
+    /IMS_DEV_FUDABA_GEOCODING_ENDPOINT is required/,
+  );
+  assert.throws(
+    () =>
+      resolve({
+        IMS_DEV_FUDABA_GEOCODING_ENDPOINT:
+          "http://nominatim.example.test/search",
+        IMS_DEV_FUDABA_GEOCODING_USER_AGENT: "IMSWeb development agent",
+      }),
+    /credential-free HTTPS URL/,
+  );
+  for (const styleUrl of [
+    "//tiles.example.com/style.json",
+    "https://user:secret@tiles.example.com/style.json",
+    "data:application/json,%7B%7D",
+    "/maps/exchange-style.json?token=secret",
+    "/maps/exchange-style.json#fragment",
+  ]) {
+    assert.throws(
+      () => resolve({ IMS_DEV_FUDABA_MAP_STYLE_URL: styleUrl }),
+      /must be a same-origin absolute path or/,
+    );
+  }
 });
 
 test("development configuration isolates an explicit R2 test runtime", async () => {
@@ -138,6 +313,8 @@ test("development configuration isolates an explicit R2 test runtime", async () 
     environment: {
       PATH: "/test/bin",
       IMS_SUPER_ADMIN_USERNAME: "production-admin",
+      IMS_BACKOFFICE_JWT_SECRET: "production-backoffice-secret",
+      IMS_PLATFORM_JWT_SECRET: "production-platform-secret",
       IMS_JWT_SECRET: "production-secret",
       DATABASE_URL: "postgresql://production.invalid/imsweb",
     },
@@ -166,9 +343,11 @@ test("development configuration isolates an explicit R2 test runtime", async () 
     "test-access-key",
   );
   assert.equal(
-    configuration.apiEnvironment.IMS_JWT_SECRET,
+    configuration.apiEnvironment.IMS_BACKOFFICE_JWT_SECRET,
     "imsweb-local-development-secret",
   );
+  assertIsolatedPlatformSecret(configuration);
+  assert.equal("IMS_JWT_SECRET" in configuration.apiEnvironment, false);
   assert.equal(
     configuration.apiEnvironment.DATABASE_URL.includes("127.0.0.1"),
     true,
@@ -208,10 +387,11 @@ test("development command plan orders local infrastructure before hot reload", a
   });
   const plan = buildCommandPlan(configuration);
 
-  assert.deepEqual(plan.infrastructure.args.slice(-4), [
+  assert.deepEqual(plan.infrastructure.args.slice(-5), [
     "up",
     "-d",
     "postgres",
+    "valkey",
     "rustfs",
   ]);
   assert.deepEqual(plan.composeRuntime.args.slice(-2), ["ps", "--quiet"]);
@@ -229,12 +409,7 @@ test("development command plan orders local infrastructure before hot reload", a
     "run",
     "migration:postgresql",
   ]);
-  assert.deepEqual(plan.api.args, [
-    "--filter",
-    "@imsweb/api",
-    "run",
-    "dev",
-  ]);
+  assert.deepEqual(plan.api.args, ["--filter", "@imsweb/api", "run", "dev"]);
   assert.deepEqual(plan.web.args, [
     "--filter",
     "@imsweb/web",
@@ -248,10 +423,11 @@ test("development command plan orders local infrastructure before hot reload", a
     "--strictPort",
   ]);
   assert.equal(plan.web.args.includes("--"), false);
-  assert.deepEqual(plan.down.args.slice(-4), [
+  assert.deepEqual(plan.down.args.slice(-5), [
     "stop",
     "rustfs-init",
     "rustfs",
+    "valkey",
     "postgres",
   ]);
   assert.equal(plan.down.args.includes("--volumes"), false);
@@ -278,14 +454,15 @@ test("R2 command plan starts PostgreSQL without RustFS", async () => {
   });
   const plan = buildCommandPlan(configuration);
 
-  assert.deepEqual(plan.infrastructure.args.slice(-3), [
+  assert.deepEqual(plan.infrastructure.args.slice(-4), [
     "up",
     "-d",
     "postgres",
+    "valkey",
   ]);
   assert.equal(plan.infrastructure.args.includes("rustfs"), false);
   assert.equal(plan.rustfsInit, undefined);
-  assert.deepEqual(plan.down.args.slice(-2), ["stop", "postgres"]);
+  assert.deepEqual(plan.down.args.slice(-3), ["stop", "valkey", "postgres"]);
 });
 
 test("development launcher enforces the repository Node baseline", async () => {
@@ -451,8 +628,9 @@ test("development preparation waits for dependencies before migration", async ()
 
   assert.deepEqual(events, [
     "Validating local Compose configuration",
-    "Starting PostgreSQL and RustFS",
+    "Starting PostgreSQL, Valkey, and RustFS",
     "Waiting for PostgreSQL",
+    "Waiting for Valkey",
     "RustFS:http://127.0.0.1:9000/health",
     "Initializing the local RustFS bucket",
     "Applying PostgreSQL migrations",
@@ -492,8 +670,9 @@ test("R2 development preparation skips RustFS", async () => {
 
   assert.deepEqual(events, [
     "Validating local Compose configuration",
-    "Starting PostgreSQL",
+    "Starting PostgreSQL and Valkey",
     "Waiting for PostgreSQL",
+    "Waiting for Valkey",
     "Applying PostgreSQL migrations",
   ]);
 });
@@ -533,6 +712,19 @@ test("development preparation stops before migration when readiness fails", asyn
   );
   assert.equal(events.includes("Applying PostgreSQL migrations"), false);
   assert.equal(events.includes("unexpected RustFS wait"), false);
+});
+
+test("development launcher waits for managed children instead of forcing cleanup shutdown", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "../scripts/development/dev-environment.mjs"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(source, /stopChildren\("SIGKILL"\)/);
+  assert.match(
+    source,
+    /await Promise\.all\(children\.map\(\(entry\) => entry\.outcome\)\)/,
+  );
 });
 
 test("development launcher help and dry-run have no runtime prerequisites", () => {

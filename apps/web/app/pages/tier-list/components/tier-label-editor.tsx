@@ -45,7 +45,7 @@ export function TierLabelEditor({
             style={{ backgroundColor: tier.color }}
             data-testid="tier-label"
           >
-            <span className="max-w-full wrap-break-word px-1 text-center text-xl/tight font-bold whitespace-normal drop-shadow-sm sm:text-2xl">
+            <span className="max-w-full px-1 text-center text-xl/tight font-bold wrap-break-word whitespace-normal drop-shadow-sm sm:text-2xl">
               {tier.label || "—"}
             </span>
             <PencilIcon aria-hidden="true" className="size-4 opacity-80" />

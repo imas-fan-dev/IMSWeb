@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -151,8 +151,24 @@ function renderStory(initialEntry = "/story?agency=闪耀色彩&idol=樱木真�
   )
 }
 
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollIntoView"
+)
+
 describe("StoryPage", () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    if (scrollIntoViewDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "scrollIntoView",
+        scrollIntoViewDescriptor
+      )
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
+  })
 
   it("renders grouped cards and multiple sources, then filters them", async () => {
     vi.stubGlobal(
@@ -372,7 +388,13 @@ describe("StoryPage", () => {
     )
   })
 
-  it("focuses, highlights, then clears a card linked from the archive cover", async () => {
+  it("focuses, scrolls to, highlights, then clears a linked card", async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, "focus")
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
@@ -384,6 +406,12 @@ describe("StoryPage", () => {
       name: /【花风Smiley】/,
     })
     await waitFor(() => expect(target).toHaveFocus())
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "start",
+      inline: "nearest",
+      behavior: "auto",
+    })
     expect(target).toHaveAttribute("id", "story-card-401")
     expect(target).toHaveAttribute("data-cover-target", "true")
     expect(target).toHaveClass(
@@ -398,6 +426,32 @@ describe("StoryPage", () => {
     )
     expect(target).not.toHaveFocus()
     expect(target).not.toHaveClass("ring-primary", "ring-offset-3")
+  })
+
+  it.each([
+    ["the hash is absent", "/story?agency=闪耀色彩&idol=樱木真乃"],
+    [
+      "the card ID does not exist",
+      "/story?agency=闪耀色彩&idol=樱木真乃#story-card-999",
+    ],
+  ])("does not scroll when %s", async (_reason, initialEntry) => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
+    )
+
+    renderStory(initialEntry)
+
+    await screen.findByRole("button", { name: /【花风Smiley】/ })
+    await act(
+      () => new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+    )
+    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
   it("only keeps cards with story sources in full color", async () => {

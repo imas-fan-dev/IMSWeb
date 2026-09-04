@@ -6,8 +6,8 @@ import {
     translatePostgresParameters,
     type PostgresPool
 } from '@/infra/db/postgresql/connection';
-import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+import { SqlReactionRepository } from '@/infra/db/repositories/reaction-repository';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 
 function pgResult(
@@ -127,10 +127,7 @@ test('PostgreSQL news pagination uses a bounded descending id range', async () =
         },
         async end() {}
     } as unknown as PostgresPool;
-    const repository = new SqlCoreRepository(
-        new PostgresConnection(pool),
-        new PostgresqlSchemaStrategy()
-    );
+    const repository = new SqlNewsRepository(new PostgresConnection(pool));
 
     assert.equal(await repository.findLatestPublicNewsId(), '9');
     assert.deepEqual(
@@ -156,16 +153,13 @@ test('PostgreSQL reaction upsert qualifies the existing count', async () => {
         },
         async end() {}
     } as unknown as PostgresPool;
-    const repository = new SqlCoreRepository(
-        new PostgresConnection(pool),
-        new PostgresqlSchemaStrategy()
-    );
+    const repository = new SqlReactionRepository(new PostgresConnection(pool));
 
     await repository.incrementReaction(456, '❤️');
 
     assert.match(
         calls[0]?.sql ?? '',
-        /ON CONFLICT\(card_id, emoji\) DO UPDATE SET count=card_emojis\.count\+1/
+        /ON CONFLICT\(card_id, emoji\) DO UPDATE SET count=namecard_reactions\.count\+1/
     );
-    assert.deepEqual(calls[0]?.values, [456, '❤️']);
+    assert.deepEqual(calls[0]?.values, ['❤️', 456]);
 });

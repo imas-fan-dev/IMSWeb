@@ -5,15 +5,15 @@ import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RUNBOOK = PROJECT_ROOT / "docs/operations-runbook.md"
-DATABASE_CONFIGURATION = PROJECT_ROOT / "docs/database-configuration.md"
-OBJECT_STORAGE = PROJECT_ROOT / "docs/object-storage.md"
-AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/ai-development-environment.md"
+RUNBOOK = PROJECT_ROOT / "docs/operations/runbook.md"
+DATABASE_CONFIGURATION = PROJECT_ROOT / "docs/operations/database-configuration.md"
+OBJECT_STORAGE = PROJECT_ROOT / "docs/architecture/object-storage.md"
+AI_DEVELOPMENT_ENVIRONMENT = PROJECT_ROOT / "docs/development/ai-environment.md"
 API_ENVIRONMENT = PROJECT_ROOT / "apps/api/.env.example"
 WEB_ENVIRONMENT = PROJECT_ROOT / "apps/web/.env.example"
 DEPLOY_ENVIRONMENT = PROJECT_ROOT / "deploy/.env.example"
 PNPM_WORKSPACE = PROJECT_ROOT / "pnpm-workspace.yaml"
-PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/producer-map-online-migration.md"
+PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/migrations/producer-map-online.md"
 PRODUCER_MAP_SQL = (
     PROJECT_ROOT / "deploy/migrations/producer-map-r2-control-plane.sql"
 )
@@ -43,8 +43,8 @@ class OperationsDocumentationTests(unittest.TestCase):
             self.assertIn(token, self.database_configuration)
 
         for readme in (
-            PROJECT_ROOT / "README.md",
             PROJECT_ROOT / "apps/api/README.md",
+            PROJECT_ROOT / "docs/README.md",
         ):
             self.assertIn("database-configuration.md", readme.read_text(encoding="utf-8"))
 
@@ -56,6 +56,7 @@ class OperationsDocumentationTests(unittest.TestCase):
             "pnpm run dev:down",
             "PostgreSQL",
             "RustFS",
+            "Valkey",
             "自动读取 `apps/api/.env`",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:rustfs:up",
@@ -71,7 +72,7 @@ class OperationsDocumentationTests(unittest.TestCase):
 
         for document in (PROJECT_ROOT / "AGENTS.md", PROJECT_ROOT / "README.md"):
             self.assertIn(
-                "docs/ai-development-environment.md",
+                "docs/development/ai-environment.md",
                 document.read_text(encoding="utf-8"),
             )
 
@@ -158,6 +159,7 @@ class OperationsDocumentationTests(unittest.TestCase):
         deploy_environment = DEPLOY_ENVIRONMENT.read_text(encoding="utf-8")
 
         for token in (
+            "IMS_BACKOFFICE_JWT_SECRET",
             "IMS_JWT_SECRET",
             "IMS_SUPER_ADMIN_USERNAME",
             "IMS_OBJECT_STORAGE",
@@ -169,7 +171,9 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
             self.assertIn(token, web_environment)
         for token in (
-            "COMPOSE_PROFILES=local-storage",
+            "COMPOSE_PROFILES=local-cache,local-storage",
+            "IMS_VALKEY_IMAGE",
+            "IMS_CACHE_BACKEND",
             "IMS_POSTGRES_IMAGE",
             "IMS_RUSTFS_IMAGE",
             "IMS_RUSTFS_BUCKET",
@@ -182,6 +186,7 @@ class OperationsDocumentationTests(unittest.TestCase):
         self.assertNotIn("IMS_NGINX_IMAGE", api_environment)
         self.assertNotIn("IMS_NGINX_IMAGE", deploy_environment)
         self.assertNotIn("IMS_NODE_UPSTREAM", deploy_environment)
+        self.assertNotIn("IMS_BACKOFFICE_JWT_SECRET", web_environment)
         self.assertNotIn("IMS_JWT_SECRET", web_environment)
         self.assertNotIn("IMS_LEGACY", deploy_environment)
 
@@ -297,16 +302,12 @@ class OperationsDocumentationTests(unittest.TestCase):
             self.assertIn(token, self.producer_map_sql)
 
         for token in (
-            "imsweb-media-public-prod",
-            "test -z \"${IMS_S3_PREFIX:-}\"",
-            "pg_dump --format=custom",
+            "pnpm run media:producer-map:sync",
+            "pnpm run media:producer-map:sync -- --apply",
             "producer-map-r2-control-plane.sql",
-            "pnpm run test:r2:producer-map",
-            "参数层禁止 `--apply`",
-            "configStatus=unchanged",
-            "objects.unchanged=43",
-            "不要追加 `--apply`",
-            "禁止只删数据库或只删 R2",
+            "ObjectStorage",
+            "SHA-256",
+            "只删数据库或只删对象存储",
         ):
             self.assertIn(token, self.producer_map_migration)
 

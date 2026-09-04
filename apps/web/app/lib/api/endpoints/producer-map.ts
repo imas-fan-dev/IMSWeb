@@ -1,114 +1,76 @@
-import { z } from "zod"
-
+import { adminApiPath, apiPath, mapsPath } from "@imsweb/contracts/paths"
+import { parsed } from "../parsed"
+import { adminApiClient } from "../admin-client"
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   STABLE_CONTENT_CACHE_FOR,
 } from "../cache-policy"
+import { bundleAssetClient } from "../bundle-client"
 import { apiClient } from "../client"
-import { withCsrf } from "../types"
+import {
+  normalizeProducerMapAdminSnapshot,
+  normalizeProducerMapAdminUpdate,
+  normalizeProducerMapContent,
+} from "../media-urls"
+import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 
-export const producerMapSeriesSchema = z.enum([
-  "all",
-  "765",
-  "cg",
-  "ml",
-  "sidem",
-  "sc",
-  "gakuen",
-])
+import {
+  producerMapAdminSnapshotSchema,
+  producerMapAdminUpdateSchema,
+  producerMapContentSchema,
+  producerMapGeometrySchema,
+  producerMapImageUploadSchema,
+} from "@imsweb/contracts/producer-map"
 
-const producerMapRegionSchema = z.object({
-  id: z.string(),
-  province: z.string(),
-  name: z.string(),
-  summary: z.string(),
-  contact: z.string(),
-  linkUrl: z.string().nullable(),
-  imageUrl: z.string().nullable(),
-  series: producerMapSeriesSchema,
-  enabled: z.boolean(),
-})
+export {
+  producerMapSeriesSchema,
+  producerMapRegionSchema,
+  producerMapCommunitySchema,
+  producerMapContentSchema,
+  producerMapAdminSnapshotSchema,
+  producerMapAdminUpdateSchema,
+  producerMapImageUploadSchema,
+  producerMapGeometrySchema,
+} from "@imsweb/contracts/producer-map"
+export type * from "@imsweb/contracts/producer-map"
 
-const producerMapCommunitySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  platform: z.string(),
-  region: z.string().nullable(),
-  description: z.string(),
-  contact: z.string(),
-  linkUrl: z.string().nullable(),
-  imageUrl: z.string().nullable(),
-  series: producerMapSeriesSchema,
-  enabled: z.boolean(),
-})
+import type { ProducerMapContent } from "@imsweb/contracts/producer-map"
 
-export const producerMapContentSchema = z.object({
-  version: z.literal(1),
-  title: z.string(),
-  subtitle: z.string(),
-  introduction: z.string(),
-  directoryTitle: z.string(),
-  mapSourceLabel: z.string(),
-  mapSourceUrl: z.string().url(),
-  regions: z.array(producerMapRegionSchema),
-  communities: z.array(producerMapCommunitySchema),
-  updatedAt: z.string().datetime().nullable(),
-})
-
-const producerMapAdminSnapshotSchema = z.object({
-  content: producerMapContentSchema.nullable(),
-  revision: z.string().nullable(),
-})
-
-const producerMapAdminUpdateSchema = z.object({
-  success: z.literal(true),
-  content: producerMapContentSchema,
-  revision: z.string(),
-})
-
-const producerMapImageUploadSchema = z.object({
-  success: z.literal(true),
-  url: z.string(),
-})
-
-const producerMapGeometrySchema = z.object({
-  type: z.literal("FeatureCollection"),
-  features: z.array(z.unknown()),
-})
-
-export type ProducerMapSeries = z.infer<typeof producerMapSeriesSchema>
-export type ProducerMapRegion = z.infer<typeof producerMapRegionSchema>
-export type ProducerMapCommunity = z.infer<typeof producerMapCommunitySchema>
-export type ProducerMapContent = z.infer<typeof producerMapContentSchema>
-export type ProducerMapAdminSnapshot = z.infer<
-  typeof producerMapAdminSnapshotSchema
->
-export type ProducerMapGeometry = z.infer<typeof producerMapGeometrySchema>
-
+/**
+ * Province geometry for the ECharts map.
+ *
+ * `apps/web/public/maps/china-provinces.json` ships inside the web bundle, not
+ * with the API, so this goes through `bundleAssetClient` and stays relative to
+ * the document. Through an API client it would gain `VITE_IMS_API_ORIGIN` in a
+ * packaged build and 404, leaving the map with no geometry to draw.
+ */
 export function getProducerMapGeometry() {
-  return apiClient.Get<ProducerMapGeometry, unknown>(
-    "/maps/china-provinces.json",
-    {
+  return bundleAssetClient.Get(
+    mapsPath("/china-provinces.json"),
+    parsed(producerMapGeometrySchema, {
       cacheFor: STABLE_CONTENT_CACHE_FOR,
-      transform: (payload) => producerMapGeometrySchema.parse(payload),
-    }
+    })
   )
 }
 
 export function getProducerMapContent() {
-  return apiClient.Get<ProducerMapContent, unknown>("/api/producer-map", {
-    cacheFor: STABLE_CONTENT_CACHE_FOR,
-    hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
-    transform: (payload) => producerMapContentSchema.parse(payload),
-  })
+  return apiClient.Get(
+    apiPath("/producer-map"),
+    parsed(producerMapContentSchema, {
+      cacheFor: STABLE_CONTENT_CACHE_FOR,
+      hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
+      select: normalizeProducerMapContent,
+    })
+  )
 }
 
 export function getAdminProducerMapContent() {
-  return apiClient.Get<ProducerMapAdminSnapshot, unknown>(
-    "/api/admin/producer-map",
-    {
-      transform: (payload) => producerMapAdminSnapshotSchema.parse(payload),
-    }
+  return adminApiClient.Get(
+    adminApiPath("/producer-map"),
+    parsed(producerMapAdminSnapshotSchema, {
+      meta: withBackofficeAuth(),
+      select: normalizeProducerMapAdminSnapshot,
+    })
   )
 }
 
@@ -116,26 +78,25 @@ export function updateAdminProducerMapContent(
   content: ProducerMapContent,
   revision: string | null
 ) {
-  return apiClient.Put<z.infer<typeof producerMapAdminUpdateSchema>, unknown>(
-    "/api/admin/producer-map",
+  return adminApiClient.Put(
+    adminApiPath("/producer-map"),
     { content, revision },
-    {
-      meta: withCsrf(),
+    parsed(producerMapAdminUpdateSchema, {
+      meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
-      transform: (payload) => producerMapAdminUpdateSchema.parse(payload),
-    }
+      select: normalizeProducerMapAdminUpdate,
+    })
   )
 }
 
 export function uploadAdminProducerMapImage(file: File) {
   const form = new FormData()
   form.append("image", file)
-  return apiClient.Post<z.infer<typeof producerMapImageUploadSchema>, unknown>(
-    "/api/admin/producer-map/images",
+  return adminApiClient.Post(
+    adminApiPath("/producer-map/images"),
     form,
-    {
-      meta: withCsrf(),
-      transform: (payload) => producerMapImageUploadSchema.parse(payload),
-    }
+    parsed(producerMapImageUploadSchema, {
+      meta: withBackofficeCsrf(),
+    })
   )
 }

@@ -12,6 +12,9 @@ const { Pool } = require('pg');
 const sharp = require('sharp');
 const { migratePostgres } = require('../scripts/migration/postgres-migrations.js');
 const {
+    legacyMediaObjectKey
+} = require('../scripts/migration/namecard-unification-reconcile.js');
+const {
     assertCoreAuthContract,
     assertMediaRangeContract,
     assertMultipartParserContract,
@@ -47,6 +50,12 @@ let server;
 let tempDir;
 let validJpeg;
 let validPng;
+// cards.id is not 1-based on a migrated database: the unification migration
+// advances cards_id_seq, so the seeded fixtures claim whatever numbers the
+// sequence hands out. Every card-scoped assertion below uses these instead of
+// hardcoded ids.
+let approvedCardId;
+let pendingCardId;
 
 function run(db, sql, params = []) {
     return db.query(translateParameters(sql), params).then((result) => ({
@@ -62,6 +71,47 @@ function get(db, sql, params = []) {
 function translateParameters(sql) {
     let index = 0;
     return sql.replace(/\?/g, () => `$${++index}`);
+}
+
+// Production keeps both namecard tables populated:
+// 20260819000000_namecard_unification_foundation.sql backfilled every legacy
+// card into fudaba_cards, and 20260826130000_namecard_legacy_tables_read_only.sql
+// then froze cards as a read-only archive. Application reads resolve through
+// fudaba_cards (NAMECARD_COMPAT_ORIGIN, card_number), while claim creation and
+// the admin claim-review queue still join cards, so a fixture card only behaves
+// like production once both rows exist. The compat column mapping below mirrors
+// that backfill exactly, including its unconditional media_rights_status
+// 'approved' -- required by fudaba_cards' CHECK that a published row carry
+// approved media rights.
+async function seedLegacyNamecard(db, card) {
+    const { frontUrl, backUrl, hash1 = null, hash2 = null, ip = null, status } = card;
+    const inserted = await run(
+        db,
+        `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
+         VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+        [frontUrl, backUrl, hash1, hash2, ip, status]
+    );
+    const legacyId = inserted.lastID;
+    await run(
+        db,
+        `INSERT INTO fudaba_cards
+            (id, card_number, origin, producer_name, display_name,
+             series_code, favorite_idol, accent, bio, trade_note,
+             front_object_key, back_object_key, available,
+             media_rights_status, publication_status, legacy_card_id,
+             revision, created_at, updated_at, deleted_at)
+         VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                 ?, ?, FALSE, 'approved', ?, NULL, 0, CURRENT_TIMESTAMP,
+                 CURRENT_TIMESTAMP, NULL)`,
+        [
+            `legacy-${legacyId}`,
+            legacyId,
+            legacyMediaObjectKey(frontUrl),
+            legacyMediaObjectKey(backUrl),
+            status === 'approved' ? 'published' : status
+        ]
+    );
+    return legacyId;
 }
 
 function jwtPart(value) {
@@ -147,6 +197,13 @@ before(async () => {
     databaseUrl = parsedDatabaseUrl.toString();
     await migratePostgres({ connectionString: databaseUrl });
     fixturePool = new Pool({ connectionString: databaseUrl, allowExitOnIdle: true });
+    // The namecard_legacy_tables_read_only migration locks cards and
+    // card_emojis down for the application; this suite seeds and mutates
+    // legacy rows directly to exercise the endpoints that still read them,
+    // so it bypasses that guard the same way the reconciliation and
+    // claim-review fixtures do.
+    await run(fixturePool, 'ALTER TABLE public.cards DISABLE TRIGGER ALL');
+    await run(fixturePool, 'ALTER TABLE public.card_emojis DISABLE TRIGGER ALL');
     const passwordHash = await bcrypt.hash('test-password', 4);
 
     for (let id = 1; id <= 3; id += 1) {
@@ -164,18 +221,22 @@ before(async () => {
             ]
         );
     }
-    await run(
-        fixturePool,
-        `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [APPROVED_FRONT_URL, APPROVED_BACK_URL, 'private-hash-1', 'private-hash-2', '203.0.113.8', 'approved']
-    );
-    await run(
-        fixturePool,
-        `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [PENDING_FRONT_URL, PENDING_BACK_URL, 'pending-hash-1', 'pending-hash-2', '198.51.100.9', 'pending']
-    );
+    approvedCardId = await seedLegacyNamecard(fixturePool, {
+        frontUrl: APPROVED_FRONT_URL,
+        backUrl: APPROVED_BACK_URL,
+        hash1: 'private-hash-1',
+        hash2: 'private-hash-2',
+        ip: '203.0.113.8',
+        status: 'approved'
+    });
+    pendingCardId = await seedLegacyNamecard(fixturePool, {
+        frontUrl: PENDING_FRONT_URL,
+        backUrl: PENDING_BACK_URL,
+        hash1: 'pending-hash-1',
+        hash2: 'pending-hash-2',
+        ip: '198.51.100.9',
+        status: 'pending'
+    });
     await run(
         fixturePool,
         'INSERT INTO users (username, password, dept, producername) VALUES (?, ?, ?, ?)',
@@ -261,6 +322,7 @@ test('sensitive files and virtual environments are blocked before static serving
         '/assets/images/eventchronicle/events/.idempotency/private.json',
         '/icon/title(1).7z',
         '/venv/lib/python/site.py',
+        // pi-lens-ignore: typos
         '/3250ee7dc65bd965bbd1529ba5c2d732_venv/get-pip.py',
         '/%2561pp.py'
     ];
@@ -360,13 +422,13 @@ test('public card endpoints only expose approved non-sensitive data', async () =
         assert.equal(Object.hasOwn(page.list[0], privateField), false, privateField);
     }
 
-    const approvedResponse = await fetch(`${baseUrl}/api/card/1`);
+    const approvedResponse = await fetch(`${baseUrl}/api/card/${approvedCardId}`);
     assert.deepEqual(await approvedResponse.json(), {
         image1_url: APPROVED_FRONT_URL,
         image2_url: APPROVED_BACK_URL
     });
 
-    const pendingResponse = await fetch(`${baseUrl}/api/card/2`);
+    const pendingResponse = await fetch(`${baseUrl}/api/card/${pendingCardId}`);
     assert.deepEqual(await pendingResponse.json(), {});
 });
 
@@ -408,7 +470,7 @@ test('spoofed image uploads are rejected without leaving files behind', async ()
     form.append('images', new Blob(['not an image'], { type: 'image/jpeg' }), 'front.jpg');
     form.append('images', new Blob(['still not an image'], { type: 'image/jpeg' }), 'back.jpg');
 
-    const response = await fetch(`${baseUrl}/api/uploadNameCard`, {
+    const response = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
         method: 'POST',
         body: form
     });
@@ -503,81 +565,32 @@ test('news publishing rejects missing bodies and unsafe links', async () => {
     assert.equal((await fetch(`${baseUrl}/api/news`)).status, 200);
 });
 
-test('information management hosts images and publishes sandboxed HTML content', async () => {
+test('legacy information remains public while management points to community posts', async () => {
     const token = await getOpToken();
     const auth = { authorization: `Bearer ${token}` };
     const unauthorized = await fetch(`${baseUrl}/api/admin/information`);
     assert.equal(unauthorized.status, 401);
 
-    const upload = new FormData();
-    upload.append('image', new Blob([validPng], { type: 'image/png' }), 'contract-cover.png');
-    const uploaded = await fetch(`${baseUrl}/api/admin/information/assets`, {
-        method: 'POST',
-        headers: auth,
-        body: upload
-    });
-    assert.equal(uploaded.status, 200);
-    const assetUrl = (await uploaded.json()).url;
-    assert.match(assetUrl, /^\/uploads\/information\/original\/.+\.webp$/);
-    const publicAsset = await fetch(`${baseUrl}${assetUrl}`);
-    assert.equal(publicAsset.status, 200);
-    assert.equal(publicAsset.headers.get('content-type'), 'image/webp');
-
-    const created = await fetch(`${baseUrl}/api/admin/information`, {
+    const retired = await fetch(`${baseUrl}/api/admin/information`, {
         method: 'POST',
         headers: { ...auth, 'content-type': 'application/json' },
-        body: JSON.stringify({
-            title: 'Node HTML contract',
-            category: 'activity',
-            contentType: 'html',
-            externalUrl: '',
-            html: `<h2>Hosted HTML</h2><img src="${assetUrl}">`,
-            image: assetUrl
-        })
+        body: JSON.stringify({ title: 'retired information endpoint' })
     });
-    assert.equal(created.status, 200);
-    const createdCard = (await created.json()).card;
+    assert.equal(retired.status, 410);
+    assert.match(
+        (await retired.json()).error,
+        /已整合至社区帖子.*\/api\/admin\/community-posts/
+    );
 
     const publicIndex = await fetch(`${baseUrl}/api/information`);
     assert.equal(publicIndex.status, 200);
-    const summary = (await publicIndex.json()).cards.find(card => card.id === createdCard.id);
-    assert.equal(summary.title, 'Node HTML contract');
-    assert.equal('html' in summary, false);
-
-    const detail = await fetch(`${baseUrl}/api/information/${createdCard.id}`);
-    assert.equal(detail.status, 200);
-    assert.match((await detail.json()).card.html, /Hosted HTML/);
-
-    const document = await fetch(`${baseUrl}/information/${createdCard.id}/content`);
-    assert.equal(document.status, 200);
-    assert.match(document.headers.get('content-type'), /^text\/html/);
-    assert.match(document.headers.get('content-security-policy'), /script-src 'none'/);
-    assert.equal(document.headers.get('x-frame-options'), 'SAMEORIGIN');
-    assert.match(await document.text(), /Hosted HTML/);
-
-    const removed = await fetch(`${baseUrl}/api/admin/information/${createdCard.id}`, {
-        method: 'DELETE',
-        headers: auth
-    });
-    assert.equal(removed.status, 200);
-    assert.equal(
-        (await fetch(`${baseUrl}/information/${createdCard.id}/content`)).status,
-        404
-    );
-    const removedAsset = await fetch(`${baseUrl}/api/admin/information/assets`, {
-        method: 'DELETE',
-        headers: { ...auth, 'content-type': 'application/json' },
-        body: JSON.stringify({ url: assetUrl })
-    });
-    assert.equal(removedAsset.status, 200);
-    assert.equal((await fetch(`${baseUrl}${assetUrl}`)).status, 404);
 });
 
 test('reactions require an approved card and a supported value', async () => {
     const unsupported = await fetch(`${baseUrl}/api/reactions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: 1, emoji: 'not-allowed' })
+        body: JSON.stringify({ id: Number(approvedCardId), emoji: 'not-allowed' })
     });
     assert.equal(unsupported.status, 400);
 
@@ -591,11 +604,11 @@ test('reactions require an approved card and a supported value', async () => {
     const accepted = await fetch(`${baseUrl}/api/reactions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: 1, emoji: '👍' })
+        body: JSON.stringify({ id: Number(approvedCardId), emoji: '👍' })
     });
     assert.equal(accepted.status, 200);
 
-    const listed = await fetch(`${baseUrl}/api/reactions?id=1`);
+    const listed = await fetch(`${baseUrl}/api/reactions?id=${approvedCardId}`);
     assert.equal(listed.status, 200);
     assert.equal((await listed.json())['👍'], 1);
 });
@@ -638,12 +651,14 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
         fs.writeFileSync(target, validPng);
         fs.writeFileSync(namecardThumbnailObjectPath(mediaUrl), validJpeg);
     }
-    const inserted = await run(
-        fixturePool,
-        `INSERT INTO cards (image1_url, image2_url, hash1, hash2, ip, status)
-         VALUES (?, ?, ?, ?, ?, 'pending') RETURNING id`,
-        [contractFrontUrl, contractBackUrl, 'contract-front', 'contract-back', '127.0.0.1']
-    );
+    const contractCardId = await seedLegacyNamecard(fixturePool, {
+        frontUrl: contractFrontUrl,
+        backUrl: contractBackUrl,
+        hash1: 'contract-front',
+        hash2: 'contract-back',
+        ip: '127.0.0.1',
+        status: 'pending'
+    });
 
     const request = (requestPath, init) => fetch(`${baseUrl}${requestPath}`, init);
     try {
@@ -651,7 +666,7 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
             runtime: 'Node',
             expectedUser: user,
             request,
-            cookieMutationPath: `/api/admin/cards/approve/${inserted.lastID}`,
+            cookieMutationPath: `/api/admin/cards/approve/${contractCardId}`,
             cookieMutationContentType: 'application/json',
             cookieMutationBody: JSON.stringify({ expected_revision: 0 }),
             secureCookies: false,
@@ -672,18 +687,31 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
                 };
             },
             async assertMutationState(state) {
-                const row = await get(fixturePool, 'SELECT status FROM cards WHERE id=?', [inserted.lastID]);
-                assert.equal(row.status, state === 'before' ? 'pending' : 'approved');
+                // Approval writes fudaba_cards; cards is a frozen archive.
+                // publication_status keeps the unified vocabulary, so the
+                // legacy 'approved' reads back as 'published' here.
+                const row = await get(
+                    fixturePool,
+                    'SELECT publication_status FROM fudaba_cards WHERE card_number=?',
+                    [contractCardId]
+                );
+                assert.equal(row.publication_status, state === 'before' ? 'pending' : 'published');
             },
             async resetMutation() {
-                await run(fixturePool, "UPDATE cards SET status='pending', revision=0 WHERE id=?", [inserted.lastID]);
+                await run(
+                    fixturePool,
+                    `UPDATE fudaba_cards SET publication_status='pending', revision=0
+                     WHERE card_number=?`,
+                    [contractCardId]
+                );
             },
             setCookies(response) {
                 return response.headers.getSetCookie();
             }
         });
     } finally {
-        await run(fixturePool, 'DELETE FROM cards WHERE id=?', [inserted.lastID]);
+        await run(fixturePool, 'DELETE FROM fudaba_cards WHERE card_number=?', [contractCardId]);
+        await run(fixturePool, 'DELETE FROM cards WHERE id=?', [contractCardId]);
         for (const mediaUrl of [contractFrontUrl, contractBackUrl]) {
             const target = namecardObjectPath(mediaUrl);
             fs.rmSync(path.dirname(target), { recursive: true, force: true });
@@ -694,23 +722,32 @@ test('[AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and fi
 test('[AUTH-01] Node and WebCrypto JWTs interoperate and invalid token classes stay rejected', async () => {
     const secret = process.env.IMS_JWT_SECRET;
     const now = Math.floor(Date.now() / 1000);
+    const nodeSession = await getOpSession();
+    const nodeClaims = JSON.parse(
+        Buffer.from(nodeSession.token.split('.')[1], 'base64url').toString('utf8')
+    );
+    assert.equal(typeof nodeClaims.iss, 'string');
+    assert.equal(nodeClaims.aud, 'ims-backoffice');
+    assert.equal(nodeClaims.kind, 'backoffice');
     const claims = {
         id: 1,
         username: 'webcrypto-minted-op',
         producername: 'WebCrypto Minted',
         dept: 'op',
         csrfSecret: 'webcrypto-minted-csrf',
+        iss: nodeClaims.iss,
+        aud: 'ims-backoffice',
+        kind: 'backoffice',
         iat: now,
         exp: now + 600
     };
     const webCryptoMinted = await signJwtWithWebCrypto({ alg: 'HS256', typ: 'JWT' }, claims, secret);
-    const accepted = await fetch(`${baseUrl}/api/check`, {
+    const accepted = await fetch(`${baseUrl}/api/admin/auth/session`, {
         headers: { Authorization: `Bearer ${webCryptoMinted}` }
     });
     assert.equal(accepted.status, 200);
     assert.equal((await accepted.json()).user.username, 'webcrypto-minted-op');
 
-    const nodeSession = await getOpSession();
     assert.equal(await verifyJwtWithWebCrypto(nodeSession.token, secret), true);
 
     await assertRejectedJwtContract({
@@ -723,8 +760,26 @@ test('[AUTH-01] Node and WebCrypto JWTs interoperate and invalid token classes s
             expired: await signJwtWithWebCrypto(
                 { alg: 'HS256', typ: 'JWT' }, { ...claims, iat: now - 120, exp: now - 60 }, secret
             ),
-            'missing-claim': await signJwtWithWebCrypto(
+            'missing-CSRF-claim': await signJwtWithWebCrypto(
                 { alg: 'HS256', typ: 'JWT' }, { ...claims, csrfSecret: undefined }, secret
+            ),
+            'missing-issuer': await signJwtWithWebCrypto(
+                { alg: 'HS256', typ: 'JWT' }, { ...claims, iss: undefined }, secret
+            ),
+            'wrong-issuer': await signJwtWithWebCrypto(
+                { alg: 'HS256', typ: 'JWT' }, { ...claims, iss: `${claims.iss}-other` }, secret
+            ),
+            'missing-audience': await signJwtWithWebCrypto(
+                { alg: 'HS256', typ: 'JWT' }, { ...claims, aud: undefined }, secret
+            ),
+            'platform-audience': await signJwtWithWebCrypto(
+                { alg: 'HS256', typ: 'JWT' }, { ...claims, aud: 'ims-platform' }, secret
+            ),
+            'missing-kind': await signJwtWithWebCrypto(
+                { alg: 'HS256', typ: 'JWT' }, { ...claims, kind: undefined }, secret
+            ),
+            'platform-kind': await signJwtWithWebCrypto(
+                { alg: 'HS256', typ: 'JWT' }, { ...claims, kind: 'platform' }, secret
             ),
             'wrong-secret': await signJwtWithWebCrypto(
                 { alg: 'HS256', typ: 'JWT' }, claims, 'wrong-secret-that-is-at-least-32-bytes'
@@ -734,21 +789,22 @@ test('[AUTH-01] Node and WebCrypto JWTs interoperate and invalid token classes s
 });
 
 test('[CORE-01] shared reaction contract runs against Node PostgreSQL', async () => {
-    const inserted = await run(
-        fixturePool,
-        `INSERT INTO cards (image1_url, image2_url, status)
-         VALUES ('/contract-reaction-front.webp', '/contract-reaction-back.webp', 'approved')
-         RETURNING id`
-    );
+    const reactionCardId = await seedLegacyNamecard(fixturePool, {
+        frontUrl: '/contract-reaction-front.webp',
+        backUrl: '/contract-reaction-back.webp',
+        status: 'approved'
+    });
     try {
         await assertReactionContract({
             runtime: 'Node',
-            cardId: inserted.lastID,
+            cardId: reactionCardId,
             request: (requestPath, init) => fetch(`${baseUrl}${requestPath}`, init)
         });
     } finally {
-        await run(fixturePool, 'DELETE FROM card_emojis WHERE card_id=?', [inserted.lastID]);
-        await run(fixturePool, 'DELETE FROM cards WHERE id=?', [inserted.lastID]);
+        await run(fixturePool, 'DELETE FROM namecard_reactions WHERE card_id=?', [`legacy-${reactionCardId}`]);
+        await run(fixturePool, 'DELETE FROM card_emojis WHERE card_id=?', [reactionCardId]);
+        await run(fixturePool, 'DELETE FROM fudaba_cards WHERE card_number=?', [reactionCardId]);
+        await run(fixturePool, 'DELETE FROM cards WHERE id=?', [reactionCardId]);
     }
 });
 
@@ -1006,7 +1062,7 @@ test('public upload limiter rejects before Multer writes to disk', async () => {
     for (let attempt = 0; attempt < 35; attempt += 1) {
         const form = new FormData();
         form.append('images', new Blob(['invalid'], { type: 'text/plain' }), 'invalid.txt');
-        const response = await fetch(`${baseUrl}/api/uploadNameCard`, {
+        const response = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
             method: 'POST',
             body: form
         });
@@ -1022,7 +1078,7 @@ test('public upload limiter rejects before Multer writes to disk', async () => {
     const validNamecard = new FormData();
     validNamecard.append('images', new Blob([validPng], { type: 'image/png' }), 'front.png');
     validNamecard.append('images', new Blob([validPng], { type: 'image/png' }), 'back.png');
-    const namecardResponse = await fetch(`${baseUrl}/api/uploadNameCard`, {
+    const namecardResponse = await fetch(`${baseUrl}/api/community/exchange/guest-submissions`, {
         method: 'POST',
         body: validNamecard
     });
@@ -1144,9 +1200,10 @@ test('news publishing does not write an audit record when user lookup fails', as
     assert.equal(afterRow.total, beforeRow.total);
 });
 
-test('production refuses to load without IMS_JWT_SECRET', () => {
+test('production refuses to load without IMS_BACKOFFICE_JWT_SECRET', () => {
     const script = `require(${JSON.stringify(SERVER_ENTRY)})`;
     const env = { ...process.env, NODE_ENV: 'production' };
+    delete env.IMS_BACKOFFICE_JWT_SECRET;
     delete env.IMS_JWT_SECRET;
 
     const result = spawnSync(process.execPath, ['-e', script], {
@@ -1156,11 +1213,12 @@ test('production refuses to load without IMS_JWT_SECRET', () => {
     });
 
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /IMS_JWT_SECRET is required/);
+    assert.match(result.stderr, /IMS_BACKOFFICE_JWT_SECRET is required/);
 });
 
 test('production NODE_ENV is normalized before fail-fast checks', () => {
     const env = { ...process.env, NODE_ENV: ' Production ' };
+    delete env.IMS_BACKOFFICE_JWT_SECRET;
     delete env.IMS_JWT_SECRET;
     const result = spawnSync(process.execPath, ['-e', `require(${JSON.stringify(SERVER_ENTRY)})`], {
         cwd: os.tmpdir(),
@@ -1168,7 +1226,7 @@ test('production NODE_ENV is normalized before fail-fast checks', () => {
         encoding: 'utf8'
     });
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /IMS_JWT_SECRET is required/);
+    assert.match(result.stderr, /IMS_BACKOFFICE_JWT_SECRET is required/);
 });
 
 test('unknown NODE_ENV values fail fast', () => {
@@ -1181,12 +1239,12 @@ test('unknown NODE_ENV values fail fast', () => {
     assert.match(result.stderr, /NODE_ENV must be/);
 });
 
-test('production refuses a short IMS_JWT_SECRET', () => {
+test('production refuses a short IMS_BACKOFFICE_JWT_SECRET', () => {
     const script = `require(${JSON.stringify(SERVER_ENTRY)})`;
     const env = {
         ...process.env,
         NODE_ENV: 'production',
-        IMS_JWT_SECRET: 'too-short'
+        IMS_BACKOFFICE_JWT_SECRET: 'too-short'
     };
 
     const result = spawnSync(process.execPath, ['-e', script], {
@@ -1204,7 +1262,8 @@ test('production JWT secret length is measured in UTF-8 bytes', () => {
     const env = {
         ...process.env,
         NODE_ENV: 'production',
-        IMS_JWT_SECRET: '😀'.repeat(8),
+        IMS_BACKOFFICE_JWT_SECRET: '😀'.repeat(8),
+        IMS_PLATFORM_JWT_SECRET: '平台'.repeat(6),
         DATABASE_URL: databaseUrl,
         IMS_EVENT_BASE_DIR: path.join(tempDir, 'utf8-secret-events')
     };

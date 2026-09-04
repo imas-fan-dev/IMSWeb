@@ -33,12 +33,12 @@ describe("home content", () => {
       "/works/gakuen",
     ])
     expect(seriesItems.map((item) => item.icon)).toEqual([
-      "/brand/series/765pro.png",
-      "/brand/series/cinderella-girls.png",
-      "/brand/series/million-live.png",
-      "/brand/series/sidem.png",
-      "/brand/series/shiny-colors.png",
-      "/brand/series/gakuen.png",
+      "/brand/series/wall/765pro.webp",
+      "/brand/series/wall/cinderella-girls.webp",
+      "/brand/series/wall/million-live.webp",
+      "/brand/series/wall/sidem.webp",
+      "/brand/series/wall/shiny-colors.webp",
+      "/brand/series/wall/gakuen.webp",
     ])
   })
 })

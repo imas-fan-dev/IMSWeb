@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
-import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
 import {
     decodeDescendingIdCursor,
     encodeDescendingIdCursor
@@ -30,13 +30,10 @@ interface NewsFixture {
 
 async function createFixture(t: TestContext, count: number): Promise<NewsFixture> {
     const connection = await createPostgresTestDatabase(t, 'news-pagination');
-    const core = new SqlCoreRepository(
-        connection,
-        new PostgresqlSchemaStrategy()
-    );
-    await core.initialize();
+    await new PostgresqlSchemaStrategy().initializeCore(connection);
+    const repository = new SqlNewsRepository(connection);
     for (let id = 1; id <= count; id += 1) {
-        await core.insertNews({
+        await repository.insertNews({
             title: `News ${id}`,
             image: `/uploads/news/original/${id}.webp`,
             thumbnail: `/uploads/news/thumb/${id}.webp`,
@@ -45,14 +42,14 @@ async function createFixture(t: TestContext, count: number): Promise<NewsFixture
             author: 'Fixture'
         });
     }
-    const app = createHonoApp(() => ({ news: core }));
-    t.after(() => core.close());
+    const app = createHonoApp(() => ({ news: repository }));
+    t.after(() => connection.close());
     return {
         request(pathname) {
             return Promise.resolve(app.request(`http://ims.test${pathname}`));
         },
         insert(title) {
-            return core.insertNews({
+            return repository.insertNews({
                 title,
                 image: '/uploads/news/original/new.webp',
                 thumbnail: '/uploads/news/thumb/new.webp',

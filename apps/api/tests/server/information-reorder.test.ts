@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
-import { parseInformationIndex, serializeInformationIndex } from '@/domains/information/data';
+import { parseInformationIndex, serializeInformationIndex } from '@/domains/content/information/data';
 import type {
     ListedObject,
     ObjectStorage,
@@ -51,7 +51,7 @@ class MemoryStorage implements ObjectStorage {
     deletePrefix(): Promise<void> { return Promise.resolve(); }
 }
 
-test('information reorder persists exact card order and rejects incomplete inventories', async () => {
+test('Information admin reordering is retired after community post unification', async () => {
     const storage = new MemoryStorage();
     const image = '/uploads/information/original/cover.webp';
     const card = (id: string, title: string) => ({
@@ -74,7 +74,7 @@ test('information reorder persists exact card order and rejects incomplete inven
             insertAuditLog: async () => undefined,
             listRecentAuditLogs: async () => []
         },
-        tokens: {
+        backofficeTokens: {
             sign: async () => 'op-token',
             verify: async () => ({
                 id: 1,
@@ -95,10 +95,13 @@ test('information reorder persists exact card order and rejects incomplete inven
         body: JSON.stringify({ ids })
     });
 
-    assert.equal((await request(['information-second'])).status, 409);
-    assert.equal((await request(['information-second', 'information-first'])).status, 200);
+    const response = await request(['information-second', 'information-first']);
+    assert.equal(response.status, 410);
+    assert.deepEqual(await response.json(), {
+        error: '活动资讯后台已整合至社区帖子，请使用 /api/admin/community-posts'
+    });
     assert.deepEqual(
         parseInformationIndex(storage.object!.body).cards.map((item) => item.id),
-        ['information-second', 'information-first']
+        ['information-first', 'information-second']
     );
 });

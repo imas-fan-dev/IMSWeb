@@ -119,7 +119,11 @@ describe("StoryManagementPage", () => {
       const url = new URL(request.url, window.location.origin)
       if (url.pathname === "/api/admin/wiki/catalog") return json(catalog)
       if (url.pathname === "/api/admin/wiki/story-source-catalog") {
-        return json({ status: "success", contentTypes: [], sourcePlatforms: [] })
+        return json({
+          status: "success",
+          contentTypes: [],
+          sourcePlatforms: [],
+        })
       }
       if (url.pathname.endsWith("/story-cover-assets")) {
         return json({

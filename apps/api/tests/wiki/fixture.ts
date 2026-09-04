@@ -1,5 +1,5 @@
 import { createHonoApp } from '@/app';
-import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -1484,7 +1484,7 @@ export function createWikiFixture(): WikiFixture {
     const storage = new MemoryObjectStorage();
     const images = new FixtureImageProcessor();
     const uploads = new FixtureUploadParser();
-    const tokens = new HmacTokenService('wiki-contract-secret-that-is-longer-than-thirty-two-bytes');
+    const tokens = new HmacBackofficeTokenService('wiki-contract-secret-that-is-longer-than-thirty-two-bytes');
     const staticRequests: string[] = [];
     const auditLogs: Array<{ action: string; target: string }> = [];
     const services: RuntimeServices = {
@@ -1492,7 +1492,7 @@ export function createWikiFixture(): WikiFixture {
         storage,
         images,
         uploads,
-        tokens,
+        backofficeTokens: tokens,
         audit: {
             async insertAuditLog(input) {
                 auditLogs.push({ action: input.action, target: input.target });

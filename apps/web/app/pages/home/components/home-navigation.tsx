@@ -1,71 +1,23 @@
-import { ArrowRightIcon, ExternalLinkIcon } from "lucide-react"
+import { ExternalLinkIcon } from "lucide-react"
 
+import { homepageLinkAccentClasses } from "~/components/homepage/homepage-link-options"
 import {
-  homepageLinkAccentClasses,
-  homepageLinkIcons,
-} from "~/components/homepage/homepage-link-options"
+  HomepageLinkGrid,
+  HomepageLinkGridSkeleton,
+  isExternalHomepageLink,
+} from "~/components/homepage/homepage-links"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
 import type { HomepageLink } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { useHomepageLinks } from "../hooks/use-homepage-links"
 
-function isExternalLink(href: string) {
-  return href.startsWith("http://") || href.startsWith("https://")
-}
-
-function PortalLink({ item }: { item: HomepageLink }) {
-  const Icon = homepageLinkIcons[item.icon]
-  const external = isExternalLink(item.href)
-
-  return (
-    <a
-      href={item.href}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noreferrer" : undefined}
-      className="group relative flex min-h-16 items-center gap-3 overflow-hidden rounded-md border bg-card p-3 transition-colors hover:border-foreground/25 hover:bg-muted/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:min-h-24 sm:gap-4 sm:px-5 sm:py-4"
-    >
-      <span
-        className={cn(
-          "absolute inset-y-0 left-0 w-1",
-          homepageLinkAccentClasses[item.accent]
-        )}
-        aria-hidden="true"
-      />
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground sm:size-10">
-        <Icon className="size-5" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm/5 font-medium wrap-break-word sm:text-base">
-          {item.title}
-        </span>
-        <span
-          className="mt-1 block text-sm text-muted-foreground max-sm:sr-only"
-          data-testid="portal-link-description"
-        >
-          {item.description}
-        </span>
-      </span>
-      {external ? (
-        <ExternalLinkIcon
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-          aria-hidden="true"
-        />
-      ) : (
-        <ArrowRightIcon
-          className="hidden size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:block"
-          aria-hidden="true"
-        />
-      )}
-    </a>
-  )
-}
-
 function FriendLink({ item }: { item: HomepageLink }) {
-  const external = isExternalLink(item.href)
+  const external = isExternalHomepageLink(item.href)
 
   return (
-    <a
+    <NavigationLink
       href={item.href}
       target={external ? "_blank" : undefined}
       rel={external ? "noreferrer" : undefined}
@@ -88,7 +40,7 @@ function FriendLink({ item }: { item: HomepageLink }) {
         className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
         aria-hidden="true"
       />
-    </a>
+    </NavigationLink>
   )
 }
 
@@ -118,22 +70,11 @@ export function PortalDirectory() {
           </h2>
         </div>
         {loading ? (
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
-            {[0, 1, 2, 3, 4, 5].map((item) => (
-              <Skeleton key={item} className="h-16 w-full rounded-md sm:h-24" />
-            ))}
-          </div>
+          <HomepageLinkGridSkeleton />
         ) : error ? (
           <LinkSectionError />
         ) : items.length ? (
-          <div
-            className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3"
-            data-testid="portal-directory-grid"
-          >
-            {items.map((item) => (
-              <PortalLink key={item.id} item={item} />
-            ))}
-          </div>
+          <HomepageLinkGrid items={items} />
         ) : (
           <p className="border-y py-8 text-sm text-muted-foreground">
             当前没有站点导航。

@@ -17,6 +17,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      mobileOffset={{
+        top: "calc(1rem + var(--safe-area-top))",
+        right: "calc(1rem + var(--safe-area-right))",
+        bottom: "calc(1rem + var(--safe-area-bottom))",
+        left: "calc(1rem + var(--safe-area-left))",
+      }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
@@ -26,15 +32,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
+          // Sonner paints the toast with the `background` shorthand, so the
+          // glass tint has to arrive through its own variable.
+          "--normal-bg": "rgb(var(--glass-rgb) / var(--glass-alpha-panel))",
           "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
+          "--normal-border": "var(--glass-edge)",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast glass-surface glass-panel",
         },
       }}
       {...props}

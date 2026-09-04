@@ -4,7 +4,7 @@ const coverAsset = {
   id: 12,
   agencyId: 6,
   name: "通用主线封面",
-  imageUrl: "/brand/imsweb-logo.png",
+  imageUrl: "/brand/imsweb-logo.webp",
   presentationPolicy: "contain",
   displayOrder: 0,
   isActive: true,
@@ -13,7 +13,7 @@ const coverAsset = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/check", async (route) => {
+  await page.route("**/api/admin/auth/session", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -138,7 +138,7 @@ test("public story cards render full-image shared covers without cropping", asyn
           name: "樱木真乃",
           folderName: "sakuragi_mano",
           color: "#f1b0c9",
-          imageUrl: "/brand/series/shiny-colors.png",
+          imageUrl: "/brand/series/wall/shiny-colors.webp",
           imageFit: "cover",
           textColor: "#ffffff",
         },

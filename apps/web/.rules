@@ -12,7 +12,7 @@ Keep all unit tests under `tests/unit/`, grouped by production ownership: layout
 
 All endpoint functions, request and response schemas, browser API access, response parsing, Cookie handling, and CSRF behavior belong in `app/lib/api/`. Define domain endpoints under `app/lib/api/endpoints/` and export them from the `~/lib/api` facade. Pages and routes may call that facade, but must not construct requests with `fetch` or `apiClient`, import API internals, or add page-local `api.ts` files. Do not restore `app/features/`.
 
-Use same-origin relative API URLs. Do not move Hono routes, server logic, or assets from the private historical repository into this workspace. Files added to `public/` need a clear purpose and an entry in `docs/ASSET_PROVENANCE.md`.
+Use same-origin relative API URLs. Do not move Hono routes, server logic, or assets from the private historical repository into this workspace. Files added to `public/` need a clear purpose and an entry in `../../docs/governance/assets.md`.
 
 ## Commands
 
@@ -27,6 +27,16 @@ pnpm run format
 
 `check` runs ESLint, route type generation, TypeScript, unit tests, and a production build. `test` adds Playwright desktop and mobile suites. Use `pnpm run test:watch` for focused Vitest work and `pnpm run preview` to inspect a production build. Run root `pnpm run test:web-routing` when route ownership or fallback behavior changes.
 
+## App Shell & Device Delivery
+
+`scripts/` owns the App target's build, launch, and install wrappers. `build-app.js` is the only place that validates and injects packaged origins, `dev-app.js` owns the 1420 development server, `android-release-network.js` reapplies conditional values into the generated Android project, `app-toolchain.js` detects host prerequisites, and `app-device.js` is the single entry point for building, installing, and launching on simulators, emulators, and physical devices. Keep each concern in its owning module: `app-device.js` must not construct API, site, or map origins, and no module may hand-roll a second prerequisite list.
+
+The workspace exposes exactly two entries: `app`, which forwards its arguments to `app-device.js`, and `app:doctor`, the prerequisite shortcut. Target, profile, and device are flags on `app`, so do not add a package script per combination, do not add shell wrappers, and do not call the Tauri CLI directly for device work. `tests/tauri-device-delivery.test.js` and the bounded script surface in `../../tests/test_workspace_boundaries.py` both fix this shape. Selection stays deterministic: when target, profile, or device cannot be resolved to exactly one candidate, fail with the candidate list instead of guessing.
+
+`src-tauri/gen/` is derived output. Never commit it, hand-edit it, or move native source into it; iOS plugin sources live under `src-tauri/plugins/<plugin>/ios/` and are wired in by each plugin's `build.rs`. Distribution builds must use managed signing keys. The local debug-keystore signing switch exists only for on-device verification of a Release build, stays opt-in through an environment variable, and must not be written into the repository or a long-lived shell profile.
+
+Prerequisites have two synchronized surfaces and no third: the executable checks in `app-toolchain.js` and the prose in `../../docs/development/app-device-delivery.md`. Update both in the same change when a tool, version range, or environment variable requirement moves.
+
 ## Style & Components
 
 Before changing user-visible UI, read the repository-level `DESIGN.md`. Its YAML
@@ -39,3 +49,30 @@ Follow `.prettierrc`: two spaces, no semicolons, double quotes, 80 columns, and 
 ## Testing & UX
 
 Vitest and Testing Library files use `*.test.ts(x)`; Playwright files use `tests/e2e/*.spec.ts`. Cover loading, error, empty, and successful states for data-driven UI. Add an accessibility assertion or browser test for user-visible workflows. Confirm desktop and mobile layouts for visual changes and include screenshots in the PR. Mutating requests must use the shared CSRF mechanism rather than constructing headers ad hoc.
+
+## API Endpoints Layering (app/lib/api/endpoints)
+
+Mirror the `@imsweb/contracts` layout: one flat module per business domain, with
+folders only for multi-file businesses (`fudaba/`, `platform/`, `wiki/`) whose
+core module is `index.ts`. Endpoint modules import wire schemas from package
+subpaths and validate responses through the `parsed(schema, config)` helper
+(`app/lib/api/parsed.ts`) — never hand-written `transform` closures or manual
+response generics; the response type infers from the schema and `select`
+projects after validation. `handleApiResponse` enforces this: JSON responses
+without `meta.parsed` warn in dev and fail under vitest, and
+`meta.skipContractCheck` is an explicit reviewed opt-out for infra tests and
+raw probes only. Request-side input
+validation, `File`/`FormData` schemas, and UI-only types stay in the endpoint
+module. Modules mapping 1:1 to one package module use named re-exports for runtime
+values and `export type *` for types; the contracts package builds CommonJS, so
+runtime `export *` is not allowed in Web modules. Multi-source modules also use
+named imports and named re-exports, keeping the endpoints barrel free of
+ambiguous exports. Import `z` from
+`@imsweb/contracts/z`, never from `zod` directly.
+Wire types come from the package alongside their schemas; endpoint modules keep
+only UI-semantic aliases, request/input types, and upload shapes. All API and
+public delivery URLs use path builders from `@imsweb/contracts/paths`; endpoint
+modules, auth refresh clients, and map/public-resource helpers keep business
+suffixes and dynamic parameters only, so prefix changes are made once for both
+Web and API. `pnpm run check:rules` rejects raw shared prefixes in production
+Web code; test fixtures may use literal paths when asserting the public contract.

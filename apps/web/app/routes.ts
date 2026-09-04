@@ -1,15 +1,53 @@
 import type { RouteConfig, RouteConfigEntry } from "@react-router/dev/routes"
 
+// Build-time target switch. `app` produces the Tauri-packaged manifest with
+// admin routes excluded; unset or any other value produces the web manifest,
+// byte-for-byte identical to before this switch existed. See `env.d.ts` and
+// `.env.example` for `VITE_IMS_APP_TARGET`. Excluding entries here (rather
+// than filtering after the fact) keeps admin page modules out of the app
+// build's module graph entirely, not just tree-shaken from it.
+const isAppTarget = import.meta.env.VITE_IMS_APP_TARGET === "app"
+
 const publicRoutes = [
   { index: true, file: "pages/home/index.tsx" },
   { path: "about", file: "pages/about/index.tsx" },
   { path: "events", file: "pages/events/index.tsx" },
+  { path: "events/:eventId", file: "pages/events/event-detail-page.tsx" },
   {
     path: "recommendations",
     file: "pages/recommendations/index.tsx",
   },
   { path: "live", file: "pages/live/index.tsx" },
   { path: "community", file: "pages/community/index.tsx" },
+  { path: "account/login", file: "pages/account/login/account-login-page.tsx" },
+  {
+    path: "account/register",
+    file: "pages/account/register/account-register-page.tsx",
+  },
+  {
+    path: "account/password-reset",
+    file: "pages/account/reset/account-password-reset-page.tsx",
+  },
+  {
+    // Identity domain, same layer as the other `account/*` entries, so both
+    // build targets get it. It is deliberately not a `profileWorkspaceSections`
+    // entry: that array drives `/account/me/:section`, which renders the
+    // community exchange workspace.
+    path: "account/security",
+    file: "pages/account/security/account-security-page.tsx",
+  },
+  {
+    path: "community/exchange",
+    file: "pages/community/exchange/community-exchange-page.tsx",
+  },
+  {
+    path: "community/exchange/me",
+    file: "pages/community/exchange/me/community-exchange-me-page.tsx",
+  },
+  {
+    path: "community/exchange/offices/:officeSlug",
+    file: "pages/community/exchange/community-office-page.tsx",
+  },
   {
     path: "community/cards",
     file: "pages/community/community-cards-page.tsx",
@@ -58,21 +96,28 @@ const publicRoutes = [
   },
 ] satisfies RouteConfigEntry[]
 
-const standaloneRoutes = [
-  {
-    path: "wiki/classic",
-    file: "pages/wiki/classic/index.tsx",
-  },
-  {
-    path: "story/classic",
-    file: "pages/wiki/classic/classic-story-page.tsx",
-  },
-  { path: "admin/login", file: "pages/admin/login/index.tsx" },
+const appOnlyRoutes = [
+  { path: "apps", file: "pages/apps/index.tsx" },
 ] satisfies RouteConfigEntry[]
+
+const standaloneRoutes = isAppTarget
+  ? []
+  : ([
+      {
+        path: "wiki/classic",
+        file: "pages/wiki/classic/index.tsx",
+      },
+      {
+        path: "story/classic",
+        file: "pages/wiki/classic/classic-story-page.tsx",
+      },
+      { path: "admin/login", file: "pages/admin/login/index.tsx" },
+    ] satisfies RouteConfigEntry[])
 
 const adminRoutes = [
   { index: true, file: "pages/admin/index.tsx" },
   { path: "events", file: "pages/admin/events/index.tsx" },
+  { path: "events/:eventId", file: "pages/admin/events/editor-page.tsx" },
   { path: "about", file: "pages/admin/about/index.tsx" },
   {
     path: "homepage",
@@ -83,8 +128,12 @@ const adminRoutes = [
     file: "pages/admin/producer-map/index.tsx",
   },
   {
+    path: "community/exchange",
+    file: "pages/admin/community/exchange/admin-community-exchange-page.tsx",
+  },
+  {
     path: "information",
-    file: "pages/admin/information/index.tsx",
+    file: "pages/admin/information/redirect-page.tsx",
   },
   {
     path: "recommendations",
@@ -107,19 +156,51 @@ const adminRoutes = [
     path: "chronicle",
     file: "pages/admin/chronicle/index.tsx",
   },
+  { path: "chronicle/:entryId", file: "pages/admin/chronicle/editor-page.tsx" },
   {
     path: "accounts",
     file: "pages/admin/accounts/index.tsx",
+  },
+  {
+    path: "platform/oauth",
+    file: "pages/admin/platform-oauth/index.tsx",
+  },
+  {
+    path: "system",
+    file: "pages/admin/system/index.tsx",
   },
   { path: "*", file: "pages/admin/not-found/index.tsx" },
 ] satisfies RouteConfigEntry[]
 
 export default [
-  { file: "layouts/public-layout.tsx", children: publicRoutes },
-  ...standaloneRoutes,
   {
-    path: "admin",
-    file: "layouts/admin-layout.tsx",
-    children: adminRoutes,
+    // Two chrome shells over the same pages. The app shell is a separate module
+    // rather than a branch inside the web one so the web build never imports
+    // the tab bar, cold-start mask, or account tab at all.
+    file: isAppTarget ? "layouts/app-layout.tsx" : "layouts/public-layout.tsx",
+    children: isAppTarget
+      ? [
+          ...publicRoutes,
+          ...appOnlyRoutes,
+          {
+            path: "account/me",
+            file: "pages/account/me/account-me-page.tsx",
+          },
+          {
+            path: "account/me/:section",
+            file: "pages/account/me/account-me-section-page.tsx",
+          },
+        ]
+      : publicRoutes,
   },
+  ...standaloneRoutes,
+  ...(isAppTarget
+    ? []
+    : [
+        {
+          path: "admin",
+          file: "layouts/admin-layout.tsx",
+          children: adminRoutes,
+        },
+      ]),
 ] satisfies RouteConfig

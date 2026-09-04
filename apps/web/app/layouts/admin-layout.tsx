@@ -2,16 +2,17 @@ import { useRequest } from "alova/client"
 import {
   ArrowLeftIcon,
   BookOpenTextIcon,
-  CalendarDaysIcon,
   ChevronRightIcon,
   ContactRoundIcon,
   HistoryIcon,
   HomeIcon,
   InfoIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   LoaderCircleIcon,
   LogInIcon,
   LogOutIcon,
+  MapPinCheckIcon,
   MapPinnedIcon,
   MegaphoneIcon,
   NewspaperIcon,
@@ -19,13 +20,14 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   RefreshCwIcon,
+  Settings2Icon,
   ShieldXIcon,
   UserRoundIcon,
   UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useState, type ReactNode } from "react"
-import { Link, Navigate, NavLink, Outlet, useNavigate } from "react-router"
+import { Navigate, Outlet } from "react-router"
 import { toast } from "sonner"
 
 import { Badge } from "~/components/ui/badge"
@@ -40,6 +42,11 @@ import {
 } from "~/components/ui/tooltip"
 import { cn } from "~/lib/utils"
 import { getAdminSession, isApiError, logoutAdmin } from "~/lib/api"
+import {
+  NavigationLink,
+  NavigationNavLink,
+} from "~/components/navigation/navigation-link"
+import { useNavigation } from "~/lib/navigation/use-navigation"
 
 const navigation: Array<{
   to: string
@@ -60,8 +67,8 @@ const navigation: Array<{
   },
   {
     to: "/admin/events",
-    label: "社区活动",
-    description: "公开活动发布",
+    label: "社区帖子",
+    description: "社区动态与首页精选",
     icon: MegaphoneIcon,
     accent: "bg-franchise-765",
   },
@@ -71,13 +78,6 @@ const navigation: Array<{
     description: "导航、友链与站点支持",
     icon: LayoutDashboardIcon,
     accent: "bg-franchise-sc",
-  },
-  {
-    to: "/admin/information",
-    label: "活动资讯",
-    description: "活动资讯与同人活动",
-    icon: CalendarDaysIcon,
-    accent: "bg-franchise-cg",
   },
   {
     to: "/admin/about",
@@ -92,6 +92,13 @@ const navigation: Array<{
     description: "地区资料与社群名录",
     icon: MapPinnedIcon,
     accent: "bg-franchise-sidem",
+  },
+  {
+    to: "/admin/community/exchange",
+    label: "事务所位置",
+    description: "公开区域位置审核",
+    icon: MapPinCheckIcon,
+    accent: "bg-franchise-ml",
   },
   {
     to: "/admin/recommendations",
@@ -135,6 +142,21 @@ const navigation: Array<{
     icon: UsersRoundIcon,
     accent: "bg-franchise-cg",
     superOnly: true,
+  },
+  {
+    to: "/admin/platform/oauth",
+    label: "OAuth 登录",
+    description: "第三方登录凭据配置",
+    icon: KeyRoundIcon,
+    accent: "bg-franchise-765",
+    superOnly: true,
+  },
+  {
+    to: "/admin/system",
+    label: "系统配置",
+    description: "地图分发与运行时设置",
+    icon: Settings2Icon,
+    accent: "bg-franchise-gk",
   },
 ]
 
@@ -190,11 +212,18 @@ function AdminAccessDenied() {
       title="无法访问管理工作台"
       description="当前登录账号没有内容运营权限。"
     >
-      <Button render={<Link to="/admin/login" />} nativeButton={false}>
+      <Button
+        render={<NavigationLink to="/admin/login" />}
+        nativeButton={false}
+      >
         <LogInIcon data-icon="inline-start" />
         切换管理账号
       </Button>
-      <Button variant="outline" render={<Link to="/" />} nativeButton={false}>
+      <Button
+        variant="outline"
+        render={<NavigationLink to="/" />}
+        nativeButton={false}
+      >
         <ArrowLeftIcon data-icon="inline-start" />
         返回站点
       </Button>
@@ -214,7 +243,11 @@ function AdminSessionFailure({ onRetry }: { onRetry: () => void }) {
         <RefreshCwIcon data-icon="inline-start" />
         重新验证
       </Button>
-      <Button variant="outline" render={<Link to="/" />} nativeButton={false}>
+      <Button
+        variant="outline"
+        render={<NavigationLink to="/" />}
+        nativeButton={false}
+      >
         <ArrowLeftIcon data-icon="inline-start" />
         返回站点
       </Button>
@@ -230,7 +263,7 @@ function isExpiredSession(error: unknown): boolean {
 }
 
 export default function AdminLayout() {
-  const navigate = useNavigate()
+  const navigate = useNavigation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { data, loading, error, onError, send } = useRequest(getAdminSession())
   onError(() => undefined)
@@ -281,12 +314,15 @@ export default function AdminLayout() {
       <SeriesAccentStrip className="h-1" />
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-400 items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <Link to="/admin" className="flex min-w-0 items-center gap-3">
+          <NavigationLink
+            to="/admin"
+            className="flex min-w-0 items-center gap-3"
+          >
             <BrandWordmark className="h-8" />
             <span className="hidden border-l pl-3 text-xs font-semibold text-muted-foreground sm:inline">
               内容运营台
             </span>
-          </Link>
+          </NavigationLink>
           <div className="ml-auto flex min-w-0 items-center gap-3">
             <Badge variant="outline" className="hidden max-w-52 sm:flex">
               <UserRoundIcon data-icon="inline-start" aria-hidden="true" />
@@ -304,14 +340,14 @@ export default function AdminLayout() {
                 ? "最高管理员"
                 : "一般管理员"}
             </Badge>
-            <Link
+            <NavigationLink
               to="/"
               aria-label="返回主站"
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
               <HomeIcon data-icon="inline-start" aria-hidden="true" />
               <span className="hidden sm:inline">返回主站</span>
-            </Link>
+            </NavigationLink>
             <Button
               type="button"
               variant="outline"
@@ -397,7 +433,7 @@ export default function AdminLayout() {
                 )
                 .map((item) => {
                   const link = (
-                    <NavLink
+                    <NavigationNavLink
                       key={item.to}
                       to={item.to}
                       end={item.end}
@@ -432,7 +468,7 @@ export default function AdminLayout() {
                         )}
                         aria-hidden="true"
                       />
-                    </NavLink>
+                    </NavigationNavLink>
                   )
 
                   if (!sidebarCollapsed) {

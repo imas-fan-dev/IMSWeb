@@ -1,5 +1,7 @@
+import { apiPath } from "@imsweb/contracts/paths"
+import type { z } from "@imsweb/contracts/z"
+import { parsed } from "../parsed"
 import { setCache } from "alova"
-import { z } from "zod"
 
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
@@ -7,34 +9,13 @@ import {
 } from "../cache-policy"
 import { apiClient } from "../client"
 
-const recommendationIdSchema = z
-  .union([z.string(), z.number().int().positive().safe()])
-  .transform(String)
-  .pipe(z.string().regex(/^[1-9]\d*$/))
+import { recommendationResponseSchema } from "@imsweb/contracts/news"
 
-export const recommendationSchema = z.object({
-  id: recommendationIdSchema,
-  title: z.string().trim().min(1),
-  thumbnail: z.string().nullable().optional(),
-  content: z.string(),
-  date: z.string().nullable().optional(),
-})
+export { recommendationSchema } from "@imsweb/contracts/news"
 
-const paginatedRecommendationSchema = z.object({
-  items: z.array(recommendationSchema),
-  pageInfo: z.object({
-    nextCursor: z.string().min(1).nullable(),
-    hasNextPage: z.boolean(),
-    snapshotAt: z.string().regex(/^\d+$/).nullable(),
-  }),
-})
+import type { Recommendation } from "@imsweb/contracts/news"
 
-const recommendationResponseSchema = z.union([
-  paginatedRecommendationSchema,
-  z.array(recommendationSchema),
-])
-
-export type Recommendation = z.infer<typeof recommendationSchema>
+export type { Recommendation } from "@imsweb/contracts/news"
 
 export type RecommendationPage = {
   items: Recommendation[]
@@ -50,9 +31,9 @@ type RecommendationPageRequest = {
   cursor?: string
 }
 
-export function parseRecommendationPage(payload: unknown): RecommendationPage {
-  const parsed = recommendationResponseSchema.parse(payload)
-
+export function normalizeRecommendationPage(
+  parsed: z.output<typeof recommendationResponseSchema>
+): RecommendationPage {
   if (Array.isArray(parsed)) {
     return {
       items: parsed,
@@ -67,6 +48,16 @@ export function parseRecommendationPage(payload: unknown): RecommendationPage {
   return parsed
 }
 
+export function parseRecommendationPage(payload: unknown): RecommendationPage {
+  return normalizeRecommendationPage(
+    recommendationResponseSchema.parse(payload)
+  )
+}
+
+const recommendationPageParsed = parsed(recommendationResponseSchema, {
+  select: normalizeRecommendationPage,
+})
+
 export function getRecommendationPage({
   limit = 20,
   cursor,
@@ -74,11 +65,11 @@ export function getRecommendationPage({
   const params: Record<string, string | number> = { limit }
   if (cursor) params.cursor = cursor
 
-  return apiClient.Get<RecommendationPage, unknown>("/api/news", {
+  return apiClient.Get(apiPath("/news"), {
+    ...recommendationPageParsed,
     cacheFor: PUBLIC_QUERY_CACHE_FOR,
     hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.recommendations,
     params,
-    transform: parseRecommendationPage,
   })
 }
 

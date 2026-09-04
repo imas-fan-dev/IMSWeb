@@ -1,13 +1,20 @@
 import type {
     ManagedSqlDatabase,
-    SqlSchemaStrategy
-} from '@/infra/db/sql/database';
+    SqlSchemaStrategy,
+} from "@/infra/db/sql/database";
 
+// Must name the newest migration whose columns production code already reads.
+// Session device columns are selected by listRefreshSessionsByAccount, so a
+// deploy that skipped this migration has to fail at startup with an actionable
+// message instead of throwing "column does not exist" on the first query.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20260814170000_object_deletion_jobs';
+    "20260902120000_platform_session_devices";
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
-    private readonly verifications = new WeakMap<ManagedSqlDatabase, Promise<void>>();
+    private readonly verifications = new WeakMap<
+        ManagedSqlDatabase,
+        Promise<void>
+    >();
 
     private verify(database: ManagedSqlDatabase): Promise<void> {
         const existing = this.verifications.get(database);
@@ -20,24 +27,35 @@ export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private async verifyCurrent(database: ManagedSqlDatabase): Promise<void> {
         let migration: { version: string } | null;
         try {
-            migration = await database.prepare(
-                'SELECT version FROM ims_schema_migrations WHERE version=?'
-            ).bind(REQUIRED_POSTGRESQL_SCHEMA_VERSION).first<{ version: string }>();
+            migration = await database
+                .prepare(
+                    "SELECT version FROM ims_schema_migrations WHERE version=?",
+                )
+                .bind(REQUIRED_POSTGRESQL_SCHEMA_VERSION)
+                .first<{ version: string }>();
         } catch (error) {
             throw new Error(
-                'PostgreSQL schema is not initialized; run pnpm run migration:postgresql',
-                { cause: error }
+                "PostgreSQL schema is not initialized; run pnpm run migration:postgresql",
+                { cause: error },
             );
         }
         if (!migration) {
             throw new Error(
                 `PostgreSQL schema migration ${REQUIRED_POSTGRESQL_SCHEMA_VERSION} is required; ` +
-                'run pnpm run migration:postgresql'
+                    "run pnpm run migration:postgresql",
             );
         }
     }
 
     initializeCore(database: ManagedSqlDatabase): Promise<void> {
+        return this.verify(database);
+    }
+
+    initializePlatform(database: ManagedSqlDatabase): Promise<void> {
+        return this.verify(database);
+    }
+
+    initializeFudaba(database: ManagedSqlDatabase): Promise<void> {
         return this.verify(database);
     }
 

@@ -102,7 +102,9 @@ function stubInformation(
         ? randomIdols[Math.min(randomRequest++, randomIdols.length - 1)]
         : url.pathname === "/api/homepage-links"
           ? homepageLinks
-          : { cards }
+          : url.pathname === "/api/community-posts/spotlight"
+            ? { items: cards }
+            : { cards: [] }
     return new Response(JSON.stringify(payload), {
       headers: { "content-type": "application/json" },
     })
@@ -129,26 +131,39 @@ describe("home supporting sections", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders activity highlights only from the Information API", async () => {
+  it("renders activity highlights only from the community-post spotlight API", async () => {
     stubInformation([
       {
-        id: "stored-activity-001",
+        id: 35,
         category: "activity",
-        contentType: "external",
         title: "存储中的活动资讯",
-        image: "/uploads/information/original/stored.png",
-        link: "https://example.com/stored",
-        updatedAt: "2026-07-24T00:00:00.000Z",
+        image_url: "/uploads/articles/stored.webp",
+        sort_order: 0,
       },
     ])
     render(<HomeSections />)
 
     expect(
-      screen.getByRole("region", { name: "活动资讯与同人活动" })
+      screen.getByRole("status", { name: "正在加载活动资讯" })
     ).toBeVisible()
     expect(
-      await screen.findByRole("link", { name: /存储中的活动资讯/ })
-    ).toHaveAttribute("href", "https://example.com/stored")
+      screen.getByRole("region", { name: "活动资讯与同人活动" })
+    ).toBeVisible()
+    const activityLink = await screen.findByRole("link", {
+      name: /存储中的活动资讯/,
+    })
+    expect(activityLink).toHaveAttribute("href", "/events/35")
+    expect(activityLink).toHaveClass("min-h-20")
+    expect(screen.getByText("存储中的活动资讯")).toHaveClass(
+      "line-clamp-2",
+      "wrap-anywhere"
+    )
+    expect(activityLink.closest("article")?.parentElement).toHaveClass(
+      "grid-cols-1",
+      "min-[360px]:grid-cols-2",
+      "md:grid-cols-3"
+    )
+    expect(screen.getByText("活动资讯")).toBeVisible()
     expect(screen.queryByText("篠泽广研讨会")).not.toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: /雨云|云计算/ })).toHaveLength(3)
   })

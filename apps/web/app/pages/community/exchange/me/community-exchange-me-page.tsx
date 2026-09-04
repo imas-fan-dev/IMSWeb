@@ -1,0 +1,537 @@
+import {
+  CircleAlertIcon,
+  LockKeyholeIcon,
+  RefreshCwIcon,
+  UserRoundIcon,
+} from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useLocation, useSearchParams } from "react-router"
+
+import { usePlatformSession } from "~/components/platform/platform-session-provider"
+import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { Button, buttonVariants } from "~/components/ui/button"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "~/components/ui/empty"
+import { Skeleton } from "~/components/ui/skeleton"
+import {
+  getFudabaOwnerCard,
+  getFudabaOwnerCards,
+  getFudabaOwnerSeries,
+  getPlatformProfile,
+  getWikiCatalog,
+  hasPlatformSessionHint,
+  type FudabaOwnerCard,
+  type FudabaSeries,
+  type PlatformProfile,
+  type WikiPublicSearchEntry,
+} from "~/lib/api"
+import { cn } from "~/lib/utils"
+import { CardWorkspace } from "./card-workspace"
+import { ClaimEnvelopePanel } from "./claim-envelope-panel"
+import { FavoriteCollection } from "./favorite-collection"
+import { apiMessage, isFeatureClosed } from "./exchange-me-model"
+import { OfficeLocationWorkspace } from "./office-location-workspace"
+import { ProfileEditor } from "./profile-editor"
+import {
+  isProfileWorkspaceSection,
+  ProfileWorkspaceNavigation,
+  type ProfileWorkspaceSection,
+} from "./profile-workspace-navigation"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+
+type WorkspacePhase = "idle" | "loading" | "ready" | "closed" | "error"
+
+type WorkspaceState = {
+  phase: WorkspacePhase
+  profile: PlatformProfile | null
+  accountStatus: "active" | "restricted" | null
+  writeEnabled: boolean
+  series: FudabaSeries[]
+  idols: WikiPublicSearchEntry[]
+  cards: FudabaOwnerCard[]
+  error: string | null
+}
+
+const initialState: WorkspaceState = {
+  phase: "idle",
+  profile: null,
+  accountStatus: null,
+  writeEnabled: false,
+  series: [],
+  idols: [],
+  cards: [],
+  error: null,
+}
+
+export function meta() {
+  return [
+    { title: "个人档案 | IMSWeb" },
+    {
+      name: "description",
+      content: "管理制作人个人资料、交换名片、事务所与认领消息。",
+    },
+  ]
+}
+
+type CommunityExchangeMePageProps = {
+  section?: ProfileWorkspaceSection
+  sectionBasePath?: string
+}
+
+export default function CommunityExchangeMePage({
+  section,
+  sectionBasePath,
+}: CommunityExchangeMePageProps = {}) {
+  const platform = usePlatformSession()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const [state, setState] = useState<WorkspaceState>(initialState)
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const workspaceGeneration = useRef(0)
+  const detailGeneration = useRef(0)
+  const requestedSection = searchParams.get("section")
+  const accountSectionBasePath =
+    sectionBasePath ??
+    (location.pathname.startsWith("/account/me/") ? "/account/me" : undefined)
+  const activeSection =
+    section ??
+    (isProfileWorkspaceSection(requestedSection) ? requestedSection : "profile")
+
+  const loadWorkspace = useCallback(async () => {
+    const generation = ++workspaceGeneration.current
+    setState((current) => ({
+      ...current,
+      phase: "loading",
+      error: null,
+    }))
+    try {
+      const [profileResult, seriesResult, cardResult, catalogResult] =
+        await Promise.all([
+          getPlatformProfile().send(),
+          getFudabaOwnerSeries().send(),
+          getFudabaOwnerCards().send(),
+          getWikiCatalog().send(),
+        ])
+      if (workspaceGeneration.current !== generation) return
+      const canCreate =
+        profileResult.account.status === "active" &&
+        profileResult.capabilities.fudabaWrite
+      setState({
+        phase: "ready",
+        profile: profileResult.profile,
+        accountStatus: profileResult.account.status,
+        writeEnabled: profileResult.capabilities.fudabaWrite,
+        series: seriesResult.items,
+        idols: catalogResult.searchEntries,
+        cards: cardResult.items,
+        error: null,
+      })
+      setSelectedCardId(cardResult.items[0]?.id ?? null)
+      setCreating(cardResult.items.length === 0 && canCreate)
+    } catch (error) {
+      if (workspaceGeneration.current !== generation) return
+      setState((current) => ({
+        ...current,
+        phase: isFeatureClosed(error) ? "closed" : "error",
+        error: isFeatureClosed(error)
+          ? null
+          : apiMessage(error, "制作人名片工作区暂时无法加载。"),
+      }))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (
+      platform.status !== "authenticated" &&
+      platform.status !== "restricted"
+    ) {
+      return
+    }
+    void loadWorkspace()
+    return () => {
+      workspaceGeneration.current += 1
+      detailGeneration.current += 1
+    }
+  }, [loadWorkspace, platform.session?.account.id, platform.status])
+
+  function saveProfile(profile: PlatformProfile) {
+    setState((current) => ({ ...current, profile }))
+  }
+
+  async function reloadProfile() {
+    const result = await getPlatformProfile().send()
+    setState((current) => ({
+      ...current,
+      profile: result.profile,
+      accountStatus: result.account.status,
+      writeEnabled: result.capabilities.fudabaWrite,
+    }))
+    return result.profile
+  }
+
+  function replaceCard(card: FudabaOwnerCard) {
+    setState((current) => ({
+      ...current,
+      cards: current.cards.map((item) => (item.id === card.id ? card : item)),
+    }))
+  }
+
+  async function loadCard(cardId: string) {
+    const generation = ++detailGeneration.current
+    setSelectedCardId(cardId)
+    setCreating(false)
+    setLoadingDetail(true)
+    try {
+      const result = await getFudabaOwnerCard(cardId).send()
+      if (detailGeneration.current !== generation) return result.card
+      replaceCard(result.card)
+      return result.card
+    } finally {
+      if (detailGeneration.current === generation) setLoadingDetail(false)
+    }
+  }
+
+  function createCard(card: FudabaOwnerCard) {
+    setState((current) => ({
+      ...current,
+      cards: [card, ...current.cards.filter((item) => item.id !== card.id)],
+    }))
+    setSelectedCardId(card.id)
+    setCreating(false)
+  }
+
+  function deleteCard(cardId: string) {
+    const cards = state.cards.filter((item) => item.id !== cardId)
+    setState((current) => ({ ...current, cards }))
+    setSelectedCardId(cards[0]?.id ?? null)
+    setCreating(cards.length === 0 && state.writeEnabled)
+  }
+
+  function closeWrites() {
+    setState((current) => ({ ...current, writeEnabled: false }))
+    setCreating(false)
+  }
+
+  const hasSessionHint = hasPlatformSessionHint()
+  const waitingForSession =
+    platform.status === "loading" ||
+    (platform.status === "anonymous" && hasSessionHint)
+
+  if (waitingForSession || state.phase === "loading") {
+    return (
+      <main
+        id="main-content"
+        className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
+        aria-label="正在载入个人档案"
+      >
+        <Skeleton className="h-7 w-44" />
+        <Skeleton className="mt-5 h-20 w-full" />
+        <div className="mt-8 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
+          <Skeleton className="h-144 w-full" />
+          <Skeleton className="h-176 w-full" />
+        </div>
+      </main>
+    )
+  }
+
+  if (platform.status === "anonymous") {
+    return (
+      <main
+        id="main-content"
+        className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
+      >
+        <Empty className="min-h-96 border-y">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <UserRoundIcon aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>请先登录平台帐号</EmptyTitle>
+            <EmptyDescription>
+              登录后可以维护制作人资料、双面名片与交换状态。
+            </EmptyDescription>
+          </EmptyHeader>
+          <NavigationLink
+            to="/community/exchange"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            返回交换事务所
+          </NavigationLink>
+        </Empty>
+      </main>
+    )
+  }
+
+  if (platform.status === "error") {
+    return (
+      <main
+        id="main-content"
+        className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
+      >
+        <Empty className="min-h-96 border-y">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <CircleAlertIcon aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>帐号状态暂时不可用</EmptyTitle>
+            <EmptyDescription>
+              请重新载入帐号状态后再打开名片工作区。
+            </EmptyDescription>
+          </EmptyHeader>
+          <Button type="button" onClick={() => void platform.reload()}>
+            <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+            重新载入帐号
+          </Button>
+        </Empty>
+      </main>
+    )
+  }
+
+  if (state.phase !== "ready" || !state.profile) {
+    const closed = state.phase === "closed"
+    return (
+      <main
+        id="main-content"
+        className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
+      >
+        <Empty className="min-h-96 border-y">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              {closed ? (
+                <LockKeyholeIcon aria-hidden="true" />
+              ) : (
+                <CircleAlertIcon aria-hidden="true" />
+              )}
+            </EmptyMedia>
+            <EmptyTitle>
+              {closed ? "个人档案尚未开放" : "个人档案暂时无法加载"}
+            </EmptyTitle>
+            <EmptyDescription>
+              {closed
+                ? "功能开放后，可以在这里维护制作人资料和双面名片。"
+                : state.error || "请稍后重新载入。"}
+            </EmptyDescription>
+          </EmptyHeader>
+          <div className="flex flex-wrap justify-center gap-2">
+            {!closed ? (
+              <Button type="button" onClick={() => void loadWorkspace()}>
+                <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+                重新载入
+              </Button>
+            ) : null}
+            <NavigationLink
+              to="/community/exchange"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              返回交换事务所
+            </NavigationLink>
+          </div>
+        </Empty>
+      </main>
+    )
+  }
+
+  const restricted =
+    platform.status === "restricted" || state.accountStatus === "restricted"
+  // Profile fields are platform identity and only a restricted account freezes
+  // them. Cards, offices, and claims are Fudaba content and also wait on the
+  // exchange rollout switch, so the two surfaces need separate verdicts.
+  const restrictedReason = "帐号当前受限，资料和名片保持可查看，但不能修改。"
+  const profileReadOnly = restricted
+  const profileReadOnlyReason = restricted ? restrictedReason : null
+  const exchangeReadOnly = restricted || !state.writeEnabled
+  const exchangeReadOnlyReason = restricted
+    ? restrictedReason
+    : !state.writeEnabled
+      ? "名片与事务所编辑正在分阶段开放，当前保持只读。"
+      : null
+  const sectionReadOnlyReason =
+    activeSection === "profile" ? profileReadOnlyReason : exchangeReadOnlyReason
+
+  return (
+    <main
+      id="main-content"
+      className="min-w-0"
+      data-account-section-layout={accountSectionBasePath ? "stack" : undefined}
+    >
+      {accountSectionBasePath ? null : (
+        <header className="relative border-b bg-muted/25">
+          <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
+            <div className="max-w-2xl min-w-0">
+              <NavigationLink
+                to="/community/exchange"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                名片交换事务所
+              </NavigationLink>
+              <h1 className="mt-3 text-2xl font-semibold text-balance">
+                个人档案
+              </h1>
+              <p className="mt-2 max-w-xl leading-7 text-muted-foreground">
+                管理你的社区身份、交换名片、事务所与历史名片认领。
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>{state.cards.length} 张名片</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="刷新个人档案"
+                title="刷新"
+                onClick={() => void loadWorkspace()}
+              >
+                <RefreshCwIcon aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <div
+        className={cn(
+          "mx-auto grid w-full min-w-0",
+          accountSectionBasePath
+            ? "max-w-3xl"
+            : "max-w-7xl lg:grid-cols-[15rem_minmax(0,1fr)]"
+        )}
+      >
+        <ProfileWorkspaceNavigation
+          profile={state.profile}
+          cardCount={state.cards.length}
+          activeSection={activeSection}
+          sectionBasePath={accountSectionBasePath}
+        />
+
+        <div
+          className={cn(
+            "min-w-0",
+            accountSectionBasePath
+              ? "px-(--app-safe-inline) py-5"
+              : "px-4 py-8 sm:px-6 lg:px-8"
+          )}
+        >
+          {accountSectionBasePath ? (
+            <div className="mb-4 flex items-center justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="刷新个人档案"
+                title="刷新"
+                onClick={() => void loadWorkspace()}
+              >
+                <RefreshCwIcon aria-hidden="true" />
+              </Button>
+            </div>
+          ) : null}
+          {sectionReadOnlyReason ? (
+            <Alert>
+              <LockKeyholeIcon aria-hidden="true" />
+              <AlertTitle>
+                {restricted ? "帐号受限" : "编辑暂未开放"}
+              </AlertTitle>
+              <AlertDescription>{sectionReadOnlyReason}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <div
+            id="profile-workspace-section-profile"
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
+            hidden={activeSection !== "profile"}
+          >
+            <ProfileEditor
+              profile={state.profile}
+              readOnly={profileReadOnly}
+              readOnlyReason={profileReadOnlyReason}
+              onSaved={saveProfile}
+              onReload={reloadProfile}
+              onWriteClosed={closeWrites}
+            />
+          </div>
+
+          <section
+            id="profile-workspace-section-cards"
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
+            aria-labelledby="profile-workspace-cards-title"
+            hidden={activeSection !== "cards"}
+          >
+            <div className="border-b pb-5">
+              <h2
+                id="profile-workspace-cards-title"
+                className="text-xl font-semibold"
+              >
+                交换名片
+              </h2>
+              <p className="mt-2 text-sm/6 text-muted-foreground">
+                管理双面名片素材、担当偶像和公开交换状态。
+              </p>
+            </div>
+            <div className="mt-6">
+              <CardWorkspace
+                cards={state.cards}
+                selectedCardId={selectedCardId}
+                creating={creating}
+                loadingDetail={loadingDetail}
+                profile={state.profile}
+                series={state.series}
+                idols={state.idols}
+                readOnly={exchangeReadOnly}
+                readOnlyReason={exchangeReadOnlyReason}
+                onSelect={(cardId) => void loadCard(cardId)}
+                onCreate={() => {
+                  setCreating(true)
+                  setSelectedCardId(null)
+                  setLoadingDetail(false)
+                }}
+                onCreated={createCard}
+                onSaved={replaceCard}
+                onDeleted={deleteCard}
+                onReload={loadCard}
+                onWriteClosed={closeWrites}
+              />
+            </div>
+          </section>
+
+          <section
+            id="profile-workspace-section-favorites"
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
+            aria-labelledby="profile-workspace-favorites-title"
+            hidden={activeSection !== "favorites"}
+          >
+            <FavoriteCollection series={state.series} />
+          </section>
+
+          <div
+            id="profile-workspace-section-offices"
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
+            hidden={activeSection !== "offices"}
+          >
+            <OfficeLocationWorkspace
+              series={state.series}
+              homeCity={state.profile.homeCity}
+              readOnly={exchangeReadOnly}
+              onWriteClosed={closeWrites}
+            />
+          </div>
+
+          <div
+            id="profile-workspace-section-claims"
+            className={sectionReadOnlyReason ? "mt-6" : undefined}
+            hidden={activeSection !== "claims"}
+          >
+            <ClaimEnvelopePanel readOnly={exchangeReadOnly} />
+          </div>
+        </div>
+      </div>
+    </main>
+  )
+}

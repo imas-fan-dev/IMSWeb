@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core"
 import { MoonIcon, SunIcon } from "lucide-react"
 import { useEffect } from "react"
 import { useTheme } from "next-themes"
@@ -22,6 +23,10 @@ type ThemeName = "dark" | "light"
 type ThemeTransitionOrigin = {
   x: number
   y: number
+}
+
+function isAndroidTauriWebView() {
+  return isTauri() && /\bAndroid\b/i.test(window.navigator.userAgent)
 }
 
 function themeIsApplied(theme: ThemeName) {
@@ -98,6 +103,7 @@ function changeThemeWithTransition(
   }
 
   if (
+    isAndroidTauriWebView() ||
     typeof document.startViewTransition !== "function" ||
     typeof root.animate !== "function"
   ) {
@@ -105,9 +111,14 @@ function changeThemeWithTransition(
     return
   }
 
+  const viewport = window.visualViewport
+  const viewportWidth = viewport?.width ?? window.innerWidth
+  const viewportHeight = viewport?.height ?? window.innerHeight
+  const originX = origin.x - (viewport?.offsetLeft ?? 0)
+  const originY = origin.y - (viewport?.offsetTop ?? 0)
   const radius = Math.hypot(
-    Math.max(origin.x, window.innerWidth - origin.x),
-    Math.max(origin.y, window.innerHeight - origin.y)
+    Math.max(originX, viewportWidth - originX),
+    Math.max(originY, viewportHeight - originY)
   )
 
   root.dataset.themeTransition = "circle"
@@ -124,8 +135,8 @@ function changeThemeWithTransition(
       const reveal = root.animate(
         {
           clipPath: [
-            `circle(0px at ${origin.x}px ${origin.y}px)`,
-            `circle(${radius}px at ${origin.x}px ${origin.y}px)`,
+            `circle(0px at ${originX}px ${originY}px)`,
+            `circle(${radius}px at ${originX}px ${originY}px)`,
           ],
         },
         {

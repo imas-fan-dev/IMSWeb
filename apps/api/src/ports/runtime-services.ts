@@ -1,45 +1,64 @@
-import type { CacheServices } from '@/ports/cache';
-import type { HttpServices } from '@/ports/http';
-import type { MediaServices } from '@/ports/media';
-import type { ObjectStorageServices } from '@/ports/object-storage';
-import type { RepositoryServices } from '@/ports/repositories';
-import type { SecurityServices } from '@/ports/security';
+import type { CacheServices } from "@/ports/cache";
+import type { EmailServices } from "@/ports/email";
+import type { HttpServices } from "@/ports/http";
+import type { MediaServices } from "@/ports/media";
+import type { ObjectStorageServices } from "@/ports/object-storage";
+import type { OAuthServices } from "@/ports/oauth";
+import type { RepositoryServices } from "@/ports/repositories";
+import type { SecurityServices } from "@/ports/security";
+
+export interface FudabaGeocodingRuntimeConfig {
+    enabled: boolean;
+    endpoint: string;
+    userAgent: string;
+    countryCodes: string;
+}
 
 export interface NodeRuntimeConfig {
     cookieSecure: boolean;
     storyMaxUploadBytes: number;
     sitePackageMaxUploadBytes: number;
-    clientAddressSource: 'direct' | 'nginx';
+    clientAddressSource: "direct" | "nginx";
+    fudabaPublicReadEnabled: boolean;
+    fudabaWriteEnabled: boolean;
+    fudabaMapEnabled: boolean;
+    fudabaMapStyleUrl: string;
+    /** Deployment seed choices used before a managed source collection exists. */
+    fudabaMapStyleUrls: string[];
+    fudabaGeocoding: FudabaGeocodingRuntimeConfig;
 }
 
 export interface RuntimeHealth {
     check(): Promise<void>;
 }
 
-export interface RuntimeServices extends
-    Partial<CacheServices>,
-    Partial<HttpServices>,
-    Partial<MediaServices>,
-    Partial<ObjectStorageServices>,
-    Partial<RepositoryServices>,
-    Partial<SecurityServices> {
+export interface RuntimeServices
+    extends Partial<CacheServices>,
+        Partial<EmailServices>,
+        Partial<HttpServices>,
+        Partial<MediaServices>,
+        Partial<ObjectStorageServices>,
+        Partial<OAuthServices>,
+        Partial<RepositoryServices>,
+        Partial<SecurityServices> {
     fetch?: typeof globalThis.fetch;
     health?: RuntimeHealth;
     config?: Partial<NodeRuntimeConfig>;
 }
 
-export interface NodeRuntimeServices extends
-    CacheServices,
-    HttpServices,
-    MediaServices,
-    ObjectStorageServices,
-    RepositoryServices,
-    SecurityServices {
+export interface NodeRuntimeServices
+    extends CacheServices,
+        EmailServices,
+        HttpServices,
+        MediaServices,
+        ObjectStorageServices,
+        OAuthServices,
+        RepositoryServices,
+        SecurityServices {
     fetch: typeof globalThis.fetch;
     health: RuntimeHealth;
     config: NodeRuntimeConfig;
 }
 
-export type ResolveServices<Bindings extends object = Record<string, unknown>> = (
-    env: Bindings
-) => RuntimeServices | Promise<RuntimeServices>;
+export type ResolveServices<Bindings extends object = Record<string, unknown>> =
+    (env: Bindings) => RuntimeServices | Promise<RuntimeServices>;

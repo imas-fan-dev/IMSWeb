@@ -8,7 +8,6 @@ import {
   UserIcon,
 } from "lucide-react"
 import { useState } from "react"
-import { Link, useNavigate } from "react-router"
 
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -17,13 +16,15 @@ import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
 import { AdminField, adminControlClass } from "~/components/admin/admin-ui"
 import { isApiError, loginAdmin } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { useNavigation } from "~/lib/navigation/use-navigation"
 
 export function meta() {
   return [{ title: "管理登录 | IMSWeb" }]
 }
 
 export default function AdminLogin() {
-  const navigate = useNavigate()
+  const navigate = useNavigation()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [passwordVisible, setPasswordVisible] = useState(false)
@@ -54,20 +55,20 @@ export default function AdminLogin() {
 
         <div className="mx-auto flex w-full max-w-lg flex-col">
           <div className="flex items-start justify-between gap-6">
-            <Link
+            <NavigationLink
               to="/"
               className="rounded-md focus-visible:ring-3 focus-visible:ring-admin-ink-foreground/50 focus-visible:outline-none"
               aria-label="返回 IMSWeb 首页"
             >
               <BrandWordmark className="h-14 sm:h-16" />
-            </Link>
-            <Link
+            </NavigationLink>
+            <NavigationLink
               to="/"
               className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-admin-ink-foreground/15 px-3 text-xs font-medium text-admin-ink-subtle transition-colors hover:border-admin-ink-foreground/30 hover:bg-admin-ink-muted hover:text-admin-ink-foreground focus-visible:ring-3 focus-visible:ring-admin-ink-foreground/50 focus-visible:outline-none"
             >
               <ArrowLeftIcon className="size-3.5" aria-hidden="true" />
               返回站点
-            </Link>
+            </NavigationLink>
           </div>
 
           <div className="my-auto py-12 sm:py-16 lg:py-20">

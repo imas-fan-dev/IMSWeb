@@ -1,8 +1,17 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryManager } from "~/pages/admin/stories/components/story-manager"
+
+function renderManager() {
+  return render(
+    <MemoryRouter>
+      <StoryManager />
+    </MemoryRouter>
+  )
+}
 
 function requestDetails(call: unknown[]) {
   const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
@@ -151,7 +160,7 @@ function storiesPayload(upName = "投稿者") {
 
 describe("StoryManager", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=wiki-manager-test; path=/"
+    document.cookie = "ims_admin_csrf=wiki-manager-test; path=/"
   })
 
   afterEach(() => {
@@ -187,7 +196,7 @@ describe("StoryManager", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<StoryManager />)
+    renderManager()
 
     expect(await screen.findByText("【第一话】")).toBeVisible()
     expect(screen.getAllByText("投稿者")[0]).toBeVisible()

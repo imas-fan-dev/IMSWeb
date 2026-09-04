@@ -7,21 +7,26 @@ import { createHonoApp } from '@/app';
 import { FilesystemCompensationService } from '@/infra/oss/filesystem/compensation-service';
 import { PostgresqlIdempotencyStore } from '@/infra/cache/postgresql/idempotency-store';
 import { MemoryRateLimiter } from '@/infra/cache/memory/rate-limiter';
-import { PostgresqlRateLimiter } from '@/infra/cache/postgresql/rate-limiter';
+import {
+    ValkeyRateLimiter,
+    valkeyRateLimitWindowKey
+} from '@/infra/cache/valkey/rate-limiter';
+import { FakeValkeyRateLimitServer } from './fake-valkey';
 import { FilesystemObjectStorage } from '@/infra/oss/filesystem/object-storage';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
+import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
+import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
+import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
+import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
+import { SqlReactionRepository } from '@/infra/db/repositories/reaction-repository';
 import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
-import { HmacTokenService } from '@/infra/security/hmac/token-service';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { CompensationService } from '@/ports/object-storage';
 import type {
-    AuditRepository,
-    AuthRepository,
     EventRepository,
-    NamecardRepository,
-    NewsRepository,
-    ReactionRepository
+    NewsRepository
 } from '@/ports/repositories';
 import type { ImageProcessor } from '@/ports/media';
 import type { ObjectStorage } from '@/ports/object-storage';
@@ -35,6 +40,7 @@ import {
     assertRouteUploadBoundaryContract,
     type ControlledUpload
 } from '../contracts/runtime-contracts.js';
+import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
 const SECRET = 'node-contract-secret-at-least-32-bytes';
@@ -173,27 +179,46 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
 
     const connection = await createPostgresTestDatabase(t, 'core-runtime');
     const core = new SqlCoreRepository(connection, new PostgresqlSchemaStrategy());
+    const backofficeAuth = new SqlBackofficeAuthRepository(connection);
+    const audit = new SqlAuditRepository(connection);
+    const news = new SqlNewsRepository(connection);
+    const events = new SqlEventRepository(connection);
+    const reactions = new SqlReactionRepository(connection);
     await core.initialize();
+    await seedCanonicalFudabaAgencies(connection);
     await executeSql(connection,
         `INSERT INTO users (username, password, dept, producername, admin_role)
          VALUES (?, 'contract-digest', 'op', ?, 'admin')`,
         [USERNAME, PRODUCER]
     );
     await executeSql(connection,
-        `INSERT INTO cards (id, image1_url, image2_url, status)
-         VALUES (?, '/uploads/namecard/original/contract-seed-front.webp',
-                    '/uploads/namecard/original/contract-seed-back.webp', 'approved')`,
-        [APPROVED_CARD_ID]
+        `INSERT INTO fudaba_cards
+            (id, card_number, origin, front_object_key, back_object_key,
+             trade_note, available, media_rights_status, publication_status,
+             revision, created_at, updated_at)
+         VALUES (?, ?, 'legacy',
+                 'community/namecards/assets/contract-seed-front/image.webp',
+                 'community/namecards/assets/contract-seed-back/image.webp',
+                 NULL, FALSE, 'approved', 'published', 0,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [`legacy-${APPROVED_CARD_ID}`, APPROVED_CARD_ID]
     );
     await executeSql(connection,
-        `INSERT INTO cards (id, image1_url, image2_url, status)
-         VALUES (?, '/uploads/namecard/original/contract-seed-front.webp',
-                    '/uploads/namecard/original/contract-seed-back.webp', 'pending')`,
-        [PENDING_CARD_ID]
+        `INSERT INTO fudaba_cards
+            (id, card_number, origin, front_object_key, back_object_key,
+             trade_note, available, media_rights_status, publication_status,
+             revision, created_at, updated_at)
+         VALUES (?, ?, 'legacy',
+                 'community/namecards/assets/contract-seed-pending-front/image.webp',
+                 'community/namecards/assets/contract-seed-pending-back/image.webp',
+                 NULL, FALSE, 'unknown', 'pending', 0,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [`legacy-${PENDING_CARD_ID}`, PENDING_CARD_ID]
     );
 
     const parser = new ControlledUploadParser();
-    const limiter = new PostgresqlRateLimiter(connection);
+    const valkey = new FakeValkeyRateLimitServer();
+    const limiter = new ValkeyRateLimiter(valkey, { keyPrefix: 'contract:' });
     const delegate = new FilesystemObjectStorage({ publicDir, uploadsDir, chronicleDir, storyDataDir });
     await delegate.put(
         'community/namecards/assets/contract-seed-front/image.webp',
@@ -211,6 +236,22 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         'community/namecards/assets/contract-seed-back/thumbnail.jpg',
         Uint8Array.of(4)
     );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-front/image.webp',
+        Uint8Array.of(5)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-back/image.webp',
+        Uint8Array.of(6)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-front/thumbnail.jpg',
+        Uint8Array.of(7)
+    );
+    await delegate.put(
+        'community/namecards/assets/contract-seed-pending-back/thumbnail.jpg',
+        Uint8Array.of(8)
+    );
     const compensationDelegate = new FilesystemCompensationService(compensationDir);
     let businessInsertFailure = false;
     let deleteFailure = false;
@@ -218,7 +259,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     let publishFailure = false;
     let compensationEnqueueFailure = false;
     let storageMutations = 0;
-    const repository = new Proxy(core, {
+    const newsRepository = new Proxy(news, {
         get(target, property, receiver) {
             if (property === 'insertNews') {
                 return async (...args: Parameters<NewsRepository['insertNews']>) => {
@@ -226,6 +267,12 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                     return target.insertNews(...args);
                 };
             }
+            const value = Reflect.get(target, property, receiver) as unknown;
+            return typeof value === 'function' ? value.bind(target) : value;
+        }
+    }) as NewsRepository;
+    const eventRepository = new Proxy(events, {
+        get(target, property, receiver) {
             if (property === 'insertEvent') {
                 return async (...args: Parameters<EventRepository['insertEvent']>) => {
                     if (businessInsertFailure) throw new Error('injected event insert failure');
@@ -235,8 +282,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
             const value = Reflect.get(target, property, receiver) as unknown;
             return typeof value === 'function' ? value.bind(target) : value;
         }
-    }) as AuthRepository & AuditRepository & NewsRepository & EventRepository &
-        NamecardRepository & ReactionRepository;
+    }) as EventRepository;
     const compensation = new Proxy(compensationDelegate, {
         get(target, property, receiver) {
             if (property === 'enqueue') {
@@ -285,19 +331,19 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         }
     }) as ObjectStorage;
     const runtime: RuntimeServices = {
-        auth: repository,
-        audit: repository,
-        news: repository,
-        events: repository,
-        namecards: repository,
-        reactions: repository,
+        backofficeAuth,
+        audit,
+        news: newsRepository,
+        events: eventRepository,
+        namecards: core,
+        reactions,
         compensation,
         storage,
         objectDeletions: new PostgresqlObjectDeletionWorker(connection, storage),
         images,
         idempotency: new PostgresqlIdempotencyStore(connection),
         passwords: { async verify(value, digest) { return value === PASSWORD && digest === 'contract-digest'; } },
-        tokens: new HmacTokenService(SECRET),
+        backofficeTokens: new HmacBackofficeTokenService(SECRET),
         rateLimiter: limiter,
         uploads: parser,
         config: { cookieSecure: false, clientAddressSource: 'nginx' }
@@ -343,7 +389,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
     const uploadSnapshot = async () => ({
         news: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM news'))!.count,
         events: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM events'))!.count,
-        cards: (await queryOne<{ count: number }>(connection, 'SELECT COUNT(*) AS count FROM cards'))!.count,
+        cards: (await queryOne<{ count: number }>(connection,
+            "SELECT COUNT(*) AS count FROM fudaba_cards WHERE origin IN ('guest', 'legacy')"
+        ))!.count,
         chronicle: await chronicleRecordCount(path.join(chronicleDir, 'metadata')),
         objects: await objectCount()
     });
@@ -367,7 +415,8 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
             "SELECT id FROM events WHERE image_url<>'' ORDER BY id DESC LIMIT 1"
         ))?.id || 0,
         card: (await queryOne<{ id: number }>(connection,
-            'SELECT id FROM cards ORDER BY id DESC LIMIT 1'
+            `SELECT card_number AS id FROM fudaba_cards
+             WHERE origin IN ('guest', 'legacy') ORDER BY card_number DESC LIMIT 1`
         ))?.id || 0
     });
 
@@ -381,11 +430,9 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
         return (await response.json() as { token: string }).token;
     };
     const rateCount = async (bucket: string, client: string): Promise<number> =>
-        (await queryOne<{ consumed: number }>(connection,
-            `SELECT consumed FROM rate_limit_windows
-             WHERE bucket=? AND limit_key=?`,
-            [bucket, clientAddress(client)]
-        ))?.consumed ?? 0;
+        valkey.consumedFor(
+            valkeyRateLimitWindowKey('contract:', bucket, clientAddress(client))
+        );
 
     return {
         request,
@@ -398,7 +445,7 @@ async function createFixture(t: TestContext): Promise<NodeFixture> {
                 events: upload.events,
                 cards: upload.cards,
                 reactions: (await queryOne<{ count: number }>(connection,
-                    'SELECT COALESCE(SUM(count), 0) AS count FROM card_emojis'
+                    'SELECT COALESCE(SUM(count), 0) AS count FROM namecard_reactions'
                 ))!.count,
                 auditActions: audit.map((row) => row.action),
                 objects: upload.objects,

@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PostgresqlIdempotencyStore } from
     '@/infra/cache/postgresql/idempotency-store';
-import { PostgresqlRateLimiter } from '@/infra/cache/postgresql/rate-limiter';
-import { assertConcurrentRateLimiterContract } from '../contracts/runtime-contracts.js';
 import {
     connectPostgresTestDatabase,
     createPostgresTestDatabase
@@ -139,63 +137,4 @@ test('PostgreSQL idempotency sweeps only expired terminal records', async (t) =>
         { idempotency_key: 'started', state: 'started' },
         { idempotency_key: 'trigger', state: 'started' }
     ]);
-});
-
-test('PostgreSQL rate limiter enforces one shared atomic budget', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'shared-rate-limit');
-    const secondDatabase = connectPostgresTestDatabase(t, database);
-    const limiters = [
-        new PostgresqlRateLimiter(database),
-        new PostgresqlRateLimiter(secondDatabase)
-    ];
-    let current = 0;
-
-    await assertConcurrentRateLimiterContract({
-        runtime: 'PostgreSQL',
-        consume(client, identity) {
-            const limiter = limiters[current++ % limiters.length]!;
-            return limiter.consume(
-                'concurrent-contract',
-                client,
-                30,
-                60 * 60,
-                { operation: 'chronicle:upload', identity }
-            );
-        },
-        async count(client) {
-            return await database.prepare(
-                `SELECT consumed FROM rate_limit_windows
-                 WHERE bucket=? AND limit_key=?`
-            ).bind('concurrent-contract', client).first<number>('consumed') ?? 0;
-        }
-    });
-});
-
-test('PostgreSQL rate limiter resets expired windows', async (t) => {
-    const database = await createPostgresTestDatabase(t, 'rate-limit-reset');
-    let now = 10_000;
-    const limiter = new PostgresqlRateLimiter(database, { now: () => now });
-
-    assert.deepEqual(await limiter.consume('bucket', 'client', 2, 1), {
-        allowed: true,
-        remaining: 1,
-        resetAt: 11_000
-    });
-    assert.deepEqual(await limiter.consume('bucket', 'client', 2, 1), {
-        allowed: true,
-        remaining: 0,
-        resetAt: 11_000
-    });
-    assert.deepEqual(await limiter.consume('bucket', 'client', 2, 1), {
-        allowed: false,
-        remaining: 0,
-        resetAt: 11_000
-    });
-
-    now = 11_001;
-    assert.deepEqual(await limiter.consume('bucket', 'client', 2, 1), {
-        allowed: true,
-        remaining: 1,
-        resetAt: 12_001
-    });
 });

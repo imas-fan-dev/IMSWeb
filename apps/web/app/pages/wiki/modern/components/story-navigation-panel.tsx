@@ -1,11 +1,12 @@
 import { ArrowLeftIcon, HouseIcon, SearchIcon } from "lucide-react"
-import { Link } from "react-router"
 
-import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
-import { cn } from "~/lib/utils"
+import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import type { WikiPublicStories, WikiPublicStoryCategory } from "~/lib/api"
+import { webOnly } from "~/lib/navigation/navigation-target"
+import { cn } from "~/lib/utils"
 
 export function StoryNavigationPanel({
   stories,
@@ -28,7 +29,7 @@ export function StoryNavigationPanel({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-        <Link
+        <NavigationLink
           to="/"
           onClick={onNavigate}
           className={cn(
@@ -38,8 +39,8 @@ export function StoryNavigationPanel({
         >
           <HouseIcon data-icon="inline-start" />
           首页
-        </Link>
-        <Link
+        </NavigationLink>
+        <NavigationLink
           to={agencyHref}
           onClick={onNavigate}
           className={cn(
@@ -49,11 +50,11 @@ export function StoryNavigationPanel({
         >
           <ArrowLeftIcon data-icon="inline-start" />
           企划目录
-        </Link>
+        </NavigationLink>
       </div>
 
-      <Link
-        to={classicHref}
+      <NavigationLink
+        to={webOnly(classicHref)}
         onClick={onNavigate}
         className={cn(
           buttonVariants({ variant: "outline", size: "sm" }),
@@ -62,7 +63,7 @@ export function StoryNavigationPanel({
       >
         <WikiViewSwitchIcon data-icon="inline-start" />
         经典视图
-      </Link>
+      </NavigationLink>
 
       <label className="relative block min-w-0">
         <span className="sr-only">快速搜索剧情</span>
