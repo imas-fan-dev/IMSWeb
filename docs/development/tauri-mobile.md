@@ -88,7 +88,7 @@ pnpm --filter @imsweb/web run tauri android dev    # Android 模拟器
 pnpm --filter @imsweb/web run tauri android dev --host <开发机局域网 IP> [设备名]
 ```
 
-Tauri 的 `dev` 和 `build` 会先运行 `icon:app`，因此 Android 生成工程被删除或重建后仍会恢复专用图层。
+Tauri 的 `dev` 和 `build` 会先运行 `icon:app`，因此 Android 生成工程被删除或重建后仍会恢复专用图层。`icon:app` 还会规范化 ICNS 顶层块顺序，使相同输入的重复生成不产生二进制差异。
 修改 `public/brand/imsweb-app-icon.png` 或 `src-tauri/icon-sources/` 后，也可以单独运行该命令检查派生图标。
 
 `init` 会在 `src-tauri/gen/` 下生成平台工程。执行前先确认 identifier 与签名归属，

@@ -199,6 +199,6 @@ Android 另外使用 `src-tauri/icon-sources/` 中的背景、透明前景和单
 pnpm run icon:app
 ```
 
-Tauri 的 `dev` 与 `build` 入口会在启动前自动运行这条命令，确保被忽略的 `src-tauri/gen/android/` 使用同一套图层。`tauri.conf.json` 的 `bundle.icon` 列表保持不变。图标的字形来源、许可与 SHA-256 记录在[来源与许可登记](../../docs/governance/assets.md)，替换源文件后需同步更新。
+该命令在 Tauri 生成图标后规范化 `icon.icns` 的顶层块顺序，避免相同源图因无序容器写入产生不同的 Git blob。不要绕过 workspace 命令直接运行 `tauri icon`。Tauri 的 `dev` 与 `build` 入口会在启动前自动运行这条命令，确保被忽略的 `src-tauri/gen/android/` 使用同一套图层。`tauri.conf.json` 的 `bundle.icon` 列表保持不变。图标的字形来源、许可与 SHA-256 记录在[来源与许可登记](../../docs/governance/assets.md)，替换源文件后需同步更新。
 
 站点 `public/favicon.ico` 不由这条命令产出，仍是独立的 fallback 资产。

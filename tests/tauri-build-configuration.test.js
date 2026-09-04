@@ -88,7 +88,7 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
     assert.equal(webPackage.scripts["dev:app"], "node scripts/dev-app.js");
     assert.equal(
       webPackage.scripts["icon:app"],
-      "tauri icon src-tauri/icon-sources/app-icon.json",
+      "tauri icon src-tauri/icon-sources/app-icon.json && node scripts/canonicalize-icns.js src-tauri/icons/icon.icns",
     );
 
     const appIconManifestPath = path.resolve(

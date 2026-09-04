@@ -13,7 +13,7 @@
     "design:lint": "designmd lint DESIGN.md",
     "dev": "VITE_IMS_APP_TARGET=web react-router dev",
     "dev:app": "node scripts/dev-app.js",
-    "icon:app": "tauri icon src-tauri/icon-sources/app-icon.json",
+    "icon:app": "tauri icon src-tauri/icon-sources/app-icon.json && node scripts/canonicalize-icns.js src-tauri/icons/icon.icns",
     "lint": "eslint . --max-warnings=0",
     "preview": "VITE_IMS_APP_TARGET=web vite preview --host 127.0.0.1",
     "tauri": "tauri",

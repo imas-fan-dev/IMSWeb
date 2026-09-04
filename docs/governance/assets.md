@@ -39,7 +39,7 @@ Android launcher icon 另有三张仓库内图层源文件。背景层按主图�
 | `apps/web/src-tauri/icon-sources/android-foreground.png` | 488011 | `239f26fe661906c19fcb28e62f378568457b5bb900d1a4c7c78807f3f60dd3e7` |
 | `apps/web/src-tauri/icon-sources/android-monochrome.png` | 105269 | `2b320c63a2abc6b2e9cc00a19dcbd23c66141ef59d0e72d4fca84c73559bb0ef` |
 
-`apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm run icon:app` 派生，不单独登记；替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
+`apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm run icon:app` 派生，不单独登记；命令会在生成后规范化 ICNS 顶层块顺序，保证相同源图产生相同的版本库内容。替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
 
 ### 系列墙与随机 icon
 
