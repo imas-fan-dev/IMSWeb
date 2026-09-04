@@ -126,3 +126,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: 完成 CMS 文章标题回填
+<!-- trellis-session: v=2 fp=1b8566714d53e25c -->
+
+**Date**: 2026-09-04
+**Task**: 完成 CMS 文章标题回填
+**Branch**: `release/v1.1`
+
+### Summary
+
+实现默认 dry-run、显式 apply 的 CMS 中文方括号标题回填；事务内同步文章与活动标题，保留并前置正文，生成 0600 审计报告。专项测试 9/9、完整 migration 套件 111/111 通过；本地备份后更新 9 条并以第二次 apply 验证幂等。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1dd6ffb` | feat(api): add CMS article title backfill |
+
+### Status
+
+[OK] **Completed**
