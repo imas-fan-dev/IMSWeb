@@ -45,6 +45,100 @@ Existing Playwright tests such as
 accessibility scans, viewport geometry, and overflow assertions. Follow those
 patterns for user-visible workflows.
 
+### Content-sized namecard columns
+
+`useNamecardMasonry(cards)` measures each mobile Card at its natural height and
+keeps cards in their original DOM order, assigning columns by index parity.
+Build explicit row tracks from the sorted item top/bottom coordinates; track
+count must stay at most `2 * itemCount - 1`, regardless of page height. Do not use
+one implicit grid row per pixel: a 48-card page with large reaction groups can
+reach the browser's grid limit and overlap later cards.
+
+Enable the measured grid only after valid positive heights are available. Keep
+ordinary-grid fallback for missing ResizeObserver or invalid measurements, clear
+measured styles on desktop, and invalidate scheduled callbacks during cleanup.
+Emoji changes must move later cards in the same column without changing DOM or
+preview order. One Card owns both faces, metadata, and reactions.
+
+Cover initial alignment, unequal heights, asynchronous changes, breakpoint
+round-trips, and 48 cards with 11 six-digit reaction counts in browser tests.
+Assert same-column gaps, footer separation, and bounded track count, not merely
+that the first viewport looks correct.
+
+### Mobile namecard pagination
+
+Keep page-size, summary, jump form, and previous/next controls in one named
+navigation region. The mobile controls use two rows and targets of at least
+44px; desktop retains its labels and grouping. Preserve URL parameters, reject
+invalid pages, submit on Enter, cancel the draft on Escape, and avoid a request
+for the current page. Verify that a changed page starts in view.
+
+When shortening a label visually, set a stable accessible name on its control:
+browsers can insert spaces between nested label text that unit-test DOMs omit.
+Geometry checks must exclude Base UI's offscreen form inputs; a 1px native form
+mirror is not a visible touch target.
+
+The App floating upload/back-to-top group yields while the namecard pagination
+is visible. The page-private visibility hook owns initial measurement, observer
+subscription, fallback events and cleanup; AppLayout only consumes the marker.
+Do not unmount the upload dialog or change other routes to solve this collision.
+Test actual `elementFromPoint` hits across enabled controls, not only the layout
+of controls inside the navigation. Disabled buttons may have pointer-events none
+and are not touch-hit candidates.
+
+### Namecard dates and reaction graphics
+
+Render submission timestamps as Shanghai `MM-DD HH:mm` with a 24-hour `h23`
+clock. Assemble the parts explicitly rather than relying on locale punctuation.
+Keep the year and seconds in the time element's ISO value and full accessible
+description. Cover midnight, date/year rollovers, timezone offsets, and narrow
+column bounds. Missing/invalid labels remain short.
+
+Reaction chips and picker entries use the same page-private local-image
+component. Preserve Unicode wire values and button labels, but never use native
+emoji as a visual fallback. Pin assets, attribution and SHA-256 metadata under
+public, and keep the asset map, API allowlist and actual files covered together.
+Browser tests must load all icons in both targets and verify their dimensions;
+allow subpixel rounding when comparing DOMRect values to CSS pixels.
+
+Mobile list chips use 16px graphics and 12px counts while the picker and desktop
+keep 20px graphics. Include the add button in the four-entry row limit. Each
+mobile control keeps at least 44px and one quarter of the row width, with natural
+width growth for long counts; do not force six-digit counts into a fixed 25%
+box. A narrower Card can wrap to fewer entries. Preserve inset focus rings at
+full-width Card edges and restore desktop padding and gaps. Browser coverage
+must prove four short-count entries at 402px, narrow-screen wrapping, six-digit
+counts without overflow, and unchanged picker sizing.
+
+### Continuous namecard previews
+
+Keep one `NamecardPreview` Dialog mounted while changing cards. The page-private
+`useNamecardPreviewNavigation(listContext)` owns adjacent-page reads through
+`getNamecardPage`; preview navigation must not change the list URL or replace its
+items. Lock navigation synchronously before awaiting a request. Invalidate its
+session on close, reopen, unmount, and list-context changes; empty or shrinking
+pages retain the current image and expose retry instead of recursing.
+
+`useNamecardPreviewReturn(listContext)` records the original trigger, scrollable
+ancestors, and window position. Restore focus with `preventScroll` after the focus
+trap releases, then restore scroll positions. A deferred animation-frame callback
+must check that its return target still belongs to the closing session. Reopening
+or changing list context must invalidate it.
+
+Verify these contracts in the navigation/return hook unit tests and
+`apps/web/tests/e2e/namecard-mobile-browsing.spec.ts`. The App counterpart covers
+safe areas and return behavior across the existing five viewport projects.
+
+### Popup resting styles
+
+Animation completion alone does not prove a popup is usable. The namecard
+reaction picker uses a local no-animation override because Firefox collision
+placement could leave its entry opacity and transform at intermediate values.
+Assert computed opacity `1` and rendered 44px targets after placement, including
+short landscape viewports. Keep this override local; do not disable global
+motion. When waiting for finite animations, allow cancellation with
+`Promise.allSettled`, then assert the resulting styles and geometry.
+
 ### Fixed-height virtualized rows
 
 Treat a virtualized row's rendered height, loading skeleton, virtualizer estimate,

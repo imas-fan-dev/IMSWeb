@@ -1,11 +1,12 @@
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   RotateCcwIcon,
-  SwitchCameraIcon,
   XIcon,
   ZoomInIcon,
   ZoomOutIcon,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { Button } from "~/components/ui/button"
 import {
@@ -26,6 +27,18 @@ const BACKDROP_CLICK_THRESHOLD = 8
 
 export type NamecardSide = "front" | "back"
 
+export type NamecardPreviewNavigation = {
+  position: number
+  total: number
+  canPrevious: boolean
+  canNext: boolean
+  pending: boolean
+  error: string | null
+  onPrevious: () => void
+  onNext: () => void
+  onRetry: () => void
+}
+
 type Point = { x: number; y: number }
 type ViewState = { scale: number; offset: Point }
 type PointerState = {
@@ -33,6 +46,7 @@ type PointerState = {
   start: Point
   origin: Point
   startedOnBackdrop: boolean
+  moved: boolean
 }
 
 function clampScale(value: number) {
@@ -48,11 +62,15 @@ export function NamecardPreview({
   side,
   onSideChange,
   onOpenChange,
+  navigation,
+  onReturnFocus,
 }: {
   card: Namecard | null
   side: NamecardSide
   onSideChange: (side: NamecardSide) => void
   onOpenChange: (open: boolean) => void
+  navigation?: NamecardPreviewNavigation
+  onReturnFocus?: () => void
 }) {
   const [view, setView] = useState<ViewState>({
     scale: 1,
@@ -63,9 +81,22 @@ export function NamecardPreview({
     "loading"
   )
   const pointerRef = useRef<PointerState | null>(null)
+  const [retry, setRetry] = useState(0)
   const { scale, offset } = view
   const src =
     side === "front" ? (card?.image1_url ?? "") : (card?.image2_url ?? "")
+  const identity = `${card?.id}:${side}:${src}`
+  const [displayedIdentity, setDisplayedIdentity] = useState(identity)
+  if (displayedIdentity !== identity) {
+    setDisplayedIdentity(identity)
+    setView({ scale: 1, offset: { x: 0, y: 0 } })
+    setDragging(false)
+    setImageState("loading")
+    setRetry(0)
+  }
+  useLayoutEffect(() => {
+    pointerRef.current = null
+  }, [identity])
 
   function resetView() {
     setView({ scale: 1, offset: { x: 0, y: 0 } })
@@ -103,19 +134,30 @@ export function NamecardPreview({
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.target instanceof Element && event.target.closest("button"))
+      return
     event.currentTarget.setPointerCapture?.(event.pointerId)
     pointerRef.current = {
       pointerId: event.pointerId,
       start: { x: event.clientX, y: event.clientY },
       origin: offset,
       startedOnBackdrop: event.target === event.currentTarget,
+      moved: false,
     }
     if (scale > 1) setDragging(true)
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const pointer = pointerRef.current
-    if (!pointer || pointer.pointerId !== event.pointerId || scale <= 1) return
+    if (!pointer || pointer.pointerId !== event.pointerId) return
+    if (
+      Math.hypot(
+        event.clientX - pointer.start.x,
+        event.clientY - pointer.start.y
+      ) >= BACKDROP_CLICK_THRESHOLD
+    )
+      pointer.moved = true
+    if (scale <= 1) return
     setView((current) => ({
       ...current,
       offset: {
@@ -136,6 +178,7 @@ export function NamecardPreview({
     setDragging(false)
     if (
       pointer.startedOnBackdrop &&
+      !pointer.moved &&
       event.target === event.currentTarget &&
       moved < BACKDROP_CLICK_THRESHOLD
     ) {
@@ -195,16 +238,32 @@ export function NamecardPreview({
       }}
     >
       <DialogContent
+        finalFocus={
+          onReturnFocus
+            ? () => {
+                onReturnFocus()
+                return false
+              }
+            : undefined
+        }
         showCloseButton={false}
         safeArea="viewport"
         overlayClassName="bg-background/85 supports-backdrop-filter:bg-background/45 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150"
-        className="grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-transparent p-0 text-foreground ring-0 data-open:zoom-in-100 data-closed:zoom-out-100"
+        className="grid grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-none bg-background p-0 text-foreground ring-0 motion-reduce:animate-none data-open:zoom-in-100 data-closed:zoom-out-100"
         onKeyDown={handleKeyDown}
       >
-        <header className="flex min-h-[calc(4rem+var(--safe-area-top))] min-w-0 items-center gap-3 pt-(--safe-area-top) pr-[calc(1rem+var(--safe-area-right))] pl-[calc(1rem+var(--safe-area-left))]">
-          <DialogTitle className="min-w-0 flex-1 truncate text-sm text-foreground drop-shadow-sm">
-            制作人名片 {card?.id} · {sideLabel(side)}
-          </DialogTitle>
+        <header className="flex min-h-[calc(3.5rem+var(--safe-area-top))] min-w-0 items-center gap-3 pt-(--safe-area-top) pr-[calc(0.75rem+var(--safe-area-right))] pl-[calc(0.75rem+var(--safe-area-left))]">
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-sm text-foreground">
+              制作人名片 <span className="sr-only">{card?.id}</span> ·{" "}
+              {sideLabel(side)}
+            </DialogTitle>
+            {navigation ? (
+              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                第 {navigation.position} / {navigation.total} 张
+              </p>
+            ) : null}
+          </div>
           <DialogDescription className="sr-only">
             双面名片大图预览，可切换正面和背面
           </DialogDescription>
@@ -214,7 +273,7 @@ export function NamecardPreview({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="border border-foreground/10 bg-background/30 text-foreground shadow-sm backdrop-blur-xl hover:bg-background/55 hover:text-foreground"
+                className="size-11 text-foreground"
                 aria-label="关闭名片预览"
                 title="关闭"
               />
@@ -226,18 +285,27 @@ export function NamecardPreview({
 
         <div
           className={cn(
-            "relative flex min-h-0 touch-none items-center justify-center overflow-hidden px-3 sm:px-8",
+            "relative flex min-h-0 touch-none items-center justify-center overflow-hidden pr-[calc(0.75rem+var(--safe-area-right))] pl-[calc(0.75rem+var(--safe-area-left))]",
             scale > 1 ? (dragging ? "cursor-grabbing" : "cursor-grab") : ""
           )}
           aria-label="名片查看区域"
           onDoubleClick={(event) => {
-            if (event.target === event.currentTarget) return
+            if (
+              event.target === event.currentTarget ||
+              (event.target instanceof Element &&
+                event.target.closest("button"))
+            )
+              return
             updateScale((current) => (current === 1 ? 2 : 1))
           }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
           onPointerCancel={() => {
+            pointerRef.current = null
+            setDragging(false)
+          }}
+          onLostPointerCapture={() => {
             pointerRef.current = null
             setDragging(false)
           }}
@@ -258,18 +326,34 @@ export function NamecardPreview({
             </p>
           ) : null}
           {imageState === "error" ? (
-            <p className="pointer-events-none absolute text-sm text-destructive">
-              这张图片暂时无法显示
-            </p>
+            <div className="absolute flex flex-col items-center gap-2 px-4 text-center">
+              <p role="alert" className="text-sm text-destructive">
+                这张图片暂时无法显示
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => {
+                  setImageState("loading")
+                  setRetry((current) => current + 1)
+                }}
+              >
+                重试加载图片
+              </Button>
+            </div>
           ) : null}
           {card ? (
             <img
+              key={`${identity}:${retry}`}
               src={src}
               alt={`制作人名片 ${card.id} ${sideLabel(side)}`}
               draggable={false}
               className={cn(
-                "max-h-full max-w-full object-contain drop-shadow-[0_18px_40px_rgb(0_0_0/0.2)] will-change-transform select-none",
-                dragging ? "" : "transition-transform duration-150",
+                "max-h-full max-w-full object-contain select-none",
+                dragging
+                  ? ""
+                  : "transition-transform duration-(--duration-fast) motion-reduce:transition-none",
                 imageState === "error" ? "invisible" : ""
               )}
               style={{
@@ -281,76 +365,115 @@ export function NamecardPreview({
           ) : null}
         </div>
 
-        <footer className="flex min-h-[calc(5rem+var(--safe-area-bottom))] flex-wrap items-center justify-center gap-2 pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]">
-          <div className="flex items-center gap-1 rounded-lg border border-foreground/10 bg-background/35 p-1 shadow-lg backdrop-blur-xl">
-            {(["front", "back"] as const).map((nextSide) => (
+        <footer className="flex flex-col items-center gap-2 border-t pt-2 pr-[calc(0.75rem+var(--safe-area-right))] pb-[calc(0.5rem+var(--safe-area-bottom))] pl-[calc(0.75rem+var(--safe-area-left))]">
+          {navigation?.pending ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              正在读取名片…
+            </p>
+          ) : null}
+          {navigation?.error ? (
+            <div className="flex flex-wrap items-center justify-center gap-x-2">
+              <p role="alert" className="text-xs text-destructive">
+                {navigation.error}
+              </p>
               <Button
-                key={nextSide}
                 type="button"
-                variant={side === nextSide ? "secondary" : "ghost"}
-                className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
-                aria-pressed={side === nextSide}
-                onClick={() => changeSide(nextSide)}
+                variant="outline"
+                className="min-h-11"
+                onClick={navigation.onRetry}
               >
-                {sideLabel(nextSide)}
+                重试加载名片
               </Button>
-            ))}
-          </div>
+            </div>
+          ) : null}
+          <div className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center">
+            <div className="flex items-center gap-1">
+              {navigation ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="mr-2 size-11"
+                  aria-label="上一张名片"
+                  title="上一张名片"
+                  disabled={!navigation.canPrevious || navigation.pending}
+                  onClick={navigation.onPrevious}
+                >
+                  <ArrowLeftIcon />
+                </Button>
+              ) : null}
+              {(["front", "back"] as const).map((nextSide) => (
+                <Button
+                  key={nextSide}
+                  type="button"
+                  variant={side === nextSide ? "secondary" : "ghost"}
+                  className="min-h-11 min-w-11 text-foreground"
+                  aria-pressed={side === nextSide}
+                  onClick={() => changeSide(nextSide)}
+                >
+                  {sideLabel(nextSide)}
+                </Button>
+              ))}
+              {navigation ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="ml-2 size-11"
+                  aria-label="下一张名片"
+                  title="下一张名片"
+                  disabled={!navigation.canNext || navigation.pending}
+                  onClick={navigation.onNext}
+                >
+                  <ArrowRightIcon />
+                </Button>
+              ) : null}
+            </div>
 
-          <div className="flex items-center gap-1 rounded-lg border border-foreground/10 bg-background/35 p-1 shadow-lg backdrop-blur-xl">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
-              aria-label="缩小名片"
-              title="缩小"
-              disabled={scale <= MIN_SCALE}
-              onClick={() => updateScale((current) => current - SCALE_STEP)}
-            >
-              <ZoomOutIcon />
-            </Button>
-            <output
-              className="w-16 text-center text-xs text-muted-foreground tabular-nums"
-              aria-live="polite"
-            >
-              {Math.round(scale * 100)}%
-            </output>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
-              aria-label="放大名片"
-              title="放大"
-              disabled={scale >= MAX_SCALE}
-              onClick={() => updateScale((current) => current + SCALE_STEP)}
-            >
-              <ZoomInIcon />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="ml-1 min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
-              aria-label="复位名片"
-              title="复位"
-              disabled={scale === 1 && offset.x === 0 && offset.y === 0}
-              onClick={resetView}
-            >
-              <RotateCcwIcon />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="ml-1 min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
-              aria-label={`切换到${side === "front" ? "背面" : "正面"}`}
-              title="切换正反面"
-              onClick={() => changeSide(side === "front" ? "back" : "front")}
-            >
-              <SwitchCameraIcon />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
+                aria-label="缩小名片"
+                title="缩小"
+                disabled={scale <= MIN_SCALE}
+                onClick={() => updateScale((current) => current - SCALE_STEP)}
+              >
+                <ZoomOutIcon />
+              </Button>
+              <output
+                className="w-12 text-center text-xs text-muted-foreground tabular-nums"
+                aria-live="polite"
+              >
+                {Math.round(scale * 100)}%
+              </output>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
+                aria-label="放大名片"
+                title="放大"
+                disabled={scale >= MAX_SCALE}
+                onClick={() => updateScale((current) => current + SCALE_STEP)}
+              >
+                <ZoomInIcon />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-1 min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
+                aria-label="复位名片"
+                title="复位"
+                disabled={scale === 1 && offset.x === 0 && offset.y === 0}
+                onClick={resetView}
+              >
+                <RotateCcwIcon />
+              </Button>
+            </div>
           </div>
         </footer>
       </DialogContent>

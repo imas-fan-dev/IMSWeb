@@ -56,7 +56,7 @@ export default function AppLayout() {
         data-app-shell=""
         data-app-immersive={isExchangeMap ? "" : undefined}
         className={cn(
-          "relative isolate flex min-h-svh flex-col",
+          "group/app-shell relative isolate flex min-h-svh flex-col",
           isExchangeMap && "h-dvh min-h-0 overflow-hidden"
         )}
       >
@@ -80,9 +80,12 @@ export default function AppLayout() {
         </div>
         {isExchangeMap ? null : (
           <div
+            data-app-floating-actions
             className={cn(
               "fixed right-[calc(1rem+var(--safe-area-right))] z-40 flex flex-col items-end gap-2",
-              APP_FLOATING_CONTROL_OFFSET
+              APP_FLOATING_CONTROL_OFFSET,
+              isNamecardWall &&
+                "group-has-data-namecard-pagination-visible/app-shell:hidden"
             )}
           >
             {isNamecardWall ? <NamecardUploadDialog /> : null}

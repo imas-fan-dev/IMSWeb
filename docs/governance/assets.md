@@ -108,6 +108,20 @@ OpenStreetMap 版权和许可说明以 `https://www.openstreetmap.org/copyright`
 南海断续线；其数据许可边界与上一文件相同，不标记为 MIT。若需要法律层面的完整覆盖，必须改用
 经主管部门审核并取得审图号的数据，或取得明确的再分发授权。
 
+## 名片反应图形
+
+`apps/web/public/emoji/twemoji/` 包含名片反应列表和选择器使用的 46 张 SVG。来源为
+[Twemoji v17.0.3](https://github.com/jdecked/twemoji/tree/v17.0.3/assets/svg)，作者为 Twemoji
+贡献者；图形按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权，可在保留署名、
+来源与许可说明的条件下公开分发并用于 Web 和移动 App。Twemoji 的代码许可与图形许可不同，
+这些图形不属于本仓库的 MIT 授权范围。
+
+SVG 保留上游原始字节，未修改、裁切或重新编码。随包的
+[manifest.json](../../apps/web/public/emoji/twemoji/manifest.json) 逐项记录原字符、文件名、字节数和
+SHA-256；[NOTICE.txt](../../apps/web/public/emoji/twemoji/NOTICE.txt) 和
+[LICENSE-GRAPHICS.txt](../../apps/web/public/emoji/twemoji/LICENSE-GRAPHICS.txt) 提供署名与完整许可。
+资产清单的单元测试同时核对反应允许列表、实际文件和校验值，新增反应时必须一并更新。
+
 ## 新增资产要求
 
 新增静态资产必须满足：

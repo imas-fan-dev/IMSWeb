@@ -17,7 +17,7 @@ vi.mock("~/components/app/app-tab-bar", () => ({
 }))
 
 vi.mock("~/components/community/namecard-upload-dialog", () => ({
-  NamecardUploadDialog: () => null,
+  NamecardUploadDialog: () => <input aria-label="Upload draft" />,
 }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
@@ -27,7 +27,7 @@ vi.mock("~/components/platform/platform-session-provider", () => ({
 }))
 
 vi.mock("~/components/shared/back-to-top", () => ({
-  BackToTop: () => null,
+  BackToTop: () => <button type="button">Back to top</button>,
 }))
 
 vi.mock("~/components/shared/brand-wordmark", () => ({
@@ -42,7 +42,74 @@ vi.mock("~/components/shared/theme-toggle", () => ({
   ThemeToggle: () => <button type="button">切换主题</button>,
 }))
 
+function layoutWithPagination(entry: string, visible: boolean) {
+  return (
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route
+              path="*"
+              element={
+                <nav
+                  aria-label="Namecard pagination"
+                  data-namecard-pagination-visible={visible ? "" : undefined}
+                />
+              }
+            />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </I18nextProvider>
+  )
+}
+
 describe("AppLayout", () => {
+  it.each(["/community/cards", "/community/cards/"])(
+    "scopes floating-action yielding to the namecard pagination on %s without remounting upload",
+    (entry) => {
+      const { rerender } = render(layoutWithPagination(entry, false))
+      const upload = screen.getByRole("textbox", { name: "Upload draft" })
+      const actions = upload.closest("[data-app-floating-actions]")
+      expect(actions).toHaveClass(
+        "fixed",
+        "bottom-[var(--app-floating-bottom)]",
+        "group-has-data-namecard-pagination-visible/app-shell:hidden"
+      )
+      expect(actions?.closest("[data-app-shell]")).toHaveClass(
+        "group/app-shell"
+      )
+      expect(
+        screen.getByRole("button", { name: "Back to top" }).parentElement
+      ).toBe(actions)
+
+      rerender(layoutWithPagination(entry, true))
+      expect(
+        screen.getByRole("navigation", { name: "Namecard pagination" })
+      ).toHaveAttribute("data-namecard-pagination-visible")
+      expect(screen.getByRole("textbox", { name: "Upload draft" })).toBe(upload)
+      rerender(layoutWithPagination(entry, false))
+      expect(screen.getByRole("textbox", { name: "Upload draft" })).toBe(upload)
+      expect(
+        screen.getByRole("navigation", { name: "Namecard pagination" })
+      ).not.toHaveAttribute("data-namecard-pagination-visible")
+    }
+  )
+
+  it("does not apply the namecard visibility rule to another route", () => {
+    render(layoutWithPagination("/events", true))
+    const actions = screen
+      .getByRole("button", { name: "Back to top" })
+      .closest("[data-app-floating-actions]")
+    expect(actions).toHaveClass("fixed", "bottom-[var(--app-floating-bottom)]")
+    expect(actions).not.toHaveClass(
+      "group-has-data-namecard-pagination-visible/app-shell:hidden"
+    )
+    expect(
+      screen.queryByRole("textbox", { name: "Upload draft" })
+    ).not.toBeInTheDocument()
+  })
+
   it("keeps the top bar in flow while making it sticky below the safe area", () => {
     render(
       <I18nextProvider i18n={i18n}>

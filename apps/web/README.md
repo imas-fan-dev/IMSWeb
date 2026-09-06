@@ -7,6 +7,10 @@ IMSWeb 的新前端工程。项目使用 React Router 7 framework mode 组织路
 
 前端位于父仓库的 `apps/web`，包名为 `@imsweb/web`。它由根目录的 `pnpm-workspace.yaml` 和 `pnpm-lock.yaml` 统一管理，不保留嵌套 `.git`、子级 workspace 或子级锁文件。
 
+名片反应图形采用 [Twemoji](https://github.com/jdecked/twemoji) 贡献者的作品，按
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 分发。固定版本、原始资产与校验记录见
+[资产来源记录](../../docs/governance/assets.md#名片反应图形)，完整许可随 App 一起打包。
+
 ## 技术栈
 
 - React Router 7 framework mode：文件式路由配置、预渲染与 SPA fallback 产物

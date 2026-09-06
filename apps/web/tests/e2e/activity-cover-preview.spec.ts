@@ -298,7 +298,7 @@ test("namecard images use the shared full-page viewer", async ({
   await dialog.getByRole("button", { name: "放大名片" }).click()
   await expect(dialog.getByText("125%", { exact: true })).toBeVisible()
 
-  const switchToBack = dialog.getByRole("button", { name: "切换到背面" })
+  const switchToBack = dialog.getByRole("button", { name: "背面", exact: true })
   await expect(switchToBack).toBeEnabled()
 
   await switchToBack.click()
@@ -308,7 +308,7 @@ test("namecard images use the shared full-page viewer", async ({
   ).toBeVisible()
   await expect(dialog.getByText("100%", { exact: true })).toBeVisible()
 
-  const switchToFront = dialog.getByRole("button", { name: "切换到正面" })
+  const switchToFront = dialog.getByRole("button", { name: "正面", exact: true })
   await expect(switchToFront).toBeEnabled()
   await switchToFront.click()
   await expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")
@@ -316,7 +316,7 @@ test("namecard images use the shared full-page viewer", async ({
     dialog.getByRole("img", { name: "制作人名片 42 正面" })
   ).toBeVisible()
 
-  await dialog.getByRole("button", { name: "切换到背面" }).click()
+  await dialog.getByRole("button", { name: "背面", exact: true }).click()
   await expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
 
   if (process.env.CAPTURE_INFORMATION_COVER_QA === "1") {
