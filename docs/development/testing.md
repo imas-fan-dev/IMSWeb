@@ -77,7 +77,8 @@ pnpm --filter @imsweb/web run test:e2e
 ```
 
 Root `test:web-routing` 在构建两个 workspace 后运行 frontend routing 与 packaged-client
-asset contracts。普通 Web 和 App Playwright 分别通过 `test:e2e` 与 `test:e2e:app` 显式运行。
+asset contracts。CI 的 Web lane 运行 Chromium、移动 Chromium 与 Firefox 的普通 Web
+Playwright 矩阵；App Playwright 由独立 App lane 运行。
 
 命令名称以当前 package scripts 为准；添加或删除 script 时同步更新 workspace README 和
 边界测试，不为同一动作创建重复的根转发别名。

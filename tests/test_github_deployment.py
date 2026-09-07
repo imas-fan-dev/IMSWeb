@@ -244,10 +244,11 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             self.assertIn(token, app)
 
         web = jobs["web"]
+        self.assertIn("timeout-minutes: 60", web)
         self.assertIn("pnpm --filter @imsweb/web run check", web)
         self.assertIn("python3 -m unittest tests/test_public_assets.py", web)
-        self.assertNotIn("playwright install", web)
-        self.assertNotIn("test:e2e", web)
+        self.assertIn("playwright install --with-deps chromium firefox", web)
+        self.assertIn("pnpm --filter @imsweb/web run test:e2e", web)
 
         api = jobs["api"]
         for command in ("check", "test:node", "test:server", "test:wiki", "test:migration"):
