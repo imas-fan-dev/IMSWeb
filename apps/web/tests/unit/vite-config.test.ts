@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { resolve, sep } from "node:path"
 
 import { describe, expect, it } from "vitest"
@@ -8,6 +10,7 @@ import {
   tauriMapAssetCorsOrigin,
 } from "../../vite-exchange-map-assets"
 import { GENERATED_BUILD_WATCH_OPTIONS } from "../../vite-watch"
+import viteConfig from "../../vite.config"
 
 describe("Vite file watching", () => {
   it("ignores Web and Tauri build artifacts", () => {
@@ -18,6 +21,14 @@ describe("Vite file watching", () => {
       "**/src-tauri/icons/**",
       "**/src-tauri/target/**",
     ])
+  })
+})
+
+describe("Vite dependency optimization", () => {
+  it("pre-bundles linked CommonJS runtime entrypoints", () => {
+    expect(viteConfig.optimizeDeps?.include).toContain(
+      "@imsweb/contracts/fudaba/runtime"
+    )
   })
 })
 
