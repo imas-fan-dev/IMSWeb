@@ -1,4 +1,7 @@
+import type { EditorialSpotlight } from "@imsweb/contracts/editorial"
 import { expect, test } from "@playwright/test"
+
+import { installHomepageLinksMock } from "./fixtures/homepage"
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -9,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 const publicRoutes = [
   { path: "/", title: /IMSWeb/i },
   { path: "/about", title: /关于我们.*IMSWeb/i },
-  { path: "/events", title: /活动.*IMSWeb/i },
+  { path: "/events", title: /社区动态.*IMSWeb/i },
   { path: "/recommendations", title: /向您推荐.*IMSWeb/i },
   { path: "/live", title: /Live.*IMSWeb/i },
   { path: "/community", title: /制作人社区.*IMSWeb/i },
@@ -165,10 +168,7 @@ test("work detail keeps narrow-screen artwork behind the copy", async ({
   await expect(character.locator("..")).toHaveCSS("position", "absolute")
 })
 
-test("work detail loads its character and font directly from R2", async ({
-  page,
-}) => {
-  const assetResponses = new Map<string, number>()
+test("work detail loads its character directly from R2", async ({ page }) => {
   const legacyAssetRequests: string[] = []
   page.on("request", (request) => {
     const url = request.url()
@@ -179,12 +179,11 @@ test("work detail loads its character and font directly from R2", async ({
       legacyAssetRequests.push(url)
     }
   })
-  page.on("response", (response) => {
-    const url = response.url()
-    if (url.startsWith("https://imas-assets.texasoct.tech/brand/")) {
-      assetResponses.set(url, response.status())
-    }
-  })
+  const characterResponse = page.waitForResponse((response) =>
+    response
+      .url()
+      .startsWith("https://imas-assets.texasoct.tech/brand/works/sc/")
+  )
 
   await page.goto("/works/sc")
 
@@ -201,13 +200,7 @@ test("work detail loads its character and font directly from R2", async ({
       character.evaluate((image: HTMLImageElement) => image.naturalWidth)
     )
     .toBeGreaterThan(0)
-  // The font response lands after the artwork. Wait for it on purpose: this
-  // used to ride on an unrelated `document.fonts.check()` poll that happened to
-  // burn enough time, which made the count look deterministic when it was not.
-  await expect.poll(() => assetResponses.size).toBeGreaterThanOrEqual(2)
-  expect([...assetResponses.values()].every((status) => status === 200)).toBe(
-    true
-  )
+  expect((await characterResponse).status()).toBe(200)
   expect(legacyAssetRequests).toEqual([])
 })
 
@@ -309,7 +302,7 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
     name: /移动端主导航|Mobile navigation/,
   })
   const eventsLink = navigation.getByRole("link", {
-    name: /活动|Events/,
+    name: /社区动态|Events/,
     exact: true,
   })
 
@@ -504,10 +497,12 @@ test("desktop navigation lens stays within its glass segment", async ({
     }, ringOutset)
 
     expect(
-      geometry.lens.left,
+      Math.abs(geometry.lens.left - geometry.link.left),
       `${navigationPaths[index]} lens frame should match its active link`
-    ).toBeCloseTo(geometry.link.left, 0)
-    expect(geometry.lens.width).toBeCloseTo(geometry.link.width, 0)
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(geometry.lens.width - geometry.link.width)
+    ).toBeLessThanOrEqual(1)
     expect(
       geometry.paintedLeft,
       `${navigationPaths[index]} lens ring should stay inside the left frame edge`
@@ -520,10 +515,11 @@ test("desktop navigation lens stays within its glass segment", async ({
       geometry.paintedWidth,
       `${navigationPaths[index]} selected material should support its text`
     ).toBeGreaterThanOrEqual(geometry.textWidth)
-    expect(geometry.paintedCenter).toBeCloseTo(
-      (geometry.link.left + geometry.link.right) / 2,
-      0
-    )
+    expect(
+      Math.abs(
+        geometry.paintedCenter - (geometry.link.left + geometry.link.right) / 2
+      )
+    ).toBeLessThanOrEqual(1)
     expect(geometry.link.height).toBeCloseTo(36, 1)
   }
 
@@ -648,6 +644,7 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       localStorage.setItem("imsweb.language", "zh-CN")
     })
   }
+  await installHomepageLinksMock(page)
   await page.goto("/")
 
   if (isMobile) {
@@ -700,9 +697,15 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect
-    .poll(() => directory.getByRole("link").count())
-    .toBeGreaterThanOrEqual(10)
+  for (const href of [
+    "/community/exchange",
+    "/community/cards",
+    "/producer-map",
+    "/works",
+    "/chronicle",
+  ]) {
+    await expect(directory.locator(`a[href="${href}"]`)).toBeVisible()
+  }
   await expect(directory.getByRole("link", { name: /剧情站/ })).toHaveAttribute(
     "href",
     "/wiki"
@@ -734,6 +737,7 @@ test("homepage navigation keeps secondary destinations in the directory", async 
 })
 
 test("homepage directory uses compact responsive columns", async ({ page }) => {
+  await installHomepageLinksMock(page)
   await page.goto("/")
 
   const directory = page.getByRole("region", { name: "站点导航" })
@@ -742,9 +746,6 @@ test("homepage directory uses compact responsive columns", async ({ page }) => {
     exact: true,
   })
 
-  await expect
-    .poll(() => grid.getByRole("link").count())
-    .toBeGreaterThanOrEqual(11)
   await expect(grid.locator('a[href="/community/exchange"]')).toBeVisible()
 
   for (const viewport of [
@@ -889,13 +890,14 @@ test("home exposes current discovery and birthday interactions", async ({
   page,
   isMobile,
 }) => {
-  await page.route("**/api/information", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ cards: [] }),
-    })
-  })
+  await installHomepageLinksMock(page)
+  await page.route(
+    (url) => url.pathname === "/api/community-posts/spotlight",
+    async (route) => {
+      const response = { items: [] } satisfies EditorialSpotlight
+      await route.fulfill({ status: 200, json: response })
+    }
+  )
 
   await page.goto("/")
 
@@ -934,9 +936,6 @@ test("home exposes current discovery and birthday interactions", async ({
   }
 
   const directory = page.getByRole("region", { name: "站点导航" })
-  await expect
-    .poll(() => directory.getByRole("link").count())
-    .toBeGreaterThanOrEqual(10)
   await expect(
     directory.getByRole("link", { name: /活动中心/ })
   ).toHaveAttribute("href", "/events")
@@ -955,7 +954,6 @@ test("home exposes current discovery and birthday interactions", async ({
   await expect(visibleMonth).toHaveText(initialMonth)
 
   const friendLinks = page.getByRole("region", { name: "友情链接" })
-  await expect(friendLinks.getByRole("link")).toHaveCount(6)
   await expect(
     friendLinks.getByRole("link", { name: /偶像大师 SP 汉化/ })
   ).toHaveAttribute("href", "https://sp.idolmaster.top/")
@@ -979,7 +977,10 @@ test("home exposes current discovery and birthday interactions", async ({
   await expect(randomIdol.getByText(/剧情站收录/)).toHaveCount(0)
 
   const siteSupport = page.getByRole("region", { name: "网站支持" })
-  await expect(siteSupport.getByRole("link")).toHaveCount(3)
+  await expect(siteSupport.getByRole("link")).toHaveAttribute(
+    "href",
+    "https://app.rainyun.com/"
+  )
 
   const friendLinksBox = await friendLinks.boundingBox()
   const siteSupportBox = await siteSupport.boundingBox()

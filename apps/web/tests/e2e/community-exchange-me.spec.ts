@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
+import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { expect, test } from "@playwright/test"
 
 const profile = {
@@ -231,6 +232,16 @@ test.beforeEach(async ({ context, page }) => {
     "**/api/community/exchange/me/claim-envelopes",
     async (route) => {
       await route.fulfill({ json: { items: [] } })
+    }
+  )
+  await page.route(
+    "**/api/community/exchange/me/favorites?**",
+    async (route) => {
+      const response = {
+        items: [],
+        pageInfo: { hasNextPage: false, nextCursor: null },
+      } satisfies FudabaCardPage
+      await route.fulfill({ status: 200, json: response })
     }
   )
   await page.route("**/api/community/exchange/me/cards", async (route) => {

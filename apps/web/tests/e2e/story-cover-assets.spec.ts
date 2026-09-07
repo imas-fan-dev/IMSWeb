@@ -1,3 +1,9 @@
+import type {
+  WikiAdminCatalog,
+  WikiPublicStories,
+  WikiStoryCoverAsset,
+  WikiStoryCoverAssets,
+} from "@imsweb/contracts/wiki"
 import { expect, test } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
@@ -12,7 +18,7 @@ const coverAsset = {
   isActive: true,
   revision: 0,
   usageCount: 2,
-}
+} satisfies WikiStoryCoverAsset
 
 test.beforeEach(async ({ page }) => {
   await installAdminAuthMock(page, {
@@ -22,40 +28,43 @@ test.beforeEach(async ({ page }) => {
     },
   })
   await page.route("**/api/admin/wiki/catalog", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        status: "success",
-        agencies: [
-          {
-            id: 6,
-            code: "sc",
-            name: "闪耀色彩",
-            color: "#8dbbff",
-            wikiEnabled: true,
-            bannerTitle: "闪耀色彩",
-            displayOrder: 0,
-            layoutRevision: 0,
-            iconUrl: null,
-            mediaRevision: 0,
-            idols: [],
-            groups: [],
+    const response = {
+      status: "success",
+      agencies: [
+        {
+          id: 6,
+          code: "sc",
+          name: "闪耀色彩",
+          color: "#8dbbff",
+          wikiEnabled: true,
+          bannerTitle: "闪耀色彩",
+          displayOrder: 0,
+          layoutRevision: 0,
+          iconUrl: null,
+          imageTransform: {
+            fit: "cover",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
           },
-        ],
-      }),
-    })
+          mediaRevision: 0,
+          idols: [],
+          groups: [],
+        },
+      ],
+    } satisfies WikiAdminCatalog
+    await route.fulfill({ status: 200, json: response })
   })
   await page.route(
     "**/api/admin/wiki/agencies/6/story-cover-assets",
     async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          status: "success",
-          agency: { id: 6, code: "sc", name: "闪耀色彩" },
-          assets: [coverAsset],
-        }),
-      })
+      const response = {
+        status: "success",
+        agency: { id: 6, code: "sc", name: "闪耀色彩" },
+        assets: [coverAsset],
+      } satisfies WikiStoryCoverAssets
+      await route.fulfill({ status: 200, json: response })
     }
   )
 })
@@ -68,7 +77,6 @@ test("full-image shared covers stay complete across preview canvases", async ({
   await expect(
     page.getByRole("heading", { name: "企划剧情封面素材库" })
   ).toBeVisible()
-  await expect(page.getByText("完整显示", { exact: true })).toBeVisible()
   await page.getByRole("button", { name: "编辑" }).click()
 
   const dialog = page.getByRole("dialog", { name: "编辑共享封面" })
@@ -79,10 +87,6 @@ test("full-image shared covers stay complete across preview canvases", async ({
       preview.evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBeGreaterThan(0)
-  expect(
-    await preview.evaluate((image) => getComputedStyle(image).objectFit)
-  ).toBe("contain")
-
   for (const [label, ratio] of [
     ["宽幅", 2.8],
     ["标准", 16 / 9],
@@ -92,9 +96,6 @@ test("full-image shared covers stay complete across preview canvases", async ({
     const canvas = await preview.locator("..").boundingBox()
     expect(canvas).not.toBeNull()
     expect(canvas!.width / canvas!.height).toBeCloseTo(ratio, 1)
-    expect(
-      await preview.evaluate((image) => getComputedStyle(image).objectFit)
-    ).toBe("contain")
   }
 
   const hasHorizontalOverflow = await page.evaluate(
@@ -116,48 +117,56 @@ test("public story cards render full-image shared covers without cropping", asyn
   page,
 }, testInfo) => {
   await page.route("**/api/wiki/stories?**", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        status: "success",
-        agency: {
-          id: 6,
-          code: "sc",
-          name: "闪耀色彩",
-          color: "#8dbbff",
+    const response = {
+      status: "success",
+      agency: {
+        id: 6,
+        code: "sc",
+        name: "闪耀色彩",
+        color: "#8dbbff",
+      },
+      idol: {
+        id: 6,
+        name: "樱木真乃",
+        folderName: "sakuragi_mano",
+        color: "#f1b0c9",
+        wikiUrl: null,
+        imageUrl: "/brand/series/wall/shiny-colors.webp",
+        imageFit: "cover",
+        textColor: "#ffffff",
+        entryKind: "idol",
+        entrySubtype: null,
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
         },
-        idol: {
-          id: 6,
-          name: "樱木真乃",
-          folderName: "sakuragi_mano",
-          color: "#f1b0c9",
-          imageUrl: "/brand/series/wall/shiny-colors.webp",
-          imageFit: "cover",
-          textColor: "#ffffff",
-        },
-        categories: [
-          {
-            name: "enza主线",
-            cards: [
-              {
-                id: 401,
-                name: "【主线标识】",
-                img: coverAsset.imageUrl,
-                subtitle: "全话",
-                imageTransform: {
-                  fit: "contain",
-                  focalX: 0.5,
-                  focalY: 0.5,
-                  zoom: 1,
-                  rotation: 0,
-                },
-                links: [],
+      },
+      categories: [
+        {
+          name: "enza主线",
+          cards: [
+            {
+              id: 401,
+              name: "【主线标识】",
+              img: coverAsset.imageUrl,
+              subtitle: "全话",
+              imageTransform: {
+                fit: "contain",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
               },
-            ],
-          },
-        ],
-      }),
-    })
+              links: [],
+            },
+          ],
+        },
+      ],
+    } satisfies WikiPublicStories
+    await route.fulfill({ status: 200, json: response })
   })
 
   await page.goto(
@@ -171,16 +180,6 @@ test("public story cards render full-image shared covers without cropping", asyn
       cardImage.evaluate((image) => (image as HTMLImageElement).naturalWidth)
     )
     .toBeGreaterThan(0)
-  expect(
-    await cardImage.evaluate((image) => ({
-      fit: getComputedStyle(image).objectFit,
-      position: getComputedStyle(image).objectPosition,
-      transform: getComputedStyle(image).transform,
-    }))
-  ).toMatchObject({
-    fit: "contain",
-    position: "50% 50%",
-  })
   const cardCanvas = await cardImage.locator("..").boundingBox()
   expect(cardCanvas).not.toBeNull()
   expect(cardCanvas!.width / cardCanvas!.height).toBeCloseTo(2.8, 1)

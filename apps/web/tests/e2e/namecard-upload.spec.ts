@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test"
 import type { Locator, Page } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -68,21 +69,18 @@ async function mockNamecardApi(page: Page, cardCount = 12) {
   })
 
   await page.route("**/api/cards**", async (route) => {
-    await route.fulfill({
-      json: {
-        list: Array.from({ length: cardCount }, (_, index) => ({
+    const response = makeNamecardPage(
+      Array.from({ length: cardCount }, (_, index) =>
+        makeNamecard({
           id: index + 1,
           image1_url: FRONT_IMAGE,
           image2_url: BACK_IMAGE,
           image1_thumbnail_url: FRONT_IMAGE,
           image2_thumbnail_url: BACK_IMAGE,
-          status: "approved",
-          created_at: null,
-        })),
-        total: cardCount,
-        totalPage: cardCount === 0 ? 0 : 1,
-      },
-    })
+        })
+      )
+    )
+    await route.fulfill({ status: 200, json: response })
   })
 
   await page.route("**/api/reactions**", async (route) => {

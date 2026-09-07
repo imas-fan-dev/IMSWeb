@@ -1,3 +1,4 @@
+import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { expect, test } from "@playwright/test"
 import type { Page } from "@playwright/test"
 
@@ -335,6 +336,16 @@ test("same-ID envelope asks the owner before submitting an admin-reviewed claim"
   await page.route("**/api/community/exchange/me/offices", async (route) => {
     await route.fulfill({ json: { items: [] } })
   })
+  await page.route(
+    "**/api/community/exchange/me/favorites?**",
+    async (route) => {
+      const response = {
+        items: [],
+        pageInfo: { hasNextPage: false, nextCursor: null },
+      } satisfies FudabaCardPage
+      await route.fulfill({ status: 200, json: response })
+    }
+  )
 
   const envelope = {
     id: "1",
@@ -394,7 +405,16 @@ test("same-ID envelope asks the owner before submitting an admin-reviewed claim"
   await page.getByRole("link", { name: "认领消息", exact: true }).click()
   await expect(page.getByText("1 封待确认")).toBeVisible()
   await expect(page.getByText("历史名片 #42")).toBeVisible()
+  const confirmationResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/claim-envelopes/1") &&
+      response.request().method() === "PUT"
+  )
   await page.getByRole("button", { name: "是本人名片", exact: true }).click()
+  expect((await confirmationResponse).ok()).toBe(true)
+  await expect(
+    page.getByText("已确认本人名片，认领申请等待管理员审核")
+  ).toBeVisible()
   await expect(page.getByText("当前没有待确认信封。")).toBeVisible()
   expect(responseBody).toEqual({ decision: "confirm", expectedRevision: 0 })
   expect(csrf).toBe("claim-workflow-csrf")

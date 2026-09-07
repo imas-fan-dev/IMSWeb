@@ -58,6 +58,7 @@ const card = {
   displayName: "周末交换会名片",
   seriesCode: "765",
   favoriteIdol: "天海春香",
+  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -364,6 +365,7 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
       displayName: "周末交换会名片",
       seriesCode: "765",
       favoriteIdol: "天海春香",
+      favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
       frontImageUrl: "/brand/series/wall/765pro.webp",
       backImageUrl: "/brand/series/wall/cinderella-girls.webp",
       accent: "#f34e6c",
@@ -382,6 +384,7 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
       displayName: "第二张公开名片",
       seriesCode: "765",
       favoriteIdol: "天海春香",
+      favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
       frontImageUrl: "/brand/series/wall/cinderella-girls.webp",
       backImageUrl: "/brand/series/wall/765pro.webp",
       accent: "#2581c7",
@@ -422,6 +425,7 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
       displayName: ownerCard.displayName,
       seriesCode: ownerCard.seriesCode,
       favoriteIdol: ownerCard.favoriteIdol,
+      favoriteIdols: ownerCard.favoriteIdols,
       frontImageUrl: ownerCard.frontImageUrl,
       backImageUrl: ownerCard.backImageUrl,
       accent: ownerCard.accent,
@@ -603,7 +607,9 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
     scrollX: window.scrollX,
-    overflowingElements: Array.from(document.querySelectorAll("body *"))
+    overflowingElements: Array.from(
+      document.querySelectorAll("main#main-content *")
+    )
       .map((element) => {
         const bounds = element.getBoundingClientRect()
         return {

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
 test("namecard wall changes page size and jumps to a page", async ({
   page,
@@ -21,28 +22,11 @@ test("namecard wall changes page size and jumps to a page", async ({
     const currentPage = Number(url.searchParams.get("page"))
     const pageSize = Number(url.searchParams.get("size"))
 
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        list: [
-          {
-            id: currentPage,
-            image1_url:
-              "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=",
-            image2_url:
-              "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs=",
-            image1_thumbnail_url:
-              "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=",
-            image2_thumbnail_url:
-              "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs=",
-            status: "approved",
-            created_at: null,
-          },
-        ],
-        total: 80,
-        totalPage: Math.ceil(80 / pageSize),
-      }),
+    const response = makeNamecardPage([makeNamecard({ id: currentPage })], {
+      total: 80,
+      totalPage: Math.ceil(80 / pageSize),
     })
+    await route.fulfill({ status: 200, json: response })
   })
   await page.route("**/api/reactions?**", async (route) => {
     await route.fulfill({ contentType: "application/json", body: "{}" })

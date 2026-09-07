@@ -86,12 +86,29 @@ test("admin reorders homepage links with the drag handle", async ({ page }) => {
   const firstHandle = panel.getByRole("button", {
     name: "拖动排序：活动中心",
   })
-  await firstHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
+  const secondHandle = panel.getByRole("button", {
+    name: "拖动排序：内容推荐",
+  })
+  const firstBox = await firstHandle.boundingBox()
+  const secondBox = await secondHandle.boundingBox()
+  expect(firstBox).not.toBeNull()
+  expect(secondBox).not.toBeNull()
+  await page.mouse.move(
+    firstBox!.x + firstBox!.width / 2,
+    firstBox!.y + firstBox!.height / 2
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    firstBox!.x + firstBox!.width / 2,
+    firstBox!.y + firstBox!.height / 2 + 8,
+    { steps: 2 }
+  )
+  await page.mouse.move(
+    secondBox!.x + secondBox!.width / 2,
+    secondBox!.y + secondBox!.height / 2,
+    { steps: 8 }
+  )
+  await page.mouse.up()
 
   await expect
     .poll(() => submittedOrder)

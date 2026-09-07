@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+import { installBrowserIconMock } from "./fixtures/homepage"
+
 const series = {
   items: [
     {
@@ -91,6 +93,7 @@ const card = {
   displayName: "周末交换会名片",
   seriesCode: "765",
   favoriteIdol: "天海春香",
+  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -122,6 +125,7 @@ test.beforeEach(async ({ page }) => {
     }
     await route.continue()
   })
+  await installBrowserIconMock(page)
   await page.route("**/api/community/exchange/series", async (route) => {
     await route.fulfill({ json: series })
   })
@@ -151,49 +155,9 @@ test.beforeEach(async ({ page }) => {
   )
   await page.route("**/api/community/exchange/map/config", async (route) => {
     await route.fulfill({
-      json: { styleUrl: "/api/community/exchange/map/style.json" },
+      json: { styleUrl: "/maps/exchange-test-style.json" },
     })
   })
-  await page.route(
-    "**/api/community/exchange/map/style.json",
-    async (route) => {
-      await route.fulfill({
-        json: {
-          version: 8,
-          name: "IMSWeb regional map test style",
-          sources: {
-            "china-provinces": {
-              type: "geojson",
-              data: "/maps/china-provinces.json",
-            },
-          },
-          layers: [
-            {
-              id: "background",
-              type: "background",
-              paint: { "background-color": "#e8f2f4" },
-            },
-            {
-              id: "province-fill",
-              type: "fill",
-              source: "china-provinces",
-              paint: { "fill-color": "#f6f7f4", "fill-opacity": 0.96 },
-            },
-            {
-              id: "province-boundary",
-              type: "line",
-              source: "china-provinces",
-              paint: {
-                "line-color": "#66736d",
-                "line-opacity": 0.9,
-                "line-width": 1,
-              },
-            },
-          ],
-        },
-      })
-    }
-  )
 })
 
 test("fills the public workspace with a responsive map and keeps both directories reachable", async ({

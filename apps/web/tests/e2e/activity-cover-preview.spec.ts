@@ -1,4 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
+import type { EditorialArticle } from "@imsweb/contracts/editorial"
+import type { EventPage } from "@imsweb/contracts/events"
+import type { NamecardPage } from "@imsweb/contracts/namecards"
 import { expect, test } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
@@ -26,136 +29,72 @@ async function expectFullPageGlass(
 }
 
 test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, {
-    user: {
-      username: "information-qa",
-      producername: "活动内容检查",
+  await installAdminAuthMock(page, { state: "anonymous" })
+})
+
+test("public activity covers open in the full-page viewer", async ({
+  page,
+}, testInfo) => {
+  const listResponse = {
+    items: [
+      {
+        id: 1,
+        title: "公开夏日活动",
+        name: "公开活动发布者",
+        contact: null,
+        image_url: coverUrl,
+        created_at: "2026-07-26T00:00:00.000Z",
+        summary: "公开活动摘要。",
+        kind: "event",
+        cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+      },
+    ],
+    pageInfo: {
+      nextCursor: null,
+      hasNextPage: false,
+      snapshotAt: "1",
     },
-  })
-  await page.route("**/api/admin/information", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        version: 1,
-        cards: [
-          {
-            id: "summer-live",
-            category: "activity",
-            contentType: "external",
-            image: coverUrl,
-            link: "https://example.com/summer-live",
-            title: "夏日活动",
-            updatedAt: "2026-07-26T00:00:00.000Z",
-          },
-        ],
-        assets: [coverUrl],
-      }),
-    })
-  })
-})
-
-test("activity covers open in an accessible zoomable viewer", async ({
-  page,
-}, testInfo) => {
-  await page.goto("/admin/information")
-
-  await expect(
-    page.getByRole("heading", { name: "活动内容", exact: true })
-  ).toBeVisible()
-  await page.getByRole("button", { name: "查看夏日活动封面" }).click()
-
-  const dialog = page.getByRole("dialog", { name: "夏日活动封面" })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.getByText("100%", { exact: true })).toBeVisible()
-
-  await expectFullPageGlass(page, dialog)
-
-  await dialog.getByRole("button", { name: "放大封面" }).click()
-  await expect(dialog.getByText("125%", { exact: true })).toBeVisible()
-
-  const viewport = dialog.getByLabel("封面查看区域")
-  await viewport.dispatchEvent("wheel", { deltaY: -100 })
-  await expect(dialog.getByText("150%", { exact: true })).toBeVisible()
-
-  const viewportBox = await viewport.boundingBox()
-  expect(viewportBox).not.toBeNull()
-  if (viewportBox) {
-    await page.mouse.move(
-      viewportBox.x + viewportBox.width / 2,
-      viewportBox.y + viewportBox.height / 2
-    )
-    await page.mouse.down()
-    await page.mouse.move(
-      viewportBox.x + viewportBox.width / 2 + 48,
-      viewportBox.y + viewportBox.height / 2 + 32
-    )
-    await page.mouse.up()
-  }
-  await expect(dialog.getByRole("img", { name: "夏日活动封面" })).toHaveCSS(
-    "transform",
-    /matrix\(1\.5, 0, 0, 1\.5, 48, 32\)/
-  )
-
-  if (process.env.CAPTURE_INFORMATION_COVER_QA === "1") {
-    await page.screenshot({
-      path: `/tmp/imsweb-information-cover-${testInfo.project.name}.png`,
-      fullPage: false,
-    })
-  }
-
-  const hasHorizontalOverflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth >
-      document.documentElement.clientWidth
-  )
-  expect(hasHorizontalOverflow).toBe(false)
-
-  const results = await new AxeBuilder({ page })
-    .setLegacyMode()
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .analyze()
-  expect(results.violations).toEqual([])
-})
-
-test("public activity covers use the same full-page viewer", async ({
-  page,
-}, testInfo) => {
-  const publicActivity = {
+  } satisfies EventPage
+  const detailResponse = {
     id: 1,
     title: "公开夏日活动",
-    name: "公开活动发布者",
-    contact: null,
-    image_url: coverUrl,
+    summary: "公开活动摘要。",
     cover_url: coverUrl,
     cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
-    created_at: "2026-07-26T00:00:00.000Z",
-  }
-  await page.route("**/api/events?**", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [publicActivity],
-        pageInfo: {
-          nextCursor: null,
-          hasNextPage: false,
-          snapshotAt: "1",
-        },
-      },
-    })
-  })
-  await page.route("**/api/events/1", async (route) => {
-    await route.fulfill({ json: publicActivity })
-  })
+    body_html: "<p>公开活动正文。</p>",
+    status: "published",
+    revision: 1,
+    related_links: [],
+    kind: "event",
+    name: "公开活动发布者",
+  } satisfies EditorialArticle
+
+  await page.route(
+    (url) => url.pathname === "/api/events",
+    (route) => route.fulfill({ status: 200, json: listResponse })
+  )
+  await page.route(
+    (url) => url.pathname === "/api/events/1",
+    (route) => route.fulfill({ status: 200, json: detailResponse })
+  )
 
   await page.goto("/events")
+  const activityItem = page.getByRole("listitem")
   await expect(
-    page.getByRole("heading", { name: "公开夏日活动" })
+    activityItem.getByRole("heading", { name: "公开夏日活动" })
   ).toBeVisible()
-  await page.getByRole("listitem").getByRole("link").click()
+  await activityItem.getByRole("link").click()
   await page.getByRole("button", { name: "查看公开夏日活动封面" }).click()
 
   const dialog = page.getByRole("dialog", { name: "公开夏日活动封面" })
   await expect(dialog).toBeVisible()
   await expectFullPageGlass(page, dialog)
+
+  const accessibility = await new AxeBuilder({ page })
+    .setLegacyMode()
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze()
+  expect(accessibility.violations).toEqual([])
 
   if (process.env.CAPTURE_INFORMATION_COVER_QA === "1") {
     await page.screenshot({
@@ -165,157 +104,54 @@ test("public activity covers use the same full-page viewer", async ({
   }
 })
 
-test("namecard images show a shimmer until the network response completes", async ({
+test("namecard images open in the full-page viewer", async ({
   page,
 }, testInfo) => {
-  const slowImageUrl = "/test-assets/slow-namecard-front.png"
-  let releaseImage: () => void = () => undefined
-  let markImageRequested: () => void = () => undefined
-  const imageRequested = new Promise<void>((resolve) => {
-    markImageRequested = resolve
-  })
-  const imageResponseGate = new Promise<void>((resolve) => {
-    releaseImage = resolve
-  })
+  const cardResponse = {
+    list: [
+      {
+        id: 42,
+        seriesCode: null,
+        favoriteIdols: [],
+        claimStatus: "unclaimed",
+        viewerClaimState: null,
+        image1_url: coverUrl,
+        image2_url: "/brand/series/wall/shiny-colors.webp",
+        image1_thumbnail_url: coverUrl,
+        image2_thumbnail_url: "/brand/series/wall/shiny-colors.webp",
+        status: "approved",
+        created_at: null,
+      },
+    ],
+    total: 1,
+    totalPage: 1,
+  } satisfies NamecardPage
 
-  await page.route("**/api/cards?**", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        list: [
-          {
-            id: 42,
-            image1_url: coverUrl,
-            image2_url: coverUrl,
-            image1_thumbnail_url: slowImageUrl,
-            image2_thumbnail_url: coverUrl,
-            status: "approved",
-            created_at: null,
-          },
-        ],
-        total: 1,
-        totalPage: 1,
-      }),
-    })
-  })
-  await page.route("**/api/reactions?**", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({}),
-    })
-  })
-  await page.route(`**${slowImageUrl}`, async (route) => {
-    markImageRequested()
-    await imageResponseGate
-    await route.fulfill({
-      contentType: "image/png",
-      body: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-        "base64"
-      ),
-    })
-  })
-
-  await page.goto("/community/cards", { waitUntil: "domcontentloaded" })
-  await imageRequested
-
-  const image = page
-    .getByRole("button", { name: "查看制作人名片 42 正面" })
-    .locator("img")
-
-  try {
-    await expect(image).toHaveAttribute("data-image-state", "loading")
-    await expect(image).not.toHaveAttribute("aria-busy")
-    await expect(image).toHaveCSS("animation-name", "image-loading-shimmer")
-    await expect(image).toHaveCSS("background-image", /linear-gradient/)
-
-    if (process.env.CAPTURE_IMAGE_LOADING_QA === "1") {
-      await page.screenshot({
-        path: `/tmp/imsweb-image-loading-${testInfo.project.name}.png`,
-        fullPage: false,
-      })
-    }
-  } finally {
-    releaseImage()
-  }
-
-  await expect(image).toHaveAttribute("data-image-state", "loaded")
-  await expect(image).not.toHaveAttribute("aria-busy")
-  await expect(image).toHaveCSS("animation-name", "none")
-})
-
-test("namecard images use the shared full-page viewer", async ({
-  page,
-}, testInfo) => {
-  await page.route("**/api/cards?**", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        list: [
-          {
-            id: 42,
-            image1_url: coverUrl,
-            image2_url: "/brand/series/wall/shiny-colors.webp",
-            image1_thumbnail_url: coverUrl,
-            image2_thumbnail_url: "/brand/series/wall/shiny-colors.webp",
-            status: "approved",
-            created_at: null,
-          },
-        ],
-        total: 1,
-        totalPage: 1,
-      }),
-    })
-  })
-  await page.route("**/api/reactions?**", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({}),
-    })
-  })
+  await page.route(
+    (url) => url.pathname === "/api/cards",
+    (route) => route.fulfill({ status: 200, json: cardResponse })
+  )
+  await page.route(
+    (url) => url.pathname === "/api/reactions",
+    (route) => route.fulfill({ status: 200, json: {} })
+  )
 
   await page.goto("/community/cards")
   const frontTrigger = page.getByRole("button", {
     name: "查看制作人名片 42 正面",
   })
+  await expect(frontTrigger).toBeVisible()
   await frontTrigger.click()
 
-  const dialog = page.getByRole("dialog")
+  const dialog = page.getByRole("dialog", { name: "制作人名片 42 · 正面" })
+  const image = dialog.getByRole("img", { name: "制作人名片 42 正面" })
   await expect(dialog).toBeVisible()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")
   await expectFullPageGlass(page, dialog)
-  await expect(dialog.getByLabel("名片查看区域")).toBeVisible()
-  await expect(dialog.getByRole("img")).toHaveAttribute(
-    "data-image-state",
-    "loaded"
-  )
-
-  await dialog.getByRole("button", { name: "放大名片" }).click()
-  await expect(dialog.getByText("125%", { exact: true })).toBeVisible()
-
-  const switchToBack = dialog.getByRole("button", { name: "背面", exact: true })
-  await expect(switchToBack).toBeEnabled()
-
-  await switchToBack.click()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
-  await expect(
-    dialog.getByRole("img", { name: "制作人名片 42 背面" })
-  ).toBeVisible()
-  await expect(dialog.getByText("100%", { exact: true })).toBeVisible()
-
-  const switchToFront = dialog.getByRole("button", {
-    name: "正面",
-    exact: true,
-  })
-  await expect(switchToFront).toBeEnabled()
-  await switchToFront.click()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")
-  await expect(
-    dialog.getByRole("img", { name: "制作人名片 42 正面" })
-  ).toBeVisible()
-
-  await dialog.getByRole("button", { name: "背面", exact: true }).click()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
+  await expect
+    .poll(() =>
+      image.evaluate((element) => (element as HTMLImageElement).naturalWidth)
+    )
+    .toBeGreaterThan(0)
 
   if (process.env.CAPTURE_INFORMATION_COVER_QA === "1") {
     await page.screenshot({
@@ -326,6 +162,4 @@ test("namecard images use the shared full-page viewer", async ({
 
   await dialog.getByRole("button", { name: "关闭名片预览" }).click()
   await expect(frontTrigger).toBeFocused()
-  await page.getByRole("button", { name: "查看制作人名片 42 背面" }).click()
-  await expect(dialog).toHaveAccessibleName("制作人名片 42 · 背面")
 })

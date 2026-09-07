@@ -157,12 +157,13 @@ test("admin edits configured and unconfigured provinces from the real map", asyn
   await dialog.getByRole("button", { name: "取消" }).click()
   await expect(editRegionButton).toBeFocused()
 
-  await provinceSelect.focus()
-  await expect(provinceSelect).toBeFocused()
-  await page.keyboard.press("Enter")
-  await expect(page.getByRole("listbox")).toBeVisible()
-  await page.keyboard.press("Home")
-  await page.keyboard.press("Enter")
+  await provinceSelect.click()
+  const beijingOption = page.getByRole("option", {
+    name: "北京市",
+    exact: true,
+  })
+  await expect(beijingOption).toBeVisible()
+  await beijingOption.click()
   await expect(provinceSelect).toContainText("北京市")
 
   await page.getByRole("button", { name: "新增地点" }).click()

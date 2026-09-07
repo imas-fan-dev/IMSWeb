@@ -336,6 +336,7 @@ test("mobile Web keeps community discovery, list, and detail stable", async ({
   await expectEventRowLayout(firstRow, 3)
   await expectEventRowLayout(secondRow, 2)
   await expect(list.getByText("第 2 条动态摘要")).toHaveCount(0)
+  await page.evaluate(() => document.fonts.ready)
 
   const before = await stableRowPositions(page)
   before.forEach((position) => expect(position.height).toBeCloseTo(144, 0))
