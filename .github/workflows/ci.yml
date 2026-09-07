@@ -255,11 +255,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test Web routing contract
+      - name: Test Web routing and packaged asset contracts
         run: pnpm run test:web-routing
-
-      - name: Check packaged Web assets
-        run: pnpm --filter @imsweb/api run check:assets
 
   result:
     name: Validate repository

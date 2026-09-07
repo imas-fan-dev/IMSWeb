@@ -11,7 +11,7 @@
 
 | 范围 | 位置 | 主要工具 |
 | --- | --- | --- |
-| API Node、数据库、HTTP | `apps/api/tests/server/`、`apps/api/tests/node/` | Node test runner、TypeScript |
+| API Node、数据库、HTTP | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Node test runner、TypeScript |
 | Wiki contract 与数据 | `apps/api/tests/wiki/` | Node test runner、PostgreSQL fixture |
 | API migration 与资产 | `apps/api/tests/migration/`、`apps/api/tests/assets/` | Node test runner |
 | Web 页面、组件和 API client | `apps/web/tests/unit/` | Vitest、Testing Library |
@@ -38,9 +38,9 @@ Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API �
 4. `@imsweb/contracts` schema parse 或 API response alias 的漂移；
 5. 路由所有权变化对应的 Web routing contract。
 
-API response 类型不得只靠 TypeScript 通过。需要跨 workspace 的成功响应时，在 HTTP
-response-read 点使用 shared schema conformance；错误、redirect、stream 等 API-local
-边界可以保留本地类型。
+API response 类型不得只靠 TypeScript 通过。需要跨 workspace 的 JSON 响应时，在 HTTP
+response-read 点使用 shared schema conformance。Redirect、stream、HTML 与 binary success
+边界可以保留本地类型，但它们返回的 JSON error 仍由 shared contracts 定义。
 
 ### PostgreSQL、Valkey、对象存储或迁移
 
@@ -71,9 +71,13 @@ pnpm run test:web-routing
 ```sh
 pnpm --filter @imsweb/api run test:server
 pnpm --filter @imsweb/api run test:wiki
+pnpm --filter @imsweb/api run test:assets
 pnpm --filter @imsweb/web run test:unit
 pnpm --filter @imsweb/web run test:e2e
 ```
+
+Root `test:web-routing` 在构建两个 workspace 后运行 frontend routing 与 packaged-client
+asset contracts。普通 Web 和 App Playwright 分别通过 `test:e2e` 与 `test:e2e:app` 显式运行。
 
 命令名称以当前 package scripts 为准；添加或删除 script 时同步更新 workspace README 和
 边界测试，不为同一动作创建重复的根转发别名。

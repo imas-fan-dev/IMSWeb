@@ -7,8 +7,8 @@ API tests live under `apps/api/tests/` and use Node's test runner.
 - `tests/server/` covers Hono behavior and service boundaries.
 - `tests/wiki/` covers Wiki and related wire conformance.
 - `tests/migration/` covers migration and reconciliation scripts.
-- Top-level contract tests cover the Node listener, security, operation
-  scripts, built assets, and frontend route ownership.
+- Top-level contract tests cover the Node listener, security, and operation
+  scripts. `tests/assets/` covers packaged assets and frontend route ownership.
 
 Name tests `*.test.ts` or `*.test.js`. Put regressions beside the owning suite,
 not in a new miscellaneous test directory.
@@ -36,6 +36,7 @@ pnpm --filter @imsweb/api run test:node
 pnpm --filter @imsweb/api run test:server
 pnpm --filter @imsweb/api run test:wiki
 pnpm --filter @imsweb/api run test:migration
+pnpm --filter @imsweb/api run test:assets
 ```
 
 Before submitting cross-domain or runtime work, run:

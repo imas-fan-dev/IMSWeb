@@ -255,7 +255,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
         integration = jobs["integration"]
         self.assertIn("pnpm run test:web-routing", integration)
-        self.assertIn("pnpm --filter @imsweb/api run check:assets", integration)
+        self.assertNotIn("pnpm --filter @imsweb/api run check:assets", integration)
 
         for job_name, job in jobs.items():
             if job_name == "api":
