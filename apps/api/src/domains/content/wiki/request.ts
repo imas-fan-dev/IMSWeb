@@ -1,3 +1,4 @@
+import { wikiStoryLinkDeleteBodySchema } from "@imsweb/contracts/wiki";
 import { parseWikiUpload } from "@/domains/content/wiki/handler-support";
 import type { ParsedUpload } from "@/ports/http";
 import type { RuntimeServices } from "@/ports/runtime-services";
@@ -830,7 +831,9 @@ export async function parseDeleteWikiStoryLinkRequest(
             } catch {
                 invalidRequest("Wiki 请求内容无效");
             }
-            body = jsonObject(parsed);
+            const contract = wikiStoryLinkDeleteBodySchema.safeParse(parsed);
+            if (!contract.success) invalidRequest("Wiki 请求内容无效");
+            body = contract.data;
         }
     }
     return {

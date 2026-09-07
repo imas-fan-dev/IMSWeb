@@ -3,8 +3,19 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import test from 'node:test';
 import { ZipFile } from 'yazl';
+import { mediaHttpErrorSchema } from '@imsweb/contracts/media';
+import {
+    publicSitePackageSchema,
+    sitePackageCreateResultSchema,
+    sitePackageCreateRevisionResultSchema,
+    sitePackageDeleteRevisionResultSchema,
+    sitePackageErrorResponseSchema,
+    sitePackageListSchema,
+    sitePackagePreviewResultSchema,
+    sitePackagePublishResultSchema
+} from '@imsweb/contracts/site-packages';
 import { createHonoApp } from '@/app';
-import type { SitePackageRepository } from '@/ports/repositories';
+import type { NamecardRepository, SitePackageRepository } from '@/ports/repositories';
 import type {
     ListedObject,
     ObjectReadUrlOptions,
@@ -18,6 +29,13 @@ import { queryOne } from '@/infra/db/sql/query';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import { StreamingUploadParser } from '@/infra/http/busboy/upload-parser';
 import { createPostgresTestDatabase } from './postgres-test-database';
+
+function assertWireContract<T>(
+    schema: { parse(value: unknown): T },
+    payload: unknown
+): void {
+    assert.deepEqual(schema.parse(payload), payload);
+}
 
 async function createArchive(): Promise<Buffer> {
     const zip = new ZipFile();
@@ -242,6 +260,9 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
 
     const runtimeServices = {
         sitePackages: repository,
+        namecards: {
+            findCardByMediaUrl: async () => null
+        } as unknown as NamecardRepository,
         audit,
         storage,
         objectDeletions: new PostgresqlObjectDeletionWorker(database, storage),
@@ -249,6 +270,15 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         backofficeTokens: {
             sign: async () => 'op-token',
             verify: async (token: string) => {
+                if (token === 'editor-token') {
+                    return {
+                        id: 2,
+                        username: 'editor',
+                        producername: 'Editor',
+                        dept: 'editor',
+                        csrfSecret: 'csrf'
+                    };
+                }
                 if (token !== 'op-token') throw new Error('invalid token');
                 return {
                     id: 1,
@@ -310,6 +340,35 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         }
     }));
 
+    const invalidNamecardMedia = await app.request(
+        'http://main.test/uploads/namecard/original/invalid%5Cname.png'
+    );
+    assert.equal(invalidNamecardMedia.status, 400);
+    assertWireContract(mediaHttpErrorSchema, await invalidNamecardMedia.json());
+
+    const unauthenticatedNamecardMedia = await app.request(
+        'http://main.test/uploads/namecard/original/missing.png'
+    );
+    assert.equal(unauthenticatedNamecardMedia.status, 401);
+    assertWireContract(
+        mediaHttpErrorSchema,
+        await unauthenticatedNamecardMedia.json()
+    );
+
+    const forbiddenNamecardMedia = await app.request(
+        'http://main.test/uploads/namecard/original/missing.png',
+        { headers: { authorization: 'Bearer editor-token' } }
+    );
+    assert.equal(forbiddenNamecardMedia.status, 403);
+    assertWireContract(mediaHttpErrorSchema, await forbiddenNamecardMedia.json());
+
+    const missingNamecardMedia = await app.request(
+        'http://main.test/uploads/namecard/original/missing.png',
+        { headers: { authorization: 'Bearer op-token' } }
+    );
+    assert.equal(missingNamecardMedia.status, 404);
+    assert.equal(await missingNamecardMedia.text(), 'Not Found');
+
     const forwardedHeaders = {
         'x-forwarded-proto': 'http',
         'x-forwarded-host': 'main.test',
@@ -344,7 +403,9 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         'http://upstream.test/api/site-packages/hiro-2026',
         { headers: forwardedHeaders }
     );
-    assert.deepEqual(await forwardedMetadata.json(), {
+    const forwardedMetadataBody = await forwardedMetadata.json();
+    assertWireContract(publicSitePackageSchema, forwardedMetadataBody);
+    assert.deepEqual(forwardedMetadataBody, {
         slug: 'hiro-2026',
         title: 'Hiro 2026',
         description: 'Independent package',
@@ -376,6 +437,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     });
     assert.equal(admin.status, 200);
     const adminBody = await admin.json();
+    assertWireContract(sitePackageListSchema, adminBody);
     assert.equal(adminBody.packages[0].revisions.length, 2);
     const serializedAdmin = JSON.stringify(adminBody);
     for (const privateField of [
@@ -454,6 +516,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(ambiguousCreate.status, 201);
     const ambiguousCreateBody = await ambiguousCreate.json();
+    assertWireContract(sitePackageCreateResultSchema, ambiguousCreateBody);
     const committedFirstRevision = await repository.findSitePackageRevisionById(
         ambiguousCreateBody.packageId,
         ambiguousCreateBody.revisionId
@@ -503,6 +566,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(ambiguousRevision.status, 201);
     const ambiguousRevisionBody = await ambiguousRevision.json();
+    assertWireContract(sitePackageCreateRevisionResultSchema, ambiguousRevisionBody);
     assert.equal(ambiguousRevisionBody.revision.revisionNumber, 2);
     const committedSecondRevision = await repository.findSitePackageRevisionById(
         ambiguousCreateBody.packageId,
@@ -515,6 +579,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     const metadata = await app.request('http://main.test/api/site-packages/hiro-2026');
     assert.equal(metadata.status, 200);
     const metadataBody = await metadata.json();
+    assertWireContract(publicSitePackageSchema, metadataBody);
     assert.equal(metadataBody.revisionId, publishedId);
     assert.equal(metadataBody.siteUrl, 'http://main.test/sites/hiro-2026');
     assert.equal(
@@ -685,6 +750,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(rotated.status, 200);
     const rotatedBody = await rotated.json();
+    assertWireContract(sitePackagePreviewResultSchema, rotatedBody);
     assert.match(rotatedBody.previewToken, /^[a-f0-9]{64}$/);
     assert.equal(
         rotatedBody.previewUrl,
@@ -701,6 +767,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(publishSecond.status, 200);
     const publishSecondBody = await publishSecond.json();
+    assertWireContract(sitePackagePublishResultSchema, publishSecondBody);
     assert.equal(publishSecondBody.operation, 'publish');
     assert.equal(
         publishSecondBody.publishedAt,
@@ -729,6 +796,7 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
     );
     assert.equal(rollback.status, 200);
     const rollbackBody = await rollback.json();
+    assertWireContract(sitePackagePublishResultSchema, rollbackBody);
     assert.equal(rollbackBody.operation, 'rollback');
     assert.equal(rollbackBody.publishedAt, 3_000);
     assert.equal((await audit.listRecentAuditLogs(1))[0]?.action, '回滚站点包版本');
@@ -761,7 +829,9 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         { method: 'DELETE', headers: { authorization: 'Bearer op-token' } }
     );
     assert.equal(deletePublished.status, 409);
-    assert.deepEqual(await deletePublished.json(), {
+    const deletePublishedBody = await deletePublished.json();
+    assertWireContract(sitePackageErrorResponseSchema, deletePublishedBody);
+    assert.deepEqual(deletePublishedBody, {
         error: '当前线上版本不能删除，请先发布其他版本'
     });
     assert.equal(
@@ -784,7 +854,9 @@ test('site-package routes share the main origin and enforce manifests, CSP, and 
         { method: 'DELETE', headers: { authorization: 'Bearer op-token' } }
     );
     assert.equal(deleted.status, 200);
-    assert.deepEqual(await deleted.json(), {
+    const deletedBody = await deleted.json();
+    assertWireContract(sitePackageDeleteRevisionResultSchema, deletedBody);
+    assert.deepEqual(deletedBody, {
         success: true,
         packageId,
         revisionId: previewId,

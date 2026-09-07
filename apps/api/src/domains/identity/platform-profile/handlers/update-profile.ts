@@ -1,19 +1,25 @@
-import type { Context } from 'hono';
+import type {
+    // pi-lens-ignore: ts:2724
+    PlatformProfileError,
+    PlatformProfileMutationResponse
+} from '@imsweb/contracts/platform';
 import type { AppEnvironment } from '@/app';
-import { parsePlatformProfileSubmission } from '@/domains/identity/platform-profile/profile-input';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { platformProfileView } from '@/domains/identity/platform-profile/profile-view';
 import { platformAccountRepository } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
 export async function handleUpdatePlatformProfile(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'json', {
+        bio: string;
+        displayName: string;
+        expectedUpdatedAt: number;
+        homeCity: string | null;
+    }>
 ): Promise<Response> {
     try {
         const accountId = c.get('platformUser')!.id;
-        const body = await c.req.json().catch(() => {
-            throw Object.assign(new Error('请求体必须是有效 JSON'), { status: 400 });
-        });
-        const submission = parsePlatformProfileSubmission(body);
+        const submission = c.req.valid('json');
         const result = await platformAccountRepository(c).updateProfileTextForOwner({
             accountId,
             ...submission,
@@ -27,9 +33,12 @@ export async function handleUpdatePlatformProfile(
                 success: false,
                 code: 'PLATFORM_PROFILE_CONFLICT',
                 updatedAt: result.updatedAt
-            }, 409);
+            } satisfies PlatformProfileError, 409);
         }
-        return c.json({ success: true, profile: platformProfileView(result.profile) });
+        return c.json({
+            success: true,
+            profile: platformProfileView(result.profile)
+        } satisfies PlatformProfileMutationResponse);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to update Platform profile', error);

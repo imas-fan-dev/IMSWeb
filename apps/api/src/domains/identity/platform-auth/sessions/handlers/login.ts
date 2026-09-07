@@ -1,3 +1,4 @@
+import type { PlatformSession } from '@imsweb/contracts/platform';
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
 import {
@@ -9,7 +10,7 @@ import {
     isMigratedPbkdf2Parameters,
     isPlatformJsonContentType,
 } from "@/domains/identity/platform-auth/contracts/credentials";
-import { parsePlatformLoginInput } from "@/domains/identity/platform-auth/sessions/request";
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import type { PlatformEmailIdentity } from "@/ports/repositories";
 import { platformAccountRepository, services } from "@/middleware/hono-context";
 import {
@@ -69,26 +70,15 @@ function invalidCredentials(c: Context<AppEnvironment>): Response {
 }
 
 export async function handlePlatformLogin(
-    c: Context<AppEnvironment>,
+    c: ValidatedRequestContext<AppEnvironment, 'json', {
+        email: string;
+        password: string;
+    }>,
 ): Promise<Response> {
-    if (!isPlatformJsonContentType(c.req.header("content-type"))) {
-        return c.json(
-            { success: false, code: "PLATFORM_AUTH_JSON_REQUIRED" },
-            415,
-        );
-    }
-    const input = parsePlatformLoginInput(
-        await c.req.json<unknown>().catch(() => null),
-    );
-    if (!input) {
-        return c.json(
-            { success: false, code: "PLATFORM_AUTH_INPUT_INVALID" },
-            400,
-        );
-    }
+    const input = c.req.valid('json');
     const accountLimited = await enforceRateLimit(c, {
         ...PLATFORM_AUTH_LOGIN_ACCOUNT_LIMIT,
-        rateLimitKey: platformLoginAccountRateLimitKey(input.normalizedEmail),
+        rateLimitKey: platformLoginAccountRateLimitKey(input.email),
     });
     if (accountLimited) return accountLimited;
     const repository = platformAccountRepository(c);
@@ -98,7 +88,7 @@ export async function handlePlatformLogin(
             "Platform password authentication services unavailable",
         );
     }
-    let identity = await repository.findEmailIdentity(input.normalizedEmail);
+    let identity = await repository.findEmailIdentity(input.email);
     if (!identity) {
         await passwords
             .verify(input.password, DUMMY_BCRYPT_HASH)
@@ -140,7 +130,7 @@ export async function handlePlatformLogin(
             updatedAt: Date.now(),
         });
         const current = await repository.findEmailIdentity(
-            input.normalizedEmail,
+            input.email,
         );
         if (
             !current ||
@@ -174,5 +164,7 @@ export async function handlePlatformLogin(
             403,
         );
     }
-    return c.json(await platformSessionPayload(c, identity, tokens));
+    return c.json(
+        await platformSessionPayload(c, identity, tokens) satisfies PlatformSession
+    );
 }

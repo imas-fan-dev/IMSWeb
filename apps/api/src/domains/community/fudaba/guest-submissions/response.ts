@@ -1,32 +1,24 @@
 import type {
-    FudabaGuestSubmissionDetailInput,
-    FudabaGuestSubmissionInput,
-    FudabaGuestSubmissionReceiptInput,
-    FudabaGuestSubmissionWithdrawalInput,
+    FudabaGuestSubmissionDetail,
+    FudabaGuestSubmission,
+    FudabaGuestSubmissionReceipt,
+    FudabaGuestSubmissionWithdrawal,
+    FudabaGuestSubmissionMessage,
+    FudabaGuestSubmissionError,
+    FudabaGuestSubmissionRateLimit,
 } from '@imsweb/contracts/fudaba/guest-submissions';
 import type {
     CardIdolSelectionRecord,
     NamecardSubmissionRecord,
 } from '@/ports/repositories';
 
-export type FudabaGuestSubmissionReceiptResponse =
-    FudabaGuestSubmissionReceiptInput;
-export type FudabaGuestSubmissionDetailResponse = FudabaGuestSubmissionDetailInput;
-export type FudabaGuestSubmissionWithdrawalResponse =
-    FudabaGuestSubmissionWithdrawalInput;
+export type FudabaGuestSubmissionReceiptResponse = FudabaGuestSubmissionReceipt;
+export type FudabaGuestSubmissionDetailResponse = FudabaGuestSubmissionDetail;
+export type FudabaGuestSubmissionWithdrawalResponse = FudabaGuestSubmissionWithdrawal;
 
-export interface GuestSubmissionMessageResponse {
-    msg: string;
-}
-
-export interface GuestSubmissionRateLimitResponse {
-    error: string;
-}
-
-export interface GuestSubmissionErrorResponse {
-    error: string;
-    revision?: number;
-}
+export type GuestSubmissionMessageResponse = FudabaGuestSubmissionMessage;
+export type GuestSubmissionRateLimitResponse = FudabaGuestSubmissionRateLimit;
+export type GuestSubmissionErrorResponse = FudabaGuestSubmissionError;
 
 function favoriteIdols(row: NamecardSubmissionRecord): Array<{
     id: number;
@@ -49,7 +41,7 @@ function timestamp(value: string | Date | null): string | null {
 
 export function toFudabaGuestSubmissionResponse(
     row: NamecardSubmissionRecord,
-): FudabaGuestSubmissionInput {
+): FudabaGuestSubmission {
     return {
         id: row.id,
         seriesCode: row.series_code ?? row.seriesCode ?? null,

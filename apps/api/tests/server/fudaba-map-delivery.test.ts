@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import {
+    fudabaMapDeliveryErrorSchema,
+    fudabaMapDeliveryMutationSchema,
+    fudabaMapDeliverySnapshotSchema,
+} from '@imsweb/contracts/fudaba/map-delivery';
 import { createHonoApp } from '@/app';
 import type {
     ListedObject,
@@ -172,6 +177,20 @@ function fixture() {
     return { storage, audit, request, authHeaders, mutation };
 }
 
+interface Schema {
+    parse(value: unknown): unknown;
+}
+
+async function contractJson(response: Response, schema: Schema): Promise<unknown> {
+    assert.match(
+        response.headers.get('content-type') ?? '',
+        /^application\/json/i,
+    );
+    const raw = await response.json();
+    assert.deepEqual(schema.parse(raw), raw);
+    return raw;
+}
+
 interface SourcePayload {
     id: string;
     name: string;
@@ -187,6 +206,96 @@ interface DeliveryPayload {
         revision: string | null;
     };
 }
+
+test('map delivery validates raw JSON responses without projecting emitted fields', async () => {
+    const { request, authHeaders, mutation } = fixture();
+
+    const unauthorized = await request('/api/admin/community/exchange/map-delivery');
+    assert.equal(unauthorized.status, 401);
+    await contractJson(unauthorized, fudabaMapDeliveryErrorSchema);
+
+    const read = await request('/api/admin/community/exchange/map-delivery', {
+        headers: authHeaders(),
+    });
+    assert.equal(read.status, 200);
+    await contractJson(read, fudabaMapDeliverySnapshotSchema);
+
+    const created = await mutation(
+        '/api/admin/community/exchange/map-delivery/sources',
+        'POST',
+        { name: 'Boundary source', styleUrl: DYNAMIC_STYLE, revision: null },
+    );
+    assert.equal(created.status, 201);
+    await contractJson(created, fudabaMapDeliveryMutationSchema);
+
+    const invalidCases: Array<[string, RequestInit, string]> = [
+        [
+            '/api/admin/community/exchange/map-delivery/sources',
+            {
+                method: 'POST',
+                headers: authHeaders({ 'content-type': 'application/json' }),
+                body: '{',
+            },
+            '请求正文必须为 JSON',
+        ],
+        [
+            '/api/admin/community/exchange/map-delivery/sources',
+            {
+                method: 'POST',
+                headers: authHeaders({ 'content-type': 'application/json' }),
+                body: '[]',
+            },
+            '请求正文必须为 JSON 对象',
+        ],
+        [
+            '/api/admin/community/exchange/map-delivery/sources',
+            {
+                method: 'POST',
+                headers: authHeaders({ 'content-type': 'application/json' }),
+                body: JSON.stringify({
+                    name: 'Boundary source',
+                    styleUrl: DYNAMIC_STYLE,
+                    revision: null,
+                    unexpected: true,
+                }),
+            },
+            '地图源请求格式无效',
+        ],
+        [
+            '/api/admin/community/exchange/map-delivery/sources',
+            {
+                method: 'POST',
+                headers: authHeaders({ 'content-type': 'application/json' }),
+                body: JSON.stringify({
+                    name: 'Boundary\u0001source',
+                    styleUrl: DYNAMIC_STYLE,
+                    revision: null,
+                }),
+            },
+            '地图源名称格式无效',
+        ],
+        [
+            '/api/admin/community/exchange/map-delivery/sources/invalid_id',
+            {
+                method: 'PUT',
+                headers: authHeaders({ 'content-type': 'application/json' }),
+                body: JSON.stringify({
+                    name: 'Boundary source',
+                    styleUrl: DYNAMIC_STYLE,
+                    revision: null,
+                }),
+            },
+            '地图源 ID 格式无效',
+        ],
+    ];
+    for (const [path, init, message] of invalidCases) {
+        const response = await request(path, init);
+        assert.equal(response.status, 422, path);
+        assert.deepEqual(await contractJson(response, fudabaMapDeliveryErrorSchema), {
+            error: message,
+        });
+    }
+});
 
 test('map delivery manages a dynamic source collection with CAS and legacy fallback', async () => {
     const { storage, audit, request, authHeaders, mutation } = fixture();

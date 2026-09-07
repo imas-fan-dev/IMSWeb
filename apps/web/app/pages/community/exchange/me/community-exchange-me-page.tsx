@@ -28,6 +28,7 @@ import {
   hasPlatformSessionHint,
   type FudabaOwnerCard,
   type FudabaSeries,
+  type PlatformAccountStatus,
   type PlatformProfile,
   type WikiPublicSearchEntry,
 } from "~/lib/api"
@@ -50,7 +51,7 @@ type WorkspacePhase = "idle" | "loading" | "ready" | "closed" | "error"
 type WorkspaceState = {
   phase: WorkspacePhase
   profile: PlatformProfile | null
-  accountStatus: "active" | "restricted" | null
+  accountStatus: PlatformAccountStatus | null
   writeEnabled: boolean
   series: FudabaSeries[]
   idols: WikiPublicSearchEntry[]

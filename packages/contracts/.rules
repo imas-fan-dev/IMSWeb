@@ -6,12 +6,15 @@ it is the only shared source for cross-workspace wire contracts.
 
 ## Ownership and boundaries
 
-- Keep API↔Web response schemas, their `z.infer`/`z.input` wire types, shared
-  success envelopes, page-info combinators, and URL path definitions here.
+- Keep all HTTP JSON body, query, params, success, HTTP-error, and `2xx`
+  business-error schemas and their `z.infer`/`z.input` wire types here,
+  including API-only endpoints. Keep shared success/error envelopes, page-info
+  combinators, and URL path definitions here.
 - Keep Web-only request/input schemas, `File`/`FormData` shapes, UI-semantic
   aliases, and endpoint functions in `apps/web`.
-- Keep API ports, persistence Records, database models, error bodies, redirects,
-  and media stream boundaries in `apps/api`.
+- Keep API ports, persistence records, database models, redirects, and media
+  stream boundaries in `apps/api`. Non-JSON success boundaries remain local,
+  but their JSON error bodies belong here.
 - The package must never depend on either application workspace, API runtime
   modules, Web UI modules, database drivers, or object-storage adapters.
 
@@ -39,6 +42,13 @@ output as the wire contract; export `z.input` variants only where coercion or
 transformation means the API's emitted shape requires them. The package builds
 CommonJS with declarations under `dist/`, and `prepare` must remain safe when
 source files are not present during a Docker manifest-only install.
+
+Existing request objects state whether they are strict, strip, or passthrough;
+new request objects are strict. Response schemas are exact and must not coerce,
+transform, default, or silently strip emitted JSON. API runs request schemas only
+at HTTP request-validation boundaries. Web executes response schemas through
+`parsed(...)`, including HTTP-error and business-error schemas, and conformance
+tests compare parsed values with the raw JSON response.
 
 Every new wire-contract module must be added to the package `exports` map, the
 root camelCase namespace index, and `packages/contracts/README.md`; repository-level documentation standards are in

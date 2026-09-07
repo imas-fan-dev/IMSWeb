@@ -24,6 +24,11 @@ import {
   wikiAgencyIconResultSchema,
   wikiAgencyMutationResultSchema,
   wikiEntityImageResultSchema,
+  wikiErrorResponseSchema,
+  wikiHttpErrorResponseSchema,
+  wikiCategoryMutationResultSchema,
+  wikiStoryCardMutationResultSchema,
+  wikiStorySourceMutationResultSchema,
   wikiGroupMutationResultSchema,
   wikiIdolDeleteResultSchema,
   wikiIdolMutationResultSchema,
@@ -106,10 +111,18 @@ export type {
   WikiStorySubmission,
 } from "./schemas"
 
+function wikiResponseConfig() {
+  return {
+    errorSchema: wikiHttpErrorResponseSchema,
+    businessErrorSchema: wikiErrorResponseSchema,
+  } as const
+}
+
 function wikiMutationConfig() {
   return {
     name: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
     meta: withBackofficeCsrf(),
+    ...wikiResponseConfig(),
   } as const
 }
 
@@ -117,6 +130,7 @@ export function getWikiCatalog(agency?: string) {
   return apiClient.Get(
     wikiPath("/catalog"),
     parsed(wikiPublicCatalogSchema, {
+      ...wikiResponseConfig(),
       cacheFor: WIKI_PUBLIC_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
       params: agency ? { agency } : undefined,
@@ -129,6 +143,7 @@ export function getWikiStories(agency: string, idol: string) {
   return apiClient.Get(
     wikiPath("/stories"),
     parsed(wikiPublicStoriesSchema, {
+      ...wikiResponseConfig(),
       cacheFor: WIKI_PUBLIC_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.wiki,
       params: { agency, idol },
@@ -141,6 +156,7 @@ export function getWikiRandomBackground() {
   return apiClient.Get(
     wikiPath("/random_bg"),
     parsed(wikiRandomBackgroundSchema, {
+      ...wikiResponseConfig(),
       cacheFor: NO_CLIENT_CACHE,
       select: normalizeWikiRandomBackground,
     })
@@ -151,6 +167,7 @@ export function getWikiRandomIdol() {
   return apiClient.Get(
     wikiPath("/random_idol"),
     parsed(wikiRandomIdolSchema, {
+      ...wikiResponseConfig(),
       cacheFor: NO_CLIENT_CACHE,
       select: normalizeWikiRandomIdol,
     })
@@ -205,6 +222,7 @@ export function getAdminWikiCatalog() {
   return adminApiClient.Get(
     adminWikiPath("/catalog"),
     parsed(wikiAdminCatalogSchema, {
+      ...wikiResponseConfig(),
       meta: withBackofficeAuth(),
       select: normalizeWikiAdminCatalog,
     })
@@ -215,6 +233,7 @@ export function getAdminWikiStories(agency: string, idol: string) {
   return adminApiClient.Get(
     adminWikiPath("/stories"),
     parsed(wikiAdminStoriesSchema, {
+      ...wikiResponseConfig(),
       meta: withBackofficeAuth(),
       params: { agency, idol },
       select: normalizeWikiAdminStories,
@@ -226,6 +245,7 @@ export function getAdminWikiStoryCoverAssets(agencyId: number) {
   return adminApiClient.Get(
     adminWikiPath(`/agencies/${agencyId}/story-cover-assets`),
     parsed(wikiStoryCoverAssetsSchema, {
+      ...wikiResponseConfig(),
       meta: withBackofficeAuth(),
       select: normalizeWikiStoryCoverAssets,
     })
@@ -288,6 +308,7 @@ export function getWikiStorySourceCatalog() {
   return adminApiClient.Get(
     adminWikiPath("/story-source-catalog"),
     parsed(wikiStorySourceCatalogSchema, {
+      ...wikiResponseConfig(),
       meta: withBackofficeAuth(),
     })
   )
@@ -525,7 +546,7 @@ export function createWikiStory(submission: WikiStorySubmission) {
   return adminApiClient.Post(
     wikiPath("/add_story"),
     form,
-    parsed(wikiMutationResultSchema, {
+    parsed(wikiStorySourceMutationResultSchema, {
       ...wikiMutationConfig(),
     })
   )
@@ -560,7 +581,7 @@ export function createWikiStoryBatch(submission: WikiStoryBatchSubmission) {
   return adminApiClient.Post(
     wikiPath("/add_story"),
     form,
-    parsed(wikiMutationResultSchema, {
+    parsed(wikiStorySourceMutationResultSchema, {
       ...wikiMutationConfig(),
     })
   )
@@ -584,7 +605,7 @@ export function createWikiStorySources(
         sourcePlatformId: source.sourcePlatformId,
       })),
     },
-    parsed(wikiMutationResultSchema, {
+    parsed(wikiStorySourceMutationResultSchema, {
       ...wikiMutationConfig(),
     })
   )
@@ -635,7 +656,7 @@ export function updateWikiCategory(input: {
       name: input.name.trim(),
       expectedName: input.expectedName,
     },
-    parsed(wikiMutationResultSchema, {
+    parsed(wikiCategoryMutationResultSchema, {
       ...wikiMutationConfig(),
     })
   )
@@ -651,7 +672,7 @@ export function createWikiCategory(input: {
       `/agencies/${input.agencyId}/idols/${input.idolId}/categories`
     ),
     { name: input.name.trim() },
-    parsed(wikiMutationResultSchema, {
+    parsed(wikiCategoryMutationResultSchema, {
       ...wikiMutationConfig(),
     })
   )
@@ -678,7 +699,7 @@ export function updateWikiStoryCard(
   return adminApiClient.Patch(
     adminWikiPath(`/cards/${cardId}`),
     form,
-    parsed(wikiMutationResultSchema, {
+    parsed(wikiStoryCardMutationResultSchema, {
       ...wikiMutationConfig(),
     })
   )
@@ -736,6 +757,7 @@ export function parseBilibiliStoryUrl(url: string) {
     wikiPath("/parse_bilibili"),
     { url },
     parsed(bilibiliResultSchema, {
+      ...wikiResponseConfig(),
       meta: withBackofficeCsrf(),
     })
   )

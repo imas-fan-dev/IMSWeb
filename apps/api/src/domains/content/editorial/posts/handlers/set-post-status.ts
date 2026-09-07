@@ -48,6 +48,9 @@ export function createHandleCommunityPostStatus(status: ArticleStatus) {
         );
         const conflict = statusResponse(result, c);
         if (conflict) return conflict;
+        if (result.revision === undefined) {
+            throw new Error('Editorial status update did not return a revision');
+        }
         return c.json(
             { status, revision: result.revision } satisfies EditorialStatusResponse
         );

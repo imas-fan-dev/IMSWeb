@@ -1,4 +1,22 @@
 import { adminWikiPath, wikiPath } from '@imsweb/contracts/paths';
+import {
+  createWikiAgencyRequestSchema,
+  createWikiCategoryRequestSchema,
+  createWikiGroupRequestSchema,
+  createWikiIdolRequestSchema,
+  updateWikiAgencyRequestSchema,
+  updateWikiCategoryRequestSchema,
+  updateWikiGroupRequestSchema,
+  updateWikiIdolRequestSchema,
+  wikiAgencyIdParamsSchema,
+  wikiCatalogQuerySchema,
+  wikiCategoryCreateParamsSchema,
+  wikiCategoryIdParamsSchema,
+  wikiGroupIdParamsSchema,
+  wikiIdolIdParamsSchema,
+  wikiLayoutRequestSchema,
+  wikiRevisionRequestSchema,
+} from '@imsweb/contracts/wiki';
 import type { Env, Hono } from "hono";
 import { createHandleDeleteWikiCategory } from "@/domains/content/wiki/catalog/handlers/delete-category";
 import { createHandleListAdminWikiCatalog } from "@/domains/content/wiki/catalog/handlers/list-admin-catalog";
@@ -42,9 +60,9 @@ import {
   wikiValidationErrorBody,
 } from "@/domains/content/wiki/request";
 import {
-  jsonValidator,
-  paramValidator,
-  queryValidator,
+  jsonSchemaValidator,
+  paramSchemaValidator,
+  querySchemaValidator,
 } from "@/middleware/request-validation";
 
 export function registerWikiCatalogRoutes<E extends Env>(
@@ -59,7 +77,7 @@ export function registerWikiCatalogRoutes<E extends Env>(
   app.get(wikiPath('/test'), handleWikiTest);
   app.get(
     wikiPath('/catalog'),
-    queryValidator(validateWikiCatalogQuery, { errorBody: wikiValidationErrorBody }),
+    querySchemaValidator(wikiCatalogQuerySchema, { errorBody: wikiValidationErrorBody }, validateWikiCatalogQuery),
     createHandleListPublicWikiCatalog(resolveServices),
   );
   app.get(
@@ -68,63 +86,63 @@ export function registerWikiCatalogRoutes<E extends Env>(
   );
   app.post(
     adminWikiPath('/agencies'),
-    jsonValidator(validateCreateWikiAgencyRequest, jsonOptions),
+    jsonSchemaValidator(createWikiAgencyRequestSchema, jsonOptions, validateCreateWikiAgencyRequest),
     createHandleCreateWikiAgency(resolveServices),
   );
   app.patch(
     adminWikiPath('/agencies/:agencyId'),
-    paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateUpdateWikiAgencyRequest, jsonOptions),
+    paramSchemaValidator(wikiAgencyIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAgencyIdParams),
+    jsonSchemaValidator(updateWikiAgencyRequestSchema, jsonOptions, validateUpdateWikiAgencyRequest),
     createHandleUpdateWikiAgency(resolveServices),
   );
   app.post(
     adminWikiPath('/agencies/:agencyId/groups'),
-    paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateCreateWikiGroupRequest, jsonOptions),
+    paramSchemaValidator(wikiAgencyIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAgencyIdParams),
+    jsonSchemaValidator(createWikiGroupRequestSchema, jsonOptions, validateCreateWikiGroupRequest),
     createHandleCreateWikiGroup(resolveServices),
   );
   app.patch(
     adminWikiPath('/groups/:groupId'),
-    paramValidator(validateWikiGroupIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateUpdateWikiGroupRequest, jsonOptions),
+    paramSchemaValidator(wikiGroupIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiGroupIdParams),
+    jsonSchemaValidator(updateWikiGroupRequestSchema, jsonOptions, validateUpdateWikiGroupRequest),
     createHandleUpdateWikiGroup(resolveServices),
   );
   app.delete(
     adminWikiPath('/groups/:groupId'),
-    paramValidator(validateWikiGroupIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateWikiRevisionRequest, jsonOptions),
+    paramSchemaValidator(wikiGroupIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiGroupIdParams),
+    jsonSchemaValidator(wikiRevisionRequestSchema, jsonOptions, validateWikiRevisionRequest),
     createHandleDeleteWikiGroup(resolveServices),
   );
   app.post(
     adminWikiPath('/agencies/:agencyId/idols'),
-    paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateCreateWikiIdolRequest, jsonOptions),
+    paramSchemaValidator(wikiAgencyIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAgencyIdParams),
+    jsonSchemaValidator(createWikiIdolRequestSchema, jsonOptions, validateCreateWikiIdolRequest),
     createHandleCreateWikiIdol(resolveServices),
   );
   app.patch(
     adminWikiPath('/idols/:idolId'),
-    paramValidator(validateWikiIdolIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateUpdateWikiIdolRequest, jsonOptions),
+    paramSchemaValidator(wikiIdolIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiIdolIdParams),
+    jsonSchemaValidator(updateWikiIdolRequestSchema, jsonOptions, validateUpdateWikiIdolRequest),
     createHandleUpdateWikiIdol(resolveServices),
   );
   app.delete(
     adminWikiPath('/idols/:idolId'),
-    paramValidator(validateWikiIdolIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateWikiRevisionRequest, jsonOptions),
+    paramSchemaValidator(wikiIdolIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiIdolIdParams),
+    jsonSchemaValidator(wikiRevisionRequestSchema, jsonOptions, validateWikiRevisionRequest),
     createHandleDeleteWikiIdol(resolveServices),
   );
   app.patch(
     adminWikiPath('/categories/:categoryId'),
-    paramValidator(validateWikiCategoryIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateUpdateWikiCategoryRequest, jsonOptions),
+    paramSchemaValidator(wikiCategoryIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiCategoryIdParams),
+    jsonSchemaValidator(updateWikiCategoryRequestSchema, jsonOptions, validateUpdateWikiCategoryRequest),
     createHandleUpdateWikiCategory(resolveServices),
   );
   app.post(
     adminWikiPath('/agencies/:agencyId/idols/:idolId/categories'),
-    paramValidator(validateWikiCategoryCreateParams, {
+    paramSchemaValidator(wikiCategoryCreateParamsSchema, {
       errorBody: wikiValidationErrorBody,
-    }),
-    jsonValidator(validateCreateWikiCategoryRequest, jsonOptions),
+    }, validateWikiCategoryCreateParams),
+    jsonSchemaValidator(createWikiCategoryRequestSchema, jsonOptions, validateCreateWikiCategoryRequest),
     createHandleCreateWikiCategory(resolveServices),
   );
   app.post(
@@ -133,8 +151,8 @@ export function registerWikiCatalogRoutes<E extends Env>(
   );
   app.put(
     adminWikiPath('/agencies/:agencyId/layout'),
-    paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
-    jsonValidator(validateWikiLayoutRequest, jsonOptions),
+    paramSchemaValidator(wikiAgencyIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAgencyIdParams),
+    jsonSchemaValidator(wikiLayoutRequestSchema, jsonOptions, validateWikiLayoutRequest),
     createHandleSaveWikiLayout(resolveServices),
   );
   app.get(

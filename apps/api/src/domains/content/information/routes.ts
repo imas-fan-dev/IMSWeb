@@ -1,3 +1,4 @@
+import { informationCardParamsSchema } from '@imsweb/contracts/information';
 import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleGetInformation } from '@/domains/content/information/handlers/get-information';
@@ -6,9 +7,9 @@ import { handleRetiredAdminInformation } from '@/domains/content/information/han
 import { handleServeInformationContent } from '@/domains/content/information/handlers/serve-information-content';
 import { validateInformationCardParams } from '@/domains/content/information/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
-import { paramValidator } from '@/middleware/request-validation';
+import { paramSchemaValidator } from '@/middleware/request-validation';
 
-const informationCardParamValidator = paramValidator(validateInformationCardParams);
+const informationCardParamValidator = paramSchemaValidator(informationCardParamsSchema, {}, validateInformationCardParams);
 
 export function registerInformationRoutes(app: ImsHonoApp): void {
     app.get(

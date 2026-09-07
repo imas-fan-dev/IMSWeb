@@ -1,3 +1,7 @@
+import {
+    namecardReactionListQuerySchema,
+    namecardReactionRequestSchema,
+} from '@imsweb/contracts/namecards';
 import { apiPath } from '@imsweb/contracts/paths';
 
 import { createHandleAddReaction } from '@/domains/community/namecards/reactions/handlers/add-reaction';
@@ -7,23 +11,24 @@ import {
     validateReactionListQuery,
     validateReactionRequest
 } from '@/domains/community/namecards/reactions/request';
-import { jsonValidator, queryValidator } from '@/middleware/request-validation';
+import { jsonSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter
 } from '@/routing/capability-router';
 
-const reactionValidator = jsonValidator(validateReactionRequest, {
+const reactionValidator = jsonSchemaValidator(namecardReactionRequestSchema, {
     acceptMislabeledJson: true,
-    malformedMessage: 'Unsupported reaction'
-});
+    malformedMessage: 'Unsupported reaction',
+    invalidMessage: 'Unsupported reaction',
+}, validateReactionRequest);
 
 export function namecardReactionRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
     for (const route of ['/emojis', '/reactions'] as const) {
         routes.get(
             route,
-            queryValidator(validateReactionListQuery),
+            querySchemaValidator(namecardReactionListQuerySchema, { invalidMessage: 'Invalid card id' }, validateReactionListQuery),
             handleListReactions
         );
         routes.post(route, reactionValidator, createHandleAddReaction(apiPath(route)));

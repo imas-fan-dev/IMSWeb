@@ -1,3 +1,4 @@
+import { namecardMediaParamsSchema } from '@imsweb/contracts/media';
 import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleServeNamecard } from '@/domains/delivery/media/handlers/serve-namecard';
@@ -6,10 +7,16 @@ import {
     validateNamecardMediaParams,
     validateNamecardThumbnailMediaParams
 } from '@/domains/delivery/media/request';
-import { paramValidator } from '@/middleware/request-validation';
+import { paramSchemaValidator } from '@/middleware/request-validation';
 
-const namecardMediaValidator = paramValidator(validateNamecardMediaParams);
-const namecardThumbnailMediaValidator = paramValidator(
+const namecardMediaValidator = paramSchemaValidator(
+    namecardMediaParamsSchema,
+    {},
+    validateNamecardMediaParams
+);
+const namecardThumbnailMediaValidator = paramSchemaValidator(
+    namecardMediaParamsSchema,
+    {},
     validateNamecardThumbnailMediaParams
 );
 

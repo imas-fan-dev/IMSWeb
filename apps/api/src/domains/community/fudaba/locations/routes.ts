@@ -1,4 +1,10 @@
 import {
+    fudabaOfficeIdParamsSchema,
+    fudabaOwnerLocationSaveRequestSchema,
+    fudabaPlaceSearchQuerySchema,
+    fudabaRevisionRequestSchema,
+} from "@imsweb/contracts/fudaba";
+import {
     activePlatformMutation,
     platformAuth,
     platformCsrf,
@@ -12,6 +18,7 @@ import {
     platformLocationRateLimit,
     platformWriteRateLimit,
 } from "@/middleware/platform-mutation-limit";
+import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from "@/middleware/request-validation";
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
@@ -32,21 +39,27 @@ export function fudabaLocationRoutes(): ImsCapabilityRouter {
         "/places/search",
         requireFudabaWrite,
         platformAuth,
+        querySchemaValidator(fudabaPlaceSearchQuerySchema),
         handleSearchFudabaPlaces,
     );
     routes.get(
         "/me/offices/:officeId/location",
         platformAuth,
+        paramSchemaValidator(fudabaOfficeIdParamsSchema),
         handleGetFudabaOwnerLocation,
     );
     routes.put(
         "/me/offices/:officeId/location",
         ...locationWrite,
+        paramSchemaValidator(fudabaOfficeIdParamsSchema),
+        jsonSchemaValidator(fudabaOwnerLocationSaveRequestSchema),
         handleSaveFudabaOwnerLocation,
     );
     routes.delete(
         "/me/offices/:officeId/location",
         ...locationWrite,
+        paramSchemaValidator(fudabaOfficeIdParamsSchema),
+        jsonSchemaValidator(fudabaRevisionRequestSchema),
         handleWithdrawFudabaOwnerLocation,
     );
     return routes;

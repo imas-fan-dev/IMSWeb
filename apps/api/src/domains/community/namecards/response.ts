@@ -2,44 +2,26 @@ import type { FudabaCardClaimState } from '@/ports/repositories';
 import type { CardIdolSelectionRecord } from '@/ports/repositories';
 import { namecardThumbnailPublicUrl } from '@/utils/storage/business-object-keys';
 import type {
-    AdminNamecardInput,
-    AdminNamecardListInput,
+    AdminNamecard,
+    AdminNamecardListResponse as AdminNamecardListContractResponse,
+    Namecard,
+    NamecardEmptyResponse,
+    NamecardErrorResponse,
     NamecardIdolInput,
-    NamecardInput,
-    NamecardPageInput,
+    NamecardListErrorResponse,
+    NamecardMutationResponse,
+    NamecardPage,
+    NamecardDetailResponse,
 } from '@imsweb/contracts/namecards';
 
-export type NamecardResponseId = number | string;
+export type NamecardResponseId = number;
 
 export type NamecardIdolResponse = NamecardIdolInput;
-export type PublicNamecardResponse = NamecardInput;
-export type AdminNamecardResponse = AdminNamecardInput;
-
-export interface NamecardDetailResponse {
-    image1_url: string;
-    image2_url: string;
-}
-
-export type NamecardEmptyResponse = { readonly [field: string]: never };
-
-export type NamecardPageResponse = NamecardPageInput;
-
-export interface NamecardListErrorResponse {
-    msg: string;
-}
-
-export type AdminNamecardListResponse =
-    | AdminNamecardListInput
-    | { success: false };
-
-export type NamecardMutationResponse =
-    | { success: true; revision?: number }
-    | { success: false; error?: string; revision?: number };
-
-export interface NamecardErrorResponse {
-    error: string;
-    revision?: number;
-}
+export type PublicNamecardResponse = Namecard;
+export type AdminNamecardResponse = AdminNamecard;
+export type { NamecardDetailResponse, NamecardEmptyResponse, NamecardErrorResponse, NamecardListErrorResponse, NamecardMutationResponse };
+export type NamecardPageResponse = NamecardPage;
+export type AdminNamecardListResponse = AdminNamecardListContractResponse;
 
 interface NamecardRow {
     id?: unknown;
@@ -55,8 +37,8 @@ interface NamecardRow {
 }
 
 function responseId(value: unknown): NamecardResponseId {
-    if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value;
-    if (typeof value === 'string' && /^[1-9]\d*$/.test(value)) return value;
+    const id = typeof value === 'string' ? Number(value) : value;
+    if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) return id;
     throw new Error('Namecard response has an invalid id');
 }
 

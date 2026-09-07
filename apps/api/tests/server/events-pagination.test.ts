@@ -1,6 +1,24 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
+import {
+    createEventResponseSchema,
+    eventErrorResponseSchema,
+    eventLegacyPageSchema,
+    eventListItemSchema,
+    eventMutationResponseSchema,
+    eventPageSchema
+} from '@imsweb/contracts/events';
+import {
+    failureMessageResponseSchema,
+    messageErrorResponseSchema
+} from '@imsweb/contracts/common';
 import { createHonoApp } from '@/app';
+import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
+import type { IdempotencyClaim, IdempotencyResponse, IdempotencyStore } from '@/ports/cache';
+import type { ParsedUpload, UploadParser } from '@/ports/http';
+import type { ImageProcessor } from '@/ports/media';
+import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
+import type { RuntimeServices } from '@/ports/runtime-services';
 import {
     decodeEventCursor,
     encodeEventCursor
@@ -29,8 +47,11 @@ interface CursorEventPage {
 }
 
 interface EventFixture {
-    request(pathname: string): Promise<Response>;
+    request(pathname: string, init?: RequestInit): Promise<Response>;
     insert(title: string): Promise<number>;
+    setUpload(value: ParsedUpload): void;
+    opToken: string;
+    editorToken: string;
     find(id: number): Promise<Record<string, unknown> | null>;
     references(imageUrl: string): Promise<number>;
     update(
@@ -45,6 +66,120 @@ interface EventFixture {
     ): Promise<boolean>;
 }
 
+class MemoryEventUploads implements UploadParser {
+    private next: ParsedUpload | null = null;
+
+    set(value: ParsedUpload): void {
+        this.next = value;
+    }
+
+    async parse(): Promise<ParsedUpload> {
+        if (!this.next) throw Object.assign(new Error('missing multipart fixture'), { status: 400 });
+        const value = this.next;
+        this.next = null;
+        return value;
+    }
+}
+
+class MemoryEventIdempotency implements IdempotencyStore {
+    private readonly records = new Map<string, {
+        fingerprint: string;
+        state: 'started' | 'completed';
+        generation: number;
+        response?: IdempotencyResponse;
+    }>();
+
+    async claim(scope: string, key: string, fingerprint: string): Promise<IdempotencyClaim> {
+        const id = `${scope}\0${key}`;
+        const record = this.records.get(id);
+        if (!record) {
+            this.records.set(id, { fingerprint, state: 'started', generation: 1 });
+            return { kind: 'acquired', recovered: false, generation: 1 };
+        }
+        if (record.fingerprint !== fingerprint) return { kind: 'conflict' };
+        if (record.state === 'completed') return { kind: 'replay', response: record.response! };
+        return { kind: 'in-progress' };
+    }
+
+    async complete(
+        scope: string,
+        key: string,
+        fingerprint: string,
+        generation: number,
+        response: IdempotencyResponse
+    ): Promise<void> {
+        const id = `${scope}\0${key}`;
+        const record = this.records.get(id);
+        if (!record || record.fingerprint !== fingerprint || record.generation !== generation) {
+            throw new Error('idempotency ownership lost');
+        }
+        this.records.set(id, { ...record, state: 'completed', response });
+    }
+
+    async fail(): Promise<void> {}
+    async isCurrent(): Promise<boolean> { return true; }
+}
+
+function eventStorage(): ObjectStorage {
+    const objects = new Map<string, StoredObject>();
+    return {
+        async get(key) { return objects.get(key) ?? null; },
+        async put(key, body, options: PutObjectOptions = {}) {
+            const object = {
+                body: Uint8Array.from(body),
+                size: body.byteLength,
+                contentType: options.contentType ?? 'application/octet-stream',
+                etag: `event-${objects.size + 1}`
+            };
+            objects.set(key, object);
+            return object;
+        },
+        async delete(key) { objects.delete(key); },
+        async exists(key) { return objects.has(key); },
+        async copy(source, destination) {
+            const object = objects.get(source);
+            if (!object) throw new Error('missing source object');
+            objects.set(destination, { ...object, body: Uint8Array.from(object.body) });
+        },
+        async move(source, destination) {
+            const object = objects.get(source);
+            if (!object) throw new Error('missing source object');
+            objects.set(destination, { ...object, body: Uint8Array.from(object.body) });
+            objects.delete(source);
+        },
+        async list(prefix) {
+            return [...objects.entries()]
+                .filter(([key]) => key.startsWith(prefix))
+                .map(([key, object]) => ({ key, size: object.size, etag: object.etag }));
+        },
+        async deletePrefix(prefix) {
+            for (const key of objects.keys()) if (key.startsWith(prefix)) objects.delete(key);
+        },
+        async publish() {}
+    };
+}
+
+const eventImages: ImageProcessor = {
+    async validate() {
+        return { format: 'png', width: 1, height: 1, contentType: 'image/png' };
+    },
+    async toWebp(body) { return body; },
+    async thumbnailPng(body) { return body; },
+    async resizeJpeg(body) { return body; }
+};
+
+async function assertRawJsonConforms<T>(
+    response: Response,
+    status: number,
+    schema: { parse(value: unknown): T }
+): Promise<T> {
+    assert.equal(response.status, status);
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw: unknown = await response.json();
+    assert.deepEqual(schema.parse(raw), raw);
+    return raw as T;
+}
+
 async function createFixture(t: TestContext, count: number): Promise<EventFixture> {
     const connection = await createPostgresTestDatabase(t, 'events-pagination');
     await new PostgresqlSchemaStrategy().initializeCore(connection);
@@ -57,12 +192,43 @@ async function createFixture(t: TestContext, count: number): Promise<EventFixtur
             imageUrl: `/uploads/events/${id}.webp`
         });
     }
-    const app = createHonoApp(() => ({ events: repository }));
+    const uploads = new MemoryEventUploads();
+    const tokens = new HmacBackofficeTokenService('events-wire-contract-secret-at-least-32-bytes');
+    const opToken = await tokens.sign({
+        id: 1,
+        username: 'events-op',
+        producername: 'Events Op',
+        dept: 'op',
+        csrfSecret: 'events-csrf'
+    }, 3600);
+    const editorToken = await tokens.sign({
+        id: 2,
+        username: 'events-editor',
+        producername: 'Events Editor',
+        dept: 'editor',
+        csrfSecret: 'events-editor-csrf'
+    }, 3600);
+    const runtime: RuntimeServices = {
+        events: repository,
+        uploads,
+        images: eventImages,
+        storage: eventStorage(),
+        idempotency: new MemoryEventIdempotency(),
+        backofficeTokens: tokens,
+        audit: {
+            async insertAuditLog() {},
+            async listRecentAuditLogs() { return []; }
+        }
+    };
+    const app = createHonoApp(() => runtime);
     t.after(() => connection.close());
     return {
-        request(pathname) {
-            return Promise.resolve(app.request(`http://ims.test${pathname}`));
+        request(pathname, init) {
+            return Promise.resolve(app.request(`http://ims.test${pathname}`, init));
         },
+        setUpload(value) { uploads.set(value); },
+        opToken,
+        editorToken,
         insert(title) {
             return repository.insertEvent({
                 title,
@@ -197,6 +363,169 @@ test('event updates require the expected current image reference', async (t) => 
     await fixture.insert('Shared image 1');
     await fixture.insert('Shared image 2');
     assert.equal(await fixture.references('/uploads/events/new.webp'), 2);
+});
+
+test('events mounted JSON routes preserve shared schemas and project query and multipart extras', async (t) => {
+    const fixture = await createFixture(t, 1);
+    const auth = { Authorization: `Bearer ${fixture.opToken}` };
+
+    await assertRawJsonConforms(
+        await fixture.request('/api/events?ignoredQueryField=legacy'),
+        200,
+        eventLegacyPageSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request('/api/events?limit=1'),
+        200,
+        eventPageSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request('/api/events/not-an-id'),
+        404,
+        eventErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request('/api/events', { method: 'POST' }),
+        401,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request('/api/events', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${fixture.editorToken}` }
+        }),
+        403,
+        messageErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request('/api/events', {
+            method: 'POST',
+            headers: {
+                Cookie: `ims_admin_access=${fixture.opToken}; ims_admin_csrf=events-csrf`,
+                'Idempotency-Key': 'csrf-rejected'
+            }
+        }),
+        403,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request('/api/events', {
+            method: 'POST',
+            headers: auth
+        }),
+        400,
+        eventErrorResponseSchema
+    );
+
+    fixture.setUpload({
+        fields: {
+            title: 'Wire event',
+            name: 'Wire producer',
+            contact: 'wire@example.test',
+            ignoredMultipartField: 'ignored'
+        },
+        files: {
+            image: {
+                filename: 'wire.png',
+                contentType: 'image/png',
+                body: Uint8Array.of(1, 2, 3)
+            }
+        }
+    });
+    const created = await assertRawJsonConforms(
+        await fixture.request('/api/events', {
+            method: 'POST',
+            headers: {
+                ...auth,
+                'Content-Type': 'multipart/form-data; boundary=fixture',
+                'Idempotency-Key': 'event-wire-success'
+            },
+            body: '--fixture--'
+        }),
+        200,
+        createEventResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request(`/api/events/${created.id}`),
+        200,
+        eventListItemSchema
+    );
+
+    fixture.setUpload({
+        fields: {
+            title: 'Updated wire event',
+            name: 'Wire producer',
+            contact: 'wire@example.test',
+            ignoredMultipartField: 'ignored'
+        },
+        files: {}
+    });
+    await assertRawJsonConforms(
+        await fixture.request(`/api/events/${created.id}`, {
+            method: 'PUT',
+            headers: { ...auth, 'Content-Type': 'multipart/form-data; boundary=fixture' },
+            body: '--fixture--'
+        }),
+        200,
+        eventMutationResponseSchema
+    );
+
+    fixture.setUpload({
+        fields: { title: '', name: 'Wire producer', contact: 'wire@example.test' },
+        files: {}
+    });
+    await assertRawJsonConforms(
+        await fixture.request(`/api/events/${created.id}`, {
+            method: 'PUT',
+            headers: { ...auth, 'Content-Type': 'multipart/form-data; boundary=fixture' },
+            body: '--fixture--'
+        }),
+        400,
+        eventErrorResponseSchema
+    );
+    fixture.setUpload({
+        fields: {
+            title: 'Conflicting wire event',
+            name: 'Wire producer',
+            contact: 'wire@example.test'
+        },
+        files: {
+            image: {
+                filename: 'wire-conflict.png',
+                contentType: 'image/png',
+                body: Uint8Array.of(4, 5, 6)
+            }
+        }
+    });
+    await assertRawJsonConforms(
+        await fixture.request('/api/events', {
+            method: 'POST',
+            headers: {
+                ...auth,
+                'Content-Type': 'multipart/form-data; boundary=fixture',
+                'Idempotency-Key': 'event-wire-success'
+            },
+            body: '--fixture--'
+        }),
+        409,
+        eventErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request('/api/events/999999', {
+            method: 'DELETE',
+            headers: auth
+        }),
+        404,
+        eventErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture.request(`/api/events/${created.id}`, {
+            method: 'DELETE',
+            headers: auth
+        }),
+        200,
+        eventMutationResponseSchema
+    );
 });
 
 test('event cursors retain decimal BIGINT ids and reject invalid pagination modes', async (t) => {

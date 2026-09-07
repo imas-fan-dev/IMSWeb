@@ -1,4 +1,14 @@
 import {
+    fudabaAdminCardClaimParamsSchema,
+    fudabaCardReviewRequestSchema,
+    fudabaRegisteredCardReviewParamsSchema,
+} from '@imsweb/contracts/fudaba/card-claims';
+import {
+    fudabaLocationReviewOfficeParamsSchema,
+    fudabaLocationReviewQuerySchema,
+    fudabaLocationReviewRequestSchema,
+} from '@imsweb/contracts/fudaba/location-review';
+import {
     backofficeAuth,
     backofficeCsrf,
     currentBackofficeOp
@@ -12,6 +22,7 @@ import {
 } from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
 import { handleListFudabaLocationReviews } from '@/domains/community/fudaba/moderation/handlers/list-location-reviews';
 import { handleReviewFudabaLocation } from '@/domains/community/fudaba/moderation/handlers/review-location';
+import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter
@@ -23,6 +34,7 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         '/office-locations',
         backofficeAuth,
         currentBackofficeOp,
+        querySchemaValidator(fudabaLocationReviewQuerySchema),
         handleListFudabaLocationReviews
     );
     routes.put(
@@ -30,6 +42,8 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         currentBackofficeOp,
         backofficeCsrf,
+        paramSchemaValidator(fudabaLocationReviewOfficeParamsSchema),
+        jsonSchemaValidator(fudabaLocationReviewRequestSchema),
         handleReviewFudabaLocation
     );
     routes.get(
@@ -56,6 +70,8 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         currentBackofficeOp,
         backofficeCsrf,
+        paramSchemaValidator(fudabaRegisteredCardReviewParamsSchema),
+        jsonSchemaValidator(fudabaCardReviewRequestSchema),
         handleReviewFudabaRegisteredCard
     );
     routes.get(
@@ -69,6 +85,8 @@ export function fudabaModerationRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         currentBackofficeOp,
         backofficeCsrf,
+        paramSchemaValidator(fudabaAdminCardClaimParamsSchema),
+        jsonSchemaValidator(fudabaCardReviewRequestSchema),
         handleReviewFudabaCardClaim
     );
     return routes;

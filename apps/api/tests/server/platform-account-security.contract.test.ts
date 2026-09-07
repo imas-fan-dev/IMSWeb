@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
 import {
     platformOAuthLinkListResponseSchema,
     platformOAuthUnlinkResponseSchema,
@@ -45,6 +46,16 @@ const ONE_ENABLED_ONE_DISABLED = [
     oauthLink(DISABLED_PROVIDER, { created_at: 4_000, provider_enabled: false })
 ];
 
+async function assertRawJsonConforms(
+    response: Response,
+    schema: { parse(input: unknown): unknown }
+): Promise<unknown> {
+    const raw: unknown = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'contract schema stripped or changed raw JSON');
+    return parsed;
+}
+
 interface ErrorBody {
     code?: string;
     error?: string;
@@ -85,6 +96,33 @@ async function unlink(
         headers
     });
 }
+
+test('platform account security raw JSON conforms across password, sessions, and OAuth unlink', async () => {
+    const fixture = new AccountSecurityFixture();
+
+    const listed = await listSessions(fixture);
+    assert.equal(listed.status, 200);
+    await assertRawJsonConforms(listed, platformSessionListResponseSchema);
+
+    const revoked = await fixture.app.request(`${SESSIONS_URL}/${SECOND_DEVICE_SESSION_ID}`, {
+        method: 'DELETE',
+        headers: bearerHeaders()
+    });
+    assert.equal(revoked.status, 200);
+    await assertRawJsonConforms(revoked, platformSessionRevocationResponseSchema);
+
+    const unlinked = await unlink(fixture, GOOGLE_PROVIDER);
+    assert.equal(unlinked.status, 200);
+    await assertRawJsonConforms(unlinked, platformOAuthUnlinkResponseSchema);
+
+    const changed = await changePassword(fixture, passwordBody());
+    assert.equal(changed.status, 200);
+    await assertRawJsonConforms(changed, platformPasswordChangeResponseSchema);
+
+    const anonymous = await fixture.app.request(SESSIONS_URL);
+    assert.equal(anonymous.status, 401);
+    await assertRawJsonConforms(anonymous, platformHttpErrorSchema);
+});
 
 test('platform account security rejects anonymous callers', async () => {
     const fixture = new AccountSecurityFixture();
@@ -353,17 +391,38 @@ test('a session owned by another account cannot be revoked', async () => {
     assert.equal(fixture.sessions.get(FOREIGN_SESSION_ID)!.revoked_at, null);
     assert.deepEqual(fixture.liveSessionIds(FOREIGN_ACCOUNT_ID), [FOREIGN_SESSION_ID]);
 
-    for (const id of ['missing-session', REVOKED_SESSION_ID, '']) {
+    for (const id of [
+        'missing-session',
+        REVOKED_SESSION_ID,
+        encodeURIComponent(' '),
+        'a'.repeat(129)
+    ]) {
         const response = await fixture.app.request(`${SESSIONS_URL}/${id}`, {
             method: 'DELETE',
             headers: bearerHeaders()
         });
-        assert.equal(response.status === 404 || response.status === 200, true);
-        if (response.status === 200) {
-            // The empty segment falls through to the collection route, which is
-            // the "sign out everywhere else" action.
-            assert.equal(id, '');
-        }
+        assert.equal(response.status, 404, id);
+        assert.equal(
+            ((await response.json()) as ErrorBody).code,
+            'PLATFORM_SESSION_NOT_FOUND',
+            id
+        );
+    }
+
+    const trailingSlash = await fixture.app.request(`${SESSIONS_URL}/`, {
+        method: 'DELETE',
+        headers: bearerHeaders()
+    });
+    assert.equal(
+        trailingSlash.status === 404 || trailingSlash.status === 200,
+        true
+    );
+    if (trailingSlash.status === 200) {
+        assert.equal(
+            (await trailingSlash.json() as { revokedSessionCount: number })
+                .revokedSessionCount,
+            2
+        );
     }
 });
 

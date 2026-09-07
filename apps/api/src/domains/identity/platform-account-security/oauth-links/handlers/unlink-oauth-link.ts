@@ -1,7 +1,7 @@
 import type { PlatformOAuthUnlinkResponse } from '@imsweb/contracts/platform/account-security';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { parsePlatformOAuthProviderCode } from '@/domains/identity/platform-account-security/oauth-links/request';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { platformSecurityEvent } from '@/domains/identity/platform-auth/contracts/session';
 import { platformAccountRepository } from '@/middleware/hono-context';
 
@@ -16,10 +16,10 @@ function linkNotFound(c: Context<AppEnvironment>): Response {
 }
 
 export async function handleUnlinkPlatformOAuthLink(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'param', { provider: string | undefined }>
 ): Promise<Response> {
     const claims = c.get('platformUser')!;
-    const providerCode = parsePlatformOAuthProviderCode(c.req.param('provider'));
+    const providerCode = c.req.valid('param').provider;
     if (!providerCode) return linkNotFound(c);
     // The account id goes into the statement's WHERE clause, so ownership is
     // enforced by the write itself rather than by a read-then-write gap.

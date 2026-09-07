@@ -1,3 +1,4 @@
+import { editorialArticlePayloadSchema, editorialIdParamsSchema, editorialStatusQuerySchema } from '@imsweb/contracts/editorial';
 import { handleCreateCommunityPost } from '@/domains/content/editorial/posts/handlers/create-post';
 import { handleDeleteCommunityPost } from '@/domains/content/editorial/posts/handlers/delete-post';
 import { handleGetCommunityPost } from '@/domains/content/editorial/posts/handlers/get-post';
@@ -12,9 +13,9 @@ import {
 } from '@/domains/content/editorial/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
 import {
-    jsonValidator,
-    paramValidator,
-    queryValidator
+    jsonSchemaValidator,
+    paramSchemaValidator,
+    querySchemaValidator
 } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
@@ -25,9 +26,9 @@ import {
 // 的旧地址，两者共用同一组 handler。
 const POST_BASE_PATHS = ['/community-posts', '/events'] as const;
 
-const idParams = paramValidator(validateEditorialIdParams);
-const statusQuery = queryValidator(validateEditorialStatusQuery);
-const articlePayload = jsonValidator(validateEditorialArticlePayload);
+const idParams = paramSchemaValidator(editorialIdParamsSchema, {}, validateEditorialIdParams);
+const statusQuery = querySchemaValidator(editorialStatusQuerySchema, {}, validateEditorialStatusQuery);
+const articlePayload = jsonSchemaValidator(editorialArticlePayloadSchema, {}, validateEditorialArticlePayload);
 
 const read = [backofficeAuth, opOnly] as const;
 const write = [backofficeAuth, opOnly, backofficeCsrf] as const;

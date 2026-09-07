@@ -9,7 +9,10 @@ import {
 } from "../cache-policy"
 import { apiClient } from "../client"
 
-import { recommendationResponseSchema } from "@imsweb/contracts/news"
+import {
+  newsErrorResponseSchema,
+  recommendationResponseSchema,
+} from "@imsweb/contracts/news"
 
 export { recommendationSchema } from "@imsweb/contracts/news"
 
@@ -55,6 +58,7 @@ export function parseRecommendationPage(payload: unknown): RecommendationPage {
 }
 
 const recommendationPageParsed = parsed(recommendationResponseSchema, {
+  errorSchema: newsErrorResponseSchema,
   select: normalizeRecommendationPage,
 })
 

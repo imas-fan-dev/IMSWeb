@@ -1,3 +1,4 @@
+import { homepageLinkCreateRequestSchema, homepageLinkIdParamsSchema, homepageLinkOrderRequestSchema, homepageLinkSectionParamsSchema, homepageLinkUpdateRequestSchema } from '@imsweb/contracts/homepage-links';
 import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleCreateHomepageLink } from '@/domains/content/homepage-links/handlers/create-homepage-link';
@@ -13,10 +14,10 @@ import {
     validateNewHomepageLinkRequest
 } from '@/domains/content/homepage-links/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
-import { jsonValidator, paramValidator } from '@/middleware/request-validation';
+import { jsonSchemaValidator, paramSchemaValidator } from '@/middleware/request-validation';
 
-const homepageLinkIdValidator = paramValidator(validateHomepageLinkIdParams);
-const homepageLinkSectionValidator = paramValidator(validateHomepageLinkSectionParams);
+const homepageLinkIdValidator = paramSchemaValidator(homepageLinkIdParamsSchema, {}, validateHomepageLinkIdParams);
+const homepageLinkSectionValidator = paramSchemaValidator(homepageLinkSectionParamsSchema, {}, validateHomepageLinkSectionParams);
 
 export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
     app.get(apiPath('/homepage-links'), handleListHomepageLinks);
@@ -26,7 +27,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateNewHomepageLinkRequest),
+        jsonSchemaValidator(homepageLinkCreateRequestSchema, {}, validateNewHomepageLinkRequest),
         handleCreateHomepageLink
     );
     app.put(
@@ -34,7 +35,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateHomepageLinkOrderRequest),
+        jsonSchemaValidator(homepageLinkOrderRequestSchema, {}, validateHomepageLinkOrderRequest),
         homepageLinkSectionValidator,
         handleReorderHomepageLinks
     );
@@ -43,7 +44,7 @@ export function registerHomepageLinkRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateHomepageLinkUpdateRequest),
+        jsonSchemaValidator(homepageLinkUpdateRequestSchema, {}, validateHomepageLinkUpdateRequest),
         homepageLinkIdValidator,
         handleUpdateHomepageLink
     );

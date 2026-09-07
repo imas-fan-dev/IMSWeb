@@ -1,7 +1,7 @@
 import type { PlatformSessionRevocationResponse } from '@imsweb/contracts/platform/account-security';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { parsePlatformSessionId } from '@/domains/identity/platform-account-security/sessions/request';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { platformSecurityEvent } from '@/domains/identity/platform-auth/contracts/session';
 import { platformAccountRepository } from '@/middleware/hono-context';
 
@@ -13,10 +13,10 @@ function sessionNotFound(c: Context<AppEnvironment>): Response {
 }
 
 export async function handleRevokePlatformSession(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'param', { id: string | undefined }>
 ): Promise<Response> {
     const claims = c.get('platformUser')!;
-    const sessionId = parsePlatformSessionId(c.req.param('id'));
+    const sessionId = c.req.valid('param').id;
     if (!sessionId) return sessionNotFound(c);
     // The repository statement carries `id=? AND account_id=?`, so ownership is
     // enforced by the write itself rather than by a read-then-write gap.

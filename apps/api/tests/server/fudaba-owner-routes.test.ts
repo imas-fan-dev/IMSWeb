@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    fudabaCardDeleteResponseSchema,
     fudabaCardMutationResponseSchema,
+    fudabaErrorResponseSchema,
     fudabaOwnerCardDetailSchema,
     fudabaOwnerCardListSchema,
 } from '@imsweb/contracts/fudaba';
@@ -12,6 +14,7 @@ import {
     JPEG_BYTES,
     OwnerRouteFixture,
     bearerHeaders,
+    cardFields,
     cardUpload,
     cookieHeaders,
     csrfHash,
@@ -23,6 +26,18 @@ import {
     uploadedFile
 } from '../fixtures/owner-route-fixture';
 
+interface Schema<T> {
+    parse(value: unknown): T;
+}
+
+async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
+    return parsed;
+}
+
 test('Fudaba public-read and owner-write flags remain independent', async () => {
     const readOnly = new OwnerRouteFixture({
         publicReadEnabled: true,
@@ -31,7 +46,10 @@ test('Fudaba public-read and owner-write flags remain independent', async () => 
     assert.equal((await readOnly.app.request(
         'http://ims.test/api/community/exchange/series'
     )).status, 200);
-    assert.equal((await postCard(readOnly)).status, 404);
+    const disabledWrite = await postCard(readOnly);
+    assert.equal(disabledWrite.status, 404);
+    assert.match(disabledWrite.headers.get('content-type') ?? '', /^text\/plain/i);
+    assert.equal(await disabledWrite.text(), 'Not Found');
     assert.equal(readOnly.uploads.calls.length, 0);
     assert.equal((await readOnly.app.request(
         'http://ims.test/api/community/exchange/me/cards',
@@ -98,16 +116,20 @@ test('owner routes require Platform auth and reject Backoffice tokens', async ()
         'http://ims.test/api/community/exchange/me/cards'
     );
     assert.equal(anonymous.status, 401);
-    assert.equal((await anonymous.json() as { code: string }).code,
-        'PLATFORM_SESSION_INVALID');
+    assert.equal(
+        (await contractJson(anonymous, fudabaErrorResponseSchema) as { code: string }).code,
+        'PLATFORM_SESSION_INVALID'
+    );
 
     const wrongRealm = await fixture.app.request(
         'http://ims.test/api/community/exchange/me/cards',
         { headers: { authorization: `Bearer ${BACKOFFICE_TOKEN}` } }
     );
     assert.equal(wrongRealm.status, 401);
-    assert.equal((await wrongRealm.json() as { code: string }).code,
-        'PLATFORM_SESSION_INVALID');
+    assert.equal(
+        (await contractJson(wrongRealm, fudabaErrorResponseSchema) as { code: string }).code,
+        'PLATFORM_SESSION_INVALID'
+    );
 
     assert.equal((await fixture.app.request(
         'http://ims.test/api/community/exchange/me/series'
@@ -186,10 +208,7 @@ test('owner card list and detail hide non-owner cards and raw object keys', asyn
         { headers: bearerHeaders() }
     );
     assert.equal(list.status, 200);
-    const listBody = await list.json() as {
-        items: Array<{ id: string; frontImageUrl: string; backImageUrl: string }>;
-    };
-    fudabaOwnerCardListSchema.parse(listBody);
+    const listBody = await contractJson(list, fudabaOwnerCardListSchema);
     assert.equal(listBody.items.length, 1);
     assert.equal(listBody.items[0]?.id, 'owner-card');
     assert.equal(listBody.items[0]?.frontImageUrl,
@@ -202,7 +221,7 @@ test('owner card list and detail hide non-owner cards and raw object keys', asyn
         { headers: bearerHeaders() }
     );
     assert.equal(detail.status, 200);
-    const detailBody = fudabaOwnerCardDetailSchema.parse(await detail.json());
+    const detailBody = await contractJson(detail, fudabaOwnerCardDetailSchema);
     assert.equal(JSON.stringify(detailBody).includes('object_key'), false);
     assert.equal((await fixture.app.request(
         'http://ims.test/api/community/exchange/me/cards/other-card',
@@ -213,9 +232,8 @@ test('owner card list and detail hide non-owner cards and raw object keys', asyn
 test('card creation sniffs both images and writes only protected owner objects', async () => {
     const fixture = new OwnerRouteFixture();
     const response = await postCard(fixture);
-    const body = await response.json();
-    assert.equal(response.status, 201, JSON.stringify(body));
-    fudabaCardMutationResponseSchema.parse(body);
+    assert.equal(response.status, 201);
+    const body = await contractJson(response, fudabaCardMutationResponseSchema);
     const serialized = JSON.stringify(body);
     assert.equal(serialized.includes('object_key'), false);
     assert.equal(serialized.includes('protected/fudaba'), false);
@@ -236,6 +254,23 @@ test('card creation sniffs both images and writes only protected owner objects',
         new Set(fixture.storage.puts.map((put) => put.options.metadata?.side)),
         new Set(['front', 'back'])
     );
+});
+
+test('card creation rejects empty idol selections before object writes', async () => {
+    const fixture = new OwnerRouteFixture();
+    fixture.uploads.next = {
+        ...cardUpload(),
+        fields: { ...cardFields(), favoriteIdolIds: '[]' }
+    };
+
+    const response = await postCard(fixture);
+    assert.equal(response.status, 400);
+    assert.equal(
+        (await contractJson(response, fudabaErrorResponseSchema) as { code: string }).code,
+        'FUDABA_CARD_INVALID'
+    );
+    assert.equal(fixture.storage.puts.length, 0);
+    assert.equal(fixture.createInputs.length, 0);
 });
 
 test('card creation rejects decoded image type mismatches before object writes', async () => {
@@ -282,6 +317,18 @@ test('card metadata writes enforce owner revision fencing', async () => {
 
 // Avatar upload is Platform identity, not Fudaba content; its CAS and
 // object-sweep assertions live in `platform-profile.contract.test.ts`.
+test('owner card upload rejects an unknown side with compatibility text', async () => {
+    const fixture = new OwnerRouteFixture();
+    const response = await fixture.app.request(
+        'http://ims.test/api/community/exchange/uploads/unknown',
+        { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+    );
+    assert.equal(response.status, 404);
+    assert.match(response.headers.get('content-type') ?? '', /^text\/plain/i);
+    assert.equal(await response.text(), 'Not Found');
+    assert.equal(fixture.uploads.calls.length, 0);
+});
+
 test('both card-side uploads commit through owner CAS without leaking keys', async () => {
     const fixture = new OwnerRouteFixture();
     let expectedRevision = fixture.cards.get('owner-card')!.revision;
@@ -320,7 +367,10 @@ test('soft deletion fences the owner write and removes protected card media', as
         }
     );
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { success: true, revision: 2 });
+    assert.deepEqual(await contractJson(response, fudabaCardDeleteResponseSchema), {
+        success: true,
+        revision: 2
+    });
     assert.equal(fixture.deleteInputs[0]?.ownerAccountId, ACCOUNT_ID);
     assert.ok(fixture.cards.get('owner-card')?.deleted_at);
     assert.equal(fixture.storage.objects.has(current.front_object_key), false);
@@ -477,7 +527,7 @@ test('media CAS conflicts clean the new object and old-object failures enqueue c
 test('owner media is protected, private, and inaccessible through another account card', async () => {
     const fixture = new OwnerRouteFixture();
     const response = await fixture.app.request(
-        'http://ims.test/api/community/exchange/me/cards/owner-card/media/front',
+        'http://ims.test/api/community/exchange/me/cards/owner-card/media/front?v=1',
         { headers: bearerHeaders(), redirect: 'manual' }
     );
     assert.equal(response.status, 307);
@@ -490,7 +540,7 @@ test('owner media is protected, private, and inaccessible through another accoun
     });
 
     const head = await fixture.app.request(
-        'http://ims.test/api/community/exchange/me/cards/owner-card/media/back',
+        'http://ims.test/api/community/exchange/me/cards/owner-card/media/back?v=1',
         { method: 'HEAD', headers: bearerHeaders(), redirect: 'manual' }
     );
     assert.equal(head.status, 307);

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash, pbkdf2Sync, randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
+import { successFlagSchema } from "@imsweb/contracts/common";
+import {
+    passwordResetIssueResponseSchema,
+    platformHttpErrorSchema,
+    platformRegistrationVerificationResponseSchema,
+    platformSessionSchema,
+} from "@imsweb/contracts/platform";
 import { createHonoApp } from "@/app";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
 import { PostgresConnection } from "@/infra/db/postgresql/connection";
@@ -58,6 +65,7 @@ class CapturingPlatformEmailSender implements PlatformEmailSender {
     beforeResult: Promise<void> | null = null;
     onSend: (() => void) | null = null;
     readonly messages: PlatformEmailVerificationMessage[] = [];
+    readonly passwordResetMessages: PlatformEmailVerificationMessage[] = [];
 
     async sendRegistrationVerification(
         message: PlatformEmailVerificationMessage,
@@ -67,6 +75,22 @@ class CapturingPlatformEmailSender implements PlatformEmailSender {
         if (this.beforeResult) await this.beforeResult;
         if (this.fail) throw new Error("Injected email delivery failure");
     }
+
+    async sendPasswordResetVerification(
+        message: PlatformEmailVerificationMessage,
+    ): Promise<void> {
+        this.passwordResetMessages.push(message);
+    }
+}
+
+async function assertRawJsonConforms(
+    response: Response,
+    schema: { parse(input: unknown): unknown },
+): Promise<unknown> {
+    const raw: unknown = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, "contract schema stripped or changed raw JSON");
+    return parsed;
 }
 
 function appWithPlatformEmail(
@@ -183,7 +207,11 @@ async function requestVerificationCode(
         jsonRequest("/api/platform/auth/register/verification-code", { email }),
     );
     assert.equal(response.status, 202, await response.clone().text());
-    assert.deepEqual(await response.json(), {
+    const body = await assertRawJsonConforms(
+        response,
+        platformRegistrationVerificationResponseSchema,
+    );
+    assert.deepEqual(body, {
         success: true,
         retryAfterSeconds: 60,
     });
@@ -500,7 +528,10 @@ test("bearer callers get tokens from registration and login, cookie callers do n
         ),
     );
     assert.equal(register.status, 201, await register.clone().text());
-    const registered = (await register.json()) as {
+    const registered = (await assertRawJsonConforms(
+        register,
+        platformSessionSchema,
+    )) as {
         accessToken?: string;
         refreshToken?: string;
     };
@@ -524,7 +555,10 @@ test("bearer callers get tokens from registration and login, cookie callers do n
         ),
     );
     assert.equal(login.status, 200, await login.clone().text());
-    const loggedIn = (await login.json()) as {
+    const loggedIn = (await assertRawJsonConforms(
+        login,
+        platformSessionSchema,
+    )) as {
         accessToken?: string;
         refreshToken?: string;
     };
@@ -545,6 +579,14 @@ test("bearer callers get tokens from registration and login, cookie callers do n
         { headers: { Authorization: `Bearer ${loggedIn.accessToken}` } },
     );
     assert.equal(session.status, 200, await session.clone().text());
+    await assertRawJsonConforms(session, platformSessionSchema);
+
+    const logout = await fixture.app.request("/api/platform/auth/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${loggedIn.accessToken}` },
+    });
+    assert.equal(logout.status, 200, await logout.clone().text());
+    await assertRawJsonConforms(logout, successFlagSchema);
 
     // The same credentials without the opt-in header keep tokens in cookies only.
     const cookieLogin = await fixture.app.request(
@@ -558,6 +600,48 @@ test("bearer callers get tokens from registration and login, cookie callers do n
     assert.equal("accessToken" in cookieBody, false);
     assert.equal("refreshToken" in cookieBody, false);
     assertPlatformCookies(cookieLogin);
+});
+
+test("password reset responses preserve exact JSON and reject invalid API email grammar", async (t) => {
+    const fixture = await createFixture(t);
+    const email = "reset-wire@example.test";
+    const registrationCode = await requestVerificationCode(fixture, email);
+    const registered = await fixture.app.request(
+        jsonRequest("/api/platform/auth/register", {
+            email,
+            displayName: "制".repeat(80),
+            password: PASSWORD,
+            code: registrationCode,
+        }),
+    );
+    assert.equal(registered.status, 201, await registered.clone().text());
+    await assertRawJsonConforms(registered, platformSessionSchema);
+
+    const issue = await fixture.app.request(
+        jsonRequest("/api/platform/auth/password-reset/verification-code", { email }),
+    );
+    assert.equal(issue.status, 202, await issue.clone().text());
+    await assertRawJsonConforms(issue, passwordResetIssueResponseSchema);
+    const reset = fixture.emailSender.passwordResetMessages.at(-1);
+    assert.ok(reset);
+
+    const completed = await fixture.app.request(
+        jsonRequest("/api/platform/auth/password-reset", {
+            email,
+            code: reset.code,
+            password: "reset password 123",
+        }),
+    );
+    assert.equal(completed.status, 200, await completed.clone().text());
+    await assertRawJsonConforms(completed, successFlagSchema);
+
+    const malformed = await fixture.app.request(
+        jsonRequest("/api/platform/auth/password-reset/verification-code", {
+            email: "not-an-api-email",
+        }),
+    );
+    assert.equal(malformed.status, 400);
+    await assertRawJsonConforms(malformed, platformHttpErrorSchema);
 });
 
 test("registration verification is hashed, cached, atomically consumed, and single use", async (t) => {

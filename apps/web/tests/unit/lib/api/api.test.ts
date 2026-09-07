@@ -1,3 +1,4 @@
+import { z } from "@imsweb/contracts/z"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { adminApiClient } from "~/lib/api/admin-client"
@@ -16,6 +17,7 @@ import {
   CSRF_HEADER_NAME,
   LEGACY_BACKOFFICE_CSRF_COOKIE_NAME,
 } from "~/lib/api/request"
+import { parsed } from "~/lib/api/parsed"
 import { handleApiResponse } from "~/lib/api/response"
 import { withBackofficeAuth, withBackofficeCsrf } from "~/lib/api/types"
 
@@ -198,6 +200,115 @@ describe("API response policy", () => {
 
     await expect(handleApiResponse(response)).resolves.toBe("ok")
   })
+
+  it("validates JSON HTTP errors before extracting their public fields", async () => {
+    const schema = z.object({ error: z.string() })
+    const valid = Response.json({ error: "活动不存在" }, { status: 404 })
+
+    await expect(
+      handleApiResponse(valid, { meta: { errorSchema: schema } })
+    ).rejects.toMatchObject({
+      kind: "http",
+      status: 404,
+      payload: { error: "活动不存在" },
+    })
+
+    const invalid = Response.json(
+      { error: "活动不存在", unexpected: true },
+      { status: 404 }
+    )
+    await expect(
+      handleApiResponse(invalid, { meta: { errorSchema: schema } })
+    ).rejects.toMatchObject({
+      kind: "contract",
+      status: 404,
+      code: "CONTRACT_VIOLATION",
+      payload: { error: "活动不存在", unexpected: true },
+    })
+  })
+
+  it("validates 2xx business errors before throwing them", async () => {
+    const schema = z.object({ status: z.literal("error"), msg: z.string() })
+    const valid = Response.json({ status: "error", msg: "上游结果" })
+
+    await expect(
+      handleApiResponse(valid, { meta: { businessErrorSchema: schema } })
+    ).rejects.toMatchObject({
+      kind: "business",
+      status: 200,
+      payload: { status: "error", msg: "上游结果" },
+    })
+
+    const invalid = Response.json({
+      status: "error",
+      msg: "上游结果",
+      extra: true,
+    })
+    await expect(
+      handleApiResponse(invalid, { meta: { businessErrorSchema: schema } })
+    ).rejects.toMatchObject({
+      kind: "contract",
+      status: 200,
+      code: "CONTRACT_VIOLATION",
+      payload: { status: "error", msg: "上游结果", extra: true },
+    })
+  })
+
+  it("keeps error schemas in Alova metadata without leaking config-only keys", () => {
+    const errorSchema = z.object({ error: z.string() }).strict()
+    const businessErrorSchema = z
+      .object({ status: z.literal("error"), msg: z.string() })
+      .strict()
+    const config = parsed(z.object({ id: z.number() }).strict(), {
+      cacheFor: 60_000,
+      errorSchema,
+      businessErrorSchema,
+    })
+
+    expect(config).not.toHaveProperty("errorSchema")
+    expect(config).not.toHaveProperty("businessErrorSchema")
+    expect(config.meta).toMatchObject({
+      parsed: true,
+      errorSchema,
+      businessErrorSchema,
+    })
+  })
+
+  it("rejects success schemas that change raw JSON before select runs", () => {
+    const selected = vi.fn((value: { id: number }) => value.id)
+    const exact = parsed(z.object({ id: z.number() }).strict(), {
+      select: selected,
+    })
+    const stripped = parsed(z.object({ id: z.number() }))
+
+    expect(exact.transform({ id: 1 })).toBe(1)
+    expect(selected).toHaveBeenCalledWith({ id: 1 })
+    expect(() => stripped.transform({ id: 1, extra: true })).toThrowError(
+      expect.objectContaining({ kind: "contract", code: "CONTRACT_VIOLATION" })
+    )
+  })
+
+  it("requires schemas for JSON objects, arrays, scalars, and null", async () => {
+    for (const payload of [{ value: true }, ["item"], "value", 42, null]) {
+      await expect(
+        handleApiResponse(Response.json(payload), {
+          url: `/api/unvalidated/${String(payload)}`,
+        })
+      ).rejects.toMatchObject({
+        kind: "contract",
+        code: "UNVALIDATED_RESPONSE",
+      })
+    }
+
+    expect(
+      parsed(z.object({ value: z.boolean() }).strict()).transform({
+        value: true,
+      })
+    ).toEqual({ value: true })
+    expect(parsed(z.array(z.string())).transform(["item"])).toEqual(["item"])
+    expect(parsed(z.string()).transform("value")).toBe("value")
+    expect(parsed(z.null()).transform(null)).toBeNull()
+  })
 })
 
 describe("network errors", () => {
@@ -268,7 +379,7 @@ describe("Alova access-token refresh", () => {
         "/api/admin/auth/logout"
       )
       return Response.json(
-        { success: false, message: "session expired" },
+        { success: false, message: "未登录" },
         { status: 401 }
       )
     })
@@ -277,7 +388,7 @@ describe("Alova access-token refresh", () => {
     await expect(logoutAdmin().send()).rejects.toMatchObject({
       kind: "http",
       status: 401,
-      message: "session expired",
+      message: "未登录",
     })
     expect(fetchMock).toHaveBeenCalledOnce()
   })
@@ -314,7 +425,7 @@ describe("Alova access-token refresh", () => {
         if (pathname === "/api/admin/auth/refresh") {
           refreshRequests += 1
           return Response.json(
-            { success: false, message: "refresh expired" },
+            { success: false, message: "刷新令牌已失效" },
             { status: 401 }
           )
         }
@@ -378,7 +489,16 @@ describe("Alova access-token refresh", () => {
         if (pathname === "/api/admin/auth/refresh") {
           refreshRequests += 1
           refreshHeaders = new Headers(init?.headers)
-          return Response.json({ success: true })
+          return Response.json({
+            success: true,
+            user: {
+              id: 1,
+              username: "alova-op",
+              producername: "Alova Producer",
+              dept: "op",
+              adminRole: "admin",
+            },
+          })
         }
         if (pathname === "/api/admin/auth/session") {
           checkRequests += 1
@@ -398,6 +518,7 @@ describe("Alova access-token refresh", () => {
               producername: "Alova Producer",
               dept: "op",
               adminRole: "admin",
+              csrfSecret: "alova-refresh-csrf",
             },
           })
         }

@@ -1,4 +1,5 @@
 import type { SuccessFlag } from "@imsweb/contracts/common";
+import type { HomepageLinkErrorResponse as HomepageLinkContractErrorResponse, HomepageLinkMutation } from "@imsweb/contracts/homepage-links";
 import type {
     HomepageLinkAccent,
     HomepageLinkIcon,
@@ -11,16 +12,11 @@ import type {
 export type HomepageLinkResponse = HomepageLink;
 export type HomepageLinksResponse = HomepageLinks;
 
-export interface HomepageLinkUpsertResponse {
-    success: true;
-    link: HomepageLinkResponse;
-}
+export type HomepageLinkUpsertResponse = HomepageLinkMutation;
 
 export type HomepageLinkMutationResponse = SuccessFlag;
 
-export interface HomepageLinkErrorResponse {
-    error: string;
-}
+export type HomepageLinkErrorResponse = HomepageLinkContractErrorResponse;
 
 import type { HomepageLinkRecord } from "@/ports/repositories";
 

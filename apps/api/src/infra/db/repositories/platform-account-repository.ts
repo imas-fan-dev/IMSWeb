@@ -1263,22 +1263,29 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
         const result = await sqlStatement(
             this.database,
             `UPDATE platform_password_reset_codes
-             SET code_hash=pending_code_hash,
-                 expires_at=pending_expires_at,
-                 resend_after=pending_resend_after,
-                 attempts_remaining=pending_attempts_remaining,
-                 created_at=pending_created_at,
-                 updated_at=pending_created_at,
-                 delivery_token=?,
+             SET code_hash=COALESCE(pending_code_hash, code_hash),
+                 expires_at=COALESCE(pending_expires_at, expires_at),
+                 resend_after=COALESCE(pending_resend_after, resend_after),
+                 attempts_remaining=COALESCE(
+                    pending_attempts_remaining,
+                    attempts_remaining
+                 ),
+                 created_at=COALESCE(pending_created_at, created_at),
+                 updated_at=COALESCE(pending_created_at, updated_at),
+                 delivery_token=NULL,
                  pending_token=NULL,
                  pending_code_hash=NULL,
                  pending_expires_at=NULL,
                  pending_resend_after=NULL,
                  pending_attempts_remaining=NULL,
                  pending_created_at=NULL
-             WHERE normalized_email=? AND pending_token=?
+             WHERE normalized_email=?
+               AND (
+                 pending_token=?
+                 OR (delivery_token=? AND pending_token IS NULL)
+               )
              RETURNING normalized_email`,
-            [deliveryToken, normalizedEmail, deliveryToken]
+            [normalizedEmail, deliveryToken, deliveryToken]
         ).all();
         return result.results.length === 1;
     }
@@ -1327,7 +1334,10 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
                     `UPDATE platform_password_reset_codes
                      SET attempts_remaining=attempts_remaining-
                             CASE WHEN code_hash=? THEN 0 ELSE 1 END,
-                         consumed_at=CASE WHEN code_hash=? THEN ? ELSE NULL END,
+                         consumed_at=CASE
+                           WHEN code_hash=? THEN CAST(? AS BIGINT)
+                           ELSE NULL
+                         END,
                          updated_at=?
                      WHERE normalized_email=? AND delivery_token IS NULL
                        AND expires_at>? AND attempts_remaining>0

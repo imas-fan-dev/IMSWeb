@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryCategoryEditorDialog } from "~/pages/admin/stories/components/story-category-editor-dialog"
+import type { WikiCategoryMutationResult } from "@imsweb/contracts/wiki"
 
 function requestDetails(call: unknown[]) {
   const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
@@ -22,6 +23,25 @@ function requestDetails(call: unknown[]) {
   }
 }
 
+function categoryMutation(
+  name: string,
+  storageSlug: string,
+  displayOrder: number
+) {
+  return {
+    status: "success",
+    category: {
+      id: 8,
+      name,
+      storageSlug,
+      displayOrder,
+      showWhenEmpty: true,
+      backgroundEligible: false,
+      revision: 0,
+    },
+  } satisfies WikiCategoryMutationResult
+}
+
 describe("StoryCategoryEditorDialog", () => {
   beforeEach(() => {
     document.cookie = "ims_admin_csrf=story-category-editor-test; path=/"
@@ -35,7 +55,9 @@ describe("StoryCategoryEditorDialog", () => {
   it("prefills the shared category name and closes after a successful patch", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success" }))
+      .mockResolvedValue(
+        Response.json(categoryMutation("主线剧情 改", "main_story", 0))
+      )
     vi.stubGlobal("fetch", fetchMock)
     const onOpenChange = vi.fn()
     const onSaved = vi.fn()
@@ -96,7 +118,9 @@ describe("StoryCategoryEditorDialog", () => {
   it("adds an explicit category for the selected idol", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success" }, { status: 201 }))
+      .mockResolvedValue(
+        Response.json(categoryMutation("活动剧情", "event", 1), { status: 201 })
+      )
     vi.stubGlobal("fetch", fetchMock)
     const onOpenChange = vi.fn()
     const onSaved = vi.fn()

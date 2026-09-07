@@ -3,8 +3,10 @@ import { test } from "node:test";
 import { createHonoApp } from "@/app";
 import {
     fudabaCardPageSchema,
+    fudabaErrorResponseSchema,
     fudabaOfficeDetailSchema,
     fudabaOfficePageSchema,
+    fudabaSeriesListSchema,
 } from "@imsweb/contracts/fudaba";
 import { PLATFORM_ACCESS_TOKEN_COOKIE } from "@/domains/identity/platform-auth/contracts/session";
 import type {
@@ -26,6 +28,18 @@ import type { RuntimeServices } from "@/ports/runtime-services";
 
 const NOW = Date.now();
 const CREATED_AT = "2026-08-02T00:00:00.000Z";
+
+interface Schema<T> {
+    parse(value: unknown): T;
+}
+
+async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
+    assert.match(response.headers.get("content-type") ?? "", /^application\/json/i);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, "contract schema stripped an emitted field");
+    return parsed;
+}
 
 class PublicMediaStorage implements ObjectStorage {
     async createPublicReadUrl(key: string): Promise<string | null> {
@@ -258,6 +272,8 @@ test("Fudaba public read feature gate hides every route by default", async () =>
         "http://ims.test/api/community/exchange/series",
     );
     assert.equal(response.status, 404);
+    assert.match(response.headers.get("content-type") ?? "", /^text\/plain/i);
+    assert.equal(await response.text(), "Not Found");
     assert.equal(response.headers.get("cache-control"), "private, no-store");
 });
 
@@ -272,7 +288,7 @@ test("Fudaba public series fails closed when icon storage is unavailable", async
         "http://ims.test/api/community/exchange/series",
     );
     assert.equal(response.status, 503);
-    assert.deepEqual(await response.json(), {
+    assert.deepEqual(await contractJson(response, fudabaErrorResponseSchema), {
         error: "Internal server error",
     });
 });
@@ -284,7 +300,7 @@ test("anonymous Fudaba discovery exposes only public projections and stable curs
         "http://ims.test/api/community/exchange/series",
     );
     assert.equal(seriesResponse.status, 200);
-    assert.deepEqual(await seriesResponse.json(), {
+    assert.deepEqual(await contractJson(seriesResponse, fudabaSeriesListSchema), {
         items: [
             {
                 id: 1,
@@ -310,11 +326,7 @@ test("anonymous Fudaba discovery exposes only public projections and stable curs
     );
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "private, no-store");
-    const body = (await response.json()) as {
-        items: Record<string, unknown>[];
-        pageInfo: { hasNextPage: boolean; nextCursor: string };
-    };
-    fudabaOfficePageSchema.parse(body);
+    const body = await contractJson(response, fudabaOfficePageSchema);
     assert.equal(body.pageInfo.hasNextPage, true);
     assert.ok(body.pageInfo.nextCursor);
     assert.equal(
@@ -361,12 +373,7 @@ test("valid Platform auth adds viewer flags while Backoffice remains anonymous",
     );
     assert.equal(authenticated.status, 200);
     assert.equal(fudaba.lastCardInput?.viewerAccountId, "platform-viewer");
-    const body = (await authenticated.json()) as {
-        items: Array<{
-            interactions: { viewerLiked: boolean; viewerFavorited: boolean };
-        }>;
-    };
-    fudabaCardPageSchema.parse(body);
+    const body = await contractJson(authenticated, fudabaCardPageSchema);
     assert.deepEqual(body.items[0].interactions, {
         likes: 2,
         favorites: 1,
@@ -380,15 +387,7 @@ test("valid Platform auth adds viewer flags while Backoffice remains anonymous",
         { headers: { authorization: "Bearer valid-platform" } },
     );
     assert.equal(office.status, 200);
-    const officeBody = (await office.json()) as {
-        office: {
-            cards: Array<{
-                viewerOwned: boolean;
-                placement: Record<string, unknown>;
-            }>;
-        };
-    };
-    fudabaOfficeDetailSchema.parse(officeBody);
+    const officeBody = await contractJson(office, fudabaOfficeDetailSchema);
     assert.equal(officeBody.office.cards[0]?.viewerOwned, true);
     assert.deepEqual(officeBody.office.cards[0]?.placement, {
         pinnedAt: CREATED_AT,
@@ -456,7 +455,7 @@ test("office visibility, query validation, and public media fail closed", async 
         "http://ims.test/api/community/exchange/cards",
     );
     assert.equal(unavailable.status, 503);
-    assert.deepEqual(await unavailable.json(), {
+    assert.deepEqual(await contractJson(unavailable, fudabaErrorResponseSchema), {
         error: "Internal server error",
     });
 });
@@ -469,6 +468,7 @@ test("Fudaba public queries reject duplicate, out-of-range, and mismatched curso
             "?series=765&series=cg&limit=2",
     );
     assert.equal(multiSeries.status, 200);
+    await contractJson(multiSeries, fudabaOfficePageSchema);
     assert.deepEqual(fudaba.lastOfficeInput?.seriesCodes, ["765", "cg"]);
     for (const path of [
         "/api/community/exchange/offices?city=Shanghai&city=Beijing",

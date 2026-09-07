@@ -1,3 +1,6 @@
+import {
+    adminLoginRequestSchema
+} from '@imsweb/contracts/admin';
 import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { Context, Next } from 'hono';
 import type { AppEnvironment } from '@/app';
@@ -19,14 +22,15 @@ import {
 } from '@/domains/admin/backoffice-auth/handlers/refresh';
 import {
     loginValidationError,
-    validateLoginRequest
+    normalizeLoginRequest
 } from '@/domains/admin/backoffice-auth/login-request';
-import { jsonValidator } from '@/middleware/request-validation';
+import { jsonSchemaValidator } from '@/middleware/request-validation';
 
-const loginValidator = jsonValidator(validateLoginRequest, {
+const loginValidator = jsonSchemaValidator(adminLoginRequestSchema, {
+    invalidMessage: '用户名或密码格式错误',
     malformedMessage: '用户名或密码格式错误',
     errorBody: loginValidationError
-});
+}, normalizeLoginRequest);
 
 const LEGACY_BACKOFFICE_AUTH_SUCCESSORS = new Map([
     [apiPath('/login'), adminApiPath('/auth/login')],

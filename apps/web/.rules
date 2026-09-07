@@ -60,9 +60,10 @@ subpaths and validate responses through the `parsed(schema, config)` helper
 response generics; the response type infers from the schema and `select`
 projects after validation. `handleApiResponse` enforces this: JSON responses
 without `meta.parsed` warn in dev and fail under vitest, and
-`meta.skipContractCheck` is an explicit reviewed opt-out for infra tests and
-raw probes only. Request-side input
-validation, `File`/`FormData` schemas, and UI-only types stay in the endpoint
+`meta.skipContractCheck` is not allowed in production endpoint code. Every JSON
+success, HTTP-error, and `2xx` business-error payload uses a contracts schema;
+non-JSON success boundaries still declare a contracts error schema. Request-side
+input validation, `File`/`FormData` schemas, and UI-only types stay in the endpoint
 module. Modules mapping 1:1 to one package module use named re-exports for runtime
 values and `export type *` for types; the contracts package builds CommonJS, so
 runtime `export *` is not allowed in Web modules. Multi-source modules also use

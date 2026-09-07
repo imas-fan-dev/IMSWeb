@@ -14,7 +14,13 @@ import {
 } from "../../types"
 import {
   adminCardClaimListSchema,
+  // pi-lens-ignore: ts:2724
+  fudabaAdminCardClaimHttpErrorSchema,
+  fudabaCardClaimErrorSchema,
   claimEnvelopeListSchema,
+  fudabaClaimEnvelopeActionRequestSchema,
+  fudabaCardReviewRequestSchema,
+  fudabaLegacyCardClaimRequestSchema,
   claimMutationSchema,
   envelopeMutationSchema,
   ownerClaimListSchema,
@@ -41,6 +47,8 @@ export function getFudabaClaimEnvelopes() {
   return platformApiClient.Get(
     exchangePath("/me/claim-envelopes"),
     parsed(claimEnvelopeListSchema, {
+      errorSchema: fudabaCardClaimErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withPlatformAuth(),
     })
   )
@@ -51,10 +59,16 @@ export function respondFudabaClaimEnvelope(
   decision: "confirm" | "decline",
   expectedRevision: number
 ) {
+  const submission = fudabaClaimEnvelopeActionRequestSchema.parse({
+    decision,
+    expectedRevision,
+  })
   return platformApiClient.Put(
     exchangePath(`/me/claim-envelopes/${encodeURIComponent(envelopeId)}`),
-    { decision, expectedRevision },
+    submission,
     parsed(envelopeMutationSchema, {
+      errorSchema: fudabaCardClaimErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withPlatformCsrf(),
     })
   )
@@ -64,6 +78,8 @@ export function getFudabaOwnerCardClaims() {
   return platformApiClient.Get(
     exchangePath("/me/card-claims"),
     parsed(ownerClaimListSchema, {
+      errorSchema: fudabaCardClaimErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withPlatformAuth(),
     })
   )
@@ -78,10 +94,13 @@ export function createFudabaLegacyCardClaim(
     message: string
   }
 ) {
+  const submission = fudabaLegacyCardClaimRequestSchema.parse(input)
   return platformApiClient.Post(
     exchangePath(`/legacy-cards/${legacyCardId}/claims`),
-    input,
+    submission,
     parsed(claimMutationSchema, {
+      errorSchema: fudabaCardClaimErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withPlatformCsrf(),
     })
   )
@@ -91,6 +110,8 @@ export function getAdminFudabaCardReviews() {
   return adminApiClient.Get(
     adminExchangePath("/card-reviews"),
     parsed(registeredCardReviewListSchema, {
+      errorSchema: fudabaAdminCardClaimHttpErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withBackofficeAuth(),
       select: normalizeFudabaRegisteredCardReviewList,
     })
@@ -105,10 +126,13 @@ export function reviewAdminFudabaCard(
     note: string
   }
 ) {
+  const submission = fudabaCardReviewRequestSchema.parse(input)
   return adminApiClient.Put(
     adminExchangePath(`/card-reviews/${encodeURIComponent(cardId)}`),
-    input,
+    submission,
     parsed(reviewMutationSchema, {
+      errorSchema: fudabaAdminCardClaimHttpErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withBackofficeCsrf(),
     })
   )
@@ -118,6 +142,8 @@ export function getAdminFudabaCardClaims() {
   return adminApiClient.Get(
     adminExchangePath("/card-claims"),
     parsed(adminCardClaimListSchema, {
+      errorSchema: fudabaAdminCardClaimHttpErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withBackofficeAuth(),
       select: normalizeFudabaAdminCardClaimList,
     })
@@ -132,10 +158,13 @@ export function reviewAdminFudabaCardClaim(
     note: string
   }
 ) {
+  const submission = fudabaCardReviewRequestSchema.parse(input)
   return adminApiClient.Put(
     adminExchangePath(`/card-claims/${encodeURIComponent(claimId)}`),
-    input,
+    submission,
     parsed(reviewMutationSchema, {
+      errorSchema: fudabaAdminCardClaimHttpErrorSchema,
+      businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withBackofficeCsrf(),
     })
   )

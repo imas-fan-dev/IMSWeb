@@ -1,3 +1,5 @@
+// pi-lens-ignore: ts:2724
+import type { PlatformProfileError } from '@imsweb/contracts/platform';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { parseExpectedProfileTimestamp } from '@/domains/identity/platform-profile/profile-input';
@@ -72,7 +74,7 @@ export async function handleUploadPlatformAvatar(
                 success: false,
                 code: 'PLATFORM_PROFILE_CONFLICT',
                 updatedAt: identity.profile.updated_at
-            }, 409);
+            } satisfies PlatformProfileError, 409);
         }
         const file = oneFile(upload.files.image);
         if (!file) {
@@ -137,7 +139,7 @@ export async function handleUploadPlatformAvatar(
                     success: false,
                     code: 'PLATFORM_PROFILE_CONFLICT',
                     updatedAt: result.updatedAt
-                }, 409)
+                } satisfies PlatformProfileError, 409)
                 : c.json({
                     success: false,
                     code: 'PLATFORM_PROFILE_UNAVAILABLE'

@@ -1,6 +1,6 @@
 import type { AppEnvironment } from '@/app';
 import { authorizePrivate } from '@/domains/delivery/media/media-access';
-import type { NamecardMediaParams } from '@/domains/delivery/media/request';
+import type { NamecardMediaRequest } from '@/domains/delivery/media/request';
 import {
     MEDIA_NOT_FOUND_RESPONSE,
     mediaObjectReadResponse,
@@ -10,7 +10,7 @@ import { namecardRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 export async function handleServeNamecard(
-    c: ValidatedRequestContext<AppEnvironment, 'param', NamecardMediaParams>
+    c: ValidatedRequestContext<AppEnvironment, 'param', NamecardMediaRequest>
 ): Promise<Response> {
     const runtime = services(c);
     if (!runtime.storage) throw new Error('Object storage unavailable');

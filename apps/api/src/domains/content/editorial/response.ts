@@ -1,54 +1,36 @@
 import type {
-    AdminEditorialSpotlightEntryInput,
-    EditorialArticleAssetInput,
-    EditorialArticleInput,
-    EditorialArticleListInput,
-    EditorialChroniclePageInput,
-    EditorialDraftInput,
-    EditorialSpotlightItemInput
+    AdminEditorialSpotlightEntry,
+    EditorialArticle,
+    EditorialArticleAsset,
+    EditorialArticleAssetList,
+    EditorialArticleList,
+    EditorialChroniclePage,
+    EditorialDraft,
+    EditorialSpotlightItem,
+    EditorialSpotlight,
+    AdminEditorialSpotlight,
+    EditorialLegacyInformation,
+    EditorialRevision,
+    EditorialStatusChange,
+    // pi-lens-ignore: ts:2305
+    EditorialMutation,
+    // pi-lens-ignore: ts:2305
+    EditorialErrorResponse as EditorialContractErrorResponse
 } from '@imsweb/contracts/editorial';
 
-export type EditorialArticleResponse = EditorialArticleInput;
-export type EditorialArticleListResponse = EditorialArticleListInput;
-export type EditorialChroniclePageResponse = EditorialChroniclePageInput;
-export type EditorialDraftResponse = EditorialDraftInput;
-export type EditorialArticleAssetResponse = EditorialArticleAssetInput & {
-    format?: string;
-};
-
-export interface EditorialArticleAssetListResponse {
-    items: EditorialArticleAssetResponse[];
-}
-
-export interface EditorialSpotlightResponse {
-    items: EditorialSpotlightItemInput[];
-}
-
-export interface AdminEditorialSpotlightResponse {
-    items: AdminEditorialSpotlightEntryInput[];
-}
-
-export interface EditorialLegacyInformationResponse {
-    postId: number | null;
-}
-
-export interface EditorialRevisionResponse {
-    revision: number | undefined;
-}
-
-export interface EditorialStatusResponse {
-    status: string;
-    revision: number | undefined;
-}
-
-export interface EditorialMutationResponse {
-    success: true;
-}
-
-export interface EditorialErrorResponse {
-    error: string;
-    revision?: number;
-}
+export type EditorialArticleResponse = EditorialArticle;
+export type EditorialArticleListResponse = EditorialArticleList;
+export type EditorialChroniclePageResponse = EditorialChroniclePage;
+export type EditorialDraftResponse = EditorialDraft;
+export type EditorialArticleAssetResponse = EditorialArticleAsset;
+export type EditorialArticleAssetListResponse = EditorialArticleAssetList;
+export type EditorialSpotlightResponse = EditorialSpotlight;
+export type AdminEditorialSpotlightResponse = AdminEditorialSpotlight;
+export type EditorialLegacyInformationResponse = EditorialLegacyInformation;
+export type EditorialRevisionResponse = EditorialRevision;
+export type EditorialStatusResponse = EditorialStatusChange;
+export type EditorialMutationResponse = EditorialMutation;
+export type EditorialErrorResponse = EditorialContractErrorResponse;
 
 interface EditorialSourceRow {
     [field: string]: unknown;
@@ -95,6 +77,22 @@ function counter(value: unknown, field: string): number {
     return parsed;
 }
 
+function relatedLinks(value: unknown): EditorialArticleResponse['related_links'] {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+        const link = item as EditorialSourceRow;
+        return typeof link.label === 'string' && typeof link.url === 'string'
+            ? [{ label: link.label, url: link.url }]
+            : [];
+    });
+}
+
+function articleStatus(value: unknown): EditorialArticleResponse['status'] {
+    if (value === 'draft' || value === 'published' || value === 'archived') return value;
+    throw new Error('Editorial repository returned an invalid status');
+}
+
 function coverTransform(
     row: EditorialSourceRow
 ): NonNullable<EditorialArticleResponse['cover_transform']> {
@@ -107,16 +105,28 @@ function coverTransform(
     return { focalX, focalY, zoom };
 }
 
+function optionalNullableText(value: unknown, field: string): string | null | undefined {
+    return value === undefined ? undefined : nullableText(value, field);
+}
+
+function optionalTextList(value: unknown, field: string): string[] | undefined {
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+        throw new Error(`Editorial repository returned an invalid ${field}`);
+    }
+    return [...value];
+}
+
 /**
- * 仓储按行返回文章，这里把行收敛成契约里的文章形状；未声明的列由
- * passthrough 透传，因此编年史与社区帖子共用一个映射。
+ * Repository rows can include storage-only columns. Build the response from an
+ * explicit allowlist so every emitted property belongs to the exact contract.
  */
 export function toEditorialArticleResponse(
     value: unknown
 ): EditorialArticleResponse {
     const row = editorialRow(value);
-    return {
-        ...row,
+    // pi-lens-ignore: ts:2322
+    const response: EditorialArticleResponse = {
         id: optionalIdentifier(row.id, 'id'),
         article_id: optionalIdentifier(row.article_id, 'article_id'),
         title: requiredText(row.title, 'title'),
@@ -127,8 +137,105 @@ export function toEditorialArticleResponse(
         created_at: nullableText(row.created_at, 'created_at'),
         published_at: nullableText(row.published_at, 'published_at'),
         body_html: nullableText(row.body_html, 'body_html') || '',
+        status: articleStatus(row.status),
+        related_links: relatedLinks(row.related_links),
         revision: counter(row.revision, 'revision')
     };
+
+    if (row.body_json !== undefined) response.body_json = row.body_json;
+    const optionalTextFields = [
+        'updated_at',
+        'name',
+        'contact',
+        'start_at',
+        'end_at',
+        'timezone',
+        'venue_name',
+        'address',
+        'registration_url',
+        'event_status',
+        'source_url',
+        'occurred_on',
+        'ended_on',
+        'location',
+        'live_source_id',
+        'live_title',
+        'live_date',
+        'live_time',
+        'live_location',
+        'live_detail_url'
+    ] as const;
+    for (const field of optionalTextFields) {
+        const fieldValue = optionalNullableText(row[field], field);
+        if (fieldValue !== undefined) Object.assign(response, { [field]: fieldValue });
+    }
+
+    if (row.kind !== undefined) {
+        if (row.kind !== null && row.kind !== 'event' && row.kind !== 'notice') {
+            throw new Error('Editorial repository returned an invalid kind');
+        }
+        response.kind = row.kind;
+    }
+    if (row.spotlight_category !== undefined) {
+        if (
+            row.spotlight_category !== null &&
+            row.spotlight_category !== 'activity' &&
+            row.spotlight_category !== 'fan'
+        ) {
+            throw new Error('Editorial repository returned an invalid spotlight_category');
+        }
+        response.spotlight_category = row.spotlight_category;
+    }
+    if (row.date_precision !== undefined) {
+        if (
+            row.date_precision !== null &&
+            row.date_precision !== 'year' &&
+            row.date_precision !== 'month' &&
+            row.date_precision !== 'day'
+        ) {
+            throw new Error('Editorial repository returned an invalid date_precision');
+        }
+        response.date_precision = row.date_precision;
+    }
+    if (row.source_type !== undefined) {
+        if (
+            row.source_type !== null &&
+            row.source_type !== 'official' &&
+            row.source_type !== 'community'
+        ) {
+            throw new Error('Editorial repository returned an invalid source_type');
+        }
+        response.source_type = row.source_type;
+    }
+    if (row.source_event_id !== undefined) {
+        response.source_event_id = row.source_event_id === null
+            ? null
+            : identifier(row.source_event_id, 'source_event_id');
+    }
+    if (row.spotlight_order !== undefined) {
+        response.spotlight_order = row.spotlight_order === null
+            ? null
+            : counter(row.spotlight_order, 'spotlight_order');
+    }
+    if (row.timeline_order !== undefined) {
+        response.timeline_order = counter(row.timeline_order, 'timeline_order');
+    }
+    if (row.live_franchises !== undefined) {
+        // pi-lens-ignore: ts:2322
+        response.live_franchises = optionalTextList(
+            row.live_franchises,
+            'live_franchises'
+        );
+    }
+    if (row.live_brand_codes !== undefined) {
+        // pi-lens-ignore: ts:2322
+        response.live_brand_codes = optionalTextList(
+            row.live_brand_codes,
+            'live_brand_codes'
+        );
+    }
+
+    return response;
 }
 
 export function toEditorialArticleListResponse(
@@ -169,7 +276,7 @@ export function toEditorialArticleAssetListResponse(
 
 export function toEditorialSpotlightItemResponse(
     value: unknown
-): EditorialSpotlightItemInput {
+): EditorialSpotlightItem {
     const row = editorialRow(value);
     return {
         id: identifier(row.id, 'id'),
@@ -183,7 +290,7 @@ export function toEditorialSpotlightItemResponse(
 
 export function toAdminEditorialSpotlightEntryResponse(
     value: unknown
-): AdminEditorialSpotlightEntryInput {
+): AdminEditorialSpotlightEntry {
     const row = editorialRow(value);
     const status = requiredText(row.status, 'status');
     if (status !== 'draft' && status !== 'published' && status !== 'archived') {

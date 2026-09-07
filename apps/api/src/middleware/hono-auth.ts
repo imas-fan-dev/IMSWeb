@@ -1,5 +1,10 @@
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
+import type {
+    FailureCodeResponse,
+    FailureMessageResponse,
+    MessageErrorResponse,
+} from '@imsweb/contracts/common';
 import type { AppEnvironment } from '@/app';
 import {
     BACKOFFICE_CSRF_TOKEN_COOKIE,
@@ -28,9 +33,13 @@ export async function authenticateBackofficeRequest(
     const token = authorization
         ? authorization.replace(/^Bearer\s+/i, '')
         : cookie?.value;
-    if (!token) return c.json({ success: false, message: '未登录' }, 401);
+    if (!token) {
+        return c.json({ success: false, message: '未登录' } satisfies FailureMessageResponse, 401);
+    }
     const tokenService = services(c).backofficeTokens;
-    if (!tokenService) return c.json({ success: false, message: 'token无效' }, 401);
+    if (!tokenService) {
+        return c.json({ success: false, message: 'token无效' } satisfies FailureMessageResponse, 401);
+    }
     try {
         const claims = cookie?.source === 'legacy'
             ? await (tokenService.verifyLegacyCookie?.(token) ?? tokenService.verify(token))
@@ -43,13 +52,16 @@ export async function authenticateBackofficeRequest(
                 : 'cookie'
         );
     } catch {
-        return c.json({ success: false, message: 'token无效' }, 401);
+        return c.json({ success: false, message: 'token无效' } satisfies FailureMessageResponse, 401);
     }
     return null;
 }
 
 function invalidPlatformSession(c: Context<AppEnvironment>): Response {
-    return c.json({ success: false, code: 'PLATFORM_SESSION_INVALID' }, 401);
+    return c.json({
+        success: false,
+        code: 'PLATFORM_SESSION_INVALID',
+    } satisfies FailureCodeResponse, 401);
 }
 
 export async function authenticatePlatformRequest(
@@ -116,7 +128,7 @@ export async function authenticatePlatformRequest(
             )
         });
         clearPlatformAuthenticationCookies(c);
-        return c.json({ success: false, code }, 403);
+        return c.json({ success: false, code } satisfies FailureCodeResponse, 403);
     }
     c.set('platformUser', claims);
     c.set('platformAccount', identity);
@@ -160,7 +172,7 @@ export async function authenticateOptionalPlatform(
 export async function requireOp(c: Context<AppEnvironment>, next: Next): Promise<Response | void> {
     const claims = c.get('backofficeUser');
     if (claims?.dept !== 'op') {
-        return c.json({ message: '无权限（仅op可访问）' }, 403);
+        return c.json({ message: '无权限（仅op可访问）' } satisfies MessageErrorResponse, 403);
     }
     await next();
 }
@@ -170,10 +182,12 @@ export async function requireCurrentBackofficeOp(
     next: Next
 ): Promise<Response | void> {
     const claims = c.get('backofficeUser');
-    if (!claims) return c.json({ success: false, message: '未登录' }, 401);
+    if (!claims) {
+        return c.json({ success: false, message: '未登录' } satisfies FailureMessageResponse, 401);
+    }
     const current = await backofficeAuthRepository(c).findUserById(claims.id);
     if (!current || current.dept !== 'op') {
-        return c.json({ message: '无权限（仅op可访问）' }, 403);
+        return c.json({ message: '无权限（仅op可访问）' } satisfies MessageErrorResponse, 403);
     }
     c.set('backofficeUser', {
         ...claims,
@@ -190,13 +204,18 @@ export async function requireSuperAdmin(
     next: Next
 ): Promise<Response | void> {
     const claims = c.get('backofficeUser');
-    if (!claims) return c.json({ success: false, message: '未登录' }, 401);
+    if (!claims) {
+        return c.json({ success: false, message: '未登录' } satisfies FailureMessageResponse, 401);
+    }
     const current = await backofficeAuthRepository(c).findUserById(claims.id);
     if (
         !current || current.dept !== 'op' ||
         current.admin_role !== 'super_admin'
     ) {
-        return c.json({ success: false, message: '仅最高管理员可执行此操作' }, 403);
+        return c.json({
+            success: false,
+            message: '仅最高管理员可执行此操作',
+        } satisfies FailureMessageResponse, 403);
     }
     c.set('backofficeUser', { ...claims, adminRole: current.admin_role });
     await next();
@@ -218,7 +237,10 @@ export async function protectBackofficeCsrf(
             : BACKOFFICE_CSRF_TOKEN_COOKIE
     );
     if (!constantTimeEqual(header, cookie) || !constantTimeEqual(header, c.get('backofficeUser')?.csrfSecret)) {
-        return c.json({ success: false, message: 'CSRF token invalid' }, 403);
+        return c.json({
+            success: false,
+            message: 'CSRF token invalid',
+        } satisfies FailureMessageResponse, 403);
     }
     await next();
 }
@@ -248,7 +270,10 @@ export async function protectPlatformCsrf(
         !constantTimeEqual(header, claims?.csrfSecret) ||
         !constantTimeEqual(await hashPlatformAuthSecret(header), storedHash)
     ) {
-        return c.json({ success: false, code: 'PLATFORM_CSRF_INVALID' }, 403);
+        return c.json({
+            success: false,
+            code: 'PLATFORM_CSRF_INVALID',
+        } satisfies FailureCodeResponse, 403);
     }
     await next();
 }
@@ -260,7 +285,10 @@ export async function requireActivePlatformMutation(
     const account = c.get('platformAccount')?.account;
     if (!account) return invalidPlatformSession(c);
     if (account.status !== 'active') {
-        return c.json({ success: false, code: 'PLATFORM_ACCOUNT_RESTRICTED' }, 403);
+        return c.json({
+            success: false,
+            code: 'PLATFORM_ACCOUNT_RESTRICTED',
+        } satisfies FailureCodeResponse, 403);
     }
     await next();
 }

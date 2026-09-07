@@ -1,11 +1,8 @@
-import type { LiveEvent } from '@imsweb/contracts/live';
+import type { LiveEvent, LiveScheduleList, LiveScheduleErrorResponse as LiveScheduleContractErrorResponse } from '@imsweb/contracts/live';
 
 export type LiveScheduleEventResponse = LiveEvent;
-export type LiveScheduleListResponse = LiveScheduleEventResponse[];
-
-export interface LiveScheduleErrorResponse {
-    error: string;
-}
+export type LiveScheduleListResponse = LiveScheduleList;
+export type LiveScheduleErrorResponse = LiveScheduleContractErrorResponse;
 
 export function liveScheduleErrorResponse(message: string) {
     return { error: message } satisfies LiveScheduleErrorResponse;

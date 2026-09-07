@@ -1,3 +1,5 @@
+// pi-lens-ignore: ts:2724
+import type { FudabaLocationReviewListResponse } from '@imsweb/contracts/fudaba/location-review';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { parseFudabaLocationReviewQuery } from '@/domains/community/fudaba/moderation/request';
@@ -9,5 +11,7 @@ export async function handleListFudabaLocationReviews(
 ): Promise<Response> {
     const query = parseFudabaLocationReviewQuery(c.req.url);
     const rows = await fudabaRepository(c).listOfficeLocationReviews(query);
-    return c.json({ items: rows.map(fudabaLocationReviewView) });
+    return c.json({
+        items: rows.map(fudabaLocationReviewView)
+    } satisfies FudabaLocationReviewListResponse);
 }

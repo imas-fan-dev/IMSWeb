@@ -1,32 +1,15 @@
-import type { SnapshotPageInfo } from '@imsweb/contracts/common';
-import type { EditorialArticleInput } from '@imsweb/contracts/editorial';
-import type {
-    EventListItemInput,
-    EventPageInput,
-} from '@imsweb/contracts/events';
+import type { SnapshotPageInfo, SuccessFlag, ErrorResponse } from '@imsweb/contracts/common';
+import type { EditorialArticle } from '@imsweb/contracts/editorial';
+import type { CreateEventResponse as CreateEventContractResponse, EventLegacyPage, EventListItem, EventPage } from '@imsweb/contracts/events';
 
-export type EventResponse = EventListItemInput;
-export type EditorialEventResponse = EditorialArticleInput;
+export type EventResponse = EventListItem;
+export type EditorialEventResponse = EditorialArticle;
 export type EventPageInfoResponse = SnapshotPageInfo;
-export type EventCursorPageResponse = EventPageInput;
-
-export interface EventLegacyPageResponse {
-    list: EventResponse[];
-    totalPage: number;
-}
-
-export interface CreateEventResponse {
-    success: true;
-    id: number;
-}
-
-export interface EventMutationResponse {
-    success: true;
-}
-
-export interface EventErrorResponse {
-    error: string;
-}
+export type EventCursorPageResponse = EventPage;
+export type EventLegacyPageResponse = EventLegacyPage;
+export type CreateEventResponse = CreateEventContractResponse;
+export type EventMutationResponse = SuccessFlag;
+export type EventErrorResponse = ErrorResponse;
 
 interface EventSourceRecord {
     [field: string]: unknown;

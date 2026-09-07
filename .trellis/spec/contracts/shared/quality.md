@@ -4,10 +4,11 @@
 
 A schema change is incomplete until both consumers agree with it.
 
-- API response modules import the matching type with `import type` and return
-  that shape from their view builders.
-- Web endpoint modules import the runtime schema from the narrow package
-  subpath and pass it to `parsed(...)`.
+- API response modules import matching success and error types with `import
+  type` and return those shapes from their view builders. API executes request
+  schemas only at HTTP request-validation boundaries.
+- Web endpoint modules import runtime success, HTTP-error, and business-error
+  schemas from the narrow package subpath and pass them to `parsed(...)`.
 - Web keeps only request-side validation, upload shapes, and UI-semantic aliases
   locally.
 - Shared path changes update API registration or middleware and Web endpoints
@@ -19,9 +20,19 @@ builder before renaming or deleting an export.
 ## Conformance tests
 
 Contract tests should parse real HTTP response bodies, not only construct sample
-objects in the package. `apps/api/tests/wiki/wire-contract-conformance.test.ts`
-is the broad reference. Focused route tests may call `schema.parse` immediately
-after reading JSON.
+objects in the package. Assert deep equality between the raw JSON and parsed
+output so a schema cannot silently strip response fields. Focused route tests
+may call `schema.parse` immediately after reading JSON.
+
+## Enforcement staging
+
+The source-rule JSON wire audit is report-only. It inventories potential Hono
+JSON emitters, validation calls, API contract value imports, Web `parsed(...)`
+calls, production opt-outs, and non-JSON response candidates. It does not prove
+route reachability, terminal type ownership, config aliases, error schemas, or
+exception liveness. Enable fail-closed ownership checks only after migration can
+use type-aware route analysis to verify API terminal request/response types, Web
+success/error/business-error schemas, and symbol-level non-JSON exceptions.
 
 Web endpoint tests prove that `parsed(...)` accepts the expected response and
 rejects an invalid response. Add request assertions when path, method, payload,

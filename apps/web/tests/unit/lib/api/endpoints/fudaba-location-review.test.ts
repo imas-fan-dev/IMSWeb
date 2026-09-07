@@ -60,6 +60,24 @@ describe("Fudaba location review API", () => {
     ).toThrow()
   })
 
+  it("accepts the Backoffice failure envelope on the admin queue", async () => {
+    const payload = { success: false as const, message: "未登录" }
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json(payload, { status: 403 }))
+    )
+
+    await expect(
+      getFudabaLocationReviews("pending").send()
+    ).rejects.toMatchObject({
+      kind: "http",
+      status: 403,
+      payload,
+    })
+  })
+
   it("loads a filtered queue with Backoffice auth", async () => {
     const requests: Request[] = []
     vi.stubGlobal(

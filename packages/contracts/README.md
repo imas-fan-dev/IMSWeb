@@ -21,13 +21,16 @@ src/
   wiki.ts                # 单文件域：平铺（含偶像媒体目录管理）
   namecards.ts           # 名片公开/投稿/管理员队列
   admin.ts               # 后台会话与管理员账号
-  about.ts / producer-map.ts / homepage-links.ts / site-packages.ts
-  information.ts / news.ts / chronicle.ts / events.ts / live.ts
+  about.ts / producer-map.ts / homepage-links.ts / site-packages.ts / media.ts
+  information.ts / news.ts / chronicle.ts / events.ts / live.ts / system.ts
   platform/              # 多文件大业务：文件夹分级
     index.ts             # 会话/资料/OAuth 发现/注册验证
     admin.ts             # 超管 OAuth 提供方配置
+  runtime-primitives.ts  # 不依赖 zod 的内部字符串原子
   fudaba/
     index.ts             # 交换站核心（原子 + 公开/业主线契约）
+    runtime.ts           # 不依赖 zod 的地图样式 URL 断言
+    map-delivery.ts      # 地图源读写与响应契约
     card-claims.ts       # 认领信封/认领/审核
     location-review.ts   # 位置审核
 ```
@@ -88,7 +91,44 @@ fudaba.fudabaOwnerCardListSchema.parse(body)
 - 业务代码（Web endpoints、API response）仍用子路径导入，保持按需
   加载与明确依赖面；根导出不是业务消费路径。
 
-## 公共响应结构（`@imsweb/contracts/common`）
+## Public entrypoints
+
+`entrypoints.json` is the machine-readable inventory for every public package
+subpath. The root namespace column is for tools and conformance tests; business
+code imports the narrow public module.
+
+| Public module | Root namespace | Runtime class |
+| --- | --- | --- |
+| `@imsweb/contracts` | - | schema |
+| `@imsweb/contracts/wiki` | `wiki` | schema |
+| `@imsweb/contracts/platform` | `platform` | schema |
+| `@imsweb/contracts/namecards` | `namecards` | schema |
+| `@imsweb/contracts/fudaba` | `fudaba` | schema |
+| `@imsweb/contracts/fudaba/guest-submissions` | `fudabaGuestSubmissions` | schema |
+| `@imsweb/contracts/fudaba/map-delivery` | `fudabaMapDelivery` | schema |
+| `@imsweb/contracts/fudaba/runtime` | `fudabaRuntime` | zod-free |
+| `@imsweb/contracts/fudaba/card-claims` | `fudabaCardClaims` | schema |
+| `@imsweb/contracts/fudaba/location-review` | `fudabaLocationReview` | schema |
+| `@imsweb/contracts/platform/admin` | `platformAdmin` | schema |
+| `@imsweb/contracts/platform/account-security` | `platformAccountSecurity` | schema |
+| `@imsweb/contracts/live` | `live` | schema |
+| `@imsweb/contracts/events` | `events` | schema |
+| `@imsweb/contracts/editorial` | `editorial` | schema |
+| `@imsweb/contracts/news` | `news` | schema |
+| `@imsweb/contracts/information` | `information` | schema |
+| `@imsweb/contracts/chronicle` | `chronicle` | schema |
+| `@imsweb/contracts/about` | `about` | schema |
+| `@imsweb/contracts/producer-map` | `producerMap` | schema |
+| `@imsweb/contracts/homepage-links` | `homepageLinks` | schema |
+| `@imsweb/contracts/site-packages` | `sitePackages` | schema |
+| `@imsweb/contracts/media` | `media` | schema |
+| `@imsweb/contracts/system` | `system` | schema |
+| `@imsweb/contracts/admin` | `admin` | schema |
+| `@imsweb/contracts/z` | - | z-adapter |
+| `@imsweb/contracts/common` | `common` | schema |
+| `@imsweb/contracts/paths` | `paths` | zod-free |
+
+## 公共响应结构（`@imsweb/contracts/common`)
 
 跨域公共部分统一抽离到 `common.ts`：`successFlagSchema` / `successEnvelope`
 组合成功信封，`cursorPageInfoSchema` / `snapshotPageInfoSchema` /
@@ -104,15 +144,20 @@ UI 语义别名（如 `HomeInformationCard = InformationCard`）、请求/输入
 
 ## 消费规则
 
-- **Web**：endpoints 模块 `import` 所需 schema 并 `export *` 再导出；请求侧
-  输入校验（含 `File` 上传）与本地类型别名留在 Web。
-- **API**：response 序列化以 `import type` 引用派生类型（生产运行时不加载
-  zod）；运行时执法在测试中完成——`tests/wiki/wire-contract-conformance.test.ts`
-  与各 HTTP 路由测试响应读取点的内联 `schema.parse`。
+- **Web**：endpoint 模块通过窄子路径导入 request type 以及 success、HTTP-error、
+  business-error schema，并交给 `parsed(...)` 校验。CJS runtime schema 只做 named
+  re-export；禁止 runtime `export *`。UI 输入校验、`File`/`FormData` 和 UI 语义类型留在 Web。
+- **API**：route request-validation 边界可以通过窄子路径运行 request schema；handler、
+  response、domain logic、port、repository、infra 和 runtime composition 只使用
+  `import type`。HTTP 测试在读取原始 JSON 后执行 shared response schema，并断言 parse 结果
+  与原始 body 深度一致。
+- Runtime-neutral API 消费者只导入 `entrypoints.json` 标记为 `zod-free` 的子路径。
 - 新增/修改契约必须同时通过双端 typecheck 与上述符合性测试；
-  `scripts/check-workspace-boundaries.mjs` 限制本包依赖仅为 zod。
+  `scripts/check-workspace-boundaries.mjs` 限制本包依赖仅为 Zod。
 
 ## 构建
 
 CJS + d.ts，`build-if-sources.mjs` 守卫 `prepare`（Docker manifest 层安装时
-源码缺失则跳过）。`pnpm --filter @imsweb/contracts run build`。
+源码缺失则跳过）。`pnpm --filter @imsweb/contracts run build` 在 TypeScript 构建后检查
+entrypoint inventory、导出目标、root namespace、README、构建产物和 fresh-process
+Zod-free loader。

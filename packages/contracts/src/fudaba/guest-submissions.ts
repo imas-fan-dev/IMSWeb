@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { successEnvelope } from "../common.js"
+import { exactJsonError, legacyStripRequestObject, successEnvelope } from "../common.js"
 import {
   fudabaIdolSelectionSchema,
   fudabaRevisionSchema,
@@ -37,7 +37,7 @@ export const fudabaGuestSubmissionSchema = fudabaGuestSubmissionSummarySchema
   .strict()
 
 export const fudabaGuestSubmissionReceiptSchema = successEnvelope({
-  message: z.string().trim().min(1),
+  message: z.string().min(1),
   submission: fudabaGuestSubmissionSummarySchema,
   withdrawalToken: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict()
@@ -49,6 +49,24 @@ export const fudabaGuestSubmissionDetailSchema = successEnvelope({
 export const fudabaGuestSubmissionWithdrawalSchema = successEnvelope({
   submission: fudabaGuestSubmissionSchema,
 }).strict()
+
+export const fudabaGuestSubmissionParamsSchema = legacyStripRequestObject({
+  submissionId: z.unknown(),
+})
+export const fudabaGuestSubmissionMediaParamsSchema = legacyStripRequestObject({
+  submissionId: z.unknown(),
+  side: z.enum(["front", "back"]),
+})
+export const fudabaGuestSubmissionWithdrawalRequestSchema = legacyStripRequestObject({
+  expectedRevision: z.unknown(),
+})
+export const fudabaGuestSubmissionMessageSchema = exactJsonError({ msg: z.string() })
+export const fudabaGuestSubmissionErrorSchema = z.union([
+  exactJsonError({ error: z.string() }),
+  fudabaGuestSubmissionMessageSchema,
+  exactJsonError({ error: z.string(), revision: z.number().int().nonnegative() }),
+])
+export const fudabaGuestSubmissionRateLimitSchema = exactJsonError({ error: z.string() })
 
 export type FudabaGuestSubmissionStatus = z.infer<
   typeof fudabaGuestSubmissionStatusSchema
@@ -65,6 +83,15 @@ export type FudabaGuestSubmissionDetail = z.infer<
 >
 export type FudabaGuestSubmissionWithdrawal = z.infer<
   typeof fudabaGuestSubmissionWithdrawalSchema
+>
+export type FudabaGuestSubmissionMessage = z.infer<
+  typeof fudabaGuestSubmissionMessageSchema
+>
+export type FudabaGuestSubmissionError = z.infer<
+  typeof fudabaGuestSubmissionErrorSchema
+>
+export type FudabaGuestSubmissionRateLimit = z.infer<
+  typeof fudabaGuestSubmissionRateLimitSchema
 >
 
 export type FudabaGuestSubmissionInput = z.input<

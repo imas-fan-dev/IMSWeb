@@ -9,14 +9,20 @@ import {
     validateExpectedRevisionRequest,
 } from "@/domains/community/namecards/request";
 import {
+    adminNamecardListQuerySchema,
+    compatibleNamecardIdParamsSchema,
+    expectedNamecardRevisionQuerySchema,
+    expectedNamecardRevisionRequestSchema,
+} from "@imsweb/contracts/namecards";
+import {
     backofficeAuth,
     backofficeCsrf,
     opOnly,
 } from "@/middleware/hono-auth";
 import {
-    jsonValidator,
-    paramValidator,
-    queryValidator,
+    jsonSchemaValidator,
+    paramSchemaValidator,
+    querySchemaValidator,
 } from "@/middleware/request-validation";
 import {
     createCapabilityRouter,
@@ -25,14 +31,16 @@ import {
 
 export function namecardModerationRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
-    const namecardIdValidator = paramValidator(
+    const namecardIdValidator = paramSchemaValidator(
+        compatibleNamecardIdParamsSchema,
+        { invalidMessage: "名片 ID 无效" },
         validateCompatibleNamecardIdParams,
     );
     routes.get(
         "/",
         backofficeAuth,
         opOnly,
-        queryValidator(validateAdminNamecardListQuery),
+        querySchemaValidator(adminNamecardListQuerySchema, { invalidMessage: "名片分页参数无效" }, validateAdminNamecardListQuery),
         handleListAdminNamecards,
     );
     routes.post(
@@ -41,7 +49,7 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         backofficeCsrf,
         namecardIdValidator,
-        jsonValidator(validateExpectedRevisionRequest),
+        jsonSchemaValidator(expectedNamecardRevisionRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionRequest),
         handleApproveNamecard,
     );
     routes.post(
@@ -50,7 +58,7 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         backofficeCsrf,
         namecardIdValidator,
-        jsonValidator(validateExpectedRevisionRequest),
+        jsonSchemaValidator(expectedNamecardRevisionRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionRequest),
         handleRejectNamecard,
     );
     routes.delete(
@@ -59,7 +67,7 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         backofficeCsrf,
         namecardIdValidator,
-        queryValidator(validateExpectedRevisionQuery),
+        querySchemaValidator(expectedNamecardRevisionQuerySchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateExpectedRevisionQuery),
         handleDeleteNamecard,
     );
     return routes;

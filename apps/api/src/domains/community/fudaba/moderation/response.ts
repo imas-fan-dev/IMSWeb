@@ -1,5 +1,5 @@
 import { adminExchangePath } from "@imsweb/contracts/paths";
-import type { FudabaAdminCardClaim } from "@imsweb/contracts/fudaba/card-claims";
+import type { FudabaAdminCardClaim, FudabaRegisteredCardReview } from "@imsweb/contracts/fudaba/card-claims";
 import type { FudabaLocationReview } from "@imsweb/contracts/fudaba/location-review";
 import { fudabaOwnerCardView } from "@/domains/community/fudaba/contracts/card";
 import { fudabaCardClaimView } from "@/domains/community/fudaba/contracts/claim";
@@ -30,7 +30,7 @@ export function fudabaLocationReviewView(
 
 export function fudabaRegisteredCardReviewView(
     card: FudabaRegisteredCardReviewRecord,
-) {
+): FudabaRegisteredCardReview {
     const encodedId = encodeURIComponent(card.id);
     return {
         card: {

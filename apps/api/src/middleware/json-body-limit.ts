@@ -1,4 +1,5 @@
 import { adminApiPath, apiPath, platformAuthPath, wikiPath } from '@imsweb/contracts/paths';
+import type { ErrorResponse } from '@imsweb/contracts/common';
 import type { MiddlewareHandler } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { isDynamicBusinessRequest, validatedRequestPath } from '@/middleware/rate-limit';
@@ -45,8 +46,11 @@ function shouldLimitBody(request: Request, pathname: string): boolean {
 }
 
 function tooLarge(maxBytes: number): Response {
+    const body = {
+        error: `JSON body exceeds ${maxBytes} byte limit`,
+    } satisfies ErrorResponse;
     return Response.json(
-        { error: `JSON body exceeds ${maxBytes} byte limit` },
+        body,
         { status: 413 }
     );
 }

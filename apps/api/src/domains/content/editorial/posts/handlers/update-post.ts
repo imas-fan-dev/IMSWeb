@@ -37,5 +37,8 @@ export async function handleUpdateCommunityPost(
     });
     const conflict = statusResponse(result, c);
     if (conflict) return conflict;
+    if (result.revision === undefined) {
+        throw new Error('Editorial update did not return a revision');
+    }
     return c.json({ revision: result.revision } satisfies EditorialRevisionResponse);
 }

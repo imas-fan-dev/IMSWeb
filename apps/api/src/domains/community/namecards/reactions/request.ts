@@ -1,13 +1,8 @@
+import { NAMECARD_REACTION_EMOJIS } from '@imsweb/contracts/fudaba/runtime';
 import { positiveInteger } from '@/utils/validation/number';
 import { requestRecord } from '@/utils/validation/request-data';
 
-export const ALLOWED_REACTIONS = new Set([
-    '❤️', '👍', '😂', '🤣', '😭', '😍', '🥰', '😘', '🤯', '😱',
-    '😎', '🤩', '😤', '🙏', '👏', '✨', '💯', '🎉', '💥', '🌟',
-    '🐵', '🐶', '🐱', '🦊', '🐼', '🐳', '🔥', '💀', '👀', '🍀',
-    '🌈', '🐛', '💎', '🚀', '🏆', '🍕', '🍔', '🎮', '🌹', '🍭',
-    '🔨', '🔫', '❓', '🧒', '😙', '🔘'
-]);
+export const ALLOWED_REACTIONS = new Set<string>(NAMECARD_REACTION_EMOJIS);
 
 export interface ReactionRequest {
     id: number;

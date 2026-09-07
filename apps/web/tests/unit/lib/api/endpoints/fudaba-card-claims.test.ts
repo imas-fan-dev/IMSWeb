@@ -148,6 +148,32 @@ describe("Fudaba card claim API", () => {
     })
   })
 
+  it("validates exact Backoffice errors on the admin review queue", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ message: "无权限（仅op可访问）" }, { status: 403 })
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          { message: "无权限（仅op可访问）", unexpected: true },
+          { status: 403 }
+        )
+      )
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(getAdminFudabaCardReviews().send()).rejects.toMatchObject({
+      kind: "http",
+      status: 403,
+      payload: { message: "无权限（仅op可访问）" },
+    })
+    await expect(getAdminFudabaCardReviews().send()).rejects.toMatchObject({
+      kind: "contract",
+      code: "CONTRACT_VIOLATION",
+      status: 403,
+    })
+  })
+
   it("parses admin card and claim queues and sends revisioned reviews", async () => {
     document.cookie = "ims_admin_csrf=admin-claim-csrf; path=/"
     const requests: Request[] = []

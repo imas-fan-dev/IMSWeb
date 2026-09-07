@@ -1,6 +1,10 @@
+import type {
+    FudabaCardReactionsResponse,
+    NamecardReactionEmoji
+} from '@imsweb/contracts/fudaba';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import { NAMECARD_REACTION_EMOJIS } from '@imsweb/contracts/fudaba';
+import { NAMECARD_REACTION_EMOJIS } from '@imsweb/contracts/fudaba/runtime';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import { fudabaRepository } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
@@ -18,8 +22,16 @@ async function reactionList(
     c: Context<AppEnvironment>,
     cardId: string
 ): Promise<Response> {
-    const reactions = await fudabaRepository(c).listPublicCardReactions(cardId);
-    return c.json({ success: true, cardId, reactions });
+    const reactions = (await fudabaRepository(c).listPublicCardReactions(cardId))
+        .map((reaction) => ({
+            ...reaction,
+            emoji: reaction.emoji as NamecardReactionEmoji
+        }));
+    return c.json({
+        success: true,
+        cardId,
+        reactions
+    } satisfies FudabaCardReactionsResponse);
 }
 
 function reactionFailure(

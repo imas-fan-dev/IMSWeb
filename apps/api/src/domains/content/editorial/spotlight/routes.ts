@@ -1,3 +1,4 @@
+import { editorialLegacyInformationParamsSchema, editorialSpotlightSelectionRequestSchema } from '@imsweb/contracts/editorial';
 import { handleGetLegacyInformationPost } from '@/domains/content/editorial/spotlight/handlers/get-legacy-information-post';
 import { handleListAdminSpotlight } from '@/domains/content/editorial/spotlight/handlers/list-admin-spotlight';
 import { handleListPublicSpotlight } from '@/domains/content/editorial/spotlight/handlers/list-public-spotlight';
@@ -7,14 +8,14 @@ import {
     validateSpotlightSelection
 } from '@/domains/content/editorial/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
-import { jsonValidator, paramValidator } from '@/middleware/request-validation';
+import { jsonSchemaValidator, paramSchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter
 } from '@/routing/capability-router';
 
-const legacyInformationParams = paramValidator(validateLegacyInformationParams);
-const spotlightSelection = jsonValidator(validateSpotlightSelection);
+const legacyInformationParams = paramSchemaValidator(editorialLegacyInformationParamsSchema, {}, validateLegacyInformationParams);
+const spotlightSelection = jsonSchemaValidator(editorialSpotlightSelectionRequestSchema, {}, validateSpotlightSelection);
 
 export function editorialPublicSpotlightRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();

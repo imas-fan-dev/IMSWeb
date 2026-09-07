@@ -1,3 +1,4 @@
+import { producerMapUpdateRequestSchema } from '@imsweb/contracts/producer-map';
 import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleGetAdminProducerMap } from '@/domains/content/producer-map/handlers/get-admin-producer-map';
@@ -6,7 +7,7 @@ import { handleUploadProducerMapImage } from '@/domains/content/producer-map/han
 import { handleUpdateProducerMap } from '@/domains/content/producer-map/handlers/update-producer-map';
 import { validateProducerMapUpdateRequest } from '@/domains/content/producer-map/data';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
-import { jsonValidator } from '@/middleware/request-validation';
+import { jsonSchemaValidator } from '@/middleware/request-validation';
 
 export function registerProducerMapRoutes(app: ImsHonoApp): void {
     app.get(apiPath('/producer-map'), handleGetProducerMap);
@@ -23,9 +24,9 @@ export function registerProducerMapRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateProducerMapUpdateRequest, {
+        jsonSchemaValidator(producerMapUpdateRequestSchema, {
             malformedMessage: '请求正文必须为 JSON'
-        }),
+        }, validateProducerMapUpdateRequest),
         handleUpdateProducerMap
     );
 }

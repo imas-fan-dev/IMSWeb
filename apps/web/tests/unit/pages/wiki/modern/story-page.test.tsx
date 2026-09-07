@@ -1,3 +1,4 @@
+import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
@@ -27,6 +28,9 @@ function storyPayload(
       imageUrl: "/image/mano.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "idol",
+      entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     },
     categories: [
       {
@@ -38,6 +42,7 @@ function storyPayload(
                 name: "【花风Smiley】",
                 img: "/image/story.webp",
                 subtitle: "全话",
+                imageTransform: defaultWikiImageTransform,
                 links: [
                   {
                     id: 21,
@@ -66,6 +71,7 @@ function storyPayload(
                       name: "【仅语音】",
                       img: "/image/audio.webp",
                       subtitle: "语音收录",
+                      imageTransform: defaultWikiImageTransform,
                       links: [
                         {
                           id: 23,
@@ -83,6 +89,7 @@ function storyPayload(
                       name: "【来源待补】",
                       img: "",
                       subtitle: "待编辑",
+                      imageTransform: defaultWikiImageTransform,
                       links: [],
                     },
                   ]
@@ -108,9 +115,13 @@ function gakumasSCardPayload() {
       name: "S卡",
       folderName: "s_card",
       color: "#f39800",
+      wikiUrl: null,
       imageUrl: "/image/gakumas-s-card.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "story",
+      entrySubtype: "special",
+      imageTransform: defaultWikiImageTransform,
     },
     categories: [
       {
@@ -121,6 +132,7 @@ function gakumasSCardPayload() {
             name: "【咲季与手毬】",
             img: "",
             subtitle: "出场：咲季，手毬",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
           {
@@ -128,6 +140,7 @@ function gakumasSCardPayload() {
             name: "【只有手毬】",
             img: "",
             subtitle: "出场：手毬",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
           {
@@ -135,6 +148,7 @@ function gakumasSCardPayload() {
             name: "【待补元数据】",
             img: "",
             subtitle: "",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
         ],

@@ -1,5 +1,8 @@
 import { ApiError } from "./api-error"
+import { hasExactJsonStructure } from "./json-contract"
 import type { ApiRequestContext, ApiResponseType } from "./types"
+
+import type { z } from "@imsweb/contracts/z"
 
 type JsonRecord = Record<string, unknown>
 
@@ -123,6 +126,36 @@ async function parseHttpErrorPayload(response: Response): Promise<unknown> {
   }
 }
 
+function validateErrorPayload(
+  schema: z.ZodType | undefined,
+  payload: unknown,
+  response: Response,
+  context: ApiRequestContext
+): void {
+  if (!schema) return
+  const result = schema.safeParse(payload)
+  if (result.success && hasExactJsonStructure(payload, result.data)) return
+  throw new ApiError("响应不符合线上契约", {
+    ...context,
+    kind: "contract",
+    status: response.status,
+    code: "CONTRACT_VIOLATION",
+    payload,
+    cause: result.success ? undefined : result.error,
+  })
+}
+
+function isJsonResponse(
+  response: Response,
+  responseType: ApiResponseType
+): boolean {
+  return (
+    responseType === "json" ||
+    (responseType === "auto" &&
+      isJsonContentType(response.headers.get("content-type") ?? ""))
+  )
+}
+
 export async function handleApiResponse(
   response: Response,
   context: ApiRequestContext = {}
@@ -131,6 +164,7 @@ export async function handleApiResponse(
 
   if (!response.ok) {
     const payload = await parseHttpErrorPayload(response)
+    validateErrorPayload(context.meta?.errorSchema, payload, response, context)
     throw new ApiError(
       extractApiErrorMessage(payload, `请求失败（HTTP ${response.status}）`),
       {
@@ -160,6 +194,12 @@ export async function handleApiResponse(
     !context.meta?.skipBusinessErrorCheck &&
     isBusinessErrorPayload(payload)
   ) {
+    validateErrorPayload(
+      context.meta?.businessErrorSchema,
+      payload,
+      response,
+      context
+    )
     throw new ApiError(extractApiErrorMessage(payload, "请求未成功"), {
       ...context,
       kind: "business",
@@ -170,8 +210,7 @@ export async function handleApiResponse(
   }
 
   if (
-    (responseType === "auto" || responseType === "json") &&
-    (isRecord(payload) || Array.isArray(payload)) &&
+    isJsonResponse(response, responseType) &&
     !context.meta?.parsed &&
     !context.meta?.skipContractCheck
   ) {

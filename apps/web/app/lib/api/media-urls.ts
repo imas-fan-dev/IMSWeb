@@ -201,9 +201,8 @@ export function normalizeWikiRandomBackground(
 
 type WikiAdminAgency = WikiAdminCatalog["agencies"][number]
 type WikiAdminGroup = WikiAdminAgency["groups"][number]
-type WikiAdminIdol = WikiAdminAgency["idols"][number]
 
-function adminIdol(idol: WikiAdminIdol): WikiAdminIdol {
+function adminIdol<T extends { imageUrl: string }>(idol: T): T {
   return { ...idol, imageUrl: apiMediaUrl(idol.imageUrl) }
 }
 

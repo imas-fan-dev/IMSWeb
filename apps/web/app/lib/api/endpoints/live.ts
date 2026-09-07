@@ -1,11 +1,12 @@
 import { apiPath } from "@imsweb/contracts/paths"
-import { z } from "@imsweb/contracts/z"
-
 import { parsed } from "../parsed"
 import { PUBLIC_QUERY_CACHE_FOR } from "../cache-policy"
 import { apiClient } from "../client"
 
-import { liveEventSchema } from "@imsweb/contracts/live"
+import {
+  liveScheduleErrorResponseSchema,
+  liveScheduleListSchema,
+} from "@imsweb/contracts/live"
 
 export { liveEventSchema } from "@imsweb/contracts/live"
 export type * from "@imsweb/contracts/live"
@@ -14,7 +15,8 @@ export function getLiveEvents(months: string[]) {
   const search = new URLSearchParams({ months: months.join(",") })
   return apiClient.Get(
     apiPath(`/live-schedule?${search.toString()}`),
-    parsed(z.array(liveEventSchema), {
+    parsed(liveScheduleListSchema, {
+      errorSchema: liveScheduleErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
     })
   )

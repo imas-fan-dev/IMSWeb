@@ -44,10 +44,14 @@ afterEach(() => {
 
 describe("Fudaba map delivery API", () => {
   it("validates source names, complete style URLs, and active snapshot integrity", () => {
-    expect(fudabaMapSourceNameSchema.parse(" R2 test ")).toBe("R2 test")
-    expect(fudabaMapStyleUrlSchema.parse(" /maps/exchange-style.json ")).toBe(
+    expect(fudabaMapSourceNameSchema.parse("R2 test")).toBe("R2 test")
+    expect(fudabaMapStyleUrlSchema.parse("/maps/exchange-style.json")).toBe(
       "/maps/exchange-style.json"
     )
+    expect(() => fudabaMapSourceNameSchema.parse(" R2 test ")).not.toThrow()
+    expect(() =>
+      fudabaMapStyleUrlSchema.parse(" /maps/exchange-style.json ")
+    ).toThrow()
     expect(fudabaMapDeliverySnapshotSchema.parse(snapshot)).toEqual(snapshot)
 
     expect(() =>

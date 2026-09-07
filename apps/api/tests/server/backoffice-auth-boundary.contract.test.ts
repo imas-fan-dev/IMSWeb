@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { sign as signJwt } from 'hono/utils/jwt/jwt';
+import {
+    adminLegacyOperatorLoginErrorResponseSchema,
+    adminLoginErrorResponseSchema,
+    adminLoginSuccessResponseSchema,
+    adminLogoutSuccessResponseSchema,
+    adminRefreshSuccessResponseSchema,
+    adminSessionSchema
+} from '@imsweb/contracts/admin';
 import { createHonoApp } from '@/app';
 import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
@@ -152,6 +160,7 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
     assert.equal(loginResponse.status, 200);
     assert.equal(loginResponse.headers.get('Deprecation'), null);
     const loginBody = await loginResponse.clone().json() as { token: string };
+    assert.deepEqual(adminLoginSuccessResponseSchema.parse(loginBody), loginBody);
     const loginCookies = assertCanonicalCookies(loginResponse);
 
     assert.equal(jwtPart(loginBody.token, 0).alg, 'HS256');
@@ -164,7 +173,9 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
         headers: { Cookie: cookieHeader(loginCookies) }
     });
     assert.equal(session.status, 200);
-    assert.equal((await session.json() as { user: { username: string } }).user.username, USERNAME);
+    const sessionBody = await session.json();
+    assert.deepEqual(adminSessionSchema.parse(sessionBody), sessionBody);
+    assert.equal((sessionBody as { user: { username: string } }).user.username, USERNAME);
 
     const csrf = loginCookies.get(CSRF_COOKIE)!;
     const refreshed = await fixture.app.request('http://ims.test/api/admin/auth/refresh', {
@@ -175,6 +186,8 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
         }
     });
     assert.equal(refreshed.status, 200);
+    const refreshedBody = await refreshed.clone().json();
+    assert.deepEqual(adminRefreshSuccessResponseSchema.parse(refreshedBody), refreshedBody);
     const refreshedCookies = assertCanonicalCookies(refreshed);
     assert.notEqual(refreshedCookies.get(ACCESS_COOKIE), loginCookies.get(ACCESS_COOKIE));
     assert.notEqual(refreshedCookies.get(REFRESH_COOKIE), loginCookies.get(REFRESH_COOKIE));
@@ -188,7 +201,83 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
         }
     });
     assert.equal(logout.status, 200);
+    const logoutBody = await logout.clone().json();
+    assert.deepEqual(adminLogoutSuccessResponseSchema.parse(logoutBody), logoutBody);
     assertCanonicalCookies(logout, true);
+});
+
+test('canonical login accepts editor accounts while the legacy admin login remains op-only', async (t) => {
+    const fixture = await createFixture(t);
+    t.after(() => fixture.close());
+    await fixture.connection.prepare(
+        `INSERT INTO backoffice_accounts
+            (username, password, dept, producername, admin_role)
+         VALUES (?, 'backoffice-boundary-digest', 'editor', NULL, NULL)`
+    ).bind('backoffice-boundary-editor').run();
+
+    const canonical = await fixture.app.request('http://ims.test/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            username: 'backoffice-boundary-editor',
+            password: PASSWORD,
+            ignored: 'legacy-project-policy'
+        })
+    });
+    assert.equal(canonical.status, 200);
+    const canonicalBody = await canonical.json();
+    assert.deepEqual(adminLoginSuccessResponseSchema.parse(canonicalBody), canonicalBody);
+    assert.deepEqual(canonicalBody, {
+        success: true,
+        token: (canonicalBody as { token: string }).token,
+        username: 'backoffice-boundary-editor',
+        producername: null,
+        dept: 'editor',
+        adminRole: null
+    });
+
+    const invalidInput = await fixture.app.request('http://ims.test/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: '', password: PASSWORD })
+    });
+    assert.equal(invalidInput.status, 400);
+    const invalidInputBody = await invalidInput.json();
+    assert.deepEqual(adminLoginErrorResponseSchema.parse(invalidInputBody), invalidInputBody);
+
+    const invalidCredentials = await fixture.app.request(
+        'http://ims.test/api/admin/auth/login',
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: 'backoffice-boundary-editor',
+                password: 'incorrect-password'
+            })
+        }
+    );
+    assert.equal(invalidCredentials.status, 401);
+    const invalidCredentialsBody = await invalidCredentials.json();
+    assert.deepEqual(
+        adminLoginErrorResponseSchema.parse(invalidCredentialsBody),
+        invalidCredentialsBody
+    );
+
+    const legacyAdmin = await fixture.app.request('http://ims.test/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            username: 'backoffice-boundary-editor',
+            password: PASSWORD
+        })
+    });
+    assert.equal(legacyAdmin.status, 403);
+    assertDeprecated(legacyAdmin, '/api/admin/login');
+    const legacyAdminBody = await legacyAdmin.json();
+    assert.deepEqual(
+        adminLegacyOperatorLoginErrorResponseSchema.parse(legacyAdminBody),
+        legacyAdminBody
+    );
 });
 
 test('Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims', async (t) => {

@@ -41,6 +41,11 @@
       "require": "./dist/fudaba/map-delivery.js",
       "default": "./dist/fudaba/map-delivery.js"
     },
+    "./fudaba/runtime": {
+      "types": "./dist/fudaba/runtime.d.ts",
+      "require": "./dist/fudaba/runtime.js",
+      "default": "./dist/fudaba/runtime.js"
+    },
     "./fudaba/card-claims": {
       "types": "./dist/fudaba/card-claims.d.ts",
       "require": "./dist/fudaba/card-claims.js",
@@ -111,6 +116,16 @@
       "require": "./dist/site-packages.js",
       "default": "./dist/site-packages.js"
     },
+    "./media": {
+      "types": "./dist/media.d.ts",
+      "require": "./dist/media.js",
+      "default": "./dist/media.js"
+    },
+    "./system": {
+      "types": "./dist/system.d.ts",
+      "require": "./dist/system.js",
+      "default": "./dist/system.js"
+    },
     "./admin": {
       "types": "./dist/admin.d.ts",
       "require": "./dist/admin.js",
@@ -133,7 +148,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/check-entrypoints.mjs",
+    "check:entrypoints": "node scripts/check-entrypoints.mjs",
+    "check:entrypoints:source": "node scripts/check-entrypoints.mjs --source",
     "prepare": "node build-if-sources.mjs"
   },
   "dependencies": {

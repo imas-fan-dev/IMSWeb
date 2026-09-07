@@ -1,3 +1,8 @@
+import {
+    fudabaGuestSubmissionMediaParamsSchema,
+    fudabaGuestSubmissionParamsSchema,
+    fudabaGuestSubmissionWithdrawalRequestSchema,
+} from '@imsweb/contracts/fudaba/guest-submissions';
 import { handleGetFudabaGuestSubmission } from '@/domains/community/fudaba/guest-submissions/handlers/get-submission';
 import { handleCreateFudabaGuestSubmission } from '@/domains/community/fudaba/guest-submissions/handlers/upload-guest-submission';
 import { handleServeFudabaGuestSubmissionMedia } from '@/domains/community/fudaba/guest-submissions/handlers/serve-submission-media';
@@ -7,7 +12,7 @@ import {
     validateFudabaGuestSubmissionMediaParams,
     validateFudabaGuestSubmissionWithdrawalRequest,
 } from '@/domains/community/fudaba/guest-submissions/request';
-import { jsonValidator, paramValidator } from '@/middleware/request-validation';
+import { jsonSchemaValidator, paramSchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
@@ -18,24 +23,24 @@ export function fudabaGuestSubmissionRoutes(): ImsCapabilityRouter {
     routes.post('/guest-submissions', handleCreateFudabaGuestSubmission);
     routes.get(
         '/guest-submissions/:submissionId',
-        paramValidator(validateFudabaGuestSubmissionIdParams),
+        paramSchemaValidator(fudabaGuestSubmissionParamsSchema, { invalidMessage: '名片 ID 无效' }, validateFudabaGuestSubmissionIdParams),
         handleGetFudabaGuestSubmission,
     );
     routes.get(
         '/guest-submissions/:submissionId/media/:side',
-        paramValidator(validateFudabaGuestSubmissionMediaParams),
+        paramSchemaValidator(fudabaGuestSubmissionMediaParamsSchema, { invalidMessage: '名片媒体参数无效' }, validateFudabaGuestSubmissionMediaParams),
         handleServeFudabaGuestSubmissionMedia,
     );
     routes.on(
         'HEAD',
         '/guest-submissions/:submissionId/media/:side',
-        paramValidator(validateFudabaGuestSubmissionMediaParams),
+        paramSchemaValidator(fudabaGuestSubmissionMediaParamsSchema, { invalidMessage: '名片媒体参数无效' }, validateFudabaGuestSubmissionMediaParams),
         handleServeFudabaGuestSubmissionMedia,
     );
     routes.post(
         '/guest-submissions/:submissionId/withdraw',
-        paramValidator(validateFudabaGuestSubmissionIdParams),
-        jsonValidator(validateFudabaGuestSubmissionWithdrawalRequest),
+        paramSchemaValidator(fudabaGuestSubmissionParamsSchema, { invalidMessage: '名片 ID 无效' }, validateFudabaGuestSubmissionIdParams),
+        jsonSchemaValidator(fudabaGuestSubmissionWithdrawalRequestSchema, { invalidMessage: 'expectedRevision must be a non-negative integer' }, validateFudabaGuestSubmissionWithdrawalRequest),
         handleWithdrawFudabaGuestSubmission,
     );
     return routes;

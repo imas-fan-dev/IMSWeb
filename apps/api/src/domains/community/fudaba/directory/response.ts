@@ -1,4 +1,4 @@
-import type { FudabaMapOffice } from "@imsweb/contracts/fudaba";
+import type { FudabaCard, FudabaMapOffice, FudabaOffice, FudabaPlacedCard } from "@imsweb/contracts/fudaba";
 import { regionalLocation } from "@/domains/community/fudaba/contracts/location";
 import type { ObjectStorage } from "@/ports/object-storage";
 import type {
@@ -12,7 +12,7 @@ import { requirePublicObjectUrl } from "@/utils/storage/public-object-url";
 export async function fudabaPublicOfficeView(
     storage: ObjectStorage | undefined,
     office: FudabaPublicOfficeRecord,
-): Promise<Record<string, unknown>> {
+): Promise<FudabaOffice> {
     let coverUrl: string | null = null;
     if (office.cover_object_key) {
         if (!storage) {
@@ -43,7 +43,7 @@ export async function fudabaPublicOfficeView(
 export async function fudabaPublicCardView(
     storage: ObjectStorage | undefined,
     card: FudabaPublicCardRecord,
-): Promise<Record<string, unknown>> {
+): Promise<FudabaCard> {
     if (!storage) {
         throw Object.assign(new Error("公开对象读取地址未配置"), {
             status: 503,
@@ -90,7 +90,7 @@ export async function fudabaPublicCardView(
 export async function fudabaPublicPlacedCardView(
     storage: ObjectStorage | undefined,
     card: FudabaPublicPlacedCardRecord,
-): Promise<Record<string, unknown>> {
+): Promise<FudabaPlacedCard> {
     return {
         ...(await fudabaPublicCardView(storage, card)),
         viewerOwned: card.viewer_owned,

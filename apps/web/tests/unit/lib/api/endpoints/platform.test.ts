@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  getPlatformOAuthProviders,
   getPlatformProfile,
+  getPlatformSession,
   loginPlatform,
+  logoutPlatform,
   platformLoginInputSchema,
   platformLoginPasswordSchema,
   platformPasswordSchema,
@@ -13,6 +16,8 @@ import {
   platformRegisterInputSchema,
   registerPlatform,
   removePlatformAvatar,
+  resetPlatformPassword,
+  sendPlatformPasswordResetVerificationCode,
   sendPlatformRegistrationVerificationCode,
   updatePlatformProfile,
   uploadPlatformAvatar,
@@ -184,6 +189,86 @@ describe("Platform profile API contracts", () => {
         email: " Producer@Example.COM ",
       })
     ).toEqual({ email: "producer@example.com" })
+  })
+
+  it("wires public auth, session, reset, and provider calls to shared schemas", async () => {
+    document.cookie = "ims_platform_csrf=logout-csrf; path=/"
+    const requests: Array<{ path: string; method: string; body: unknown }> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = new URL(String(input), "http://ims.test").pathname
+        requests.push({
+          path,
+          method: init?.method ?? "GET",
+          body: init?.body ? JSON.parse(String(init.body)) : undefined,
+        })
+        if (path.endsWith("/providers")) {
+          return Response.json({ success: true, providers: [] })
+        }
+        if (path.endsWith("/session")) {
+          return Response.json({
+            success: true,
+            account: { id: "platform-owner", status: "active" },
+            profile: {
+              displayName: "Platform Producer",
+              avatarUrl: null,
+              homeCity: null,
+              bio: "",
+            },
+          })
+        }
+        if (path.endsWith("verification-code")) {
+          return Response.json({ success: true, sent: true }, { status: 202 })
+        }
+        return Response.json({ success: true })
+      })
+    )
+
+    await expect(getPlatformOAuthProviders().send()).resolves.toEqual({
+      success: true,
+      providers: [],
+    })
+    await expect(getPlatformSession().send()).resolves.toMatchObject({
+      account: { id: "platform-owner" },
+    })
+    await expect(
+      sendPlatformPasswordResetVerificationCode({
+        email: "owner@example.test",
+      }).send()
+    ).resolves.toEqual({ success: true, sent: true })
+    await expect(
+      resetPlatformPassword({
+        email: "owner@example.test",
+        password: "correct-horse-battery",
+        code: "012345",
+      }).send()
+    ).resolves.toEqual({ success: true })
+    await expect(logoutPlatform().send()).resolves.toEqual({ success: true })
+
+    expect(requests).toEqual([
+      {
+        path: "/api/platform/auth/oauth/providers",
+        method: "GET",
+        body: undefined,
+      },
+      { path: "/api/platform/auth/session", method: "GET", body: undefined },
+      {
+        path: "/api/platform/auth/password-reset/verification-code",
+        method: "POST",
+        body: { email: "owner@example.test" },
+      },
+      {
+        path: "/api/platform/auth/password-reset",
+        method: "POST",
+        body: {
+          email: "owner@example.test",
+          password: "correct-horse-battery",
+          code: "012345",
+        },
+      },
+      { path: "/api/platform/auth/logout", method: "POST", body: undefined },
+    ])
   })
 
   it("parses the exact owner profile projection and normalizes submissions", () => {

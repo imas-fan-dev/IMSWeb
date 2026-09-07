@@ -4,8 +4,12 @@ import { adminApiClient } from "../../admin-client"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
 
 import {
+  fudabaAdminLocationReviewHttpErrorSchema,
+  fudabaLocationReviewErrorSchema,
   fudabaLocationReviewListSchema,
   fudabaLocationReviewMutationSchema,
+  fudabaLocationReviewQuerySchema,
+  fudabaLocationReviewRequestSchema,
 } from "@imsweb/contracts/fudaba/location-review"
 
 import type {
@@ -24,13 +28,19 @@ export function getFudabaLocationReviews(
   state: FudabaLocationReviewState,
   limit = 50
 ) {
-  const query = new URLSearchParams({
+  const request = fudabaLocationReviewQuerySchema.parse({
     state,
     limit: String(limit),
+  })
+  const query = new URLSearchParams({
+    state: request.state ?? "pending",
+    limit: request.limit ?? "50",
   })
   return adminApiClient.Get(
     adminExchangePath(`/office-locations?${query}`),
     parsed(fudabaLocationReviewListSchema, {
+      errorSchema: fudabaAdminLocationReviewHttpErrorSchema,
+      businessErrorSchema: fudabaLocationReviewErrorSchema,
       meta: withBackofficeAuth(),
     })
   )
@@ -44,10 +54,13 @@ export function reviewFudabaLocation(
     note: string
   }
 ) {
+  const submission = fudabaLocationReviewRequestSchema.parse(input)
   return adminApiClient.Put(
     adminExchangePath(`/office-locations/${encodeURIComponent(officeId)}`),
-    input,
+    submission,
     parsed(fudabaLocationReviewMutationSchema, {
+      errorSchema: fudabaAdminLocationReviewHttpErrorSchema,
+      businessErrorSchema: fudabaLocationReviewErrorSchema,
       meta: withBackofficeCsrf(),
     })
   )

@@ -18,6 +18,17 @@ import type { RuntimeServices } from '@/ports/runtime-services';
 
 const CREATED_AT = '2026-08-16T19:30:00.000Z';
 
+interface Schema {
+    parse(value: unknown): unknown;
+}
+
+async function contractJson(response: Response, schema: Schema): Promise<unknown> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw = await response.json();
+    assert.deepEqual(schema.parse(raw), raw);
+    return raw;
+}
+
 function idol() {
     return {
         idol_id: 1,
@@ -340,7 +351,7 @@ test('uncertain registered-card completion reconciles committed state without pr
     );
 
     assert.equal(response.status, 200);
-    assert.deepEqual(reviewMutationSchema.parse(await response.json()),
+    assert.deepEqual(await contractJson(response, reviewMutationSchema),
         { success: true, revision: 2 });
     assert.deepEqual(protectedKeys, []);
     assert.equal(rollbackCalls, 0);
@@ -410,7 +421,7 @@ test('uncertain claimed-card completion preserves committed public media', async
     );
 
     assert.equal(response.status, 200);
-    assert.deepEqual(reviewMutationSchema.parse(await response.json()),
+    assert.deepEqual(await contractJson(response, reviewMutationSchema),
         { success: true, revision: 2 });
     assert.ok(createdCardId);
     assert.equal(deletedCalls, 0);

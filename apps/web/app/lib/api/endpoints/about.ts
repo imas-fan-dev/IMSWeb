@@ -1,3 +1,4 @@
+import { backofficeProtectedHttpErrorSchema } from "@imsweb/contracts/common"
 import { adminApiPath, apiPath } from "@imsweb/contracts/paths"
 import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
@@ -16,6 +17,7 @@ import { withBackofficeAuth, withBackofficeCsrf } from "../types"
 import {
   aboutAdminSnapshotSchema,
   aboutAdminUpdateSchema,
+  aboutErrorResponseSchema,
   aboutImageUploadSchema,
   aboutPageContentSchema,
 } from "@imsweb/contracts/about"
@@ -36,6 +38,7 @@ export function getAboutPageContent() {
   return apiClient.Get(
     apiPath("/about"),
     parsed(aboutPageContentSchema, {
+      errorSchema: aboutErrorResponseSchema,
       cacheFor: STABLE_CONTENT_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
       select: normalizeAboutPageContent,
@@ -47,6 +50,7 @@ export function getAdminAboutPageContent() {
   return adminApiClient.Get(
     adminApiPath("/about"),
     parsed(aboutAdminSnapshotSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeAuth(),
       select: normalizeAboutAdminSnapshot,
     })
@@ -61,6 +65,7 @@ export function updateAdminAboutPageContent(
     adminApiPath("/about"),
     { content, revision },
     parsed(aboutAdminUpdateSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
       select: normalizeAboutAdminUpdate,
@@ -75,6 +80,7 @@ export function uploadAboutHeroImage(file: File) {
     adminApiPath("/about/hero-image"),
     form,
     parsed(aboutImageUploadSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
     })
@@ -88,6 +94,7 @@ export function uploadAboutMemberAvatar(file: File) {
     adminApiPath("/about/member-avatar"),
     form,
     parsed(aboutImageUploadSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.about,
     })

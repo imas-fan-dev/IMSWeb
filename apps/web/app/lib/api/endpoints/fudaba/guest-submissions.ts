@@ -1,6 +1,8 @@
 import {
   fudabaGuestSubmissionDetailSchema,
+  fudabaGuestSubmissionErrorSchema,
   fudabaGuestSubmissionReceiptSchema,
+  fudabaGuestSubmissionWithdrawalRequestSchema,
   fudabaGuestSubmissionWithdrawalSchema,
 } from "@imsweb/contracts/fudaba/guest-submissions"
 import { exchangePath } from "@imsweb/contracts/paths"
@@ -53,7 +55,9 @@ export function uploadFudabaGuestSubmission(
   return apiClient.Post(
     exchangePath("/guest-submissions"),
     form,
-    parsed(fudabaGuestSubmissionReceiptSchema)
+    parsed(fudabaGuestSubmissionReceiptSchema, {
+      errorSchema: fudabaGuestSubmissionErrorSchema,
+    })
   )
 }
 
@@ -61,6 +65,7 @@ export function getFudabaGuestSubmission(id: number, withdrawalToken: string) {
   return apiClient.Get(
     exchangePath(`/guest-submissions/${id}`),
     parsed(fudabaGuestSubmissionDetailSchema, {
+      errorSchema: fudabaGuestSubmissionErrorSchema,
       headers: {
         "X-Fudaba-Guest-Submission-Token": withdrawalToken,
       },
@@ -80,7 +85,10 @@ export function getFudabaGuestSubmissionMedia(
       headers: {
         "X-Fudaba-Guest-Submission-Token": withdrawalToken,
       },
-      meta: { responseType: "blob" },
+      meta: {
+        responseType: "blob",
+        errorSchema: fudabaGuestSubmissionErrorSchema,
+      },
     }
   )
 }
@@ -90,10 +98,14 @@ export function withdrawFudabaGuestSubmission(
   withdrawalToken: string,
   expectedRevision: number
 ) {
+  const submission = fudabaGuestSubmissionWithdrawalRequestSchema.parse({
+    expectedRevision,
+  })
   return apiClient.Post(
     exchangePath(`/guest-submissions/${id}/withdraw`),
-    { expectedRevision },
+    submission,
     parsed(fudabaGuestSubmissionWithdrawalSchema, {
+      errorSchema: fudabaGuestSubmissionErrorSchema,
       headers: {
         "X-Fudaba-Guest-Submission-Token": withdrawalToken,
       },

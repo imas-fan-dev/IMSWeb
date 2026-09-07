@@ -1,6 +1,6 @@
+import type { MediaAuthorizationErrorResponse } from '@imsweb/contracts/media';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
-import type { MediaAuthorizationErrorResponse } from '@/domains/delivery/media/response';
 import { authenticateBackofficeRequest } from '@/middleware/hono-auth';
 import { getRequestPathSegments } from '@/middleware/static-path-policy';
 import { publicMediaObjectKey } from '@/utils/storage/business-object-keys';

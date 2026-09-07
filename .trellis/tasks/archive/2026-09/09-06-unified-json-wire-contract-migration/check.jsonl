@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/contracts/shared/quality.md", "reason": "Contracts package surface 和 conformance 检查"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "API 聚焦与全量验证规则"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Web unit、routing 与 UI capability 验证"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/enforcement.md", "reason": "最终 fail-closed 门禁验收依据"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/unknown-request-fields-verification.md", "reason": "实际 sender、fixture 与 compatibility key 复核"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-a-evidence.md", "reason": "复核 Phase A 已通过门禁和残余风险"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/shared-middleware-evidence.md", "reason": "复核共享 middleware error contract 与遗留边界"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b1-evidence.md", "reason": "复核 B1 行为兼容、HTTP exactness 和 editor 权限"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b6-evidence.md", "reason": "复核 B6 JSON exactness、非 JSON exception 和 package surface"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-c-system-health-evidence.md", "reason": "复核 system entrypoint、health exactness 和 app type-only imports"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b2-evidence.md", "reason": "复核 B2 raw equality、hybrid request、Web parsing 和 Wiki probe"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b3-evidence.md", "reason": "复核 B3 request policy、raw equality、OAuth compatibility 和 password-reset 修复"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b4-evidence.md", "reason": "复核 B4 unknown policy、raw equality、reaction runtime 和 non-JSON exception"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-b-b5-evidence.md", "reason": "复核 B5 passthrough、exact response、Web parsing 和 Content exclusions"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-c-integration-evidence.md", "reason": "复核 Phase C public/protected schema、fallback fail-closed 和 domain wave tests"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-d-final-evidence.md", "reason": "复核 final counts、negative controls、full check/test 和 residual limits"}

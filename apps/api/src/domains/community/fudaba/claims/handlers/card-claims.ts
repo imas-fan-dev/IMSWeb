@@ -1,3 +1,13 @@
+import type {
+    // pi-lens-ignore: ts:2305
+    FudabaClaimEnvelopeListResponse,
+    // pi-lens-ignore: ts:2305
+    FudabaClaimMutationResponse,
+    // pi-lens-ignore: ts:2305
+    FudabaEnvelopeMutationResponse,
+    // pi-lens-ignore: ts:2305
+    FudabaOwnerClaimListResponse
+} from '@imsweb/contracts/fudaba/card-claims';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { parseEnvelopeAction, parseLegacyCardClaim, parseLegacyCardId } from '@/domains/community/fudaba/claims/request';
@@ -33,7 +43,9 @@ export async function handleListFudabaClaimEnvelopes(
             c.get('platformUser')!.id,
             100
         );
-        return c.json({ items: items.map(fudabaClaimEnvelopeView) });
+        return c.json({
+            items: items.map(fudabaClaimEnvelopeView)
+        } satisfies FudabaClaimEnvelopeListResponse);
     } catch (error) {
         console.error('Failed to list Fudaba claim envelopes', error);
         return c.json({
@@ -77,7 +89,7 @@ export async function handleRespondFudabaClaimEnvelope(
                 success: true,
                 envelope: fudabaClaimEnvelopeView(result.envelope),
                 claim: null
-            });
+            } satisfies FudabaEnvelopeMutationResponse);
         }
 
         const envelopes = await repository.listClaimEnvelopesForOwner(accountId, 100);
@@ -120,7 +132,7 @@ export async function handleRespondFudabaClaimEnvelope(
             success: true,
             envelope: fudabaClaimEnvelopeView(result.envelope),
             claim: fudabaCardClaimView(result.claim)
-        });
+        } satisfies FudabaEnvelopeMutationResponse);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to respond to claim envelope', error);
@@ -142,7 +154,9 @@ export async function handleListFudabaOwnerCardClaims(
             c.get('platformUser')!.id,
             100
         );
-        return c.json({ items: claims.map(fudabaCardClaimView) });
+        return c.json({
+            items: claims.map(fudabaCardClaimView)
+        } satisfies FudabaOwnerClaimListResponse);
     } catch (error) {
         console.error('Failed to list owner card claims', error);
         return c.json({
@@ -182,7 +196,10 @@ export async function handleCreateFudabaLegacyCardClaim(
                 state: result.state
             }, 409);
         }
-        return c.json({ success: true, claim: fudabaCardClaimView(result.claim) }, 201);
+        return c.json({
+            success: true,
+            claim: fudabaCardClaimView(result.claim)
+        } satisfies FudabaClaimMutationResponse, 201);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to create legacy card claim', error);

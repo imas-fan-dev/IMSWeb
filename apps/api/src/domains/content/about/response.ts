@@ -2,6 +2,7 @@ import type {
     AboutAdminSnapshot,
     AboutAdminUpdate,
     AboutGroup,
+    AboutErrorResponse,
     AboutImageUpload,
     AboutPageContent,
     AboutPerson,
@@ -16,9 +17,7 @@ export type AboutPublicContentResponse = AboutPageContentResponse;
 export type AboutAdminContentResponse = AboutAdminSnapshot;
 export type AboutUpdateSuccessResponse = AboutAdminUpdate;
 
-export interface AboutMutationErrorResponse {
-    error: string;
-}
+export type AboutMutationErrorResponse = AboutErrorResponse;
 
 export type AboutImageUploadSuccessResponse = AboutImageUpload;
 

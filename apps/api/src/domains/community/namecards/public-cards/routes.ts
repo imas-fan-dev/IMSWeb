@@ -4,8 +4,12 @@ import {
     validateCompatibleNamecardIdParams,
     validateNamecardListQuery,
 } from "@/domains/community/namecards/request";
+import {
+    compatibleNamecardIdParamsSchema,
+    namecardListQuerySchema,
+} from "@imsweb/contracts/namecards";
 import { optionalPlatformAuth } from "@/middleware/hono-auth";
-import { paramValidator, queryValidator } from "@/middleware/request-validation";
+import { paramSchemaValidator, querySchemaValidator } from "@/middleware/request-validation";
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
@@ -16,12 +20,12 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
     routes.get(
         "/cards",
         optionalPlatformAuth,
-        queryValidator(validateNamecardListQuery),
+        querySchemaValidator(namecardListQuerySchema, { invalidMessage: "名片分页参数无效" }, validateNamecardListQuery),
         handleListNamecards,
     );
     routes.get(
         "/card/:id",
-        paramValidator(validateCompatibleNamecardIdParams),
+        paramSchemaValidator(compatibleNamecardIdParamsSchema, { invalidMessage: "名片 ID 无效" }, validateCompatibleNamecardIdParams),
         handleGetNamecard,
     );
     return routes;

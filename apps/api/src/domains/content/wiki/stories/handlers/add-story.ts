@@ -1,3 +1,4 @@
+import { wikiStorySourcesJsonSchema } from '@imsweb/contracts/wiki';
 import type { Env } from 'hono';
 import {
     authorizeWikiWrite,
@@ -72,10 +73,11 @@ function storySources(fields: Record<string, string>): {
     } catch {
         throw Object.assign(new Error('剧情来源列表不是有效 JSON'), { status: 400 });
     }
-    if (!Array.isArray(value) || value.length > 20) {
+    const contract = wikiStorySourcesJsonSchema.safeParse(value);
+    if (!contract.success) {
         throw Object.assign(new Error('剧情卡片允许 0 至 20 个来源'), { status: 400 });
     }
-    const sources = value.map((source, index) => {
+    const sources = contract.data.map((source, index) => {
         if (!source || typeof source !== 'object' || Array.isArray(source)) {
             throw Object.assign(new Error(`第 ${index + 1} 个来源无效`), { status: 400 });
         }

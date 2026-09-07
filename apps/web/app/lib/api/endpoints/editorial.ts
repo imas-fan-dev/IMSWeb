@@ -10,9 +10,12 @@ import {
   editorialArticleListSchema,
   editorialArticleSchema,
   editorialArticleAssetSchema,
+  editorialAdminHttpErrorResponseSchema,
   editorialChroniclePageSchema,
   editorialDraftSchema,
+  editorialErrorResponseSchema,
   editorialLegacyInformationSchema,
+  editorialMutationResponseSchema,
   editorialRevisionSchema,
   editorialSpotlightSchema,
   editorialStatusChangeSchema,
@@ -33,15 +36,17 @@ export type {
   EditorialSpotlightCategory,
 } from "@imsweb/contracts/editorial"
 
-type EditorialKind = "events" | "chronicle"
-type EditorialStatusAction = "publish" | "unpublish" | "archive"
+export type EditorialKind = "events" | "chronicle"
+export type EditorialStatusAction = "publish" | "unpublish" | "archive"
 
 const COMMUNITY_POSTS = "/community-posts"
 
 export function getEditorialEvent(id: string) {
   return apiClient.Get(
     apiPath(`/events/${encodeURIComponent(id)}`),
-    parsed(editorialArticleSchema)
+    parsed(editorialArticleSchema, {
+      errorSchema: editorialErrorResponseSchema,
+    })
   )
 }
 
@@ -50,14 +55,19 @@ export function getEditorialChroniclePage(limit = 24, cursor?: string) {
   if (cursor) params.cursor = cursor
   return apiClient.Get(
     apiPath("/chronicle"),
-    parsed(editorialChroniclePageSchema, { params })
+    parsed(editorialChroniclePageSchema, {
+      errorSchema: editorialErrorResponseSchema,
+      params,
+    })
   )
 }
 
 export function getEditorialChronicle(id: string) {
   return apiClient.Get(
     apiPath(`/chronicle/${encodeURIComponent(id)}`),
-    parsed(editorialArticleSchema)
+    parsed(editorialArticleSchema, {
+      errorSchema: editorialErrorResponseSchema,
+    })
   )
 }
 
@@ -65,6 +75,7 @@ export function getAdminEditorialEvents(status?: string) {
   return adminApiClient.Get(
     adminApiPath("/events"),
     parsed(editorialArticleListSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
       meta: withBackofficeAuth(),
       params: status ? { status } : undefined,
     })
@@ -75,6 +86,7 @@ export function getAdminCommunityPosts(status?: string) {
   return adminApiClient.Get(
     adminApiPath(COMMUNITY_POSTS),
     parsed(editorialArticleListSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
       meta: withBackofficeAuth(),
       params: status ? { status } : undefined,
     })
@@ -88,14 +100,20 @@ export function createAdminCommunityPost(
   return adminApiClient.Post(
     adminApiPath(COMMUNITY_POSTS),
     { title, kind },
-    parsed(editorialDraftSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialDraftSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function getAdminCommunityPost(id: number) {
   return adminApiClient.Get(
     adminApiPath(`${COMMUNITY_POSTS}/${id}`),
-    parsed(editorialArticleSchema, { meta: withBackofficeAuth() })
+    parsed(editorialArticleSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
@@ -106,7 +124,10 @@ export function updateAdminCommunityPost(
   return adminApiClient.Put(
     adminApiPath(`${COMMUNITY_POSTS}/${id}`),
     payload,
-    parsed(editorialRevisionSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialRevisionSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
@@ -117,7 +138,10 @@ export function previewAdminCommunityPost(
   return adminApiClient.Post(
     adminApiPath(`${COMMUNITY_POSTS}/${id}/preview`),
     payload,
-    parsed(editorialArticleSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialArticleSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
@@ -129,14 +153,20 @@ export function setAdminCommunityPostStatus(
   return adminApiClient.Post(
     adminApiPath(`${COMMUNITY_POSTS}/${id}/${status}`),
     { revision },
-    parsed(editorialStatusChangeSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialStatusChangeSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function getAdminCommunitySpotlight() {
   return adminApiClient.Get(
     adminApiPath(`${COMMUNITY_POSTS}/spotlight`),
-    parsed(adminEditorialSpotlightSchema, { meta: withBackofficeAuth() })
+    parsed(adminEditorialSpotlightSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
@@ -146,21 +176,28 @@ export function replaceAdminCommunitySpotlight(
   return adminApiClient.Put(
     adminApiPath(`${COMMUNITY_POSTS}/spotlight`),
     { items },
-    { meta: withBackofficeCsrf() }
+    parsed(editorialMutationResponseSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function getCommunitySpotlight() {
   return apiClient.Get(
     apiPath(`${COMMUNITY_POSTS}/spotlight`),
-    parsed(editorialSpotlightSchema)
+    parsed(editorialSpotlightSchema, {
+      errorSchema: editorialErrorResponseSchema,
+    })
   )
 }
 
 export function getLegacyInformationPost(id: string) {
   return apiClient.Get(
     apiPath(`${COMMUNITY_POSTS}/legacy-information/${encodeURIComponent(id)}`),
-    parsed(editorialLegacyInformationSchema)
+    parsed(editorialLegacyInformationSchema, {
+      errorSchema: editorialErrorResponseSchema,
+    })
   )
 }
 
@@ -171,14 +208,20 @@ export function createAdminEditorialEvent(
   return adminApiClient.Post(
     adminApiPath("/events"),
     { title, kind },
-    parsed(editorialDraftSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialDraftSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function getAdminEditorialEvent(id: number) {
   return adminApiClient.Get(
     adminApiPath(`/events/${id}`),
-    parsed(editorialArticleSchema, { meta: withBackofficeAuth() })
+    parsed(editorialArticleSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
@@ -189,7 +232,10 @@ export function updateAdminEditorialEvent(
   return adminApiClient.Put(
     adminApiPath(`/events/${id}`),
     payload,
-    parsed(editorialRevisionSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialRevisionSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
@@ -200,14 +246,20 @@ export function createAdminEditorialChronicle(
   return adminApiClient.Post(
     adminApiPath("/chronicle"),
     { title, sourceType },
-    parsed(editorialDraftSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialDraftSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function getAdminEditorialChronicle(id: number) {
   return adminApiClient.Get(
     adminApiPath(`/chronicle/${id}`),
-    parsed(editorialArticleSchema, { meta: withBackofficeAuth() })
+    parsed(editorialArticleSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeAuth(),
+    })
   )
 }
 
@@ -218,7 +270,10 @@ export function updateAdminEditorialChronicle(
   return adminApiClient.Put(
     adminApiPath(`/chronicle/${id}`),
     payload,
-    parsed(editorialRevisionSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialRevisionSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
@@ -231,15 +286,21 @@ export function setAdminEditorialStatus(
   return adminApiClient.Post(
     adminApiPath(`/${kind}/${id}/${status}`),
     { revision },
-    parsed(editorialStatusChangeSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialStatusChangeSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function deleteAdminEditorial(kind: EditorialKind, id: number) {
-  return apiClient.Delete<{ success: true }, unknown>(
+  return adminApiClient.Delete(
     adminApiPath(`/${kind}/${id}`),
     undefined,
-    { meta: withBackofficeCsrf() }
+    parsed(editorialMutationResponseSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
@@ -256,14 +317,20 @@ export function uploadEditorialAsset(
   return adminApiClient.Post(
     adminApiPath(`/articles/${articleId}/assets`),
     form,
-    parsed(editorialArticleAssetSchema, { meta: withBackofficeCsrf() })
+    parsed(editorialArticleAssetSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }
 
 export function deleteEditorialAsset(articleId: number, assetId: number) {
-  return apiClient.Delete<{ success: true }, unknown>(
+  return adminApiClient.Delete(
     adminApiPath(`/articles/${articleId}/assets/${assetId}`),
     undefined,
-    { meta: withBackofficeCsrf() }
+    parsed(editorialMutationResponseSchema, {
+      errorSchema: editorialAdminHttpErrorResponseSchema,
+      meta: withBackofficeCsrf(),
+    })
   )
 }

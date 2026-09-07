@@ -1,6 +1,24 @@
 import assert from "node:assert/strict";
+import {
+    fudabaCardClaimErrorSchema,
+    ownerClaimListSchema,
+} from "@imsweb/contracts/fudaba/card-claims";
 import { createHash } from "node:crypto";
 import test from "node:test";
+import {
+    fudabaErrorResponseSchema,
+    fudabaMapConfigSchema,
+    fudabaMapOfficeListSchema,
+    fudabaOwnerLocationDetailSchema,
+    fudabaOwnerLocationMutationResponseSchema,
+    fudabaOwnerLocationWithdrawalResponseSchema,
+    fudabaPlaceSearchResponseSchema,
+} from "@imsweb/contracts/fudaba";
+import {
+    fudabaLocationReviewErrorSchema,
+    fudabaLocationReviewListSchema,
+    fudabaLocationReviewMutationSchema,
+} from "@imsweb/contracts/fudaba/location-review";
 import { createHonoApp } from "@/app";
 import {
     BACKOFFICE_ACCESS_TOKEN_COOKIE,
@@ -34,6 +52,18 @@ const PLATFORM_CSRF = "platform-location-csrf";
 const BACKOFFICE_TOKEN = "backoffice-location-token";
 const BACKOFFICE_CSRF = "backoffice-location-csrf";
 const SUBMITTED_AT = "2026-08-03T01:00:00.000Z";
+
+interface Schema<T> {
+    parse(value: unknown): T;
+}
+
+async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
+    assert.match(response.headers.get("content-type") ?? "", /^application\/json/i);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, "contract schema stripped an emitted field");
+    return parsed;
+}
 
 function csrfHash(value: string): string {
     return createHash("sha256").update(value).digest("hex");
@@ -338,6 +368,8 @@ class LocationRouteFixture {
             this.locations.delete(input.officeId);
             return { status: "saved" as const, location: current };
         },
+        listCardClaimsForOwner: async () => [],
+        createCardClaimForOwner: async () => ({ status: "unavailable" as const }),
         listOfficeLocationReviews: async (input: {
             reviewState?: FudabaOfficePublicLocationRecord["review_state"];
             limit: number;
@@ -529,22 +561,18 @@ test("map config and offices require both flags and expose strict regional DTOs"
         { publicReadEnabled: true, mapEnabled: false },
     ]) {
         const disabled = new LocationRouteFixture(options);
-        assert.equal(
-            (
-                await disabled.app.request(
-                    "http://ims.test/api/community/exchange/map/config",
-                )
-            ).status,
-            404,
+        const disabledConfig = await disabled.app.request(
+            "http://ims.test/api/community/exchange/map/config",
         );
-        assert.equal(
-            (
-                await disabled.app.request(
-                    "http://ims.test/api/community/exchange/map/offices?bbox=-180,-90,180,90",
-                )
-            ).status,
-            404,
+        assert.equal(disabledConfig.status, 404);
+        assert.match(disabledConfig.headers.get("content-type") ?? "", /^text\/plain/i);
+        assert.equal(await disabledConfig.text(), "Not Found");
+        const disabledOffices = await disabled.app.request(
+            "http://ims.test/api/community/exchange/map/offices?bbox=-180,-90,180,90",
         );
+        assert.equal(disabledOffices.status, 404);
+        assert.match(disabledOffices.headers.get("content-type") ?? "", /^text\/plain/i);
+        assert.equal(await disabledOffices.text(), "Not Found");
     }
 
     const fixture = new LocationRouteFixture();
@@ -552,7 +580,7 @@ test("map config and offices require both flags and expose strict regional DTOs"
         "http://ims.test/api/community/exchange/map/config",
     );
     assert.equal(config.status, 200);
-    assert.deepEqual(await config.json(), {
+    assert.deepEqual(await contractJson(config, fudabaMapConfigSchema), {
         styleUrl: "/api/community/exchange/map/style.json",
     });
     assert.equal(config.headers.get("cache-control"), "private, no-store");
@@ -563,7 +591,7 @@ test("map config and offices require both flags and expose strict regional DTOs"
             "&series=765&series=cg&open=true&limit=1",
     );
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
+    assert.deepEqual(await contractJson(response, fudabaMapOfficeListSchema), {
         items: [
             {
                 id: "map-office-a",
@@ -622,6 +650,9 @@ test("map query rejects missing, duplicate, unknown, invalid, and antimeridian i
             `http://ims.test/api/community/exchange/map/offices${query}`,
         );
         assert.equal(response.status, 400, query);
+        if (query.includes("unknown")) {
+            await contractJson(response, fudabaErrorResponseSchema);
+        }
     }
 });
 
@@ -658,7 +689,7 @@ test("place search requires auth, validates input, caches results, and rate limi
         headers: platformBearerHeaders(),
     });
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
+    assert.deepEqual(await contractJson(response, fudabaPlaceSearchResponseSchema), {
         success: true,
         items: [
             {
@@ -710,6 +741,52 @@ test("place search requires auth, validates input, caches results, and rate limi
     assert.equal(busy.headers.get("retry-after"), "60");
 });
 
+test("mounted claim routes authenticate reads, reject unknown mutation fields, and preserve business errors", async () => {
+    const fixture = new LocationRouteFixture();
+    const list = await fixture.app.request(
+        "http://ims.test/api/community/exchange/me/card-claims",
+        { headers: platformBearerHeaders() },
+    );
+    assert.equal(list.status, 200);
+    assert.deepEqual(await contractJson(list, ownerClaimListSchema), { items: [] });
+
+    const invalid = await fixture.app.request(
+        "http://ims.test/api/community/exchange/legacy-cards/42/claims",
+        {
+            method: "POST",
+            headers: platformBearerHeaders({ "content-type": "application/json" }),
+            body: JSON.stringify({
+                targetCardId: null,
+                seriesCode: "765",
+                favoriteIdolIds: [1],
+                message: "claim this card",
+                unexpected: true,
+            }),
+        },
+    );
+    assert.equal(invalid.status, 400);
+    await contractJson(invalid, fudabaCardClaimErrorSchema);
+
+    const unavailable = await fixture.app.request(
+        "http://ims.test/api/community/exchange/legacy-cards/42/claims",
+        {
+            method: "POST",
+            headers: platformBearerHeaders({ "content-type": "application/json" }),
+            body: JSON.stringify({
+                targetCardId: null,
+                seriesCode: "765",
+                favoriteIdolIds: [1],
+                message: "claim this card",
+            }),
+        },
+    );
+    assert.equal(unavailable.status, 404);
+    assert.deepEqual(
+        await contractJson(unavailable, fudabaCardClaimErrorSchema),
+        { success: false, code: "FUDABA_LEGACY_CARD_UNAVAILABLE" },
+    );
+});
+
 test("owner locations enforce Platform auth, active account, CSRF, quantization, and CAS", async () => {
     const fixture = new LocationRouteFixture();
     assert.equal(
@@ -725,7 +802,9 @@ test("owner locations enforce Platform auth, active account, CSRF, quantization,
         { headers: platformBearerHeaders() },
     );
     assert.equal(empty.status, 200);
-    assert.deepEqual(await empty.json(), { location: null });
+    assert.deepEqual(await contractJson(empty, fudabaOwnerLocationDetailSchema), {
+        location: null,
+    });
     assert.equal(
         (
             await fixture.app.request(
@@ -765,17 +844,10 @@ test("owner locations enforce Platform auth, active account, CSRF, quantization,
         body,
     });
     assert.equal(saved.status, 200);
-    const savedPayload = (await saved.json()) as {
-        officeLocation: {
-            officeId: string;
-            location: unknown;
-            reviewState: string;
-            revision: number;
-            submittedAt: string;
-            reviewedAt: string | null;
-            reviewNote: string;
-        };
-    };
+    const savedPayload = await contractJson(
+        saved,
+        fudabaOwnerLocationMutationResponseSchema
+    );
     assert.equal(
         new Date(savedPayload.officeLocation.submittedAt).toISOString(),
         savedPayload.officeLocation.submittedAt,
@@ -837,7 +909,10 @@ test("owner locations enforce Platform auth, active account, CSRF, quantization,
         body: JSON.stringify({ expectedRevision: 0 }),
     });
     assert.equal(removed.status, 200);
-    assert.deepEqual(await removed.json(), { success: true });
+    assert.deepEqual(
+        await contractJson(removed, fudabaOwnerLocationWithdrawalResponseSchema),
+        { success: true }
+    );
 
     const restricted = new LocationRouteFixture({
         accountStatus: "restricted",
@@ -883,7 +958,7 @@ test("admin review ignores rollout flags but requires Backoffice op, CSRF, CAS, 
     assert.equal(listed.status, 200);
     assert.equal(listed.headers.get("cache-control"), "private, no-store");
     assert.equal(
-        ((await listed.json()) as { items: unknown[] }).items.length,
+        (await contractJson(listed, fudabaLocationReviewListSchema)).items.length,
         1,
     );
 
@@ -933,6 +1008,7 @@ test("admin review ignores rollout flags but requires Backoffice op, CSRF, CAS, 
         body: publishBody,
     });
     assert.equal(published.status, 200);
+    await contractJson(published, fudabaLocationReviewMutationSchema);
     assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "published");
     assert.equal(fixture.audit.length, 1);
     assert.equal(fixture.audit[0]?.action, "发布 Fudaba 事务所公开位置");
@@ -952,6 +1028,7 @@ test("admin review ignores rollout flags but requires Backoffice op, CSRF, CAS, 
         body: publishBody,
     });
     assert.equal(stale.status, 409);
+    await contractJson(stale, fudabaLocationReviewErrorSchema);
     assert.equal(fixture.audit.length, 1, "failed review must not be audited");
 
     const rejected = await fixture.app.request(`http://ims.test${path}`, {
@@ -967,6 +1044,7 @@ test("admin review ignores rollout flags but requires Backoffice op, CSRF, CAS, 
         }),
     });
     assert.equal(rejected.status, 200);
+    await contractJson(rejected, fudabaLocationReviewMutationSchema);
     assert.equal(fixture.locations.get(OFFICE_ID)?.review_state, "rejected");
     assert.equal(fixture.audit.at(-1)?.action, "拒绝 Fudaba 事务所公开位置");
 

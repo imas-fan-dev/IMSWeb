@@ -1,6 +1,6 @@
 import type { AppEnvironment } from '@/app';
 import type {
-    CreateAdminAccountRequest
+    CreateAdminAccountInput
 } from '@/domains/admin/admin-accounts/create-admin-account-request';
 import type {
     AdminAccountErrorResponse,
@@ -12,7 +12,7 @@ import { adminAccountRepository, services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 export async function handleCreateAdminAccount(
-    c: ValidatedRequestContext<AppEnvironment, 'json', CreateAdminAccountRequest>
+    c: ValidatedRequestContext<AppEnvironment, 'json', CreateAdminAccountInput>
 ): Promise<Response> {
     const { username, producername, password } = c.req.valid('json');
     const passwordService = services(c).passwords;

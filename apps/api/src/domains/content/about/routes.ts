@@ -1,3 +1,4 @@
+import { aboutPageUpdateRequestSchema } from '@imsweb/contracts/about';
 import { adminApiPath, apiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleGetAboutPage } from '@/domains/content/about/handlers/get-about-page';
@@ -7,7 +8,7 @@ import { handleUploadAboutMemberAvatar } from '@/domains/content/about/handlers/
 import { handleUpdateAboutPage } from '@/domains/content/about/handlers/update-about-page';
 import { validateAboutPageUpdateRequest } from '@/domains/content/about/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
-import { jsonValidator } from '@/middleware/request-validation';
+import { jsonSchemaValidator } from '@/middleware/request-validation';
 
 export function registerAboutRoutes(app: ImsHonoApp): void {
     app.get(apiPath('/about'), handleGetAboutPage);
@@ -31,9 +32,9 @@ export function registerAboutRoutes(app: ImsHonoApp): void {
         backofficeAuth,
         opOnly,
         backofficeCsrf,
-        jsonValidator(validateAboutPageUpdateRequest, {
+        jsonSchemaValidator(aboutPageUpdateRequestSchema, {
             malformedMessage: '请求正文必须为 JSON'
-        }),
+        }, validateAboutPageUpdateRequest),
         handleUpdateAboutPage
     );
 }

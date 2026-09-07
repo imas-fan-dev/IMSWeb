@@ -2,8 +2,7 @@ import type { PlatformPasswordChangeResponse } from '@imsweb/contracts/platform/
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { matchesCurrentPlatformPassword } from '@/domains/identity/platform-account-security/password/current-password';
-import { parsePlatformPasswordChangeRequest } from '@/domains/identity/platform-account-security/password/request';
-import { isPlatformJsonContentType } from '@/domains/identity/platform-auth/contracts/credentials';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import {
     PLATFORM_ACCESS_TOKEN_TTL_SECONDS,
     PLATFORM_REFRESH_TOKEN_TTL_MS,
@@ -20,10 +19,6 @@ const BCRYPT_PARAMETERS_JSON = JSON.stringify({
     normalization: 'fudaba-trim'
 });
 
-function invalidInput(c: Context<AppEnvironment>): Response {
-    return c.json({ success: false, code: 'PLATFORM_PASSWORD_INPUT_INVALID' }, 400);
-}
-
 // 403, not 401: the session is valid and stays valid, only the re-authentication
 // proof failed. The Web platform client treats every 401 as an expired access
 // token and answers it with a refresh-and-retry wave, so a mistyped current
@@ -33,18 +28,15 @@ function invalidCurrentPassword(c: Context<AppEnvironment>): Response {
 }
 
 export async function handleChangePlatformPassword(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'json', {
+        currentPassword: string;
+        newPassword: string;
+    }>
 ): Promise<Response> {
-    if (!isPlatformJsonContentType(c.req.header('content-type'))) {
-        return c.json({ success: false, code: 'PLATFORM_AUTH_JSON_REQUIRED' }, 415);
-    }
-    const parsed = parsePlatformPasswordChangeRequest(
-        await c.req.json<unknown>().catch(() => null)
-    );
-    if (parsed.status === 'unchanged') {
+    const parsed = c.req.valid('json');
+    if (parsed.currentPassword === parsed.newPassword) {
         return c.json({ success: false, code: 'PLATFORM_PASSWORD_UNCHANGED' }, 400);
     }
-    if (parsed.status === 'invalid') return invalidInput(c);
 
     const claims = c.get('platformUser')!;
     const account = c.get('platformAccount')!.account;
@@ -63,7 +55,7 @@ export async function handleChangePlatformPassword(
     }
     if (!await matchesCurrentPlatformPassword(
         c,
-        parsed.submission.currentPassword,
+        parsed.currentPassword,
         credential
     )) {
         return invalidCurrentPassword(c);
@@ -76,7 +68,7 @@ export async function handleChangePlatformPassword(
     const nextTokenVersion = account.token_version + 1;
     const refreshToken = createPlatformRefreshToken(nextTokenVersion);
     const [passwordHash, accessToken, keepSessionTokenHash] = await Promise.all([
-        passwords.hash(parsed.submission.newPassword),
+        passwords.hash(parsed.newPassword),
         tokenService.sign({
             id: account.id,
             tokenVersion: nextTokenVersion,

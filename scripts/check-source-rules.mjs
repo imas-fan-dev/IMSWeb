@@ -1,6 +1,11 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertWireContractAudit,
+  formatWireContractAudit,
+} from "./audit-json-wire-contracts.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -151,6 +156,15 @@ for (const filePath of productionFiles) {
     failures.push(`${file}: import z through @imsweb/contracts/z, not zod directly`);
   }
 
+  if (
+    file.startsWith("apps/api/src/") &&
+    /(?:import|require)\s*\(\s*["']@imsweb\/contracts(?:\/[^"']+)?["']\s*\)/.test(source)
+  ) {
+    failures.push(
+      `${file}: load contracts with a static import; dynamic and require-based contract loading is not allowed in API production code`,
+    );
+  }
+
   if (file.startsWith("apps/api/src/domains/")) {
     const forbiddenImport = source.match(
       /(?:from\s*|import\s*\(\s*)["'](@\/(?:infra|runtime)\/[^"']*)["']/,
@@ -180,6 +194,15 @@ for (const filePath of productionFiles) {
     );
   }
 
+  if (
+    file.startsWith("apps/web/app/") &&
+    /\bskipContractCheck\s*:\s*true\b/.test(source)
+  ) {
+    failures.push(
+      `${file}: production JSON endpoints must use parsed(...) instead of meta.skipContractCheck`,
+    );
+  }
+
   if (file === "packages/contracts/src/paths.ts") continue;
   for (const literal of stringLiterals(source)) {
     if (
@@ -193,10 +216,28 @@ for (const filePath of productionFiles) {
   }
 }
 
+const entrypointCheck = absolute("packages/contracts/scripts/check-entrypoints.mjs");
+let entrypointAudit = "";
+if (fs.existsSync(entrypointCheck)) {
+  const result = spawnSync(process.execPath, [entrypointCheck, "--source"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    failures.push(
+      `contracts entrypoint source check failed:\n${(result.stderr || result.stdout).trim()}`,
+    );
+  } else {
+    entrypointAudit = result.stdout.trim();
+  }
+}
+
 if (failures.length) {
   throw new Error(`Source rules check failed:\n${failures.join("\n")}`);
 }
 
+assertWireContractAudit(repositoryRoot);
+
 process.stdout.write(
-  `Source rules check passed: ${productionFiles.length} production source files respect shared path, contract export, zod, and ownership boundaries\n`,
+  `Source rules check passed: ${productionFiles.length} production source files respect shared path, contract export, zod, and ownership boundaries\n${entrypointAudit ? `${entrypointAudit}\n` : ""}${formatWireContractAudit(repositoryRoot)}\n`,
 );

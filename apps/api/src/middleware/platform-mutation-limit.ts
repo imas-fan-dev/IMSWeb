@@ -1,3 +1,4 @@
+import type { PlatformMutationRateLimitResponse } from '@imsweb/contracts/platform';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { services } from '@/middleware/hono-context';
@@ -19,7 +20,10 @@ function limiter(
                 'Retry-After',
                 String(Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000)))
             );
-            return c.json({ success: false, code: 'PLATFORM_RATE_LIMITED' }, 429);
+            return c.json(
+                { success: false, code: 'PLATFORM_RATE_LIMITED' } satisfies PlatformMutationRateLimitResponse,
+                429
+            );
         }
         await next();
     };

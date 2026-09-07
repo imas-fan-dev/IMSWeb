@@ -57,6 +57,7 @@ describe("AdminLogin", () => {
       vi.fn(async () =>
         jsonResponse({
           success: true,
+          token: "operator-token",
           username: "operator",
           producername: "Operator",
           dept: "op",

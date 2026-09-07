@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
+import {
+    fudabaCardPlacementDeleteResponseSchema,
+    fudabaCardPlacementSaveResponseSchema,
+    fudabaErrorResponseSchema
+} from '@imsweb/contracts/fudaba';
 import { createHonoApp } from '@/app';
 import {
     PLATFORM_ACCESS_TOKEN_COOKIE,
@@ -19,6 +24,18 @@ const TOKEN = 'placement-access-token';
 const CSRF = 'placement-csrf-secret';
 const OFFICE_ID = 'placement-office';
 const CARD_ID = 'placement-card';
+
+interface Schema<T> {
+    parse(value: unknown): T;
+}
+
+async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
+    return parsed;
+}
 
 function csrfHash(value: string): string {
     return createHash('sha256').update(value).digest('hex');
@@ -315,10 +332,10 @@ test('card placement routes strictly validate geometry and expose create/update 
             body: JSON.stringify(placementBody(null))
         });
         assert.equal(created.status, 201);
-        const createdBody = await created.json() as {
-            success: boolean;
-            placement: Record<string, unknown>;
-        };
+        const createdBody = await contractJson(
+            created,
+            fudabaCardPlacementSaveResponseSchema
+        );
         const pinnedAt = String(createdBody.placement.pinnedAt);
         assert.equal(new Date(pinnedAt).toISOString(), pinnedAt);
         assert.deepEqual(createdBody, {
@@ -351,11 +368,19 @@ test('card placement routes strictly validate geometry and expose create/update 
             { ...placementBody(0), expectedRevision: 2_147_483_648 },
             { ...placementBody(0), unexpected: true }
         ]) {
-            assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
+            const response = await fixture.app.request(`http://ims.test${path()}`, {
                 method: 'PUT',
                 headers: bearerHeaders({ 'content-type': 'application/json' }),
                 body: JSON.stringify(invalid)
-            })).status, 400);
+            });
+            assert.equal(response.status, 400);
+            if (
+                ('expectedRevision' in invalid &&
+                    invalid.expectedRevision === 2_147_483_648) ||
+                'unexpected' in invalid
+            ) {
+                await contractJson(response, fudabaErrorResponseSchema);
+            }
         }
 
         const updated = await fixture.app.request(`http://ims.test${path()}`, {
@@ -370,9 +395,10 @@ test('card placement routes strictly validate geometry and expose create/update 
             })
         });
         assert.equal(updated.status, 200);
-        const updatedBody = await updated.json() as {
-            placement: Record<string, unknown>;
-        };
+        const updatedBody = await contractJson(
+            updated,
+            fudabaCardPlacementSaveResponseSchema
+        );
         assert.equal(updatedBody.placement.pinnedAt, pinnedAt);
         assert.equal(updatedBody.placement.revision, 1);
         assert.equal(updatedBody.placement.x, 0);
@@ -384,7 +410,7 @@ test('card placement routes strictly validate geometry and expose create/update 
             body: JSON.stringify(placementBody(0))
         });
         assert.equal(stale.status, 409);
-        assert.deepEqual(await stale.json(), {
+        assert.deepEqual(await contractJson(stale, fudabaErrorResponseSchema), {
             success: false,
             code: 'FUDABA_CARD_PLACEMENT_CONFLICT',
             revision: 1
@@ -454,7 +480,10 @@ test('card placement saves hide closed or non-public offices while deletion rema
             body: JSON.stringify({ expectedRevision: 0 })
         });
         assert.equal(removed.status, 200);
-        assert.deepEqual(await removed.json(), { success: true, revision: 1 });
+        assert.deepEqual(await contractJson(removed, fudabaCardPlacementDeleteResponseSchema), {
+            success: true,
+            revision: 1
+        });
     });
 
 test('card placement DELETE enforces CAS, reports in-use state, and advances revision',
@@ -486,7 +515,7 @@ test('card placement DELETE enforces CAS, reports in-use state, and advances rev
             body: JSON.stringify({ expectedRevision: 0 })
         });
         assert.equal(inUse.status, 409);
-        assert.deepEqual(await inUse.json(), {
+        assert.deepEqual(await contractJson(inUse, fudabaErrorResponseSchema), {
             success: false,
             code: 'FUDABA_CARD_PLACEMENT_IN_USE',
             revision: 0
@@ -502,7 +531,10 @@ test('card placement DELETE enforces CAS, reports in-use state, and advances rev
             body: JSON.stringify({ expectedRevision: 0 })
         });
         assert.equal(removed.status, 200);
-        assert.deepEqual(await removed.json(), { success: true, revision: 1 });
+        assert.deepEqual(await contractJson(removed, fudabaCardPlacementDeleteResponseSchema), {
+            success: true,
+            revision: 1
+        });
         assert.equal((await fixture.app.request(`http://ims.test${path()}`, {
             method: 'DELETE',
             headers: bearerHeaders({ 'content-type': 'application/json' }),

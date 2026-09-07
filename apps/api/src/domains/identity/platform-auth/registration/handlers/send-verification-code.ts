@@ -1,7 +1,11 @@
+import type {
+    PlatformAuthError,
+    PlatformRegistrationVerificationResponse,
+    PlatformRetryableAuthError
+} from '@imsweb/contracts/platform';
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
-import { isPlatformJsonContentType } from "@/domains/identity/platform-auth/contracts/credentials";
-import { parsePlatformEmailVerificationRequest } from "@/domains/identity/platform-auth/registration/request";
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import {
     clearPlatformEmailVerificationCooldown,
     markPlatformEmailVerificationCooldown,
@@ -22,36 +26,22 @@ function unavailable(c: Context<AppEnvironment>): Response {
         {
             success: false,
             code: "PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE",
-        },
+        } satisfies PlatformAuthError,
         503,
     );
 }
 
 export async function handlePlatformRegistrationVerification(
-    c: Context<AppEnvironment>,
+    c: ValidatedRequestContext<AppEnvironment, 'json', { email: string }>,
 ): Promise<Response> {
-    if (!isPlatformJsonContentType(c.req.header("content-type"))) {
-        return c.json(
-            { success: false, code: "PLATFORM_AUTH_JSON_REQUIRED" },
-            415,
-        );
-    }
-    const input = parsePlatformEmailVerificationRequest(
-        await c.req.json<unknown>().catch(() => null),
-    );
-    if (!input) {
-        return c.json(
-            { success: false, code: "PLATFORM_AUTH_INPUT_INVALID" },
-            400,
-        );
-    }
+    const input = c.req.valid('json');
     const runtime = services(c);
     const sender = runtime.platformEmailSender;
     if (!sender?.available) return unavailable(c);
 
     const cachedCooldownMs = await readPlatformEmailVerificationCooldown(
         runtime.cache,
-        input.normalizedEmail,
+        input.email,
     );
     if (cachedCooldownMs !== null) {
         const retryAfterSeconds = Math.max(
@@ -64,20 +54,17 @@ export async function handlePlatformRegistrationVerification(
                 success: false,
                 code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
                 retryAfterSeconds,
-            },
+            } satisfies PlatformRetryableAuthError,
             429,
         );
     }
 
     const code = createPlatformEmailVerificationCode();
     const deliveryToken = createPlatformEmailVerificationDeliveryToken();
-    const codeHash = hashPlatformEmailVerificationCode(
-        input.normalizedEmail,
-        code,
-    );
+    const codeHash = hashPlatformEmailVerificationCode(input.email, code);
     const now = Date.now();
     const issued = await platformAccountRepository(c).issueEmailVerification({
-        normalizedEmail: input.normalizedEmail,
+        normalizedEmail: input.email,
         deliveryToken,
         codeHash,
         expiresAt: now + PLATFORM_EMAIL_CODE_TTL_MS,
@@ -88,7 +75,7 @@ export async function handlePlatformRegistrationVerification(
     if (issued.status === "cooldown") {
         await markPlatformEmailVerificationCooldown(
             runtime.cache,
-            input.normalizedEmail,
+            input.email,
             issued.retryAfterMs,
         );
         const retryAfterSeconds = Math.max(
@@ -101,36 +88,33 @@ export async function handlePlatformRegistrationVerification(
                 success: false,
                 code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
                 retryAfterSeconds,
-            },
+            } satisfies PlatformRetryableAuthError,
             429,
         );
     }
 
     try {
         await sender.sendRegistrationVerification({
-            email: input.normalizedEmail,
+            email: input.email,
             code,
             expiresInMinutes: PLATFORM_EMAIL_CODE_TTL_MS / 60_000,
         });
     } catch {
         await platformAccountRepository(c).revokeEmailVerification(
-            input.normalizedEmail,
+            input.email,
             deliveryToken,
         );
-        await clearPlatformEmailVerificationCooldown(
-            runtime.cache,
-            input.normalizedEmail,
-        );
+        await clearPlatformEmailVerificationCooldown(runtime.cache, input.email);
         return unavailable(c);
     }
 
     const delivered = await platformAccountRepository(
         c,
-    ).completeEmailVerificationDelivery(input.normalizedEmail, deliveryToken);
+    ).completeEmailVerificationDelivery(input.email, deliveryToken);
     if (!delivered) return unavailable(c);
     await markPlatformEmailVerificationCooldown(
         runtime.cache,
-        input.normalizedEmail,
+        input.email,
         PLATFORM_EMAIL_CODE_RESEND_MS,
     );
 
@@ -138,7 +122,7 @@ export async function handlePlatformRegistrationVerification(
         {
             success: true,
             retryAfterSeconds: PLATFORM_EMAIL_CODE_RESEND_MS / 1000,
-        },
+        } satisfies PlatformRegistrationVerificationResponse,
         202,
     );
 }

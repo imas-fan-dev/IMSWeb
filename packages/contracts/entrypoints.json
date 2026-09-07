@@ -1,0 +1,32 @@
+{
+  "entrypoints": [
+    { "subpath": ".", "source": "src/index.ts", "namespace": null, "runtime": "schema" },
+    { "subpath": "./wiki", "source": "src/wiki.ts", "namespace": "wiki", "runtime": "schema" },
+    { "subpath": "./platform", "source": "src/platform/index.ts", "namespace": "platform", "runtime": "schema" },
+    { "subpath": "./namecards", "source": "src/namecards.ts", "namespace": "namecards", "runtime": "schema" },
+    { "subpath": "./fudaba", "source": "src/fudaba/index.ts", "namespace": "fudaba", "runtime": "schema" },
+    { "subpath": "./fudaba/guest-submissions", "source": "src/fudaba/guest-submissions.ts", "namespace": "fudabaGuestSubmissions", "runtime": "schema" },
+    { "subpath": "./fudaba/map-delivery", "source": "src/fudaba/map-delivery.ts", "namespace": "fudabaMapDelivery", "runtime": "schema" },
+    { "subpath": "./fudaba/runtime", "source": "src/fudaba/runtime.ts", "namespace": "fudabaRuntime", "runtime": "zod-free" },
+    { "subpath": "./fudaba/card-claims", "source": "src/fudaba/card-claims.ts", "namespace": "fudabaCardClaims", "runtime": "schema" },
+    { "subpath": "./fudaba/location-review", "source": "src/fudaba/location-review.ts", "namespace": "fudabaLocationReview", "runtime": "schema" },
+    { "subpath": "./platform/admin", "source": "src/platform/admin.ts", "namespace": "platformAdmin", "runtime": "schema" },
+    { "subpath": "./platform/account-security", "source": "src/platform/account-security.ts", "namespace": "platformAccountSecurity", "runtime": "schema" },
+    { "subpath": "./live", "source": "src/live.ts", "namespace": "live", "runtime": "schema" },
+    { "subpath": "./events", "source": "src/events.ts", "namespace": "events", "runtime": "schema" },
+    { "subpath": "./editorial", "source": "src/editorial.ts", "namespace": "editorial", "runtime": "schema" },
+    { "subpath": "./news", "source": "src/news.ts", "namespace": "news", "runtime": "schema" },
+    { "subpath": "./information", "source": "src/information.ts", "namespace": "information", "runtime": "schema" },
+    { "subpath": "./chronicle", "source": "src/chronicle.ts", "namespace": "chronicle", "runtime": "schema" },
+    { "subpath": "./about", "source": "src/about.ts", "namespace": "about", "runtime": "schema" },
+    { "subpath": "./producer-map", "source": "src/producer-map.ts", "namespace": "producerMap", "runtime": "schema" },
+    { "subpath": "./homepage-links", "source": "src/homepage-links.ts", "namespace": "homepageLinks", "runtime": "schema" },
+    { "subpath": "./site-packages", "source": "src/site-packages.ts", "namespace": "sitePackages", "runtime": "schema" },
+    { "subpath": "./media", "source": "src/media.ts", "namespace": "media", "runtime": "schema" },
+    { "subpath": "./system", "source": "src/system.ts", "namespace": "system", "runtime": "schema" },
+    { "subpath": "./admin", "source": "src/admin.ts", "namespace": "admin", "runtime": "schema" },
+    { "subpath": "./z", "source": "src/z.ts", "namespace": null, "runtime": "z-adapter" },
+    { "subpath": "./common", "source": "src/common.ts", "namespace": "common", "runtime": "schema" },
+    { "subpath": "./paths", "source": "src/paths.ts", "namespace": "paths", "runtime": "zod-free" }
+  ]
+}

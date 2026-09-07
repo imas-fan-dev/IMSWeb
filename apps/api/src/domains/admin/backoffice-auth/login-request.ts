@@ -1,24 +1,18 @@
-import type { LoginErrorResponse } from '@/domains/admin/backoffice-auth/response';
-import {
-    invalidRequest,
-    requestRecord
-} from '@/utils/validation/request-data';
+import type {
+    // pi-lens-ignore: ts:2305
+    AdminBackofficeFailureResponse,
+    // pi-lens-ignore: ts:2305
+    AdminLoginRequest
+} from '@imsweb/contracts/admin';
+import { invalidRequest } from '@/utils/validation/request-data';
 
-export interface LoginRequest {
-    username: string;
-    password: string;
+export function loginValidationError(message: string): AdminBackofficeFailureResponse {
+    return { success: false, message };
 }
 
-export function loginValidationError(
-    message: string
-): LoginErrorResponse & Record<string, string | boolean> {
-    return { success: false, message } satisfies LoginErrorResponse;
-}
-
-export function validateLoginRequest(value: unknown): LoginRequest {
-    const { username, password } = requestRecord(value, '用户名或密码格式错误');
+export function normalizeLoginRequest(value: AdminLoginRequest): AdminLoginRequest {
+    const { username, password } = value;
     if (
-        typeof username !== 'string' || typeof password !== 'string' ||
         username.length < 1 || username.length > 128 ||
         password.length < 1 || new TextEncoder().encode(password).byteLength > 1024
     ) {

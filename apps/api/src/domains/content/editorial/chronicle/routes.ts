@@ -1,3 +1,4 @@
+import { editorialArticlePayloadSchema, editorialChronicleQuerySchema, editorialIdParamsSchema, editorialStatusQuerySchema } from '@imsweb/contracts/editorial';
 import { handleCreateChronicleEntry } from '@/domains/content/editorial/chronicle/handlers/create-entry';
 import { handleDeleteChronicleEntry } from '@/domains/content/editorial/chronicle/handlers/delete-entry';
 import { handleGetAdminChronicleEntry } from '@/domains/content/editorial/chronicle/handlers/get-admin-entry';
@@ -14,19 +15,19 @@ import {
 } from '@/domains/content/editorial/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
 import {
-    jsonValidator,
-    paramValidator,
-    queryValidator
+    jsonSchemaValidator,
+    paramSchemaValidator,
+    querySchemaValidator
 } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter
 } from '@/routing/capability-router';
 
-const idParams = paramValidator(validateEditorialIdParams);
-const statusQuery = queryValidator(validateEditorialStatusQuery);
-const chronicleQuery = queryValidator(validateEditorialChronicleQuery);
-const articlePayload = jsonValidator(validateEditorialArticlePayload);
+const idParams = paramSchemaValidator(editorialIdParamsSchema, {}, validateEditorialIdParams);
+const statusQuery = querySchemaValidator(editorialStatusQuerySchema, {}, validateEditorialStatusQuery);
+const chronicleQuery = querySchemaValidator(editorialChronicleQuerySchema, {}, validateEditorialChronicleQuery);
+const articlePayload = jsonSchemaValidator(editorialArticlePayloadSchema, {}, validateEditorialArticlePayload);
 
 const read = [backofficeAuth, opOnly] as const;
 const write = [backofficeAuth, opOnly, backofficeCsrf] as const;

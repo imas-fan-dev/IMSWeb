@@ -1,3 +1,4 @@
+import { backofficeProtectedHttpErrorSchema } from "@imsweb/contracts/common"
 import { adminApiPath, apiPath, mapsPath } from "@imsweb/contracts/paths"
 import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
@@ -18,6 +19,7 @@ import {
   producerMapAdminSnapshotSchema,
   producerMapAdminUpdateSchema,
   producerMapContentSchema,
+  producerMapErrorResponseSchema,
   producerMapGeometrySchema,
   producerMapImageUploadSchema,
 } from "@imsweb/contracts/producer-map"
@@ -48,6 +50,7 @@ export function getProducerMapGeometry() {
   return bundleAssetClient.Get(
     mapsPath("/china-provinces.json"),
     parsed(producerMapGeometrySchema, {
+      errorSchema: producerMapErrorResponseSchema,
       cacheFor: STABLE_CONTENT_CACHE_FOR,
     })
   )
@@ -57,6 +60,7 @@ export function getProducerMapContent() {
   return apiClient.Get(
     apiPath("/producer-map"),
     parsed(producerMapContentSchema, {
+      errorSchema: producerMapErrorResponseSchema,
       cacheFor: STABLE_CONTENT_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
       select: normalizeProducerMapContent,
@@ -68,6 +72,7 @@ export function getAdminProducerMapContent() {
   return adminApiClient.Get(
     adminApiPath("/producer-map"),
     parsed(producerMapAdminSnapshotSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeAuth(),
       select: normalizeProducerMapAdminSnapshot,
     })
@@ -82,6 +87,7 @@ export function updateAdminProducerMapContent(
     adminApiPath("/producer-map"),
     { content, revision },
     parsed(producerMapAdminUpdateSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeCsrf(),
       name: PUBLIC_CACHE_INVALIDATION_SOURCE.producerMap,
       select: normalizeProducerMapAdminUpdate,
@@ -96,6 +102,7 @@ export function uploadAdminProducerMapImage(file: File) {
     adminApiPath("/producer-map/images"),
     form,
     parsed(producerMapImageUploadSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
       meta: withBackofficeCsrf(),
     })
   )

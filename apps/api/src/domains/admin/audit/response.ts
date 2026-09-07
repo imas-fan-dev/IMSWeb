@@ -1,26 +1,12 @@
-export interface AuditLogResponse {
-    id: number | string;
-    username: string | null;
-    producername: string | null;
-    action: string | null;
-    target: string | null;
-    ip: string | null;
-    time: string | null;
-}
+import type {
+    AdminAuditErrorResponse,
+    AdminAuditLog,
+    AdminAuditLogList
+} from '@imsweb/contracts/admin';
 
-export interface AuditLogListResponse {
-    success: true;
-    data: AuditLogResponse[];
-}
-
-export type AuditErrorResponse =
-    | {
-        success: false;
-        message: '未登录' | 'token无效';
-    }
-    | {
-        message: '无权限（仅op可访问）';
-    };
+export type AuditLogResponse = AdminAuditLog;
+export type AuditLogListResponse = AdminAuditLogList;
+export type AuditErrorResponse = AdminAuditErrorResponse;
 
 function auditRecord(value: unknown): { [key: string]: unknown } {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {

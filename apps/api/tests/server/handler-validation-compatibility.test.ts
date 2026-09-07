@@ -1,4 +1,22 @@
-import { namecardPageSchema } from '@imsweb/contracts/namecards';
+import {
+    fudabaGuestSubmissionDetailSchema,
+    // pi-lens-ignore: ts:2724
+    fudabaGuestSubmissionErrorSchema,
+    fudabaGuestSubmissionWithdrawalSchema
+} from '@imsweb/contracts/fudaba/guest-submissions';
+import {
+    adminNamecardListSchema,
+    // pi-lens-ignore: ts:2305
+    namecardEmptyResponseSchema,
+    // pi-lens-ignore: ts:2305
+    legacyEmojiMutationSchema,
+    // pi-lens-ignore: ts:2305
+    namecardErrorResponseSchema,
+    namecardPageSchema,
+    reactionMutationSchema,
+    reactionSchema
+} from '@imsweb/contracts/namecards';
+import { failureMessageResponseSchema } from '@imsweb/contracts/common';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
@@ -10,7 +28,9 @@ import type {
     BackofficeAuthRepository,
     EventRepository,
     NamecardRepository,
+    NamecardSubmissionRecord,
     NewsRepository,
+    ReactionRepository,
     StoryRepository
 } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -121,6 +141,12 @@ function createCompatibilityFixture(
         async findCardByMediaUrl() { return null; },
         ...namecardOverrides
     };
+    const reactions: ReactionRepository = {
+        async findApprovedCard(id) { return id === 1 ? { id } : null; },
+        async listReactions() { return [{ emoji: '👍', count: 2 }]; },
+        async incrementReaction() {},
+        async decrementAndPruneReaction() {}
+    };
     const news: NewsRepository = {
         async listPublicNews() { return []; },
         async findLatestPublicNewsId() { return null; },
@@ -220,6 +246,7 @@ function createCompatibilityFixture(
         events,
         namecards,
         news,
+        reactions,
         story,
         storage,
         backofficeTokens: {
@@ -258,6 +285,17 @@ function createCompatibilityFixture(
 
 async function responseJson(response: Response): Promise<unknown> {
     return response.json();
+}
+
+interface Schema {
+    parse(value: unknown): unknown;
+}
+
+async function contractJson(response: Response, schema: Schema): Promise<unknown> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw = await response.json();
+    assert.deepEqual(schema.parse(raw), raw);
+    return raw;
 }
 
 test('invalid event IDs preserve legacy 404 bodies without repository side effects', async () => {
@@ -553,6 +591,8 @@ test('Fudaba guest submission media requires the private receipt token', async (
     const path = '/api/community/exchange/guest-submissions/19/media/front';
     const unauthorized = await fixture.request(path);
     assert.equal(unauthorized.status, 404);
+    assert.match(unauthorized.headers.get('content-type') ?? '', /^text\/plain/i);
+    assert.equal(await unauthorized.text(), 'Not Found');
 
     const response = await fixture.request(path, {
         headers: { 'X-Fudaba-Guest-Submission-Token': 'a'.repeat(64) }
@@ -1025,8 +1065,7 @@ test('namecard public and admin pagination preserve parseInt aliases and fallbac
     for (const [query, repositoryArgs] of publicCases) {
         const response = await fixture.request(`/api/cards?${query}`);
         assert.equal(response.status, 200, query);
-        const cardsBody = await responseJson(response);
-        namecardPageSchema.parse(cardsBody);
+        const cardsBody = await contractJson(response, namecardPageSchema);
         assert.deepEqual(cardsBody, { list: [], total: 0, totalPage: 0 });
         assert.deepEqual(fixture.calls.namecardListApproved.at(-1), repositoryArgs, query);
     }
@@ -1046,7 +1085,7 @@ test('namecard public and admin pagination preserve parseInt aliases and fallbac
             headers: { Authorization: 'Bearer op-token' }
         });
         assert.equal(response.status, 200, query);
-        assert.deepEqual(await responseJson(response), {
+        assert.deepEqual(await contractJson(response, adminNamecardListSchema), {
             success: true,
             data: [],
             pageInfo: {
@@ -1061,11 +1100,128 @@ test('namecard public and admin pagination preserve parseInt aliases and fallbac
     }
 });
 
+test('legacy reaction aliases retain their separate mutation envelopes and strip extra keys', async () => {
+    const fixture = createCompatibilityFixture();
+    for (const route of ['/api/emojis', '/api/reactions'] as const) {
+        const listed = await fixture.request(`${route}?id=1&legacy=true`);
+        assert.equal(listed.status, 200, route);
+        assert.deepEqual(await contractJson(listed, reactionSchema), { '👍': 2 });
+
+        const mutation = await fixture.request(route, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: 1, emoji: '👍', legacy: true })
+        });
+        assert.equal(mutation.status, 200, route);
+        assert.deepEqual(
+            await contractJson(
+                mutation,
+                route === '/api/emojis' ? legacyEmojiMutationSchema : reactionMutationSchema
+            ),
+            route === '/api/emojis' ? { success: true } : { ok: true }
+        );
+    }
+
+    const invalid = await fixture.request('/api/reactions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: 1, emoji: 'not-supported' })
+    });
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(await contractJson(invalid, namecardErrorResponseSchema), {
+        error: 'Unsupported reaction'
+    });
+});
+
+test('guest submission detail and withdrawal preserve legacy request projection and exact envelopes', async () => {
+    const submission: NamecardSubmissionRecord = {
+        id: 7,
+        image1_url: '/uploads/namecard/original/front.webp',
+        image2_url: '/uploads/namecard/original/back.webp',
+        status: 'pending',
+        revision: 0,
+        series_code: '765',
+        favorite_idols: [
+            { idol_id: 1, agency_code: '765', name_cn: '天海春香', display_order: 0 }
+        ],
+        created_at: '2026-08-03T01:00:00.000Z'
+    };
+    const fixture = createCompatibilityFixture({
+        async findSubmissionByTokenHash() { return submission; },
+        async withdrawSubmission() {
+            return {
+                status: 'updated',
+                card: { ...submission, status: 'withdrawn', revision: 1 }
+            };
+        }
+    });
+    const token = 'a'.repeat(64);
+    const headers = { 'X-Fudaba-Guest-Submission-Token': token };
+
+    const detail = await fixture.request('/api/community/exchange/guest-submissions/7', {
+        headers
+    });
+    assert.equal(detail.status, 200);
+    assert.deepEqual(await contractJson(detail, fudabaGuestSubmissionDetailSchema), {
+        success: true,
+        submission: {
+            id: 7,
+            seriesCode: '765',
+            favoriteIdols: [{ id: 1, name: '天海春香', seriesCode: '765' }],
+            frontImageUrl: '/uploads/namecard/original/front.webp',
+            backImageUrl: '/uploads/namecard/original/back.webp',
+            publicationStatus: 'pending',
+            createdAt: '2026-08-03T01:00:00.000Z',
+            revision: 0
+        }
+    });
+
+    const withdrawn = await fixture.request('/api/community/exchange/guest-submissions/7/withdraw', {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ expectedRevision: 0, ignored: true })
+    });
+    assert.equal(withdrawn.status, 200);
+    assert.deepEqual(await contractJson(withdrawn, fudabaGuestSubmissionWithdrawalSchema), {
+        success: true,
+        submission: {
+            id: 7,
+            seriesCode: '765',
+            favoriteIdols: [{ id: 1, name: '天海春香', seriesCode: '765' }],
+            frontImageUrl: '/uploads/namecard/original/front.webp',
+            backImageUrl: '/uploads/namecard/original/back.webp',
+            publicationStatus: 'withdrawn',
+            createdAt: '2026-08-03T01:00:00.000Z',
+            revision: 1
+        }
+    });
+
+    const unavailable = await fixture.request('/api/community/exchange/guest-submissions/7');
+    assert.equal(unavailable.status, 404);
+    assert.deepEqual(await contractJson(unavailable, fudabaGuestSubmissionErrorSchema), {
+        error: 'Submission not found'
+    });
+
+    const conflicting = createCompatibilityFixture({
+        async withdrawSubmission() { return { status: 'conflict', revision: 3 }; }
+    });
+    const conflict = await conflicting.request('/api/community/exchange/guest-submissions/7/withdraw', {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ expectedRevision: 0 })
+    });
+    assert.equal(conflict.status, 409);
+    assert.deepEqual(await contractJson(conflict, fudabaGuestSubmissionErrorSchema), {
+        error: 'Submission changed; refresh and retry',
+        revision: 3
+    });
+});
+
 test('invalid namecard IDs preserve public/admin responses after auth and CSRF checks', async () => {
     const fixture = createCompatibilityFixture();
     const publicCard = await fixture.request('/api/card/not-a-number');
     assert.equal(publicCard.status, 200);
-    assert.deepEqual(await responseJson(publicCard), {});
+    assert.deepEqual(await contractJson(publicCard, namecardEmptyResponseSchema), {});
     assert.deepEqual(fixture.calls.namecardFindApproved, []);
 
     fixture.calls.namecardFindMedia.length = 0;
@@ -1076,7 +1232,10 @@ test('invalid namecard IDs preserve public/admin responses after auth and CSRF c
         method: 'POST'
     });
     assert.equal(unauthenticated.status, 401);
-    assert.deepEqual(await responseJson(unauthenticated), { success: false, message: '未登录' });
+    assert.deepEqual(
+        await contractJson(unauthenticated, failureMessageResponseSchema),
+        { success: false, message: '未登录' }
+    );
 
     const missingCsrf = await fixture.request('/api/admin/cards/not-a-number', {
         method: 'DELETE',
@@ -1102,7 +1261,7 @@ test('invalid namecard IDs preserve public/admin responses after auth and CSRF c
         body: JSON.stringify({ expected_revision: 0 })
     });
     assert.equal(approved.status, 404);
-    assert.deepEqual(await responseJson(approved), {
+    assert.deepEqual(await contractJson(approved, namecardErrorResponseSchema), {
         error: 'Namecard not found'
     });
 
@@ -1111,7 +1270,7 @@ test('invalid namecard IDs preserve public/admin responses after auth and CSRF c
         headers: { Authorization: 'Bearer op-token' }
     });
     assert.equal(deleted.status, 404);
-    assert.deepEqual(await responseJson(deleted), {
+    assert.deepEqual(await contractJson(deleted, namecardErrorResponseSchema), {
         error: 'Namecard not found'
     });
     assert.deepEqual(fixture.calls.namecardFindMedia, []);

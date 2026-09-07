@@ -1,3 +1,10 @@
+import {
+    fudabaMapDeliveryQuerySchema,
+    fudabaMapSourceActivationRequestSchema,
+    fudabaMapSourceDeleteRequestSchema,
+    fudabaMapSourceParamsSchema,
+    fudabaMapSourceWriteRequestSchema,
+} from '@imsweb/contracts/fudaba/map-delivery';
 import { requireFudabaMap } from '@/domains/community/fudaba/access-policy';
 import { handleActivateFudabaMapSource } from '@/domains/community/fudaba/map-delivery/handlers/activate-map-source';
 import { handleCreateFudabaMapSource } from '@/domains/community/fudaba/map-delivery/handlers/create-map-source';
@@ -10,6 +17,11 @@ import {
     currentBackofficeOp,
 } from '@/middleware/hono-auth';
 import {
+    mapDeliveryJsonSchemaValidator,
+    mapDeliveryParamSchemaValidator,
+} from '@/domains/community/fudaba/map-delivery/request-schema-middleware';
+import { querySchemaValidator } from '@/middleware/request-validation';
+import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
 } from '@/routing/capability-router';
@@ -21,6 +33,7 @@ export function fudabaMapDeliveryRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         currentBackofficeOp,
         requireFudabaMap,
+        querySchemaValidator(fudabaMapDeliveryQuerySchema),
         handleGetFudabaMapDelivery,
     );
     routes.post(
@@ -29,6 +42,10 @@ export function fudabaMapDeliveryRoutes(): ImsCapabilityRouter {
         currentBackofficeOp,
         requireFudabaMap,
         backofficeCsrf,
+        mapDeliveryJsonSchemaValidator(
+            fudabaMapSourceWriteRequestSchema,
+            'source',
+        ),
         handleCreateFudabaMapSource,
     );
     routes.put(
@@ -37,6 +54,11 @@ export function fudabaMapDeliveryRoutes(): ImsCapabilityRouter {
         currentBackofficeOp,
         requireFudabaMap,
         backofficeCsrf,
+        mapDeliveryParamSchemaValidator(fudabaMapSourceParamsSchema),
+        mapDeliveryJsonSchemaValidator(
+            fudabaMapSourceWriteRequestSchema,
+            'source',
+        ),
         handleUpdateFudabaMapSource,
     );
     routes.delete(
@@ -45,6 +67,11 @@ export function fudabaMapDeliveryRoutes(): ImsCapabilityRouter {
         currentBackofficeOp,
         requireFudabaMap,
         backofficeCsrf,
+        mapDeliveryParamSchemaValidator(fudabaMapSourceParamsSchema),
+        mapDeliveryJsonSchemaValidator(
+            fudabaMapSourceDeleteRequestSchema,
+            'delete',
+        ),
         handleDeleteFudabaMapSource,
     );
     routes.put(
@@ -53,6 +80,10 @@ export function fudabaMapDeliveryRoutes(): ImsCapabilityRouter {
         currentBackofficeOp,
         requireFudabaMap,
         backofficeCsrf,
+        mapDeliveryJsonSchemaValidator(
+            fudabaMapSourceActivationRequestSchema,
+            'activate',
+        ),
         handleActivateFudabaMapSource,
     );
     return routes;

@@ -1,12 +1,13 @@
+import type { NamecardMediaParams } from "@imsweb/contracts/media";
 import { publicUploadsPath } from "@imsweb/contracts/paths";
 import { publicUploadKey } from "@/domains/delivery/media/media-access";
-import { invalidRequest, requestRecord } from "@/utils/validation/request-data";
+import { invalidRequest } from "@/utils/validation/request-data";
 import {
     namecardThumbnailObjectKey,
     publicMediaObjectKey,
 } from "@/utils/storage/business-object-keys";
 
-export interface NamecardMediaParams {
+export interface NamecardMediaRequest {
     filename: string;
     url: string;
     key: string;
@@ -17,8 +18,7 @@ export interface PublicUploadPathRequest {
     key: string;
 }
 
-function namecardFilename(value: unknown): string {
-    const params = requestRecord(value, "名片文件名无效");
+function namecardFilename(params: NamecardMediaParams): string {
     if (
         typeof params.filename !== "string" ||
         !params.filename ||
@@ -30,8 +30,8 @@ function namecardFilename(value: unknown): string {
 }
 
 export function validateNamecardMediaParams(
-    value: unknown,
-): NamecardMediaParams {
+    value: NamecardMediaParams,
+): NamecardMediaRequest {
     const filename = namecardFilename(value);
     const url = publicUploadsPath(`/namecard/original/${filename}`);
     let key: string;
@@ -44,8 +44,8 @@ export function validateNamecardMediaParams(
 }
 
 export function validateNamecardThumbnailMediaParams(
-    value: unknown,
-): NamecardMediaParams {
+    value: NamecardMediaParams,
+): NamecardMediaRequest {
     const filename = namecardFilename(value);
     const suffix = ".jpg";
     if (

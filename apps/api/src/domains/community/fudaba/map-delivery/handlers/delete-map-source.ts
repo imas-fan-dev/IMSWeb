@@ -5,10 +5,9 @@ import {
     readFudabaMapDelivery,
     saveFudabaMapDelivery,
 } from '@/domains/community/fudaba/map-delivery/map-delivery-store';
-import {
-    parseFudabaMapSourceDeleteRequest,
-    parseFudabaMapSourceId,
-} from '@/domains/community/fudaba/map-delivery/request';
+import type {
+    FudabaMapSourceDelete,
+} from '@imsweb/contracts/fudaba/map-delivery';
 import { fudabaMapDeliveryResponse } from '@/domains/community/fudaba/map-delivery/response';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import { services } from '@/middleware/hono-context';
@@ -21,8 +20,11 @@ export async function handleDeleteFudabaMapSource(
     const storage = runtime.storage;
     if (!storage) throw new Error('Object storage unavailable');
     try {
-        const sourceId = parseFudabaMapSourceId(c);
-        const payload = await parseFudabaMapSourceDeleteRequest(c);
+        const request = c.req as unknown as {
+            valid(target: 'json' | 'param'): unknown;
+        };
+        const sourceId = (request.valid('param') as { sourceId: string }).sourceId;
+        const payload = request.valid('json') as FudabaMapSourceDelete;
         const current = await readFudabaMapDelivery(
             storage,
             runtime.config?.fudabaMapStyleUrls ?? [],

@@ -11,8 +11,8 @@ import {
 describe("community API contracts", () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it("normalizes numeric string card IDs", () => {
-    expect(
+  it("rejects numeric string card IDs instead of coercing wire data", () => {
+    expect(() =>
       namecardSchema.parse({
         id: "12",
         image1_url: "/uploads/front.webp",
@@ -21,8 +21,8 @@ describe("community API contracts", () => {
         image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
         status: "approved",
         created_at: null,
-      }).id
-    ).toBe(12)
+      })
+    ).toThrow()
   })
 
   it("rejects incomplete card media", () => {
@@ -128,6 +128,8 @@ describe("community API contracts", () => {
             list: [
               {
                 id: 42,
+                seriesCode: null,
+                favoriteIdols: [],
                 image1_url: "/uploads/front.webp",
                 image2_url: "/uploads/back.webp",
                 image1_thumbnail_url:

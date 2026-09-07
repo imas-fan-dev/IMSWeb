@@ -1,4 +1,4 @@
-import { isFudabaMapStyleUrl } from '@imsweb/contracts/fudaba/map-delivery';
+import { isFudabaMapStyleUrl } from '@imsweb/contracts/fudaba/runtime';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 

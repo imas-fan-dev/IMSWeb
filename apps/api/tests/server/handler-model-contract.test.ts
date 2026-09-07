@@ -373,7 +373,7 @@ function routeRegistrations(source: string): string[] {
 function validatorAliases(source: string): Map<string, string> {
     const aliases = new Map<string, string>();
     const code = maskNonCode(source);
-    const pattern = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(json|param|query)Validator\s*\(/g;
+    const pattern = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(json|param|query)(?:Schema)?Validator\s*\(/g;
     for (const match of code.matchAll(pattern)) aliases.set(match[1], match[2]);
     return aliases;
 }
@@ -556,7 +556,7 @@ test('route handlers use validated request models and named multipart parsers', 
             )) consumedSources.add(match[1]);
         }
         for (const requestSource of consumedSources) {
-            const directValidator = new RegExp(`\\b${requestSource}Validator\\s*\\(`).test(routeCode);
+            const directValidator = new RegExp(`\\b${requestSource}(?:Schema)?Validator\\s*\\(`).test(routeCode);
             const aliasedValidator = [...aliases].some(([, kind]) => kind === requestSource);
             if (!directValidator && !aliasedValidator) {
                 failures.push(`${domain}/routes: missing ${requestSource} validation middleware`);

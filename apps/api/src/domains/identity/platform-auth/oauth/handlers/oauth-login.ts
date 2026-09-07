@@ -1,9 +1,16 @@
 import { createHash, randomBytes } from 'node:crypto';
+import type {
+    PlatformOAuthCallbackQuery,
+    PlatformOAuthProviderParams,
+    PlatformOAuthProvidersResponse,
+    PlatformOAuthStartQuery
+} from '@imsweb/contracts/platform';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import type { PlatformOAuthProviderCode, PlatformOAuthProviderSummary } from '@/ports/oauth';
 import { establishPlatformSession } from '@/domains/identity/platform-auth/contracts/session';
 import { platformAccountRepository, services } from '@/middleware/hono-context';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 const OAUTH_STATE_TTL_MS = 10 * 60_000;
 const DEFAULT_RETURN_PATH = '/community/exchange/me';
@@ -62,15 +69,18 @@ export async function handlePlatformOAuthProviders(c: Context<AppEnvironment>): 
     const oauth = services(c).platformOAuth;
     const providers = oauth ? await oauth.listProviders() : [];
     c.header('Cache-Control', 'private, no-store');
-    return c.json({ success: true, providers });
+    return c.json({ success: true, providers } satisfies PlatformOAuthProvidersResponse);
 }
 
-export async function handlePlatformOAuthStart(c: Context<AppEnvironment>): Promise<Response> {
-    const providerCode = c.req.param('provider');
+export async function handlePlatformOAuthStart(
+    c: ValidatedRequestContext<AppEnvironment, 'param', PlatformOAuthProviderParams> &
+        ValidatedRequestContext<AppEnvironment, 'query', PlatformOAuthStartQuery>
+): Promise<Response> {
+    const providerCode = c.req.valid('param').provider;
     const provider = await configuredProvider(c, providerCode);
     const oauth = services(c).platformOAuth;
     if (!provider || !oauth) return redirectToLogin(c, 'unavailable');
-    const returnPath = safeReturnPath(c.req.query('returnPath'));
+    const returnPath = safeReturnPath(c.req.valid('query').returnPath);
     const pair = createPkcePair();
     const createdAt = Date.now();
     await platformAccountRepository(c).createOAuthState({
@@ -91,15 +101,19 @@ export async function handlePlatformOAuthStart(c: Context<AppEnvironment>): Prom
     return c.redirect(authorizationUrl.toString(), 303);
 }
 
-export async function handlePlatformOAuthCallback(c: Context<AppEnvironment>): Promise<Response> {
-    const providerCode = c.req.param('provider');
+export async function handlePlatformOAuthCallback(
+    c: ValidatedRequestContext<AppEnvironment, 'param', PlatformOAuthProviderParams> &
+        ValidatedRequestContext<AppEnvironment, 'query', PlatformOAuthCallbackQuery>
+): Promise<Response> {
+    const providerCode = c.req.valid('param').provider;
     const provider = await configuredProvider(c, providerCode);
     const oauth = services(c).platformOAuth;
     if (!provider || !oauth) return redirectToLogin(c, 'unavailable');
-    const state = c.req.query('state');
-    const code = c.req.query('code');
-    if (!state || c.req.query('error') || !code || code.length > 4096) {
-        return redirectToLogin(c, c.req.query('error') ? 'denied' : 'invalid');
+    const query = c.req.valid('query');
+    const state = query.state;
+    const code = query.code;
+    if (!state || query.error || !code || code.length > 4096) {
+        return redirectToLogin(c, query.error ? 'denied' : 'invalid');
     }
     const consumedState = await platformAccountRepository(c).consumeOAuthState(
         hashValue(state),

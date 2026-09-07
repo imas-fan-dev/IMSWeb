@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
+import {
+    adminAccountErrorResponseSchema,
+    adminAccountListSchema,
+    adminAccountMutationSchema,
+    adminAuditLogListSchema,
+    adminLogoutSuccessResponseSchema
+} from '@imsweb/contracts/admin';
 import { createHonoApp } from '@/app';
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
@@ -130,6 +137,7 @@ test('only the super administrator can list op accounts', async (t) => {
     const body = await response.json() as {
         accounts: Array<{ username: string; adminRole: AdminRole }>;
     };
+    assert.deepEqual(adminAccountListSchema.parse(body), body);
     assert.deepEqual(body.accounts.map((account) => account.username), [
         'super-operator',
         'regular-operator'
@@ -138,6 +146,23 @@ test('only the super administrator can list op accounts', async (t) => {
         'super_admin',
         'admin'
     ]);
+});
+
+test('audit logs use the shared response contract', async (t) => {
+    const fixture = await createFixture(t);
+    t.after(() => fixture.close());
+    const response = await fixture.app.request('http://ims.test/api/admin/logs', {
+        headers: await authHeaders(fixture, {
+            id: fixture.ids.superAdmin,
+            username: 'super-operator',
+            dept: 'op',
+            role: 'super_admin'
+        })
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(adminAuditLogListSchema.parse(body), body);
 });
 
 test('super administrator creates only regular op accounts and audits the mutation', async (t) => {
@@ -160,12 +185,31 @@ test('super administrator creates only regular op accounts and audits the mutati
         })
     });
     assert.equal(response.status, 201);
-    assert.equal((await response.json() as { account: { adminRole: AdminRole } }).account.adminRole, 'admin');
+    const responseBody = await response.json() as { account: { adminRole: AdminRole } };
+    assert.deepEqual(adminAccountMutationSchema.parse(responseBody), responseBody);
+    assert.equal(responseBody.account.adminRole, 'admin');
     const created = await fixture.repository.findUserByUsername('new-operator');
     assert.ok(created);
     assert.equal(created.dept, 'op');
     assert.equal(created.admin_role, 'admin');
     assert.equal(created.password, 'hashed:secure-password-123');
+
+    const invalid = await fixture.app.request('http://ims.test/api/admin/accounts', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            username: 12,
+            producername: 'Invalid Operator P',
+            password: 'secure-password-123'
+        })
+    });
+    assert.equal(invalid.status, 400);
+    const invalidBody = await invalid.json();
+    assert.deepEqual(adminAccountErrorResponseSchema.parse(invalidBody), invalidBody);
+    assert.deepEqual(invalidBody, {
+        success: false,
+        message: '用户名、制作人名称或密码不符合要求'
+    });
 
     const duplicate = await fixture.app.request('http://ims.test/api/admin/accounts', {
         method: 'POST',
@@ -205,6 +249,8 @@ test('super administrator deletes a regular op and revokes its refresh sessions'
         { method: 'DELETE', headers }
     );
     assert.equal(removeEditor.status, 404);
+    const removeEditorBody = await removeEditor.json();
+    assert.deepEqual(adminAccountErrorResponseSchema.parse(removeEditorBody), removeEditorBody);
 
     const removeSelf = await fixture.app.request(
         `http://ims.test/api/admin/accounts/${fixture.ids.superAdmin}`,
@@ -217,6 +263,8 @@ test('super administrator deletes a regular op and revokes its refresh sessions'
         { method: 'DELETE', headers }
     );
     assert.equal(removed.status, 200);
+    const removedBody = await removed.json();
+    assert.deepEqual(adminLogoutSuccessResponseSchema.parse(removedBody), removedBody);
     assert.equal(await fixture.repository.findUserById(fixture.ids.admin), null);
     assert.equal(
         await fixture.repository.findRefreshSessionByTokenHash('a'.repeat(64)),

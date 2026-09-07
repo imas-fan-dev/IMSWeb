@@ -1,15 +1,19 @@
 import type {
     ChronicleActivity,
+    ChronicleActivityList,
     ChronicleActivitySummary,
+    ChronicleErrorResponse as ChronicleContractErrorResponse,
     ChronicleUpload,
+    chronicleUploadErrorResponseSchema,
     PendingChronicleMedia,
     UsedChronicleMedia,
 } from '@imsweb/contracts/chronicle';
 import type { SuccessFlag } from '@imsweb/contracts/common';
+import type { output } from '@imsweb/contracts/z';
 
 export type ChronicleActivityResponse = ChronicleActivity;
 export type ChronicleActivitySummaryResponse = ChronicleActivitySummary;
-export type ChronicleActivityListResponse = ChronicleActivitySummaryResponse[];
+export type ChronicleActivityListResponse = ChronicleActivityList;
 
 export type PendingChronicleMediaItemResponse =
     PendingChronicleMedia[string][number];
@@ -21,14 +25,8 @@ export type UsedChronicleMediaListResponse = UsedChronicleMedia;
 export type ChronicleMutationResponse = SuccessFlag;
 export type ChronicleUploadResponse = ChronicleUpload;
 
-export interface ChronicleErrorResponse {
-    error: string;
-}
-
-export interface ChronicleUploadErrorResponse {
-    success: false;
-    error: string;
-}
+export type ChronicleErrorResponse = ChronicleContractErrorResponse;
+export type ChronicleUploadErrorResponse = output<typeof chronicleUploadErrorResponseSchema>;
 
 // —— 媒体/重定向边界元数据（非线契约 JSON，属 API 本地响应边界）——
 

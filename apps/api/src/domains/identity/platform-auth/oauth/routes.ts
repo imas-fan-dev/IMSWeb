@@ -1,3 +1,16 @@
+import {
+    platformOAuthCallbackQuerySchema,
+    platformOAuthProviderParamsSchema,
+    platformOAuthStartQuerySchema
+} from '@imsweb/contracts/platform';
+import {
+    platformOAuthProviderCreateRequestSchema,
+    platformOAuthProviderDeleteRequestSchema,
+    platformOAuthAdminProviderParamsSchema,
+    platformOAuthProviderUpdateRequestSchema
+} from '@imsweb/contracts/platform/admin';
+import type { MiddlewareHandler } from 'hono';
+import type { AppEnvironment } from '@/app';
 import { backofficeAuth, backofficeCsrf, superAdminOnly } from '@/middleware/hono-auth';
 import {
     handleCreateAdminPlatformOAuthProvider,
@@ -10,19 +23,35 @@ import {
     handlePlatformOAuthProviders,
     handlePlatformOAuthStart,
 } from '@/domains/identity/platform-auth/oauth/handlers/oauth-login';
-import { jsonValidator } from '@/middleware/request-validation';
 import {
-    parsePlatformOAuthProviderCreate,
-    parsePlatformOAuthProviderDelete,
-    parsePlatformOAuthProviderUpdate,
-} from '@/domains/identity/platform-auth/oauth/request';
+    jsonSchemaValidator,
+    paramSchemaValidator,
+    querySchemaValidator
+} from '@/middleware/request-validation';
 import { createCapabilityRouter, type ImsCapabilityRouter } from '@/routing/capability-router';
+
+const publicProviderParams = paramSchemaValidator(platformOAuthProviderParamsSchema) as unknown as MiddlewareHandler<AppEnvironment>;
+const publicOAuthStartQuery = querySchemaValidator(platformOAuthStartQuerySchema) as unknown as MiddlewareHandler<AppEnvironment>;
+const publicOAuthCallbackQuery = querySchemaValidator(platformOAuthCallbackQuerySchema) as unknown as MiddlewareHandler<AppEnvironment>;
+const adminProviderParams = paramSchemaValidator(platformOAuthAdminProviderParamsSchema, {
+    invalidMessage: 'OAuth provider 无效'
+}) as unknown as MiddlewareHandler<AppEnvironment>;
 
 export function platformOAuthRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
     routes.get('/providers', handlePlatformOAuthProviders);
-    routes.get('/:provider/start', handlePlatformOAuthStart);
-    routes.get('/:provider/callback', handlePlatformOAuthCallback);
+    routes.get(
+        '/:provider/start',
+        publicProviderParams,
+        publicOAuthStartQuery,
+        handlePlatformOAuthStart
+    );
+    routes.get(
+        '/:provider/callback',
+        publicProviderParams,
+        publicOAuthCallbackQuery,
+        handlePlatformOAuthCallback
+    );
     return routes;
 }
 
@@ -34,8 +63,8 @@ export function platformOAuthAdminRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         superAdminOnly,
         backofficeCsrf,
-        jsonValidator(parsePlatformOAuthProviderCreate, {
-            malformedMessage: '请求正文必须为 JSON',
+        jsonSchemaValidator(platformOAuthProviderCreateRequestSchema, {
+            malformedMessage: '请求正文必须为 JSON'
         }),
         handleCreateAdminPlatformOAuthProvider,
     );
@@ -44,20 +73,22 @@ export function platformOAuthAdminRoutes(): ImsCapabilityRouter {
         backofficeAuth,
         superAdminOnly,
         backofficeCsrf,
-        jsonValidator(parsePlatformOAuthProviderUpdate, {
-            malformedMessage: '请求正文必须为 JSON',
+        adminProviderParams,
+        jsonSchemaValidator(platformOAuthProviderUpdateRequestSchema, {
+            malformedMessage: '请求正文必须为 JSON'
         }),
-        handleUpdateAdminPlatformOAuthProvider,
+        handleUpdateAdminPlatformOAuthProvider as unknown as MiddlewareHandler<AppEnvironment>,
     );
     routes.delete(
         '/:provider',
         backofficeAuth,
         superAdminOnly,
         backofficeCsrf,
-        jsonValidator(parsePlatformOAuthProviderDelete, {
-            malformedMessage: '请求正文必须为 JSON',
+        adminProviderParams,
+        jsonSchemaValidator(platformOAuthProviderDeleteRequestSchema, {
+            malformedMessage: '请求正文必须为 JSON'
         }),
-        handleDeleteAdminPlatformOAuthProvider,
+        handleDeleteAdminPlatformOAuthProvider as unknown as MiddlewareHandler<AppEnvironment>,
     );
     return routes;
 }

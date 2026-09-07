@@ -1,16 +1,15 @@
 import type {
     AdminAccount,
+    // pi-lens-ignore: ts:2305
+    AdminAccountErrorResponse as ContractAdminAccountErrorResponse,
     AdminAccountList,
     AdminAccountMutation,
+    // pi-lens-ignore: ts:2305
+    AdminLogoutSuccessResponse
 } from '@imsweb/contracts/admin';
-import type { SuccessFlag } from '@imsweb/contracts/common';
 
 export type AdminAccountResponse = AdminAccount;
 export type AdminAccountListResponse = AdminAccountList;
 export type CreateAdminAccountResponse = AdminAccountMutation;
-export type AdminAccountMutationResponse = SuccessFlag;
-
-export type AdminAccountErrorResponse = {
-    success: false;
-    message: string;
-};
+export type AdminAccountMutationResponse = AdminLogoutSuccessResponse;
+export type AdminAccountErrorResponse = ContractAdminAccountErrorResponse;

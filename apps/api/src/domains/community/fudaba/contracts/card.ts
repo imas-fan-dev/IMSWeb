@@ -1,4 +1,5 @@
 import { exchangePath } from '@imsweb/contracts/paths';
+import type { FudabaIdolSelection, FudabaOwnerCard } from '@imsweb/contracts/fudaba';
 import type { FudabaCardRecord } from '@/ports/repositories';
 
 function badRequest(message: string): Error {
@@ -20,7 +21,7 @@ export function parseFudabaRevision(value: unknown): number {
     return Number(revision);
 }
 
-export function fudabaOwnerCardView(card: FudabaCardRecord): Record<string, unknown> {
+export function fudabaOwnerCardView(card: FudabaCardRecord): FudabaOwnerCard {
     return {
         id: card.id,
         producerName: card.producer_name,
@@ -44,7 +45,7 @@ export function fudabaOwnerCardView(card: FudabaCardRecord): Record<string, unkn
 
 function idolView(
     idol: FudabaCardRecord['favorite_idols'][number]
-): Record<string, unknown> {
+): FudabaIdolSelection {
     return {
         id: idol.idol_id,
         name: idol.name_cn,

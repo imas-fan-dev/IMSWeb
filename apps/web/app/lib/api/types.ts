@@ -1,3 +1,5 @@
+import type { z } from "@imsweb/contracts/z"
+
 export type ApiResponseType =
   | "auto"
   | "json"
@@ -19,6 +21,10 @@ export interface ApiMethodMeta {
   responseType?: ApiResponseType
   /** Use only when an endpoint intentionally returns a failure-shaped payload as data. */
   skipBusinessErrorCheck?: boolean
+  /** Validates a JSON error response before its public fields are read. */
+  errorSchema?: z.ZodType
+  /** Validates a 2xx business-error payload before it becomes an ApiError. */
+  businessErrorSchema?: z.ZodType
   /** Set by `parsed()`: the payload is validated against a wire-contract schema. */
   parsed?: boolean
   /** Explicit opt-out for JSON endpoints that intentionally skip contract validation. */

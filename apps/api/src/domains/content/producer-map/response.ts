@@ -3,6 +3,7 @@ import type {
     ProducerMapAdminUpdate,
     ProducerMapCommunity,
     ProducerMapContent,
+    ProducerMapErrorResponse,
     ProducerMapImageUpload,
     ProducerMapRegion,
 } from '@imsweb/contracts/producer-map';
@@ -19,6 +20,4 @@ export type ProducerMapAdminReadResponse = ProducerMapRevisionResponse;
 export type ProducerMapUpdateSuccessResponse = ProducerMapAdminUpdate;
 export type ProducerMapImageUploadSuccessResponse = ProducerMapImageUpload;
 
-export interface ProducerMapMutationErrorResponse {
-    error: string;
-}
+export type ProducerMapMutationErrorResponse = ProducerMapErrorResponse;

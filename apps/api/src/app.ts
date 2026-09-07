@@ -4,7 +4,14 @@ import {
     siteContentPath,
     wikiPath,
 } from "@imsweb/contracts/paths";
-import { Hono } from "hono";
+import type { ErrorResponse } from '@imsweb/contracts/common';
+import type {
+    HealthLiveResponse,
+    HealthReadySuccessResponse,
+    HealthReadyUnavailableResponse
+} from '@imsweb/contracts/system';
+import type { WikiTestResponse } from '@imsweb/contracts/wiki';
+import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { requestId, type RequestIdVariables } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
@@ -89,6 +96,27 @@ export interface CreateHonoAppOptions {
     requestLogging?: boolean;
 }
 
+export async function handleSensitiveRequestPath(
+    c: Context<AppEnvironment>,
+    next: Next,
+): Promise<Response | void> {
+    let rawPath: string;
+    try {
+        rawPath = new URL(c.req.raw.url).pathname;
+    } catch {
+        return c.text("Forbidden", 403);
+    }
+    if (isSensitiveRequestPath(rawPath)) {
+        return c.text("Forbidden", 403);
+    }
+    await next();
+}
+
+export async function handleApplicationNotFound(c: Context<AppEnvironment>): Promise<Response> {
+    const assets = c.get("services").staticAssets;
+    return assets ? assets.fetch(c.req.raw) : c.text("Not Found", 404);
+}
+
 export function createHonoApp<
     Bindings extends object = Record<string, unknown>,
 >(
@@ -131,18 +159,7 @@ export function createHonoApp<
         await next();
     });
 
-    app.use("*", async (c, next) => {
-        let rawPath: string;
-        try {
-            rawPath = new URL(c.req.raw.url).pathname;
-        } catch {
-            return c.text("Forbidden", 403);
-        }
-        if (isSensitiveRequestPath(rawPath)) {
-            return c.text("Forbidden", 403);
-        }
-        await next();
-    });
+    app.use("*", handleSensitiveRequestPath);
 
     // Path-less middleware runs on every route. Origins are not wildcarded:
     // allowedCorsOrigin echoes back only loopback and packaged-client origins,
@@ -200,13 +217,20 @@ export function createHonoApp<
         await next();
     });
 
-    app.get(apiPath("/health/live"), (c) => c.json({ status: "ok" }));
+    app.get(apiPath("/health/live"), (c) => c.json(
+        { status: "ok" } satisfies HealthLiveResponse
+    ));
     app.get(apiPath("/health/ready"), async (c) => {
         const health = c.get("services").health;
-        if (!health) return c.json({ status: "unavailable" }, 503);
+        if (!health) {
+            return c.json(
+                { status: "unavailable" } satisfies HealthReadyUnavailableResponse,
+                503
+            );
+        }
         try {
             await health.check();
-            return c.json({ status: "ok" });
+            return c.json({ status: "ok" } satisfies HealthReadySuccessResponse);
         } catch (error) {
             if (options.requestLogging) {
                 console.warn(
@@ -220,12 +244,17 @@ export function createHonoApp<
                     }),
                 );
             }
-            return c.json({ status: "unavailable" }, 503);
+            return c.json(
+                { status: "unavailable" } satisfies HealthReadyUnavailableResponse,
+                503
+            );
         }
     });
 
     // Kept as a compatibility probe for existing clients.
-    app.get(wikiPath("/test"), (c) => c.json({ status: "ok" }));
+    app.get(wikiPath("/test"), (c) => c.json(
+        { status: "ok" } satisfies WikiTestResponse
+    ));
 
     registerAboutRoutes(app);
     registerProducerMapRoutes(app);
@@ -252,10 +281,7 @@ export function createHonoApp<
     registerSiteRoutes(app);
     registerWikiRoutes(app, (c) => c.get("services"));
 
-    app.notFound(async (c) => {
-        const assets = c.get("services").staticAssets;
-        return assets ? assets.fetch(c.req.raw) : c.text("Not Found", 404);
-    });
+    app.notFound(handleApplicationNotFound);
 
     app.onError((error, c) => {
         const candidate = Number(
@@ -278,10 +304,11 @@ export function createHonoApp<
                 }),
             );
         }
+        const body = {
+            error: status >= 500 ? "Internal server error" : error.message,
+        } satisfies ErrorResponse;
         return new Response(
-            JSON.stringify({
-                error: status >= 500 ? "Internal server error" : error.message,
-            }),
+            JSON.stringify(body),
             {
                 status,
                 headers: { "Content-Type": "application/json; charset=UTF-8" },

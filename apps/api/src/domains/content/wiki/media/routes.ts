@@ -5,6 +5,15 @@ import {
   imagePath,
   wikiPath,
 } from '@imsweb/contracts/paths';
+import {
+  deleteWikiAgencyIconRequestSchema,
+  deleteWikiIdolMediaRequestSchema,
+  wikiAgencyIdParamsSchema,
+  wikiAssetIdParamsSchema,
+  wikiAssetParamsSchema,
+  wikiGroupIdParamsSchema,
+  wikiIdolIdParamsSchema,
+} from '@imsweb/contracts/wiki';
 import type { Env, Hono } from "hono";
 import {
   createWikiWriteAuthorization,
@@ -37,7 +46,7 @@ import {
   validateWikiMediaIdolIdParams,
   wikiValidationErrorBody,
 } from "@/domains/content/wiki/request";
-import { jsonValidator, paramValidator } from "@/middleware/request-validation";
+import { jsonSchemaValidator, paramSchemaValidator } from "@/middleware/request-validation";
 
 export function registerWikiMediaRoutes<E extends Env>(
   app: Hono<E>,
@@ -47,9 +56,9 @@ export function registerWikiMediaRoutes<E extends Env>(
     malformedMessage: "请求内容不是有效 JSON",
     errorBody: wikiValidationErrorBody,
   };
-  const assetParam = paramValidator(validateWikiAssetParams, {
+  const assetParam = paramSchemaValidator(wikiAssetParamsSchema, {
     errorBody: wikiValidationErrorBody,
-  });
+  }, validateWikiAssetParams);
   const writeAuthorization = createWikiWriteAuthorization(resolveServices);
 
   app.on(
@@ -79,37 +88,37 @@ export function registerWikiMediaRoutes<E extends Env>(
   );
   app.get(
     adminWikiPath('/agencies/:agencyId/story-cover-assets'),
-    paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
+    paramSchemaValidator(wikiAgencyIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAgencyIdParams),
     createHandleListWikiStoryCoverAssets(resolveServices),
   );
   app.post(
     adminWikiPath('/agencies/:agencyId/story-cover-assets'),
-    paramValidator(validateWikiAgencyIdParams, { errorBody: wikiValidationErrorBody }),
+    paramSchemaValidator(wikiAgencyIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAgencyIdParams),
     createHandleCreateWikiStoryCoverAsset(resolveServices),
   );
   app.patch(
     adminWikiPath('/story-cover-assets/:assetId'),
-    paramValidator(validateWikiAssetIdParams, { errorBody: wikiValidationErrorBody }),
+    paramSchemaValidator(wikiAssetIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAssetIdParams),
     createHandleUpdateWikiStoryCoverAsset(resolveServices),
   );
   app.delete(
     adminWikiPath('/story-cover-assets/:assetId'),
-    paramValidator(validateWikiAssetIdParams, { errorBody: wikiValidationErrorBody }),
+    paramSchemaValidator(wikiAssetIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiAssetIdParams),
     createHandleDeleteWikiStoryCoverAsset(resolveServices),
   );
   app.put(
     adminWikiPath('/agencies/:agencyId/icon'),
-    paramValidator(validateWikiMediaAgencyIdParams, { errorBody: wikiValidationErrorBody }),
+    paramSchemaValidator(wikiAgencyIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiMediaAgencyIdParams),
     createHandleSaveWikiEntityImage(resolveServices, "agency", "agencyId"),
   );
   app.put(
     adminWikiPath('/groups/:groupId/icon'),
-    paramValidator(validateWikiMediaGroupIdParams, { errorBody: wikiValidationErrorBody }),
+    paramSchemaValidator(wikiGroupIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiMediaGroupIdParams),
     createHandleSaveWikiEntityImage(resolveServices, "group", "groupId"),
   );
   app.put(
     adminWikiPath('/idols/:idolId/avatar'),
-    paramValidator(validateWikiMediaIdolIdParams, { errorBody: wikiValidationErrorBody }),
+    paramSchemaValidator(wikiIdolIdParamsSchema, { errorBody: wikiValidationErrorBody }, validateWikiMediaIdolIdParams),
     createHandleSaveWikiEntityImage(resolveServices, "idol", "idolId"),
   );
   app.get(
@@ -123,7 +132,7 @@ export function registerWikiMediaRoutes<E extends Env>(
   app.delete(
     wikiPath('/agency-icon'),
     writeAuthorization,
-    jsonValidator(validateDeleteWikiAgencyIconRequest, jsonOptions),
+    jsonSchemaValidator(deleteWikiAgencyIconRequestSchema, jsonOptions, validateDeleteWikiAgencyIconRequest),
     createHandleDeleteWikiAgencyIcon(resolveServices),
   );
   app.post(
@@ -133,7 +142,7 @@ export function registerWikiMediaRoutes<E extends Env>(
   app.delete(
     wikiPath('/idol-media'),
     writeAuthorization,
-    jsonValidator(validateDeleteWikiIdolMediaRequest, jsonOptions),
+    jsonSchemaValidator(deleteWikiIdolMediaRequestSchema, jsonOptions, validateDeleteWikiIdolMediaRequest),
     createHandleDeleteWikiIdolMedia(resolveServices),
   );
 }

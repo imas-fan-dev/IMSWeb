@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import {
     fudabaCardInteractionResponseSchema,
-    fudabaCardPageSchema
+    fudabaCardPageSchema,
+    fudabaErrorResponseSchema
 } from '@imsweb/contracts/fudaba';
 import { createHonoApp } from '@/app';
 import {
@@ -31,6 +32,18 @@ const TOKEN = 'interaction-access-token';
 const CSRF = 'interaction-csrf-secret';
 const CARD_ID = 'interaction-card';
 const CREATED_AT = '2026-08-02T00:00:00.000Z';
+
+interface Schema<T> {
+    parse(value: unknown): T;
+}
+
+async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
+    return parsed;
+}
 
 class PublicMediaStorage implements ObjectStorage {
     async createPublicReadUrl(key: string): Promise<string | null> {
@@ -308,8 +321,10 @@ test('liking and unliking a card round-trips through the repository',
             headers: cookieHeaders(true)
         });
         assert.equal(liked.status, 200);
-        const likedBody = await liked.json();
-        fudabaCardInteractionResponseSchema.parse(likedBody);
+        const likedBody = await contractJson(
+            liked,
+            fudabaCardInteractionResponseSchema
+        );
         assert.deepEqual(likedBody, {
             success: true,
             cardId: CARD_ID,
@@ -326,7 +341,7 @@ test('liking and unliking a card round-trips through the repository',
             headers: cookieHeaders(true)
         });
         assert.equal(unliked.status, 200);
-        assert.deepEqual(await unliked.json(), {
+        assert.deepEqual(await contractJson(unliked, fudabaCardInteractionResponseSchema), {
             success: true,
             cardId: CARD_ID,
             interactions: {
@@ -371,7 +386,7 @@ test('interactions on unknown cards stay 404 and never leak repository state',
             { method: 'PUT', headers: cookieHeaders(true) }
         );
         assert.equal(missing.status, 404);
-        assert.deepEqual(await missing.json(), {
+        assert.deepEqual(await contractJson(missing, fudabaErrorResponseSchema), {
             success: false,
             code: 'FUDABA_CARD_INTERACTION_NOT_FOUND'
         });
@@ -406,10 +421,7 @@ test('the favourite collection lists only cards the viewer favourited',
             { headers: bearerHeaders() }
         );
         assert.equal(collection.status, 200);
-        const body = await collection.json() as {
-            items: Record<string, unknown>[];
-        };
-        fudabaCardPageSchema.parse(body);
+        const body = await contractJson(collection, fudabaCardPageSchema);
         assert.equal(body.items.length, 1);
         assert.equal(body.items[0].id, CARD_ID);
         assert.deepEqual(body.items[0].interactions, {

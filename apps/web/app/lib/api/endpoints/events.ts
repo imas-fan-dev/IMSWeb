@@ -9,7 +9,10 @@ import { parsed } from "../parsed"
 import { apiClient } from "../client"
 import { normalizeEventPage } from "../media-urls"
 
-import { eventPageSchema } from "@imsweb/contracts/events"
+import {
+  eventErrorResponseSchema,
+  eventPageSchema,
+} from "@imsweb/contracts/events"
 
 export {
   eventIdSchema,
@@ -22,7 +25,7 @@ export type * from "@imsweb/contracts/events"
 
 import type { EventPage } from "@imsweb/contracts/events"
 
-type EventPageRequest = {
+export type EventPageRequest = {
   limit?: number
   cursor?: string
 }
@@ -34,6 +37,7 @@ export function getEventPage({ limit = 20, cursor }: EventPageRequest = {}) {
   return apiClient.Get(
     apiPath("/events"),
     parsed(eventPageSchema, {
+      errorSchema: eventErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.events,
       params,

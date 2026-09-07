@@ -14,6 +14,10 @@ import {
   type WikiAdminGroup,
   type WikiAdminIdol,
 } from "~/lib/api"
+import type {
+  WikiAgencyMutationResult,
+  WikiIdolMutationResult,
+} from "@imsweb/contracts/wiki"
 
 function requestDetails(call: unknown[]) {
   const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
@@ -53,7 +57,22 @@ describe("WikiEntityEditorDialog", () => {
       if (path === "/api/admin/wiki/agencies" && request.method === "POST") {
         return Promise.resolve(
           Response.json(
-            { status: "success", agency: { id: 9 } },
+            {
+              status: "success",
+              agency: {
+                id: 9,
+                code: "vproject",
+                name: "Virtual Project",
+                color: "#8dbbff",
+                wikiEnabled: true,
+                bannerTitle: "Virtual Project",
+                displayOrder: 0,
+                layoutRevision: 0,
+                iconUrl: null,
+                imageTransform: defaultWikiImageTransform,
+                mediaRevision: 0,
+              },
+            } satisfies WikiAgencyMutationResult,
             { status: 201 }
           )
         )
@@ -136,11 +155,32 @@ describe("WikiEntityEditorDialog", () => {
   })
 
   it("submits a story content page with its story subtype", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        Response.json({ status: "success", idol: { id: 42 } }, { status: 201 })
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          status: "success",
+          idol: {
+            id: 42,
+            agencyId: 6,
+            name: "周年活动",
+            folderName: "anniversary_event",
+            color: null,
+            wikiUrl: "https://wiki.example.test/events/anniversary",
+            wikiEnabled: true,
+            displayOrder: 0,
+            textColor: "#ffffff",
+            imageFit: "cover",
+            groupIds: [],
+            imageUrl: "",
+            imageTransform: defaultWikiImageTransform,
+            mediaRevision: 0,
+            entryKind: "story",
+            entrySubtype: "event",
+          },
+        } satisfies WikiIdolMutationResult,
+        { status: 201 }
       )
+    )
     vi.stubGlobal("fetch", fetchMock)
     const agency: WikiAdminAgency = {
       id: 6,

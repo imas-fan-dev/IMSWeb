@@ -1,4 +1,5 @@
 import { adminApiPath, apiPath, eventChroniclePath, exchangePath, platformApiPath, platformAuthPath, wikiPath } from '@imsweb/contracts/paths';
+import type { ErrorResponse } from '@imsweb/contracts/common';
 import { createHash } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
 import type { AppEnvironment } from "@/app";
@@ -226,7 +227,7 @@ export async function enforceRateLimit(
     "Retry-After",
     String(Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000))),
   );
-  return c.json({ error: "Too many requests" }, 429);
+  return c.json({ error: "Too many requests" } satisfies ErrorResponse, 429);
 }
 
 function requestSpecificLimit(

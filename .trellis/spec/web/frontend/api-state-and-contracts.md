@@ -18,14 +18,21 @@ multiple modules, then use a folder with `index.ts` for the core module.
 Use same-origin relative URLs built by `@imsweb/contracts/paths`. Endpoint code
 keeps only the business suffix and dynamic parameters.
 
-Every JSON response uses `parsed(schema, config)` from
+Every JSON success response uses `parsed(schema, config)` from
 `app/lib/api/parsed.ts`. It marks the method as contract checked, runs
 `schema.safeParse`, and raises an `ApiError` with kind `contract` when the wire
-payload is invalid. Use `select` only after validation. Do not add a handwritten
-transform or response generic to bypass schema inference.
+payload is invalid. Pass contracts HTTP-error and `2xx` business-error schemas
+through the same config. `parsed(...)` compares its parsed value with raw JSON;
+schemas must not hide wire drift by stripping fields. Use `select` only after
+validation. Do not add a handwritten transform or response generic to bypass
+schema inference.
 
-`meta.skipContractCheck` is a reviewed opt-out for raw probes and
-infrastructure tests. It is not a normal endpoint option.
+`meta.skipContractCheck` is not permitted in production endpoint code. A
+non-JSON success still declares its contracts JSON error schema. Internal auth
+replay calls such as `method.context.Post(...)` follow the same rule: use
+`parsed(...)` with contracts-owned refresh success and HTTP-error schemas. The
+compiler gate resolves imported schemas, config helpers, and object spreads, so
+an indirect call is not an exception.
 
 ## Mutations and CSRF
 

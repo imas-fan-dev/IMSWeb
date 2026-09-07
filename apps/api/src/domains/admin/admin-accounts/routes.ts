@@ -1,17 +1,26 @@
+import {
+    // pi-lens-ignore: ts:2724
+    adminAccountIdParamsSchema,
+    // pi-lens-ignore: ts:2305
+    adminCreateAccountRequestSchema
+} from '@imsweb/contracts/admin';
 import { adminApiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import {
-    validateAdminAccountIdParams
+    normalizeAdminAccountIdParams
 } from '@/domains/admin/admin-accounts/request';
 import { handleCreateAdminAccount } from '@/domains/admin/admin-accounts/handlers/create-admin-account';
 import {
     createAdminAccountValidationError,
-    validateCreateAdminAccountRequest
+    normalizeCreateAdminAccountRequest
 } from '@/domains/admin/admin-accounts/create-admin-account-request';
 import { handleDeleteAdminAccount } from '@/domains/admin/admin-accounts/handlers/delete-admin-account';
 import { handleListAdminAccounts } from '@/domains/admin/admin-accounts/handlers/list-admin-accounts';
 import { backofficeAuth, backofficeCsrf, opOnly, superAdminOnly } from '@/middleware/hono-auth';
-import { jsonValidator, paramValidator } from '@/middleware/request-validation';
+import {
+    jsonSchemaValidator,
+    paramSchemaValidator
+} from '@/middleware/request-validation';
 
 export function registerAdminAccountRoutes(app: ImsHonoApp): void {
     app.get(
@@ -27,10 +36,11 @@ export function registerAdminAccountRoutes(app: ImsHonoApp): void {
         opOnly,
         superAdminOnly,
         backofficeCsrf,
-        jsonValidator(validateCreateAdminAccountRequest, {
+        jsonSchemaValidator(adminCreateAccountRequestSchema, {
+            invalidMessage: '管理员账号信息格式错误',
             malformedMessage: '管理员账号信息格式错误',
             errorBody: createAdminAccountValidationError
-        }),
+        }, normalizeCreateAdminAccountRequest),
         handleCreateAdminAccount
     );
     app.delete(
@@ -39,9 +49,10 @@ export function registerAdminAccountRoutes(app: ImsHonoApp): void {
         opOnly,
         superAdminOnly,
         backofficeCsrf,
-        paramValidator(validateAdminAccountIdParams, {
+        paramSchemaValidator(adminAccountIdParamsSchema, {
+            invalidMessage: '管理员账号 ID 无效',
             errorBody: createAdminAccountValidationError
-        }),
+        }, normalizeAdminAccountIdParams),
         handleDeleteAdminAccount
     );
 }

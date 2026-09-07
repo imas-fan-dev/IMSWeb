@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import {
+    fudabaErrorResponseSchema,
+    fudabaOfficeMutationResponseSchema,
+    fudabaOwnerOfficeListSchema
+} from '@imsweb/contracts/fudaba';
 import { createHonoApp } from '@/app';
 import type { RateLimiter } from '@/ports/cache';
 import type { ParsedUpload, UploadParser, UploadedFile } from '@/ports/http';
@@ -23,6 +28,18 @@ const PLATFORM_TOKEN = 'office-platform-token';
 const CSRF_SECRET = 'office-csrf-secret';
 const CREATED_AT = '2026-08-03T01:00:00.000Z';
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
+
+interface Schema<T> {
+    parse(value: unknown): T;
+}
+
+async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
+    return parsed;
+}
 
 function csrfHash(value: string): string {
     return createHash('sha256').update(value).digest('hex');
@@ -577,7 +594,9 @@ test('owner office reads ignore public/write flags and never expose object keys'
         { headers: bearerHeaders() }
     );
     assert.equal(list.status, 200);
-    const serialized = JSON.stringify(await list.json());
+    const serialized = JSON.stringify(
+        await contractJson(list, fudabaOwnerOfficeListSchema)
+    );
     assert.equal(serialized.includes('object_key'), false);
     assert.equal(serialized.includes('protected/fudaba'), false);
     assert.match(serialized, /media\/cover/);
@@ -605,8 +624,8 @@ test('office creation requires persistent idempotency and replays one resource',
 
     const untaggedBody = officeBody({ seriesCodes: [] });
     const created = await createOffice(fixture, 'create-office-key', untaggedBody);
-    const createdBody = await created.json() as { office?: { id: string } };
-    assert.equal(created.status, 201, JSON.stringify(createdBody));
+    assert.equal(created.status, 201);
+    const createdBody = await contractJson(created, fudabaOfficeMutationResponseSchema);
     assert.ok(createdBody.office?.id);
     assert.equal(fixture.createInputs[0]?.status, 'active');
     assert.equal(fixture.createInputs[0]?.revision, 0);
@@ -618,16 +637,20 @@ test('office creation requires persistent idempotency and replays one resource',
 
     const replay = await createOffice(fixture, 'create-office-key', untaggedBody);
     assert.equal(replay.status, 201);
-    assert.equal((await replay.json() as { office: { id: string } }).office.id,
-        createdBody.office?.id);
+    assert.equal(
+        (await contractJson(replay, fudabaOfficeMutationResponseSchema)).office.id,
+        createdBody.office.id
+    );
     const conflict = await createOffice(
         fixture,
         'create-office-key',
         officeBody({ name: 'Different office' })
     );
     assert.equal(conflict.status, 409);
-    assert.equal((await conflict.json() as { code: string }).code,
-        'FUDABA_IDEMPOTENCY_CONFLICT');
+    assert.equal(
+        (await contractJson(conflict, fudabaErrorResponseSchema) as { code: string }).code,
+        'FUDABA_IDEMPOTENCY_CONFLICT'
+    );
 
     const forbidden = await createOffice(
         fixture,
@@ -635,6 +658,7 @@ test('office creation requires persistent idempotency and replays one resource',
         officeBody({ status: 'hidden' })
     );
     assert.equal(forbidden.status, 400);
+    await contractJson(forbidden, fudabaErrorResponseSchema);
     const tooManyTags = await createOffice(
         fixture,
         'too-many-tags',
@@ -734,13 +758,13 @@ test('cover upload is active-only, reserves before put, and serves private previ
     assert.equal(JSON.stringify(body).includes('object_key'), false);
 
     const preview = await fixture.app.request(
-        'http://ims.test/api/community/exchange/me/offices/owner-office/media/pending-cover',
+        'http://ims.test/api/community/exchange/me/offices/owner-office/media/pending-cover?v=1',
         { headers: bearerHeaders(), redirect: 'manual' }
     );
     assert.equal(preview.status, 307);
     assert.equal(preview.headers.get('cache-control'), 'private, no-store');
     const head = await fixture.app.request(
-        'http://ims.test/api/community/exchange/me/offices/owner-office/media/pending-cover',
+        'http://ims.test/api/community/exchange/me/offices/owner-office/media/pending-cover?v=1',
         { method: 'HEAD', headers: bearerHeaders(), redirect: 'manual' }
     );
     assert.equal(head.status, 307);

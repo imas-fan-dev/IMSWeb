@@ -1,4 +1,4 @@
-import { isFudabaMapStyleUrl } from '@imsweb/contracts/fudaba/map-delivery';
+import { isFudabaMapStyleUrl } from '@imsweb/contracts/fudaba/runtime';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { FUDABA_MAP_DELIVERY_OBJECT_KEY } from '@/utils/storage/business-object-keys';
 

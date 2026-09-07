@@ -1,5 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import {
+    chronicleActivityListSchema,
+    chronicleActivitySchema,
+    chronicleErrorResponseSchema,
+    chronicleUploadErrorResponseSchema,
+    chronicleUploadResponseSchema,
+    pendingChronicleMediaSchema,
+    usedChronicleMediaSchema
+} from '@imsweb/contracts/chronicle';
+import {
+    failureMessageResponseSchema,
+    messageErrorResponseSchema,
+    successFlagSchema
+} from '@imsweb/contracts/common';
 import { createHonoApp } from '@/app';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { IdempotencyClaim, IdempotencyResponse, IdempotencyStore } from '@/ports/cache';
@@ -297,6 +311,8 @@ async function fixture() {
     }, 3600);
     return {
         app: createHonoApp(() => runtime),
+        token,
+        tokens,
         storage,
         compensation,
         idempotency,
@@ -305,6 +321,18 @@ async function fixture() {
         limiter,
         auth: { Authorization: token }
     };
+}
+
+async function assertRawJsonConforms<T>(
+    response: Response,
+    status: number,
+    schema: { parse(value: unknown): T }
+): Promise<T> {
+    assert.equal(response.status, status);
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw: unknown = await response.json();
+    assert.deepEqual(schema.parse(raw), raw);
+    return raw as T;
 }
 
 function uploadRequest(app: ReturnType<typeof createHonoApp>, key?: string) {
@@ -769,4 +797,126 @@ test('Chronicle committed deletion compensation still converges on a later reque
     assert.equal(compensation.pending.size, 0);
     assert.equal(compensation.enqueues.length, 1);
     assert.equal(storage.deletes.length, 2);
+});
+
+test('Chronicle mounted JSON responses preserve shared schemas across public and admin routes', async () => {
+    const { app, storage, uploads, token, tokens } = await fixture();
+    const auth = { Authorization: `Bearer ${token}` };
+    const editorToken = await tokens.sign({
+        id: 2,
+        username: 'chronicle-editor',
+        producername: 'Chronicle Editor',
+        dept: 'editor',
+        csrfSecret: 'chronicle-editor-csrf'
+    }, 3600);
+    storage.seed(chronicleKey('upload', 'evidence/pending.png'), Uint8Array.of(1));
+    storage.seed(chronicleKey('used', 'evidence/used.png'), Uint8Array.of(2));
+    storage.seedMeta('evidence', [{
+        filename: 'pending.png',
+        status: 'pending',
+        uploader: 'producer',
+        time: '2026-09-06T00:00:00.000Z'
+    }]);
+
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/activities'),
+        200,
+        chronicleActivityListSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/activities/evidence'),
+        200,
+        chronicleActivitySchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/pending'),
+        401,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/assets/images/eventchronicle/events/upload/evidence/pending.png'),
+        401,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/pending', {
+            headers: { Authorization: `Bearer ${editorToken}` }
+        }),
+        403,
+        messageErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/pending', { headers: auth }),
+        200,
+        pendingChronicleMediaSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/used', { headers: auth }),
+        200,
+        usedChronicleMediaSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/approve/evidence/pending.png', {
+            method: 'POST',
+            headers: {
+                Cookie: `ims_admin_access=${token}; ims_admin_csrf=unused-for-authorization`
+            }
+        }),
+        403,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/approve/missing/nope.png', {
+            method: 'POST',
+            headers: auth
+        }),
+        404,
+        chronicleErrorResponseSchema
+    );
+    storage.seed(chronicleKey('upload', 'conflict/source.png'), Uint8Array.of(3));
+    storage.seed(chronicleKey('used', 'conflict/source.png'), Uint8Array.of(4));
+    storage.seedMeta('conflict', [{ filename: 'source.png', status: 'pending' }]);
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/approve/conflict/source.png', {
+            method: 'POST',
+            headers: { ...auth, 'Idempotency-Key': 'conflict-approval' }
+        }),
+        409,
+        chronicleErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await app.request('/eventchronicle/admin/approve/evidence/pending.png', {
+            method: 'POST',
+            headers: { ...auth, 'Idempotency-Key': 'successful-approval' }
+        }),
+        200,
+        successFlagSchema
+    );
+
+    uploads.error = Object.assign(new Error('invalid multipart'), { status: 400 });
+    await assertRawJsonConforms(
+        await uploadRequest(app),
+        400,
+        chronicleUploadErrorResponseSchema
+    );
+    uploads.error = null;
+    uploads.next = {
+        fields: {
+            activityId: 'upload-evidence',
+            username: 'producer',
+            ignoredLegacyField: 'ignored'
+        },
+        files: {
+            images: {
+                filename: 'upload.png',
+                contentType: 'image/png',
+                body: Uint8Array.of(9)
+            }
+        }
+    };
+    await assertRawJsonConforms(
+        await uploadRequest(app, 'upload-evidence-key'),
+        200,
+        chronicleUploadResponseSchema
+    );
 });

@@ -27,7 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useState, type ReactNode } from "react"
-import { Navigate, Outlet } from "react-router"
+import { Navigate, Outlet, useLocation } from "react-router"
 import { toast } from "sonner"
 
 import { Badge } from "~/components/ui/badge"
@@ -56,6 +56,7 @@ const navigation: Array<{
   accent: string
   end?: boolean
   superOnly?: boolean
+  editorOnly?: boolean
 }> = [
   {
     to: "/admin",
@@ -127,6 +128,7 @@ const navigation: Array<{
     description: "剧情角色素材",
     icon: BookOpenTextIcon,
     accent: "bg-franchise-sc",
+    editorOnly: true,
   },
   {
     to: "/admin/chronicle",
@@ -262,8 +264,13 @@ function isExpiredSession(error: unknown): boolean {
   )
 }
 
+function isEditorWikiRoute(pathname: string): boolean {
+  return pathname === "/admin/stories" || pathname.startsWith("/admin/stories/")
+}
+
 export default function AdminLayout() {
   const navigate = useNavigation()
+  const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { data, loading, error, onError, send } = useRequest(getAdminSession())
   onError(() => undefined)
@@ -295,7 +302,12 @@ export default function AdminLayout() {
     )
   }
 
-  if (data.user.dept !== "op") {
+  const isEditor = data.user.dept === "editor"
+  const canAccessCurrentRoute =
+    data.user.dept === "op" ||
+    (isEditor && isEditorWikiRoute(location.pathname))
+
+  if (!canAccessCurrentRoute) {
     return <AdminAccessDenied />
   }
 
@@ -336,9 +348,11 @@ export default function AdminLayout() {
               }
               className="hidden md:flex"
             >
-              {data.user.adminRole === "super_admin"
-                ? "最高管理员"
-                : "一般管理员"}
+              {isEditor
+                ? "Wiki 编辑"
+                : data.user.adminRole === "super_admin"
+                  ? "最高管理员"
+                  : "一般管理员"}
             </Badge>
             <NavigationLink
               to="/"
@@ -427,9 +441,10 @@ export default function AdminLayout() {
                 </Tooltip>
               </div>
               {navigation
-                .filter(
-                  (item) =>
-                    !item.superOnly || data.user.adminRole === "super_admin"
+                .filter((item) =>
+                  isEditor
+                    ? item.editorOnly
+                    : !item.superOnly || data.user.adminRole === "super_admin"
                 )
                 .map((item) => {
                   const link = (

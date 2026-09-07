@@ -1,10 +1,16 @@
 import { z } from "zod"
+import {
+  businessErrorResponseSchema,
+  errorResponseSchema,
+  exactJsonResponse,
+  legacyStripRequestObject,
+} from "./common.js"
 
-export const wikiImageTransformSchema = z.object({
+export const wikiImageTransformSchema = exactJsonResponse({
   fit: z.enum(["contain", "cover"]),
-  focalX: z.coerce.number().min(0).max(1),
-  focalY: z.coerce.number().min(0).max(1),
-  zoom: z.coerce.number().min(1).max(3),
+  focalX: z.number().min(0).max(1),
+  focalY: z.number().min(0).max(1),
+  zoom: z.number().min(1).max(3),
   rotation: z.union([
     z.literal(0),
     z.literal(90),
@@ -35,130 +41,147 @@ export const wikiStoryEntrySubtypeSchema = z.enum([
   "other",
 ])
 
-export const wikiAgencySummarySchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiAgencySummarySchema = exactJsonResponse({
+  id: z.number().int().positive(),
   code: z.string(),
   name: z.string(),
   color: z.string(),
 })
 
-export const wikiCategorySchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiCategorySchema = exactJsonResponse({
+  id: z.number().int().positive(),
   name: z.string(),
   storageSlug: z.string(),
-  displayOrder: z.coerce.number().int().nonnegative(),
+  displayOrder: z.number().int().nonnegative(),
   showWhenEmpty: z.boolean(),
   backgroundEligible: z.boolean(),
-  revision: z.coerce.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(),
 })
 
-export const wikiAdminIdolSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  agencyId: z.coerce.number().int().positive(),
+export const wikiAdminIdolSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  agencyId: z.number().int().positive(),
   name: z.string(),
   folderName: z.string(),
   color: z.string().nullable(),
-  wikiUrl: z.string().nullable().default(null),
+  wikiUrl: z.string().nullable(),
   textColor: z.string(),
-  displayOrder: z.coerce.number().int().nonnegative(),
+  displayOrder: z.number().int().nonnegative(),
   imageUrl: z.string(),
   imageFit: z.enum(["contain", "cover"]),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
-  mediaRevision: z.coerce.number().int().nonnegative().default(0),
-  wikiEnabled: z.boolean().default(true),
-  groupIds: z.array(z.coerce.number().int().positive()).default([]),
-  entryKind: wikiEntryKindSchema.default("idol"),
-  entrySubtype: wikiStoryEntrySubtypeSchema.nullable().default(null),
+  imageTransform: wikiImageTransformSchema,
+  mediaRevision: z.number().int().nonnegative(),
+  wikiEnabled: z.boolean(),
+  groupIds: z.array(z.number().int().positive()),
+  entryKind: wikiEntryKindSchema,
+  entrySubtype: wikiStoryEntrySubtypeSchema.nullable(),
 })
 
-export const wikiAdminGroupSchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiAdminGroupSchema = exactJsonResponse({
+  id: z.number().int().positive(),
   code: z.string(),
   name: z.string(),
   color: z.string(),
   iconUrl: z.string().nullable(),
-  displayOrder: z.coerce.number().int().nonnegative(),
+  displayOrder: z.number().int().nonnegative(),
   isFallback: z.boolean(),
-  idolIds: z.array(z.coerce.number().int().positive()).default([]),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
-  mediaRevision: z.coerce.number().int().nonnegative().default(0),
+  idolIds: z.array(z.number().int().positive()),
+  imageTransform: wikiImageTransformSchema,
+  mediaRevision: z.number().int().nonnegative(),
   idols: z.array(wikiAdminIdolSchema),
 })
 
-export const wikiAdminAgencySchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiAdminAgencySchema = exactJsonResponse({
+  id: z.number().int().positive(),
   code: z.string(),
   name: z.string(),
   color: z.string(),
   wikiEnabled: z.boolean(),
   bannerTitle: z.string(),
-  displayOrder: z.coerce.number().int().nonnegative(),
-  layoutRevision: z.coerce.number().int().nonnegative(),
+  displayOrder: z.number().int().nonnegative(),
+  layoutRevision: z.number().int().nonnegative(),
   iconUrl: z.string().nullable(),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
-  mediaRevision: z.coerce.number().int().nonnegative().default(0),
-  idols: z.array(wikiAdminIdolSchema).default([]),
+  imageTransform: wikiImageTransformSchema,
+  mediaRevision: z.number().int().nonnegative(),
+  idols: z.array(wikiAdminIdolSchema),
   groups: z.array(wikiAdminGroupSchema),
 })
 
-export const wikiAdminCatalogSchema = z.object({
+export const wikiAdminCatalogSchema = exactJsonResponse({
   status: z.literal("success"),
   agencies: z.array(wikiAdminAgencySchema),
 })
 
-export const wikiAdminStoryCardSchema = z.object({
+export const wikiAdminStoryCardSchema = exactJsonResponse({
   category: z.string(),
   cardName: z.string(),
   subtitle: z.string(),
   imageFile: z.string().nullable(),
-  coverAssetId: z.coerce.number().int().positive().nullable().optional(),
+  coverAssetId: z.number().int().positive().nullable().optional(),
   coverAssetName: z.string().nullable().optional(),
   imageUrl: z.string(),
-  cardId: z.coerce.number().int().positive(),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
-  mediaRevision: z.coerce.number().int().nonnegative().default(0),
-  revision: z.coerce.number().int().nonnegative(),
+  cardId: z.number().int().positive(),
+  imageTransform: wikiImageTransformSchema,
+  mediaRevision: z.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(),
 })
 
 export const wikiAdminStorySchema = wikiAdminStoryCardSchema.extend({
-  id: z.coerce.number().int().positive(),
+  id: z.number().int().positive(),
   upName: z.string(),
   videoTitle: z.string(),
   url: z.string(),
-  contentTypeId: z.coerce.number().int().positive(),
+  contentTypeId: z.number().int().positive(),
   contentTypeName: z.string(),
-  sourcePlatformId: z.coerce.number().int().positive(),
+  sourcePlatformId: z.number().int().positive(),
   sourcePlatformName: z.string(),
-})
+}).strict()
 
-export const wikiStoryCatalogOptionSchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiStoryCatalogOptionSchema = exactJsonResponse({
+  id: z.number().int().positive(),
   name: z.string(),
   description: z.string(),
-  displayOrder: z.coerce.number().int().nonnegative(),
+  displayOrder: z.number().int().nonnegative(),
   isActive: z.boolean(),
-  revision: z.coerce.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(),
 })
 
 export const wikiStoryContentTypeSchema = wikiStoryCatalogOptionSchema.extend({
-  iconName: z.string().default("link-2"),
-})
+  iconName: z.string(),
+}).strict()
 
 export const wikiStorySourcePlatformSchema =
   wikiStoryCatalogOptionSchema.extend({
     homepageUrl: z.string(),
-  })
+  }).strict()
 
-export const wikiStorySourceCatalogSchema = z.object({
+export const wikiStorySourceCatalogSchema = exactJsonResponse({
   status: z.literal("success"),
   contentTypes: z.array(wikiStoryContentTypeSchema),
   sourcePlatforms: z.array(wikiStorySourcePlatformSchema),
 })
 
-export const wikiAdminStoriesSchema = z.object({
+export const wikiAdminStoriesIdolSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  agencyId: z.number().int().positive(),
+  name: z.string(),
+  folderName: z.string(),
+  color: z.string().nullable(),
+  wikiUrl: z.string().nullable(),
+  textColor: z.string(),
+  displayOrder: z.number().int().nonnegative(),
+  imageUrl: z.string(),
+  imageFit: z.enum(["contain", "cover"]),
+  imageTransform: wikiImageTransformSchema,
+  mediaRevision: z.number().int().nonnegative(),
+  entryKind: wikiEntryKindSchema,
+  entrySubtype: wikiStoryEntrySubtypeSchema.nullable(),
+})
+
+export const wikiAdminStoriesSchema = exactJsonResponse({
   status: z.literal("success"),
   agency: wikiAgencySummarySchema,
-  idol: wikiAdminIdolSchema,
+  idol: wikiAdminStoriesIdolSchema,
   categories: z.array(wikiCategorySchema),
   contentTypes: z.array(wikiStoryContentTypeSchema),
   sourcePlatforms: z.array(wikiStorySourcePlatformSchema),
@@ -166,55 +189,112 @@ export const wikiAdminStoriesSchema = z.object({
   stories: z.array(wikiAdminStorySchema),
 })
 
-export const wikiStoryCoverAssetSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  agencyId: z.coerce.number().int().positive(),
+export const wikiStoryCoverAssetSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  agencyId: z.number().int().positive(),
   name: z.string(),
   imageUrl: z.string(),
-  presentationPolicy: wikiStoryCoverPresentationPolicySchema.default("inherit"),
-  displayOrder: z.coerce.number().int().nonnegative(),
+  presentationPolicy: wikiStoryCoverPresentationPolicySchema,
+  displayOrder: z.number().int().nonnegative(),
   isActive: z.boolean(),
-  revision: z.coerce.number().int().nonnegative(),
-  usageCount: z.coerce.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(),
+  usageCount: z.number().int().nonnegative(),
 })
 
-export const wikiStoryCoverAssetsSchema = z.object({
+export const wikiStoryCoverAssetsSchema = exactJsonResponse({
   status: z.literal("success"),
-  agency: z.object({
-    id: z.coerce.number().int().positive(),
+  agency: exactJsonResponse({
+    id: z.number().int().positive(),
     code: z.string(),
     name: z.string(),
   }),
   assets: z.array(wikiStoryCoverAssetSchema),
 })
 
-export const wikiMutationResultSchema = z.object({
+export const wikiMutationResultSchema = exactJsonResponse({
   status: z.literal("success"),
 })
 
-export const wikiStoryCoverAssetMutationSchema =
-  wikiMutationResultSchema.extend({
-    asset: wikiStoryCoverAssetSchema,
+export const wikiErrorResponseSchema = businessErrorResponseSchema
+export const wikiRevisionConflictResponseSchema = wikiErrorResponseSchema
+  .extend({
+    revision: z.number().int().nonnegative().optional(),
+    mediaRevision: z.number().int().nonnegative().optional(),
+    iconMediaRevision: z.number().int().nonnegative().optional(),
+    avatarMediaRevision: z.number().int().nonnegative().optional(),
+    layoutRevision: z.number().int().nonnegative().optional(),
+    currentName: z.string().optional(),
   })
+  .strict()
+export const wikiHttpErrorResponseSchema = z.union([
+  errorResponseSchema,
+  wikiRevisionConflictResponseSchema,
+])
+// Compatibility probe retained for existing `/api/wiki/test` clients.
+export const wikiTestResponseSchema = exactJsonResponse({ status: z.literal("ok") })
+
+export const wikiStoryCoverAssetMutationSchema = wikiMutationResultSchema
+  .extend({ asset: wikiStoryCoverAssetSchema })
+  .strict()
 
 export const wikiAgencyMutationResultSchema = wikiMutationResultSchema.extend({
-  agency: z.object({ id: z.coerce.number().int().positive() }),
-})
+  agency: exactJsonResponse({
+    id: z.number().int().positive(),
+    code: z.string(),
+    name: z.string(),
+    color: z.string(),
+    wikiEnabled: z.boolean(),
+    bannerTitle: z.string(),
+    displayOrder: z.number().int().nonnegative(),
+    layoutRevision: z.number().int().nonnegative(),
+    iconUrl: z.string().nullable(),
+    imageTransform: wikiImageTransformSchema,
+    mediaRevision: z.number().int().nonnegative(),
+  }),
+}).strict()
 
 export const wikiGroupMutationResultSchema = wikiMutationResultSchema.extend({
-  group: z.object({ id: z.coerce.number().int().positive() }),
-})
+  group: exactJsonResponse({
+    id: z.number().int().positive(),
+    agencyId: z.number().int().positive(),
+    code: z.string(),
+    name: z.string(),
+    color: z.string(),
+    displayOrder: z.number().int().nonnegative(),
+    isFallback: z.boolean(),
+    iconUrl: z.string().nullable(),
+    imageTransform: wikiImageTransformSchema,
+    mediaRevision: z.number().int().nonnegative(),
+  }),
+}).strict()
 
 export const wikiIdolMutationResultSchema = wikiMutationResultSchema.extend({
-  idol: z.object({ id: z.coerce.number().int().positive() }),
-})
+  idol: exactJsonResponse({
+    id: z.number().int().positive(),
+    agencyId: z.number().int().positive(),
+    name: z.string(),
+    folderName: z.string(),
+    color: z.string().nullable(),
+    wikiUrl: z.string().nullable(),
+    wikiEnabled: z.boolean(),
+    displayOrder: z.number().int().nonnegative(),
+    textColor: z.string(),
+    imageFit: z.enum(["contain", "cover"]),
+    groupIds: z.array(z.number().int().positive()),
+    imageUrl: z.string(),
+    imageTransform: wikiImageTransformSchema,
+    mediaRevision: z.number().int().nonnegative(),
+    entryKind: wikiEntryKindSchema,
+    entrySubtype: wikiStoryEntrySubtypeSchema.nullable(),
+  }),
+}).strict()
 
 export const wikiIdolDeleteResultSchema = wikiMutationResultSchema.extend({
-  softDeleted: z.object({
-    cards: z.coerce.number().int().nonnegative(),
-    stories: z.coerce.number().int().nonnegative(),
+  softDeleted: exactJsonResponse({
+    cards: z.number().int().nonnegative(),
+    stories: z.number().int().nonnegative(),
   }),
-})
+}).strict()
 
 export const wikiAgencyIconResultSchema = wikiMutationResultSchema.extend({
   url: z.string(),
@@ -232,154 +312,166 @@ export const wikiStorySourcePlatformMutationSchema =
 
 export const wikiEntityImageResultSchema = wikiMutationResultSchema.extend({
   url: z.string(),
-  mediaRevision: z.coerce.number().int().nonnegative(),
+  mediaRevision: z.number().int().nonnegative(),
   imageTransform: wikiImageTransformSchema,
-})
+}).strict()
 
 export const wikiStoryLinkDeleteResultSchema = wikiMutationResultSchema.extend({
   cardDeleted: z.boolean(),
-})
+  mediaRevision: z.number().int().nonnegative(),
+}).strict()
+
+export const wikiCategoryMutationResultSchema = wikiMutationResultSchema
+  .extend({ category: wikiCategorySchema })
+  .strict()
+export const wikiStorySourceMutationResultSchema = wikiMutationResultSchema
+  .extend({
+    sourceCount: z.number().int().nonnegative(),
+    mediaRevision: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+export const wikiStoryCardMutationResultSchema = wikiMutationResultSchema
+  .extend({
+    mediaRevision: z.number().int().nonnegative(),
+    revision: z.number().int().nonnegative(),
+    imageFile: z.string().nullable(),
+    coverAssetId: z.number().int().positive().nullable(),
+    imageTransform: wikiImageTransformSchema,
+  })
+  .strict()
 
 export type WikiEntityImageKind = "agency" | "group" | "idol"
 
-export const wikiLayoutResultSchema = z.object({
+export const wikiLayoutResultSchema = exactJsonResponse({
   status: z.literal("success"),
-  layoutRevision: z.coerce.number().int().nonnegative(),
+  layoutRevision: z.number().int().nonnegative(),
 })
 
-export const bilibiliResultSchema = z.object({
+export const bilibiliResultSchema = exactJsonResponse({
   status: z.literal("success"),
   title: z.string(),
   up: z.string(),
   std_url: z.string(),
-  cover_url: z.string().default(""),
+  cover_url: z.string(),
 })
 
-export const wikiPublicAgencySchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiPublicAgencySchema = exactJsonResponse({
+  id: z.number().int().positive(),
   code: z.string(),
   name: z.string(),
   color: z.string(),
   bannerTitle: z.string(),
   iconUrl: z.string().nullable(),
-  idolCount: z.coerce.number().int().nonnegative(),
-  entryCount: z.coerce.number().int().nonnegative(),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  idolCount: z.number().int().nonnegative(),
+  entryCount: z.number().int().nonnegative(),
+  imageTransform: wikiImageTransformSchema,
 })
 
-export const wikiPublicIdolSchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiPublicIdolSchema = exactJsonResponse({
+  id: z.number().int().positive(),
   name: z.string(),
   folderName: z.string(),
   color: z.string().nullable(),
-  wikiUrl: z.string().nullable().default(null),
+  wikiUrl: z.string().nullable(),
   imageUrl: z.string(),
   imageFit: z.enum(["contain", "cover"]),
   textColor: z.string(),
-  entryKind: wikiEntryKindSchema.default("idol"),
-  entrySubtype: wikiStoryEntrySubtypeSchema.nullable().default(null),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  entryKind: wikiEntryKindSchema,
+  entrySubtype: wikiStoryEntrySubtypeSchema.nullable(),
+  imageTransform: wikiImageTransformSchema,
 })
 
-export const wikiPublicSearchEntrySchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiPublicSearchEntrySchema = exactJsonResponse({
+  id: z.number().int().positive(),
   name: z.string(),
-  agencyId: z.coerce.number().int().positive(),
+  agencyId: z.number().int().positive(),
   agencyCode: z.string(),
   agencyName: z.string(),
   agencyColor: z.string(),
-  entryKind: wikiEntryKindSchema.default("idol"),
-  entrySubtype: wikiStoryEntrySubtypeSchema.nullable().default(null),
+  entryKind: wikiEntryKindSchema,
+  entrySubtype: wikiStoryEntrySubtypeSchema.nullable(),
 })
 
-export const wikiPublicGroupSchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiPublicGroupSchema = exactJsonResponse({
+  id: z.number().int().positive(),
   code: z.string(),
   name: z.string(),
   color: z.string(),
   iconUrl: z.string().nullable(),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  imageTransform: wikiImageTransformSchema,
   idols: z.array(wikiPublicIdolSchema),
 })
 
-export const wikiPublicCatalogSchema = z.object({
+export const wikiPublicCatalogSchema = exactJsonResponse({
   status: z.literal("success"),
   agencies: z.array(wikiPublicAgencySchema),
-  searchEntries: z.array(wikiPublicSearchEntrySchema).default([]),
-  selection: z
-    .object({
-      agency: wikiPublicAgencySchema,
-      layoutRevision: z.coerce.number().int().nonnegative(),
-      groups: z.array(wikiPublicGroupSchema),
-      ungroupedIdols: z.array(wikiPublicIdolSchema).default([]),
-    })
-    .nullable(),
+  searchEntries: z.array(wikiPublicSearchEntrySchema),
+  selection: exactJsonResponse({
+    agency: wikiPublicAgencySchema,
+    layoutRevision: z.number().int().nonnegative(),
+    groups: z.array(wikiPublicGroupSchema),
+    ungroupedIdols: z.array(wikiPublicIdolSchema),
+  }).nullable(),
 })
 
-export const wikiPublicStoryLinkSchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiPublicStoryLinkSchema = exactJsonResponse({
+  id: z.number().int().positive(),
   up: z.string(),
   title: z.string(),
   url: z.string(),
   contentType: z.string(),
-  contentTypeIcon: z.string().default("link-2"),
+  contentTypeIcon: z.string(),
   sourcePlatform: z.string(),
 })
 
-export const wikiPublicStoryCardSchema = z.object({
-  id: z.coerce.number().int().positive(),
+export const wikiPublicStoryCardSchema = exactJsonResponse({
+  id: z.number().int().positive(),
   name: z.string(),
   img: z.string(),
   subtitle: z.string(),
-  imageTransform: wikiImageTransformSchema.default(defaultWikiImageTransform),
+  imageTransform: wikiImageTransformSchema,
   links: z.array(wikiPublicStoryLinkSchema),
 })
 
-export const wikiPublicStoriesSchema = z.object({
+export const wikiPublicStoriesSchema = exactJsonResponse({
   status: z.literal("success"),
   agency: wikiAgencySummarySchema,
   idol: wikiPublicIdolSchema,
   categories: z.array(
-    z.object({
+    exactJsonResponse({
       name: z.string(),
       cards: z.array(wikiPublicStoryCardSchema),
     })
   ),
 })
 
-export const wikiRandomBackgroundSchema = z.object({
+export const wikiRandomBackgroundSchema = exactJsonResponse({
   url: z.string(),
-  card_id: z.coerce.number().int().positive().optional(),
+  card_id: z.number().int().positive().optional(),
   card_name: z.string().optional(),
   idol_name: z.string().optional(),
   agency_name: z.string().optional(),
 })
 
-export const wikiRandomIdolSchema = z.object({
+export const wikiRandomIdolSchema = exactJsonResponse({
   status: z.literal("success"),
-  eligibleCount: z.coerce.number().int().nonnegative(),
-  idol: z
-    .object({
-      id: z.coerce.number().int().positive(),
+  eligibleCount: z.number().int().nonnegative(),
+  idol: exactJsonResponse({
+    id: z.number().int().positive(),
+    name: z.string(),
+    color: z.string().nullable(),
+    textColor: z.string(),
+    imageUrl: z.string(),
+    imageTransform: wikiImageTransformSchema,
+    agency: exactJsonResponse({
+      id: z.number().int().positive(),
+      code: z.string(),
       name: z.string(),
-      color: z.string().nullable(),
-      textColor: z.string(),
-      imageUrl: z.string(),
-      imageTransform: wikiImageTransformSchema.default(
-        defaultWikiImageTransform
-      ),
-      agency: z.object({
-        id: z.coerce.number().int().positive(),
-        code: z.string(),
-        name: z.string(),
-        color: z.string(),
-        iconUrl: z.string().nullable().default(null),
-        imageTransform: wikiImageTransformSchema.default(
-          defaultWikiImageTransform
-        ),
-      }),
-    })
-    .nullable(),
+      color: z.string(),
+      iconUrl: z.string().nullable(),
+      imageTransform: wikiImageTransformSchema,
+    }),
+  }).nullable(),
 })
 
 export type WikiAdminCatalog = z.infer<typeof wikiAdminCatalogSchema>
@@ -447,14 +539,14 @@ export type WikiAdminStoriesContract = WikiAdminStories
 
 export const idolMediaSourceSchema = z.enum(["object-storage", "none"])
 
-export const idolMediaCatalogSchema = z.object({
+export const idolMediaCatalogSchema = exactJsonResponse({
   status: z.literal("success"),
   agencies: z.array(
-    z.object({
+    exactJsonResponse({
       code: z.string(),
       name: z.string(),
       idols: z.array(
-        z.object({
+        exactJsonResponse({
           name: z.string(),
           imageUrl: z.string(),
           imageFit: z.enum(["contain", "cover"]),
@@ -473,8 +565,140 @@ export type IdolMediaItem = IdolMediaAgency["idols"][number]
 
 export const wikiIdolMediaUploadResultSchema = wikiMutationResultSchema.extend({
   url: z.string(),
-})
+}).strict()
 
 export type WikiIdolMediaUploadResult = z.infer<
   typeof wikiIdolMediaUploadResultSchema
 >
+export type WikiErrorResponse = z.infer<typeof wikiErrorResponseSchema>
+export type WikiHttpErrorResponse = z.infer<typeof wikiHttpErrorResponseSchema>
+export type WikiRevisionConflictResponse = z.infer<typeof wikiRevisionConflictResponseSchema>
+export type WikiMutationResult = z.infer<typeof wikiMutationResultSchema>
+export type WikiTestResponse = z.infer<typeof wikiTestResponseSchema>
+export type WikiEntityImageResult = z.infer<typeof wikiEntityImageResultSchema>
+export type WikiAgencyMutationResult = z.infer<typeof wikiAgencyMutationResultSchema>
+export type WikiGroupMutationResult = z.infer<typeof wikiGroupMutationResultSchema>
+export type WikiIdolMutationResult = z.infer<typeof wikiIdolMutationResultSchema>
+export type WikiIdolDeleteResult = z.infer<typeof wikiIdolDeleteResultSchema>
+export type WikiCategoryMutationResult = z.infer<typeof wikiCategoryMutationResultSchema>
+export type WikiStorySourceMutationResult = z.infer<typeof wikiStorySourceMutationResultSchema>
+export type WikiStoryLinkDeleteResult = z.infer<typeof wikiStoryLinkDeleteResultSchema>
+export type WikiStoryCardMutationResult = z.infer<typeof wikiStoryCardMutationResultSchema>
+export type WikiLayoutResult = z.infer<typeof wikiLayoutResultSchema>
+export type WikiStoryContentTypeMutation = z.infer<typeof wikiStoryContentTypeMutationSchema>
+export type WikiStorySourcePlatformMutation = z.infer<typeof wikiStorySourcePlatformMutationSchema>
+export type WikiStoryCoverAssetMutation = z.infer<typeof wikiStoryCoverAssetMutationSchema>
+
+// Wiki historically accepts and projects unknown request keys. These schemas
+// preserve that policy while giving every JSON, query, and params carrier one
+// shared declaration. API adapters retain the established localized messages.
+const wikiId = z.coerce.number().int().positive()
+const wikiRevision = z.number().int().nonnegative()
+const wikiText = z.string()
+const wikiOptionalText = wikiText.optional()
+const wikiImageFit = z.enum(["cover", "contain"])
+const wikiSourceRequestSchema = legacyStripRequestObject({
+  upName: wikiText,
+  videoTitle: wikiText,
+  url: wikiText,
+  contentTypeId: z.union([wikiId, z.literal(""), z.null()]).optional(),
+  sourcePlatformId: z.union([wikiId, z.literal(""), z.null()]).optional(),
+})
+
+export const createWikiAgencyRequestSchema = legacyStripRequestObject({
+  code: wikiText.catch(""), name: wikiText.catch(""), color: wikiText.catch(""),
+  bannerTitle: wikiOptionalText, wikiEnabled: z.boolean().optional(),
+})
+export const updateWikiAgencyRequestSchema = legacyStripRequestObject({
+  name: wikiOptionalText, color: wikiOptionalText, bannerTitle: wikiOptionalText,
+  wikiEnabled: z.boolean().optional(),
+})
+export const createWikiGroupRequestSchema = legacyStripRequestObject({
+  code: wikiText, name: wikiText, color: wikiText,
+})
+export const updateWikiGroupRequestSchema = legacyStripRequestObject({
+  code: wikiOptionalText, name: wikiOptionalText, color: wikiOptionalText,
+})
+export const wikiRevisionRequestSchema = legacyStripRequestObject({ expectedRevision: wikiRevision })
+export const createWikiIdolRequestSchema = legacyStripRequestObject({
+  name: wikiText, folderName: wikiText, color: wikiText.nullable().optional(),
+  textColor: wikiOptionalText, wikiUrl: wikiText.nullable().optional(),
+  imageFit: wikiImageFit.optional(), wikiEnabled: z.boolean().optional(),
+  groupIds: z.array(z.union([wikiId, z.string()])),
+  entryKind: wikiEntryKindSchema.optional(), entrySubtype: wikiStoryEntrySubtypeSchema.nullable().optional(),
+})
+export const updateWikiIdolRequestSchema = legacyStripRequestObject({
+  name: wikiOptionalText, color: wikiText.nullable().optional(), textColor: wikiOptionalText,
+  wikiUrl: wikiText.nullable().optional(), imageFit: wikiImageFit.optional(),
+  wikiEnabled: z.boolean().optional(), groupIds: z.array(z.union([wikiId, z.string()])),
+  entryKind: wikiEntryKindSchema.optional(), entrySubtype: wikiStoryEntrySubtypeSchema.nullable().optional(),
+})
+export const createWikiCategoryRequestSchema = legacyStripRequestObject({ name: wikiText })
+export const updateWikiCategoryRequestSchema = legacyStripRequestObject({
+  agencyId: z.union([wikiId, z.string()]), idolId: z.union([wikiId, z.string()]),
+  name: wikiText, expectedName: wikiText,
+})
+export const deleteWikiAgencyIconRequestSchema = legacyStripRequestObject({ agency: wikiOptionalText })
+export const deleteWikiIdolMediaRequestSchema = legacyStripRequestObject({ agency: wikiOptionalText, idol: wikiOptionalText })
+export const wikiStorySourcesJsonSchema = z.array(wikiSourceRequestSchema).max(20)
+export const wikiStorySourcesRequestSchema = legacyStripRequestObject({
+  agency: wikiText, idol: wikiText, expectedRevision: wikiRevision,
+  sources: wikiStorySourcesJsonSchema.min(1),
+})
+const wikiStoryCatalogBase = {
+  name: wikiText, description: z.string().nullable().optional(), isActive: z.boolean().optional(),
+}
+export const createWikiContentTypeRequestSchema = legacyStripRequestObject({ ...wikiStoryCatalogBase, iconName: wikiText })
+export const updateWikiContentTypeRequestSchema = legacyStripRequestObject({ ...wikiStoryCatalogBase, iconName: wikiText, expectedRevision: wikiRevision })
+export const createWikiSourcePlatformRequestSchema = legacyStripRequestObject({ ...wikiStoryCatalogBase, homepageUrl: z.string().nullable().optional() })
+export const updateWikiSourcePlatformRequestSchema = legacyStripRequestObject({ ...wikiStoryCatalogBase, homepageUrl: z.string().nullable().optional(), expectedRevision: wikiRevision })
+export const wikiLayoutRequestSchema = legacyStripRequestObject({
+  expectedRevision: z.union([wikiRevision, z.string()]),
+  groups: z.array(legacyStripRequestObject({
+    id: z.union([wikiId, z.string()]), idolIds: z.array(z.union([wikiId, z.string()])),
+  })),
+})
+export const wikiBilibiliRequestSchema = legacyStripRequestObject({ url: wikiOptionalText })
+
+export const wikiIdParamsSchema = legacyStripRequestObject({ id: z.union([wikiId, z.string()]) })
+export const wikiAgencyIdParamsSchema = legacyStripRequestObject({ agencyId: z.union([wikiId, z.string()]) })
+export const wikiGroupIdParamsSchema = legacyStripRequestObject({ groupId: z.union([wikiId, z.string()]) })
+export const wikiIdolIdParamsSchema = legacyStripRequestObject({ idolId: z.union([wikiId, z.string()]) })
+export const wikiCategoryIdParamsSchema = legacyStripRequestObject({ categoryId: z.union([wikiId, z.string()]) })
+export const wikiCardIdParamsSchema = legacyStripRequestObject({ cardId: z.union([wikiId, z.string()]) })
+export const wikiStoryIdParamsSchema = legacyStripRequestObject({ storyId: z.union([wikiId, z.string()]) })
+export const wikiOptionIdParamsSchema = legacyStripRequestObject({ optionId: z.union([wikiId, z.string()]) })
+export const wikiAssetIdParamsSchema = legacyStripRequestObject({ assetId: z.union([wikiId, z.string()]) })
+export const wikiCategoryCreateParamsSchema = legacyStripRequestObject({ agencyId: z.union([wikiId, z.string()]), idolId: z.union([wikiId, z.string()]) })
+export const wikiAssetParamsSchema = legacyStripRequestObject({ asset: wikiText })
+export const wikiStoriesQuerySchema = legacyStripRequestObject({ agency: wikiOptionalText, idol: wikiOptionalText })
+export const wikiCatalogQuerySchema = legacyStripRequestObject({ agency: wikiOptionalText })
+export const wikiStoryLinkDeleteQuerySchema = legacyStripRequestObject({ agency: wikiOptionalText, idol: wikiOptionalText, expectedRevision: z.string().optional() })
+export const wikiStoryLinkDeleteBodySchema = legacyStripRequestObject({
+  agency: wikiOptionalText, idol: wikiOptionalText,
+  expectedRevision: z.union([wikiRevision, z.string()]).optional(),
+})
+
+export type CreateWikiAgencyRequest = z.infer<typeof createWikiAgencyRequestSchema>
+export type UpdateWikiAgencyRequest = z.infer<typeof updateWikiAgencyRequestSchema>
+export type CreateWikiGroupRequest = z.infer<typeof createWikiGroupRequestSchema>
+export type UpdateWikiGroupRequest = z.infer<typeof updateWikiGroupRequestSchema>
+export type WikiRevisionRequest = z.infer<typeof wikiRevisionRequestSchema>
+export type CreateWikiIdolRequest = z.infer<typeof createWikiIdolRequestSchema>
+export type UpdateWikiIdolRequest = z.infer<typeof updateWikiIdolRequestSchema>
+export type CreateWikiCategoryRequest = z.infer<typeof createWikiCategoryRequestSchema>
+export type UpdateWikiCategoryRequest = z.infer<typeof updateWikiCategoryRequestSchema>
+export type DeleteWikiAgencyIconRequest = z.infer<typeof deleteWikiAgencyIconRequestSchema>
+export type DeleteWikiIdolMediaRequest = z.infer<typeof deleteWikiIdolMediaRequestSchema>
+export type WikiStorySourcesRequest = z.infer<typeof wikiStorySourcesRequestSchema>
+export type WikiStorySourcesJson = z.infer<typeof wikiStorySourcesJsonSchema>
+export type WikiStoryCatalogMutationRequest = z.infer<typeof createWikiContentTypeRequestSchema>
+export type WikiLayoutRequest = z.infer<typeof wikiLayoutRequestSchema>
+export type WikiBilibiliRequest = z.infer<typeof wikiBilibiliRequestSchema>
+export type WikiIdParams = { id: number }
+export type WikiCategoryCreateParams = { agencyId: number; idolId: number }
+export type WikiAssetParams = z.infer<typeof wikiAssetParamsSchema>
+export type WikiStoriesQuery = { agency: string; idol: string }
+export type WikiCatalogQuery = { agency: string }
+export type WikiStoryLinkQuery = { agency: string; idol: string; expectedRevision?: string }
+export type DeleteWikiStoryLinkRequest = { agency: string; idol: string; expectedRevision: number }

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryEditorDialog } from "~/pages/admin/stories/components/story-editor-dialog"
 import { defaultWikiImageTransform, type WikiAdminStory } from "~/lib/api"
+import type { WikiStoryCardMutationResult } from "@imsweb/contracts/wiki"
 
 const category = {
   id: 1,
@@ -49,6 +50,17 @@ function requestDetails(call: unknown[]) {
     method: init?.method ?? "GET",
     url: String(input),
   }
+}
+
+function storyCardMutation(mediaRevision = 4) {
+  return {
+    status: "success",
+    mediaRevision,
+    revision: 0,
+    imageFile: null,
+    coverAssetId: null,
+    imageTransform: defaultWikiImageTransform,
+  } satisfies WikiStoryCardMutationResult
 }
 
 describe("StoryEditorDialog", () => {
@@ -266,7 +278,7 @@ describe("StoryEditorDialog", () => {
   it("edits card metadata without sending source fields", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success" }))
+      .mockResolvedValue(Response.json(storyCardMutation()))
     vi.stubGlobal("fetch", fetchMock)
     const story: WikiAdminStory = {
       id: 21,
@@ -336,7 +348,7 @@ describe("StoryEditorDialog", () => {
   it("binds a reusable agency cover without uploading duplicate bytes", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success" }))
+      .mockResolvedValue(Response.json(storyCardMutation()))
     vi.stubGlobal("fetch", fetchMock)
     const story: WikiAdminStory = {
       id: 21,

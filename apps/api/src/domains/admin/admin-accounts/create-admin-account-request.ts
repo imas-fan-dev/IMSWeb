@@ -1,10 +1,7 @@
-import type { AdminAccountErrorResponse } from '@/domains/admin/admin-accounts/response';
-
-export interface CreateAdminAccountRequest {
-    username: string;
-    producername: string;
-    password: string;
-}
+import type {
+    AdminAccountErrorResponse,
+    AdminCreateAccountRequest
+} from '@imsweb/contracts/admin';
 
 export function createAdminAccountValidationError(
     message: string
@@ -12,18 +9,22 @@ export function createAdminAccountValidationError(
     return { success: false, message };
 }
 
+export interface CreateAdminAccountInput {
+    username: string;
+    producername: string;
+    password: string;
+}
+
 function printable(value: string): boolean {
     return !/[\0-\x1f\x7f]/.test(value);
 }
 
-export function validateCreateAdminAccountRequest(value: unknown): CreateAdminAccountRequest {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw Object.assign(new Error('管理员账号信息格式错误'), { status: 400 });
-    }
-    const body = value as Record<string, unknown>;
-    const username = typeof body.username === 'string' ? body.username.trim() : '';
-    const producername = typeof body.producername === 'string' ? body.producername.trim() : '';
-    const password = typeof body.password === 'string' ? body.password : '';
+export function normalizeCreateAdminAccountRequest(
+    value: AdminCreateAccountRequest
+): CreateAdminAccountInput {
+    const username = typeof value.username === 'string' ? value.username.trim() : '';
+    const producername = typeof value.producername === 'string' ? value.producername.trim() : '';
+    const password = typeof value.password === 'string' ? value.password : '';
     if (
         !username || username.length > 128 || !printable(username) ||
         !producername || producername.length > 80 || !printable(producername) ||

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { FudabaPlaceSearchResponse } from "@imsweb/contracts/fudaba";
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
 import type { CacheStore } from "@/ports/cache";
@@ -10,21 +11,7 @@ const CACHE_TTL_SECONDS = 24 * 60 * 60;
 const ATTRIBUTION = "© OpenStreetMap contributors";
 const LANGUAGE = "zh-CN,zh,en";
 
-type PlaceSearchResponse = {
-    success: true;
-    items: Array<{
-        id: string;
-        label: string;
-        address: string;
-        city: string;
-        location: {
-            latitude: number;
-            longitude: number;
-            precision: "exact";
-        };
-    }>;
-    attribution: string;
-};
+type PlaceSearchResponse = FudabaPlaceSearchResponse;
 
 type UpstreamPlace = {
     place_id?: unknown;
@@ -241,7 +228,7 @@ export async function handleSearchFudabaPlaces(
     }
 
     const key = cacheKey(config.endpoint, config.countryCodes, search);
-    const cached = await readCachedResponse(runtime.cache, key);
+    const cached: PlaceSearchResponse | null = await readCachedResponse(runtime.cache, key);
     if (cached) return c.json(cached);
 
     const limit = await runtime.rateLimiter.consume(

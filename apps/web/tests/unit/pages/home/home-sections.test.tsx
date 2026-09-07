@@ -139,6 +139,7 @@ describe("home supporting sections", () => {
         title: "存储中的活动资讯",
         image_url: "/uploads/articles/stored.webp",
         sort_order: 0,
+        cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
       },
     ])
     render(<HomeSections />)

@@ -154,7 +154,9 @@ test("public activity covers use the same full-page viewer", async ({
   })
 
   await page.goto("/events")
-  await expect(page.getByRole("heading", { name: "公开夏日活动" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "公开夏日活动" })
+  ).toBeVisible()
   await page.getByRole("listitem").getByRole("link").click()
   await page.getByRole("button", { name: "查看公开夏日活动封面" }).click()
 
@@ -308,7 +310,10 @@ test("namecard images use the shared full-page viewer", async ({
   ).toBeVisible()
   await expect(dialog.getByText("100%", { exact: true })).toBeVisible()
 
-  const switchToFront = dialog.getByRole("button", { name: "正面", exact: true })
+  const switchToFront = dialog.getByRole("button", {
+    name: "正面",
+    exact: true,
+  })
   await expect(switchToFront).toBeEnabled()
   await switchToFront.click()
   await expect(dialog).toHaveAccessibleName("制作人名片 42 · 正面")

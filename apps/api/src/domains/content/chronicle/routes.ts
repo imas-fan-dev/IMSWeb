@@ -1,3 +1,4 @@
+import { chronicleActivityParamsSchema, chronicleMediaParamsSchema } from '@imsweb/contracts/chronicle';
 import { eventChroniclePath, publicAssetsPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { handleApproveChronicleMedia } from '@/domains/content/chronicle/handlers/approve-chronicle-media';
@@ -16,11 +17,11 @@ import {
     validateChronicleMediaParams
 } from '@/domains/content/chronicle/request';
 import { backofficeAuth, backofficeCsrf, opOnly } from '@/middleware/hono-auth';
-import { paramValidator } from '@/middleware/request-validation';
+import { paramSchemaValidator } from '@/middleware/request-validation';
 
 export function registerChronicleRoutes(app: ImsHonoApp): void {
-    const activityParams = paramValidator(validateChronicleActivityParams);
-    const mediaParams = paramValidator(validateChronicleMediaParams);
+const activityParams = paramSchemaValidator(chronicleActivityParamsSchema, {}, validateChronicleActivityParams);
+const mediaParams = paramSchemaValidator(chronicleMediaParamsSchema, {}, validateChronicleMediaParams);
     const pendingMediaRoute =
         publicAssetsPath('/images/eventchronicle/events/upload/:activityId/:filename');
     app.get(

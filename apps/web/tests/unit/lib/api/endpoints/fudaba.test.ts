@@ -412,14 +412,14 @@ describe("Fudaba Web API contracts", () => {
 
     expect(
       fudabaMapConfigSchema.parse({
-        styleUrl: " /api/community/exchange/map/style.json ",
-      }).styleUrl
-    ).toBe("/api/community/exchange/map/style.json")
-    expect(
+        styleUrl: "/api/community/exchange/map/style.json",
+      })
+    ).toEqual({ styleUrl: "/api/community/exchange/map/style.json" })
+    expect(() =>
       fudabaMapConfigSchema.parse({
-        styleUrl: " https://maps.example/releases/v3/exchange-style.json ",
-      }).styleUrl
-    ).toBe("https://maps.example/releases/v3/exchange-style.json")
+        styleUrl: " /api/community/exchange/map/style.json ",
+      })
+    ).toThrow()
     for (const styleUrl of [
       "",
       "style.json",
@@ -519,21 +519,19 @@ describe("Fudaba Web API contracts", () => {
     ).toBeNull()
   })
 
-  it("strips privacy-only fields and rejects inconsistent pagination", () => {
+  it("rejects privacy-only fields and inconsistent pagination", () => {
     expect(() =>
       fudabaOfficePageSchema.parse({
         items: [{ ...office, ownerAccountId: "private-owner" }],
         pageInfo: { hasNextPage: false, nextCursor: null },
       })
-    ).not.toThrow()
+    ).toThrow()
 
-    const parsed = fudabaOfficePageSchema.parse({
-      items: [{ ...office, ownerAccountId: "private-owner" }],
+    const raw = {
+      items: [office],
       pageInfo: { hasNextPage: false, nextCursor: null },
-    })
-    expect(parsed.items[0]).not.toHaveProperty("ownerAccountId")
-    expect(parsed.items[0]?.address).toBe("西岸艺术中心入口")
-    expect(parsed.items[0]).not.toHaveProperty("latitude")
+    }
+    expect(fudabaOfficePageSchema.parse(raw)).toEqual(raw)
 
     expect(() =>
       fudabaOfficePageSchema.parse({

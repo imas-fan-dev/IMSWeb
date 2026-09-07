@@ -5,13 +5,33 @@ import {
 } from "@imsweb/contracts/paths"
 import { successFlagSchema } from "@imsweb/contracts/common"
 import {
+  passwordResetIssueResponseSchema,
+  platformHttpErrorSchema,
+  platformAvatarRemovalRequestSchema,
+  platformLoginRequestSchema,
+  platformOAuthProvidersResponseSchema,
+  platformPasswordResetRequestSchema,
+  platformPasswordResetSubmissionSchema,
+  platformProfileHttpErrorSchema,
+  platformProfileMutationResponseSchema,
+  platformProfileResponseSchema,
+  platformProfileUpdateRequestSchema,
+  platformRegistrationVerificationRequestSchema,
+  platformRegistrationVerificationResponseSchema,
+  platformRegisterRequestSchema,
+  platformSessionSchema,
+} from "@imsweb/contracts/platform"
+import {
+  platformAccountSecurityErrorSchema,
   platformOAuthLinkListResponseSchema,
+  platformOAuthLinkParamsSchema,
   platformOAuthUnlinkResponseSchema,
+  platformPasswordChangeRequestSchema,
   platformPasswordChangeResponseSchema,
   platformSessionListResponseSchema,
+  platformSessionParamsSchema,
   platformSessionRevocationResponseSchema,
 } from "@imsweb/contracts/platform/account-security"
-import { passwordResetIssueResponseSchema } from "@imsweb/contracts/platform"
 import { z } from "@imsweb/contracts/z"
 
 import {
@@ -25,15 +45,6 @@ import { platformApiClient } from "../../platform-client"
 import { hasStoredPlatformSession } from "../../platform-token-store"
 import { PLATFORM_CSRF_COOKIE_NAME } from "../../request"
 import { withPlatformAuth, withPlatformCsrf } from "../../types"
-
-import {
-  platformOAuthProviderCodeSchema,
-  platformOAuthProvidersResponseSchema,
-  platformProfileMutationResponseSchema,
-  platformProfileResponseSchema,
-  platformRegistrationVerificationResponseSchema,
-  platformSessionSchema,
-} from "@imsweb/contracts/platform"
 
 export {
   platformOAuthProviderCodeSchema,
@@ -63,89 +74,19 @@ export {
 } from "@imsweb/contracts/platform/account-security"
 export type * from "@imsweb/contracts/platform/account-security"
 
-const utf8Encoder = new TextEncoder()
+export {
+  platformLoginPasswordSchema,
+  platformPasswordSchema,
+  platformPasswordResetRequestSchema,
+  platformPasswordResetSubmissionSchema,
+} from "@imsweb/contracts/platform"
 
-const platformRegistrationEmailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .email()
-  .max(320)
-
-export const platformLoginEmailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .min(3)
-  .max(254)
-  .regex(/^\S+@\S+\.\S+$/)
-
-export const platformLoginPasswordSchema = z
-  .string()
-  .trim()
-  .refine((value) => {
-    const characters = Array.from(value).length
-    return characters >= 1 && characters <= 128
-  })
-  .refine((value) => utf8Encoder.encode(value).byteLength <= 1024)
-
-export const platformPasswordSchema = z
-  .string()
-  .trim()
-  .min(8)
-  .refine((value) => utf8Encoder.encode(value).byteLength <= 72, {
-    message: "Password must not exceed 72 UTF-8 bytes",
-  })
-
-export const platformLoginInputSchema = z
-  .object({
-    email: platformLoginEmailSchema,
-    password: platformLoginPasswordSchema,
-  })
-  .strict()
-
-export const platformRegisterInputSchema = z
-  .object({
-    email: platformRegistrationEmailSchema,
-    password: platformPasswordSchema,
-    displayName: z.string().trim().min(1).max(80),
-    code: z.string().regex(/^\d{6}$/),
-  })
-  .strict()
-
-export const platformPasswordResetRequestSchema = z
-  .object({
-    email: platformRegistrationEmailSchema,
-  })
-  .strict()
-
-export const platformPasswordResetSubmissionSchema = z
-  .object({
-    email: platformRegistrationEmailSchema,
-    code: z.string().regex(/^\d{6}$/),
-    password: platformPasswordSchema,
-  })
-  .strict()
-
-export const platformRegistrationVerificationInputSchema = z
-  .object({
-    email: platformRegistrationEmailSchema,
-  })
-  .strict()
-
-export const platformProfileUpdateSchema = z
-  .object({
-    displayName: z.string().trim().min(1).max(80),
-    homeCity: z
-      .string()
-      .trim()
-      .max(100)
-      .nullable()
-      .transform((value) => value || null),
-    bio: z.string().trim().max(2000),
-    expectedUpdatedAt: z.number().int().safe().nonnegative(),
-  })
-  .strict()
+export const platformAvatarRemovalSchema = platformAvatarRemovalRequestSchema
+export const platformLoginInputSchema = platformLoginRequestSchema
+export const platformProfileUpdateSchema = platformProfileUpdateRequestSchema
+export const platformRegistrationVerificationInputSchema =
+  platformRegistrationVerificationRequestSchema
+export const platformRegisterInputSchema = platformRegisterRequestSchema
 
 const fileSchema = z.custom<File>(
   (value) => typeof File !== "undefined" && value instanceof File,
@@ -159,61 +100,29 @@ export const platformAvatarUploadSchema = z
   })
   .strict()
 
-export const platformAvatarRemovalSchema = z
-  .object({
-    expectedUpdatedAt: z.number().int().safe().nonnegative(),
-  })
-  .strict()
+export const platformPasswordChangeInputSchema =
+  platformPasswordChangeRequestSchema
+export const platformSessionIdSchema = platformSessionParamsSchema.shape.id
 
-/**
- * Mirrors the two different normalizations the API applies. The current
- * password is only ever compared against a stored digest, so it takes the
- * lenient login rule: a legacy credential may sit below today's strength floor
- * and its owner must still be able to replace it. The replacement takes the
- * registration rule, which is where the 8-character and 72-byte bcrypt limits
- * live. Sending a request that the server would only reject wastes one of the
- * account's rate-limit slots.
- */
-export const platformPasswordChangeInputSchema = z
-  .object({
-    currentPassword: platformLoginPasswordSchema,
-    newPassword: platformPasswordSchema,
-  })
-  .strict()
-
-// Session ids are server-minted and travel as a path segment; the bounds match
-// `parsePlatformSessionId` on the API side.
-export const platformSessionIdSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(128)
-  // eslint-disable-next-line no-control-regex -- control characters are exactly what this rejects
-  .refine((value) => !/[\u0000-\u001f\u007f]/.test(value))
-
-export type PlatformLoginInput = z.input<typeof platformLoginInputSchema>
-
-export type PlatformRegisterInput = z.input<typeof platformRegisterInputSchema>
-
+export type PlatformLoginInput =
+  import("@imsweb/contracts/platform").PlatformLoginRequest
+export type PlatformRegisterInput =
+  import("@imsweb/contracts/platform").PlatformRegisterRequest
 export type PlatformPasswordResetRequest = z.input<
   typeof platformPasswordResetRequestSchema
 >
-
 export type PlatformPasswordResetSubmission = z.input<
   typeof platformPasswordResetSubmissionSchema
 >
-
 export type PlatformRegistrationVerificationInput = z.input<
-  typeof platformRegistrationVerificationInputSchema
+  typeof platformRegistrationVerificationRequestSchema
 >
-
-export type PlatformProfileUpdate = z.input<typeof platformProfileUpdateSchema>
-
+export type PlatformProfileUpdate = z.input<
+  typeof platformProfileUpdateRequestSchema
+>
 export type PlatformAvatarUpload = z.input<typeof platformAvatarUploadSchema>
-
-export type PlatformPasswordChangeInput = z.input<
-  typeof platformPasswordChangeInputSchema
->
+export type PlatformPasswordChangeInput =
+  import("@imsweb/contracts/platform/account-security").PlatformPasswordChangeRequest
 
 /**
  * Whether a session restore is worth a network round trip on boot.
@@ -232,6 +141,7 @@ export function getPlatformOAuthProviders() {
   return platformApiClient.Get(
     platformAuthOAuthPath("/providers"),
     parsed(platformOAuthProvidersResponseSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth({ authRole: "login" }),
     })
   )
@@ -245,6 +155,7 @@ export function sendPlatformPasswordResetVerificationCode(
     platformAuthPath("/password-reset/verification-code"),
     submission,
     parsed(passwordResetIssueResponseSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth({ authRole: "login" }),
     })
   )
@@ -256,6 +167,7 @@ export function resetPlatformPassword(input: PlatformPasswordResetSubmission) {
     platformAuthPath("/password-reset"),
     submission,
     parsed(successFlagSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth({ authRole: "login" }),
     })
   )
@@ -265,6 +177,7 @@ export function getPlatformSession() {
   return platformApiClient.Get(
     platformAuthPath("/session"),
     parsed(platformSessionSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth(),
       select: normalizePlatformSession,
     })
@@ -277,6 +190,7 @@ export function loginPlatform(input: PlatformLoginInput) {
     platformAuthPath("/login"),
     submission,
     parsed(platformSessionSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth({ authRole: "login" }),
       select: normalizePlatformSession,
     })
@@ -291,6 +205,7 @@ export function sendPlatformRegistrationVerificationCode(
     platformAuthPath("/register/verification-code"),
     submission,
     parsed(platformRegistrationVerificationResponseSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth({ authRole: "login" }),
     })
   )
@@ -302,6 +217,7 @@ export function registerPlatform(input: PlatformRegisterInput) {
     platformAuthPath("/register"),
     submission,
     parsed(platformSessionSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth({ authRole: "login" }),
       select: normalizePlatformSession,
     })
@@ -312,6 +228,7 @@ export function getPlatformProfile() {
   return platformApiClient.Get(
     platformApiPath("/me"),
     parsed(platformProfileResponseSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformAuth(),
       select: normalizePlatformProfileResponse,
     })
@@ -324,6 +241,7 @@ export function updatePlatformProfile(input: PlatformProfileUpdate) {
     platformApiPath("/me"),
     submission,
     parsed(platformProfileMutationResponseSchema, {
+      errorSchema: platformProfileHttpErrorSchema,
       meta: withPlatformCsrf(),
       select: normalizePlatformProfileMutation,
     })
@@ -339,6 +257,7 @@ export function uploadPlatformAvatar(input: PlatformAvatarUpload) {
     platformApiPath("/me/avatar"),
     form,
     parsed(platformProfileMutationResponseSchema, {
+      errorSchema: platformProfileHttpErrorSchema,
       meta: withPlatformCsrf(),
       select: normalizePlatformProfileMutation,
     })
@@ -351,6 +270,7 @@ export function removePlatformAvatar(expectedUpdatedAt: number) {
     platformApiPath("/me/avatar"),
     submission,
     parsed(platformProfileMutationResponseSchema, {
+      errorSchema: platformProfileHttpErrorSchema,
       meta: withPlatformCsrf(),
       select: normalizePlatformProfileMutation,
     })
@@ -374,6 +294,7 @@ export function changePlatformPassword(input: PlatformPasswordChangeInput) {
     platformApiPath("/me/password"),
     submission,
     parsed(platformPasswordChangeResponseSchema, {
+      errorSchema: platformAccountSecurityErrorSchema,
       meta: withPlatformCsrf(),
     })
   )
@@ -383,6 +304,7 @@ export function getPlatformSessionDevices() {
   return platformApiClient.Get(
     platformApiPath("/me/sessions"),
     parsed(platformSessionListResponseSchema, {
+      errorSchema: platformAccountSecurityErrorSchema,
       meta: withPlatformAuth(),
     })
   )
@@ -394,6 +316,7 @@ export function revokePlatformSessionDevice(sessionId: string) {
     platformApiPath(`/me/sessions/${encodeURIComponent(id)}`),
     undefined,
     parsed(platformSessionRevocationResponseSchema, {
+      errorSchema: platformAccountSecurityErrorSchema,
       meta: withPlatformCsrf(),
     })
   )
@@ -405,6 +328,7 @@ export function revokeOtherPlatformSessions() {
     platformApiPath("/me/sessions"),
     undefined,
     parsed(platformSessionRevocationResponseSchema, {
+      errorSchema: platformAccountSecurityErrorSchema,
       meta: withPlatformCsrf(),
     })
   )
@@ -414,6 +338,7 @@ export function getPlatformOAuthLinks() {
   return platformApiClient.Get(
     platformApiPath("/me/oauth-links"),
     parsed(platformOAuthLinkListResponseSchema, {
+      errorSchema: platformAccountSecurityErrorSchema,
       meta: withPlatformAuth(),
     })
   )
@@ -425,11 +350,12 @@ export function getPlatformOAuthLinks() {
  * remaining providers are still `enabled`, which this client cannot see.
  */
 export function unlinkPlatformOAuthLink(provider: string) {
-  const code = platformOAuthProviderCodeSchema.parse(provider)
+  const code = platformOAuthLinkParamsSchema.shape.provider.parse(provider)
   return platformApiClient.Delete(
     platformApiPath(`/me/oauth-links/${encodeURIComponent(code)}`),
     undefined,
     parsed(platformOAuthUnlinkResponseSchema, {
+      errorSchema: platformAccountSecurityErrorSchema,
       meta: withPlatformCsrf(),
     })
   )
@@ -440,6 +366,7 @@ export function logoutPlatform() {
     platformAuthPath("/logout"),
     undefined,
     parsed(successFlagSchema, {
+      errorSchema: platformHttpErrorSchema,
       meta: withPlatformCsrf({ authRole: "logout" }),
     })
   )

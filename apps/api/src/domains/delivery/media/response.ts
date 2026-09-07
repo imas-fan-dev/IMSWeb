@@ -6,10 +6,6 @@ export type MediaTextResponse =
     | { body: 'Bad Request'; status: 400 }
     | { body: 'Not Found'; status: 404 };
 
-export interface MediaAuthorizationErrorResponse {
-    message: string;
-}
-
 export interface MediaObjectReadResponse {
     key: string;
     visibility: 'private' | 'public';

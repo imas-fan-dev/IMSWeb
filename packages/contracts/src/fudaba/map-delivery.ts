@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { hasAsciiControl, successEnvelope } from "../common.js";
+import {
+  exactJsonError,
+  hasAsciiControl,
+  legacyPassthroughRequestObject,
+  strictRequestObject,
+  successEnvelope,
+} from "../common.js";
+import { isFudabaMapStyleUrl } from "./runtime.js";
+
+export { isFudabaMapStyleUrl } from "./runtime.js";
 
 /**
  * The complete style URL selected by an administrator.
@@ -12,43 +21,12 @@ import { hasAsciiControl, successEnvelope } from "../common.js";
  * are rejected.
  */
 
-const MAX_MAP_URL_LENGTH = 2048;
-
-function isAbsoluteMapUrl(value: string): boolean {
-  if (!/^https?:\/\//i.test(value)) return false;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-  if (url.username || url.password) return false;
-  if (url.search || url.hash) return false;
-  return !url.pathname.includes("//");
-}
-
-/**
- * A same-origin absolute path or an absolute `http(s)` URL, with no query,
- * fragment, backslash, or embedded credentials.
- */
-export function isFudabaMapStyleUrl(value: string): boolean {
-  if (hasAsciiControl(value)) return false;
-  if (value.length === 0 || value.length > MAX_MAP_URL_LENGTH) return false;
-  if (value.includes("?") || value.includes("#") || value.includes("\\")) {
-    return false;
-  }
-  if (value.startsWith("/")) return !value.includes("//");
-  return isAbsoluteMapUrl(value);
-}
-
 export const fudabaMapStyleUrlSchema = z
   .string()
   .refine(
     (value) => !hasAsciiControl(value),
     "map style URL must not contain ASCII control characters",
   )
-  .transform((value) => value.trim())
   .refine(
     isFudabaMapStyleUrl,
     "map style URL must be a root-relative path or an absolute http(s) URL " +
@@ -57,15 +35,14 @@ export const fudabaMapStyleUrlSchema = z
 
 export const fudabaMapSourceIdSchema = z
   .string()
-  .trim()
   .min(1)
   .max(80)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
 export const fudabaMapSourceNameSchema = z
   .string()
-  .transform((value) => value.trim())
-  .pipe(z.string().min(1).max(80));
+  .min(1)
+  .max(80);
 
 export const fudabaMapSourceSchema = z
   .object({
@@ -119,6 +96,57 @@ export const fudabaMapSourceDeleteSchema = z
 export const fudabaMapDeliveryMutationSchema = successEnvelope({
   delivery: fudabaMapDeliverySnapshotSchema,
 }).strict();
+
+// The historic map handlers trim text but reject controls before that step.
+// These request contracts preserve that behavior without reusing response
+// schemas that normalize their outputs.
+const fudabaMapSourceRequestNameSchema = z.string()
+  .transform((value) => value.trim())
+  .pipe(
+    z.string()
+      .min(1)
+      .max(80)
+      .refine(
+        (value) => !hasAsciiControl(value),
+        "map source name must not contain ASCII control characters",
+      ),
+  );
+const fudabaMapStyleUrlRequestSchema = z.string()
+  .transform((value) => value.trim())
+  .pipe(
+    z.string()
+      .refine(
+        (value) => !hasAsciiControl(value),
+        "map style URL must not contain ASCII control characters",
+      )
+      .refine(
+        isFudabaMapStyleUrl,
+        "map style URL must be a root-relative path or an absolute http(s) URL without credentials, query, or hash",
+      ),
+  );
+export const fudabaMapSourceWriteRequestSchema = z.object({
+  name: fudabaMapSourceRequestNameSchema,
+  styleUrl: fudabaMapStyleUrlRequestSchema,
+  revision: z.string().nullable(),
+}).strict();
+export const fudabaMapSourceActivationRequestSchema = z.object({
+  sourceId: fudabaMapSourceIdSchema,
+  revision: z.string().nullable(),
+}).strict();
+export const fudabaMapSourceDeleteRequestSchema = z.object({
+  revision: z.string().nullable(),
+}).strict();
+export const fudabaMapSourceParamsSchema = strictRequestObject({
+  sourceId: fudabaMapSourceIdSchema,
+});
+// This endpoint historically ignores query parameters. Preserve that policy
+// explicitly while still running the shared schema at the route boundary.
+export const fudabaMapDeliveryQuerySchema = legacyPassthroughRequestObject({});
+export const fudabaMapDeliveryErrorSchema = z.union([
+  exactJsonError({ error: z.string() }),
+  exactJsonError({ message: z.string() }),
+  exactJsonError({ success: z.literal(false), message: z.string() }),
+])
 
 export type FudabaMapSource = z.infer<typeof fudabaMapSourceSchema>;
 export type FudabaMapDeliverySnapshot = z.infer<

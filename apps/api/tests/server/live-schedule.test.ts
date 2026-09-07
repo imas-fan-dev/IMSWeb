@@ -1,11 +1,26 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
+import {
+    liveScheduleErrorResponseSchema,
+    liveScheduleListSchema
+} from '@imsweb/contracts/live';
 import { createHonoApp } from '@/app';
 import {
     clearLiveScheduleCache,
     getLiveSchedule,
     normalizeLiveScheduleArticle
 } from '@/domains/content/live-schedule/live-schedule-service';
+
+async function contractJson<T>(
+    response: Response,
+    schema: { parse(value: unknown): T }
+): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
+    return parsed;
+}
 
 function jsonResponse(value: unknown, status = 200): Response {
     return new Response(JSON.stringify(value), {
@@ -108,7 +123,7 @@ test('loads requested months, deduplicates records, and caches each month', asyn
     const first = await app.request(url);
     assert.equal(first.status, 200);
     assert.equal(first.headers.get('cache-control'), 'public, max-age=300');
-    const body = await first.json() as unknown[];
+    const body = await contractJson(first, liveScheduleListSchema);
     assert.equal(body.length, 1);
     assert.equal(source.calls(), 3);
 
@@ -120,6 +135,7 @@ test('loads requested months, deduplicates records, and caches each month', asyn
         'http://ims.test/api/live-schedule?months=2020-07'
     );
     assert.equal(invalid.status, 400);
+    await contractJson(invalid, liveScheduleErrorResponseSchema);
 });
 
 test('returns stale data when a refresh fails', async () => {

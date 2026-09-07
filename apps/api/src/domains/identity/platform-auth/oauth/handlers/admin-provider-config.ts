@@ -1,7 +1,10 @@
+import type {
+    PlatformOAuthAdminProviderDelete,
+    PlatformOAuthAdminProviderParams
+} from '@imsweb/contracts/platform/admin';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
-import { parsePlatformOAuthProviderCode } from '@/domains/identity/platform-auth/oauth/request';
 import { services } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { PlatformOAuthProviderValidationError } from '@/ports/oauth';
@@ -57,9 +60,14 @@ export async function handleUpdateAdminPlatformOAuthProvider(
         AppEnvironment,
         'json',
         Omit<PlatformOAuthProviderUpdateInput, 'code'>
-    >,
+    > &
+        ValidatedRequestContext<
+            AppEnvironment,
+            'param',
+            PlatformOAuthAdminProviderParams
+        >,
 ): Promise<Response> {
-    const code = parsePlatformOAuthProviderCode(c.req.param('provider'));
+    const code = c.req.valid('param').provider;
     const input = c.req.valid('json');
     try {
         const result = await oauthClient(c).updateProvider({ ...input, code });
@@ -95,9 +103,14 @@ export async function handleUpdateAdminPlatformOAuthProvider(
 }
 
 export async function handleDeleteAdminPlatformOAuthProvider(
-    c: ValidatedRequestContext<AppEnvironment, 'json', { expectedUpdatedAt: number }>,
+    c: ValidatedRequestContext<AppEnvironment, 'json', { expectedUpdatedAt: number }> &
+        ValidatedRequestContext<
+            AppEnvironment,
+            'param',
+            PlatformOAuthAdminProviderParams
+        >,
 ): Promise<Response> {
-    const code = parsePlatformOAuthProviderCode(c.req.param('provider'));
+    const code = c.req.valid('param').provider;
     const { expectedUpdatedAt } = c.req.valid('json');
     try {
         const status = await oauthClient(c).deleteProvider(code, expectedUpdatedAt);
@@ -118,7 +131,10 @@ export async function handleDeleteAdminPlatformOAuthProvider(
         }
         await writeAudit(c, '删除 OAuth provider', code);
         c.header('Cache-Control', 'private, no-store');
-        return c.json({ success: true, deletedCode: code });
+        return c.json({
+            success: true,
+            deletedCode: code
+        } satisfies PlatformOAuthAdminProviderDelete);
     } catch (error) {
         console.error('Failed to delete OAuth provider', error);
         return c.json({ success: false, message: 'OAuth provider 删除失败' }, 500);

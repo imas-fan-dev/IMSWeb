@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fudabaCardReactionsResponseSchema } from '@imsweb/contracts/fudaba';
+import {
+    fudabaCardReactionErrorSchema,
+    fudabaCardReactionsResponseSchema
+} from '@imsweb/contracts/fudaba';
 import { createHonoApp } from '@/app';
 import type {
     FudabaCardReactionInput,
@@ -11,6 +14,18 @@ import type { RateLimiter } from '@/ports/cache';
 
 const CARD_ID = 'card-reaction-1';
 const PATH = `http://ims.test/api/community/exchange/cards/${CARD_ID}/reactions`;
+
+interface Schema<T> {
+    parse(value: unknown): T;
+}
+
+async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
+    return parsed;
+}
 
 class ControlledRateLimiter implements RateLimiter {
     private denied: string | null = null;
@@ -87,7 +102,7 @@ test('exchange card reactions are listed for anonymous visitors', async () => {
     const response = await fixture.app().request(PATH);
 
     assert.equal(response.status, 200);
-    const body = fudabaCardReactionsResponseSchema.parse(await response.json());
+    const body = await contractJson(response, fudabaCardReactionsResponseSchema);
     assert.deepEqual(body.reactions, [
         { emoji: '❤️', count: 3 },
         { emoji: '🎉', count: 1 }
@@ -104,7 +119,7 @@ test('exchange card reactions increment and decrement anonymously', async () => 
     });
     assert.equal(added.status, 200);
     assert.deepEqual(
-        fudabaCardReactionsResponseSchema.parse(await added.json()).reactions,
+        (await contractJson(added, fudabaCardReactionsResponseSchema)).reactions,
         [{ emoji: '❤️', count: 1 }]
     );
 
@@ -115,7 +130,7 @@ test('exchange card reactions increment and decrement anonymously', async () => 
     });
     assert.equal(removed.status, 200);
     assert.deepEqual(
-        fudabaCardReactionsResponseSchema.parse(await removed.json()).reactions,
+        (await contractJson(removed, fudabaCardReactionsResponseSchema)).reactions,
         []
     );
     assert.deepEqual(fixture.applyCalls.map((call) => call.delta), [1, -1]);
@@ -130,9 +145,13 @@ test('exchange card reactions reject unsupported emoji and unknown cards', async
         body: JSON.stringify({ emoji: 'not-an-emoji' })
     });
     assert.equal(unsupported.status, 400);
-    assert.equal(
-        (await unsupported.json() as { code: string }).code,
-        'FUDABA_CARD_REACTION_INVALID'
+    assert.deepEqual(
+        await contractJson(unsupported, fudabaCardReactionErrorSchema),
+        {
+            success: false,
+            code: 'FUDABA_CARD_REACTION_INVALID',
+            message: '表情不受支持'
+        }
     );
     assert.deepEqual(fixture.applyCalls, []);
 
@@ -143,9 +162,9 @@ test('exchange card reactions reject unsupported emoji and unknown cards', async
         body: JSON.stringify({ emoji: '❤️' })
     });
     assert.equal(missing.status, 404);
-    assert.equal(
-        (await missing.json() as { code: string }).code,
-        'FUDABA_CARD_REACTION_NOT_FOUND'
+    assert.deepEqual(
+        await contractJson(missing, fudabaCardReactionErrorSchema),
+        { success: false, code: 'FUDABA_CARD_REACTION_NOT_FOUND' }
     );
 });
 

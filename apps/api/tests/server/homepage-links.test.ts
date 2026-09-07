@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+    homepageLinkDeleteSchema,
+    homepageLinkErrorResponseSchema,
+    homepageLinkMutationSchema,
+    homepageLinksSchema
+} from '@imsweb/contracts/homepage-links';
 import { createHonoApp } from '@/app';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
@@ -16,6 +22,17 @@ function adminRequest(method: string, pathname: string, body?: unknown): Request
         },
         body: body === undefined ? undefined : JSON.stringify(body)
     });
+}
+
+async function contractJson<T>(
+    response: Response,
+    schema: { parse(value: unknown): T }
+): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
+    return parsed;
 }
 
 test('homepage links are database-backed and reorder only complete section inventories', async (t) => {
@@ -44,7 +61,7 @@ test('homepage links are database-backed and reorder only complete section inven
 
     const initial = await app.request('http://homepage.test/api/homepage-links');
     assert.equal(initial.status, 200);
-    assert.deepEqual(await initial.json(), {
+    assert.deepEqual(await contractJson(initial, homepageLinksSchema), {
         sections: { navigation: [], friend: [], support: [] }
     });
 
@@ -58,7 +75,7 @@ test('homepage links are database-backed and reorder only complete section inven
             accent: 'franchise-765'
         }));
         assert.equal(response.status, 201);
-        return (await response.json() as { link: { id: string } }).link.id;
+        return (await contractJson(response, homepageLinkMutationSchema)).link.id;
     };
 
     const firstId = await create('第一项', '/first');
@@ -69,6 +86,7 @@ test('homepage links are database-backed and reorder only complete section inven
         { ids: [secondId] }
     ));
     assert.equal(conflict.status, 409);
+    await contractJson(conflict, homepageLinkErrorResponseSchema);
 
     const reordered = await app.request(adminRequest(
         'PUT',
@@ -76,6 +94,7 @@ test('homepage links are database-backed and reorder only complete section inven
         { ids: [secondId, firstId] }
     ));
     assert.equal(reordered.status, 200);
+    await contractJson(reordered, homepageLinkDeleteSchema);
     assert.deepEqual(
         (await repository.listHomepageLinks('navigation')).map((link) => link.id),
         [secondId, firstId]
@@ -93,12 +112,32 @@ test('homepage links are database-backed and reorder only complete section inven
         }
     ));
     assert.equal(updated.status, 200);
+    await contractJson(updated, homepageLinkMutationSchema);
     assert.equal((await repository.findHomepageLinkById(firstId))?.title, '第一项已更新');
 
     const publicResponse = await app.request('http://homepage.test/api/homepage-links');
-    const publicBody = await publicResponse.json() as {
+    const publicBody = await contractJson(publicResponse, homepageLinksSchema) as {
         sections: { navigation: Array<{ id: string; displayOrder: number }> };
     };
     assert.deepEqual(publicBody.sections.navigation.map((link) => link.id), [secondId, firstId]);
     assert.deepEqual(publicBody.sections.navigation.map((link) => link.displayOrder), [0, 1]);
+
+    const adminRead = await app.request(adminRequest('GET', '/api/admin/homepage-links'));
+    assert.equal(adminRead.status, 200);
+    await contractJson(adminRead, homepageLinksSchema);
+
+    const deleted = await app.request(adminRequest('DELETE', `/api/admin/homepage-links/${firstId}`));
+    assert.equal(deleted.status, 200);
+    await contractJson(deleted, homepageLinkDeleteSchema);
+
+    const malformed = await app.request(adminRequest('POST', '/api/admin/homepage-links', {
+        section: 'navigation',
+        title: '',
+        description: '',
+        href: '/invalid',
+        icon: 'calendar',
+        accent: 'primary'
+    }));
+    assert.equal(malformed.status, 400);
+    await contractJson(malformed, homepageLinkErrorResponseSchema);
 });

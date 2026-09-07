@@ -1,3 +1,7 @@
+import {
+  platformHttpErrorSchema,
+  platformSessionSchema,
+} from "@imsweb/contracts/platform"
 import { platformAuthPath } from "@imsweb/contracts/paths"
 import { createAlova, type Method } from "alova"
 import { createServerTokenAuthentication } from "alova/client"
@@ -7,6 +11,7 @@ import ReactHook from "alova/react"
 import { normalizeRequestError } from "./api-error"
 import { readCookie } from "./cookies"
 import { API_ORIGIN } from "./origin"
+import { parsed } from "./parsed"
 import {
   capturePlatformTokens,
   clearPlatformTokens,
@@ -86,10 +91,15 @@ const platformAuthentication = createServerTokenAuthentication<
           if (currentSessionMarker() !== requestSessionMarker) {
             return
           }
-          await method.context.Post(platformAuthPath("/refresh"), undefined, {
-            meta: withPlatformCsrf({ authRole: "refreshToken" }),
-            headers: refreshRequestHeaders(),
-          })
+          await method.context.Post(
+            platformAuthPath("/refresh"),
+            undefined,
+            parsed(platformSessionSchema, {
+              errorSchema: platformHttpErrorSchema,
+              meta: withPlatformCsrf({ authRole: "refreshToken" }),
+              headers: refreshRequestHeaders(),
+            })
+          )
         })
       } catch {
         // A refused refresh means the stored tokens are spent; keeping them

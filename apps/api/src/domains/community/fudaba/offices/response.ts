@@ -1,5 +1,5 @@
 import { exchangePath } from '@imsweb/contracts/paths';
-import type { FudabaOwnerOffice } from '@imsweb/contracts/fudaba';
+import type { FudabaOfficeConflictResponse, FudabaOwnerOffice } from '@imsweb/contracts/fudaba';
 import type {
     FudabaOwnerOfficeRecord,
     FudabaOfficeStatus
@@ -43,7 +43,7 @@ export function fudabaOwnerOfficeView(
 export function fudabaOfficeConflict(
     revision: number,
     officeStatus: FudabaOfficeStatus
-): Record<string, unknown> {
+): FudabaOfficeConflictResponse {
     return {
         success: false,
         code: 'FUDABA_OFFICE_STATE_CONFLICT',

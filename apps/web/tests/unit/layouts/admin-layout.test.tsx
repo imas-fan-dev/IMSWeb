@@ -34,13 +34,15 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn() },
 }))
 
-function renderAdminLayout() {
+function renderAdminLayout(initialEntry = "/admin") {
   render(
-    <MemoryRouter initialEntries={["/admin"]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/admin/login" element={<h1>管理登录路由</h1>} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<h1>管理工作台首页</h1>} />
+          <Route path="stories" element={<h1>Wiki 剧情管理</h1>} />
+          <Route path="stories/assets" element={<h1>Wiki 素材管理</h1>} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -80,6 +82,40 @@ describe("AdminLayout", () => {
     expect(
       screen.getByRole("button", { name: "切换管理账号" })
     ).toHaveAttribute("href", "/admin/login")
+  })
+
+  it("allows an editor to use Wiki management without exposing op navigation", () => {
+    mocks.useRequest.mockReturnValue({
+      data: {
+        success: true,
+        user: {
+          id: 4,
+          username: "wiki-editor",
+          producername: "Wiki Editor",
+          dept: "editor",
+          adminRole: null,
+        },
+      },
+      loading: false,
+      error: undefined,
+      onError: mocks.onError,
+      send: mocks.send,
+    })
+
+    renderAdminLayout("/admin/stories")
+
+    expect(screen.getByRole("heading", { name: "Wiki 剧情管理" })).toBeVisible()
+    expect(screen.getByText("Wiki 编辑")).toBeVisible()
+    expect(screen.getByRole("link", { name: /剧情内容/ })).toHaveAttribute(
+      "href",
+      "/admin/stories"
+    )
+    expect(
+      screen.queryByRole("link", { name: /管理员账号/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /工作台/ })
+    ).not.toBeInTheDocument()
   })
 
   it("shows a retryable state for a session service failure", async () => {

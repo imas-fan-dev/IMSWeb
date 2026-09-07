@@ -1,5 +1,12 @@
 import { apiPath } from "@imsweb/contracts/paths"
-import { reactionMutationSchema } from "@imsweb/contracts/namecards"
+import {
+  namecardErrorResponseSchema,
+  namecardListErrorResponseSchema,
+  namecardReactionListQuerySchema,
+  namecardReactionRequestSchema,
+  reactionMutationSchema,
+} from "@imsweb/contracts/namecards"
+import { NAMECARD_REACTION_EMOJIS } from "@imsweb/contracts/fudaba/runtime"
 
 import {
   NO_CLIENT_CACHE,
@@ -25,59 +32,14 @@ export {
 } from "@imsweb/contracts/namecards"
 export type * from "@imsweb/contracts/namecards"
 
-export const NAMECARD_REACTIONS = [
-  "❤️",
-  "👍",
-  "😂",
-  "🤣",
-  "😭",
-  "😍",
-  "🥰",
-  "😘",
-  "🤯",
-  "😱",
-  "😎",
-  "🤩",
-  "😤",
-  "🙏",
-  "👏",
-  "✨",
-  "💯",
-  "🎉",
-  "💥",
-  "🌟",
-  "🐵",
-  "🐶",
-  "🐱",
-  "🦊",
-  "🐼",
-  "🐳",
-  "🔥",
-  "💀",
-  "👀",
-  "🍀",
-  "🌈",
-  "🐛",
-  "💎",
-  "🚀",
-  "🏆",
-  "🍕",
-  "🍔",
-  "🎮",
-  "🌹",
-  "🍭",
-  "🔨",
-  "🔫",
-  "❓",
-  "🧒",
-  "😙",
-  "🔘",
-] as const
+export const NAMECARD_REACTIONS = NAMECARD_REACTION_EMOJIS
 
 export function getNamecardPage(page = 1, size = 12) {
   return apiClient.Get(
     apiPath("/cards"),
     parsed(namecardPageSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      businessErrorSchema: namecardListErrorResponseSchema,
       cacheFor: NO_CLIENT_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
       params: { page, size },
@@ -87,18 +49,21 @@ export function getNamecardPage(page = 1, size = 12) {
 }
 
 export function getNamecardReactions(cardId: number) {
+  const params = namecardReactionListQuerySchema.parse({ id: cardId })
   return apiClient.Get(
     apiPath("/reactions"),
     parsed(reactionSchema, {
-      params: { id: cardId },
+      errorSchema: namecardErrorResponseSchema,
+      params,
     })
   )
 }
 
 export function addNamecardReaction(cardId: number, emoji: string) {
+  const submission = namecardReactionRequestSchema.parse({ id: cardId, emoji })
   return apiClient.Post(
     apiPath("/reactions"),
-    { id: cardId, emoji },
-    parsed(reactionMutationSchema)
+    submission,
+    parsed(reactionMutationSchema, { errorSchema: namecardErrorResponseSchema })
   )
 }

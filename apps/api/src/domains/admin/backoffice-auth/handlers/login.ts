@@ -1,3 +1,4 @@
+import type { AdminLoginRequest } from '@imsweb/contracts/admin';
 import type { AppEnvironment } from '@/app';
 import { randomHex } from '@/utils/crypto/random';
 import {
@@ -8,7 +9,6 @@ import {
     setBackofficeAuthenticationCookies,
     setLegacyBackofficeAuthenticationCookies
 } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
-import type { LoginRequest } from '@/domains/admin/backoffice-auth/login-request';
 import type {
     LoginErrorResponse,
     LoginSuccessResponse
@@ -22,7 +22,7 @@ import {
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 
 async function login(
-    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>,
+    c: ValidatedRequestContext<AppEnvironment, 'json', AdminLoginRequest>,
     options: { requiredDepartment?: string; legacyCookies?: boolean } = {}
 ): Promise<Response> {
     const { username, password } = c.req.valid('json');
@@ -91,19 +91,19 @@ async function login(
 }
 
 export function handleBackofficeLogin(
-    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
+    c: ValidatedRequestContext<AppEnvironment, 'json', AdminLoginRequest>
 ): Promise<Response> {
     return login(c, { legacyCookies: true });
 }
 
 export function handleBackofficeAdminLogin(
-    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
+    c: ValidatedRequestContext<AppEnvironment, 'json', AdminLoginRequest>
 ): Promise<Response> {
     return login(c, { requiredDepartment: 'op', legacyCookies: true });
 }
 
 export function handleCanonicalBackofficeLogin(
-    c: ValidatedRequestContext<AppEnvironment, 'json', LoginRequest>
+    c: ValidatedRequestContext<AppEnvironment, 'json', AdminLoginRequest>
 ): Promise<Response> {
     return login(c);
 }

@@ -5,7 +5,10 @@
 Validate raw input at the route boundary. The helpers in
 `apps/api/src/middleware/request-validation.ts` wrap Hono validation for JSON,
 path parameters, and query parameters, normalize malformed input to a 400
-response, and preserve typed `c.req.valid(...)` data for handlers.
+response, and preserve typed `c.req.valid(...)` data for handlers. This is the
+only API production boundary that may value-import and execute a contracts
+request schema. Existing schemas explicitly preserve strict, strip, or
+passthrough unknown-key behavior; new schemas are strict.
 
 Handlers should accept a `ValidatedRequestContext` when a route validator has
 already run. Do not parse the same payload again in the handler or pass raw
@@ -38,17 +41,25 @@ injected transaction boundary.
 ## Wire responses
 
 API response modules do not hand-write shared wire shapes. Import contract
-types with `import type` from the narrow `@imsweb/contracts/<domain>` subpath,
-and annotate view builders with the matching output type. Use a `z.input` type
-only when a schema transforms or coerces and the API emits the input shape.
+success and error types with `import type` from the narrow
+`@imsweb/contracts/<domain>` subpath, and annotate view builders with the
+matching output type. Use a `z.input` type only when a schema transforms or
+coerces and the API emits the input shape. Production API code outside request
+validation must not load contracts schemas or Zod to prove a type TypeScript can
+express.
 
-Runtime zod validation remains at HTTP test response read points. Production
-API code must not load zod to prove a type that TypeScript can express.
+Redirects, media and site streams remain API-local success boundaries. Their
+JSON error bodies use contracts types. HTTP conformance tests parse untouched
+JSON with the shared schema and compare the parsed result with the raw body.
 
-Redirects, media and site streams, and error bodies are API-local boundaries.
-For local error objects, use `satisfies` so status-specific responses retain a
-checked shape. `apps/api/src/domains/content/events/handlers/get-event.ts`
-shows this for a 404 response and a typed success view.
+`pnpm run check:rules` resolves every mounted request validator and
+`c.json(...)` emitter through the TypeScript compiler. Keep route factories,
+path builders, and view mappers statically resolvable. Register each non-JSON
+handler or middleware by exact file and symbol in
+`scripts/contracts/non-json-boundaries.manifest.json`; wildcard, stale, inline,
+or unreachable exceptions fail the gate. Regenerate the checked inventory with
+`node scripts/contracts/compile-route-inventory.mjs --write` after an intentional
+route change.
 
 ## Failure handling
 

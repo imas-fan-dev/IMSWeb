@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { platformProfileMutationResponseSchema } from '@imsweb/contracts/platform';
+import {
+    platformMutationRateLimitResponseSchema,
+    platformProfileMutationResponseSchema,
+    platformProfileResponseSchema
+} from '@imsweb/contracts/platform';
 import type { PlatformAccountStatus } from '@/ports/repositories';
 import {
     ACCOUNT_ID,
@@ -13,6 +17,16 @@ import {
 const PROFILE_URL = 'http://ims.test/api/platform/me';
 const AVATAR_URL = 'http://ims.test/api/platform/me/avatar';
 const SEEDED_UPDATED_AT = 1_000;
+
+async function assertRawJsonConforms(
+    response: Response,
+    schema: { parse(input: unknown): unknown }
+): Promise<unknown> {
+    const raw: unknown = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'contract schema stripped or changed raw JSON');
+    return parsed;
+}
 
 interface ErrorBody {
     code: string;
@@ -31,7 +45,10 @@ test('Platform profile GET and text update expose a fenced owner projection',
             headers: bearerHeaders()
         });
         assert.equal(get.status, 200);
-        const initial = await get.json() as {
+        const initial = await assertRawJsonConforms(
+            get,
+            platformProfileResponseSchema
+        ) as {
             account: { id: string; status: string };
             capabilities: { fudabaWrite: boolean };
             profile: { avatarUrl: string; updatedAt: number };
@@ -49,10 +66,12 @@ test('Platform profile GET and text update expose a fenced owner projection',
             body: JSON.stringify(profileBody(expectedUpdatedAt))
         });
         assert.equal(saved.status, 200);
-        const savedBody = await saved.json() as {
+        const savedBody = await assertRawJsonConforms(
+            saved,
+            platformProfileMutationResponseSchema
+        ) as {
             profile: { displayName: string; updatedAt: number };
         };
-        platformProfileMutationResponseSchema.parse(savedBody);
         assert.equal(savedBody.profile.displayName, 'Updated Owner');
         assert.ok(savedBody.profile.updatedAt > expectedUpdatedAt);
         assert.equal(fixture.profileTextInputs[0]?.accountId, ACCOUNT_ID);
@@ -255,7 +274,11 @@ test('Platform profile writes consume the shared Platform write budget', async (
     limited.rateLimiter.deniedBuckets.add('platform-write-account');
     const response = await putProfile(limited, profileJson());
     assert.equal(response.status, 429);
-    assert.equal((await response.json() as ErrorBody).code, 'PLATFORM_RATE_LIMITED');
+    const limitedBody = await assertRawJsonConforms(
+        response,
+        platformMutationRateLimitResponseSchema
+    ) as ErrorBody;
+    assert.equal(limitedBody.code, 'PLATFORM_RATE_LIMITED');
     assert.ok(Number(response.headers.get('retry-after')) > 0);
     assert.equal(limited.profileTextInputs.length, 0);
     assert.equal(limited.profile.updated_at, SEEDED_UPDATED_AT);
@@ -285,7 +308,7 @@ test('Platform avatar reads stay 404 until the account stores an avatar object',
     const key = 'protected/platform/avatars/owner.webp';
     fixture.profile.avatar_object_key = key;
     fixture.storage.seed(key);
-    const served = await fixture.app.request(AVATAR_URL, {
+    const served = await fixture.app.request(`${AVATAR_URL}?v=1000`, {
         headers: bearerHeaders(),
         redirect: 'manual'
     });
@@ -473,7 +496,10 @@ test('avatar removal clears both avatar columns and sweeps the stored object',
         assert.equal(fixture.storage.objects.has(key), false);
         assert.ok(fixture.profile.updated_at > SEEDED_UPDATED_AT);
 
-        const projected = JSON.parse(body) as { profile: { avatarUrl: null } };
+        const projected = platformProfileMutationResponseSchema.parse(JSON.parse(body)) as {
+            profile: { avatarUrl: null };
+        };
+        assert.deepEqual(projected, JSON.parse(body), 'contract schema stripped or changed raw JSON');
         assert.equal(projected.profile.avatarUrl, null);
     });
 

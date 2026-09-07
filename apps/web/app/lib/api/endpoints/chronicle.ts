@@ -1,6 +1,4 @@
 import { eventChroniclePath } from "@imsweb/contracts/paths"
-import { z } from "@imsweb/contracts/z"
-
 import {
   PUBLIC_CACHE_INVALIDATION_SOURCE,
   PUBLIC_QUERY_CACHE_FOR,
@@ -14,7 +12,10 @@ import { apiClient } from "../client"
 
 import {
   chronicleActivitySchema,
-  chronicleActivitySummarySchema,
+  chronicleActivityListSchema,
+  chronicleErrorResponseSchema,
+  // pi-lens-ignore: ts:2724
+  chronicleUploadHttpErrorResponseSchema,
   chronicleUploadResponseSchema,
 } from "@imsweb/contracts/chronicle"
 
@@ -31,7 +32,8 @@ export type {
 export function getChronicleActivities() {
   return apiClient.Get(
     eventChroniclePath("/activities"),
-    parsed(z.array(chronicleActivitySummarySchema), {
+    parsed(chronicleActivityListSchema, {
+      errorSchema: chronicleErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
       select: normalizeChronicleActivitySummaries,
@@ -43,6 +45,7 @@ export function getChronicleActivity(activityId: string) {
   return apiClient.Get(
     eventChroniclePath(`/activities/${encodeURIComponent(activityId)}`),
     parsed(chronicleActivitySchema, {
+      errorSchema: chronicleErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.chronicle,
       select: normalizeChronicleActivity,
@@ -65,6 +68,7 @@ export function uploadChronicleImages(
     eventChroniclePath("/upload"),
     form,
     parsed(chronicleUploadResponseSchema, {
+      errorSchema: chronicleUploadHttpErrorResponseSchema,
       headers: { "Idempotency-Key": idempotencyKey },
     })
   )

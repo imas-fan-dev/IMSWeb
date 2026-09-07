@@ -1,20 +1,21 @@
-import type { Context } from 'hono';
+import type {
+    // pi-lens-ignore: ts:2724
+    PlatformProfileError,
+    PlatformProfileMutationResponse
+} from '@imsweb/contracts/platform';
 import type { AppEnvironment } from '@/app';
-import { parsePlatformAvatarRemoval } from '@/domains/identity/platform-profile/profile-input';
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { platformProfileView } from '@/domains/identity/platform-profile/profile-view';
 import { platformAccountRepository, services } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
 
 export async function handleDeletePlatformAvatar(
-    c: Context<AppEnvironment>
+    c: ValidatedRequestContext<AppEnvironment, 'json', number>
 ): Promise<Response> {
     try {
         const accountId = c.get('platformUser')!.id;
-        const body = await c.req.json().catch(() => {
-            throw Object.assign(new Error('请求体必须是有效 JSON'), { status: 400 });
-        });
-        const expectedUpdatedAt = parsePlatformAvatarRemoval(body);
+        const expectedUpdatedAt = c.req.valid('json');
         // Passing a null key clears `avatar_object_key` and `avatar_external_url`
         // together, so an OAuth-provided picture is removed alongside an upload.
         const result = await platformAccountRepository(c).updateProfileAvatarForOwner({
@@ -31,7 +32,7 @@ export async function handleDeletePlatformAvatar(
                 success: false,
                 code: 'PLATFORM_PROFILE_CONFLICT',
                 updatedAt: result.updatedAt
-            }, 409);
+            } satisfies PlatformProfileError, 409);
         }
         // The row no longer references the object, so a failed cleanup leaks an
         // unreachable object rather than breaking the profile. Compensation
@@ -44,7 +45,10 @@ export async function handleDeletePlatformAvatar(
                 console.error('Failed to schedule removed Platform avatar cleanup', error);
             });
         }
-        return c.json({ success: true, profile: platformProfileView(result.profile) });
+        return c.json({
+            success: true,
+            profile: platformProfileView(result.profile)
+        } satisfies PlatformProfileMutationResponse);
     } catch (error) {
         const status = statusFromError(error);
         if (status >= 500) console.error('Failed to remove Platform avatar', error);

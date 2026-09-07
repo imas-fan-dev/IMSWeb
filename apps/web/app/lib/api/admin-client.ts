@@ -1,3 +1,7 @@
+import {
+  adminRefreshErrorResponseSchema,
+  adminRefreshSuccessResponseSchema,
+} from "@imsweb/contracts/admin"
 import { adminApiPath } from "@imsweb/contracts/paths"
 import { createAlova } from "alova"
 import { createServerTokenAuthentication } from "alova/client"
@@ -6,6 +10,7 @@ import ReactHook from "alova/react"
 
 import { normalizeRequestError } from "./api-error"
 import { API_ORIGIN } from "./origin"
+import { parsed } from "./parsed"
 import {
   applyApiRequestPolicy,
   BACKOFFICE_CSRF_COOKIE_NAME,
@@ -34,9 +39,14 @@ const backofficeAuthentication = createServerTokenAuthentication<
     },
     handler: async (_response, method) => {
       try {
-        await method.context.Post(adminApiPath("/auth/refresh"), undefined, {
-          meta: withBackofficeCsrf({ authRole: "refreshToken" }),
-        })
+        await method.context.Post(
+          adminApiPath("/auth/refresh"),
+          undefined,
+          parsed(adminRefreshSuccessResponseSchema, {
+            errorSchema: adminRefreshErrorResponseSchema,
+            meta: withBackofficeCsrf({ authRole: "refreshToken" }),
+          })
+        )
       } catch {
         // Alova 3.5 clears failed refresh waiters without rejecting them.
         // Treat this refresh wave as completed so every caller can settle.

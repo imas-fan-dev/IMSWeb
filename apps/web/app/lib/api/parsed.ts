@@ -1,6 +1,7 @@
 import type { z } from "@imsweb/contracts/z"
 
 import { ApiError } from "./api-error.js"
+import { hasExactJsonStructure } from "./json-contract.js"
 import type { ApiMethodMeta } from "./types.js"
 
 /**
@@ -10,10 +11,15 @@ import type { ApiMethodMeta } from "./types.js"
  */
 interface ParsedConfigBase {
   meta?: ApiMethodMeta
+  errorSchema?: z.ZodType
+  businessErrorSchema?: z.ZodType
   [option: string]: unknown
 }
 
-type ParsedResult<C, Out> = Omit<C, "meta" | "select"> & {
+type ParsedResult<C, Out> = Omit<
+  C,
+  "meta" | "select" | "errorSchema" | "businessErrorSchema"
+> & {
   meta: ApiMethodMeta
   transform: (payload: unknown) => Out
 }
@@ -42,18 +48,25 @@ export function parsed(
   schema: z.ZodType,
   config: ParsedConfigBase & { select?: (data: unknown) => unknown } = {}
 ): ParsedResult<ParsedConfigBase, unknown> {
-  const { select, meta, ...rest } = config
+  const { select, meta, errorSchema, businessErrorSchema, ...rest } = config
+  const parsedMeta: ApiMethodMeta = {
+    ...(meta as ApiMethodMeta | undefined),
+    parsed: true,
+  }
+  if (errorSchema) parsedMeta.errorSchema = errorSchema
+  if (businessErrorSchema) parsedMeta.businessErrorSchema = businessErrorSchema
+
   return {
     ...rest,
-    meta: { ...(meta as ApiMethodMeta | undefined), parsed: true },
+    meta: parsedMeta,
     transform: (payload: unknown) => {
       const result = schema.safeParse(payload)
-      if (!result.success) {
+      if (!result.success || !hasExactJsonStructure(payload, result.data)) {
         throw new ApiError("响应不符合线上契约", {
           kind: "contract",
           code: "CONTRACT_VIOLATION",
           payload,
-          cause: result.error,
+          cause: result.success ? undefined : result.error,
         })
       }
       return select ? select(result.data) : result.data

@@ -1,3 +1,9 @@
+import type {
+    // pi-lens-ignore: ts:2305
+    FudabaAdminCardClaimListResponse,
+    // pi-lens-ignore: ts:2724
+    FudabaRegisteredCardReviewListResponse
+} from '@imsweb/contracts/fudaba/card-claims';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { parseCardReview } from '@/domains/community/fudaba/moderation/request';
@@ -64,7 +70,9 @@ export async function handleListFudabaRegisteredCardReviews(
 ): Promise<Response> {
     try {
         const cards = await fudabaRepository(c).listAdminPendingCards(100);
-        return c.json({ items: cards.map(fudabaRegisteredCardReviewView) });
+        return c.json({
+            items: cards.map(fudabaRegisteredCardReviewView)
+        } satisfies FudabaRegisteredCardReviewListResponse);
     } catch (error) {
         console.error('Failed to list registered card reviews', error);
         return c.json({
@@ -218,7 +226,9 @@ export async function handleListFudabaCardClaimReviews(
 ): Promise<Response> {
     try {
         const claims = await fudabaRepository(c).listAdminPendingClaims(100);
-        return c.json({ items: claims.map(fudabaAdminCardClaimView) });
+        return c.json({
+            items: claims.map(fudabaAdminCardClaimView)
+        } satisfies FudabaAdminCardClaimListResponse);
     } catch (error) {
         console.error('Failed to list card claim reviews', error);
         return c.json({

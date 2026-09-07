@@ -12,6 +12,7 @@ import type { Recommendation } from "./recommendations"
 
 import {
   informationDetailSchema,
+  informationErrorResponseSchema,
   informationListSchema,
 } from "@imsweb/contracts/information"
 
@@ -41,6 +42,7 @@ export function getHomeInformation() {
   return apiClient.Get(
     apiPath("/information"),
     parsed(informationListSchema, {
+      errorSchema: informationErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
     })
@@ -51,6 +53,7 @@ export function getHomeInformationDetail(id: string) {
   return apiClient.Get(
     apiPath(`/information/${encodeURIComponent(id)}`),
     parsed(informationDetailSchema, {
+      errorSchema: informationErrorResponseSchema,
       cacheFor: PUBLIC_QUERY_CACHE_FOR,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.information,
     })

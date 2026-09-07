@@ -1,3 +1,5 @@
+// pi-lens-ignore: ts:2724
+import type { FudabaOfficeDetailResponse } from '@imsweb/contracts/fudaba';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { assertNoFudabaQuery, validFudabaOfficeSlug } from '@/domains/community/fudaba/directory/request';
@@ -24,5 +26,7 @@ export async function handleGetFudabaPublicOffice(
             fudabaPublicPlacedCardView(storage, card)
         ))
     ]);
-    return c.json({ office: { ...view, cards } });
+    return c.json({
+        office: { ...view, cards }
+    } satisfies FudabaOfficeDetailResponse);
 }

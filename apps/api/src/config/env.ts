@@ -1,4 +1,4 @@
-import { isFudabaMapStyleUrl } from "@imsweb/contracts/fudaba/map-delivery";
+import { isFudabaMapStyleUrl } from "@imsweb/contracts/fudaba/runtime";
 
 export type RuntimeEnvironment = "development" | "test" | "production";
 

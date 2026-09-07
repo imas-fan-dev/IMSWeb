@@ -51,8 +51,9 @@ When JSON changes:
 5. Parse a real HTTP response in an API test.
 6. Run a Web endpoint or workflow test.
 
-Do not hand-write matching interfaces in both applications. Error bodies,
-redirects, and stream boundaries remain API-local.
+Do not hand-write matching interfaces in both applications. HTTP JSON error
+bodies are contracts, including errors from redirect or stream endpoints.
+Redirect and stream success boundaries remain API-local.
 
 ## Shared path changes
 

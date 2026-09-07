@@ -1,3 +1,7 @@
+import type {
+    PlatformAuthError,
+    PlatformProfileResponse
+} from '@imsweb/contracts/platform';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { platformProfileView } from '@/domains/identity/platform-profile/profile-view';
@@ -6,7 +10,10 @@ import { services } from '@/middleware/hono-context';
 export function handleGetPlatformProfile(c: Context<AppEnvironment>): Response {
     const identity = c.get('platformAccount');
     if (!identity) {
-        return c.json({ success: false, code: 'PLATFORM_SESSION_INVALID' }, 401);
+        return c.json(
+            { success: false, code: 'PLATFORM_SESSION_INVALID' } satisfies PlatformAuthError,
+            401
+        );
     }
     return c.json({
         success: true,
@@ -15,5 +22,5 @@ export function handleGetPlatformProfile(c: Context<AppEnvironment>): Response {
             fudabaWrite: services(c).config?.fudabaWriteEnabled === true
         },
         profile: platformProfileView(identity.profile)
-    });
+    } satisfies PlatformProfileResponse);
 }

@@ -8,6 +8,17 @@ This file supplements the repository-level `AGENTS.md` for `@imsweb/api`.
 
 Business code imports only `@/ports/*` contracts; it must not import any `@/infra/*` module, PostgreSQL, S3, Sharp, or upload-parser implementation directly. Repository use is capability-specific (`auth`, `audit`, `news`, `events`, `namecards`, `sitePackages`, or `story`) rather than a shared Core repository. Runtime composition is the only place that selects concrete middleware files. Name files inside middleware directories by business responsibility, such as `core-repository.ts`, `object-storage.ts`, `image-processor.ts`, or `rate-limiter.ts`; do not add middleware barrels or generic `adapter.ts`, `implementation.ts`, or `service.ts` files. Internal imports use `@/`, rooted at `src`; do not use `@/server/...` or long relative paths. API route registration, middleware path classification, cookie scopes, and public delivery routes must import shared prefixes and builders from `@imsweb/contracts/paths`; do not reintroduce hard-coded `/api`, `/eventchronicle`, `/uploads`, `/site-content`, or static delivery prefixes. `pnpm run check:rules` enforces these source boundaries for production code.
 
+Contracts own all HTTP JSON request, success, error, and business-error wire
+shapes, including API-only routes. A route may value-import and execute a
+contracts request schema only through the HTTP request-validation boundary.
+Handlers, response/domain logic, ports, repositories, infrastructure, and
+runtime composition use contracts types only and do not load schemas or Zod.
+Keep multipart carriers, Hono context, repository records, redirects, streams,
+HTML, binary/static success responses, and mapping code local; JSON errors from
+those non-JSON success boundaries still use contracts types. Preserve the
+existing request unknown-key policy explicitly during migration; new request
+schemas are strict by default.
+
 The same rule applies to ORMs: domain code must not import Prisma Client or generated Prisma model types. If Prisma is introduced, keep it under `infra/db/prisma/`, map its records to types owned by the relevant `ports/repositories/<business>.ts` contract, and instantiate it only from `runtime/`.
 
 Do not create `src/shared`. Hono request context and request path policies belong in `middleware/`; frontend route decisions belong in `routing/`; runtime-neutral pure functions belong under `utils/{crypto,http,media,storage,validation}`. Do not add utility barrels, `index.ts`, `utils.ts`, or `helpers.ts`. SQL helpers belong to `infra/db/sql`; concrete middleware and runtime selection never belong in `utils`.

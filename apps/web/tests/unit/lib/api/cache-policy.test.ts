@@ -1,3 +1,4 @@
+import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -36,6 +37,7 @@ import {
 const emptyWikiCatalog = {
   status: "success",
   agencies: [],
+  searchEntries: [],
   selection: null,
 } as const
 
@@ -52,9 +54,13 @@ const emptyWikiStories = {
     name: "天海春香",
     folderName: "amami_haruka",
     color: "#ff0000",
+    wikiUrl: null,
     imageUrl: "/image/765PRO/天海春香/icon.webp",
     imageFit: "cover",
     textColor: "#ffffff",
+    entryKind: "idol",
+    entrySubtype: null,
+    imageTransform: defaultWikiImageTransform,
   },
   categories: [],
 } as const

@@ -6,7 +6,7 @@ import {
     readFudabaMapDelivery,
     saveFudabaMapDelivery,
 } from '@/domains/community/fudaba/map-delivery/map-delivery-store';
-import { parseFudabaMapSourceWriteRequest } from '@/domains/community/fudaba/map-delivery/request';
+import type { FudabaMapSourceWrite } from '@imsweb/contracts/fudaba/map-delivery';
 import { fudabaMapDeliveryResponse } from '@/domains/community/fudaba/map-delivery/response';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import { services } from '@/middleware/hono-context';
@@ -20,7 +20,9 @@ export async function handleCreateFudabaMapSource(
     if (!storage) throw new Error('Object storage unavailable');
     const seedStyleUrls = runtime.config?.fudabaMapStyleUrls ?? [];
     try {
-        const payload = await parseFudabaMapSourceWriteRequest(c);
+        const payload = (
+            c.req as unknown as { valid(target: 'json'): unknown }
+        ).valid('json') as FudabaMapSourceWrite;
         const current = await readFudabaMapDelivery(storage, seedStyleUrls);
         const source = {
             id: createFudabaMapSourceId(current.sources),

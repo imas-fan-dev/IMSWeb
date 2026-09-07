@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
+import {
+    adminRecommendationListSchema,
+    newsErrorResponseSchema,
+    newsMutationErrorResponseSchema,
+    newsMutationSuccessSchema,
+    recommendationResponseSchema,
+    type Recommendation
+} from '@imsweb/contracts/news';
 import { createHonoApp } from '@/app';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlNewsRepository } from '@/infra/db/repositories/news-repository';
@@ -9,13 +17,8 @@ import {
 } from '@/utils/validation/descending-id-cursor';
 import { createPostgresTestDatabase } from './postgres-test-database';
 
-interface NewsListItem {
-    id: number;
-    title: string;
-}
-
 interface CursorNewsPage {
-    items: NewsListItem[];
+    items: Recommendation[];
     pageInfo: {
         nextCursor: string | null;
         hasNextPage: boolean;
@@ -61,8 +64,15 @@ async function createFixture(t: TestContext, count: number): Promise<NewsFixture
     };
 }
 
-async function responseJson<T>(response: Response): Promise<T> {
-    return response.json() as Promise<T>;
+async function contractJson<T>(
+    response: Response,
+    schema: { parse(value: unknown): T }
+): Promise<T> {
+    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
+    const raw = await response.json();
+    const parsed = schema.parse(raw);
+    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
+    return parsed;
 }
 
 test('news keeps its legacy array response when pagination is not requested', async (t) => {
@@ -70,7 +80,7 @@ test('news keeps its legacy array response when pagination is not requested', as
     const response = await fixture.request('/api/news');
 
     assert.equal(response.status, 200);
-    const body = await responseJson<NewsListItem[]>(response);
+    const body = await contractJson(response, recommendationResponseSchema) as Recommendation[];
     assert.equal(Array.isArray(body), true);
     assert.deepEqual(body.map((item) => item.id), [3, 2, 1]);
 });
@@ -80,7 +90,7 @@ test('news cursor pagination holds an id snapshot while rows are inserted', asyn
 
     const first = await fixture.request('/api/news?limit=2');
     assert.equal(first.status, 200);
-    const firstBody = await responseJson<CursorNewsPage>(first);
+    const firstBody = await contractJson(first, recommendationResponseSchema) as CursorNewsPage;
     assert.deepEqual(firstBody.items.map((item) => item.id), [5, 4]);
     assert.deepEqual(
         decodeDescendingIdCursor(firstBody.pageInfo.nextCursor ?? ''),
@@ -96,14 +106,14 @@ test('news cursor pagination holds an id snapshot while rows are inserted', asyn
     const second = await fixture.request(
         `/api/news?limit=2&cursor=${encodeURIComponent(firstBody.pageInfo.nextCursor ?? '')}`
     );
-    const secondBody = await responseJson<CursorNewsPage>(second);
+    const secondBody = await contractJson(second, recommendationResponseSchema) as CursorNewsPage;
     assert.deepEqual(secondBody.items.map((item) => item.id), [3, 2]);
     assert.equal(secondBody.pageInfo.snapshotAt, '5');
 
     const third = await fixture.request(
         `/api/news?limit=2&cursor=${encodeURIComponent(secondBody.pageInfo.nextCursor ?? '')}`
     );
-    const thirdBody = await responseJson<CursorNewsPage>(third);
+    const thirdBody = await contractJson(third, recommendationResponseSchema) as CursorNewsPage;
     assert.deepEqual(thirdBody.items.map((item) => item.id), [1]);
     assert.deepEqual(thirdBody.pageInfo, {
         nextCursor: null,
@@ -112,7 +122,7 @@ test('news cursor pagination holds an id snapshot while rows are inserted', asyn
     });
 
     const refreshed = await fixture.request('/api/news?limit=2');
-    const refreshedBody = await responseJson<CursorNewsPage>(refreshed);
+    const refreshedBody = await contractJson(refreshed, recommendationResponseSchema) as CursorNewsPage;
     assert.deepEqual(refreshedBody.items.map((item) => item.id), [6, 5]);
     assert.equal(refreshedBody.pageInfo.snapshotAt, '6');
 });
@@ -121,7 +131,7 @@ test('news cursor pagination validates limits, cursors, and empty snapshots', as
     const fixture = await createFixture(t, 0);
     const empty = await fixture.request('/api/news?limit=20');
     assert.equal(empty.status, 200);
-    assert.deepEqual(await responseJson<CursorNewsPage>(empty), {
+    assert.deepEqual(await contractJson(empty, recommendationResponseSchema), {
         items: [],
         pageInfo: { nextCursor: null, hasNextPage: false, snapshotAt: null }
     });
@@ -136,6 +146,7 @@ test('news cursor pagination validates limits, cursors, and empty snapshots', as
     ]) {
         const response = await fixture.request(`/api/news?${query}`);
         assert.equal(response.status, 400, query);
+        await contractJson(response, newsErrorResponseSchema);
     }
 
     const maxId = '9223372036854775807';
@@ -144,4 +155,79 @@ test('news cursor pagination validates limits, cursors, and empty snapshots', as
         snapshotId: maxId,
         afterId: '9007199254740993'
     });
+});
+
+test('admin news parses exact success and mutation business-error envelopes', async () => {
+    const app = createHonoApp(() => ({
+        news: {
+            listPublicNews: async () => [],
+            findLatestPublicNewsId: async () => null,
+            listPublicNewsByCursor: async () => [],
+            listAdminNews: async () => [],
+            insertNews: async () => 1,
+            findNewsMedia: async () => null,
+            deleteNews: async () => undefined
+        },
+        backofficeAuth: {
+            findUserByUsername: async () => null,
+            findUserById: async () => ({
+                id: 1,
+                username: 'operator',
+                password: 'unused-password-hash',
+                dept: 'op',
+                producername: 'Operator',
+                admin_role: 'admin' as const
+            }),
+            createRefreshSession: async () => undefined,
+            findRefreshSessionByTokenHash: async () => null,
+            rotateRefreshSession: async () => false,
+            revokeRefreshSession: async () => undefined,
+            deleteExpiredRefreshSessions: async () => undefined
+        },
+        audit: {
+            insertAuditLog: async () => undefined,
+            listRecentAuditLogs: async () => []
+        },
+        backofficeTokens: {
+            sign: async () => 'op-token',
+            verify: async () => ({
+                id: 1,
+                username: 'operator',
+                producername: 'Operator',
+                dept: 'op' as const,
+                adminRole: 'admin' as const,
+                csrfSecret: 'csrf'
+            })
+        }
+    }));
+    const request = (method: string, path: string, body?: unknown) => app.request(path, {
+        method,
+        headers: {
+            Authorization: 'Bearer op-token',
+            ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+        },
+        body: body === undefined ? undefined : JSON.stringify(body)
+    });
+
+    const list = await request('GET', '/api/admin/news');
+    assert.equal(list.status, 200);
+    await contractJson(list, adminRecommendationListSchema);
+
+    const created = await request('POST', '/api/admin/news', {
+        title: 'News',
+        content: 'https://example.test/news'
+    });
+    assert.equal(created.status, 200);
+    await contractJson(created, newsMutationSuccessSchema);
+
+    const businessError = await request('POST', '/api/admin/news', {
+        title: 'News',
+        content: 'not-a-url'
+    });
+    assert.equal(businessError.status, 400);
+    await contractJson(businessError, newsMutationErrorResponseSchema);
+
+    const deleted = await request('DELETE', '/api/admin/news/1');
+    assert.equal(deleted.status, 200);
+    await contractJson(deleted, newsMutationSuccessSchema);
 });

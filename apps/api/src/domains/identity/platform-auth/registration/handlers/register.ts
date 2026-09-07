@@ -1,14 +1,14 @@
+import type { PlatformSession } from '@imsweb/contracts/platform';
 import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
 import {
     establishPlatformSession,
     platformSessionPayload,
 } from "@/domains/identity/platform-auth/contracts/session";
-import { isPlatformJsonContentType } from "@/domains/identity/platform-auth/contracts/credentials";
-import { parsePlatformRegisterInput } from "@/domains/identity/platform-auth/registration/request";
 import { clearPlatformEmailVerificationCooldown } from "@/domains/identity/platform-auth/registration/email-verification-cache";
 import { hashPlatformEmailVerificationCode } from "@/domains/identity/platform-auth/registration/email-verification";
 import { platformAccountRepository, services } from "@/middleware/hono-context";
+import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { randomHex } from "@/utils/crypto/random";
 
 const BCRYPT_PARAMETERS_JSON = JSON.stringify({
@@ -17,23 +17,14 @@ const BCRYPT_PARAMETERS_JSON = JSON.stringify({
 });
 
 export async function handlePlatformRegister(
-    c: Context<AppEnvironment>,
+    c: ValidatedRequestContext<AppEnvironment, 'json', {
+        code: string;
+        displayName: string;
+        email: string;
+        password: string;
+    }>,
 ): Promise<Response> {
-    if (!isPlatformJsonContentType(c.req.header("content-type"))) {
-        return c.json(
-            { success: false, code: "PLATFORM_AUTH_JSON_REQUIRED" },
-            415,
-        );
-    }
-    const input = parsePlatformRegisterInput(
-        await c.req.json<unknown>().catch(() => null),
-    );
-    if (!input) {
-        return c.json(
-            { success: false, code: "PLATFORM_AUTH_INPUT_INVALID" },
-            400,
-        );
-    }
+    const input = c.req.valid('json');
     const passwords = services(c).passwords;
     if (!passwords?.hash) {
         throw new Error(
@@ -60,7 +51,7 @@ export async function handlePlatformRegister(
             updatedAt: now,
         },
         credential: {
-            normalizedEmail: input.normalizedEmail,
+            normalizedEmail: input.email,
             algorithm: "bcrypt",
             parametersJson: BCRYPT_PARAMETERS_JSON,
             passwordHash,
@@ -69,7 +60,7 @@ export async function handlePlatformRegister(
         },
         verification: {
             codeHash: hashPlatformEmailVerificationCode(
-                input.normalizedEmail,
+                input.email,
                 input.code,
             ),
             consumedToken: randomHex(32),
@@ -88,13 +79,13 @@ export async function handlePlatformRegister(
     if (result.status === "email-conflict") {
         await clearPlatformEmailVerificationCooldown(
             services(c).cache,
-            input.normalizedEmail,
+            input.email,
         );
         return c.json({ success: false, code: "PLATFORM_EMAIL_EXISTS" }, 409);
     }
     await clearPlatformEmailVerificationCooldown(
         services(c).cache,
-        input.normalizedEmail,
+        input.email,
     );
     const tokens = await establishPlatformSession(c, result.identity);
     if (!tokens) {
@@ -107,7 +98,7 @@ export async function handlePlatformRegister(
         );
     }
     return c.json(
-        await platformSessionPayload(c, result.identity, tokens),
+        await platformSessionPayload(c, result.identity, tokens) satisfies PlatformSession,
         201,
     );
 }

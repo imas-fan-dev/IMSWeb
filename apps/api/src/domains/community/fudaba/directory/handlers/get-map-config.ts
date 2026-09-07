@@ -1,3 +1,4 @@
+import type { FudabaMapConfig } from '@imsweb/contracts/fudaba';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { assertNoFudabaQuery } from '@/domains/community/fudaba/directory/request';
@@ -23,7 +24,7 @@ export async function handleGetFudabaMapConfig(
         });
     }
     const storage = runtime.storage;
-    if (!storage) return c.json({ styleUrl });
+    if (!storage) return c.json({ styleUrl } satisfies FudabaMapConfig);
     try {
         const delivery = await readFudabaMapDelivery(storage, [
             styleUrl,
@@ -32,9 +33,11 @@ export async function handleGetFudabaMapConfig(
         const active = delivery.sources.find(
             (source) => source.id === delivery.activeSourceId,
         );
-        return c.json({ styleUrl: active?.styleUrl ?? styleUrl });
+        return c.json({
+            styleUrl: active?.styleUrl ?? styleUrl
+        } satisfies FudabaMapConfig);
     } catch (error) {
         console.error('Failed to read fudaba map delivery selection', error);
-        return c.json({ styleUrl });
+        return c.json({ styleUrl } satisfies FudabaMapConfig);
     }
 }
