@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const pendingReview = {
   officeId: "office-e2e",
   officeName: "上海周末交换事务所",
@@ -19,29 +21,13 @@ const pendingReview = {
   reviewNote: "",
 }
 
-test.beforeEach(async ({ context, page }) => {
-  await context.addCookies([
-    {
-      name: "ims_admin_csrf",
-      value: "location-review-e2e",
-      domain: "127.0.0.1",
-      path: "/",
+test.beforeEach(async ({ page }) => {
+  await installAdminAuthMock(page, {
+    csrfToken: "location-review-e2e",
+    user: {
+      username: "location-operator",
+      producername: "位置审核员",
     },
-  ])
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "location-operator",
-          producername: "位置审核员",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
   })
 })
 

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 test("mobile Wiki agency switching preserves both scroll positions", async ({
   page,
   isMobile,
@@ -535,20 +537,13 @@ test("modern Wiki keeps group navigation and mobile search fixed", async ({
 }) => {
   test.skip(!isMobile, "mobile-only modern Wiki interaction")
 
-  await page.route("**/api/check", (route) =>
-    route.fulfill({
-      json: {
-        success: true,
-        user: {
-          id: 3,
-          username: "operator",
-          producername: "Operator",
-          dept: "op",
-          adminRole: "admin",
-        },
-      },
-    })
-  )
+  await installAdminAuthMock(page, {
+    user: {
+      id: 3,
+      username: "operator",
+      producername: "Operator",
+    },
+  })
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto("/wiki?agency=闪耀色彩")
 

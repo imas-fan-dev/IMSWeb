@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const guangdongImageUrl = "/uploads/producer-map/guangdong.webp"
 
 const content = {
@@ -41,20 +43,11 @@ const content = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "producer-map-operator",
-          producername: "地图运营",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  await installAdminAuthMock(page, {
+    user: {
+      username: "producer-map-operator",
+      producername: "地图运营",
+    },
   })
   await page.route("**/api/admin/producer-map", async (route) => {
     if (route.request().method() !== "GET") {

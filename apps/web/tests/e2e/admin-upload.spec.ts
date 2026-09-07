@@ -1,25 +1,18 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
 
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "upload-qa",
-          producername: "上传样式检查",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  await installAdminAuthMock(page, {
+    user: {
+      username: "upload-qa",
+      producername: "上传样式检查",
+    },
   })
   await page.route("**/api/admin/site-packages", async (route) => {
     if (route.request().method() !== "GET") {

@@ -1,5 +1,7 @@
 import { expect, type Page, type TestInfo } from "@playwright/test"
 
+import { installAdminAuthMock } from "./admin-auth"
+
 export async function mockNamecardBrowsing(
   page: Page,
   total = 26,
@@ -119,9 +121,7 @@ export async function mockNamecardBrowsing(
       json: { success: false, code: "PLATFORM_AUTH_REQUIRED" },
     })
   )
-  await page.route("**/api/admin/auth/session**", (route) =>
-    route.fulfill({ status: 401, json: { success: false } })
-  )
+  await installAdminAuthMock(page, { state: "anonymous" })
   return {
     requests,
     holdReactions(id: number) {

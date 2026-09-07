@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const content = {
   version: 1,
   siteName: "偶像大师交流站",
@@ -63,29 +65,13 @@ const content = {
   updatedAt: null,
 }
 
-test.beforeEach(async ({ context, page }) => {
-  await context.addCookies([
-    {
-      name: "csrf_token",
-      value: "about-avatar-e2e",
-      domain: "127.0.0.1",
-      path: "/",
+test.beforeEach(async ({ page }) => {
+  await installAdminAuthMock(page, {
+    csrfToken: "about-avatar-e2e",
+    user: {
+      username: "about-editor",
+      producername: "关于页编辑",
     },
-  ])
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "about-editor",
-          producername: "关于页编辑",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
   })
   await page.route("**/uploads/about/member-avatars/*", async (route) => {
     await route.fulfill({

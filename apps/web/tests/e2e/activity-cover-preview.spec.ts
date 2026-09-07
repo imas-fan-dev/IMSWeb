@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const coverUrl = "/brand/series/wall/cinderella-girls.webp"
 
 async function expectFullPageGlass(
@@ -24,20 +26,11 @@ async function expectFullPageGlass(
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "information-qa",
-          producername: "活动内容检查",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  await installAdminAuthMock(page, {
+    user: {
+      username: "information-qa",
+      producername: "活动内容检查",
+    },
   })
   await page.route("**/api/admin/information", async (route) => {
     await route.fulfill({

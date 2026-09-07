@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test"
 import type { Locator, Page } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs="
@@ -17,27 +19,12 @@ type BoundingBox = {
 }
 
 async function mockNamecardApi(page: Page, cardCount = 12) {
-  await page.context().addCookies([
-    {
-      name: "ims_admin_csrf",
-      value: "namecard-upload-e2e",
-      domain: "127.0.0.1",
-      path: "/",
+  await installAdminAuthMock(page, {
+    csrfToken: "namecard-upload-e2e",
+    user: {
+      username: "namecard-upload-qa",
+      producername: "名片上传检查",
     },
-  ])
-  await page.route("**/api/admin/auth/session**", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        user: {
-          id: 1,
-          username: "namecard-upload-qa",
-          producername: "名片上传检查",
-          dept: "op",
-          adminRole: "admin",
-        },
-      },
-    })
   })
 
   await page.route("**/api/wiki/catalog**", async (route) => {

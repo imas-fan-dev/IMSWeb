@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const navigationLinks = [
   {
     id: "navigation-events",
@@ -23,35 +25,16 @@ const navigationLinks = [
   },
 ]
 
-test("admin reorders homepage links with the drag handle", async ({
-  context,
-  page,
-}) => {
+test("admin reorders homepage links with the drag handle", async ({ page }) => {
   let orderedLinks = navigationLinks
   let submittedOrder: string[] | undefined
 
-  await context.addCookies([
-    {
-      name: "ims_admin_csrf",
-      value: "homepage-links-e2e",
-      domain: "127.0.0.1",
-      path: "/",
+  await installAdminAuthMock(page, {
+    csrfToken: "homepage-links-e2e",
+    user: {
+      username: "homepage-operator",
+      producername: "首页运营",
     },
-  ])
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "homepage-operator",
-          producername: "首页运营",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
   })
   await page.route("**/api/admin/homepage-links**", async (route) => {
     const request = route.request()

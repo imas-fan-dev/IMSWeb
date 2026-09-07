@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test"
 import type { Page } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs="
@@ -420,30 +422,14 @@ const pendingClaim = {
 }
 
 test("administrator reviews registered cards and legacy-card claims", async ({
-  context,
   page,
 }, testInfo) => {
-  await context.addCookies([
-    {
-      name: "ims_admin_csrf",
-      value: "claim-admin-csrf",
-      domain: "127.0.0.1",
-      path: "/",
+  await installAdminAuthMock(page, {
+    csrfToken: "claim-admin-csrf",
+    user: {
+      username: "claim-reviewer",
+      producername: "认领审核员",
     },
-  ])
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        user: {
-          id: 1,
-          username: "claim-reviewer",
-          producername: "认领审核员",
-          dept: "op",
-          adminRole: "admin",
-        },
-      },
-    })
   })
   await page.route("**/api/admin/cards**", async (route) => {
     await route.fulfill({

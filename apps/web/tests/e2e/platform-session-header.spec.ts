@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
@@ -63,31 +65,17 @@ test("authenticated header logs out only the Platform realm", async ({
       domain: "127.0.0.1",
       path: "/",
     },
-    {
-      name: "ims_admin_csrf",
-      value: "backoffice-must-survive",
-      domain: "127.0.0.1",
-      path: "/",
-    },
   ])
   let sessionRequests = 0
   let logoutRequests = 0
   let logoutCsrf: string | null = null
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 7,
-          username: "backoffice-browser",
-          producername: "Backoffice Browser",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  await installAdminAuthMock(page, {
+    csrfToken: "backoffice-must-survive",
+    user: {
+      id: 7,
+      username: "backoffice-browser",
+      producername: "Backoffice Browser",
+    },
   })
   await page.route("**/api/platform/auth/session", async (route) => {
     sessionRequests += 1

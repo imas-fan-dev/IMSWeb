@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const coverAsset = {
   id: 12,
   agencyId: 6,
@@ -13,20 +15,11 @@ const coverAsset = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "story-cover-qa",
-          producername: "剧情封面检查",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  await installAdminAuthMock(page, {
+    user: {
+      username: "story-cover-qa",
+      producername: "剧情封面检查",
+    },
   })
   await page.route("**/api/admin/wiki/catalog", async (route) => {
     await route.fulfill({

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 const informationCards = [
   {
     id: "information-first",
@@ -22,34 +24,17 @@ const informationCards = [
 ]
 
 test("admin reorders activity information with the drag handle", async ({
-  context,
   page,
 }) => {
   let orderedCards = informationCards
   let submittedOrder: string[] | undefined
 
-  await context.addCookies([
-    {
-      name: "ims_admin_csrf",
-      value: "information-order-e2e",
-      domain: "127.0.0.1",
-      path: "/",
+  await installAdminAuthMock(page, {
+    csrfToken: "information-order-e2e",
+    user: {
+      username: "information-operator",
+      producername: "活动运营",
     },
-  ])
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "information-operator",
-          producername: "活动运营",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
   })
   await page.route("**/api/admin/information**", async (route) => {
     const request = route.request()

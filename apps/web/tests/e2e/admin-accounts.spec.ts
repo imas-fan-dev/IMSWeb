@@ -1,21 +1,15 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/admin/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "super-operator",
-          producername: "Super Operator",
-          dept: "op",
-          adminRole: "super_admin",
-        },
-      }),
-    })
+  await installAdminAuthMock(page, {
+    user: {
+      username: "super-operator",
+      producername: "Super Operator",
+      adminRole: "super_admin",
+    },
   })
   await page.route("**/api/admin/accounts", async (route) => {
     await route.fulfill({

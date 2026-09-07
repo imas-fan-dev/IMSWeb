@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+
 test("namecard wall changes page size and jumps to a page", async ({
   page,
 }) => {
@@ -8,20 +10,11 @@ test("namecard wall changes page size and jumps to a page", async ({
     if (message.type() === "error") consoleErrors.push(message.text())
   })
 
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "namecard-pagination-qa",
-          producername: "名片分页检查",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  await installAdminAuthMock(page, {
+    user: {
+      username: "namecard-pagination-qa",
+      producername: "名片分页检查",
+    },
   })
   await page.route("**/api/cards?**", async (route) => {
     const url = new URL(route.request().url())
