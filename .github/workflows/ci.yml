@@ -76,25 +76,14 @@ jobs:
       - name: Run repository checks
         run: pnpm run check:root
 
-      - name: Test repository Node contracts
-        run: >-
-          node --experimental-strip-types --test
-          tests/development-environment.test.js
-          tests/exchange-map-assets.test.js
-          tests/ci-affected-workspaces.test.js
+      - name: Test governance owner
+        run: node scripts/testing/run-test-owner.mjs governance
 
-      - name: Test repository Python contracts
-        run: >-
-          python3 -m unittest
-          tests/test_agent_rules.py
-          tests/test_source_rules.py
-          tests/test_docs.py
-          tests/test_git_hooks.py
-          tests/test_release_activation.py
-          tests/test_github_deployment.py
-          tests/test_operations_docs.py
-          tests/test_compose_deployment.py
-          tests/test_workspace_boundaries.py
+      - name: Test contracts owner
+        run: node scripts/testing/run-test-owner.mjs contracts
+
+      - name: Test repository delivery contracts
+        run: node scripts/testing/run-test-owner.mjs delivery repository
 
   app:
     name: Validate App
@@ -122,11 +111,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test Tauri contracts
-        run: >-
-          node --experimental-strip-types --test
-          tests/tauri-build-configuration.test.js
-          tests/tauri-device-delivery.test.js
+      - name: Test App delivery contracts
+        run: node scripts/testing/run-test-owner.mjs delivery app
 
       - name: Test App build scripts
         run: pnpm --filter @imsweb/web run test:unit tests/unit/scripts/build-app.test.ts
@@ -166,17 +152,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check Web
-        run: pnpm --filter @imsweb/web run check
-
-      - name: Test public assets
-        run: python3 -m unittest tests/test_public_assets.py
+      - name: Test Web delivery contracts
+        run: node scripts/testing/run-test-owner.mjs delivery web
 
       - name: Install Web browsers
         run: pnpm --filter @imsweb/web exec playwright install --with-deps chromium firefox
 
-      - name: Test Web in browsers
-        run: pnpm --filter @imsweb/web run test:e2e
+      - name: Test Web owner
+        run: pnpm --filter @imsweb/web run test -- ci
 
   api:
     name: Validate API
@@ -220,20 +203,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check API
-        run: pnpm --filter @imsweb/api run check
-
-      - name: Test Node API runtime
-        run: pnpm --filter @imsweb/api run test:node
-
-      - name: Test API server
-        run: pnpm --filter @imsweb/api run test:server
-
-      - name: Test Wiki API
-        run: pnpm --filter @imsweb/api run test:wiki
-
-      - name: Test migrations
-        run: pnpm --filter @imsweb/api run test:migration
+      - name: Test API owner
+        run: pnpm --filter @imsweb/api run test
 
   integration:
     name: Validate Web and API integration

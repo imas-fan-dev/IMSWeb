@@ -8,6 +8,9 @@ const path = require("node:path");
 const test = require("node:test");
 const sharp = require("sharp");
 const {
+    writeRestrictedJsonFixture: writeJson,
+} = require("./json-fixture-file");
+const {
     FUDABA_COMMIT,
     FUDABA_D1_DATABASE_ID,
     FUDABA_R2_BUCKET,
@@ -32,12 +35,6 @@ const BACK_KEY =
 
 function digest(body) {
     return crypto.createHash("sha256").update(body).digest("hex");
-}
-
-function writeJson(filename, value) {
-    fs.writeFileSync(filename, `${JSON.stringify(value, null, 2)}\n`, {
-        mode: 0o600,
-    });
 }
 
 function emptyRows() {
@@ -340,6 +337,15 @@ function applyConfirmations(report) {
         confirmTargetBucket: report.targetBucket,
     };
 }
+
+test("restricted JSON fixtures keep pretty output, final newline, and private mode", (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "ims-json-fixture-"));
+    t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+    const filename = path.join(root, "fixture.json");
+    writeJson(filename, { value: "exact" });
+    assert.equal(fs.readFileSync(filename, "utf8"), '{\n  "value": "exact"\n}\n');
+    assert.equal(fs.statSync(filename).mode & 0o777, 0o600);
+});
 
 test("Fudaba media CLI is dry-run by default and requires explicit paths", () => {
     assert.equal(

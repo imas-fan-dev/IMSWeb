@@ -1,4 +1,5 @@
 import { reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Hono } from 'hono';
@@ -17,17 +18,6 @@ import type {
 import type { RuntimeServices } from '@/ports/runtime-services';
 
 const CREATED_AT = '2026-08-16T19:30:00.000Z';
-
-interface Schema {
-    parse(value: unknown): unknown;
-}
-
-async function contractJson(response: Response, schema: Schema): Promise<unknown> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
-    const raw = await response.json();
-    assert.deepEqual(schema.parse(raw), raw);
-    return raw;
-}
 
 function idol() {
     return {

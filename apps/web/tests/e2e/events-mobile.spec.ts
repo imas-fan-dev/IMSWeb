@@ -1,4 +1,8 @@
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import type { Locator, Page } from "@playwright/test"
+
+import { api, expect, test } from "./fixtures/test"
+
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const delayedCoverUrl = "/test-assets/community-delayed-cover.png"
 const longTitle = `移动端社区动态${"超长标题".repeat(18)}`
@@ -45,6 +49,13 @@ const detail = {
 }
 
 async function mockCommunityApis(page: Page) {
+  installEmptyWikiCatalogMock(api, { min: 0, max: 1 })
+  await api.mockRoute(
+    "/api/wiki/random_idol",
+    (route) => route.fulfill({ status: 500, json: { error: "Unavailable" } }),
+    "GET",
+    { min: 0, max: 1 }
+  )
   let releaseCover: () => void = () => undefined
   let markCoverRequested: () => void = () => undefined
   const coverRequested = new Promise<void>((resolve) => {
@@ -59,47 +70,68 @@ async function mockCommunityApis(page: Page) {
     await coverGate
     await route.fulfill({ contentType: "image/png", body: coverPng })
   })
-  await page.route("**/api/events?**", async (route) => {
-    const cursor = new URL(route.request().url()).searchParams.get("cursor")
-    const isNextPage = cursor === "events-page-2"
-    await route.fulfill({
-      json: {
-        items: isNextPage ? nextEvents : events,
-        pageInfo: {
-          nextCursor: isNextPage ? null : "events-page-2",
-          hasNextPage: !isNextPage,
-          snapshotAt: "10",
-        },
-      },
-    })
-  })
-  await page.route("**/api/events/1", async (route) => {
-    await route.fulfill({ json: detail })
-  })
-  await page.route("**/api/news?**", async (route) => {
-    await route.fulfill({ json: [] })
-  })
-  await page.route("**/api/community-posts/spotlight", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [
-          {
-            id: 1,
-            title: longTitle,
-            image_url: delayedCoverUrl,
-            category: "activity",
-            sort_order: 0,
-            cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+  await api.mockRoute(
+    "**/api/events?**",
+    async (route) => {
+      const cursor = new URL(route.request().url()).searchParams.get("cursor")
+      const isNextPage = cursor === "events-page-2"
+      await route.fulfill({
+        json: {
+          items: isNextPage ? nextEvents : events,
+          pageInfo: {
+            nextCursor: isNextPage ? null : "events-page-2",
+            hasNextPage: !isNextPage,
+            snapshotAt: "10",
           },
-        ],
-      },
-    })
-  })
-  await page.route("**/api/homepage-links", async (route) => {
-    await route.fulfill({
-      json: { sections: { navigation: [], friend: [], support: [] } },
-    })
-  })
+        },
+      })
+    },
+    "GET",
+    3
+  )
+  await api.mockRoute(
+    "**/api/events/1",
+    async (route) => {
+      await route.fulfill({ json: detail })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/news?**",
+    async (route) => {
+      await route.fulfill({ json: [] })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community-posts/spotlight",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: 1,
+              title: longTitle,
+              image_url: delayedCoverUrl,
+              category: "activity",
+              sort_order: 0,
+              cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+            },
+          ],
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/homepage-links",
+    async (route) => {
+      await route.fulfill({
+        json: { sections: { navigation: [], friend: [], support: [] } },
+      })
+    },
+    "GET"
+  )
 
   return { coverRequested, releaseCover }
 }

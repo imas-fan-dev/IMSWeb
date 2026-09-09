@@ -1,5 +1,9 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test, type Page, type TestInfo } from "@playwright/test"
+import type { Page, TestInfo } from "@playwright/test"
+
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
+import { api, expect, test } from "./fixtures/test"
 
 const session = {
   success: true,
@@ -12,22 +16,55 @@ const session = {
   },
 }
 
-async function mockOwnerWorkspace(page: Page) {
-  await page.route("**/api/platform/me", async (route) => {
-    await route.fulfill({
-      json: {
-        ...session,
-        capabilities: { fudabaWrite: true },
-        profile: { ...session.profile, updatedAt: 1 },
-      },
-    })
-  })
-  await page.route("**/api/community/exchange/me/series", async (route) => {
-    await route.fulfill({ json: { items: [] } })
-  })
-  await page.route("**/api/community/exchange/me/cards", async (route) => {
-    await route.fulfill({ json: { items: [] } })
-  })
+async function mockOwnerWorkspace() {
+  await api.mockRoute(
+    "**/api/platform/me",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          ...session,
+          capabilities: { fudabaWrite: true },
+          profile: { ...session.profile, updatedAt: 1 },
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/series",
+    async (route) => {
+      await route.fulfill({ json: { items: [] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/cards",
+    async (route) => {
+      await route.fulfill({ json: { items: [] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/community/exchange/me/favorites",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [],
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        },
+      }),
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/community/exchange/me/claim-envelopes",
+    (route) => route.fulfill({ json: { items: [] } }),
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/community/exchange/me/offices",
+    (route) => route.fulfill({ json: { items: [] } }),
+    "GET"
+  )
 }
 
 async function expectAccessibleAuthPage(page: Page) {
@@ -58,11 +95,13 @@ async function captureStableAuthScreenshot(
   })
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, api }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
-  await mockOwnerWorkspace(page)
+  installEmptyWikiCatalogMock(api)
+  installPlatformOAuthProvidersMock(api)
+  await mockOwnerWorkspace()
 })
 
 test("logs in and adopts the returned Platform session", async ({
@@ -70,14 +109,26 @@ test("logs in and adopts the returned Platform session", async ({
 }, testInfo) => {
   let loginBody: unknown
   let sessionRequests = 0
-  await page.route("**/api/platform/auth/login", async (route) => {
-    loginBody = route.request().postDataJSON()
-    await route.fulfill({ status: 200, json: session })
-  })
-  await page.route("**/api/platform/auth/session", async (route) => {
-    sessionRequests += 1
-    await route.fulfill({ status: 401, json: { success: false } })
-  })
+  await api.mockRoute(
+    "**/api/platform/auth/login",
+    async (route) => {
+      loginBody = route.request().postDataJSON()
+      await route.fulfill({ status: 200, json: session })
+    },
+    "POST"
+  )
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      sessionRequests += 1
+      await route.fulfill({
+        status: 401,
+        json: { success: false, code: "PLATFORM_AUTH_REQUIRED" },
+      })
+    },
+    "GET",
+    0
+  )
 
   await page.goto("/account/login")
   await expect(page).toHaveTitle(/帐号登录.*IMSWeb/i)
@@ -111,7 +162,7 @@ test("registers after a conflict is corrected and keeps errors user-safe", async
   let attempts = 0
   let registrationBody: unknown
   let verificationBody: unknown
-  await page.route(
+  await api.mockRoute(
     "**/api/platform/auth/register/verification-code",
     async (route) => {
       verificationBody = route.request().postDataJSON()
@@ -119,23 +170,29 @@ test("registers after a conflict is corrected and keeps errors user-safe", async
         status: 202,
         json: { success: true, retryAfterSeconds: 60 },
       })
-    }
+    },
+    "POST"
   )
-  await page.route("**/api/platform/auth/register", async (route) => {
-    attempts += 1
-    registrationBody = route.request().postDataJSON()
-    if (attempts === 1) {
-      await route.fulfill({
-        status: 409,
-        json: {
-          success: false,
-          message: "internal unique constraint platform_accounts_email_key",
-        },
-      })
-      return
-    }
-    await route.fulfill({ status: 201, json: session })
-  })
+  await api.mockRoute(
+    "**/api/platform/auth/register",
+    async (route) => {
+      attempts += 1
+      registrationBody = route.request().postDataJSON()
+      if (attempts === 1) {
+        await route.fulfill({
+          status: 409,
+          json: {
+            success: false,
+            code: "PLATFORM_EMAIL_CONFLICT",
+          },
+        })
+        return
+      }
+      await route.fulfill({ status: 201, json: session })
+    },
+    "POST",
+    2
+  )
 
   await page.goto("/account/register")
   await expect(page).toHaveTitle(/帐号注册.*IMSWeb/i)

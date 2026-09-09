@@ -2,9 +2,10 @@ import type {
   AdminEditorialSpotlight,
   EditorialArticleList,
 } from "@imsweb/contracts/editorial"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import {
   installAdminEditorialMock,
   type AdminSpotlightSelection,
@@ -84,18 +85,21 @@ test.beforeEach(() => {
   }
 })
 
-test("admin reorders homepage spotlight entries", async ({ page }) => {
-  await installAdminAuthMock(page, {
+test("admin reorders homepage spotlight entries", async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
     csrfToken: "information-order-e2e",
     user: {
       username: "information-operator",
       producername: "活动运营",
     },
   })
-  const editorial = await installAdminEditorialMock(page, {
+  const editorial = await installAdminEditorialMock(api, {
     posts: posts.items,
     getSpotlight: () => spotlight.items,
     onReplaceSpotlight: applySpotlightOrder,
+    postsTimes: 2,
+    spotlightTimes: 2,
   })
 
   await page.goto("/admin/events")

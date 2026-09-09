@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 // The contracts workspace pins a compiler API version. The API workspace's TypeScript 7 package only exposes version metadata.
 const ts = createRequire(new URL("../../packages/contracts/package.json", import.meta.url))("typescript");
+const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 const BASELINE = { mountedMethodPaths: 223, carriers: 283, reject: 41, acceptAndProject: 161, passthrough: 17, nonObjectApplicable: 64 };
@@ -44,10 +45,40 @@ function loc(root, node) {
   const point = source.getLineAndCharacterOfPosition(node.getStart(source));
   return { file: relative(root, source.fileName), line: point.line + 1 };
 }
-function text(node) { return node.getText(node.getSourceFile()).replace(/\s+/g, " ").slice(0, 240); }
 function unbox(node) {
   while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node)) node = node.expression;
   return node;
+}
+function semanticNodeText(node) {
+  const transformed = ts.transform(node, [(context) => {
+    const visit = (current) => {
+      if (ts.isParenthesizedExpression(current)) return ts.visitNode(current.expression, visit);
+      if (ts.isIdentifier(current)) return ts.factory.createIdentifier(current.text);
+      if (ts.isStringLiteral(current)) return ts.factory.createStringLiteral(current.text);
+      if (ts.isNumericLiteral(current)) return ts.factory.createNumericLiteral(Number(current.text).toString());
+      return ts.visitEachChild(current, visit, context);
+    };
+    return (root) => ts.visitNode(root, visit);
+  }]);
+  try {
+    const printed = semanticPrinter.printNode(
+      ts.EmitHint.Unspecified,
+      transformed.transformed[0],
+      node.getSourceFile(),
+    );
+    const scanner = ts.createScanner(ts.ScriptTarget.ES2022, true, ts.LanguageVariant.Standard, printed);
+    const tokens = [];
+    while (scanner.scan() !== ts.SyntaxKind.EndOfFileToken) tokens.push(scanner.getTokenText());
+    return tokens.join(" ");
+  } finally {
+    transformed.dispose();
+  }
+}
+function text(node) {
+  return semanticPrinter
+    .printNode(ts.EmitHint.Unspecified, node, node.getSourceFile())
+    .replace(/\s+/g, " ")
+    .slice(0, 240);
 }
 function symbol(checker, node) {
   let value = checker.getSymbolAtLocation(node);
@@ -60,10 +91,29 @@ function functionDeclaration(value) {
 }
 function nameOf(value) { return value?.name && ts.isIdentifier(value.name) ? value.name.text : undefined; }
 function calledName(call) { const value = unbox(call.expression); return ts.isIdentifier(value) ? value.text : ts.isPropertyAccessExpression(value) ? value.name.text : undefined; }
-function digest(root) {
-  const hash = crypto.createHash("sha256");
-  for (const file of filesUnder(path.join(root, "apps/api/src")).sort()) hash.update(`${relative(root, file)}\0${fs.readFileSync(file)}\0`);
-  return hash.digest("hex");
+function semanticNodeDigest(node) {
+  return crypto.createHash("sha256").update(semanticNodeText(node)).digest("hex").slice(0, 16);
+}
+function anonymousHandlerSymbol(root, node) {
+  const source = node.getSourceFile();
+  return `${relative(root, source.fileName)}#anonymous:${semanticNodeDigest(node)}`;
+}
+function withoutSourceLines(value) {
+  if (Array.isArray(value)) return value.map(withoutSourceLines);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => key !== "line")
+    .map(([key, item]) => [key, withoutSourceLines(item)]));
+}
+function semanticDigest(inventory) {
+  const projection = withoutSourceLines(inventory);
+  delete projection.generation.semanticDigest;
+  return crypto.createHash("sha256").update(JSON.stringify(projection)).digest("hex");
+}
+export function routeInventoryArtifact(inventory) {
+  const artifact = withoutSourceLines(inventory);
+  artifact.generation.semanticDigest = semanticDigest(artifact);
+  return artifact;
 }
 function join(prefix, suffix) {
   if (!prefix) return suffix.startsWith("/") ? suffix : `/${suffix}`;
@@ -201,7 +251,7 @@ function provenance(root, checker, schema, kind) {
   const resolved = schemaDeclaration(checker, node);
   const declarationNode = resolved?.declarationNode;
   const schemaModule = imported?.module ?? "local-or-unresolved";
-  const schemaSymbol = imported?.name ?? resolved?.value?.getName() ?? text(node);
+  const schemaSymbol = imported?.name ?? resolved?.value?.getName() ?? semanticNodeText(node);
   const syntaxPolicy = schemaPolicy(root, checker, node);
   return {
     schemaSymbol,
@@ -276,9 +326,9 @@ function responses(root, checker, fn) {
       if (ts.isFunctionLike(node) && node !== current) return;
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const kind = node.expression.name.text;
-        if (["json", "text", "html", "body", "redirect"].includes(kind)) result.push({ ...loc(root, node), kind: kind === "json" ? "json" : "non-json", expression: node.arguments[0] ? text(node.arguments[0]) : "<no body>" });
+        if (["json", "text", "html", "body", "redirect"].includes(kind)) result.push({ ...loc(root, node), kind: kind === "json" ? "json" : "non-json", expression: node.arguments[0] ? semanticNodeText(node.arguments[0]) : "<no body>" });
       }
-      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Response") result.push({ ...loc(root, node), kind: "response-constructor", expression: node.arguments?.[0] ? text(node.arguments[0]) : "<no body>" });
+      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Response") result.push({ ...loc(root, node), kind: "response-constructor", expression: node.arguments?.[0] ? semanticNodeText(node.arguments[0]) : "<no body>" });
       if (ts.isCallExpression(node)) { const child = functionDeclaration(declaration(checker, unbox(node.expression))); if (child && child.getSourceFile() === fn.getSourceFile()) scan(child); }
       ts.forEachChild(node, visit);
     };
@@ -288,8 +338,16 @@ function responses(root, checker, fn) {
 }
 
 class Evaluator {
-  constructor(root, checker) { this.root = root; this.checker = checker; this.routes = []; this.diagnostics = []; this.visited = new Set(); }
-  fail(node, message) { this.diagnostics.push({ ...loc(this.root, node), expression: text(node), message }); }
+  constructor(root, checker) {
+    this.root = root;
+    this.checker = checker;
+    this.routes = [];
+    this.diagnostics = [];
+    this.visited = new Set();
+    this.anonymousHandlerSymbols = new WeakMap();
+    this.anonymousHandlerOccurrences = new Map();
+  }
+  fail(node, message) { this.diagnostics.push({ ...loc(this.root, node), expression: semanticNodeText(node), message }); }
   strings(node, environment = new Map(), seen = new Set()) {
     node = unbox(node); if (seen.has(node)) throw new Error("cyclic expression"); seen.add(node);
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
@@ -329,17 +387,36 @@ class Evaluator {
     const key = `${node.getSourceFile().fileName}:${node.pos}:${node.end}`;
     if (seen.has(key)) return undefined;
     seen.add(key);
-    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return { symbol: `${relative(this.root, node.getSourceFile().fileName)}:${loc(this.root, node).line}`, fn: node };
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return { fn: node, identityNode: node };
     const fn = functionDeclaration(declaration(this.checker, ts.isCallExpression(node) ? unbox(node.expression) : node));
     if (!fn) return undefined;
     if (ts.isCallExpression(node)) {
       const returned = ts.isBlock(fn.body) ? fn.body.statements.find(ts.isReturnStatement)?.expression : fn.body;
-      if (returned) return this.resolveHandler(returned, seen) ?? { symbol: nameOf(fn) ?? "<factory>", fn };
+      const resolved = returned ? this.resolveHandler(returned, seen) : undefined;
+      if (resolved) return { ...resolved, identityNode: node };
+      return { symbol: nameOf(fn) ?? "<factory>", fn };
     }
-    return { symbol: nameOf(fn) ?? `${relative(this.root, fn.getSourceFile().fileName)}:${loc(this.root, fn).line}`, fn };
+    return { symbol: nameOf(fn), fn, identityNode: fn };
+  }
+  handlerSymbol(handler, method, paths, mount) {
+    if (!handler) return "<unresolved-handler>";
+    if (handler.symbol) return handler.symbol;
+    const identityNode = handler.identityNode ?? handler.fn;
+    const existing = this.anonymousHandlerSymbols.get(identityNode);
+    if (existing) return existing;
+    const base = anonymousHandlerSymbol(this.root, handler.fn);
+    const mountedPaths = paths.map((routePath) => join(mount, routePath)).sort();
+    const scope = crypto.createHash("sha256").update(`${method}\0${mountedPaths.join("\0")}`).digest("hex").slice(0, 8);
+    const occurrenceKey = `${base}\0${scope}`;
+    const occurrence = this.anonymousHandlerOccurrences.get(occurrenceKey) ?? 0;
+    this.anonymousHandlerOccurrences.set(occurrenceKey, occurrence + 1);
+    const result = `${base}:${scope}:${occurrence}`;
+    this.anonymousHandlerSymbols.set(identityNode, result);
+    return result;
   }
   register(call, method, paths, arguments_, mount) {
     const handler = this.resolveHandler(arguments_.at(-1));
+    const handlerSymbol = this.handlerSymbol(handler, method, paths, mount);
     const carriers = [];
     for (const argument of arguments_) {
       const found = validator(this.checker, argument);
@@ -360,7 +437,7 @@ class Evaluator {
       carriers.push({ kind, source, location: loc(this.root, node), schemaSymbol: null, schemaModule: null, schemaLocation: null, policy, syntaxPolicy: null });
     }
     if (!carriers.length) carriers.push({ kind: "no-input", source: "handler-analysis", location: loc(this.root, call), schemaSymbol: null, schemaModule: null, schemaLocation: null, policy: "non-object-applicable" });
-    for (const routePath of paths) this.routes.push({ method, path: join(mount, routePath), registration: loc(this.root, call), handlerSymbol: handler?.symbol ?? "<unresolved-handler>", carriers, responses: handler?.fn ? responses(this.root, this.checker, handler.fn) : [] });
+    for (const routePath of paths) this.routes.push({ method, path: join(mount, routePath), registration: loc(this.root, call), handlerSymbol, carriers, responses: handler?.fn ? responses(this.root, this.checker, handler.fn) : [] });
   }
   call(call, mount, environment, routers) {
     const expression = unbox(call.expression);
@@ -519,9 +596,15 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
   const routeGroup = (route) => `/${route.path.split("/").filter(Boolean).slice(0, 2).join("/") || "root"}`;
   const routeGroups = Object.fromEntries([...new Set(routes.map(routeGroup))].sort()
     .map((group) => [group, routes.filter((route) => routeGroup(route) === group).length]));
-  return {
+  const inventory = {
     format: "imsweb-compiler-route-inventory/v1",
-    generation: { command: "node scripts/contracts/compile-route-inventory.mjs --write", sourceDigest: entry.startsWith("apps/") ? digest(root) : null, entry, entrySymbol },
+    generation: {
+      command: "node scripts/contracts/compile-route-inventory.mjs --write",
+      reportCommand: "node scripts/contracts/compile-route-inventory.mjs --report",
+      semanticDigest: null,
+      entry,
+      entrySymbol,
+    },
     baseline: BASELINE,
     counts: {
       mountedRegistrations: routes.length,
@@ -542,6 +625,8 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
     carriers,
     responses: responseItems,
   };
+  inventory.generation.semanticDigest = semanticDigest(inventory);
+  return inventory;
 }
 export function reconciliation(inventory) {
   const compatible = inventory.reconciliation.baselineCompatible;
@@ -550,7 +635,7 @@ export function reconciliation(inventory) {
   return [
     "# Current API wire inventory",
     "",
-    `Source digest: \`${inventory.generation.sourceDigest}\``,
+    `Semantic digest: \`${inventory.generation.semanticDigest}\``,
     "",
     "## Counts",
     "",
@@ -586,21 +671,44 @@ export function reconciliation(inventory) {
     "",
     "## Static Limits",
     "",
-    "The evaluator cannot establish runtime-only registration or generated routes outside TypeScript source. Response expression text is bounded to 240 characters in the JSON report; no route or carrier record is capped.",
+    "The evaluator cannot establish runtime-only registration or generated routes outside TypeScript source. Response expressions use complete canonical token text so semantic suffix changes remain freshness inputs.",
     "",
   ].join("\n");
 }
 function outputs(root) {
-  const directory = path.join(root, "scripts/contracts");
   return {
-    json: path.join(directory, "current-wire-contract-inventory.json"),
-    markdown: path.join(directory, "current-wire-contract-inventory.md"),
+    json: path.join(root, "scripts/contracts/current-wire-contract-inventory.json"),
   };
 }
-function main(arguments_) {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.."); const output = outputs(root); const inventory = collectRouteInventory(root); const json = `${JSON.stringify(inventory, null, 2)}\n`; const markdown = reconciliation(inventory);
-  if (arguments_.includes("--write")) { fs.writeFileSync(output.json, json); fs.writeFileSync(output.markdown, markdown); } else if (!fs.existsSync(output.json) || fs.readFileSync(output.json, "utf8") !== json || !fs.existsSync(output.markdown) || fs.readFileSync(output.markdown, "utf8") !== markdown) throw new Error("compiler route inventory is stale; run node scripts/contracts/compile-route-inventory.mjs --write");
+export function runInventoryCli(arguments_, options = {}) {
+  const supported = new Set(["--write", "--report"]);
+  const unknown = arguments_.filter((argument) => !supported.has(argument));
+  if (unknown.length) throw new Error(`unknown route inventory option: ${unknown[0]}`);
+  if (new Set(arguments_).size !== arguments_.length) throw new Error("route inventory options may only be specified once");
+  if (arguments_.includes("--write") && arguments_.includes("--report")) {
+    throw new Error("--write and --report are separate route inventory modes");
+  }
+
+  const root = options.root ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  const output = options.output ?? outputs(root);
+  const inventory = collectRouteInventory(root, options.collectOptions);
+  const artifact = routeInventoryArtifact(inventory);
+  const json = `${JSON.stringify(artifact, null, 2)}\n`;
+  const writeStdout = options.writeStdout ?? ((value) => process.stdout.write(value));
+
+  if (arguments_.includes("--report")) {
+    writeStdout(`${reconciliation(artifact)}\n`);
+    if (inventory.diagnostics.length) throw new InventoryFailure(inventory.diagnostics);
+    return artifact;
+  }
   if (inventory.diagnostics.length) throw new InventoryFailure(inventory.diagnostics);
-  process.stdout.write(`compiler route inventory: ${inventory.counts.mountedMethodPaths} mounted method/path instances, ${inventory.counts.requestCarriers} carriers, ${inventory.counts.responses.total} response expressions\n`);
+  if (arguments_.includes("--write")) {
+    fs.mkdirSync(path.dirname(output.json), { recursive: true });
+    fs.writeFileSync(output.json, json);
+  } else if (!fs.existsSync(output.json) || fs.readFileSync(output.json, "utf8") !== json) {
+    throw new Error("compiler route inventory is stale; run node scripts/contracts/compile-route-inventory.mjs --write");
+  }
+  writeStdout(`compiler route inventory: ${artifact.counts.mountedMethodPaths} mounted method/path instances, ${artifact.counts.requestCarriers} carriers, ${artifact.counts.responses.total} response expressions\n`);
+  return artifact;
 }
-if (process.argv[1] === fileURLToPath(import.meta.url)) { try { main(process.argv.slice(2)); } catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; } }
+if (process.argv[1] === fileURLToPath(import.meta.url)) { try { runInventoryCli(process.argv.slice(2)); } catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; } }

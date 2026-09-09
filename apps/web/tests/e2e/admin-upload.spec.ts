@@ -1,29 +1,35 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
 
-  await installAdminAuthMock(page, {
+  await installAdminAuthMock(page, api, {
     user: {
       username: "upload-qa",
       producername: "上传样式检查",
     },
   })
-  await page.route("**/api/admin/site-packages", async (route) => {
-    if (route.request().method() !== "GET") {
-      await route.abort()
-      return
-    }
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ packages: [] }),
-    })
-  })
+  await api.mockRoute(
+    "**/api/admin/site-packages",
+    async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.abort()
+        return
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ packages: [] }),
+      })
+    },
+    "GET"
+  )
 })
 
 test("admin file upload uses the shared responsive interaction", async ({

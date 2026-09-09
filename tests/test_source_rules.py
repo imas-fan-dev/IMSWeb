@@ -12,6 +12,9 @@ RULE_CHECK = PROJECT_ROOT / "scripts/check-source-rules.mjs"
 WIRE_AUDIT = PROJECT_ROOT / "scripts/audit-json-wire-contracts.mjs"
 NON_JSON_MANIFEST = PROJECT_ROOT / "scripts/contracts/non-json-boundary-manifest.mjs"
 ENTRYPOINT_CHECK = PROJECT_ROOT / "packages/contracts/scripts/check-entrypoints.mjs"
+FRONTEND_ROUTE_CHECK = (
+    PROJECT_ROOT / "scripts/contracts/compile-frontend-route-metadata.mjs"
+)
 
 
 class SourceRulesTests(unittest.TestCase):
@@ -39,6 +42,34 @@ class SourceRulesTests(unittest.TestCase):
             target_is_directory=True,
         )
         (root / "apps/web/app/lib/api/endpoints").mkdir(parents=True)
+        frontend_route_check = (
+            root / "scripts/contracts/compile-frontend-route-metadata.mjs"
+        )
+        shutil.copyfile(FRONTEND_ROUTE_CHECK, frontend_route_check)
+        (root / "apps/web/app/route-metadata.ts").write_text(
+            "export const routeDescriptors = [\n"
+            "  { index: true, file: 'pages/index.tsx', layout: 'public', "
+            "targets: ['web', 'app'], delivery: 'prerender', prerender: ['/'] },\n"
+            "]\n"
+            "export function prerenderRoutesForTarget(target) {\n"
+            "  return routeDescriptors.filter((route) => route.targets.includes(target))"
+            ".flatMap((route) => route.prerender ?? [])\n"
+            "}\n"
+            "export function spaFallbackPatternsForTarget() { return [] }\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [
+                "node",
+                "--experimental-strip-types",
+                str(frontend_route_check),
+                "--write",
+            ],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         (root / "apps/api/src/domains/orders/routes.ts").write_text(
             "export const route = apiPath('/orders')\n", encoding="utf-8"
         )
@@ -79,6 +110,54 @@ class SourceRulesTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_frontend_route_metadata_files_are_required_and_valid(self):
+        cases = {
+            "missing source": (
+                "apps/web/app/route-metadata.ts",
+                None,
+                "frontend route metadata file is missing",
+            ),
+            "missing output": (
+                "apps/api/src/routing/frontend-route-delivery.ts",
+                None,
+                "frontend route metadata file is missing",
+            ),
+            "missing checker": (
+                "scripts/contracts/compile-frontend-route-metadata.mjs",
+                None,
+                "frontend route metadata file is missing",
+            ),
+            "malformed source": (
+                "apps/web/app/route-metadata.ts",
+                "export const broken = ;\n",
+                "frontend route metadata check failed",
+            ),
+            "malformed output": (
+                "apps/api/src/routing/frontend-route-delivery.ts",
+                "export const broken = true;\n",
+                "frontend route metadata check failed",
+            ),
+            "malformed checker": (
+                "scripts/contracts/compile-frontend-route-metadata.mjs",
+                "export const broken = ;\n",
+                "frontend route metadata check failed",
+            ),
+        }
+        for label, (relative_path, replacement, expected) in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory(
+                prefix="ims-source-rules-"
+            ) as temporary:
+                root = Path(temporary)
+                self.make_fixture(root)
+                target = root / relative_path
+                if replacement is None:
+                    target.unlink()
+                else:
+                    target.write_text(replacement, encoding="utf-8")
+                result = self.run_fixture(root)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
 
     def test_raw_shared_path_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="ims-source-rules-") as temporary:

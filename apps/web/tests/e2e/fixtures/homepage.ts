@@ -1,6 +1,14 @@
-import type { HomepageLinks } from "@imsweb/contracts/homepage-links"
-import type { WikiPublicCatalog } from "@imsweb/contracts/wiki"
-import type { Page } from "@playwright/test"
+import {
+  homepageLinksSchema,
+  type HomepageLinks,
+} from "@imsweb/contracts/homepage-links"
+import { apiPath, wikiPath } from "@imsweb/contracts/paths"
+import {
+  wikiPublicCatalogSchema,
+  type WikiPublicCatalog,
+} from "@imsweb/contracts/wiki"
+
+import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
 
 export const browserIconUrls = [
   "/brand/series/wall/765pro.webp",
@@ -141,16 +149,86 @@ const wikiCatalog = {
   selection: null,
 } satisfies WikiPublicCatalog
 
-export async function installHomepageLinksMock(page: Page) {
-  await page.route(
-    (url) => url.pathname === "/api/homepage-links",
-    (route) => route.fulfill({ status: 200, json: homepageLinks })
+export function installHomepageLinksMock(
+  api: ApiDispatcher,
+  times: ApiTimes = 1
+) {
+  api.expect({
+    method: "GET",
+    path: apiPath("/homepage-links"),
+    responses: { 200: homepageLinksSchema },
+    times,
+    handle: () => ({ status: 200, json: homepageLinks }),
+  })
+}
+
+export function installPublicShellMocks(api: ApiDispatcher, times: ApiTimes) {
+  installEmptyWikiCatalogMock(api, times)
+  installHomepageLinksMock(api, times)
+  api.mockRoute(
+    "/api/wiki/random_idol",
+    (route) => route.fulfill({ status: 500, json: { error: "Unavailable" } }),
+    "GET",
+    times
+  )
+  api.mockRoute(
+    "/api/community-posts/spotlight",
+    (route) => route.fulfill({ status: 200, json: { items: [] } }),
+    "GET",
+    times
+  )
+  api.mockRoute(
+    "/api/news",
+    (route) => route.fulfill({ status: 200, json: [] }),
+    "GET",
+    times
+  )
+  api.mockRoute(
+    "/api/events",
+    (route) =>
+      route.fulfill({
+        status: 200,
+        json: {
+          items: [],
+          pageInfo: {
+            nextCursor: null,
+            hasNextPage: false,
+            snapshotAt: null,
+          },
+        },
+      }),
+    "GET",
+    times
   )
 }
 
-export async function installBrowserIconMock(page: Page) {
-  await page.route(
-    (url) => url.pathname === "/api/wiki/catalog",
-    (route) => route.fulfill({ status: 200, json: wikiCatalog })
-  )
+export function installEmptyWikiCatalogMock(
+  api: ApiDispatcher,
+  times: ApiTimes = 1
+) {
+  api.expect({
+    name: "empty public Wiki catalog",
+    method: "GET",
+    path: wikiPath("/catalog"),
+    responses: { 200: wikiPublicCatalogSchema },
+    times,
+    handle: () => ({
+      status: 200,
+      json: {
+        status: "success",
+        agencies: [],
+        searchEntries: [],
+        selection: null,
+      },
+    }),
+  })
+}
+
+export function installBrowserIconMock(api: ApiDispatcher) {
+  api.expect({
+    method: "GET",
+    path: wikiPath("/catalog"),
+    responses: { 200: wikiPublicCatalogSchema },
+    handle: () => ({ status: 200, json: wikiCatalog }),
+  })
 }

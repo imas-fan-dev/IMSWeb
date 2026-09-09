@@ -99,7 +99,8 @@ class OperationsDocumentationTests(unittest.TestCase):
             "node scripts/development/dev-environment.mjs --down",
         )
         self.assertIn(
-            "tests/development-environment.test.js", scripts["test:infra"]
+            "node scripts/testing/run-test-owner.mjs governance",
+            scripts["test:infra"],
         )
         self.assertIn(
             "scripts/development/dev-environment.mjs", scripts["check:root"]

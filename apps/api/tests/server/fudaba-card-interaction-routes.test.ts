@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { readContractJson as contractJson } from '../contracts/contract-json';
+import {
+    bearerTokenHeaders,
+    cookieCsrfHeaders,
+    fixtureSha256Hex
+} from '../fixtures/auth-request';
 import { test } from 'node:test';
 import {
     fudabaCardInteractionResponseSchema,
@@ -32,18 +37,6 @@ const TOKEN = 'interaction-access-token';
 const CSRF = 'interaction-csrf-secret';
 const CARD_ID = 'interaction-card';
 const CREATED_AT = '2026-08-02T00:00:00.000Z';
-
-interface Schema<T> {
-    parse(value: unknown): T;
-}
-
-async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
-    return parsed;
-}
 
 class PublicMediaStorage implements ObjectStorage {
     async createPublicReadUrl(key: string): Promise<string | null> {
@@ -220,9 +213,7 @@ class InteractionFixture {
                               account_id: ACCOUNT_ID,
                               token_hash: 'hash',
                               previous_token_hash: null,
-                              csrf_hash: createHash('sha256')
-                                  .update(CSRF)
-                                  .digest('hex'),
+                              csrf_hash: fixtureSha256Hex(CSRF),
                               expires_at: now + 60_000,
                               created_at: now,
                               updated_at: now,
@@ -262,16 +253,14 @@ class InteractionFixture {
 }
 
 function bearerHeaders(): Record<string, string> {
-    return { authorization: `Bearer ${TOKEN}` };
+    return bearerTokenHeaders(TOKEN);
 }
 
 function cookieHeaders(includeCsrfHeader: boolean): Record<string, string> {
-    return {
-        cookie:
-            `${PLATFORM_ACCESS_TOKEN_COOKIE}=${TOKEN}; ` +
-            `${PLATFORM_CSRF_TOKEN_COOKIE}=${CSRF}`,
-        ...(includeCsrfHeader ? { 'x-csrftoken': CSRF } : {})
-    };
+    return cookieCsrfHeaders([
+        [PLATFORM_ACCESS_TOKEN_COOKIE, TOKEN],
+        [PLATFORM_CSRF_TOKEN_COOKIE, CSRF]
+    ], includeCsrfHeader ? CSRF : null);
 }
 
 function interactionPath(kind: 'like' | 'favorite', cardId = CARD_ID): string {

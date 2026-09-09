@@ -8,7 +8,7 @@
       "responseKind": "compatibility-text-error",
       "reason": "Sensitive filesystem-shaped paths fail before static serving with a compatibility text response.",
       "compatibilityTextError": { "body": "Forbidden", "status": 403, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves sensitive-path text/plain 403 behavior." },
-      "test": { "file": "apps/api/tests/node-security.test.js", "symbol": "sensitive files and virtual environments are blocked before static serving" }
+      "test": { "file": "apps/api/tests/node-security/compiled-listener-static-adapter.owner.js", "symbol": "sensitive files and virtual environments are blocked before static serving" }
     },
     {
       "id": "APP-NOT-FOUND-01",
@@ -26,7 +26,7 @@
       "responseKind": "binary",
       "reason": "Approved and private namecard files support binary, range, and HEAD delivery.",
       "jsonErrorSchema": { "sourceFile": "packages/contracts/src/media.ts", "symbol": "mediaHttpErrorSchema" },
-      "test": { "file": "apps/api/tests/node-security.test.js", "symbol": "namecard originals and stored thumbnails enforce approval or op access" }
+      "test": { "file": "apps/api/tests/node-security/fudaba.owner.js", "symbol": "namecard originals and stored thumbnails enforce approval or op access" }
     },
     {
       "id": "DELIVERY-MEDIA-02",
@@ -134,7 +134,7 @@
       "responseKind": "binary",
       "reason": "Pending Chronicle media is private binary delivery with GET and HEAD routes.",
       "compatibilityTextError": { "body": "Not Found", "status": 404, "contentType": "text/plain; charset=UTF-8", "justification": "C5 preserves the Chronicle plain-text missing-media response." },
-      "test": { "file": "apps/api/tests/node-security.test.js", "symbol": "pending chronicle media requires op authentication" }
+      "test": { "file": "apps/api/tests/node-security/chronicle-event.owner.js", "symbol": "pending chronicle media requires op authentication" }
     },
     {
       "id": "CONTENT-CHRONICLE-APPROVED-MEDIA-01",
@@ -152,7 +152,7 @@
       "responseKind": "redirect",
       "reason": "The legacy Chronicle admin route redirects to the current Backoffice page.",
       "jsonErrorSchema": { "sourceFile": "packages/contracts/src/chronicle.ts", "symbol": "chronicleErrorResponseSchema" },
-      "test": { "file": "apps/api/tests/node-security.test.js", "symbol": "pending chronicle media requires op authentication" }
+      "test": { "file": "apps/api/tests/node-security/chronicle-event.owner.js", "symbol": "pending chronicle media requires op authentication" }
     },
     {
       "id": "CONTENT-INFORMATION-HTML-01",

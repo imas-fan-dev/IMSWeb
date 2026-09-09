@@ -1,17 +1,56 @@
+import type { RouteConfigEntry } from "@react-router/dev/routes"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-function routeFile(
-  routes: Awaited<typeof import("~/routes")>["default"],
-  path: string
-) {
-  for (const route of routes) {
-    if ("path" in route && route.path === path) return route.file
-    if ("children" in route) {
-      const child = route.children.find((entry) => entry.path === path)
-      if (child) return child.file
+import {
+  prerenderRoutesForTarget,
+  routeDescriptorsForTarget,
+} from "~/route-metadata"
+
+type ManifestLeaf = { path: string; file: string; id?: string }
+
+function joinPath(parent: string, child: string) {
+  return [parent, child].filter(Boolean).join("/")
+}
+
+function routeLeaves(
+  entries: readonly RouteConfigEntry[],
+  parent = ""
+): ManifestLeaf[] {
+  return entries.flatMap((entry) => {
+    const current =
+      "path" in entry && entry.path ? joinPath(parent, entry.path) : parent
+    if ("children" in entry && entry.children) {
+      return routeLeaves(entry.children, current)
     }
+    return [
+      {
+        path: "index" in entry && entry.index ? current || "/" : current,
+        file: entry.file,
+        id: entry.id,
+      },
+    ]
+  })
+}
+
+function descriptorLeaf(
+  descriptor: ReturnType<typeof routeDescriptorsForTarget>[number]
+): ManifestLeaf {
+  const path = descriptor.index ? "" : (descriptor.path ?? "")
+  return {
+    path: descriptor.layout === "admin" ? joinPath("admin", path) : path || "/",
+    file: descriptor.file,
+    id: descriptor.id,
   }
-  return undefined
+}
+
+function sortedLeaves(leaves: readonly ManifestLeaf[]) {
+  return [...leaves].sort((left, right) =>
+    `${left.path}:${left.file}`.localeCompare(`${right.path}:${right.file}`)
+  )
+}
+
+function routeFile(entries: readonly RouteConfigEntry[], path: string) {
+  return routeLeaves(entries).find((entry) => entry.path === path)?.file
 }
 
 describe("app target routes", () => {
@@ -20,12 +59,18 @@ describe("app target routes", () => {
     vi.resetModules()
   })
 
-  it("excludes classic Wiki pages from the app manifest", async () => {
+  it("derives the complete App manifest from target metadata", async () => {
     vi.stubEnv("VITE_IMS_APP_TARGET", "app")
     vi.resetModules()
 
     const { default: routes } = await import("~/routes")
+    const leaves = routeLeaves(routes)
 
+    expect(leaves).toHaveLength(31)
+    expect(sortedLeaves(leaves)).toEqual(
+      sortedLeaves(routeDescriptorsForTarget("app").map(descriptorLeaf))
+    )
+    expect(prerenderRoutesForTarget("app")).toHaveLength(28)
     expect(routeFile(routes, "apps")).toBe("pages/apps/index.tsx")
     expect(routeFile(routes, "account/me/:section")).toBe(
       "pages/account/me/account-me-section-page.tsx"
@@ -36,7 +81,7 @@ describe("app target routes", () => {
     expect(routeFile(routes, "story/classic")).toBeUndefined()
   })
 
-  it("keeps the Apps directory out of the Web manifest", async () => {
+  it("keeps App-only routes out of the Web manifest", async () => {
     vi.stubEnv("VITE_IMS_APP_TARGET", "web")
     vi.resetModules()
 

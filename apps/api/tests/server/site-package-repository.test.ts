@@ -1,5 +1,5 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
-import test from 'node:test';
 import crypto from 'node:crypto';
 import type { ManagedSqlDatabase, SqlResult } from '@/infra/db/sql/database';
 import { executeSql, queryOne } from '@/infra/db/sql/query';

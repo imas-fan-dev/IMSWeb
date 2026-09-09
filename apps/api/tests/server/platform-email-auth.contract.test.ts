@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
+import { readContractJson as assertRawJsonConforms } from "../contracts/contract-json";
+import {
+    bearerTokenHeaders,
+    setCookieHeaders as setCookies,
+} from "../fixtures/auth-request";
 import { createHash, pbkdf2Sync, randomUUID } from "node:crypto";
-import test, { type TestContext } from "node:test";
+import { test as nodeTest, type TestContext } from "node:test";
+import { postgresTest as test } from '../integration/postgres-harness';
 import { successFlagSchema } from "@imsweb/contracts/common";
 import {
     passwordResetIssueResponseSchema,
@@ -10,7 +16,6 @@ import {
 } from "@imsweb/contracts/platform";
 import { createHonoApp } from "@/app";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
-import { PostgresConnection } from "@/infra/db/postgresql/connection";
 import type {
     ManagedSqlDatabase,
     SqlSchemaStrategy,
@@ -57,6 +62,7 @@ interface Fixture {
     databaseUrl?: string;
     repository: SqlPlatformAccountRepository;
     emailSender: CapturingPlatformEmailSender;
+    connect(): ManagedSqlDatabase;
 }
 
 class CapturingPlatformEmailSender implements PlatformEmailSender {
@@ -81,16 +87,6 @@ class CapturingPlatformEmailSender implements PlatformEmailSender {
     ): Promise<void> {
         this.passwordResetMessages.push(message);
     }
-}
-
-async function assertRawJsonConforms(
-    response: Response,
-    schema: { parse(input: unknown): unknown },
-): Promise<unknown> {
-    const raw: unknown = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, "contract schema stripped or changed raw JSON");
-    return parsed;
 }
 
 function appWithPlatformEmail(
@@ -156,6 +152,7 @@ async function createFixture(t: TestContext): Promise<Fixture> {
         databaseUrl: harness.databaseUrl,
         repository,
         emailSender,
+        connect: () => harness.connect(),
     };
 }
 
@@ -169,12 +166,6 @@ function jsonRequest(
         headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify(body),
     });
-}
-
-function setCookies(response: Response): string[] {
-    return (
-        response.headers as Headers & { getSetCookie(): string[] }
-    ).getSetCookie();
 }
 
 function assertPlatformCookies(response: Response): void {
@@ -272,15 +263,7 @@ async function assertFailedResendPreservesOldCode(
         .bind(email)
         .run();
 
-    assert.ok(fixture.databaseUrl);
-    const siblingConnection = PostgresConnection.create({
-        connectionString: fixture.databaseUrl,
-        maxConnections: 2,
-        idleTimeoutMs: 5_000,
-        connectionTimeoutMs: 5_000,
-        statementTimeoutMs: 30_000,
-        idleInTransactionTimeoutMs: 30_000,
-    });
+    const siblingConnection = fixture.connect();
     const siblingRepository = new SqlPlatformAccountRepository(
         siblingConnection,
         initializedPostgresSchema,
@@ -576,14 +559,14 @@ test("bearer callers get tokens from registration and login, cookie callers do n
     // The returned token is the whole session for a client without a cookie jar.
     const session = await fixture.app.request(
         "http://ims.test/api/platform/auth/session",
-        { headers: { Authorization: `Bearer ${loggedIn.accessToken}` } },
+        { headers: bearerTokenHeaders(loggedIn.accessToken!) },
     );
     assert.equal(session.status, 200, await session.clone().text());
     await assertRawJsonConforms(session, platformSessionSchema);
 
     const logout = await fixture.app.request("/api/platform/auth/logout", {
         method: "POST",
-        headers: { Authorization: `Bearer ${loggedIn.accessToken}` },
+        headers: bearerTokenHeaders(loggedIn.accessToken!),
     });
     assert.equal(logout.status, 200, await logout.clone().text());
     await assertRawJsonConforms(logout, successFlagSchema);
@@ -1105,7 +1088,7 @@ test("bcrypt rejects passwords beyond 72 UTF-8 bytes instead of truncating", asy
     });
 });
 
-test("migrated PBKDF2 accepts only the declared Fudaba parameter contract", () => {
+nodeTest("migrated PBKDF2 accepts only the declared Fudaba parameter contract", () => {
     const valid = {
         iterations: 100_000,
         hash: "sha256",
@@ -1203,7 +1186,7 @@ test("email auth strictly validates JSON shapes and credential fields", async (t
     });
 });
 
-test("Platform email auth routes use independent IP rate-limit buckets", async () => {
+nodeTest("Platform email auth routes use independent IP rate-limit buckets", async () => {
     const calls: Array<{
         bucket: string;
         limit: number;
@@ -1248,7 +1231,7 @@ test("Platform email auth routes use independent IP rate-limit buckets", async (
     ]);
 });
 
-test("login account limiting shares a normalized digest across rotating IPs before lookup", async () => {
+nodeTest("login account limiting shares a normalized digest across rotating IPs before lookup", async () => {
     const calls: Array<{
         bucket: string;
         key: string;
@@ -1380,15 +1363,7 @@ test("real PostgreSQL keeps registration atomic under normalized email races", {
     await assertRegistrationAndLogin(t);
 
     const fixture = await createFixture(t);
-    assert.ok(fixture.databaseUrl);
-    const secondConnection = PostgresConnection.create({
-        connectionString: fixture.databaseUrl,
-        maxConnections: 2,
-        idleTimeoutMs: 5_000,
-        connectionTimeoutMs: 5_000,
-        statementTimeoutMs: 30_000,
-        idleInTransactionTimeoutMs: 30_000,
-    });
+    const secondConnection = fixture.connect();
     const secondRepository = new SqlPlatformAccountRepository(
         secondConnection,
         initializedPostgresSchema,

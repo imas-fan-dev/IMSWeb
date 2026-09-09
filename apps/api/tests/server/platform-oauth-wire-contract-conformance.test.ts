@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
 import test from 'node:test';
 import {
     // pi-lens-ignore: ts:2305
@@ -70,16 +71,6 @@ const providerWrite = {
     profileDisplayNameFallbackPath: provider.profileDisplayNameFallbackPath,
     profileAvatarUrlPath: provider.profileAvatarUrlPath
 };
-
-async function assertRawJsonConforms(
-    response: Response,
-    schema: { parse(input: unknown): unknown }
-): Promise<unknown> {
-    const raw: unknown = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'contract schema stripped or changed raw JSON');
-    return parsed;
-}
 
 async function superAdminHeaders(
     fixture: ReturnType<typeof createWikiFixture>

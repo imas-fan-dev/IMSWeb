@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { readContractJson as contractJson } from "../contracts/contract-json";
 import {
     fudabaCardClaimErrorSchema,
     ownerClaimListSchema,
 } from "@imsweb/contracts/fudaba/card-claims";
-import { createHash } from "node:crypto";
+import {
+    bearerTokenHeaders,
+    cookieCsrfHeaders,
+    fixtureSha256Hex as csrfHash,
+} from "../fixtures/auth-request";
 import test from "node:test";
 import {
     fudabaErrorResponseSchema,
@@ -52,22 +57,6 @@ const PLATFORM_CSRF = "platform-location-csrf";
 const BACKOFFICE_TOKEN = "backoffice-location-token";
 const BACKOFFICE_CSRF = "backoffice-location-csrf";
 const SUBMITTED_AT = "2026-08-03T01:00:00.000Z";
-
-interface Schema<T> {
-    parse(value: unknown): T;
-}
-
-async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
-    assert.match(response.headers.get("content-type") ?? "", /^application\/json/i);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, "contract schema stripped an emitted field");
-    return parsed;
-}
-
-function csrfHash(value: string): string {
-    return createHash("sha256").update(value).digest("hex");
-}
 
 function officeRecord(
     id = OFFICE_ID,
@@ -534,25 +523,21 @@ class LocationRouteFixture {
 }
 
 function platformBearerHeaders(extra: Record<string, string> = {}) {
-    return { authorization: `Bearer ${PLATFORM_TOKEN}`, ...extra };
+    return bearerTokenHeaders(PLATFORM_TOKEN, extra);
 }
 
 function platformCookieHeaders(includeCsrf = true) {
-    return {
-        cookie:
-            `${PLATFORM_ACCESS_TOKEN_COOKIE}=${PLATFORM_TOKEN}; ` +
-            `${PLATFORM_CSRF_TOKEN_COOKIE}=${PLATFORM_CSRF}`,
-        ...(includeCsrf ? { "x-csrftoken": PLATFORM_CSRF } : {}),
-    };
+    return cookieCsrfHeaders([
+        [PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_TOKEN],
+        [PLATFORM_CSRF_TOKEN_COOKIE, PLATFORM_CSRF],
+    ], includeCsrf ? PLATFORM_CSRF : null);
 }
 
 function backofficeCookieHeaders(includeCsrf = true) {
-    return {
-        cookie:
-            `${BACKOFFICE_ACCESS_TOKEN_COOKIE}=${BACKOFFICE_TOKEN}; ` +
-            `${BACKOFFICE_CSRF_TOKEN_COOKIE}=${BACKOFFICE_CSRF}`,
-        ...(includeCsrf ? { "x-csrftoken": BACKOFFICE_CSRF } : {}),
-    };
+    return cookieCsrfHeaders([
+        [BACKOFFICE_ACCESS_TOKEN_COOKIE, BACKOFFICE_TOKEN],
+        [BACKOFFICE_CSRF_TOKEN_COOKIE, BACKOFFICE_CSRF],
+    ], includeCsrf ? BACKOFFICE_CSRF : null);
 }
 
 test("map config and offices require both flags and expose strict regional DTOs", async () => {

@@ -35,6 +35,51 @@ const { resolveFrontendRoute } = require(path.join(
     SERVER_ROOT,
     'routing/frontend-route-policy.js'
 ));
+const {
+    FRONTEND_PRERENDERED_ROUTES,
+    FRONTEND_SPA_FALLBACK_PATTERNS
+} = require(path.join(
+    SERVER_ROOT,
+    'routing/frontend-route-delivery.js'
+));
+
+const SPA_ROUTE_CASES = {
+    admin: {
+        positive: ['/admin', '/admin/', '/admin/login', '/admin/login/', '/admin/chronicle/pending'],
+        negative: ['/admin%2Flogin', '/ad%6Din/login', '/admin//']
+    },
+    'information/:contentId': {
+        positive: ['/information/info-example-001'],
+        negative: ['/information/one/two']
+    },
+    'events/:eventId': {
+        positive: ['/events/36', '/events/36/'],
+        negative: ['/events/one/two', '/events/one%2Ftwo']
+    },
+    'chronicle/:activityId': {
+        positive: [
+            '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
+            '/chronicle/activity-1/'
+        ],
+        negative: ['/chronicle/one/two', '/chronicle/one%2Ftwo', '/chronicle/one%5Ctwo']
+    },
+    'community/exchange/me': {
+        positive: ['/community/exchange/me', '/community/exchange/me/'],
+        negative: ['/community/exchange/me/extra']
+    },
+    'community/exchange/offices/:officeSlug': {
+        positive: [
+            '/community/exchange/offices/shanghai-weekend',
+            '/community/exchange/offices/shanghai-weekend/'
+        ],
+        negative: [
+            '/community/exchange/offices/one/two',
+            '/community/exchange/offices/one%2Ftwo',
+            '/community/exchange/offices/one%5Ctwo',
+            '/community/exchange/offices//'
+        ]
+    }
+};
 
 function walkFiles(directory, root = directory) {
     return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -78,57 +123,24 @@ test('[FRT-01] root and index.html use the React document', async () => {
 });
 
 test('[FRT-02] real prerendered documents and selective SPA routes use build/client', async () => {
-    for (const route of [
-        'account/login',
-        'account/register',
-        'about',
-        'events',
-        'recommendations',
-        'live',
-        'community',
-        'community/exchange',
-        'community/cards',
-        'producer-map',
-        'works',
-        'works/765',
-        'works/cg',
-        'works/ml',
-        'works/sidem',
-        'works/sc',
-        'works/gakuen',
-        'works/games',
-        'works/wows',
-        'wiki',
-        'wiki/modern',
-        'wiki/classic',
-        'story',
-        'story/modern',
-        'story/classic',
-        'chronicle',
-        'tier-list'
-    ]) {
-        await assertFileResponse(`/${route}`, path.join(FRONTEND_ROOT, route, 'index.html'));
-        await assertFileResponse(`/${route}/`, path.join(FRONTEND_ROOT, route, 'index.html'));
+    assert.equal(FRONTEND_PRERENDERED_ROUTES.length, 30);
+    for (const [route, asset] of FRONTEND_PRERENDERED_ROUTES) {
+        if (route === '/') continue;
+        await assertFileResponse(route, path.join(FRONTEND_ROOT, asset));
+        await assertFileResponse(`${route}/`, path.join(FRONTEND_ROOT, asset));
     }
 
+    const patternsById = new Map(
+        FRONTEND_SPA_FALLBACK_PATTERNS.map((pattern) => [pattern.id, pattern])
+    );
+    assert.equal(patternsById.size, FRONTEND_SPA_FALLBACK_PATTERNS.length);
+    assert.deepEqual(new Set(patternsById.keys()), new Set(Object.keys(SPA_ROUTE_CASES)));
     const fallback = path.join(FRONTEND_ROOT, '__spa-fallback.html');
-    for (const route of [
-        '/admin',
-        '/admin/',
-        '/admin/login',
-        '/admin/login/',
-        '/admin/chronicle/pending',
-        '/information/info-example-001',
-        '/events/36',
-        '/events/36/',
-        '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
-        '/chronicle/activity-1/',
-        '/community/exchange/me',
-        '/community/exchange/me/',
-        '/community/exchange/offices/shanghai-weekend',
-        '/community/exchange/offices/shanghai-weekend/'
-    ]) {
-        await assertFileResponse(route, fallback);
+    for (const [patternId, cases] of Object.entries(SPA_ROUTE_CASES)) {
+        assert.ok(patternsById.has(patternId), `${patternId} has no generated SPA pattern`);
+        for (const route of cases.positive) {
+            await assertFileResponse(route, fallback);
+        }
     }
 
     const head = await request('/chronicle/activity-1', { method: 'HEAD' });
@@ -188,20 +200,11 @@ test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', asy
         '/story-not-a-real-route',
         '/story/extra-segment',
         '/story/classic/extra-segment',
-        '/events/one/two',
-        '/events/one%2Ftwo',
-        '/chronicle/one/two',
-        '/chronicle/one%2Ftwo',
-        '/chronicle/one%5Ctwo',
-        '/community/exchange/offices/one/two',
-        '/community/exchange/offices/one%2Ftwo',
-        '/community/exchange/offices/one%5Ctwo',
-        '/community/exchange/offices//',
-        '/community/exchange/me/extra',
+        ...Object.values(SPA_ROUTE_CASES).flatMap(({ negative }) => negative),
         '/chro%6Eicle/activity-1',
-        '/admin%2Flogin',
-        '/ad%6Din/login',
-        '/admin//',
+        '/community/cards/submissions/submission-1',
+        '/packages/example-site',
+        '/works/not-a-curated-work',
         '/chronicle/activity-1//',
         '/__spa-fallback.html',
         '/about/index.html',
@@ -269,18 +272,27 @@ test('[FRT-05] build assets require an exact entry in the real file set', async 
     );
 });
 
-test('[FRT-06] every prerendered document in the build is owned by the route policy', async () => {
+test('[FRT-06] build documents and generated prerenders own each other', async () => {
     const documents = frontendFileList.filter((file) => file.endsWith('/index.html'));
-    assert.ok(documents.length > 0, 'build/client must contain prerendered documents');
+    assert.equal(documents.length, 29);
 
     for (const document of documents) {
         const route = `/${document.slice(0, -'/index.html'.length)}`;
         assert.deepEqual(
             resolveFrontendRoute({ method: 'GET', pathname: route }, frontendFiles),
             { kind: 'frontend', assetPath: document },
-            `${route} is prerendered but unowned; add it to PRERENDERED_ROUTES`
+            `${route} is prerendered but unowned by generated route metadata`
         );
         await assertFileResponse(route, path.join(FRONTEND_ROOT, document));
         await assertFileResponse(`${route}/`, path.join(FRONTEND_ROOT, document));
+    }
+
+    for (const [route, asset] of FRONTEND_PRERENDERED_ROUTES) {
+        assert.ok(frontendFiles.has(asset), `${route} expects missing build document ${asset}`);
+        assert.deepEqual(
+            resolveFrontendRoute({ method: 'GET', pathname: route }, frontendFiles),
+            { kind: 'frontend', assetPath: asset },
+            `${route} is generated but not owned by the route policy`
+        );
     }
 });

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import test, { type TestContext } from 'node:test';
+import { fixtureSha256Hex as hash } from '../fixtures/auth-request';
+import type { TestContext } from 'node:test';
+import { postgresTest as test } from '../integration/postgres-harness';
 import type { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {
@@ -113,10 +114,6 @@ class InterleavingOwnerReadDatabase implements ManagedSqlDatabase {
     close(): Promise<void> {
         return Promise.resolve();
     }
-}
-
-function hash(value: string): string {
-    return createHash('sha256').update(value).digest('hex');
 }
 
 async function createFixture(

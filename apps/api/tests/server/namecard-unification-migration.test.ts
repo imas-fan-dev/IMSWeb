@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
-import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
-import os from 'node:os';
-import path from 'node:path';
-import test from 'node:test';
+import { postgresTest as test } from '../integration/postgres-harness';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { createPostgresTestHarness } from '../integration/postgres-harness';
+import { createMigrationCatalogBefore } from '../integration/migration-catalog';
 
 const require = createRequire(__filename);
 const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as {
@@ -18,18 +16,7 @@ const { migratePostgres } = require('../../scripts/migration/postgres-migrations
 const UNIFICATION_MIGRATION = '20260819000000_namecard_unification_foundation.sql';
 
 test('namecard unification migration folds legacy cards into one table', async (t) => {
-    const migrationSource = path.resolve(__dirname, '../../migrations/postgresql');
-    const previousCatalog = await fs.mkdtemp(
-        path.join(os.tmpdir(), 'imsweb-namecard-unification-')
-    );
-    t.after(() => fs.rm(previousCatalog, { recursive: true, force: true }));
-    for (const filename of await fs.readdir(migrationSource)) {
-        if (!filename.endsWith('.sql') || filename >= UNIFICATION_MIGRATION) continue;
-        await fs.copyFile(
-            path.join(migrationSource, filename),
-            path.join(previousCatalog, filename)
-        );
-    }
+    const previousCatalog = await createMigrationCatalogBefore(t, UNIFICATION_MIGRATION);
 
     const harness = await createPostgresTestHarness({
         migrationsPath: previousCatalog,

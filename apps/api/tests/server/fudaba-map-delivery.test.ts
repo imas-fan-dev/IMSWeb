@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readContractJson as contractJson } from '../contracts/contract-json';
+import { bearerTokenHeaders } from '../fixtures/auth-request';
 import { test } from 'node:test';
 import {
     fudabaMapDeliveryErrorSchema,
@@ -160,10 +162,8 @@ function fixture() {
     const app = createHonoApp(() => services);
     const request = (pathname: string, init?: RequestInit) =>
         app.request(`http://ims.test${pathname}`, init);
-    const authHeaders = (headers: Record<string, string> = {}) => ({
-        authorization: `Bearer ${TOKEN}`,
-        ...headers,
-    });
+    const authHeaders = (headers: Record<string, string> = {}) =>
+        bearerTokenHeaders(TOKEN, headers);
     const mutation = (
         pathname: string,
         method: 'POST' | 'PUT' | 'DELETE',
@@ -175,20 +175,6 @@ function fixture() {
             body: JSON.stringify(body),
         });
     return { storage, audit, request, authHeaders, mutation };
-}
-
-interface Schema {
-    parse(value: unknown): unknown;
-}
-
-async function contractJson(response: Response, schema: Schema): Promise<unknown> {
-    assert.match(
-        response.headers.get('content-type') ?? '',
-        /^application\/json/i,
-    );
-    const raw = await response.json();
-    assert.deepEqual(schema.parse(raw), raw);
-    return raw;
 }
 
 interface SourcePayload {

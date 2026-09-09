@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import { afterEach, test } from 'node:test';
 import {
     liveScheduleErrorResponseSchema,
@@ -10,17 +11,6 @@ import {
     getLiveSchedule,
     normalizeLiveScheduleArticle
 } from '@/domains/content/live-schedule/live-schedule-service';
-
-async function contractJson<T>(
-    response: Response,
-    schema: { parse(value: unknown): T }
-): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
-    return parsed;
-}
 
 function jsonResponse(value: unknown, status = 200): Response {
     return new Response(JSON.stringify(value), {

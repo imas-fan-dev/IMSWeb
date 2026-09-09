@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { api, expect, test } from "./fixtures/test"
 
 const series = {
   items: [
@@ -75,33 +76,110 @@ const card = {
   },
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, api }, testInfo) => {
+  installEmptyWikiCatalogMock(api)
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
-  await page.route("**/api/community/exchange/series", async (route) => {
-    await route.fulfill({ json: series })
-  })
-  await page.route("**/api/community/exchange/offices?*", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [office],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      },
-    })
-  })
-  await page.route("**/api/community/exchange/cards?*", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [card],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      },
-    })
-  })
-  await page.route(
-    "**/api/community/exchange/offices/shanghai-weekend",
+  const discoveryTest = testInfo.title.startsWith(
+    "discovers an exchange office"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/series",
+    async (route) => {
+      await route.fulfill({ json: series })
+    },
+    "GET",
+    discoveryTest
+      ? { min: 1, max: 10 }
+      : testInfo.title.startsWith("lets a card owner")
+        ? { min: 2, max: 3 }
+        : 1
+  )
+  if (!discoveryTest) return
+  await api.mockRoute(
+    "**/api/community/exchange/offices?*",
     async (route) => {
       await route.fulfill({
+        json: {
+          items: [office],
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        },
+      })
+    },
+    "GET",
+    { min: 1, max: 8 }
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/cards?*",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          items: [card],
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        },
+      })
+    },
+    "GET",
+    { min: 1, max: 8 }
+  )
+  await api.mockRoute(
+    "/api/community/exchange/map/config",
+    (route) =>
+      route.fulfill({
+        json: {
+          styleUrl: "/maps/exchange-test-style.json",
+        },
+      }),
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/community/exchange/map/offices",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            {
+              id: office.id,
+              slug: office.slug,
+              name: office.name,
+              city: office.city,
+              address: office.address,
+              accent: office.accent,
+              isOpen: office.isOpen,
+              seriesCodes: office.seriesCodes,
+              location: {
+                latitude: 31.2,
+                longitude: 121.5,
+                precision: "regional",
+              },
+            },
+          ],
+          truncated: false,
+        },
+      }),
+    "GET",
+    { min: 1, max: 8 }
+  )
+  await api.mockRoute(
+    "/api/community/exchange/cards/card-1/reactions",
+    (route) =>
+      route.fulfill({
+        json: { success: true, cardId: "card-1", reactions: [] },
+      }),
+    "GET",
+    2
+  )
+})
+
+test("discovers an exchange office and preserves the detail deep link", async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  await api.mockRoute(
+    "/api/community/exchange/offices/shanghai-weekend",
+    (route) =>
+      route.fulfill({
         json: {
           office: {
             ...office,
@@ -122,15 +200,10 @@ test.beforeEach(async ({ page }) => {
             ],
           },
         },
-      })
-    }
+      }),
+    "GET",
+    2
   )
-})
-
-test("discovers an exchange office and preserves the detail deep link", async ({
-  page,
-  isMobile,
-}, testInfo) => {
   await page.goto("/community")
   const exchangeLink = page.getByRole("link", { name: /名片交换事务所/ })
   await expect(exchangeLink).toBeVisible()
@@ -278,7 +351,7 @@ test("discovers an exchange office and preserves the detail deep link", async ({
 test("keeps boundary card placements inside the visible wall", async ({
   page,
 }) => {
-  await page.route(
+  await api.mockRoute(
     "**/api/community/exchange/offices/shanghai-weekend",
     async (route) => {
       await route.fulfill({
@@ -320,7 +393,8 @@ test("keeps boundary card placements inside the visible wall", async ({
           },
         },
       })
-    }
+    },
+    "GET"
   )
 
   await page.goto("/community/exchange/offices/shanghai-weekend")
@@ -445,40 +519,55 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
     }
   }
 
-  await page.route("**/api/platform/auth/session", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        account: { id: "platform-wall-owner", status: "active" },
-        profile: {
-          displayName: "春香P",
-          avatarUrl: null,
-          homeCity: "上海",
-          bio: "上海地区制作人",
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          account: { id: "platform-wall-owner", status: "active" },
+          profile: {
+            displayName: "春香P",
+            avatarUrl: null,
+            homeCity: "上海",
+            bio: "上海地区制作人",
+          },
         },
-      },
-    })
-  })
-  await page.route("**/api/platform/me", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        account: { id: "platform-wall-owner", status: "active" },
-        capabilities: { fudabaWrite: true },
-        profile: {
-          displayName: "春香P",
-          avatarUrl: null,
-          homeCity: "上海",
-          bio: "上海地区制作人",
-          updatedAt: 1,
+      })
+    },
+    "GET",
+    2
+  )
+  await api.mockRoute(
+    "**/api/platform/me",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          account: { id: "platform-wall-owner", status: "active" },
+          capabilities: { fudabaWrite: true },
+          profile: {
+            displayName: "春香P",
+            avatarUrl: null,
+            homeCity: "上海",
+            bio: "上海地区制作人",
+            updatedAt: 1,
+          },
         },
-      },
-    })
-  })
-  await page.route("**/api/community/exchange/me/cards", async (route) => {
-    await route.fulfill({ json: { items: ownerCards } })
-  })
-  await page.route(
+      })
+    },
+    "GET",
+    2
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/cards",
+    async (route) => {
+      await route.fulfill({ json: { items: ownerCards } })
+    },
+    "GET",
+    2
+  )
+  await api.mockRoute(
     "**/api/community/exchange/offices/shanghai-weekend",
     async (route) => {
       await route.fulfill({
@@ -491,28 +580,18 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
           },
         },
       })
-    }
+    },
+    "GET",
+    3
   )
-  await page.route(
-    /\/api\/community\/exchange\/offices\/office-1\/cards\/[^/]+\/placement$/,
+  await api.mockRoute(
+    "/api/community/exchange/offices/office-1/cards/card-2/placement",
     async (route) => {
       const request = route.request()
-      const cardId = new URL(request.url()).pathname.split("/").at(-2)!
       const body = request.postDataJSON() as Record<string, unknown>
-      placementWrites.push({ cardId, method: request.method(), body })
+      placementWrites.push({ cardId: "card-2", method: "PUT", body })
 
-      if (request.method() === "DELETE") {
-        placements.delete(cardId)
-        await route.fulfill({
-          json: {
-            success: true,
-            revision: Number(body.expectedRevision) + 1,
-          },
-        })
-        return
-      }
-
-      const previous = placements.get(cardId)
+      const previous = placements.get("card-2")
       const revision = previous ? previous.revision + 1 : 0
       const next = {
         pinnedAt: previous?.pinnedAt ?? "2026-08-02T10:00:00.000Z",
@@ -523,12 +602,29 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
         revision,
         updatedAt: `2026-08-02T10:0${revision}:00.000Z`,
       }
-      placements.set(cardId, next)
+      placements.set("card-2", next)
       await route.fulfill({
         status: previous ? 200 : 201,
         json: { success: true, placement: next },
       })
-    }
+    },
+    "PUT",
+    3
+  )
+  await api.mockRoute(
+    "/api/community/exchange/offices/office-1/cards/card-2/placement",
+    async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      placementWrites.push({ cardId: "card-2", method: "DELETE", body })
+      placements.delete("card-2")
+      await route.fulfill({
+        json: {
+          success: true,
+          revision: Number(body.expectedRevision) + 1,
+        },
+      })
+    },
+    "DELETE"
   )
 
   await page.goto("/community/exchange/offices/shanghai-weekend")

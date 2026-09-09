@@ -1,6 +1,7 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
 const FRONT = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
@@ -11,8 +12,9 @@ const FRONT_THUMBNAIL =
 const BACK_THUMBNAIL =
   "data:image/gif;base64,R0lGODlhAQABAIABAP8AAP///ywAAAAAAQABAAACAkQBADs="
 
-test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, { state: "anonymous" })
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, { state: "anonymous" })
   const response = makeNamecardPage([
     makeNamecard({
       id: 42,
@@ -22,13 +24,15 @@ test.beforeEach(async ({ page }) => {
       image2_thumbnail_url: BACK_THUMBNAIL,
     }),
   ])
-  await page.route(
-    (url) => url.pathname === "/api/cards",
-    (route) => route.fulfill({ status: 200, json: response })
+  await api.mockRoute(
+    "/api/cards",
+    (route) => route.fulfill({ status: 200, json: response }),
+    "GET"
   )
-  await page.route(
-    (url) => url.pathname === "/api/reactions",
-    (route) => route.fulfill({ status: 200, json: {} })
+  await api.mockRoute(
+    "/api/reactions",
+    (route) => route.fulfill({ status: 200, json: {} }),
+    "GET"
   )
 })
 

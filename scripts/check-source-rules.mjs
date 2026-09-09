@@ -12,7 +12,14 @@ const repositoryRoot = path.resolve(
   "..",
 );
 const failures = [];
-const sourceExtensions = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
+const sourceExtensions = new Set([
+  ".cjs",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".ts",
+  ".tsx",
+]);
 const pathBuilderNames = new Set([
   "adminApiPath",
   "adminExchangePath",
@@ -48,9 +55,18 @@ const protectedPathPrefixes = [
   "/uploads",
 ];
 const forbiddenPaths = new Map([
-  ["apps/api/src/contracts", "cross-workspace wire contracts belong in packages/contracts"],
-  ["apps/api/src/shared", "use a named domain, port, middleware, routing, or utils owner"],
-  ["apps/web/app/features", "organize Web code by route, page, component, or lib ownership"],
+  [
+    "apps/api/src/contracts",
+    "cross-workspace wire contracts belong in packages/contracts",
+  ],
+  [
+    "apps/api/src/shared",
+    "use a named domain, port, middleware, routing, or utils owner",
+  ],
+  [
+    "apps/web/app/features",
+    "organize Web code by route, page, component, or lib ownership",
+  ],
 ]);
 
 function absolute(relativePath) {
@@ -151,14 +167,20 @@ for (const filePath of productionFiles) {
 
   if (
     !file.startsWith("packages/contracts/src/") &&
-    /(?:from\s*|import\s*\(\s*|require\(\s*)["']zod(?:\/[^"']*)?["']/.test(source)
+    /(?:from\s*|import\s*\(\s*|require\(\s*)["']zod(?:\/[^"']*)?["']/.test(
+      source,
+    )
   ) {
-    failures.push(`${file}: import z through @imsweb/contracts/z, not zod directly`);
+    failures.push(
+      `${file}: import z through @imsweb/contracts/z, not zod directly`,
+    );
   }
 
   if (
     file.startsWith("apps/api/src/") &&
-    /(?:import|require)\s*\(\s*["']@imsweb\/contracts(?:\/[^"']+)?["']\s*\)/.test(source)
+    /(?:import|require)\s*\(\s*["']@imsweb\/contracts(?:\/[^"']+)?["']\s*\)/.test(
+      source,
+    )
   ) {
     failures.push(
       `${file}: load contracts with a static import; dynamic and require-based contract loading is not allowed in API production code`,
@@ -185,9 +207,7 @@ for (const filePath of productionFiles) {
 
   if (
     file.startsWith("apps/web/app/") &&
-    /export\s*\*\s*from\s*["']@imsweb\/contracts(?:\/[^"']*)?["']/.test(
-      source,
-    )
+    /export\s*\*\s*from\s*["']@imsweb\/contracts(?:\/[^"']*)?["']/.test(source)
   ) {
     failures.push(
       `${file}: use named runtime exports from @imsweb/contracts; export type * is allowed`,
@@ -216,7 +236,9 @@ for (const filePath of productionFiles) {
   }
 }
 
-const entrypointCheck = absolute("packages/contracts/scripts/check-entrypoints.mjs");
+const entrypointCheck = absolute(
+  "packages/contracts/scripts/check-entrypoints.mjs",
+);
 let entrypointAudit = "";
 if (fs.existsSync(entrypointCheck)) {
   const result = spawnSync(process.execPath, [entrypointCheck, "--source"], {
@@ -232,6 +254,36 @@ if (fs.existsSync(entrypointCheck)) {
   }
 }
 
+const frontendRouteMetadataFiles = [
+  "apps/web/app/route-metadata.ts",
+  "apps/api/src/routing/frontend-route-delivery.ts",
+  "scripts/contracts/compile-frontend-route-metadata.mjs",
+];
+const missingFrontendRouteMetadataFiles = frontendRouteMetadataFiles.filter(
+  (relativePath) =>
+    !fs.statSync(absolute(relativePath), { throwIfNoEntry: false })?.isFile(),
+);
+let frontendRouteMetadataAudit = "";
+if (missingFrontendRouteMetadataFiles.length) {
+  for (const relativePath of missingFrontendRouteMetadataFiles) {
+    failures.push(`frontend route metadata file is missing: ${relativePath}`);
+  }
+} else {
+  const checker = absolute(frontendRouteMetadataFiles[2]);
+  const result = spawnSync(
+    process.execPath,
+    ["--experimental-strip-types", checker],
+    { cwd: repositoryRoot, encoding: "utf8" },
+  );
+  if (result.status !== 0) {
+    failures.push(
+      `frontend route metadata check failed:\n${(result.stderr || result.stdout).trim()}`,
+    );
+  } else {
+    frontendRouteMetadataAudit = result.stdout.trim();
+  }
+}
+
 if (failures.length) {
   throw new Error(`Source rules check failed:\n${failures.join("\n")}`);
 }
@@ -239,5 +291,5 @@ if (failures.length) {
 assertWireContractAudit(repositoryRoot);
 
 process.stdout.write(
-  `Source rules check passed: ${productionFiles.length} production source files respect shared path, contract export, zod, and ownership boundaries\n${entrypointAudit ? `${entrypointAudit}\n` : ""}${formatWireContractAudit(repositoryRoot)}\n`,
+  `Source rules check passed: ${productionFiles.length} production source files respect shared path, contract export, zod, and ownership boundaries\n${entrypointAudit ? `${entrypointAudit}\n` : ""}${frontendRouteMetadataAudit ? `${frontendRouteMetadataAudit}\n` : ""}${formatWireContractAudit(repositoryRoot)}\n`,
 );

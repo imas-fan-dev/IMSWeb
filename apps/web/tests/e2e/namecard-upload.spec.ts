@@ -1,7 +1,8 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import type { ApiDispatcher } from "./fixtures/api-dispatcher"
 import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
@@ -19,8 +20,13 @@ type BoundingBox = {
   height: number
 }
 
-async function mockNamecardApi(page: Page, cardCount = 12) {
-  await installAdminAuthMock(page, {
+async function mockNamecardApi(
+  page: Page,
+  api: ApiDispatcher,
+  cardCount: number,
+  submissionTimes: 0 | 1
+) {
+  await installAdminAuthMock(page, api, {
     csrfToken: "namecard-upload-e2e",
     user: {
       username: "namecard-upload-qa",
@@ -28,66 +34,79 @@ async function mockNamecardApi(page: Page, cardCount = 12) {
     },
   })
 
-  await page.route("**/api/wiki/catalog**", async (route) => {
-    await route.fulfill({
-      json: {
-        status: "success",
-        agencies: [
-          {
-            id: 1,
-            code: "765",
-            name: "765PRO",
-            color: "#f34e6c",
-            bannerTitle: "765PRO",
-            iconUrl: null,
-            idolCount: 1,
-            entryCount: 1,
-            imageTransform: {
-              fit: "cover",
-              focalX: 0.5,
-              focalY: 0.5,
-              zoom: 1,
-              rotation: 0,
+  await api.mockRoute(
+    "**/api/wiki/catalog**",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          status: "success",
+          agencies: [
+            {
+              id: 1,
+              code: "765",
+              name: "765PRO",
+              color: "#f34e6c",
+              bannerTitle: "765PRO",
+              iconUrl: null,
+              idolCount: 1,
+              entryCount: 1,
+              imageTransform: {
+                fit: "cover",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
             },
-          },
-        ],
-        searchEntries: [
-          {
-            id: 1,
-            name: "天海春香",
-            agencyId: 1,
-            agencyCode: "765",
-            agencyName: "765PRO",
-            agencyColor: "#f34e6c",
-            entryKind: "idol",
-            entrySubtype: null,
-          },
-        ],
-        selection: null,
-      },
-    })
-  })
+          ],
+          searchEntries: [
+            {
+              id: 1,
+              name: "天海春香",
+              agencyId: 1,
+              agencyCode: "765",
+              agencyName: "765PRO",
+              agencyColor: "#f34e6c",
+              entryKind: "idol",
+              entrySubtype: null,
+            },
+          ],
+          selection: null,
+        },
+      })
+    },
+    "GET"
+  )
 
-  await page.route("**/api/cards**", async (route) => {
-    const response = makeNamecardPage(
-      Array.from({ length: cardCount }, (_, index) =>
-        makeNamecard({
-          id: index + 1,
-          image1_url: FRONT_IMAGE,
-          image2_url: BACK_IMAGE,
-          image1_thumbnail_url: FRONT_IMAGE,
-          image2_thumbnail_url: BACK_IMAGE,
-        })
+  await api.mockRoute(
+    "**/api/cards**",
+    async (route) => {
+      const response = makeNamecardPage(
+        Array.from({ length: cardCount }, (_, index) =>
+          makeNamecard({
+            id: index + 1,
+            image1_url: FRONT_IMAGE,
+            image2_url: BACK_IMAGE,
+            image1_thumbnail_url: FRONT_IMAGE,
+            image2_thumbnail_url: BACK_IMAGE,
+          })
+        )
       )
-    )
-    await route.fulfill({ status: 200, json: response })
-  })
+      await route.fulfill({ status: 200, json: response })
+    },
+    "GET"
+  )
 
-  await page.route("**/api/reactions**", async (route) => {
-    await route.fulfill({ json: {} })
-  })
+  await api.mockRoute(
+    "**/api/reactions**",
+    async (route) => {
+      await route.fulfill({ json: {} })
+    },
+    "GET",
+    cardCount
+  )
 
-  await page.route(
+  await api.mockRoute(
     "**/api/community/exchange/guest-submissions",
     async (route) => {
       await route.fulfill({
@@ -102,7 +121,9 @@ async function mockNamecardApi(page: Page, cardCount = 12) {
           withdrawalToken: "a".repeat(64),
         },
       })
-    }
+    },
+    "POST",
+    submissionTimes
   )
 }
 
@@ -124,8 +145,9 @@ function boxesOverlap(first: BoundingBox, second: BoundingBox) {
 
 test("uploads both sides from the dialog and restores trigger focus", async ({
   page,
+  api,
 }) => {
-  await mockNamecardApi(page, 0)
+  await mockNamecardApi(page, api, 0, 1)
   await page.goto("/community/cards")
 
   const uploadTrigger = page.getByRole("button", { name: "上传名片" })
@@ -199,11 +221,12 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
 
 test("keeps the responsive upload action and dialog inside the viewport", async ({
   page,
+  api,
 }) => {
   if ((page.viewportSize()?.width ?? 0) < 640) {
     await page.setViewportSize({ width: 360, height: 640 })
   }
-  await mockNamecardApi(page)
+  await mockNamecardApi(page, api, 12, 0)
   await page.goto("/community/cards")
   if ((page.viewportSize()?.width ?? 0) < 640) {
     await page.evaluate(() => {
@@ -369,8 +392,9 @@ test("keeps the responsive upload action and dialog inside the viewport", async 
 
 test("keeps the upload action on the trailing-slash route", async ({
   page,
+  api,
 }) => {
-  await mockNamecardApi(page, 0)
+  await mockNamecardApi(page, api, 0, 0)
 
   await page.goto("/community/cards/")
 

@@ -1,12 +1,34 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import type { ApiDispatcher, ApiTimes } from "./fixtures/api-dispatcher"
+
+function passThroughSeededWiki(
+  api: ApiDispatcher,
+  registrations: Array<{ path: string; times: ApiTimes }>
+) {
+  for (const registration of registrations) {
+    api.passThrough({
+      name: `Wiki browser regression seeded content: ${registration.path}`,
+      reason:
+        "This browser regression intentionally verifies seeded Wiki catalog, story, and background responses.",
+      method: "GET",
+      path: registration.path,
+      times: registration.times,
+    })
+  }
+}
 
 test("mobile Wiki agency switching preserves both scroll positions", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only Wiki interaction")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/random_bg", times: 1 },
+    { path: "/api/wiki/catalog", times: { min: 1, max: 2 } },
+  ])
 
   await page.goto("/wiki")
 
@@ -60,10 +82,15 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
 
 test("modern Wiki windowed dial loops and switches agencies", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only Wiki interaction")
   test.slow()
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/random_bg", times: 1 },
+    { path: "/api/wiki/catalog", times: 4 },
+  ])
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto("/wiki?agency=765PRO")
@@ -379,9 +406,14 @@ test("modern Wiki windowed dial loops and switches agencies", async ({
 
 test("classic Wiki follows the mobile content order without narrow title wraps", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only classic Wiki layout")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/random_bg", times: 1 },
+    { path: "/api/wiki/catalog", times: 1 },
+  ])
 
   await page.setViewportSize({ width: 320, height: 844 })
   await page.goto("/wiki/classic")
@@ -533,11 +565,16 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
 
 test("modern Wiki keeps group navigation and mobile search fixed", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only modern Wiki interaction")
 
-  await installAdminAuthMock(page, {
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/random_bg", times: 1 },
+    { path: "/api/wiki/catalog", times: 2 },
+  ])
+  await installAdminAuthMock(page, api, {
     user: {
       id: 3,
       username: "operator",
@@ -616,9 +653,14 @@ test("modern Wiki keeps group navigation and mobile search fixed", async ({
 
 test("classic story portrait cards use two readable mobile columns", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only classic story layout")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/catalog", times: 1 },
+    { path: "/api/wiki/stories", times: 1 },
+  ])
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(
@@ -639,9 +681,14 @@ test("classic story portrait cards use two readable mobile columns", async ({
 
 test("story source labels stay visible in both mobile views", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only story source labels")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/catalog", times: 1 },
+    { path: "/api/wiki/stories", times: 1 },
+  ])
 
   const storyTarget =
     "agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"
@@ -671,9 +718,14 @@ test("story source labels stay visible in both mobile views", async ({
 
 test("modern story navigation stays clickable over the mobile footer", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only floating navigation")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/catalog", times: 1 },
+    { path: "/api/wiki/stories", times: 1 },
+  ])
 
   await page.goto(
     "/story?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
@@ -708,9 +760,14 @@ test("modern story navigation stays clickable over the mobile footer", async ({
 
 test("classic text-only story cards do not render nested frames", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(isMobile, "desktop-only classic story framing")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/catalog", times: 1 },
+    { path: "/api/wiki/stories", times: 2 },
+  ])
 
   await page.goto(
     "/story/classic?agency=%E5%AD%A6%E5%9B%AD%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88&idol=%E8%91%9B%E5%9F%8E%E8%8E%89%E8%8E%89%E5%A8%85"
@@ -767,7 +824,12 @@ test("classic text-only story cards do not render nested frames", async ({
 
 test("new story cards without story sources render in gray", async ({
   page,
+  api,
 }) => {
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/catalog", times: 1 },
+    { path: "/api/wiki/stories", times: 1 },
+  ])
   await page.goto(
     "/story?agency=876PRO&idol=%E4%B8%8A%E6%B0%B4%E6%B5%81%E5%AE%87%E5%AE%99"
   )
@@ -793,9 +855,14 @@ test("new story cards without story sources render in gray", async ({
 
 test("classic desktop idol groups align incomplete rows to the left", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(isMobile, "desktop-only classic Wiki alignment")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/random_bg", times: 1 },
+    { path: "/api/wiki/catalog", times: 2 },
+  ])
 
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.goto("/wiki/classic?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9")
@@ -842,9 +909,15 @@ test("classic desktop idol groups align incomplete rows to the left", async ({
 
 test("classic Wiki styles survive returning from a story", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(isMobile, "desktop-only classic Wiki return regression")
+  passThroughSeededWiki(api, [
+    { path: "/api/wiki/random_bg", times: 2 },
+    { path: "/api/wiki/catalog", times: 2 },
+    { path: "/api/wiki/stories", times: 1 },
+  ])
 
   await page.setViewportSize({ width: 1600, height: 1000 })
   await page.goto(

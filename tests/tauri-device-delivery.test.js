@@ -54,7 +54,10 @@ test("device delivery parses targets, profiles, and passthrough arguments", asyn
   assert.deepEqual(explicit.passthrough, ["--verbose"]);
 
   // A bare --host asks the launcher to detect a private LAN address.
-  assert.equal(parseAppDeviceArguments(["ios", "--live", "--host"]).host, "auto");
+  assert.equal(
+    parseAppDeviceArguments(["ios", "--live", "--host"]).host,
+    "auto",
+  );
 
   // `pnpm run app -- ios ...` forwards the separator; it is not passthrough.
   const viaPnpmSeparator = parseAppDeviceArguments([
@@ -351,11 +354,16 @@ test("device delivery keeps one argument-driven entry per workspace", async () =
   // Target, profile, and device selection stay flags rather than new scripts,
   // so the bounded script surface in tests/test_workspace_boundaries.py holds.
   const appScripts = (scripts) =>
-    Object.keys(scripts).filter((name) => name === "app" || name.startsWith("app:"));
+    Object.keys(scripts).filter(
+      (name) => name === "app" || name.startsWith("app:"),
+    );
   assert.deepEqual(appScripts(webPackage.scripts), ["app", "app:doctor"]);
   assert.deepEqual(appScripts(rootPackage.scripts), ["app", "app:doctor"]);
 
-  assert.match(rootPackage.scripts["test:infra"], /tauri-device-delivery\.test\.js/);
+  assert.match(
+    rootPackage.scripts["test:infra"],
+    /run-test-owner\.mjs delivery root/,
+  );
 });
 
 test("device delivery documentation is registered and linked", async () => {

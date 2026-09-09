@@ -65,7 +65,9 @@ pnpm run test
 
 `pnpm run check` 会验证 Node 类型、Hono 架构边界和 Web 客户端 manifest。
 `pnpm run test` 还会运行 Node、Wiki DOM/CRUD、资源和仓库级部署契约；Hono
-不需要 Python Web 依赖。
+不需要 Python Web 依赖。API test owner 只构建一次 server artifact。Root test 在同一个
+runner 进程中完成 delivery build 后继续执行不再构建的 API 阶段，同时保留 syntax 和
+architecture checks；该阶段不能作为独立命令使用旧 artifact。
 
 ## 启动
 

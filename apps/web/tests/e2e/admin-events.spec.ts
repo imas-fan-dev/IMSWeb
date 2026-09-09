@@ -1,7 +1,8 @@
 import type { EditorialArticleList } from "@imsweb/contracts/editorial"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installAdminEditorialMock } from "./fixtures/admin-editorial"
 
 const longTitle =
@@ -38,14 +39,15 @@ const posts = {
   ],
 } satisfies EditorialArticleList
 
-test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, {
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
     user: {
       username: "event-layout-qa",
       producername: "活动布局检查",
     },
   })
-  await installAdminEditorialMock(page, { posts: posts.items })
+  await installAdminEditorialMock(api, { posts: posts.items })
 })
 
 test("admin article rows keep actions inside the panel", async ({

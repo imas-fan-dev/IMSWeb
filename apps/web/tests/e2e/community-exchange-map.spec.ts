@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { api, expect, test } from "./fixtures/test"
 
 import { installBrowserIconMock } from "./fixtures/homepage"
 
@@ -110,60 +110,84 @@ const card = {
   },
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, api }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
-  await page.route("**/*", async (route) => {
-    const url = new URL(route.request().url())
-    if (
-      ["http:", "https:"].includes(url.protocol) &&
-      !["127.0.0.1", "localhost"].includes(url.hostname)
-    ) {
-      await route.abort("blockedbyclient")
-      return
-    }
-    await route.continue()
-  })
-  await installBrowserIconMock(page)
-  await page.route("**/api/community/exchange/series", async (route) => {
-    await route.fulfill({ json: series })
-  })
-  await page.route("**/api/community/exchange/offices?*", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [directoryOffice],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      },
-    })
-  })
-  await page.route("**/api/community/exchange/cards?*", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [card],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      },
-    })
-  })
   await page.route(
+    (url) =>
+      ["http:", "https:"].includes(url.protocol) &&
+      !["127.0.0.1", "localhost"].includes(url.hostname),
+    (route) => route.abort("blockedbyclient")
+  )
+  await installBrowserIconMock(api)
+  await api.mockRoute(
+    "/api/community/exchange/cards/card-1/reactions",
+    (route) =>
+      route.fulfill({
+        json: { success: true, cardId: "card-1", reactions: [] },
+      }),
+    "GET",
+    { min: 0, max: 1 }
+  )
+  await api.mockRoute(
     "**/api/community/exchange/offices/shanghai-weekend",
     async (route) => {
       await route.fulfill({
         json: { office: { ...directoryOffice, cards: [] } },
       })
-    }
+    },
+    "GET",
+    { min: 0, max: 1 }
   )
-  await page.route("**/api/community/exchange/map/config", async (route) => {
-    await route.fulfill({
-      json: { styleUrl: "/maps/exchange-test-style.json" },
-    })
-  })
+  await api.mockRoute(
+    "**/api/community/exchange/series",
+    async (route) => {
+      await route.fulfill({ json: series })
+    },
+    "GET",
+    { min: 1, max: 4 }
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/offices?*",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          items: [directoryOffice],
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        },
+      })
+    },
+    "GET",
+    { min: 1, max: 4 }
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/cards?*",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          items: [card],
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        },
+      })
+    },
+    "GET",
+    { min: 1, max: 4 }
+  )
 })
 
 test("fills the public workspace with a responsive map and keeps both directories reachable", async ({
   page,
   isMobile,
 }, testInfo) => {
+  await api.mockRoute(
+    "/api/community/exchange/map/config",
+    (route) =>
+      route.fulfill({
+        json: { styleUrl: "/maps/exchange-test-style.json" },
+      }),
+    "GET"
+  )
   const requests: string[] = []
   const externalRequests: string[] = []
   const consoleErrors: string[] = []
@@ -184,9 +208,14 @@ test("fills the public workspace with a responsive map and keeps both directorie
       controlledWarnings.push(message.text())
     }
   })
-  await page.route("**/api/community/exchange/map/offices?*", async (route) => {
-    await route.fulfill({ json: { items: mapOffices, truncated: false } })
-  })
+  await api.mockRoute(
+    "**/api/community/exchange/map/offices?*",
+    async (route) => {
+      await route.fulfill({ json: { items: mapOffices, truncated: false } })
+    },
+    "GET",
+    { min: 4, max: 11 }
+  )
 
   await page.goto("/community/exchange/?view=map&bbox=100,20,130,45")
   await expect(page).not.toHaveURL(/bbox=/)
@@ -537,9 +566,13 @@ test("falls back to the directory without hiding cards when config fails", async
   page,
   isMobile,
 }) => {
-  await page.route("**/api/community/exchange/map/config", async (route) => {
-    await route.fulfill({ status: 503, json: { error: "map disabled" } })
-  })
+  await api.mockRoute(
+    "**/api/community/exchange/map/config",
+    async (route) => {
+      await route.fulfill({ status: 503, json: { error: "map disabled" } })
+    },
+    "GET"
+  )
   await page.goto("/community/exchange?view=map")
 
   await expect(page.getByText("地图暂时不可用")).toBeVisible()

@@ -1,7 +1,10 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
-test("admin login is usable and accessible", async ({ page }) => {
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+
+test("admin login is usable and accessible", async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
   await page.goto("/admin/login")
 
   await expect(

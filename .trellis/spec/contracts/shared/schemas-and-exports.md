@@ -84,6 +84,7 @@ node scripts/audit-json-wire-contracts.mjs --details
 node scripts/contracts/check-non-json-boundaries.mjs
 node scripts/contracts/compile-route-inventory.mjs
 node scripts/contracts/compile-route-inventory.mjs --write
+node scripts/contracts/compile-route-inventory.mjs --report
 ```
 
 A non-JSON manifest record has this shape:
@@ -131,11 +132,16 @@ content type, and a C5 justification.
   registry. Entries use exact files and symbols; the checker rejects wildcards,
   stale tests, stale schemas, unreachable handlers, and unregistered
   non-JSON responses.
-- `scripts/contracts/current-wire-contract-inventory.json` enumerates every
-  mounted registration and request carrier. Its baseline-compatible subset
-  must continue matching the approved endpoint and unknown-key policy ledger.
-  Explicit query validators added only to expose previously ignored queries are
-  reconciled by contracts schema symbol.
+- `scripts/contracts/current-wire-contract-inventory.json` is the only tracked
+  route inventory. It enumerates every mounted registration, request carrier,
+  response expression, policy, and fail-closed diagnostic. Source lines and
+  comments are excluded from the semantic artifact; file, handler, schema,
+  expression, route, carrier, response, and diagnostic meaning remain tracked.
+  Its baseline-compatible subset must continue matching the approved endpoint
+  and unknown-key policy ledger. Explicit query validators added only to expose
+  previously ignored queries are reconciled by contracts schema symbol.
+  Generate Markdown on demand with `--report`; it is not a tracked artifact or
+  freshness input.
 
 ### 4. Validation & Error Matrix
 
@@ -147,7 +153,8 @@ content type, and a C5 justification.
 | Production `skipContractCheck` | Fail source rules |
 | Non-JSON handler is unregistered or manifest entry is stale | Fail manifest liveness |
 | Dynamic route, mount, loop, or request policy cannot be resolved | Fail inventory generation |
-| Generated inventory differs from current API source | Fail stale check and require `--write` |
+| Generated inventory differs from current API semantics | Fail stale check and require `--write` |
+| Only comments, formatting, or unrelated source change | Preserve the JSON artifact byte-for-byte |
 | Baseline-compatible carrier or policy total changes | Fail reconciliation |
 
 ### 5. Good/Base/Bad Cases
@@ -171,7 +178,9 @@ content type, and a C5 justification.
   the Web static-asset boundary.
 - `scripts/contracts/tests/compile-route-inventory.test.mjs` covers mounts,
   factories, loops, method arrays, request-tainted helpers, validator wrappers,
-  unresolved routes, and baseline mismatch failure.
+  unresolved routes, baseline mismatch failure, JSON-only write/freshness,
+  Markdown independence, deterministic regeneration, comment stability, and
+  semantic route/carrier/policy/response/diagnostic changes.
 - HTTP tests parse untouched JSON and compare it deeply with the schema output.
   Non-JSON tests assert exact status, content type, body, and delivery metadata.
 

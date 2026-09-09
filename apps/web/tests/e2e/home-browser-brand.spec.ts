@@ -1,13 +1,50 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
-import { browserIconUrls, installBrowserIconMock } from "./fixtures/homepage"
+import {
+  browserIconUrls,
+  installBrowserIconMock,
+  installHomepageLinksMock,
+} from "./fixtures/homepage"
 
 test("favicon cycles globally while only the home title changes", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(isMobile, "desktop navigation is used to verify route cleanup")
-  await installBrowserIconMock(page)
+  await installBrowserIconMock(api)
+  installHomepageLinksMock(api)
+  await api.mockRoute(
+    "/api/wiki/random_idol",
+    (route) => route.fulfill({ status: 500, json: { error: "Unavailable" } }),
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/community-posts/spotlight",
+    (route) => route.fulfill({ json: { items: [] } }),
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/news",
+    (route) => route.fulfill({ json: [] }),
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/events",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [],
+          pageInfo: {
+            nextCursor: null,
+            hasNextPage: false,
+            snapshotAt: null,
+          },
+        },
+      }),
+    "GET",
+    2
+  )
   await page.clock.install()
   await page.goto("/")
 

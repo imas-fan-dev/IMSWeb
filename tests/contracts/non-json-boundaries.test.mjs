@@ -107,6 +107,15 @@ test("rejects title-only focused tests and incompatible explicit text content ty
     /must be live and contain an assertion/,
   );
 
+  write(root, "tests/focused.test.js", [
+    "function runManifestOwnedCase(callback) { assert.equal(typeof callback, 'function'); expect(typeof callback).toBe('function'); return callback(); }",
+    "test('callback type only', () => runManifestOwnedCase(() => {}));",
+  ].join("\n"));
+  assert.match(
+    errors(root, [entry("FIXTURE-CALLBACK-TYPE-01", "handleBinary", "binary", "callback type only")]).join("\n"),
+    /must be live and contain an assertion/,
+  );
+
   write(root, "apps/api/src/domains/demo/handlers/demo.ts", [
     "export function handleBinary(c) { if (!c.req) return c.json({ error: 'missing' }, 400); return c.body('bytes'); }",
     "export function handleRedirect(c) { return c.redirect('/next', 302); }",

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import test, { type TestContext } from 'node:test';
+import type { TestContext } from 'node:test';
+import { postgresTest as test } from '../integration/postgres-harness';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import type { SqlSchemaStrategy } from '@/infra/db/sql/database';
 import type {

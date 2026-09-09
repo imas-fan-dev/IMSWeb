@@ -4,9 +4,10 @@ import type {
   WikiStoryCoverAsset,
   WikiStoryCoverAssets,
 } from "@imsweb/contracts/wiki"
-import { expect, test } from "@playwright/test"
+import { api, expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const coverAsset = {
   id: 12,
@@ -20,43 +21,50 @@ const coverAsset = {
   usageCount: 2,
 } satisfies WikiStoryCoverAsset
 
-test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, {
+test.beforeEach(async ({ page, api }, testInfo) => {
+  const adminAssetPage = testInfo.title.startsWith("full-image shared covers")
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
     user: {
       username: "story-cover-qa",
       producername: "剧情封面检查",
     },
   })
-  await page.route("**/api/admin/wiki/catalog", async (route) => {
-    const response = {
-      status: "success",
-      agencies: [
-        {
-          id: 6,
-          code: "sc",
-          name: "闪耀色彩",
-          color: "#8dbbff",
-          wikiEnabled: true,
-          bannerTitle: "闪耀色彩",
-          displayOrder: 0,
-          layoutRevision: 0,
-          iconUrl: null,
-          imageTransform: {
-            fit: "cover",
-            focalX: 0.5,
-            focalY: 0.5,
-            zoom: 1,
-            rotation: 0,
+  await api.mockRoute(
+    "**/api/admin/wiki/catalog",
+    async (route) => {
+      const response = {
+        status: "success",
+        agencies: [
+          {
+            id: 6,
+            code: "sc",
+            name: "闪耀色彩",
+            color: "#8dbbff",
+            wikiEnabled: true,
+            bannerTitle: "闪耀色彩",
+            displayOrder: 0,
+            layoutRevision: 0,
+            iconUrl: null,
+            imageTransform: {
+              fit: "cover",
+              focalX: 0.5,
+              focalY: 0.5,
+              zoom: 1,
+              rotation: 0,
+            },
+            mediaRevision: 0,
+            idols: [],
+            groups: [],
           },
-          mediaRevision: 0,
-          idols: [],
-          groups: [],
-        },
-      ],
-    } satisfies WikiAdminCatalog
-    await route.fulfill({ status: 200, json: response })
-  })
-  await page.route(
+        ],
+      } satisfies WikiAdminCatalog
+      await route.fulfill({ status: 200, json: response })
+    },
+    "GET",
+    adminAssetPage ? 1 : 0
+  )
+  await api.mockRoute(
     "**/api/admin/wiki/agencies/6/story-cover-assets",
     async (route) => {
       const response = {
@@ -65,7 +73,9 @@ test.beforeEach(async ({ page }) => {
         assets: [coverAsset],
       } satisfies WikiStoryCoverAssets
       await route.fulfill({ status: 200, json: response })
-    }
+    },
+    "GET",
+    adminAssetPage ? 1 : 0
   )
 })
 
@@ -116,58 +126,62 @@ test("full-image shared covers stay complete across preview canvases", async ({
 test("public story cards render full-image shared covers without cropping", async ({
   page,
 }, testInfo) => {
-  await page.route("**/api/wiki/stories?**", async (route) => {
-    const response = {
-      status: "success",
-      agency: {
-        id: 6,
-        code: "sc",
-        name: "闪耀色彩",
-        color: "#8dbbff",
-      },
-      idol: {
-        id: 6,
-        name: "樱木真乃",
-        folderName: "sakuragi_mano",
-        color: "#f1b0c9",
-        wikiUrl: null,
-        imageUrl: "/brand/series/wall/shiny-colors.webp",
-        imageFit: "cover",
-        textColor: "#ffffff",
-        entryKind: "idol",
-        entrySubtype: null,
-        imageTransform: {
-          fit: "cover",
-          focalX: 0.5,
-          focalY: 0.5,
-          zoom: 1,
-          rotation: 0,
+  await api.mockRoute(
+    "**/api/wiki/stories?**",
+    async (route) => {
+      const response = {
+        status: "success",
+        agency: {
+          id: 6,
+          code: "sc",
+          name: "闪耀色彩",
+          color: "#8dbbff",
         },
-      },
-      categories: [
-        {
-          name: "enza主线",
-          cards: [
-            {
-              id: 401,
-              name: "【主线标识】",
-              img: coverAsset.imageUrl,
-              subtitle: "全话",
-              imageTransform: {
-                fit: "contain",
-                focalX: 0.5,
-                focalY: 0.5,
-                zoom: 1,
-                rotation: 0,
+        idol: {
+          id: 6,
+          name: "樱木真乃",
+          folderName: "sakuragi_mano",
+          color: "#f1b0c9",
+          wikiUrl: null,
+          imageUrl: "/brand/series/wall/shiny-colors.webp",
+          imageFit: "cover",
+          textColor: "#ffffff",
+          entryKind: "idol",
+          entrySubtype: null,
+          imageTransform: {
+            fit: "cover",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
+        },
+        categories: [
+          {
+            name: "enza主线",
+            cards: [
+              {
+                id: 401,
+                name: "【主线标识】",
+                img: coverAsset.imageUrl,
+                subtitle: "全话",
+                imageTransform: {
+                  fit: "contain",
+                  focalX: 0.5,
+                  focalY: 0.5,
+                  zoom: 1,
+                  rotation: 0,
+                },
+                links: [],
               },
-              links: [],
-            },
-          ],
-        },
-      ],
-    } satisfies WikiPublicStories
-    await route.fulfill({ status: 200, json: response })
-  })
+            ],
+          },
+        ],
+      } satisfies WikiPublicStories
+      await route.fulfill({ status: 200, json: response })
+    },
+    "GET"
+  )
 
   await page.goto(
     "/story?agency=%E9%97%AA%E8%80%80%E8%89%B2%E5%BD%A9&idol=%E6%A8%B1%E6%9C%A8%E7%9C%9F%E4%B9%83"

@@ -1,5 +1,7 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
-import test, { type TestContext } from 'node:test';
+import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
+import type { TestContext } from 'node:test';
 import {
     createEventResponseSchema,
     eventErrorResponseSchema,
@@ -167,18 +169,6 @@ const eventImages: ImageProcessor = {
     async thumbnailPng(body) { return body; },
     async resizeJpeg(body) { return body; }
 };
-
-async function assertRawJsonConforms<T>(
-    response: Response,
-    status: number,
-    schema: { parse(value: unknown): T }
-): Promise<T> {
-    assert.equal(response.status, status);
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
-    const raw: unknown = await response.json();
-    assert.deepEqual(schema.parse(raw), raw);
-    return raw as T;
-}
 
 async function createFixture(t: TestContext, count: number): Promise<EventFixture> {
     const connection = await createPostgresTestDatabase(t, 'events-pagination');

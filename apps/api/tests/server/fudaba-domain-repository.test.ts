@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import test, { type TestContext } from 'node:test';
+import type { TestContext } from 'node:test';
+import { postgresTest as test } from '../integration/postgres-harness';
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import type {

@@ -1,7 +1,7 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
-import test from 'node:test';
 import { ZipFile } from 'yazl';
 import { mediaHttpErrorSchema } from '@imsweb/contracts/media';
 import {

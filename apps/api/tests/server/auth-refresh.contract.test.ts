@@ -1,5 +1,11 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
-import test, { type TestContext } from 'node:test';
+import {
+    readSetCookieValues as cookieValues,
+    serializeCookieHeader as cookieHeader,
+    setCookieHeaders as setCookies
+} from '../fixtures/auth-request';
+import type { TestContext } from 'node:test';
 import { createHonoApp } from '@/app';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
 import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
@@ -20,22 +26,6 @@ interface AuthFixture {
     connection: PostgresConnection;
     repository: SqlBackofficeAuthRepository;
     close(): Promise<void>;
-}
-
-function setCookies(response: Response): string[] {
-    return (response.headers as Headers & { getSetCookie(): string[] }).getSetCookie();
-}
-
-function cookieValues(response: Response): Map<string, string> {
-    return new Map(setCookies(response).map((cookie) => {
-        const [pair] = cookie.split(';', 1);
-        const separator = pair!.indexOf('=');
-        return [pair!.slice(0, separator), decodeURIComponent(pair!.slice(separator + 1))];
-    }));
-}
-
-function cookieHeader(values: Map<string, string>): string {
-    return [...values].map(([name, value]) => `${name}=${encodeURIComponent(value)}`).join('; ');
 }
 
 function jwtPayload(token: string): Record<string, unknown> {

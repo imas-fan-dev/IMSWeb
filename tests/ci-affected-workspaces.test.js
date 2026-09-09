@@ -54,8 +54,13 @@ const singlePathCases = [
     "apps/api/scripts/build/build-client.js",
     { ...REPOSITORY_ONLY, integration: true },
   ],
+  [
+    "apps/api/src/routing/frontend-route-delivery.ts",
+    { ...REPOSITORY_ONLY, api: true, integration: true },
+  ],
   ["packages/contracts/src/news.ts", ALL_JOBS],
   ["package.json", ALL_JOBS],
+  ["scripts/testing/run-test-owner.mjs", ALL_JOBS],
   [".github/workflows/ci.yml", ALL_JOBS],
   ["unclassified/new-file.xyz", ALL_JOBS],
 ];

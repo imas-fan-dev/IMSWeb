@@ -2,9 +2,10 @@ import AxeBuilder from "@axe-core/playwright"
 import type { EditorialArticle } from "@imsweb/contracts/editorial"
 import type { EventPage } from "@imsweb/contracts/events"
 import type { NamecardPage } from "@imsweb/contracts/namecards"
-import { expect, test } from "@playwright/test"
+import { api, expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const coverUrl = "/brand/series/wall/cinderella-girls.webp"
 
@@ -28,8 +29,9 @@ async function expectFullPageGlass(
   )
 }
 
-test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, { state: "anonymous" })
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, { state: "anonymous" })
 })
 
 test("public activity covers open in the full-page viewer", async ({
@@ -69,13 +71,15 @@ test("public activity covers open in the full-page viewer", async ({
     name: "公开活动发布者",
   } satisfies EditorialArticle
 
-  await page.route(
-    (url) => url.pathname === "/api/events",
-    (route) => route.fulfill({ status: 200, json: listResponse })
+  await api.mockRoute(
+    "/api/events",
+    (route) => route.fulfill({ status: 200, json: listResponse }),
+    "GET"
   )
-  await page.route(
-    (url) => url.pathname === "/api/events/1",
-    (route) => route.fulfill({ status: 200, json: detailResponse })
+  await api.mockRoute(
+    "/api/events/1",
+    (route) => route.fulfill({ status: 200, json: detailResponse }),
+    "GET"
   )
 
   await page.goto("/events")
@@ -127,13 +131,15 @@ test("namecard images open in the full-page viewer", async ({
     totalPage: 1,
   } satisfies NamecardPage
 
-  await page.route(
-    (url) => url.pathname === "/api/cards",
-    (route) => route.fulfill({ status: 200, json: cardResponse })
+  await api.mockRoute(
+    "/api/cards",
+    (route) => route.fulfill({ status: 200, json: cardResponse }),
+    "GET"
   )
-  await page.route(
-    (url) => url.pathname === "/api/reactions",
-    (route) => route.fulfill({ status: 200, json: {} })
+  await api.mockRoute(
+    "/api/reactions",
+    (route) => route.fulfill({ status: 200, json: {} }),
+    "GET"
   )
 
   await page.goto("/community/cards")

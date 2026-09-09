@@ -1,36 +1,49 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
 test("namecard wall changes page size and jumps to a page", async ({
   page,
+  api,
 }) => {
+  installEmptyWikiCatalogMock(api)
   const consoleErrors: string[] = []
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text())
   })
 
-  await installAdminAuthMock(page, {
+  await installAdminAuthMock(page, api, {
     user: {
       username: "namecard-pagination-qa",
       producername: "名片分页检查",
     },
   })
-  await page.route("**/api/cards?**", async (route) => {
-    const url = new URL(route.request().url())
-    const currentPage = Number(url.searchParams.get("page"))
-    const pageSize = Number(url.searchParams.get("size"))
+  await api.mockRoute(
+    "**/api/cards?**",
+    async (route) => {
+      const url = new URL(route.request().url())
+      const currentPage = Number(url.searchParams.get("page"))
+      const pageSize = Number(url.searchParams.get("size"))
 
-    const response = makeNamecardPage([makeNamecard({ id: currentPage })], {
-      total: 80,
-      totalPage: Math.ceil(80 / pageSize),
-    })
-    await route.fulfill({ status: 200, json: response })
-  })
-  await page.route("**/api/reactions?**", async (route) => {
-    await route.fulfill({ contentType: "application/json", body: "{}" })
-  })
+      const response = makeNamecardPage([makeNamecard({ id: currentPage })], {
+        total: 80,
+        totalPage: Math.ceil(80 / pageSize),
+      })
+      await route.fulfill({ status: 200, json: response })
+    },
+    "GET",
+    3
+  )
+  await api.mockRoute(
+    "**/api/reactions?**",
+    async (route) => {
+      await route.fulfill({ contentType: "application/json", body: "{}" })
+    },
+    "GET",
+    3
+  )
 
   await page.goto("/community/cards")
 

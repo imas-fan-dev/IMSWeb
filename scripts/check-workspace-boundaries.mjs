@@ -259,6 +259,17 @@ function validateDefaultScripts(
     }
 
     for (const shellCommand of splitShellCommands(script)) {
+      if (
+        packageName === "root" &&
+        /^node\s+scripts\/testing\/run-test-owner\.mjs\s+root$/.test(
+          shellCommand.trim(),
+        )
+      ) {
+        evidence.api = true;
+        evidence.web = true;
+        continue;
+      }
+
       const invocation = pnpmInvocation(shellTokens(shellCommand));
       if (!invocation) continue;
       if (

@@ -1,5 +1,5 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
-import test from 'node:test';
 import { PostgresqlIdempotencyStore } from
     '@/infra/cache/postgresql/idempotency-store';
 import {

@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import test, { type TestContext } from 'node:test';
+import type { TestContext } from 'node:test';
+import { postgresTest as test } from '../integration/postgres-harness';
 import {
     createPostgresTestHarness,
     postgresIntegrationEnabled,
     type PostgresTestHarness
 } from '../integration/postgres-harness';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+import { createMigrationCatalogBefore } from '../integration/migration-catalog';
 
 const require = createRequire(__filename);
 const { migratePostgres } = require(
@@ -21,30 +20,13 @@ const { migratePostgres } = require(
     }): Promise<unknown>;
 };
 
-const POSTGRES_MIGRATIONS = path.join(
-    __dirname,
-    '../../migrations/postgresql'
-);
-
-async function createLegacyMigrations(t: TestContext): Promise<string> {
-    const target = await fs.mkdtemp(
-        path.join(os.tmpdir(), 'ims-fudaba-pg-0026-')
-    );
-    t.after(() => fs.rm(target, { recursive: true, force: true }));
-    const names = (await fs.readdir(POSTGRES_MIGRATIONS))
-        .filter((name) => Number.parseInt(name.slice(0, 4), 10) <= 26);
-    await Promise.all(names.map((name) => fs.copyFile(
-        path.join(POSTGRES_MIGRATIONS, name),
-        path.join(target, name)
-    )));
-    return target;
-}
+const AGENCY_CATALOG_MIGRATION = '0027_fudaba_agency_catalog.sql';
 
 async function createLegacyHarness(
     t: TestContext
 ): Promise<PostgresTestHarness> {
     const harness = await createPostgresTestHarness({
-        migrationsPath: await createLegacyMigrations(t),
+        migrationsPath: await createMigrationCatalogBefore(t, AGENCY_CATALOG_MIGRATION),
         seedCanonicalAgencies: false
     });
     t.after(() => harness.close());

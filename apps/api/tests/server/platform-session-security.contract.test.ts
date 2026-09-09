@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
+import {
+    readSetCookieValues as cookieValues,
+    serializeCookieHeader as cookieHeader,
+    setCookieHeaders as setCookies,
+} from "../fixtures/auth-request";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import test, { type TestContext } from "node:test";
+import { test as nodeTest, type TestContext } from "node:test";
+import { postgresTest as test } from '../integration/postgres-harness';
 import { pathToFileURL } from "node:url";
 import { sign, verify } from "hono/utils/jwt/jwt";
 import { createHonoApp } from "@/app";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
 import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service";
-import { PostgresConnection } from "@/infra/db/postgresql/connection";
 import type {
     ManagedSqlDatabase,
     SqlSchemaStrategy,
@@ -60,6 +65,7 @@ interface Fixture {
     databaseUrl?: string;
     platformTokens: TestPlatformTokenService;
     repository: SqlPlatformAccountRepository;
+    connect(): ManagedSqlDatabase;
     seedSession(options?: {
         accountId?: string;
         sessionId?: string;
@@ -122,31 +128,6 @@ class TestPlatformTokenService {
         }
         return payload as PlatformClaims;
     }
-}
-
-function setCookies(response: Response): string[] {
-    return (
-        response.headers as Headers & { getSetCookie(): string[] }
-    ).getSetCookie();
-}
-
-function cookieValues(response: Response): Map<string, string> {
-    return new Map(
-        setCookies(response).map((cookie) => {
-            const [pair] = cookie.split(";", 1);
-            const separator = pair!.indexOf("=");
-            return [
-                pair!.slice(0, separator),
-                decodeURIComponent(pair!.slice(separator + 1)),
-            ];
-        }),
-    );
-}
-
-function cookieHeader(values: Map<string, string>): string {
-    return [...values]
-        .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
-        .join("; ");
 }
 
 function assertClearedPlatformCookies(response: Response): void {
@@ -221,6 +202,7 @@ async function createFixture(t: TestContext): Promise<Fixture> {
         databaseUrl: harness.databaseUrl,
         platformTokens,
         repository,
+        connect: () => harness.connect(),
         async seedSession(options = {}) {
             const now = Date.now();
             const accountId = options.accountId ?? `platform-${randomUUID()}`;
@@ -589,7 +571,7 @@ test("Platform and Backoffice reject each other even when their test secret is s
     assert.equal((await sessionRequest(fixture, realmLess)).status, 401);
 });
 
-test("production Platform token service fixes HS256 and all realm/session claims", async () => {
+nodeTest("production Platform token service fixes HS256 and all realm/session claims", async () => {
     const moduleId = pathToFileURL(
         path.join(
             __dirname,
@@ -968,7 +950,7 @@ test("suspended and deleted Platform accounts are blocked and their family is re
     }
 });
 
-test("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket", async () => {
+nodeTest("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket", async () => {
     const calls: Array<{
         bucket: string;
         limit: number;
@@ -1060,14 +1042,7 @@ test("real PostgreSQL emits refresh success only for the cross-instance CAS winn
         EXECUTE FUNCTION imsweb_test_delay_platform_refresh_success();
     `);
 
-    const siblingDatabase = PostgresConnection.create({
-        connectionString: fixture.databaseUrl,
-        maxConnections: 2,
-        idleTimeoutMs: 5_000,
-        connectionTimeoutMs: 5_000,
-        statementTimeoutMs: 30_000,
-        idleInTransactionTimeoutMs: 30_000,
-    });
+    const siblingDatabase = fixture.connect();
     try {
         const siblingRepository = new SqlPlatformAccountRepository(
             siblingDatabase,

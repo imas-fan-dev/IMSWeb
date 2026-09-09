@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readContractJson as contractJson } from "../contracts/contract-json";
 import { test } from "node:test";
 import { createHonoApp } from "@/app";
 import {
@@ -28,18 +29,6 @@ import type { RuntimeServices } from "@/ports/runtime-services";
 
 const NOW = Date.now();
 const CREATED_AT = "2026-08-02T00:00:00.000Z";
-
-interface Schema<T> {
-    parse(value: unknown): T;
-}
-
-async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
-    assert.match(response.headers.get("content-type") ?? "", /^application\/json/i);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, "contract schema stripped an emitted field");
-    return parsed;
-}
 
 class PublicMediaStorage implements ObjectStorage {
     async createPublicReadUrl(key: string): Promise<string | null> {

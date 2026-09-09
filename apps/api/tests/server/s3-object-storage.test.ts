@@ -1,5 +1,6 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from "node:assert/strict";
-import { test, type TestContext } from "node:test";
+import type { TestContext } from "node:test";
 import {
     CopyObjectCommand,
     DeleteObjectCommand,

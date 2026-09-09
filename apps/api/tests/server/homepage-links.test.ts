@@ -1,5 +1,6 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import {
     homepageLinkDeleteSchema,
     homepageLinkErrorResponseSchema,
@@ -22,17 +23,6 @@ function adminRequest(method: string, pathname: string, body?: unknown): Request
         },
         body: body === undefined ? undefined : JSON.stringify(body)
     });
-}
-
-async function contractJson<T>(
-    response: Response,
-    schema: { parse(value: unknown): T }
-): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
-    return parsed;
 }
 
 test('homepage links are database-backed and reorder only complete section inventories', async (t) => {

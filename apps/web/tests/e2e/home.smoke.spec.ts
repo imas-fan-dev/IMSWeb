@@ -1,6 +1,7 @@
 import type { EditorialSpotlight } from "@imsweb/contracts/editorial"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
+import type { ApiDispatcher, ApiTimes } from "./fixtures/api-dispatcher"
 import { installHomepageLinksMock } from "./fixtures/homepage"
 
 test.beforeEach(async ({ page }) => {
@@ -9,30 +10,131 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
+type SeededApi = { path: string; times: ApiTimes }
+
+const homeSeededApis: SeededApi[] = [
+  { path: "/api/wiki/random_idol", times: 1 },
+  { path: "/api/wiki/catalog", times: 1 },
+  { path: "/api/community-posts/spotlight", times: 1 },
+  { path: "/api/homepage-links", times: 1 },
+  { path: "/api/news", times: 1 },
+  { path: "/api/events", times: 1 },
+]
+
+function passThroughSeededApis(api: ApiDispatcher, registrations: SeededApi[]) {
+  for (const registration of registrations) {
+    api.passThrough({
+      name: `home smoke seeded content: ${registration.path}`,
+      reason:
+        "This browser test intentionally exercises the seeded development API instead of fixture responses.",
+      method: "GET",
+      path: registration.path,
+      times: registration.times,
+    })
+  }
+}
+
+const withCatalog = (path: string): SeededApi[] => [
+  { path: "/api/wiki/catalog", times: 1 },
+  { path, times: 1 },
+]
+
 const publicRoutes = [
-  { path: "/", title: /IMSWeb/i },
-  { path: "/about", title: /关于我们.*IMSWeb/i },
-  { path: "/events", title: /社区动态.*IMSWeb/i },
-  { path: "/recommendations", title: /向您推荐.*IMSWeb/i },
-  { path: "/live", title: /Live.*IMSWeb/i },
-  { path: "/community", title: /制作人社区.*IMSWeb/i },
-  { path: "/account/login", title: /帐号登录.*IMSWeb/i },
-  { path: "/account/register", title: /帐号注册.*IMSWeb/i },
-  { path: "/community/exchange", title: /名片交换事务所.*IMSWeb/i },
-  { path: "/community/cards", title: /制作人名片墙.*IMSWeb/i },
-  { path: "/works", title: /系列作品.*IMSWeb/i },
-  { path: "/wiki", title: /剧情档案.*IMSWeb/i },
-  { path: "/wiki/modern", title: /剧情档案.*IMSWeb/i },
-  { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i },
-  { path: "/story", title: /剧情详情.*IMSWeb/i },
-  { path: "/story/modern", title: /剧情详情.*IMSWeb/i },
-  { path: "/story/classic", title: /经典剧情详情.*IMSWeb/i },
-  { path: "/works/sc", title: /SHINY COLORS.*IMSWeb/i },
-  { path: "/chronicle", title: /活动编年史.*IMSWeb/i },
+  { path: "/", title: /IMSWeb/i, apis: homeSeededApis },
+  {
+    path: "/about",
+    title: /关于我们.*IMSWeb/i,
+    apis: withCatalog("/api/about"),
+  },
+  {
+    path: "/events",
+    title: /社区动态.*IMSWeb/i,
+    apis: withCatalog("/api/events"),
+  },
+  {
+    path: "/recommendations",
+    title: /向您推荐.*IMSWeb/i,
+    apis: withCatalog("/api/news"),
+  },
+  {
+    path: "/live",
+    title: /Live.*IMSWeb/i,
+    apis: withCatalog("/api/live-schedule"),
+  },
+  {
+    path: "/community",
+    title: /制作人社区.*IMSWeb/i,
+    apis: withCatalog("/api/community/exchange/series"),
+  },
+  {
+    path: "/account/login",
+    title: /帐号登录.*IMSWeb/i,
+    apis: withCatalog("/api/platform/auth/oauth/providers"),
+  },
+  {
+    path: "/account/register",
+    title: /帐号注册.*IMSWeb/i,
+    apis: withCatalog("/api/platform/auth/oauth/providers"),
+  },
+  {
+    path: "/community/exchange",
+    title: /名片交换事务所.*IMSWeb/i,
+    apis: [],
+  },
+  {
+    path: "/community/cards",
+    title: /制作人名片墙.*IMSWeb/i,
+    apis: [
+      { path: "/api/wiki/catalog", times: 1 },
+      { path: "/api/cards", times: 1 },
+      { path: "/api/reactions", times: { min: 0, max: 12 } },
+    ],
+  },
+  {
+    path: "/works",
+    title: /系列作品.*IMSWeb/i,
+    apis: [{ path: "/api/wiki/catalog", times: 1 }],
+  },
+  {
+    path: "/wiki",
+    title: /剧情档案.*IMSWeb/i,
+    apis: withCatalog("/api/wiki/random_bg"),
+  },
+  {
+    path: "/wiki/modern",
+    title: /剧情档案.*IMSWeb/i,
+    apis: withCatalog("/api/wiki/random_bg"),
+  },
+  { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i, apis: [] },
+  {
+    path: "/story",
+    title: /剧情详情.*IMSWeb/i,
+    apis: [{ path: "/api/wiki/catalog", times: 1 }],
+  },
+  {
+    path: "/story/modern",
+    title: /剧情详情.*IMSWeb/i,
+    apis: [{ path: "/api/wiki/catalog", times: 1 }],
+  },
+  { path: "/story/classic", title: /经典剧情详情.*IMSWeb/i, apis: [] },
+  {
+    path: "/works/sc",
+    title: /SHINY COLORS.*IMSWeb/i,
+    apis: [{ path: "/api/wiki/catalog", times: 1 }],
+  },
+  {
+    path: "/chronicle",
+    title: /活动编年史.*IMSWeb/i,
+    apis: withCatalog("/api/chronicle"),
+  },
 ]
 
 for (const route of publicRoutes) {
-  test(`${route.path} renders a healthy IMSWeb document`, async ({ page }) => {
+  test(`${route.path} renders a healthy IMSWeb document`, async ({
+    page,
+    api,
+  }) => {
+    passThroughSeededApis(api, route.apis)
     const consoleErrors: string[] = []
     const pageErrors: string[] = []
 
@@ -84,7 +186,9 @@ for (const route of publicRoutes) {
 
 test("the interface stays Chinese when an English preference is stored", async ({
   page,
+  api,
 }) => {
+  passThroughSeededApis(api, homeSeededApis)
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "en")
   })
@@ -103,8 +207,10 @@ test("the interface stays Chinese when an English preference is stored", async (
 
 test("work detail content stays below the sticky site header", async ({
   page,
+  api,
   isMobile,
 }) => {
+  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   if (!isMobile) {
     await page.setViewportSize({ width: 1600, height: 900 })
   }
@@ -145,7 +251,9 @@ test("work detail content stays below the sticky site header", async ({
 
 test("work detail keeps narrow-screen artwork behind the copy", async ({
   page,
+  api,
 }) => {
+  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   await page.setViewportSize({ width: 768, height: 1024 })
   await page.goto("/works/sc")
 
@@ -168,7 +276,11 @@ test("work detail keeps narrow-screen artwork behind the copy", async ({
   await expect(character.locator("..")).toHaveCSS("position", "absolute")
 })
 
-test("work detail loads its character directly from R2", async ({ page }) => {
+test("work detail loads its character directly from R2", async ({
+  page,
+  api,
+}) => {
+  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   const legacyAssetRequests: string[] = []
   page.on("request", (request) => {
     const url = request.url()
@@ -238,8 +350,10 @@ test.fixme("work detail actually renders the idolFont face", async ({
 
 test("work detail carries the lightweight global series background", async ({
   page,
+  api,
   isMobile,
 }) => {
+  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   await page.goto("/works/sc")
 
   const background = page.getByTestId("series-icon-background")
@@ -278,9 +392,18 @@ test("work detail carries the lightweight global series background", async ({
 
 test("mobile navigation keeps link semantics and closes after routing", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile navigation is hidden on desktop")
+  passThroughSeededApis(
+    api,
+    homeSeededApis.map((registration) =>
+      registration.path === "/api/events"
+        ? { ...registration, times: 2 }
+        : registration
+    )
+  )
 
   const consoleErrors: string[] = []
   page.on("console", (message) => {
@@ -317,10 +440,22 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
 
 test("desktop navigation lens stays within its glass segment", async ({
   page,
+  api,
   isMobile,
 }) => {
   test.skip(isMobile, "desktop navigation is hidden on mobile")
   test.slow()
+  passThroughSeededApis(api, [
+    { path: "/api/wiki/random_idol", times: 2 },
+    { path: "/api/wiki/catalog", times: 1 },
+    { path: "/api/community-posts/spotlight", times: 2 },
+    { path: "/api/homepage-links", times: 2 },
+    { path: "/api/news", times: 3 },
+    { path: "/api/events", times: 3 },
+    { path: "/api/live-schedule", times: 1 },
+    { path: "/api/community/exchange/series", times: 1 },
+    { path: "/api/about", times: 2 },
+  ])
 
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.goto("/", { waitUntil: "domcontentloaded" })
@@ -637,6 +772,7 @@ test("desktop navigation lens stays within its glass segment", async ({
 
 test("homepage navigation keeps secondary destinations in the directory", async ({
   page,
+  api,
   isMobile,
 }) => {
   if (process.env.CAPTURE_HEADER_QA === "1") {
@@ -644,7 +780,13 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       localStorage.setItem("imsweb.language", "zh-CN")
     })
   }
-  await installHomepageLinksMock(page)
+  await installHomepageLinksMock(api)
+  passThroughSeededApis(
+    api,
+    homeSeededApis.filter(
+      (registration) => registration.path !== "/api/homepage-links"
+    )
+  )
   await page.goto("/")
 
   if (isMobile) {
@@ -736,8 +878,21 @@ test("homepage navigation keeps secondary destinations in the directory", async 
   expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
 })
 
-test("homepage directory uses compact responsive columns", async ({ page }) => {
-  await installHomepageLinksMock(page)
+test("homepage directory uses compact responsive columns", async ({
+  page,
+  api,
+}) => {
+  await installHomepageLinksMock(api)
+  passThroughSeededApis(
+    api,
+    homeSeededApis
+      .filter((registration) => registration.path !== "/api/homepage-links")
+      .map((registration) =>
+        registration.path === "/api/news" || registration.path === "/api/events"
+          ? { ...registration, times: 2 }
+          : registration
+      )
+  )
   await page.goto("/")
 
   const directory = page.getByRole("region", { name: "站点导航" })
@@ -790,7 +945,17 @@ test("homepage directory uses compact responsive columns", async ({ page }) => {
   await expect(description).toHaveText("浏览近期活动与公开信息")
 })
 
-test("theme toggle persists the selected color scheme", async ({ page }) => {
+test("theme toggle persists the selected color scheme", async ({
+  page,
+  api,
+}) => {
+  passThroughSeededApis(
+    api,
+    homeSeededApis.map((registration) => ({
+      ...registration,
+      times: { min: 1, max: 3 },
+    }))
+  )
   await page.goto("/")
   await page.evaluate(() => localStorage.setItem("theme", "light"))
   await page.reload()
@@ -858,8 +1023,10 @@ test("theme toggle persists the selected color scheme", async ({ page }) => {
 
 test("default wiki hero gives story artwork an expanded frame", async ({
   page,
+  api,
   isMobile,
 }) => {
+  passThroughSeededApis(api, withCatalog("/api/wiki/random_bg"))
   await page.goto("/wiki")
 
   const hero = page.getByRole("region", { name: "剧情档案视觉" })
@@ -888,15 +1055,31 @@ test("default wiki hero gives story artwork an expanded frame", async ({
 
 test("home exposes current discovery and birthday interactions", async ({
   page,
+  api,
   isMobile,
 }) => {
-  await installHomepageLinksMock(page)
-  await page.route(
-    (url) => url.pathname === "/api/community-posts/spotlight",
+  await installHomepageLinksMock(api)
+  passThroughSeededApis(
+    api,
+    homeSeededApis
+      .filter(
+        (registration) =>
+          registration.path !== "/api/homepage-links" &&
+          registration.path !== "/api/community-posts/spotlight"
+      )
+      .map((registration) =>
+        registration.path === "/api/wiki/random_idol"
+          ? { ...registration, times: 2 }
+          : registration
+      )
+  )
+  await api.mockRoute(
+    "/api/community-posts/spotlight",
     async (route) => {
       const response = { items: [] } satisfies EditorialSpotlight
       await route.fulfill({ status: 200, json: response })
-    }
+    },
+    "GET"
   )
 
   await page.goto("/")
@@ -991,7 +1174,9 @@ test("home exposes current discovery and birthday interactions", async ({
 
 test("home random idol uses a square portrait and agency marker", async ({
   page,
+  api,
 }) => {
+  passThroughSeededApis(api, homeSeededApis)
   await page.goto("/")
 
   const randomIdol = page.getByRole("region", { name: "随机担当" })

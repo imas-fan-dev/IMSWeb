@@ -40,7 +40,7 @@ Negative controls pass in `tests/test_source_rules.py`, `tests/contracts/non-jso
 
 ## Route and request inventory
 
-The checked report is `scripts/contracts/current-wire-contract-inventory.json`; `scripts/contracts/current-wire-contract-inventory.md` is its concise reconciliation.
+The checked report is `scripts/contracts/current-wire-contract-inventory.json`. Generate its concise Markdown reconciliation on demand with `node scripts/contracts/compile-route-inventory.mjs --report`; the Markdown is not tracked or checked for freshness.
 
 - All mounted registrations: `315`.
 - Current request-consuming method/path instances: `230`.
@@ -55,7 +55,7 @@ The compiler identifies `23` explicit query validators added to make previously 
 - `283` request carriers.
 - `41` reject, `161` project, `17` passthrough, `64` N/A.
 
-Any count, policy, source digest, or schema-level addition mismatch fails `check:rules`; the generator does not silently cap records.
+Any count, policy, schema-level addition, or semantic JSON mismatch fails `check:rules`; the generator does not silently cap records. Comments, formatting, and unrelated source outside the collected route inventory do not churn the artifact.
 
 ## Independent review
 

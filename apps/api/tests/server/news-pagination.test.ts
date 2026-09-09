@@ -1,5 +1,7 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
-import test, { type TestContext } from 'node:test';
+import { readContractJson as contractJson } from '../contracts/contract-json';
+import type { TestContext } from 'node:test';
 import {
     adminRecommendationListSchema,
     newsErrorResponseSchema,
@@ -62,17 +64,6 @@ async function createFixture(t: TestContext, count: number): Promise<NewsFixture
             });
         }
     };
-}
-
-async function contractJson<T>(
-    response: Response,
-    schema: { parse(value: unknown): T }
-): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
-    return parsed;
 }
 
 test('news keeps its legacy array response when pagination is not requested', async (t) => {

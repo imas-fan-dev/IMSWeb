@@ -91,6 +91,7 @@ const API_INTEGRATION_FILES = new Set([
   "apps/api/src/middleware/rate-limit.ts",
   "apps/api/src/middleware/request-observability.ts",
   "apps/api/src/middleware/static-path-policy.ts",
+  "apps/api/src/routing/frontend-route-delivery.ts",
   "apps/api/src/routing/frontend-route-policy.ts",
   "apps/api/src/utils/http/content-type.ts",
   "apps/api/src/utils/http/stored-object-response.ts",

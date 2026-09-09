@@ -17,7 +17,7 @@
     "lint": "eslint . --max-warnings=0",
     "preview": "VITE_IMS_APP_TARGET=web vite preview --host 127.0.0.1",
     "tauri": "tauri",
-    "test": "pnpm run test:unit && pnpm run test:e2e",
+    "test": "node ../../scripts/testing/run-test-owner.mjs web",
     "test:e2e": "VITE_IMS_APP_TARGET=web playwright test",
     "test:e2e:app": "playwright test --config playwright.app.config.ts",
     "test:unit": "VITE_IMS_APP_TARGET=web vitest run",

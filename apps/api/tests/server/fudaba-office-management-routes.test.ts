@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { readContractJson as contractJson } from '../contracts/contract-json';
+import {
+    bearerTokenHeaders,
+    fixtureSha256Hex as csrfHash
+} from '../fixtures/auth-request';
 import test from 'node:test';
 import {
     fudabaErrorResponseSchema,
@@ -28,22 +32,6 @@ const PLATFORM_TOKEN = 'office-platform-token';
 const CSRF_SECRET = 'office-csrf-secret';
 const CREATED_AT = '2026-08-03T01:00:00.000Z';
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
-
-interface Schema<T> {
-    parse(value: unknown): T;
-}
-
-async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
-    return parsed;
-}
-
-function csrfHash(value: string): string {
-    return createHash('sha256').update(value).digest('hex');
-}
 
 function officeRecord(
     overrides: Partial<FudabaOwnerOfficeRecord> = {}
@@ -558,7 +546,7 @@ class OfficeRouteFixture {
 }
 
 function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> {
-    return { authorization: `Bearer ${PLATFORM_TOKEN}`, ...extra };
+    return bearerTokenHeaders(PLATFORM_TOKEN, extra);
 }
 
 async function createOffice(

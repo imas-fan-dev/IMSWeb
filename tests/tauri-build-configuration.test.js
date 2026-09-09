@@ -8,6 +8,9 @@ const webRoot = path.resolve(__dirname, "../apps/web");
 const routerConfigUrl = pathToFileURL(
   path.resolve(webRoot, "react-router.config.ts"),
 );
+const routeMetadataUrl = pathToFileURL(
+  path.resolve(webRoot, "app/route-metadata.ts"),
+);
 const devAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/dev-app.js"));
 
 test("browser and Tauri targets keep separate servers and build outputs", async () => {
@@ -28,8 +31,17 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
       path.dirname(path.resolve(webRoot, webConfig.buildDirectory)),
       path.dirname(path.resolve(webRoot, appConfig.buildDirectory)),
     );
-    assert.ok(webConfig.prerender.includes("/wiki/classic"));
-    assert.ok(!appConfig.prerender.includes("/wiki/classic"));
+    const { prerenderRoutesForTarget } = await import(routeMetadataUrl.href);
+    assert.deepEqual(webConfig.prerender, prerenderRoutesForTarget("web"));
+    assert.deepEqual(appConfig.prerender, prerenderRoutesForTarget("app"));
+    assert.equal(webConfig.prerender.length, 30);
+    assert.equal(appConfig.prerender.length, 28);
+    assert.deepEqual(
+      webConfig.prerender.filter(
+        (route) => !appConfig.prerender.includes(route),
+      ),
+      ["/wiki/classic", "/story/classic"],
+    );
 
     const tauriConfig = JSON.parse(
       await readFile(`${webRoot}/src-tauri/tauri.conf.json`, "utf8"),

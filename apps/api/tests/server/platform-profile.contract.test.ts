@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
 import { test } from 'node:test';
 import {
     platformMutationRateLimitResponseSchema,
@@ -17,16 +18,6 @@ import {
 const PROFILE_URL = 'http://ims.test/api/platform/me';
 const AVATAR_URL = 'http://ims.test/api/platform/me/avatar';
 const SEEDED_UPDATED_AT = 1_000;
-
-async function assertRawJsonConforms(
-    response: Response,
-    schema: { parse(input: unknown): unknown }
-): Promise<unknown> {
-    const raw: unknown = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'contract schema stripped or changed raw JSON');
-    return parsed;
-}
 
 interface ErrorBody {
     code: string;

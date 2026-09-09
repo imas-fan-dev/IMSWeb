@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import {
   applyNamecardSafeArea,
@@ -16,8 +16,13 @@ import {
 
 test("preserves App safe areas, complete images and the list return position", async ({
   page,
+  api,
 }, testInfo) => {
-  await mockNamecardBrowsing(page)
+  await mockNamecardBrowsing(page, api, 26, undefined, {
+    cards: 3,
+    reactionReads: 24,
+    reactionWrites: 0,
+  })
   await page.goto("/community/cards?page=1&size=12")
   await expect(page.locator("html")).toHaveAttribute("data-app-target", "app")
   await applyNamecardSafeArea(page)
@@ -70,8 +75,13 @@ test("preserves App safe areas, complete images and the list return position", a
 
 test("yields floating actions to pagination and renders bundled reaction graphics", async ({
   page,
+  api,
 }, testInfo) => {
-  await mockNamecardBrowsing(page)
+  await mockNamecardBrowsing(page, api, 26, undefined, {
+    cards: 2,
+    reactionReads: 36,
+    reactionWrites: 1,
+  })
   await page.goto("/community/cards?page=2&size=12")
   await applyNamecardSafeArea(page)
   const first = page.locator("[data-namecard-item]").first()

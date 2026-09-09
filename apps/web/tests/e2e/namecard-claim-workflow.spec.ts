@@ -1,8 +1,9 @@
 import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
-import { expect, test } from "@playwright/test"
+import { api, expect, test } from "./fixtures/test"
 import type { Page } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -73,13 +74,18 @@ const catalog = {
 
 const favoriteIdol = { id: 1, name: "天海春香", seriesCode: "765" }
 
-async function mockAnonymousPlatformSession(page: Page) {
-  await page.route("**/api/platform/auth/session", async (route) => {
-    await route.fulfill({
-      status: 401,
-      json: { success: false, code: "PLATFORM_AUTH_REQUIRED" },
-    })
-  })
+async function mockAnonymousPlatformSession() {
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      await route.fulfill({
+        status: 401,
+        json: { success: false, code: "PLATFORM_AUTH_REQUIRED" },
+      })
+    },
+    "GET",
+    0
+  )
 }
 
 async function mockPlatformSession(page: Page) {
@@ -91,52 +97,66 @@ async function mockPlatformSession(page: Page) {
       path: "/",
     },
   ])
-  await page.route("**/api/platform/auth/session", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        account: { id: "platform-claimant", status: "active" },
-        profile: {
-          displayName: "认领测试制作人",
-          avatarUrl: null,
-          homeCity: "上海",
-          bio: "",
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          account: { id: "platform-claimant", status: "active" },
+          profile: {
+            displayName: "认领测试制作人",
+            avatarUrl: null,
+            homeCity: "上海",
+            bio: "",
+          },
         },
-      },
-    })
-  })
+      })
+    },
+    "GET"
+  )
 }
 
 test("anonymous visitors do not see the legacy-card claim action", async ({
   page,
+  api,
 }) => {
-  await mockAnonymousPlatformSession(page)
-  await page.route("**/api/cards**", async (route) => {
-    await route.fulfill({
-      json: {
-        list: [
-          {
-            id: 42,
-            seriesCode: "765",
-            favoriteIdols: [favoriteIdol],
-            claimStatus: "unclaimed",
-            viewerClaimState: null,
-            image1_url: FRONT_IMAGE,
-            image2_url: BACK_IMAGE,
-            image1_thumbnail_url: FRONT_IMAGE,
-            image2_thumbnail_url: BACK_IMAGE,
-            status: "approved",
-            created_at: "2026-08-16T19:30:00.000Z",
-          },
-        ],
-        total: 1,
-        totalPage: 1,
-      },
-    })
-  })
-  await page.route("**/api/reactions**", async (route) => {
-    await route.fulfill({ json: {} })
-  })
+  installEmptyWikiCatalogMock(api)
+  await mockAnonymousPlatformSession()
+  await api.mockRoute(
+    "**/api/cards**",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          list: [
+            {
+              id: 42,
+              seriesCode: "765",
+              favoriteIdols: [favoriteIdol],
+              claimStatus: "unclaimed",
+              viewerClaimState: null,
+              image1_url: FRONT_IMAGE,
+              image2_url: BACK_IMAGE,
+              image1_thumbnail_url: FRONT_IMAGE,
+              image2_thumbnail_url: BACK_IMAGE,
+              status: "approved",
+              created_at: "2026-08-16T19:30:00.000Z",
+            },
+          ],
+          total: 1,
+          totalPage: 1,
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/reactions**",
+    async (route) => {
+      await route.fulfill({ json: {} })
+    },
+    "GET"
+  )
 
   await page.goto("/community/cards")
   await expect(
@@ -157,43 +177,59 @@ test("registered user submits a legacy-card claim from the public wall", async (
   })
   page.on("pageerror", (error) => consoleErrors.push(error.message))
 
-  await page.route("**/api/wiki/catalog**", async (route) => {
-    await route.fulfill({ json: catalog })
-  })
-  await page.route("**/api/community/exchange/me/cards", async (route) => {
-    await route.fulfill({ json: { items: [] } })
-  })
-  await page.route("**/api/cards**", async (route) => {
-    await route.fulfill({
-      json: {
-        list: [
-          {
-            id: 42,
-            seriesCode: "765",
-            favoriteIdols: [favoriteIdol],
-            claimStatus: "unclaimed",
-            viewerClaimState: null,
-            image1_url: FRONT_IMAGE,
-            image2_url: BACK_IMAGE,
-            image1_thumbnail_url: FRONT_IMAGE,
-            image2_thumbnail_url: BACK_IMAGE,
-            status: "approved",
-            created_at: "2026-08-16T19:30:00.000Z",
-          },
-        ],
-        total: 1,
-        totalPage: 1,
-      },
-    })
-  })
-  await page.route("**/api/reactions**", async (route) => {
-    await route.fulfill({ json: {} })
-  })
+  await api.mockRoute(
+    "**/api/wiki/catalog**",
+    async (route) => {
+      await route.fulfill({ json: catalog })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/cards",
+    async (route) => {
+      await route.fulfill({ json: { items: [] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/cards**",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          list: [
+            {
+              id: 42,
+              seriesCode: "765",
+              favoriteIdols: [favoriteIdol],
+              claimStatus: "unclaimed",
+              viewerClaimState: null,
+              image1_url: FRONT_IMAGE,
+              image2_url: BACK_IMAGE,
+              image1_thumbnail_url: FRONT_IMAGE,
+              image2_thumbnail_url: BACK_IMAGE,
+              status: "approved",
+              created_at: "2026-08-16T19:30:00.000Z",
+            },
+          ],
+          total: 1,
+          totalPage: 1,
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/reactions**",
+    async (route) => {
+      await route.fulfill({ json: {} })
+    },
+    "GET"
+  )
 
   let submitted:
     | { body: Record<string, unknown>; csrf: string | undefined }
     | undefined
-  await page.route(
+  await api.mockRoute(
     "**/api/community/exchange/legacy-cards/42/claims",
     async (route) => {
       submitted = {
@@ -220,7 +256,8 @@ test("registered user submits a legacy-card claim from the public wall", async (
           },
         },
       })
-    }
+    },
+    "POST"
   )
 
   await page.goto("/community/cards")
@@ -285,58 +322,78 @@ test("same-ID envelope asks the owner before submitting an admin-reviewed claim"
   page,
 }) => {
   await mockPlatformSession(page)
-  await page.route("**/api/platform/me", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        account: { id: "platform-claimant", status: "active" },
-        capabilities: { fudabaWrite: true },
-        profile: {
-          displayName: "认领测试制作人",
-          avatarUrl: null,
-          homeCity: "上海",
-          bio: "",
-          updatedAt: 10,
-        },
-      },
-    })
-  })
-  await page.route("**/api/community/exchange/me/series", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [
-          {
-            id: 1,
-            code: "765",
-            displayName: "765PRO",
-            color: "#f34e6c",
-            iconUrl: null,
-            imageTransform: {
-              fit: "cover",
-              focalX: 0.5,
-              focalY: 0.5,
-              zoom: 1,
-              rotation: 0,
-            },
-            displayOrder: 0,
-            activeOfficeCount: 0,
+  await api.mockRoute(
+    "**/api/platform/me",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          account: { id: "platform-claimant", status: "active" },
+          capabilities: { fudabaWrite: true },
+          profile: {
+            displayName: "认领测试制作人",
+            avatarUrl: null,
+            homeCity: "上海",
+            bio: "",
+            updatedAt: 10,
           },
-        ],
-      },
-    })
-  })
-  await page.route("**/api/wiki/catalog**", async (route) => {
-    await route.fulfill({ json: catalog })
-  })
-  await page.route("**/api/community/exchange/me/cards", async (route) => {
-    await route.fulfill({
-      json: { items: [{ ...registeredCard, id: "42" }] },
-    })
-  })
-  await page.route("**/api/community/exchange/me/offices", async (route) => {
-    await route.fulfill({ json: { items: [] } })
-  })
-  await page.route(
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/series",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: 1,
+              code: "765",
+              displayName: "765PRO",
+              color: "#f34e6c",
+              iconUrl: null,
+              imageTransform: {
+                fit: "cover",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
+              displayOrder: 0,
+              activeOfficeCount: 0,
+            },
+          ],
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/wiki/catalog**",
+    async (route) => {
+      await route.fulfill({ json: catalog })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/cards",
+    async (route) => {
+      await route.fulfill({
+        json: { items: [{ ...registeredCard, id: "42" }] },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/offices",
+    async (route) => {
+      await route.fulfill({ json: { items: [] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
     "**/api/community/exchange/me/favorites?**",
     async (route) => {
       const response = {
@@ -344,7 +401,8 @@ test("same-ID envelope asks the owner before submitting an admin-reviewed claim"
         pageInfo: { hasNextPage: false, nextCursor: null },
       } satisfies FudabaCardPage
       await route.fulfill({ status: 200, json: response })
-    }
+    },
+    "GET"
   )
 
   const envelope = {
@@ -363,42 +421,51 @@ test("same-ID envelope asks the owner before submitting an admin-reviewed claim"
   }
   let responseBody: Record<string, unknown> | undefined
   let csrf: string | undefined
-  await page.route(
-    "**/api/community/exchange/me/claim-envelopes**",
-    async (route) => {
-      if (route.request().method() === "PUT") {
-        responseBody = route.request().postDataJSON() as Record<string, unknown>
-        csrf = route.request().headers()["x-csrftoken"]
-        await route.fulfill({
-          json: {
-            success: true,
-            envelope: {
-              ...envelope,
-              actionState: "confirmed",
-              claimId: "same-id-claim-e2e",
-              revision: 1,
-              actedAt: "2026-08-16T19:31:00.000Z",
-            },
-            claim: {
-              id: "same-id-claim-e2e",
-              legacyCardId: 42,
-              targetCardId: "42",
-              seriesCode: "765",
-              favoriteIdols: [favoriteIdol],
-              state: "pending",
-              message: "同 ID 旧名片身份确认",
-              reviewNote: "",
-              revision: 0,
-              createdAt: "2026-08-16T19:31:00.000Z",
-              updatedAt: "2026-08-16T19:31:00.000Z",
-              reviewedAt: null,
-            },
+  const handleClaimEnvelopes = async (
+    route: import("@playwright/test").Route
+  ) => {
+    if (route.request().method() === "PUT") {
+      responseBody = route.request().postDataJSON() as Record<string, unknown>
+      csrf = route.request().headers()["x-csrftoken"]
+      await route.fulfill({
+        json: {
+          success: true,
+          envelope: {
+            ...envelope,
+            actionState: "confirmed",
+            claimId: "same-id-claim-e2e",
+            revision: 1,
+            actedAt: "2026-08-16T19:31:00.000Z",
           },
-        })
-        return
-      }
-      await route.fulfill({ json: { items: [envelope] } })
+          claim: {
+            id: "same-id-claim-e2e",
+            legacyCardId: 42,
+            targetCardId: "42",
+            seriesCode: "765",
+            favoriteIdols: [favoriteIdol],
+            state: "pending",
+            message: "同 ID 旧名片身份确认",
+            reviewNote: "",
+            revision: 0,
+            createdAt: "2026-08-16T19:31:00.000Z",
+            updatedAt: "2026-08-16T19:31:00.000Z",
+            reviewedAt: null,
+          },
+        },
+      })
+      return
     }
+    await route.fulfill({ json: { items: [envelope] } })
+  }
+  await api.mockRoute(
+    "/api/community/exchange/me/claim-envelopes",
+    handleClaimEnvelopes,
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/community/exchange/me/claim-envelopes/1",
+    handleClaimEnvelopes,
+    "PUT"
   )
 
   await page.goto("/community/exchange/me")
@@ -443,29 +510,35 @@ const pendingClaim = {
 
 test("administrator reviews registered cards and legacy-card claims", async ({
   page,
+  api,
 }, testInfo) => {
-  await installAdminAuthMock(page, {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
     csrfToken: "claim-admin-csrf",
     user: {
       username: "claim-reviewer",
       producername: "认领审核员",
     },
   })
-  await page.route("**/api/admin/cards**", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        data: [],
-        pageInfo: {
-          page: 1,
-          pageSize: 10,
-          total: 0,
-          totalPages: 0,
-          hasNextPage: false,
+  await api.mockRoute(
+    "**/api/admin/cards**",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          data: [],
+          pageInfo: {
+            page: 1,
+            pageSize: 10,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+          },
         },
-      },
-    })
-  })
+      })
+    },
+    "GET"
+  )
 
   let registeredPending = true
   let claimPending = true
@@ -474,55 +547,73 @@ test("administrator reviews registered cards and legacy-card claims", async ({
     body: Record<string, unknown>
     csrf: string | undefined
   }> = []
-  await page.route(
-    "**/api/admin/community/exchange/card-reviews**",
-    async (route) => {
-      const request = route.request()
-      if (request.method() === "PUT") {
-        reviews.push({
-          kind: "registered",
-          body: request.postDataJSON() as Record<string, unknown>,
-          csrf: request.headers()["x-csrftoken"],
-        })
-        registeredPending = false
-        await route.fulfill({ json: { success: true, revision: 2 } })
-        return
-      }
-      await route.fulfill({
-        json: {
-          items: registeredPending
-            ? [
-                {
-                  card: registeredCard,
-                  owner: {
-                    id: "registered-owner-e2e",
-                    displayName: "注册制作人",
-                  },
+  const handleRegisteredReviews = async (
+    route: import("@playwright/test").Route
+  ) => {
+    const request = route.request()
+    if (request.method() === "PUT") {
+      reviews.push({
+        kind: "registered",
+        body: request.postDataJSON() as Record<string, unknown>,
+        csrf: request.headers()["x-csrftoken"],
+      })
+      registeredPending = false
+      await route.fulfill({ json: { success: true, revision: 2 } })
+      return
+    }
+    await route.fulfill({
+      json: {
+        items: registeredPending
+          ? [
+              {
+                card: registeredCard,
+                owner: {
+                  id: "registered-owner-e2e",
+                  displayName: "注册制作人",
                 },
-              ]
-            : [],
-        },
-      })
-    }
+              },
+            ]
+          : [],
+      },
+    })
+  }
+  await api.mockRoute(
+    "/api/admin/community/exchange/card-reviews",
+    handleRegisteredReviews,
+    "GET"
   )
-  await page.route(
-    "**/api/admin/community/exchange/card-claims**",
-    async (route) => {
-      const request = route.request()
-      if (request.method() === "PUT") {
-        reviews.push({
-          kind: "claim",
-          body: request.postDataJSON() as Record<string, unknown>,
-          csrf: request.headers()["x-csrftoken"],
-        })
-        claimPending = false
-        await route.fulfill({ json: { success: true, revision: 3 } })
-        return
-      }
-      await route.fulfill({
-        json: { items: claimPending ? [pendingClaim] : [] },
+  await api.mockRoute(
+    "/api/admin/community/exchange/card-reviews/registered-card-e2e",
+    handleRegisteredReviews,
+    "PUT"
+  )
+  const handleClaimReviews = async (
+    route: import("@playwright/test").Route
+  ) => {
+    const request = route.request()
+    if (request.method() === "PUT") {
+      reviews.push({
+        kind: "claim",
+        body: request.postDataJSON() as Record<string, unknown>,
+        csrf: request.headers()["x-csrftoken"],
       })
+      claimPending = false
+      await route.fulfill({ json: { success: true, revision: 3 } })
+      return
     }
+    await route.fulfill({
+      json: { items: claimPending ? [pendingClaim] : [] },
+    })
+  }
+  await api.mockRoute(
+    "/api/admin/community/exchange/card-claims",
+    handleClaimReviews,
+    "GET"
+  )
+  await api.mockRoute(
+    "/api/admin/community/exchange/card-claims/claim-admin-e2e",
+    handleClaimReviews,
+    "PUT"
   )
 
   await page.goto("/admin/cards")

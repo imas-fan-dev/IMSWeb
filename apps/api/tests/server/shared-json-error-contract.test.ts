@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
 import test from 'node:test';
 import {
     errorResponseSchema,
@@ -11,17 +12,6 @@ import { jsonBodyLimit } from '@/middleware/json-body-limit';
 import { enforceRateLimit } from '@/middleware/rate-limit';
 import { jsonValidator } from '@/middleware/request-validation';
 import type { RuntimeServices } from '@/ports/runtime-services';
-
-async function assertRawJsonConforms(
-    response: Response,
-    status: number,
-    schema: { parse(value: unknown): unknown },
-): Promise<void> {
-    assert.equal(response.status, status);
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
-    const raw = await response.json();
-    assert.deepEqual(schema.parse(raw), raw);
-}
 
 test('shared middleware JSON errors conform to their common contracts', async () => {
     const authApp = new Hono<AppEnvironment>();

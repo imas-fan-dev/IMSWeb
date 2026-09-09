@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { readContractJson as contractJson } from '../contracts/contract-json';
+import {
+    bearerTokenHeaders,
+    cookieCsrfHeaders,
+    fixtureSha256Hex as csrfHash
+} from '../fixtures/auth-request';
 import { test } from 'node:test';
 import {
     fudabaCardPlacementDeleteResponseSchema,
@@ -24,22 +29,6 @@ const TOKEN = 'placement-access-token';
 const CSRF = 'placement-csrf-secret';
 const OFFICE_ID = 'placement-office';
 const CARD_ID = 'placement-card';
-
-interface Schema<T> {
-    parse(value: unknown): T;
-}
-
-async function contractJson<T>(response: Response, schema: Schema<T>): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'contract schema stripped an emitted field');
-    return parsed;
-}
-
-function csrfHash(value: string): string {
-    return createHash('sha256').update(value).digest('hex');
-}
 
 class ControlledRateLimiter implements RateLimiter {
     readonly deniedBuckets = new Set<string>();
@@ -252,15 +241,14 @@ class PlacementRouteFixture {
 }
 
 function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> {
-    return { authorization: `Bearer ${TOKEN}`, ...extra };
+    return bearerTokenHeaders(TOKEN, extra);
 }
 
 function cookieHeaders(includeHeader: boolean): Record<string, string> {
-    return {
-        cookie: `${PLATFORM_ACCESS_TOKEN_COOKIE}=${TOKEN}; ` +
-            `${PLATFORM_CSRF_TOKEN_COOKIE}=${CSRF}`,
-        ...(includeHeader ? { 'x-csrftoken': CSRF } : {})
-    };
+    return cookieCsrfHeaders([
+        [PLATFORM_ACCESS_TOKEN_COOKIE, TOKEN],
+        [PLATFORM_CSRF_TOKEN_COOKIE, CSRF]
+    ], includeHeader ? CSRF : null);
 }
 
 function placementBody(expectedRevision: number | null): Record<string, unknown> {

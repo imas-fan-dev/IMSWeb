@@ -5,7 +5,12 @@
  * ports behind a real Hono app so route-level tests can exercise owner reads,
  * owner writes, and Platform profile boundaries without touching PostgreSQL.
  */
-import { createHash } from 'node:crypto';
+import {
+    bearerTokenHeaders,
+    cookieCsrfHeaders,
+    fixtureSha256Hex as csrfHash
+} from './auth-request';
+export { fixtureSha256Hex as csrfHash } from './auth-request';
 import { createHonoApp } from '@/app';
 import {
     PLATFORM_ACCESS_TOKEN_COOKIE,
@@ -51,10 +56,6 @@ export const CSRF_SECRET = 'owner-csrf-secret';
 export const CREATED_AT = '2026-08-02T00:00:00.000Z';
 export const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0x01]);
 export const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
-
-export function csrfHash(value: string): string {
-    return createHash('sha256').update(value).digest('hex');
-}
 
 export function uploadedFile(
     filename: string,
@@ -686,18 +687,17 @@ export class OwnerRouteFixture {
 }
 
 export function bearerHeaders(extra: Record<string, string> = {}): Record<string, string> {
-    return { authorization: `Bearer ${PLATFORM_TOKEN}`, ...extra };
+    return bearerTokenHeaders(PLATFORM_TOKEN, extra);
 }
 
 export function cookieHeaders(
     csrfHeader: string | null = CSRF_SECRET,
     csrfCookie = CSRF_SECRET
 ): Record<string, string> {
-    return {
-        cookie: `${PLATFORM_ACCESS_TOKEN_COOKIE}=${PLATFORM_TOKEN}; ` +
-            `${PLATFORM_CSRF_TOKEN_COOKIE}=${csrfCookie}`,
-        ...(csrfHeader === null ? {} : { 'x-csrftoken': csrfHeader })
-    };
+    return cookieCsrfHeaders([
+        [PLATFORM_ACCESS_TOKEN_COOKIE, PLATFORM_TOKEN],
+        [PLATFORM_CSRF_TOKEN_COOKIE, csrfCookie]
+    ], csrfHeader);
 }
 
 export function profileBody(expectedUpdatedAt: number): Record<string, unknown> {

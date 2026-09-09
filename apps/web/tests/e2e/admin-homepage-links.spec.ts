@@ -1,6 +1,7 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const navigationLinks = [
   {
@@ -25,18 +26,24 @@ const navigationLinks = [
   },
 ]
 
-test("admin reorders homepage links with the drag handle", async ({ page }) => {
+test("admin reorders homepage links with the drag handle", async ({
+  page,
+  api,
+}) => {
+  installEmptyWikiCatalogMock(api)
   let orderedLinks = navigationLinks
   let submittedOrder: string[] | undefined
 
-  await installAdminAuthMock(page, {
+  await installAdminAuthMock(page, api, {
     csrfToken: "homepage-links-e2e",
     user: {
       username: "homepage-operator",
       producername: "首页运营",
     },
   })
-  await page.route("**/api/admin/homepage-links**", async (route) => {
+  const handleHomepageLinks = async (
+    route: import("@playwright/test").Route
+  ) => {
     const request = route.request()
     const pathname = new URL(request.url()).pathname
 
@@ -76,7 +83,18 @@ test("admin reorders homepage links with the drag handle", async ({ page }) => {
     }
 
     await route.abort()
-  })
+  }
+  await api.mockRoute(
+    "/api/admin/homepage-links",
+    handleHomepageLinks,
+    "GET",
+    2
+  )
+  await api.mockRoute(
+    "/api/admin/homepage-links/navigation/order",
+    handleHomepageLinks,
+    "PUT"
+  )
 
   await page.goto("/admin/homepage")
 

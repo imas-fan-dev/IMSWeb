@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readContractJson as assertRawJsonConforms } from '../contracts/contract-json';
 import { test } from 'node:test';
 import { platformHttpErrorSchema } from '@imsweb/contracts/platform';
 import {
@@ -45,16 +46,6 @@ const ONE_ENABLED_ONE_DISABLED = [
     oauthLink(GOOGLE_PROVIDER),
     oauthLink(DISABLED_PROVIDER, { created_at: 4_000, provider_enabled: false })
 ];
-
-async function assertRawJsonConforms(
-    response: Response,
-    schema: { parse(input: unknown): unknown }
-): Promise<unknown> {
-    const raw: unknown = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'contract schema stripped or changed raw JSON');
-    return parsed;
-}
 
 interface ErrorBody {
     code?: string;

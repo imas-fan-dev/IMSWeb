@@ -18,6 +18,7 @@ import {
 } from '@imsweb/contracts/namecards';
 import { failureMessageResponseSchema } from '@imsweb/contracts/common';
 import assert from 'node:assert/strict';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import test from 'node:test';
 import { createHonoApp } from '@/app';
 import type { ObjectStorage } from '@/ports/object-storage';
@@ -285,17 +286,6 @@ function createCompatibilityFixture(
 
 async function responseJson(response: Response): Promise<unknown> {
     return response.json();
-}
-
-interface Schema {
-    parse(value: unknown): unknown;
-}
-
-async function contractJson(response: Response, schema: Schema): Promise<unknown> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json/i);
-    const raw = await response.json();
-    assert.deepEqual(schema.parse(raw), raw);
-    return raw;
 }
 
 test('invalid event IDs preserve legacy 404 bodies without repository side effects', async () => {

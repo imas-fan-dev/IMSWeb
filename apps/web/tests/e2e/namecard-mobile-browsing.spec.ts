@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import {
   applyNamecardSafeArea,
@@ -20,9 +20,14 @@ for (const viewport of [
 ]) {
   test(`keeps complete faces and preview controls inside ${viewport.width}x${viewport.height}`, async ({
     page,
+    api,
   }, testInfo) => {
     await page.setViewportSize(viewport)
-    await mockNamecardBrowsing(page)
+    await mockNamecardBrowsing(page, api, 26, undefined, {
+      cards: 1,
+      reactionReads: 12,
+      reactionWrites: 1,
+    })
     await page.goto("/community/cards?page=1&size=12")
     await applyNamecardSafeArea(page)
     const front = page.getByRole("button", { name: "查看制作人名片 1 正面" })
@@ -83,12 +88,17 @@ for (const viewport of [
 
 test("packs columns by content height and reflows after delayed reactions and resizing", async ({
   page,
+  api,
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  const api = await mockNamecardBrowsing(page, 26, {
-    1: { "👍": 2, "🎮": 4, "🌹": 3, "🍔": 5, "🍭": 6, "🔨": 7 },
-  })
-  const release = api.holdReactions(1)
+  const browsing = await mockNamecardBrowsing(
+    page,
+    api,
+    26,
+    { 1: { "👍": 2, "🎮": 4, "🌹": 3, "🍔": 5, "🍭": 6, "🔨": 7 } },
+    { cards: 1, reactionReads: 12, reactionWrites: 0 }
+  )
+  const release = browsing.holdReactions(1)
   try {
     await page.goto("/community/cards?page=1&size=12")
     await expectNamecardGalleryGeometry(page)
@@ -138,10 +148,15 @@ test("packs columns by content height and reflows after delayed reactions and re
 
 test("keeps mobile reactions compact with at most four entries per row", async ({
   page,
+  api,
 }, testInfo) => {
-  await mockNamecardBrowsing(page, 26, {
-    1: { "❤️": 21, "👍": 13, "🥰": 13, "😍": 11, "✨": 10, "🎮": 6 },
-  })
+  await mockNamecardBrowsing(
+    page,
+    api,
+    26,
+    { 1: { "❤️": 21, "👍": 13, "🥰": 13, "😍": 11, "✨": 10, "🎮": 6 } },
+    { cards: 1, reactionReads: 12, reactionWrites: 0 }
+  )
   await page.setViewportSize({ width: 402, height: 874 })
   await page.goto("/community/cards?page=1&size=12")
   const first = page.locator("[data-namecard-item]").first()
@@ -178,6 +193,7 @@ test("keeps mobile reactions compact with at most four entries per row", async (
 
 test("keeps all 48 reaction-heavy cards separated without overflowing grid capacity", async ({
   page,
+  api,
 }) => {
   await page.setViewportSize({ width: 320, height: 568 })
   const counts = Object.fromEntries(
@@ -187,10 +203,12 @@ test("keeps all 48 reaction-heavy cards separated without overflowing grid capac
   )
   await mockNamecardBrowsing(
     page,
+    api,
     48,
     Object.fromEntries(
       Array.from({ length: 48 }, (_, index) => [index + 1, counts])
-    )
+    ),
+    { cards: 1, reactionReads: 48, reactionWrites: 0 }
   )
   await page.goto("/community/cards?page=1&size=48")
   const cards = page.locator("[data-namecard-item]")
@@ -231,9 +249,14 @@ test("keeps all 48 reaction-heavy cards separated without overflowing grid capac
 
 test("uses compact pagination with keyboard draft controls and reveals the next page", async ({
   page,
+  api,
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await mockNamecardBrowsing(page)
+  await mockNamecardBrowsing(page, api, 26, undefined, {
+    cards: 4,
+    reactionReads: 52,
+    reactionWrites: 0,
+  })
   await page.goto("/community/cards?page=1&size=12")
   await expectNamecardPaginationGeometry(page)
   await attachNamecardScreenshot(page, testInfo, "compact-pagination")
@@ -271,9 +294,14 @@ test("uses compact pagination with keyboard draft controls and reveals the next 
 
 test("reads across page boundaries and returns to the original list face and position", async ({
   page,
+  api,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  const api = await mockNamecardBrowsing(page)
+  const browsing = await mockNamecardBrowsing(page, api, 26, undefined, {
+    cards: 3,
+    reactionReads: 12,
+    reactionWrites: 0,
+  })
   await page.goto("/community/cards?page=1&size=12")
   const original = page.getByRole("button", { name: "查看制作人名片 12 背面" })
   await original.scrollIntoViewIfNeeded()
@@ -294,7 +322,7 @@ test("reads across page boundaries and returns to the original list face and pos
   await expect(
     dialog.getByRole("img", { name: "制作人名片 14 正面" })
   ).toBeVisible()
-  expect(api.requests).toEqual([1, 2])
+  expect(browsing.requests).toEqual([1, 2])
   await dialog.getByRole("button", { name: "上一张名片" }).click()
   await dialog.getByRole("button", { name: "上一张名片" }).click()
   await expect(
@@ -311,14 +339,19 @@ test("reads across page boundaries and returns to the original list face and pos
 
 test("keeps the current card on failure, retries, and ignores responses after closing", async ({
   page,
+  api,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  const api = await mockNamecardBrowsing(page)
+  const browsing = await mockNamecardBrowsing(page, api, 26, undefined, {
+    cards: 5,
+    reactionReads: 14,
+    reactionWrites: 0,
+  })
   await page.goto("/community/cards?page=1&size=12")
   const original = page.getByRole("button", { name: "查看制作人名片 12 正面" })
   await original.click()
   const dialog = page.getByRole("dialog")
-  api.failOnce(2)
+  browsing.failOnce(2)
   await dialog.getByRole("button", { name: "下一张名片" }).click()
   await expect(
     dialog.getByRole("img", { name: "制作人名片 12 正面" })
@@ -329,7 +362,7 @@ test("keeps the current card on failure, retries, and ignores responses after cl
   ).toBeVisible()
   await dialog.getByRole("button", { name: "关闭名片预览" }).click()
   await original.click()
-  api.hold(2)
+  browsing.hold(2)
   await dialog.getByRole("button", { name: "下一张名片" }).click()
   await expect(
     dialog.getByRole("button", { name: "下一张名片" })
@@ -339,7 +372,7 @@ test("keeps the current card on failure, retries, and ignores responses after cl
   const response = page.waitForResponse(
     (result) => new URL(result.url()).searchParams.get("page") === "2"
   )
-  api.release()
+  browsing.release()
   await response
   await expect(
     dialog.getByRole("img", { name: "制作人名片 1 正面" })

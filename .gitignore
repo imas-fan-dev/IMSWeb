@@ -85,6 +85,9 @@ Thumbs.db
 *.swo
 *~
 
+# On-demand generated reports
+scripts/contracts/current-wire-contract-inventory.md
+
 # Trellis-generated local tooling
 # Regenerate integration files in a fresh clone with: trellis init --pi
 .trellis/*

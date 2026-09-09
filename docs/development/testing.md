@@ -7,16 +7,41 @@
 测试按风险和所有权组织。测试不是文档中的数字目标；当前行为以实现、测试夹具和 CI 实际
 命令为准。
 
+## 执行所有权
+
+| Owner      | 唯一职责                                          | Owner 命令                                                 |
+| ---------- | ------------------------------------------------- | ---------------------------------------------------------- |
+| governance | 源码、文档、workspace、Git hook 和 CI 配置规则    | `node scripts/testing/run-test-owner.mjs governance`       |
+| contracts  | wire ownership、non-JSON 边界和 mounted inventory | `node scripts/testing/run-test-owner.mjs contracts`        |
+| API        | Node、HTTP、server、Wiki 和 migration             | `pnpm --filter @imsweb/api run test`                       |
+| Web        | Vitest unit 和普通 Web Playwright                 | `pnpm --filter @imsweb/web run test`                       |
+| delivery   | App、公开静态资产和 Web/API packaged routing      | `node scripts/testing/run-test-owner.mjs delivery PROFILE` |
+| root       | 只按顺序调度 owner，不复述测试文件清单            | `pnpm run test`                                            |
+
+Delivery 的 `PROFILE` 是 `root`、`repository`、`app`、`web` 或 `integration`；每个 CI lane
+只调用自己拥有的 profile。
+
+Root、API 和 Web 的 package script 数量固定为 55、41 和 20；不得新增 `test:all`，也不为
+准备状态增加 package alias 或可独立调用的跳过参数。
+
+Root `test` 由同一个 runner 进程按顺序运行 governance、contracts 和 delivery owner。
+Delivery integration profile 成功构建 Web 和 API 后，该进程才会运行不再构建的 API 阶段，
+其中仍包含 syntax、architecture、Node、server、Wiki 和 migration。这样 API 测试不会接受
+另一次运行留下的 `dist/server/main.js`。CI API lane 直接运行完整 API owner；Web lane 使用
+`ci` profile，在同一个 runner 进程内依次运行 Web `check`（包含 unit）和普通 Playwright。
+Integration job 没有跨 job artifact transfer，因此 `delivery integration` 始终保留自己的
+Web 与 API build。
+
 ## 测试位置
 
-| 范围 | 位置 | 主要工具 |
-| --- | --- | --- |
-| API Node、数据库、HTTP | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Node test runner、TypeScript |
-| Wiki contract 与数据 | `apps/api/tests/wiki/` | Node test runner、PostgreSQL fixture |
-| API migration 与资产 | `apps/api/tests/migration/`、`apps/api/tests/assets/` | Node test runner |
-| Web 页面、组件和 API client | `apps/web/tests/unit/` | Vitest、Testing Library |
-| Web 浏览器流程 | `apps/web/tests/e2e/` | Playwright desktop/mobile |
-| 仓库边界、部署和规则 | `tests/` | Python `unittest`、Node test runner |
+| 范围                        | 位置                                                                                | 主要工具                             |
+| --------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------ |
+| API Node、数据库、HTTP      | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Node test runner、TypeScript         |
+| Wiki contract 与数据        | `apps/api/tests/wiki/`                                                              | Node test runner、PostgreSQL fixture |
+| API migration 与资产        | `apps/api/tests/migration/`、`apps/api/tests/assets/`                               | Node test runner                     |
+| Web 页面、组件和 API client | `apps/web/tests/unit/`                                                              | Vitest、Testing Library              |
+| Web 浏览器流程              | `apps/web/tests/e2e/`                                                               | Playwright desktop/mobile            |
+| 仓库边界、部署和规则        | `tests/`                                                                            | Python `unittest`、Node test runner  |
 
 Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API 测试应靠近受测 workspace，
 但不可把生产实现复制进测试目录。
@@ -76,9 +101,10 @@ pnpm --filter @imsweb/web run test:unit
 pnpm --filter @imsweb/web run test:e2e
 ```
 
-Root `test:web-routing` 在构建两个 workspace 后运行 frontend routing 与 packaged-client
-asset contracts。CI 的 Web lane 运行 Chromium、移动 Chromium 与 Firefox 的普通 Web
-Playwright 矩阵；App Playwright 由独立 App lane 运行。
+Root `test:web-routing` 调用 delivery integration owner；该 owner 在当前 job 内构建两个
+workspace 后运行 frontend routing 与 packaged-client asset contracts。CI 的 Web lane 运行
+Chromium、移动 Chromium 与 Firefox 的普通 Web Playwright 矩阵；App Playwright 由独立 App
+lane 运行。
 
 命令名称以当前 package scripts 为准；添加或删除 script 时同步更新 workspace README 和
 边界测试，不为同一动作创建重复的根转发别名。

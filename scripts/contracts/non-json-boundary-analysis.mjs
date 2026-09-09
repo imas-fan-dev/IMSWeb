@@ -322,15 +322,30 @@ export function testEvidence(sourceFile) {
       }
     }
   }
+  const isFunctionTypeCheck = (call) => {
+    const isFunctionLiteral = (node) => ts.isStringLiteral(unparenthesize(node))
+      && unparenthesize(node).text === "function";
+    const isTypeOf = (node) => ts.isTypeOfExpression(unparenthesize(node));
+    const [first, second] = call.arguments;
+    if (first && !second && isTypeOf(first)) return true;
+    if (first && second
+      && (isTypeOf(first) && isFunctionLiteral(second)
+        || isFunctionLiteral(first) && isTypeOf(second))) return true;
+    const expression = first && unparenthesize(first);
+    return Boolean(expression && ts.isBinaryExpression(expression)
+      && (isTypeOf(expression.left) && isFunctionLiteral(expression.right)
+        || isFunctionLiteral(expression.left) && isTypeOf(expression.right)));
+  };
   const containsAssertion = (root, visitedHelpers = new Set()) => {
     let found = false;
     const inspect = (current) => {
       if (found) return;
       if (ts.isCallExpression(current)) {
         const called = unparenthesize(current.expression);
-        if (ts.isIdentifier(called) && ["assert", "expect"].includes(called.text)) found = true;
-        if (ts.isPropertyAccessExpression(called) && ts.isIdentifier(unparenthesize(called.expression))
-          && ["assert", "expect"].includes(unparenthesize(called.expression).text)) found = true;
+        const isAssertion = ts.isIdentifier(called) && ["assert", "expect"].includes(called.text)
+          || ts.isPropertyAccessExpression(called) && ts.isIdentifier(unparenthesize(called.expression))
+            && ["assert", "expect"].includes(unparenthesize(called.expression).text);
+        if (isAssertion && !isFunctionTypeCheck(current)) found = true;
         if (ts.isIdentifier(called) && helpers.has(called.text) && !visitedHelpers.has(called.text)) {
           const nextVisited = new Set(visitedHelpers).add(called.text);
           if (containsAssertion(helpers.get(called.text).body, nextVisited)) found = true;

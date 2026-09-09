@@ -217,25 +217,15 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         repository = jobs["repository"]
         for token in (
             "run: pnpm run check:root",
-            "tests/development-environment.test.js",
-            "tests/exchange-map-assets.test.js",
-            "tests/ci-affected-workspaces.test.js",
-            "tests/test_agent_rules.py",
-            "tests/test_source_rules.py",
-            "tests/test_docs.py",
-            "tests/test_git_hooks.py",
-            "tests/test_release_activation.py",
-            "tests/test_github_deployment.py",
-            "tests/test_operations_docs.py",
-            "tests/test_compose_deployment.py",
-            "tests/test_workspace_boundaries.py",
+            "node scripts/testing/run-test-owner.mjs governance",
+            "node scripts/testing/run-test-owner.mjs contracts",
+            "node scripts/testing/run-test-owner.mjs delivery repository",
         ):
             self.assertIn(token, repository)
 
         app = jobs["app"]
         for token in (
-            "tests/tauri-build-configuration.test.js",
-            "tests/tauri-device-delivery.test.js",
+            "node scripts/testing/run-test-owner.mjs delivery app",
             "test:unit tests/unit/scripts/build-app.test.ts",
             "playwright install --with-deps chromium webkit",
             "run build:app",
@@ -245,14 +235,15 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
         web = jobs["web"]
         self.assertIn("timeout-minutes: 60", web)
-        self.assertIn("pnpm --filter @imsweb/web run check", web)
-        self.assertIn("python3 -m unittest tests/test_public_assets.py", web)
+        self.assertIn("node scripts/testing/run-test-owner.mjs delivery web", web)
         self.assertIn("playwright install --with-deps chromium firefox", web)
-        self.assertIn("pnpm --filter @imsweb/web run test:e2e", web)
+        self.assertIn("pnpm --filter @imsweb/web run test -- ci", web)
+        self.assertNotIn("--unit-prepared", web)
 
         api = jobs["api"]
+        self.assertIn("pnpm --filter @imsweb/api run test", api)
         for command in ("check", "test:node", "test:server", "test:wiki", "test:migration"):
-            self.assertIn(f"pnpm --filter @imsweb/api run {command}", api)
+            self.assertNotIn(f"pnpm --filter @imsweb/api run {command}", api)
 
         integration = jobs["integration"]
         self.assertIn("pnpm run test:web-routing", integration)

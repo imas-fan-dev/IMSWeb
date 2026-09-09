@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import test from 'node:test';
 import {
     adminEditorialSpotlightSchema,
@@ -64,17 +65,6 @@ function createApp(repository: EditorialRepository, dept: 'op' | 'editor' = 'op'
             }
         }
     }));
-}
-
-async function contractJson<T>(
-    response: Response,
-    schema: { parse(value: unknown): T }
-): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
-    return parsed;
 }
 
 function bearerRequest(method: string, body?: Record<string, unknown>): RequestInit {

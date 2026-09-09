@@ -1,6 +1,7 @@
-import { expect, test } from "@playwright/test"
+import { api, expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const content = {
   version: 1,
@@ -65,8 +66,9 @@ const content = {
   updatedAt: null,
 }
 
-test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, {
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
     csrfToken: "about-avatar-e2e",
     user: {
       username: "about-editor",
@@ -96,18 +98,33 @@ test("roster sorting and scoped avatar edits stay in the draft until page save",
   page.on("pageerror", (error) => browserErrors.push(error.message))
   const savedState: { groups: typeof content.groups | null } = { groups: null }
   const readSavedGroups = () => savedState.groups
-  await page.route("**/api/admin/about/member-avatar", async (route) => {
-    expect(route.request().headers()["x-csrftoken"]).toBe("about-avatar-e2e")
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        url: "/uploads/about/member-avatars/producer-a.webp",
-      }),
-    })
-  })
-  await page.route("**/api/admin/about", async (route) => {
-    if (route.request().method() === "PUT") {
+  await api.mockRoute(
+    "**/api/admin/about/member-avatar",
+    async (route) => {
+      expect(route.request().headers()["x-csrftoken"]).toBe("about-avatar-e2e")
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          url: "/uploads/about/member-avatars/producer-a.webp",
+        }),
+      })
+    },
+    "POST"
+  )
+  await api.mockRoute(
+    "**/api/admin/about",
+    async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ content, revision: '"revision-1"' }),
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/admin/about",
+    async (route) => {
       const requestBody = route.request().postDataJSON()
       savedState.groups = requestBody.content.groups
       await route.fulfill({
@@ -121,13 +138,9 @@ test("roster sorting and scoped avatar edits stay in the draft until page save",
           revision: '"revision-2"',
         }),
       })
-      return
-    }
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ content, revision: '"revision-1"' }),
-    })
-  })
+    },
+    "PUT"
+  )
 
   await page.goto("/admin/about")
   await expect(page.getByRole("heading", { name: "关于页配置" })).toBeVisible()

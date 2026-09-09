@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright"
 import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
-import { expect, test } from "@playwright/test"
+import { api, expect, test } from "./fixtures/test"
 
 const profile = {
   displayName: "浏览器制作人",
@@ -84,22 +84,27 @@ test.beforeEach(async ({ context, page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
-  await page.route("**/api/platform/auth/session", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        account: { id: "platform-browser", status: "active" },
-        profile: {
-          displayName: profile.displayName,
-          avatarUrl: null,
-          homeCity: profile.homeCity,
-          bio: profile.bio,
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          account: { id: "platform-browser", status: "active" },
+          profile: {
+            displayName: profile.displayName,
+            avatarUrl: null,
+            homeCity: profile.homeCity,
+            bio: profile.bio,
+          },
         },
-      },
-    })
-  })
-  await page.route("**/api/platform/me", async (route) => {
-    if (route.request().method() === "GET") {
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/platform/me",
+    async (route) => {
       await route.fulfill({
         json: {
           success: true,
@@ -108,133 +113,148 @@ test.beforeEach(async ({ context, page }) => {
           profile,
         },
       })
-      return
-    }
-    const submission = route.request().postDataJSON()
-    await route.fulfill({
-      json: {
-        success: true,
-        profile: {
-          ...profile,
-          displayName: submission.displayName,
-          updatedAt: 11,
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/platform/me",
+    async (route) => {
+      const submission = route.request().postDataJSON()
+      await route.fulfill({
+        json: {
+          success: true,
+          profile: {
+            ...profile,
+            displayName: submission.displayName,
+            updatedAt: 11,
+          },
         },
-      },
-    })
-  })
-  await page.route("**/api/community/exchange/me/series", async (route) => {
-    await route.fulfill({
-      json: {
-        items: [
-          {
-            id: 1,
-            code: "765",
-            displayName: "765PRO",
-            color: "#f34f6d",
-            iconUrl: "/brand/series/wall/765pro.webp",
-            imageTransform: {
-              fit: "contain",
-              focalX: 0.5,
-              focalY: 0.5,
-              zoom: 1,
-              rotation: 0,
+      })
+    },
+    "PUT"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/series",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              id: 1,
+              code: "765",
+              displayName: "765PRO",
+              color: "#f34f6d",
+              iconUrl: "/brand/series/wall/765pro.webp",
+              imageTransform: {
+                fit: "contain",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
+              displayOrder: 0,
+              activeOfficeCount: 1,
             },
-            displayOrder: 0,
-            activeOfficeCount: 1,
-          },
-          {
-            id: 2,
-            code: "cg",
-            displayName: "灰姑娘女孩",
-            color: "#2581c7",
-            iconUrl: null,
-            imageTransform: {
-              fit: "cover",
-              focalX: 0.5,
-              focalY: 0.5,
-              zoom: 1,
-              rotation: 0,
+            {
+              id: 2,
+              code: "cg",
+              displayName: "灰姑娘女孩",
+              color: "#2581c7",
+              iconUrl: null,
+              imageTransform: {
+                fit: "cover",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
+              displayOrder: 1,
+              activeOfficeCount: 1,
             },
-            displayOrder: 1,
-            activeOfficeCount: 1,
-          },
-        ],
-      },
-    })
-  })
-  await page.route("**/api/wiki/catalog", async (route) => {
-    await route.fulfill({
-      json: {
-        status: "success",
-        agencies: [
-          {
-            id: 1,
-            code: "765",
-            name: "765PRO",
-            color: "#f34f6d",
-            bannerTitle: "765PRO",
-            iconUrl: null,
-            idolCount: 1,
-            entryCount: 1,
-            imageTransform: {
-              fit: "cover",
-              focalX: 0.5,
-              focalY: 0.5,
-              zoom: 1,
-              rotation: 0,
+          ],
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/wiki/catalog",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          status: "success",
+          agencies: [
+            {
+              id: 1,
+              code: "765",
+              name: "765PRO",
+              color: "#f34f6d",
+              bannerTitle: "765PRO",
+              iconUrl: null,
+              idolCount: 1,
+              entryCount: 1,
+              imageTransform: {
+                fit: "cover",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
             },
-          },
-          {
-            id: 2,
-            code: "cg",
-            name: "灰姑娘女孩",
-            color: "#2581c7",
-            bannerTitle: "CINDERELLA GIRLS",
-            iconUrl: null,
-            idolCount: 1,
-            entryCount: 1,
-            imageTransform: {
-              fit: "cover",
-              focalX: 0.5,
-              focalY: 0.5,
-              zoom: 1,
-              rotation: 0,
+            {
+              id: 2,
+              code: "cg",
+              name: "灰姑娘女孩",
+              color: "#2581c7",
+              bannerTitle: "CINDERELLA GIRLS",
+              iconUrl: null,
+              idolCount: 1,
+              entryCount: 1,
+              imageTransform: {
+                fit: "cover",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
             },
-          },
-        ],
-        searchEntries: [
-          {
-            id: 1,
-            name: "天海春香",
-            agencyId: 1,
-            agencyCode: "765",
-            agencyName: "765PRO",
-            agencyColor: "#f34f6d",
-            entryKind: "idol",
-            entrySubtype: null,
-          },
-          {
-            id: 2,
-            name: "涩谷凛",
-            agencyId: 2,
-            agencyCode: "cg",
-            agencyName: "灰姑娘女孩",
-            agencyColor: "#2581c7",
-            entryKind: "idol",
-            entrySubtype: null,
-          },
-        ],
-        selection: null,
-      },
-    })
-  })
-  await page.route(
+          ],
+          searchEntries: [
+            {
+              id: 1,
+              name: "天海春香",
+              agencyId: 1,
+              agencyCode: "765",
+              agencyName: "765PRO",
+              agencyColor: "#f34f6d",
+              entryKind: "idol",
+              entrySubtype: null,
+            },
+            {
+              id: 2,
+              name: "涩谷凛",
+              agencyId: 2,
+              agencyCode: "cg",
+              agencyName: "灰姑娘女孩",
+              agencyColor: "#2581c7",
+              entryKind: "idol",
+              entrySubtype: null,
+            },
+          ],
+          selection: null,
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
     "**/api/community/exchange/me/claim-envelopes",
     async (route) => {
       await route.fulfill({ json: { items: [] } })
-    }
+    },
+    "GET"
   )
-  await page.route(
+  await api.mockRoute(
     "**/api/community/exchange/me/favorites?**",
     async (route) => {
       const response = {
@@ -242,18 +262,27 @@ test.beforeEach(async ({ context, page }) => {
         pageInfo: { hasNextPage: false, nextCursor: null },
       } satisfies FudabaCardPage
       await route.fulfill({ status: 200, json: response })
-    }
+    },
+    "GET"
   )
-  await page.route("**/api/community/exchange/me/cards", async (route) => {
-    await route.fulfill({ json: { items: [card] } })
-  })
-  await page.route(
+  await api.mockRoute(
+    "**/api/community/exchange/me/cards",
+    async (route) => {
+      await route.fulfill({ json: { items: [card] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
     "**/api/community/exchange/me/cards/card-1",
     async (route) => {
-      if (route.request().method() === "GET") {
-        await route.fulfill({ json: { card } })
-        return
-      }
+      await route.fulfill({ json: { card } })
+    },
+    "GET",
+    0
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/cards/card-1",
+    async (route) => {
       const submission = route.request().postDataJSON()
       await route.fulfill({
         json: {
@@ -272,9 +301,10 @@ test.beforeEach(async ({ context, page }) => {
           },
         },
       })
-    }
+    },
+    "PUT"
   )
-  await page.route(
+  await api.mockRoute(
     "**/api/community/exchange/places/search**",
     async (route) => {
       await route.fulfill({
@@ -296,18 +326,26 @@ test.beforeEach(async ({ context, page }) => {
           attribution: "© OpenStreetMap contributors",
         },
       })
-    }
+    },
+    "GET"
   )
-  await page.route("**/api/community/exchange/me/offices", async (route) => {
-    await route.fulfill({ json: { items: [office] } })
-  })
-  await page.route(
+  await api.mockRoute(
+    "**/api/community/exchange/me/offices",
+    async (route) => {
+      await route.fulfill({ json: { items: [office] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
     "**/api/community/exchange/me/offices/office-1",
     async (route) => {
-      if (route.request().method() === "GET") {
-        await route.fulfill({ json: { office } })
-        return
-      }
+      await route.fulfill({ json: { office } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/offices/office-1",
+    async (route) => {
       const submission = route.request().postDataJSON()
       await route.fulfill({
         json: {
@@ -327,21 +365,20 @@ test.beforeEach(async ({ context, page }) => {
           },
         },
       })
-    }
+    },
+    "PUT"
   )
   let ownerLocation: LocationFixture | null = publishedLocation
-  await page.route(
+  await api.mockRoute(
     "**/api/community/exchange/me/offices/office-1/location",
     async (route) => {
-      if (route.request().method() === "GET") {
-        await route.fulfill({ json: { location: ownerLocation } })
-        return
-      }
-      if (route.request().method() === "DELETE") {
-        ownerLocation = null
-        await route.fulfill({ json: { success: true } })
-        return
-      }
+      await route.fulfill({ json: { location: ownerLocation } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/offices/office-1/location",
+    async (route) => {
       const submission = route.request().postDataJSON()
       ownerLocation = {
         ...publishedLocation,
@@ -358,7 +395,16 @@ test.beforeEach(async ({ context, page }) => {
       await route.fulfill({
         json: { success: true, officeLocation: ownerLocation },
       })
-    }
+    },
+    "PUT"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/offices/office-1/location",
+    async (route) => {
+      ownerLocation = null
+      await route.fulfill({ json: { success: true } })
+    },
+    "DELETE"
   )
 })
 

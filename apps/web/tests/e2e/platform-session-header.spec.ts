@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installPublicShellMocks } from "./fixtures/homepage"
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -11,7 +12,9 @@ test.beforeEach(async ({ page }) => {
 
 test("anonymous header stays compact and does not probe Platform auth", async ({
   page,
+  api,
 }) => {
+  installPublicShellMocks(api, 1)
   const platformRequests: string[] = []
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/platform/auth/")) {
@@ -57,7 +60,9 @@ test("anonymous header stays compact and does not probe Platform auth", async ({
 test("authenticated header logs out only the Platform realm", async ({
   context,
   page,
+  api,
 }) => {
+  installPublicShellMocks(api, 1)
   await context.addCookies([
     {
       name: "ims_platform_csrf",
@@ -69,7 +74,7 @@ test("authenticated header logs out only the Platform realm", async ({
   let sessionRequests = 0
   let logoutRequests = 0
   let logoutCsrf: string | null = null
-  await installAdminAuthMock(page, {
+  await installAdminAuthMock(page, api, {
     csrfToken: "backoffice-must-survive",
     user: {
       id: 7,
@@ -77,32 +82,40 @@ test("authenticated header logs out only the Platform realm", async ({
       producername: "Backoffice Browser",
     },
   })
-  await page.route("**/api/platform/auth/session", async (route) => {
-    sessionRequests += 1
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        account: { id: "platform-browser", status: "active" },
-        profile: {
-          displayName: "浏览器制作人",
-          avatarUrl: null,
-          homeCity: null,
-          bio: "",
-        },
-      }),
-    })
-  })
-  await page.route("**/api/platform/auth/logout", async (route) => {
-    logoutRequests += 1
-    logoutCsrf = route.request().headers()["x-csrftoken"] ?? null
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ success: true }),
-    })
-  })
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      sessionRequests += 1
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          account: { id: "platform-browser", status: "active" },
+          profile: {
+            displayName: "浏览器制作人",
+            avatarUrl: null,
+            homeCity: null,
+            bio: "",
+          },
+        }),
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/platform/auth/logout",
+    async (route) => {
+      logoutRequests += 1
+      logoutCsrf = route.request().headers()["x-csrftoken"] ?? null
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true }),
+      })
+    },
+    "POST"
+  )
 
   await page.goto("/")
 
@@ -125,7 +138,9 @@ test("authenticated header logs out only the Platform realm", async ({
 test("two tabs coordinate one Platform refresh wave", async ({
   context,
   page,
+  api,
 }) => {
+  installPublicShellMocks(api, { min: 1, max: 2 })
   await context.addCookies([
     {
       name: "ims_platform_csrf",
@@ -140,12 +155,54 @@ test("two tabs coordinate one Platform refresh wave", async ({
   const initialRequestsReady = new Promise<void>((resolve) => {
     releaseInitialRequests = resolve
   })
-  await context.route("**/api/platform/auth/session", async (route) => {
-    const cookies = route.request().headers().cookie ?? ""
-    if (cookies.includes("ims_platform_csrf=platform-cross-tab-next")) {
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      const cookies = route.request().headers().cookie ?? ""
+      if (cookies.includes("ims_platform_csrf=platform-cross-tab-next")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: true,
+            account: { id: "platform-cross-tab", status: "active" },
+            profile: {
+              displayName: "多页签制作人",
+              avatarUrl: null,
+              homeCity: null,
+              bio: "",
+            },
+          }),
+        })
+        return
+      }
+
+      initialSessionRequests += 1
+      if (initialSessionRequests === 2) releaseInitialRequests()
+      await initialRequestsReady
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          code: "PLATFORM_SESSION_INVALID",
+        }),
+      })
+    },
+    "GET",
+    4
+  )
+  await api.mockRoute(
+    "**/api/platform/auth/refresh",
+    async (route) => {
+      refreshRequests += 1
       await route.fulfill({
         status: 200,
         contentType: "application/json",
+        headers: {
+          "set-cookie":
+            "ims_platform_csrf=platform-cross-tab-next; Path=/; SameSite=Lax",
+        },
         body: JSON.stringify({
           success: true,
           account: { id: "platform-cross-tab", status: "active" },
@@ -157,33 +214,9 @@ test("two tabs coordinate one Platform refresh wave", async ({
           },
         }),
       })
-      return
-    }
-
-    initialSessionRequests += 1
-    if (initialSessionRequests === 2) releaseInitialRequests()
-    await initialRequestsReady
-    await route.fulfill({
-      status: 401,
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: false,
-        code: "PLATFORM_SESSION_INVALID",
-      }),
-    })
-  })
-  await context.route("**/api/platform/auth/refresh", async (route) => {
-    refreshRequests += 1
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      headers: {
-        "set-cookie":
-          "ims_platform_csrf=platform-cross-tab-next; Path=/; SameSite=Lax",
-      },
-      body: JSON.stringify({ success: true }),
-    })
-  })
+    },
+    "POST"
+  )
 
   const secondPage = await context.newPage()
   await Promise.all([page.goto("/"), secondPage.goto("/")])

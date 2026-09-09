@@ -1,6 +1,7 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const guangdongImageUrl = "/uploads/producer-map/guangdong.webp"
 
@@ -42,26 +43,31 @@ const content = {
   updatedAt: "2026-08-11T01:00:00.000Z",
 }
 
-test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, {
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
     user: {
       username: "producer-map-operator",
       producername: "地图运营",
     },
   })
-  await page.route("**/api/admin/producer-map", async (route) => {
-    if (route.request().method() !== "GET") {
-      await route.abort()
-      return
-    }
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        content,
-        revision: '"producer-map-e2e-1"',
-      }),
-    })
-  })
+  await api.mockRoute(
+    "**/api/admin/producer-map",
+    async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.abort()
+        return
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          content,
+          revision: '"producer-map-e2e-1"',
+        }),
+      })
+    },
+    "GET"
+  )
   await page.route(`**${guangdongImageUrl}`, async (route) => {
     await route.fulfill({
       contentType: "image/png",
@@ -163,7 +169,7 @@ test("admin edits configured and unconfigured provinces from the real map", asyn
     exact: true,
   })
   await expect(beijingOption).toBeVisible()
-  await beijingOption.click()
+  await beijingOption.press("Enter")
   await expect(provinceSelect).toContainText("北京市")
 
   await page.getByRole("button", { name: "新增地点" }).click()

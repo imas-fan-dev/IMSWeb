@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import crypto from 'node:crypto';
 import test from 'node:test';
 import {
@@ -15,17 +16,6 @@ import type {
     StoredObject
 } from '@/ports/object-storage';
 import { INFORMATION_INDEX_OBJECT_KEY } from '@/utils/storage/business-object-keys';
-
-async function contractJson<T>(
-    response: Response,
-    schema: { parse(value: unknown): T }
-): Promise<T> {
-    assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/);
-    const raw = await response.json();
-    const parsed = schema.parse(raw);
-    assert.deepEqual(parsed, raw, 'response schema must preserve the raw JSON wire body');
-    return parsed;
-}
 
 class MemoryStorage implements ObjectStorage {
     object: StoredObject | null = null;

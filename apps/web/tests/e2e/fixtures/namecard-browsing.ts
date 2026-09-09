@@ -1,13 +1,36 @@
+import {
+  namecardListErrorResponseSchema,
+  namecardListQuerySchema,
+  namecardPageSchema,
+  namecardReactionListQuerySchema,
+  namecardReactionRequestSchema,
+  reactionMutationSchema,
+  reactionSchema,
+} from "@imsweb/contracts/namecards"
+import { apiPath, platformAuthPath } from "@imsweb/contracts/paths"
+import { platformHttpErrorSchema } from "@imsweb/contracts/platform"
 import { expect, type Page, type TestInfo } from "@playwright/test"
 
 import { installAdminAuthMock } from "./admin-auth"
+import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
+import { installEmptyWikiCatalogMock } from "./homepage"
+
+const defaultNamecardReactions = {
+  2: { "👍": 2, "🎮": 4, "🌹": 3, "🍔": 5, "🍭": 6, "🔨": 7 },
+}
+
+type NamecardBrowsingExpectedCalls = {
+  cards: ApiTimes
+  reactionReads: ApiTimes
+  reactionWrites: ApiTimes
+}
 
 export async function mockNamecardBrowsing(
   page: Page,
-  total = 26,
-  initialReactions: Record<number, Record<string, number>> = {
-    2: { "👍": 2, "🎮": 4, "🌹": 3, "🍔": 5, "🍭": 6, "🔨": 7 },
-  }
+  api: ApiDispatcher,
+  total: number,
+  initialReactions: Record<number, Record<string, number>> | undefined,
+  expectedCalls: NamecardBrowsingExpectedCalls
 ) {
   const pictures = await page.evaluate(() => {
     return [false, true].map((portrait) => {
@@ -59,69 +82,99 @@ export async function mockNamecardBrowsing(
       body: Buffer.from(pictures[back ? 1 : 0]!, "base64"),
     })
   })
-  await page.route("**/api/cards?**", async (route) => {
-    const url = new URL(route.request().url())
-    const currentPage = Number(url.searchParams.get("page"))
-    const size = Number(url.searchParams.get("size"))
-    requests.push(currentPage)
-    if (heldPage === currentPage) await held
-    if (failingPage === currentPage) {
-      failingPage = null
-      await route.fulfill({ status: 503, json: { error: "Unavailable" } })
-      return
-    }
-    const offset = (currentPage - 1) * size
-    await route.fulfill({
-      json: {
-        list: Array.from(
-          { length: Math.max(0, Math.min(size, total - offset)) },
-          (_, index) => {
-            const id = offset + index + 1
-            return {
-              id,
-              seriesCode: null,
-              favoriteIdols: [],
-              claimStatus: "unclaimed",
-              viewerClaimState: null,
-              image1_url: `/__namecard-qa/front-${id}.png`,
-              image2_url: `/__namecard-qa/back-${id}.png`,
-              image1_thumbnail_url: `/__namecard-qa/front-thumb-${id}.png`,
-              image2_thumbnail_url: `/__namecard-qa/back-thumb-${id}.png`,
-              status: "approved",
-              created_at: "2026-09-01T08:00:00.000Z",
+  api.expect({
+    method: "GET",
+    path: apiPath("/cards"),
+    query: namecardListQuerySchema,
+    responses: {
+      200: namecardPageSchema,
+      503: namecardListErrorResponseSchema,
+    },
+    times: expectedCalls.cards,
+    handle: async ({ query }) => {
+      const currentPage = Number(query.page)
+      const size = Number(query.size)
+      requests.push(currentPage)
+      if (heldPage === currentPage) await held
+      if (failingPage === currentPage) {
+        failingPage = null
+        return { status: 503, json: { msg: "Unavailable" } }
+      }
+      const offset = (currentPage - 1) * size
+      return {
+        status: 200,
+        json: {
+          list: Array.from(
+            { length: Math.max(0, Math.min(size, total - offset)) },
+            (_, index) => {
+              const id = offset + index + 1
+              return {
+                id,
+                seriesCode: null,
+                favoriteIdols: [],
+                claimStatus: "unclaimed",
+                viewerClaimState: null,
+                image1_url: `/__namecard-qa/front-${id}.png`,
+                image2_url: `/__namecard-qa/back-${id}.png`,
+                image1_thumbnail_url: `/__namecard-qa/front-thumb-${id}.png`,
+                image2_thumbnail_url: `/__namecard-qa/back-thumb-${id}.png`,
+                status: "approved",
+                created_at: "2026-09-01T08:00:00.000Z",
+              }
             }
-          }
-        ),
-        total,
-        totalPage: Math.ceil(total / size),
-      },
-    })
+          ),
+          total,
+          totalPage: Math.ceil(total / size),
+        },
+      }
+    },
   })
   const reactions = new Map<number, Record<string, number>>(
-    Object.entries(initialReactions).map(([id, counts]) => [Number(id), counts])
+    Object.entries(initialReactions ?? defaultNamecardReactions).map(
+      ([id, counts]) => [Number(id), counts]
+    )
   )
   const reactionHolds = new Map<number, Promise<void>>()
-  await page.route("**/api/reactions?**", async (route) => {
-    const id = Number(new URL(route.request().url()).searchParams.get("id"))
-    await reactionHolds.get(id)
-    await route.fulfill({ json: reactions.get(id) ?? { "👍": 2 } })
+  api.expect({
+    method: "GET",
+    path: apiPath("/reactions"),
+    query: namecardReactionListQuerySchema,
+    responses: { 200: reactionSchema },
+    times: expectedCalls.reactionReads,
+    handle: async ({ query }) => {
+      const id = Number(query.id)
+      await reactionHolds.get(id)
+      return { status: 200, json: reactions.get(id) ?? { "👍": 2 } }
+    },
   })
-  await page.route("**/api/reactions", async (route) => {
-    const { id, emoji } = route.request().postDataJSON() as {
-      id: number
-      emoji: string
-    }
-    const counts = reactions.get(id) ?? { "👍": 2 }
-    reactions.set(id, { ...counts, [emoji]: (counts[emoji] ?? 0) + 1 })
-    await route.fulfill({ json: { ok: true } })
+  api.expect({
+    method: "POST",
+    path: apiPath("/reactions"),
+    body: namecardReactionRequestSchema,
+    responses: { 200: reactionMutationSchema },
+    times: expectedCalls.reactionWrites,
+    handle: ({ body }) => {
+      const id = Number(body.id)
+      const counts = reactions.get(id) ?? { "👍": 2 }
+      reactions.set(id, {
+        ...counts,
+        [body.emoji]: (counts[body.emoji] ?? 0) + 1,
+      })
+      return { status: 200, json: { ok: true } }
+    },
   })
-  await page.route("**/api/platform/auth/session", (route) =>
-    route.fulfill({
+  api.expect({
+    method: "GET",
+    path: platformAuthPath("/session"),
+    responses: { 401: platformHttpErrorSchema },
+    times: 0,
+    handle: () => ({
       status: 401,
       json: { success: false, code: "PLATFORM_AUTH_REQUIRED" },
-    })
-  )
-  await installAdminAuthMock(page, { state: "anonymous" })
+    }),
+  })
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, { state: "anonymous" })
   return {
     requests,
     holdReactions(id: number) {

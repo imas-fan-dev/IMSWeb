@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { writeRestrictedJsonFixture: writeJson } = require('./json-fixture-file');
 const { Pool } = require('pg');
 const sqlite3 = require('sqlite3').verbose();
 const {
@@ -253,10 +254,6 @@ function close(database) {
 
 function readJson(filename) {
     return JSON.parse(fs.readFileSync(filename, 'utf8'));
-}
-
-function writeJson(filename, value) {
-    fs.writeFileSync(filename, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 }
 
 function mediaEntry(kind, id, slot, sourceReference) {
@@ -584,8 +581,20 @@ async function createApprovedSnapshot(t, options = {}) {
     return { ...fixture, directory, sourceHashBefore };
 }
 
-function poolFor(databaseUrl) {
-    return new Pool({ connectionString: databaseUrl, max: 1, allowExitOnIdle: true });
+function poolFor(harness) {
+    const pool = new Pool({
+        connectionString: harness.databaseUrl,
+        max: 1,
+        allowExitOnIdle: true
+    });
+    const end = pool.end.bind(pool);
+    let ended = false;
+    pool.end = async () => {
+        if (ended) return;
+        ended = true;
+        await end();
+    };
+    return harness.registerConnection(pool, () => pool.end());
 }
 
 test('timestamp and series conversion accept only the locked source contract', () => {
@@ -982,7 +991,7 @@ test('real PostgreSQL dry-run, apply, repeat and reconciliation are exact', {
         await harness.close();
     });
     const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-apply' });
-    pool = poolFor(harness.databaseUrl);
+    pool = poolFor(harness);
     await seedMediaControlPlane(pool, snapshot.directory);
     const dryRun = await importSnapshot({
         snapshotDirectory: snapshot.directory,
@@ -1074,7 +1083,7 @@ test('real PostgreSQL blocks missing or drifted media control-plane state', {
     skip: !postgresIntegrationEnabled()
 }, async (t) => {
     const harness = await createPostgresTestHarness();
-    const pool = poolFor(harness.databaseUrl);
+    const pool = poolFor(harness);
     t.after(async () => {
         await pool.end();
         await harness.close();
@@ -1192,7 +1201,7 @@ test('real PostgreSQL reports alternate unique-key conflicts before writing', {
     skip: !postgresIntegrationEnabled()
 }, async (t) => {
     const harness = await createPostgresTestHarness();
-    const pool = poolFor(harness.databaseUrl);
+    const pool = poolFor(harness);
     t.after(async () => {
         await pool.end();
         await harness.close();
@@ -1234,7 +1243,7 @@ test('real PostgreSQL imports historical children before restoring an archived o
     skip: !postgresIntegrationEnabled()
 }, async (t) => {
     const harness = await createPostgresTestHarness();
-    const pool = poolFor(harness.databaseUrl);
+    const pool = poolFor(harness);
     t.after(async () => {
         await pool.end();
         await harness.close();
@@ -1282,7 +1291,7 @@ test('real PostgreSQL reconciles a lost commit acknowledgement before reporting 
     skip: !postgresIntegrationEnabled()
 }, async (t) => {
     const harness = await createPostgresTestHarness();
-    const pool = poolFor(harness.databaseUrl);
+    const pool = poolFor(harness);
     t.after(async () => {
         await pool.end();
         await harness.close();
@@ -1317,7 +1326,7 @@ test('real PostgreSQL serializes concurrent identical applies into one exact dat
     const harness = await createPostgresTestHarness();
     t.after(() => harness.close());
     const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-concurrent' });
-    const seedPool = poolFor(harness.databaseUrl);
+    const seedPool = poolFor(harness);
     await seedMediaControlPlane(seedPool, snapshot.directory);
     await seedPool.end();
     const options = {
@@ -1337,7 +1346,7 @@ test('real PostgreSQL serializes concurrent identical applies into one exact dat
     );
     assert.equal(reports.every(({ committed }) => committed), true);
 
-    const pool = poolFor(harness.databaseUrl);
+    const pool = poolFor(harness);
     try {
         assert.equal(Number((await pool.query('SELECT COUNT(*) FROM platform_accounts')).rows[0].count), 2);
         assert.equal(Number((await pool.query('SELECT COUNT(*) FROM fudaba_cards')).rows[0].count), 2);
@@ -1352,7 +1361,7 @@ test('real PostgreSQL rolls back the entire import after a late write failure', 
 }, async (t) => {
     const harness = await createPostgresTestHarness();
     const snapshot = await createApprovedSnapshot(t, { snapshotId: 'postgres-rollback' });
-    const pool = poolFor(harness.databaseUrl);
+    const pool = poolFor(harness);
     t.after(async () => {
         await pool.end();
         await harness.close();

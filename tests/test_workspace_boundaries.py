@@ -211,14 +211,9 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
         )["scripts"]
 
-        # 55 adds the two app delivery entries to the previous 53.
-        self.assertLessEqual(len(root_scripts), 55)
-        # 41 adds the CMS title backfill after the editorial content migration.
-        self.assertLessEqual(len(api_scripts), 41)
-        # 20 covers the Tauri CLI, app-target build, dev, icon, and E2E commands,
-        # plus the app device delivery entry and its prerequisite doctor. Device
-        # target, profile, and selection stay flags on `app`, never new scripts.
-        self.assertLessEqual(len(web_scripts), 20)
+        self.assertEqual(len(root_scripts), 55)
+        self.assertEqual(len(api_scripts), 41)
+        self.assertEqual(len(web_scripts), 20)
         self.assertTrue(
             {
                 "build",
@@ -250,6 +245,46 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         ):
             with self.subTest(package="api", deprecated=deprecated):
                 self.assertNotIn(deprecated, api_scripts)
+        for package_name, scripts in (
+            ("root", root_scripts),
+            ("api", api_scripts),
+            ("web", web_scripts),
+        ):
+            with self.subTest(package=package_name, deprecated="test:all"):
+                self.assertNotIn("test:all", scripts)
+
+    def test_test_owners_use_one_entry_without_skippable_preconditions(self):
+        root_scripts = json.loads(
+            (PROJECT_ROOT / "package.json").read_text(encoding="utf-8")
+        )["scripts"]
+        api_scripts = json.loads(
+            (PROJECT_ROOT / "apps/api/package.json").read_text(encoding="utf-8")
+        )["scripts"]
+        web_scripts = json.loads(
+            (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
+        )["scripts"]
+
+        self.assertEqual(
+            root_scripts["test:web-routing"],
+            "node scripts/testing/run-test-owner.mjs delivery integration",
+        )
+        self.assertEqual(
+            root_scripts["test"],
+            "node scripts/testing/run-test-owner.mjs root",
+        )
+        self.assertEqual(
+            api_scripts["test"],
+            "node ../../scripts/testing/run-test-owner.mjs api",
+        )
+        self.assertEqual(
+            web_scripts["test"],
+            "node ../../scripts/testing/run-test-owner.mjs web",
+        )
+        commands = "\n".join(
+            [*root_scripts.values(), *api_scripts.values(), *web_scripts.values()]
+        )
+        self.assertNotIn("--prepared", commands)
+        self.assertNotIn("--unit-prepared", commands)
 
     def test_nested_alias_cannot_hide_legacy_filter(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:

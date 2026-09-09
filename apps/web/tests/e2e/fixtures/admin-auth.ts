@@ -1,19 +1,31 @@
-import type {
-  AdminBackofficeSessionUser,
-  AdminRefreshErrorResponse,
-  AdminRefreshSuccessResponse,
-  AdminSessionHttpErrorResponse,
-  AdminSessionResponse,
+import {
+  adminRefreshErrorResponseSchema,
+  adminRefreshSuccessResponseSchema,
+  adminSessionHttpErrorResponseSchema,
+  adminSessionSchema,
+  type AdminBackofficeSessionUser,
+  type AdminRefreshErrorResponse,
+  type AdminRefreshSuccessResponse,
+  type AdminSessionHttpErrorResponse,
+  type AdminSessionResponse,
 } from "@imsweb/contracts/admin"
+import { adminApiPath } from "@imsweb/contracts/paths"
 import type { Page } from "@playwright/test"
 
-type AuthenticatedAdminAuthMockOptions = {
+import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
+
+type AdminAuthCallOptions = {
+  sessionTimes?: ApiTimes
+  refreshTimes?: ApiTimes
+}
+
+type AuthenticatedAdminAuthMockOptions = AdminAuthCallOptions & {
   state?: "authenticated"
   user?: Partial<Omit<AdminBackofficeSessionUser, "csrfSecret">>
   csrfToken?: string
 }
 
-type AnonymousAdminAuthMockOptions = {
+type AnonymousAdminAuthMockOptions = AdminAuthCallOptions & {
   state: "anonymous"
   reason?: "未登录" | "token无效"
 }
@@ -35,6 +47,7 @@ const adminAuthOrigin = () =>
 
 export async function installAdminAuthMock(
   page: Page,
+  api: ApiDispatcher,
   options: AdminAuthMockOptions = {}
 ) {
   if (options.state === "anonymous") {
@@ -47,14 +60,22 @@ export async function installAdminAuthMock(
       message: "刷新令牌无效",
     } satisfies AdminRefreshErrorResponse
 
-    await page.route(
-      (url) => url.pathname === "/api/admin/auth/session",
-      (route) => route.fulfill({ status: 401, json: sessionResponse })
-    )
-    await page.route(
-      (url) => url.pathname === "/api/admin/auth/refresh",
-      (route) => route.fulfill({ status: 401, json: refreshResponse })
-    )
+    api.expect({
+      name: "anonymous Backoffice session",
+      method: "GET",
+      path: adminApiPath("/auth/session"),
+      responses: { 401: adminSessionHttpErrorResponseSchema },
+      times: options.sessionTimes ?? 0,
+      handle: () => ({ status: 401, json: sessionResponse }),
+    })
+    api.expect({
+      name: "anonymous Backoffice refresh",
+      method: "POST",
+      path: adminApiPath("/auth/refresh"),
+      responses: { 401: adminRefreshErrorResponseSchema },
+      times: options.refreshTimes ?? 0,
+      handle: () => ({ status: 401, json: refreshResponse }),
+    })
     return
   }
 
@@ -86,12 +107,20 @@ export async function installAdminAuthMock(
       url: adminAuthOrigin(),
     },
   ])
-  await page.route(
-    (url) => url.pathname === "/api/admin/auth/session",
-    (route) => route.fulfill({ status: 200, json: sessionResponse })
-  )
-  await page.route(
-    (url) => url.pathname === "/api/admin/auth/refresh",
-    (route) => route.fulfill({ status: 200, json: refreshResponse })
-  )
+  api.expect({
+    name: "authenticated Backoffice session",
+    method: "GET",
+    path: adminApiPath("/auth/session"),
+    responses: { 200: adminSessionSchema },
+    times: options.sessionTimes,
+    handle: () => ({ status: 200, json: sessionResponse }),
+  })
+  api.expect({
+    name: "authenticated Backoffice refresh",
+    method: "POST",
+    path: adminApiPath("/auth/refresh"),
+    responses: { 200: adminRefreshSuccessResponseSchema },
+    times: options.refreshTimes ?? 0,
+    handle: () => ({ status: 200, json: refreshResponse }),
+  })
 }

@@ -27,7 +27,12 @@ import type {
     UpdatePlatformPasswordResult
 } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
-import { ControlledRateLimiter, csrfHash } from './owner-route-fixture';
+import {
+    bearerTokenHeaders,
+    cookieCsrfHeaders,
+    fixtureSha256Hex as csrfHash
+} from './auth-request';
+import { ControlledRateLimiter } from './owner-route-fixture';
 
 export const ACCOUNT_ID = 'platform-secure-owner';
 export const FOREIGN_ACCOUNT_ID = 'platform-secure-stranger';
@@ -422,18 +427,16 @@ export class AccountSecurityFixture {
 export function bearerHeaders(
     extra: Record<string, string> = {}
 ): Record<string, string> {
-    return { authorization: `Bearer ${ACCESS_TOKEN}`, ...extra };
+    return bearerTokenHeaders(ACCESS_TOKEN, extra);
 }
 
 export function cookieHeaders(
     extra: Record<string, string> = {}
 ): Record<string, string> {
-    return {
-        cookie: `${PLATFORM_ACCESS_TOKEN_COOKIE}=${ACCESS_TOKEN}; ` +
-            `${PLATFORM_CSRF_TOKEN_COOKIE}=${CSRF_SECRET}`,
-        'x-csrftoken': CSRF_SECRET,
-        ...extra
-    };
+    return cookieCsrfHeaders([
+        [PLATFORM_ACCESS_TOKEN_COOKIE, ACCESS_TOKEN],
+        [PLATFORM_CSRF_TOKEN_COOKIE, CSRF_SECRET]
+    ], CSRF_SECRET, extra);
 }
 
 export function passwordBody(

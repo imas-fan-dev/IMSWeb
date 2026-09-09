@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { api, expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const pendingReview = {
   officeId: "office-e2e",
@@ -21,8 +22,9 @@ const pendingReview = {
   reviewNote: "",
 }
 
-test.beforeEach(async ({ page }) => {
-  await installAdminAuthMock(page, {
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
     csrfToken: "location-review-e2e",
     user: {
       username: "location-operator",
@@ -47,39 +49,49 @@ test("administrator reviews a regional office location without viewport overflow
       }
     | undefined
 
-  await page.route(
-    "**/api/admin/community/exchange/office-locations**",
-    async (route) => {
-      const request = route.request()
-      if (request.method() === "PUT") {
-        submitted = {
-          headers: request.headers(),
-          body: request.postDataJSON() as Record<string, unknown>,
-        }
-        reviewed = true
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            officeLocation: {
-              officeId: pendingReview.officeId,
-              location: pendingReview.location,
-              reviewState: "rejected",
-              revision: 3,
-              submittedAt: pendingReview.submittedAt,
-              reviewedAt: "2026-08-03T02:00:00.000Z",
-              reviewNote: "需要缩小公开区域",
-            },
-          }),
-        })
-        return
+  const handleLocationReviews = async (
+    route: import("@playwright/test").Route
+  ) => {
+    const request = route.request()
+    if (request.method() === "PUT") {
+      submitted = {
+        headers: request.headers(),
+        body: request.postDataJSON() as Record<string, unknown>,
       }
-
+      reviewed = true
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({ items: reviewed ? [] : [pendingReview] }),
+        body: JSON.stringify({
+          success: true,
+          officeLocation: {
+            officeId: pendingReview.officeId,
+            location: pendingReview.location,
+            reviewState: "rejected",
+            revision: 3,
+            submittedAt: pendingReview.submittedAt,
+            reviewedAt: "2026-08-03T02:00:00.000Z",
+            reviewNote: "需要缩小公开区域",
+          },
+        }),
       })
+      return
     }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ items: reviewed ? [] : [pendingReview] }),
+    })
+  }
+  await api.mockRoute(
+    "/api/admin/community/exchange/office-locations",
+    handleLocationReviews,
+    "GET",
+    2
+  )
+  await api.mockRoute(
+    "/api/admin/community/exchange/office-locations/office-e2e",
+    handleLocationReviews,
+    "PUT"
   )
 
   await page.goto("/admin/community/exchange")
