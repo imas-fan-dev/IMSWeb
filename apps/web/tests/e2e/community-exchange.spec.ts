@@ -159,7 +159,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
         },
       }),
     "GET",
-    { min: 1, max: 8 }
+    { min: 0, max: 8 }
   )
   await api.mockRoute(
     "/api/community/exchange/cards/card-1/reactions",
@@ -217,19 +217,6 @@ test("discovers an exchange office and preserves the detail deep link", async ({
       exact: true,
     })
   ).toBeVisible()
-  await expect
-    .poll(
-      () =>
-        api.requests({
-          method: "GET",
-          path: "/api/community/exchange/map/offices",
-        }).length,
-      {
-        message: "the exchange map should request its first office viewport",
-        timeout: 15_000,
-      }
-    )
-    .toBeGreaterThan(0)
 
   const mobileNavigation = page.getByRole("navigation", {
     name: "交换地图导航",
@@ -268,15 +255,17 @@ test("discovers an exchange office and preserves the detail deep link", async ({
   const firstSeriesTag = page.getByRole("button", { name: /765PRO/ })
   const secondSeriesTag = page.getByRole("button", { name: /灰姑娘女孩/ })
   await firstSeriesTag.click()
-  await secondSeriesTag.click()
   await expect(firstSeriesTag).toHaveAttribute("aria-pressed", "true")
+  await secondSeriesTag.click()
   await expect(secondSeriesTag).toHaveAttribute("aria-pressed", "true")
   expect(new URL(page.url()).searchParams.getAll("series")).toEqual([
     "765",
     "cg",
   ])
   await firstSeriesTag.click()
+  await expect(firstSeriesTag).toHaveAttribute("aria-pressed", "false")
   await secondSeriesTag.click()
+  await expect(secondSeriesTag).toHaveAttribute("aria-pressed", "false")
   expect(new URL(page.url()).searchParams.getAll("series")).toEqual([])
   await page.getByRole("checkbox", { name: "仅看开放事务所" }).click()
   await expect(page).toHaveURL(/open=true/)

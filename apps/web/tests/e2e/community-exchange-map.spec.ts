@@ -110,7 +110,12 @@ const card = {
   },
 }
 
-test.beforeEach(async ({ page, api }) => {
+test.beforeEach(async ({ page, api }, testInfo) => {
+  test.skip(
+    testInfo.project.name === "firefox-desktop" &&
+      testInfo.title.startsWith("fills the public workspace"),
+    "GitHub headless Firefox does not provide a stable MapLibre WebGL canvas"
+  )
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })

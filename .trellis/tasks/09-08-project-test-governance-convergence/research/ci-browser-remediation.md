@@ -62,14 +62,21 @@ Run `34377456613` removed all five Home/R2 failures from the prior run. Validate
 - The free-placement workflow reached the suite's 20-second total timeout without a failed assertion.
 - The Chromium mobile Wiki hero made neither optional decorative request on its first attempt and passed on retry.
 
-`playwright.config.ts` now forces software WebRender and WebGL for the Firefox project through `firefoxUserPrefs`; a focused unit test owns those launch preferences. The MapLibre success test still requires a visible canvas and the original office calls, and no browser project is skipped. The directory workflow keeps its explicit map request, the free-placement workflow uses Playwright's slow-test budget, and the Wiki hero's already-optional artwork requests use exact `0..1` bounds.
+An initial follow-up forced software WebRender and WebGL through Firefox user preferences, gave the free-placement workflow a slow-test budget, and bounded the Wiki hero's optional artwork requests at `0..1`. Local focused and full matrices passed. Run `34384869303` did not execute those tests because both browser-install jobs hit the separate apt incident below.
 
-Local follow-up verification passed:
+After the apt fix, run `34386998095` installed both browser sets and Validate App passed. Validate Web finished at `249 passed`, `24 skipped`, one flaky, and two failed. The free-placement timeout and every Home/R2 failure were gone, but GitHub Firefox still produced no MapLibre canvas or map-office request after 15 seconds; forcing the two preferences did not change runner capability. The Chromium mobile discovery workflow recovered from one series-toggle ordering failure on retry.
 
-- The Playwright config unit test and Web typecheck.
-- Three repeated Firefox runs of all three failed Community Exchange workflows, nine tests total.
-- Five repeated Chromium mobile runs of the Wiki hero workflow.
-- A complete 276-instance ordinary Web matrix at `252 passed` and `24 expected skips` in 11.6 minutes, one worker, no retries, and the API proxy pointed at unused port `65534`.
+The user then authorized temporary skips for Map and R2 coverage. The final boundary is:
+
+- Firefox skips only the MapLibre success-canvas test. Chromium desktop and mobile retain the visible canvas and office-query assertions; Firefox retains the explicit config-failure and directory-fallback test.
+- The cross-browser directory/deep-link workflow treats map-office loading as incidental and keeps its directory, filter, card, detail, accessibility, and deep-link assertions. Series toggles now wait after each state change.
+- The real R2 character-delivery test is skipped. The existing real font-load test remains `fixme`; generic `/works/sc` document and layout coverage still runs.
+- The ineffective Firefox launch preferences and their unit test were removed.
+
+Final local verification passed:
+
+- Three repeated runs of the MapLibre success case, directory/deep-link workflow, and real R2 character test across all ordinary Web projects: `15 passed`, `12 authorized skips`.
+- The complete 276-instance ordinary Web matrix at `248 passed` and `28 authorized skips` in 10.4 minutes, one worker, no retries, and the API proxy pointed at unused port `65534`.
 
 ## Browser dependency incident
 
@@ -77,6 +84,8 @@ Run `34384869303` and its failed-job rerun both stopped before browser tests. Pr
 
 Playwright installs its pinned Chromium, Firefox, and WebKit builds independently of the runner's Google Chrome apt source. The App and Web jobs now remove only `google-chrome.list` and `google-chrome.sources` before invoking the unchanged `playwright install --with-deps` commands. Ubuntu and Microsoft sources remain enabled, and all non-browser lanes leave apt configuration untouched. The workflow contract test requires this exact two-lane boundary.
 
+Run `34386998095` confirmed that both browser-install steps passed after this change. Validate App also passed, so the run reached the ordinary Web test failures recorded above instead of stopping at dependency setup.
+
 ## Unchanged boundaries
 
-This remediation changes tests, test fixtures, and the Web testing specification only. It does not change production Web or API behavior, contracts, CI structure, R2 configuration, the production font URL, or the production font-CORS `fixme`. The R2 child and parent AC6 remain incomplete.
+This remediation changes tests, test fixtures, CI browser-install hygiene, and testing specifications only. It does not change production Web or API behavior, contracts, the CI job graph, R2 configuration, the production font URL, or the production font-CORS `fixme`. The R2 child and parent AC6 remain incomplete.

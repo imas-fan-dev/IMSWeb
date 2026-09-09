@@ -30,11 +30,11 @@ Check keyboard operation, semantic roles, overflow, fixed controls, dialog
 bounds, and safe areas where applicable. Use AxeBuilder in an existing
 accessibility suite when the changed page is already covered there.
 
-MapLibre success-path coverage requires WebGL. The `firefox-desktop` project in
-`playwright.config.ts` forces Firefox software WebRender and WebGL so the
-headless GitHub runner exercises the canvas path instead of silently falling
-back to the directory. `tests/unit/playwright-config.test.ts` owns that launch
-contract; do not replace the map assertion with a Firefox skip.
+MapLibre success-path coverage requires WebGL and belongs to the Chromium
+desktop and mobile projects. GitHub's headless Firefox runner does not expose a
+stable canvas path, so Firefox skips that one success case while retaining the
+explicit map-failure and directory fallback coverage. Do not remove the
+Chromium canvas assertion or the Firefox fallback test.
 
 ## Scenario: Same-origin API mocks in Playwright
 

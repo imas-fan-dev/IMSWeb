@@ -301,7 +301,7 @@ test("work detail keeps narrow-screen artwork behind the copy", async ({
   await expect(character.locator("..")).toHaveCSS("position", "absolute")
 })
 
-test("work detail loads its character directly from R2", async ({
+test.skip("work detail loads its character directly from R2", async ({
   page,
   api,
 }) => {
