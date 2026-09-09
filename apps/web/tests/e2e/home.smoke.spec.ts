@@ -1053,7 +1053,16 @@ test("default wiki hero gives story artwork an expanded frame", async ({
   api,
   isMobile,
 }) => {
-  installSeededPublicApis(api, withCatalog("/api/wiki/random_bg"))
+  installSeededPublicApis(api, [
+    {
+      path: "/api/wiki/catalog",
+      times: { min: 0, max: 1 },
+    },
+    {
+      path: "/api/wiki/random_bg",
+      times: { min: 0, max: 1 },
+    },
+  ])
   await page.goto("/wiki")
 
   const hero = page.getByRole("region", { name: "剧情档案视觉" })

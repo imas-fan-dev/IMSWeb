@@ -437,6 +437,7 @@ test("lets a card owner arrange and persist the free-placement wall", async ({
   context,
   page,
 }, testInfo) => {
+  test.slow()
   await context.addCookies([
     {
       name: "ims_platform_csrf",

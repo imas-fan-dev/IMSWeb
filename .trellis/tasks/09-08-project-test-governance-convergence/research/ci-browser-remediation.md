@@ -53,6 +53,24 @@ Follow-up verification passed:
 - Three repeated Firefox runs of each affected exchange-map workflow, six tests total.
 - Another complete 276-instance ordinary Web matrix at `252 passed` and `24 expected skips` in 11.7 minutes, one worker, no retries, and the API proxy pointed at unused port `65534`.
 
+## Firefox runner follow-up
+
+Run `34377456613` removed all five Home/R2 failures from the prior run. Validate App and every non-Web job passed. Validate Web finished at `248 passed`, `24 skipped`, one flaky, and three failed:
+
+- GitHub's headless Firefox did not create a MapLibre canvas under its default preferences, even with a 15-second wait. The config request completed, but no map-office request followed.
+- The directory/deep-link workflow failed on the same missing map-office request because the test explicitly waited for that incidental map startup before continuing.
+- The free-placement workflow reached the suite's 20-second total timeout without a failed assertion.
+- The Chromium mobile Wiki hero made neither optional decorative request on its first attempt and passed on retry.
+
+`playwright.config.ts` now forces software WebRender and WebGL for the Firefox project through `firefoxUserPrefs`; a focused unit test owns those launch preferences. The MapLibre success test still requires a visible canvas and the original office calls, and no browser project is skipped. The directory workflow keeps its explicit map request, the free-placement workflow uses Playwright's slow-test budget, and the Wiki hero's already-optional artwork requests use exact `0..1` bounds.
+
+Local follow-up verification passed:
+
+- The Playwright config unit test and Web typecheck.
+- Three repeated Firefox runs of all three failed Community Exchange workflows, nine tests total.
+- Five repeated Chromium mobile runs of the Wiki hero workflow.
+- A complete 276-instance ordinary Web matrix at `252 passed` and `24 expected skips` in 11.6 minutes, one worker, no retries, and the API proxy pointed at unused port `65534`.
+
 ## Unchanged boundaries
 
 This remediation changes tests, test fixtures, and the Web testing specification only. It does not change production Web or API behavior, contracts, CI structure, R2 configuration, the production font URL, or the production font-CORS `fixme`. The R2 child and parent AC6 remain incomplete.

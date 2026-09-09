@@ -42,7 +42,15 @@ export default defineConfig({
     },
     {
       name: "firefox-desktop",
-      use: { ...devices["Desktop Firefox"] },
+      use: {
+        ...devices["Desktop Firefox"],
+        launchOptions: {
+          firefoxUserPrefs: {
+            "gfx.webrender.software": true,
+            "webgl.force-enabled": true,
+          },
+        },
+      },
     },
   ],
 })
