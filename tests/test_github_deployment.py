@@ -28,6 +28,10 @@ NODE_SETUP_ACTION = (
 PNPM_SETUP_ACTION = (
     "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10"
 )
+GOOGLE_CHROME_APT_CLEANUP = (
+    "sudo rm -f /etc/apt/sources.list.d/google-chrome.list "
+    "/etc/apt/sources.list.d/google-chrome.sources"
+)
 DOCKER_SETUP_BUILDX_ACTION = (
     "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0"
 )
@@ -227,6 +231,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         for token in (
             "node scripts/testing/run-test-owner.mjs delivery app",
             "test:unit tests/unit/scripts/build-app.test.ts",
+            GOOGLE_CHROME_APT_CLEANUP,
             "playwright install --with-deps chromium webkit",
             "run build:app",
             "run test:e2e:app",
@@ -236,7 +241,9 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         web = jobs["web"]
         self.assertIn("timeout-minutes: 60", web)
         self.assertIn("node scripts/testing/run-test-owner.mjs delivery web", web)
+        self.assertIn(GOOGLE_CHROME_APT_CLEANUP, web)
         self.assertIn("playwright install --with-deps chromium firefox", web)
+        self.assertEqual(ci.count(GOOGLE_CHROME_APT_CLEANUP), 2)
         self.assertIn("pnpm --filter @imsweb/web run test -- ci", web)
         self.assertNotIn("--unit-prepared", web)
 

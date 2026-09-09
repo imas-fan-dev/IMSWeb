@@ -118,7 +118,9 @@ jobs:
         run: pnpm --filter @imsweb/web run test:unit tests/unit/scripts/build-app.test.ts
 
       - name: Install App browsers
-        run: pnpm --filter @imsweb/web exec playwright install --with-deps chromium webkit
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
+          pnpm --filter @imsweb/web exec playwright install --with-deps chromium webkit
 
       - name: Build App target
         run: pnpm --filter @imsweb/web run build:app
@@ -156,7 +158,9 @@ jobs:
         run: node scripts/testing/run-test-owner.mjs delivery web
 
       - name: Install Web browsers
-        run: pnpm --filter @imsweb/web exec playwright install --with-deps chromium firefox
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources
+          pnpm --filter @imsweb/web exec playwright install --with-deps chromium firefox
 
       - name: Test Web owner
         run: pnpm --filter @imsweb/web run test -- ci

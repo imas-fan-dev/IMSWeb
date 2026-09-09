@@ -104,7 +104,9 @@ pnpm --filter @imsweb/web run test:e2e
 Root `test:web-routing` 调用 delivery integration owner；该 owner 在当前 job 内构建两个
 workspace 后运行 frontend routing 与 packaged-client asset contracts。CI 的 Web lane 运行
 Chromium、移动 Chromium 与 Firefox 的普通 Web Playwright 矩阵；App Playwright 由独立 App
-lane 运行。
+lane 运行。两个浏览器 lane 在 `playwright install --with-deps` 前只移除 GitHub runner 预装的
+Google Chrome apt source；Playwright 使用自己的固定浏览器版本，不依赖该 source，而保留
+`--with-deps` 继续安装所需的 Ubuntu 系统库。
 
 命令名称以当前 package scripts 为准；添加或删除 script 时同步更新 workspace README 和
 边界测试，不为同一动作创建重复的根转发别名。

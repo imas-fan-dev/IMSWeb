@@ -71,6 +71,12 @@ Local follow-up verification passed:
 - Five repeated Chromium mobile runs of the Wiki hero workflow.
 - A complete 276-instance ordinary Web matrix at `252 passed` and `24 expected skips` in 11.6 minutes, one worker, no retries, and the API proxy pointed at unused port `65534`.
 
+## Browser dependency incident
+
+Run `34384869303` and its failed-job rerun both stopped before browser tests. Project dependency installation succeeded in App and Web, but `playwright install --with-deps` exited with apt code 100 because the GitHub-hosted Ubuntu runner's Google Chrome repository served a `Packages.gz` whose SHA-256 did not match its current Release metadata. Both jobs received the same expected and actual hashes on both attempts.
+
+Playwright installs its pinned Chromium, Firefox, and WebKit builds independently of the runner's Google Chrome apt source. The App and Web jobs now remove only `google-chrome.list` and `google-chrome.sources` before invoking the unchanged `playwright install --with-deps` commands. Ubuntu and Microsoft sources remain enabled, and all non-browser lanes leave apt configuration untouched. The workflow contract test requires this exact two-lane boundary.
+
 ## Unchanged boundaries
 
 This remediation changes tests, test fixtures, and the Web testing specification only. It does not change production Web or API behavior, contracts, CI structure, R2 configuration, the production font URL, or the production font-CORS `fixme`. The R2 child and parent AC6 remain incomplete.

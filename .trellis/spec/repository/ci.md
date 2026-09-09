@@ -52,6 +52,7 @@ Pull requests use `git merge-base <base> <head>` as the diff base. Pushes use `g
 - PostgreSQL and `IMS_TEST_DATABASE_URL` belong only to the API job. Repository, App, Web, and integration jobs must not provision it.
 - The aggregate job is named `Validate repository`, uses `if: always()`, and depends on detection plus every conditional lane. A selected lane must report `success`; an unselected lane must report `skipped`. Detection failure, lane failure, cancellation, or a selection/result mismatch fails the aggregate job when it executes.
 - Each executable lane performs checkout, Node setup from `.nvmrc`, pnpm 11.10.0 setup, and `pnpm install --frozen-lockfile`. External actions stay pinned to full commit SHAs.
+- Before Playwright installs OS dependencies, the App and Web lanes remove only the GitHub runner's unrelated `/etc/apt/sources.list.d/google-chrome.list` and `google-chrome.sources` entries. They retain `playwright install --with-deps` for the pinned bundled browsers; other lanes do not alter apt sources.
 
 ### 4. Validation & Error Matrix
 
@@ -71,6 +72,7 @@ Pull requests use `git merge-base <base> <head>` as the diff base. Pushes use `g
 | Unselected lane is skipped | Aggregate accepts it |
 | Selected lane is skipped | Aggregate rejects the mismatch |
 | Lane fails or is cancelled | Aggregate rejects it when the aggregate runs |
+| Google Chrome apt index is stale during Playwright dependency setup | Remove the two known runner source files, then keep `--with-deps` |
 
 ### 5. Good / Base / Bad Cases
 
@@ -80,12 +82,13 @@ Pull requests use `git merge-base <base> <head>` as the diff base. Pushes use `g
 - Base: ordinary operations documentation selects repository only, while `docs/README.md` also selects App because a Tauri contract reads it.
 - Bad: treating an unknown root file as repository-only can silently skip a product lane that depends on a newly introduced convention.
 - Bad: attaching PostgreSQL to repository or integration makes small Web changes pay the database startup cost.
+- Bad: dropping `--with-deps`, disabling Ubuntu security sources, or accepting unauthenticated apt metadata to work around an unrelated Chrome repository failure.
 
 ### 6. Tests Required
 
 Detector tests must assert representative single-path ownership, multi-path union, additions, modifications, deletions, both rename paths, empty diffs, malformed records, unavailable bases, Git failures, unknown paths, and deterministic lowercase outputs.
 
-Workflow contracts must assert triggers, permissions, concurrency, job graph, detector output wiring, lane conditions, command ownership, PostgreSQL isolation, aggregate semantics, setup counts, and full-SHA action pinning across CI and deployment.
+Workflow contracts must assert triggers, permissions, concurrency, job graph, detector output wiring, lane conditions, command ownership, PostgreSQL isolation, aggregate semantics, setup counts, browser apt-source isolation, and full-SHA action pinning across CI and deployment.
 
 Run at least:
 
