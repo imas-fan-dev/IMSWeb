@@ -180,6 +180,7 @@ test("fills the public workspace with a responsive map and keeps both directorie
   page,
   isMobile,
 }, testInfo) => {
+  test.slow()
   await api.mockRoute(
     "/api/community/exchange/map/config",
     (route) =>
@@ -223,7 +224,7 @@ test("fills the public workspace with a responsive map and keeps both directorie
   expect(new URL(page.url()).pathname).toBe("/community/exchange/")
 
   const canvas = page.locator("canvas.maplibregl-canvas")
-  await expect(canvas).toBeVisible()
+  await expect(canvas).toBeVisible({ timeout: 15_000 })
   await expect(page.locator(".maplibregl-ctrl-compass")).toHaveCount(0)
   await expect(page.locator(".maplibregl-ctrl-zoom-in")).toBeVisible()
   await expect(page.locator(".maplibregl-ctrl-zoom-out")).toBeVisible()

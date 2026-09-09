@@ -176,6 +176,7 @@ test("discovers an exchange office and preserves the detail deep link", async ({
   page,
   isMobile,
 }, testInfo) => {
+  test.slow()
   await api.mockRoute(
     "/api/community/exchange/offices/shanghai-weekend",
     (route) =>
@@ -216,6 +217,19 @@ test("discovers an exchange office and preserves the detail deep link", async ({
       exact: true,
     })
   ).toBeVisible()
+  await expect
+    .poll(
+      () =>
+        api.requests({
+          method: "GET",
+          path: "/api/community/exchange/map/offices",
+        }).length,
+      {
+        message: "the exchange map should request its first office viewport",
+        timeout: 15_000,
+      }
+    )
+    .toBeGreaterThan(0)
 
   const mobileNavigation = page.getByRole("navigation", {
     name: "交换地图导航",

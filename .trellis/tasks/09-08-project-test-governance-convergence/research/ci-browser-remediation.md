@@ -37,6 +37,22 @@ An early App probe reused the pre-existing four-day-old server on port `1420` an
 
 Some React Router development-server reloads still log failed optional SSR proxy preloads when the API origin is deliberately unreachable. The complete browser matrices pass without those responses, and browser-side same-origin API requests remain fail-closed through the dispatcher.
 
+## Remote follow-up
+
+Run `34368855968` proved the App fix in GitHub Actions: Validate App passed, along with API, integration, and repository/infrastructure jobs. Validate Web completed at `245 passed`, `24 skipped`, and seven failed after 32.4 minutes:
+
+- Three `/works/sc` document-health instances duplicated the known production font-CORS failure already owned by the same file's `fixme` test.
+- Two character-image delivery instances failed only because the decorative Wiki catalog request was absent in CI, while the character response and assertions completed.
+- Two Firefox exchange-map instances exhausted the default five-second MapLibre readiness wait, so their deferred office requests never satisfied dispatcher teardown.
+
+The follow-up keeps the font `fixme` authoritative and filters document-health console output only when the message or source URL identifies the exact production font. Chromium's generic `net::ERR_FAILED` line is ignored only when the same page also reported that exact font URL. The character-image test now permits zero or one non-target catalog request. The map-owner test retains its canvas and office assertions with a 15-second readiness wait, while the broader discovery test explicitly waits for its first map-office request before continuing.
+
+Follow-up verification passed:
+
+- Six Home R2/document-health instances across all ordinary Web projects.
+- Three repeated Firefox runs of each affected exchange-map workflow, six tests total.
+- Another complete 276-instance ordinary Web matrix at `252 passed` and `24 expected skips` in 11.7 minutes, one worker, no retries, and the API proxy pointed at unused port `65534`.
+
 ## Unchanged boundaries
 
 This remediation changes tests, test fixtures, and the Web testing specification only. It does not change production Web or API behavior, contracts, CI structure, R2 configuration, the production font URL, or the production font-CORS `fixme`. The R2 child and parent AC6 remain incomplete.
