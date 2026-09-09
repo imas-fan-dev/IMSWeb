@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 const delayedCoverUrl = "/test-assets/app-community-delayed-cover.png"
+const homepageCoverUrl = "/test-assets/app-community-homepage-cover.png"
 const longTitle = `App 社区动态${"超长标题".repeat(18)}`
 const longUrl = `https://example.test/${"unbroken-segment".repeat(24)}`
 const coverPng = Buffer.from(
@@ -25,6 +26,10 @@ const nextEvents = [9, 10].map((id) => ({
   title: `App 社区动态 ${id}`,
   summary: `第 ${id} 条动态摘要`,
 }))
+const homepageEvents = [
+  { ...events[0]!, image_url: homepageCoverUrl },
+  ...events.slice(1),
+]
 
 const detail = {
   ...events[0],
@@ -87,13 +92,17 @@ async function mockCommunityApis(page: Page) {
     await coverGate
     await route.fulfill({ contentType: "image/png", body: coverPng })
   })
+  await page.route(`**${homepageCoverUrl}`, async (route) => {
+    await route.fulfill({ contentType: "image/png", body: coverPng })
+  })
   await page.route("**/api/events?**", async (route) => {
     eventRequestCount += 1
-    const cursor = new URL(route.request().url()).searchParams.get("cursor")
-    const isNextPage = cursor === "events-page-2"
+    const searchParams = new URL(route.request().url()).searchParams
+    const isNextPage = searchParams.get("cursor") === "events-page-2"
+    const isEventList = searchParams.get("limit") === "20"
     await route.fulfill({
       json: {
-        items: isNextPage ? nextEvents : events,
+        items: isNextPage ? nextEvents : isEventList ? events : homepageEvents,
         pageInfo: {
           nextCursor: isNextPage ? null : "events-page-2",
           hasNextPage: !isNextPage,
@@ -115,7 +124,7 @@ async function mockCommunityApis(page: Page) {
           {
             id: 1,
             title: longTitle,
-            image_url: delayedCoverUrl,
+            image_url: homepageCoverUrl,
             category: "activity",
             sort_order: 0,
             cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
@@ -441,8 +450,42 @@ test("App community flow respects safe areas and stable list geometry", async ({
   await dispatchTouch(page, "touchstart", 10)
   await dispatchTouch(page, "touchmove", 170)
   await expect(page.getByText("松开立即刷新")).toBeVisible()
+  const refreshComplete = page.getByText("已是最新", { exact: true })
+  const pullSurfacePromise = (async () => {
+    await expect(refreshComplete).toBeVisible()
+    return refreshComplete.evaluateHandle((label) => {
+      const status = label.closest('[role="status"]')
+      const surface = status?.parentElement
+      if (!(surface instanceof HTMLElement)) {
+        throw new Error("Pull-to-refresh status must have a surface element")
+      }
+      return surface
+    })
+  })()
   await dispatchTouch(page, "touchend", 170)
   await expect.poll(eventRequestCount).toBeGreaterThan(requestsBeforeRefresh)
+
+  const pullSurface = await pullSurfacePromise
+  await expect(refreshComplete).toBeHidden()
+  await expect
+    .poll(() =>
+      pullSurface.evaluate((surface) => {
+        const transform = getComputedStyle(surface).transform
+        if (transform === "none") return true
+        const matrix = new DOMMatrixReadOnly(transform)
+        return (
+          matrix.is2D &&
+          Math.abs(matrix.a - 1) <= 0.001 &&
+          Math.abs(matrix.b) <= 0.001 &&
+          Math.abs(matrix.c) <= 0.001 &&
+          Math.abs(matrix.d - 1) <= 0.001 &&
+          Math.abs(matrix.e) <= 0.001 &&
+          Math.abs(matrix.f) <= 0.001
+        )
+      })
+    )
+    .toBe(true)
+  await pullSurface.dispose()
 
   await coverRequested
   const before = await stableRowPositions(page)

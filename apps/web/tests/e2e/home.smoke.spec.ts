@@ -1,8 +1,11 @@
 import type { EditorialSpotlight } from "@imsweb/contracts/editorial"
 import { expect, test } from "./fixtures/test"
 
-import type { ApiDispatcher, ApiTimes } from "./fixtures/api-dispatcher"
 import { installHomepageLinksMock } from "./fixtures/homepage"
+import {
+  installSeededPublicApis,
+  type SeededPublicApiRegistration,
+} from "./fixtures/public-content"
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -10,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-type SeededApi = { path: string; times: ApiTimes }
+type SeededApi = SeededPublicApiRegistration
 
 const homeSeededApis: SeededApi[] = [
   { path: "/api/wiki/random_idol", times: 1 },
@@ -21,25 +24,16 @@ const homeSeededApis: SeededApi[] = [
   { path: "/api/events", times: 1 },
 ]
 
-function passThroughSeededApis(api: ApiDispatcher, registrations: SeededApi[]) {
-  for (const registration of registrations) {
-    api.passThrough({
-      name: `home smoke seeded content: ${registration.path}`,
-      reason:
-        "This browser test intentionally exercises the seeded development API instead of fixture responses.",
-      method: "GET",
-      path: registration.path,
-      times: registration.times,
-    })
-  }
-}
-
-const withCatalog = (path: string): SeededApi[] => [
+const withCatalog = (path: SeededApi["path"]): SeededApi[] => [
   { path: "/api/wiki/catalog", times: 1 },
   { path, times: 1 },
 ]
 
-const publicRoutes = [
+const publicRoutes: Array<{
+  path: string
+  title: RegExp
+  apis: SeededApi[]
+}> = [
   { path: "/", title: /IMSWeb/i, apis: homeSeededApis },
   {
     path: "/about",
@@ -87,7 +81,6 @@ const publicRoutes = [
     apis: [
       { path: "/api/wiki/catalog", times: 1 },
       { path: "/api/cards", times: 1 },
-      { path: "/api/reactions", times: { min: 0, max: 12 } },
     ],
   },
   {
@@ -134,7 +127,7 @@ for (const route of publicRoutes) {
     page,
     api,
   }) => {
-    passThroughSeededApis(api, route.apis)
+    installSeededPublicApis(api, route.apis)
     const consoleErrors: string[] = []
     const pageErrors: string[] = []
 
@@ -188,7 +181,7 @@ test("the interface stays Chinese when an English preference is stored", async (
   page,
   api,
 }) => {
-  passThroughSeededApis(api, homeSeededApis)
+  installSeededPublicApis(api, homeSeededApis)
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "en")
   })
@@ -210,7 +203,7 @@ test("work detail content stays below the sticky site header", async ({
   api,
   isMobile,
 }) => {
-  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
+  installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   if (!isMobile) {
     await page.setViewportSize({ width: 1600, height: 900 })
   }
@@ -253,7 +246,7 @@ test("work detail keeps narrow-screen artwork behind the copy", async ({
   page,
   api,
 }) => {
-  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
+  installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   await page.setViewportSize({ width: 768, height: 1024 })
   await page.goto("/works/sc")
 
@@ -280,7 +273,7 @@ test("work detail loads its character directly from R2", async ({
   page,
   api,
 }) => {
-  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
+  installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   const legacyAssetRequests: string[] = []
   page.on("request", (request) => {
     const url = request.url()
@@ -353,7 +346,7 @@ test("work detail carries the lightweight global series background", async ({
   api,
   isMobile,
 }) => {
-  passThroughSeededApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
+  installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
   await page.goto("/works/sc")
 
   const background = page.getByTestId("series-icon-background")
@@ -396,7 +389,7 @@ test("mobile navigation keeps link semantics and closes after routing", async ({
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile navigation is hidden on desktop")
-  passThroughSeededApis(
+  installSeededPublicApis(
     api,
     homeSeededApis.map((registration) =>
       registration.path === "/api/events"
@@ -445,7 +438,7 @@ test("desktop navigation lens stays within its glass segment", async ({
 }) => {
   test.skip(isMobile, "desktop navigation is hidden on mobile")
   test.slow()
-  passThroughSeededApis(api, [
+  installSeededPublicApis(api, [
     { path: "/api/wiki/random_idol", times: 2 },
     { path: "/api/wiki/catalog", times: 1 },
     { path: "/api/community-posts/spotlight", times: 2 },
@@ -780,8 +773,8 @@ test("homepage navigation keeps secondary destinations in the directory", async 
       localStorage.setItem("imsweb.language", "zh-CN")
     })
   }
-  await installHomepageLinksMock(api)
-  passThroughSeededApis(
+  installHomepageLinksMock(api)
+  installSeededPublicApis(
     api,
     homeSeededApis.filter(
       (registration) => registration.path !== "/api/homepage-links"
@@ -882,8 +875,8 @@ test("homepage directory uses compact responsive columns", async ({
   page,
   api,
 }) => {
-  await installHomepageLinksMock(api)
-  passThroughSeededApis(
+  installHomepageLinksMock(api)
+  installSeededPublicApis(
     api,
     homeSeededApis
       .filter((registration) => registration.path !== "/api/homepage-links")
@@ -949,7 +942,7 @@ test("theme toggle persists the selected color scheme", async ({
   page,
   api,
 }) => {
-  passThroughSeededApis(
+  installSeededPublicApis(
     api,
     homeSeededApis.map((registration) => ({
       ...registration,
@@ -1026,7 +1019,7 @@ test("default wiki hero gives story artwork an expanded frame", async ({
   api,
   isMobile,
 }) => {
-  passThroughSeededApis(api, withCatalog("/api/wiki/random_bg"))
+  installSeededPublicApis(api, withCatalog("/api/wiki/random_bg"))
   await page.goto("/wiki")
 
   const hero = page.getByRole("region", { name: "剧情档案视觉" })
@@ -1058,8 +1051,8 @@ test("home exposes current discovery and birthday interactions", async ({
   api,
   isMobile,
 }) => {
-  await installHomepageLinksMock(api)
-  passThroughSeededApis(
+  installHomepageLinksMock(api)
+  installSeededPublicApis(
     api,
     homeSeededApis
       .filter(
@@ -1073,7 +1066,7 @@ test("home exposes current discovery and birthday interactions", async ({
           : registration
       )
   )
-  await api.mockRoute(
+  api.mockRoute(
     "/api/community-posts/spotlight",
     async (route) => {
       const response = { items: [] } satisfies EditorialSpotlight
@@ -1176,7 +1169,7 @@ test("home random idol uses a square portrait and agency marker", async ({
   page,
   api,
 }) => {
-  passThroughSeededApis(api, homeSeededApis)
+  installSeededPublicApis(api, homeSeededApis)
   await page.goto("/")
 
   const randomIdol = page.getByRole("region", { name: "随机担当" })

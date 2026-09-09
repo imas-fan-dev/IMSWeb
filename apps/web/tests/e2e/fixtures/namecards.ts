@@ -1,4 +1,12 @@
-import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
+import {
+  namecardListQuerySchema,
+  namecardPageSchema,
+  type Namecard,
+  type NamecardPage,
+} from "@imsweb/contracts/namecards"
+import { apiPath } from "@imsweb/contracts/paths"
+
+import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
 
 const defaultFrontImage =
   "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
@@ -32,4 +40,19 @@ export function makeNamecardPage(
     total,
     totalPage: options.totalPage ?? (total === 0 ? 0 : 1),
   }
+}
+
+export function installNamecardListMock(
+  api: ApiDispatcher,
+  times: ApiTimes = 1
+) {
+  api.expect({
+    name: "deterministic public namecard list",
+    method: "GET",
+    path: apiPath("/cards"),
+    query: namecardListQuerySchema,
+    responses: { 200: namecardPageSchema },
+    times,
+    handle: () => ({ status: 200, json: makeNamecardPage([]) }),
+  })
 }

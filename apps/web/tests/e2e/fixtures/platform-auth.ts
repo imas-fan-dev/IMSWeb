@@ -6,13 +6,17 @@ import {
 } from "@imsweb/contracts/platform"
 import { platformAuthPath } from "@imsweb/contracts/paths"
 
-import type { ApiDispatcher } from "./api-dispatcher"
+import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
 
-export function installPlatformOAuthProvidersMock(api: ApiDispatcher) {
+export function installPlatformOAuthProvidersMock(
+  api: ApiDispatcher,
+  times: ApiTimes = 1
+) {
   api.expect({
     method: "GET",
     path: platformAuthPath("/oauth/providers"),
     responses: { 200: platformOAuthProvidersResponseSchema },
+    times,
     handle: () => ({
       status: 200,
       json: { success: true, providers: [] },

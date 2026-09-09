@@ -34,6 +34,7 @@
 - [x] 再迁移 Editorial、Homepage、Namecard 和其余高重复 fixture。
 - [x] 清除直接 `page.route("**/api...` 的重复路径，仅保留经审查的特殊边界。
 - [x] 分领域运行 Chromium 子集，再运行 CI 模式完整矩阵。
+- [x] 修复 CI 暴露的 seeded-content 代理依赖和 App 刷新几何同步问题。
 - [x] 独立审查并提交。
 
 ## 4. 路由元数据、目录和脚本编排

@@ -1,23 +1,7 @@
 import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import type { ApiDispatcher, ApiTimes } from "./fixtures/api-dispatcher"
-
-function passThroughSeededWiki(
-  api: ApiDispatcher,
-  registrations: Array<{ path: string; times: ApiTimes }>
-) {
-  for (const registration of registrations) {
-    api.passThrough({
-      name: `Wiki browser regression seeded content: ${registration.path}`,
-      reason:
-        "This browser regression intentionally verifies seeded Wiki catalog, story, and background responses.",
-      method: "GET",
-      path: registration.path,
-      times: registration.times,
-    })
-  }
-}
+import { installSeededWikiApis } from "./fixtures/wiki"
 
 test("mobile Wiki agency switching preserves both scroll positions", async ({
   page,
@@ -25,7 +9,7 @@ test("mobile Wiki agency switching preserves both scroll positions", async ({
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only Wiki interaction")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/random_bg", times: 1 },
     { path: "/api/wiki/catalog", times: { min: 1, max: 2 } },
   ])
@@ -87,9 +71,9 @@ test("modern Wiki windowed dial loops and switches agencies", async ({
 }) => {
   test.skip(!isMobile, "mobile-only Wiki interaction")
   test.slow()
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/random_bg", times: 1 },
-    { path: "/api/wiki/catalog", times: 4 },
+    { path: "/api/wiki/catalog", times: 3 },
   ])
 
   await page.setViewportSize({ width: 390, height: 844 })
@@ -410,7 +394,7 @@ test("classic Wiki follows the mobile content order without narrow title wraps",
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only classic Wiki layout")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/random_bg", times: 1 },
     { path: "/api/wiki/catalog", times: 1 },
   ])
@@ -570,7 +554,7 @@ test("modern Wiki keeps group navigation and mobile search fixed", async ({
 }) => {
   test.skip(!isMobile, "mobile-only modern Wiki interaction")
 
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/random_bg", times: 1 },
     { path: "/api/wiki/catalog", times: 2 },
   ])
@@ -657,7 +641,7 @@ test("classic story portrait cards use two readable mobile columns", async ({
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only classic story layout")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/catalog", times: 1 },
     { path: "/api/wiki/stories", times: 1 },
   ])
@@ -685,7 +669,7 @@ test("story source labels stay visible in both mobile views", async ({
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only story source labels")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/catalog", times: 1 },
     { path: "/api/wiki/stories", times: 1 },
   ])
@@ -722,7 +706,7 @@ test("modern story navigation stays clickable over the mobile footer", async ({
   isMobile,
 }) => {
   test.skip(!isMobile, "mobile-only floating navigation")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/catalog", times: 1 },
     { path: "/api/wiki/stories", times: 1 },
   ])
@@ -764,7 +748,7 @@ test("classic text-only story cards do not render nested frames", async ({
   isMobile,
 }) => {
   test.skip(isMobile, "desktop-only classic story framing")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/catalog", times: 1 },
     { path: "/api/wiki/stories", times: 2 },
   ])
@@ -826,7 +810,7 @@ test("new story cards without story sources render in gray", async ({
   page,
   api,
 }) => {
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/catalog", times: 1 },
     { path: "/api/wiki/stories", times: 1 },
   ])
@@ -859,7 +843,7 @@ test("classic desktop idol groups align incomplete rows to the left", async ({
   isMobile,
 }) => {
   test.skip(isMobile, "desktop-only classic Wiki alignment")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/random_bg", times: 1 },
     { path: "/api/wiki/catalog", times: 2 },
   ])
@@ -913,7 +897,7 @@ test("classic Wiki styles survive returning from a story", async ({
   isMobile,
 }) => {
   test.skip(isMobile, "desktop-only classic Wiki return regression")
-  passThroughSeededWiki(api, [
+  installSeededWikiApis(api, [
     { path: "/api/wiki/random_bg", times: 2 },
     { path: "/api/wiki/catalog", times: 2 },
     { path: "/api/wiki/stories", times: 1 },
