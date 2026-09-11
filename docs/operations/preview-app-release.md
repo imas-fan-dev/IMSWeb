@@ -30,16 +30,24 @@ GitHub Release，供人工测试者自助安装。移动外壳本身的结构、
 
 ## 2. 版本号
 
-可见版本号（GitHub Release 的 tag、标题，以及 App 自身的
-`CFBundleShortVersionString` / Android `versionName`）统一使用太平洋时间
-`YYYYMMDDHHmm`，作为 `MAJOR.MINOR.PATCH-preview.<时间戳>` 的预发布标识附加在
-`tauri.conf.json` 的基础版本号后（见 `apps/web/scripts/app-release.js` 的
-`previewVersion()`）。Release tag 固定为 `app-preview-<platform>-<时间戳>`。
+一次预览构建用太平洋时间 `YYYYMMDDHHmm` 作为唯一标识：Release tag 固定为
+`app-preview-<platform>-<时间戳>`，标题也带同一个时间戳；`tauri.conf.json` 的基础版本号
+则拼成 `MAJOR.MINOR.PATCH-preview.<时间戳>`（见 `apps/web/scripts/app-release.js` 的
+`previewVersion()`）。用户要确认手里装的是哪一版时，以 Release tag 和标题为准。
+
+两端 App 内部能呈现多少这个标识，取决于平台对版本字段格式的限制：
+
+- Android 的 `versionName` 完整保留 `0.1.0-preview.<时间戳>`。
+- iOS 的 `CFBundleShortVersionString` 只接受最多三段纯数字，Apple 的 `ITMS-90060` 校验会
+  直接拒绝 `3.0.0-beta.1` 这类预发布串。因此 App 内看到的"版本"固定为基础版本号
+  `0.1.0`，时间戳落到 `CFBundleVersion`，形如 `0.1.0.202609111503.365643`（基础版本 +
+  时间戳 + 构建号，只含数字和点号，符合 Apple 对构建号的格式要求）。这是平台约束，不是
+  流水线可以绕过的配置项。
 
 iOS `--build-number` 与 Android `versionCode` 都是有界的数值字段（Android 上限
 2,100,000,000），12 位的时间戳本身放不下，因此另外计算一个从固定基准时间起的分钟数作为纯
 内部构建号（基准时间硬编码在 `release-preview-app.yml` 的 `resolve` job 里），同一个数值
-同时写入两端，用户不会直接看到它。
+同时写入两端：它出现在 iOS `CFBundleVersion` 的末段和 Android 的 `versionCode` 里。
 
 ## 3. 签名边界
 
@@ -86,7 +94,7 @@ Xcode 和 `aarch64-apple-ios` Rust target；Android 需要 Java 17-21、Android 
 | `xcodebuild` 报 `cannot be opened because it is in a future Xcode project file format` | Tauri 生成的 iOS 工程模板所用的 project 文件格式版本需要较新的 Xcode 才能打开；`build-ios` job 因此固定用 `runs-on: macos-26`（默认自带最新 Xcode），不要降级到更旧的 runner 镜像 |
 | Android APK 提示签名不一致，无法覆盖安装 | 预览签名密钥被重新生成过；用户需要先卸载旧版本再安装新版本 |
 | `--build-number` 或 Android `versionCode` 报超出范围 | 只应发生在系统时间被错误设置到基准时间之前；检查 runner/本机时钟 |
-| 本机重复清理/重建 `src-tauri/gen/apple` 后，iOS 真机归档提示 Swift 符号未定义（`swift_rs` / `native-glass` 相关符号） | 已确认为本机构建缓存问题，不是真实的代码/配置缺陷：在 `macos-26` runner 的全新 checkout 上多次验证未复现；本机复现时先清空 `src-tauri/target` 与 `src-tauri/gen/apple` 后重新构建 |
+| 本机重复清理/重建 `src-tauri/gen/apple` 后，iOS 真机归档提示 Swift 符号未定义（`swift_rs` / `native-glass` 相关符号） | 很可能来自本机残留状态而非代码或配置缺陷：`macos-26` runner 的全新 checkout 上完整走通了一次真机归档，未复现。这一判断只有一次 CI 成功作为依据，若在 CI 上复现，应按真实缺陷排查，而不是继续归因于缓存。本机复现时先清空 `src-tauri/target` 与 `src-tauri/gen/apple` 后重建 |
 
 改动触发方式、版本号规则或签名边界时，同一变更更新本文件并运行：
 
