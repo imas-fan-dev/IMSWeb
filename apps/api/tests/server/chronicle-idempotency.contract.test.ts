@@ -788,6 +788,44 @@ test('Chronicle committed deletion compensation still converges on a later reque
     assert.equal(storage.deletes.length, 2);
 });
 
+test('Chronicle activity responses preserve legacy leading or trailing whitespace verbatim', async () => {
+    const { app, storage } = await fixture();
+    const legacyTitle = '\u3010Legacy Chronicle\u3011\r\nLine one\r\n';
+    const legacyDate = ' 2026-09-06 ';
+    const legacyLocation = '\tHangzhou\t';
+    storage.seed(
+        chronicleKey('meta', 'legacy-whitespace.json'),
+        new TextEncoder().encode(JSON.stringify({
+            title: legacyTitle,
+            date: legacyDate,
+            location: legacyLocation,
+            records: []
+        })),
+        'application/json'
+    );
+
+    const listBody = await assertRawJsonConforms(
+        await app.request('/eventchronicle/activities'),
+        200,
+        chronicleActivityListSchema
+    );
+    const summary = listBody.find((activity) => activity.id === 'legacy-whitespace');
+    assert.deepEqual(
+        summary && { title: summary.title, date: summary.date, location: summary.location },
+        { title: legacyTitle, date: legacyDate, location: legacyLocation }
+    );
+
+    const activityBody = await assertRawJsonConforms(
+        await app.request('/eventchronicle/activities/legacy-whitespace'),
+        200,
+        chronicleActivitySchema
+    );
+    assert.deepEqual(
+        { title: activityBody.title, date: activityBody.date, location: activityBody.location },
+        { title: legacyTitle, date: legacyDate, location: legacyLocation }
+    );
+});
+
 test('Chronicle mounted JSON responses preserve shared schemas across public and admin routes', async () => {
     const { app, storage, uploads, token, tokens } = await fixture();
     const auth = { Authorization: `Bearer ${token}` };

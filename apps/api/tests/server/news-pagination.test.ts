@@ -148,6 +148,24 @@ test('news cursor pagination validates limits, cursors, and empty snapshots', as
     });
 });
 
+test('news list responses preserve a title with legacy leading or trailing whitespace verbatim', async (t) => {
+    const fixture = await createFixture(t, 0);
+    const legacyTitle = '\u3010Legacy News\u3011\r\nLine one\r\n';
+    await fixture.insert(legacyTitle);
+
+    const cursorBody = await contractJson(
+        await fixture.request('/api/news?limit=20'),
+        recommendationResponseSchema
+    ) as CursorNewsPage;
+    assert.equal(cursorBody.items[0]?.title, legacyTitle);
+
+    const legacyArrayBody = await contractJson(
+        await fixture.request('/api/news'),
+        recommendationResponseSchema
+    ) as Recommendation[];
+    assert.equal(legacyArrayBody[0]?.title, legacyTitle);
+});
+
 test('admin news parses exact success and mutation business-error envelopes', async () => {
     const app = createHonoApp(() => ({
         news: {
