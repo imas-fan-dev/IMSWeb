@@ -702,7 +702,10 @@ const composeFiles = filesUnder(path.join(repositoryRoot, "deploy"))
   .filter((file) => /(?:^|\/)compose(?:\.[^.]+)?\.ya?ml$/i.test(relative(file)))
   .map((file) => relative(file))
   .sort();
-const expectedComposeFiles = ["deploy/compose.yaml"];
+const expectedComposeFiles = [
+  "deploy/compose.preview.yaml",
+  "deploy/compose.yaml",
+];
 if (JSON.stringify(composeFiles) !== JSON.stringify(expectedComposeFiles)) {
   failures.push(
     `deploy: expected only ${expectedComposeFiles.join(" and ")}, found ${composeFiles.join(", ")}`,

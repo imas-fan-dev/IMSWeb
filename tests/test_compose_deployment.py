@@ -5,6 +5,7 @@ import unittest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = PROJECT_ROOT / "deploy/compose.yaml"
+PREVIEW_COMPOSE_PATH = PROJECT_ROOT / "deploy/compose.preview.yaml"
 API_DOCKERFILE_PATH = PROJECT_ROOT / "apps/api/Dockerfile"
 
 
@@ -130,11 +131,26 @@ class ComposeDeploymentTests(unittest.TestCase):
         ):
             self.assertEqual(compose.count(token), 3)
 
-    def test_only_current_compose_is_present(self):
+    def test_preview_compose_isolates_project_and_volume_names(self):
+        preview = PREVIEW_COMPOSE_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("name: imsweb-preview", preview)
+        for volume_name in (
+            "imsweb-preview-postgresql-data",
+            "imsweb-preview-api-data",
+        ):
+            self.assertIn(f"name: {volume_name}", preview)
+        self.assertNotIn("name: imsweb-postgresql_postgresql-data", preview)
+        self.assertNotIn("name: imsweb-api_api-data", preview)
+        self.assertNotIn("rustfs", preview)
+        self.assertNotRegex(preview, r"(?m)^services:")
+
+    def test_only_current_compose_files_are_present(self):
         self.assertTrue(COMPOSE_PATH.is_file())
+        self.assertTrue(PREVIEW_COMPOSE_PATH.is_file())
         self.assertEqual(
             sorted(path.name for path in (PROJECT_ROOT / "deploy").glob("compose*.yaml")),
-            ["compose.yaml"],
+            ["compose.preview.yaml", "compose.yaml"],
         )
         self.assertTrue((PROJECT_ROOT / "deploy/nginx/imsweb.conf.example").is_file())
         self.assertTrue((PROJECT_ROOT / "deploy/nginx/README.md").is_file())

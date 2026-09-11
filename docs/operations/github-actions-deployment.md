@@ -3,24 +3,28 @@
 > 文档类型：运维
 > 状态：Active
 > 权威来源：`.github/workflows/`、`deploy/` 和 `scripts/deployment/`
-> 适用环境：GitHub-hosted runner、GHCR 和单台 Linux production host
+> 适用环境：GitHub-hosted runner、GHCR、单台 Linux production host 和用户目录 preview
 
-IMSWeb 使用 GitHub-hosted runner 构建并发布 API 容器镜像，再通过 SSH 调用生产机上的受锁
-Compose 发布脚本。API 镜像同时包含 Hono 服务、Web 静态文件和 PostgreSQL migrations；生产
-Nginx、数据库卷、R2 凭据和应用秘密不进入 GitHub 构建制品。
+IMSWeb 使用 GitHub-hosted runner 构建并发布 API 容器镜像，再通过 SSH 调用目标主机上的受锁
+Compose 发布脚本。API 镜像同时包含 Hono 服务、Web 静态文件和 PostgreSQL migrations；主机
+配置、数据库卷、对象存储凭据和应用秘密不进入 GitHub 构建制品。
 
-自动部署适用于单台 Linux 主机上的 PostgreSQL/API Compose 栈、宿主机 Nginx 和 Cloudflare
-R2。当前 `api` 服务是单副本并固定绑定回环端口，容器重建会产生短暂中断；本流程不宣称
-blue/green 或零停机。
+production 自动部署适用于单台 Linux 主机上的 PostgreSQL/API Compose 栈、宿主机 Nginx 和
+Cloudflare R2。preview 使用同一主机上的独立 rootless Compose 项目、本地 Valkey，对象存储直接使用
+共享的 Cloudflare R2 测试桶（与本地开发的 `deploy/.env.r2-test` 同一个 bucket），不运行本地 RustFS。
+PostgreSQL 和 API 运行时状态仍位于部署用户的 home 下。两个环境的 `api` 都是单副本，容器重建会产生
+短暂中断；本流程不宣称 blue/green 或零停机。
 
 ## 1. 工作流
 
-仓库包含两个工作流：
+仓库包含三个工作流：
 
 - `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上先运行 `pnpm run check`，
   再分步运行基础设施契约、API 运行时、服务端、Wiki、迁移和 Web 路由测试；
 - `.github/workflows/deploy.yml`：发布稳定 SemVer Tag，并允许从 GitHub Actions 页面重新部署
-  已存在的 Tag。
+  已存在的 Tag；
+- `.github/workflows/deploy-preview.yml`：在 `release/v1.1` push 时自动构建和部署 preview，也允许
+  从该分支手动确认后重新部署当前 commit 已有的镜像。
 
 CI、发布构建和部署配置校验都从 `.nvmrc` 读取当前 Node.js 版本，API 镜像的
 `ARG NODE_VERSION` 必须与它一致；基础设施测试会检查这项约束。各 workspace 的
@@ -46,27 +50,49 @@ Docker 的 Buildx、Registry Login 和 Build/Push Actions 分别使用 v4、v4 �
 版本声明使用 Node.js 24 Action runtime，并继续固定到完整 release commit SHA。它们要求
 Actions Runner `v2.327.1` 或更高版本，GitHub-hosted `ubuntu-24.04` runner 满足该要求。
 
+preview push 执行完整 `pnpm run check`、`pnpm run test`、镜像构建、provenance 生成与
+`gh attestation verify`。手动运行不重建同一 commit，只解析 commit 标签对应的已有 digest 并验证
+同一 provenance。构建阶段允许新提交取消旧构建；部署阶段串行且不取消进行中的远端操作。部署前
+再次读取 `release/v1.1` 远端 head，旧 commit 已过期时记录为跳过，避免较慢的旧 Workflow 覆盖
+新 preview。
+
 ## 2. GitHub 仓库设置
 
 在仓库 Settings -> Environments 创建 `production`。配置以下 Environment variables：
 
-| 名称 | 示例 | 说明 |
-| --- | --- | --- |
-| `DEPLOY_HOST` | `prod.example.com` | SSH 主机名，不包含用户或端口 |
-| `DEPLOY_PORT` | `22` | 可留空，默认 `22` |
-| `DEPLOY_USER` | `imsdeploy` | 生产部署用户 |
-| `DEPLOY_ROOT` | `/srv/imsweb` | release、备份和发布记录根目录 |
+| 名称              | 示例                      | 说明                                    |
+| ----------------- | ------------------------- | --------------------------------------- |
+| `DEPLOY_HOST`     | `prod.example.com`        | SSH 主机名，不包含用户或端口            |
+| `DEPLOY_PORT`     | `22`                      | 可留空，默认 `22`                       |
+| `DEPLOY_USER`     | `imsdeploy`               | 生产部署用户                            |
+| `DEPLOY_ROOT`     | `/srv/imsweb`             | release、备份和发布记录根目录           |
 | `PUBLIC_BASE_URL` | `https://www.example.com` | 不带路径、查询或凭据的正式 HTTPS origin |
 
 配置以下 Environment secrets：
 
-| 名称 | 说明 |
-| --- | --- |
-| `DEPLOY_SSH_PRIVATE_KEY` | 只授权目标部署用户的专用 Ed25519 私钥 |
+| 名称                     | 说明                                       |
+| ------------------------ | ------------------------------------------ |
+| `DEPLOY_SSH_PRIVATE_KEY` | 只授权目标部署用户的专用 Ed25519 私钥      |
 | `DEPLOY_SSH_KNOWN_HOSTS` | 通过受信渠道核验的目标主机 host key 完整行 |
 
-不要在 Workflow 中临时运行 `ssh-keyscan` 并立即信任结果。不要把 JWT、PostgreSQL 或 R2
-凭据保存为 GitHub 部署 secret；它们只存在于生产机的环境文件中。
+另建 `preview` Environment，并把 deployment branch policy 限制为 `release/v1.1` branch。配置：
+
+| 名称                    | 示例                          | 说明                           |
+| ----------------------- | ----------------------------- | ------------------------------ |
+| `PREVIEW_DEPLOY_HOST`   | `preview.example.com`         | SSH 主机名，不包含用户或端口   |
+| `PREVIEW_DEPLOY_PORT`   | `22`                          | SSH 端口                       |
+| `PREVIEW_DEPLOY_USER`   | `imsweb`                      | 拥有 rootless 容器运行时的用户 |
+| `PREVIEW_DEPLOY_ROOT`   | `/home/<deploy-user>/preview` | 必须位于该用户 home 下         |
+| `PREVIEW_SOURCE_BRANCH` | `release/v1.1`                | 必须与 workflow 固定分支一致   |
+| `PREVIEW_API_PORT`      | `13000`                       | 回环绑定的 API 与 Web 端口     |
+
+preview secrets 为 `PREVIEW_DEPLOY_SSH_PRIVATE_KEY` 和
+`PREVIEW_DEPLOY_SSH_KNOWN_HOSTS`。公钥应带 `restrict` 选项写入 preview 用户的
+`~/.ssh/authorized_keys`；私钥只存于 GitHub Environment。不要创建长期 GHCR 或镜像签名密钥，
+Workflow 使用短期 `GITHUB_TOKEN` 与 GitHub OIDC provenance。
+
+不要在 Workflow 中临时运行 `ssh-keyscan` 并立即信任结果。不要把 JWT、PostgreSQL 或 R2 凭据保存为
+GitHub 部署 secret；它们只存在于目标主机的环境文件中。
 
 `GITHUB_TOKEN` 由 GitHub Actions 自动生成，不需要添加到 Environment secrets。部署步骤只把
 它通过 SSH 标准输入发送给目标机，目标机在隔离的临时 Docker/Podman 认证配置中登录 GHCR，
@@ -160,6 +186,29 @@ AWS_SECRET_ACCESS_KEY=<bucket-scoped-secret>
 生产机还需预先安装并验证宿主机 Nginx。入口必须只代理到回环地址上的 Hono；完整配置见
 [`deploy/nginx/`](../../deploy/nginx/README.md)。
 
+### Preview 主机准备
+
+preview 部署用户必须具备生产流程列出的基础命令，并拥有可在非交互 SSH 中访问的 rootless
+Docker 或 Podman。`DockerRootDir` 或 Podman `GraphRoot` 必须位于该用户 home 下。准备以下目录：
+
+```sh
+install -d -m 0700 \
+  "$HOME/preview" \
+  "$HOME/preview/config" \
+  "$HOME/preview/releases" \
+  "$HOME/preview/deployments"
+install -m 0600 /path/to/private-preview.env \
+  "$HOME/preview/config/preview.env"
+```
+
+`preview.env` 使用 `deploy/.env.example` 中相同的变量名，但必须使用独立随机 PostgreSQL 与 JWT 凭据，
+不能复制模板默认值。它必须设置 `COMPOSE_PROJECT_NAME=imsweb-preview`、`COMPOSE_PROFILES=local-cache`（
+不启用 `local-storage`）、`IMS_API_NODE_ENV=development` 和三个互不重复的非特权宿主机端口（API、
+PostgreSQL、Valkey）。对象存储直接指向共享的 Cloudflare R2 测试桶，凭据与 `deploy/.env.r2-test`
+一致：bucket 名必须包含独立的 `test` 段，`IMS_S3_REGION=auto`，`IMS_S3_ENDPOINT` 必须是无凭据、
+无路径的 Cloudflare R2 HTTPS S3 API 地址，`IMS_S3_FORCE_PATH_STYLE=false`。`deploy-compose-preview.sh`
+会在任何容器写操作前检查这些约束。
+
 ## 4. 发布流程
 
 创建并推送签名或 annotated Tag：
@@ -184,7 +233,7 @@ Workflow 会按以下顺序执行：
 8. 取得发布锁，验证生产配置，启动 PostgreSQL 并创建 custom-format `pg_dump`；
 9. 拉取 digest、重建 API，检查 `/api/wiki/test`、`/api/news` 和首页；
 10. 要求远端输出 `Deployment completed.` 完成标记，再从 GitHub-hosted runner 验证正式 HTTPS
-   入口；
+    入口；
 11. 原子更新 `/srv/imsweb/current` 并写入发布记录。
 
 生产状态位于：
@@ -203,6 +252,11 @@ release metadata、Compose 文件、Tag digest 和 commit digest 全部一致时
 `--no-deps` 只重建 API。PostgreSQL 镜像或配置升级必须走独立维护窗口，不能夹带在普通 Tag
 发布中。
 
+preview 流程同样只部署不可变 digest，并把 base Compose、preview override 和 metadata 保存到
+`$PREVIEW_DEPLOY_ROOT/releases/preview-<commit-prefix>/`。`current` 与 `previous` 软链接在远端探测
+成功后原子更新，发布记录写入 `$PREVIEW_DEPLOY_ROOT/deployments/`。首次 CI 发布可以从已准备的
+本地构建 preview 接管；后续发布使用前一个 CI digest 作为代码回滚目标。
+
 ## 5. 回滚与恢复边界
 
 候选容器启动、内部健康检查或生产机公网检查失败时，脚本会重新启动 `current` 指向的上一镜像，
@@ -213,9 +267,14 @@ PostgreSQL migration 在 API 启动前执行，数据库变更必须遵循 expan
 R2 配对恢复、停写或破坏性 migration 的版本不得依赖本自动流程，应走独立维护窗口和
 `docs/operations/runbook.md`。
 
-每次部署创建的 `pg_dump` 是代码发布前的数据库恢复点，不是与 R2 同窗口冻结的完整灾备快照。
-不要自动恢复该文件。真实数据恢复必须先保留故障现场，匹配数据库与媒体恢复点，并取得明确
-批准。
+每次 production 部署创建的 `pg_dump` 是代码发布前的数据库恢复点，不是与 R2 同窗口冻结的完整
+灾备快照。不要自动恢复该文件。真实数据恢复必须先保留故障现场，匹配数据库与媒体恢复点，并
+取得明确批准。
+
+preview 不创建数据库备份。候选 API 启动或探测失败时，脚本恢复 `current` 指向的上一 API 镜像，
+但不恢复 preview PostgreSQL。preview migration 也必须遵循 expand/contract；需要清空或恢复 preview
+数据库时，应作为单独操作执行，不得隐藏在自动部署中。共享 R2 测试桶的对象独立于部署生命周期，
+不随回滚或重部变化。
 
 ## 6. 手动重新部署
 
@@ -232,6 +291,10 @@ R2 配对恢复、停写或破坏性 migration 的版本不得依赖本自动流
 若修复的是部署 Workflow 自身，不要继续 `Re-run jobs` 原 Tag 的历史运行，因为它仍使用历史
 Workflow。应从已包含修复的默认分支进入 `Run workflow`，再输入已有 Tag；这样不会重新构建镜像，
 但会使用修复后的调度步骤部署该 Tag 已有的 digest。
+
+手动 preview 部署时，在 GitHub Actions 选择 `Deploy preview`，将运行分支选为 `release/v1.1`，
+并勾选 `confirm_preview_deploy`。手动运行只重新部署当前分支 head 已由 push 构建和签名的镜像，
+不会重新构建；不接受任意 commit、Tag 或其他分支。`release/v1.1` push 会自动触发，无需人工确认。
 
 发布后核对 Workflow summary、GitHub Environment deployment history、生产机 release record、
 Nginx/API 日志以及代表性 R2 对象。GitHub runner 的最终公网探测失败时 Workflow 会标红，但目标

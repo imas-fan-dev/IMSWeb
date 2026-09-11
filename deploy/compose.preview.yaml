@@ -1,0 +1,12 @@
+name: imsweb-preview
+
+# Preview keeps its PostgreSQL and API runtime state in rootless Docker volumes
+# owned by the deployment user. These names must stay separate from the
+# production volumes in compose.yaml. Object storage is the shared Cloudflare
+# R2 test bucket (see deploy/.env.r2-test), not a local volume, so preview
+# never enables the local-storage profile and declares no RustFS volume here.
+volumes:
+  postgresql-data:
+    name: imsweb-preview-postgresql-data
+  api-data:
+    name: imsweb-preview-api-data

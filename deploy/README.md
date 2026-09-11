@@ -10,9 +10,11 @@ API 镜像包含构建后的 Web 静态资源，并在启动前幂等应用 Post
 位于宿主机 `/srv/imsweb/maps/`，同样不进入 Compose volume 或应用镜像；生成与原子切换见
 [地图资源交付](../docs/operations/map-delivery.md)。
 
-正式环境的默认发布入口是 [GitHub Actions 自动部署](../docs/operations/github-actions-deployment.md)：CI
-构建 API 镜像并推送到 GHCR，目标主机只按不可变 digest 拉取并启动。下面的 `--build` 命令用于
-本地容器集成预览，不是正式服务器上的发布步骤。
+正式环境和共享 preview 的默认发布入口是
+[GitHub Actions 自动部署](../docs/operations/github-actions-deployment.md)：CI 构建 API 镜像并推送
+到 GHCR，目标主机只按不可变 digest 拉取并启动。production 使用 `deploy/compose.yaml`；preview
+同时加载 `deploy/compose.preview.yaml`，将 Compose 项目和三个数据卷固定为 `imsweb-preview` 命名空间。
+下面的 `--build` 命令只用于本地容器集成预览，不是远端发布步骤。
 
 从仓库根目录检查配置：
 
@@ -61,6 +63,34 @@ RustFS S3 API 默认也只绑定回环地址。需要让局域网浏览器直接
 `api-data` 卷保存 Hono 的本地运行状态，停止单个 API 容器不会删除该卷。不要把
 `deploy/.env.example` 中的本地默认凭据用于共享或生产环境；共享或生产环境的数据库、对象
 存储和应用秘密必须由目标平台或密钥管理服务注入。
+
+## 共享 preview
+
+`release/v1.1` 的共享 preview 由 `.github/workflows/deploy-preview.yml` 构建、签名并部署。远端
+配置和数据必须位于部署用户的 home 下，运行时配置文件保持 `0600`，容器运行时的数据根目录也
+必须属于同一用户。CI 只上传两个 Compose 文件与受控部署脚本，再通过短期 `GITHUB_TOKEN` 拉取
+不可变 GHCR digest；远端不检出仓库，也不执行 `docker compose build`。
+
+preview 的对象存储是共享的 Cloudflare R2 测试桶（与本地 `deploy/.env.r2-test` 同一个 bucket），不是本地
+RustFS；preview 从不启用 `local-storage` profile，只启用 `local-cache`（Valkey）。
+
+使用与 CI 相同的配置做只读渲染检查：
+
+```sh
+docker compose \
+  --project-name imsweb-preview \
+  --env-file "$HOME/preview/config/preview.env" \
+  -f deploy/compose.yaml \
+  -f deploy/compose.preview.yaml \
+  --profile local-cache \
+  config --quiet
+```
+
+preview 默认只绑定回环端口，并通过 SSH 隧道访问。`deploy-compose-preview.sh` 要求 API、PostgreSQL、
+Valkey 使用互不相同的非特权端口；它还会验证 bucket 名包含独立的 `test` 段、endpoint 是
+无凭据、无路径的 Cloudflare R2 HTTPS S3 API 地址、region 为 `auto`、`IMS_S3_FORCE_PATH_STYLE` 为
+`false`。候选镜像失败时只恢复上一 API 镜像，不恢复 preview PostgreSQL；R2 测试桶对象不随部署
+回滚改变。
 
 ## PostgreSQL + Cloudflare R2
 

@@ -39,6 +39,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "apps/api/src/main.ts": "export {};\n",
             "data/.gitignore": "*\n!.gitignore\n",
             "deploy/compose.yaml": "services: {}\n",
+            "deploy/compose.preview.yaml": "name: imsweb-preview\nvolumes: {}\n",
         }
         for relative_path, content in files.items():
             destination = root / relative_path
@@ -64,6 +65,19 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             result = self.run_fixture(root)
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_preview_compose_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:
+            root = Path(temporary)
+            self.make_fixture(root)
+            (root / "deploy/compose.preview.yaml").unlink()
+            result = self.run_fixture(root)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "expected only deploy/compose.preview.yaml and deploy/compose.yaml",
+            result.stderr,
+        )
 
     def test_root_dev_dependency_outside_tooling_allowlist_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="ims-boundary-") as temporary:

@@ -13,11 +13,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ROOT_PACKAGE = PROJECT_ROOT / "package.json"
 CI_WORKFLOW = PROJECT_ROOT / ".github/workflows/ci.yml"
 DEPLOY_WORKFLOW = PROJECT_ROOT / ".github/workflows/deploy.yml"
+PREVIEW_DEPLOY_WORKFLOW = PROJECT_ROOT / ".github/workflows/deploy-preview.yml"
 DEPLOY_SCRIPT = PROJECT_ROOT / "scripts/deployment/deploy-compose-release.sh"
+PREVIEW_DEPLOY_SCRIPT = PROJECT_ROOT / "scripts/deployment/deploy-compose-preview.sh"
 AUTH_DEPLOY_SCRIPT = (
     PROJECT_ROOT / "scripts/deployment/run-authenticated-compose-release.sh"
 )
 COMPOSE = PROJECT_ROOT / "deploy/compose.yaml"
+PREVIEW_COMPOSE = PROJECT_ROOT / "deploy/compose.preview.yaml"
 DEPLOYMENT_GUIDE = PROJECT_ROOT / "docs/operations/github-actions-deployment.md"
 CHECKOUT_ACTION = (
     "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6"
@@ -49,6 +52,8 @@ printf '%s|%s\n' "${IMS_API_IMAGE:-none}" "$*" >> "$FAKE_CONTAINER_LOG"
 joined=" $* "
 if [[ "$joined" == " info " && "${FAKE_FAIL_CONTAINER_INFO:-}" == "true" ]]; then
     exit 1
+elif [[ "$joined" == " info --format {{.DockerRootDir}} " ]]; then
+    printf '%s\n' "$FAKE_CONTAINER_ROOT"
 elif [[ "$joined" == *" exec -T postgres "*"pg_dump "* ]]; then
     printf 'PGDMPimsweb-test-backup\n'
 elif [[ "$joined" == *" exec -T postgres "*"pg_restore "* ]]; then
@@ -138,16 +143,12 @@ def write_executable(path: Path, content: str) -> None:
 class GitHubWorkflowContractTests(unittest.TestCase):
     def test_root_check_parses_each_deployment_script(self):
         package = ROOT_PACKAGE.read_text(encoding="utf-8")
-        self.assertIn(
-            "bash -n scripts/deployment/deploy-compose-release.sh && bash -n "
+        for script in (
+            "scripts/deployment/deploy-compose-release.sh",
+            "scripts/deployment/deploy-compose-preview.sh",
             "scripts/deployment/run-authenticated-compose-release.sh",
-            package,
-        )
-        self.assertNotIn(
-            "bash -n scripts/deployment/deploy-compose-release.sh "
-            "scripts/deployment/run-authenticated-compose-release.sh",
-            package,
-        )
+        ):
+            self.assertIn(f"bash -n {script}", package)
 
     def test_ci_workflow_splits_affected_validation_lanes(self):
         ci = CI_WORKFLOW.read_text(encoding="utf-8")
@@ -370,6 +371,67 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             deployment,
         )
 
+    def test_preview_workflow_builds_signs_and_deploys_only_release_branch(self):
+        preview = PREVIEW_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+
+        for token in (
+            "name: Deploy preview",
+            "push:\n    branches:\n      - release/v1.1",
+            "workflow_dispatch:",
+            "confirm_preview_deploy:",
+            "github.event_name == 'push' || inputs.confirm_preview_deploy",
+            'expected_ref="refs/heads/${source_branch}"',
+            'source_branch="release/v1.1"',
+            'preview_id=preview-${release_sha:0:12}',
+            'image_name="ghcr.io/${REPOSITORY,,}-api"',
+            "name: Test and publish preview image\n    if: github.event_name == 'push'",
+            "run: pnpm run check",
+            "run: pnpm run test",
+            NODE_SETUP_ACTION,
+            PNPM_SETUP_ACTION,
+            DOCKER_SETUP_BUILDX_ACTION,
+            DOCKER_LOGIN_ACTION,
+            DOCKER_BUILD_PUSH_ACTION,
+            "preview-sha-${{ needs.prepare.outputs.release_sha }}",
+            "actions/attest-build-provenance@",
+            "gh attestation verify",
+            "github.event_name == 'workflow_dispatch' || needs.publish.result == 'success'",
+            '[[ -n "$PUBLISHED_DIGEST" && "$digest" != "$PUBLISHED_DIGEST" ]]',
+            ".github/workflows/deploy-preview.yml",
+            '--source-ref "refs/heads/${SOURCE_BRANCH}"',
+            "name: preview",
+            "group: imsweb-preview-build",
+            "cancel-in-progress: true",
+            "group: imsweb-preview",
+            "cancel-in-progress: false",
+            "PREVIEW_DEPLOY_SSH_PRIVATE_KEY",
+            "PREVIEW_DEPLOY_SSH_KNOWN_HOSTS",
+            "PREVIEW_SOURCE_BRANCH",
+            "git ls-remote --exit-code",
+            'echo "deploy=false" >> "$GITHUB_OUTPUT"',
+            "deploy/compose.preview.yaml",
+            "scripts/deployment/deploy-compose-preview.sh",
+            "scripts/deployment/run-authenticated-compose-release.sh",
+            'GHCR_TOKEN: ${{ github.token }}',
+            'printf \'%s\' "$GHCR_TOKEN"',
+            'grep -Fxq "Preview deployment completed." "$deployment_log"',
+            "/api/health/ready",
+            "/api/wiki/test",
+            "/api/news",
+        ):
+            self.assertIn(token, preview)
+
+        self.assertNotIn("pull_request:", preview)
+        self.assertNotIn("secrets.IMS_JWT_SECRET", preview)
+        self.assertNotIn("secrets.AWS_SECRET_ACCESS_KEY", preview)
+        self.assertNotIn("secrets.GHCR_TOKEN", preview)
+        self.assertNotIn("deploy-compose-release.sh", preview)
+
+        deploy_job = preview.split("\n  deploy:\n", maxsplit=1)[1]
+        self.assertIn("      packages: read", deploy_job)
+        self.assertIn("environment:\n      name: preview", deploy_job)
+        self.assertIn("steps.freshness.outputs.deploy == 'true'", deploy_job)
+
     def test_deployment_guide_covers_setup_release_and_recovery_boundaries(self):
         guide = DEPLOYMENT_GUIDE.read_text(encoding="utf-8")
         for token in (
@@ -383,6 +445,11 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "IMS_S3_REGION=auto",
             "IMS_S3_FORCE_PATH_STYLE=false",
             "Tag ruleset",
+            "deploy-preview.yml",
+            "PREVIEW_DEPLOY_SSH_PRIVATE_KEY",
+            "PREVIEW_SOURCE_BRANCH",
+            "release/v1.1",
+            "/home/<deploy-user>/preview",
             "pg_dump",
             "expand/contract",
             "不恢复 PostgreSQL 或 R2",
@@ -392,7 +459,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
     def test_external_actions_are_pinned_to_full_commit_shas(self):
         workflows = "\n".join(
-            path.read_text(encoding="utf-8") for path in (CI_WORKFLOW, DEPLOY_WORKFLOW)
+            path.read_text(encoding="utf-8")
+            for path in (CI_WORKFLOW, DEPLOY_WORKFLOW, PREVIEW_DEPLOY_WORKFLOW)
         )
         action_references = re.findall(r"uses:\s+[^@\s]+@([^\s]+)", workflows)
         self.assertGreater(len(action_references), 0)
@@ -502,6 +570,230 @@ class AuthenticatedDeploymentWrapperTests(unittest.TestCase):
         self.assertIn("external credential helpers", result.stderr)
         self.assertFalse(self.container_log.exists())
         self.assertFalse(self.deployment_log.exists())
+
+
+class ComposePreviewDeploymentTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="ims-preview-deploy-")
+        self.root = Path(self.temporary.name)
+        self.bin_dir = self.root / "bin"
+        self.bin_dir.mkdir()
+        self.home = self.root / "home"
+        self.deploy_root = self.home / "preview"
+        self.config_dir = self.deploy_root / "config"
+        self.config_dir.mkdir(parents=True)
+        self.container_root = self.home / ".local/share/docker"
+        self.container_root.mkdir(parents=True)
+        self.runtime_env = self.config_dir / "preview.env"
+        self.container_log = self.root / "container.log"
+        self.curl_log = self.root / "curl.log"
+        write_executable(self.bin_dir / "docker", FAKE_CONTAINER_CLI)
+        write_executable(self.bin_dir / "curl", FAKE_CURL)
+        if sys.platform == "darwin":
+            write_executable(self.bin_dir / "stat", FAKE_STAT)
+            write_executable(self.bin_dir / "flock", FAKE_FLOCK)
+            write_executable(self.bin_dir / "mv", FAKE_MV)
+        self.runtime_env.write_text(
+            "\n".join(
+                (
+                    "COMPOSE_PROJECT_NAME=imsweb-preview",
+                    "COMPOSE_PROFILES=local-cache",
+                    "IMS_API_IMAGE=imsweb-api:preview",
+                    "IMS_API_NODE_ENV=development",
+                    "IMS_API_PORT=13000",
+                    "IMS_POSTGRES_PORT=15432",
+                    "IMS_VALKEY_PORT=16379",
+                    "IMS_POSTGRES_PASSWORD=postgres-secret",
+                    "IMS_API_DATABASE_URL=postgresql://imsweb_preview:secret@postgres:5432/imsweb_preview",
+                    "IMS_BACKOFFICE_JWT_SECRET=backoffice-secret",
+                    "IMS_PLATFORM_JWT_SECRET=platform-secret",
+                    "IMS_COOKIE_SECURE=false",
+                    "IMS_CLIENT_ADDRESS_SOURCE=direct",
+                    "IMS_OBJECT_STORAGE=s3",
+                    f"IMS_S3_ENDPOINT=https://{'0' * 32}.r2.cloudflarestorage.com",
+                    "IMS_S3_REGION=auto",
+                    "IMS_S3_FORCE_PATH_STYLE=false",
+                    "IMS_S3_BUCKET=imsweb-media-public-test",
+                    "IMS_PUBLIC_READ_URL_BASE=https://test.example.com",
+                    "AWS_ACCESS_KEY_ID=r2-test-access",
+                    "AWS_SECRET_ACCESS_KEY=r2-test-secret",
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        self.runtime_env.chmod(0o600)
+        unique = f"{os.getpid()}-{secrets.randbelow(1_000_000_000)}"
+        self.compose_source = Path(f"/tmp/imsweb-preview-compose-{unique}.yaml")
+        self.compose_override_source = Path(
+            f"/tmp/imsweb-preview-override-{unique}.yaml"
+        )
+        self.compose_source.write_bytes(COMPOSE.read_bytes())
+        self.compose_override_source.write_bytes(PREVIEW_COMPOSE.read_bytes())
+
+    def tearDown(self):
+        self.compose_source.unlink(missing_ok=True)
+        self.compose_override_source.unlink(missing_ok=True)
+        self.temporary.cleanup()
+
+    def environment(self, *, fail_image: str = "") -> dict[str, str]:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PATH": f"{self.bin_dir}:{environment['PATH']}",
+                "HOME": str(self.home),
+                "IMS_DEPLOY_PROBE_ATTEMPTS": "1",
+                "IMS_DEPLOY_PROBE_DELAY_SECONDS": "0",
+                "FAKE_CONTAINER_LOG": str(self.container_log),
+                "FAKE_CONTAINER_ROOT": str(self.container_root),
+                "FAKE_CURL_LOG": str(self.curl_log),
+                "FAKE_FAIL_CONTAINER_INFO": "",
+                "FAKE_FAIL_IMAGE": fail_image,
+            }
+        )
+        return environment
+
+    def deploy(
+        self,
+        commit: str,
+        image: str,
+        *,
+        deploy_root: Path | None = None,
+        fail_image: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        target_root = deploy_root or self.deploy_root
+        return subprocess.run(
+            (
+                "bash",
+                str(PREVIEW_DEPLOY_SCRIPT),
+                f"preview-{commit[:12]}",
+                commit,
+                image,
+                str(self.compose_source),
+                str(target_root),
+                str(self.compose_override_source),
+            ),
+            cwd=PROJECT_ROOT,
+            env=self.environment(fail_image=fail_image),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_successful_preview_deployment_records_digest_and_current_release(self):
+        commit = "1" * 40
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+        result = self.deploy(commit, image)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        current = self.deploy_root / "current"
+        self.assertTrue(current.is_symlink())
+        self.assertEqual(
+            current.resolve(),
+            (self.deploy_root / f"releases/preview-{commit[:12]}").resolve(),
+        )
+        metadata = (current / "metadata").read_text(encoding="utf-8")
+        self.assertIn(f"commit={commit}", metadata)
+        self.assertIn(f"image={image}", metadata)
+        records = list((self.deploy_root / "deployments").glob("*.json"))
+        self.assertEqual(len(records), 1)
+        self.assertIn(image, records[0].read_text(encoding="utf-8"))
+        command_log = self.container_log.read_text(encoding="utf-8")
+        self.assertIn("--project-name imsweb-preview", command_log)
+        self.assertIn("up -d --no-build", command_log)
+        self.assertIn("--profile local-cache", command_log)
+        self.assertNotIn("local-storage", command_log)
+        self.assertNotIn("--build", command_log)
+        self.assertIn("Preview deployment completed.\n", result.stdout)
+
+    def test_failed_candidate_restores_previous_preview_image(self):
+        first_commit = "1" * 40
+        second_commit = "2" * 40
+        first_image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+        second_image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'b' * 64}"
+        first = self.deploy(first_commit, first_image)
+        self.assertEqual(first.returncode, 0, first.stderr)
+
+        second = self.deploy(second_commit, second_image, fail_image=second_image)
+
+        self.assertNotEqual(second.returncode, 0)
+        self.assertIn("Restoring previous preview release", second.stderr)
+        self.assertEqual(
+            (self.deploy_root / "current").resolve(),
+            (self.deploy_root / f"releases/preview-{first_commit[:12]}").resolve(),
+        )
+        command_log = self.container_log.read_text(encoding="utf-8")
+        self.assertIn(second_image, command_log)
+        self.assertIn(first_image, command_log)
+
+    def test_preview_environment_must_not_be_group_readable(self):
+        self.runtime_env.chmod(0o640)
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+        result = self.deploy("1" * 40, image)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "must not be readable or writable by group or others",
+            result.stderr,
+        )
+
+    def test_preview_deploy_root_must_stay_under_user_home(self):
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+        result = self.deploy("1" * 40, image, deploy_root=self.root / "outside")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must stay under the deployment user's home", result.stderr)
+
+    def test_preview_object_storage_must_target_a_bucket_with_a_test_segment(self):
+        lines = self.runtime_env.read_text(encoding="utf-8").splitlines()
+        lines = [
+            "IMS_S3_BUCKET=imsweb-media-public-prod" if line.startswith("IMS_S3_BUCKET=") else line
+            for line in lines
+        ]
+        self.runtime_env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+        result = self.deploy("1" * 40, image)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must include a distinct test segment", result.stderr)
+
+    def test_preview_object_storage_must_use_an_r2_endpoint(self):
+        lines = self.runtime_env.read_text(encoding="utf-8").splitlines()
+        lines = [
+            "IMS_S3_ENDPOINT=http://rustfs:9000" if line.startswith("IMS_S3_ENDPOINT=") else line
+            for line in lines
+        ]
+        self.runtime_env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+        result = self.deploy("1" * 40, image)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "must be a credential-free Cloudflare R2 HTTPS S3 API endpoint",
+            result.stderr,
+        )
+
+    def test_preview_object_storage_rejects_path_style_and_non_auto_region(self):
+        for bad_line, message in (
+            ("IMS_S3_FORCE_PATH_STYLE=true", "must be false for the R2 test bucket"),
+            ("IMS_S3_REGION=us-east-1", "must be auto for the R2 test bucket"),
+        ):
+            with self.subTest(bad_line=bad_line):
+                key = bad_line.split("=", 1)[0]
+                lines = self.runtime_env.read_text(encoding="utf-8").splitlines()
+                lines = [bad_line if line.startswith(f"{key}=") else line for line in lines]
+                self.runtime_env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+                result = self.deploy("1" * 40, image)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
 
 
 class ComposeReleaseDeploymentTests(unittest.TestCase):
