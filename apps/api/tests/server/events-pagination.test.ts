@@ -355,6 +355,26 @@ test('event updates require the expected current image reference', async (t) => 
     assert.equal(await fixture.references('/uploads/events/new.webp'), 2);
 });
 
+test('event list responses preserve a title with legacy leading or trailing whitespace verbatim', async (t) => {
+    const fixture = await createFixture(t, 0);
+    const legacyTitle = '\u3010Legacy Notice\u3011\r\nLine one\r\nLine two\r\n';
+    await fixture.insert(legacyTitle);
+
+    const cursorBody = await assertRawJsonConforms(
+        await fixture.request('/api/events?limit=20'),
+        200,
+        eventPageSchema
+    );
+    assert.equal(cursorBody.items[0]?.title, legacyTitle);
+
+    const legacyBody = await assertRawJsonConforms(
+        await fixture.request('/api/events'),
+        200,
+        eventLegacyPageSchema
+    );
+    assert.equal(legacyBody.list[0]?.title, legacyTitle);
+});
+
 test('events mounted JSON routes preserve shared schemas and project query and multipart extras', async (t) => {
     const fixture = await createFixture(t, 1);
     const auth = { Authorization: `Bearer ${fixture.opToken}` };
