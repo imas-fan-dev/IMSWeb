@@ -499,7 +499,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             'release_tag="app-preview-${platform}-${version_suffix}"',
             "needs.resolve.outputs.platform == 'ios'",
             "needs.resolve.outputs.platform == 'android'",
-            "runs-on: macos-14",
+            "runs-on: macos-26",
             "group: imsweb-preview-app-ios",
             "group: imsweb-preview-app-android",
             "cancel-in-progress: false",

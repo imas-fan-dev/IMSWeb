@@ -83,9 +83,10 @@ Xcode 和 `aarch64-apple-ios` Rust target；Android 需要 Java 17-21、Android 
 | 现象 | 原因与处理 |
 | -------------------------------------- | --------------------------------------------------------------------------- |
 | iOS 归档报 `IPHONEOS_DEPLOYMENT_TARGET` 超出范围 | 本机或 runner 的 Xcode 版本已提高最低支持的部署目标；`tauri.ios.conf.json` 的 `minimumSystemVersion` 需要相应上调 |
+| `xcodebuild` 报 `cannot be opened because it is in a future Xcode project file format` | Tauri 生成的 iOS 工程模板所用的 project 文件格式版本需要较新的 Xcode 才能打开；`build-ios` job 因此固定用 `runs-on: macos-26`（默认自带最新 Xcode），不要降级到更旧的 runner 镜像 |
 | Android APK 提示签名不一致，无法覆盖安装 | 预览签名密钥被重新生成过；用户需要先卸载旧版本再安装新版本 |
 | `--build-number` 或 Android `versionCode` 报超出范围 | 只应发生在系统时间被错误设置到基准时间之前；检查 runner/本机时钟 |
-| iOS 真机归档提示 Swift 符号未定义（`swift_rs` / `native-glass` 相关符号） | 已知的本地重复删除 `src-tauri/gen/apple` 后可能出现的构建缓存问题；在全新 checkout 上运行通常不会复现，复现时先清空 `src-tauri/target` 与 `src-tauri/gen/apple` 后重新构建 |
+| 本机重复清理/重建 `src-tauri/gen/apple` 后，iOS 真机归档提示 Swift 符号未定义（`swift_rs` / `native-glass` 相关符号） | 已确认为本机构建缓存问题，不是真实的代码/配置缺陷：在 `macos-26` runner 的全新 checkout 上多次验证未复现；本机复现时先清空 `src-tauri/target` 与 `src-tauri/gen/apple` 后重新构建 |
 
 改动触发方式、版本号规则或签名边界时，同一变更更新本文件并运行：
 

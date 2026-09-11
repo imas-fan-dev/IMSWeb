@@ -117,7 +117,11 @@ jobs:
     name: Build and publish iOS preview
     if: needs.resolve.outputs.platform == 'ios'
     needs: resolve
-    runs-on: macos-14
+    # Tauri's iOS Xcode project template targets a project file format
+    # (objectVersion 77) that only recent Xcode releases can even open;
+    # macos-14's newest bundled Xcode (16.2) rejects it as "a future Xcode
+    # project file format", so this job needs the newest-Xcode runner image.
+    runs-on: macos-26
     timeout-minutes: 60
     permissions:
       contents: write
