@@ -54,7 +54,7 @@ const USAGE = `用法: node scripts/app-device.js <命令> [选项]
   --open                      打开 Xcode 或 Android Studio 而不是直接运行
   --                          其后参数原样传给 Tauri CLI`
 
-function webWorkspaceRoot() {
+export function webWorkspaceRoot() {
   const currentDirectory = process.cwd()
   const candidates = [
     currentDirectory,
@@ -161,7 +161,7 @@ export function parseAppDeviceArguments(argv) {
   return options
 }
 
-function run(command, args, { cwd, env } = {}) {
+export function run(command, args, { cwd, env } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     env: env ?? process.env,
@@ -171,7 +171,7 @@ function run(command, args, { cwd, env } = {}) {
   return result.status ?? 1
 }
 
-function capture(command, args, { cwd, env } = {}) {
+export function capture(command, args, { cwd, env } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
@@ -187,11 +187,11 @@ function capture(command, args, { cwd, env } = {}) {
   }
 }
 
-function log(message) {
+export function log(message) {
   globalThis.console.log(message)
 }
 
-function readJsonFile(path) {
+export function readJsonFile(path) {
   // A bare SyntaxError names neither the file nor the field, which is useless
   // when two configs are read back to back.
   try {
@@ -201,7 +201,7 @@ function readJsonFile(path) {
   }
 }
 
-function tauriConfiguration(workspaceRoot) {
+export function tauriConfiguration(workspaceRoot) {
   const base = readJsonFile(join(workspaceRoot, "src-tauri/tauri.conf.json"))
   const android = readJsonFile(
     join(workspaceRoot, "src-tauri/tauri.android.conf.json")
@@ -233,7 +233,7 @@ export function newestPath(paths) {
     .at(-1).candidate
 }
 
-function walk(directory, predicate, depth = 6) {
+export function walk(directory, predicate, depth = 6) {
   if (depth < 0 || !existsSync(directory)) return []
   const found = []
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -442,7 +442,7 @@ export function androidBuildArguments({ tauriTarget, profile }) {
   return args
 }
 
-function ensurePlatformProject(workspaceRoot, platform, environment) {
+export function ensurePlatformProject(workspaceRoot, platform, environment) {
   const generated = join(
     workspaceRoot,
     platform === "ios" ? "src-tauri/gen/apple" : "src-tauri/gen/android"
@@ -456,7 +456,7 @@ function ensurePlatformProject(workspaceRoot, platform, environment) {
   if (status !== 0) throw new Error(`tauri ${platform} init 失败`)
 }
 
-function reportBuildOrigins(environment) {
+export function reportBuildOrigins(environment) {
   const build = appBuildEnvironment(environment)
   log(
     `打包 origin：API ${build.VITE_IMS_API_ORIGIN}，` +
@@ -548,8 +548,17 @@ function installOnIosDevice({ device, bundlePath, identifier, launch }) {
   return status
 }
 
-export function signApkLocally({ apkPath, buildTools, environment }) {
-  const keystore = join(environment.HOME ?? "", ".android/debug.keystore")
+export function signApkLocally({
+  apkPath,
+  buildTools,
+  environment,
+  keystore: keystorePath,
+  keystorePass = "android",
+  keyAlias = "androiddebugkey",
+  keyPass = keystorePass,
+}) {
+  const keystore =
+    keystorePath || join(environment.HOME ?? "", ".android/debug.keystore")
   if (!existsSync(keystore)) {
     throw new Error(
       "本地调试 keystore 不存在；先运行一次 Android debug 构建或用 keytool 生成"
@@ -572,11 +581,11 @@ export function signApkLocally({ apkPath, buildTools, environment }) {
     "--ks",
     keystore,
     "--ks-pass",
-    "pass:android",
+    `pass:${keystorePass}`,
     "--ks-key-alias",
-    "androiddebugkey",
+    keyAlias,
     "--key-pass",
-    "pass:android",
+    `pass:${keyPass}`,
     aligned,
   ])
   if (signed !== 0) throw new Error("apksigner 失败")
@@ -730,7 +739,7 @@ export function cleanIosBuildProducts(buildRoot, simulatorBuild) {
   }
 }
 
-function deviceArchivePath(buildRoot) {
+export function deviceArchivePath(buildRoot) {
   const ipaPath = newestPath(
     walk(buildRoot, (entryPath) => entryPath.endsWith(".ipa"))
   )

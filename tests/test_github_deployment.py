@@ -14,6 +14,11 @@ ROOT_PACKAGE = PROJECT_ROOT / "package.json"
 CI_WORKFLOW = PROJECT_ROOT / ".github/workflows/ci.yml"
 DEPLOY_WORKFLOW = PROJECT_ROOT / ".github/workflows/deploy.yml"
 PREVIEW_DEPLOY_WORKFLOW = PROJECT_ROOT / ".github/workflows/deploy-preview.yml"
+PREVIEW_APP_WORKFLOW = PROJECT_ROOT / ".github/workflows/release-preview-app.yml"
+APP_RELEASE_SCRIPT = PROJECT_ROOT / "apps/web/scripts/app-release.js"
+RENDER_PREVIEW_APP_NOTES_SCRIPT = (
+    PROJECT_ROOT / "scripts/deployment/render-preview-app-release-notes.sh"
+)
 DEPLOY_SCRIPT = PROJECT_ROOT / "scripts/deployment/deploy-compose-release.sh"
 PREVIEW_DEPLOY_SCRIPT = PROJECT_ROOT / "scripts/deployment/deploy-compose-preview.sh"
 AUTH_DEPLOY_SCRIPT = (
@@ -460,13 +465,97 @@ class GitHubWorkflowContractTests(unittest.TestCase):
     def test_external_actions_are_pinned_to_full_commit_shas(self):
         workflows = "\n".join(
             path.read_text(encoding="utf-8")
-            for path in (CI_WORKFLOW, DEPLOY_WORKFLOW, PREVIEW_DEPLOY_WORKFLOW)
+            for path in (
+                CI_WORKFLOW,
+                DEPLOY_WORKFLOW,
+                PREVIEW_DEPLOY_WORKFLOW,
+                PREVIEW_APP_WORKFLOW,
+            )
         )
         action_references = re.findall(r"uses:\s+[^@\s]+@([^\s]+)", workflows)
         self.assertGreater(len(action_references), 0)
         for reference in action_references:
             with self.subTest(reference=reference):
                 self.assertRegex(reference, r"^[0-9a-f]{40}$")
+
+    def test_preview_app_workflow_builds_platforms_independently_from_release_v1_1(self):
+        workflow = PREVIEW_APP_WORKFLOW.read_text(encoding="utf-8")
+
+        for token in (
+            '      - "app-preview-ios-*"',
+            '      - "app-preview-android-*"',
+            "workflow_dispatch:",
+            "confirm_preview_app_release:",
+            "type: choice",
+            "permissions:\n  contents: read",
+            "if: github.event_name == 'push' || inputs.confirm_preview_app_release",
+            'source_branch="release/v1.1"',
+            "app-preview-ios-*) platform=\"ios\" ;;",
+            "app-preview-android-*) platform=\"android\" ;;",
+            "git merge-base --is-ancestor",
+            "TZ='America/Los_Angeles' date +%Y%m%d%H%M",
+            "date -u -d '2026-01-01T00:00:00Z' +%s",
+            "build_number < 1 || build_number > 2100000000",
+            'release_tag="app-preview-${platform}-${version_suffix}"',
+            "needs.resolve.outputs.platform == 'ios'",
+            "needs.resolve.outputs.platform == 'android'",
+            "runs-on: macos-14",
+            "group: imsweb-preview-app-ios",
+            "group: imsweb-preview-app-android",
+            "cancel-in-progress: false",
+            "node scripts/app-release.js ios",
+            "node scripts/app-release.js android",
+            "VITE_IMS_API_ORIGIN: https://preview.idol-master.top",
+            "VITE_IMS_PUBLIC_SITE_ORIGIN: https://preview.idol-master.top",
+            "PREVIEW_ANDROID_KEYSTORE_BASE64: ${{ secrets.PREVIEW_ANDROID_KEYSTORE_BASE64 }}",
+            "name: preview",
+            "gh release create",
+            "--prerelease",
+            "render-preview-app-release-notes.sh",
+            CHECKOUT_ACTION,
+            NODE_SETUP_ACTION,
+            PNPM_SETUP_ACTION,
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, workflow)
+
+        # Both platform jobs need contents: write only to create the release
+        # tag; nothing else in the workflow should carry that permission.
+        self.assertEqual(workflow.count("contents: write"), 2)
+
+        jobs_text = workflow.split("\njobs:\n", maxsplit=1)[1]
+        job_matches = list(
+            re.finditer(r"^  ([a-z][a-z0-9-]*):\n", jobs_text, re.MULTILINE)
+        )
+        job_names = [match.group(1) for match in job_matches]
+        self.assertEqual(job_names, ["resolve", "build-ios", "build-android"])
+
+    def test_app_release_script_is_syntax_checked_and_documented(self):
+        package = ROOT_PACKAGE.read_text(encoding="utf-8")
+        self.assertIn("node --check apps/web/scripts/app-release.js", package)
+        self.assertIn(
+            "bash -n scripts/deployment/render-preview-app-release-notes.sh",
+            package,
+        )
+        self.assertTrue(APP_RELEASE_SCRIPT.is_file())
+        self.assertTrue(RENDER_PREVIEW_APP_NOTES_SCRIPT.is_file())
+        mode = RENDER_PREVIEW_APP_NOTES_SCRIPT.stat().st_mode
+        self.assertTrue(mode & stat.S_IXUSR, "release notes script must be executable")
+
+        notes = RENDER_PREVIEW_APP_NOTES_SCRIPT.read_text(encoding="utf-8")
+        for token in ("Sideloadly", "Apple ID", "未知来源", "7 天"):
+            with self.subTest(token=token):
+                self.assertIn(token, notes)
+
+        release_script = APP_RELEASE_SCRIPT.read_text(encoding="utf-8")
+        for token in (
+            "--no-sign",
+            "--build-number",
+            "bundle: { android: { versionCode: options.buildNumber } }",
+            "signApkLocally",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, release_script)
 
 
 class AuthenticatedDeploymentWrapperTests(unittest.TestCase):

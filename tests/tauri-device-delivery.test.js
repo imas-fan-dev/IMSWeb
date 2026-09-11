@@ -20,6 +20,9 @@ const appDeviceUrl = pathToFileURL(
 const appToolchainUrl = pathToFileURL(
   path.resolve(webRoot, "scripts/app-toolchain.js"),
 );
+const appReleaseUrl = pathToFileURL(
+  path.resolve(webRoot, "scripts/app-release.js"),
+);
 
 test("device delivery parses targets, profiles, and passthrough arguments", async () => {
   const { parseAppDeviceArguments } = await import(appDeviceUrl.href);
@@ -364,6 +367,134 @@ test("device delivery keeps one argument-driven entry per workspace", async () =
     rootPackage.scripts["test:infra"],
     /run-test-owner\.mjs delivery root/,
   );
+});
+
+test("app release parses platform, version suffix, build number, and signing options", async () => {
+  const { parseAppReleaseArguments, IOS_MAX_BUILD_NUMBER, ANDROID_MAX_VERSION_CODE } =
+    await import(appReleaseUrl.href);
+
+  const ios = parseAppReleaseArguments([
+    "ios",
+    "--version-suffix",
+    "202609111930",
+    "--build-number",
+    "400000",
+  ]);
+  assert.equal(ios.platform, "ios");
+  assert.equal(ios.versionSuffix, "202609111930");
+  assert.equal(ios.buildNumber, 400000);
+  assert.equal(ios.out, "dist/app-release");
+  // Android signing defaults mirror signApkLocally's own defaults so a
+  // caller who never sets --keystore-pass/--key-pass gets identical behavior.
+  assert.equal(ios.keystorePass, "android");
+  assert.equal(ios.keyAlias, "androiddebugkey");
+  assert.equal(ios.keyPass, "android");
+
+  const android = parseAppReleaseArguments([
+    "android",
+    "--version-suffix",
+    "202609111930",
+    "--build-number",
+    "365760",
+    "--out",
+    "custom-out",
+    "--keystore",
+    "/tmp/preview.keystore",
+    "--keystore-pass",
+    "secret",
+    "--key-alias",
+    "previewkey",
+  ]);
+  assert.equal(android.out, "custom-out");
+  assert.equal(android.keystore, "/tmp/preview.keystore");
+  assert.equal(android.keystorePass, "secret");
+  assert.equal(android.keyAlias, "previewkey");
+  // --key-pass falls back to --keystore-pass when omitted.
+  assert.equal(android.keyPass, "secret");
+
+  assert.throws(
+    () => parseAppReleaseArguments(["windows"]),
+    /ios 或 android/,
+  );
+  assert.throws(
+    () => parseAppReleaseArguments(["ios", "--build-number", "1"]),
+    /--version-suffix/,
+  );
+  assert.throws(
+    () =>
+      parseAppReleaseArguments(["ios", "--version-suffix", "x", "--build-number", "0"]),
+    /--build-number/,
+  );
+  assert.throws(
+    () =>
+      parseAppReleaseArguments([
+        "ios",
+        "--version-suffix",
+        "x",
+        "--build-number",
+        String(IOS_MAX_BUILD_NUMBER + 1),
+      ]),
+    /--build-number/,
+  );
+  // Android versionCode has a lower ceiling than the iOS u32 build number.
+  assert.throws(
+    () =>
+      parseAppReleaseArguments([
+        "android",
+        "--version-suffix",
+        "x",
+        "--build-number",
+        String(ANDROID_MAX_VERSION_CODE + 1),
+      ]),
+    /Android --build-number/,
+  );
+
+  assert.equal(parseAppReleaseArguments([]).help, true);
+  assert.equal(parseAppReleaseArguments(["--help"]).help, true);
+});
+
+test("app release derives a semver-safe preview version from the base version", async () => {
+  const { basePreviewVersion, previewVersion } = await import(
+    appReleaseUrl.href
+  );
+
+  assert.equal(basePreviewVersion("0.1.0"), "0.1.0");
+  // Re-running against an already-suffixed version (a stale local override)
+  // must not nest a second -preview.<suffix> tag.
+  assert.equal(basePreviewVersion("0.1.0-preview.202609111930"), "0.1.0");
+  assert.throws(() => basePreviewVersion("not-a-version"), /semver/);
+
+  assert.equal(
+    previewVersion("0.1.0", "202609111930"),
+    "0.1.0-preview.202609111930",
+  );
+  assert.equal(
+    previewVersion("0.1.0-preview.202608010000", "202609111930"),
+    "0.1.0-preview.202609111930",
+  );
+});
+
+test("preview app release documentation is registered and linked", async () => {
+  const documentPath = "docs/operations/preview-app-release.md";
+  const document = await readFile(
+    path.resolve(projectRoot, documentPath),
+    "utf8",
+  );
+
+  assert.match(document, /^# .+/m);
+  assert.match(document, /^> 文档类型：运维/m);
+  assert.match(document, /^> 状态：Active/m);
+  assert.match(document, /^> 权威来源：/m);
+  assert.match(document, /app-preview-ios-\*/);
+  assert.match(document, /app-preview-android-\*/);
+  assert.match(document, /--no-sign/);
+  assert.match(document, /PREVIEW_ANDROID_KEYSTORE_BASE64/);
+
+  const index = await readFile(
+    path.resolve(projectRoot, "docs/README.md"),
+    "utf8",
+  );
+  assert.ok(index.includes("operations/preview-app-release.md"));
 });
 
 test("device delivery documentation is registered and linked", async () => {

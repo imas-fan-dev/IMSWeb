@@ -68,7 +68,9 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
       androidTauriConfig.bundle.android.debugApplicationIdSuffix,
       ".debug",
     );
-    assert.equal(iosTauriConfig.bundle.iOS.minimumSystemVersion, "14.0");
+    // Xcode has raised its own minimum supported deployment target over
+    // time; 15.0 is the floor current toolchains (local and CI) still build.
+    assert.equal(iosTauriConfig.bundle.iOS.minimumSystemVersion, "15.0");
 
     const capability = JSON.parse(
       await readFile(`${webRoot}/src-tauri/capabilities/default.json`, "utf8"),
