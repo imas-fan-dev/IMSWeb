@@ -68,15 +68,61 @@ const DIAL_TRIGGER_BOTTOM = {
 const CAROUSEL_CENTER_ANGLE = 45
 const CAROUSEL_SLOT_ANGLE = 37
 const CAROUSEL_SLOT_ANGLE_RADIANS = (CAROUSEL_SLOT_ANGLE * Math.PI) / 180
-const CAROUSEL_ORBIT_RADIUS = "clamp(6.8rem, 36vw, 8.6rem)"
-const CAROUSEL_ORBIT_DIAMETER = "clamp(13.6rem, 72vw, 17.2rem)"
+/**
+ * The wheel scales from one box: the ring radius, the option diameter, the hub
+ * and the direction hint are all fractions of it, so a wider box means a wider
+ * wheel rather than options stranded on a ring that outgrew them. A shell only
+ * picks how much room its box may claim and how large one option starts out.
+ */
+const DIAL_BOX_SIZE = {
+  web: "min(92vw, calc(100dvh - 6rem), 22rem)",
+  // The box is centred on a trigger pinned to the bottom-left corner, so it
+  // overflows the left screen edge by design and only vertical room limits it.
+  app: "min(calc(var(--app-viewport-height) - var(--app-bottom-clearance) - 2rem), 25rem)",
+}
+const DIAL_OPTION_SIZE = {
+  web: "3rem",
+  // The App dial opens over the page instead of inside it, so its options are
+  // large enough to hit without aiming.
+  app: "4rem",
+}
+/** Ring radius as a fraction of the box; 0.39 keeps the shipped web ring. */
+const DIAL_ORBIT_RADIUS_RATIO = 0.39
+/**
+ * Option diameter as a fraction of that radius. Neighbouring slots sit 37
+ * degrees apart, so options may not exceed `2 * sin(18.5deg)` of the radius
+ * (0.635) or they collide; 0.6 leaves the gap between them visible.
+ */
+const DIAL_OPTION_RADIUS_RATIO = 0.6
+/** Hub icon as a fraction of the hub; 0.67 keeps the shipped web icon. */
+const DIAL_HUB_ICON_RATIO = 0.67
+/** Direction hint diameter as a fraction of the box; 0.4545 keeps the web size. */
+const DIAL_DIRECTION_SIZE_RATIO = 0.4545
+
+/**
+ * The geometry every part of the wheel reads, so a shell cannot resize its
+ * options without resizing the ring they sit on. `IS_APP_TARGET` is inlined by
+ * Vite, so the web bundle drops the App branch.
+ */
+function dialSizeTokens(isAppShell: boolean): CSSProperties {
+  return {
+    "--wiki-dial-box-size": isAppShell ? DIAL_BOX_SIZE.app : DIAL_BOX_SIZE.web,
+    "--wiki-dial-orbit-radius": `calc(var(--wiki-dial-box-size) * ${DIAL_ORBIT_RADIUS_RATIO})`,
+    "--wiki-dial-option-size": `min(${isAppShell ? DIAL_OPTION_SIZE.app : DIAL_OPTION_SIZE.web}, calc(var(--wiki-dial-orbit-radius) * ${DIAL_OPTION_RADIUS_RATIO}))`,
+    "--wiki-dial-hub-size": "var(--wiki-dial-option-size)",
+    "--wiki-dial-hub-icon-size": `calc(var(--wiki-dial-hub-size) * ${DIAL_HUB_ICON_RATIO})`,
+    "--wiki-dial-direction-size": `calc(var(--wiki-dial-box-size) * ${DIAL_DIRECTION_SIZE_RATIO})`,
+  } as CSSProperties
+}
+
 /** Path length that turns a press into a drag instead of a click. */
 const CAROUSEL_DRAG_THRESHOLD = 6
 /**
  * Floor for how tightly a pointer turn is measured, in CSS pixels: the ring
  * never turns further than a finger sliding along its smallest orbit would turn
- * it, so a pointer that strays close to the hub cannot spin the wheel away.
- * The `6.8rem` in `CAROUSEL_ORBIT_RADIUS` is that smallest orbit at a 16px root.
+ * it, so a pointer that strays close to the hub cannot spin the wheel away. The
+ * smallest web box (a 296px viewport) puts the ring at 6.8rem, which is the
+ * floor every larger orbit already stays under.
  */
 const CAROUSEL_MIN_TURN_RADIUS = 108.8
 const CAROUSEL_INERTIA_FRICTION = 0.0075
@@ -524,9 +570,8 @@ function InteractiveWikiAgencyDial({
           data-wiki-agency-dial-position={carouselPosition.toFixed(3)}
           className="relative aspect-square cursor-grab touch-none overflow-visible rounded-full border border-foreground/15 bg-background/96 shadow-2xl outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing"
           style={{
-            width: clearsAppTabBar
-              ? "min(calc(var(--safe-viewport-width) - 2rem), calc(var(--app-viewport-height) - var(--app-bottom-clearance) - 2rem), 22rem)"
-              : "min(92vw, calc(100dvh - 6rem), 22rem)",
+            ...dialSizeTokens(IS_APP_TARGET),
+            width: "var(--wiki-dial-box-size)",
             borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
             boxShadow: `0 22px 60px color-mix(in srgb, ${accent} 24%, rgb(0 0 0 / 0.28))`,
           }}
@@ -540,8 +585,8 @@ function InteractiveWikiAgencyDial({
             data-wiki-agency-dial-orbit
             className="pointer-events-none absolute top-1/2 left-1/2 -translate-1/2 rounded-full border border-dashed border-foreground/14"
             style={{
-              width: CAROUSEL_ORBIT_DIAMETER,
-              height: CAROUSEL_ORBIT_DIAMETER,
+              width: "calc(var(--wiki-dial-orbit-radius) * 2)",
+              height: "calc(var(--wiki-dial-orbit-radius) * 2)",
             }}
             aria-hidden="true"
           />
@@ -595,7 +640,7 @@ function InteractiveWikiAgencyDial({
                       {
                         "--wiki-dial-angle": `${angle}deg`,
                         "--wiki-dial-delay": `${110 + slotIndex * 52}ms`,
-                        transform: `rotate(${angle}deg) translateY(calc(-1 * ${CAROUSEL_ORBIT_RADIUS}))`,
+                        transform: `rotate(${angle}deg) translateY(calc(-1 * var(--wiki-dial-orbit-radius)))`,
                       } as CSSProperties
                     }
                   >
@@ -609,7 +654,7 @@ function InteractiveWikiAgencyDial({
                         aria-pressed={isSelected}
                         data-wiki-agency-selected={isSelected || undefined}
                         data-wiki-agency-preview={isPreview || undefined}
-                        className="absolute flex size-12 items-center justify-center overflow-hidden rounded-full border-2 bg-background p-1 shadow-md transition-[transform,border-color,box-shadow] duration-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+                        className="absolute flex size-(--wiki-dial-option-size) items-center justify-center overflow-hidden rounded-full border-2 bg-background p-1 shadow-md transition-[transform,border-color,box-shadow] duration-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
                         style={{
                           borderColor: isSelected
                             ? agencyAccent
@@ -647,7 +692,7 @@ function InteractiveWikiAgencyDial({
             type="button"
             aria-label={`切换到${previewAgency.name}`}
             data-wiki-agency-dial-center
-            className="absolute top-1/2 left-1/2 z-10 flex size-12 -translate-1/2 items-center justify-center overflow-hidden rounded-full border border-foreground/15 bg-background/95 p-1 shadow-lg backdrop-blur-md transition-[box-shadow,scale] duration-300 outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95 motion-reduce:transition-none"
+            className="absolute top-1/2 left-1/2 z-10 flex size-(--wiki-dial-hub-size) -translate-1/2 items-center justify-center overflow-hidden rounded-full border border-foreground/15 bg-background/95 p-1 shadow-lg backdrop-blur-md transition-[box-shadow,scale] duration-300 outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95 motion-reduce:transition-none"
             style={{
               color: accent,
               boxShadow: "0 8px 24px rgb(0 0 0 / 0.14)",
@@ -660,11 +705,11 @@ function InteractiveWikiAgencyDial({
                 alt=""
                 draggable={false}
                 transform={previewAgency.imageTransform}
-                className="size-8 bg-transparent object-contain p-1"
+                className="size-(--wiki-dial-hub-icon-size) bg-transparent object-contain p-1"
               />
             ) : (
               <OrbitIcon
-                className="size-5"
+                className="size-(--wiki-dial-hub-icon-size) p-1"
                 style={{ color: accent }}
                 aria-hidden="true"
               />

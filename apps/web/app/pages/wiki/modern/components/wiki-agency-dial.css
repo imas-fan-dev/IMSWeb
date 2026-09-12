@@ -31,6 +31,9 @@
   }
 }
 
+/* The ring, the hub and this hint all read the geometry tokens that the
+   component writes onto the dial box, so a shell cannot resize the options
+   without resizing the animation that carries them out to the ring. */
 @keyframes wiki-agency-dial-item-in {
   0% {
     opacity: 0;
@@ -40,13 +43,13 @@
   66% {
     opacity: 1;
     transform: rotate(var(--wiki-dial-angle))
-      translateY(calc(-1 * clamp(6.8rem, 36vw, 8.6rem) - 0.4rem)) scale(1.06);
+      translateY(calc(-1 * var(--wiki-dial-orbit-radius) - 0.4rem)) scale(1.06);
   }
 
   100% {
     opacity: 1;
     transform: rotate(var(--wiki-dial-angle))
-      translateY(calc(-1 * clamp(6.8rem, 36vw, 8.6rem))) scale(1);
+      translateY(calc(-1 * var(--wiki-dial-orbit-radius))) scale(1);
   }
 }
 
@@ -72,7 +75,7 @@
   top: 50%;
   left: 50%;
   z-index: 10;
-  width: clamp(7.5rem, 42vw, 10rem);
+  width: var(--wiki-dial-direction-size);
   aspect-ratio: 1;
   color: color-mix(in srgb, var(--foreground) 34%, transparent);
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 10%));
