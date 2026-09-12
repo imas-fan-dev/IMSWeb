@@ -53,6 +53,7 @@ import {
   updateWikiStorySourcePlatform,
 } from "~/lib/api"
 import type { WikiStoryContentType, WikiStorySourcePlatform } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type CatalogKind = "content-type" | "source-platform"
 type CatalogOption = WikiStoryContentType | WikiStorySourcePlatform
@@ -441,7 +442,7 @@ function CatalogPanel<Option extends CatalogOption>({
                 </p>
               ) : null}
               {"homepageUrl" in option && option.homepageUrl ? (
-                <a
+                <NavigationLink
                   href={option.homepageUrl}
                   target="_blank"
                   rel="noreferrer"
@@ -449,7 +450,7 @@ function CatalogPanel<Option extends CatalogOption>({
                 >
                   平台主页
                   <ExternalLinkIcon className="size-3" />
-                </a>
+                </NavigationLink>
               ) : null}
             </div>
             <div className="flex justify-end">

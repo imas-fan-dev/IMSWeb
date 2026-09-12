@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "geolocation",
+  "description": "Allows the mobile app to check and request location permission and read one current position",
+  "windows": ["main"],
+  "platforms": ["iOS", "android"],
+  "permissions": [
+    "geolocation:allow-check-permissions",
+    "geolocation:allow-request-permissions",
+    "geolocation:allow-get-current-position"
+  ]
+}

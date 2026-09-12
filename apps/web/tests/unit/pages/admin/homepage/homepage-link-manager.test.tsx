@@ -1,8 +1,17 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { HomepageLinkManager } from "~/pages/admin/homepage/index"
+
+function renderManager() {
+  return render(
+    <MemoryRouter>
+      <HomepageLinkManager />
+    </MemoryRouter>
+  )
+}
 
 function jsonResponse(payload: unknown) {
   return new Response(JSON.stringify(payload), {
@@ -60,7 +69,7 @@ describe("HomepageLinkManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<HomepageLinkManager />)
+    renderManager()
 
     expect(await screen.findByText("活动中心")).toBeVisible()
     expect(
@@ -90,7 +99,7 @@ describe("HomepageLinkManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<HomepageLinkManager />)
+    renderManager()
 
     expect(await screen.findByText("活动中心")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "添加链接" }))
@@ -139,7 +148,7 @@ describe("HomepageLinkManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<HomepageLinkManager />)
+    renderManager()
 
     expect(await screen.findByText("活动中心")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "添加链接" }))
@@ -205,7 +214,7 @@ describe("HomepageLinkManager", () => {
     )
     const user = userEvent.setup()
 
-    render(<HomepageLinkManager />)
+    renderManager()
 
     expect(await screen.findByText("活动中心")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "添加链接" }))

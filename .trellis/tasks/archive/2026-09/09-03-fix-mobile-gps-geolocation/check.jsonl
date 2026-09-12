@@ -1,0 +1,4 @@
+{"file":".trellis/spec/web/frontend/index.md","reason":"Verify Web workspace format, lint, typecheck, test, and build gates"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Verify native adapter, component, browser fallback, and accessibility coverage"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify the JavaScript, Rust, capability, platform metadata, and release artifact chain together"}
+{"file":".trellis/tasks/09-03-fix-mobile-gps-geolocation/research/geolocation.md","reason":"Check implementation against the official permission and timeout behavior"}

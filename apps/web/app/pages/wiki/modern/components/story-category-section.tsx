@@ -28,6 +28,7 @@ import {
   storyCardColumns,
   storyCardGap,
 } from "~/pages/wiki/wiki-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function StoryCategorySection({
   category,
@@ -168,7 +169,7 @@ export function StoryCategorySection({
                 const href = safeExternalStoryUrl(link.url)
                 const label = link.title || "查看剧情"
                 return href ? (
-                  <a
+                  <NavigationLink
                     key={link.id}
                     href={href}
                     target="_blank"
@@ -193,7 +194,7 @@ export function StoryCategorySection({
                       </span>
                     </span>
                     <ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground group-hover/link:text-foreground" />
-                  </a>
+                  </NavigationLink>
                 ) : (
                   <div
                     key={link.id}

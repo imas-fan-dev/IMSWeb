@@ -12,8 +12,10 @@ type FeedState = {
   items: Recommendation[]
   pageInfo: RecommendationPage["pageInfo"]
   loadingMore: boolean
+  refreshing: boolean
   error: string | null
   loadMoreError: string | null
+  refreshError: string | null
 }
 
 const emptyPageInfo: RecommendationPage["pageInfo"] = {
@@ -27,8 +29,10 @@ const initialState: FeedState = {
   items: [],
   pageInfo: emptyPageInfo,
   loadingMore: false,
+  refreshing: false,
   error: null,
   loadMoreError: null,
+  refreshError: null,
 }
 
 function deduplicateRecommendations(
@@ -62,6 +66,7 @@ export function useRecommendationsFeed() {
       loadingMore: false,
       error: null,
       loadMoreError: null,
+      refreshError: null,
     }))
 
     try {
@@ -74,8 +79,10 @@ export function useRecommendationsFeed() {
         items,
         pageInfo: result.pageInfo,
         loadingMore: false,
+        refreshing: false,
         error: null,
         loadMoreError: null,
+        refreshError: null,
       })
     } catch (error) {
       setState({
@@ -133,11 +140,54 @@ export function useRecommendationsFeed() {
     }
   }, [state.items, state.loadingMore, state.pageInfo])
 
+  /**
+   * Re-reads the first page without tearing the list down.
+   *
+   * `loadFirstPage` swaps the whole list for the skeleton, which is right for a
+   * cold open and wrong for a refresh: a pull gesture would make the content
+   * the user is looking at disappear under their finger. So this keeps the
+   * current rows on screen and only replaces them once the response lands.
+   */
   const refresh = useCallback(async () => {
     if (requestInFlight.current) return
-    await loadFirstPage(true)
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }, [loadFirstPage])
+    requestInFlight.current = true
+    setState((current) => ({
+      ...current,
+      refreshing: true,
+      loadingMore: false,
+      loadMoreError: null,
+      refreshError: null,
+    }))
+
+    try {
+      const result = await getRecommendationPage({ limit: pageSize }).send(true)
+      setState({
+        phase: "ready",
+        items: deduplicateRecommendations([], result.items),
+        pageInfo: result.pageInfo,
+        loadingMore: false,
+        refreshing: false,
+        error: null,
+        loadMoreError: null,
+        refreshError: null,
+      })
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    } catch (error) {
+      // A failed refresh must not discard rows that are still perfectly good;
+      // only a page with nothing to fall back on drops into the error state.
+      setState((current) =>
+        current.items.length
+          ? {
+              ...current,
+              refreshing: false,
+              refreshError: errorMessage(error),
+            }
+          : { ...initialState, phase: "error", error: errorMessage(error) }
+      )
+    } finally {
+      requestInFlight.current = false
+    }
+  }, [])
 
   useEffect(() => {
     void loadFirstPage()

@@ -1,0 +1,2 @@
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"遵循桌面 travelling lens 的组件归属、几何约束和禁止裁切规则"}
+{"file":".trellis/tasks/09-03-fix-liquid-glass-overflow-followup/research/overflow-analysis.md","reason":"使用已确认的横向溢出根因、12% inset 计算和实现边界"}

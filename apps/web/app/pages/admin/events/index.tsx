@@ -1,585 +1,599 @@
 import {
-  CalendarDaysIcon,
-  FileImageIcon,
-  ImageUpIcon,
+  CheckCircle2Icon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ExternalLinkIcon,
+  FilePenLineIcon,
+  FileTextIcon,
+  FilterIcon,
+  ImageIcon,
   LoaderCircleIcon,
-  PencilIcon,
   PlusIcon,
-  RefreshCwIcon,
-  Trash2Icon,
+  SearchIcon,
+  StarIcon,
+  XIcon,
 } from "lucide-react"
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react"
-import { useTranslation } from "react-i18next"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import {
   AdminEmptyState,
-  AdminField,
   AdminPageHeader,
   AdminPanel,
   adminControlClass,
 } from "~/components/admin/admin-ui"
-import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
-import { FileUploadControl } from "~/components/shared/file-upload-control"
+import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
+import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog"
-import { Skeleton } from "~/components/ui/skeleton"
+import { Input } from "~/components/ui/input"
 import { adminErrorMessage } from "~/lib/admin-error"
 import {
-  createAdminEvent,
-  deleteAdminEvent,
-  getEventPage,
-  updateAdminEvent,
-  type EventListItem,
+  getAdminCommunityPosts,
+  getAdminCommunitySpotlight,
+  replaceAdminCommunitySpotlight,
+  type CommunitySpotlightEntry,
+  type EditorialArticle,
 } from "~/lib/api"
-import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
+
+type Tab = "articles" | "spotlight"
+type ArticleStatusFilter = "all" | EditorialArticle["status"]
+type ArticleKindFilter = "all" | "event" | "notice"
+
+const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : null
+}
+
+function formatDate(value: unknown) {
+  const source = stringValue(value)
+  if (!source) return "尚未发布"
+  const date = new Date(source)
+  return Number.isNaN(date.valueOf()) ? source : dateFormatter.format(date)
+}
+
+function statusLabel(status: EditorialArticle["status"]) {
+  return status === "published"
+    ? "已发布"
+    : status === "archived"
+      ? "已归档"
+      : "草稿"
+}
+
+function kindLabel(kind?: EditorialArticle["kind"]) {
+  return kind === "event" ? "具体活动" : "普通文章"
+}
+
+function hasArticleBody(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasArticleBody)
+  if (!value || typeof value !== "object") return false
+  const node = value as Record<string, unknown>
+  if (node.type === "image") return true
+  if (node.type === "text" && typeof node.text === "string" && node.text.trim())
+    return true
+  return Object.values(node).some(hasArticleBody)
+}
+
+function articleReadiness(post: EditorialArticle) {
+  if (hasArticleBody(post.body_json))
+    return { label: "正文已就绪", warning: false }
+  if (post.source_url) return { label: "外链文章", warning: false }
+  return { label: "待补全正文", warning: true }
+}
 
 export function meta() {
-  return [{ title: "活动管理 | IMSWeb" }]
-}
-
-type EventDraft = {
-  title: string
-  name: string
-  contact: string
-}
-
-const emptyDraft: EventDraft = { title: "", name: "", contact: "" }
-const maxEventImageBytes = 3 * 1024 * 1024
-const eventsLimit = 20
-
-async function loadEvents(cursor?: string | null) {
-  return getEventPage({
-    limit: eventsLimit,
-    cursor: cursor ?? undefined,
-  }).send(true)
-}
-
-function mergeEvents(first: EventListItem[], existing: EventListItem[]) {
-  const ids = new Set(first.map((item) => item.id))
-  return [...first, ...existing.filter((item) => !ids.has(item.id))]
-}
-
-function newIdempotencyKey() {
-  return crypto.randomUUID()
-}
-
-function validateImage(file: File | null, required: boolean): string | null {
-  if (!file) return required ? "必须选择一张活动图片" : null
-  if (!file.type.startsWith("image/") || file.size > maxEventImageBytes) {
-    return "请选择不超过 3 MiB 的图片"
-  }
-  return null
+  return [{ title: "文章管理 | IMSWeb" }]
 }
 
 export default function AdminEventsPage() {
-  const { t } = useTranslation()
-  const [events, setEvents] = useState<EventListItem[]>([])
+  const [tab, setTab] = useState<Tab>("articles")
+  const [posts, setPosts] = useState<EditorialArticle[]>([])
+  const [spotlight, setSpotlight] = useState<CommunitySpotlightEntry[]>([])
+  const [query, setQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<ArticleStatusFilter>("all")
+  const [kindFilter, setKindFilter] = useState<ArticleKindFilter>("all")
   const [loading, setLoading] = useState(true)
+  const [savingSpotlight, setSavingSpotlight] = useState(false)
   const [error, setError] = useState(false)
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [editingEvent, setEditingEvent] = useState<EventListItem | null>(null)
-  const [draft, setDraft] = useState<EventDraft>(emptyDraft)
-  const [saving, setSaving] = useState(false)
-  const [eventImage, setEventImage] = useState<File | null>(null)
-  const listFocusRef = useRef<HTMLDivElement>(null)
-  const requestGenerationRef = useRef(0)
-  const loadingMoreRef = useRef(false)
-  const idempotencyKeyRef = useRef(newIdempotencyKey())
 
   const refresh = useCallback(async () => {
-    const generation = ++requestGenerationRef.current
-    loadingMoreRef.current = false
     setLoading(true)
-    setLoadingMore(false)
     setError(false)
     try {
-      const page = await loadEvents()
-      if (generation !== requestGenerationRef.current) return false
-      setEvents(page.items)
-      setNextCursor(page.pageInfo.nextCursor)
-      setHasMore(page.pageInfo.hasNextPage)
-      return true
-    } catch {
-      if (generation !== requestGenerationRef.current) return false
+      const [postResult, spotlightResult] = await Promise.all([
+        getAdminCommunityPosts().send(),
+        getAdminCommunitySpotlight().send(),
+      ])
+      setPosts(postResult.items)
+      setSpotlight(spotlightResult.items)
+    } catch (reason) {
       setError(true)
-      return false
+      toast.error(adminErrorMessage(reason))
     } finally {
-      if (generation === requestGenerationRef.current) setLoading(false)
+      setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    const refreshTimer = window.setTimeout(() => void refresh(), 0)
-    return () => {
-      window.clearTimeout(refreshTimer)
-      requestGenerationRef.current += 1
-      loadingMoreRef.current = false
-    }
+    void Promise.resolve().then(refresh)
   }, [refresh])
 
-  async function loadMore() {
-    if (!nextCursor || loadingMoreRef.current) return
-    const generation = requestGenerationRef.current
-    loadingMoreRef.current = true
-    setLoadingMore(true)
-    try {
-      const page = await loadEvents(nextCursor)
-      if (generation !== requestGenerationRef.current) return
-      setEvents((current) => mergeEvents(current, page.items))
-      setNextCursor(page.pageInfo.nextCursor)
-      setHasMore(page.pageInfo.hasNextPage)
-    } catch {
-      if (generation === requestGenerationRef.current) {
-        toast.error("加载更多活动失败")
-      }
-    } finally {
-      if (generation === requestGenerationRef.current) {
-        loadingMoreRef.current = false
-        setLoadingMore(false)
-      }
-    }
-  }
-
-  function changeEditorOpen(open: boolean) {
-    if (!open && saving) return
-    setEditorOpen(open)
-    if (!open) {
-      setEditingEvent(null)
-      setDraft(emptyDraft)
-      setEventImage(null)
-    }
-  }
-
-  function createEvent() {
-    idempotencyKeyRef.current = newIdempotencyKey()
-    setEditingEvent(null)
-    setDraft(emptyDraft)
-    setEventImage(null)
-    setEditorOpen(true)
-  }
-
-  function editEvent(item: EventListItem) {
-    setEditingEvent(item)
-    setDraft({
-      title: item.title,
-      name: item.name ?? "",
-      contact: item.contact ?? "",
-    })
-    setEventImage(null)
-    setEditorOpen(true)
-  }
-
-  function updateDraft(field: keyof EventDraft, value: string) {
-    if (!editingEvent && !saving) {
-      idempotencyKeyRef.current = newIdempotencyKey()
-    }
-    setDraft((current) => ({ ...current, [field]: value }))
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const editingTarget = editingEvent
-    const imageError = validateImage(eventImage, !editingTarget)
-    if (imageError) {
-      toast.error(imageError)
-      return
-    }
-
-    const form = new FormData()
-    form.set("title", draft.title)
-    form.set("name", draft.name)
-    form.set("contact", draft.contact)
-    if (eventImage) form.set("image", eventImage)
-
-    setSaving(true)
-    try {
-      if (editingTarget) {
-        await updateAdminEvent(editingTarget.id, form).send()
-      } else {
-        await createAdminEvent(form, idempotencyKeyRef.current).send()
-      }
-    } catch (mutationError) {
-      toast.error(adminErrorMessage(mutationError))
-      setSaving(false)
-      return
-    }
-
-    toast.success(editingTarget ? "活动已更新" : "活动已发布")
-    setEditorOpen(false)
-    setEditingEvent(null)
-    setDraft(emptyDraft)
-    setEventImage(null)
-
-    try {
-      const firstPage = await loadEvents()
-      if (editingTarget) {
-        const fresh = firstPage.items.find(
-          (item) => item.id === editingTarget.id
-        )
-        setEvents((current) =>
-          current.map((item) =>
-            item.id === editingTarget.id
-              ? (fresh ?? { ...item, ...draft })
-              : item
-          )
-        )
-      } else {
-        setEvents((current) => mergeEvents(firstPage.items, current))
-        if (!events.length) {
-          setNextCursor(firstPage.pageInfo.nextCursor)
-          setHasMore(firstPage.pageInfo.hasNextPage)
-        }
-        idempotencyKeyRef.current = newIdempotencyKey()
-      }
-    } catch {
-      toast.error(
-        editingTarget
-          ? "活动更新已成功，但列表同步失败"
-          : "活动发布已成功，但列表同步失败"
+  const selectedIds = useMemo(
+    () => new Set(spotlight.map((entry) => entry.post_id)),
+    [spotlight]
+  )
+  const filteredPosts = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    return posts.filter((post) => {
+      const searchable =
+        `${post.title} ${post.summary} ${post.source_url ?? ""}`.toLocaleLowerCase()
+      return (
+        (!normalizedQuery || searchable.includes(normalizedQuery)) &&
+        (statusFilter === "all" || post.status === statusFilter) &&
+        (kindFilter === "all" || post.kind === kindFilter)
       )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const getFallbackFocus = useCallback(
-    (target: EventListItem) => {
-      const index = events.findIndex((item) => item.id === target.id)
-      const neighbour = events[index + 1] ?? events[index - 1]
-      if (neighbour) {
-        return document.querySelector<HTMLElement>(
-          `[data-event-id="${neighbour.id}"] button`
-        )
-      }
-      return listFocusRef.current
-    },
-    [events]
+    })
+  }, [kindFilter, posts, query, statusFilter])
+  const availablePosts = posts.filter(
+    (post) => post.status === "published" && !selectedIds.has(Number(post.id))
+  )
+  const counts = useMemo(
+    () => ({
+      all: posts.length,
+      published: posts.filter((post) => post.status === "published").length,
+      draft: posts.filter((post) => post.status === "draft").length,
+      needsWork: posts.filter(
+        (post) => !hasArticleBody(post.body_json) && !post.source_url
+      ).length,
+    }),
+    [posts]
   )
 
-  const deleteConfirm = useConfirmAction<EventListItem>({
-    onConfirm: async (item) => {
-      await deleteAdminEvent(item.id).send()
-      setEvents((current) =>
-        current.filter((eventItem) => eventItem.id !== item.id)
-      )
-    },
-    getTitle: () => "删除社区活动？",
-    getDescription: (item) =>
-      `“${item.title}”及其托管图片将永久删除。此操作不可撤销。`,
-    successMessage: "活动已删除",
-    getFallbackFocus,
-  })
+  function addSpotlight(post: EditorialArticle) {
+    setSpotlight((current) => [
+      ...current,
+      {
+        post_id: Number(post.id),
+        category: "activity",
+        sort_order: current.length,
+        title: post.title,
+        status: post.status,
+        image_url: post.cover_url ?? post.image_url,
+        kind: post.kind ?? "notice",
+        cover_transform: post.cover_transform,
+      },
+    ])
+  }
+
+  function removeSpotlight(postId: number) {
+    setSpotlight((current) =>
+      current
+        .filter((entry) => entry.post_id !== postId)
+        .map((entry, index) => ({ ...entry, sort_order: index }))
+    )
+  }
+
+  function moveSpotlight(postId: number, direction: -1 | 1) {
+    setSpotlight((current) => {
+      const index = current.findIndex((entry) => entry.post_id === postId)
+      const target = index + direction
+      if (index < 0 || target < 0 || target >= current.length) return current
+      const next = [...current]
+      const [entry] = next.splice(index, 1)
+      next.splice(target, 0, entry)
+      return next.map((item, order) => ({ ...item, sort_order: order }))
+    })
+  }
+
+  async function saveSpotlight() {
+    setSavingSpotlight(true)
+    try {
+      await replaceAdminCommunitySpotlight(
+        spotlight.map((entry) => ({
+          postId: entry.post_id,
+          category: entry.category,
+        }))
+      ).send()
+      toast.success("首页精选已保存")
+      await refresh()
+    } catch (reason) {
+      toast.error(adminErrorMessage(reason))
+    } finally {
+      setSavingSpotlight(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-7">
       <AdminPageHeader
-        eyebrow="EVENT OPERATIONS"
-        title="社区活动"
-        description="发布面向制作人社区的活动信息，并逐条维护现有活动。"
+        eyebrow="EDITORIAL CONTENT"
+        title="文章"
+        description="创建、编辑和发布社区文章；首页精选只负责把已经发布的文章分发给用户。"
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            disabled={loading}
-            onClick={() => void refresh()}
-          >
-            <RefreshCwIcon data-icon="inline-start" />
-            刷新
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void refresh()}
+              disabled={loading}
+            >
+              {loading ? (
+                <LoaderCircleIcon
+                  data-icon="inline-start"
+                  className="animate-spin"
+                />
+              ) : null}
+              刷新
+            </Button>
+            <NavigationLink href="/admin/events/new">
+              <Button>
+                <PlusIcon data-icon="inline-start" />
+                新建文章
+              </Button>
+            </NavigationLink>
+          </>
         }
       />
 
-      <AdminPanel
-        title="现有活动"
-        description={`${events.length} 条活动`}
-        icon={CalendarDaysIcon}
-        contentClassName="min-w-0 pt-1"
-        action={
-          <Button type="button" size="sm" onClick={createEvent}>
-            <PlusIcon data-icon="inline-start" />
-            新建活动
-          </Button>
-        }
+      <section
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="文章统计"
       >
-        <div ref={listFocusRef} tabIndex={-1} aria-label="活动列表内容">
-          {loading ? (
-            <EventsSkeleton />
-          ) : error ? (
-            <AdminEmptyState
-              icon={CalendarDaysIcon}
-              title="无法读取活动"
-              description="请确认服务状态后刷新页面。"
-            />
-          ) : events.length ? (
-            <>
-              <div className="divide-y border-y">
-                {events.map((item) => (
+        {[
+          ["全部文章", counts.all, "包含历史迁移内容", "border-l-primary"],
+          ["已发布", counts.published, "当前公开可见", "border-l-success"],
+          ["草稿", counts.draft, "仅管理员可见", "border-l-warning"],
+          [
+            "待补全",
+            counts.needsWork,
+            "缺少正文或来源",
+            "border-l-muted-foreground",
+          ],
+        ].map(([label, value, description, color]) => (
+          <div
+            key={String(label)}
+            className={`border border-l-[3px] bg-card p-4 shadow-xs ${color}`}
+          >
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight">
+              {value}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        ))}
+      </section>
+
+      <div
+        className="flex flex-wrap gap-2"
+        role="tablist"
+        aria-label="文章管理视图"
+      >
+        <Button
+          type="button"
+          role="tab"
+          aria-selected={tab === "articles"}
+          variant={tab === "articles" ? "default" : "outline"}
+          onClick={() => setTab("articles")}
+        >
+          文章工作台
+        </Button>
+        <Button
+          type="button"
+          role="tab"
+          aria-selected={tab === "spotlight"}
+          variant={tab === "spotlight" ? "default" : "outline"}
+          onClick={() => setTab("spotlight")}
+        >
+          首页精选
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">
+          <LoaderCircleIcon className="mr-2 size-4 animate-spin" />
+          正在读取文章
+        </div>
+      ) : null}
+      {!loading && error ? (
+        <AdminEmptyState
+          icon={FileTextIcon}
+          title="无法读取文章"
+          description="请确认服务状态后重试。"
+        />
+      ) : null}
+
+      {!loading && !error && tab === "articles" ? (
+        <AdminPanel
+          title="文章工作台"
+          description="快速定位内容、检查发布状态，并进入全页编辑器。"
+          contentClassName="px-0"
+        >
+          <div className="flex flex-col gap-3 border-b px-4 pb-4 sm:flex-row sm:items-center sm:px-5">
+            <div className="relative min-w-0 flex-1">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索标题、摘要或来源链接"
+                aria-label="搜索文章"
+              />
+            </div>
+            <div className="flex gap-2">
+              <FilterIcon
+                className="mt-2 size-4 shrink-0 text-muted-foreground sm:hidden"
+                aria-hidden="true"
+              />
+              <select
+                className={`${adminControlClass} h-9 w-auto min-w-25`}
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as ArticleStatusFilter)
+                }
+                aria-label="按状态筛选"
+              >
+                <option value="all">全部状态</option>
+                <option value="published">已发布</option>
+                <option value="draft">草稿</option>
+                <option value="archived">已归档</option>
+              </select>
+              <select
+                className={`${adminControlClass} h-9 w-auto min-w-25`}
+                value={kindFilter}
+                onChange={(event) =>
+                  setKindFilter(event.target.value as ArticleKindFilter)
+                }
+                aria-label="按类型筛选"
+              >
+                <option value="all">全部类型</option>
+                <option value="notice">普通文章</option>
+                <option value="event">具体活动</option>
+              </select>
+            </div>
+          </div>
+          {filteredPosts.length ? (
+            <div className="divide-y">
+              {filteredPosts.map((post) => {
+                const readiness = articleReadiness(post)
+                const imageUrl = post.cover_url ?? post.image_url
+                const publishedAt = stringValue(post.published_at)
+                return (
                   <article
-                    key={item.id}
-                    data-event-id={item.id}
-                    className="grid min-w-0 gap-4 py-4 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:items-center"
+                    key={post.id}
+                    className="group grid gap-4 p-4 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto] sm:items-center sm:px-5"
                   >
-                    <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted sm:w-32">
-                      {item.image_url ? (
+                    <div className="aspect-16/10 overflow-hidden rounded-lg border bg-muted/40">
+                      {imageUrl ? (
                         <img
-                          src={item.image_url}
-                          alt={`${item.title}活动图片`}
+                          src={imageUrl}
+                          alt=""
                           className="size-full object-cover"
-                          loading="lazy"
+                          style={editorialCoverStyle(post.cover_transform)}
                         />
                       ) : (
-                        <span className="flex size-full items-center justify-center text-muted-foreground">
-                          <ImageUpIcon className="size-5" aria-hidden="true" />
-                        </span>
+                        <div className="grid size-full place-items-center text-muted-foreground">
+                          <ImageIcon className="size-5" />
+                        </div>
                       )}
                     </div>
-                    <div className="min-w-0 overflow-hidden">
-                      <h3 className="line-clamp-2 text-sm font-semibold wrap-break-word">
-                        {item.title}
-                      </h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {item.name || "未填写主办方"}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant={
+                            post.status === "published"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {statusLabel(post.status)}
+                        </Badge>
+                        <Badge variant="outline">{kindLabel(post.kind)}</Badge>
+                        <Badge
+                          variant={readiness.warning ? "secondary" : "outline"}
+                        >
+                          {readiness.label}
+                        </Badge>
+                        {selectedIds.has(Number(post.id)) ? (
+                          <Badge variant="outline">
+                            <StarIcon className="size-3" />
+                            首页精选
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <NavigationLink
+                        href={`/admin/events/${post.id}`}
+                        className="mt-2 block w-fit leading-6 font-semibold hover:text-primary hover:underline"
+                      >
+                        {post.title}
+                      </NavigationLink>
+                      <p className="mt-1 line-clamp-2 text-sm/6 text-muted-foreground">
+                        {post.summary ||
+                          (post.source_url
+                            ? "该文章会引导用户查看原页面。"
+                            : "尚未填写文章摘要。")}
                       </p>
-                      {item.contact ? (
-                        <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {item.contact}
-                        </p>
-                      ) : null}
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {publishedAt
+                          ? `发布于 ${formatDate(publishedAt)}`
+                          : `最近更新 ${formatDate(post.updated_at ?? post.created_at)}`}
+                      </p>
                     </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={`编辑“${item.title}”`}
-                        disabled={deleteConfirm.submitting}
-                        onClick={() => editEvent(item)}
+                    <div className="flex shrink-0 gap-2 sm:justify-self-end">
+                      <NavigationLink href={`/admin/events/${post.id}`}>
+                        <Button variant="outline" size="sm">
+                          <FilePenLineIcon data-icon="inline-start" />
+                          编辑
+                        </Button>
+                      </NavigationLink>
+                      <NavigationLink
+                        href={`/events/${post.id}`}
+                        target="_blank"
                       >
-                        <PencilIcon data-icon="inline-start" />
-                        编辑
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        aria-label={`删除“${item.title}”`}
-                        disabled={deleteConfirm.submitting}
-                        onClick={(clickEvent) =>
-                          deleteConfirm.requestAction(
-                            item,
-                            clickEvent.currentTarget
-                          )
-                        }
-                      >
-                        <Trash2Icon data-icon="inline-start" />
-                        删除
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`打开${post.title}的公开页面`}
+                          title="查看公开页面"
+                        >
+                          <ExternalLinkIcon />
+                        </Button>
+                      </NavigationLink>
                     </div>
                   </article>
-                ))}
-              </div>
-              <div className="flex items-center justify-between pt-3">
-                <p className="text-xs text-muted-foreground">
-                  已加载 {events.length} 条
-                </p>
-                {hasMore ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={loadingMore}
-                    onClick={() => void loadMore()}
-                  >
-                    {loadingMore ? (
-                      <LoaderCircleIcon
-                        data-icon="inline-start"
-                        className="animate-spin"
-                      />
-                    ) : null}
-                    加载更多
-                  </Button>
-                ) : null}
-              </div>
-            </>
+                )
+              })}
+            </div>
           ) : (
             <AdminEmptyState
-              icon={CalendarDaysIcon}
-              title="还没有活动"
-              description="新建第一条面向制作人社区的活动信息。"
+              icon={FileTextIcon}
+              title="没有符合条件的文章"
+              description="尝试清除搜索词或调整筛选条件。"
             />
           )}
-        </div>
-      </AdminPanel>
+        </AdminPanel>
+      ) : null}
 
-      <Dialog open={editorOpen} onOpenChange={changeEditorOpen}>
-        <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-2xl">
-          <form onSubmit={(formEvent) => void submit(formEvent)}>
-            <DialogHeader>
-              <DialogTitle>
-                {editingEvent ? "编辑社区活动" : "新建社区活动"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingEvent
-                  ? "修改活动资料；不选择新图片时保留当前图片。"
-                  : "填写活动资料并选择一张不超过 3 MiB 的图片。"}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-5 py-5 sm:grid-cols-2">
-              <AdminField
-                label="活动标题"
-                htmlFor="event-title"
-                className="sm:col-span-2"
-              >
-                <input
-                  id="event-title"
-                  required
-                  disabled={saving}
-                  maxLength={160}
-                  className={adminControlClass}
-                  value={draft.title}
-                  onChange={(changeEvent) =>
-                    updateDraft("title", changeEvent.target.value)
-                  }
-                />
-              </AdminField>
-              <AdminField label="主办方或活动名" htmlFor="event-name">
-                <input
-                  id="event-name"
-                  required
-                  disabled={saving}
-                  maxLength={160}
-                  className={adminControlClass}
-                  value={draft.name}
-                  onChange={(changeEvent) =>
-                    updateDraft("name", changeEvent.target.value)
-                  }
-                />
-              </AdminField>
-              <AdminField
-                label="联系方式或外链"
-                htmlFor="event-contact"
-                description="可以填写 URL、邮箱或其他公开联系信息。"
-              >
-                <input
-                  id="event-contact"
-                  required
-                  disabled={saving}
-                  maxLength={500}
-                  className={adminControlClass}
-                  value={draft.contact}
-                  onChange={(changeEvent) =>
-                    updateDraft("contact", changeEvent.target.value)
-                  }
-                />
-              </AdminField>
-
-              {editingEvent?.image_url ? (
-                <div className="sm:col-span-2">
-                  <p className="mb-2 text-sm font-medium">当前活动图片</p>
-                  <img
-                    src={editingEvent.image_url}
-                    alt={`${editingEvent.title}当前活动图片`}
-                    className="aspect-video w-full max-w-xs rounded-md border bg-muted object-cover"
-                  />
-                </div>
-              ) : null}
-
-              <div className="sm:col-span-2">
-                <AdminField
-                  label={editingEvent ? "替换活动图片" : "活动图片"}
-                  htmlFor="event-image"
-                >
-                  <FileUploadControl
-                    id="event-image"
-                    name="image"
-                    compact
-                    accept="image/*"
-                    emptyTitle={
-                      editingEvent
-                        ? "选择图片以替换当前图片"
-                        : t("upload.eventImage.emptyTitle")
-                    }
-                    emptyDetail={t("upload.eventImage.emptyDetail")}
-                    fileKind={t("upload.eventImage.fileKind")}
-                    file={eventImage}
-                    disabled={saving}
-                    required={!editingEvent}
-                    selectedIcon={FileImageIcon}
-                    emptyIcon={ImageUpIcon}
-                    onSelect={(file) => {
-                      if (!editingEvent && !saving) {
-                        idempotencyKeyRef.current = newIdempotencyKey()
+      {!loading && !error && tab === "spotlight" ? (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem]">
+          <AdminPanel
+            title="首页精选顺序"
+            description="这是分发配置，不会复制或修改文章正文。撤回文章后，其精选项会自动对用户隐藏。"
+          >
+            {spotlight.length ? (
+              <div className="divide-y border-y">
+                {spotlight.map((entry, index) => (
+                  <div
+                    key={entry.post_id}
+                    className="flex flex-wrap items-center gap-3 py-3"
+                  >
+                    <span className="w-6 text-center text-sm text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{entry.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {entry.status === "published"
+                          ? "已发布，当前会显示在首页"
+                          : "当前不会公开"}
+                      </p>
+                    </div>
+                    <select
+                      className={`${adminControlClass} h-9 w-28`}
+                      value={entry.category}
+                      onChange={(event) =>
+                        setSpotlight((current) =>
+                          current.map((item) =>
+                            item.post_id === entry.post_id
+                              ? {
+                                  ...item,
+                                  category: event.target.value as
+                                    | "activity"
+                                    | "fan",
+                                }
+                              : item
+                          )
+                        )
                       }
-                      setEventImage(file)
-                    }}
-                  />
-                </AdminField>
+                      aria-label={`设置${entry.title}的精选分类`}
+                    >
+                      <option value="activity">活动资讯</option>
+                      <option value="fan">同人活动</option>
+                    </select>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      disabled={index === 0}
+                      onClick={() => moveSpotlight(entry.post_id, -1)}
+                      aria-label="上移"
+                    >
+                      <ChevronUpIcon />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      disabled={index === spotlight.length - 1}
+                      onClick={() => moveSpotlight(entry.post_id, 1)}
+                      aria-label="下移"
+                    >
+                      <ChevronDownIcon />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => removeSpotlight(entry.post_id)}
+                      aria-label="移出精选"
+                    >
+                      <XIcon />
+                    </Button>
+                  </div>
+                ))}
               </div>
-            </div>
-
-            <DialogFooter>
+            ) : (
+              <AdminEmptyState
+                icon={StarIcon}
+                title="还没有首页精选"
+                description="从右侧添加已发布的文章。"
+              />
+            )}
+            <div className="mt-5 flex justify-end">
               <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={() => changeEditorOpen(false)}
+                disabled={savingSpotlight}
+                onClick={() => void saveSpotlight()}
               >
-                取消
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? (
+                {savingSpotlight ? (
                   <LoaderCircleIcon
                     data-icon="inline-start"
                     className="animate-spin"
                   />
-                ) : editingEvent ? (
-                  <PencilIcon data-icon="inline-start" />
                 ) : (
-                  <PlusIcon data-icon="inline-start" />
+                  <CheckCircle2Icon data-icon="inline-start" />
                 )}
-                {editingEvent ? "保存活动" : "发布活动"}
+                保存精选
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <ConfirmActionDialog
-        open={deleteConfirm.open}
-        onOpenChange={deleteConfirm.onOpenChange}
-        title={deleteConfirm.title}
-        description={deleteConfirm.description}
-        submitting={deleteConfirm.submitting}
-        onConfirm={() => void deleteConfirm.confirmAction()}
-      />
-    </div>
-  )
-}
-
-function EventsSkeleton() {
-  return (
-    <div className="grid gap-3" aria-label="正在加载活动列表">
-      <Skeleton className="h-28 w-full rounded-xl" />
-      <Skeleton className="h-28 w-full rounded-xl" />
-      <Skeleton className="h-28 w-full rounded-xl" />
+            </div>
+          </AdminPanel>
+          <AdminPanel
+            title="添加已发布文章"
+            description="加入后可以设置分类和首页显示顺序。"
+          >
+            <div className="space-y-2">
+              {availablePosts.length ? (
+                availablePosts.map((post) => (
+                  <Button
+                    key={post.id}
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start py-3 text-left"
+                    onClick={() => addSpotlight(post)}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate">{post.title}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {kindLabel(post.kind)}
+                      </span>
+                    </span>
+                    <StarIcon className="ml-auto size-4" />
+                  </Button>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  没有可加入的已发布文章。
+                </p>
+              )}
+            </div>
+          </AdminPanel>
+        </div>
+      ) : null}
     </div>
   )
 }

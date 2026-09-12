@@ -5,6 +5,7 @@ import unittest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = PROJECT_ROOT / "deploy/compose.yaml"
+PREVIEW_COMPOSE_PATH = PROJECT_ROOT / "deploy/compose.preview.yaml"
 API_DOCKERFILE_PATH = PROJECT_ROOT / "apps/api/Dockerfile"
 
 
@@ -14,23 +15,46 @@ class ComposeDeploymentTests(unittest.TestCase):
         services_source = compose.split("\nvolumes:\n", maxsplit=1)[0]
         services = re.findall(r"^  ([a-z0-9][a-z0-9-]*):$", services_source, re.MULTILINE)
 
-        self.assertEqual(services, ["postgres", "rustfs", "rustfs-init", "api"])
+        self.assertEqual(services, ["postgres", "valkey", "rustfs", "rustfs-init", "api"])
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
         self.assertIn(
             "image: ${IMS_RUSTFS_IMAGE:-rustfs/rustfs:1.0.0-beta.12}",
             compose,
         )
+        self.assertIn(
+            "image: ${IMS_VALKEY_IMAGE:-valkey/valkey:8.1.9-alpine}",
+            compose,
+        )
         self.assertIn("image: ${IMS_S3_CLIENT_IMAGE:-minio/mc:", compose)
         self.assertEqual(compose.count("      - local-storage"), 2)
+        self.assertEqual(compose.count("      - local-cache"), 1)
         self.assertIn("postgresql-data:/var/lib/postgresql", compose)
         self.assertIn("rustfs-data:/data", compose)
         self.assertIn("image: ${IMS_API_IMAGE:-imsweb-api:local}", compose)
         self.assertIn("dockerfile: apps/api/Dockerfile", compose)
+        self.assertIn("DEBIAN_MIRROR_BASE: ${IMS_DEBIAN_MIRROR_BASE:-", compose)
+        self.assertIn(
+            "NPM_REGISTRY: ${IMS_NPM_REGISTRY:-https://registry.npmmirror.com}",
+            compose,
+        )
+        self.assertIn(
+            "NODE_HEADERS_MIRROR: ${IMS_NODE_HEADERS_MIRROR:-https://npmmirror.com/mirrors/node}",
+            compose,
+        )
         self.assertIn('127.0.0.1:${IMS_API_PORT:-3000}:3000', compose)
+        self.assertIn(
+            "IMS_BACKOFFICE_JWT_SECRET: ${IMS_BACKOFFICE_JWT_SECRET-}",
+            compose,
+        )
+        self.assertNotIn(
+            "IMS_BACKOFFICE_JWT_SECRET:-imsweb-local-development-secret",
+            compose,
+        )
         self.assertIn("condition: service_completed_successfully", compose)
         self.assertIn("required: false", compose)
         self.assertIn("node apps/api/scripts/migration/postgres-migrations.js", compose)
         self.assertIn("api-data:/app/data", compose)
+        self.assertIn("    stop_grace_period: 10m", compose)
         self.assertNotRegex(compose, r"(?i)nginx")
         self.assertNotIn("network_mode: host", compose)
 
@@ -48,14 +72,26 @@ class ComposeDeploymentTests(unittest.TestCase):
             "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-imsweb-local}",
             "AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-imsweb-local-password}",
             "IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}",
+            "IMS_CACHE_BACKEND: ${IMS_CACHE_BACKEND:-valkey}",
+            "IMS_VALKEY_URL: ${IMS_VALKEY_URL:-redis://valkey:6379}",
             "IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES: ${IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES:-83886080}",
         ):
             self.assertIn(token, compose)
 
     def test_api_image_is_a_non_root_production_build(self):
         dockerfile = API_DOCKERFILE_PATH.read_text(encoding="utf-8")
+        dependency_build_stage = dockerfile.split(
+            "FROM pnpm-base AS build", maxsplit=1
+        )[0]
 
-        self.assertIn("ARG NODE_VERSION=24.18.0", dockerfile)
+        node_version = (PROJECT_ROOT / ".nvmrc").read_text(encoding="utf-8").strip()
+        self.assertIn(f"ARG NODE_VERSION={node_version}", dockerfile)
+        self.assertEqual(dockerfile.count("ARG NPM_REGISTRY="), 2)
+        self.assertEqual(dockerfile.count("ENV COREPACK_NPM_REGISTRY="), 2)
+        self.assertIn(
+            "ENV npm_config_disturl=${NODE_HEADERS_MIRROR}",
+            dependency_build_stage,
+        )
         self.assertIn("pnpm run build", dockerfile)
         self.assertIn(
             "pnpm install --offline --frozen-lockfile --prod --filter @imsweb/api...",
@@ -95,11 +131,26 @@ class ComposeDeploymentTests(unittest.TestCase):
         ):
             self.assertEqual(compose.count(token), 3)
 
-    def test_only_current_compose_is_present(self):
+    def test_preview_compose_isolates_project_and_volume_names(self):
+        preview = PREVIEW_COMPOSE_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("name: imsweb-preview", preview)
+        for volume_name in (
+            "imsweb-preview-postgresql-data",
+            "imsweb-preview-api-data",
+        ):
+            self.assertIn(f"name: {volume_name}", preview)
+        self.assertNotIn("name: imsweb-postgresql_postgresql-data", preview)
+        self.assertNotIn("name: imsweb-api_api-data", preview)
+        self.assertNotIn("rustfs", preview)
+        self.assertNotRegex(preview, r"(?m)^services:")
+
+    def test_only_current_compose_files_are_present(self):
         self.assertTrue(COMPOSE_PATH.is_file())
+        self.assertTrue(PREVIEW_COMPOSE_PATH.is_file())
         self.assertEqual(
             sorted(path.name for path in (PROJECT_ROOT / "deploy").glob("compose*.yaml")),
-            ["compose.yaml"],
+            ["compose.preview.yaml", "compose.yaml"],
         )
         self.assertTrue((PROJECT_ROOT / "deploy/nginx/imsweb.conf.example").is_file())
         self.assertTrue((PROJECT_ROOT / "deploy/nginx/README.md").is_file())
@@ -119,6 +170,12 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("server_name __IMS_S3_DOMAIN__;", config)
         self.assertIn("proxy_pass http://imsweb_node;", config)
         self.assertIn("proxy_pass http://imsweb_rustfs;", config)
+        self.assertIn("location ^~ /maps/exchange/ {", config)
+        self.assertIn("alias /srv/imsweb/maps/current/;", config)
+        self.assertIn("application/vnd.pmtiles pmtiles;", config)
+        self.assertIn('add_header Accept-Ranges "bytes" always;', config)
+        self.assertIn("max_ranges 1;", config)
+        self.assertIn("gzip off;", config)
         self.assertIn("proxy_set_header X-Forwarded-For $remote_addr;", config)
         self.assertIn("proxy_set_header Host $http_host;", config)
         self.assertIn("proxy_request_buffering off;", config)

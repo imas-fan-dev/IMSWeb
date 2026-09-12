@@ -4,38 +4,41 @@ import {
   CircleCheckIcon,
   CircleDashedIcon,
   CircleXIcon,
-  ImageUpIcon,
-  LoaderCircleIcon,
   RotateCcwIcon,
-  SendIcon,
   Trash2Icon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useParams } from "react-router"
+import { useParams } from "react-router"
 import { toast } from "sonner"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { PageShell } from "~/components/shared/page-shell"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
-  getNamecardSubmission,
+  getFudabaGuestSubmission,
+  getFudabaGuestSubmissionMedia,
   isApiError,
-  replaceNamecardSubmissionImage,
-  resubmitNamecardSubmission,
-  withdrawNamecardSubmission,
+  withdrawFudabaGuestSubmission,
 } from "~/lib/api"
-import type { NamecardSubmission, NamecardSubmissionStatus } from "~/lib/api"
+import type {
+  FudabaGuestSubmission,
+  FudabaGuestSubmissionStatus,
+} from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 
 import {
   getNamecardSubmissionReceipt,
   saveNamecardSubmissionReceipt,
 } from "./namecard-submission-storage"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const STATUS_COPY: Record<
-  NamecardSubmissionStatus,
+  FudabaGuestSubmissionStatus,
   { label: string; description: string }
 > = {
   pending: {
@@ -46,17 +49,17 @@ const STATUS_COPY: Record<
     label: "审核处理中",
     description: "运营正在发布两面的图片，当前不能撤回。",
   },
-  approved: {
+  published: {
     label: "已通过",
     description: "名片已经公开。如需下架，请联系管理员处理。",
   },
   rejected: {
     label: "未通过",
-    description: "这次投稿未通过审核，你可以修改图片后重新送审。",
+    description: "游客投稿不能修改。如需再次投稿，请返回名片墙重新上传。",
   },
   withdrawn: {
     label: "已撤回",
-    description: "投稿已退出审核队列，你可以重新上传图片并重新送审。",
+    description: "投稿已退出审核队列，图片和担当信息不能再修改。",
   },
 }
 
@@ -74,8 +77,8 @@ export function meta() {
   return [{ title: "投稿管理 | IMSWeb" }]
 }
 
-function statusIcon(status: NamecardSubmissionStatus) {
-  if (status === "approved") {
+function statusIcon(status: FudabaGuestSubmissionStatus) {
+  if (status === "published") {
     return <CircleCheckIcon aria-hidden="true" className="size-5" />
   }
   if (status === "rejected" || status === "withdrawn") {
@@ -107,16 +110,18 @@ export default function NamecardSubmissionPage() {
       hashToken ?? getNamecardSubmissionReceipt(submissionId)?.token ?? null
     )
   })
-  const [submission, setSubmission] = useState<NamecardSubmission | null>(null)
+  const [submission, setSubmission] = useState<FudabaGuestSubmission | null>(
+    null
+  )
+  const [privateMediaUrls, setPrivateMediaUrls] = useState<{
+    front: string
+    back: string
+  } | null>(null)
   const [loading, setLoading] = useState(validId && token !== null)
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
-  const [replacing, setReplacing] = useState<"front" | "back" | null>(null)
-  const [resubmitting, setResubmitting] = useState(false)
   const statusHeadingRef = useRef<HTMLDivElement>(null)
-  const frontInputRef = useRef<HTMLInputElement>(null)
-  const backInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!validId || !token) return
@@ -141,7 +146,7 @@ export default function NamecardSubmissionPage() {
     setLoading(true)
     setError(null)
     try {
-      const next = await getNamecardSubmission(submissionId, token).send()
+      const next = await getFudabaGuestSubmission(submissionId, token).send()
       setSubmission(next.submission)
     } catch (loadError) {
       setError(errorCopy(loadError))
@@ -153,7 +158,7 @@ export default function NamecardSubmissionPage() {
   useEffect(() => {
     if (!validId || !token) return
     let active = true
-    void getNamecardSubmission(submissionId, token)
+    void getFudabaGuestSubmission(submissionId, token)
       .send()
       .then((next) => {
         if (active) setSubmission(next.submission)
@@ -169,12 +174,45 @@ export default function NamecardSubmissionPage() {
     }
   }, [submissionId, token, validId])
 
+  useEffect(() => {
+    if (
+      !submission ||
+      !token ||
+      submission.publicationStatus === "published" ||
+      typeof URL.createObjectURL !== "function"
+    ) {
+      return
+    }
+    let active = true
+    const objectUrls: string[] = []
+    void Promise.all([
+      getFudabaGuestSubmissionMedia(submission.id, "front", token).send(),
+      getFudabaGuestSubmissionMedia(submission.id, "back", token).send(),
+    ])
+      .then(([front, back]) => {
+        if (!active) return
+        const frontUrl = URL.createObjectURL(front)
+        const backUrl = URL.createObjectURL(back)
+        objectUrls.push(frontUrl, backUrl)
+        setPrivateMediaUrls({ front: frontUrl, back: backUrl })
+      })
+      .catch(() => {
+        if (active) {
+          setError("投稿状态已读取，但暂时无法加载图片。")
+        }
+      })
+    return () => {
+      active = false
+      for (const url of objectUrls) URL.revokeObjectURL(url)
+    }
+  }, [submission, token])
+
   async function withdraw() {
     if (!submission || !token || withdrawing) return
     setWithdrawing(true)
     setError(null)
     try {
-      const response = await withdrawNamecardSubmission(
+      const response = await withdrawFudabaGuestSubmission(
         submission.id,
         token,
         submission.revision
@@ -195,92 +233,47 @@ export default function NamecardSubmissionPage() {
     }
   }
 
-  const editable =
-    submission?.status === "withdrawn" || submission?.status === "rejected"
-
-  function openFilePicker(side: "front" | "back") {
-    const input =
-      side === "front" ? frontInputRef.current : backInputRef.current
-    input?.click()
-  }
-
-  async function replaceImage(side: "front" | "back", file: File) {
-    if (!submission || !token || replacing) return
-    if (!file.type.startsWith("image/")) {
-      toast.error("只能上传图片文件")
-      return
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error("每张名片图片不能超过 3 MiB")
-      return
-    }
-    setReplacing(side)
-    setError(null)
-    try {
-      const response = await replaceNamecardSubmissionImage(
-        submission.id,
-        token,
-        side,
-        submission.revision,
-        file
-      ).send()
-      setSubmission(response.submission)
-      toast.success(side === "front" ? "已更新正面" : "已更新背面")
-    } catch (replaceError) {
-      const message = isApiError(replaceError)
-        ? replaceError.message
-        : "图片替换失败，请重试"
-      setError(message)
-      toast.error(message)
-      if (isApiError(replaceError) && replaceError.status === 409) {
-        await refresh()
-      }
-    } finally {
-      setReplacing(null)
-    }
-  }
-
-  async function resubmit() {
-    if (!submission || !token || resubmitting) return
-    setResubmitting(true)
-    setError(null)
-    try {
-      const response = await resubmitNamecardSubmission(
-        submission.id,
-        token,
-        submission.revision
-      ).send()
-      setSubmission(response.submission)
-      toast.success("已重新送审，等待审核")
-    } catch (resubmitError) {
-      const message = isApiError(resubmitError)
-        ? resubmitError.message
-        : "重新送审失败，请重试"
-      setError(message)
-      toast.error(message)
-      if (isApiError(resubmitError) && resubmitError.status === 409) {
-        await refresh()
-      }
-    } finally {
-      setResubmitting(false)
-    }
-  }
-
-  const copy = submission ? STATUS_COPY[submission.status] : null
+  const copy = submission ? STATUS_COPY[submission.publicationStatus] : null
+  const mediaUrls = submission
+    ? submission.publicationStatus === "published"
+      ? {
+          front: submission.frontImageUrl,
+          back: submission.backImageUrl,
+        }
+      : privateMediaUrls
+    : null
   return (
-    <main id="main-content" className="mx-auto w-full max-w-4xl px-6 py-12">
-      <Link
-        to="/community/cards"
-        className={buttonVariants({ variant: "ghost", size: "sm" })}
-      >
-        <ArrowLeftIcon data-icon="inline-start" />
-        返回名片墙
-      </Link>
+    <PageShell width="read">
+      {!IS_APP_TARGET ? (
+        <NavigationLink
+          to="/community/cards"
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          <ArrowLeftIcon data-icon="inline-start" />
+          返回名片墙
+        </NavigationLink>
+      ) : null}
 
-      <header className="mt-8 max-w-2xl">
-        <p className="text-sm font-semibold text-primary">Submission receipt</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">投稿管理</h1>
-        <p className="mt-4 leading-7 text-muted-foreground">
+      <header className={cn("max-w-2xl", !IS_APP_TARGET && "mt-8")}>
+        {!IS_APP_TARGET ? (
+          <p className="text-sm font-semibold text-primary">
+            Submission receipt
+          </p>
+        ) : null}
+        <h1
+          className={cn(
+            "font-semibold tracking-tight",
+            IS_APP_TARGET ? "text-2xl" : "mt-3 text-4xl"
+          )}
+        >
+          投稿管理
+        </h1>
+        <p
+          className={cn(
+            "leading-7 wrap-anywhere text-muted-foreground",
+            IS_APP_TARGET ? "mt-2" : "mt-4"
+          )}
+        >
           这里仅管理这一次匿名投稿。请妥善保管投稿管理链接。
         </p>
       </header>
@@ -323,15 +316,15 @@ export default function NamecardSubmissionPage() {
       ) : null}
 
       {!loading && submission && copy ? (
-        <Card className="mt-10">
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div className="space-y-2">
+        <Card className={IS_APP_TARGET ? "mt-6" : "mt-10"}>
+          <CardHeader className="flex-col items-start justify-between gap-4 sm:flex-row">
+            <div className="min-w-0 space-y-2">
               <CardTitle
                 ref={statusHeadingRef}
                 tabIndex={-1}
-                className="flex items-center gap-2 focus:outline-none"
+                className="flex min-w-0 items-center gap-2 wrap-anywhere focus:outline-none"
               >
-                {statusIcon(submission.status)}
+                {statusIcon(submission.publicationStatus)}
                 {copy.label}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -339,11 +332,12 @@ export default function NamecardSubmissionPage() {
               </p>
             </div>
             <Badge
+              className="shrink-0"
               variant={
-                submission.status === "approved"
+                submission.publicationStatus === "published"
                   ? "secondary"
-                  : submission.status === "rejected" ||
-                      submission.status === "withdrawn"
+                  : submission.publicationStatus === "rejected" ||
+                      submission.publicationStatus === "withdrawn"
                     ? "destructive"
                     : "outline"
               }
@@ -352,50 +346,20 @@ export default function NamecardSubmissionPage() {
             </Badge>
           </CardHeader>
           <CardContent className="space-y-5">
-            {submission.image1_url && submission.image2_url ? (
+            {mediaUrls ? (
               <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border">
                 {(
                   [
-                    [submission.image1_url, "正面", "front"],
-                    [submission.image2_url, "背面", "back"],
+                    [mediaUrls.front, "正面", "front"],
+                    [mediaUrls.back, "背面", "back"],
                   ] as const
                 ).map(([src, label, side]) => (
-                  <figure key={side} className="group bg-muted">
-                    {editable ? (
-                      <button
-                        type="button"
-                        disabled={replacing !== null || resubmitting}
-                        onClick={() => openFilePicker(side)}
-                        aria-label={`点击更换${label}图片`}
-                        className="relative block w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
-                      >
-                        <img
-                          src={src}
-                          alt={`投稿名片${label}`}
-                          className="aspect-3/2 size-full object-contain"
-                        />
-                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 bg-background/70 text-sm font-medium opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-                          {replacing === side ? (
-                            <LoaderCircleIcon
-                              aria-hidden="true"
-                              className="size-4 animate-spin"
-                            />
-                          ) : (
-                            <ImageUpIcon
-                              aria-hidden="true"
-                              className="size-4"
-                            />
-                          )}
-                          {replacing === side ? "上传中" : "点击更换"}
-                        </span>
-                      </button>
-                    ) : (
-                      <img
-                        src={src}
-                        alt={`投稿名片${label}`}
-                        className="aspect-3/2 size-full object-contain"
-                      />
-                    )}
+                  <figure key={side} className="bg-muted">
+                    <img
+                      src={src}
+                      alt={`投稿名片${label}`}
+                      className="aspect-3/2 size-full object-contain"
+                    />
                     <figcaption className="p-2 text-center text-xs text-muted-foreground">
                       <span>{label}</span>
                     </figcaption>
@@ -407,20 +371,22 @@ export default function NamecardSubmissionPage() {
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">投稿编号</dt>
-                <dd className="mt-1 font-mono">{submission.id}</dd>
+                <dd className="mt-1 font-mono wrap-anywhere">
+                  {submission.id}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">提交时间</dt>
-                <dd className="mt-1 flex items-center gap-1.5">
+                <dd className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 wrap-anywhere">
                   <CalendarDaysIcon aria-hidden="true" className="size-4" />
-                  {submission.created_at
-                    ? DATE_FORMATTER.format(new Date(submission.created_at))
+                  {submission.createdAt
+                    ? DATE_FORMATTER.format(new Date(submission.createdAt))
                     : "待补充"}
                 </dd>
               </div>
             </dl>
 
-            {submission.status === "pending" ? (
+            {submission.publicationStatus === "pending" ? (
               <Button
                 type="button"
                 variant="destructive"
@@ -430,50 +396,9 @@ export default function NamecardSubmissionPage() {
                 撤回投稿
               </Button>
             ) : null}
-
-            {editable ? (
-              <Button
-                type="button"
-                disabled={replacing !== null || resubmitting}
-                onClick={() => void resubmit()}
-              >
-                {resubmitting ? (
-                  <LoaderCircleIcon
-                    data-icon="inline-start"
-                    className="animate-spin"
-                  />
-                ) : (
-                  <SendIcon data-icon="inline-start" />
-                )}
-                {resubmitting ? "正在送审" : "重新送审"}
-              </Button>
-            ) : null}
           </CardContent>
         </Card>
       ) : null}
-
-      <input
-        ref={frontInputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(event) => {
-          const file = event.target.files?.[0] ?? null
-          if (file) void replaceImage("front", file)
-          event.target.value = ""
-        }}
-      />
-      <input
-        ref={backInputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(event) => {
-          const file = event.target.files?.[0] ?? null
-          if (file) void replaceImage("back", file)
-          event.target.value = ""
-        }}
-      />
 
       <ConfirmActionDialog
         open={confirmOpen}
@@ -481,12 +406,12 @@ export default function NamecardSubmissionPage() {
           if (!withdrawing) setConfirmOpen(open)
         }}
         title="撤回这次投稿？"
-        description="投稿将退出审核队列。你可以稍后重新上传图片并重新送审。"
+        description="投稿将退出审核队列。游客投稿撤回后不能修改或重新送审。"
         submitting={withdrawing}
         onConfirm={() => void withdraw()}
         confirmLabel="确认撤回"
         cancelLabel="继续等待审核"
       />
-    </main>
+    </PageShell>
   )
 }

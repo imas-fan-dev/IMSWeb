@@ -1,0 +1,45 @@
+[package]
+name = "imsweb"
+version = "0.1.0"
+description = "IMSWeb mobile shell"
+authors = ["IMSWeb contributors"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# `_lib` suffix avoids a name collision with the binary target on Windows.
+name = "imsweb_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+tauri-plugin-geolocation = "=2.3.2"
+tauri-plugin-native-glass = { path = "plugins/native-glass" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+tauri-plugin-native-image = { path = "plugins/native-image" }
+
+# tao 0.35.3 returns a borrowed pointer from
+# `application:configurationForConnectingSceneSession:options:` where UIKit expects an
+# autoreleased object, so connecting the first scene segfaults in `objc_retain` on
+# release builds. Upstream fixed it in tauri-apps/tao#1245, which landed while the
+# crate version was still 0.35.3, so pin that commit until a tauri release allows
+# tao >= 0.36.
+[patch.crates-io]
+tao = { git = "https://github.com/tauri-apps/tao", rev = "f2163508104413ef0609178dcebdd5803b496211" }

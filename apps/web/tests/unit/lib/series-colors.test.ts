@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest"
 import { seriesWallItems } from "~/lib/series-wall"
 
 const seriesColors = [
-  { token: "franchise-765", value: "#f34e6c" },
+  { token: "franchise-765", value: "#f34e6c" }, // gitleaks:allow -- public brand color
   { token: "franchise-cg", value: "#2581c7" },
   { token: "franchise-ml", value: "#ffc20b" },
   { token: "franchise-sidem", value: "#11be93" },

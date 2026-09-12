@@ -1,3 +1,4 @@
+import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
@@ -33,6 +34,7 @@ const agencies = [
     iconUrl: null,
     idolCount: 1,
     entryCount: 1,
+    imageTransform: defaultWikiImageTransform,
   },
   {
     id: 6,
@@ -43,6 +45,7 @@ const agencies = [
     iconUrl: null,
     idolCount: 2,
     entryCount: 2,
+    imageTransform: defaultWikiImageTransform,
   },
 ]
 
@@ -61,15 +64,20 @@ function catalogPayload(
             name: "765PRO",
             color: "#f34f6d",
             iconUrl: null,
+            imageTransform: defaultWikiImageTransform,
             idols: [
               {
                 id: 1,
                 name: "天海春香",
                 folderName: "amami_haruka",
                 color: "#e22b30",
+                wikiUrl: null,
                 imageUrl: "/image/haruka.webp",
                 imageFit: "cover",
                 textColor: "#ffffff",
+                entryKind: "idol",
+                entrySubtype: null,
+                imageTransform: defaultWikiImageTransform,
               },
             ],
           },
@@ -81,15 +89,20 @@ function catalogPayload(
             name: "illumination STARS",
             color: "#ffd700",
             iconUrl: null,
+            imageTransform: defaultWikiImageTransform,
             idols: [
               {
                 id: 6,
                 name: "樱木真乃",
                 folderName: "sakuragi_mano",
                 color: "#f1b0c9",
+                wikiUrl: null,
                 imageUrl: "/image/mano.webp",
                 imageFit: "cover",
                 textColor: "#ffffff",
+                entryKind: "idol",
+                entrySubtype: null,
+                imageTransform: defaultWikiImageTransform,
               },
             ],
           },
@@ -99,6 +112,7 @@ function catalogPayload(
             name: "Straylight",
             color: "#f4bd00",
             iconUrl: null,
+            imageTransform: defaultWikiImageTransform,
             idols: [
               ...(duplicateIdolAcrossGroups
                 ? [
@@ -107,9 +121,13 @@ function catalogPayload(
                       name: "樱木真乃",
                       folderName: "sakuragi_mano",
                       color: "#f1b0c9",
+                      wikiUrl: null,
                       imageUrl: "/image/mano.webp",
                       imageFit: "cover",
                       textColor: "#ffffff",
+                      entryKind: "idol",
+                      entrySubtype: null,
+                      imageTransform: defaultWikiImageTransform,
                     },
                   ]
                 : []),
@@ -118,9 +136,13 @@ function catalogPayload(
                 name: "芹泽朝日",
                 folderName: "serizawa_asahi",
                 color: "#f4bd00",
+                wikiUrl: null,
                 imageUrl: "/image/asahi.webp",
                 imageFit: "cover",
                 textColor: "#111111",
+                entryKind: "idol",
+                entrySubtype: null,
+                imageTransform: defaultWikiImageTransform,
               },
             ],
           },
@@ -182,9 +204,13 @@ function catalogPayload(
                 name: "浅仓透",
                 folderName: "asakura_toru",
                 color: "#50d0d0",
+                wikiUrl: null,
                 imageUrl: "/image/toru.webp",
                 imageFit: "cover",
                 textColor: "#111111",
+                entryKind: "idol",
+                entrySubtype: null,
+                imageTransform: defaultWikiImageTransform,
               },
             ]
           : [],
@@ -215,6 +241,9 @@ function storyPayload(
       imageUrl: "/image/mano.webp",
       imageFit: "cover",
       textColor,
+      entryKind: "idol",
+      entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     },
     categories: [
       {
@@ -225,6 +254,7 @@ function storyPayload(
             name: "【W.I.N.G.編】",
             img: "/image/wing.webp",
             subtitle: "全话",
+            imageTransform: defaultWikiImageTransform,
             links: [
               {
                 id: 1,
@@ -253,6 +283,7 @@ function storyPayload(
                   name: "【仅语音】",
                   img: "/image/audio.webp",
                   subtitle: "语音收录",
+                  imageTransform: defaultWikiImageTransform,
                   links: [
                     {
                       id: 3,
@@ -270,6 +301,7 @@ function storyPayload(
                   name: "【来源待补】",
                   img: "",
                   subtitle: "待编辑",
+                  imageTransform: defaultWikiImageTransform,
                   links: [],
                 },
               ]
@@ -295,9 +327,13 @@ function gakumasSCardPayload() {
       name: "S卡",
       folderName: "s_card",
       color: "#f39800",
+      wikiUrl: null,
       imageUrl: "/image/s-card.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "story",
+      entrySubtype: "special",
+      imageTransform: defaultWikiImageTransform,
     },
     categories: [
       {
@@ -308,6 +344,7 @@ function gakumasSCardPayload() {
             name: "咲季与手毬登场",
             img: "",
             subtitle: "出场：咲季, 手毬",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
           {
@@ -315,6 +352,7 @@ function gakumasSCardPayload() {
             name: "只有手毬登场",
             img: "",
             subtitle: "出场：手毬",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
           {
@@ -322,6 +360,7 @@ function gakumasSCardPayload() {
             name: "尚未登记人物",
             img: "",
             subtitle: "",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
         ],
@@ -987,24 +1026,33 @@ describe("classic Wiki pages", () => {
       iconUrl: null,
       idolCount: 2,
       entryCount: 2,
+      imageTransform: defaultWikiImageTransform,
     }
     const voiced = {
       id: 2,
       name: "渋谷凛",
       folderName: "shibuya_rin",
       color: "#37b4e5",
+      wikiUrl: null,
       imageUrl: "/image/rin.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "idol",
+      entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     }
     const unvoiced = {
       id: 3,
       name: "未付声演示",
       folderName: "unvoiced_demo",
       color: "#999999",
+      wikiUrl: null,
       imageUrl: "/image/unvoiced.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "idol",
+      entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     }
     vi.stubGlobal(
       "fetch",
@@ -1029,6 +1077,7 @@ describe("classic Wiki pages", () => {
                     name: "Cute",
                     color: cgAgency.color,
                     iconUrl: null,
+                    imageTransform: defaultWikiImageTransform,
                     idols: [voiced, unvoiced],
                   },
                 ],

@@ -1,0 +1,6 @@
+{"file":".trellis/spec/api/backend/index.md","reason":"API workspace structure, coding conventions, and required quality gates"}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"PostgreSQL transaction, parameterized SQL, persistence, and error-handling rules"}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"Operational script logging and sensitive production data constraints"}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Migration test ownership and Node PostgreSQL regression requirements"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Keep one-off conversion logic narrow and reuse existing article-body functions"}
+{"file":".trellis/tasks/09-04-migrate-cms-article-titles/research/cms-article-title-backfill.md","reason":"Repository evidence, existing APIs, migration conventions, and chosen technical boundary"}

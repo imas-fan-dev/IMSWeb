@@ -1,14 +1,20 @@
 # Compose 部署
 
 `deploy/compose.yaml` 用于启动 PostgreSQL 和 IMSWeb Hono API。本地开发还会通过
-`local-storage` profile 启动 RustFS；生产可以关闭该 profile，让 API 直接连接 Cloudflare R2。
+`local-cache` profile 启动 Valkey、通过 `local-storage` profile 启动 RustFS；生产可以关闭
+这两个 profile，让 API 连接独立 Valkey 和 Cloudflare R2。
 API 镜像包含构建后的 Web 静态资源，并在启动前幂等应用 PostgreSQL migrations。Compose
 不包含反向代理或 TLS 入口；宿主机 Nginx 的参考配置位于
-[`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。
+[`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。Fudaba exchange map 默认使用
+官方在线 OpenFreeMap，不包含大型地图产物。选择自分发源时，PMTiles/glyph/sprite/raster release
+位于宿主机 `/srv/imsweb/maps/`，同样不进入 Compose volume 或应用镜像；生成与原子切换见
+[地图资源交付](../docs/operations/map-delivery.md)。
 
-正式环境的默认发布入口是 [GitHub Actions 自动部署](../docs/github-actions-deployment.md)：CI
-构建 API 镜像并推送到 GHCR，目标主机只按不可变 digest 拉取并启动。下面的 `--build` 命令用于
-本地容器集成预览，不是正式服务器上的发布步骤。
+正式环境和共享 preview 的默认发布入口是
+[GitHub Actions 自动部署](../docs/operations/github-actions-deployment.md)：CI 构建 API 镜像并推送
+到 GHCR，目标主机只按不可变 digest 拉取并启动。production 使用 `deploy/compose.yaml`；preview
+同时加载 `deploy/compose.preview.yaml`，将 Compose 项目和三个数据卷固定为 `imsweb-preview` 命名空间。
+下面的 `--build` 命令只用于本地容器集成预览，不是远端发布步骤。
 
 从仓库根目录检查配置：
 
@@ -17,7 +23,7 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/compose.yaml config
 ```
 
-日常源码开发优先运行根目录 `pnpm dev`。它会复用本 Compose 文件启动并等待 PostgreSQL/RustFS，
+日常源码开发优先运行根目录 `pnpm dev`。它会复用本 Compose 文件启动并等待 PostgreSQL、Valkey 和 RustFS，
 初始化 bucket、应用 migration，再启动宿主机上的 API/Web 热更新进程；无需先复制
 `deploy/.env`。如需调整本地依赖端口或凭据，再从模板创建该文件。停止依赖且保留数据卷使用
 `pnpm run dev:down`。启动和停止前可运行 `pnpm run dev:doctor`；统一入口仅允许 Unix socket、
@@ -27,33 +33,74 @@ Windows named pipe 或回环地址上的本机 Docker/Podman endpoint，远程 c
 
 ```sh
 pnpm run dev:api:up
-docker compose -f deploy/compose.yaml ps postgres rustfs rustfs-init api
+docker compose -f deploy/compose.yaml ps postgres valkey rustfs rustfs-init api
 curl --fail http://127.0.0.1:3000/api/wiki/test
 ```
 
 `dev:api:up` 是容器集成预览入口：它会构建 API 镜像，并按健康依赖顺序启动 PostgreSQL、
-RustFS 初始化任务和 API，但不提供源码热更新。
+Valkey、RustFS 初始化任务和 API，但不提供源码热更新。
+镜像构建通过 `IMS_DEBIAN_MIRROR_BASE`、`IMS_NPM_REGISTRY` 和
+`IMS_NODE_HEADERS_MIRROR` 分别覆盖 apt、Corepack/pnpm 与原生 Node headers 下载源；模板默认
+使用国内 npm 镜像，并为本地构建提供国内 Debian 镜像。不要把认证信息写入这些公开 mirror URL。
 只需要依赖服务或需要 Hono 源码热更新时，仍可分别运行：
 
 ```sh
 pnpm run dev:postgresql:up
+docker compose --profile local-cache -f deploy/compose.yaml up -d valkey
 pnpm run dev:rustfs:up
 pnpm run dev:node
 ```
 
-API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问数据库；本地 profile 通过
-`rustfs:9000` 访问对象存储，生产 R2 则使用配置的外部 S3 API endpoint。
+API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问数据库、通过 `valkey:6379`
+访问本地缓存；本地 storage profile 默认通过 `rustfs:9000` 访问对象存储，生产使用配置的独立
+Valkey 与外部 S3 API endpoint。
+
+RustFS S3 API 默认也只绑定回环地址。需要让局域网浏览器直接读取公开对象时，在 Git 忽略的
+`deploy/.env` 设置 `IMS_RUSTFS_API_BIND_ADDRESS=0.0.0.0`，并把
+`IMS_RUSTFS_PUBLIC_ORIGIN`、`IMS_PUBLIC_READ_URL_BASE` 和 `IMS_S3_PUBLIC_ENDPOINT` 都改为
+宿主机稳定的 LAN URL。Compose 内的 `IMS_S3_ENDPOINT` 保持 `http://rustfs:9000`，它只用于
+服务端读写；`IMS_S3_PUBLIC_ENDPOINT` 用于受保护对象的浏览器签名 URL。Console 保持回环绑定。
 `api-data` 卷保存 Hono 的本地运行状态，停止单个 API 容器不会删除该卷。不要把
 `deploy/.env.example` 中的本地默认凭据用于共享或生产环境；共享或生产环境的数据库、对象
 存储和应用秘密必须由目标平台或密钥管理服务注入。
 
+## 共享 preview
+
+`release/v1.1` 的共享 preview 由 `.github/workflows/deploy-preview.yml` 构建、签名并部署。远端
+配置和数据必须位于部署用户的 home 下，运行时配置文件保持 `0600`，容器运行时的数据根目录也
+必须属于同一用户。CI 只上传两个 Compose 文件与受控部署脚本，再通过短期 `GITHUB_TOKEN` 拉取
+不可变 GHCR digest；远端不检出仓库，也不执行 `docker compose build`。
+
+preview 的对象存储是共享的 Cloudflare R2 测试桶（与本地 `deploy/.env.r2-test` 同一个 bucket），不是本地
+RustFS；preview 从不启用 `local-storage` profile，只启用 `local-cache`（Valkey）。
+
+使用与 CI 相同的配置做只读渲染检查：
+
+```sh
+docker compose \
+  --project-name imsweb-preview \
+  --env-file "$HOME/preview/config/preview.env" \
+  -f deploy/compose.yaml \
+  -f deploy/compose.preview.yaml \
+  --profile local-cache \
+  config --quiet
+```
+
+preview 默认只绑定回环端口，并通过 SSH 隧道访问。`deploy-compose-preview.sh` 要求 API、PostgreSQL、
+Valkey 使用互不相同的非特权端口；它还会验证 bucket 名包含独立的 `test` 段、endpoint 是
+无凭据、无路径的 Cloudflare R2 HTTPS S3 API 地址、region 为 `auto`、`IMS_S3_FORCE_PATH_STYLE` 为
+`false`。候选镜像失败时只恢复上一 API 镜像，不恢复 preview PostgreSQL；R2 测试桶对象不随部署
+回滚改变。
+
 ## PostgreSQL + Cloudflare R2
 
 生产机的 `/etc/imsweb/production.env` 应将 `COMPOSE_PROFILES` 留空，并设置完整的
-`IMS_S3_*`、AWS 凭据、高熵
-`IMS_JWT_SECRET`、`IMS_API_DATABASE_URL`、
+`IMS_S3_*`、AWS 凭据、`IMS_CACHE_BACKEND=valkey`、`IMS_VALKEY_URL`、互不相同的高熵
+`IMS_BACKOFFICE_JWT_SECRET` 与 `IMS_PLATFORM_JWT_SECRET`、`IMS_API_DATABASE_URL`、
 `IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES=83886080`，并在首次启用管理员角色时将
-`IMS_SUPER_ADMIN_USERNAME` 设为现有 `op` 账号。R2 使用 `auto` region；
+`IMS_SUPER_ADMIN_USERNAME` 设为现有 `op` 账号。若从旧版本滚动升级，按
+[运维手册](../docs/operations/runbook.md) 暂时保留旧 `IMS_JWT_SECRET`；全新安装保持其为空。
+R2 使用 `auto` region；
 `IMS_S3_ENDPOINT` 是 R2 S3 API 域名，`IMS_PUBLIC_READ_URL_BASE` 是 bucket 自定义域名，
 二者不能互换。手工排障时先指定 CI 已记录的不可变镜像，再渲染配置和启动 API 栈：
 

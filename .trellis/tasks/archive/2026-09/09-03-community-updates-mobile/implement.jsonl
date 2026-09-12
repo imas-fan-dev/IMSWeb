@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/web/frontend/index.md", "reason": "Web implementation entrypoint and quality gates"}
+{"file": ".trellis/spec/web/frontend/architecture.md", "reason": "Shared Web and Tauri App route and shell boundaries"}
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "Responsive accessibility safe-area and stable-state rules"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Unit and browser test conventions"}
+{"file": ".trellis/tasks/09-03-community-updates-mobile/research/mobile-surface-map.md", "reason": "Confirmed community-update surfaces risks and stale tests"}

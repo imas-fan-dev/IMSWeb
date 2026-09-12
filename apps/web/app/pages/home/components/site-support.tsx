@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Skeleton } from "~/components/ui/skeleton"
 import { cn } from "~/lib/utils"
 import { useHomepageLinks } from "../hooks/use-homepage-links"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function SiteSupport() {
   const { data, loading, error } = useHomepageLinks()
@@ -33,7 +34,7 @@ export function SiteSupport() {
         ) : items.length ? (
           <div className="grid gap-3 md:grid-cols-3">
             {items.map((link) => (
-              <a
+              <NavigationLink
                 key={link.id}
                 href={link.href}
                 target="_blank"
@@ -59,7 +60,7 @@ export function SiteSupport() {
                   className="size-4 shrink-0 text-muted-foreground"
                   aria-hidden="true"
                 />
-              </a>
+              </NavigationLink>
             ))}
           </div>
         ) : (

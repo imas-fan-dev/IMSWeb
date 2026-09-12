@@ -1,9 +1,10 @@
-import { Link, isRouteErrorResponse } from "react-router"
+import { isRouteErrorResponse } from "react-router"
 import { useTranslation } from "react-i18next"
 
 import { RootAppLayout, RootDocumentLayout } from "~/layouts/root-layout"
 import type { Route } from "./+types/root"
 import "./app.css"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function meta() {
   return [
@@ -46,12 +47,12 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       <p className="text-sm font-medium text-primary">IMSWeb</p>
       <h1 className="mt-2 text-3xl font-semibold">{message}</h1>
       <p className="mt-4 max-w-xl leading-7 text-muted-foreground">{details}</p>
-      <Link
+      <NavigationLink
         to="/"
         className="mt-8 w-fit rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         {t("errors.backHome")}
-      </Link>
+      </NavigationLink>
       {stack && (
         <pre className="mt-8 w-full overflow-x-auto rounded-md bg-muted p-4 text-xs">
           <code>{stack}</code>

@@ -1,8 +1,17 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { InformationManager } from "~/pages/admin/information/index"
+
+function renderManager() {
+  return render(
+    <MemoryRouter>
+      <InformationManager />
+    </MemoryRouter>
+  )
+}
 
 const informationPayload = {
   version: 1,
@@ -43,7 +52,7 @@ describe("InformationManager", () => {
     stubInformationRequest()
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
@@ -61,7 +70,7 @@ describe("InformationManager", () => {
     stubInformationRequest()
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     expect(screen.getByText("2 个对象")).toBeVisible()
@@ -110,7 +119,7 @@ describe("InformationManager", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "编辑“夏日活动”" }))
@@ -135,7 +144,9 @@ describe("InformationManager", () => {
     expect(savedPayload.html).not.toContain("data-information-body-asset")
 
     await act(async () => {
-      resolveSave(jsonResponse({ success: true }))
+      resolveSave(
+        jsonResponse({ success: true, card: informationPayload.cards[0] })
+      )
       await saveResponse
     })
 
@@ -154,7 +165,9 @@ describe("InformationManager", () => {
         const method =
           input instanceof Request ? input.method : (init?.method ?? "GET")
         if (method === "PUT") {
-          return Promise.resolve(jsonResponse({ success: true }))
+          return Promise.resolve(
+            jsonResponse({ success: true, card: informationPayload.cards[0] })
+          )
         }
         informationLoads += 1
         if (informationLoads === 1) {
@@ -171,7 +184,7 @@ describe("InformationManager", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<InformationManager />)
+    renderManager()
 
     expect(await screen.findByText("夏日活动")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "编辑“夏日活动”" }))

@@ -75,7 +75,7 @@ describe("RecommendationsCenter", () => {
     ).toBe("9223372036854775807")
   })
 
-  it("loads cursor pages, deduplicates rows, and exposes a manual fallback", async () => {
+  it("loads cursor pages by scroll alone and deduplicates rows", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -99,17 +99,20 @@ describe("RecommendationsCenter", () => {
         })
       )
     vi.stubGlobal("fetch", fetchMock)
-    const user = userEvent.setup()
 
     render(<RecommendationsCenter />)
 
+    // No click anywhere. With IntersectionObserver stubbed out, the scroll
+    // fallback is what carries the list, and it runs once on mount so a first
+    // page shorter than the viewport still advances.
     expect(await screen.findByRole("heading", { name: "推荐 3" })).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "加载更多推荐" }))
-
     expect(await screen.findByRole("heading", { name: "推荐 1" })).toBeVisible()
     expect(screen.getAllByRole("heading", { name: "推荐 2" })).toHaveLength(1)
     expect(screen.getAllByRole("listitem")).toHaveLength(3)
     expect(screen.getByText("已显示本批次的全部推荐")).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: /加载更多/ })
+    ).not.toBeInTheDocument()
 
     const firstUrl = new URL(
       requestUrl(fetchMock.mock.calls[0]![0]),

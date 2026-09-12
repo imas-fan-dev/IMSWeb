@@ -96,9 +96,15 @@ function ExportPopover({ document }: { document: TierListDocument }) {
     <Popover>
       <PopoverTrigger
         render={
-          <Button type="button" variant="secondary" disabled={totalItems === 0}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full sm:w-auto"
+            disabled={totalItems === 0}
+            aria-label="导出图片"
+          >
             <DownloadIcon aria-hidden="true" className="size-4" />
-            导出图片
+            <span className="hidden sm:inline">导出图片</span>
           </Button>
         }
       />
@@ -181,7 +187,12 @@ function ClearAllButton({ onClear }: { onClear: () => void }) {
     <AlertDialog>
       <AlertDialogTrigger
         render={
-          <Button type="button" variant="ghost" aria-label="清空排行榜">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full sm:w-auto"
+            aria-label="清空排行榜"
+          >
             <Trash2Icon aria-hidden="true" className="size-4" />
             <span className="hidden sm:inline">清空</span>
           </Button>
@@ -215,25 +226,42 @@ export function TierListToolbar({
   onOpenImport: () => void
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
-      <label className="flex min-w-0 items-center gap-2">
+    <div
+      className="mb-4 grid grid-cols-1 gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10 sm:mb-6 sm:flex sm:flex-wrap sm:items-center"
+      data-testid="tier-list-toolbar"
+    >
+      <label className="flex min-w-0 items-center gap-2 sm:w-auto">
         <span className="sr-only">排行榜标题</span>
         <Input
           value={document.title}
           onChange={(event) => actions.setTitle(event.target.value)}
           placeholder="排行榜标题"
-          className="w-44 font-medium sm:w-72"
+          className="w-full font-medium sm:w-72"
           aria-label="排行榜标题"
         />
       </label>
-      <div className="ml-auto flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" onClick={actions.addTier}>
+      <div
+        className="grid min-w-0 grid-cols-4 items-center gap-2 sm:ml-auto sm:flex sm:flex-wrap"
+        data-testid="tier-list-toolbar-actions"
+      >
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full sm:w-auto"
+          onClick={actions.addTier}
+          aria-label="添加层级"
+        >
           <PlusIcon aria-hidden="true" className="size-4" />
-          添加层级
+          <span className="hidden sm:inline">添加层级</span>
         </Button>
-        <Button type="button" onClick={onOpenImport}>
+        <Button
+          type="button"
+          className="w-full sm:w-auto"
+          onClick={onOpenImport}
+          aria-label="导入图片"
+        >
           <ImagePlusIcon aria-hidden="true" className="size-4" />
-          导入图片
+          <span className="hidden sm:inline">导入图片</span>
         </Button>
         <ExportPopover document={document} />
         <ClearAllButton onClear={actions.clearAll} />

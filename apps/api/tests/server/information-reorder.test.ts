@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import crypto from 'node:crypto';
 import test from 'node:test';
+import {
+    informationDetailSchema,
+    informationErrorResponseSchema,
+    informationListSchema
+} from '@imsweb/contracts/information';
 import { createHonoApp } from '@/app';
-import { parseInformationIndex, serializeInformationIndex } from '@/domains/information/data';
+import { parseInformationIndex, serializeInformationIndex } from '@/domains/content/information/data';
 import type {
     ListedObject,
     ObjectStorage,
@@ -51,22 +57,30 @@ class MemoryStorage implements ObjectStorage {
     deletePrefix(): Promise<void> { return Promise.resolve(); }
 }
 
-test('information reorder persists exact card order and rejects incomplete inventories', async () => {
+test('Information admin reordering is retired after community post unification', async () => {
     const storage = new MemoryStorage();
     const image = '/uploads/information/original/cover.webp';
-    const card = (id: string, title: string) => ({
+    const card = (
+        id: string,
+        title: string,
+        contentType: 'external' | 'html' = 'external'
+    ) => ({
         id,
         category: 'activity' as const,
-        contentType: 'external' as const,
+        contentType,
         image,
         link: `https://example.test/${id}`,
+        ...(contentType === 'html' ? { html: '<p>活动正文</p>' } : {}),
         title,
         updatedAt: '2026-07-31T00:00:00.000Z'
     });
     await storage.put(INFORMATION_INDEX_OBJECT_KEY, serializeInformationIndex({
         version: 1,
         assets: [image],
-        cards: [card('information-first', '第一项'), card('information-second', '第二项')]
+        cards: [
+            card('information-first', '第一项', 'html'),
+            card('information-second', '第二项')
+        ]
     }));
     const app = createHonoApp(() => ({
         storage,
@@ -74,7 +88,7 @@ test('information reorder persists exact card order and rejects incomplete inven
             insertAuditLog: async () => undefined,
             listRecentAuditLogs: async () => []
         },
-        tokens: {
+        backofficeTokens: {
             sign: async () => 'op-token',
             verify: async () => ({
                 id: 1,
@@ -86,6 +100,26 @@ test('information reorder persists exact card order and rejects incomplete inven
             })
         }
     }));
+    const publicList = await app.request('/api/information');
+    assert.equal(publicList.status, 200);
+    await contractJson(publicList, informationListSchema);
+
+    const publicDetail = await app.request('/api/information/information-first');
+    assert.equal(publicDetail.status, 200);
+    await contractJson(publicDetail, informationDetailSchema);
+
+    const missing = await app.request('/api/information/missing');
+    assert.equal(missing.status, 404);
+    await contractJson(missing, informationErrorResponseSchema);
+
+    // Content delivery intentionally remains HTML, while the reachable missing error is JSON.
+    const content = await app.request('/information/information-first/content');
+    assert.equal(content.status, 200);
+    assert.match(content.headers.get('content-type') ?? '', /^text\/html/);
+    const contentBody = await content.text();
+    assert.match(contentBody, /<title>第一项<\/title>/);
+    assert.match(contentBody, /<p>活动正文<\/p>/);
+
     const request = (ids: string[]) => app.request('/api/admin/information/order', {
         method: 'PUT',
         headers: {
@@ -95,10 +129,34 @@ test('information reorder persists exact card order and rejects incomplete inven
         body: JSON.stringify({ ids })
     });
 
-    assert.equal((await request(['information-second'])).status, 409);
-    assert.equal((await request(['information-second', 'information-first'])).status, 200);
+    const response = await request(['information-second', 'information-first']);
+    assert.equal(response.status, 410);
+    assert.deepEqual(await contractJson(response, informationErrorResponseSchema), {
+        error: '活动资讯后台已整合至社区帖子，请使用 /api/admin/community-posts'
+    });
     assert.deepEqual(
         parseInformationIndex(storage.object!.body).cards.map((item) => item.id),
-        ['information-second', 'information-first']
+        ['information-first', 'information-second']
     );
+
+    const retiredRequests: Array<[string, string, unknown?]> = [
+        ['GET', '/api/admin/information'],
+        ['POST', '/api/admin/information', {}],
+        ['PUT', '/api/admin/information/information-first', {}],
+        ['DELETE', '/api/admin/information/information-first'],
+        ['POST', '/api/admin/information/assets', {}],
+        ['DELETE', '/api/admin/information/assets', { url: image }]
+    ];
+    for (const [method, pathname, body] of retiredRequests) {
+        const retired = await app.request(pathname, {
+            method,
+            headers: {
+                Authorization: 'Bearer op-token',
+                ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+            },
+            body: body === undefined ? undefined : JSON.stringify(body)
+        });
+        assert.equal(retired.status, 410, `${method} ${pathname}`);
+        await contractJson(retired, informationErrorResponseSchema);
+    }
 });

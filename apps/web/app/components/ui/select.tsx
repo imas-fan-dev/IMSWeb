@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
+import { useSafeAreaCollisionBoundary } from "~/components/ui/use-safe-area-collision-boundary"
 import { cn } from "~/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
@@ -68,9 +69,12 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
   >) {
+  const collisionBoundary = useSafeAreaCollisionBoundary()
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
+        collisionBoundary={collisionBoundary}
         side={side}
         sideOffset={sideOffset}
         align={align}

@@ -105,7 +105,7 @@ function ProducerMapImageEditor({
             id={`producer-map-${label}-upload`}
             name="image"
             label={value ? `替换${label}` : `上传${label}`}
-            description="PNG、JPEG、WebP 或 AVIF，最大 10MB。"
+            description="PNG、JPEG、WebP、AVIF、HEIC 或 HEIF，最大 10MB。"
             disabled={uploading}
             uploading={uploading}
             resetAfterSelect

@@ -1,6 +1,7 @@
 import { ExternalLinkIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router"
+
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export function SiteFooter() {
   const { t } = useTranslation()
@@ -16,19 +17,19 @@ export function SiteFooter() {
           className="flex flex-wrap items-center gap-x-5 gap-y-3"
           aria-label={t("footer.navigationLabel")}
         >
-          <Link to="/about" className="hover:text-foreground">
+          <NavigationLink to="/about" className="hover:text-foreground">
             {t("footer.about")}
-          </Link>
-          <Link to="/admin/login" className="hover:text-foreground">
+          </NavigationLink>
+          <NavigationLink to="/admin/login" className="hover:text-foreground">
             {t("footer.admin")}
-          </Link>
-          <a
+          </NavigationLink>
+          <NavigationLink
             href="/wiki/"
             className="inline-flex items-center gap-1 hover:text-foreground"
           >
             {t("navigation.storySite")}
             <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
-          </a>
+          </NavigationLink>
         </nav>
       </div>
     </footer>

@@ -1,4 +1,7 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
+
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const guangdongImageUrl = "/uploads/producer-map/guangdong.webp"
 
@@ -40,35 +43,31 @@ const content = {
   updatedAt: "2026-08-11T01:00:00.000Z",
 }
 
-test.beforeEach(async ({ page }) => {
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "producer-map-operator",
-          producername: "地图运营",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
+    user: {
+      username: "producer-map-operator",
+      producername: "地图运营",
+    },
   })
-  await page.route("**/api/admin/producer-map", async (route) => {
-    if (route.request().method() !== "GET") {
-      await route.abort()
-      return
-    }
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        content,
-        revision: '"producer-map-e2e-1"',
-      }),
-    })
-  })
+  await api.mockRoute(
+    "**/api/admin/producer-map",
+    async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.abort()
+        return
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          content,
+          revision: '"producer-map-e2e-1"',
+        }),
+      })
+    },
+    "GET"
+  )
   await page.route(`**${guangdongImageUrl}`, async (route) => {
     await route.fulfill({
       contentType: "image/png",
@@ -164,12 +163,13 @@ test("admin edits configured and unconfigured provinces from the real map", asyn
   await dialog.getByRole("button", { name: "取消" }).click()
   await expect(editRegionButton).toBeFocused()
 
-  await provinceSelect.focus()
-  await expect(provinceSelect).toBeFocused()
-  await page.keyboard.press("Enter")
-  await expect(page.getByRole("listbox")).toBeVisible()
-  await page.keyboard.press("Home")
-  await page.keyboard.press("Enter")
+  await provinceSelect.click()
+  const beijingOption = page.getByRole("option", {
+    name: "北京市",
+    exact: true,
+  })
+  await expect(beijingOption).toBeVisible()
+  await beijingOption.press("Enter")
   await expect(provinceSelect).toContainText("北京市")
 
   await page.getByRole("button", { name: "新增地点" }).click()

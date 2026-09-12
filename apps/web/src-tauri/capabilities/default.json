@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "*" }],
+      "deny": [
+        { "url": "about:*" },
+        { "url": "asset:*" },
+        { "url": "blob:*" },
+        { "url": "content:*" },
+        { "url": "data:*" },
+        { "url": "file:*" },
+        { "url": "filesystem:*" },
+        { "url": "javascript:*" },
+        { "url": "tauri:*" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"审查镜片、ring、链接命中区域和响应式边界是否符合组件规范"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"执行 Web 格式、静态检查、聚焦 Playwright 和桌面截图验证"}
+{"file":".trellis/tasks/09-03-fix-liquid-glass-overflow-followup/research/overflow-analysis.md","reason":"核对动画关键帧、横向安全间距和明确的非目标范围"}

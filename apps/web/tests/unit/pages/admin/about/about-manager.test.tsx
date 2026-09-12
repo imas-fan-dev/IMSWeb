@@ -104,7 +104,7 @@ describe("AboutManager", () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
-    document.cookie = "csrf_token=; Max-Age=0; path=/"
+    document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
   })
 
   it("starts first-time configuration from a content-free draft", async () => {
@@ -121,7 +121,7 @@ describe("AboutManager", () => {
 
   it("uploads and composes the hero without exposing an image path field", async () => {
     const original = aboutContent()
-    document.cookie = "csrf_token=about-manager-test; path=/"
+    document.cookie = "ims_admin_csrf=about-manager-test; path=/"
     let savedBody: unknown
     let uploadedHeroFileName: string | null = null
     const fetchMock = vi

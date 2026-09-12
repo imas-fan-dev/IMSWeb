@@ -29,7 +29,7 @@ describe("AdminLogin", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const requestUrl = input instanceof Request ? input.url : String(input)
       expect(new URL(requestUrl, "http://ims.test").pathname).toBe(
-        "/api/admin/login"
+        "/api/admin/auth/login"
       )
       return jsonResponse(
         {
@@ -57,6 +57,7 @@ describe("AdminLogin", () => {
       vi.fn(async () =>
         jsonResponse({
           success: true,
+          token: "operator-token",
           username: "operator",
           producername: "Operator",
           dept: "op",

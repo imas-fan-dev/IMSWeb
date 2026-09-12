@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -27,6 +28,9 @@ function storyPayload(
       imageUrl: "/image/mano.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "idol",
+      entrySubtype: null,
+      imageTransform: defaultWikiImageTransform,
     },
     categories: [
       {
@@ -38,6 +42,7 @@ function storyPayload(
                 name: "【花风Smiley】",
                 img: "/image/story.webp",
                 subtitle: "全话",
+                imageTransform: defaultWikiImageTransform,
                 links: [
                   {
                     id: 21,
@@ -66,6 +71,7 @@ function storyPayload(
                       name: "【仅语音】",
                       img: "/image/audio.webp",
                       subtitle: "语音收录",
+                      imageTransform: defaultWikiImageTransform,
                       links: [
                         {
                           id: 23,
@@ -83,6 +89,7 @@ function storyPayload(
                       name: "【来源待补】",
                       img: "",
                       subtitle: "待编辑",
+                      imageTransform: defaultWikiImageTransform,
                       links: [],
                     },
                   ]
@@ -108,9 +115,13 @@ function gakumasSCardPayload() {
       name: "S卡",
       folderName: "s_card",
       color: "#f39800",
+      wikiUrl: null,
       imageUrl: "/image/gakumas-s-card.webp",
       imageFit: "cover",
       textColor: "#ffffff",
+      entryKind: "story",
+      entrySubtype: "special",
+      imageTransform: defaultWikiImageTransform,
     },
     categories: [
       {
@@ -121,6 +132,7 @@ function gakumasSCardPayload() {
             name: "【咲季与手毬】",
             img: "",
             subtitle: "出场：咲季，手毬",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
           {
@@ -128,6 +140,7 @@ function gakumasSCardPayload() {
             name: "【只有手毬】",
             img: "",
             subtitle: "出场：手毬",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
           {
@@ -135,6 +148,7 @@ function gakumasSCardPayload() {
             name: "【待补元数据】",
             img: "",
             subtitle: "",
+            imageTransform: defaultWikiImageTransform,
             links: [],
           },
         ],
@@ -151,8 +165,24 @@ function renderStory(initialEntry = "/story?agency=闪耀色彩&idol=樱木真�
   )
 }
 
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollIntoView"
+)
+
 describe("StoryPage", () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    if (scrollIntoViewDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        "scrollIntoView",
+        scrollIntoViewDescriptor
+      )
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
+  })
 
   it("renders grouped cards and multiple sources, then filters them", async () => {
     vi.stubGlobal(
@@ -372,7 +402,13 @@ describe("StoryPage", () => {
     )
   })
 
-  it("focuses, highlights, then clears a card linked from the archive cover", async () => {
+  it("focuses, scrolls to, highlights, then clears a linked card", async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, "focus")
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
@@ -384,6 +420,12 @@ describe("StoryPage", () => {
       name: /【花风Smiley】/,
     })
     await waitFor(() => expect(target).toHaveFocus())
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "start",
+      inline: "nearest",
+      behavior: "auto",
+    })
     expect(target).toHaveAttribute("id", "story-card-401")
     expect(target).toHaveAttribute("data-cover-target", "true")
     expect(target).toHaveClass(
@@ -398,6 +440,32 @@ describe("StoryPage", () => {
     )
     expect(target).not.toHaveFocus()
     expect(target).not.toHaveClass("ring-primary", "ring-offset-3")
+  })
+
+  it.each([
+    ["the hash is absent", "/story?agency=闪耀色彩&idol=樱木真乃"],
+    [
+      "the card ID does not exist",
+      "/story?agency=闪耀色彩&idol=樱木真乃#story-card-999",
+    ],
+  ])("does not scroll when %s", async (_reason, initialEntry) => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
+    )
+
+    renderStory(initialEntry)
+
+    await screen.findByRole("button", { name: /【花风Smiley】/ })
+    await act(
+      () => new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+    )
+    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
   it("only keeps cards with story sources in full color", async () => {

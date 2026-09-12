@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   chronicleActivitySchema,
   chronicleActivitySummarySchema,
+  uploadChronicleImages,
 } from "~/lib/api/endpoints/chronicle"
 
 describe("chronicle API contracts", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it("accepts the public activity summary returned by Hono", () => {
     expect(
       chronicleActivitySummarySchema.parse({
@@ -28,5 +31,28 @@ describe("chronicle API contracts", () => {
         images: [],
       })
     ).toThrow()
+  })
+
+  it("validates the legacy Chronicle upload error envelope", async () => {
+    const payload = { success: false as const, error: "图片格式不支持" }
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json(payload, { status: 400 }))
+    )
+
+    await expect(
+      uploadChronicleImages(
+        "activity-1",
+        "uploader",
+        [new File(["image"], "image.png")],
+        "chronicle-upload-key"
+      ).send()
+    ).rejects.toMatchObject({
+      kind: "http",
+      status: 400,
+      payload,
+    })
   })
 })

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AgencyIconManager } from "~/pages/admin/stories/components/agency-icon-manager"
+import type { WikiAdminCatalog } from "~/lib/api"
 
 function requestDetails(call: unknown[]) {
   const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
@@ -36,6 +37,15 @@ function catalogPayload(iconUrl: string | null) {
         displayOrder: 0,
         layoutRevision: 0,
         iconUrl,
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
+        },
+        mediaRevision: 0,
+        idols: [],
         groups: [],
       },
       {
@@ -48,15 +58,24 @@ function catalogPayload(iconUrl: string | null) {
         displayOrder: 1,
         layoutRevision: 0,
         iconUrl: null,
+        imageTransform: {
+          fit: "cover",
+          focalX: 0.5,
+          focalY: 0.5,
+          zoom: 1,
+          rotation: 0,
+        },
+        mediaRevision: 0,
+        idols: [],
         groups: [],
       },
     ],
-  }
+  } satisfies WikiAdminCatalog
 }
 
 describe("AgencyIconManager", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=wiki-agency-icon-test; path=/"
+    document.cookie = "ims_admin_csrf=wiki-agency-icon-test; path=/"
   })
 
   afterEach(() => {

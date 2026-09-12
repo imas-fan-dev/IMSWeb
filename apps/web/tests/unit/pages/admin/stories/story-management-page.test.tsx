@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryManagementPage } from "~/pages/admin/stories"
+import type { WikiAdminCatalog, WikiAdminStories } from "~/lib/api"
 
 function json(payload: unknown) {
   return Promise.resolve(Response.json(payload))
@@ -33,6 +34,40 @@ const catalog = {
       displayOrder: 0,
       layoutRevision: 0,
       iconUrl: null,
+      imageTransform: {
+        fit: "cover",
+        focalX: 0.5,
+        focalY: 0.5,
+        zoom: 1,
+        rotation: 0,
+      },
+      mediaRevision: 0,
+      idols: [
+        {
+          id: 10,
+          agencyId: 1,
+          name: "天海春香",
+          folderName: "amami_haruka",
+          color: "#e22b30",
+          wikiUrl: null,
+          textColor: "#ffffff",
+          displayOrder: 0,
+          imageUrl: "",
+          imageFit: "cover",
+          imageTransform: {
+            fit: "cover",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
+          mediaRevision: 0,
+          wikiEnabled: true,
+          groupIds: [2],
+          entryKind: "idol",
+          entrySubtype: null,
+        },
+      ],
       groups: [
         {
           id: 2,
@@ -42,6 +77,15 @@ const catalog = {
           iconUrl: null,
           displayOrder: 0,
           isFallback: true,
+          idolIds: [10],
+          imageTransform: {
+            fit: "cover",
+            focalX: 0.5,
+            focalY: 0.5,
+            zoom: 1,
+            rotation: 0,
+          },
+          mediaRevision: 0,
           idols: [
             {
               id: 10,
@@ -49,17 +93,30 @@ const catalog = {
               name: "天海春香",
               folderName: "amami_haruka",
               color: "#e22b30",
+              wikiUrl: null,
               textColor: "#ffffff",
               displayOrder: 0,
               imageUrl: "",
               imageFit: "cover",
+              imageTransform: {
+                fit: "cover",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
+              mediaRevision: 0,
+              wikiEnabled: true,
+              groupIds: [2],
+              entryKind: "idol",
+              entrySubtype: null,
             },
           ],
         },
       ],
     },
   ],
-}
+} satisfies WikiAdminCatalog
 
 const stories = {
   status: "success",
@@ -70,10 +127,21 @@ const stories = {
     name: "天海春香",
     folderName: "amami_haruka",
     color: "#e22b30",
+    wikiUrl: null,
     textColor: "#ffffff",
     displayOrder: 0,
     imageUrl: "",
     imageFit: "cover",
+    imageTransform: {
+      fit: "cover",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
+    },
+    mediaRevision: 0,
+    entryKind: "idol",
+    entrySubtype: null,
   },
   categories: [
     {
@@ -96,12 +164,19 @@ const stories = {
       subtitle: "开场",
       imageFile: null,
       imageUrl: "",
+      imageTransform: {
+        fit: "cover",
+        focalX: 0.5,
+        focalY: 0.5,
+        zoom: 1,
+        rotation: 0,
+      },
       mediaRevision: 7,
       revision: 7,
     },
   ],
   stories: [],
-}
+} satisfies WikiAdminStories
 
 describe("StoryManagementPage", () => {
   beforeEach(() => {
@@ -119,7 +194,11 @@ describe("StoryManagementPage", () => {
       const url = new URL(request.url, window.location.origin)
       if (url.pathname === "/api/admin/wiki/catalog") return json(catalog)
       if (url.pathname === "/api/admin/wiki/story-source-catalog") {
-        return json({ status: "success", contentTypes: [], sourcePlatforms: [] })
+        return json({
+          status: "success",
+          contentTypes: [],
+          sourcePlatforms: [],
+        })
       }
       if (url.pathname.endsWith("/story-cover-assets")) {
         return json({

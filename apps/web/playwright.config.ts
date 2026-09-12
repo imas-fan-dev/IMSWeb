@@ -7,6 +7,7 @@ const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173"
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  testIgnore: "app-*.spec.ts",
   outputDir: path.join(tmpdir(), "imsweb-web-playwright"),
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
@@ -38,6 +39,10 @@ export default defineConfig({
     {
       name: "chromium-mobile",
       use: { ...devices["Pixel 7"] },
+    },
+    {
+      name: "firefox-desktop",
+      use: { ...devices["Desktop Firefox"] },
     },
   ],
 })

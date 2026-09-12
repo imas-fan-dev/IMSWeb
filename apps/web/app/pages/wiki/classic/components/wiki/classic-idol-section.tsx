@@ -1,5 +1,4 @@
 import { type CSSProperties } from "react"
-import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import type { WikiImageTransform, WikiPublicIdol } from "~/lib/api"
@@ -8,6 +7,7 @@ import {
   readableWikiAccent,
   safeWikiColor,
 } from "~/pages/wiki/wiki-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 interface ClassicIdolSectionProps {
   agency: string
@@ -57,7 +57,7 @@ export function ClassicIdolSection({
       </div>
       <div className="wiki-classic-idol-grid">
         {idols.map((idol) => (
-          <Link
+          <NavigationLink
             key={idol.id}
             to={`/story/classic?agency=${encodeURIComponent(agency)}&idol=${encodeURIComponent(idol.name)}`}
             aria-label={idol.name}
@@ -87,7 +87,7 @@ export function ClassicIdolSection({
             <span className="wiki-classic-idol-name" title={idol.name}>
               {idol.name}
             </span>
-          </Link>
+          </NavigationLink>
         ))}
       </div>
     </section>

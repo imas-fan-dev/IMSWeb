@@ -56,9 +56,83 @@ function successResponse(payload: unknown = { status: "success" }) {
   return Response.json(payload)
 }
 
+const categoryMutationResult = {
+  status: "success" as const,
+  category: {
+    id: 8,
+    name: "主线剧情 改",
+    storageSlug: "main-story",
+    displayOrder: 0,
+    showWhenEmpty: true,
+    backgroundEligible: false,
+    revision: 1,
+  },
+}
+
+function agencyMutationResult(id: number) {
+  return {
+    status: "success" as const,
+    agency: {
+      id,
+      code: "future",
+      name: "未来企划",
+      color: "#123456",
+      wikiEnabled: true,
+      bannerTitle: "Future Production",
+      displayOrder: 0,
+      layoutRevision: 0,
+      iconUrl: null,
+      imageTransform: defaultWikiImageTransform,
+      mediaRevision: 0,
+    },
+  }
+}
+
+function groupMutationResult(id: number) {
+  return {
+    status: "success" as const,
+    group: {
+      id,
+      agencyId: 6,
+      code: "unit-a",
+      name: "组合 A",
+      color: "#abcdef",
+      displayOrder: 0,
+      isFallback: false,
+      iconUrl: null,
+      imageTransform: defaultWikiImageTransform,
+      mediaRevision: 0,
+    },
+  }
+}
+
+function idolMutationResult(id: number) {
+  return {
+    status: "success" as const,
+    idol: {
+      id,
+      agencyId: 6,
+      name: "未来偶像",
+      folderName: "future_idol",
+      color: "#112233",
+      wikiUrl: "https://wiki.example.test/idols/future",
+      wikiEnabled: true,
+      displayOrder: 0,
+      textColor: "#ffffff",
+      imageFit: "cover" as const,
+      groupIds: [31, 32],
+      imageUrl: "",
+      imageTransform: defaultWikiImageTransform,
+      mediaRevision: 0,
+      entryKind: "idol" as const,
+      entrySubtype: null,
+    },
+  }
+}
+
 describe("Wiki admin API", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=wiki-api-test; path=/"
+    document.cookie = "ims_admin_csrf=wiki-api-test; path=/"
   })
 
   afterEach(() => {
@@ -82,6 +156,9 @@ describe("Wiki admin API", () => {
               displayOrder: 0,
               layoutRevision: 0,
               iconUrl: null,
+              imageTransform: defaultWikiImageTransform,
+              mediaRevision: 0,
+              idols: [],
               groups: [
                 {
                   id: 1,
@@ -91,6 +168,9 @@ describe("Wiki admin API", () => {
                   iconUrl: null,
                   displayOrder: 0,
                   isFallback: true,
+                  idolIds: [10],
+                  imageTransform: defaultWikiImageTransform,
+                  mediaRevision: 0,
                   idols: [
                     {
                       id: 10,
@@ -98,10 +178,17 @@ describe("Wiki admin API", () => {
                       name: "天海春香",
                       folderName: "amami_haruka",
                       color: "#e22b30",
+                      wikiUrl: null,
+                      wikiEnabled: true,
                       textColor: "#ffffff",
                       displayOrder: 0,
                       imageUrl: "",
                       imageFit: "cover",
+                      imageTransform: defaultWikiImageTransform,
+                      mediaRevision: 0,
+                      groupIds: [1],
+                      entryKind: "idol",
+                      entrySubtype: null,
                     },
                   ],
                 },
@@ -130,6 +217,10 @@ describe("Wiki admin API", () => {
             displayOrder: 0,
             imageUrl: "",
             imageFit: "cover",
+            imageTransform: defaultWikiImageTransform,
+            mediaRevision: 0,
+            entryKind: "idol",
+            entrySubtype: null,
           },
           categories: [
             {
@@ -150,6 +241,7 @@ describe("Wiki admin API", () => {
               displayOrder: 0,
               isActive: true,
               revision: 0,
+              iconName: "link-2",
             },
           ],
           sourcePlatforms: [
@@ -179,7 +271,11 @@ describe("Wiki admin API", () => {
               sourcePlatformName: "其他来源",
               subtitle: "开场",
               imageFile: null,
+              coverAssetId: null,
+              coverAssetName: null,
               imageUrl: "",
+              imageTransform: defaultWikiImageTransform,
+              mediaRevision: 0,
               revision: 0,
             },
           ],
@@ -233,13 +329,14 @@ describe("Wiki admin API", () => {
               entryCount: 1,
               imageTransform: {
                 fit: "contain",
-                focalX: "0.25",
-                focalY: "0.75",
-                zoom: "1.5",
+                focalX: 0.25,
+                focalY: 0.75,
+                zoom: 1.5,
                 rotation: 90,
               },
             },
           ],
+          searchEntries: [],
           selection: {
             agency: {
               id: 6,
@@ -250,8 +347,10 @@ describe("Wiki admin API", () => {
               iconUrl: "/icon/agencies/6.webp",
               idolCount: 1,
               entryCount: 1,
+              imageTransform: defaultWikiImageTransform,
             },
             layoutRevision: 3,
+            ungroupedIdols: [],
             groups: [
               {
                 id: 31,
@@ -261,9 +360,9 @@ describe("Wiki admin API", () => {
                 iconUrl: null,
                 imageTransform: {
                   fit: "contain",
-                  focalX: "0.4",
-                  focalY: "0.6",
-                  zoom: "2",
+                  focalX: 0.4,
+                  focalY: 0.6,
+                  zoom: 2,
                   rotation: 180,
                 },
                 idols: [
@@ -272,16 +371,19 @@ describe("Wiki admin API", () => {
                     name: "樱木真乃",
                     folderName: "sakuragi_mano",
                     color: "#f1b0c9",
+                    wikiUrl: "https://wiki.example.test/idols/sakuragi-mano",
                     imageUrl: "/image/mano.webp",
                     imageFit: "cover",
                     textColor: "#ffffff",
                     imageTransform: {
                       fit: "cover",
-                      focalX: "0.3",
-                      focalY: "0.7",
-                      zoom: "1.25",
+                      focalX: 0.3,
+                      focalY: 0.7,
+                      zoom: 1.25,
                       rotation: 270,
                     },
+                    entryKind: "idol",
+                    entrySubtype: null,
                   },
                 ],
               },
@@ -307,6 +409,9 @@ describe("Wiki admin API", () => {
             imageUrl: "/image/mano.webp",
             imageFit: "cover",
             textColor: "#ffffff",
+            entryKind: "idol",
+            entrySubtype: null,
+            imageTransform: defaultWikiImageTransform,
           },
           categories: [
             {
@@ -319,9 +424,9 @@ describe("Wiki admin API", () => {
                   subtitle: "全话",
                   imageTransform: {
                     fit: "contain",
-                    focalX: "0.1",
-                    focalY: "0.9",
-                    zoom: "3",
+                    focalX: 0.1,
+                    focalY: 0.9,
+                    zoom: 3,
                     rotation: 0,
                   },
                   links: [
@@ -331,6 +436,7 @@ describe("Wiki admin API", () => {
                       title: "卡片剧情",
                       url: "https://www.bilibili.com/video/BV1xx411c7mD",
                       contentType: "剧情",
+                      contentTypeIcon: "link-2",
                       sourcePlatform: "Bilibili",
                     },
                   ],
@@ -540,7 +646,11 @@ describe("Wiki admin API", () => {
       )
       .mockResolvedValueOnce(successResponse())
       .mockResolvedValueOnce(
-        successResponse({ status: "success", cardDeleted: false })
+        successResponse({
+          status: "success",
+          cardDeleted: false,
+          mediaRevision: 4,
+        })
       )
     vi.stubGlobal("fetch", fetchMock)
     const image = new File(["card"], "card.png", { type: "image/png" })
@@ -631,7 +741,19 @@ describe("Wiki admin API", () => {
   })
 
   it("sends category and card metadata patches with exact contracts and CSRF", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(successResponse())
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(successResponse(categoryMutationResult))
+      .mockResolvedValueOnce(
+        successResponse({
+          status: "success",
+          mediaRevision: 5,
+          revision: 5,
+          imageFile: "cards/main.webp",
+          coverAssetId: null,
+          imageTransform: defaultWikiImageTransform,
+        })
+      )
     vi.stubGlobal("fetch", fetchMock)
     const image = new File(["card"], "card.png", { type: "image/png" })
 
@@ -701,7 +823,7 @@ describe("Wiki admin API", () => {
   it("creates an idol category and soft deletes an idol with exact contracts", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(successResponse())
+      .mockResolvedValueOnce(successResponse(categoryMutationResult))
       .mockResolvedValueOnce(
         successResponse({
           status: "success",
@@ -908,12 +1030,12 @@ describe("Wiki admin API", () => {
 
   it("sends catalog creates and updates with exact JSON contracts and CSRF", async () => {
     const mutationResults = [
-      { status: "success", agency: { id: "6" } },
-      { status: "success", agency: { id: 6 } },
-      { status: "success", group: { id: "31" } },
-      { status: "success", group: { id: 31 } },
-      { status: "success", idol: { id: "10" } },
-      { status: "success", idol: { id: 10 } },
+      agencyMutationResult(6),
+      agencyMutationResult(6),
+      groupMutationResult(31),
+      groupMutationResult(31),
+      idolMutationResult(10),
+      idolMutationResult(10),
     ]
     const fetchMock = vi
       .fn<typeof fetch>()

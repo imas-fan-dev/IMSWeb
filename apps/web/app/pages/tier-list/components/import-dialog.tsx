@@ -28,10 +28,7 @@ export function ImportDialog({
             上传本机图片。所有图片只保存在浏览器本地，不会上传到服务器。
           </DialogDescription>
         </DialogHeader>
-        <LocalImportTab
-          existingItems={existingItems}
-          onAddItems={onAddItems}
-        />
+        <LocalImportTab existingItems={existingItems} onAddItems={onAddItems} />
       </DialogContent>
     </Dialog>
   )

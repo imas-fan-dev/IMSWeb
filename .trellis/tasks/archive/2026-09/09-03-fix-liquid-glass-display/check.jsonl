@@ -1,0 +1,2 @@
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"核对可见导航修复的视觉边界、响应式行为与可访问性"}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"选择并执行 Web 格式化、静态检查、Playwright 几何与截图验证"}

@@ -23,11 +23,13 @@ const localInfrastructureDefaults = Object.freeze({
   IMS_POSTGRES_DB: "imsweb",
   IMS_POSTGRES_USER: "imsweb",
   IMS_POSTGRES_PASSWORD: "imsweb-local-password",
+  IMS_RUSTFS_API_BIND_ADDRESS: "127.0.0.1",
   IMS_RUSTFS_API_PORT: "9000",
   IMS_RUSTFS_CONSOLE_PORT: "9001",
   IMS_RUSTFS_ACCESS_KEY: "imsweb-local",
   IMS_RUSTFS_SECRET_KEY: "imsweb-local-password",
   IMS_RUSTFS_BUCKET: "imsweb-media-local",
+  IMS_VALKEY_PORT: "6379",
 });
 
 function usage() {
@@ -44,12 +46,18 @@ Options:
   --web-port PORT  React Router port (default: ${defaultWebPort})
   --r2             Use the R2 test bucket configured in apps/api/.env
   --doctor         Check prerequisites without changing local state
-  --down           Stop local PostgreSQL and RustFS without deleting data
+  --down           Stop local PostgreSQL, Valkey, and RustFS without deleting data
   --dry-run        Print the startup plan without executing it
   -h, --help       Show this help
 
 Environment overrides:
   IMS_DEV_API_PORT, IMS_DEV_WEB_PORT, IMS_DEV_R2_ENV_FILE
+  IMS_VALKEY_PORT
+  IMS_DEV_FUDABA_PUBLIC_READ_ENABLED, IMS_DEV_FUDABA_WRITE_ENABLED
+  IMS_DEV_FUDABA_MAP_ENABLED, IMS_DEV_FUDABA_MAP_STYLE_URL
+  IMS_DEV_FUDABA_MAP_STYLE_URLS
+  IMS_DEV_FUDABA_GEOCODING_ENDPOINT, IMS_DEV_FUDABA_GEOCODING_USER_AGENT
+  IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES
 `;
 }
 
@@ -153,6 +161,7 @@ function sanitizedApplicationEnvironment(environment) {
   for (const name of Object.keys(sanitized)) {
     if (
       name.startsWith("IMS_") ||
+      name === "VITE_IMS_APP_TARGET" ||
       name === "DATABASE_URL" ||
       name === "AWS_ACCESS_KEY_ID" ||
       name === "AWS_SECRET_ACCESS_KEY" ||
@@ -165,8 +174,162 @@ function sanitizedApplicationEnvironment(environment) {
   return sanitized;
 }
 
+function developmentBooleanFlag(environment, name) {
+  const value = String(environment[name] || "")
+    .trim()
+    .toLowerCase();
+  if (!value) return "false";
+  if (value === "true" || value === "false") return value;
+  throw new Error(`${name} must be true or false`);
+}
+
+function developmentMapStyleUrl(environment) {
+  const rawValue = String(environment.IMS_DEV_FUDABA_MAP_STYLE_URL || "");
+  const value = rawValue.trim();
+  if (!value) return "";
+
+  let absoluteUrl = null;
+  try {
+    absoluteUrl = new URL(value);
+  } catch {
+    absoluteUrl = null;
+  }
+  const isCredentialFreeHttpUrl = Boolean(
+    absoluteUrl &&
+    ["http:", "https:"].includes(absoluteUrl.protocol) &&
+    !absoluteUrl.username &&
+    !absoluteUrl.password,
+  );
+  const isSameOriginPath = value.startsWith("/") && !value.includes("//");
+  if (
+    value.length > 2_048 ||
+    /[\0-\x1f\x7f]/.test(rawValue) ||
+    (!isSameOriginPath && !isCredentialFreeHttpUrl) ||
+    value.includes("\\") ||
+    value.includes("?") ||
+    value.includes("#")
+  ) {
+    throw new Error(
+      "IMS_DEV_FUDABA_MAP_STYLE_URL must be a same-origin absolute path or " +
+        "a credential-free absolute HTTP(S) URL without query or hash",
+    );
+  }
+  return value;
+}
+
+function developmentMapStyleUrls(environment) {
+  const values = [];
+  for (const entry of String(
+    environment.IMS_DEV_FUDABA_MAP_STYLE_URLS || "",
+  ).split(",")) {
+    const styleUrl = developmentMapStyleUrl({
+      IMS_DEV_FUDABA_MAP_STYLE_URL: entry,
+    });
+    if (styleUrl && !values.includes(styleUrl)) values.push(styleUrl);
+  }
+  return values.join(",");
+}
+
+function developmentGeocodingConfig(environment) {
+  const endpointValue = String(
+    environment.IMS_DEV_FUDABA_GEOCODING_ENDPOINT || "",
+  ).trim();
+  const userAgent = String(
+    environment.IMS_DEV_FUDABA_GEOCODING_USER_AGENT || "",
+  ).trim();
+  const countryCodes = String(
+    environment.IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES || "cn",
+  )
+    .trim()
+    .toLowerCase();
+  if (!endpointValue) {
+    if (userAgent) {
+      throw new Error(
+        "IMS_DEV_FUDABA_GEOCODING_ENDPOINT is required when a User-Agent is set",
+      );
+    }
+    return { endpoint: "", userAgent: "", countryCodes };
+  }
+  let endpoint;
+  try {
+    endpoint = new URL(endpointValue);
+  } catch {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_ENDPOINT must be a valid HTTPS URL",
+    );
+  }
+  if (
+    endpoint.protocol !== "https:" ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash
+  ) {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_ENDPOINT must be a credential-free HTTPS URL " +
+        "without query or hash",
+    );
+  }
+  if (
+    userAgent.length < 10 ||
+    userAgent.length > 200 ||
+    /[\0-\x1f\x7f]/.test(userAgent)
+  ) {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_USER_AGENT must be 10-200 printable characters",
+    );
+  }
+  if (!/^[a-z]{2}(?:,[a-z]{2})*$/.test(countryCodes)) {
+    throw new Error(
+      "IMS_DEV_FUDABA_GEOCODING_COUNTRY_CODES must be comma-separated ISO country codes",
+    );
+  }
+  return {
+    endpoint: endpoint.toString(),
+    userAgent,
+    countryCodes,
+  };
+}
+
+function resolveFudabaDevelopmentEnvironment(environment) {
+  const mapEnabled = developmentBooleanFlag(
+    environment,
+    "IMS_DEV_FUDABA_MAP_ENABLED",
+  );
+  const mapStyleUrl = developmentMapStyleUrl(environment);
+  const mapStyleUrls = developmentMapStyleUrls(environment);
+  const geocoding = developmentGeocodingConfig(environment);
+  if (mapEnabled === "true" && !mapStyleUrl) {
+    throw new Error(
+      "IMS_DEV_FUDABA_MAP_STYLE_URL is required when " +
+        "IMS_DEV_FUDABA_MAP_ENABLED=true",
+    );
+  }
+  return {
+    IMS_FUDABA_PUBLIC_READ_ENABLED: developmentBooleanFlag(
+      environment,
+      "IMS_DEV_FUDABA_PUBLIC_READ_ENABLED",
+    ),
+    IMS_FUDABA_WRITE_ENABLED: developmentBooleanFlag(
+      environment,
+      "IMS_DEV_FUDABA_WRITE_ENABLED",
+    ),
+    IMS_FUDABA_MAP_ENABLED: mapEnabled,
+    IMS_FUDABA_MAP_STYLE_URL: mapStyleUrl,
+    IMS_FUDABA_MAP_STYLE_URLS: mapStyleUrls,
+    IMS_FUDABA_GEOCODING_ENDPOINT: geocoding.endpoint,
+    IMS_FUDABA_GEOCODING_USER_AGENT: geocoding.userAgent,
+    IMS_FUDABA_GEOCODING_COUNTRY_CODES: geocoding.countryCodes,
+  };
+}
+
 function encodedPostgresUrl({ host, port, database, username, password }) {
-  const url = new URL("postgresql://localhost");
+  let url;
+  try {
+    url = new URL("postgresql://localhost");
+  } catch {
+    throw new Error("Unable to construct the local PostgreSQL URL");
+  }
   url.hostname = host;
   url.port = String(port);
   url.username = username;
@@ -179,6 +342,29 @@ function requiredR2Value(environment, name) {
   const value = String(environment[name] || "").trim();
   if (!value) throw new Error(`${name} is required for R2 hot reload`);
   return value;
+}
+
+function parseRustfsPublicOrigin(value) {
+  const name = "IMS_RUSTFS_PUBLIC_ORIGIN";
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid HTTP(S) URL`);
+  }
+  if (
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    (parsed.pathname !== "/" && parsed.pathname !== "")
+  ) {
+    throw new Error(
+      `${name} must be a credential-free HTTP(S) origin without a path, query, or hash`,
+    );
+  }
+  return parsed.toString().replace(/\/+$/, "");
 }
 
 function parseCredentialFreeUrl(name, value, { r2Endpoint = false } = {}) {
@@ -348,6 +534,10 @@ export function resolveDevelopmentConfiguration({
     infrastructure.IMS_RUSTFS_CONSOLE_PORT,
     "IMS_RUSTFS_CONSOLE_PORT",
   );
+  const valkeyPort = parsePort(
+    infrastructure.IMS_VALKEY_PORT,
+    "IMS_VALKEY_PORT",
+  );
   const database = infrastructure.IMS_POSTGRES_DB;
   const username = infrastructure.IMS_POSTGRES_USER;
   const password = infrastructure.IMS_POSTGRES_PASSWORD;
@@ -359,13 +549,13 @@ export function resolveDevelopmentConfiguration({
     IMS_POSTGRES_DB: database,
     IMS_POSTGRES_USER: username,
     IMS_POSTGRES_PASSWORD: password,
-    ...(!options.r2
-      ? {
+    ...(options.r2
+      ? {}
+      : {
           IMS_RUSTFS_ACCESS_KEY: rustfsAccessKey,
           IMS_RUSTFS_SECRET_KEY: rustfsSecretKey,
           IMS_RUSTFS_BUCKET: bucket,
-        }
-      : {}),
+        }),
   };
   for (const [name, value] of Object.entries(requiredInfrastructure)) {
     if (!String(value || "").trim()) throw new Error(`${name} cannot be empty`);
@@ -373,8 +563,12 @@ export function resolveDevelopmentConfiguration({
 
   const apiOrigin = `http://${loopbackHost}:${options.apiPort}`;
   const webOrigin = `http://${loopbackHost}:${options.webPort}`;
-  const rustfsOrigin = `http://${loopbackHost}:${rustfsPort}`;
+  const rustfsOrigin = parseRustfsPublicOrigin(
+    infrastructure.IMS_RUSTFS_PUBLIC_ORIGIN ||
+      `http://${loopbackHost}:${rustfsPort}`,
+  );
   const rustfsConsoleOrigin = `http://${loopbackHost}:${rustfsConsolePort}`;
+  const valkeyUrl = `redis://${loopbackHost}:${valkeyPort}`;
   const databaseUrl = encodedPostgresUrl({
     host: loopbackHost,
     port: postgresPort,
@@ -388,6 +582,7 @@ export function resolveDevelopmentConfiguration({
   if (fs.existsSync(deployEnvironmentPath)) {
     composeArguments.push("--env-file", deployEnvironmentPath);
   }
+  composeArguments.push("--profile", "local-cache");
   if (!options.r2) composeArguments.push("--profile", "local-storage");
   composeArguments.push("-f", composePath);
 
@@ -402,6 +597,7 @@ export function resolveDevelopmentConfiguration({
         IMS_S3_PUBLIC_BUCKET: "",
         IMS_S3_REGION: "us-east-1",
         IMS_S3_ENDPOINT: rustfsOrigin,
+        IMS_S3_PUBLIC_ENDPOINT: rustfsOrigin,
         IMS_S3_FORCE_PATH_STYLE: "true",
         IMS_S3_PREFIX: "",
         IMS_S3_READ_URL_TTL_SECONDS: "300",
@@ -415,9 +611,13 @@ export function resolveDevelopmentConfiguration({
     PORT: String(options.apiPort),
     IMS_ENV_FILE: "",
     IMS_PROJECT_ROOT: repositoryRoot,
-    IMS_JWT_SECRET: "imsweb-local-development-secret",
+    IMS_BACKOFFICE_JWT_SECRET: "imsweb-local-development-secret",
+    IMS_PLATFORM_JWT_SECRET: "imsweb-local-development-platform-secret",
     IMS_COOKIE_SECURE: "false",
+    IMS_CACHE_BACKEND: "valkey",
+    IMS_VALKEY_URL: valkeyUrl,
     IMS_CLIENT_ADDRESS_SOURCE: "direct",
+    ...resolveFudabaDevelopmentEnvironment(environment),
     DATABASE_URL: databaseUrl,
     ...objectStorageEnvironment,
     IMS_PUBLIC_DIR: "apps/api/dist/node-client",
@@ -434,6 +634,8 @@ export function resolveDevelopmentConfiguration({
     webOrigin,
     rustfsOrigin,
     rustfsConsoleOrigin,
+    valkeyUrl,
+    valkeyPort,
     databaseUrl,
     postgresPort,
     rustfsPort,
@@ -476,6 +678,7 @@ export function buildCommandPlan(configuration) {
         "up",
         "-d",
         "postgres",
+        "valkey",
         ...(usesRustfs ? ["rustfs"] : []),
       ],
       env: configuration.composeEnvironment,
@@ -493,6 +696,11 @@ export function buildCommandPlan(configuration) {
         "-d",
         configuration.database,
       ],
+      env: configuration.composeEnvironment,
+    },
+    valkeyReady: {
+      command: "docker",
+      args: [...compose, "exec", "-T", "valkey", "valkey-cli", "ping"],
       env: configuration.composeEnvironment,
     },
     rustfsInit: usesRustfs
@@ -534,6 +742,7 @@ export function buildCommandPlan(configuration) {
         ...compose,
         "stop",
         ...(usesRustfs ? ["rustfs-init", "rustfs"] : []),
+        "valkey",
         "postgres",
       ],
       env: configuration.composeEnvironment,
@@ -551,7 +760,8 @@ function printableCommand(specification) {
 
 function runCommand(label, specification, { quiet = false } = {}) {
   process.stdout.write(`[dev] ${label}\n`);
-  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
+  const useShell =
+    process.platform === "win32" && specification.command.endsWith(".cmd");
   const result = spawnSync(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
@@ -566,7 +776,8 @@ function runCommand(label, specification, { quiet = false } = {}) {
 }
 
 function probeCommand(specification) {
-  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
+  const useShell =
+    process.platform === "win32" && specification.command.endsWith(".cmd");
   const result = spawnSync(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
@@ -856,7 +1067,8 @@ function startWatchProcess(label, specification) {
   process.stdout.write(
     `[dev] Starting ${label}: ${printableCommand(specification)}\n`,
   );
-  const useShell = process.platform === "win32" && specification.command.endsWith(".cmd");
+  const useShell =
+    process.platform === "win32" && specification.command.endsWith(".cmd");
   return spawn(specification.command, specification.args, {
     cwd: repositoryRoot,
     env: specification.env || process.env,
@@ -982,6 +1194,7 @@ async function supervise(configuration, plan) {
     process.stdout.write("\n[dev] Development environment is ready\n");
     process.stdout.write(`[dev] Web:           ${configuration.webOrigin}\n`);
     process.stdout.write(`[dev] API:           ${configuration.apiOrigin}\n`);
+    process.stdout.write(`[dev] Valkey:        ${configuration.valkeyUrl}\n`);
     if (configuration.storageMode === "r2") {
       process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
       process.stdout.write(
@@ -1005,19 +1218,7 @@ async function supervise(configuration, plan) {
     }
   } finally {
     stopChildren(requestedSignal === "SIGINT" ? "SIGINT" : "SIGTERM");
-    const childOutcomes = Promise.all(children.map((entry) => entry.outcome));
-    let killTimer;
-    const stoppedGracefully = await Promise.race([
-      childOutcomes.then(() => true),
-      new Promise((resolve) => {
-        killTimer = setTimeout(() => resolve(false), 5_000);
-      }),
-    ]);
-    clearTimeout(killTimer);
-    if (!stoppedGracefully) {
-      stopChildren("SIGKILL");
-      await childOutcomes;
-    }
+    await Promise.all(children.map((entry) => entry.outcome));
     process.removeListener("SIGINT", onSigint);
     process.removeListener("SIGTERM", onSigterm);
     if (requestedSignal === "SIGINT") process.exitCode = 130;
@@ -1116,6 +1317,15 @@ async function doctor(configuration, plan) {
         ? "choose another port with --web-port or IMS_DEV_WEB_PORT"
         : portFailureHint(webPortProbe, configuration.webPort, "Web"),
   });
+  const valkeyPortProbe = await probePort(configuration.valkeyPort);
+  checks.push({
+    label: `Valkey port ${configuration.valkeyPort} available`,
+    ok: valkeyPortProbe.available,
+    hint:
+      valkeyPortProbe.code === "EADDRINUSE"
+        ? "choose another port with IMS_VALKEY_PORT"
+        : portFailureHint(valkeyPortProbe, configuration.valkeyPort, "Valkey"),
+  });
 
   for (const check of checks) {
     process.stdout.write(`[${check.ok ? "ok" : "fail"}] ${check.label}\n`);
@@ -1132,11 +1342,12 @@ function printPlan(configuration, plan) {
     ["Validate Compose", plan.composeConfig],
     [
       configuration.storageMode === "r2"
-        ? "Start PostgreSQL"
-        : "Start PostgreSQL and RustFS",
+        ? "Start PostgreSQL and Valkey"
+        : "Start PostgreSQL, Valkey, and RustFS",
       plan.infrastructure,
     ],
     ["Wait for PostgreSQL", plan.postgresReady],
+    ["Wait for Valkey", plan.valkeyReady],
     ...(plan.rustfsInit ? [["Initialize RustFS bucket", plan.rustfsInit]] : []),
     ["Apply PostgreSQL migrations", plan.migrate],
     ["Start Hono API", plan.api],
@@ -1149,6 +1360,7 @@ function printPlan(configuration, plan) {
   }
   process.stdout.write(`[dev] Web URL: ${configuration.webOrigin}\n`);
   process.stdout.write(`[dev] API URL: ${configuration.apiOrigin}\n`);
+  process.stdout.write(`[dev] Valkey URL: ${configuration.valkeyUrl}\n`);
   if (configuration.storageMode === "r2") {
     process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
     process.stdout.write(
@@ -1168,11 +1380,12 @@ export async function prepareDevelopmentEnvironment(
   );
   operations.runCommand(
     configuration.storageMode === "r2"
-      ? "Starting PostgreSQL"
-      : "Starting PostgreSQL and RustFS",
+      ? "Starting PostgreSQL and Valkey"
+      : "Starting PostgreSQL, Valkey, and RustFS",
     plan.infrastructure,
   );
   await operations.waitForCommand("Waiting for PostgreSQL", plan.postgresReady);
+  await operations.waitForCommand("Waiting for Valkey", plan.valkeyReady);
   if (plan.rustfsInit) {
     process.stdout.write("[dev] Waiting for RustFS\n");
     await operations.waitForUrl(
@@ -1213,7 +1426,7 @@ export async function main(argv = process.argv.slice(2)) {
   );
   assertLocalContainerTarget(containerTarget);
   if (options.down) {
-    runCommand("Stopping local PostgreSQL and RustFS", plan.down);
+    runCommand("Stopping local PostgreSQL, Valkey, and RustFS", plan.down);
     process.stdout.write("[dev] Local data volumes were preserved.\n");
     return 0;
   }

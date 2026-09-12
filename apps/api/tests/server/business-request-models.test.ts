@@ -4,19 +4,19 @@ import {
     validateEventFields,
     validateEventIdParams,
     validateEventListQuery
-} from '@/domains/events/request';
+} from '@/domains/content/events/request';
+import { validateFudabaGuestSubmissionIdParams } from '@/domains/community/fudaba/guest-submissions/request';
 import {
     validateAdminNamecardListQuery,
-    validateNamecardIdParams,
     validateNamecardListQuery
-} from '@/domains/namecards/request';
+} from '@/domains/community/namecards/request';
 import {
     validateCompatibleNewsDeleteParams,
     validateNewsIdParams,
     validateNewsListQuery
-} from '@/domains/news/request';
-import { validateNewsSubmission } from '@/domains/news/submission';
-import { validateWikiAgencyIdParams } from '@/domains/wiki/request';
+} from '@/domains/content/news/request';
+import { validateNewsSubmission } from '@/domains/content/news/submission';
+import { validateWikiAgencyIdParams } from '@/domains/content/wiki/request';
 import { encodeDescendingIdCursor } from '@/utils/validation/descending-id-cursor';
 
 function rejects(run: () => unknown, message: RegExp): void {
@@ -82,8 +82,14 @@ test('news request models validate IDs, cursors, URLs, and normalized text', () 
 });
 
 test('namecard request models enforce IDs and preserve legacy parseInt pagination', () => {
-    assert.deepEqual(validateNamecardIdParams({ id: '9' }), { id: 9 });
-    rejects(() => validateNamecardIdParams({ id: '-1' }), /名片 ID/);
+    assert.deepEqual(
+        validateFudabaGuestSubmissionIdParams({ submissionId: '9' }),
+        { id: 9 }
+    );
+    rejects(
+        () => validateFudabaGuestSubmissionIdParams({ submissionId: '-1' }),
+        /名片 ID/
+    );
     assert.deepEqual(validateNamecardListQuery({}), { page: 1, size: 25 });
     assert.deepEqual(validateNamecardListQuery({ page: '3', size: '12' }), {
         page: 3,

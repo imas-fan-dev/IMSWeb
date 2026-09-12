@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>IMSWeb · 文章工作台原型</title>
+  <style>
+    :root {
+      --canvas: #f5f5f3;
+      --surface: #ffffff;
+      --surface-soft: #fafaf9;
+      --ink: #19191d;
+      --ink-soft: #69686f;
+      --line: #e5e4e1;
+      --line-strong: #d5d3cf;
+      --brand: #cf3e78;
+      --brand-strong: #af265e;
+      --brand-soft: #fbeaf1;
+      --nav: #19191d;
+      --nav-soft: #27272c;
+      --success: #1f8a5b;
+      --success-soft: #e9f7f0;
+      --warning: #9b6512;
+      --warning-soft: #fff5df;
+      --shadow-sm: 0 1px 2px rgba(20, 20, 24, .05);
+      --shadow-md: 0 18px 45px rgba(26, 24, 28, .10);
+      --radius: 14px;
+      --sidebar-width: 248px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    a { color: inherit; }
+    img { display: block; max-width: 100%; }
+    :focus-visible { outline: 3px solid rgba(207, 62, 120, .25); outline-offset: 2px; }
+
+    .app-shell { min-height: 100vh; }
+    .topbar {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 40;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: var(--nav);
+      color: #fff;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 730; letter-spacing: -.02em; }
+    .brand-mark {
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ed5a96, #b82765);
+      box-shadow: 0 8px 22px rgba(207,62,120,.3);
+      font-size: 13px;
+    }
+    .brand-sub { color: #aaaab3; font-size: 12px; font-weight: 500; }
+    .topbar-user { display: flex; align-items: center; gap: 12px; color: #d8d8dd; }
+    .avatar { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: #34343b; font-weight: 700; color: #fff; }
+
+    .sidebar {
+      position: fixed;
+      z-index: 30;
+      inset: 64px auto 0 0;
+      width: var(--sidebar-width);
+      padding: 22px 14px;
+      background: var(--nav);
+      color: #d2d2d7;
+      overflow-y: auto;
+    }
+    .nav-caption { padding: 0 13px 10px; color: #74747d; font-size: 10px; font-weight: 750; letter-spacing: .14em; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      padding: 11px 13px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--nav-soft); color: #fff; }
+    .nav-item.active { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
+    .nav-icon { width: 22px; text-align: center; font-size: 16px; }
+    .nav-copy { min-width: 0; }
+    .nav-label { display: block; font-weight: 680; }
+    .nav-description { display: block; margin-top: 1px; color: #85858e; font-size: 11px; }
+    .nav-item.active .nav-description { color: #77757b; }
+    .nav-spacer { height: 20px; }
+
+    .main {
+      min-height: 100vh;
+      margin-left: var(--sidebar-width);
+      padding-top: 64px;
+    }
+    .page { display: none; }
+    .page.active { display: block; }
+    .content { width: min(1280px, 100%); margin: 0 auto; padding: 38px 40px 56px; }
+
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+    .eyebrow { margin: 0 0 7px; color: var(--brand); font-size: 11px; font-weight: 780; letter-spacing: .13em; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 7px; font-size: clamp(28px, 3vw, 38px); line-height: 1.14; letter-spacing: -.035em; }
+    .page-description { max-width: 650px; margin-bottom: 0; color: var(--ink-soft); font-size: 15px; }
+    .header-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+    .button {
+      display: inline-flex;
+      min-height: 40px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 15px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 690;
+      text-decoration: none;
+      box-shadow: var(--shadow-sm);
+      transition: .16s ease;
+    }
+    .button:hover { transform: translateY(-1px); background: var(--brand-strong); }
+    .button.secondary { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
+    .button.secondary:hover { background: #f7f7f5; }
+    .button.ghost { border-color: transparent; background: transparent; color: var(--ink-soft); box-shadow: none; }
+    .button.ghost:hover { background: #ececea; color: var(--ink); }
+    .button.small { min-height: 34px; padding: 0 11px; border-radius: 8px; font-size: 13px; }
+    .button.icon-only { width: 38px; padding: 0; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat {
+      position: relative;
+      overflow: hidden;
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow-sm);
+    }
+    .stat::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--stat-color, var(--brand)); }
+    .stat-label { color: var(--ink-soft); font-size: 12px; }
+    .stat-value { margin-top: 6px; font-size: 25px; font-weight: 760; letter-spacing: -.035em; }
+    .stat-note { margin-top: 3px; color: #9a989e; font-size: 11px; }
+
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-sm); }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .search-wrap { position: relative; flex: 1 1 320px; }
+    .search-wrap::before { content: "⌕"; position: absolute; top: 50%; left: 13px; transform: translateY(-50%); color: #85838a; font-size: 19px; }
+    .control {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--ink);
+    }
+    .search { padding-left: 39px; }
+    .select { width: auto; min-width: 128px; }
+    .result-count { margin-left: auto; white-space: nowrap; color: var(--ink-soft); font-size: 12px; }
+
+    .article-list { min-height: 420px; }
+    .article-row {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr) 150px 160px 102px;
+      align-items: center;
+      gap: 18px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      transition: background .15s ease;
+    }
+    .article-row:last-child { border-bottom: 0; }
+    .article-row:hover { background: var(--surface-soft); }
+    .cover-thumb { position: relative; width: 116px; aspect-ratio: 16/10; overflow: hidden; border-radius: 10px; background: #ebe9e7; }
+    .cover-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .cover-empty { display: grid; height: 100%; place-items: center; color: #9a989d; background: linear-gradient(135deg, #f2e7ec, #e9e8ee); font-size: 22px; }
+    .article-title { margin-bottom: 5px; font-size: 15px; font-weight: 720; line-height: 1.35; }
+    .article-summary { display: -webkit-box; overflow: hidden; margin: 0; color: var(--ink-soft); font-size: 12px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .article-meta { margin-top: 8px; color: #929096; font-size: 11px; }
+    .cell-label { display: none; color: #929096; font-size: 10px; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; }
+    .date-main { font-weight: 620; }
+    .date-sub { margin-top: 2px; color: var(--ink-soft); font-size: 11px; }
+    .status { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 720; }
+    .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status.published { color: var(--success); background: var(--success-soft); }
+    .status.draft { color: var(--warning); background: var(--warning-soft); }
+    .row-actions { display: flex; justify-content: flex-end; gap: 6px; }
+    .empty-list { display: none; min-height: 300px; place-items: center; text-align: center; color: var(--ink-soft); }
+
+    .editor-topbar {
+      position: sticky;
+      top: 64px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 66px;
+      padding: 10px 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.93);
+      backdrop-filter: blur(14px);
+    }
+    .editor-back { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .editor-document { min-width: 0; }
+    .editor-document strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .save-state { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 11px; }
+    .save-dot { width: 6px; height: 6px; border-radius: 50%; background: #a6a4a9; }
+    .save-dot.changed { background: var(--warning); }
+    .editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+    .editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; width: min(1220px, 100%); margin: 0 auto; padding: 30px 34px 70px; }
+    .editor-main, .editor-rail { display: flex; min-width: 0; flex-direction: column; gap: 18px; }
+    .editor-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-sm); }
+    .card-heading { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+    .card-heading h2 { margin-bottom: 3px; font-size: 15px; }
+    .card-heading p { margin: 0; color: var(--ink-soft); font-size: 12px; }
+    .card-content { padding: 20px; }
+    .field { margin-bottom: 22px; }
+    .field:last-child { margin-bottom: 0; }
+    .field-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 12px; font-weight: 720; }
+    .field-note { color: #96949a; font-size: 11px; font-weight: 500; }
+    .title-input {
+      width: 100%;
+      padding: 3px 0 12px;
+      border: 0;
+      border-bottom: 1px solid var(--line-strong);
+      background: transparent;
+      color: var(--ink);
+      font-size: clamp(26px, 4vw, 42px);
+      font-weight: 750;
+      letter-spacing: -.04em;
+      line-height: 1.15;
+    }
+    .title-input:focus { outline: 0; border-color: var(--brand); }
+    .title-input::placeholder { color: #c8c6c9; }
+
+    .cover-drop {
+      position: relative;
+      display: grid;
+      width: 100%;
+      aspect-ratio: 16/8.5;
+      place-items: center;
+      overflow: hidden;
+      border: 1px dashed #c9c6ca;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f8f3f5, #f1f0f4);
+      color: var(--ink-soft);
+      text-align: center;
+    }
+    .cover-drop.dragging { border-color: var(--brand); background: var(--brand-soft); }
+    .cover-drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .cover-overlay { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 16px; }
+    .cover-drop.has-image .cover-overlay { opacity: 0; transition: opacity .15s ease; }
+    .cover-drop.has-image:hover .cover-overlay { opacity: 1; color: #fff; background: rgba(20,20,24,.62); border-radius: 10px; }
+    .cover-symbol { font-size: 26px; }
+    .cover-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+    .rich-editor { overflow: hidden; border: 1px solid var(--line-strong); border-radius: 12px; }
+    .editor-toolbar { display: flex; flex-wrap: wrap; gap: 3px; padding: 8px; border-bottom: 1px solid var(--line); background: #faf9f8; }
+    .tool-button { min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: #56545a; font-weight: 700; }
+    .tool-button:hover { background: #eceaec; color: var(--ink); }
+    .tool-separator { width: 1px; margin: 5px 4px; background: var(--line); }
+    .editor-body {
+      min-height: 390px;
+      padding: 28px 30px 50px;
+      background: #fff;
+      font-family: ui-serif, "Noto Serif SC", "Songti SC", serif;
+      font-size: 16px;
+      line-height: 1.9;
+    }
+    .editor-body:focus { outline: 0; }
+    .editor-body h2 { margin: 1.8em 0 .6em; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 24px; letter-spacing: -.025em; }
+    .editor-body p { margin: 0 0 1.1em; }
+    .editor-body blockquote { margin: 1.4em 0; padding: 3px 0 3px 18px; border-left: 3px solid var(--brand); color: #5f5c62; }
+    .editor-body a { color: var(--brand); }
+
+    .rail-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-sm); }
+    .rail-title { padding: 15px 17px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 750; }
+    .rail-content { padding: 16px 17px; }
+    .publication-summary { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .publication-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px; color: var(--warning); background: var(--warning-soft); }
+    .publication-copy strong { display: block; font-size: 13px; }
+    .publication-copy span { color: var(--ink-soft); font-size: 11px; }
+    .rail-field { margin-bottom: 16px; }
+    .rail-field:last-child { margin-bottom: 0; }
+    .rail-field label { display: block; margin-bottom: 7px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+    .rail-field input, .rail-field select { height: 38px; }
+    .check-row { display: flex; align-items: flex-start; gap: 9px; margin-top: 11px; color: var(--ink-soft); font-size: 11px; }
+    .check-row input { margin-top: 2px; accent-color: var(--brand); }
+    .article-health { display: flex; flex-direction: column; gap: 11px; }
+    .health-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .health-label { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; }
+    .health-mark { display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; color: #fff; background: var(--success); font-size: 10px; }
+    .health-mark.pending { background: #c0bdc2; }
+    .health-value { font-size: 11px; font-weight: 700; }
+
+    .preview-shell { min-height: calc(100vh - 64px); background: #fff; }
+    .preview-topbar { position: sticky; top: 64px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.95); backdrop-filter: blur(12px); }
+    .preview-device { display: flex; align-items: center; gap: 5px; padding: 4px; border-radius: 9px; background: #f1f0ee; }
+    .device-button { height: 30px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); }
+    .device-button.active { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
+    .preview-canvas { padding: 34px 20px 70px; background: #f2f1ef; }
+    .preview-frame { width: min(1120px, 100%); margin: 0 auto; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow-md); transition: width .2s ease; }
+    .preview-frame.mobile { width: min(420px, 100%); }
+    .public-nav { display: flex; align-items: center; justify-content: space-between; padding: 17px 24px; border-bottom: 1px solid var(--line); }
+    .public-brand { font-size: 18px; font-weight: 790; letter-spacing: -.03em; }
+    .public-links { display: flex; gap: 18px; color: var(--ink-soft); font-size: 12px; }
+    .public-article { width: min(780px, calc(100% - 40px)); margin: 0 auto; padding: 66px 0 90px; }
+    .public-kicker { margin-bottom: 12px; color: var(--brand); font-size: 11px; font-weight: 780; letter-spacing: .12em; }
+    .public-title { margin-bottom: 18px; font-size: clamp(34px, 6vw, 62px); line-height: 1.08; letter-spacing: -.05em; }
+    .public-meta { display: flex; flex-wrap: wrap; gap: 11px 20px; margin-bottom: 32px; color: var(--ink-soft); font-size: 12px; }
+    .public-cover { width: 100%; aspect-ratio: 16/9; margin-bottom: 42px; overflow: hidden; border-radius: 16px; background: linear-gradient(135deg, #f4e4eb, #e9e8f0); }
+    .public-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .public-cover-placeholder { display: grid; height: 100%; place-items: center; color: #99969b; }
+    .public-body { color: #343238; font-family: ui-serif, "Noto Serif SC", "Songti SC", serif; font-size: 17px; line-height: 1.95; }
+    .public-body h2 { margin: 2em 0 .65em; color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 26px; letter-spacing: -.025em; }
+    .public-body blockquote { margin: 1.5em 0; padding: 3px 0 3px 19px; border-left: 3px solid var(--brand); color: #5f5b62; }
+
+    .toast {
+      position: fixed;
+      z-index: 100;
+      right: 24px;
+      bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: min(380px, calc(100vw - 32px));
+      padding: 13px 16px;
+      border: 1px solid #34343a;
+      border-radius: 11px;
+      background: #202024;
+      color: #fff;
+      box-shadow: var(--shadow-md);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: .22s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast-mark { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: var(--success); font-size: 12px; }
+
+    .prototype-note { position: fixed; z-index: 80; left: 14px; bottom: 14px; padding: 7px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(25,25,29,.9); color: #aaaab2; font-size: 10px; backdrop-filter: blur(8px); }
+
+    @media (max-width: 1080px) {
+      :root { --sidebar-width: 82px; }
+      .sidebar { padding-inline: 10px; }
+      .nav-caption, .nav-copy { display: none; }
+      .nav-item { justify-content: center; padding-inline: 8px; }
+      .nav-icon { width: auto; }
+      .article-row { grid-template-columns: 104px minmax(0, 1fr) 125px 92px; }
+      .article-date { display: none; }
+      .editor-layout { grid-template-columns: minmax(0, 1fr) 286px; padding-inline: 24px; }
+      .prototype-note { display: none; }
+    }
+
+    @media (max-width: 820px) {
+      .topbar { padding-inline: 16px; }
+      .brand-sub, .topbar-user > span { display: none; }
+      .sidebar { position: fixed; inset: auto 0 0 0; width: auto; height: 66px; display: flex; align-items: center; justify-content: space-around; padding: 8px; border-top: 1px solid #303036; overflow: visible; }
+      .sidebar .nav-caption, .sidebar .nav-spacer, .sidebar .nav-item:nth-of-type(n+5) { display: none; }
+      .nav-item { width: 62px; min-height: 48px; }
+      .main { margin-left: 0; padding-bottom: 66px; }
+      .content { padding: 28px 18px 42px; }
+      .page-header { align-items: flex-start; flex-direction: column; }
+      .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .toolbar { flex-wrap: wrap; }
+      .search-wrap { flex-basis: 100%; }
+      .select { flex: 1; min-width: 0; }
+      .result-count { width: 100%; margin: 0; }
+      .article-row { grid-template-columns: 92px minmax(0, 1fr) auto; gap: 12px; }
+      .article-status, .article-date { display: none; }
+      .row-actions .button.ghost { display: none; }
+      .editor-topbar { top: 64px; padding-inline: 14px; }
+      .editor-document { display: none; }
+      .editor-layout { grid-template-columns: 1fr; padding: 20px 14px 46px; }
+      .editor-rail { grid-row: 1; }
+      .editor-rail .rail-card:nth-child(2) { display: none; }
+      .editor-body { min-height: 330px; padding: 22px 20px 40px; }
+      .preview-topbar { padding-inline: 14px; }
+      .public-links { display: none; }
+      .public-article { padding-top: 42px; }
+      .public-title { font-size: 38px; }
+    }
+
+    @media (max-width: 540px) {
+      .header-actions { width: 100%; }
+      .header-actions .button { flex: 1; }
+      .article-row { grid-template-columns: 76px minmax(0,1fr); }
+      .cover-thumb { width: 76px; }
+      .row-actions { grid-column: 2; justify-content: flex-start; }
+      .article-meta { display: none; }
+      .editor-topbar { align-items: flex-start; }
+      .editor-actions .button.secondary { display: none; }
+      .button-label-wide { display: none; }
+      .preview-device { display: none; }
+      .public-article { width: min(100% - 28px, 780px); }
+      .public-cover { margin-bottom: 30px; border-radius: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">IM</div>
+        <div>IMSWeb <span class="brand-sub">内容管理</span></div>
+      </div>
+      <div class="topbar-user"><span>内容管理员</span><div class="avatar">P</div></div>
+    </header>
+
+    <aside class="sidebar" aria-label="管理导航">
+      <div class="nav-caption">内容中枢</div>
+      <button class="nav-item" type="button"><span class="nav-icon">⌂</span><span class="nav-copy"><span class="nav-label">工作台</span><span class="nav-description">站点运营总览</span></span></button>
+      <button class="nav-item active" type="button" data-go="list"><span class="nav-icon">▤</span><span class="nav-copy"><span class="nav-label">文章</span><span class="nav-description">创建、编辑与发布</span></span></button>
+      <button class="nav-item" type="button"><span class="nav-icon">☆</span><span class="nav-copy"><span class="nav-label">首页精选</span><span class="nav-description">内容分发与排序</span></span></button>
+      <button class="nav-item" type="button"><span class="nav-icon">◫</span><span class="nav-copy"><span class="nav-label">素材库</span><span class="nav-description">文章封面与图片</span></span></button>
+      <div class="nav-spacer"></div>
+      <div class="nav-caption">其他业务</div>
+      <button class="nav-item" type="button"><span class="nav-icon">♙</span><span class="nav-copy"><span class="nav-label">剧情内容</span><span class="nav-description">剧情角色素材</span></span></button>
+      <button class="nav-item" type="button"><span class="nav-icon">◎</span><span class="nav-copy"><span class="nav-label">活动纪年</span><span class="nav-description">社区历史归档</span></span></button>
+    </aside>
+
+    <main class="main">
+      <section class="page active" id="page-list" aria-labelledby="list-title">
+        <div class="content">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">EDITORIAL CONTENT</p>
+              <h1 id="list-title">文章</h1>
+              <p class="page-description">集中管理社区文章。每篇文章由标题、封面、正文和发布时间组成。</p>
+            </div>
+            <div class="header-actions">
+              <button class="button secondary" type="button" data-demo-toast="已刷新文章列表">↻ 刷新</button>
+              <button class="button" type="button" data-go="editor">＋ 新建文章</button>
+            </div>
+          </div>
+
+          <div class="stats" aria-label="文章统计">
+            <div class="stat" style="--stat-color:#cf3e78"><div class="stat-label">全部文章</div><div class="stat-value">43</div><div class="stat-note">包含历史迁移内容</div></div>
+            <div class="stat" style="--stat-color:#1f8a5b"><div class="stat-label">已发布</div><div class="stat-value">39</div><div class="stat-note">当前公开可见</div></div>
+            <div class="stat" style="--stat-color:#d59a2e"><div class="stat-label">草稿</div><div class="stat-value">3</div><div class="stat-note">等待编辑或发布</div></div>
+            <div class="stat" style="--stat-color:#85838a"><div class="stat-label">本周更新</div><div class="stat-value">7</div><div class="stat-note">较上周增加 2 篇</div></div>
+          </div>
+
+          <div class="panel">
+            <div class="toolbar">
+              <label class="search-wrap"><span hidden>搜索文章</span><input class="control search" id="article-search" type="search" placeholder="搜索标题或正文摘要"></label>
+              <select class="control select" id="status-filter" aria-label="按状态筛选"><option value="all">全部状态</option><option value="published">已发布</option><option value="draft">草稿</option></select>
+              <select class="control select" aria-label="排序方式"><option>最近更新</option><option>发布时间</option><option>最早创建</option></select>
+              <span class="result-count" id="result-count">显示 4 篇示例文章</span>
+            </div>
+            <div class="article-list" id="article-list">
+              <article class="article-row" data-title="篠泽广研讨会 hiro 2026" data-status="published">
+                <div class="cover-thumb"><img src="/uploads/information/original/xzg2026.png" alt="篠泽广研讨会文章封面" onerror="this.parentElement.innerHTML='<div class=&quot;cover-empty&quot;>✦</div>'"></div>
+                <div><h2 class="article-title">篠泽广研讨会 HIRO 2026</h2><p class="article-summary">面向学园偶像大师制作人的专题研讨会，包含征稿主题、投稿指南与现场交流信息。</p><div class="article-meta">更新于今天 09:42 · 内容管理员</div></div>
+                <div class="article-status"><span class="cell-label">状态</span><span class="status published">已发布</span></div>
+                <div class="article-date"><span class="cell-label">发布时间</span><div class="date-main">2026年8月20日</div><div class="date-sub">09:30</div></div>
+                <div class="row-actions"><button class="button secondary small" type="button" data-go="editor">编辑</button><button class="button ghost small" type="button" data-go="preview">预览</button></div>
+              </article>
+              <article class="article-row" data-title="湖南偶像大师 only 活动" data-status="published">
+                <div class="cover-thumb"><img src="/uploads/information/original/hunan2026.png" alt="湖南偶像大师 ONLY 文章封面" onerror="this.parentElement.innerHTML='<div class=&quot;cover-empty&quot;>湖</div>'"></div>
+                <div><h2 class="article-title">湖南偶像大师 ONLY</h2><p class="article-summary">湖南地区制作人线下交流活动资讯与参与方式。</p><div class="article-meta">更新于昨天 18:06 · 内容管理员</div></div>
+                <div class="article-status"><span class="status published">已发布</span></div>
+                <div class="article-date"><div class="date-main">2026年8月19日</div><div class="date-sub">18:00</div></div>
+                <div class="row-actions"><button class="button secondary small" type="button" data-demo-toast="已选中《湖南偶像大师 ONLY》">编辑</button><button class="button ghost small" type="button" data-demo-toast="公开预览将在新窗口打开">预览</button></div>
+              </article>
+              <article class="article-row" data-title="广州 only 现场无料募集" data-status="draft">
+                <div class="cover-thumb"><div class="cover-empty">稿</div></div>
+                <div><h2 class="article-title">广州 ONLY 现场无料募集</h2><p class="article-summary">正文仍在整理，封面图片尚未上传。</p><div class="article-meta">更新于 2 小时前 · 内容管理员</div></div>
+                <div class="article-status"><span class="status draft">草稿</span></div>
+                <div class="article-date"><div class="date-main">尚未发布</div><div class="date-sub">计划本周完成</div></div>
+                <div class="row-actions"><button class="button secondary small" type="button" data-go="editor">继续编辑</button><button class="button ghost small" type="button" data-demo-toast="草稿预览已准备">预览</button></div>
+              </article>
+              <article class="article-row" data-title="学马跑团文案长期招募" data-status="published">
+                <div class="cover-thumb"><div class="cover-empty">募</div></div>
+                <div><h2 class="article-title">学马跑团文案长期招募</h2><p class="article-summary">欢迎熟悉学园偶像大师世界观的制作人加入长期内容共创。</p><div class="article-meta">更新于 8月17日 · 社区运营</div></div>
+                <div class="article-status"><span class="status published">已发布</span></div>
+                <div class="article-date"><div class="date-main">2026年8月17日</div><div class="date-sub">14:20</div></div>
+                <div class="row-actions"><button class="button secondary small" type="button" data-demo-toast="已选中《学马跑团文案长期招募》">编辑</button><button class="button ghost small" type="button" data-demo-toast="公开预览将在新窗口打开">预览</button></div>
+              </article>
+              <div class="empty-list" id="empty-list"><div><div style="font-size:28px;margin-bottom:10px">⌕</div><strong>没有匹配的文章</strong><p style="margin:6px 0 0">尝试更换关键词或筛选条件。</p></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-editor" aria-label="文章编辑器">
+        <div class="editor-topbar">
+          <div class="editor-back">
+            <button class="button ghost icon-only" type="button" data-go="list" aria-label="返回文章列表">←</button>
+            <div class="editor-document"><strong id="editor-top-title">篠泽广研讨会 HIRO 2026</strong><span class="save-state"><span class="save-dot" id="save-dot"></span><span id="save-text">所有更改已保存</span></span></div>
+          </div>
+          <div class="editor-actions">
+            <button class="button secondary" type="button" id="save-button">保存草稿</button>
+            <button class="button secondary" type="button" data-go="preview">预览</button>
+            <button class="button" type="button" id="publish-button">发布文章</button>
+          </div>
+        </div>
+
+        <div class="editor-layout">
+          <div class="editor-main">
+            <section class="editor-card">
+              <div class="card-heading"><h2>文章内容</h2><p>标题和正文是文章的核心内容。</p></div>
+              <div class="card-content">
+                <div class="field">
+                  <label class="field-label" for="article-title-input"><span>标题</span><span class="field-note"><span id="title-count">19</span> / 80</span></label>
+                  <input class="title-input" id="article-title-input" maxlength="80" value="篠泽广研讨会 HIRO 2026" placeholder="输入一个清晰的文章标题">
+                </div>
+                <div class="field">
+                  <div class="field-label"><span>封面图</span><span class="field-note">推荐 16:9，最大 10 MB</span></div>
+                  <label class="cover-drop has-image" id="cover-drop">
+                    <img id="cover-preview" src="/uploads/information/original/xzg2026.png" alt="当前文章封面" onerror="this.remove();document.getElementById('cover-drop').classList.remove('has-image')">
+                    <span class="cover-overlay"><span class="cover-symbol">↥</span><strong>点击或拖入图片</strong><span>JPG、PNG、WebP</span></span>
+                    <input id="cover-input" type="file" accept="image/png,image/jpeg,image/webp">
+                  </label>
+                </div>
+                <div class="field">
+                  <div class="field-label"><span>正文</span><span class="field-note">支持基础富文本格式</span></div>
+                  <div class="rich-editor">
+                    <div class="editor-toolbar" role="toolbar" aria-label="富文本工具栏">
+                      <button class="tool-button" type="button" data-command="formatBlock" data-value="h2" title="二级标题">H2</button>
+                      <button class="tool-button" type="button" data-command="bold" title="粗体">B</button>
+                      <button class="tool-button" type="button" data-command="italic" title="斜体"><em>I</em></button>
+                      <button class="tool-button" type="button" data-command="strikeThrough" title="删除线"><s>S</s></button>
+                      <span class="tool-separator"></span>
+                      <button class="tool-button" type="button" data-command="insertUnorderedList" title="无序列表">• 列表</button>
+                      <button class="tool-button" type="button" data-command="formatBlock" data-value="blockquote" title="引用">“ 引用</button>
+                      <button class="tool-button" type="button" id="link-button" title="插入链接">↗ 链接</button>
+                      <span class="tool-separator"></span>
+                      <button class="tool-button" type="button" data-command="removeFormat" title="清除格式">清除</button>
+                    </div>
+                    <div class="editor-body" id="article-body" contenteditable="true" spellcheck="true">
+                      <p>这是一场由制作人共同策划的专题研讨会。我们希望从角色研究、内容创作与社群交流三个方向，重新认识篠泽广所带来的独特魅力。</p>
+                      <h2>关于本次活动</h2>
+                      <p>活动将以主题分享、自由讨论和作品展示组成。无论你是长期关注角色的制作人，还是刚刚接触学园偶像大师，都可以找到适合自己的参与方式。</p>
+                      <blockquote>文章发布后，标题、封面、正文和发布时间会共同构成公开详情页。</blockquote>
+                      <h2>参与方式</h2>
+                      <p>请提前阅读投稿说明并准备你的分享内容。详细日程和现场安排将在后续持续更新。</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="editor-rail" aria-label="文章设置">
+            <section class="rail-card">
+              <div class="rail-title">发布设置</div>
+              <div class="rail-content">
+                <div class="publication-summary"><div class="publication-icon" id="publication-icon">◷</div><div class="publication-copy"><strong id="publication-state">草稿</strong><span id="publication-hint">仅管理员可见</span></div></div>
+                <div class="rail-field"><label for="publication-status">文章状态</label><select class="control" id="publication-status"><option value="draft">草稿</option><option value="published">已发布</option></select></div>
+                <div class="rail-field"><label for="published-at">发布时间</label><input class="control" id="published-at" type="datetime-local" value="2026-08-20T09:30"></div>
+                <label class="check-row"><input id="show-date" type="checkbox" checked><span>在公开文章页显示发布时间</span></label>
+              </div>
+            </section>
+            <section class="rail-card">
+              <div class="rail-title">发布检查</div>
+              <div class="rail-content article-health">
+                <div class="health-row"><span class="health-label"><span class="health-mark" id="health-title">✓</span>文章标题</span><span class="health-value" id="health-title-text">已填写</span></div>
+                <div class="health-row"><span class="health-label"><span class="health-mark" id="health-cover">✓</span>封面图片</span><span class="health-value" id="health-cover-text">已上传</span></div>
+                <div class="health-row"><span class="health-label"><span class="health-mark" id="health-body">✓</span>正文内容</span><span class="health-value" id="health-body-text">内容完整</span></div>
+                <div class="health-row"><span class="health-label"><span class="health-mark">✓</span>发布时间</span><span class="health-value">已设置</span></div>
+              </div>
+            </section>
+            <section class="rail-card">
+              <div class="rail-title">原型说明</div>
+              <div class="rail-content" style="color:var(--ink-soft);font-size:12px">这个最小版本只保留文章本身。首页精选、活动字段和复杂审核流程暂不放进编辑主路径。</div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section class="page" id="page-preview" aria-label="公开文章预览">
+        <div class="preview-topbar">
+          <button class="button secondary" type="button" data-go="editor">← 返回编辑</button>
+          <div class="preview-device" aria-label="预览设备">
+            <button class="device-button active" type="button" data-device="desktop">桌面</button>
+            <button class="device-button" type="button" data-device="mobile">手机</button>
+          </div>
+          <button class="button" type="button" id="preview-publish">发布文章</button>
+        </div>
+        <div class="preview-canvas">
+          <div class="preview-frame" id="preview-frame">
+            <nav class="public-nav"><div class="public-brand">IMSWeb</div><div class="public-links"><span>首页</span><span>剧情</span><span>社区动态</span><span>关于本站</span></div></nav>
+            <article class="public-article">
+              <div class="public-kicker">COMMUNITY ARTICLE</div>
+              <h1 class="public-title" id="public-title">篠泽广研讨会 HIRO 2026</h1>
+              <div class="public-meta"><span>IMSWeb 社区编辑部</span><span id="public-date">发布于 2026年8月20日 09:30</span><span>约 3 分钟阅读</span></div>
+              <div class="public-cover" id="public-cover"><img id="public-cover-image" src="/uploads/information/original/xzg2026.png" alt="文章封面" onerror="this.parentElement.innerHTML='<div class=&quot;public-cover-placeholder&quot;>文章封面</div>'"></div>
+              <div class="public-body" id="public-body"></div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span class="toast-mark">✓</span><span id="toast-text">已保存</span></div>
+  <div class="prototype-note">交互原型 · 不会写入真实数据</div>
+
+  <script>
+    const pages = {
+      list: document.getElementById('page-list'),
+      editor: document.getElementById('page-editor'),
+      preview: document.getElementById('page-preview')
+    };
+    const titleInput = document.getElementById('article-title-input');
+    const bodyEditor = document.getElementById('article-body');
+    const coverInput = document.getElementById('cover-input');
+    const coverDrop = document.getElementById('cover-drop');
+    const coverPreview = document.getElementById('cover-preview');
+    const statusSelect = document.getElementById('publication-status');
+    const publishedAt = document.getElementById('published-at');
+    const saveDot = document.getElementById('save-dot');
+    const saveText = document.getElementById('save-text');
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    let toastTimer;
+    let activeCover = coverPreview ? coverPreview.src : '';
+
+    function showToast(message) {
+      toastText.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function setPage(name) {
+      Object.values(pages).forEach(page => page.classList.remove('active'));
+      pages[name].classList.add('active');
+      if (name === 'preview') syncPreview();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    function markChanged() {
+      saveDot.classList.add('changed');
+      saveText.textContent = '有未保存的更改';
+      updateHealth();
+    }
+
+    function markSaved(message = '草稿已保存') {
+      saveDot.classList.remove('changed');
+      saveText.textContent = '所有更改已保存';
+      showToast(message);
+    }
+
+    function updateHealth() {
+      const titleOk = titleInput.value.trim().length > 0;
+      const bodyOk = bodyEditor.innerText.trim().length > 30;
+      const coverOk = coverDrop.classList.contains('has-image');
+      setHealth('title', titleOk, titleOk ? '已填写' : '需要填写');
+      setHealth('body', bodyOk, bodyOk ? '内容完整' : '内容太短');
+      setHealth('cover', coverOk, coverOk ? '已上传' : '建议上传');
+      document.getElementById('title-count').textContent = titleInput.value.length;
+      document.getElementById('editor-top-title').textContent = titleInput.value || '未命名文章';
+    }
+
+    function setHealth(name, ok, label) {
+      const mark = document.getElementById(`health-${name}`);
+      const text = document.getElementById(`health-${name}-text`);
+      mark.textContent = ok ? '✓' : '·';
+      mark.classList.toggle('pending', !ok);
+      text.textContent = label;
+    }
+
+    function setCover(file) {
+      if (!file || !file.type.startsWith('image/')) {
+        showToast('请选择 JPG、PNG 或 WebP 图片');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        activeCover = String(reader.result);
+        let image = document.getElementById('cover-preview');
+        if (!image) {
+          image = document.createElement('img');
+          image.id = 'cover-preview';
+          image.alt = '当前文章封面';
+          coverDrop.prepend(image);
+        }
+        image.src = activeCover;
+        coverDrop.classList.add('has-image');
+        markChanged();
+        showToast('封面已载入原型');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function formatPublishedAt() {
+      const value = publishedAt.value;
+      if (!value) return '发布时间未设置';
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) return value;
+      return `发布于 ${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(date)}`;
+    }
+
+    function syncPreview() {
+      document.getElementById('public-title').textContent = titleInput.value.trim() || '未命名文章';
+      document.getElementById('public-body').innerHTML = bodyEditor.innerHTML;
+      const publicDate = document.getElementById('public-date');
+      publicDate.textContent = formatPublishedAt();
+      publicDate.hidden = !document.getElementById('show-date').checked;
+      const cover = document.getElementById('public-cover');
+      if (activeCover) {
+        cover.innerHTML = `<img id="public-cover-image" src="${activeCover}" alt="文章封面">`;
+      } else {
+        cover.innerHTML = '<div class="public-cover-placeholder">文章封面</div>';
+      }
+    }
+
+    function publishArticle() {
+      if (!titleInput.value.trim()) {
+        setPage('editor');
+        titleInput.focus();
+        showToast('请先填写文章标题');
+        return;
+      }
+      if (bodyEditor.innerText.trim().length < 30) {
+        setPage('editor');
+        bodyEditor.focus();
+        showToast('正文内容还不够完整');
+        return;
+      }
+      if (!publishedAt.value) {
+        const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+        publishedAt.value = now.toISOString().slice(0, 16);
+      }
+      statusSelect.value = 'published';
+      updatePublicationState();
+      markSaved('文章已发布（原型演示）');
+    }
+
+    function updatePublicationState() {
+      const published = statusSelect.value === 'published';
+      document.getElementById('publication-state').textContent = published ? '已发布' : '草稿';
+      document.getElementById('publication-hint').textContent = published ? '公开页面可见' : '仅管理员可见';
+      document.getElementById('publication-icon').textContent = published ? '✓' : '◷';
+      document.getElementById('publication-icon').style.color = published ? 'var(--success)' : 'var(--warning)';
+      document.getElementById('publication-icon').style.background = published ? 'var(--success-soft)' : 'var(--warning-soft)';
+    }
+
+    document.querySelectorAll('[data-go]').forEach(button => button.addEventListener('click', () => setPage(button.dataset.go)));
+    document.querySelectorAll('[data-demo-toast]').forEach(button => button.addEventListener('click', () => showToast(button.dataset.demoToast)));
+    titleInput.addEventListener('input', markChanged);
+    bodyEditor.addEventListener('input', markChanged);
+    publishedAt.addEventListener('change', markChanged);
+    statusSelect.addEventListener('change', () => { updatePublicationState(); markChanged(); });
+    document.getElementById('show-date').addEventListener('change', markChanged);
+    document.getElementById('save-button').addEventListener('click', () => markSaved());
+    document.getElementById('publish-button').addEventListener('click', publishArticle);
+    document.getElementById('preview-publish').addEventListener('click', publishArticle);
+
+    coverInput.addEventListener('change', event => setCover(event.target.files[0]));
+    ['dragenter', 'dragover'].forEach(type => coverDrop.addEventListener(type, event => { event.preventDefault(); coverDrop.classList.add('dragging'); }));
+    ['dragleave', 'drop'].forEach(type => coverDrop.addEventListener(type, event => { event.preventDefault(); coverDrop.classList.remove('dragging'); }));
+    coverDrop.addEventListener('drop', event => setCover(event.dataTransfer.files[0]));
+
+    document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => {
+      bodyEditor.focus();
+      document.execCommand(button.dataset.command, false, button.dataset.value || null);
+      markChanged();
+    }));
+    document.getElementById('link-button').addEventListener('click', () => {
+      const url = window.prompt('输入链接地址', 'https://');
+      if (url) {
+        bodyEditor.focus();
+        document.execCommand('createLink', false, url);
+        markChanged();
+      }
+    });
+
+    document.querySelectorAll('[data-device]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-device]').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      document.getElementById('preview-frame').classList.toggle('mobile', button.dataset.device === 'mobile');
+    }));
+
+    const articleSearch = document.getElementById('article-search');
+    const statusFilter = document.getElementById('status-filter');
+    function filterArticles() {
+      const query = articleSearch.value.trim().toLowerCase();
+      const status = statusFilter.value;
+      const rows = [...document.querySelectorAll('.article-row')];
+      let visible = 0;
+      rows.forEach(row => {
+        const matchesText = row.dataset.title.includes(query);
+        const matchesStatus = status === 'all' || row.dataset.status === status;
+        const show = matchesText && matchesStatus;
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      document.getElementById('empty-list').style.display = visible ? 'none' : 'grid';
+      document.getElementById('result-count').textContent = `显示 ${visible} 篇示例文章`;
+    }
+    articleSearch.addEventListener('input', filterArticles);
+    statusFilter.addEventListener('change', filterArticles);
+
+    updateHealth();
+    updatePublicationState();
+    syncPreview();
+  </script>
+</body>
+</html>

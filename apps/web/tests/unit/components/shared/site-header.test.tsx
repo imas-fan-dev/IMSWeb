@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SiteHeader } from "~/components/shared/site-header"
+import { PlatformSessionProvider } from "~/components/platform/platform-session-provider"
 import { i18n } from "~/i18n/config"
 import { defaultLanguage, defaultNamespace } from "~/i18n/resources"
 
@@ -15,7 +16,9 @@ vi.mock("next-themes", () => ({
 function TestProviders({ children }: { children: ReactNode }) {
   return (
     <I18nextProvider i18n={i18n} defaultNS={defaultNamespace}>
-      <MemoryRouter>{children}</MemoryRouter>
+      <MemoryRouter>
+        <PlatformSessionProvider>{children}</PlatformSessionProvider>
+      </MemoryRouter>
     </I18nextProvider>
   )
 }
@@ -57,12 +60,24 @@ describe("SiteHeader", () => {
       within(navigation)
         .getAllByRole("link")
         .map((link) => link.textContent)
-    ).toEqual(["首页", "活动", "推荐", "Live", "社区", "关于"])
+    ).toEqual(["首页", "社区动态", "推荐", "Live", "社区", "关于"])
 
     for (const secondaryLabel of ["名片墙", "地图", "作品", "编年史"]) {
       expect(
         within(navigation).queryByRole("link", { name: secondaryLabel })
       ).not.toBeInTheDocument()
     }
+  })
+
+  it("adds an explicit mobile home shortcut in compact mode", () => {
+    render(<SiteHeader compact />, { wrapper: TestProviders })
+
+    const homeShortcut = screen.getByRole("link", { name: "返回首页" })
+    expect(homeShortcut).toHaveAttribute("href", "/")
+    expect(homeShortcut).toHaveClass("sm:hidden")
+    expect(homeShortcut.querySelector("svg")).toHaveAttribute(
+      "aria-hidden",
+      "true"
+    )
   })
 })

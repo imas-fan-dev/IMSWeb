@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { publicInformationCard } from '@/domains/information/public-response';
+import { publicInformationCard } from '@/domains/content/information/public-response';
 import type { ObjectStorage } from '@/ports/object-storage';
 
 const storage: ObjectStorage = {

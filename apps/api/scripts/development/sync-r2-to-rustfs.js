@@ -10,6 +10,7 @@ const {
     GetObjectCommand,
     ListObjectsV2Command,
     PutObjectCommand,
+    DeleteObjectsCommand,
     S3Client
 } = require('@aws-sdk/client-s3');
 
@@ -29,12 +30,14 @@ Options:
   --source-env <path>  Ignored env file for the R2 test bucket.
                        Default: deploy/.env.r2-test
   --apply              Start RustFS and copy the source bucket.
+  --prune-target       Delete RustFS objects that do not exist in R2.
+                       Requires --apply.
   --help               Show this help.
 
 Without --apply, the command performs a read-only source and target inventory.
 The source must be a Cloudflare R2 bucket whose name has a distinct test segment.
-The command never deletes target objects and refuses an exact sync when the
-RustFS bucket contains keys that are absent from the source.`;
+An exact sync refuses target-only objects unless --apply --prune-target is
+provided explicitly.`;
 }
 
 function parseArguments(argv) {
@@ -42,6 +45,7 @@ function parseArguments(argv) {
     const options = {
         apply: false,
         help: false,
+        pruneTarget: false,
         sourceEnv: DEFAULT_SOURCE_ENV
     };
     while (values.length > 0) {
@@ -54,6 +58,10 @@ function parseArguments(argv) {
             options.apply = true;
             continue;
         }
+        if (argument === '--prune-target') {
+            options.pruneTarget = true;
+            continue;
+        }
         if (argument === '--source-env') {
             const value = values.shift();
             if (!value) throw new Error('--source-env requires a path');
@@ -61,6 +69,9 @@ function parseArguments(argv) {
             continue;
         }
         throw new Error(`Unknown argument: ${argument}`);
+    }
+    if (options.pruneTarget && !options.apply) {
+        throw new Error('--prune-target requires --apply');
     }
     return options;
 }
@@ -307,6 +318,25 @@ async function copyObject({
     }
 }
 
+async function deleteTargetOnlyObjects(targetClient, targetBucket, keys) {
+    for (let index = 0; index < keys.length; index += 1000) {
+        const batch = keys.slice(index, index + 1000);
+        const result = await targetClient.send(new DeleteObjectsCommand({
+            Bucket: targetBucket,
+            Delete: {
+                Objects: batch.map(Key => ({ Key })),
+                Quiet: true
+            }
+        }));
+        if (result.Errors?.length) {
+            const failures = result.Errors.slice(0, 10).map(error =>
+                `${error.Key || 'unknown'}: ${error.Code || error.Message || 'delete failed'}`
+            );
+            throw new Error(`RustFS target pruning failed: ${failures.join(', ')}`);
+        }
+    }
+}
+
 async function copyObjects(options) {
     const concurrency = Number(process.env.IMS_RUSTFS_SYNC_CONCURRENCY || 32);
     if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 64) {
@@ -397,9 +427,10 @@ async function main() {
         `${beforeDifferences.extra.length} target-only objects.`
     );
 
-    if (beforeDifferences.extra.length > 0) {
+    if (beforeDifferences.extra.length > 0 && !options.pruneTarget) {
         throw new Error(
-            'RustFS contains target-only objects; refusing a non-destructive exact sync'
+            'RustFS contains target-only objects; re-run with --apply --prune-target ' +
+            'to make the target match R2 exactly'
         );
     }
     if (!options.apply) {
@@ -418,6 +449,13 @@ async function main() {
         targetBucket: target.bucket,
         entries: keysToCopy
     });
+    if (beforeDifferences.extra.length > 0) {
+        await deleteTargetOnlyObjects(
+            targetClient,
+            target.bucket,
+            beforeDifferences.extra.sort()
+        );
+    }
     const [sourceAfter, targetAfter] = await Promise.all([
         inventoryBucket(sourceClient, source.bucket),
         inventoryBucket(targetClient, target.bucket)
@@ -439,6 +477,7 @@ async function main() {
 
 module.exports = {
     compareInventories,
+    deleteTargetOnlyObjects,
     parseArguments,
     resolveTargetEnvironment,
     summarizeInventory,

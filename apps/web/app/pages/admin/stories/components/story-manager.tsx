@@ -56,6 +56,7 @@ import {
 } from "~/components/admin/admin-ui"
 import { StoryEditorDialog } from "~/pages/admin/stories/components/story-editor-dialog"
 import { StoryTable } from "~/pages/admin/stories/components/story-table"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 type DeleteTarget =
   | {
@@ -307,7 +308,7 @@ export function StoryManager() {
         description="企划、偶像和剧情均从服务端动态读取，写入后以数据库返回状态为准。"
         actions={
           <>
-            <a
+            <NavigationLink
               href={storyUrl}
               target="_blank"
               rel="noreferrer"
@@ -315,7 +316,7 @@ export function StoryManager() {
             >
               <ArrowUpRightIcon data-icon="inline-start" />
               打开公开页
-            </a>
+            </NavigationLink>
             <Button
               type="button"
               variant="outline"

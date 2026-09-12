@@ -1,6 +1,6 @@
 import { AlertCircleIcon, Layers3Icon } from "lucide-react"
 import { type CSSProperties, useEffect, useMemo, useState } from "react"
-import { Link, useSearchParams } from "react-router"
+import { useSearchParams } from "react-router"
 
 import { BackToTop } from "~/components/shared/back-to-top"
 import { getWikiStories, isApiError } from "~/lib/api"
@@ -25,6 +25,7 @@ import { ClassicStoryContent } from "./components/story/classic-story-content"
 import { ClassicStoryDialog } from "./components/story/classic-story-dialog"
 import { ClassicStoryProfile } from "./components/story/classic-story-profile"
 import "./components/story/classic-story.css"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 interface SelectedStoryCard {
   category: WikiPublicStoryCategory
@@ -143,7 +144,7 @@ export function ClassicStoryPage() {
           <Layers3Icon />
           <h1>请选择一个内容页</h1>
           <p>剧情地址缺少企划或内容页信息。</p>
-          <Link to="/wiki/classic">返回经典剧情导航</Link>
+          <NavigationLink to="/wiki/classic">返回经典剧情导航</NavigationLink>
         </div>
       </main>
     )
@@ -163,9 +164,11 @@ export function ClassicStoryPage() {
             >
               重新加载
             </button>
-            <Link to={`/wiki/classic?agency=${encodeURIComponent(agencyName)}`}>
+            <NavigationLink
+              to={`/wiki/classic?agency=${encodeURIComponent(agencyName)}`}
+            >
               返回内容目录
-            </Link>
+            </NavigationLink>
           </div>
         </div>
       ) : loading ? (

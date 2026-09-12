@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
+import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
 import { test } from 'node:test';
+import {
+    aboutAdminSnapshotSchema,
+    aboutAdminUpdateSchema,
+    aboutErrorResponseSchema,
+    aboutImageUploadSchema,
+    aboutPageContentSchema
+} from '@imsweb/contracts/about';
+import {
+    failureMessageResponseSchema,
+    messageErrorResponseSchema
+} from '@imsweb/contracts/common';
 import { createHonoApp } from '@/app';
-import { parseAboutPageContent, type AboutPageContent } from '@/domains/about/data';
+import { parseAboutPageContent, type AboutPageContent } from '@/domains/content/about/data';
 import type {
     ListedObject,
     ObjectStorage,
@@ -140,7 +152,7 @@ function aboutPageContent(): AboutPageContent {
     };
 }
 
-function fixture() {
+function fixture(dept = 'op') {
     const storage = new MemoryStorage();
     const audit: AuditLogInput[] = [];
     const services: RuntimeServices = {
@@ -151,14 +163,14 @@ function fixture() {
             async insertAuditLog(input) { audit.push(input); },
             async listRecentAuditLogs() { return []; }
         },
-        tokens: {
+        backofficeTokens: {
             async sign() { return 'about-token'; },
             async verify() {
                 return {
                     id: 1,
                     username: 'about-editor',
                     producername: 'About Producer',
-                    dept: 'op',
+                    dept,
                     csrfSecret: 'about-csrf'
                 };
             }
@@ -173,9 +185,11 @@ function fixture() {
 test('about page reports unconfigured content without serving defaults', async () => {
     const { request } = fixture();
     const response = await request('/api/about');
-    assert.equal(response.status, 404);
     assert.equal(response.headers.get('cache-control'), 'no-cache');
-    assert.deepEqual(await response.json(), { error: '关于页尚未配置' });
+    assert.deepEqual(
+        await assertRawJsonConforms(response, 404, aboutErrorResponseSchema),
+        { error: '关于页尚未配置' }
+    );
 });
 
 test('about page does not backfill removed static artwork paths', () => {
@@ -253,7 +267,7 @@ test('about hero uploads are authenticated, audited, and publicly readable', asy
         method: 'POST',
         body: unauthorizedForm
     });
-    assert.equal(unauthorized.status, 401);
+    await assertRawJsonConforms(unauthorized, 401, failureMessageResponseSchema);
 
     const form = new FormData();
     form.append(
@@ -266,8 +280,11 @@ test('about hero uploads are authenticated, audited, and publicly readable', asy
         headers: { Authorization: 'Bearer about-token' },
         body: form
     });
-    assert.equal(response.status, 200);
-    const uploaded = await response.json() as { success: true; url: string };
+    const uploaded = await assertRawJsonConforms(
+        response,
+        200,
+        aboutImageUploadSchema
+    );
     assert.equal(uploaded.success, true);
     assert.match(uploaded.url, /^\/uploads\/about\/hero\/new-hero-\d+-[a-f0-9]{12}\.webp$/);
     assert.equal(audit.at(-1)?.action, '上传关于页主视觉');
@@ -294,7 +311,7 @@ test('about member avatar uploads are authenticated, audited, and publicly reada
         method: 'POST',
         body: unauthorizedForm
     });
-    assert.equal(unauthorized.status, 401);
+    await assertRawJsonConforms(unauthorized, 401, failureMessageResponseSchema);
 
     const form = new FormData();
     form.append(
@@ -307,8 +324,11 @@ test('about member avatar uploads are authenticated, audited, and publicly reada
         headers: { Authorization: 'Bearer about-token' },
         body: form
     });
-    assert.equal(response.status, 200);
-    const uploaded = await response.json() as { success: true; url: string };
+    const uploaded = await assertRawJsonConforms(
+        response,
+        200,
+        aboutImageUploadSchema
+    );
     assert.equal(uploaded.success, true);
     assert.match(
         uploaded.url,
@@ -358,6 +378,25 @@ test('about page rejects unsafe image links before persistence', async () => {
     assert.match((await response.json() as { error: string }).error, /角色主视觉图链接无效/);
 });
 
+test('about page only persists member avatars returned by the upload endpoint', async () => {
+    const { request } = fixture();
+    const content = aboutPageContent();
+    content.groups[0]!.people[0]!.avatarUrl = '/brand/about/staff/legacy.webp';
+    const response = await request('/api/admin/about', {
+        method: 'PUT',
+        headers: {
+            Authorization: 'Bearer about-token',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content, revision: null })
+    });
+    assert.equal(response.status, 400);
+    assert.match(
+        (await response.json() as { error: string }).error,
+        /必须使用成员头像上传地址/
+    );
+});
+
 test('about page rejects invalid hero layout and gradient values', async () => {
     const { request } = fixture();
     const headers = {
@@ -383,4 +422,93 @@ test('about page rejects invalid hero layout and gradient values', async () => {
     });
     assert.equal(colorResponse.status, 400);
     assert.match((await colorResponse.json() as { error: string }).error, /十六进制颜色/);
+});
+
+test('about mounted JSON responses preserve shared schemas and project unknown update fields', async () => {
+    const { request } = fixture();
+    const headers = {
+        Authorization: 'Bearer about-token',
+        'Content-Type': 'application/json'
+    };
+
+    await assertRawJsonConforms(
+        await request('/api/admin/about'),
+        401,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture('editor').request('/api/admin/about', { headers }),
+        403,
+        messageErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/about', { headers }),
+        200,
+        aboutAdminSnapshotSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/about', {
+            method: 'PUT',
+            headers: {
+                Cookie: 'ims_admin_access=about-token; ims_admin_csrf=about-csrf',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ content: aboutPageContent(), revision: null })
+        }),
+        403,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/about', {
+            method: 'PUT',
+            headers,
+            body: '{'
+        }),
+        400,
+        aboutErrorResponseSchema
+    );
+
+    const content = aboutPageContent() as AboutPageContent & { ignored?: string };
+    content.ignored = 'legacy editor state';
+    const saved = await assertRawJsonConforms(
+        await request('/api/admin/about', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+                content,
+                revision: null,
+                ignoredEnvelopeField: true
+            })
+        }),
+        200,
+        aboutAdminUpdateSchema
+    );
+    assert.equal('ignored' in saved.content, false);
+    await assertRawJsonConforms(
+        await request('/api/about'),
+        200,
+        aboutPageContentSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/about', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ content: aboutPageContent(), revision: null })
+        }),
+        409,
+        aboutErrorResponseSchema
+    );
+
+    const form = new FormData();
+    form.append('ignored-text-field', 'ignored');
+    form.append('image', new Blob([Uint8Array.of(7)], { type: 'image/png' }), 'proof.png');
+    await assertRawJsonConforms(
+        await request('/api/admin/about/hero-image', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer about-token' },
+            body: form
+        }),
+        200,
+        aboutImageUploadSchema
+    );
 });

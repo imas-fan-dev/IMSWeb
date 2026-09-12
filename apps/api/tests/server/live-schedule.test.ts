@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
+import { readContractJson as contractJson } from '../contracts/contract-json';
 import { afterEach, test } from 'node:test';
+import {
+    liveScheduleErrorResponseSchema,
+    liveScheduleListSchema
+} from '@imsweb/contracts/live';
 import { createHonoApp } from '@/app';
 import {
     clearLiveScheduleCache,
     getLiveSchedule,
     normalizeLiveScheduleArticle
-} from '@/domains/live-schedule/live-schedule-service';
+} from '@/domains/content/live-schedule/live-schedule-service';
 
 function jsonResponse(value: unknown, status = 200): Response {
     return new Response(JSON.stringify(value), {
@@ -108,7 +113,7 @@ test('loads requested months, deduplicates records, and caches each month', asyn
     const first = await app.request(url);
     assert.equal(first.status, 200);
     assert.equal(first.headers.get('cache-control'), 'public, max-age=300');
-    const body = await first.json() as unknown[];
+    const body = await contractJson(first, liveScheduleListSchema);
     assert.equal(body.length, 1);
     assert.equal(source.calls(), 3);
 
@@ -120,6 +125,7 @@ test('loads requested months, deduplicates records, and caches each month', asyn
         'http://ims.test/api/live-schedule?months=2020-07'
     );
     assert.equal(invalid.status, 400);
+    await contractJson(invalid, liveScheduleErrorResponseSchema);
 });
 
 test('returns stale data when a refresh fails', async () => {

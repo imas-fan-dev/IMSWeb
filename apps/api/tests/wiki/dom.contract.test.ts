@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+// pi-lens-ignore: ts:2305
+import { wikiTestResponseSchema } from "@imsweb/contracts/wiki";
 import { createWikiFixture } from "./fixture";
+
+async function assertPlainText(
+  response: Response,
+  status: number,
+  body: string,
+): Promise<void> {
+  assert.equal(response.status, status);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/plain/i);
+  assert.equal(await response.text(), body);
+}
 
 describe("WIKI-01 database-associated media and story object paths", () => {
   test("entity icon routes use database keys while retired static routes and traversal are rejected", async () => {
@@ -16,14 +28,24 @@ describe("WIKI-01 database-associated media and story object paths", () => {
     assert.equal(icon.status, 200);
     assert.equal(await icon.text(), "object-icon");
     const css = await fixture.app.request("/css/story.css");
-    assert.equal(css.status, 404);
-    assert.equal((await fixture.app.request("/icon/cg/cute.webp")).status, 404);
+    await assertPlainText(css, 404, "Not Found");
+    await assertPlainText(
+      await fixture.app.request("/icon/cg/cute.webp"),
+      404,
+      "Not Found",
+    );
 
     const callsBefore = fixture.staticRequests.length;
     const storageGetsBefore = [...fixture.storage.gets];
-    assert.equal(
-      (await fixture.app.request("/icon/agencies/%252e%252e.webp")).status,
+    await assertPlainText(
+      await fixture.app.request("/icon/agencies/%252e%252e.webp"),
       404,
+      "Not found",
+    );
+    await assertPlainText(
+      await fixture.app.request("/api/wiki/story-cover-assets/999.webp"),
+      404,
+      "Not found",
     );
     for (const path of [
       "/css/%252e%252e/templates/story.html",
@@ -31,7 +53,7 @@ describe("WIKI-01 database-associated media and story object paths", () => {
       "/image/闪耀色彩/樱木真乃/%255c..%255csecret.webp",
     ]) {
       const response = await fixture.app.request(path);
-      assert.equal(response.status, 403, `${path} must be forbidden`);
+      await assertPlainText(response, 403, "Forbidden");
     }
     assert.equal(fixture.staticRequests.length, callsBefore);
     assert.deepEqual(fixture.storage.gets, storageGetsBefore);
@@ -55,10 +77,10 @@ describe("WIKI-01 database-associated media and story object paths", () => {
     assert.equal(head.status, 200);
     assert.equal(head.headers.get("content-length"), "3");
     assert.equal((await head.arrayBuffer()).byteLength, 0);
-    assert.equal(
-      (await fixture.app.request("/image/不存在/樱木真乃/cards/fixture.webp"))
-        .status,
+    await assertPlainText(
+      await fixture.app.request("/image/不存在/樱木真乃/cards/fixture.webp"),
       404,
+      "Not found",
     );
     assert.equal(
       (await fixture.app.request("/image/闪耀色彩/不存在/cards/fixture.webp"))
@@ -76,7 +98,8 @@ describe("WIKI-01 database-associated media and story object paths", () => {
     const fixture = createWikiFixture();
     const health = await fixture.app.request("/api/wiki/test");
     assert.equal(health.status, 200);
-    assert.deepEqual(await health.json(), { status: "ok" });
+    const healthBody = await health.json();
+    assert.deepEqual(wikiTestResponseSchema.parse(healthBody), healthBody);
     const empty = await fixture.app.request("/api/wiki/random_bg");
     assert.equal(empty.status, 200);
     assert.deepEqual(await empty.json(), { url: "" });

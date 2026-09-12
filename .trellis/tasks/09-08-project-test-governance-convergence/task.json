@@ -1,0 +1,33 @@
+{
+  "id": "project-test-governance-convergence",
+  "name": "project-test-governance-convergence",
+  "title": "全项目测试治理收敛",
+  "description": "完成 PostgreSQL 测试生命周期、API/Web 测试基础设施、路由与脚本治理、Node 安全测试及 R2 字体交付的系统收敛",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "repo",
+  "package": null,
+  "priority": "P2",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-09-08",
+  "completedAt": null,
+  "branch": "release/v1.1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-08-postgres-test-lifecycle",
+    "09-08-api-test-helper-convergence",
+    "09-08-playwright-api-dispatcher",
+    "09-08-frontend-route-test-orchestration",
+    "09-08-specialized-tests-route-inventory",
+    "09-08-r2-font-cors"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

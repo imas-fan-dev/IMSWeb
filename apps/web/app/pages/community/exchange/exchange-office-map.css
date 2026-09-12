@@ -1,0 +1,137 @@
+.exchange-map-app-viewport::before {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 15;
+  height: calc(var(--app-header-inset) + 1.5rem);
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    to bottom,
+    rgb(248 252 253 / 82%) 0%,
+    rgb(248 252 253 / 58%) 48%,
+    rgb(248 252 253 / 18%) 78%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 40%,
+    rgb(0 0 0 / 72%) 64%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 40%,
+    rgb(0 0 0 / 72%) 64%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+}
+
+.exchange-map-detail-sheet[data-side="bottom"] {
+  max-height: min(78%, var(--safe-viewport-height));
+}
+
+.exchange-map-filter-sheet[data-side="bottom"] {
+  max-height: min(82%, var(--safe-viewport-height));
+}
+
+.exchange-map-directory-sheet[data-side="bottom"] {
+  max-height: min(86%, var(--safe-viewport-height));
+}
+
+.exchange-map-app-control,
+.exchange-map-app-surface {
+  color-scheme: light;
+  --background: oklch(0.995 0.002 90);
+  --foreground: oklch(0.17 0.008 270);
+  --muted-foreground: oklch(0.48 0.02 260);
+  --accent: oklch(0.95 0.025 348);
+  --primary: oklch(0.54 0.2 351);
+  border-color: rgb(23 29 38 / 12%);
+  background-color: rgb(255 255 255 / 88%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 82%),
+    0 6px 18px rgb(23 29 38 / 16%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+}
+
+.exchange-map-app-control {
+  color: rgb(37 42 51);
+}
+
+.exchange-map-app-control:hover {
+  background-color: rgb(255 255 255 / 96%);
+  color: rgb(23 29 38);
+}
+
+.exchange-map-app-control:disabled {
+  opacity: 0.55;
+}
+
+@media (max-width: 47.999rem) {
+  [data-exchange-office-map][data-app-target] .maplibregl-ctrl-bottom-left,
+  [data-exchange-office-map][data-app-target] .maplibregl-ctrl-bottom-right {
+    bottom: calc(var(--app-floating-bottom) + 3rem);
+  }
+
+  [data-exchange-office-map][data-app-target] .maplibregl-ctrl-bottom-right {
+    right: 0.75rem;
+  }
+
+  [data-exchange-office-map][data-app-target] .maplibregl-ctrl-group {
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid rgb(23 29 38 / 12%);
+    border-radius: 0.5rem;
+    background-color: rgb(255 255 255 / 88%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 82%),
+      0 6px 18px rgb(23 29 38 / 16%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+  }
+
+  [data-exchange-office-map][data-app-target] .maplibregl-ctrl-group button {
+    width: 2.5rem;
+    height: 2.5rem;
+    background-color: transparent;
+  }
+
+  [data-exchange-office-map][data-app-target]
+    .maplibregl-ctrl-group
+    button:hover {
+    background-color: rgb(255 255 255 / 72%);
+  }
+
+  [data-exchange-office-map][data-app-target]
+    .maplibregl-ctrl-group
+    button
+    + button {
+    border-top-color: rgb(23 29 38 / 10%);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .exchange-map-app-viewport::before {
+    background: linear-gradient(
+      to bottom,
+      rgb(248 252 253 / 96%) 0%,
+      rgb(248 252 253 / 72%) 58%,
+      transparent 100%
+    );
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .exchange-map-app-control,
+  .exchange-map-app-surface,
+  [data-exchange-office-map][data-app-target] .maplibregl-ctrl-group {
+    background-color: rgb(255 255 255 / 98%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

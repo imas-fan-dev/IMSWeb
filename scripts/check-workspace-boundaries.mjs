@@ -9,6 +9,7 @@ const repositoryRoot = path.resolve(
 const apiRoot = path.join(repositoryRoot, "apps/api");
 const legacyRoot = path.join(repositoryRoot, "apps/legacy");
 const webRoot = path.join(repositoryRoot, "apps/web");
+const contractsRoot = path.join(repositoryRoot, "packages/contracts");
 const failures = [];
 const defaultScriptNames = [
   "build",
@@ -209,9 +210,9 @@ function pnpmInvocation(tokens) {
   const script =
     command === "run" || command === "run-script"
       ? (args[commandIndex + 1] ?? null)
-      : !["exec", "install", "add", "remove", "update", "dlx"].includes(command)
-        ? command
-        : null;
+      : ["exec", "install", "add", "remove", "update", "dlx"].includes(command)
+        ? null
+        : command;
   return { command, directory, filters, recursive, script };
 }
 
@@ -224,8 +225,13 @@ function validateDefaultScripts(
     ["root", rootPackage.scripts ?? {}],
     ["@imsweb/api", workspacePackages.api?.scripts ?? {}],
     ["@imsweb/web", workspacePackages.web?.scripts ?? {}],
+    ["@imsweb/contracts", workspacePackages.contracts?.scripts ?? {}],
   ]);
-  const allowedFilters = new Set(["@imsweb/api", "@imsweb/web"]);
+  const allowedFilters = new Set([
+    "@imsweb/api",
+    "@imsweb/web",
+    "@imsweb/contracts",
+  ]);
 
   function inspectScript(packageName, scriptName, stack, evidence) {
     const key = `${packageName}:${scriptName}`;
@@ -253,6 +259,17 @@ function validateDefaultScripts(
     }
 
     for (const shellCommand of splitShellCommands(script)) {
+      if (
+        packageName === "root" &&
+        /^node\s+scripts\/testing\/run-test-owner\.mjs\s+root$/.test(
+          shellCommand.trim(),
+        )
+      ) {
+        evidence.api = true;
+        evidence.web = true;
+        continue;
+      }
+
       const invocation = pnpmInvocation(shellTokens(shellCommand));
       if (!invocation) continue;
       if (
@@ -330,6 +347,7 @@ function validateDefaultScripts(
 const rootPackage = readJson(path.join(repositoryRoot, "package.json"));
 const apiPackage = readJson(path.join(apiRoot, "package.json"));
 const webPackage = readJson(path.join(webRoot, "package.json"));
+const contractsPackage = readJson(path.join(contractsRoot, "package.json"));
 
 if (rootPackage.name !== "imsweb-monorepo" || rootPackage.private !== true) {
   failures.push(
@@ -361,12 +379,46 @@ if (apiPackage.name !== "@imsweb/api" || apiPackage.private !== true) {
 if (webPackage.name !== "@imsweb/web" || webPackage.private !== true) {
   failures.push("apps/web/package.json: expected private package @imsweb/web");
 }
+if (
+  contractsPackage.name !== "@imsweb/contracts" ||
+  contractsPackage.private !== true
+) {
+  failures.push(
+    "packages/contracts/package.json: expected private package @imsweb/contracts",
+  );
+}
+const allowedContractsDependencies = new Set(["zod"]);
+const allowedContractsDevDependencies = new Set(["typescript"]);
+for (const [dependencyKind, allowlist] of [
+  ["dependencies", allowedContractsDependencies],
+  ["devDependencies", allowedContractsDevDependencies],
+]) {
+  for (const dependency of Object.keys(contractsPackage[dependencyKind] ?? {})) {
+    if (!allowlist.has(dependency)) {
+      failures.push(
+        `packages/contracts/package.json: wire contracts must stay dependency-light; unexpected ${dependencyKind.slice(0, -1).replace("Dependencie", "dependency")}: ${dependency}`,
+      );
+    }
+  }
+}
+for (const [workspaceLabel, workspacePackage] of [
+  ["apps/api", apiPackage],
+  ["apps/web", webPackage],
+]) {
+  if (
+    workspacePackage.dependencies?.["@imsweb/contracts"] !== "workspace:*"
+  ) {
+    failures.push(
+      `${workspaceLabel}/package.json: must depend on @imsweb/contracts via workspace:*`,
+    );
+  }
+}
 
 const workspace = fs.readFileSync(
   path.join(repositoryRoot, "pnpm-workspace.yaml"),
   "utf8",
 );
-for (const workspacePath of ["apps/api", "apps/web"]) {
+for (const workspacePath of ["apps/api", "apps/web", "packages/contracts"]) {
   if (!workspace.includes(`- ${workspacePath}`)) {
     failures.push(`pnpm-workspace.yaml: missing ${workspacePath}`);
   }
@@ -441,6 +493,10 @@ forbidPath(
   "environment templates must be owned by their runtime surface",
 );
 if (fs.existsSync(npmrcPath)) {
+  const allowedNpmRegistries = new Set([
+    "https://registry.npmjs.org/",
+    "https://registry.npmmirror.com/",
+  ]);
   const registrySettings = fs
     .readFileSync(npmrcPath, "utf8")
     .split(/\r?\n/)
@@ -452,12 +508,13 @@ if (fs.existsSync(npmrcPath)) {
     !registrySettings.length ||
     registrySettings.some(
       (line) =>
-        line.slice(line.indexOf("=") + 1).trim() !==
-        "https://registry.npmjs.org/",
+        !allowedNpmRegistries.has(
+          line.slice(line.indexOf("=") + 1).trim(),
+        ),
     )
   ) {
     failures.push(
-      ".npmrc: every configured registry must be https://registry.npmjs.org/",
+      `.npmrc: every configured registry must be one of ${[...allowedNpmRegistries].join(", ")}`,
     );
   }
 }
@@ -479,7 +536,11 @@ if (fs.existsSync(lockfilePath)) {
   }
 }
 
-validateDefaultScripts(rootPackage, { api: apiPackage, web: webPackage });
+validateDefaultScripts(rootPackage, {
+  api: apiPackage,
+  web: webPackage,
+  contracts: contractsPackage,
+});
 
 forbidPath(legacyRoot, "Legacy is maintained in a separate private repository");
 requireFile(path.join(apiRoot, "src/app.ts"));
@@ -641,7 +702,10 @@ const composeFiles = filesUnder(path.join(repositoryRoot, "deploy"))
   .filter((file) => /(?:^|\/)compose(?:\.[^.]+)?\.ya?ml$/i.test(relative(file)))
   .map((file) => relative(file))
   .sort();
-const expectedComposeFiles = ["deploy/compose.yaml"];
+const expectedComposeFiles = [
+  "deploy/compose.preview.yaml",
+  "deploy/compose.yaml",
+];
 if (JSON.stringify(composeFiles) !== JSON.stringify(expectedComposeFiles)) {
   failures.push(
     `deploy: expected only ${expectedComposeFiles.join(" and ")}, found ${composeFiles.join(", ")}`,
