@@ -34,3 +34,12 @@ tauri-plugin-native-glass = { path = "plugins/native-glass" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tauri-plugin-native-image = { path = "plugins/native-image" }
+
+# tao 0.35.3 returns a borrowed pointer from
+# `application:configurationForConnectingSceneSession:options:` where UIKit expects an
+# autoreleased object, so connecting the first scene segfaults in `objc_retain` on
+# release builds. Upstream fixed it in tauri-apps/tao#1245, which landed while the
+# crate version was still 0.35.3, so pin that commit until a tauri release allows
+# tao >= 0.36.
+[patch.crates-io]
+tao = { git = "https://github.com/tauri-apps/tao", rev = "f2163508104413ef0609178dcebdd5803b496211" }
