@@ -71,6 +71,7 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
     // Xcode has raised its own minimum supported deployment target over
     // time; 15.0 is the floor current toolchains (local and CI) still build.
     assert.equal(iosTauriConfig.bundle.iOS.minimumSystemVersion, "15.0");
+    assert.equal(iosTauriConfig.bundle.iOS.infoPlist, "Info.ios.plist");
 
     const capability = JSON.parse(
       await readFile(`${webRoot}/src-tauri/capabilities/default.json`, "utf8"),
@@ -194,6 +195,31 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
       process.env.VITE_IMS_APP_TARGET = previousTarget;
     }
   }
+});
+
+// The iOS bundler merges src-tauri/Info.ios.plist into the generated Xcode
+// project's Info.plist, so a key lost in an edit only shows up on a device:
+// without UIApplicationSceneManifest UIKit traps in
+// UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption before the
+// WebView exists, and without NSAllowsLocalNetworking a device build cannot
+// reach the private LAN backend over cleartext.
+test("iOS plist keeps the device and scene declarations", async () => {
+  const iosPlist = await readFile(`${webRoot}/src-tauri/Info.ios.plist`, "utf8");
+
+  for (const key of [
+    "NSAppTransportSecurity",
+    "NSLocalNetworkUsageDescription",
+    "UIApplicationSceneManifest",
+  ]) {
+    assert.ok(
+      iosPlist.includes(`<key>${key}</key>`),
+      `Info.ios.plist no longer declares ${key}`,
+    );
+  }
+  assert.match(
+    iosPlist,
+    /<key>UIApplicationSupportsMultipleScenes<\/key>\s*<true\/>/,
+  );
 });
 
 test("mobile geolocation keeps its native access narrowly scoped", async () => {

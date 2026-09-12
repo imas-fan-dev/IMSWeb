@@ -20,11 +20,13 @@
   `../build/client`，两种构建不会互相覆盖。app 产物已包含 `__spa-fallback.html`，客户端路由
   无需额外的服务端回退。
 - Tauri 自动将 `tauri.android.conf.json` 或 `tauri.ios.conf.json` 合并到基础配置。Android 配置
-  只管理调试 application ID 后缀，iOS 配置只管理最低系统版本。平台文件以 JSON Merge Patch
-  覆盖基础字段，数组会整体替换，因此共享字段必须继续留在基础配置。
+  只管理调试 application ID 后缀，iOS 配置管理最低系统版本和 `Info.ios.plist` 的合并入口。平台文件
+  以 JSON Merge Patch 覆盖基础字段，数组会整体替换，因此共享字段必须继续留在基础配置。
 - `src-tauri/icon-sources/app-icon.json` 为 iOS、桌面和 Android 统一生成图标。Android 使用独立背景、
   透明前景和单色图层；adaptive icon 的字标位于安全区，旧版 launcher 图标单独放大前景。
-- `Info.ios.plist` 是 iOS 专属声明，Tauri 会在生成 Apple 工程时自动合并。它包含事务所地图使用期间定位的用途说明。
+- `Info.ios.plist` 是 iOS 专属声明，Tauri 会在生成 Apple 工程时自动合并。它声明真机访问局域网
+  所需的 ATS 明文例外、局域网用途说明、事务所地图使用期间定位的用途说明，以及 iOS 27 要求的
+  UIKit scene 生命周期。
 - `apps/web/app/lib/api/origin.ts` 提供跨源 origin 契约，三个 alova client 均已接入 `baseURL`。
 - `build:app` 默认注入并校验 `https://idol-master.top`；`dev:app` 清空 API origin，
   让 Tauri dev URL 同源转发请求至本地 1420，再由 Vite 代理到 Hono。
