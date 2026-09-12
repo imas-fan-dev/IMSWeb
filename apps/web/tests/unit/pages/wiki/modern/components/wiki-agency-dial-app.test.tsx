@@ -44,7 +44,7 @@ const agencies: WikiPublicAgency[] = [
 ]
 
 describe("WikiAgencyDial App geometry", () => {
-  it("anchors the App dial inside the safe inline viewport", async () => {
+  it("centres the App dial on the floating trigger that opens it", async () => {
     const user = userEvent.setup()
 
     render(
@@ -57,8 +57,14 @@ describe("WikiAgencyDial App geometry", () => {
       />
     )
 
+    // The popup mirrors this frame: `left-4 size-14` puts the trigger centre at
+    // `left-11`, and the popup adds half a box of its own to reach it.
     const trigger = screen.getByRole("button", { name: "打开企划拨盘" })
-    expect(trigger).toHaveClass("bottom-[var(--app-floating-bottom)]")
+    expect(trigger).toHaveClass(
+      "left-4",
+      "size-14",
+      "bottom-[var(--app-floating-bottom)]"
+    )
     expect(trigger).not.toHaveClass(
       "bottom-[calc(1rem+env(safe-area-inset-bottom))]"
     )
@@ -67,14 +73,15 @@ describe("WikiAgencyDial App geometry", () => {
 
     const dialog = screen.getByRole("dialog", { name: "选择企划" })
     expect(dialog).toHaveClass(
-      "bottom-[calc(var(--app-bottom-clearance)+1rem)]",
-      "left-(--app-safe-inline)"
+      "bottom-[calc(var(--app-floating-bottom)+1.75rem)]",
+      "left-11",
+      "-translate-x-1/2",
+      "translate-y-1/2"
     )
-    expect(dialog).not.toHaveClass("left-11")
-    expect(dialog).not.toHaveClass("-translate-x-1/2")
-    expect(dialog).not.toHaveClass("translate-y-1/2")
     expect(dialog).not.toHaveClass(
-      "bottom-[calc(2.75rem+env(safe-area-inset-bottom))]"
+      "bottom-[calc(2.75rem+env(safe-area-inset-bottom))]",
+      "left-(--app-safe-inline)",
+      "bottom-[calc(var(--app-bottom-clearance)+1rem)]"
     )
 
     const dial = screen.getByTestId("wiki-agency-dial")

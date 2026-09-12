@@ -69,7 +69,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await mockWikiApis(page)
 })
 
-test("keeps the modern Wiki dial and search inside the App viewport", async ({
+test("keeps the modern Wiki dial on its trigger and the search inside the App viewport", async ({
   page,
 }, testInfo) => {
   await page.goto("/wiki")
@@ -79,6 +79,10 @@ test("keeps the modern Wiki dial and search inside the App viewport", async ({
   const searchTrigger = page.getByRole("button", { name: "打开全屏搜索" })
   await expect(dialTrigger).toBeVisible()
   await expect(searchTrigger).toBeVisible()
+  // The open dialog hides the rest of the page from the accessibility tree, so
+  // the trigger's box has to be read while it is still reachable by role.
+  const dialTriggerBox = await dialTrigger.boundingBox()
+  expect(dialTriggerBox).not.toBeNull()
 
   await dialTrigger.click()
   const dialDialog = page.getByRole("dialog", { name: "选择企划" })
@@ -94,16 +98,36 @@ test("keeps the modern Wiki dial and search inside the App viewport", async ({
       dial.evaluate((element) => element.getBoundingClientRect().width)
     )
     .toBeGreaterThanOrEqual(minimumDialWidth)
+  await expect
+    .poll(() =>
+      dialDialog.evaluate((element) =>
+        element
+          .getAnimations({ subtree: false })
+          .every((animation) => animation.playState === "finished")
+      )
+    )
+    .toBe(true)
   const dialGeometry = await dial.evaluate((element) => {
     const rect = element.getBoundingClientRect()
     const style = getComputedStyle(element)
+    const reachable = [
+      element.querySelector<HTMLElement>("[data-wiki-agency-dial-center]")!,
+      element.querySelector<HTMLElement>('[data-wiki-agency-preview="true"]')!,
+    ].map((node) => {
+      const box = node.getBoundingClientRect()
+      return {
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+      }
+    })
     return {
       width: rect.width,
       height: rect.height,
-      left: rect.left,
-      right: rect.right,
-      top: rect.top,
-      bottom: rect.bottom,
+      centerX: rect.left + rect.width / 2,
+      centerY: rect.top + rect.height / 2,
+      reachable,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       appViewportHeight: style.getPropertyValue("--app-viewport-height").trim(),
@@ -118,12 +142,31 @@ test("keeps the modern Wiki dial and search inside the App viewport", async ({
   expect(
     Math.abs(dialGeometry.width - dialGeometry.height)
   ).toBeLessThanOrEqual(1)
-  expect(dialGeometry.left).toBeGreaterThanOrEqual(-1)
-  expect(dialGeometry.right).toBeLessThanOrEqual(dialGeometry.viewportWidth + 1)
-  expect(dialGeometry.top).toBeGreaterThanOrEqual(-1)
-  expect(dialGeometry.bottom).toBeLessThanOrEqual(
-    dialGeometry.viewportHeight + 1
-  )
+  // The wheel orbits the trigger, so the box is centred on it. That anchor puts
+  // part of the box past the left and bottom screen edges, so the dial's own
+  // rect is not what containment is measured on; the hub and the options the
+  // user moves through have to stay reachable.
+  expect(
+    Math.abs(
+      dialGeometry.centerX - (dialTriggerBox!.x + dialTriggerBox!.width / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(
+      dialGeometry.centerY - (dialTriggerBox!.y + dialTriggerBox!.height / 2)
+    )
+  ).toBeLessThanOrEqual(1)
+  expect(dialGeometry.reachable).toHaveLength(2)
+  for (const reachableBox of dialGeometry.reachable) {
+    expect(reachableBox.left).toBeGreaterThanOrEqual(-1)
+    expect(reachableBox.right).toBeLessThanOrEqual(
+      dialGeometry.viewportWidth + 1
+    )
+    expect(reachableBox.top).toBeGreaterThanOrEqual(-1)
+    expect(reachableBox.bottom).toBeLessThanOrEqual(
+      dialGeometry.viewportHeight + 1
+    )
+  }
 
   if (process.env.CAPTURE_APP_QA === "1") {
     await page.screenshot({

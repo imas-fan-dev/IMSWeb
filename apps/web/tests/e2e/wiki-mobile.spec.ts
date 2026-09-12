@@ -73,7 +73,9 @@ test("modern Wiki windowed dial loops and switches agencies", async ({
   test.slow()
   installSeededWikiApis(api, [
     { path: "/api/wiki/random_bg", times: 1 },
-    { path: "/api/wiki/catalog", times: 3 },
+    // The first mount reads the catalog twice, once for the shell and once for
+    // the requested agency, and each later switch loads the agency's own copy.
+    { path: "/api/wiki/catalog", times: 4 },
   ])
 
   await page.setViewportSize({ width: 390, height: 844 })
@@ -285,29 +287,33 @@ test("modern Wiki windowed dial loops and switches agencies", async ({
   const optionCenterY = selectedOptionBox!.y + selectedOptionBox!.height / 2
   await page.mouse.move(optionCenterX, optionCenterY)
   await page.mouse.down()
+  // Rotation tracks the pointer's angle around the dial hub, so the horizontal
+  // steps below turn the ring by `atan2` instead of by a pixel ratio.
   await page.mouse.move(optionCenterX - 8, optionCenterY, { steps: 2 })
   await expect
     .poll(async () =>
       Number(await dial.getAttribute("data-wiki-agency-dial-position"))
     )
-    .toBeGreaterThan(0.07)
+    .toBeGreaterThan(0.04)
   await expect(outgoingEdgeOption).toHaveCount(1)
   const outgoingEdgeBox = await outgoingEdgeOption.boundingBox()
   expect(outgoingEdgeBox).not.toBeNull()
   expect(outgoingEdgeBox!.x + outgoingEdgeBox!.width).toBeLessThanOrEqual(0)
   await page.mouse.move(optionCenterX - 24, optionCenterY, { steps: 4 })
-  await expect(outgoingEdgeOption).toHaveCount(0)
   const firstContinuousPosition = Number(
     await dial.getAttribute("data-wiki-agency-dial-position")
   )
+  expect(firstContinuousPosition).toBeGreaterThan(0.15)
+  expect(firstContinuousPosition).toBeLessThan(0.35)
+  // Past a quarter turn of the ring the trailing option leaves the window.
+  await page.mouse.move(optionCenterX - 32, optionCenterY, { steps: 2 })
+  await expect(outgoingEdgeOption).toHaveCount(0)
   await page.mouse.move(optionCenterX - 58, optionCenterY, { steps: 6 })
   const secondContinuousPosition = Number(
     await dial.getAttribute("data-wiki-agency-dial-position")
   )
-  expect(firstContinuousPosition).toBeGreaterThan(0.3)
-  expect(firstContinuousPosition).toBeLessThan(0.4)
   expect(secondContinuousPosition).toBeGreaterThan(
-    firstContinuousPosition + 0.45
+    firstContinuousPosition + 0.25
   )
   expect(Math.abs(secondContinuousPosition % 1)).toBeGreaterThan(0.1)
   await page.waitForTimeout(100)
@@ -337,6 +343,37 @@ test("modern Wiki windowed dial loops and switches agencies", async ({
     )
     .toBe("none")
 
+  // A clockwise turn of the pointer must turn the ring clockwise wherever it is
+  // grabbed, including the stretch where a clockwise turn moves the pointer to
+  // the left. Reading only the horizontal delta inverted the ring there.
+  const turnCenter = {
+    x: triggerBox!.x + triggerBox!.width / 2,
+    y: triggerBox!.y + triggerBox!.height / 2,
+  }
+  const turnPoint = (degrees: number) => {
+    const radians = (degrees * Math.PI) / 180
+    const radius = 50
+    return {
+      x: turnCenter.x + radius * Math.sin(radians),
+      y: turnCenter.y - radius * Math.cos(radians),
+    }
+  }
+  const turnStart = turnPoint(95)
+  const turnEnd = turnPoint(150)
+  const beforeTurnPosition = Number(
+    await dial.getAttribute("data-wiki-agency-dial-position")
+  )
+  await page.mouse.move(turnStart.x, turnStart.y)
+  await page.mouse.down()
+  await page.mouse.move(turnEnd.x, turnEnd.y, { steps: 4 })
+  await expect
+    .poll(async () =>
+      Number(await dial.getAttribute("data-wiki-agency-dial-position"))
+    )
+    .toBeLessThan(beforeTurnPosition - 0.5)
+  await page.waitForTimeout(120)
+  await page.mouse.up()
+
   const continuousDialBox = await dial.boundingBox()
   expect(continuousDialBox).not.toBeNull()
   const flingStartX = continuousDialBox!.x + continuousDialBox!.width * 0.72
@@ -349,11 +386,13 @@ test("modern Wiki windowed dial loops and switches agencies", async ({
   const flingReleasePosition = Number(
     await dial.getAttribute("data-wiki-agency-dial-position")
   )
+  // That grab sits below the hub, so pulling it left sweeps clockwise around the
+  // hub and the ring keeps turning that way after release.
   await expect
     .poll(async () =>
       Number(await dial.getAttribute("data-wiki-agency-dial-position"))
     )
-    .toBeGreaterThan(flingReleasePosition + 0.05)
+    .toBeLessThan(flingReleasePosition - 0.05)
   await expect(dial).not.toHaveAttribute("data-wiki-agency-dial-inertia", {
     timeout: 2000,
   })
@@ -371,9 +410,15 @@ test("modern Wiki windowed dial loops and switches agencies", async ({
   await expect(dialog).not.toBeVisible()
 
   await page.getByRole("button", { name: "打开企划拨盘" }).click()
+  // The catalog is cached per agency, so the direct option has to name an agency
+  // this run has not loaded yet; otherwise the switch is served from cache and
+  // the registered catalog request count below no longer means anything.
+  const visitedAgency = beforeSelection!.replace("预览企划 ", "")
   const directOption = page
     .getByRole("dialog")
-    .locator('button[aria-label^="预览企划 "][aria-pressed="false"]')
+    .locator(
+      `button[aria-label^="预览企划 "][aria-pressed="false"]:not([aria-label="预览企划 ${visitedAgency}"])`
+    )
     .first()
   await expect(directOption).toBeVisible()
   const directAgency = (await directOption.getAttribute("aria-label"))!.replace(
