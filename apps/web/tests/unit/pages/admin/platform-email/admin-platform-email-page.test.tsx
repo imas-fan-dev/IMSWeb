@@ -144,21 +144,27 @@ describe("AdminPlatformEmailPage", () => {
     const resendCooldown = await screen.findByRole("spinbutton", {
       name: "验证码重发间隔（秒）",
     })
-    const save = screen.getByRole("button", { name: "保存配置" })
     expect(resendCooldown).toHaveValue(60)
     expect(resendCooldown).toHaveAttribute("min", "30")
     expect(resendCooldown).toHaveAttribute("max", "600")
     expect(resendCooldown).toHaveAttribute("step", "1")
+    await waitFor(() => expect(resendCooldown).toBeEnabled())
 
     for (const value of ["29", "30.5", "601"]) {
-      await user.clear(resendCooldown)
-      await user.type(resendCooldown, value)
-      expect(save).toBeDisabled()
+      const currentInput = screen.getByRole("spinbutton", {
+        name: "验证码重发间隔（秒）",
+      })
+      await user.clear(currentInput)
+      await user.type(currentInput, value)
+      expect(screen.getByRole("button", { name: "保存配置" })).toBeDisabled()
     }
     for (const value of ["30", "600"]) {
-      await user.clear(resendCooldown)
-      await user.type(resendCooldown, value)
-      expect(save).toBeEnabled()
+      const currentInput = screen.getByRole("spinbutton", {
+        name: "验证码重发间隔（秒）",
+      })
+      await user.clear(currentInput)
+      await user.type(currentInput, value)
+      expect(screen.getByRole("button", { name: "保存配置" })).toBeEnabled()
     }
   })
 
