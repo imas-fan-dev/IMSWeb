@@ -26,6 +26,9 @@ const {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } = require('../integration/postgres-harness.ts');
+const {
+    makePostgresTestConnectionCloseIdempotent
+} = require('../postgres-test-lifecycle.js');
 
 const SOURCE_SCHEMA = `
 PRAGMA foreign_keys = ON;
@@ -582,18 +585,11 @@ async function createApprovedSnapshot(t, options = {}) {
 }
 
 function poolFor(harness) {
-    const pool = new Pool({
+    const pool = makePostgresTestConnectionCloseIdempotent(new Pool({
         connectionString: harness.databaseUrl,
         max: 1,
         allowExitOnIdle: true
-    });
-    const end = pool.end.bind(pool);
-    let ended = false;
-    pool.end = async () => {
-        if (ended) return;
-        ended = true;
-        await end();
-    };
+    }));
     return harness.registerConnection(pool, () => pool.end());
 }
 

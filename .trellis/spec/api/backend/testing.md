@@ -54,8 +54,11 @@ postgresTest('repository behavior', async (t) => {
 
 The lifecycle core exposes `resolvePostgresTestConfig()`,
 `postgresIntegrationEnabled()`, `postgresIntegrationSkipReason()`,
-`createPostgresTestAllocator()`, and the shared allocator close function. Test
-files import the adapters rather than calling allocator internals.
+`createPostgresTestAllocator()`,
+`makePostgresTestConnectionCloseIdempotent()`, and the shared allocator close
+function. Test files import the adapters rather than calling allocator
+internals. The idempotent-close helper is reserved for integration fixtures
+where both the test body and the harness can close the same connection.
 
 ### 3. Contracts
 
@@ -73,6 +76,11 @@ files import the adapters rather than calling allocator internals.
   the explicit-close adapter, not the core.
 - `close()` is idempotent, rejects new work, waits for in-flight allocations and
   connections, retries tracked cleanup, and aggregates unresolved errors.
+- When a connection has more than one cleanup owner, every close call must
+  return the same in-flight close Promise. A boolean `ended` flag is
+  insufficient because another caller can treat close as complete while the
+  underlying pool is still shutting down, allowing forced database deletion to
+  terminate that connection.
 
 ### 4. Validation & Error Matrix
 
@@ -84,6 +92,7 @@ files import the adapters rather than calling allocator internals.
 | Ambiguous create or migration failure | Force-drop the possibly owned database |
 | Connection resolves while close is running | Close it and never register it |
 | Connection close fails once | Keep it tracked and retry during allocator shutdown |
+| Direct connection close overlaps harness close | Await the shared close Promise before force-drop |
 | Cleanup still fails after retries | Throw an `AggregateError` containing every failure |
 | Unknown connection passed to the sibling adapter | Reject it |
 
@@ -101,7 +110,10 @@ files import the adapters rather than calling allocator internals.
 
 Lifecycle changes must cover enabled and disabled configuration, URL
 precedence and rejection, safe names, create and migration failures, concurrent
-close, sibling connections, cleanup retries, and aggregate failures. Verify
+close, sibling connections, cleanup retries, and aggregate failures. A fixture
+with direct and harness cleanup ownership must hold the underlying close on a
+deferred Promise and prove that `DROP DATABASE ... WITH (FORCE)` does not begin
+until that Promise resolves. Verify
 both disabled and enabled operation:
 
 ```sh

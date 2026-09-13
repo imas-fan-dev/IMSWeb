@@ -7,6 +7,7 @@ const {
     assertSafePostgresTestDatabaseName,
     createPostgresTestAllocator,
     createPostgresTestDatabaseName,
+    makePostgresTestConnectionCloseIdempotent,
     postgresIntegrationEnabled,
     postgresIntegrationSkipReason,
     resolvePostgresTestConfig
@@ -166,6 +167,42 @@ test('HEAD allocations clone one migrated template and track sibling connections
     assert.match(fixture.queries[2], /CREATE DATABASE .* TEMPLATE .*database/);
     assert.equal(fixture.queries.filter((sql) => /WITH \(FORCE\)/.test(sql)).length, 3);
     assert.equal(fixture.ended(), 1);
+});
+
+test('shared connection close blocks force-drop until the real close completes', async () => {
+    const fixture = allocatorFixture({
+        names: ['ims_test_shared_close_1_aaaaaaaaaaaa']
+    });
+    const database = await fixture.allocator.allocate({
+        label: 'shared-close',
+        migrationsPath: '/tmp/custom-migrations'
+    });
+    const closeGate = deferred();
+    let closeCount = 0;
+    const connection = makePostgresTestConnectionCloseIdempotent({
+        async end() {
+            closeCount += 1;
+            await closeGate.promise;
+        }
+    });
+    database.registerConnection(connection);
+
+    const directClose = connection.end();
+    const databaseClose = database.close();
+    await new Promise(setImmediate);
+
+    assert.equal(closeCount, 1);
+    assert.equal(fixture.queries.filter((sql) =>
+        sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+    ).length, 0);
+
+    closeGate.resolve();
+    await Promise.all([directClose, databaseClose]);
+    assert.equal(closeCount, 1);
+    assert.equal(fixture.queries.filter((sql) =>
+        sql.includes(database.databaseName) && /WITH \(FORCE\)/.test(sql)
+    ).length, 1);
+    await fixture.allocator.close();
 });
 
 test('custom migration catalogs use an isolated template0 database', async () => {

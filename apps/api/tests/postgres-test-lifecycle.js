@@ -100,6 +100,25 @@ function closeConnection(connection) {
     throw new Error('Managed PostgreSQL test connection must expose close() or end()');
 }
 
+function makePostgresTestConnectionCloseIdempotent(connection) {
+    const method = typeof connection.close === 'function'
+        ? 'close'
+        : typeof connection.end === 'function'
+            ? 'end'
+            : null;
+    if (!method) {
+        throw new Error('Managed PostgreSQL test connection must expose close() or end()');
+    }
+
+    const close = connection[method].bind(connection);
+    let closePromise;
+    connection[method] = () => {
+        closePromise ??= Promise.resolve().then(close);
+        return closePromise;
+    };
+    return connection;
+}
+
 function aggregateErrors(errors, message) {
     if (!errors.length) return;
     if (errors.length === 1) throw errors[0];
@@ -373,6 +392,7 @@ module.exports = {
     createPostgresTestAllocator,
     createPostgresTestDatabaseName,
     getSharedPostgresTestAllocator,
+    makePostgresTestConnectionCloseIdempotent,
     postgresIntegrationEnabled,
     postgresIntegrationSkipReason,
     resolvePostgresTestConfig
