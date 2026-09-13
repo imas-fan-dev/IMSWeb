@@ -140,17 +140,17 @@ test("production inventory preserves approved totals and route-level reconciliat
   ));
 
   assert.deepEqual(current.counts, {
-    mountedRegistrations: 315,
-    mountedMethodPaths: 230,
-    noInputRoutes: 85,
-    requestCarriers: 306,
+    mountedRegistrations: 318,
+    mountedMethodPaths: 232,
+    noInputRoutes: 86,
+    requestCarriers: 308,
     policies: {
-      reject: 41,
+      reject: 43,
       "accept-and-project": 183,
       passthrough: 18,
       "non-object-applicable": 64,
     },
-    responses: { total: 608, json: 544, nonJson: 64 },
+    responses: { total: 622, json: 558, nonJson: 64 },
     unresolved: 0,
   });
   assert.deepEqual(current, artifact);
