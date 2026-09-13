@@ -221,16 +221,19 @@ export class NodeEmailDeliveryRunner {
     }
 
     private async poll(): Promise<void> {
-        const now = this.now();
-        await this.store.failExpired(now, this.sweepBatchSize);
-        if (now >= this.nextSweepAt) {
-            await this.store.deleteTerminal(now - this.retentionMs, this.sweepBatchSize);
-            this.nextSweepAt = now + this.sweepIntervalMs;
+        const maintenanceNow = this.now();
+        await this.store.failExpired(maintenanceNow, this.sweepBatchSize);
+        if (maintenanceNow >= this.nextSweepAt) {
+            await this.store.deleteTerminal(
+                maintenanceNow - this.retentionMs,
+                this.sweepBatchSize,
+            );
+            this.nextSweepAt = maintenanceNow + this.sweepIntervalMs;
         }
         const available = this.concurrency - this.active.size;
         if (available > 0 && !this.stopping) {
             const claims = await this.store.claim({
-                now,
+                now: this.now(),
                 limit: available,
                 leaseDurationMs: this.leaseDurationMs,
             });

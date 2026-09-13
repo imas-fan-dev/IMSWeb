@@ -14,6 +14,7 @@ interface PlatformEmailConfigurationRow {
     password_ciphertext: string | null;
     from_address: string;
     from_name: string;
+    resend_cooldown_seconds: number;
     updated_at: number;
 }
 
@@ -29,6 +30,7 @@ function configurationRecord(
         passwordCiphertext: row.password_ciphertext,
         fromAddress: row.from_address,
         fromName: row.from_name,
+        resendCooldownSeconds: row.resend_cooldown_seconds,
         updatedAt: row.updated_at,
     };
 }
@@ -42,7 +44,8 @@ export class SqlPlatformEmailConfigurationRepository
         const result = await sqlStatement(
             this.database,
             `SELECT enabled, host, port, security, username_ciphertext,
-                    password_ciphertext, from_address, from_name, updated_at
+                    password_ciphertext, from_address, from_name,
+                    resend_cooldown_seconds, updated_at
              FROM platform_email_configuration
              WHERE singleton_id=1`,
             [],
@@ -62,10 +65,12 @@ export class SqlPlatformEmailConfigurationRepository
             this.database,
             `UPDATE platform_email_configuration
              SET enabled=?, host=?, port=?, security=?, username_ciphertext=?,
-                 password_ciphertext=?, from_address=?, from_name=?, updated_at=?
+                 password_ciphertext=?, from_address=?, from_name=?,
+                 resend_cooldown_seconds=?, updated_at=?
              WHERE singleton_id=1 AND updated_at=?
              RETURNING enabled, host, port, security, username_ciphertext,
-                       password_ciphertext, from_address, from_name, updated_at`,
+                       password_ciphertext, from_address, from_name,
+                       resend_cooldown_seconds, updated_at`,
             [
                 input.enabled,
                 input.host,
@@ -75,6 +80,7 @@ export class SqlPlatformEmailConfigurationRepository
                 input.passwordCiphertext,
                 input.fromAddress,
                 input.fromName,
+                input.resendCooldownSeconds,
                 input.updatedAt,
                 input.expectedUpdatedAt,
             ],

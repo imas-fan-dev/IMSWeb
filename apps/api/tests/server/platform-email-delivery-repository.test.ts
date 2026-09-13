@@ -4,11 +4,14 @@ import type { TestContext } from 'node:test';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { SqlPlatformEmailDeliveryRepository } from '@/infra/db/repositories/platform-email-delivery-repository';
 import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platform-email-job-payload';
+import { platformPasswordResetRecipientKey } from '@/domains/identity/platform-auth/password-reset/password-reset-cache';
 import type { ManagedSqlDatabase, SqlSchemaStrategy } from '@/infra/db/sql/database';
 import { queryAll, queryOne } from '@/infra/db/sql/query';
 import type {
     PlatformEmailDeliveryEnqueueInput,
     PlatformEmailDeliveryPurpose,
+    PlatformPasswordResetEmailDeliveryEnqueueInput,
+    PlatformPasswordResetRecipientKey,
 } from '@/ports/email-delivery';
 import type {
     NewPlatformEmailAccountInput,
@@ -43,6 +46,14 @@ interface JobState {
     lease_expires_at: number | null;
     failure_category: string | null;
     acceptance_ambiguous: boolean;
+    updated_at: number;
+}
+
+interface RequestCooldownState {
+    purpose: string;
+    recipient_key: string;
+    enqueued_at: number;
+    resend_after: number;
     updated_at: number;
 }
 
@@ -97,6 +108,17 @@ function delivery(
     };
 }
 
+function passwordResetDeliveryInput(
+    fixture: DeliveryFixture,
+): PlatformPasswordResetEmailDeliveryEnqueueInput {
+    return {
+        ...fixture.input,
+        recipientKey: platformPasswordResetRecipientKey(
+            fixture.input.normalizedEmail,
+        ),
+    } as PlatformPasswordResetEmailDeliveryEnqueueInput;
+}
+
 function emailAccount(email: string, now: number): NewPlatformEmailAccountInput {
     return {
         id: randomUUID(),
@@ -148,6 +170,19 @@ function jobState(
                 lease_expires_at, failure_category, acceptance_ambiguous, updated_at
          FROM platform_email_delivery_jobs WHERE id=?`,
         [jobId],
+    );
+}
+
+function requestCooldownState(
+    database: ManagedSqlDatabase,
+    recipientKey: string,
+): Promise<RequestCooldownState | null> {
+    return queryOne<RequestCooldownState>(
+        database,
+        `SELECT purpose, recipient_key, enqueued_at, resend_after, updated_at
+         FROM platform_email_request_cooldowns
+         WHERE purpose='password_reset' AND recipient_key=?`,
+        [recipientKey],
     );
 }
 
@@ -304,7 +339,10 @@ test('password reset activation uses acceptance time and remains unusable while 
     const account = emailAccount(email, 1_000);
     assert.equal((await accountRepository.createEmailAccount(account)).status, 'created');
     const reset = delivery('password_reset', email, 'password-reset-initial', 2_000);
-    assert.equal((await repository.enqueuePasswordReset(reset.input)).status, 'queued');
+    assert.equal(
+        (await repository.enqueuePasswordReset(passwordResetDeliveryInput(reset))).status,
+        'queued',
+    );
 
     const resetInput = {
         normalizedEmail: email,
@@ -350,6 +388,376 @@ test('password reset activation uses acceptance time and remains unusable while 
     );
 });
 
+test('password reset request cooldowns are durable, anonymous, and preserve legacy authority', async (t) => {
+    const { database, repository, accountRepository } = await useDatabase(
+        t,
+        'email-delivery-password-reset-cooldown',
+    );
+    await database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+
+    const knownEmail = 'known-cooldown@example.test';
+    assert.equal(
+        (await accountRepository.createEmailAccount(emailAccount(knownEmail, 1_000))).status,
+        'created',
+    );
+    const known = delivery('password_reset', knownEmail, 'known-cooldown', 2_000);
+    const unknown = delivery(
+        'password_reset',
+        'unknown-cooldown@example.test',
+        'unknown-cooldown',
+        3_000,
+    );
+    const knownInput = passwordResetDeliveryInput(known);
+    const unknownInput = passwordResetDeliveryInput(unknown);
+
+    assert.throws(
+        () => repository.enqueuePasswordReset({
+            ...knownInput,
+            recipientKey: 'A'.repeat(64) as PlatformPasswordResetRecipientKey,
+        }),
+        /64 lowercase hex/,
+    );
+    assert.deepEqual(await repository.enqueuePasswordReset(knownInput), {
+        status: 'queued',
+        resendAfter: 32_000,
+        retryAfterSeconds: 30,
+        policyUpdatedAt: 1,
+    });
+    assert.deepEqual(await repository.enqueuePasswordReset(unknownInput), {
+        status: 'email-not-found',
+        enqueuedAt: 3_000,
+        resendAfter: 33_000,
+        resendCooldownSeconds: 30,
+        retryAfterSeconds: 30,
+        policyUpdatedAt: 1,
+    });
+
+    const knownRepeat = delivery(
+        'password_reset',
+        knownEmail,
+        'known-cooldown-repeat',
+        2_001,
+    );
+    const unknownRepeat = delivery(
+        'password_reset',
+        unknown.input.normalizedEmail,
+        'unknown-cooldown-repeat',
+        3_001,
+    );
+    assert.deepEqual(
+        await repository.enqueuePasswordReset(
+            passwordResetDeliveryInput(knownRepeat),
+        ),
+        {
+            status: 'cooldown',
+            enqueuedAt: 2_000,
+            resendAfter: 32_000,
+            resendCooldownSeconds: 30,
+            retryAfterMs: 29_999,
+        },
+    );
+    assert.deepEqual(
+        await repository.enqueuePasswordReset(
+            passwordResetDeliveryInput(unknownRepeat),
+        ),
+        {
+            status: 'cooldown',
+            enqueuedAt: 3_000,
+            resendAfter: 33_000,
+            resendCooldownSeconds: 30,
+            retryAfterMs: 29_999,
+        },
+    );
+
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_password_reset_codes`,
+        ).first<number>('count'),
+        1,
+    );
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>('count'),
+        1,
+    );
+    const cooldownRows = await queryAll<RequestCooldownState>(
+        database,
+        `SELECT purpose, recipient_key, enqueued_at, resend_after, updated_at
+         FROM platform_email_request_cooldowns
+         ORDER BY enqueued_at`,
+    );
+    assert.deepEqual(
+        cooldownRows.map((row) => row.recipient_key),
+        [knownInput.recipientKey, unknownInput.recipientKey],
+    );
+    assert.equal(JSON.stringify(cooldownRows).includes(knownEmail), false);
+    assert.equal(
+        JSON.stringify(cooldownRows).includes(unknown.input.normalizedEmail),
+        false,
+    );
+
+    await database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=600, updated_at=2 WHERE singleton_id=1`,
+    ).run();
+    const replacement = delivery(
+        'password_reset',
+        unknown.input.normalizedEmail,
+        'unknown-cooldown-replacement',
+        33_000,
+    );
+    assert.deepEqual(
+        await repository.enqueuePasswordReset(
+            passwordResetDeliveryInput(replacement),
+        ),
+        {
+            status: 'email-not-found',
+            enqueuedAt: 33_000,
+            resendAfter: 633_000,
+            resendCooldownSeconds: 600,
+            retryAfterSeconds: 600,
+            policyUpdatedAt: 2,
+        },
+    );
+    assert.deepEqual(
+        await requestCooldownState(database, unknownInput.recipientKey),
+        {
+            purpose: 'password_reset',
+            recipient_key: unknownInput.recipientKey,
+            enqueued_at: 33_000,
+            resend_after: 633_000,
+            updated_at: 33_000,
+        },
+    );
+
+    const legacyEmail = 'legacy-cooldown@example.test';
+    assert.equal(
+        (await accountRepository.createEmailAccount(emailAccount(legacyEmail, 90_000))).status,
+        'created',
+    );
+    await database.prepare(
+        `INSERT INTO platform_password_reset_codes
+            (normalized_email, code_hash, expires_at, resend_after,
+             attempts_remaining, consumed_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 5, NULL, ?, ?)`,
+    ).bind(
+        legacyEmail,
+        hash('legacy-code'),
+        500_000,
+        160_000,
+        100_000,
+        100_000,
+    ).run();
+    const legacyRequest = delivery(
+        'password_reset',
+        legacyEmail,
+        'legacy-cooldown-request',
+        120_000,
+    );
+    const legacyInput = passwordResetDeliveryInput(legacyRequest);
+    assert.deepEqual(await repository.enqueuePasswordReset(legacyInput), {
+        status: 'cooldown',
+        enqueuedAt: 100_000,
+        resendAfter: 160_000,
+        resendCooldownSeconds: 60,
+        retryAfterMs: 40_000,
+    });
+    assert.deepEqual(
+        await requestCooldownState(database, legacyInput.recipientKey),
+        {
+            purpose: 'password_reset',
+            recipient_key: legacyInput.recipientKey,
+            enqueued_at: 100_000,
+            resend_after: 160_000,
+            updated_at: 120_000,
+        },
+    );
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>('count'),
+        1,
+    );
+});
+
+test('password reset request cooldown serializes simultaneous first requests', async (t) => {
+    const { database, repository, accountRepository } = await useDatabase(
+        t,
+        'email-delivery-password-reset-first-request-race',
+    );
+    const siblingDatabase = connectPostgresTestDatabase(t, database);
+    const sibling = new SqlPlatformEmailDeliveryRepository(siblingDatabase);
+    await database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+
+    const knownEmail = 'known-race@example.test';
+    assert.equal(
+        (await accountRepository.createEmailAccount(emailAccount(knownEmail, 1_000))).status,
+        'created',
+    );
+    const scenarios = [
+        {
+            email: knownEmail,
+            expectedStatuses: ['cooldown', 'queued'],
+        },
+        {
+            email: 'unknown-race@example.test',
+            expectedStatuses: ['cooldown', 'email-not-found'],
+        },
+    ] as const;
+
+    for (const scenario of scenarios) {
+        const first = passwordResetDeliveryInput(
+            delivery('password_reset', scenario.email, `${scenario.email}:first`, 10_000),
+        );
+        const second = passwordResetDeliveryInput(
+            delivery('password_reset', scenario.email, `${scenario.email}:second`, 10_000),
+        );
+        const results = await Promise.all([
+            repository.enqueuePasswordReset(first),
+            sibling.enqueuePasswordReset(second),
+        ]);
+        assert.deepEqual(
+            results.map((result) => result.status).sort(),
+            [...scenario.expectedStatuses].sort(),
+        );
+        assert.equal(
+            await database.prepare(
+                `SELECT COUNT(*) AS count
+                 FROM platform_email_request_cooldowns
+                 WHERE purpose='password_reset' AND recipient_key=?`,
+            ).bind(first.recipientKey).first<number>('count'),
+            1,
+        );
+    }
+
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_password_reset_codes`,
+        ).first<number>('count'),
+        1,
+    );
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>('count'),
+        1,
+    );
+});
+
+test('anonymous cooldown survives account creation and uses the next policy after expiry', async (t) => {
+    const { database, repository, accountRepository } = await useDatabase(
+        t,
+        'email-delivery-password-reset-account-transition',
+    );
+    await database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+    const email = 'account-transition@example.test';
+    const initial = passwordResetDeliveryInput(
+        delivery('password_reset', email, 'account-transition:unknown', 1_000),
+    );
+    assert.equal(
+        (await repository.enqueuePasswordReset(initial)).status,
+        'email-not-found',
+    );
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_password_reset_codes
+             WHERE normalized_email=?`,
+        ).bind(email).first<number>('count'),
+        0,
+    );
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>('count'),
+        0,
+    );
+
+    const expiredRecipientKey = '0'.repeat(64);
+    await database.prepare(
+        `INSERT INTO platform_email_request_cooldowns
+            (purpose, recipient_key, enqueued_at, resend_after, updated_at)
+         VALUES ('password_reset', ?, 0, 30000, 0)`,
+    ).bind(expiredRecipientKey).run();
+    await database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=600, updated_at=2 WHERE singleton_id=1`,
+    ).run();
+    assert.equal(
+        (await accountRepository.createEmailAccount(emailAccount(email, 2_000))).status,
+        'created',
+    );
+
+    const duringCooldown = passwordResetDeliveryInput(
+        delivery('password_reset', email, 'account-transition:during', 20_000),
+    );
+    assert.deepEqual(await repository.enqueuePasswordReset(duringCooldown), {
+        status: 'cooldown',
+        enqueuedAt: 1_000,
+        resendAfter: 31_000,
+        resendCooldownSeconds: 30,
+        retryAfterMs: 11_000,
+    });
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>('count'),
+        0,
+    );
+
+    const afterCooldown = passwordResetDeliveryInput(
+        delivery('password_reset', email, 'account-transition:after', 31_000),
+    );
+    assert.deepEqual(await repository.enqueuePasswordReset(afterCooldown), {
+        status: 'queued',
+        resendAfter: 631_000,
+        retryAfterSeconds: 600,
+        policyUpdatedAt: 2,
+    });
+    assert.deepEqual(
+        await requestCooldownState(database, initial.recipientKey),
+        {
+            purpose: 'password_reset',
+            recipient_key: initial.recipientKey,
+            enqueued_at: 31_000,
+            resend_after: 631_000,
+            updated_at: 31_000,
+        },
+    );
+    assert.equal(
+        await requestCooldownState(database, expiredRecipientKey),
+        null,
+    );
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_password_reset_codes
+             WHERE normalized_email=?`,
+        ).bind(email).first<number>('count'),
+        1,
+    );
+    assert.equal(
+        await database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>('count'),
+        1,
+    );
+});
+
 test('failed resend preserves the active code and missing candidates never retry', async (t) => {
     const { database, repository } = await useDatabase(t, 'email-delivery-failure');
     const email = 'resend@example.test';
@@ -389,6 +797,46 @@ test('failed resend preserves the active code and missing candidates never retry
     assert.equal(afterFailure.pending_token, null);
     assert.equal(afterFailure.resend_after, 121_001);
 
+    await database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=600, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+    const longCooldownResend = delivery(
+        'registration',
+        email,
+        'resend-long-cooldown',
+        121_002,
+    );
+    await repository.enqueueRegistration(longCooldownResend.input);
+    const longCooldownClaim = await claimOne(repository, 121_003);
+    assert.equal(
+        await repository.recordFailure({
+            jobId: longCooldownClaim.jobId,
+            leaseToken: longCooldownClaim.leaseToken,
+            failedAt: 121_004,
+            category: 'authentication',
+            transient: false,
+            acceptanceAmbiguous: false,
+        }),
+        'failed',
+    );
+    const afterActiveExpiry = delivery(
+        'registration',
+        email,
+        'resend-before-long-cooldown-ends',
+        603_001,
+    );
+    assert.deepEqual(
+        await repository.enqueueRegistration(afterActiveExpiry.input),
+        {
+            status: 'cooldown',
+            enqueuedAt: 121_002,
+            resendAfter: 721_002,
+            resendCooldownSeconds: 600,
+            retryAfterMs: 118_001,
+        },
+    );
+
     const missing = delivery(
         'registration',
         'missing-candidate@example.test',
@@ -424,6 +872,133 @@ test('failed resend preserves the active code and missing candidates never retry
             acceptance_ambiguous: false,
             updated_at: 102_000,
         },
+    );
+});
+
+test('password reset supersession and terminal failure preserve the active code', async (t) => {
+    const { database, repository, accountRepository } = await useDatabase(
+        t,
+        'email-delivery-password-reset-supersession',
+    );
+    await database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+    const email = 'password-reset-supersession@example.test';
+    const account = emailAccount(email, 500);
+    assert.equal(
+        (await accountRepository.createEmailAccount(account)).status,
+        'created',
+    );
+
+    const activeDelivery = delivery(
+        'password_reset',
+        email,
+        'password-reset-supersession:active',
+        1_000,
+    );
+    await repository.enqueuePasswordReset(
+        passwordResetDeliveryInput(activeDelivery),
+    );
+    const activeClaim = await claimOne(repository, 1_100);
+    assert.equal(
+        await repository.complete({
+            jobId: activeClaim.jobId,
+            leaseToken: activeClaim.leaseToken,
+            normalizedEmail: email,
+            deliveryToken: activeClaim.deliveryToken,
+            acceptedAt: 2_000,
+        }),
+        'completed',
+    );
+
+    const runningResend = delivery(
+        'password_reset',
+        email,
+        'password-reset-supersession:running',
+        31_001,
+    );
+    await repository.enqueuePasswordReset(
+        passwordResetDeliveryInput(runningResend),
+    );
+    const runningClaim = await claimOne(repository, 31_100, 60_000);
+    const replacement = delivery(
+        'password_reset',
+        email,
+        'password-reset-supersession:replacement',
+        61_002,
+    );
+    assert.equal(
+        (await repository.enqueuePasswordReset(
+            passwordResetDeliveryInput(replacement),
+        )).status,
+        'queued',
+    );
+    assert.equal(
+        (await jobState(database, runningResend.input.jobId))?.state,
+        'superseded',
+    );
+    assert.equal(
+        await repository.complete({
+            jobId: runningClaim.jobId,
+            leaseToken: runningClaim.leaseToken,
+            normalizedEmail: email,
+            deliveryToken: runningClaim.deliveryToken,
+            acceptedAt: 61_003,
+        }),
+        'superseded',
+    );
+
+    const replacementClaim = await claimOne(repository, 61_100);
+    assert.equal(
+        await repository.recordFailure({
+            jobId: replacementClaim.jobId,
+            leaseToken: replacementClaim.leaseToken,
+            failedAt: 61_101,
+            category: 'authentication',
+            transient: false,
+            acceptanceAmbiguous: false,
+        }),
+        'failed',
+    );
+    assert.equal(
+        await repository.complete({
+            jobId: replacementClaim.jobId,
+            leaseToken: replacementClaim.leaseToken,
+            normalizedEmail: email,
+            deliveryToken: replacementClaim.deliveryToken,
+            acceptedAt: 61_102,
+        }),
+        'lease-lost',
+    );
+
+    const preserved = await verificationState(database, 'password_reset', email);
+    assert.ok(preserved);
+    assert.equal(preserved.code_hash, activeDelivery.input.codeHash);
+    assert.equal(preserved.expires_at, 902_000);
+    assert.equal(preserved.delivery_token, null);
+    assert.equal(preserved.pending_token, null);
+    assert.equal(preserved.pending_code_hash, null);
+
+    assert.equal(
+        (await accountRepository.completePasswordReset({
+            normalizedEmail: email,
+            codeHash: activeDelivery.input.codeHash,
+            passwordHash: hash('replacement-after-failed-resend'),
+            parametersJson: '{"cost":12}',
+            updatedAt: 61_103,
+            event: {
+                id: randomUUID(),
+                accountId: account.id,
+                eventType: 'auth.password_reset.completed',
+                requestId: null,
+                ipAddress: null,
+                userAgent: null,
+                metadataJson: '{}',
+                createdAt: 61_103,
+            },
+        })).status,
+        'completed',
     );
 });
 

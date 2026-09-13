@@ -168,7 +168,7 @@ test("registers after a conflict is corrected and keeps errors user-safe", async
       verificationBody = route.request().postDataJSON()
       await route.fulfill({
         status: 202,
-        json: { success: true, retryAfterSeconds: 60 },
+        json: { success: true, queued: true, retryAfterSeconds: 30 },
       })
     },
     "POST"
@@ -205,8 +205,8 @@ test("registers after a conflict is corrected and keeps errors user-safe", async
   await page.getByLabel("显示名称").fill("  浏览器制作人  ")
   await page.getByLabel("邮箱", { exact: true }).fill("  New@Example.COM ")
   await page.getByRole("button", { name: "发送验证码" }).click()
-  await expect(page.getByText("验证码已发送至 new@example.com。")).toBeVisible()
-  await expect(page.getByRole("button", { name: "60 秒后重发" })).toBeDisabled()
+  await expect(page.getByText("请求已受理，请稍候查收")).toBeVisible()
+  await expect(page.getByRole("button", { name: "30 秒后重发" })).toBeDisabled()
   await page.getByLabel("邮箱验证码").fill("012345")
   await page.getByLabel("密码", { exact: true }).fill("correct-horse-battery")
   await page.getByLabel("确认密码").fill("correct-horse-battery")

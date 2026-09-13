@@ -5,6 +5,7 @@ import type {
     PlatformEmailDeliveryAttemptResult,
     PlatformEmailDeliveryFailureCategory,
     PlatformEmailDeliveryPurpose,
+    PlatformEmailResendPolicyCache,
     PlatformEmailWorkerSender,
 } from '@/ports/email-delivery';
 import type {
@@ -13,7 +14,6 @@ import type {
     PlatformEmailConfigurationRecord,
     PlatformEmailConfigurationStore,
     PlatformEmailConfigurationWriteInput,
-    PlatformEmailSender,
     PlatformEmailSecretBox,
     PlatformEmailVerificationMessage,
 } from '@/ports/email';
@@ -21,6 +21,7 @@ import {
     PlatformEmailConfigurationValidationError,
     PlatformEmailDeliveryError,
 } from '@/ports/email';
+import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
 
 interface RuntimeSmtpConfiguration {
     host: string;
@@ -50,6 +51,24 @@ interface SmtpTransport {
 
 type SmtpTransportFactory = (config: SmtpTransportConfiguration) => SmtpTransport;
 type SmtpHostResolver = (hostname: string) => Promise<readonly string[]>;
+
+type PlatformEmailResendPolicyWriteErrorReporter = (
+    operation: 'write-through',
+) => void;
+
+interface ConfiguredPlatformEmailServiceOptions {
+    resendPolicyCache?: PlatformEmailResendPolicyCache;
+    reportResendPolicyCacheError?: PlatformEmailResendPolicyWriteErrorReporter;
+}
+
+function reportPlatformEmailResendPolicyWriteError(
+    operation: 'write-through',
+): void {
+    console.error(JSON.stringify({
+        event: 'platform_email_resend_policy_cache_error',
+        operation,
+    }));
+}
 
 const SMTP_HOST_PATTERN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
@@ -274,14 +293,22 @@ function verificationContent(
 }
 
 export class ConfiguredPlatformEmailService
-    implements PlatformEmailConfiguration, PlatformEmailSender, PlatformEmailWorkerSender
+    implements PlatformEmailConfiguration, PlatformEmailWorkerSender
 {
+    private readonly resendPolicyCache?: PlatformEmailResendPolicyCache;
+    private readonly reportResendPolicyCacheError: PlatformEmailResendPolicyWriteErrorReporter;
+
     constructor(
         private readonly store: PlatformEmailConfigurationStore,
         private readonly secretBox: PlatformEmailSecretBox,
         private readonly transportFactory: SmtpTransportFactory = createTransport,
         private readonly hostResolver: SmtpHostResolver = resolveHost,
-    ) {}
+        options: ConfiguredPlatformEmailServiceOptions = {},
+    ) {
+        this.resendPolicyCache = options.resendPolicyCache;
+        this.reportResendPolicyCacheError = options.reportResendPolicyCacheError
+            ?? reportPlatformEmailResendPolicyWriteError;
+    }
 
     async getSettings(): Promise<PlatformEmailConfigurationAdminView> {
         return this.adminView(await this.store.getPlatformEmailConfiguration());
@@ -307,9 +334,35 @@ export class ConfiguredPlatformEmailService
             ...next,
             expectedUpdatedAt: input.expectedUpdatedAt,
         });
-        return result.status === 'saved'
-            ? { status: 'saved', settings: this.adminView(result.configuration) }
-            : { status: 'conflict', settings: this.adminView(result.configuration) };
+        if (result.status === 'conflict') {
+            return { status: 'conflict', settings: this.adminView(result.configuration) };
+        }
+        await this.writeResendPolicy(result.configuration);
+        return { status: 'saved', settings: this.adminView(result.configuration) };
+    }
+
+    private async writeResendPolicy(
+        configuration: PlatformEmailConfigurationRecord,
+    ): Promise<void> {
+        const cache = this.resendPolicyCache;
+        if (!cache) return;
+        try {
+            await withBoundedCacheOperation((signal) =>
+                cache.writeIfNewer(
+                    {
+                        resendCooldownSeconds: configuration.resendCooldownSeconds,
+                        updatedAt: configuration.updatedAt,
+                    },
+                    signal,
+                ),
+            );
+        } catch {
+            try {
+                this.reportResendPolicyCacheError('write-through');
+            } catch {
+                // Cache diagnostics must not change a committed settings response.
+            }
+        }
     }
 
     async sendTest(
@@ -342,37 +395,6 @@ export class ConfiguredPlatformEmailService
             });
         });
         return { status: 'sent', recipient };
-    }
-
-    async isAvailable(): Promise<boolean> {
-        try {
-            const record = await this.store.getPlatformEmailConfiguration();
-            if (!record.enabled) return false;
-            this.runtimeConfiguration(record);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    sendRegistrationVerification(
-        message: PlatformEmailVerificationMessage,
-    ): Promise<void> {
-        return this.sendVerification(
-            message,
-            'IMSWeb registration verification code',
-            'registration',
-        );
-    }
-
-    sendPasswordResetVerification(
-        message: PlatformEmailVerificationMessage,
-    ): Promise<void> {
-        return this.sendVerification(
-            message,
-            'IMSWeb password reset verification code',
-            'password reset',
-        );
     }
 
     async deliverVerification(input: {
@@ -494,27 +516,6 @@ export class ConfiguredPlatformEmailService
         } finally {
             closeTransport();
         }
-    }
-
-    private async sendVerification(
-        message: PlatformEmailVerificationMessage,
-        subject: string,
-        purpose: string,
-    ): Promise<void> {
-        const record = await this.store.getPlatformEmailConfiguration();
-        if (!record.enabled) {
-            throw new PlatformEmailDeliveryError('SMTP delivery is disabled');
-        }
-        const config = this.runtimeConfiguration(record);
-        const content = verificationContent(message, purpose);
-        await this.withTransport(config, (transport) =>
-            transport.sendMail({
-                from: { address: config.fromAddress, name: config.fromName },
-                to: message.email,
-                subject,
-                ...content,
-            }),
-        );
     }
 
     private requireAttemptActive(deadlineAt: number, signal: AbortSignal): void {
@@ -639,6 +640,7 @@ export class ConfiguredPlatformEmailService
             passwordCiphertext,
             fromAddress: input.fromAddress.trim().toLowerCase(),
             fromName: input.fromName.trim(),
+            resendCooldownSeconds: input.resendCooldownSeconds,
             updatedAt: Math.max(Date.now(), current.updatedAt + 1),
         };
         this.validateRecord(record);
@@ -669,6 +671,15 @@ export class ConfiguredPlatformEmailService
         if (!validFromName(record.fromName)) {
             throw new PlatformEmailConfigurationValidationError(
                 'SMTP sender name is invalid',
+            );
+        }
+        if (
+            !Number.isInteger(record.resendCooldownSeconds) ||
+            record.resendCooldownSeconds < 30 ||
+            record.resendCooldownSeconds > 600
+        ) {
+            throw new PlatformEmailConfigurationValidationError(
+                'Verification code resend cooldown must be an integer from 30 to 600 seconds',
             );
         }
     }
@@ -736,6 +747,7 @@ export class ConfiguredPlatformEmailService
             passwordConfigured,
             fromAddress: record.fromAddress,
             fromName: record.fromName,
+            resendCooldownSeconds: record.resendCooldownSeconds,
             updatedAt: record.updatedAt,
         };
     }

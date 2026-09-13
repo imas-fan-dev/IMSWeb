@@ -16,6 +16,8 @@ import {
 } from "@imsweb/contracts/platform";
 import { createHonoApp } from "@/app";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
+import { SqlPlatformEmailDeliveryRepository } from "@/infra/db/repositories/platform-email-delivery-repository";
+import { PlatformEmailJobPayloadCipherAdapter } from "@/infra/email/smtp/platform-email-job-payload";
 import type {
     ManagedSqlDatabase,
     SqlSchemaStrategy,
@@ -23,16 +25,21 @@ import type {
 import { MemoryCache } from "@/infra/cache/memory/cache";
 import { BcryptPasswordVerifier } from "@/infra/security/bcrypt/password-verifier";
 import { HmacPlatformTokenService } from "@/infra/security/hmac/platform-token-service";
+import { NodeEmailDeliveryRunner } from '@/runtime/node-email-delivery-runner';
 import { platformEmailVerificationCacheKey } from "@/domains/identity/platform-auth/registration/email-verification-cache";
+import {
+    platformPasswordResetCacheKey,
+    platformPasswordResetRecipientKey,
+} from "@/domains/identity/platform-auth/password-reset/password-reset-cache";
 import { isMigratedPbkdf2Parameters } from "@/domains/identity/platform-auth/contracts/credentials";
 import type {
     NewPlatformEmailAccountInput,
     PlatformAccountStatus,
 } from "@/ports/repositories";
 import type {
-    PlatformEmailSender,
-    PlatformEmailVerificationMessage,
-} from "@/ports/email";
+    PlatformEmailDeliveryPurpose,
+    PlatformEmailJobPayloadCipher,
+} from "@/ports/email-delivery";
 import type { CacheStore } from "@/ports/cache";
 import type { RuntimeServices } from "@/ports/runtime-services";
 import {
@@ -61,48 +68,64 @@ interface Fixture {
     database: ManagedSqlDatabase;
     databaseUrl?: string;
     repository: SqlPlatformAccountRepository;
-    emailSender: CapturingPlatformEmailSender;
+    deliveryRepository: SqlPlatformEmailDeliveryRepository;
+    payloadCipher: PlatformEmailJobPayloadCipher;
     connect(): ManagedSqlDatabase;
 }
 
-class CapturingPlatformEmailSender implements PlatformEmailSender {
-    available = true;
-    fail = false;
-    beforeResult: Promise<void> | null = null;
-    onSend: (() => void) | null = null;
-    readonly messages: PlatformEmailVerificationMessage[] = [];
-    readonly passwordResetMessages: PlatformEmailVerificationMessage[] = [];
-
-    async isAvailable(): Promise<boolean> {
-        return this.available;
+class HangingCache implements CacheStore {
+    private pending<T>(): Promise<T> {
+        return new Promise<T>(() => undefined);
     }
 
-    async sendRegistrationVerification(
-        message: PlatformEmailVerificationMessage,
-    ): Promise<void> {
-        this.messages.push(message);
-        this.onSend?.();
-        if (this.beforeResult) await this.beforeResult;
-        if (this.fail) throw new Error("Injected email delivery failure");
+    get(): Promise<string | null> {
+        return this.pending();
     }
+    set(): Promise<void> {
+        return this.pending();
+    }
+    delete(): Promise<void> {
+        return this.pending();
+    }
+    ping(): Promise<void> {
+        return this.pending();
+    }
+    async close(): Promise<void> {}
+}
 
-    async sendPasswordResetVerification(
-        message: PlatformEmailVerificationMessage,
-    ): Promise<void> {
-        this.passwordResetMessages.push(message);
+class FailingCache implements CacheStore {
+    async get(): Promise<string | null> {
+        throw new Error("cache unavailable");
     }
+    async set(): Promise<void> {
+        throw new Error("cache unavailable");
+    }
+    async delete(): Promise<void> {
+        throw new Error("cache unavailable");
+    }
+    async ping(): Promise<void> {
+        throw new Error("cache unavailable");
+    }
+    async close(): Promise<void> {}
 }
 
 function appWithPlatformEmail(
     repository: SqlPlatformAccountRepository,
-    emailSender: CapturingPlatformEmailSender,
+    deliveryRepository: SqlPlatformEmailDeliveryRepository,
+    payloadCipher: PlatformEmailJobPayloadCipher,
     cache?: CacheStore,
 ): ReturnType<typeof createHonoApp> {
     const runtime = {
         platformAccounts: repository,
         passwords: new BcryptPasswordVerifier(),
         platformTokens: new HmacPlatformTokenService(PLATFORM_SECRET),
-        platformEmailSender: emailSender,
+        platformEmailDeliveryQueue: deliveryRepository,
+        platformEmailJobPayloadCipher: payloadCipher,
+        platformEmailResendPolicy: {
+            async getPolicy() {
+                return { resendCooldownSeconds: 60, updatedAt: 0 };
+            },
+        },
         ...(cache ? { cache } : {}),
         config: { cookieSecure: false, clientAddressSource: "direct" },
     } as unknown as RuntimeServices;
@@ -149,15 +172,35 @@ async function createFixture(t: TestContext): Promise<Fixture> {
         initializedPostgresSchema,
     );
     await repository.initialize();
-    const emailSender = new CapturingPlatformEmailSender();
+    const deliveryRepository = new SqlPlatformEmailDeliveryRepository(
+        harness.connection,
+    );
+    const payloadCipher = new PlatformEmailJobPayloadCipherAdapter(PLATFORM_SECRET);
     return {
-        app: appWithPlatformEmail(repository, emailSender),
+        app: appWithPlatformEmail(
+            repository,
+            deliveryRepository,
+            payloadCipher,
+        ),
         database: harness.connection,
         databaseUrl: harness.databaseUrl,
         repository,
-        emailSender,
+        deliveryRepository,
+        payloadCipher,
         connect: () => harness.connect(),
     };
+}
+
+async function waitFor(
+    predicate: () => boolean,
+    message: string,
+    timeoutMs = 2_000,
+): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (!predicate()) {
+        if (Date.now() >= deadline) assert.fail(message);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    }
 }
 
 function jsonRequest(
@@ -194,6 +237,34 @@ function assertPrivateAuthResponse(response: Response): void {
     assert.match(vary, /Cookie/i);
 }
 
+async function completeNextDelivery(
+    fixture: Fixture,
+    purpose: PlatformEmailDeliveryPurpose,
+): Promise<string> {
+    const now = Date.now();
+    const claims = await fixture.deliveryRepository.claim({
+        now,
+        limit: 1,
+        leaseDurationMs: 15_000,
+    });
+    assert.equal(claims.length, 1);
+    const claim = claims[0];
+    assert.equal(claim.purpose, purpose);
+    const payload = fixture.payloadCipher.decrypt(claim, claim.payloadCiphertext);
+    assert.equal(payload.purpose, purpose);
+    assert.equal(
+        await fixture.deliveryRepository.complete({
+            jobId: claim.jobId,
+            leaseToken: claim.leaseToken,
+            normalizedEmail: payload.normalizedEmail,
+            deliveryToken: claim.deliveryToken,
+            acceptedAt: now,
+        }),
+        'completed',
+    );
+    return payload.code;
+}
+
 async function requestVerificationCode(
     fixture: Fixture,
     email: string,
@@ -208,13 +279,11 @@ async function requestVerificationCode(
     );
     assert.deepEqual(body, {
         success: true,
+        queued: true,
         retryAfterSeconds: 60,
     });
     assertPrivateAuthResponse(response);
-    const message = fixture.emailSender.messages.at(-1);
-    assert.ok(message);
-    assert.match(message.code, /^\d{6}$/);
-    return message.code;
+    return completeNextDelivery(fixture, 'registration');
 }
 
 async function assertFailedResendPreservesOldCode(
@@ -274,27 +343,24 @@ async function assertFailedResendPreservesOldCode(
     );
     await siblingRepository.initialize();
     t.after(() => siblingRepository.close().catch(() => undefined));
+    const siblingDeliveryRepository = new SqlPlatformEmailDeliveryRepository(
+        siblingConnection,
+    );
     const registrationApp = appWithPlatformEmail(
         siblingRepository,
-        new CapturingPlatformEmailSender(),
+        siblingDeliveryRepository,
+        fixture.payloadCipher,
     );
 
-    let releaseDelivery = (): void => undefined;
-    let markDeliveryStarted = (): void => undefined;
-    const deliveryGate = new Promise<void>((resolve) => {
-        releaseDelivery = resolve;
-    });
-    const deliveryStarted = new Promise<void>((resolve) => {
-        markDeliveryStarted = resolve;
-    });
-    t.after(() => releaseDelivery());
-    fixture.emailSender.fail = true;
-    fixture.emailSender.beforeResult = deliveryGate;
-    fixture.emailSender.onSend = markDeliveryStarted;
-    const resendPromise = fixture.app.request(
+    const failedResend = await fixture.app.request(
         jsonRequest("/api/platform/auth/register/verification-code", { email }),
     );
-    await deliveryStarted;
+    assert.equal(failedResend.status, 202);
+    assert.deepEqual(await failedResend.json(), {
+        success: true,
+        queued: true,
+        retryAfterSeconds: 60,
+    });
 
     const staged = await fixture.database
         .prepare(
@@ -329,13 +395,23 @@ async function assertFailedResendPreservesOldCode(
         code: "PLATFORM_EMAIL_VERIFICATION_INVALID",
     });
 
-    releaseDelivery();
-    const failedResend = await resendPromise;
-    assert.equal(failedResend.status, 503);
-    assert.deepEqual(await failedResend.json(), {
-        success: false,
-        code: "PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE",
+    const resendClaims = await fixture.deliveryRepository.claim({
+        now: Date.now(),
+        limit: 1,
+        leaseDurationMs: 15_000,
     });
+    assert.equal(resendClaims.length, 1);
+    assert.equal(
+        await fixture.deliveryRepository.recordFailure({
+            jobId: resendClaims[0].jobId,
+            leaseToken: resendClaims[0].leaseToken,
+            failedAt: Date.now(),
+            category: 'authentication',
+            transient: false,
+            acceptanceAmbiguous: false,
+        }),
+        'failed',
+    );
     const restored = await fixture.database
         .prepare(
             `SELECT code_hash, attempts_remaining, pending_token, pending_code_hash
@@ -608,14 +684,16 @@ test("password reset responses preserve exact JSON and reject invalid API email 
         jsonRequest("/api/platform/auth/password-reset/verification-code", { email }),
     );
     assert.equal(issue.status, 202, await issue.clone().text());
-    await assertRawJsonConforms(issue, passwordResetIssueResponseSchema);
-    const reset = fixture.emailSender.passwordResetMessages.at(-1);
-    assert.ok(reset);
+    assert.deepEqual(
+        await assertRawJsonConforms(issue, passwordResetIssueResponseSchema),
+        { success: true, queued: true, retryAfterSeconds: 60 },
+    );
+    const resetCode = await completeNextDelivery(fixture, 'password_reset');
 
     const completed = await fixture.app.request(
         jsonRequest("/api/platform/auth/password-reset", {
             email,
-            code: reset.code,
+            code: resetCode,
             password: "reset password 123",
         }),
     );
@@ -636,7 +714,8 @@ test("registration verification is hashed, cached, atomically consumed, and sing
     const cache = new MemoryCache();
     fixture.app = appWithPlatformEmail(
         fixture.repository,
-        fixture.emailSender,
+        fixture.deliveryRepository,
+        fixture.payloadCipher,
         cache,
     );
     const email = "verified@example.test";
@@ -685,7 +764,6 @@ test("registration verification is hashed, cached, atomically consumed, and sing
         cooldown.headers.get("retry-after"),
         String(cooldownBody.retryAfterSeconds),
     );
-    assert.equal(fixture.emailSender.messages.length, 1);
 
     const wrongCode = code === "000000" ? "000001" : "000000";
     const wrong = await fixture.app.request(
@@ -753,30 +831,490 @@ test("registration verification is hashed, cached, atomically consumed, and sing
     );
 });
 
-test("verification delivery fails closed and revokes only the unsent code", async (t) => {
+test("verification requests enqueue without SMTP and staged codes remain unusable", async (t) => {
     const fixture = await createFixture(t);
-    fixture.emailSender.available = false;
-    const unavailable = await fixture.app.request(
-        jsonRequest("/api/platform/auth/register/verification-code", {
-            email: "disabled@example.test",
+    const email = "queued@example.test";
+    const response = await fixture.app.request(
+        jsonRequest("/api/platform/auth/register/verification-code", { email }),
+    );
+    assert.equal(response.status, 202, await response.clone().text());
+    assert.deepEqual(
+        await assertRawJsonConforms(
+            response,
+            platformRegistrationVerificationResponseSchema,
+        ),
+        { success: true, queued: true, retryAfterSeconds: 60 },
+    );
+    assert.equal(
+        await fixture.database
+            .prepare(
+                `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+                 WHERE purpose='registration' AND state='queued'`,
+            )
+            .first<number>("count"),
+        1,
+    );
+
+    const claims = await fixture.deliveryRepository.claim({
+        now: Date.now(),
+        limit: 1,
+        leaseDurationMs: 15_000,
+    });
+    assert.equal(claims.length, 1);
+    const claim = claims[0];
+    const payload = fixture.payloadCipher.decrypt(claim, claim.payloadCiphertext);
+    const premature = await fixture.app.request(
+        jsonRequest("/api/platform/auth/register", {
+            email,
+            displayName: "Queued Producer",
+            password: PASSWORD,
+            code: payload.code,
         }),
     );
-    assert.equal(unavailable.status, 503);
-    assert.deepEqual(await unavailable.json(), {
+    assert.equal(premature.status, 400);
+    assert.deepEqual(await premature.json(), {
         success: false,
-        code: "PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE",
+        code: "PLATFORM_EMAIL_VERIFICATION_INVALID",
     });
-    assert.equal(fixture.emailSender.messages.length, 0);
 
-    fixture.emailSender.available = true;
-    fixture.emailSender.fail = true;
-    const failed = await fixture.app.request(
+    assert.equal(
+        await fixture.deliveryRepository.complete({
+            jobId: claim.jobId,
+            leaseToken: claim.leaseToken,
+            normalizedEmail: email,
+            deliveryToken: claim.deliveryToken,
+            acceptedAt: Date.now(),
+        }),
+        'completed',
+    );
+    const registered = await fixture.app.request(
+        jsonRequest("/api/platform/auth/register", {
+            email,
+            displayName: "Queued Producer",
+            password: PASSWORD,
+            code: payload.code,
+        }),
+    );
+    assert.equal(registered.status, 201, await registered.clone().text());
+});
+
+test('durable HTTP enqueue is completed by a fresh worker runner', async (t) => {
+    const fixture = await createFixture(t);
+    const email = 'worker-restart@example.test';
+    const queued = await fixture.app.request(
+        jsonRequest('/api/platform/auth/register/verification-code', { email }),
+    );
+    assert.equal(queued.status, 202, await queued.clone().text());
+
+    const workerDatabase = fixture.connect();
+    const workerRepository = new SqlPlatformEmailDeliveryRepository(workerDatabase);
+    const workerCipher = new PlatformEmailJobPayloadCipherAdapter(PLATFORM_SECRET);
+    const events: Record<string, unknown>[] = [];
+    let deliveredCode: string | undefined;
+    const runner = new NodeEmailDeliveryRunner(
+        workerRepository,
+        workerCipher,
+        {
+            async deliverVerification(input) {
+                assert.equal(input.purpose, 'registration');
+                assert.equal(input.message.email, email);
+                assert.equal(input.signal.aborted, false);
+                deliveredCode = input.message.code;
+                return { status: 'accepted', acceptedAt: Date.now() };
+            },
+        },
+        {
+            pollIntervalMs: 5,
+            concurrency: 1,
+            leaseDurationMs: 1_000,
+            leaseRenewalMs: 250,
+            onEvent(event) {
+                events.push(event);
+            },
+            onError(error) {
+                assert.fail(`unexpected worker error: ${error.message}`);
+            },
+        },
+    );
+    t.after(async () => {
+        await runner.close();
+        await workerDatabase.close();
+    });
+
+    runner.start();
+    await waitFor(
+        () => events.some(
+            (event) => event.event === 'platform_email_delivery_completed',
+        ),
+        'fresh worker did not complete the durable HTTP job',
+    );
+    assert.match(deliveredCode ?? '', /^\d{6}$/);
+
+    const registered = await fixture.app.request(
+        jsonRequest('/api/platform/auth/register', {
+            email,
+            displayName: 'Restarted Worker Producer',
+            password: PASSWORD,
+            code: deliveredCode,
+        }),
+    );
+    assert.equal(registered.status, 201, await registered.clone().text());
+});
+
+test("configured resend intervals and unknown password reset responses come from PostgreSQL", async (t) => {
+    const fixture = await createFixture(t);
+    const cache = new MemoryCache();
+    fixture.app = appWithPlatformEmail(
+        fixture.repository,
+        fixture.deliveryRepository,
+        fixture.payloadCipher,
+        cache,
+    );
+
+    await fixture.database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+    const registrationEmail = "thirty-seconds@example.test";
+    const registration = await fixture.app.request(
+        jsonRequest("/api/platform/auth/register/verification-code", {
+            email: registrationEmail,
+        }),
+    );
+    assert.equal(registration.status, 202);
+    assert.deepEqual(await registration.json(), {
+        success: true,
+        queued: true,
+        retryAfterSeconds: 30,
+    });
+    const registrationRow = await fixture.database.prepare(
+        `SELECT created_at, resend_after
+         FROM platform_email_verification_codes WHERE normalized_email=?`,
+    ).bind(registrationEmail).first<{
+        created_at: number;
+        resend_after: number;
+    }>();
+    assert.ok(registrationRow);
+    assert.deepEqual(
+        JSON.parse(
+            (await cache.get(platformEmailVerificationCacheKey(registrationEmail)))
+                || "null",
+        ),
+        {
+            enqueuedAt: registrationRow.created_at,
+            resendCooldownSeconds: 30,
+            retryAfterAt: registrationRow.resend_after,
+        },
+    );
+
+    await fixture.database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=600, updated_at=2 WHERE singleton_id=1`,
+    ).run();
+    const knownEmail = "known-reset@example.test";
+    const passwordHash = await new BcryptPasswordVerifier().hash(PASSWORD);
+    assert.equal(
+        (await fixture.repository.createEmailAccount(
+            emailAccount(knownEmail, passwordHash),
+        )).status,
+        "created",
+    );
+    const unknownEmail = "unknown-reset@example.test";
+    const unknown = await fixture.app.request(
+        jsonRequest("/api/platform/auth/password-reset/verification-code", {
+            email: unknownEmail,
+        }),
+    );
+    const known = await fixture.app.request(
+        jsonRequest("/api/platform/auth/password-reset/verification-code", {
+            email: knownEmail,
+        }),
+    );
+    assert.equal(unknown.status, 202);
+    assert.equal(known.status, 202);
+    const expected = {
+        success: true,
+        queued: true,
+        retryAfterSeconds: 600,
+    };
+    assert.deepEqual(await unknown.json(), expected);
+    assert.deepEqual(await known.json(), expected);
+    const passwordResetCandidate = await fixture.database.prepare(
+        `SELECT normalized_email, created_at, resend_after
+         FROM platform_password_reset_codes`,
+    ).first<{
+        normalized_email: string;
+        created_at: number;
+        resend_after: number;
+    }>();
+    assert.ok(passwordResetCandidate);
+    assert.equal(passwordResetCandidate.normalized_email, knownEmail);
+    assert.equal(
+        await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>("count"),
+        1,
+    );
+    assert.equal(
+        await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_password_reset_codes`,
+        ).first<number>("count"),
+        1,
+    );
+
+    const unknownCacheKey = platformPasswordResetCacheKey(unknownEmail);
+    const knownCacheKey = platformPasswordResetCacheKey(knownEmail);
+    for (const [key, email] of [
+        [unknownCacheKey, unknownEmail],
+        [knownCacheKey, knownEmail],
+    ]) {
+        assert.match(key, /^platform-password-reset-cooldown:[a-f0-9]{64}$/);
+        assert.equal(key.includes(email), false);
+    }
+    const unknownCacheValue = await cache.get(unknownCacheKey);
+    const knownCacheValue = await cache.get(knownCacheKey);
+    assert.ok(unknownCacheValue);
+    assert.ok(knownCacheValue);
+    assert.equal(unknownCacheValue.includes(unknownEmail), false);
+    assert.equal(knownCacheValue.includes(knownEmail), false);
+    const unknownCooldown = JSON.parse(unknownCacheValue) as {
+        enqueuedAt: number;
+        resendCooldownSeconds: number;
+        retryAfterAt: number;
+    };
+    assert.deepEqual(Object.keys(unknownCooldown).sort(), [
+        "enqueuedAt",
+        "resendCooldownSeconds",
+        "retryAfterAt",
+    ]);
+    assert.equal(unknownCooldown.resendCooldownSeconds, 600);
+    assert.equal(unknownCooldown.retryAfterAt, unknownCooldown.enqueuedAt + 600_000);
+    assert.deepEqual(JSON.parse(knownCacheValue), {
+        enqueuedAt: passwordResetCandidate.created_at,
+        resendCooldownSeconds: 600,
+        retryAfterAt: passwordResetCandidate.resend_after,
+    });
+
+    for (const email of [knownEmail, unknownEmail]) {
+        const repeated = await fixture.app.request(
+            jsonRequest("/api/platform/auth/password-reset/verification-code", {
+                email,
+            }),
+        );
+        assert.equal(repeated.status, 429);
+        assert.deepEqual(
+            await assertRawJsonConforms(repeated, platformHttpErrorSchema),
+            {
+                success: false,
+                code: "PLATFORM_PASSWORD_RESET_COOLDOWN",
+                retryAfterSeconds: 600,
+            },
+        );
+        assert.equal(repeated.headers.get("retry-after"), "600");
+    }
+});
+
+test("password reset cooldown is enumeration-safe with missing or failing cache", async (t) => {
+    const fixture = await createFixture(t);
+    await fixture.database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+
+    for (const [label, cache] of [
+        ["missing", undefined],
+        ["failing", new FailingCache()],
+        ["hanging", new HangingCache()],
+    ] as const) {
+        const app = appWithPlatformEmail(
+            fixture.repository,
+            fixture.deliveryRepository,
+            fixture.payloadCipher,
+            cache,
+        );
+        const knownEmail = `${label}-known-reset@example.test`;
+        const unknownEmail = `${label}-unknown-reset@example.test`;
+        const passwordHash = await new BcryptPasswordVerifier().hash(PASSWORD);
+        assert.equal(
+            (await fixture.repository.createEmailAccount(
+                emailAccount(knownEmail, passwordHash),
+            )).status,
+            "created",
+        );
+        const jobsBefore = await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='password_reset'`,
+        ).first<number>("count");
+        assert.ok(jobsBefore !== null);
+
+        const firstResponses = await Promise.all(
+            [knownEmail, unknownEmail].map((email) =>
+                app.request(
+                    jsonRequest(
+                        "/api/platform/auth/password-reset/verification-code",
+                        { email },
+                    ),
+                ),
+            ),
+        );
+        const firstBodies = [];
+        for (const response of firstResponses) {
+            assert.equal(response.status, 202, await response.clone().text());
+            firstBodies.push(
+                await assertRawJsonConforms(
+                    response,
+                    passwordResetIssueResponseSchema,
+                ),
+            );
+        }
+        assert.deepEqual(firstBodies, [
+            { success: true, queued: true, retryAfterSeconds: 30 },
+            { success: true, queued: true, retryAfterSeconds: 30 },
+        ]);
+
+        const repeatResponses = await Promise.all(
+            [knownEmail, unknownEmail].map((email) =>
+                app.request(
+                    jsonRequest(
+                        "/api/platform/auth/password-reset/verification-code",
+                        { email },
+                    ),
+                ),
+            ),
+        );
+        const repeatBodies = [];
+        for (const response of repeatResponses) {
+            assert.equal(response.status, 429, await response.clone().text());
+            repeatBodies.push(
+                await assertRawJsonConforms(response, platformHttpErrorSchema),
+            );
+            assert.equal(response.headers.get("retry-after"), "30");
+        }
+        assert.deepEqual(repeatBodies, [
+            {
+                success: false,
+                code: "PLATFORM_PASSWORD_RESET_COOLDOWN",
+                retryAfterSeconds: 30,
+            },
+            {
+                success: false,
+                code: "PLATFORM_PASSWORD_RESET_COOLDOWN",
+                retryAfterSeconds: 30,
+            },
+        ]);
+
+        assert.equal(
+            await fixture.database.prepare(
+                `SELECT COUNT(*) AS count FROM platform_password_reset_codes
+                 WHERE normalized_email IN (?, ?)`,
+            ).bind(knownEmail, unknownEmail).first<number>("count"),
+            1,
+        );
+        assert.equal(
+            await fixture.database.prepare(
+                `SELECT COUNT(*) AS count FROM platform_password_reset_codes
+                 WHERE normalized_email=?`,
+            ).bind(unknownEmail).first<number>("count"),
+            0,
+        );
+        assert.equal(
+            await fixture.database.prepare(
+                `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+                 WHERE purpose='password_reset'`,
+            ).first<number>("count"),
+            jobsBefore + 1,
+        );
+
+        const expectedKeys = [knownEmail, unknownEmail]
+            .map(platformPasswordResetRecipientKey)
+            .sort();
+        const cooldownRows = await fixture.database.prepare(
+            `SELECT recipient_key, enqueued_at, resend_after, updated_at
+             FROM platform_email_request_cooldowns
+             WHERE purpose='password_reset' AND recipient_key IN (?, ?)
+             ORDER BY recipient_key`,
+        ).bind(...expectedKeys).all<{
+            recipient_key: string;
+            enqueued_at: number;
+            resend_after: number;
+            updated_at: number;
+        }>();
+        assert.equal(cooldownRows.results.length, 2);
+        assert.deepEqual(
+            cooldownRows.results.map((row) => row.recipient_key),
+            expectedKeys,
+        );
+        for (const row of cooldownRows.results) {
+            assert.match(row.recipient_key, /^[a-f0-9]{64}$/);
+            assert.equal(row.resend_after, row.enqueued_at + 30_000);
+            assert.equal(row.updated_at, row.enqueued_at);
+        }
+        const serializedRows = JSON.stringify(cooldownRows.results);
+        assert.equal(serializedRows.includes(knownEmail), false);
+        assert.equal(serializedRows.includes(unknownEmail), false);
+    }
+});
+
+test("cache failure falls through to SQL cooldown with exact Retry-After", async (t) => {
+    const fixture = await createFixture(t);
+    await fixture.database.prepare(
+        `UPDATE platform_email_configuration
+         SET resend_cooldown_seconds=30, updated_at=1 WHERE singleton_id=1`,
+    ).run();
+    fixture.app = appWithPlatformEmail(
+        fixture.repository,
+        fixture.deliveryRepository,
+        fixture.payloadCipher,
+        new FailingCache(),
+    );
+    const email = "sql-cooldown@example.test";
+    const queued = await fixture.app.request(
+        jsonRequest("/api/platform/auth/register/verification-code", { email }),
+    );
+    assert.equal(queued.status, 202);
+    assert.deepEqual(await queued.json(), {
+        success: true,
+        queued: true,
+        retryAfterSeconds: 30,
+    });
+
+    const cooldown = await fixture.app.request(
+        jsonRequest("/api/platform/auth/register/verification-code", { email }),
+    );
+    assert.equal(cooldown.status, 429);
+    const body = await assertRawJsonConforms(cooldown, platformHttpErrorSchema) as {
+        success: false;
+        code: string;
+        retryAfterSeconds: number;
+    };
+    assert.deepEqual(body, {
+        success: false,
+        code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
+        retryAfterSeconds: 30,
+    });
+    assert.equal(cooldown.headers.get("retry-after"), "30");
+    assert.equal(
+        await fixture.database.prepare(
+            `SELECT COUNT(*) AS count FROM platform_email_delivery_jobs
+             WHERE purpose='registration'`,
+        ).first<number>("count"),
+        1,
+    );
+});
+
+test("verification enqueue failure returns purpose-specific unavailable response", async (t) => {
+    const fixture = await createFixture(t);
+    fixture.deliveryRepository.enqueueRegistration = async () => {
+        throw new Error("Injected enqueue failure");
+    };
+    const response = await fixture.app.request(
         jsonRequest("/api/platform/auth/register/verification-code", {
             email: "failed@example.test",
         }),
     );
-    assert.equal(failed.status, 503);
-    assert.deepEqual(await failed.json(), {
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), {
         success: false,
         code: "PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE",
     });
@@ -784,19 +1322,11 @@ test("verification delivery fails closed and revokes only the unsent code", asyn
         await fixture.database
             .prepare(
                 `SELECT COUNT(*) AS count FROM platform_email_verification_codes
-         WHERE normalized_email='failed@example.test'`,
+                 WHERE normalized_email='failed@example.test'`,
             )
             .first<number>("count"),
         0,
     );
-
-    fixture.emailSender.fail = false;
-    const retry = await fixture.app.request(
-        jsonRequest("/api/platform/auth/register/verification-code", {
-            email: "failed@example.test",
-        }),
-    );
-    assert.equal(retry.status, 202, await retry.clone().text());
 });
 
 test("session fencing returns account unavailable without writing cookies", async (t) => {
@@ -1216,6 +1746,10 @@ nodeTest("Platform email auth routes use independent IP rate-limit buckets", asy
         jsonRequest("/api/platform/auth/register/verification-code", null),
     );
     assert.equal(verification.status, 400);
+    const passwordResetVerification = await app.request(
+        jsonRequest("/api/platform/auth/password-reset/verification-code", null),
+    );
+    assert.equal(passwordResetVerification.status, 400);
     const register = await app.request(
         jsonRequest("/api/platform/auth/register", null),
     );
@@ -1224,6 +1758,12 @@ nodeTest("Platform email auth routes use independent IP rate-limit buckets", asy
     assert.deepEqual(calls, [
         { bucket: "global", limit: 10_000, windowSeconds: 15 * 60 },
         { bucket: "platform-auth-login", limit: 20, windowSeconds: 15 * 60 },
+        { bucket: "global", limit: 10_000, windowSeconds: 15 * 60 },
+        {
+            bucket: "platform-auth-email-verification",
+            limit: 10,
+            windowSeconds: 60 * 60,
+        },
         { bucket: "global", limit: 10_000, windowSeconds: 15 * 60 },
         {
             bucket: "platform-auth-email-verification",

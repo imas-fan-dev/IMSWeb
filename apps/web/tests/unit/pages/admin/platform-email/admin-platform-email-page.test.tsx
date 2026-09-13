@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Outlet, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { AdminPlatformEmailSettings, AdminSession } from "~/lib/api"
+import type { AdminSession } from "~/lib/api"
 import AdminPlatformEmailPage from "~/pages/admin/platform-email/index"
 
 const toasts = vi.hoisted(() => ({
@@ -23,16 +23,17 @@ const superSession: AdminSession = {
   adminRole: "super_admin",
 }
 
-const settings: AdminPlatformEmailSettings = {
+const settings = {
   enabled: false,
   configured: true,
   host: "smtp.qiye.163.com",
   port: 465,
-  security: "tls",
+  security: "tls" as const,
   usernameMasked: "ma***@texasoct.tech",
   passwordConfigured: true,
   fromAddress: "mail@texasoct.tech",
   fromName: "IMSWeb",
+  resendCooldownSeconds: 60,
   updatedAt: 1000,
 }
 
@@ -87,7 +88,12 @@ describe("AdminPlatformEmailPage", () => {
         }
         return Response.json({
           success: true,
-          settings: { ...settings, enabled: true, updatedAt: 1001 },
+          settings: {
+            ...settings,
+            enabled: true,
+            resendCooldownSeconds: 30,
+            updatedAt: 1001,
+          },
         })
       })
     )
@@ -99,6 +105,11 @@ describe("AdminPlatformEmailPage", () => {
     expect(screen.getByText("当前：ma***@texasoct.tech")).toBeVisible()
     expect(screen.getByText("当前密码已加密保存")).toBeVisible()
     await user.click(screen.getByRole("checkbox", { name: /启用 SMTP 发件/ }))
+    const resendCooldown = screen.getByRole("spinbutton", {
+      name: "验证码重发间隔（秒）",
+    })
+    await user.clear(resendCooldown)
+    await user.type(resendCooldown, "30")
     await user.click(screen.getByRole("button", { name: "保存配置" }))
 
     const update = await waitFor(() => {
@@ -114,9 +125,89 @@ describe("AdminPlatformEmailPage", () => {
       security: "tls",
       fromAddress: "mail@texasoct.tech",
       fromName: "IMSWeb",
+      resendCooldownSeconds: 30,
       expectedUpdatedAt: 1000,
     })
+    expect(resendCooldown).toHaveValue(30)
     expect(toasts.success).toHaveBeenCalledWith("SMTP 已启用")
+  })
+
+  it("enforces the resend cooldown bounds in the draft", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ success: true, settings }))
+    )
+    const user = userEvent.setup()
+
+    renderPage()
+
+    const resendCooldown = await screen.findByRole("spinbutton", {
+      name: "验证码重发间隔（秒）",
+    })
+    const save = screen.getByRole("button", { name: "保存配置" })
+    expect(resendCooldown).toHaveValue(60)
+    expect(resendCooldown).toHaveAttribute("min", "30")
+    expect(resendCooldown).toHaveAttribute("max", "600")
+    expect(resendCooldown).toHaveAttribute("step", "1")
+
+    for (const value of ["29", "30.5", "601"]) {
+      await user.clear(resendCooldown)
+      await user.type(resendCooldown, value)
+      expect(save).toBeDisabled()
+    }
+    for (const value of ["30", "600"]) {
+      await user.clear(resendCooldown)
+      await user.type(resendCooldown, value)
+      expect(save).toBeEnabled()
+    }
+  })
+
+  it("refreshes a conflicting revision and retains stored credentials", async () => {
+    document.cookie = "ims_admin_csrf=email-csrf; path=/"
+    const refreshedSettings = {
+      ...settings,
+      resendCooldownSeconds: 30,
+      updatedAt: 1001,
+    }
+    let getRequests = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = requestFrom(input, init)
+        if (request.method === "GET") {
+          getRequests += 1
+          return Response.json({
+            success: true,
+            settings: getRequests === 1 ? settings : refreshedSettings,
+          })
+        }
+        return Response.json(
+          {
+            success: false,
+            code: "REVISION_CONFLICT",
+            settings: refreshedSettings,
+          },
+          { status: 409 }
+        )
+      })
+    )
+    const user = userEvent.setup()
+
+    renderPage()
+
+    const resendCooldown = await screen.findByRole("spinbutton", {
+      name: "验证码重发间隔（秒）",
+    })
+    await waitFor(() => expect(resendCooldown).toBeEnabled())
+    await user.clear(resendCooldown)
+    await user.type(resendCooldown, "600")
+    await user.click(screen.getByRole("button", { name: "保存配置" }))
+
+    await waitFor(() => expect(getRequests).toBe(2))
+    expect(resendCooldown).toHaveValue(30)
+    expect(screen.getByText("当前：ma***@texasoct.tech")).toBeVisible()
+    expect(screen.getByText("当前密码已加密保存")).toBeVisible()
+    expect(toasts.error).toHaveBeenCalledTimes(1)
   })
 
   it("sends a test message with the unsaved form configuration", async () => {
@@ -141,6 +232,11 @@ describe("AdminPlatformEmailPage", () => {
     renderPage()
 
     await screen.findByDisplayValue("smtp.qiye.163.com")
+    const resendCooldown = screen.getByRole("spinbutton", {
+      name: "验证码重发间隔（秒）",
+    })
+    await user.clear(resendCooldown)
+    await user.type(resendCooldown, "600")
     await user.type(screen.getByLabelText("测试收件人"), "admin@example.com")
     await user.click(screen.getByRole("button", { name: "发送测试邮件" }))
 
@@ -156,6 +252,7 @@ describe("AdminPlatformEmailPage", () => {
     expect(await testRequest.json()).toMatchObject({
       recipient: "admin@example.com",
       host: "smtp.qiye.163.com",
+      resendCooldownSeconds: 600,
       expectedUpdatedAt: 1000,
     })
     expect(toasts.success).toHaveBeenCalledWith(

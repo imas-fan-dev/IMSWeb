@@ -15,6 +15,7 @@ export interface PlatformEmailConfigurationRecord {
     passwordCiphertext: string | null;
     fromAddress: string;
     fromName: string;
+    resendCooldownSeconds: number;
     updatedAt: number;
 }
 
@@ -28,6 +29,7 @@ export interface PlatformEmailConfigurationAdminView {
     passwordConfigured: boolean;
     fromAddress: string;
     fromName: string;
+    resendCooldownSeconds: number;
     updatedAt: number;
 }
 
@@ -40,6 +42,7 @@ export interface PlatformEmailConfigurationWriteInput {
     password?: string;
     fromAddress: string;
     fromName: string;
+    resendCooldownSeconds: number;
     expectedUpdatedAt: number;
 }
 
@@ -80,17 +83,6 @@ export interface PlatformEmailConfiguration {
     >;
 }
 
-export interface PlatformEmailSender {
-    isAvailable(): Promise<boolean>;
-    sendRegistrationVerification(
-        message: PlatformEmailVerificationMessage
-    ): Promise<void>;
-    sendPasswordResetVerification(
-        message: PlatformEmailVerificationMessage
-    ): Promise<void>;
-}
-
 export interface EmailServices {
-    platformEmailSender: PlatformEmailSender;
     platformEmailConfiguration: PlatformEmailConfiguration;
 }

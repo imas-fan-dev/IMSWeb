@@ -128,8 +128,7 @@ export const PLATFORM_AVATAR_UPLOAD_LIMIT = {
 } as const;
 
 // Account security endpoints are sensitive enough to need their own path-level
-// bucket. The existing password-reset endpoints lean on the global budget and a
-// database cooldown instead; that gap is not worth copying.
+// buckets in addition to the verification-issuance budget shared above.
 export const PLATFORM_SECURITY_PASSWORD_LIMIT = {
   bucket: "platform-security-password-ip",
   limit: 20,
@@ -306,7 +305,10 @@ function requestSpecificLimit(
   }
   if (
     method === "POST" &&
-    pathname === platformAuthPath('/register/verification-code')
+    [
+      platformAuthPath('/register/verification-code'),
+      platformAuthPath('/password-reset/verification-code'),
+    ].includes(pathname)
   ) {
     return PLATFORM_AUTH_EMAIL_VERIFICATION_LIMIT;
   }

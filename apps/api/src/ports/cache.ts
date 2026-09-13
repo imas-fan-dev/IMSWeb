@@ -57,10 +57,19 @@ export interface RateLimiter {
     ): Promise<RateLimitResult>;
 }
 
+export interface CacheOperationOptions {
+    signal?: AbortSignal;
+}
+
 export interface CacheStore {
-    get(key: string): Promise<string | null>;
-    set(key: string, value: string, ttlSeconds: number): Promise<void>;
-    delete(key: string): Promise<void>;
+    get(key: string, options?: CacheOperationOptions): Promise<string | null>;
+    set(
+        key: string,
+        value: string,
+        ttlSeconds: number,
+        options?: CacheOperationOptions,
+    ): Promise<void>;
+    delete(key: string, options?: CacheOperationOptions): Promise<void>;
     ping(): Promise<void>;
     close(): Promise<void>;
 }

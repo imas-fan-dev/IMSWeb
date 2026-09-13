@@ -1,4 +1,10 @@
 import type { CacheServices } from "@/ports/cache";
+import type {
+    PlatformEmailDeliveryQueue,
+    PlatformEmailJobPayloadCipher,
+    PlatformEmailResendPolicyCache,
+    PlatformEmailResendPolicyReader,
+} from "@/ports/email-delivery";
 import type { EmailServices } from "@/ports/email";
 import type { HttpServices } from "@/ports/http";
 import type { MediaServices } from "@/ports/media";
@@ -43,6 +49,10 @@ export interface RuntimeServices
         Partial<SecurityServices> {
     fetch?: typeof globalThis.fetch;
     health?: RuntimeHealth;
+    platformEmailDeliveryQueue?: PlatformEmailDeliveryQueue;
+    platformEmailJobPayloadCipher?: PlatformEmailJobPayloadCipher;
+    platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
+    platformEmailResendPolicy?: PlatformEmailResendPolicyReader;
     config?: Partial<NodeRuntimeConfig>;
 }
 
@@ -57,6 +67,10 @@ export interface NodeRuntimeServices
         SecurityServices {
     fetch: typeof globalThis.fetch;
     health: RuntimeHealth;
+    platformEmailDeliveryQueue: PlatformEmailDeliveryQueue;
+    platformEmailJobPayloadCipher: PlatformEmailJobPayloadCipher;
+    platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
+    platformEmailResendPolicy: PlatformEmailResendPolicyReader;
     config: NodeRuntimeConfig;
 }
 

@@ -269,7 +269,7 @@ const portContracts = new Map([
         "cache.ts",
         ["CacheStore", "IdempotencyStore", "RateLimiter", "CacheServices"],
     ],
-    ["email.ts", ["PlatformEmailSender", "EmailServices"]],
+    ["email.ts", ["PlatformEmailConfiguration", "EmailServices"]],
     ["oauth.ts", ["PlatformOAuthClient", "OAuthServices"]],
     ["http.ts", ["StaticAssets", "UploadParser", "HttpServices"]],
     ["media.ts", ["ImageProcessor", "MediaServices"]],
@@ -371,6 +371,7 @@ if (fs.existsSync(sharedRoot)) {
 }
 
 const utilsCategories = new Set([
+    "cache",
     "crypto",
     "http",
     "media",

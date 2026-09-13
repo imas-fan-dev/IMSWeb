@@ -6,21 +6,17 @@ import type {
     CreatePlatformOAuthAccountResult,
     DeletePlatformOAuthIdentityInput,
     DeletePlatformOAuthIdentityResult,
-    IssuePlatformPasswordResetResult,
-    IssuePlatformEmailVerificationResult,
     NewPlatformRefreshSessionInput,
     NewPlatformAccountInput,
     NewPlatformEmailAccountInput,
     NewPlatformOAuthAccountInput,
     NewPlatformOAuthStateInput,
-    PlatformPasswordResetInput,
     NewVerifiedPlatformEmailAccountInput,
     PlatformAccountRecord,
     PlatformAccountRepository,
     PlatformAccountWithProfile,
     PlatformEmailCredentialRecord,
     PlatformEmailIdentity,
-    PlatformEmailVerificationInput,
     PlatformOAuthIdentity,
     PlatformOAuthLinkRecord,
     PlatformOAuthStateRecord,
@@ -55,7 +51,6 @@ const REFRESH_SESSION_LIST_LIMIT = 200;
 // Bounded by UNIQUE (account_id, provider_code) in practice, but the wire
 // contract caps the array, so the statement caps it too.
 const OAUTH_LINK_LIST_LIMIT = 64;
-const EMAIL_VERIFICATION_CLEANUP_LIMIT = 100;
 
 interface PlatformAccountProfileRow extends PlatformAccountRecord {
     profile_account_id: string;
@@ -823,180 +818,6 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
         return { status: 'created', identity };
     }
 
-    issueEmailVerification(
-        input: PlatformEmailVerificationInput
-    ): Promise<IssuePlatformEmailVerificationResult> {
-        return this.serializeWrite(async () => {
-            const [, result] = await this.database.batch<{ resend_after: number }>([
-                sqlStatement(
-                    this.database,
-                    `DELETE FROM platform_email_verification_codes
-                     WHERE expires_at<=?
-                       AND (pending_token IS NULL OR pending_expires_at<=?)
-                       AND normalized_email IN (
-                         SELECT normalized_email
-                         FROM platform_email_verification_codes
-                         WHERE expires_at<=?
-                           AND (
-                               pending_token IS NULL OR pending_expires_at<=?
-                           )
-                         ORDER BY expires_at, normalized_email
-                         LIMIT ${EMAIL_VERIFICATION_CLEANUP_LIMIT}
-                     )`,
-                    [
-                        input.createdAt,
-                        input.createdAt,
-                        input.createdAt,
-                        input.createdAt
-                    ]
-                ),
-                sqlStatement(
-                    this.database,
-                    `INSERT INTO platform_email_verification_codes
-                        (normalized_email, code_hash, expires_at, resend_after,
-                         attempts_remaining, consumed_token, created_at, updated_at,
-                         delivery_token)
-                     VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
-                     ON CONFLICT(normalized_email) DO UPDATE SET
-                        pending_token=excluded.delivery_token,
-                        pending_code_hash=excluded.code_hash,
-                        pending_expires_at=excluded.expires_at,
-                        pending_resend_after=excluded.resend_after,
-                        pending_attempts_remaining=excluded.attempts_remaining,
-                        pending_created_at=excluded.created_at
-                     WHERE platform_email_verification_codes.delivery_token IS NULL
-                       AND platform_email_verification_codes.consumed_token IS NULL
-                       AND platform_email_verification_codes.resend_after<=excluded.created_at
-                       AND (
-                           platform_email_verification_codes.pending_token IS NULL
-                           OR platform_email_verification_codes.pending_expires_at<=
-                                excluded.created_at
-                       )
-                     RETURNING resend_after`,
-                    [
-                        input.normalizedEmail,
-                        input.codeHash,
-                        input.expiresAt,
-                        input.resendAfter,
-                        input.attemptsRemaining,
-                        input.createdAt,
-                        input.createdAt,
-                        input.deliveryToken
-                    ]
-                )
-            ]);
-            if (result?.results.length === 1) return { status: 'issued' };
-            const current = await queryOne<{
-                retry_after: number;
-            }>(
-                this.database,
-                `SELECT CASE
-                            WHEN delivery_token IS NOT NULL THEN expires_at
-                            WHEN pending_token IS NOT NULL AND pending_expires_at>?
-                                THEN pending_expires_at
-                            ELSE resend_after
-                        END AS retry_after
-                 FROM platform_email_verification_codes
-                 WHERE normalized_email=?`,
-                [input.createdAt, input.normalizedEmail]
-            );
-            return {
-                status: 'cooldown',
-                retryAfterMs: Math.max(
-                    1,
-                    Number(current?.retry_after ?? input.resendAfter) - input.createdAt
-                )
-            };
-        });
-    }
-
-    async completeEmailVerificationDelivery(
-        normalizedEmail: string,
-        deliveryToken: string
-    ): Promise<boolean> {
-        return this.serializeWrite(async () => {
-            const result = await executeSql(
-                this.database,
-                `UPDATE platform_email_verification_codes
-                 SET code_hash=CASE
-                         WHEN pending_token=? THEN pending_code_hash
-                         ELSE code_hash
-                     END,
-                     expires_at=CASE
-                         WHEN pending_token=? THEN pending_expires_at
-                         ELSE expires_at
-                     END,
-                     resend_after=CASE
-                         WHEN pending_token=? THEN pending_resend_after
-                         ELSE resend_after
-                     END,
-                     attempts_remaining=CASE
-                         WHEN pending_token=? THEN pending_attempts_remaining
-                         ELSE attempts_remaining
-                     END,
-                     consumed_token=NULL,
-                     created_at=CASE
-                         WHEN pending_token=? THEN pending_created_at
-                         ELSE created_at
-                     END,
-                     updated_at=CASE
-                         WHEN pending_token=? THEN pending_created_at
-                         ELSE updated_at
-                     END,
-                     delivery_token=NULL,
-                     pending_token=NULL,
-                     pending_code_hash=NULL,
-                     pending_expires_at=NULL,
-                     pending_resend_after=NULL,
-                     pending_attempts_remaining=NULL,
-                     pending_created_at=NULL
-                 WHERE normalized_email=? AND consumed_token IS NULL
-                   AND (delivery_token=? OR pending_token=?)`,
-                [
-                    deliveryToken,
-                    deliveryToken,
-                    deliveryToken,
-                    deliveryToken,
-                    deliveryToken,
-                    deliveryToken,
-                    normalizedEmail,
-                    deliveryToken,
-                    deliveryToken
-                ]
-            );
-            return result.meta.changes === 1;
-        });
-    }
-
-    async revokeEmailVerification(
-        normalizedEmail: string,
-        deliveryToken: string
-    ): Promise<void> {
-        await this.serializeWrite(async () => {
-            await this.database.batch([
-                sqlStatement(
-                    this.database,
-                    `UPDATE platform_email_verification_codes
-                     SET pending_token=NULL,
-                         pending_code_hash=NULL,
-                         pending_expires_at=NULL,
-                         pending_resend_after=NULL,
-                         pending_attempts_remaining=NULL,
-                         pending_created_at=NULL
-                     WHERE normalized_email=? AND pending_token=?`,
-                    [normalizedEmail, deliveryToken]
-                ),
-                sqlStatement(
-                    this.database,
-                    `DELETE FROM platform_email_verification_codes
-                     WHERE normalized_email=? AND delivery_token=?
-                       AND pending_token IS NULL AND consumed_token IS NULL`,
-                    [normalizedEmail, deliveryToken]
-                )
-            ]);
-        });
-    }
-
     createVerifiedEmailAccount(
         input: NewVerifiedPlatformEmailAccountInput
     ): Promise<CreateVerifiedPlatformEmailAccountResult> {
@@ -1164,154 +985,6 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
             [id]
         );
         return row ? accountWithProfile(row) : null;
-    }
-
-    issuePasswordReset(
-        input: PlatformPasswordResetInput
-    ): Promise<IssuePlatformPasswordResetResult> {
-        return this.serializeWrite(async () => {
-            const account = await queryOne<{ account_id: string }>(
-                this.database,
-                `SELECT account_id FROM platform_email_credentials
-                 WHERE normalized_email=?`,
-                [input.normalizedEmail]
-            );
-            if (!account) return { status: 'email-not-found' };
-            const [, result] = await this.database.batch<{ resend_after: number }>([
-                sqlStatement(
-                    this.database,
-                    `DELETE FROM platform_password_reset_codes
-                     WHERE expires_at<=?
-                       AND (pending_token IS NULL OR pending_expires_at<=?)
-                       AND normalized_email IN (
-                         SELECT normalized_email
-                         FROM platform_password_reset_codes
-                         WHERE expires_at<=?
-                           AND (pending_token IS NULL OR pending_expires_at<=?)
-                         ORDER BY expires_at, normalized_email
-                         LIMIT ${EMAIL_VERIFICATION_CLEANUP_LIMIT}
-                     )`,
-                    [
-                        input.createdAt,
-                        input.createdAt,
-                        input.createdAt,
-                        input.createdAt
-                    ]
-                ),
-                sqlStatement(
-                    this.database,
-                    `INSERT INTO platform_password_reset_codes
-                        (normalized_email, code_hash, expires_at, resend_after,
-                         attempts_remaining, consumed_at, created_at, updated_at,
-                         delivery_token)
-                     VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
-                     ON CONFLICT(normalized_email) DO UPDATE SET
-                        pending_token=excluded.delivery_token,
-                        pending_code_hash=excluded.code_hash,
-                        pending_expires_at=excluded.expires_at,
-                        pending_resend_after=excluded.resend_after,
-                        pending_attempts_remaining=excluded.attempts_remaining,
-                        pending_created_at=excluded.created_at,
-                        consumed_at=NULL
-                     WHERE platform_password_reset_codes.delivery_token IS NULL
-                       AND platform_password_reset_codes.resend_after<=excluded.created_at
-                       AND (
-                           platform_password_reset_codes.pending_token IS NULL
-                           OR platform_password_reset_codes.pending_expires_at<=
-                                excluded.created_at
-                       )
-                     RETURNING resend_after`,
-                    [
-                        input.normalizedEmail,
-                        input.codeHash,
-                        input.expiresAt,
-                        input.resendAfter,
-                        input.attemptsRemaining,
-                        input.createdAt,
-                        input.createdAt,
-                        input.deliveryToken
-                    ]
-                )
-            ]);
-            if (result?.results.length === 1) return { status: 'issued' };
-            const current = await queryOne<{ retry_after: number }>(
-                this.database,
-                `SELECT CASE
-                            WHEN delivery_token IS NOT NULL THEN expires_at
-                            WHEN pending_token IS NOT NULL AND pending_expires_at>?
-                                THEN pending_expires_at
-                            ELSE resend_after
-                        END AS retry_after
-                 FROM platform_password_reset_codes
-                 WHERE normalized_email=?`,
-                [input.createdAt, input.normalizedEmail]
-            );
-            return {
-                status: 'cooldown',
-                retryAfterMs: Math.max(
-                    1,
-                    Number(current?.retry_after ?? input.resendAfter) - input.createdAt
-                )
-            };
-        });
-    }
-
-    async completePasswordResetDelivery(
-        normalizedEmail: string,
-        deliveryToken: string
-    ): Promise<boolean> {
-        const result = await sqlStatement(
-            this.database,
-            `UPDATE platform_password_reset_codes
-             SET code_hash=COALESCE(pending_code_hash, code_hash),
-                 expires_at=COALESCE(pending_expires_at, expires_at),
-                 resend_after=COALESCE(pending_resend_after, resend_after),
-                 attempts_remaining=COALESCE(
-                    pending_attempts_remaining,
-                    attempts_remaining
-                 ),
-                 created_at=COALESCE(pending_created_at, created_at),
-                 updated_at=COALESCE(pending_created_at, updated_at),
-                 delivery_token=NULL,
-                 pending_token=NULL,
-                 pending_code_hash=NULL,
-                 pending_expires_at=NULL,
-                 pending_resend_after=NULL,
-                 pending_attempts_remaining=NULL,
-                 pending_created_at=NULL
-             WHERE normalized_email=?
-               AND (
-                 pending_token=?
-                 OR (delivery_token=? AND pending_token IS NULL)
-               )
-             RETURNING normalized_email`,
-            [normalizedEmail, deliveryToken, deliveryToken]
-        ).all();
-        return result.results.length === 1;
-    }
-
-    async revokePasswordReset(
-        normalizedEmail: string,
-        deliveryToken: string
-    ): Promise<void> {
-        await this.serializeWrite(() => this.database.batch([
-            sqlStatement(
-                this.database,
-                `DELETE FROM platform_password_reset_codes
-                 WHERE normalized_email=? AND delivery_token=?`,
-                [normalizedEmail, deliveryToken]
-            ),
-            sqlStatement(
-                this.database,
-                `UPDATE platform_password_reset_codes
-                 SET pending_token=NULL, pending_code_hash=NULL,
-                     pending_expires_at=NULL, pending_resend_after=NULL,
-                     pending_attempts_remaining=NULL, pending_created_at=NULL,
-                     updated_at=?
-                 WHERE normalized_email=? AND pending_token=?`,
-                [Date.now(), normalizedEmail, deliveryToken]
-            )
-        ]));
     }
 
     async completePasswordReset(

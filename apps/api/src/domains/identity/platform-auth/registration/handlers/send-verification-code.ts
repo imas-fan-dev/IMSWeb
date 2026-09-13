@@ -7,19 +7,16 @@ import type { Context } from "hono";
 import type { AppEnvironment } from "@/app";
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import {
-    clearPlatformEmailVerificationCooldown,
     markPlatformEmailVerificationCooldown,
     readPlatformEmailVerificationCooldown,
 } from "@/domains/identity/platform-auth/registration/email-verification-cache";
+import { createPlatformEmailDeliveryIdentityToken } from '@/domains/identity/platform-auth/contracts/email-delivery';
 import {
-    PLATFORM_EMAIL_CODE_ATTEMPTS,
-    PLATFORM_EMAIL_CODE_RESEND_MS,
-    PLATFORM_EMAIL_CODE_TTL_MS,
     createPlatformEmailVerificationCode,
-    createPlatformEmailVerificationDeliveryToken,
     hashPlatformEmailVerificationCode,
 } from "@/domains/identity/platform-auth/registration/email-verification";
-import { platformAccountRepository, services } from "@/middleware/hono-context";
+import { services } from "@/middleware/hono-context";
+import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
 
 function unavailable(c: Context<AppEnvironment>): Response {
     return c.json(
@@ -36,51 +33,19 @@ export async function handlePlatformRegistrationVerification(
 ): Promise<Response> {
     const input = c.req.valid('json');
     const runtime = services(c);
-    const sender = runtime.platformEmailSender;
-    if (!sender || !(await sender.isAvailable())) return unavailable(c);
+    const queue = runtime.platformEmailDeliveryQueue;
+    const payloadCipher = runtime.platformEmailJobPayloadCipher;
+    const policyReader = runtime.platformEmailResendPolicy;
+    if (!queue || !payloadCipher || !policyReader) return unavailable(c);
 
     const cachedCooldownMs = await readPlatformEmailVerificationCooldown(
         runtime.cache,
         input.email,
     );
     if (cachedCooldownMs !== null) {
-        const retryAfterSeconds = Math.max(
-            1,
-            Math.ceil(cachedCooldownMs / 1000),
-        );
-        c.header("Retry-After", String(retryAfterSeconds));
-        return c.json(
-            {
-                success: false,
-                code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
-                retryAfterSeconds,
-            } satisfies PlatformRetryableAuthError,
-            429,
-        );
-    }
-
-    const code = createPlatformEmailVerificationCode();
-    const deliveryToken = createPlatformEmailVerificationDeliveryToken();
-    const codeHash = hashPlatformEmailVerificationCode(input.email, code);
-    const now = Date.now();
-    const issued = await platformAccountRepository(c).issueEmailVerification({
-        normalizedEmail: input.email,
-        deliveryToken,
-        codeHash,
-        expiresAt: now + PLATFORM_EMAIL_CODE_TTL_MS,
-        resendAfter: now + PLATFORM_EMAIL_CODE_RESEND_MS,
-        attemptsRemaining: PLATFORM_EMAIL_CODE_ATTEMPTS,
-        createdAt: now,
-    });
-    if (issued.status === "cooldown") {
-        await markPlatformEmailVerificationCooldown(
-            runtime.cache,
-            input.email,
-            issued.retryAfterMs,
-        );
-        const retryAfterSeconds = Math.max(
-            1,
-            Math.ceil(issued.retryAfterMs / 1000),
+        const retryAfterSeconds = Math.min(
+            600,
+            Math.max(1, Math.ceil(cachedCooldownMs / 1000)),
         );
         c.header("Retry-After", String(retryAfterSeconds));
         return c.json(
@@ -94,35 +59,73 @@ export async function handlePlatformRegistrationVerification(
     }
 
     try {
-        await sender.sendRegistrationVerification({
-            email: input.email,
+        await policyReader.getPolicy();
+        const code = createPlatformEmailVerificationCode();
+        const identity = {
+            jobId: createPlatformEmailDeliveryIdentityToken(),
+            purpose: 'registration',
+            deliveryToken: createPlatformEmailDeliveryIdentityToken(),
+            payloadVersion: 1,
+        } as const;
+        const prepared = payloadCipher.encrypt(identity, {
+            purpose: 'registration',
+            normalizedEmail: input.email,
             code,
-            expiresInMinutes: PLATFORM_EMAIL_CODE_TTL_MS / 60_000,
+            expiresInMinutes: 10,
         });
-    } catch {
-        await platformAccountRepository(c).revokeEmailVerification(
-            input.email,
-            deliveryToken,
+        const now = Date.now();
+        const issued = await queue.enqueueRegistration({
+            ...prepared,
+            codeHash: hashPlatformEmailVerificationCode(input.email, code),
+            createdAt: now,
+        });
+        if (issued.status === "cooldown") {
+            await markPlatformEmailVerificationCooldown(runtime.cache, input.email, {
+                enqueuedAt: issued.enqueuedAt,
+                resendCooldownSeconds: issued.resendCooldownSeconds,
+                retryAfterAt: issued.resendAfter,
+            });
+            const retryAfterSeconds = Math.min(
+                600,
+                Math.max(1, Math.ceil(issued.retryAfterMs / 1000)),
+            );
+            c.header("Retry-After", String(retryAfterSeconds));
+            return c.json(
+                {
+                    success: false,
+                    code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
+                    retryAfterSeconds,
+                } satisfies PlatformRetryableAuthError,
+                429,
+            );
+        }
+
+        await markPlatformEmailVerificationCooldown(runtime.cache, input.email, {
+            enqueuedAt: now,
+            resendCooldownSeconds: issued.retryAfterSeconds,
+            retryAfterAt: issued.resendAfter,
+        });
+        const resendPolicyCache = runtime.platformEmailResendPolicyCache;
+        if (resendPolicyCache) {
+            await withBoundedCacheOperation((signal) =>
+                resendPolicyCache.writeIfNewer(
+                    {
+                        resendCooldownSeconds: issued.retryAfterSeconds,
+                        updatedAt: issued.policyUpdatedAt,
+                    },
+                    signal,
+                ),
+            ).catch(() => undefined);
+        }
+        return c.json(
+            {
+                success: true,
+                queued: true,
+                retryAfterSeconds: issued.retryAfterSeconds,
+            } satisfies PlatformRegistrationVerificationResponse,
+            202,
         );
-        await clearPlatformEmailVerificationCooldown(runtime.cache, input.email);
+    } catch {
         return unavailable(c);
     }
-
-    const delivered = await platformAccountRepository(
-        c,
-    ).completeEmailVerificationDelivery(input.email, deliveryToken);
-    if (!delivered) return unavailable(c);
-    await markPlatformEmailVerificationCooldown(
-        runtime.cache,
-        input.email,
-        PLATFORM_EMAIL_CODE_RESEND_MS,
-    );
-
-    return c.json(
-        {
-            success: true,
-            retryAfterSeconds: PLATFORM_EMAIL_CODE_RESEND_MS / 1000,
-        } satisfies PlatformRegistrationVerificationResponse,
-        202,
-    );
 }

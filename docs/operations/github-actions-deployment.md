@@ -288,6 +288,10 @@ Release A 的邮件任务 migration 对旧镜像属于未知 migration。应用�
 的 Release A 镜像，或按现有生产手工恢复边界恢复数据库。preview 不提供自动数据库恢复。完成并
 验证 Release A 前，不得开始无 migration 的异步入队切换发布。
 
+B1 再增加匿名密码重置冷却表。B2 及之后的部署在运行候选 migration 前，会用当前镜像检查 B1
+migration 文件；缺少该文件时立即停止，且不会启动候选 Worker 或 API。这样 B2 不会在 Release A
+仍是 `current` 时前滚，也不会把无法识别 B1 schema 的镜像保留为自动代码回滚目标。
+
 每次 production 部署创建的 `pg_dump` 是代码发布前的数据库恢复点，不是与 R2 同窗口冻结的完整
 灾备快照。不要自动恢复该文件。真实数据恢复必须先保留故障现场，匹配数据库与媒体恢复点，并
 取得明确批准。

@@ -171,21 +171,6 @@ export type CreatePlatformEmailAccountResult =
     | { status: "created"; identity: PlatformAccountWithProfile }
     | { status: "email-conflict" };
 
-export interface PlatformPasswordResetInput {
-    normalizedEmail: string;
-    deliveryToken: string;
-    codeHash: string;
-    expiresAt: number;
-    resendAfter: number;
-    attemptsRemaining: number;
-    createdAt: number;
-}
-
-export type IssuePlatformPasswordResetResult =
-    | { status: "issued" }
-    | { status: "email-not-found" }
-    | { status: "cooldown"; retryAfterMs: number };
-
 export interface CompletePlatformPasswordResetInput {
     normalizedEmail: string;
     codeHash: string;
@@ -198,20 +183,6 @@ export interface CompletePlatformPasswordResetInput {
 export type CompletePlatformPasswordResetResult =
     | { status: "completed"; account: PlatformAccountWithProfile }
     | { status: "invalid" };
-
-export interface PlatformEmailVerificationInput {
-    normalizedEmail: string;
-    deliveryToken: string;
-    codeHash: string;
-    expiresAt: number;
-    resendAfter: number;
-    attemptsRemaining: number;
-    createdAt: number;
-}
-
-export type IssuePlatformEmailVerificationResult =
-    | { status: "issued" }
-    | { status: "cooldown"; retryAfterMs: number };
 
 export interface NewVerifiedPlatformEmailAccountInput
     extends NewPlatformEmailAccountInput {
@@ -372,31 +343,9 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
     createEmailAccount(
         input: NewPlatformEmailAccountInput,
     ): Promise<CreatePlatformEmailAccountResult>;
-    issueEmailVerification(
-        input: PlatformEmailVerificationInput,
-    ): Promise<IssuePlatformEmailVerificationResult>;
-    completeEmailVerificationDelivery(
-        normalizedEmail: string,
-        deliveryToken: string,
-    ): Promise<boolean>;
-    revokeEmailVerification(
-        normalizedEmail: string,
-        deliveryToken: string,
-    ): Promise<void>;
     createVerifiedEmailAccount(
         input: NewVerifiedPlatformEmailAccountInput,
     ): Promise<CreateVerifiedPlatformEmailAccountResult>;
-    issuePasswordReset(
-        input: PlatformPasswordResetInput,
-    ): Promise<IssuePlatformPasswordResetResult>;
-    completePasswordResetDelivery(
-        normalizedEmail: string,
-        deliveryToken: string,
-    ): Promise<boolean>;
-    revokePasswordReset(
-        normalizedEmail: string,
-        deliveryToken: string,
-    ): Promise<void>;
     completePasswordReset(
         input: CompletePlatformPasswordResetInput,
     ): Promise<CompletePlatformPasswordResetResult>;

@@ -106,6 +106,14 @@ import {
   recommendationResponseSchema,
 } from "@imsweb/contracts/news"
 import {
+  adminPlatformEmailConfigurationTestRequestSchema,
+  adminPlatformEmailConfigurationWriteRequestSchema,
+  adminPlatformEmailHttpErrorSchema,
+  adminPlatformEmailMutationResponseSchema,
+  adminPlatformEmailSettingsResponseSchema,
+  adminPlatformEmailTestResponseSchema,
+} from "@imsweb/contracts/platform/admin-email"
+import {
   platformHttpErrorSchema,
   platformLoginRequestSchema,
   platformOAuthProvidersResponseSchema,
@@ -666,6 +674,41 @@ export function resolveApiContract(
         200: adminAccountListSchema,
         401: adminAccountEndpointErrorResponseSchema,
         403: adminAccountEndpointErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/platform/email")
+    return {
+      responses: {
+        200: adminPlatformEmailSettingsResponseSchema,
+        401: adminPlatformEmailHttpErrorSchema,
+        403: adminPlatformEmailHttpErrorSchema,
+        500: adminPlatformEmailHttpErrorSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/admin/platform/email")
+    return {
+      body: adminPlatformEmailConfigurationWriteRequestSchema,
+      responses: {
+        200: adminPlatformEmailMutationResponseSchema,
+        400: adminPlatformEmailHttpErrorSchema,
+        401: adminPlatformEmailHttpErrorSchema,
+        403: adminPlatformEmailHttpErrorSchema,
+        409: adminPlatformEmailHttpErrorSchema,
+        500: adminPlatformEmailHttpErrorSchema,
+        502: adminPlatformEmailHttpErrorSchema,
+      },
+    }
+  if (method === "POST" && path === "/api/admin/platform/email/test")
+    return {
+      body: adminPlatformEmailConfigurationTestRequestSchema,
+      responses: {
+        200: adminPlatformEmailTestResponseSchema,
+        400: adminPlatformEmailHttpErrorSchema,
+        401: adminPlatformEmailHttpErrorSchema,
+        403: adminPlatformEmailHttpErrorSchema,
+        409: adminPlatformEmailHttpErrorSchema,
+        500: adminPlatformEmailHttpErrorSchema,
+        502: adminPlatformEmailHttpErrorSchema,
       },
     }
   if (method === "GET" && path === "/api/admin/site-packages")

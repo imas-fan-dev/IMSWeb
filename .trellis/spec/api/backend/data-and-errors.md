@@ -76,6 +76,82 @@ route change.
 Add a regression test for every changed status, error body, rollback path, or
 persistence failure.
 
+## Scenario: Bounded best-effort cache access
+
+### 1. Scope / Trigger
+
+Use this contract when a request path reads or writes Valkey as an acceleration
+for PostgreSQL-backed state. It applies when cache failure is allowed to fall
+back to PostgreSQL without weakening correctness.
+
+### 2. Signatures
+
+Bound each awaited cache operation at the call site:
+
+```typescript
+withBoundedCacheOperation<T>(
+    operation: (signal: AbortSignal) => Promise<T>,
+    timeoutMs = 250,
+): Promise<T>
+```
+
+### 3. Contracts
+
+- PostgreSQL remains authoritative for authorization, cooldown persistence and
+  configuration updates.
+- Cache reads, fills, write-through updates and best-effort cleanup must not
+  hold an HTTP response open indefinitely.
+- A cache timeout follows the same fallback path as a rejected cache command.
+- The deadline must abort its signal, and a concrete Valkey adapter must pass
+  that signal to the node-redis command. This removes commands that are still
+  waiting in the offline/write queue instead of replaying them after reconnect.
+- A command already written to Valkey cannot be recalled. Its late result must
+  be harmless. Use absolute deadlines for cached
+  cooldowns and monotonic revision checks for configuration writes.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Cache hit with valid data | Use it only for the documented acceleration path |
+| Missing or malformed entry | Read PostgreSQL and repair the cache best-effort |
+| Cache command rejects | Continue through the PostgreSQL fallback |
+| Cache command never settles | Stop waiting after the bounded deadline and use the same fallback |
+| Database commit succeeds but write-through times out | Return the committed result and report only a bounded, non-sensitive cache event |
+| PostgreSQL fallback fails | Preserve the existing infrastructure failure; do not return an empty success |
+
+### 5. Good/Base/Bad Cases
+
+- Good: reject an email cooldown early from Valkey, then lock and recheck the
+  PostgreSQL aggregate before persisting a new request.
+- Base: Valkey misses or times out, PostgreSQL supplies the current state, and a
+  later cache fill repairs the acceleration path.
+- Bad: await a best-effort cache Promise without a deadline, or let cached data
+  authorize a write that PostgreSQL has not confirmed.
+
+### 6. Tests Required
+
+- Use a cache fake whose Promise never settles and prove the request or service
+  completes within an outer test deadline and aborts the supplied signal.
+- Prove concrete Valkey adapters forward that signal to every affected command.
+- Assert reads fall back to PostgreSQL, post-commit writes do not change the
+  committed response, and cache error reporting contains no stored values.
+- Cover late-write safety through absolute expiry validation or revision-fenced
+  compare-and-set behavior, depending on the cached data.
+
+### 7. Wrong vs Correct
+
+```typescript
+// Wrong: Valkey can hold the request open forever.
+const cached = await cache.get(key);
+
+// Correct: timeout aborts a queued command and uses the PostgreSQL fallback.
+const cached = await withBoundedCacheOperation(
+    (signal) => cache.get(key, { signal }),
+).catch(() => null);
+const current = cached ?? await repository.getCurrentState();
+```
+
 ## Scenario: One-time PostgreSQL content backfills
 
 ### 1. Scope / Trigger

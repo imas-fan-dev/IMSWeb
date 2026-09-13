@@ -17,6 +17,7 @@ const settings = {
   passwordConfigured: true,
   fromAddress: "mail@texasoct.tech",
   fromName: "IMSWeb",
+  resendCooldownSeconds: 60,
   updatedAt: 1000,
 }
 
@@ -29,6 +30,7 @@ const writeInput = {
   password: "smtp-password",
   fromAddress: " MAIL@TEXASOCT.TECH ",
   fromName: " IMSWeb ",
+  resendCooldownSeconds: 30,
   expectedUpdatedAt: 1000,
 }
 
@@ -67,7 +69,11 @@ describe("Platform email admin endpoint contracts", () => {
         }
         return Response.json({
           success: true,
-          settings: { ...settings, enabled: true },
+          settings: {
+            ...settings,
+            enabled: true,
+            resendCooldownSeconds: writeInput.resendCooldownSeconds,
+          },
         })
       })
     )

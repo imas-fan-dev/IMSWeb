@@ -69,6 +69,10 @@ elif [[ "$joined" == *" exec -T postgres "*"pg_dump "* ]]; then
     printf 'PGDMPimsweb-test-backup\n'
 elif [[ "$joined" == *" exec -T postgres "*"pg_restore "* ]]; then
     cat >/dev/null
+elif [[ "$joined" == *" run --rm --no-deps api test -f "* &&
+        -n "${FAKE_INCOMPATIBLE_IMAGE:-}" &&
+        "${IMS_API_IMAGE:-}" == "$FAKE_INCOMPATIBLE_IMAGE" ]]; then
+    exit 1
 elif [[ "$joined" == *" exec -T api node -e "* &&
         -n "${FAKE_FAIL_IMAGE:-}" && "${IMS_API_IMAGE:-}" == "$FAKE_FAIL_IMAGE" ]]; then
     exit 1
@@ -749,6 +753,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         self,
         *,
         fail_image: str = "",
+        incompatible_image: str = "",
         super_admin_username: str = "admin",
     ) -> dict[str, str]:
         environment = os.environ.copy()
@@ -764,6 +769,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
                 "FAKE_CURL_LOG": str(self.curl_log),
                 "FAKE_FAIL_CONTAINER_INFO": "",
                 "FAKE_FAIL_IMAGE": fail_image,
+                "FAKE_INCOMPATIBLE_IMAGE": incompatible_image,
             }
         )
         return environment
@@ -775,6 +781,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         *,
         deploy_root: Path | None = None,
         fail_image: str = "",
+        incompatible_image: str = "",
         super_admin_username: str = "admin",
     ) -> subprocess.CompletedProcess[str]:
         target_root = deploy_root or self.deploy_root
@@ -792,6 +799,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
             cwd=PROJECT_ROOT,
             env=self.environment(
                 fail_image=fail_image,
+                incompatible_image=incompatible_image,
                 super_admin_username=super_admin_username,
             ),
             text=True,
@@ -895,6 +903,46 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         )
         self.assertLess(previous_worker_index, previous_api_index)
         self.assertIn("logs --no-color --tail 200 email-worker api", command_log)
+
+    def test_preview_deployment_rejects_a_pre_b1_rollback_image(self):
+        first_commit = "1" * 40
+        second_commit = "2" * 40
+        first_image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+        second_image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'b' * 64}"
+        first = self.deploy(first_commit, first_image)
+        self.assertEqual(first.returncode, 0, first.stderr)
+
+        second = self.deploy(
+            second_commit,
+            second_image,
+            incompatible_image=first_image,
+        )
+
+        self.assertNotEqual(second.returncode, 0)
+        self.assertIn("predates the B1 email cooldown schema", second.stderr)
+        self.assertEqual(
+            (self.deploy_root / "current").resolve(),
+            (self.deploy_root / f"releases/preview-{first_commit[:12]}").resolve(),
+        )
+        command_log = self.container_log.read_text(encoding="utf-8")
+        self.assertIn(
+            "run --rm --no-deps api test -f "
+            "apps/api/migrations/postgresql/"
+            "20260913130000_platform_email_request_cooldowns.sql",
+            command_log,
+        )
+        self.assertFalse(any(
+            second_image in command and any(
+                operation in command
+                for operation in (
+                    "pull api email-worker",
+                    "run --rm --no-deps api node apps/api/scripts/migration/",
+                    "--scale email-worker=2 email-worker",
+                    "up -d --no-build --no-deps api",
+                )
+            )
+            for command in command_log.splitlines()
+        ))
 
     def test_preview_environment_must_not_be_group_readable(self):
         self.runtime_env.chmod(0o640)
@@ -1022,6 +1070,7 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         *,
         fail_container_info: bool = False,
         fail_image: str = "",
+        incompatible_image: str = "",
     ) -> dict[str, str]:
         environment = os.environ.copy()
         environment.update(
@@ -1035,6 +1084,7 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
                 "FAKE_CURL_LOG": str(self.curl_log),
                 "FAKE_FAIL_CONTAINER_INFO": "true" if fail_container_info else "",
                 "FAKE_FAIL_IMAGE": fail_image,
+                "FAKE_INCOMPATIBLE_IMAGE": incompatible_image,
             }
         )
         return environment
@@ -1047,6 +1097,7 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         *,
         fail_container_info: bool = False,
         fail_image: str = "",
+        incompatible_image: str = "",
     ) -> subprocess.CompletedProcess[str]:
         public_origin = "aHR0cHM6Ly93d3cuZXhhbXBsZS5jb20="
         return subprocess.run(
@@ -1064,6 +1115,7 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
             env=self.environment(
                 fail_container_info=fail_container_info,
                 fail_image=fail_image,
+                incompatible_image=incompatible_image,
             ),
             text=True,
             capture_output=True,
@@ -1146,6 +1198,45 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         )
         self.assertLess(previous_worker_index, previous_api_index)
         self.assertIn("logs --no-color --tail 200 email-worker api", command_log)
+
+    def test_deployment_rejects_a_pre_b1_rollback_image(self):
+        first_image = f"ghcr.io/imas-fan-dev/idol-master-community-api@sha256:{'a' * 64}"
+        second_image = f"ghcr.io/imas-fan-dev/idol-master-community-api@sha256:{'b' * 64}"
+        first = self.deploy("v1.2.3", "1" * 40, first_image)
+        self.assertEqual(first.returncode, 0, first.stderr)
+
+        second = self.deploy(
+            "v1.2.4",
+            "2" * 40,
+            second_image,
+            incompatible_image=first_image,
+        )
+
+        self.assertNotEqual(second.returncode, 0)
+        self.assertIn("predates the B1 email cooldown schema", second.stderr)
+        self.assertEqual(
+            (self.deploy_root / "current").resolve(),
+            (self.deploy_root / "releases/v1.2.3").resolve(),
+        )
+        command_log = self.container_log.read_text(encoding="utf-8")
+        self.assertIn(
+            "run --rm --no-deps api test -f "
+            "apps/api/migrations/postgresql/"
+            "20260913130000_platform_email_request_cooldowns.sql",
+            command_log,
+        )
+        self.assertFalse(any(
+            second_image in command and any(
+                operation in command
+                for operation in (
+                    "pull api email-worker",
+                    "run --rm --no-deps api node apps/api/scripts/migration/",
+                    "--scale email-worker=2 email-worker",
+                    "up -d --no-build --no-deps api",
+                )
+            )
+            for command in command_log.splitlines()
+        ))
 
     def test_runtime_secrets_must_not_be_group_readable(self):
         self.runtime_env.chmod(0o640)

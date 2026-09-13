@@ -5,6 +5,11 @@ import type { NodeDatabaseConfig } from "@/config/database";
 import type { NodeObjectStorageConfig } from "@/config/object-storage";
 import type { CacheStore, RateLimiter } from "@/ports/cache";
 import type {
+    PlatformEmailDeliveryQueue,
+    PlatformEmailJobPayloadCipher,
+    PlatformEmailResendPolicyCache,
+} from "@/ports/email-delivery";
+import type {
     AdminAccountRepository,
     AuditRepository,
     BackofficeAuthRepository,
@@ -60,7 +65,9 @@ import { parseNodeCacheConfig } from "@/config/cache";
 import { MemoryCache } from "@/infra/cache/memory/cache";
 import { MemoryRateLimiter } from "@/infra/cache/memory/rate-limiter";
 import { PostgresqlIdempotencyStore } from "@/infra/cache/postgresql/idempotency-store";
+import { CachedPlatformEmailResendPolicyReader } from "@/infra/cache/valkey/platform-email-resend-policy-reader";
 import { createValkeyClient, ValkeyCache } from "@/infra/cache/valkey/cache";
+import { ValkeyPlatformEmailResendPolicyCache } from "@/infra/cache/valkey/platform-email-resend-policy";
 import { ValkeyRateLimiter } from "@/infra/cache/valkey/rate-limiter";
 import { PostgresConnection } from "@/infra/db/postgresql/connection";
 import { PostgresqlSchemaStrategy } from "@/infra/db/postgresql/schema-strategy";
@@ -75,6 +82,7 @@ import { SqlHomepageLinkRepository } from "@/infra/db/repositories/homepage-link
 import { SqlNewsRepository } from "@/infra/db/repositories/news-repository";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
 import { SqlPlatformEmailConfigurationRepository } from "@/infra/db/repositories/platform-email-configuration-repository";
+import { SqlPlatformEmailDeliveryRepository } from "@/infra/db/repositories/platform-email-delivery-repository";
 import { SqlReactionRepository } from "@/infra/db/repositories/reaction-repository";
 import { SqlSitePackageRepository } from "@/infra/db/repositories/site-package-repository";
 import { SqlStoryRepository } from "@/infra/db/repositories/story-repository";
@@ -96,6 +104,7 @@ import { S3UploadStateMachine } from "@/infra/oss/s3/upload-state-machine";
 import { SharpImageProcessor } from "@/infra/media/sharp/image-processor";
 import { BcryptPasswordVerifier } from "@/infra/security/bcrypt/password-verifier";
 import { parsePlatformOAuthConfig } from "@/config/platform-oauth";
+import { PlatformEmailJobPayloadCipherAdapter } from "@/infra/email/smtp/platform-email-job-payload";
 import { ConfiguredPlatformEmailService } from "@/infra/email/smtp/platform-email-service";
 import { PlatformEmailSecretCipher } from "@/infra/email/smtp/platform-email-secrets";
 import { ConfiguredPlatformOAuthClient } from "@/infra/oauth/platform-oauth-client";
@@ -160,6 +169,7 @@ export function validateFudabaPublicReadStorage(
 interface NodeCacheServices {
     cache: CacheStore;
     rateLimiter: RateLimiter;
+    platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
 }
 
 async function createNodeCacheServices(
@@ -172,6 +182,10 @@ async function createNodeCacheServices(
             rateLimiter: new ValkeyRateLimiter(client, {
                 keyPrefix: config.keyPrefix,
             }),
+            platformEmailResendPolicyCache:
+                new ValkeyPlatformEmailResendPolicyCache(client, {
+                    keyPrefix: config.keyPrefix,
+                }),
         };
     }
     return { cache: new MemoryCache(), rateLimiter: new MemoryRateLimiter() };
@@ -411,11 +425,27 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             new PlatformOAuthSecretCipher(PLATFORM_JWT_SECRET),
             globalThis.fetch,
         );
-        const platformEmail = new ConfiguredPlatformEmailService(
-            new SqlPlatformEmailConfigurationRepository(connection),
-            new PlatformEmailSecretCipher(PLATFORM_JWT_SECRET),
-        );
+        const platformEmailConfigurationStore =
+            new SqlPlatformEmailConfigurationRepository(connection);
         cacheServices = await createNodeCacheServices(cacheConfig);
+        const platformEmail = new ConfiguredPlatformEmailService(
+            platformEmailConfigurationStore,
+            new PlatformEmailSecretCipher(PLATFORM_JWT_SECRET),
+            undefined,
+            undefined,
+            {
+                resendPolicyCache: cacheServices.platformEmailResendPolicyCache,
+            },
+        );
+        const platformEmailResendPolicy =
+            new CachedPlatformEmailResendPolicyReader(
+                platformEmailConfigurationStore,
+                cacheServices.platformEmailResendPolicyCache,
+            );
+        const platformEmailDeliveryQueue: PlatformEmailDeliveryQueue =
+            new SqlPlatformEmailDeliveryRepository(connection);
+        const platformEmailJobPayloadCipher: PlatformEmailJobPayloadCipher =
+            new PlatformEmailJobPayloadCipherAdapter(PLATFORM_JWT_SECRET);
         const cache = cacheServices.cache;
         const filesystemRoots = {
             publicDir: PUBLIC_DIR,
@@ -461,8 +491,12 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 },
             },
             passwords: new BcryptPasswordVerifier(),
-            platformEmailSender: platformEmail,
             platformEmailConfiguration: platformEmail,
+            platformEmailDeliveryQueue,
+            platformEmailJobPayloadCipher,
+            platformEmailResendPolicyCache:
+                cacheServices.platformEmailResendPolicyCache,
+            platformEmailResendPolicy,
             platformOAuth,
             backofficeTokens: new HmacBackofficeTokenService(
                 BACKOFFICE_JWT_SECRET,

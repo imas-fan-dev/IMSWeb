@@ -153,6 +153,38 @@ test('email delivery runner polls immediately and enforces bounded concurrency',
     assert.equal(maximumActiveSends, 2);
 });
 
+test('email delivery runner claims with a fresh post-maintenance timestamp', async () => {
+    let now = 1_000;
+    let claimedAt: number | undefined;
+    const runner = new NodeEmailDeliveryRunner(
+        workerStore({
+            async failExpired() {
+                now = 20_000;
+                return 0;
+            },
+            async claim(input) {
+                claimedAt = input.now;
+                return [];
+            },
+        }),
+        payloadCipher,
+        acceptedSender(),
+        {
+            now: () => now,
+            leaseDurationMs: 15_000,
+            leaseRenewalMs: 5_000,
+            onEvent() {},
+            onError(error) {
+                assert.fail(`unexpected runner error: ${error.message}`);
+            },
+        },
+    );
+
+    await runner.run();
+    assert.equal(claimedAt, 20_000);
+    await runner.close();
+});
+
 test('email delivery runner serializes lease renewals', async (t) => {
     const releaseSend = deferred();
     let claimed = false;

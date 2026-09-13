@@ -62,6 +62,17 @@ export interface PlatformEmailDeliveryEnqueueInput
     readonly createdAt: number;
 }
 
+declare const platformPasswordResetRecipientKey: unique symbol;
+
+export type PlatformPasswordResetRecipientKey = string & {
+    readonly [platformPasswordResetRecipientKey]: true;
+};
+
+export interface PlatformPasswordResetEmailDeliveryEnqueueInput
+    extends PlatformEmailDeliveryEnqueueInput {
+    readonly recipientKey: PlatformPasswordResetRecipientKey;
+}
+
 export type PlatformEmailDeliveryEnqueueResult =
     | {
           status: 'queued';
@@ -69,9 +80,18 @@ export type PlatformEmailDeliveryEnqueueResult =
           retryAfterSeconds: number;
           policyUpdatedAt: number;
       }
-    | { status: 'cooldown'; retryAfterMs: number }
+    | {
+          status: 'cooldown';
+          enqueuedAt: number;
+          resendAfter: number;
+          resendCooldownSeconds: number;
+          retryAfterMs: number;
+      }
     | {
           status: 'email-not-found';
+          enqueuedAt: number;
+          resendAfter: number;
+          resendCooldownSeconds: number;
           retryAfterSeconds: number;
           policyUpdatedAt: number;
       };
@@ -81,7 +101,7 @@ export interface PlatformEmailDeliveryQueue {
         input: PlatformEmailDeliveryEnqueueInput,
     ): Promise<Exclude<PlatformEmailDeliveryEnqueueResult, { status: 'email-not-found' }>>;
     enqueuePasswordReset(
-        input: PlatformEmailDeliveryEnqueueInput,
+        input: PlatformPasswordResetEmailDeliveryEnqueueInput,
     ): Promise<PlatformEmailDeliveryEnqueueResult>;
 }
 
@@ -159,6 +179,13 @@ export interface PlatformEmailResendPolicyRecord {
 }
 
 export interface PlatformEmailResendPolicyCache {
-    read(): Promise<PlatformEmailResendPolicyRecord | null>;
-    writeIfNewer(record: PlatformEmailResendPolicyRecord): Promise<boolean>;
+    read(signal?: AbortSignal): Promise<PlatformEmailResendPolicyRecord | null>;
+    writeIfNewer(
+        record: PlatformEmailResendPolicyRecord,
+        signal?: AbortSignal,
+    ): Promise<boolean>;
+}
+
+export interface PlatformEmailResendPolicyReader {
+    getPolicy(): Promise<PlatformEmailResendPolicyRecord>;
 }

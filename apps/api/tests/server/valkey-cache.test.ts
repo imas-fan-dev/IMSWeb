@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ValkeyCache } from "@/infra/cache/valkey/cache";
+import { withBoundedCacheOperation } from "@/utils/cache/bounded-operation";
 
 class FakeValkeyClient {
     readonly commands: string[][] = [];
     readonly values = new Map<string, string>();
     closed = false;
+    stall = false;
+    abortedCommands = 0;
 
     on(): this {
         return this;
@@ -15,9 +18,24 @@ class FakeValkeyClient {
         return this;
     }
 
-    async sendCommand<T = unknown>(args: readonly string[]): Promise<T> {
+    async sendCommand<T = unknown>(
+        args: readonly string[],
+        options?: { abortSignal?: AbortSignal },
+    ): Promise<T> {
         const command = [...args];
         this.commands.push(command);
+        if (this.stall) {
+            return new Promise<T>((_resolve, reject) => {
+                options?.abortSignal?.addEventListener(
+                    "abort",
+                    () => {
+                        this.abortedCommands += 1;
+                        reject(new Error("Valkey command aborted"));
+                    },
+                    { once: true },
+                );
+            });
+        }
         if (command[0] === "GET")
             return (this.values.get(command[1]!) ?? null) as T;
         if (command[0] === "SET") {
@@ -59,6 +77,21 @@ test("Valkey cache namespaces values and applies an expiration command", async (
     await cache.ping();
     await cache.close();
     assert.equal(client.closed, true);
+});
+
+test("Valkey cache aborts a queued command at the caller deadline", async () => {
+    const client = new FakeValkeyClient();
+    client.stall = true;
+    const cache = new ValkeyCache(client, { keyPrefix: "imsweb:cache:" });
+
+    await assert.rejects(
+        withBoundedCacheOperation(
+            (signal) => cache.get("email-cooldown:abc", { signal }),
+            1,
+        ),
+        /exceeded its deadline/,
+    );
+    assert.equal(client.abortedCommands, 1);
 });
 
 test("Valkey cache rejects invalid keys and TTLs before issuing commands", async () => {

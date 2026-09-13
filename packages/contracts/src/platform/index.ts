@@ -181,7 +181,7 @@ export const platformAuthErrorSchema = z
   .strict();
 
 export const platformRetryableAuthErrorSchema = platformAuthErrorSchema
-  .extend({ retryAfterSeconds: z.number().int().positive() })
+  .extend({ retryAfterSeconds: z.number().int().min(1).max(600) })
   .strict();
 
 export const platformMiddlewareErrorSchema = z
@@ -274,7 +274,8 @@ export const platformSessionSchema = successEnvelope({
 }).strict();
 
 export const platformRegistrationVerificationResponseSchema = successEnvelope({
-  retryAfterSeconds: z.number().int().positive(),
+  queued: z.literal(true),
+  retryAfterSeconds: z.number().int().min(1).max(600),
 }).strict();
 
 export const platformProfileResponseSchema = successEnvelope({
@@ -288,8 +289,8 @@ export const platformProfileMutationResponseSchema = successEnvelope({
 }).strict();
 
 export const passwordResetIssueResponseSchema = successEnvelope({
-  sent: z.literal(true),
-  retryAfterSeconds: z.number().int().positive().optional(),
+  queued: z.literal(true),
+  retryAfterSeconds: z.number().int().min(1).max(600),
 }).strict();
 
 export type PlatformLoginRequest = z.infer<typeof platformLoginRequestSchema>;

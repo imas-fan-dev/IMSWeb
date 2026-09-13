@@ -126,7 +126,7 @@ describe("Platform profile API contracts", () => {
         })
         if (path.endsWith("verification-code")) {
           return Response.json(
-            { success: true, retryAfterSeconds: 60 },
+            { success: true, queued: true, retryAfterSeconds: 30 },
             { status: 202 }
           )
         }
@@ -150,9 +150,15 @@ describe("Platform profile API contracts", () => {
       email: "  Producer@Example.com ",
       password: "correct-horse-battery",
     }).send()
-    await sendPlatformRegistrationVerificationCode({
-      email: "  New@Example.com ",
-    }).send()
+    await expect(
+      sendPlatformRegistrationVerificationCode({
+        email: "  New@Example.com ",
+      }).send()
+    ).resolves.toEqual({
+      success: true,
+      queued: true,
+      retryAfterSeconds: 30,
+    })
     await registerPlatform({
       email: "  New@Example.com ",
       password: "correct-horse-battery",
@@ -219,7 +225,10 @@ describe("Platform profile API contracts", () => {
           })
         }
         if (path.endsWith("verification-code")) {
-          return Response.json({ success: true, sent: true }, { status: 202 })
+          return Response.json(
+            { success: true, queued: true, retryAfterSeconds: 600 },
+            { status: 202 }
+          )
         }
         return Response.json({ success: true })
       })
@@ -236,7 +245,11 @@ describe("Platform profile API contracts", () => {
       sendPlatformPasswordResetVerificationCode({
         email: "owner@example.test",
       }).send()
-    ).resolves.toEqual({ success: true, sent: true })
+    ).resolves.toEqual({
+      success: true,
+      queued: true,
+      retryAfterSeconds: 600,
+    })
     await expect(
       resetPlatformPassword({
         email: "owner@example.test",
@@ -269,6 +282,27 @@ describe("Platform profile API contracts", () => {
       },
       { path: "/api/platform/auth/logout", method: "POST", body: undefined },
     ])
+  })
+
+  it("rejects legacy verification acknowledgement payloads", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ success: true }, { status: 202 }))
+      .mockResolvedValueOnce(
+        Response.json({ success: true, sent: true }, { status: 202 })
+      )
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(
+      sendPlatformRegistrationVerificationCode({
+        email: "new@example.test",
+      }).send()
+    ).rejects.toMatchObject({ kind: "contract" })
+    await expect(
+      sendPlatformPasswordResetVerificationCode({
+        email: "owner@example.test",
+      }).send()
+    ).rejects.toMatchObject({ kind: "contract" })
   })
 
   it("parses the exact owner profile projection and normalizes submissions", () => {

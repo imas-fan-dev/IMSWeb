@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "9d48bc658efbe47c46a95f9b4ef215b907fd439e93447bf0c199d78740501c19",
+    "semanticDigest": "d871c52cb39ee1de75a6b9923d4def13a28302e5a1b97bb6d6bdb7f3bcdde7be",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -27,8 +27,8 @@
       "non-object-applicable": 64
     },
     "responses": {
-      "total": 622,
-      "json": 558,
+      "total": 621,
+      "json": 557,
       "nonJson": 64
     },
     "unresolved": 0
@@ -9927,22 +9927,17 @@
         {
           "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds }"
+          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
         },
         {
           "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
           "kind": "json",
-          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds }"
+          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
         },
         {
           "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
           "kind": "json",
-          "expression": "{ success : true , sent : true } satisfies PasswordResetIssueResponse"
-        },
-        {
-          "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-          "kind": "json",
-          "expression": "{ success : true , sent : true , retryAfterSeconds : 60 } satisfies PasswordResetIssueResponse"
+          "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PasswordResetIssueResponse"
         }
       ]
     },
@@ -10077,7 +10072,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-auth/registration/handlers/send-verification-code.ts",
           "kind": "json",
-          "expression": "{ success : true , retryAfterSeconds : PLATFORM_EMAIL_CODE_RESEND_MS / 1000 , } satisfies PlatformRegistrationVerificationResponse"
+          "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PlatformRegistrationVerificationResponse"
         }
       ]
     },
@@ -21044,7 +21039,7 @@
       "handlerSymbol": "handlePlatformPasswordResetVerification",
       "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds }"
+      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
     },
     {
       "method": "POST",
@@ -21052,7 +21047,7 @@
       "handlerSymbol": "handlePlatformPasswordResetVerification",
       "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
       "kind": "json",
-      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds }"
+      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
     },
     {
       "method": "POST",
@@ -21060,15 +21055,7 @@
       "handlerSymbol": "handlePlatformPasswordResetVerification",
       "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
       "kind": "json",
-      "expression": "{ success : true , sent : true } satisfies PasswordResetIssueResponse"
-    },
-    {
-      "method": "POST",
-      "path": "/api/platform/auth/password-reset/verification-code",
-      "handlerSymbol": "handlePlatformPasswordResetVerification",
-      "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-      "kind": "json",
-      "expression": "{ success : true , sent : true , retryAfterSeconds : 60 } satisfies PasswordResetIssueResponse"
+      "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PasswordResetIssueResponse"
     },
     {
       "method": "POST",
@@ -21164,7 +21151,7 @@
       "handlerSymbol": "handlePlatformRegistrationVerification",
       "file": "apps/api/src/domains/identity/platform-auth/registration/handlers/send-verification-code.ts",
       "kind": "json",
-      "expression": "{ success : true , retryAfterSeconds : PLATFORM_EMAIL_CODE_RESEND_MS / 1000 , } satisfies PlatformRegistrationVerificationResponse"
+      "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PlatformRegistrationVerificationResponse"
     },
     {
       "method": "POST",

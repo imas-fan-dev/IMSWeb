@@ -1,6 +1,7 @@
 import { useRequest } from "alova/client"
 import {
   CheckCircle2Icon,
+  Clock3Icon,
   LoaderCircleIcon,
   MailCheckIcon,
   RefreshCwIcon,
@@ -191,31 +192,14 @@ export default function AdminPlatformEmailPage() {
         description="凭据加密保存，证书校验始终开启。"
         icon={MailCheckIcon}
         footer={
-          <div className="flex w-full flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {draft.configured ? (
-                <CheckCircle2Icon
-                  className="size-4 text-success"
-                  aria-hidden="true"
-                />
-              ) : null}
-              {draft.configured ? "凭据已保存" : "尚未保存凭据"}
-            </div>
-            <Button
-              type="button"
-              disabled={!valid || busy || loading}
-              onClick={() => void saveSettings()}
-            >
-              {pendingAction === "save" ? (
-                <LoaderCircleIcon
-                  className="animate-spin"
-                  data-icon="inline-start"
-                />
-              ) : (
-                <SaveIcon data-icon="inline-start" />
-              )}
-              保存配置
-            </Button>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {draft.configured ? (
+              <CheckCircle2Icon
+                className="size-4 text-success"
+                aria-hidden="true"
+              />
+            ) : null}
+            {draft.configured ? "凭据已保存" : "尚未保存凭据"}
           </div>
         }
       >
@@ -360,6 +344,52 @@ export default function AdminPlatformEmailPage() {
             />
           </AdminField>
         </div>
+      </AdminPanel>
+
+      <AdminPanel
+        title="发送策略"
+        description="注册验证与密码重置共用此重发间隔。"
+        icon={Clock3Icon}
+        footer={
+          <div className="flex w-full justify-end">
+            <Button
+              type="button"
+              disabled={!valid || busy || loading}
+              onClick={() => void saveSettings()}
+            >
+              {pendingAction === "save" ? (
+                <LoaderCircleIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <SaveIcon data-icon="inline-start" />
+              )}
+              保存配置
+            </Button>
+          </div>
+        }
+      >
+        <AdminField
+          label="验证码重发间隔（秒）"
+          htmlFor="platform-email-resend-cooldown"
+          description="只允许 30 至 600 的整数秒。"
+          className="max-w-sm"
+        >
+          <Input
+            id="platform-email-resend-cooldown"
+            type="number"
+            min={30}
+            max={600}
+            step={1}
+            value={draft.resendCooldownSeconds}
+            className={adminControlClass}
+            disabled={busy || loading}
+            onChange={(event) =>
+              update("resendCooldownSeconds", event.target.value)
+            }
+          />
+        </AdminField>
       </AdminPanel>
 
       <AdminPanel

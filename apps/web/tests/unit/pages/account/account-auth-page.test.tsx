@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, Route, Routes } from "react-router"
@@ -8,12 +8,15 @@ import { i18n } from "~/i18n/config"
 import { ApiError } from "~/lib/api"
 import AccountLoginPage from "~/pages/account/login/account-login-page"
 import AccountRegisterPage from "~/pages/account/register/account-register-page"
+import AccountPasswordResetPage from "~/pages/account/reset/account-password-reset-page"
 
 const apiMocks = vi.hoisted(() => ({
   loginInput: vi.fn(),
   loginSend: vi.fn(),
   registerInput: vi.fn(),
   registerSend: vi.fn(),
+  passwordResetVerificationInput: vi.fn(),
+  passwordResetVerificationSend: vi.fn(),
   verificationInput: vi.fn(),
   verificationSend: vi.fn(),
 }))
@@ -40,6 +43,10 @@ vi.mock("~/lib/api", async (importOriginal) => {
     sendPlatformRegistrationVerificationCode: (input: unknown) => {
       apiMocks.verificationInput(input)
       return { send: apiMocks.verificationSend }
+    },
+    sendPlatformPasswordResetVerificationCode: (input: unknown) => {
+      apiMocks.passwordResetVerificationInput(input)
+      return { send: apiMocks.passwordResetVerificationSend }
     },
   }
 })
@@ -71,7 +78,7 @@ function anonymousState() {
 }
 
 function renderPage(
-  mode: "login" | "register",
+  mode: "login" | "register" | "password-reset",
   initialEntry = `/account/${mode}`
 ) {
   const path = `/account/${mode}`
@@ -82,7 +89,13 @@ function renderPage(
           <Route
             path={path}
             element={
-              mode === "login" ? <AccountLoginPage /> : <AccountRegisterPage />
+              mode === "login" ? (
+                <AccountLoginPage />
+              ) : mode === "register" ? (
+                <AccountRegisterPage />
+              ) : (
+                <AccountPasswordResetPage />
+              )
             }
           />
           <Route path="/community/exchange/me" element={<h1>个人档案</h1>} />
@@ -145,7 +158,8 @@ describe("Platform account auth pages", () => {
   it("sends a verification code, shows the cooldown, and submits the code", async () => {
     apiMocks.verificationSend.mockResolvedValue({
       success: true,
-      retryAfterSeconds: 60,
+      queued: true,
+      retryAfterSeconds: 30,
     })
     apiMocks.registerSend.mockResolvedValue(activeSession)
     renderPage("register")
@@ -158,10 +172,8 @@ describe("Platform account auth pages", () => {
     expect(apiMocks.verificationInput).toHaveBeenCalledWith({
       email: "new@example.com",
     })
-    expect(
-      await screen.findByText("验证码已发送至 new@example.com。")
-    ).toBeVisible()
-    expect(screen.getByRole("button", { name: "60 秒后重发" })).toBeDisabled()
+    expect(await screen.findByText("请求已受理，请稍候查收")).toBeVisible()
+    expect(screen.getByRole("button", { name: "30 秒后重发" })).toBeDisabled()
 
     await user.type(screen.getByLabelText("邮箱验证码"), "12a34 56")
     expect(screen.getByLabelText("邮箱验证码")).toHaveValue("123456")
@@ -178,13 +190,66 @@ describe("Platform account auth pages", () => {
     expect(sessionMocks.acceptSession).toHaveBeenCalledWith(activeSession)
   })
 
+  it("uses the password-reset queue acknowledgement cooldown", async () => {
+    apiMocks.passwordResetVerificationSend.mockResolvedValue({
+      success: true,
+      queued: true,
+      retryAfterSeconds: 600,
+    })
+    renderPage("password-reset")
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText("邮箱"), "owner@example.com")
+    await user.click(screen.getByRole("button", { name: "发送验证码" }))
+
+    expect(apiMocks.passwordResetVerificationInput).toHaveBeenCalledWith({
+      email: "owner@example.com",
+    })
+    expect(await screen.findByText("请求已受理，请稍候查收")).toBeVisible()
+    expect(screen.getByRole("button", { name: "600 秒后重发" })).toBeDisabled()
+  })
+
+  it("uses elapsed wall time when cooldown callbacks are throttled", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(1_000_000))
+    const { unmount } = renderPage("register")
+    try {
+      apiMocks.verificationSend.mockResolvedValue({
+        success: true,
+        queued: true,
+        retryAfterSeconds: 30,
+      })
+      fireEvent.change(screen.getByLabelText("邮箱"), {
+        target: { value: "owner@example.com" },
+      })
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "发送验证码" }))
+        await Promise.resolve()
+      })
+      expect(screen.getByRole("button", { name: "30 秒后重发" })).toBeDisabled()
+
+      vi.setSystemTime(new Date(1_031_000))
+      await act(async () => {
+        vi.advanceTimersByTime(1_000)
+      })
+      expect(screen.getByRole("button", { name: "重新发送" })).toBeEnabled()
+    } finally {
+      unmount()
+      vi.useRealTimers()
+    }
+  })
+
   it.each([
     {
       name: "server cooldown",
       error: new ApiError("cooldown", {
         kind: "http",
         status: 429,
-        payload: { retryAfterSeconds: 42 },
+        payload: {
+          success: false,
+          code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
+          retryAfterSeconds: 42,
+        },
       }),
       message: "发送过于频繁，请在 42 秒后重试。",
       buttonName: "42 秒后重发",
@@ -212,6 +277,79 @@ describe("Platform account auth pages", () => {
     expect(
       screen.getByRole("button", { name: testCase.buttonName })
     ).toBeVisible()
+  })
+
+  it.each([
+    {
+      name: "generic rate limit",
+      error: new ApiError("rate limited", {
+        kind: "http",
+        status: 429,
+        payload: { success: false, code: "PLATFORM_RATE_LIMITED" },
+      }),
+    },
+    {
+      name: "fractional cooldown",
+      error: new ApiError("invalid cooldown", {
+        kind: "http",
+        status: 429,
+        payload: {
+          success: false,
+          code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
+          retryAfterSeconds: 60.5,
+        },
+      }),
+    },
+    {
+      name: "cooldown below the response contract",
+      error: new ApiError("invalid cooldown", {
+        kind: "http",
+        status: 429,
+        payload: {
+          success: false,
+          code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
+          retryAfterSeconds: 0,
+        },
+      }),
+    },
+    {
+      name: "cooldown above the response contract",
+      error: new ApiError("invalid cooldown", {
+        kind: "http",
+        status: 429,
+        payload: {
+          success: false,
+          code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
+          retryAfterSeconds: 601,
+        },
+      }),
+    },
+    {
+      name: "non-numeric cooldown",
+      error: new ApiError("invalid cooldown", {
+        kind: "http",
+        status: 429,
+        payload: {
+          success: false,
+          code: "PLATFORM_EMAIL_VERIFICATION_COOLDOWN",
+          retryAfterSeconds: "60",
+        },
+      }),
+    },
+  ])("does not invent a cooldown for $name", async ({ error }) => {
+    apiMocks.verificationSend.mockRejectedValue(error)
+    renderPage("register")
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText("邮箱"), "new@example.com")
+    await user.click(screen.getByRole("button", { name: "发送验证码" }))
+
+    expect(
+      await screen.findByText("验证码发送失败，请稍后重试。")
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "发送验证码" })).toBeEnabled()
+    expect(
+      screen.queryByRole("button", { name: /秒后重发/ })
+    ).not.toBeInTheDocument()
   })
 
   it("shows password reset completion feedback from the login URL", () => {

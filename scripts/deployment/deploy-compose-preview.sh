@@ -339,8 +339,17 @@ compose_has_email_worker() {
     local compose_file=$1
     local compose_override=$2
     local selected_image=$3
-    compose "$compose_file" "$compose_override" "$selected_image" config --services | \
+    compose "$compose_file" "$compose_override" "$selected_image" config --services |
         grep -Fxq email-worker
+}
+
+compose_supports_email_request_cooldowns() {
+    local compose_file=$1
+    local compose_override=$2
+    local selected_image=$3
+    compose "$compose_file" "$compose_override" "$selected_image" \
+        run --rm --no-deps api test -f \
+        apps/api/migrations/postgresql/20260913130000_platform_email_request_cooldowns.sql
 }
 
 internal_probe() {
@@ -376,6 +385,12 @@ wait_for_preview() {
     done
     return 1
 }
+
+if [[ -n "$current_dir" ]] &&
+    ! compose_supports_email_request_cooldowns \
+        "$current_compose" "$current_override" "$current_image"; then
+    fail "current preview image predates the B1 email cooldown schema and cannot be the automatic rollback target"
+fi
 
 deployment_error=
 printf '%s\n' "Pulling $image_ref for the API and email worker."
@@ -418,6 +433,10 @@ if [[ -n "$deployment_error" ]]; then
         printf '%s\n' "Restoring previous preview release $current_release" >&2
         if ! compose_has_email_worker "$current_compose" "$current_override" "$current_image"; then
             fail "$deployment_error; the previous preview release has no email worker and cannot be an automatic rollback target after the Release A migration"
+        fi
+        if ! compose_supports_email_request_cooldowns \
+            "$current_compose" "$current_override" "$current_image"; then
+            fail "$deployment_error; the previous preview release predates the B1 email cooldown schema and cannot be an automatic rollback target"
         fi
         if compose "$current_compose" "$current_override" "$current_image" \
             pull email-worker api &&

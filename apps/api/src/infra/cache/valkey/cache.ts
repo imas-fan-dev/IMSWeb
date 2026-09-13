@@ -1,10 +1,13 @@
 import { createClient, type RedisClientType } from "redis";
 import type { NodeCacheConfig } from "@/config/cache";
-import type { CacheStore } from "@/ports/cache";
+import type { CacheOperationOptions, CacheStore } from "@/ports/cache";
 
 interface ValkeyClientLike {
     connect(): Promise<ValkeyClientLike>;
-    sendCommand<T = unknown>(args: readonly string[]): Promise<T>;
+    sendCommand<T = unknown>(
+        args: readonly string[],
+        options?: { abortSignal?: AbortSignal },
+    ): Promise<T>;
     close(): Promise<void>;
     destroy?(): void;
     on(event: "error", listener: (error: unknown) => void): ValkeyClientLike;
@@ -39,27 +42,35 @@ export class ValkeyCache implements CacheStore {
         return `${this.options.keyPrefix}${key}`;
     }
 
-    async get(key: string): Promise<string | null> {
-        const value = await this.client.sendCommand<string | null>([
-            "GET",
-            this.key(key),
-        ]);
+    async get(
+        key: string,
+        options?: CacheOperationOptions,
+    ): Promise<string | null> {
+        const value = await this.client.sendCommand<string | null>(
+            ["GET", this.key(key)],
+            { abortSignal: options?.signal },
+        );
         return value === null ? null : String(value);
     }
 
-    async set(key: string, value: string, ttlSeconds: number): Promise<void> {
+    async set(
+        key: string,
+        value: string,
+        ttlSeconds: number,
+        options?: CacheOperationOptions,
+    ): Promise<void> {
         assertTtl(ttlSeconds);
-        await this.client.sendCommand([
-            "SET",
-            this.key(key),
-            value,
-            "EX",
-            String(ttlSeconds),
-        ]);
+        await this.client.sendCommand(
+            ["SET", this.key(key), value, "EX", String(ttlSeconds)],
+            { abortSignal: options?.signal },
+        );
     }
 
-    async delete(key: string): Promise<void> {
-        await this.client.sendCommand(["DEL", this.key(key)]);
+    async delete(key: string, options?: CacheOperationOptions): Promise<void> {
+        await this.client.sendCommand(
+            ["DEL", this.key(key)],
+            { abortSignal: options?.signal },
+        );
     }
 
     async ping(): Promise<void> {

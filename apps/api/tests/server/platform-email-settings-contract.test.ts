@@ -6,8 +6,8 @@ import {
     adminPlatformEmailHttpErrorSchema,
     adminPlatformEmailMutationResponseSchema,
     adminPlatformEmailSettingsResponseSchema,
+    adminPlatformEmailSettingsSchema,
     adminPlatformEmailTestResponseSchema,
-    type AdminPlatformEmailSettings,
 } from '@imsweb/contracts/platform/admin-email';
 import { adminApiPath } from '@imsweb/contracts/paths';
 import {
@@ -20,16 +20,17 @@ import { createWikiFixture } from '../wiki/fixture';
 
 const ADMIN_EMAIL_URL = adminApiPath('/platform/email');
 
-const settings: AdminPlatformEmailSettings = {
+const settings = {
     enabled: false,
     configured: true,
     host: 'smtp.qiye.163.com',
     port: 465,
-    security: 'tls',
+    security: 'tls' as const,
     usernameMasked: 'ma***@texasoct.tech',
     passwordConfigured: true,
     fromAddress: 'mail@texasoct.tech',
     fromName: 'IMSWeb',
+    resendCooldownSeconds: 60,
     updatedAt: 1_000,
 };
 
@@ -42,6 +43,7 @@ const writeRequest = {
     password: 'smtp-password',
     fromAddress: settings.fromAddress,
     fromName: settings.fromName,
+    resendCooldownSeconds: 30,
     expectedUpdatedAt: settings.updatedAt,
 };
 
@@ -92,7 +94,14 @@ function configureFixture() {
             writes.push(input);
             return conflict
                 ? { status: 'conflict' as const, settings }
-                : { status: 'saved' as const, settings: { ...settings, enabled: true } };
+                : {
+                      status: 'saved' as const,
+                      settings: {
+                          ...settings,
+                          enabled: true,
+                          resendCooldownSeconds: input.resendCooldownSeconds,
+                      },
+                  };
         },
         async sendTest(input) {
             tests.push(input);
@@ -108,6 +117,52 @@ function configureFixture() {
         },
     };
 }
+
+test('SMTP administration contracts enforce resend cooldown bounds', () => {
+    for (const resendCooldownSeconds of [30, 600]) {
+        assert.doesNotThrow(() =>
+            adminPlatformEmailConfigurationWriteRequestSchema.parse({
+                ...writeRequest,
+                resendCooldownSeconds,
+            }),
+        );
+        assert.doesNotThrow(() =>
+            adminPlatformEmailConfigurationTestRequestSchema.parse({
+                ...writeRequest,
+                resendCooldownSeconds,
+                recipient: 'admin@example.com',
+            }),
+        );
+        assert.doesNotThrow(() =>
+            adminPlatformEmailSettingsSchema.parse({
+                ...settings,
+                resendCooldownSeconds,
+            }),
+        );
+    }
+
+    for (const resendCooldownSeconds of [29, 30.5, 601]) {
+        assert.throws(() =>
+            adminPlatformEmailConfigurationWriteRequestSchema.parse({
+                ...writeRequest,
+                resendCooldownSeconds,
+            }),
+        );
+        assert.throws(() =>
+            adminPlatformEmailConfigurationTestRequestSchema.parse({
+                ...writeRequest,
+                resendCooldownSeconds,
+                recipient: 'admin@example.com',
+            }),
+        );
+        assert.throws(() =>
+            adminPlatformEmailSettingsSchema.parse({
+                ...settings,
+                resendCooldownSeconds,
+            }),
+        );
+    }
+});
 
 test('mounted SMTP administration enforces super-admin auth and exact contracts', async () => {
     const { fixture, writes, tests } = configureFixture();

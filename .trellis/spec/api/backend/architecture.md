@@ -56,7 +56,7 @@ There is no `src/shared` layer.
 - Hono context and request path policies belong in `src/middleware/`.
 - Frontend route ownership belongs in `src/routing/`.
 - Pure runtime-neutral helpers belong in a focused
-  `src/utils/{crypto,http,media,storage,validation}` module.
+  `src/utils/{cache,crypto,http,media,storage,validation}` module.
 - SQL driver contracts and query helpers belong in `src/infra/db/sql/`.
 - Shared SQL repository implementations belong in
   `src/infra/db/repositories/`.

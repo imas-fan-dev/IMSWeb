@@ -1,6 +1,7 @@
 import type {
     PasswordResetIssueResponse,
-    PlatformAuthError
+    PlatformAuthError,
+    PlatformRetryableAuthError
 } from '@imsweb/contracts/platform';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
@@ -8,21 +9,20 @@ import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import {
     clearPlatformPasswordResetCooldown,
     markPlatformPasswordResetCooldown,
+    platformPasswordResetRecipientKey,
     readPlatformPasswordResetCooldown
 } from '@/domains/identity/platform-auth/password-reset/password-reset-cache';
+import { createPlatformEmailDeliveryIdentityToken } from '@/domains/identity/platform-auth/contracts/email-delivery';
 import {
     createPlatformPasswordResetCode,
-    createPlatformPasswordResetDeliveryToken,
-    hashPlatformPasswordResetCode,
-    PLATFORM_PASSWORD_RESET_CODE_ATTEMPTS,
-    PLATFORM_PASSWORD_RESET_CODE_RESEND_MS,
-    PLATFORM_PASSWORD_RESET_CODE_TTL_MS
+    hashPlatformPasswordResetCode
 } from '@/domains/identity/platform-auth/password-reset/password-reset';
 import {
     platformAccountRepository,
     services
 } from '@/middleware/hono-context';
 import { platformSecurityEvent } from '@/domains/identity/platform-auth/contracts/session';
+import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
 
 function unavailable(c: Context<AppEnvironment>): Response {
     return c.json(
@@ -36,79 +36,106 @@ export async function handlePlatformPasswordResetVerification(
 ): Promise<Response> {
     const input = c.req.valid('json');
     const runtime = services(c);
-    const sender = runtime.platformEmailSender;
-    if (!sender || !(await sender.isAvailable())) return unavailable(c);
+    const queue = runtime.platformEmailDeliveryQueue;
+    const payloadCipher = runtime.platformEmailJobPayloadCipher;
+    const policyReader = runtime.platformEmailResendPolicy;
+    if (!queue || !payloadCipher || !policyReader) return unavailable(c);
+
     const cachedCooldownMs = await readPlatformPasswordResetCooldown(
         runtime.cache,
         input.email
     );
     if (cachedCooldownMs !== null) {
-        const retryAfterSeconds = Math.max(1, Math.ceil(cachedCooldownMs / 1000));
+        const retryAfterSeconds = Math.min(
+            600,
+            Math.max(1, Math.ceil(cachedCooldownMs / 1000))
+        );
         c.header('Retry-After', String(retryAfterSeconds));
         return c.json(
             {
                 success: false,
                 code: 'PLATFORM_PASSWORD_RESET_COOLDOWN',
                 retryAfterSeconds
-            },
+            } satisfies PlatformRetryableAuthError,
             429
         );
-    }
-
-    const now = Date.now();
-    const code = createPlatformPasswordResetCode();
-    const deliveryToken = createPlatformPasswordResetDeliveryToken();
-    const issued = await platformAccountRepository(c).issuePasswordReset({
-        normalizedEmail: input.email,
-        deliveryToken,
-        codeHash: hashPlatformPasswordResetCode(input.email, code),
-        expiresAt: now + PLATFORM_PASSWORD_RESET_CODE_TTL_MS,
-        resendAfter: now + PLATFORM_PASSWORD_RESET_CODE_RESEND_MS,
-        attemptsRemaining: PLATFORM_PASSWORD_RESET_CODE_ATTEMPTS,
-        createdAt: now
-    });
-    if (issued.status === 'cooldown') {
-        await markPlatformPasswordResetCooldown(runtime.cache, input.email, issued.retryAfterMs);
-        const retryAfterSeconds = Math.max(1, Math.ceil(issued.retryAfterMs / 1000));
-        c.header('Retry-After', String(retryAfterSeconds));
-        return c.json(
-            {
-                success: false,
-                code: 'PLATFORM_PASSWORD_RESET_COOLDOWN',
-                retryAfterSeconds
-            },
-            429
-        );
-    }
-    if (issued.status === 'email-not-found') {
-        return c.json({ success: true, sent: true } satisfies PasswordResetIssueResponse, 202);
     }
 
     try {
-        await sender.sendPasswordResetVerification({
-            email: input.email,
+        await policyReader.getPolicy();
+        const code = createPlatformPasswordResetCode();
+        const identity = {
+            jobId: createPlatformEmailDeliveryIdentityToken(),
+            purpose: 'password_reset',
+            deliveryToken: createPlatformEmailDeliveryIdentityToken(),
+            payloadVersion: 1,
+        } as const;
+        const prepared = payloadCipher.encrypt(identity, {
+            purpose: 'password_reset',
+            normalizedEmail: input.email,
             code,
-            expiresInMinutes: PLATFORM_PASSWORD_RESET_CODE_TTL_MS / 60_000
+            expiresInMinutes: 15,
         });
+        const requestAcceptedAt = Date.now();
+        const issued = await queue.enqueuePasswordReset({
+            ...prepared,
+            codeHash: hashPlatformPasswordResetCode(input.email, code),
+            createdAt: requestAcceptedAt,
+            recipientKey: platformPasswordResetRecipientKey(input.email),
+        });
+        if (issued.status === 'cooldown') {
+            await markPlatformPasswordResetCooldown(runtime.cache, input.email, {
+                enqueuedAt: issued.enqueuedAt,
+                resendCooldownSeconds: issued.resendCooldownSeconds,
+                retryAfterAt: issued.resendAfter,
+            });
+            const retryAfterSeconds = Math.min(
+                600,
+                Math.max(1, Math.ceil(issued.retryAfterMs / 1000))
+            );
+            c.header('Retry-After', String(retryAfterSeconds));
+            return c.json(
+                {
+                    success: false,
+                    code: 'PLATFORM_PASSWORD_RESET_COOLDOWN',
+                    retryAfterSeconds
+                } satisfies PlatformRetryableAuthError,
+                429
+            );
+        }
+
+        const resendPolicyCache = runtime.platformEmailResendPolicyCache;
+        if (resendPolicyCache) {
+            await withBoundedCacheOperation((signal) =>
+                resendPolicyCache.writeIfNewer(
+                    {
+                        resendCooldownSeconds: issued.retryAfterSeconds,
+                        updatedAt: issued.policyUpdatedAt,
+                    },
+                    signal,
+                ),
+            ).catch(() => undefined);
+        }
+        await markPlatformPasswordResetCooldown(runtime.cache, input.email, {
+            enqueuedAt: issued.status === 'queued'
+                ? requestAcceptedAt
+                : issued.enqueuedAt,
+            resendCooldownSeconds: issued.status === 'queued'
+                ? issued.retryAfterSeconds
+                : issued.resendCooldownSeconds,
+            retryAfterAt: issued.resendAfter,
+        });
+        return c.json(
+            {
+                success: true,
+                queued: true,
+                retryAfterSeconds: issued.retryAfterSeconds,
+            } satisfies PasswordResetIssueResponse,
+            202
+        );
     } catch {
-        await platformAccountRepository(c).revokePasswordReset(input.email, deliveryToken);
-        await clearPlatformPasswordResetCooldown(runtime.cache, input.email);
         return unavailable(c);
     }
-    const delivered = await platformAccountRepository(c).completePasswordResetDelivery(
-        input.email,
-        deliveryToken
-    );
-    if (!delivered) return unavailable(c);
-    await markPlatformPasswordResetCooldown(
-        runtime.cache,
-        input.email,
-        PLATFORM_PASSWORD_RESET_CODE_RESEND_MS
-    );
-    return c.json(
-        { success: true, sent: true, retryAfterSeconds: 60 } satisfies PasswordResetIssueResponse,
-        202
-    );
 }
 
 export async function handlePlatformPasswordReset(

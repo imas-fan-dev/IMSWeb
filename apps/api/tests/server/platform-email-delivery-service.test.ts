@@ -49,6 +49,7 @@ function configuration(
         passwordCiphertext: 'encrypted-password',
         fromAddress: 'mail@example.com',
         fromName: 'IMSWeb',
+        resendCooldownSeconds: 60,
         updatedAt: 1,
         ...overrides,
     };

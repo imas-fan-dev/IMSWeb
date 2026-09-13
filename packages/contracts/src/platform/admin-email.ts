@@ -54,6 +54,7 @@ export const adminPlatformEmailConfigurationWriteRequestSchema = z
       .string()
       .transform((value) => value.trim())
       .pipe(z.string().min(1).max(100)),
+    resendCooldownSeconds: z.number().int().min(30).max(600),
     expectedUpdatedAt: z.number().int().safe().nonnegative(),
   })
   .strict();
@@ -74,6 +75,7 @@ export const adminPlatformEmailSettingsSchema = z
     passwordConfigured: z.boolean(),
     fromAddress: z.string().max(320),
     fromName: z.string().max(100),
+    resendCooldownSeconds: z.number().int().min(30).max(600),
     updatedAt: z.number().int().safe().nonnegative(),
   })
   .strict();

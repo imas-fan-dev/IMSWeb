@@ -67,7 +67,7 @@ The two verification-code success payloads become explicit queue acknowledgement
 }
 ```
 
-`retryAfterSeconds` is an integer derived by the server. A successful new enqueue returns the configured interval, which defaults to 60 and is bounded to 30 through 600 seconds. Cooldown responses return the remaining interval rounded up to whole seconds. Password-reset requests for unknown emails return the same exact response as known accounts. In B2 they persist only an anonymous cooldown row, never a verification candidate or delivery job.
+`retryAfterSeconds` is an integer derived by the server. A successful new enqueue returns the configured interval, which defaults to 60 and is bounded to 30 through 600 seconds. Cooldown responses return the remaining interval rounded up to whole seconds. Web converts the value to an absolute local deadline and recalculates the display from elapsed wall time so background-tab throttling or device sleep cannot extend the disabled state by counting delayed callbacks. Password-reset requests for unknown emails return the same exact response as known accounts. In B2 they persist only an anonymous cooldown row, never a verification candidate or delivery job.
 
 The managed email settings contracts add `resendCooldownSeconds` to both the exact admin response and write request. Contract validation accepts only integer values from 30 through 600. The field shares the existing `expectedUpdatedAt` optimistic-concurrency boundary.
 
@@ -182,7 +182,7 @@ Policy reads use cache-aside with strict JSON validation and a five-second TTL. 
 
 After the PostgreSQL compare-and-swap succeeds, the admin path writes the returned policy revision through to Valkey. Cache synchronization failure does not roll back the committed PostgreSQL update. It records only a bounded operational event; the short TTL and next cache miss repair the entry. The enqueue transaction always rereads PostgreSQL and returns the committed interval, so cache lag cannot persist an incorrect cooldown.
 
-After enqueue commit, the handler writes the returned absolute cooldown to the recipient cache. If that write fails, the next request falls back to PostgreSQL `resend_after`. A cache hit may reject an early retry without a database round trip, but cache absence never permits a retry because the transactional database check still runs.
+After enqueue commit, the handler writes the returned absolute cooldown to the recipient cache. If that write fails, the next request falls back to PostgreSQL `resend_after`. A cache hit may reject an early retry without a database round trip, but cache absence never permits a retry because the transactional database check still runs. Every bounded email-cache operation receives an `AbortSignal` that the concrete Valkey adapter passes to node-redis; reaching the 250 ms deadline removes commands still waiting in the offline/write queue instead of replaying them after reconnect. Commands already written can still finish, so recipient values remain absolute-deadline snapshots and policy writes remain revision-fenced.
 
 When an initial task fails, the verification row becomes a non-consumable tombstone by clearing the delivery token and setting code attempts to zero while retaining its enqueue-time `resend_after`.
 
@@ -218,7 +218,7 @@ Every later mutation includes job ID, state and exact lease token. Lease timesta
 
 A send attempt receives the job's absolute 60-second deadline. DNS resolution and SMTP delivery are bounded by that deadline. The transport is closed when the deadline is reached.
 
-The runner renews the lease while an attempt is active. If the process exits, the lease expires soon enough for a second worker to reclaim before the job deadline when time remains.
+The runner renews the lease while an attempt is active. Maintenance uses its own timestamp, and `claim` receives a fresh timestamp obtained after maintenance completes so a slow sweep cannot create an already-expired lease. If the process exits, the lease expires soon enough for a second worker to reclaim before the job deadline when time remains.
 
 The deadline prevents a retry from being started after 60 seconds. An external SMTP server may still have accepted an ambiguous attempt before the local transport was closed.
 
@@ -360,7 +360,7 @@ Release B2 contains no migration. It changes:
 
 Deployment starts and verifies the Release B2 Worker before starting the enqueueing API.
 
-If Release B2 fails, automatic rollback returns to B1. The B1 Worker understands and drains jobs created during the candidate window, while its API returns to synchronous delivery. Queue schema, payload version and anonymous cooldown schema remain compatible across this rollback window.
+If Release B2 fails, automatic rollback returns to B1. Before candidate migrations run, production and preview use the current image to verify that the B1 anonymous-cooldown migration exists; a Release A current image is rejected before candidate Worker or API startup. The B1 Worker understands and drains jobs created during the candidate window, while its API returns to synchronous delivery. Queue schema, payload version and anonymous cooldown schema remain compatible across this rollback window.
 
 ### Deployment scripts
 
@@ -401,7 +401,7 @@ No Backoffice queue page or manual retry API is added in this phase.
 | Failed resend invalidates old code | Clear only matching pending fields; keep active hash/expiry |
 | Frontend cooldown is bypassed | Keep the transactionally persisted PostgreSQL cooldown authoritative and use the returned interval in Web |
 | Slow cache refill overwrites a new policy | Compare `updatedAt` atomically in Valkey and reject older writes |
-| Valkey update fails after database commit | Fall back to PostgreSQL, bound cache TTL to five seconds and repair on the next miss |
+| Valkey rejects or never settles after database commit | Bound each awaited cache operation, abort commands still waiting in node-redis, return the committed result, fall back to PostgreSQL and repair on the next miss |
 | Queue leaks email/code | Encrypt minimal payload and bind it with AES-GCM authenticated data |
 | Provider outage causes restart loop | Exclude SMTP availability from Worker readiness |
 | Previous image cannot read new migration | Stage B1 as a schema-only release; recover a failed B1 with its own image, and roll B2 back only to Worker-capable B1 |

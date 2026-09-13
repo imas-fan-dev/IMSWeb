@@ -1,13 +1,11 @@
 import {
   adminPlatformEmailConfigurationTestRequestSchema,
   adminPlatformEmailConfigurationWriteRequestSchema,
+  type AdminPlatformEmailConfigurationTestRequest as AdminPlatformEmailConfigurationTestInput,
+  type AdminPlatformEmailConfigurationWriteRequest as AdminPlatformEmailConfigurationInput,
+  type AdminPlatformEmailSecurity,
+  type AdminPlatformEmailSettings,
 } from "@imsweb/contracts/platform/admin-email"
-import type {
-  AdminPlatformEmailConfigurationInput,
-  AdminPlatformEmailConfigurationTestInput,
-  AdminPlatformEmailSecurity,
-  AdminPlatformEmailSettings,
-} from "~/lib/api"
 
 export interface PlatformEmailDraft {
   enabled: boolean
@@ -21,6 +19,7 @@ export interface PlatformEmailDraft {
   passwordConfigured: boolean
   fromAddress: string
   fromName: string
+  resendCooldownSeconds: string
   testRecipient: string
   updatedAt: number
 }
@@ -38,6 +37,7 @@ export function emptyPlatformEmailDraft(): PlatformEmailDraft {
     passwordConfigured: false,
     fromAddress: "",
     fromName: "IMSWeb",
+    resendCooldownSeconds: "60",
     testRecipient: "",
     updatedAt: 0,
   }
@@ -49,6 +49,7 @@ export function platformEmailDraft(
   return {
     ...settings,
     port: String(settings.port),
+    resendCooldownSeconds: String(settings.resendCooldownSeconds),
     username: "",
     password: "",
     testRecipient: "",
@@ -67,6 +68,7 @@ export function platformEmailConfigurationInput(
     ...(draft.password ? { password: draft.password } : {}),
     fromAddress: draft.fromAddress,
     fromName: draft.fromName,
+    resendCooldownSeconds: Number(draft.resendCooldownSeconds),
     expectedUpdatedAt: draft.updatedAt,
   }
 }

@@ -11,6 +11,7 @@ import type {
     PlatformEmailConfigurationRecord,
     PlatformEmailConfigurationStore,
 } from '@/ports/email';
+import { withBoundedCacheOperation } from '@/utils/cache/bounded-operation';
 
 function record(
     overrides: Partial<PlatformEmailConfigurationRecord> = {},
@@ -24,6 +25,7 @@ function record(
         passwordCiphertext: 'encrypted-password',
         fromAddress: 'mail@example.com',
         fromName: 'IMSWeb',
+        resendCooldownSeconds: 60,
         updatedAt: 1_000,
         ...overrides,
     };
@@ -73,6 +75,7 @@ function input(overrides: Record<string, unknown> = {}) {
         password: 'smtp-password',
         fromAddress: 'mail@texasoct.tech',
         fromName: 'IMSWeb',
+        resendCooldownSeconds: 60,
         expectedUpdatedAt: 1_000,
         ...overrides,
     };
@@ -136,6 +139,7 @@ test('enabled SMTP updates verify TLS before the optimistic write', async () => 
     assert.equal(transportConfig?.resolvedAddress, '93.184.216.34');
     assert.equal(database.current().usernameCiphertext, 'encrypted:mail@texasoct.tech');
     assert.equal(database.current().passwordCiphertext, 'encrypted:smtp-password');
+    assert.equal(database.current().resendCooldownSeconds, 60);
     assert.equal(database.writes(), 1);
 });
 
@@ -154,17 +158,31 @@ test('SMTP settings never expose stored credentials', async () => {
     assert.equal(settings.usernameMasked, 'ma***@example.com');
     assert.equal(settings.passwordConfigured, true);
     assert.equal(settings.configured, true);
+    assert.equal(settings.resendCooldownSeconds, 60);
     assert.equal('password' in settings, false);
     assert.equal('username' in settings, false);
 });
 
 test('stale SMTP writes return the current settings without opening a connection', async () => {
     const database = store(record({ updatedAt: 2_000 }));
+    const policyWrites: unknown[] = [];
     const service = new ConfiguredPlatformEmailService(
         database.adapter,
         secretBox,
         () => {
             throw new Error('transport should not be created');
+        },
+        undefined,
+        {
+            resendPolicyCache: {
+                async read() {
+                    return null;
+                },
+                async writeIfNewer(policy) {
+                    policyWrites.push(policy);
+                    return true;
+                },
+            },
         },
     );
 
@@ -173,9 +191,244 @@ test('stale SMTP writes return the current settings without opening a connection
     assert.equal(result.status, 'conflict');
     assert.equal(result.settings.updatedAt, 2_000);
     assert.equal(database.writes(), 0);
+    assert.deepEqual(policyWrites, []);
 });
 
-test('SMTP delivery reads the active database configuration for every message', async () => {
+test('SMTP database compare-and-swap conflicts do not write the resend policy cache', async () => {
+    const current = record();
+    const winning = record({ resendCooldownSeconds: 600, updatedAt: 2_000 });
+    const policyWrites: unknown[] = [];
+    const configurationStore: PlatformEmailConfigurationStore = {
+        async getPlatformEmailConfiguration() {
+            return current;
+        },
+        async updatePlatformEmailConfiguration() {
+            return { status: 'conflict', configuration: winning };
+        },
+    };
+    const service = new ConfiguredPlatformEmailService(
+        configurationStore,
+        secretBox,
+        () => {
+            throw new Error('transport should not be created');
+        },
+        undefined,
+        {
+            resendPolicyCache: {
+                async read() {
+                    return null;
+                },
+                async writeIfNewer(policy) {
+                    policyWrites.push(policy);
+                    return true;
+                },
+            },
+        },
+    );
+
+    const result = await service.updateSettings(input({ enabled: false }));
+
+    assert.equal(result.status, 'conflict');
+    assert.equal(result.settings.updatedAt, 2_000);
+    assert.equal(result.settings.resendCooldownSeconds, 600);
+    assert.deepEqual(policyWrites, []);
+});
+
+test('saved SMTP settings write the returned resend policy revision through cache', async () => {
+    const database = store(record());
+    const policyWrites: unknown[] = [];
+    const service = new ConfiguredPlatformEmailService(
+        database.adapter,
+        secretBox,
+        () => {
+            throw new Error('transport should not be created');
+        },
+        undefined,
+        {
+            resendPolicyCache: {
+                async read() {
+                    return null;
+                },
+                async writeIfNewer(policy) {
+                    policyWrites.push(policy);
+                    return true;
+                },
+            },
+        },
+    );
+
+    const result = await service.updateSettings(input({
+        enabled: false,
+        resendCooldownSeconds: 30,
+    }));
+
+    assert.equal(result.status, 'saved');
+    assert.deepEqual(policyWrites, [{
+        resendCooldownSeconds: 30,
+        updatedAt: result.settings.updatedAt,
+    }]);
+});
+
+test('SMTP policy cache failure does not change a committed settings result', async () => {
+    const database = store(record());
+    const reported: string[] = [];
+    const service = new ConfiguredPlatformEmailService(
+        database.adapter,
+        secretBox,
+        () => {
+            throw new Error('transport should not be created');
+        },
+        undefined,
+        {
+            resendPolicyCache: {
+                async read() {
+                    return null;
+                },
+                async writeIfNewer() {
+                    throw new Error('cache error with secret-like detail');
+                },
+            },
+            reportResendPolicyCacheError(operation) {
+                reported.push(operation);
+            },
+        },
+    );
+
+    const result = await service.updateSettings(input({ enabled: false }));
+
+    assert.equal(result.status, 'saved');
+    assert.equal(database.writes(), 1);
+    assert.deepEqual(reported, ['write-through']);
+});
+
+test('SMTP policy cache timeout does not delay a committed settings result indefinitely', async () => {
+    const database = store(record());
+    const reported: string[] = [];
+    let aborted = false;
+    const service = new ConfiguredPlatformEmailService(
+        database.adapter,
+        secretBox,
+        () => {
+            throw new Error('transport should not be created');
+        },
+        undefined,
+        {
+            resendPolicyCache: {
+                async read() {
+                    return null;
+                },
+                writeIfNewer(_record, signal) {
+                    return new Promise<never>((_resolve, reject) => {
+                        signal?.addEventListener(
+                            'abort',
+                            () => {
+                                aborted = true;
+                                reject(new Error('cache operation aborted'));
+                            },
+                            { once: true },
+                        );
+                    });
+                },
+            },
+            reportResendPolicyCacheError(operation) {
+                reported.push(operation);
+            },
+        },
+    );
+
+    const result = await withBoundedCacheOperation(
+        () => service.updateSettings(input({ enabled: false })),
+        1_000,
+    );
+
+    assert.equal(result.status, 'saved');
+    assert.equal(database.writes(), 1);
+    assert.deepEqual(reported, ['write-through']);
+    assert.equal(aborted, true);
+});
+
+test('SMTP resend cooldown accepts boundaries and retains stored credentials', async () => {
+    for (const resendCooldownSeconds of [30, 600]) {
+        const database = store(record());
+        const service = new ConfiguredPlatformEmailService(
+            database.adapter,
+            secretBox,
+            () => {
+                throw new Error('transport should not be created');
+            },
+        );
+
+        const result = await service.updateSettings(input({
+            enabled: false,
+            username: undefined,
+            password: undefined,
+            resendCooldownSeconds,
+        }));
+
+        assert.equal(result.status, 'saved');
+        assert.equal(database.current().resendCooldownSeconds, resendCooldownSeconds);
+        assert.equal(database.current().usernameCiphertext, 'encrypted-user');
+        assert.equal(database.current().passwordCiphertext, 'encrypted-password');
+        assert.equal(database.writes(), 1);
+    }
+});
+
+test('SMTP resend cooldown rejects out-of-range and non-integer values', async () => {
+    for (const resendCooldownSeconds of [29, 30.5, 601]) {
+        const database = store(record());
+        const service = new ConfiguredPlatformEmailService(
+            database.adapter,
+            secretBox,
+            () => {
+                throw new Error('transport should not be created');
+            },
+        );
+
+        await assert.rejects(
+            () => service.updateSettings(input({
+                enabled: false,
+                resendCooldownSeconds,
+            })),
+            /resend cooldown must be an integer from 30 to 600 seconds/,
+        );
+        assert.equal(database.writes(), 0);
+    }
+});
+
+test('SMTP test send uses the complete draft without persisting it', async () => {
+    const database = store(record());
+    const events: string[] = [];
+    const service = new ConfiguredPlatformEmailService(
+        database.adapter,
+        secretBox,
+        () => ({
+            async verify() {
+                events.push('verify');
+                return true;
+            },
+            async sendMail(message) {
+                events.push(`send:${message.to}`);
+                return {};
+            },
+            close() {
+                events.push('close');
+            },
+        }),
+        async () => ['93.184.216.34'],
+    );
+
+    const result = await service.sendTest({
+        ...input({ resendCooldownSeconds: 30 }),
+        recipient: 'ADMIN@example.com',
+    });
+
+    assert.deepEqual(result, { status: 'sent', recipient: 'admin@example.com' });
+    assert.deepEqual(events, ['verify', 'send:admin@example.com', 'close']);
+    assert.equal(database.current().resendCooldownSeconds, 60);
+    assert.equal(database.writes(), 0);
+});
+
+test('worker SMTP delivery reads the active database configuration for every message', async () => {
     const database = store(record({ enabled: true }));
     const recipients: string[] = [];
     const service = new ConfiguredPlatformEmailService(
@@ -187,20 +440,25 @@ test('SMTP delivery reads the active database configuration for every message', 
             },
             async sendMail(message) {
                 recipients.push(message.to);
-                return {};
+                return { accepted: [message.to] };
             },
             close() {},
         }),
         async () => ['93.184.216.34'],
     );
 
-    assert.equal(await service.isAvailable(), true);
-    await service.sendRegistrationVerification({
-        email: 'producer@example.com',
-        code: '123456',
-        expiresInMinutes: 10,
+    const result = await service.deliverVerification({
+        purpose: 'registration',
+        message: {
+            email: 'producer@example.com',
+            code: '123456',
+            expiresInMinutes: 10,
+        },
+        deadlineAt: Date.now() + 1_000,
+        signal: new AbortController().signal,
     });
 
+    assert.equal(result.status, 'accepted');
     assert.deepEqual(recipients, ['producer@example.com']);
 });
 
@@ -251,6 +509,7 @@ test(
         );
         const initial = await repository.getPlatformEmailConfiguration();
         assert.equal(initial.enabled, false);
+        assert.equal(initial.resendCooldownSeconds, 60);
         assert.equal(initial.updatedAt, 0);
 
         const saved = await repository.updatePlatformEmailConfiguration({
@@ -260,12 +519,18 @@ test(
                 usernameCiphertext: 'ciphertext-user',
                 passwordCiphertext: 'ciphertext-password',
                 fromAddress: 'mail@texasoct.tech',
+                resendCooldownSeconds: 30,
                 updatedAt: 1,
             }),
             expectedUpdatedAt: 0,
         });
         assert.equal(saved.status, 'saved');
         assert.equal(saved.configuration.host, 'smtp.qiye.163.com');
+        assert.equal(saved.configuration.resendCooldownSeconds, 30);
+        assert.equal(
+            (await repository.getPlatformEmailConfiguration()).resendCooldownSeconds,
+            30,
+        );
 
         const conflict = await repository.updatePlatformEmailConfiguration({
             ...saved.configuration,
@@ -275,6 +540,7 @@ test(
         });
         assert.equal(conflict.status, 'conflict');
         assert.equal(conflict.configuration.enabled, true);
+        assert.equal(conflict.configuration.resendCooldownSeconds, 30);
         assert.equal(conflict.configuration.updatedAt, 1);
     },
 );

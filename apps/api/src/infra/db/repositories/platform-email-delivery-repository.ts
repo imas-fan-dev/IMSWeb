@@ -8,6 +8,7 @@ import type {
     PlatformEmailDeliveryPurpose,
     PlatformEmailDeliveryQueue,
     PlatformEmailDeliveryWorkerStore,
+    PlatformPasswordResetEmailDeliveryEnqueueInput,
 } from '@/ports/email-delivery';
 import type { ManagedSqlDatabase, SqlDatabase } from '@/infra/db/sql/database';
 import { executeSql, queryAll, queryOne, sqlStatement } from '@/infra/db/sql/query';
@@ -18,10 +19,21 @@ const REGISTRATION_EXPIRY_MS = 10 * 60_000;
 const PASSWORD_RESET_EXPIRY_MS = 15 * 60_000;
 const PROVISIONAL_EXPIRY_MARGIN_MS = 2 * 60_000;
 const ATTEMPTS_REMAINING = 5;
+const EXPIRED_CANDIDATE_CLEANUP_LIMIT = 1_000;
+const EXPIRED_REQUEST_COOLDOWN_CLEANUP_LIMIT = 1_000;
+const PASSWORD_RESET_RECIPIENT_KEY_PATTERN = /^[a-f0-9]{64}$/;
 const HEX_BYTES = 32;
 
 interface ConfigurationRow {
     resend_cooldown_seconds: number;
+    updated_at: number;
+}
+
+interface RequestCooldownRow {
+    purpose: PlatformEmailDeliveryPurpose;
+    recipient_key: string;
+    enqueued_at: number;
+    resend_after: number;
     updated_at: number;
 }
 
@@ -85,11 +97,47 @@ function verificationSelect(purpose: PlatformEmailDeliveryPurpose): string {
             FROM ${tableFor(purpose)}`;
 }
 
-function retryAfter(row: VerificationRow, now: number): number {
-    if (row.pending_token && row.pending_resend_after !== null) {
-        return Math.max(1, row.pending_resend_after - now);
+function cooldownSnapshot(
+    enqueuedAt: number,
+    resendAfter: number,
+    now: number,
+): Extract<PlatformEmailDeliveryEnqueueResult, { status: 'cooldown' }> {
+    const resendCooldownSeconds = (resendAfter - enqueuedAt) / 1000;
+    if (
+        !Number.isSafeInteger(resendCooldownSeconds)
+        || resendCooldownSeconds < 30
+        || resendCooldownSeconds > 600
+    ) {
+        throw new Error('Platform email delivery cooldown snapshot is invalid');
     }
-    return Math.max(1, row.resend_after - now);
+    return {
+        status: 'cooldown',
+        enqueuedAt,
+        resendAfter,
+        resendCooldownSeconds,
+        retryAfterMs: Math.max(1, resendAfter - now),
+    };
+}
+
+function cooldownResult(
+    row: VerificationRow,
+    now: number,
+): Extract<PlatformEmailDeliveryEnqueueResult, { status: 'cooldown' }> {
+    const pending = row.pending_token !== null
+        && row.pending_resend_after !== null
+        && row.pending_created_at !== null;
+    return cooldownSnapshot(
+        pending ? row.pending_created_at! : row.created_at,
+        pending ? row.pending_resend_after! : row.resend_after,
+        now,
+    );
+}
+
+function requestCooldownResult(
+    row: RequestCooldownRow,
+    now: number,
+): Extract<PlatformEmailDeliveryEnqueueResult, { status: 'cooldown' }> {
+    return cooldownSnapshot(row.enqueued_at, row.resend_after, now);
 }
 
 export class SqlPlatformEmailDeliveryRepository
@@ -103,18 +151,21 @@ export class SqlPlatformEmailDeliveryRepository
         if (input.purpose !== 'registration') {
             throw new Error('Registration delivery purpose is required');
         }
-        return this.enqueue(input, false) as Promise<
+        return this.enqueue(input) as Promise<
             Exclude<PlatformEmailDeliveryEnqueueResult, { status: 'email-not-found' }>
         >;
     }
 
     enqueuePasswordReset(
-        input: PlatformEmailDeliveryEnqueueInput,
+        input: PlatformPasswordResetEmailDeliveryEnqueueInput,
     ): Promise<PlatformEmailDeliveryEnqueueResult> {
         if (input.purpose !== 'password_reset') {
             throw new Error('Password reset delivery purpose is required');
         }
-        return this.enqueue(input, true);
+        if (!PASSWORD_RESET_RECIPIENT_KEY_PATTERN.test(input.recipientKey)) {
+            throw new Error('Password reset recipient key must be 64 lowercase hex characters');
+        }
+        return this.enqueuePasswordResetRequest(input);
     }
 
     async claim(input: {
@@ -378,103 +429,282 @@ export class SqlPlatformEmailDeliveryRepository
 
     private async enqueue(
         input: PlatformEmailDeliveryEnqueueInput,
-        requireAccount: boolean,
     ): Promise<PlatformEmailDeliveryEnqueueResult> {
         return this.database.transaction(async (transaction) => {
-            const configuration = await queryOne<ConfigurationRow>(
+            const configuration = await this.lockConfiguration(transaction);
+            await this.deleteExpiredCandidates(
                 transaction,
-                `SELECT resend_cooldown_seconds, updated_at
-                 FROM platform_email_configuration
-                 WHERE singleton_id=1
-                 FOR UPDATE`,
+                input.purpose,
+                input.createdAt,
             );
-            if (!configuration) {
-                throw new Error('Platform email configuration is missing');
-            }
-            if (requireAccount) {
-                const account = await queryOne<{ account_id: string }>(
-                    transaction,
-                    `SELECT account_id FROM platform_email_credentials
-                     WHERE normalized_email=?`,
-                    [input.normalizedEmail],
-                );
-                if (!account) {
-                    return {
-                        status: 'email-not-found',
-                        retryAfterSeconds: configuration.resend_cooldown_seconds,
-                        policyUpdatedAt: configuration.updated_at,
-                    };
-                }
-            }
             const current = await this.lockAggregate(
                 transaction,
                 input.purpose,
                 input.normalizedEmail,
             );
-            const authoritativeResendAfter = current?.pending_token
-                ? current.pending_resend_after
-                : current?.resend_after;
+            const aggregateCooldown = this.activeAggregateCooldown(
+                current,
+                input.createdAt,
+            );
+            if (aggregateCooldown) return aggregateCooldown;
+            return this.stageDelivery(transaction, input, configuration, current);
+        });
+    }
+
+    private async enqueuePasswordResetRequest(
+        input: PlatformPasswordResetEmailDeliveryEnqueueInput,
+    ): Promise<PlatformEmailDeliveryEnqueueResult> {
+        return this.database.transaction(async (transaction) => {
+            await this.deleteExpiredRequestCooldowns(transaction, input.createdAt);
+            const existingCooldown = await this.lockRequestCooldown(
+                transaction,
+                input.recipientKey,
+            );
             if (
-                current &&
-                authoritativeResendAfter !== null &&
-                authoritativeResendAfter !== undefined &&
-                authoritativeResendAfter > input.createdAt
+                existingCooldown &&
+                existingCooldown.resend_after > input.createdAt
             ) {
-                return {
-                    status: 'cooldown',
-                    retryAfterMs: retryAfter(current, input.createdAt),
-                };
+                return requestCooldownResult(existingCooldown, input.createdAt);
             }
-            const oldToken = current?.pending_token ?? current?.delivery_token;
-            if (oldToken) {
-                await executeSql(
-                    transaction,
-                    `UPDATE platform_email_delivery_jobs
-                     SET state='superseded', lease_token=NULL, lease_expires_at=NULL,
-                         updated_at=?
-                     WHERE delivery_token=?
-                       AND state IN ('queued', 'running', 'retry_wait')`,
-                    [input.createdAt, oldToken],
-                );
-            }
+
+            const configuration = await this.lockConfiguration(transaction);
             const resendAfter =
                 input.createdAt + configuration.resend_cooldown_seconds * 1000;
-            const provisionalExpiresAt =
-                input.createdAt + expiryFor(input.purpose) +
-                PROVISIONAL_EXPIRY_MARGIN_MS;
-            await this.stageCandidate(
+            const upserted = await sqlStatement(
                 transaction,
-                input,
-                current,
-                provisionalExpiresAt,
-                resendAfter,
-            );
-            await executeSql(
-                transaction,
-                `INSERT INTO platform_email_delivery_jobs
-                    (id, purpose, delivery_token, payload_ciphertext,
-                     payload_version, state, attempts, next_attempt_at,
-                     deadline_at, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`,
+                `INSERT INTO platform_email_request_cooldowns
+                    (purpose, recipient_key, enqueued_at, resend_after, updated_at)
+                 VALUES ('password_reset', ?, ?, ?, ?)
+                 ON CONFLICT (purpose, recipient_key) DO UPDATE
+                 SET enqueued_at=EXCLUDED.enqueued_at,
+                     resend_after=EXCLUDED.resend_after,
+                     updated_at=EXCLUDED.updated_at
+                 WHERE platform_email_request_cooldowns.resend_after<=EXCLUDED.enqueued_at
+                 RETURNING purpose, recipient_key, enqueued_at, resend_after, updated_at`,
                 [
-                    input.jobId,
-                    input.purpose,
-                    input.deliveryToken,
-                    input.payloadCiphertext,
-                    input.payloadVersion,
+                    input.recipientKey,
                     input.createdAt,
-                    input.createdAt + DELIVERY_DEADLINE_MS,
-                    input.createdAt,
+                    resendAfter,
                     input.createdAt,
                 ],
+            ).all<RequestCooldownRow>();
+            const committedCooldown = upserted.results[0];
+            if (!committedCooldown) {
+                const concurrentCooldown = await this.lockRequestCooldown(
+                    transaction,
+                    input.recipientKey,
+                );
+                if (
+                    concurrentCooldown &&
+                    concurrentCooldown.resend_after > input.createdAt
+                ) {
+                    return requestCooldownResult(
+                        concurrentCooldown,
+                        input.createdAt,
+                    );
+                }
+                throw new Error('Password reset cooldown upsert lost its fence');
+            }
+
+            const account = await queryOne<{ account_id: string }>(
+                transaction,
+                `SELECT account_id FROM platform_email_credentials
+                 WHERE normalized_email=?`,
+                [input.normalizedEmail],
             );
-            return {
-                status: 'queued',
-                resendAfter,
-                retryAfterSeconds: configuration.resend_cooldown_seconds,
-                policyUpdatedAt: configuration.updated_at,
-            };
+            if (!account) {
+                return {
+                    status: 'email-not-found',
+                    enqueuedAt: committedCooldown.enqueued_at,
+                    resendAfter: committedCooldown.resend_after,
+                    resendCooldownSeconds: configuration.resend_cooldown_seconds,
+                    retryAfterSeconds: configuration.resend_cooldown_seconds,
+                    policyUpdatedAt: configuration.updated_at,
+                };
+            }
+
+            await this.deleteExpiredCandidates(
+                transaction,
+                input.purpose,
+                input.createdAt,
+            );
+            const current = await this.lockAggregate(
+                transaction,
+                input.purpose,
+                input.normalizedEmail,
+            );
+            const aggregateCooldown = this.activeAggregateCooldown(
+                current,
+                input.createdAt,
+            );
+            if (aggregateCooldown) {
+                await executeSql(
+                    transaction,
+                    `UPDATE platform_email_request_cooldowns
+                     SET enqueued_at=?, resend_after=?, updated_at=?
+                     WHERE purpose='password_reset' AND recipient_key=?`,
+                    [
+                        aggregateCooldown.enqueuedAt,
+                        aggregateCooldown.resendAfter,
+                        input.createdAt,
+                        input.recipientKey,
+                    ],
+                );
+                return aggregateCooldown;
+            }
+            return this.stageDelivery(transaction, input, configuration, current);
         });
+    }
+
+    private lockConfiguration(
+        transaction: SqlDatabase,
+    ): Promise<ConfigurationRow> {
+        return queryOne<ConfigurationRow>(
+            transaction,
+            `SELECT resend_cooldown_seconds, updated_at
+             FROM platform_email_configuration
+             WHERE singleton_id=1
+             FOR UPDATE`,
+        ).then((configuration) => {
+            if (!configuration) {
+                throw new Error('Platform email configuration is missing');
+            }
+            return configuration;
+        });
+    }
+
+    private activeAggregateCooldown(
+        current: VerificationRow | null,
+        now: number,
+    ): Extract<PlatformEmailDeliveryEnqueueResult, { status: 'cooldown' }> | null {
+        const authoritativeResendAfter = current?.pending_token
+            ? current.pending_resend_after
+            : current?.resend_after;
+        if (
+            !current ||
+            authoritativeResendAfter === null ||
+            authoritativeResendAfter === undefined ||
+            authoritativeResendAfter <= now
+        ) {
+            return null;
+        }
+        return cooldownResult(current, now);
+    }
+
+    private async stageDelivery(
+        transaction: SqlDatabase,
+        input: PlatformEmailDeliveryEnqueueInput,
+        configuration: ConfigurationRow,
+        current: VerificationRow | null,
+    ): Promise<Extract<PlatformEmailDeliveryEnqueueResult, { status: 'queued' }>> {
+        const oldToken = current?.pending_token ?? current?.delivery_token;
+        if (oldToken) {
+            await executeSql(
+                transaction,
+                `UPDATE platform_email_delivery_jobs
+                 SET state='superseded', lease_token=NULL, lease_expires_at=NULL,
+                     updated_at=?
+                 WHERE delivery_token=?
+                   AND state IN ('queued', 'running', 'retry_wait')`,
+                [input.createdAt, oldToken],
+            );
+        }
+        const resendAfter =
+            input.createdAt + configuration.resend_cooldown_seconds * 1000;
+        const provisionalExpiresAt =
+            input.createdAt + expiryFor(input.purpose) +
+            PROVISIONAL_EXPIRY_MARGIN_MS;
+        await this.stageCandidate(
+            transaction,
+            input,
+            current,
+            provisionalExpiresAt,
+            resendAfter,
+        );
+        await executeSql(
+            transaction,
+            `INSERT INTO platform_email_delivery_jobs
+                (id, purpose, delivery_token, payload_ciphertext,
+                 payload_version, state, attempts, next_attempt_at,
+                 deadline_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`,
+            [
+                input.jobId,
+                input.purpose,
+                input.deliveryToken,
+                input.payloadCiphertext,
+                input.payloadVersion,
+                input.createdAt,
+                input.createdAt + DELIVERY_DEADLINE_MS,
+                input.createdAt,
+                input.createdAt,
+            ],
+        );
+        return {
+            status: 'queued',
+            resendAfter,
+            retryAfterSeconds: configuration.resend_cooldown_seconds,
+            policyUpdatedAt: configuration.updated_at,
+        };
+    }
+
+    private deleteExpiredRequestCooldowns(
+        transaction: SqlDatabase,
+        now: number,
+    ): Promise<unknown> {
+        return executeSql(
+            transaction,
+            `DELETE FROM platform_email_request_cooldowns
+             WHERE (purpose, recipient_key) IN (
+                 SELECT purpose, recipient_key
+                 FROM platform_email_request_cooldowns
+                 WHERE resend_after<=?
+                 ORDER BY resend_after, purpose, recipient_key
+                 LIMIT ${EXPIRED_REQUEST_COOLDOWN_CLEANUP_LIMIT}
+             )`,
+            [now],
+        );
+    }
+
+    private lockRequestCooldown(
+        transaction: SqlDatabase,
+        recipientKey: string,
+    ): Promise<RequestCooldownRow | null> {
+        return queryOne<RequestCooldownRow>(
+            transaction,
+            `SELECT purpose, recipient_key, enqueued_at, resend_after, updated_at
+             FROM platform_email_request_cooldowns
+             WHERE purpose='password_reset' AND recipient_key=?
+             FOR UPDATE`,
+            [recipientKey],
+        );
+    }
+
+    private deleteExpiredCandidates(
+        transaction: SqlDatabase,
+        purpose: PlatformEmailDeliveryPurpose,
+        now: number,
+    ): Promise<unknown> {
+        const table = tableFor(purpose);
+        return executeSql(
+            transaction,
+            `DELETE FROM ${table}
+             WHERE expires_at<=?
+               AND (pending_token IS NULL OR pending_expires_at<=?)
+               AND (CASE WHEN pending_token IS NULL
+                    THEN resend_after ELSE pending_resend_after END)<=?
+               AND normalized_email IN (
+                 SELECT normalized_email
+                 FROM ${table}
+                 WHERE expires_at<=?
+                   AND (pending_token IS NULL OR pending_expires_at<=?)
+                   AND (CASE WHEN pending_token IS NULL
+                        THEN resend_after ELSE pending_resend_after END)<=?
+                 ORDER BY expires_at, normalized_email
+                 LIMIT ${EXPIRED_CANDIDATE_CLEANUP_LIMIT}
+               )`,
+            [now, now, now, now, now, now],
+        );
     }
 
     private async stageCandidate(
@@ -609,7 +839,8 @@ export class SqlPlatformEmailDeliveryRepository
         await executeSql(
             transaction,
             `UPDATE ${table}
-             SET resend_after=pending_resend_after, pending_token=NULL,
+             SET resend_after=pending_resend_after,
+                 created_at=pending_created_at, pending_token=NULL,
                  pending_code_hash=NULL, pending_expires_at=NULL,
                  pending_resend_after=NULL, pending_attempts_remaining=NULL,
                  pending_created_at=NULL, updated_at=?

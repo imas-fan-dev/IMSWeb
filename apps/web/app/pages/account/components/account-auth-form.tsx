@@ -62,6 +62,10 @@ type FieldName =
 type FieldErrors = Partial<Record<FieldName, string>>
 type VerificationFeedbackKind = "error" | "success"
 
+function remainingCooldownSeconds(deadline: number): number {
+  return Math.min(600, Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+}
+
 interface AccountAuthFormProps {
   mode: AccountAuthMode
 }
@@ -82,6 +86,8 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const [verificationRequested, setVerificationRequested] = useState(false)
   const [verificationCooldownSeconds, setVerificationCooldownSeconds] =
     useState(0)
+  const [verificationCooldownDeadline, setVerificationCooldownDeadline] =
+    useState<number | null>(null)
   const [verificationFeedback, setVerificationFeedback] = useState("")
   const [verificationFeedbackKind, setVerificationFeedbackKind] =
     useState<VerificationFeedbackKind>("success")
@@ -139,12 +145,21 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   }, [isReset])
 
   useEffect(() => {
-    if (!verificationCoolingDown) return
-    const timer = window.setInterval(() => {
-      setVerificationCooldownSeconds((current) => Math.max(0, current - 1))
-    }, 1000)
+    if (verificationCooldownDeadline === null) return
+    const updateCooldown = () => {
+      const remaining = remainingCooldownSeconds(verificationCooldownDeadline)
+      setVerificationCooldownSeconds(remaining)
+      if (remaining === 0) setVerificationCooldownDeadline(null)
+    }
+    updateCooldown()
+    const timer = window.setInterval(updateCooldown, 1000)
     return () => window.clearInterval(timer)
-  }, [verificationCoolingDown])
+  }, [verificationCooldownDeadline])
+
+  function startVerificationCooldown(seconds: number) {
+    setVerificationCooldownSeconds(seconds)
+    setVerificationCooldownDeadline(Date.now() + seconds * 1000)
+  }
 
   function clearFieldError(field: FieldName) {
     setFieldErrors((current) => {
@@ -232,20 +247,25 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
     return t("platformAuth.requestFailed")
   }
 
-  function retryAfterSeconds(error: unknown) {
-    if (!isApiError(error) || error.status !== 429) return 0
+  function retryAfterSeconds(error: unknown): number | null {
+    if (!isApiError(error) || error.kind !== "http" || error.status !== 429) {
+      return null
+    }
     const payload = error.payload
     if (
       !payload ||
       typeof payload !== "object" ||
       !("retryAfterSeconds" in payload)
     ) {
-      return 60
+      return null
     }
     const value = payload.retryAfterSeconds
-    return typeof value === "number" && Number.isInteger(value) && value > 0
+    return typeof value === "number" &&
+      Number.isInteger(value) &&
+      value >= 1 &&
+      value <= 600
       ? value
-      : 60
+      : null
   }
 
   async function sendVerificationCode() {
@@ -271,22 +291,21 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
           : sendPlatformRegistrationVerificationCode(result.data)
       ).send()
       setVerificationRequested(true)
-      setVerificationCooldownSeconds(response.retryAfterSeconds ?? 60)
+      startVerificationCooldown(response.retryAfterSeconds)
       setVerificationFeedbackKind("success")
       setVerificationFeedback(
         t(
           isReset
-            ? "platformAuth.passwordReset.sent"
-            : "platformAuth.verification.sent",
-          { email: result.data.email }
+            ? "platformAuth.passwordReset.accepted"
+            : "platformAuth.verification.accepted"
         )
       )
     } catch (error) {
       setVerificationFeedbackKind("error")
-      if (isApiError(error) && error.status === 429) {
-        const seconds = retryAfterSeconds(error)
+      const seconds = retryAfterSeconds(error)
+      if (seconds !== null) {
         setVerificationRequested(true)
-        setVerificationCooldownSeconds(seconds)
+        startVerificationCooldown(seconds)
         setVerificationFeedback(
           t("platformAuth.verification.rateLimited", { seconds })
         )
@@ -606,6 +625,7 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                       setVerificationCode("")
                       setVerificationRequested(false)
                       setVerificationCooldownSeconds(0)
+                      setVerificationCooldownDeadline(null)
                       setVerificationFeedback("")
                       setVerificationFeedbackKind("success")
                       clearFieldError("code")
