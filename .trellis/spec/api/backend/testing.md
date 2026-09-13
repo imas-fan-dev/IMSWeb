@@ -77,10 +77,14 @@ where both the test body and the harness can close the same connection.
 - `close()` is idempotent, rejects new work, waits for in-flight allocations and
   connections, retries tracked cleanup, and aggregates unresolved errors.
 - When a connection has more than one cleanup owner, every close call must
-  return the same in-flight close Promise. A boolean `ended` flag is
-  insufficient because another caller can treat close as complete while the
-  underlying pool is still shutting down, allowing forced database deletion to
-  terminate that connection.
+  return the same in-flight close Promise. A boolean `ended` flag is not a
+  completion barrier.
+- A `pg.Pool.end()` Promise does not prove PostgreSQL has removed every backend.
+  After managed close Promises settle, the allocator must use its admin
+  connection to wait up to five seconds for `pg_stat_activity` to drain before
+  force-dropping the database. A failed observation must not skip the forced
+  drop. Timeout diagnostics may include only the test database name and at most
+  16 backend PID and bounded `application_name` pairs.
 
 ### 4. Validation & Error Matrix
 
@@ -92,7 +96,10 @@ where both the test body and the harness can close the same connection.
 | Ambiguous create or migration failure | Force-drop the possibly owned database |
 | Connection resolves while close is running | Close it and never register it |
 | Connection close fails once | Keep it tracked and retry during allocator shutdown |
-| Direct connection close overlaps harness close | Await the shared close Promise before force-drop |
+| Direct connection close overlaps harness close | Await the shared close Promise before cleanup |
+| Closed pool still has a PostgreSQL backend | Poll `pg_stat_activity` before force-drop |
+| Backend remains after five seconds | Emit bounded diagnostics, then force-drop |
+| Backend observation fails | Emit no raw database error and still attempt force-drop |
 | Cleanup still fails after retries | Throw an `AggregateError` containing every failure |
 | Unknown connection passed to the sibling adapter | Reject it |
 
@@ -110,11 +117,12 @@ where both the test body and the harness can close the same connection.
 
 Lifecycle changes must cover enabled and disabled configuration, URL
 precedence and rejection, safe names, create and migration failures, concurrent
-close, sibling connections, cleanup retries, and aggregate failures. A fixture
-with direct and harness cleanup ownership must hold the underlying close on a
-deferred Promise and prove that `DROP DATABASE ... WITH (FORCE)` does not begin
-until that Promise resolves. Verify
-both disabled and enabled operation:
+close, sibling connections, cleanup retries, and aggregate failures. Cover both
+a shared in-flight close Promise and a settled close whose backend remains in
+`pg_stat_activity`; force-drop may occur only after the close Promise settles
+and the backend disappears or the five-second deadline expires. Also prove that
+timeout diagnostics are bounded and observation failure cannot suppress the
+forced drop. Verify both disabled and enabled operation:
 
 ```sh
 node --test apps/api/tests/postgres-test-lifecycle.test.js

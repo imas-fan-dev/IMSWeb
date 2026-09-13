@@ -84,6 +84,10 @@ export function createPostgresTestAllocator(options?: {
         migrationsPath?: string;
     }) => Promise<unknown>;
     createDatabaseName?: (label: string) => string;
+    databaseDrainTimeoutMs?: number;
+    databaseDrainPollMs?: number;
+    now?: () => number;
+    delay?: (milliseconds: number) => Promise<void>;
 }): PostgresTestAllocator;
 export function getSharedPostgresTestAllocator(): PostgresTestAllocator;
 export function closeSharedPostgresTestAllocator(): Promise<void>;

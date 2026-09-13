@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { performance } = require('node:perf_hooks');
 
 const DEFAULT_ADMIN_URL =
     'postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/postgres';
@@ -15,6 +16,9 @@ const CONNECTION_OPTIONS = Object.freeze({
 });
 const DISABLED_REASON =
     'PostgreSQL tests disabled by IMS_TEST_POSTGRES_ENABLED=false';
+const DATABASE_DRAIN_TIMEOUT_MS = 5_000;
+const DATABASE_DRAIN_POLL_MS = 25;
+const DATABASE_DRAIN_DIAGNOSTIC_LIMIT = 16;
 
 function resolvePostgresTestConfig(environment = process.env) {
     const enabledValue = environment.IMS_TEST_POSTGRES_ENABLED;
@@ -125,6 +129,22 @@ function aggregateErrors(errors, message) {
     throw new AggregateError(errors, message);
 }
 
+function positiveIntegerOption(value, fallback, name) {
+    const resolved = value ?? fallback;
+    if (!Number.isSafeInteger(resolved) || resolved <= 0) {
+        throw new Error(`${name} must be a positive integer`);
+    }
+    return resolved;
+}
+
+function emitCleanupWarning(payload) {
+    try {
+        console.warn(JSON.stringify(payload));
+    } catch {
+        // Cleanup diagnostics must never prevent the forced drop.
+    }
+}
+
 function createPostgresTestAllocator(options = {}) {
     const config = resolvePostgresTestConfig(options.environment);
     const createAdminPool = options.createAdminPool ?? ((poolOptions) => {
@@ -136,6 +156,25 @@ function createPostgresTestAllocator(options = {}) {
         return migratePostgres(migrationOptions);
     });
     const createName = options.createDatabaseName ?? createPostgresTestDatabaseName;
+    const drainTimeoutMs = positiveIntegerOption(
+        options.databaseDrainTimeoutMs,
+        DATABASE_DRAIN_TIMEOUT_MS,
+        'databaseDrainTimeoutMs'
+    );
+    const drainPollMs = positiveIntegerOption(
+        options.databaseDrainPollMs,
+        DATABASE_DRAIN_POLL_MS,
+        'databaseDrainPollMs'
+    );
+    if (drainPollMs > drainTimeoutMs) {
+        throw new Error('databaseDrainPollMs must not exceed databaseDrainTimeoutMs');
+    }
+    const now = options.now ?? (() => performance.now());
+    const delay = options.delay ?? ((milliseconds) => new Promise((resolve) => {
+        setTimeout(resolve, milliseconds);
+    }));
+    if (typeof now !== 'function') throw new Error('now must be a function');
+    if (typeof delay !== 'function') throw new Error('delay must be a function');
     let adminPool;
     let templatePromise;
     let templateName;
@@ -160,8 +199,47 @@ function createPostgresTestAllocator(options = {}) {
         return adminPool;
     }
 
+    async function waitForDatabaseDrain(name) {
+        const deadline = now() + drainTimeoutMs;
+        const maximumPolls = Math.ceil(drainTimeoutMs / drainPollMs);
+        for (let poll = 0; ; poll += 1) {
+            const result = await getAdminPool().query(
+                `SELECT pid, application_name
+                 FROM pg_stat_activity
+                 WHERE datname=$1 AND pid<>pg_backend_pid()
+                 ORDER BY pid
+                 LIMIT ${DATABASE_DRAIN_DIAGNOSTIC_LIMIT}`,
+                [name]
+            );
+            if (result.rows.length === 0) return [];
+            if (now() >= deadline || poll >= maximumPolls) return result.rows;
+            await delay(drainPollMs);
+        }
+    }
+
     async function forceDrop(name) {
         if (!createdDatabases.has(name)) return;
+        let remaining = [];
+        try {
+            remaining = await waitForDatabaseDrain(name);
+        } catch {
+            emitCleanupWarning({
+                event: 'postgres_test_database_drain_check_failed',
+                databaseName: name
+            });
+        }
+        if (remaining.length > 0) {
+            emitCleanupWarning({
+                event: 'postgres_test_database_force_drop_with_active_connections',
+                databaseName: name,
+                connections: remaining
+                    .slice(0, DATABASE_DRAIN_DIAGNOSTIC_LIMIT)
+                    .map((row) => ({
+                        pid: Number(row.pid),
+                        applicationName: String(row.application_name ?? '').slice(0, 128)
+                    }))
+            });
+        }
         await getAdminPool().query(
             `DROP DATABASE IF EXISTS ${quoteIdentifier(name)} WITH (FORCE)`
         );
@@ -169,6 +247,7 @@ function createPostgresTestAllocator(options = {}) {
     }
 
     async function createDatabase(name, template) {
+        assertSafePostgresTestDatabaseName(name);
         const templateSql = template
             ? ` TEMPLATE ${quoteIdentifier(template)}`
             : ' TEMPLATE template0';
