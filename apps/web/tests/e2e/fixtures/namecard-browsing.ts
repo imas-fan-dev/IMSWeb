@@ -177,6 +177,9 @@ export async function mockNamecardBrowsing(
   await installAdminAuthMock(page, api, { state: "anonymous" })
   return {
     requests,
+    setTotal(nextTotal: number) {
+      total = nextTotal
+    },
     holdReactions(id: number) {
       let release: () => void = () => undefined
       reactionHolds.set(

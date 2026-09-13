@@ -98,9 +98,13 @@ test("keeps the five App roots usable inside the safe area", async ({
 
   const navigation = page.getByRole("navigation", { name: "主导航" })
   await expect(navigation).toBeVisible()
-  for (const label of ["首页", "社区动态", "站内应用", "地图", "帐号"]) {
-    await expect(navigation.getByRole("link", { name: label })).toBeVisible()
-  }
+  await expect(navigation.getByRole("link")).toHaveText([
+    "首页",
+    "社区",
+    "交换地图",
+    "资料",
+    "我的",
+  ])
 
   await expect
     .poll(() =>
@@ -124,12 +128,11 @@ test("keeps the five App roots usable inside the safe area", async ({
   expect(shellTokens.header).toContain("3rem")
   expect(shellTokens.inline).toContain("1rem")
 
-  await navigation.getByRole("link", { name: "站内应用" }).click()
+  await navigation.getByRole("link", { name: "资料" }).click()
   await expect(page).toHaveURL(/\/apps$/)
-  await expect(page.getByRole("link", { name: "站内应用" })).toHaveAttribute(
-    "aria-current",
-    "page"
-  )
+  await expect(
+    navigation.getByRole("link", { name: "资料", exact: true })
+  ).toHaveAttribute("aria-current", "page")
   await expect
     .poll(() =>
       page.evaluate(

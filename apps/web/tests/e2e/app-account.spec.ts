@@ -77,7 +77,7 @@ test("uses an account root and independent profile section stack", async ({
   await expect(page.getByText("上海")).toBeVisible()
   const accountNavigation = page.getByRole("navigation", { name: "主导航" })
   await expect(
-    accountNavigation.getByRole("link", { name: "帐号" })
+    accountNavigation.getByRole("link", { name: "我的" })
   ).toHaveAttribute("aria-current", "page")
 
   for (const [name, href] of [
@@ -105,7 +105,7 @@ test("uses an account root and independent profile section stack", async ({
   ).toHaveCount(0)
   await expect(page.getByRole("button", { name: "返回" })).toBeVisible()
   await expect(
-    accountNavigation.getByRole("link", { name: "帐号" })
+    accountNavigation.getByRole("link", { name: "我的" })
   ).toHaveAttribute("aria-current", "page")
 
   expect(

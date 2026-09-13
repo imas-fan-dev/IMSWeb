@@ -4,6 +4,7 @@ import { Outlet, useLocation, useMatch } from "react-router"
 
 import { NamecardUploadDialog } from "~/components/community/namecard-upload-dialog"
 import { AppColdStartMask } from "~/components/app/app-cold-start-mask"
+import { AppNavigationProvider } from "~/components/app/app-navigation-provider"
 import { AppTabBar, APP_TAB_BAR_CLEARANCE } from "~/components/app/app-tab-bar"
 import { AppTopBar } from "~/components/app/app-top-bar"
 import { PlatformSessionProvider } from "~/components/platform/platform-session-provider"
@@ -51,51 +52,53 @@ export default function AppLayout() {
 
   return (
     <PlatformSessionProvider>
-      <AppColdStartMask />
-      <div
-        data-app-shell=""
-        data-app-immersive={isExchangeMap ? "" : undefined}
-        className={cn(
-          "group/app-shell relative isolate flex min-h-svh flex-col",
-          isExchangeMap && "h-dvh min-h-0 overflow-hidden"
-        )}
-      >
-        <a
-          href="#main-content"
-          className="fixed top-[calc(0.5rem+var(--safe-area-top))] left-[calc(0.5rem+var(--safe-area-left))] z-100 translate-y-[calc(-100%-var(--safe-area-top)-0.5rem)] rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm focus-visible:translate-y-0"
-        >
-          {t("accessibility.skipToContent")}
-        </a>
-        {isExchangeMap ? null : <SeriesIconBackground />}
-        <AppTopBar />
+      <AppNavigationProvider>
+        <AppColdStartMask />
         <div
+          data-app-shell=""
+          data-app-immersive={isExchangeMap ? "" : undefined}
           className={cn(
-            "relative z-10 flex-1",
-            !isExchangeMap && "bg-background/75",
-            !isExchangeMap && APP_TAB_BAR_CLEARANCE,
-            isExchangeMap && "min-h-0 bg-background"
+            "group/app-shell relative isolate flex min-h-svh flex-col",
+            isExchangeMap && "h-dvh min-h-0 overflow-hidden"
           )}
         >
-          <Outlet />
-        </div>
-        {isExchangeMap ? null : (
+          <a
+            href="#main-content"
+            className="fixed top-[calc(0.5rem+var(--safe-area-top))] left-[calc(0.5rem+var(--safe-area-left))] z-100 translate-y-[calc(-100%-var(--safe-area-top)-0.5rem)] rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm focus-visible:translate-y-0"
+          >
+            {t("accessibility.skipToContent")}
+          </a>
+          {isExchangeMap ? null : <SeriesIconBackground />}
+          <AppTopBar />
           <div
-            data-app-floating-actions
             className={cn(
-              "fixed right-[calc(1rem+var(--safe-area-right))] z-40 flex flex-col items-end gap-2",
-              APP_FLOATING_CONTROL_OFFSET,
-              isNamecardWall &&
-                "group-has-data-namecard-pagination-visible/app-shell:hidden"
+              "relative z-10 flex-1",
+              !isExchangeMap && "bg-background/75",
+              !isExchangeMap && APP_TAB_BAR_CLEARANCE,
+              isExchangeMap && "min-h-0 bg-background"
             )}
           >
-            {isNamecardWall ? <NamecardUploadDialog /> : null}
-            <BackToTop
-              className={cn("static", isWikiCatalog && "max-md:hidden")}
-            />
+            <Outlet />
           </div>
-        )}
-        <AppTabBar />
-      </div>
+          {isExchangeMap ? null : (
+            <div
+              data-app-floating-actions
+              className={cn(
+                "fixed right-[calc(1rem+var(--safe-area-right))] z-40 flex flex-col items-end gap-2",
+                APP_FLOATING_CONTROL_OFFSET,
+                isNamecardWall &&
+                  "group-has-data-namecard-pagination-visible/app-shell:hidden"
+              )}
+            >
+              {isNamecardWall ? <NamecardUploadDialog /> : null}
+              <BackToTop
+                className={cn("static", isWikiCatalog && "max-md:hidden")}
+              />
+            </div>
+          )}
+          <AppTabBar />
+        </div>
+      </AppNavigationProvider>
     </PlatformSessionProvider>
   )
 }

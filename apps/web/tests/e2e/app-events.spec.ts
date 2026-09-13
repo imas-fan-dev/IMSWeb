@@ -430,6 +430,14 @@ test("App community flow respects safe areas and stable list geometry", async ({
 
   await allEventsLink.click()
   await expect(page).toHaveURL(/\/events$/)
+  const heading = page.getByRole("heading", {
+    level: 1,
+    name: "社区动态",
+    exact: true,
+  })
+  await expect(heading).toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+  await expectInsideSafeViewport(page, heading)
   const list = page.getByRole("region", { name: "社区动态列表" })
   await expect(list.getByRole("heading", { name: longTitle })).toBeVisible()
   const firstRow = list.getByRole("listitem").first()
@@ -442,8 +450,7 @@ test("App community flow respects safe areas and stable list geometry", async ({
   await expectNoPageOverflow(page)
 
   await page.evaluate(() => {
-    document.documentElement.style.scrollBehavior = "auto"
-    window.scrollTo(0, 0)
+    window.scrollTo({ top: 0, behavior: "instant" })
   })
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   const requestsBeforeRefresh = eventRequestCount()
@@ -564,7 +571,7 @@ test("App community flow respects safe areas and stable list geometry", async ({
     name: "打开 App 社区动态相关页面",
   })
   await relatedLink.evaluate((element) =>
-    element.scrollIntoView({ block: "center" })
+    element.scrollIntoView({ block: "center", behavior: "instant" })
   )
   await expectMinimumHeight(relatedLink)
   await expect(relatedLink).toHaveAttribute("href", longUrl)

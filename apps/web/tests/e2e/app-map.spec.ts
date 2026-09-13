@@ -1,28 +1,112 @@
-import { expect, test } from "@playwright/test"
+import {
+  fudabaCardPageSchema,
+  fudabaCardQuerySchema,
+  fudabaMapConfigSchema,
+  fudabaMapOfficeListSchema,
+  fudabaMapQuerySchema,
+  fudabaOfficePageSchema,
+  fudabaOfficeQuerySchema,
+  fudabaSeriesListSchema,
+} from "@imsweb/contracts/fudaba"
+
+import { installHomepageLinksMock } from "./fixtures/homepage"
+import { installSeededPublicApis } from "./fixtures/public-content"
+import { expect, test, type ApiDispatcher } from "./fixtures/test"
 
 const emptyPage = {
   items: [],
   pageInfo: { hasNextPage: false, nextCursor: null },
 }
 
-async function installMapMocks(page: import("@playwright/test").Page) {
-  await page.route("**/api/community/exchange/series", async (route) => {
-    await route.fulfill({ json: { items: [] } })
+const series = {
+  items: [
+    {
+      id: 1,
+      code: "765",
+      displayName: "765PRO",
+      color: "#f34f6d",
+      iconUrl: null,
+      imageTransform: {
+        fit: "contain",
+        focalX: 0.5,
+        focalY: 0.5,
+        zoom: 1,
+        rotation: 0,
+      },
+      displayOrder: 0,
+      activeOfficeCount: 0,
+    },
+  ],
+}
+
+function installMapMocks(api: ApiDispatcher) {
+  const mapBounds: string[] = []
+
+  installSeededPublicApis(api, [
+    { path: "/api/wiki/random_idol", times: { min: 0, max: 2 } },
+    { path: "/api/wiki/catalog", times: { min: 0, max: 2 } },
+    { path: "/api/news", times: { min: 0, max: 2 } },
+    { path: "/api/events", times: { min: 0, max: 2 } },
+    {
+      path: "/api/community-posts/spotlight",
+      times: { min: 0, max: 2 },
+    },
+  ])
+  api.expect({
+    name: "App map series",
+    method: "GET",
+    path: "/api/community/exchange/series",
+    responses: { 200: fudabaSeriesListSchema },
+    times: { min: 1, max: 4 },
+    handle: () => ({ status: 200, json: series }),
   })
-  await page.route("**/api/community/exchange/offices?*", async (route) => {
-    await route.fulfill({ json: emptyPage })
+  api.expect({
+    name: "App map office directory",
+    method: "GET",
+    path: "/api/community/exchange/offices",
+    query: fudabaOfficeQuerySchema,
+    responses: { 200: fudabaOfficePageSchema },
+    times: { min: 1, max: 4 },
+    handle: () => ({ status: 200, json: emptyPage }),
   })
-  await page.route("**/api/community/exchange/cards?*", async (route) => {
-    await route.fulfill({ json: emptyPage })
+  api.expect({
+    name: "App map card directory",
+    method: "GET",
+    path: "/api/community/exchange/cards",
+    query: fudabaCardQuerySchema,
+    responses: { 200: fudabaCardPageSchema },
+    times: { min: 1, max: 4 },
+    handle: () => ({ status: 200, json: emptyPage }),
   })
-  await page.route("**/api/community/exchange/map/config", async (route) => {
-    await route.fulfill({
+  api.expect({
+    name: "App map config",
+    method: "GET",
+    path: "/api/community/exchange/map/config",
+    responses: { 200: fudabaMapConfigSchema },
+    times: { min: 1, max: 2 },
+    handle: () => ({
+      status: 200,
       json: { styleUrl: "/maps/exchange-test-style.json" },
-    })
+    }),
   })
-  await page.route("**/api/community/exchange/map/offices?*", async (route) => {
-    await route.fulfill({ json: { items: [], truncated: false } })
+  api.expect({
+    name: "App map viewport offices",
+    method: "GET",
+    path: "/api/community/exchange/map/offices",
+    query: fudabaMapQuerySchema,
+    responses: { 200: fudabaMapOfficeListSchema },
+    times: { min: 1, max: 12 },
+    handle: ({ query }) => {
+      if (query.bbox) {
+        mapBounds.push(
+          Array.isArray(query.bbox) ? query.bbox.join("|") : query.bbox
+        )
+      }
+      return { status: 200, json: { items: [], truncated: false } }
+    },
   })
+
+  return mapBounds
 }
 
 async function applySafeArea(page: import("@playwright/test").Page) {
@@ -55,13 +139,14 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
-  await installMapMocks(page)
 })
 
 test("uses browser geolocation to return to the current position", async ({
   context,
   page,
+  api,
 }) => {
+  installMapMocks(api)
   await context.grantPermissions(["geolocation"])
   await context.setGeolocation({
     longitude: 121.473701,
@@ -98,7 +183,9 @@ test("uses browser geolocation to return to the current position", async ({
 
 test("renders the exchange map behind non-overlapping local and global controls", async ({
   page,
+  api,
 }, testInfo) => {
+  installMapMocks(api)
   await page.goto("/community/exchange")
   await applySafeArea(page)
 
@@ -108,7 +195,7 @@ test("renders the exchange map behind non-overlapping local and global controls"
 
   const globalNavigation = page.getByRole("navigation", { name: "主导航" })
   await expect(
-    globalNavigation.getByRole("link", { name: "地图" })
+    globalNavigation.getByRole("link", { name: "交换地图", exact: true })
   ).toHaveAttribute("aria-current", "page")
 
   const toolTrigger = page.locator('button[aria-controls="exchange-map-tools"]')
@@ -177,4 +264,146 @@ test("renders the exchange map behind non-overlapping local and global controls"
       path: `/tmp/imsweb-app-map-${testInfo.project.name}.png`,
     })
   }
+})
+
+test("keeps map filters and camera while switching tabs without scrolling the document", async ({
+  page,
+  api,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "app-iphone",
+    "Map tab continuity is covered once in the portrait App project."
+  )
+
+  installHomepageLinksMock(api)
+  const mapBounds = installMapMocks(api)
+  await page.goto("/")
+
+  const globalNavigation = page.getByRole("navigation", { name: "主导航" })
+  const mapTab = globalNavigation.getByRole("link", {
+    name: "交换地图",
+    exact: true,
+  })
+  await expect(globalNavigation.getByRole("link")).toHaveText([
+    "首页",
+    "社区",
+    "交换地图",
+    "资料",
+    "我的",
+  ])
+  await mapTab.click()
+  await expect(page).toHaveURL(/\/community\/exchange$/)
+  await expect(mapTab).toHaveAttribute("aria-current", "page")
+
+  const canvas = page.locator("canvas.maplibregl-canvas")
+  await expect(canvas).toBeVisible({ timeout: 15_000 })
+  await expect.poll(() => mapBounds.length).toBeGreaterThan(0)
+
+  const toolTrigger = page.locator('button[aria-controls="exchange-map-tools"]')
+  await toolTrigger.click()
+  await page
+    .getByRole("toolbar", { name: "交换地图工具" })
+    .getByRole("button", { name: "打开筛选" })
+    .click()
+  const filterDialog = page.getByRole("dialog", { name: "筛选地图" })
+  await expect(filterDialog).toBeVisible()
+  const seriesFilter = filterDialog.getByRole("button", {
+    name: /765PRO/,
+  })
+  await seriesFilter.click()
+  await expect(seriesFilter).toHaveAttribute("aria-pressed", "true")
+  await expect
+    .poll(() => new URL(page.url()).searchParams.getAll("series"))
+    .toEqual(["765"])
+  await page.keyboard.press("Escape")
+  await expect(filterDialog).toHaveCount(0)
+
+  const requestCountBeforeZoom = mapBounds.length
+  await page.locator(".maplibregl-ctrl-zoom-in").click()
+  await expect
+    .poll(() => mapBounds.length)
+    .toBeGreaterThan(requestCountBeforeZoom)
+  const zoomedBounds = mapBounds.at(-1)
+  expect(zoomedBounds).toBeTruthy()
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = sessionStorage.getItem("ims:community-exchange-map")
+        return stored ? JSON.parse(stored).viewport?.zoom : null
+      })
+    )
+    .toBeGreaterThan(4.05)
+  const preservedMapState = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem("ims:community-exchange-map") ?? "null")
+  )
+
+  await globalNavigation
+    .getByRole("link", { name: "我的", exact: true })
+    .click()
+  await expect(page).toHaveURL(/\/account\/me$/)
+  await expect(
+    page.getByRole("heading", { name: "我的", exact: true, level: 1 })
+  ).toBeVisible()
+
+  const requestCountBeforeReturn = mapBounds.length
+  await mapTab.click()
+  await expect
+    .poll(() => new URL(page.url()).searchParams.getAll("series"))
+    .toEqual(["765"])
+  await expect(canvas).toBeVisible({ timeout: 15_000 })
+  await expect
+    .poll(() => mapBounds.length)
+    .toBeGreaterThan(requestCountBeforeReturn)
+  await expect.poll(() => mapBounds.at(-1)).toBe(zoomedBounds)
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(sessionStorage.getItem("ims:community-exchange-map") ?? "null")
+    )
+  ).toEqual(preservedMapState)
+
+  const routeBeforeReselection = page.url()
+  const historyLength = await page.evaluate(() => history.length)
+  await page.evaluate(() => {
+    const originalScrollTo = window.scrollTo.bind(window)
+    Reflect.set(window, "__imsMapDocumentScrollCalls", 0)
+    window.scrollTo = ((...args: Parameters<typeof window.scrollTo>) => {
+      Reflect.set(
+        window,
+        "__imsMapDocumentScrollCalls",
+        Number(Reflect.get(window, "__imsMapDocumentScrollCalls")) + 1
+      )
+      Reflect.apply(originalScrollTo, window, args)
+    }) as typeof window.scrollTo
+  })
+  await mapTab.click()
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  )
+  expect(page.url()).toBe(routeBeforeReselection)
+  expect(await page.evaluate(() => history.length)).toBe(historyLength)
+  expect(
+    await page.evaluate(() =>
+      Number(Reflect.get(window, "__imsMapDocumentScrollCalls"))
+    )
+  ).toBe(0)
+
+  await toolTrigger.click()
+  await page
+    .getByRole("toolbar", { name: "交换地图工具" })
+    .getByRole("button", { name: "打开筛选，已应用筛选" })
+    .click()
+  await expect(
+    page
+      .getByRole("dialog", { name: "筛选地图" })
+      .getByRole("button", { name: /765PRO/ })
+  ).toHaveAttribute("aria-pressed", "true")
+
+  await page.goto("/community/exchange/me")
+  await expect(
+    globalNavigation.getByRole("link", { name: "我的", exact: true })
+  ).toHaveAttribute("aria-current", "page")
+  await expect(mapTab).not.toHaveAttribute("aria-current", "page")
 })

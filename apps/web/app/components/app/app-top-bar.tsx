@@ -2,39 +2,30 @@ import { ArrowLeftIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
-import {
-  APP_TABS,
-  appTabIdForPathname,
-  appTabRoot,
-} from "~/components/app/app-tab-model"
+import { APP_TABS, appTabIdForPathname } from "~/components/app/app-tab-model"
+import { useAppNavigation } from "~/components/app/app-navigation-provider"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
 import { Button } from "~/components/ui/button"
-import { normalizeAppPathname } from "~/lib/app-shell-scroll"
-import { useNavigation } from "~/lib/navigation/use-navigation"
+import {
+  isNonScrollingAppRoute,
+  normalizeAppPathname,
+} from "~/lib/app-shell-scroll"
 
 export function AppTopBar() {
   const { t } = useTranslation()
   const location = useLocation()
-  const navigate = useNavigation()
+  const { goBack } = useAppNavigation()
   const pathname = normalizeAppPathname(location.pathname)
   const activeId = appTabIdForPathname(pathname)
   const activeTab = APP_TABS.find((tab) => tab.id === activeId)
 
-  if (activeId === "map" && pathname === appTabRoot("map")) return null
+  if (isNonScrollingAppRoute(pathname)) return null
 
   const isHome = pathname === "/"
   const isTabRoot = activeTab?.to === pathname
   const activeLabel = activeTab ? t(activeTab.label) : "IMSWeb"
   const backLabel = t("navigation.back")
-
-  function goBack() {
-    if (location.key !== "default") {
-      navigate(-1)
-      return
-    }
-    navigate(activeId ? appTabRoot(activeId) : "/")
-  }
 
   return (
     <header className="glass-surface glass-bar glass-scroll-bar glass-refract sticky top-0 z-40 shrink-0 pt-(--safe-area-top)">

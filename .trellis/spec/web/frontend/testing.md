@@ -36,6 +36,13 @@ stable canvas path, so Firefox skips that one success case while retaining the
 explicit map-failure and directory fallback coverage. Do not remove the
 Chromium canvas assertion or the Firefox fallback test.
 
+After a worktree sync or dependency update adds contracts entrypoints, restart
+existing Vite previews before running the matrix. A linked package can otherwise
+be served as raw CommonJS against stale dependency optimization. HTTP 200 alone
+does not prove the client started: wait for the navigation to render, exercise a
+client-side link, and check for page errors. Verify both App and ordinary Web
+previews when both are reused.
+
 ## Scenario: Same-origin API mocks in Playwright
 
 ### 1. Scope / Trigger

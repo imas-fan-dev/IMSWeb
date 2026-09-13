@@ -65,7 +65,26 @@ function renderEventsCenter() {
 }
 
 describe("EventsCenter in the App target", () => {
-  it("drops the page header in favour of the title bar", () => {
+  it("keeps document scroll corrections immediate and restores prior styling on exit", () => {
+    const root = document.documentElement
+    const originalStyle = root.getAttribute("style")
+    root.style.setProperty("scroll-behavior", "smooth", "important")
+    const view = renderEventsCenter()
+    try {
+      expect(root.style.scrollBehavior).toBe("auto")
+      view.unmount()
+      expect(root.style.scrollBehavior).toBe("smooth")
+      expect(root.style.getPropertyPriority("scroll-behavior")).toBe(
+        "important"
+      )
+    } finally {
+      view.unmount()
+      if (originalStyle === null) root.removeAttribute("style")
+      else root.setAttribute("style", originalStyle)
+    }
+  })
+
+  it("shows the page identity with compact App controls", () => {
     renderEventsCenter()
 
     expect(
@@ -77,10 +96,9 @@ describe("EventsCenter in the App target", () => {
     expect(screen.queryByText("已加载 1 条")).not.toBeInTheDocument()
     expect(screen.queryByText("EVENTS")).not.toBeInTheDocument()
 
-    // The visible title is gone, not the accessible one.
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "社区动态"
-    )
+    const heading = screen.getByRole("heading", { level: 1, name: "社区动态" })
+    expect(heading).toBeVisible()
+    expect(heading).not.toHaveClass("sr-only")
   })
 
   it("refreshes on a pull gesture and reports each stage", async () => {

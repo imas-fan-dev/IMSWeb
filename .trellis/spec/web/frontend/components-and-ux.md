@@ -155,6 +155,13 @@ rows can sit above the viewport and return negative `DOMRect` values; clamping t
 values to zero creates false overflow failures. Compare relative centers, edges, and
 adjacent row bounds directly.
 
+### App navigation
+
+Follow [App navigation](./app-navigation.md) for section ownership, queued tab
+input, reading position, history, directory entries, and native verification.
+Keep child-page titles visible when their former tab title becomes a section
+label. Geometry and safe-area rules apply to both restored pages and direct entry.
+
 ### Travelling lens geometry
 
 The website header and App fallback tab bar share `.glass-lens` motion, but each

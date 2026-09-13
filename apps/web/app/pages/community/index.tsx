@@ -1,5 +1,6 @@
 import {
   Building2Icon,
+  CalendarDaysIcon,
   Gamepad2Icon,
   MapPinIcon,
   UsersIcon,
@@ -41,6 +42,13 @@ const exchangeSection = {
   description: "按城市与企划寻找公开事务所和可交换名片。",
 } as const
 
+const appActivitySection = {
+  to: "/events",
+  icon: CalendarDaysIcon,
+  title: "社区动态",
+  description: "查看近期活动、公告与制作人社区动态。",
+} as const
+
 type ExchangeAvailability = "checking" | "available" | "closed" | "error"
 
 export function meta() {
@@ -74,7 +82,10 @@ export default function Community() {
   }, [])
 
   const availableCommunitySections = IS_APP_TARGET
-    ? communitySections.filter((section) => "to" in section)
+    ? [
+        appActivitySection,
+        ...communitySections.filter((section) => "to" in section),
+      ]
     : communitySections
   const visibleSections =
     exchangeAvailability === "available" || exchangeAvailability === "error"

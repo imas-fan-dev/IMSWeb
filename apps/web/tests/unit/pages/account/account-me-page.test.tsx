@@ -72,6 +72,15 @@ function renderPage() {
   return render(<TestPage />)
 }
 
+function expectAccountHeading() {
+  expect(
+    screen.getByRole("heading", {
+      level: 1,
+      name: i18n.t("appNavigation.account"),
+    })
+  ).toBeInTheDocument()
+}
+
 describe("AccountMePage", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -85,6 +94,7 @@ describe("AccountMePage", () => {
     const { container } = renderPage()
 
     const main = screen.getByRole("main", { name: "帐号状态加载中" })
+    expectAccountHeading()
     expect(main).toHaveAttribute("data-account-state", "loading")
     expect(main).toHaveAttribute("aria-busy", "true")
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(9)
@@ -94,6 +104,7 @@ describe("AccountMePage", () => {
     sessionMocks.usePlatformSession.mockReturnValue(sessionState("anonymous"))
     renderPage()
 
+    expectAccountHeading()
     expect(screen.getByRole("main")).toHaveAttribute(
       "data-account-state",
       "anonymous"
@@ -122,6 +133,7 @@ describe("AccountMePage", () => {
     const user = userEvent.setup()
     renderPage()
 
+    expectAccountHeading()
     expect(screen.getByRole("main")).toHaveAttribute(
       "data-account-state",
       "error"
@@ -137,6 +149,7 @@ describe("AccountMePage", () => {
     const user = userEvent.setup()
     const rendered = renderPage()
 
+    expectAccountHeading()
     expect(screen.getByRole("main")).toHaveAttribute(
       "data-account-state",
       "authenticated"
@@ -170,6 +183,7 @@ describe("AccountMePage", () => {
     sessionMocks.usePlatformSession.mockReturnValue(sessionState("restricted"))
     renderPage()
 
+    expectAccountHeading()
     expect(screen.getByRole("main")).toHaveAttribute(
       "data-account-state",
       "restricted"

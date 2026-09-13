@@ -197,6 +197,46 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
   }
 });
 
+test("every App tab icon is bundled as a usable iOS vector asset", async () => {
+  const [model, buildScript] = await Promise.all([
+    readFile(`${webRoot}/app/components/app/app-tab-model.ts`, "utf8"),
+    readFile(`${webRoot}/src-tauri/build.rs`, "utf8"),
+  ]);
+  const tabIcons = Array.from(
+    model.matchAll(/lucideIcon:\s*"([^"]+)"/g),
+    (match) => match[1],
+  );
+  const inventory = buildScript.match(
+    /const LUCIDE_TAB_ICONS:\s*\[&str;\s*(\d+)\]\s*=\s*\[([\s\S]*?)\];/,
+  );
+  assert.ok(inventory, "iOS build must declare its bundled icon inventory");
+  const bundledIcons = Array.from(
+    inventory[2].matchAll(/"([^"]+)"/g),
+    (match) => match[1],
+  );
+  assert.ok(tabIcons.length > 0, "App navigation must declare its icons");
+  assert.equal(bundledIcons.length, Number(inventory[1]));
+  assert.deepEqual(bundledIcons, tabIcons);
+  assert.equal(new Set(bundledIcons).size, bundledIcons.length);
+
+  const catalog = path.join(
+    webRoot,
+    "src-tauri/plugins/native-glass/ios/Sources/Resources/Lucide.xcassets",
+  );
+  for (const icon of bundledIcons) {
+    const imageset = path.join(catalog, `${icon}.imageset`);
+    const metadata = JSON.parse(
+      await readFile(path.join(imageset, "Contents.json"), "utf8"),
+    );
+    assert.equal(metadata.properties["preserves-vector-representation"], true);
+    const universal = metadata.images.find((image) => image.idiom === "universal");
+    assert.equal(universal?.filename, `${icon}.pdf`);
+    const vector = await readFile(path.join(imageset, universal.filename));
+    assert.equal(vector.subarray(0, 5).toString("ascii"), "%PDF-");
+    assert.match(vector.toString("latin1"), /%%EOF\s*$/);
+  }
+});
+
 // The iOS bundler merges src-tauri/Info.ios.plist into the generated Xcode
 // project's Info.plist, so a key lost in an edit only shows up on a device:
 // without UIApplicationSceneManifest UIKit traps in

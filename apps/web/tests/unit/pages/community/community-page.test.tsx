@@ -41,6 +41,18 @@ describe("Community", () => {
     ).toHaveAttribute("href", "/community/exchange")
   })
 
+  it("keeps the Web game entry without adding the App activity shortcut", () => {
+    renderPage()
+
+    expect(screen.getByRole("link", { name: /板板大暴走/ })).toHaveAttribute(
+      "href",
+      "/runninggame/"
+    )
+    expect(
+      screen.queryByRole("link", { name: /社区动态/ })
+    ).not.toBeInTheDocument()
+  })
+
   it("hides the exchange entry only for the explicit feature-off response", async () => {
     apiMocks.sendSeries.mockRejectedValue(
       new ApiError("Not Found", {

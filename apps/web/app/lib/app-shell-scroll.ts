@@ -1,19 +1,4 @@
 /**
- * Scroll shape of the packaged app shell.
- *
- * Two questions the app chrome keeps asking: which routes are ordinary
- * vertically scrolled documents, and how do you send one back to the top. They
- * live together because `layouts/app-layout.tsx` and
- * `components/app/app-tab-bar.tsx` both need the first answer and would
- * otherwise each carry their own copy of the pathname normalisation.
- *
- * These helpers are only reachable from the app build: the route manifest picks
- * `layouts/app-layout.tsx` over `layouts/public-layout.tsx` behind
- * `VITE_IMS_APP_TARGET`, so both callers are already absent from the web module
- * graph. Nothing here needs `IS_APP_TARGET` to gate it.
- */
-
-/**
  * Drop trailing slashes so `/wiki/` and `/wiki` compare equal, while leaving
  * the root path alone.
  */
@@ -22,73 +7,164 @@ export function normalizeAppPathname(pathname: string) {
 }
 
 /**
- * Routes the app shell renders as a full-height pane instead of a scrolling
- * document. `app-layout.tsx` swaps the shell to `h-dvh overflow-hidden` for
- * these, so the window never scrolls and there is no "top" to return to; the
- * exchange map scrolls its own inner panels.
+ * The exchange map owns its viewport and filter restoration. The App shell
+ * renders it as a full-height pane, so window scroll restoration does not apply.
  */
 export function isNonScrollingAppRoute(pathname: string) {
   return normalizeAppPathname(pathname) === "/community/exchange"
 }
 
-const APP_TAB_SCROLL_KEY = "ims:app-tab-scroll"
+const APP_SCROLL_RESTORE_DEADLINE_MS = 5_000
+const APP_SCROLL_KEYS = new Set([
+  "ArrowDown",
+  "ArrowUp",
+  "End",
+  "Home",
+  "PageDown",
+  "PageUp",
+  "Tab",
+  " ",
+])
 
-type AppTabScrollState = Record<string, number>
+export type AppScrollRestorationResult = "success" | "deadline" | "cancelled"
 
-function readAppTabScrollState(): AppTabScrollState {
-  if (typeof window === "undefined") return {}
-  try {
-    const stored = window.sessionStorage.getItem(APP_TAB_SCROLL_KEY)
-    if (!stored) return {}
-    const parsed: unknown = JSON.parse(stored)
-    return parsed && typeof parsed === "object"
-      ? (parsed as AppTabScrollState)
-      : {}
-  } catch {
-    return {}
-  }
+export interface AppScrollRestorationOptions {
+  deadlineMs?: number
+  onFinish?: (result: AppScrollRestorationResult) => void
 }
 
-export function rememberAppTabScrollPosition(tabId: string, top: number) {
-  if (typeof window === "undefined" || !Number.isFinite(top)) return
-  try {
-    window.sessionStorage.setItem(
-      APP_TAB_SCROLL_KEY,
-      JSON.stringify({
-        ...readAppTabScrollState(),
-        [tabId]: Math.max(0, top),
-      })
-    )
-  } catch {
-    // Storage can be unavailable in hardened WebViews. Scroll restoration is
-    // a convenience, so the navigation itself must continue to work.
-  }
-}
-
-export function appTabScrollPosition(tabId: string) {
-  const value = readAppTabScrollState()[tabId]
-  return typeof value === "number" && Number.isFinite(value) ? value : null
+function appDocumentScrollLimit() {
+  const documentHeight = Math.max(
+    document.documentElement.scrollHeight,
+    document.body?.scrollHeight ?? 0
+  )
+  return Math.max(0, documentHeight - window.innerHeight)
 }
 
 /**
- * Send the shell back to the top.
- *
- * The window is the scroller for every route that scrolls at all: the shell in
- * `app-layout.tsx` is a plain `min-h-svh` column with no overflow container, so
- * content grows the document. Same scroller as
- * `components/shared/back-to-top.tsx`, deliberately, so the two controls cannot
- * drift into disagreeing about what "top" means.
- *
- * `instant` rather than `auto` on the reduced-motion branch, deliberately.
- * CSSOM-View defines `auto` as "defer to the element's computed
- * scroll-behavior", so it only stays instant while the stylesheet agrees;
- * `app.css` now drops `scroll-behavior: smooth` under
- * `prefers-reduced-motion: reduce`, which is the real fix and covers
- * back-to-top and anchor jumps too. `instant` keeps this call correct without
- * depending on that.
- *
- * Fires once per tap. No scroll listener and no per-frame work: the browser
- * owns the smooth-scroll animation.
+ * Hold a restored position while content finishes loading. Height changes and
+ * browser scroll anchoring can arrive after the target first becomes reachable.
+ * Observation is bounded, and user input takes ownership immediately.
+ */
+export function beginAppScrollRestoration(
+  requestedTop: number,
+  options: AppScrollRestorationOptions = {}
+) {
+  const targetTop = Number.isFinite(requestedTop)
+    ? Math.max(0, requestedTop)
+    : 0
+  const deadlineMs = Math.max(
+    0,
+    options.deadlineMs ?? APP_SCROLL_RESTORE_DEADLINE_MS
+  )
+  let active = true
+  let frame: number | undefined
+  let observer: ResizeObserver | undefined
+  let clickCancellation: number | undefined
+
+  function cleanup() {
+    observer?.disconnect()
+    window.removeEventListener("wheel", cancelForUserIntent)
+    window.removeEventListener("touchmove", cancelForUserIntent)
+    window.removeEventListener("keydown", cancelForKeyboardIntent)
+    window.removeEventListener("pointerdown", cancelForPointerIntent)
+    window.removeEventListener("click", cancelAfterClick, true)
+    window.removeEventListener("scroll", correctAnchoring)
+    if (frame !== undefined) window.cancelAnimationFrame(frame)
+    window.clearTimeout(clickCancellation)
+    window.clearTimeout(deadline)
+  }
+
+  function finish(result: AppScrollRestorationResult) {
+    if (!active) return
+    active = false
+    cleanup()
+    options.onFinish?.(result)
+  }
+
+  function apply(finalAttempt: boolean) {
+    frame = undefined
+    if (!active || clickCancellation !== undefined) return
+
+    const scrollLimit = appDocumentScrollLimit()
+    const top = Math.min(targetTop, scrollLimit)
+    window.scrollTo({ top, behavior: "instant" })
+
+    if (targetTop === 0 || finalAttempt) {
+      finish(finalAttempt && scrollLimit < targetTop ? "deadline" : "success")
+    }
+  }
+
+  function schedule() {
+    if (!active || frame !== undefined) return
+    frame = window.requestAnimationFrame(() => apply(false))
+  }
+
+  function cancelForUserIntent() {
+    finish("cancelled")
+  }
+
+  function cancelForKeyboardIntent(event: KeyboardEvent) {
+    const target = event.target instanceof Element ? event.target : null
+    // Space activates a button. Its click must consume the source position first.
+    if (
+      event.key === " " &&
+      target?.closest(
+        'button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"]'
+      )
+    )
+      return
+    if (!event.defaultPrevented && APP_SCROLL_KEYS.has(event.key)) {
+      cancelForUserIntent()
+    }
+  }
+
+  function cancelForPointerIntent(event: PointerEvent) {
+    // Navigation controls save their source position in the click handler.
+    // Keep that position available until the handler has consumed it.
+    const target = event.target instanceof Element ? event.target : null
+    if (target?.closest("a, button, nav")) return
+    cancelForUserIntent()
+  }
+
+  function cancelAfterClick() {
+    if (clickCancellation !== undefined) return
+    // Suspend writes now, then let the control's handler run before cleanup.
+    // This timer belongs to this restoration, never one started by the click.
+    clickCancellation = window.setTimeout(cancelForUserIntent, 0)
+  }
+
+  function correctAnchoring() {
+    const expectedTop = Math.min(targetTop, appDocumentScrollLimit())
+    if (Math.abs(window.scrollY - expectedTop) > 1) schedule()
+  }
+
+  const deadline = window.setTimeout(() => apply(true), deadlineMs)
+  window.addEventListener("wheel", cancelForUserIntent, { passive: true })
+  window.addEventListener("touchmove", cancelForUserIntent, { passive: true })
+  window.addEventListener("keydown", cancelForKeyboardIntent)
+  window.addEventListener("pointerdown", cancelForPointerIntent, {
+    passive: true,
+  })
+  window.addEventListener("click", cancelAfterClick, {
+    capture: true,
+    passive: true,
+  })
+  window.addEventListener("scroll", correctAnchoring, { passive: true })
+
+  if (typeof ResizeObserver !== "undefined") {
+    observer = new ResizeObserver(schedule)
+    observer.observe(document.documentElement)
+    if (document.body) observer.observe(document.body)
+  }
+  schedule()
+
+  return () => finish("cancelled")
+}
+
+/**
+ * Send a scrolling App route back to the top. Reduced-motion mode is instant;
+ * other users keep the existing smooth feedback.
  */
 export function scrollAppViewToTop() {
   window.scrollTo({

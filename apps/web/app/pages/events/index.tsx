@@ -1,6 +1,12 @@
 import { useWindowVirtualizer } from "@tanstack/react-virtual"
 import { CalendarDaysIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 
 import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
 import { PullToRefresh } from "~/components/shared/pull-to-refresh"
@@ -22,6 +28,22 @@ export function meta() {
 }
 
 export function EventsCenter() {
+  useLayoutEffect(() => {
+    if (!IS_APP_TARGET) return
+    // Router restoration and virtual row corrections share the window. CSS
+    // smooth scrolling leaves stale targets active while row heights change.
+    const root = document.documentElement
+    const value = root.style.getPropertyValue("scroll-behavior")
+    const priority = root.style.getPropertyPriority("scroll-behavior")
+    root.style.setProperty("scroll-behavior", "auto")
+    // Resolve the new style before Router's viewport scroll in this commit.
+    void getComputedStyle(root).scrollBehavior
+    return () => {
+      if (value) root.style.setProperty("scroll-behavior", value, priority)
+      else root.style.removeProperty("scroll-behavior")
+    }
+  }, [])
+
   const {
     phase,
     items,
@@ -49,6 +71,9 @@ export function EventsCenter() {
     [items]
   )
   const virtualizer = useWindowVirtualizer({
+    // Let Router reset the previous document before the App list binds the
+    // window. An empty loading view must not capture the source page's offset.
+    enabled: !IS_APP_TARGET || (phase === "ready" && items.length > 0),
     count: items.length,
     estimateSize: () => 144,
     getItemKey,
@@ -74,10 +99,9 @@ export function EventsCenter() {
   return (
     <main id="main-content">
       {IS_APP_TARGET ? (
-        // The app title bar already names this tab, and refreshing is a pull
-        // now, so the page adds no second header of its own. The heading stays
-        // for assistive technology, which has no title bar to read.
-        <h1 className="sr-only">社区动态</h1>
+        <div className="px-(--app-safe-inline) pt-4">
+          <h1 className="text-xl font-semibold">社区动态</h1>
+        </div>
       ) : (
         <section className="border-b bg-muted/25">
           <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">

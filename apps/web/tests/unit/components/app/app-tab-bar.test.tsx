@@ -3,6 +3,7 @@ import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { AppNavigationProvider } from "~/components/app/app-navigation-provider"
 import { AppTabBar } from "~/components/app/app-tab-bar"
 import { i18n } from "~/i18n/config"
 
@@ -20,6 +21,10 @@ const nativeMocks = vi.hoisted(() => ({
   destroy: vi.fn(),
   shouldAttempt: vi.fn(() => false),
   update: vi.fn(),
+}))
+
+vi.mock("~/components/platform/platform-session-provider", () => ({
+  usePlatformSession: () => ({ status: "anonymous", session: null }),
 }))
 
 vi.mock("next-themes", () => ({
@@ -46,8 +51,10 @@ function renderTabBar(initialEntry = "/") {
   return render(
     <I18nextProvider i18n={i18n}>
       <MemoryRouter initialEntries={[initialEntry]}>
-        <AppTabBar />
-        <LocationProbe />
+        <AppNavigationProvider>
+          <AppTabBar />
+          <LocationProbe />
+        </AppNavigationProvider>
       </MemoryRouter>
     </I18nextProvider>
   )
@@ -94,28 +101,29 @@ describe("AppTabBar platform material", () => {
       configuredOptions.items.map(
         (item: { lucideIcon: string }) => item.lucideIcon
       )
-    ).toEqual([
-      "house",
-      "calendar-days",
-      "layout-grid",
-      "map-pinned",
-      "circle-user",
-    ])
+    ).toEqual(["house", "users", "map-pinned", "book-open-text", "circle-user"])
+    expect(configuredOptions.items[2]).toEqual({
+      route: "/community/exchange",
+      lucideIcon: "map-pinned",
+      title: "交换地图",
+    })
 
     window.dispatchEvent(
       new CustomEvent("ims:native-tab-select", {
-        detail: { route: "/events" },
+        detail: { route: "/community/exchange" },
       })
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/events")
+      expect(screen.getByTestId("location").textContent).toBe(
+        "/community/exchange"
+      )
     })
     expect(nativeMocks.update).toHaveBeenLastCalledWith({
       dark: false,
       hidden: false,
       selectedColor: nativeSelectedColor,
-      selectedIndex: 1,
+      selectedIndex: 2,
     })
   })
 
@@ -130,13 +138,13 @@ describe("AppTabBar platform material", () => {
       expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
     })
     expect(nativeMocks.configure).toHaveBeenCalledWith(
-      expect.objectContaining({ dark: false, selectedIndex: 3 })
+      expect.objectContaining({ dark: false, selectedIndex: 2 })
     )
     expect(nativeMocks.update).toHaveBeenLastCalledWith({
       dark: false,
       hidden: false,
       selectedColor: nativeSelectedColor,
-      selectedIndex: 3,
+      selectedIndex: 2,
     })
   })
 
@@ -193,16 +201,16 @@ describe("AppTabBar platform material", () => {
     expect(nativeMocks.update).not.toHaveBeenCalled()
   })
 
-  it("keeps secondary content routes under the Apps tab", async () => {
+  it("keeps secondary content routes under Resources", async () => {
     nativeMocks.shouldAttempt.mockReturnValue(true)
     renderTabBar("/works")
 
     await waitFor(() => {
       expect(nativeMocks.configure).toHaveBeenCalledWith(
-        expect.objectContaining({ selectedIndex: 2 })
+        expect.objectContaining({ selectedIndex: 3 })
       )
     })
-    expect(screen.getByRole("link", { name: "站内应用" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "资料" })).toHaveAttribute(
       "aria-current",
       "page"
     )
@@ -217,7 +225,7 @@ describe("AppTabBar platform material", () => {
         expect.objectContaining({ selectedIndex: 4 })
       )
     })
-    expect(screen.getByRole("link", { name: "帐号" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "我的" })).toHaveAttribute(
       "aria-current",
       "page"
     )

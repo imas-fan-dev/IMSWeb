@@ -71,6 +71,13 @@ export const resources = {
         back: "返回",
         open: "打开导航",
       },
+      appNavigation: {
+        home: "首页",
+        community: "社区",
+        exchangeMap: "交换地图",
+        resources: "资料",
+        account: "我的",
+      },
       footer: {
         navigationLabel: "页脚导航",
         maintainedBy: "由中文制作人社区共同维护",
@@ -433,6 +440,13 @@ export const resources = {
         storySite: "Story Archive",
         back: "Back",
         open: "Open navigation",
+      },
+      appNavigation: {
+        home: "Home",
+        community: "Community",
+        exchangeMap: "Map",
+        resources: "Resources",
+        account: "Me",
       },
       footer: {
         navigationLabel: "Footer navigation",

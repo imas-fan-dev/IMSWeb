@@ -2,9 +2,9 @@ use std::{env, fs, path::Path};
 
 const LUCIDE_TAB_ICONS: [&str; 5] = [
     "house",
-    "calendar-days",
-    "layout-grid",
+    "users",
     "map-pinned",
+    "book-open-text",
     "circle-user",
 ];
 

@@ -57,7 +57,7 @@ test("keeps the Works detail within the App content viewport", async ({
   )
   await expect(
     page.getByRole("navigation", { name: "主导航" }).getByRole("link", {
-      name: "站内应用",
+      name: "资料",
     })
   ).toHaveAttribute("aria-current", "page")
   await expectNoHorizontalOverflow(page)
@@ -96,8 +96,9 @@ test("keeps the Tier List pool and toolbar clear of the App tab bar", async ({
     })
     .toBe(true)
 
-  await expect(
-    navigation.getByRole("link", { name: "站内应用" })
-  ).toHaveAttribute("aria-current", "page")
+  await expect(navigation.getByRole("link", { name: "资料" })).toHaveAttribute(
+    "aria-current",
+    "page"
+  )
   await expectNoHorizontalOverflow(page)
 })

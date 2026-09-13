@@ -1,30 +1,27 @@
 import {
-  CalendarDaysIcon,
+  BookOpenTextIcon,
   CircleUserIcon,
   HouseIcon,
-  LayoutGridIcon,
   MapPinnedIcon,
+  UsersIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
+import { useAppNavigation } from "~/components/app/app-navigation-provider"
 import {
   APP_TABS,
   type AppTabId,
   appTabIdForPathname,
   appTabIndexForPathname,
-  appTabRoot,
 } from "~/components/app/app-tab-model"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import {
-  appTabScrollPosition,
   isNonScrollingAppRoute,
   normalizeAppPathname,
-  rememberAppTabScrollPosition,
-  scrollAppViewToTop,
 } from "~/lib/app-shell-scroll"
 import {
   configureNativeGlass,
@@ -40,7 +37,6 @@ import {
   nativeTabBarSuppressed,
   NATIVE_TAB_BAR_SUPPRESSION_EVENT,
 } from "~/lib/native-tab-bar-suppression"
-import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
 
 /**
@@ -74,9 +70,9 @@ const NATIVE_TAB_BAR_SELECTED_COLOR = {
 
 const tabIcons = {
   home: HouseIcon,
-  events: CalendarDaysIcon,
-  apps: LayoutGridIcon,
+  community: UsersIcon,
   map: MapPinnedIcon,
+  resources: BookOpenTextIcon,
   account: CircleUserIcon,
 } satisfies Record<AppTabId, LucideIcon>
 
@@ -98,12 +94,11 @@ function isModifiedEvent(event: React.MouseEvent<HTMLAnchorElement>) {
 export function AppTabBar() {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
-  const navigate = useNavigation()
+  const { activateTab } = useAppNavigation()
   const { pathname } = useLocation()
   const normalizedPathname = normalizeAppPathname(pathname)
   const activeId = appTabIdForPathname(normalizedPathname)
   const activeIndex = appTabIndexForPathname(normalizedPathname)
-  const activeRoot = activeId ? appTabRoot(activeId) : null
   const slot = Math.max(activeIndex, 0)
   const useLightMapGlass = isNonScrollingAppRoute(normalizedPathname)
   const nativeGlassDark =
@@ -133,59 +128,13 @@ export function AppTabBar() {
   )
 
   useEffect(() => {
-    if (
-      !activeId ||
-      normalizedPathname !== activeRoot ||
-      isNonScrollingAppRoute(normalizedPathname)
-    ) {
-      return
-    }
-
-    const savedTop = appTabScrollPosition(activeId)
-    if (savedTop === null || savedTop === 0 || savedTop === window.scrollY) {
-      return
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      window.scrollTo({ top: savedTop, behavior: "instant" })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [activeId, activeRoot, normalizedPathname])
-
-  useEffect(() => {
-    if (
-      !activeId ||
-      normalizedPathname !== activeRoot ||
-      isNonScrollingAppRoute(normalizedPathname)
-    ) {
-      return
-    }
-
-    return () => {
-      rememberAppTabScrollPosition(activeId, window.scrollY)
-    }
-  }, [activeId, activeRoot, normalizedPathname])
-
-  const activateTab = useCallback(
-    (to: string) => {
-      if (normalizedPathname === to) {
-        if (!isNonScrollingAppRoute(normalizedPathname)) {
-          scrollAppViewToTop()
-        }
-        return
-      }
-      navigate(to)
-    },
-    [navigate, normalizedPathname]
-  )
-
-  useEffect(() => {
     if (!shouldAttemptNativeGlass()) return
 
     const handleNativeSelection = (event: Event) => {
       const route = nativeTabRoute(event)
-      if (!route || !tabs.some((tab) => tab.to === route)) return
-      activateTab(route)
+      const tab = tabs.find((candidate) => candidate.to === route)
+      if (!tab) return
+      activateTab(tab.id)
     }
 
     window.addEventListener(NATIVE_TAB_SELECT_EVENT, handleNativeSelection)
@@ -282,33 +231,15 @@ export function AppTabBar() {
     nativeTabBarSuppressedState,
   ])
 
-  /**
-   * iOS convention: tapping the tab you are already on returns the view to the
-   * top. It earns its keep on the wiki catalog, where the page's own search
-   * button owns the corner a floating back-to-top would otherwise take.
-   *
-   * Only a tap *at the tab's own root* scrolls. From somewhere deeper in the
-   * tab -- a story page under `/wiki`, say -- the link keeps navigating up to
-   * the tab root exactly as it does today, which is both the existing
-   * behaviour and the other half of the iOS convention.
-   */
   function handleTabClick(
     event: React.MouseEvent<HTMLAnchorElement>,
-    to: string
+    tabId: AppTabId
   ) {
-    if (normalizedPathname !== to) return
     if (event.defaultPrevented) return
     if (event.button !== 0 || isModifiedEvent(event)) return
-    // No tab root is a full-height pane today, so this never fires -- it keeps
-    // "only scroll things that scroll" a rule the code enforces rather than one
-    // it happens to satisfy.
-    if (isNonScrollingAppRoute(normalizedPathname)) return
 
-    // Suppresses React Router's navigation for this click only; `Link` runs
-    // this handler first and skips its own once the event is defaulted.
     event.preventDefault()
-    if (activeId) rememberAppTabScrollPosition(activeId, 0)
-    scrollAppViewToTop()
+    activateTab(tabId)
   }
 
   // How far the lens is about to travel, in slots, so it can deform in
@@ -337,6 +268,7 @@ export function AppTabBar() {
         style={
           {
             "--tab-index": slot,
+            "--app-tab-count": tabs.length,
             "--glass-lens-travel": travel.distance,
           } as React.CSSProperties
         }
@@ -349,7 +281,7 @@ export function AppTabBar() {
         <span
           aria-hidden="true"
           data-visible={activeIndex >= 0 ? "true" : undefined}
-          className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/5)] translate-x-[calc(var(--tab-index)*100%)] opacity-0 data-visible:opacity-100"
+          className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/var(--app-tab-count))] translate-x-[calc(var(--tab-index)*100%)] opacity-0 data-visible:opacity-100"
         >
           <span
             key={travel.slot}
@@ -369,7 +301,7 @@ export function AppTabBar() {
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 )}
-                onClick={(event) => handleTabClick(event, tab.to)}
+                onClick={(event) => handleTabClick(event, tab.id)}
               >
                 <tab.icon
                   aria-hidden="true"

@@ -21,6 +21,7 @@ vi.mock("~/components/community/namecard-upload-dialog", () => ({
 }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
+  usePlatformSession: () => ({ status: "anonymous", session: null }),
   PlatformSessionProvider: ({ children }: { children: ReactNode }) => (
     <div data-testid="platform-session-boundary">{children}</div>
   ),
@@ -138,7 +139,7 @@ describe("AppLayout", () => {
     expect(shell).toHaveAttribute("data-app-shell")
     expect(shell).not.toHaveAttribute("data-app-immersive")
     expect(document.documentElement).not.toHaveAttribute("data-app-immersive")
-    expect(screen.getByText("社区动态", { selector: "p" })).toBeVisible()
+    expect(screen.getByText("社区", { selector: "p" })).toBeVisible()
     expect(header).not.toHaveClass("fixed", "inset-x-0")
     expect(screen.getByText("活动中心内容")).toBeVisible()
     expect(screen.getByText("跳到主要内容")).toHaveClass(

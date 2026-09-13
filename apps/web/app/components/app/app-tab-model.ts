@@ -1,84 +1,83 @@
 import { normalizeAppPathname } from "~/lib/app-shell-scroll"
 
-export type AppTabId = "home" | "events" | "apps" | "map" | "account"
+export type AppTabId = "home" | "community" | "map" | "resources" | "account"
 
 export const APP_TABS = [
   {
     id: "home",
     to: "/",
-    label: "navigation.home",
+    label: "appNavigation.home",
     lucideIcon: "house",
   },
   {
-    id: "events",
-    to: "/events",
-    label: "navigation.events",
-    lucideIcon: "calendar-days",
-  },
-  {
-    id: "apps",
-    to: "/apps",
-    label: "navigation.apps",
-    lucideIcon: "layout-grid",
+    id: "community",
+    to: "/community",
+    label: "appNavigation.community",
+    lucideIcon: "users",
   },
   {
     id: "map",
     to: "/community/exchange",
-    label: "navigation.producerMap",
+    label: "appNavigation.exchangeMap",
     lucideIcon: "map-pinned",
+  },
+  {
+    id: "resources",
+    to: "/apps",
+    label: "appNavigation.resources",
+    lucideIcon: "book-open-text",
   },
   {
     id: "account",
     to: "/account/me",
-    label: "platformAccount.title",
+    label: "appNavigation.account",
     lucideIcon: "circle-user",
   },
 ] as const
 
-const APP_TAB_PREFIXES = [
-  "/about",
-  "/chronicle",
-  "/community",
-  "/live",
-  "/packages",
-  "/producer-map",
-  "/recommendations",
-  "/story",
-  "/tier-list",
+const PERSONAL_PREFIXES = ["/account", "/community/exchange/me"] as const
+const ACCOUNT_PREFIXES = [...PERSONAL_PREFIXES, "/about"] as const
+
+const COMMUNITY_PREFIXES = ["/community", "/events", "/producer-map"] as const
+
+const RESOURCE_PREFIXES = [
+  "/apps",
   "/wiki",
+  "/story",
   "/works",
+  "/chronicle",
+  "/recommendations",
+  "/live",
+  "/tier-list",
+  "/packages",
 ] as const
 
 function pathBelongsTo(pathname: string, root: string) {
   return pathname === root || pathname.startsWith(`${root}/`)
 }
 
+function belongsToAny(pathname: string, roots: readonly string[]) {
+  return roots.some((root) => pathBelongsTo(pathname, root))
+}
+
+export function isPersonalAppRoute(href: string) {
+  const pathname = normalizeAppPathname(href.split(/[?#]/, 1)[0] ?? "/")
+  return belongsToAny(pathname, PERSONAL_PREFIXES)
+}
+
 export function appTabIdForPathname(pathname: string): AppTabId | null {
   const normalizedPathname = normalizeAppPathname(pathname)
 
-  if (normalizedPathname === "/") return "home"
-  if (pathBelongsTo(normalizedPathname, "/events")) return "events"
-
-  // The personal exchange workspace is account-owned even though its legacy
-  // URL sits below the exchange map.
-  if (
-    pathBelongsTo(normalizedPathname, "/account") ||
-    pathBelongsTo(normalizedPathname, "/community/exchange/me")
-  ) {
-    return "account"
-  }
-
+  if (belongsToAny(normalizedPathname, ACCOUNT_PREFIXES)) return "account"
   if (pathBelongsTo(normalizedPathname, "/community/exchange")) return "map"
-  if (pathBelongsTo(normalizedPathname, "/apps")) return "apps"
-
+  if (belongsToAny(normalizedPathname, COMMUNITY_PREFIXES)) return "community"
+  if (belongsToAny(normalizedPathname, RESOURCE_PREFIXES)) return "resources"
   if (
-    APP_TAB_PREFIXES.some((root) => pathBelongsTo(normalizedPathname, root))
+    normalizedPathname === "/" ||
+    pathBelongsTo(normalizedPathname, "/information")
   ) {
-    return "apps"
+    return "home"
   }
-
-  // News and information detail pages are reached from the home feed.
-  if (pathBelongsTo(normalizedPathname, "/information")) return "home"
 
   return null
 }
