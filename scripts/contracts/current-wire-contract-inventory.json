@@ -3,42 +3,42 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "bb5d4c90dc7b86c4e9693d88798736e90837266a668a135448025d796984336c",
+    "semanticDigest": "9d48bc658efbe47c46a95f9b4ef215b907fd439e93447bf0c199d78740501c19",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 223,
-    "carriers": 283,
-    "reject": 41,
+    "mountedMethodPaths": 225,
+    "carriers": 285,
+    "reject": 43,
     "acceptAndProject": 161,
     "passthrough": 17,
     "nonObjectApplicable": 64
   },
   "counts": {
-    "mountedRegistrations": 315,
-    "mountedMethodPaths": 230,
-    "noInputRoutes": 85,
-    "requestCarriers": 306,
+    "mountedRegistrations": 318,
+    "mountedMethodPaths": 232,
+    "noInputRoutes": 86,
+    "requestCarriers": 308,
     "policies": {
-      "reject": 41,
+      "reject": 43,
       "accept-and-project": 183,
       "passthrough": 18,
       "non-object-applicable": 64
     },
     "responses": {
-      "total": 608,
-      "json": 544,
+      "total": 622,
+      "json": 558,
       "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 223,
-      "requestCarriers": 283,
+      "mountedMethodPaths": 225,
+      "requestCarriers": 285,
       "policies": {
-        "reject": 41,
+        "reject": 43,
         "accept-and-project": 161,
         "passthrough": 17,
         "non-object-applicable": 64
@@ -116,7 +116,7 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 119,
+      "/api/admin": 122,
       "/api/card": 1,
       "/api/cards": 1,
       "/api/check": 1,
@@ -2536,6 +2536,49 @@
           "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/admin-provider-config.ts",
           "kind": "json",
           "expression": "{ success : true , providers }"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/email",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+      },
+      "handlerSymbol": "handleGetAdminPlatformEmailSettings",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : true , settings } satisfies AdminPlatformEmailSettingsResponse"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : error . message }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"SMTP \\u8FDE\\u63A5\\u6216\\u53D1\\u9001\\u5931\\u8D25\\uFF0C\\u8BF7\\u68C0\\u67E5\\u914D\\u7F6E\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u90AE\\u4EF6\\u670D\\u52A1\\u914D\\u7F6E\\u5931\\u8D25\" }"
         }
       ]
     },
@@ -8618,6 +8661,57 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/email/test",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+      },
+      "handlerSymbol": "handleTestAdminPlatformEmailSettings",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformEmailConfigurationTestRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-email",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"REVISION_CONFLICT\" , settings , }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : true , deliveredTo : result . recipient , } satisfies AdminPlatformEmailTestResponse"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : error . message }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"SMTP \\u8FDE\\u63A5\\u6216\\u53D1\\u9001\\u5931\\u8D25\\uFF0C\\u8BF7\\u68C0\\u67E5\\u914D\\u7F6E\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u90AE\\u4EF6\\u670D\\u52A1\\u914D\\u7F6E\\u5931\\u8D25\" }"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/producer-map/images",
       "registration": {
         "file": "apps/api/src/domains/content/producer-map/routes.ts"
@@ -11165,6 +11259,57 @@
           "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/admin-provider-config.ts",
           "kind": "json",
           "expression": "{ success : false , message : status > = 500 ? \"OAuth \\u914D\\u7F6E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) , }"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/email",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateAdminPlatformEmailSettings",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformEmailConfigurationWriteRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-email",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"REVISION_CONFLICT\" , settings , }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : true , settings : result . settings , } satisfies AdminPlatformEmailMutationResponse"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : error . message }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"SMTP \\u8FDE\\u63A5\\u6216\\u53D1\\u9001\\u5931\\u8D25\\uFF0C\\u8BF7\\u68C0\\u67E5\\u914D\\u7F6E\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u90AE\\u4EF6\\u670D\\u52A1\\u914D\\u7F6E\\u5931\\u8D25\" }"
         }
       ]
     },
@@ -15830,6 +15975,23 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/email/test",
+      "handlerSymbol": "handleTestAdminPlatformEmailSettings",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformEmailConfigurationTestRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-email",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/site-packages/:id/revisions",
       "handlerSymbol": "handleCreateSitePackageRevision",
       "kind": "param",
@@ -16827,6 +16989,23 @@
       "schemaModule": "@imsweb/contracts/platform/admin",
       "schemaLocation": {
         "file": "apps/api/src/domains/identity/platform-auth/oauth/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleUpdateAdminPlatformEmailSettings",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformEmailConfigurationWriteRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-email",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
@@ -18274,6 +18453,38 @@
       "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/admin-provider-config.ts",
       "kind": "json",
       "expression": "{ success : true , providers }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleGetAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : true , settings } satisfies AdminPlatformEmailSettingsResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleGetAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : error . message }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleGetAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"SMTP \\u8FDE\\u63A5\\u6216\\u53D1\\u9001\\u5931\\u8D25\\uFF0C\\u8BF7\\u68C0\\u67E5\\u914D\\u7F6E\" }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleGetAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u90AE\\u4EF6\\u670D\\u52A1\\u914D\\u7F6E\\u5931\\u8D25\" }"
     },
     {
       "method": "GET",
@@ -20141,6 +20352,46 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/email/test",
+      "handlerSymbol": "handleTestAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"REVISION_CONFLICT\" , settings , }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/email/test",
+      "handlerSymbol": "handleTestAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : true , deliveredTo : result . recipient , } satisfies AdminPlatformEmailTestResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/email/test",
+      "handlerSymbol": "handleTestAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : error . message }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/email/test",
+      "handlerSymbol": "handleTestAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"SMTP \\u8FDE\\u63A5\\u6216\\u53D1\\u9001\\u5931\\u8D25\\uFF0C\\u8BF7\\u68C0\\u67E5\\u914D\\u7F6E\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/email/test",
+      "handlerSymbol": "handleTestAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u90AE\\u4EF6\\u670D\\u52A1\\u914D\\u7F6E\\u5931\\u8D25\" }"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/producer-map/images",
       "handlerSymbol": "handleUploadProducerMapImage",
       "file": "apps/api/src/domains/content/producer-map/handlers/upload-producer-map-image.ts",
@@ -21474,6 +21725,46 @@
       "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/admin-provider-config.ts",
       "kind": "json",
       "expression": "{ success : false , message : status > = 500 ? \"OAuth \\u914D\\u7F6E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleUpdateAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"REVISION_CONFLICT\" , settings , }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleUpdateAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : true , settings : result . settings , } satisfies AdminPlatformEmailMutationResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleUpdateAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : error . message }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleUpdateAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"SMTP \\u8FDE\\u63A5\\u6216\\u53D1\\u9001\\u5931\\u8D25\\uFF0C\\u8BF7\\u68C0\\u67E5\\u914D\\u7F6E\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/email",
+      "handlerSymbol": "handleUpdateAdminPlatformEmailSettings",
+      "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u90AE\\u4EF6\\u670D\\u52A1\\u914D\\u7F6E\\u5931\\u8D25\" }"
     },
     {
       "method": "PUT",

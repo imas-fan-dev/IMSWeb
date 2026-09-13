@@ -37,9 +37,7 @@ export async function handlePlatformPasswordResetVerification(
     const input = c.req.valid('json');
     const runtime = services(c);
     const sender = runtime.platformEmailSender;
-    if (!sender?.available || !sender.sendPasswordResetVerification) {
-        return unavailable(c);
-    }
+    if (!sender || !(await sender.isAvailable())) return unavailable(c);
     const cachedCooldownMs = await readPlatformPasswordResetCooldown(
         runtime.cache,
         input.email

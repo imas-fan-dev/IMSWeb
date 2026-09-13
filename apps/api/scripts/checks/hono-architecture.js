@@ -93,7 +93,7 @@ const infraCategories = new Set([
 const infraMiddleware = new Map([
     ["cache", new Set(["filesystem", "memory", "postgresql", "valkey"])],
     ["db", new Set(["postgresql", "repositories", "sql"])],
-    ["email", new Set(["cloudflare"])],
+    ["email", new Set(["smtp"])],
     ["http", new Set(["busboy", "filesystem"])],
     ["media", new Set(["sharp"])],
     ["oss", new Set(["filesystem", "s3"])],

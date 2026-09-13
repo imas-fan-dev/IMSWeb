@@ -1,5 +1,11 @@
-import { adminPlatformAuthOAuthPath, platformAuthOAuthPath, platformAuthPath } from '@imsweb/contracts/paths';
+import {
+    adminApiPath,
+    adminPlatformAuthOAuthPath,
+    platformAuthOAuthPath,
+    platformAuthPath,
+} from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
+import { platformEmailAdminRoutes } from '@/domains/identity/platform-auth/email-settings/routes';
 import {
     platformOAuthAdminRoutes,
     platformOAuthRoutes
@@ -14,4 +20,5 @@ export function registerPlatformAuthRoutes(app: ImsHonoApp): void {
     app.route(platformAuthPath(), platformPasswordResetRoutes());
     app.route(platformAuthOAuthPath(), platformOAuthRoutes());
     app.route(adminPlatformAuthOAuthPath(), platformOAuthAdminRoutes());
+    app.route(adminApiPath('/platform/email'), platformEmailAdminRoutes());
 }

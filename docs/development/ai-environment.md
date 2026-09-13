@@ -221,14 +221,12 @@ Platform 缓存默认使用 Valkey；开发启动器会注入 `IMS_CACHE_BACKEND
 `IMS_VALKEY_URL`。邮箱验证码哈希、尝试次数和消费仍由 PostgreSQL 保存，Valkey 只保存不含
 邮箱和验证码的短期 cooldown 标记，缓存异常时回退 PostgreSQL。
 
-Platform 注册邮箱验证码在 `NODE_ENV=development` 且未设置
-`IMS_PLATFORM_EMAIL_DELIVERY` 时默认使用 `console`，只把验证码写入本地 API 日志。也可显式
-设置为 `disabled` 或 `console`；`disabled` 会让验证码发送不可用。生产环境禁止 `console`，
-上线时必须设置 `IMS_PLATFORM_EMAIL_DELIVERY=cloudflare`，并配置
-`IMS_CLOUDFLARE_EMAIL_ACCOUNT_ID`、`IMS_CLOUDFLARE_EMAIL_API_TOKEN`、
-`IMS_PLATFORM_EMAIL_FROM` 和 `IMS_PLATFORM_EMAIL_FROM_NAME`。Account ID 必须是 32 位十六进制
-值，API Token 属于密钥，发件地址必须来自已接入 Cloudflare Email Service 的发件域；不得把这些
-值提交到 Git。生产环境未配置时会退回 `disabled`，这不满足邮箱注册上线门禁。
+Platform 注册验证码和密码重置邮件只使用后台动态 SMTP 配置。超级管理员在
+`/admin/platform/email` 设置主机、端口、TLS 模式、凭据与发件信息；SMTP 用户名和密码使用
+`IMS_PLATFORM_JWT_SECRET` 派生的独立 AES-256-GCM 密钥加密后保存到 PostgreSQL，读取接口只
+返回掩码和“已配置”状态。配置修改后立即用于后续发送，无需重启 API。开发环境未配置或未启用
+SMTP 时，相关验证码接口返回服务不可用，不会把验证码写入日志。轮换 `IMS_PLATFORM_JWT_SECRET`
+后必须重新录入 SMTP 凭据。
 
 本地运行统一使用 PostgreSQL 与 S3 兼容的 RustFS。
 需要绕过统一启动器排障时，可以分别启动依赖：

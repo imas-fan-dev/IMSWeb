@@ -269,6 +269,7 @@ jobs:
           PREVIEW_DEPLOY_ROOT: ${{ vars.PREVIEW_DEPLOY_ROOT }}
           PREVIEW_DEPLOY_USER: ${{ vars.PREVIEW_DEPLOY_USER }}
           PREVIEW_SOURCE_BRANCH: ${{ vars.PREVIEW_SOURCE_BRANCH }}
+          PREVIEW_SUPER_ADMIN_USERNAME: ${{ vars.PREVIEW_SUPER_ADMIN_USERNAME }}
           PREVIEW_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.PREVIEW_DEPLOY_SSH_PRIVATE_KEY }}
           PREVIEW_DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.PREVIEW_DEPLOY_SSH_KNOWN_HOSTS }}
           RESOLVED_SOURCE_BRANCH: ${{ needs.prepare.outputs.source_branch }}
@@ -279,6 +280,7 @@ jobs:
           : "${PREVIEW_DEPLOY_ROOT:?Set preview variable PREVIEW_DEPLOY_ROOT}"
           : "${PREVIEW_DEPLOY_USER:?Set preview variable PREVIEW_DEPLOY_USER}"
           : "${PREVIEW_SOURCE_BRANCH:?Set preview variable PREVIEW_SOURCE_BRANCH}"
+          : "${PREVIEW_SUPER_ADMIN_USERNAME:?Set preview variable PREVIEW_SUPER_ADMIN_USERNAME}"
           : "${PREVIEW_API_PORT:?Set preview variable PREVIEW_API_PORT}"
           : "${PREVIEW_DEPLOY_SSH_PRIVATE_KEY:?Set preview secret PREVIEW_DEPLOY_SSH_PRIVATE_KEY}"
           : "${PREVIEW_DEPLOY_SSH_KNOWN_HOSTS:?Set preview secret PREVIEW_DEPLOY_SSH_KNOWN_HOSTS}"
@@ -287,6 +289,8 @@ jobs:
           [[ "$PREVIEW_DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] || { echo "Invalid PREVIEW_DEPLOY_PORT" >&2; exit 1; }
           (( PREVIEW_DEPLOY_PORT >= 1 && PREVIEW_DEPLOY_PORT <= 65535 )) || { echo "Invalid PREVIEW_DEPLOY_PORT" >&2; exit 1; }
           [[ "$PREVIEW_DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Invalid PREVIEW_DEPLOY_USER" >&2; exit 1; }
+          [[ "$PREVIEW_SUPER_ADMIN_USERNAME" =~ ^[A-Za-z0-9_.@-]{1,128}$ ]] || { echo "Invalid PREVIEW_SUPER_ADMIN_USERNAME" >&2; exit 1; }
+          [[ "$PREVIEW_DEPLOY_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "Invalid PREVIEW_DEPLOY_ROOT" >&2; exit 1; }
           [[ "$PREVIEW_DEPLOY_ROOT" == "/home/$PREVIEW_DEPLOY_USER/"* ]] || { echo "PREVIEW_DEPLOY_ROOT must stay under the deployment user home" >&2; exit 1; }
           [[ "$PREVIEW_SOURCE_BRANCH" == "release/v1.1" && "$RESOLVED_SOURCE_BRANCH" == "$PREVIEW_SOURCE_BRANCH" ]] || { echo "Preview source branch configuration differs from release/v1.1" >&2; exit 1; }
           [[ "$PREVIEW_API_PORT" =~ ^[0-9]+$ ]] && (( PREVIEW_API_PORT >= 1024 && PREVIEW_API_PORT <= 65535 )) || { echo "Invalid PREVIEW_API_PORT" >&2; exit 1; }
@@ -328,6 +332,7 @@ jobs:
           PREVIEW_DEPLOY_PORT: ${{ vars.PREVIEW_DEPLOY_PORT }}
           PREVIEW_DEPLOY_ROOT: ${{ vars.PREVIEW_DEPLOY_ROOT }}
           PREVIEW_DEPLOY_USER: ${{ vars.PREVIEW_DEPLOY_USER }}
+          PREVIEW_SUPER_ADMIN_USERNAME: ${{ vars.PREVIEW_SUPER_ADMIN_USERNAME }}
           PREVIEW_ID: ${{ needs.prepare.outputs.preview_id }}
           RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
         run: |
@@ -355,7 +360,7 @@ jobs:
           scp "${scp_options[@]}" \
             .deployment-workflow/scripts/deployment/run-authenticated-compose-release.sh \
             "$target:$remote_auth_script"
-          remote_command="test -f '$remote_auth_script' && test ! -L '$remote_auth_script' && bash '$remote_auth_script' '$GHCR_USERNAME' '$remote_script' '$PREVIEW_ID' '$RELEASE_SHA' '$IMAGE_REF' '$remote_compose' '$PREVIEW_DEPLOY_ROOT' '$remote_override'"
+          remote_command="test -f '$remote_auth_script' && test ! -L '$remote_auth_script' && IMS_PREVIEW_SUPER_ADMIN_USERNAME='$PREVIEW_SUPER_ADMIN_USERNAME' bash '$remote_auth_script' '$GHCR_USERNAME' '$remote_script' '$PREVIEW_ID' '$RELEASE_SHA' '$IMAGE_REF' '$remote_compose' '$PREVIEW_DEPLOY_ROOT' '$remote_override'"
           printf '%s' "$GHCR_TOKEN" | \
             ssh "${ssh_options[@]}" "$target" "$remote_command" | tee "$deployment_log"
 

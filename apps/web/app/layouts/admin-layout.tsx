@@ -12,6 +12,7 @@ import {
   LoaderCircleIcon,
   LogInIcon,
   LogOutIcon,
+  MailIcon,
   MapPinCheckIcon,
   MapPinnedIcon,
   MegaphoneIcon,
@@ -151,6 +152,14 @@ const navigation: Array<{
     description: "第三方登录凭据配置",
     icon: KeyRoundIcon,
     accent: "bg-franchise-765",
+    superOnly: true,
+  },
+  {
+    to: "/admin/platform/email",
+    label: "邮件服务",
+    description: "SMTP 发件服务配置",
+    icon: MailIcon,
+    accent: "bg-franchise-sc",
     superOnly: true,
   },
   {

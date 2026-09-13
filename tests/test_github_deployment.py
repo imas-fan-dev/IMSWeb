@@ -53,7 +53,7 @@ DOCKER_BUILD_PUSH_ACTION = (
 
 FAKE_CONTAINER_CLI = r"""#!/usr/bin/env bash
 set -euo pipefail
-printf '%s|%s\n' "${IMS_API_IMAGE:-none}" "$*" >> "$FAKE_CONTAINER_LOG"
+printf '%s|%s|%s\n' "${IMS_API_IMAGE:-none}" "${IMS_SUPER_ADMIN_USERNAME:-none}" "$*" >> "$FAKE_CONTAINER_LOG"
 joined=" $* "
 if [[ "$joined" == " info " && "${FAKE_FAIL_CONTAINER_INFO:-}" == "true" ]]; then
     exit 1
@@ -412,6 +412,9 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "PREVIEW_DEPLOY_SSH_PRIVATE_KEY",
             "PREVIEW_DEPLOY_SSH_KNOWN_HOSTS",
             "PREVIEW_SOURCE_BRANCH",
+            "PREVIEW_SUPER_ADMIN_USERNAME",
+            "IMS_PREVIEW_SUPER_ADMIN_USERNAME",
+            '[[ "$PREVIEW_DEPLOY_ROOT" =~ ^/[A-Za-z0-9._/-]+$ ]]',
             "git ls-remote --exit-code",
             'echo "deploy=false" >> "$GITHUB_OUTPUT"',
             "deploy/compose.preview.yaml",
@@ -725,7 +728,12 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         self.compose_override_source.unlink(missing_ok=True)
         self.temporary.cleanup()
 
-    def environment(self, *, fail_image: str = "") -> dict[str, str]:
+    def environment(
+        self,
+        *,
+        fail_image: str = "",
+        super_admin_username: str = "admin",
+    ) -> dict[str, str]:
         environment = os.environ.copy()
         environment.update(
             {
@@ -733,6 +741,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
                 "HOME": str(self.home),
                 "IMS_DEPLOY_PROBE_ATTEMPTS": "1",
                 "IMS_DEPLOY_PROBE_DELAY_SECONDS": "0",
+                "IMS_PREVIEW_SUPER_ADMIN_USERNAME": super_admin_username,
                 "FAKE_CONTAINER_LOG": str(self.container_log),
                 "FAKE_CONTAINER_ROOT": str(self.container_root),
                 "FAKE_CURL_LOG": str(self.curl_log),
@@ -749,6 +758,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         *,
         deploy_root: Path | None = None,
         fail_image: str = "",
+        super_admin_username: str = "admin",
     ) -> subprocess.CompletedProcess[str]:
         target_root = deploy_root or self.deploy_root
         return subprocess.run(
@@ -763,7 +773,10 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
                 str(self.compose_override_source),
             ),
             cwd=PROJECT_ROOT,
-            env=self.environment(fail_image=fail_image),
+            env=self.environment(
+                fail_image=fail_image,
+                super_admin_username=super_admin_username,
+            ),
             text=True,
             capture_output=True,
             check=False,
@@ -790,11 +803,26 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         self.assertIn(image, records[0].read_text(encoding="utf-8"))
         command_log = self.container_log.read_text(encoding="utf-8")
         self.assertIn("--project-name imsweb-preview", command_log)
+        self.assertIn("|admin|", command_log)
         self.assertIn("up -d --no-build", command_log)
         self.assertIn("--profile local-cache", command_log)
         self.assertNotIn("local-storage", command_log)
         self.assertNotIn("--build", command_log)
         self.assertIn("Preview deployment completed.\n", result.stdout)
+
+    def test_preview_deployment_rejects_unsafe_super_admin_username(self):
+        commit = "1" * 40
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+        result = self.deploy(
+            commit,
+            image,
+            super_admin_username="admin'; touch /tmp/preview-injection",
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unsafe account characters", result.stderr)
+        self.assertFalse(self.container_log.exists())
 
     def test_failed_candidate_restores_previous_preview_image(self):
         first_commit = "1" * 40

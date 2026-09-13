@@ -56,7 +56,6 @@ import {
 } from "@/config/env";
 import { parseNodeObjectStorageConfig } from "@/config/object-storage";
 import { parseNodeDatabaseConfig } from "@/config/database";
-import { parsePlatformEmailConfig } from "@/config/platform-email";
 import { parseNodeCacheConfig } from "@/config/cache";
 import { MemoryCache } from "@/infra/cache/memory/cache";
 import { MemoryRateLimiter } from "@/infra/cache/memory/rate-limiter";
@@ -75,6 +74,7 @@ import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
 import { SqlHomepageLinkRepository } from "@/infra/db/repositories/homepage-link-repository";
 import { SqlNewsRepository } from "@/infra/db/repositories/news-repository";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
+import { SqlPlatformEmailConfigurationRepository } from "@/infra/db/repositories/platform-email-configuration-repository";
 import { SqlReactionRepository } from "@/infra/db/repositories/reaction-repository";
 import { SqlSitePackageRepository } from "@/infra/db/repositories/site-package-repository";
 import { SqlStoryRepository } from "@/infra/db/repositories/story-repository";
@@ -96,7 +96,8 @@ import { S3UploadStateMachine } from "@/infra/oss/s3/upload-state-machine";
 import { SharpImageProcessor } from "@/infra/media/sharp/image-processor";
 import { BcryptPasswordVerifier } from "@/infra/security/bcrypt/password-verifier";
 import { parsePlatformOAuthConfig } from "@/config/platform-oauth";
-import { createPlatformEmailSender } from "@/infra/email/cloudflare/platform-email-sender";
+import { ConfiguredPlatformEmailService } from "@/infra/email/smtp/platform-email-service";
+import { PlatformEmailSecretCipher } from "@/infra/email/smtp/platform-email-secrets";
 import { ConfiguredPlatformOAuthClient } from "@/infra/oauth/platform-oauth-client";
 import { PlatformOAuthSecretCipher } from "@/infra/oauth/platform-oauth-secrets";
 import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service";
@@ -379,10 +380,6 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
     validateFudabaPublicReadStorage(FUDABA_PUBLIC_READ_ENABLED, objectStorage);
     const database = parseNodeDatabaseConfig(process.env);
     const cacheConfig = parseNodeCacheConfig();
-    const platformEmailSender = createPlatformEmailSender(
-        parsePlatformEmailConfig(),
-        globalThis.fetch,
-    );
     const platformOAuthConfig = parsePlatformOAuthConfig();
     ensureRuntimeDirectories(objectStorage.type === "filesystem");
     const {
@@ -413,6 +410,10 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             platform,
             new PlatformOAuthSecretCipher(PLATFORM_JWT_SECRET),
             globalThis.fetch,
+        );
+        const platformEmail = new ConfiguredPlatformEmailService(
+            new SqlPlatformEmailConfigurationRepository(connection),
+            new PlatformEmailSecretCipher(PLATFORM_JWT_SECRET),
         );
         cacheServices = await createNodeCacheServices(cacheConfig);
         const cache = cacheServices.cache;
@@ -460,7 +461,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 },
             },
             passwords: new BcryptPasswordVerifier(),
-            platformEmailSender,
+            platformEmailSender: platformEmail,
+            platformEmailConfiguration: platformEmail,
             platformOAuth,
             backofficeTokens: new HmacBackofficeTokenService(
                 BACKOFFICE_JWT_SECRET,

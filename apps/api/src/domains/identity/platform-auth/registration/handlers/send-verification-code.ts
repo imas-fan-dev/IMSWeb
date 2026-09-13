@@ -37,7 +37,7 @@ export async function handlePlatformRegistrationVerification(
     const input = c.req.valid('json');
     const runtime = services(c);
     const sender = runtime.platformEmailSender;
-    if (!sender?.available) return unavailable(c);
+    if (!sender || !(await sender.isAvailable())) return unavailable(c);
 
     const cachedCooldownMs = await readPlatformEmailVerificationCooldown(
         runtime.cache,

@@ -73,6 +73,9 @@ importers:
       hono:
         specifier: 4.13.5
         version: 4.13.5
+      nodemailer:
+        specifier: 10.0.0
+        version: 10.0.0
       parse5:
         specifier: 8.0.1
         version: 8.0.1
@@ -6708,6 +6711,13 @@ packages:
       }
     engines: { node: ">=18" }
 
+  nodemailer@10.0.0:
+    resolution:
+      {
+        integrity: sha512-wdv+hXBg0iIPIOf108FaZyTxqjQpCvQeAJt9pHHTooPy/y3vQtI9eiImM9AIVKR3e/0FeMA1oueNfBjFJcaK+Q==,
+      }
+    engines: { node: ">=20.0.0" }
+
   nopt@9.0.0:
     resolution:
       {
@@ -12858,6 +12868,8 @@ snapshots:
     optional: true
 
   node-releases@2.0.53: {}
+
+  nodemailer@10.0.0: {}
 
   nopt@9.0.0:
     dependencies:

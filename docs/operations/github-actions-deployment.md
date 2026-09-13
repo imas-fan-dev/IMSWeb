@@ -77,14 +77,19 @@ preview push 执行完整 `pnpm run check`、`pnpm run test`、镜像构建、pr
 
 另建 `preview` Environment，并把 deployment branch policy 限制为 `release/v1.1` branch。配置：
 
-| 名称                    | 示例                          | 说明                           |
-| ----------------------- | ----------------------------- | ------------------------------ |
-| `PREVIEW_DEPLOY_HOST`   | `preview.example.com`         | SSH 主机名，不包含用户或端口   |
-| `PREVIEW_DEPLOY_PORT`   | `22`                          | SSH 端口                       |
-| `PREVIEW_DEPLOY_USER`   | `imsweb`                      | 拥有 rootless 容器运行时的用户 |
-| `PREVIEW_DEPLOY_ROOT`   | `/home/<deploy-user>/preview` | 必须位于该用户 home 下         |
-| `PREVIEW_SOURCE_BRANCH` | `release/v1.1`                | 必须与 workflow 固定分支一致   |
-| `PREVIEW_API_PORT`      | `13000`                       | 回环绑定的 API 与 Web 端口     |
+| 名称                           | 示例                          | 说明                           |
+| ------------------------------ | ----------------------------- | ------------------------------ |
+| `PREVIEW_DEPLOY_HOST`          | `preview.example.com`         | SSH 主机名，不包含用户或端口   |
+| `PREVIEW_DEPLOY_PORT`          | `22`                          | SSH 端口                       |
+| `PREVIEW_DEPLOY_USER`          | `imsweb`                      | 拥有 rootless 容器运行时的用户 |
+| `PREVIEW_DEPLOY_ROOT`          | `/home/<deploy-user>/preview` | 必须位于该用户 home 下         |
+| `PREVIEW_SOURCE_BRANCH`        | `release/v1.1`                | 必须与 workflow 固定分支一致   |
+| `PREVIEW_API_PORT`             | `13000`                       | 回环绑定的 API 与 Web 端口     |
+| `PREVIEW_SUPER_ADMIN_USERNAME` | `admin`                       | preview 中唯一的最高管理员账号 |
+
+部署脚本把 `PREVIEW_SUPER_ADMIN_USERNAME` 作为容器环境传入，不改写宿主机的
+`preview.env`。该账号必须已经存在且属于 `op` 部门；若数据库中已有其他最高管理员，API
+健康检查失败并回滚本次发布，不会自动改写已有角色。
 
 preview secrets 为 `PREVIEW_DEPLOY_SSH_PRIVATE_KEY` 和
 `PREVIEW_DEPLOY_SSH_KNOWN_HOSTS`。公钥应带 `restrict` 选项写入 preview 用户的

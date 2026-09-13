@@ -73,6 +73,10 @@ class CapturingPlatformEmailSender implements PlatformEmailSender {
     readonly messages: PlatformEmailVerificationMessage[] = [];
     readonly passwordResetMessages: PlatformEmailVerificationMessage[] = [];
 
+    async isAvailable(): Promise<boolean> {
+        return this.available;
+    }
+
     async sendRegistrationVerification(
         message: PlatformEmailVerificationMessage,
     ): Promise<void> {

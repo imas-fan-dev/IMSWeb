@@ -151,6 +151,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             {
                 version: '20260902120000_platform_session_devices',
                 phase: 'post-data'
+            },
+            {
+                version: '20260912210000_platform_email_configuration',
+                phase: 'post-data'
             }
         ]
     );
@@ -624,11 +628,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 46);
+    assert.equal(catalog.count, 47);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260902120000_platform_session_devices'
+        '20260912210000_platform_email_configuration'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -731,7 +735,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260822100000_editorial_presentation',
         '20260826130000_namecard_legacy_tables_read_only',
         '20260901140000_dynamic_platform_oauth_providers',
-        '20260902120000_platform_session_devices'
+        '20260902120000_platform_session_devices',
+        '20260912210000_platform_email_configuration'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

@@ -434,6 +434,13 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     WEB_TARGET,
     "spa"
   ),
+  route(
+    "platform/email",
+    "pages/admin/platform-email/index.tsx",
+    "admin",
+    WEB_TARGET,
+    "spa"
+  ),
   route("system", "pages/admin/system/index.tsx", "admin", WEB_TARGET, "spa"),
   route("*", "pages/admin/not-found/index.tsx", "admin", WEB_TARGET, "spa"),
 ])

@@ -19,6 +19,7 @@ compose_source=$4
 deploy_root=$5
 compose_override_source=$6
 runtime_env=${IMS_PREVIEW_RUNTIME_ENV_FILE:-$deploy_root/config/preview.env}
+super_admin_username=${IMS_PREVIEW_SUPER_ADMIN_USERNAME:-}
 container_cli=${IMS_CONTAINER_CLI:-docker}
 probe_attempts=${IMS_DEPLOY_PROBE_ATTEMPTS:-45}
 probe_delay=${IMS_DEPLOY_PROBE_DELAY_SECONDS:-2}
@@ -29,6 +30,10 @@ probe_delay=${IMS_DEPLOY_PROBE_DELAY_SECONDS:-2}
     fail "commit SHA must contain 40 lowercase hexadecimal characters"
 [[ "$preview_id" == "preview-${release_sha:0:12}" ]] ||
     fail "preview ID must match the commit SHA"
+if [[ -n "$super_admin_username" ]]; then
+    [[ "$super_admin_username" =~ ^[A-Za-z0-9_.@-]{1,128}$ ]] ||
+        fail "IMS_PREVIEW_SUPER_ADMIN_USERNAME contains unsafe account characters"
+fi
 [[ "$image_ref" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]] ||
     fail "API image must be an immutable GHCR digest reference"
 [[ "$compose_source" =~ ^/tmp/imsweb-preview-compose-[0-9]+-[0-9]+\.yaml$ ]] ||
@@ -176,9 +181,15 @@ compose() {
     local compose_file=$1
     local compose_override=$2
     local selected_image=$3
+    local compose_environment=(
+        COMPOSE_PROFILES=local-cache
+        IMS_API_IMAGE="$selected_image"
+    )
     shift 3
-    env COMPOSE_PROFILES=local-cache IMS_API_IMAGE="$selected_image" \
-        "$container_cli" compose \
+    if [[ -n "$super_admin_username" ]]; then
+        compose_environment+=(IMS_SUPER_ADMIN_USERNAME="$super_admin_username")
+    fi
+    env "${compose_environment[@]}" "$container_cli" compose \
         --project-name imsweb-preview \
         --env-file "$runtime_env" \
         -f "$compose_file" \
