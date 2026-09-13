@@ -163,6 +163,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             {
                 version: '20260913120000_platform_email_delivery_jobs',
                 phase: 'post-data'
+            },
+            {
+                version: '20260913130000_platform_email_request_cooldowns',
+                phase: 'post-data'
             }
         ]
     );
@@ -642,6 +646,33 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
         emailDeliveryJobs.sql,
         /recipient_email|\bcode\s+TEXT|rendered_(?:subject|body)|smtp_response/i
     );
+    const emailRequestCooldowns = migrations.find(
+        ({ version }) => version === '20260913130000_platform_email_request_cooldowns'
+    );
+    assert.match(
+        emailRequestCooldowns.sql,
+        /CREATE TABLE public\.platform_email_request_cooldowns/
+    );
+    assert.match(
+        emailRequestCooldowns.sql,
+        /PRIMARY KEY \([\s\S]+purpose,[\s\S]+recipient_key[\s\S]+\)/
+    );
+    assert.match(
+        emailRequestCooldowns.sql,
+        /recipient_key ~ '\^\[a-f0-9\]\{64\}\$'/
+    );
+    assert.match(
+        emailRequestCooldowns.sql,
+        /resend_after <= enqueued_at \+ 600000/
+    );
+    assert.match(
+        emailRequestCooldowns.sql,
+        /platform_email_request_cooldowns_expiry_idx/
+    );
+    assert.doesNotMatch(
+        emailRequestCooldowns.sql,
+        /recipient_email|verification_code|code_hash|delivery_token|smtp_|payload/i
+    );
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -665,11 +696,11 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 48);
+    assert.equal(catalog.count, 49);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260913120000_platform_email_delivery_jobs'
+        '20260913130000_platform_email_request_cooldowns'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
 });
@@ -758,6 +789,139 @@ test('email delivery migration creates the constrained queue and resend policy',
         database.prepare(
             'UPDATE platform_email_configuration SET resend_cooldown_seconds=? WHERE singleton_id=1'
         ).bind(601).run()
+    );
+});
+
+test('email request cooldown migration creates a narrow bounded anonymous store', {
+    skip: !postgresIntegrationEnabled()
+}, async (t) => {
+    const harness = await createPostgresTestHarness({
+        label: 'email-request-cooldown-schema',
+        seedCanonicalAgencies: false
+    });
+    t.after(() => harness.close());
+    const database = harness.connection;
+
+    const columns = (await database.prepare(
+        `SELECT column_name, data_type, is_nullable
+         FROM information_schema.columns
+         WHERE table_schema='public'
+           AND table_name='platform_email_request_cooldowns'
+         ORDER BY ordinal_position`
+    ).all()).results;
+    assert.deepEqual(columns, [
+        { column_name: 'purpose', data_type: 'text', is_nullable: 'NO' },
+        { column_name: 'recipient_key', data_type: 'text', is_nullable: 'NO' },
+        { column_name: 'enqueued_at', data_type: 'bigint', is_nullable: 'NO' },
+        { column_name: 'resend_after', data_type: 'bigint', is_nullable: 'NO' },
+        { column_name: 'updated_at', data_type: 'bigint', is_nullable: 'NO' }
+    ]);
+
+    const constraints = (await database.prepare(
+        `SELECT conname, pg_get_constraintdef(oid) AS definition
+         FROM pg_constraint
+         WHERE conrelid='public.platform_email_request_cooldowns'::regclass
+           AND contype <> 'n'
+         ORDER BY conname`
+    ).all()).results;
+    assert.deepEqual(constraints.map(({ conname }) => conname), [
+        'platform_email_request_cooldowns_enqueued_at_ck',
+        'platform_email_request_cooldowns_pkey',
+        'platform_email_request_cooldowns_purpose_ck',
+        'platform_email_request_cooldowns_recipient_key_ck',
+        'platform_email_request_cooldowns_updated_at_ck',
+        'platform_email_request_cooldowns_window_ck'
+    ]);
+    const definitions = Object.fromEntries(
+        constraints.map(({ conname, definition }) => [conname, definition])
+    );
+    assert.equal(
+        definitions.platform_email_request_cooldowns_pkey,
+        'PRIMARY KEY (purpose, recipient_key)'
+    );
+    assert.match(
+        definitions.platform_email_request_cooldowns_purpose_ck,
+        /registration.*password_reset/
+    );
+    assert.match(
+        definitions.platform_email_request_cooldowns_recipient_key_ck,
+        /recipient_key ~ '\^\[a-f0-9\]\{64\}\$'/
+    );
+    assert.match(
+        definitions.platform_email_request_cooldowns_enqueued_at_ck,
+        /enqueued_at >= 0/
+    );
+    assert.match(
+        definitions.platform_email_request_cooldowns_window_ck,
+        /resend_after >= enqueued_at.*resend_after <= \(enqueued_at \+ 600000\)/
+    );
+    assert.match(
+        definitions.platform_email_request_cooldowns_updated_at_ck,
+        /updated_at >= enqueued_at/
+    );
+
+    const indexes = (await database.prepare(
+        `SELECT indexname, indexdef FROM pg_indexes
+         WHERE schemaname='public'
+           AND tablename='platform_email_request_cooldowns'
+         ORDER BY indexname`
+    ).all()).results;
+    assert.deepEqual(indexes.map(({ indexname }) => indexname), [
+        'platform_email_request_cooldowns_expiry_idx',
+        'platform_email_request_cooldowns_pkey'
+    ]);
+    assert.match(
+        indexes[0].indexdef,
+        /USING btree \(resend_after, purpose, recipient_key\)$/
+    );
+
+    const recipientKey = 'a'.repeat(64);
+    await database.prepare(
+        `INSERT INTO platform_email_request_cooldowns (
+            purpose, recipient_key, enqueued_at, resend_after, updated_at
+        ) VALUES (?, ?, ?, ?, ?)`
+    ).bind('password_reset', recipientKey, 1000, 601000, 1000).run();
+    await assert.rejects(
+        database.prepare(
+            `INSERT INTO platform_email_request_cooldowns (
+                purpose, recipient_key, enqueued_at, resend_after, updated_at
+            ) VALUES (?, ?, ?, ?, ?)`
+        ).bind('password_reset', recipientKey, 2000, 3000, 2000).run()
+    );
+    await assert.rejects(
+        database.prepare(
+            `INSERT INTO platform_email_request_cooldowns (
+                purpose, recipient_key, enqueued_at, resend_after, updated_at
+            ) VALUES (?, ?, ?, ?, ?)`
+        ).bind('unknown', 'b'.repeat(64), 1000, 2000, 1000).run()
+    );
+    await assert.rejects(
+        database.prepare(
+            `INSERT INTO platform_email_request_cooldowns (
+                purpose, recipient_key, enqueued_at, resend_after, updated_at
+            ) VALUES (?, ?, ?, ?, ?)`
+        ).bind('password_reset', 'C'.repeat(64), 1000, 2000, 1000).run()
+    );
+    await assert.rejects(
+        database.prepare(
+            `INSERT INTO platform_email_request_cooldowns (
+                purpose, recipient_key, enqueued_at, resend_after, updated_at
+            ) VALUES (?, ?, ?, ?, ?)`
+        ).bind('registration', 'd'.repeat(64), 1000, 999, 1000).run()
+    );
+    await assert.rejects(
+        database.prepare(
+            `INSERT INTO platform_email_request_cooldowns (
+                purpose, recipient_key, enqueued_at, resend_after, updated_at
+            ) VALUES (?, ?, ?, ?, ?)`
+        ).bind('registration', 'e'.repeat(64), 1000, 601001, 1000).run()
+    );
+    await assert.rejects(
+        database.prepare(
+            `INSERT INTO platform_email_request_cooldowns (
+                purpose, recipient_key, enqueued_at, resend_after, updated_at
+            ) VALUES (?, ?, ?, ?, ?)`
+        ).bind('registration', 'f'.repeat(64), 1000, 2000, 999).run()
     );
 });
 
@@ -861,7 +1025,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260901140000_dynamic_platform_oauth_providers',
         '20260902120000_platform_session_devices',
         '20260912210000_platform_email_configuration',
-        '20260913120000_platform_email_delivery_jobs'
+        '20260913120000_platform_email_delivery_jobs',
+        '20260913130000_platform_email_request_cooldowns'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

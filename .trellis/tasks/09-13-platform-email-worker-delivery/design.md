@@ -6,10 +6,11 @@
 
 不增加前端轮询或后台任务查询接口。Web 在入队成功后显示“请求已受理，请稍候查收”，并按响应中的 `retryAfterSeconds` 启动倒计时。异步失败属于已接受的产品风险。
 
-实施分为两个可部署检查点：
+实施分为三个可部署检查点：
 
-1. 扩展阶段：上线队列表、完整 Worker、Compose 和部署支持，但 API 保持同步 SMTP。
-2. 切换阶段：在不增加迁移的前提下，把 API 改为事务入队并更新 Web 文案。
+1. Release A 扩展阶段：上线队列表、完整 Worker、Compose 和部署支持，但 API 保持同步 SMTP。
+2. Release B1 兼容阶段：增加匿名请求冷却表，公共 API 行为继续保持 Release A 的同步 SMTP 路径。
+3. Release B2 切换阶段：使用 B1 schema，把 API 改为事务入队并更新 Web 文案。
 
 ## 2. Current And Target Flow
 
@@ -66,7 +67,7 @@ The two verification-code success payloads become explicit queue acknowledgement
 }
 ```
 
-`retryAfterSeconds` is an integer derived by the server. A successful new enqueue returns the configured interval, which defaults to 60 and is bounded to 30 through 600 seconds. Cooldown responses return the remaining interval rounded up to whole seconds. Password-reset requests for unknown emails return the same exact response as known accounts, using the current configured interval without creating a code or job.
+`retryAfterSeconds` is an integer derived by the server. A successful new enqueue returns the configured interval, which defaults to 60 and is bounded to 30 through 600 seconds. Cooldown responses return the remaining interval rounded up to whole seconds. Password-reset requests for unknown emails return the same exact response as known accounts. In B2 they persist only an anonymous cooldown row, never a verification candidate or delivery job.
 
 The managed email settings contracts add `resendCooldownSeconds` to both the exact admin response and write request. Contract validation accepts only integer values from 30 through 600. The field shares the existing `expectedUpdatedAt` optimistic-concurrency boundary.
 
@@ -140,6 +141,8 @@ Terminal jobs are retained for a bounded operational window, then deleted in sma
 
 The same additive migration adds `resend_cooldown_seconds` to the existing `platform_email_configuration` singleton with `NOT NULL DEFAULT 60` and a database check restricting values to integer seconds from 30 through 600. Released migrations are not edited. The migration catalog and frozen-order tests receive one additive entry.
 
+Release B1 adds `platform_email_request_cooldowns` in a separate immutable migration. The table has exactly `purpose`, `recipient_key`, `enqueued_at`, `resend_after` and `updated_at`. `recipient_key` is a 64-character lowercase hexadecimal HMAC result, not an email address. The composite primary key is `(purpose, recipient_key)`, the purpose is limited to registration or password reset, and the cooldown window is constrained to zero through 600 seconds. An index led by `resend_after` supports bounded expiry cleanup. The table contains no email plaintext, code or hash, delivery token, job reference, SMTP data or arbitrary payload.
+
 ## 5. Enqueue Transaction
 
 The API generates a random job ID and delivery token, then prepares a versioned encrypted payload before opening the SQL transaction. The payload contains only the minimum send data:
@@ -164,11 +167,11 @@ An initial candidate remains unusable while its delivery token is present. A res
 
 Provisional candidate expiry remains long enough for an attempt that began before the deadline to finish. Final code expiry is overwritten from SMTP acceptance time.
 
-Password-reset issuance checks account existence inside the same repository operation. Unknown emails return the enumeration-safe queue acknowledgement without writing a verification candidate or delivery job.
+Password-reset issuance checks account existence inside the same repository operation. Unknown emails upsert only the B1 anonymous cooldown row with the current authoritative interval, then return the enumeration-safe queue acknowledgement. They do not create a verification candidate or delivery job.
 
 ## 6. Cooldown, Policy Cache And Expired Jobs
 
-PostgreSQL remains authoritative for both the policy and each committed cooldown. Valkey provides two shared, cross-instance accelerators:
+PostgreSQL remains authoritative for both the policy and each committed cooldown. Verification aggregates hold cooldowns for registration and known password-reset accounts. The B1 anonymous cooldown table holds the same durable boundary for unknown password-reset addresses without creating business or delivery records. Valkey provides two shared, cross-instance accelerators:
 
 - Recipient cooldown entries contain the absolute `retryAfterAt` produced by the enqueue transaction. Their TTL is derived from the committed interval and is capped at 600 seconds.
 - One `platform-email-resend-policy:v1` entry contains only `{ resendCooldownSeconds, updatedAt }`. It never contains SMTP usernames, passwords, credential ciphertext or the rest of the SMTP configuration.
@@ -339,18 +342,25 @@ The API remains on synchronous SMTP, so the new queue is empty. Deployment start
 
 Because IMSWeb rejects migrations unknown to an older image, applying Release A's migration makes the pre-A image unsuitable for automatic code rollback. If Release A fails after migration, recovery must use the Release A image with the API kept on its still-synchronous path, or restore the database through the existing manual production recovery boundary. Preview has no automatic database restore.
 
-### Release B: cutover
+### Release B1: anonymous cooldown expansion
 
-Release B has no migration. It changes:
+Release B1 adds the anonymous request cooldown table and its migration tests. Its handlers, response contracts, runtime composition, repositories and Web behavior remain identical to the deployed Release A behavior. Normal Release A traffic does not use the new table.
+
+After B1 migration succeeds, a pre-B1 image is not an automatic rollback target because it rejects migrations absent from its catalog. A failed B1 deployment must recover with the B1 image while retaining Release A behavior, or use the existing manual database recovery boundary. Preview has no automatic database restore.
+
+### Release B2: cutover
+
+Release B2 contains no migration. It changes:
 
 - handlers from synchronous SMTP to transactional enqueue
+- unknown password-reset cooldown fallback to the B1 anonymous table
 - queue acknowledgement contracts
 - Web success text
 - contract and workflow tests
 
-Deployment starts and verifies the Release B Worker before starting the enqueueing API.
+Deployment starts and verifies the Release B2 Worker before starting the enqueueing API.
 
-If Release B fails, automatic rollback returns to Release A. Release A's Worker understands and drains any jobs created during the candidate window, while its API returns to synchronous delivery. Queue schema and payload version remain compatible across this rollback window.
+If Release B2 fails, automatic rollback returns to B1. The B1 Worker understands and drains jobs created during the candidate window, while its API returns to synchronous delivery. Queue schema, payload version and anonymous cooldown schema remain compatible across this rollback window.
 
 ### Deployment scripts
 
@@ -394,7 +404,7 @@ No Backoffice queue page or manual retry API is added in this phase.
 | Valkey update fails after database commit | Fall back to PostgreSQL, bound cache TTL to five seconds and repair on the next miss |
 | Queue leaks email/code | Encrypt minimal payload and bind it with AES-GCM authenticated data |
 | Provider outage causes restart loop | Exclude SMTP availability from Worker readiness |
-| Previous image cannot read new migration | Two-release rollout; Release B rolls back only to Worker-capable Release A |
+| Previous image cannot read new migration | Stage B1 as a schema-only release; recover a failed B1 with its own image, and roll B2 back only to Worker-capable B1 |
 | Worker process is killed mid-attempt | Stop claims first; bounded grace period; recover through lease expiry |
 
 ## 16. Rejected Alternatives
@@ -404,5 +414,5 @@ No Backoffice queue page or manual retry API is added in this phase.
 - External Redis/Valkey queue: rejected because PostgreSQL already owns candidate consistency and offers the required transactional outbox boundary.
 - Plaintext job payloads: rejected because they would expose email addresses and verification codes at rest.
 - Activating the code before SMTP: rejected because users could verify with a code that was never accepted for delivery.
-- One-release migration plus cutover: rejected because the previous image would not understand the queue migration or drain newly created jobs.
+- Combining B1 schema expansion with the B2 cutover: rejected because B2 needs a rollback target that knows the anonymous cooldown migration while retaining Release A request behavior.
 - A shared persisted-configuration cache abstraction: deferred to the next version. That work will unify Valkey reads, revision synchronization and invalidation for frequently read external-service configuration such as OAuth and full SMTP settings. It is not a business-data dual-write framework. This task keeps the cache port, revision comparison and fallback specific to the email resend policy.

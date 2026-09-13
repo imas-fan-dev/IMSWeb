@@ -150,17 +150,18 @@ Deployment scripts must become service-aware:
 
 A safe rollout is staged:
 
-1. Deploy additive migration, idle worker entrypoint/service, worker health support, and deployment-script changes while API remains synchronous.
-2. Deploy the API switch to transactional enqueue after the worker is proven ready.
-3. Keep queue schema and payload versions backward compatible until rollback targets and old queued payloads are gone.
+1. Deploy the Release A queue migration, idle worker entrypoint/service, worker health support and deployment-script changes while the API remains synchronous.
+2. Deploy Release B1 with the additive anonymous request cooldown table while keeping handlers, contracts, runtime composition, repositories and Web behavior on the Release A path.
+3. After B1 preview validation, deploy Release B2 and switch the API to transactional enqueue, including durable unknown-address cooldown fallback through the B1 table.
+4. Keep queue schema and payload versions backward compatible until rollback targets and old queued payloads are gone.
 
-Automatic deployment rollback is code-only; PostgreSQL is never restored. A one-release cutover would leave the previous image unable to drain newly queued jobs.
+Automatic deployment rollback is code-only; PostgreSQL is never restored. Once B1 migration runs, pre-B1 images reject the unknown migration, so B1 failure recovery uses the B1 image or the existing manual database recovery boundary. B2 can roll back to B1, whose API still follows Release A behavior and whose Worker can drain B2 jobs.
 
 ## Contracts, Web, And Tests
 
 - Keep request paths unchanged.
 - Registration enqueue success becomes `202 { success: true, queued: true, retryAfterSeconds }`, where the server value comes from the Backoffice-managed 30-through-600-second policy and defaults to 60.
-- Password-reset enqueue success uses the same payload and configured interval, including enumeration-safe unknown emails.
+- Password-reset enqueue success uses the same payload and configured interval, including enumeration-safe unknown emails. Unknown addresses persist only an HMAC-keyed B1 cooldown row, not a verification candidate or delivery job.
 - Update Web messages in `apps/web/app/pages/account/components/account-auth-form.tsx` and i18n resources to say the request was accepted and the user should wait. Do not add polling.
 
 Primary tests:
@@ -178,7 +179,7 @@ Coverage must include atomic enqueue, plaintext absence, pre-acceptance rejectio
 
 ## Subsequent Resend-Policy Decision
 
-The user later required the resend interval to be dynamically managed in the existing Backoffice email singleton. The interval defaults to 60 seconds and accepts integer values from 30 through 600. PostgreSQL remains authoritative and stores each enqueue's absolute `resend_after`; recipient Valkey entries mirror that committed deadline.
+The user later required the resend interval to be dynamically managed in the existing Backoffice email singleton. The interval defaults to 60 seconds and accepts integer values from 30 through 600. PostgreSQL remains authoritative and stores each request's absolute `resend_after`; verification aggregates own this value for registration and known password-reset accounts, while the B1 anonymous table stores it for unknown password-reset addresses under a purpose plus HMAC-derived recipient key. Recipient Valkey entries mirror that committed deadline.
 
 Because the policy is read frequently, API replicas share a Valkey policy cache containing only `resendCooldownSeconds` and the PostgreSQL `updatedAt` revision. A specialized atomic compare-and-set rejects older revisions, closing the stale-refill race that ordinary `GET`/`SET` cache-aside would create. There is no process-local L1 cache and no SMTP credential data in this policy entry. Admin writes update PostgreSQL first and then write through the returned revision. Cache miss, invalid data or synchronization failure falls back to PostgreSQL, and the final enqueue transaction always rereads PostgreSQL before it persists the cooldown.
 

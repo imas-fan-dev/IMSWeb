@@ -137,13 +137,46 @@ Release gate:
 - [ ] Commit Release A separately.
 - [ ] Push Release A to `release/v1.1` and monitor preview deployment.
 - [ ] Verify API public health, Worker health, one expected Worker replica and zero failed/leased email jobs.
-- [ ] Do not begin Release B until Release A is the confirmed `current` preview release.
+- [ ] Do not begin Release B1 until Release A is the confirmed `current` preview release.
 
-## Release B: API Queue Cutover
+## Release B1: Anonymous Cooldown Schema
 
-Release B contains no migration.
+Release B1 adds the PostgreSQL fallback needed for exact unknown-address password-reset cooldowns. Public API behavior remains the deployed Release A behavior throughout this checkpoint.
 
-### 8. Change Queue Acknowledgement And Policy Contracts
+### 8. Add The Anonymous Cooldown Schema
+
+- [ ] Add `20260913130000_platform_email_request_cooldowns.sql` after the Release A queue migration.
+- [ ] Create only `platform_email_request_cooldowns` with `purpose`, a 64-character lowercase hexadecimal HMAC recipient key, `enqueued_at`, `resend_after` and `updated_at`.
+- [ ] Enforce the purpose set, key format, composite primary key, nonnegative enqueue time, `resend_after >= enqueued_at`, a maximum 600-second window and `updated_at >= enqueued_at`.
+- [ ] Add an expiry/cleanup index led by `resend_after`.
+- [ ] Update the frozen migration order, count, latest version, repeatability list and live PostgreSQL schema assertions.
+- [ ] Keep public behavior identical to Release A. Do not edit handlers, contracts, runtime composition, repository implementations or Web behavior before the B1 preview checkpoint.
+
+Validation:
+
+```sh
+pnpm --filter @imsweb/api run test:migration
+pnpm run check:rules
+```
+
+Release gate:
+
+- [ ] Commit Release B1 separately.
+- [ ] Push Release B1 to `release/v1.1` and monitor preview deployment.
+- [ ] Verify the public API still behaves like Release A and normal traffic does not write anonymous cooldown rows.
+- [ ] Do not begin Release B2 until Release B1 is the confirmed `current` preview release.
+
+Rollback point:
+
+- B1 is additive, but pre-B1 images reject the applied migration as unknown.
+- If B1 fails after migration, recover with the B1 image while preserving Release A API behavior, or use the existing manual production database recovery boundary.
+- Preview has no automatic database restore.
+
+## Release B2: API Queue Cutover
+
+Release B2 uses the B1 table for unknown password-reset cooldown fallback and contains no migration.
+
+### 9. Change Queue Acknowledgement And Policy Contracts
 
 - [ ] Update registration and password-reset code-request success schemas to exact `{ success: true, queued: true, retryAfterSeconds: number }` payloads, with the server value constrained to positive integer seconds no greater than 600.
 - [ ] Add `resendCooldownSeconds` to managed-email admin read/write contracts as an integer from 30 through 600, retaining strict objects and `expectedUpdatedAt`.
@@ -159,7 +192,7 @@ pnpm --filter @imsweb/api run typecheck
 pnpm --filter @imsweb/web run typecheck
 ```
 
-### 9. Switch HTTP Handlers To Transactional Enqueue
+### 10. Switch HTTP Handlers To Transactional Enqueue
 
 - [ ] Remove request-time SMTP availability checks and `sendMail` awaits from registration/password-reset handlers.
 - [ ] Generate/hash the code and call `PlatformEmailDeliveryQueue`.
@@ -168,10 +201,10 @@ pnpm --filter @imsweb/web run typecheck
 - [ ] Wire successful Backoffice policy updates to the revision-aware Valkey write-through path. Do not cache SMTP credentials or add an L1 cache.
 - [ ] Return `202 queued` immediately after durable enqueue with the backend-calculated `retryAfterSeconds`.
 - [ ] Keep immediate database/enqueue failures as explicit request failures; do not return success without a durable job.
-- [ ] Keep unknown password-reset emails enumeration-safe and job-free.
+- [ ] Keep unknown password-reset emails enumeration-safe and job-free; persist only their HMAC-keyed cooldown row from B1 so PostgreSQL remains authoritative during Valkey miss or outage.
 - [ ] Remove obsolete handler compensation paths while retaining worker-side terminal compensation.
 
-### 10. Update Backoffice Policy And Web Countdown
+### 11. Update Backoffice Policy And Web Countdown
 
 - [ ] Add a labeled integer-seconds control for the 30-through-600 resend interval to the existing Backoffice “邮件服务” policy section; default to 60 and preserve revision-conflict refresh behavior.
 - [ ] Keep the existing send button and local countdown flow, but initialize it exclusively from response `retryAfterSeconds` with no fixed 60-second fallback.
@@ -180,7 +213,7 @@ pnpm --filter @imsweb/web run typecheck
 - [ ] Update Chinese and English i18n resources without changing unrelated strings.
 - [ ] Cover registration and password-reset countdown behavior at desktop/mobile-relevant component boundaries.
 
-### 11. Cutover Regression Coverage
+### 12. Cutover Regression Coverage
 
 - [ ] Extend API HTTP contract tests for exact queued responses.
 - [ ] Prove SMTP is not called in the request path.
@@ -189,14 +222,14 @@ pnpm --filter @imsweb/web run typecheck
 - [ ] Prove accepted-time TTL and single-use consumption.
 - [ ] Prove failed resend preserves the old code.
 - [ ] Prove a configured 30-second cooldown can supersede a still-running old attempt; late old completion cannot activate its code, while a superseded resend keeps the earlier active code usable.
-- [ ] Prove unknown password-reset email returns the same payload and configured interval while creating no job.
+- [ ] Prove unknown password-reset email returns the same payload and configured interval while creating no verification candidate or job, and that Valkey miss or outage reads the HMAC-keyed B1 cooldown row.
 - [ ] Prove Valkey policy reads are shared across API instances, write-through is revision-monotonic, a stale refill cannot overwrite a newer setting, invalid/missing cache data falls back to PostgreSQL, and the enqueue transaction wins over stale cache input.
 - [ ] Prove successful, `429` and `Retry-After` values use the same ceiling calculation for intervals of 30, 60 and 600 seconds.
 - [ ] Prove Web starts countdown after enqueue acknowledgement, uses the returned interval without a fallback, and shows the new message.
 - [ ] Cover Backoffice policy bounds, CSRF, optimistic conflicts, cache update failure and successful cross-instance refresh.
 - [ ] Regenerate route/wire inventory only if semantic output requires it; update exact snapshot totals rather than compatibility baselines unless counts actually change.
 
-### 12. Release B Quality Gate
+### 13. Release B2 Quality Gate
 
 ```sh
 pnpm --filter @imsweb/contracts run build
@@ -220,8 +253,8 @@ pnpm run test
 Release gate:
 
 - [ ] Independent review verifies every PRD acceptance criterion and both deployment rollback paths.
-- [ ] Commit Release B separately from Release A.
-- [ ] Push Release B to `release/v1.1` and monitor preview deployment.
+- [ ] Commit Release B2 separately from Release B1.
+- [ ] Push Release B2 to `release/v1.1` and monitor preview deployment.
 - [ ] Verify Worker becomes ready before candidate API.
 - [ ] Request one registration code and one password-reset code in preview; require enqueue latency independent of SMTP response time and confirm delivery/activation through the normal workflows.
 - [ ] Verify no plaintext code/email in job rows or logs.
@@ -229,17 +262,17 @@ Release gate:
 
 Rollback point:
 
-- Release B contains no schema change.
-- Automatic rollback restores Release A Worker first and then Release A API.
-- Release A Worker continues draining Release B jobs because schema and payload version are identical.
-- Release A API returns to synchronous SMTP for new requests.
+- Release B2 contains no schema change.
+- Automatic rollback restores the B1 Worker first and then the B1 API.
+- The B1 Worker continues draining B2 jobs because schema and payload version are identical.
+- The B1 API returns to synchronous SMTP for new requests while retaining the anonymous cooldown table in its migration catalog.
 
-## 13. Finish
+## 14. Finish
 
 - [ ] Run `trellis-check` against the final scope.
 - [ ] Update relevant Trellis specs only for durable new project conventions, not task-specific details.
 - [ ] Record the deferred persisted external-service configuration cache as next-version scope for OAuth and full SMTP settings; do not implement a business-data dual-write framework or migrate unrelated caches in this task.
-- [ ] Record both release commit IDs and preview deployment evidence.
+- [ ] Record the Release A, B1 and B2 commit IDs and preview deployment evidence.
 - [ ] Confirm unrelated working-tree changes remain untouched.
 - [ ] Commit any final documentation/spec-only changes using Conventional Commit style.
-- [ ] Archive the Trellis task only after both preview checkpoints and the full final quality gate pass.
+- [ ] Archive the Trellis task only after all three preview checkpoints and the full final quality gate pass.
