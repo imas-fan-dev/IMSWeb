@@ -1,6 +1,12 @@
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { BlockList, isIP } from 'node:net';
 import nodemailer from 'nodemailer';
+import type {
+    PlatformEmailDeliveryAttemptResult,
+    PlatformEmailDeliveryFailureCategory,
+    PlatformEmailDeliveryPurpose,
+    PlatformEmailWorkerSender,
+} from '@/ports/email-delivery';
 import type {
     PlatformEmailConfiguration,
     PlatformEmailConfigurationAdminView,
@@ -38,7 +44,7 @@ interface SmtpTransport {
         subject: string;
         text: string;
         html: string;
-    }): Promise<unknown>;
+    }): Promise<{ accepted?: readonly unknown[] }>;
     close(): void;
 }
 
@@ -76,50 +82,53 @@ async function resolveHost(hostname: string): Promise<readonly string[]> {
     );
 }
 
-function privateIpv4(address: string): boolean {
-    const parts = address.split('.').map(Number);
-    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
-        return true;
-    }
-    const [first, second, third] = parts as [number, number, number, number];
-    return (
-        first === 0 ||
-        first === 10 ||
-        first === 127 ||
-        first >= 224 ||
-        (first === 100 && second >= 64 && second <= 127) ||
-        (first === 169 && second === 254) ||
-        (first === 172 && second >= 16 && second <= 31) ||
-        (first === 192 && second === 168) ||
-        (first === 192 && second === 0 && (third === 0 || third === 2)) ||
-        (first === 192 && second === 88 && third === 99) ||
-        (first === 198 && (second === 18 || second === 19)) ||
-        (first === 198 && second === 51 && third === 100) ||
-        (first === 203 && second === 0 && third === 113)
-    );
+const nonPublicIpv4Addresses = new BlockList();
+const publicIpv6Addresses = new BlockList();
+const nonPublicIpv6Addresses = new BlockList();
+
+for (const [network, prefix] of [
+    ['0.0.0.0', 8],
+    ['10.0.0.0', 8],
+    ['100.64.0.0', 10],
+    ['127.0.0.0', 8],
+    ['169.254.0.0', 16],
+    ['172.16.0.0', 12],
+    ['192.0.0.0', 24],
+    ['192.0.2.0', 24],
+    ['192.88.99.0', 24],
+    ['192.168.0.0', 16],
+    ['198.18.0.0', 15],
+    ['198.51.100.0', 24],
+    ['203.0.113.0', 24],
+    ['224.0.0.0', 4],
+    ['240.0.0.0', 4],
+] as const) {
+    nonPublicIpv4Addresses.addSubnet(network, prefix, 'ipv4');
 }
 
-function privateIpv6(address: string): boolean {
-    const normalized = address.toLowerCase();
-    if (normalized.startsWith('::ffff:')) {
-        const mapped = normalized.slice('::ffff:'.length);
-        return isIP(mapped) !== 4 || privateIpv4(mapped);
-    }
-    return (
-        normalized === '::' ||
-        normalized === '::1' ||
-        normalized.startsWith('fc') ||
-        normalized.startsWith('fd') ||
-        /^(?:fe[89ab])/.test(normalized) ||
-        normalized.startsWith('ff') ||
-        normalized.startsWith('2001:db8:')
-    );
+publicIpv6Addresses.addSubnet('2000::', 3, 'ipv6');
+
+for (const [network, prefix] of [
+    ['2001::', 23],
+    ['2001:2::', 48],
+    ['2001:10::', 28],
+    ['2001:20::', 28],
+    ['2001:db8::', 32],
+    ['2002::', 16],
+    ['3fff::', 20],
+] as const) {
+    nonPublicIpv6Addresses.addSubnet(network, prefix, 'ipv6');
 }
 
 function publicAddress(address: string): boolean {
     const version = isIP(address);
-    if (version === 4) return !privateIpv4(address);
-    if (version === 6) return !privateIpv6(address);
+    if (version === 4) return !nonPublicIpv4Addresses.check(address, 'ipv4');
+    if (version === 6) {
+        return (
+            publicIpv6Addresses.check(address, 'ipv6') &&
+            !nonPublicIpv6Addresses.check(address, 'ipv6')
+        );
+    }
     return false;
 }
 
@@ -135,8 +144,137 @@ function validFromName(value: string): boolean {
     return value.length >= 1 && value.length <= 100 && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
+interface SmtpErrorEvidence {
+    code?: unknown;
+    command?: unknown;
+    responseCode?: unknown;
+}
+
+class PlatformEmailAttemptDeadlineError extends Error {
+    override readonly name = 'PlatformEmailAttemptDeadlineError';
+
+    constructor(readonly acceptanceAmbiguous = false) {
+        super('Platform email delivery attempt deadline exceeded');
+    }
+}
+
+class PlatformEmailAttemptAbortedError extends Error {
+    override readonly name = 'PlatformEmailAttemptAbortedError';
+}
+
+const TRANSIENT_NETWORK_CODES = new Set([
+    'ETIMEDOUT',
+    'ESOCKET',
+    'ECONNECTION',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'ENETUNREACH',
+    'EHOSTUNREACH',
+    'EPIPE',
+]);
+
+const TLS_ERROR_CODES = new Set([
+    'CERT_HAS_EXPIRED',
+    'CERT_NOT_YET_VALID',
+    'DEPTH_ZERO_SELF_SIGNED_CERT',
+    'SELF_SIGNED_CERT_IN_CHAIN',
+    'UNABLE_TO_GET_ISSUER_CERT',
+    'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+]);
+
+function tlsErrorCode(code: string): boolean {
+    return (
+        TLS_ERROR_CODES.has(code) ||
+        code.startsWith('ERR_TLS') ||
+        code.startsWith('ERR_SSL') ||
+        code.startsWith('CERT_')
+    );
+}
+
+function safeCloseTransport(transport: SmtpTransport): void {
+    try {
+        transport.close();
+    } catch {
+        // Closing is best effort after the attempt result has been classified.
+    }
+}
+
+function smtpErrorEvidence(error: unknown): SmtpErrorEvidence {
+    return error && typeof error === 'object' ? error : {};
+}
+
+function classifiedFailure(error: unknown): Exclude<
+    PlatformEmailDeliveryAttemptResult,
+    { status: 'accepted' }
+> {
+    const evidence = smtpErrorEvidence(error);
+    const code = typeof evidence.code === 'string' ? evidence.code : '';
+    const responseCode = typeof evidence.responseCode === 'number'
+        ? evidence.responseCode
+        : 0;
+    const acceptanceAmbiguous = error instanceof PlatformEmailAttemptDeadlineError
+        ? error.acceptanceAmbiguous
+        : typeof evidence.command === 'string' &&
+          evidence.command.toUpperCase() === 'DATA' &&
+          (TRANSIENT_NETWORK_CODES.has(code) || code === 'EAI_AGAIN');
+    let category: PlatformEmailDeliveryFailureCategory = 'unknown';
+    let transient = false;
+    if (error instanceof PlatformEmailAttemptDeadlineError) {
+        category = 'deadline';
+    } else if (responseCode >= 400 && responseCode < 500) {
+        category = 'smtp_transient';
+        transient = true;
+    } else if (code === 'EAUTH' || responseCode === 535) {
+        category = 'authentication';
+    } else if (responseCode >= 500 && responseCode < 600) {
+        category = 'smtp_permanent';
+    } else if (code === 'EAI_AGAIN') {
+        category = 'dns';
+        transient = true;
+    } else if (code === 'ENOTFOUND') {
+        category = 'dns';
+    } else if (tlsErrorCode(code)) {
+        category = 'tls';
+    } else if (TRANSIENT_NETWORK_CODES.has(code)) {
+        category = 'network';
+        transient = true;
+    } else if (code === 'EENVELOPE' || code === 'EMESSAGE') {
+        category = 'envelope';
+    }
+    return { status: 'failed', category, transient, acceptanceAmbiguous };
+}
+
+function acceptedRecipient(value: unknown): string | null {
+    if (typeof value === 'string') return value.trim().toLowerCase();
+    if (value && typeof value === 'object' && 'address' in value) {
+        const address = value.address;
+        return typeof address === 'string' ? address.trim().toLowerCase() : null;
+    }
+    return null;
+}
+
+function verificationContent(
+    message: PlatformEmailVerificationMessage,
+    purpose: string,
+): { text: string; html: string } {
+    return {
+        text: [
+            `Your IMSWeb ${purpose} verification code is ${message.code}.`,
+            `It expires in ${message.expiresInMinutes} minutes.`,
+            'If you did not request this code, you can ignore this message.',
+        ].join('\n\n'),
+        html: [
+            `<p>Your IMSWeb ${purpose} verification code is:</p>`,
+            `<p><strong>${message.code}</strong></p>`,
+            `<p>It expires in ${message.expiresInMinutes} minutes.</p>`,
+            '<p>If you did not request this code, you can ignore this message.</p>',
+        ].join(''),
+    };
+}
+
 export class ConfiguredPlatformEmailService
-    implements PlatformEmailConfiguration, PlatformEmailSender
+    implements PlatformEmailConfiguration, PlatformEmailSender, PlatformEmailWorkerSender
 {
     constructor(
         private readonly store: PlatformEmailConfigurationStore,
@@ -237,6 +375,127 @@ export class ConfiguredPlatformEmailService
         );
     }
 
+    async deliverVerification(input: {
+        purpose: PlatformEmailDeliveryPurpose;
+        message: PlatformEmailVerificationMessage;
+        deadlineAt: number;
+        signal: AbortSignal;
+    }): Promise<PlatformEmailDeliveryAttemptResult> {
+        if (input.signal.aborted) {
+            return classifiedFailure(new PlatformEmailAttemptAbortedError());
+        }
+        if (input.deadlineAt <= Date.now()) {
+            return classifiedFailure(new PlatformEmailAttemptDeadlineError());
+        }
+        let config: RuntimeSmtpConfiguration;
+        try {
+            const record = await this.beforeDeadline(
+                () => this.store.getPlatformEmailConfiguration(),
+                input.deadlineAt,
+                { signal: input.signal },
+            );
+            if (!record.enabled) {
+                return {
+                    status: 'failed',
+                    category: 'configuration',
+                    transient: false,
+                    acceptanceAmbiguous: false,
+                };
+            }
+            config = this.runtimeConfiguration(record);
+        } catch (error) {
+            if (error instanceof PlatformEmailAttemptDeadlineError) {
+                return classifiedFailure(error);
+            }
+            return {
+                status: 'failed',
+                category:
+                    error instanceof PlatformEmailConfigurationValidationError
+                        ? 'credentials'
+                        : 'configuration',
+                transient: false,
+                acceptanceAmbiguous: false,
+            };
+        }
+
+        let transport: SmtpTransport | undefined;
+        let transportClosed = false;
+        const closeTransport = (): void => {
+            if (!transport || transportClosed) return;
+            transportClosed = true;
+            safeCloseTransport(transport);
+        };
+        try {
+            const addresses = await this.beforeDeadline(
+                () => this.hostResolver(config.host),
+                input.deadlineAt,
+                { signal: input.signal },
+            );
+            const [resolvedAddress] = addresses;
+            if (
+                !resolvedAddress ||
+                addresses.some((address) => !publicAddress(address))
+            ) {
+                return {
+                    status: 'failed',
+                    category: 'dns_policy',
+                    transient: false,
+                    acceptanceAmbiguous: false,
+                };
+            }
+
+            this.requireAttemptActive(input.deadlineAt, input.signal);
+            transport = this.transportFactory({ ...config, resolvedAddress });
+            this.requireAttemptActive(input.deadlineAt, input.signal);
+            const purpose = input.purpose === 'registration'
+                ? 'registration'
+                : 'password reset';
+            const subject = input.purpose === 'registration'
+                ? 'IMSWeb registration verification code'
+                : 'IMSWeb password reset verification code';
+            const content = verificationContent(input.message, purpose);
+            const result = await this.beforeDeadline(
+                () => transport!.sendMail({
+                    from: { address: config.fromAddress, name: config.fromName },
+                    to: input.message.email,
+                    subject,
+                    ...content,
+                }),
+                input.deadlineAt,
+                {
+                    signal: input.signal,
+                    onAbort: closeTransport,
+                    onDeadline: closeTransport,
+                    acceptanceAmbiguousOnDeadline: true,
+                },
+            );
+            const acceptedAt = Date.now();
+            if (acceptedAt > input.deadlineAt) {
+                return classifiedFailure(new PlatformEmailAttemptDeadlineError(true));
+            }
+            if (input.signal.aborted) {
+                return classifiedFailure(new PlatformEmailAttemptAbortedError());
+            }
+            const intendedRecipient = input.message.email.trim().toLowerCase();
+            const accepted = result.accepted?.some(
+                (recipient) => acceptedRecipient(recipient) === intendedRecipient,
+            );
+            if (!accepted) {
+                return {
+                    status: 'failed',
+                    category: 'recipient_rejected',
+                    transient: false,
+                    acceptanceAmbiguous: false,
+                };
+            }
+            return { status: 'accepted', acceptedAt };
+        } catch (error) {
+            return classifiedFailure(error);
+        } finally {
+            closeTransport();
+        }
+    }
+
     private async sendVerification(
         message: PlatformEmailVerificationMessage,
         subject: string,
@@ -247,26 +506,104 @@ export class ConfiguredPlatformEmailService
             throw new PlatformEmailDeliveryError('SMTP delivery is disabled');
         }
         const config = this.runtimeConfiguration(record);
-        const text = [
-            `Your IMSWeb ${purpose} verification code is ${message.code}.`,
-            `It expires in ${message.expiresInMinutes} minutes.`,
-            'If you did not request this code, you can ignore this message.',
-        ].join('\n\n');
-        const html = [
-            `<p>Your IMSWeb ${purpose} verification code is:</p>`,
-            `<p><strong>${message.code}</strong></p>`,
-            `<p>It expires in ${message.expiresInMinutes} minutes.</p>`,
-            '<p>If you did not request this code, you can ignore this message.</p>',
-        ].join('');
+        const content = verificationContent(message, purpose);
         await this.withTransport(config, (transport) =>
             transport.sendMail({
                 from: { address: config.fromAddress, name: config.fromName },
                 to: message.email,
                 subject,
-                text,
-                html,
+                ...content,
             }),
         );
+    }
+
+    private requireAttemptActive(deadlineAt: number, signal: AbortSignal): void {
+        if (signal.aborted) {
+            throw new PlatformEmailAttemptAbortedError();
+        }
+        if (deadlineAt <= Date.now()) {
+            throw new PlatformEmailAttemptDeadlineError();
+        }
+    }
+
+    private beforeDeadline<T>(
+        operation: () => Promise<T> | T,
+        deadlineAt: number,
+        options: {
+            signal?: AbortSignal;
+            onAbort?: () => void;
+            onDeadline?: () => void;
+            acceptanceAmbiguousOnDeadline?: boolean;
+        } = {},
+    ): Promise<T> {
+        if (options.signal?.aborted) {
+            try {
+                options.onAbort?.();
+            } catch {
+                // Cancellation still wins when transport cleanup fails.
+            }
+            return Promise.reject(new PlatformEmailAttemptAbortedError());
+        }
+        const remaining = deadlineAt - Date.now();
+        if (remaining <= 0) {
+            try {
+                options.onDeadline?.();
+            } catch {
+                // The deadline result takes precedence over transport cleanup.
+            }
+            return Promise.reject(
+                new PlatformEmailAttemptDeadlineError(
+                    options.acceptanceAmbiguousOnDeadline,
+                ),
+            );
+        }
+        return new Promise<T>((resolve, reject) => {
+            let settled = false;
+            let timer: NodeJS.Timeout;
+            const settle = (operation: () => void): void => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                options.signal?.removeEventListener('abort', abort);
+                operation();
+            };
+            const abort = (): void => {
+                try {
+                    options.onAbort?.();
+                } catch {
+                    // Cancellation still wins when transport cleanup fails.
+                }
+                settle(() => reject(new PlatformEmailAttemptAbortedError()));
+            };
+            timer = setTimeout(() => {
+                try {
+                    options.onDeadline?.();
+                } catch {
+                    // The deadline result takes precedence over transport cleanup.
+                }
+                settle(() => reject(
+                    new PlatformEmailAttemptDeadlineError(
+                        options.acceptanceAmbiguousOnDeadline,
+                    ),
+                ));
+            }, remaining);
+            options.signal?.addEventListener('abort', abort, { once: true });
+            if (options.signal?.aborted) {
+                abort();
+                return;
+            }
+            let operationResult: Promise<T>;
+            try {
+                operationResult = Promise.resolve(operation());
+            } catch (error) {
+                settle(() => reject(error));
+                return;
+            }
+            operationResult.then(
+                (value) => settle(() => resolve(value)),
+                (error) => settle(() => reject(error)),
+            );
+        });
     }
 
     private configurationRecord(

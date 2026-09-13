@@ -59,6 +59,12 @@ if [[ "$joined" == " info " && "${FAKE_FAIL_CONTAINER_INFO:-}" == "true" ]]; the
     exit 1
 elif [[ "$joined" == " info --format {{.DockerRootDir}} " ]]; then
     printf '%s\n' "$FAKE_CONTAINER_ROOT"
+elif [[ "$joined" == *" config --services "* ]]; then
+    printf '%s\n' postgres valkey email-worker api
+elif [[ "$joined" == *" ps --all --quiet email-worker "* ]]; then
+    printf '%s\n' email-worker-1 email-worker-2
+elif [[ "$joined" == *" inspect --format "*" email-worker-"* ]]; then
+    printf '%s\n' "running healthy"
 elif [[ "$joined" == *" exec -T postgres "*"pg_dump "* ]]; then
     printf 'PGDMPimsweb-test-backup\n'
 elif [[ "$joined" == *" exec -T postgres "*"pg_restore "* ]]; then
@@ -322,6 +328,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "cancel-in-progress: false",
             "scripts/deployment/deploy-compose-release.sh",
             "scripts/deployment/run-authenticated-compose-release.sh",
+            "Deploy immutable worker and API release",
+            "all configured replicas passed remote readiness before API verification",
             "ref: ${{ github.workflow_sha }}",
             "path: .deployment-workflow",
             'remote_script="/tmp/imsweb-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"',
@@ -420,6 +428,11 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "deploy/compose.preview.yaml",
             "scripts/deployment/deploy-compose-preview.sh",
             "scripts/deployment/run-authenticated-compose-release.sh",
+            "Deploy immutable preview worker and API image",
+            "FRESHNESS_OUTCOME: ${{ steps.freshness.outcome }}",
+            "deployment did not start because the freshness check failed",
+            "not verified because deployment did not start",
+            "all configured replicas passed remote readiness before API verification",
             'GHCR_TOKEN: ${{ github.token }}',
             'printf \'%s\' "$GHCR_TOKEN"',
             'grep -Fxq "Preview deployment completed." "$deployment_log"',
@@ -460,6 +473,9 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "/home/<deploy-user>/preview",
             "pg_dump",
             "expand/contract",
+            "IMS_EMAIL_WORKER_REPLICAS",
+            "Release A",
+            "上一 Worker",
             "不恢复 PostgreSQL 或 R2",
             "不宣称",
         ):
@@ -699,6 +715,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
                     "IMS_API_DATABASE_URL=postgresql://imsweb_preview:secret@postgres:5432/imsweb_preview",
                     "IMS_BACKOFFICE_JWT_SECRET=backoffice-secret",
                     "IMS_PLATFORM_JWT_SECRET=platform-secret",
+                    "IMS_EMAIL_WORKER_REPLICAS=2",
                     "IMS_COOKIE_SECURE=false",
                     "IMS_CLIENT_ADDRESS_SOURCE=direct",
                     "IMS_OBJECT_STORAGE=s3",
@@ -806,6 +823,28 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         self.assertIn("|admin|", command_log)
         self.assertIn("up -d --no-build", command_log)
         self.assertIn("--profile local-cache", command_log)
+        commands = command_log.splitlines()
+        migration_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "run --rm --no-deps api node apps/api/scripts/migration/postgres-migrations.js"
+            in command
+        )
+        worker_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "--scale email-worker=2 email-worker" in command
+        )
+        api_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "up -d --no-build --no-deps api" in command
+        )
+        self.assertLess(migration_index, worker_index)
+        self.assertLess(worker_index, api_index)
+        self.assertIn("inspect --format", command_log)
+        self.assertIn("email-worker-1", command_log)
+        self.assertIn("email-worker-2", command_log)
         self.assertNotIn("local-storage", command_log)
         self.assertNotIn("--build", command_log)
         self.assertIn("Preview deployment completed.\n", result.stdout)
@@ -843,6 +882,19 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
         command_log = self.container_log.read_text(encoding="utf-8")
         self.assertIn(second_image, command_log)
         self.assertIn(first_image, command_log)
+        commands = command_log.splitlines()
+        previous_worker_index = max(
+            index
+            for index, command in enumerate(commands)
+            if first_image in command and "--scale email-worker=2 email-worker" in command
+        )
+        previous_api_index = max(
+            index
+            for index, command in enumerate(commands)
+            if first_image in command and "up -d --no-build --no-deps api" in command
+        )
+        self.assertLess(previous_worker_index, previous_api_index)
+        self.assertIn("logs --no-color --tail 200 email-worker api", command_log)
 
     def test_preview_environment_must_not_be_group_readable(self):
         self.runtime_env.chmod(0o640)
@@ -939,6 +991,8 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
                     "IMS_API_NODE_ENV=production",
                     "IMS_API_DATABASE_URL=postgresql://imsweb:secret@postgres:5432/imsweb",
                     "IMS_JWT_SECRET=jwt-secret",
+                    "IMS_PLATFORM_JWT_SECRET=platform-secret",
+                    "IMS_EMAIL_WORKER_REPLICAS=2",
                     "IMS_COOKIE_SECURE=true",
                     "IMS_CLIENT_ADDRESS_SOURCE=nginx",
                     "IMS_OBJECT_STORAGE=s3",
@@ -1033,6 +1087,28 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertIn(image, records[0].read_text(encoding="utf-8"))
         self.assertIn("/api/news", self.curl_log.read_text(encoding="utf-8"))
+        command_log = self.container_log.read_text(encoding="utf-8")
+        commands = command_log.splitlines()
+        migration_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "run --rm --no-deps api node apps/api/scripts/migration/postgres-migrations.js"
+            in command
+        )
+        worker_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "--scale email-worker=2 email-worker" in command
+        )
+        api_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "up -d --no-build --no-deps api" in command
+        )
+        self.assertLess(migration_index, worker_index)
+        self.assertLess(worker_index, api_index)
+        self.assertIn("email-worker-1", command_log)
+        self.assertIn("email-worker-2", command_log)
         self.assertIn("Deployment completed.\n", result.stdout)
 
     def test_failed_candidate_restores_previous_image_without_moving_current(self):
@@ -1057,6 +1133,19 @@ class ComposeReleaseDeploymentTests(unittest.TestCase):
         command_log = self.container_log.read_text(encoding="utf-8")
         self.assertIn(second_image, command_log)
         self.assertIn(first_image, command_log)
+        commands = command_log.splitlines()
+        previous_worker_index = max(
+            index
+            for index, command in enumerate(commands)
+            if first_image in command and "--scale email-worker=2 email-worker" in command
+        )
+        previous_api_index = max(
+            index
+            for index, command in enumerate(commands)
+            if first_image in command and "up -d --no-build --no-deps api" in command
+        )
+        self.assertLess(previous_worker_index, previous_api_index)
+        self.assertIn("logs --no-color --tail 200 email-worker api", command_log)
 
     def test_runtime_secrets_must_not_be_group_readable(self):
         self.runtime_env.chmod(0o640)

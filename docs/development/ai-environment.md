@@ -93,16 +93,19 @@ pnpm dev
 2. 解析当前 Docker/Podman endpoint；只有 Unix socket、named pipe 或回环地址才允许继续。
 3. 从 `deploy/compose.yaml` 启动 PostgreSQL、Valkey 与 RustFS，并等待数据库、缓存和 S3 API 就绪。
 4. 幂等初始化 RustFS bucket、公开读取策略与版本控制，再应用全部 PostgreSQL migrations。
-5. 启动 Hono `tsx watch`，等待真实 API 请求成功后启动 React Router Web。
-6. 通过 Web 开发代理再次探测 API，最后报告实际可访问地址。
+5. 启动 Hono `tsx watch`，等待真实 API 请求成功后启动独立邮件 Worker，并等待其内部就绪
+   检查通过。
+6. 启动 React Router Web，通过 Web 开发代理再次探测 API，最后报告实际可访问地址。
 
-默认 Web 为 `http://127.0.0.1:5173`，API 为 `http://127.0.0.1:3000`，Valkey 为
-`redis://127.0.0.1:6379`，RustFS S3 API 为 `http://127.0.0.1:9000`，控制台为
-`http://127.0.0.1:9001`。需要避开已有端口时使用：
+默认 Web 为 `http://127.0.0.1:5173`，API 为 `http://127.0.0.1:3000`，邮件 Worker 内部
+健康检查为 `http://127.0.0.1:3001`，Valkey 为 `redis://127.0.0.1:6379`，RustFS S3 API 为
+`http://127.0.0.1:9000`，控制台为 `http://127.0.0.1:9001`。Worker 健康端口只绑定回环地址，
+不是公开应用端点。需要避开已有端口时使用：
 
 ```sh
 pnpm dev --api-port 3100 --web-port 5174
 # 或设置 IMS_DEV_API_PORT / IMS_DEV_WEB_PORT
+IMS_DEV_EMAIL_WORKER_HEALTH_PORT=3101 pnpm dev
 ```
 
 启动器会把实际 API 地址传给 Web，并把实际 Web 地址传给 API，不需要手工同步两个 origin。
@@ -181,9 +184,10 @@ connection 指向非回环主机，`pnpm dev` 和 `pnpm run dev:down` 都会在�
 Docker 与 Podman 目标变量混用时也会逐项校验，避免本地地址掩盖实际的远端目标。先切回本机
 context，不要通过远程 context 运行本地开发入口。
 
-`Ctrl+C` 只停止本次创建的 API/Web 热更新进程，保留 PostgreSQL、RustFS 和数据卷。启动器不会
-在固定超时后强杀子进程；它会等待 API 的当前对象清理批次回到空闲并完成其余 graceful shutdown，
-再结束主进程。确认不再使用后执行 `pnpm run dev:down`。该命令同样不会删除卷。
+`Ctrl+C` 只停止本次创建的 API、邮件 Worker 和 Web 热更新进程，保留 PostgreSQL、RustFS 和
+数据卷。启动器不会在固定超时后强杀子进程；它会等待 API 的当前对象清理批次和 Worker 的当前
+投递尝试完成各自的 graceful shutdown，再结束主进程。确认不再使用后执行
+`pnpm run dev:down`。该命令同样不会删除卷。
 
 ## 4. 定制本地数据
 
@@ -227,6 +231,10 @@ Platform 注册验证码和密码重置邮件只使用后台动态 SMTP 配置�
 返回掩码和“已配置”状态。配置修改后立即用于后续发送，无需重启 API。开发环境未配置或未启用
 SMTP 时，相关验证码接口返回服务不可用，不会把验证码写入日志。轮换 `IMS_PLATFORM_JWT_SECRET`
 后必须重新录入 SMTP 凭据。
+
+Release A 的 `pnpm dev` 会同时运行邮件 Worker，但验证码 HTTP 请求仍走同步 SMTP，队列表在正常
+请求下保持为空。只有后续无 schema 变更的切换发布才会让 API 改为事务入队；不要根据 Worker 已
+启动推断异步投递已经启用。
 
 本地运行统一使用 PostgreSQL 与 S3 兼容的 RustFS。
 需要绕过统一启动器排障时，可以分别启动依赖：
@@ -342,7 +350,14 @@ bucket 或限制到目标 bucket 的凭据，避免测试写入污染其他环�
 pnpm run dev:node
 ```
 
-另一个终端启动 Web；默认开发代理已经指向 `http://127.0.0.1:3000`：
+需要同时排查独立邮件 Worker 时，在另一个终端运行以下命令。它默认把内部健康检查绑定到
+`127.0.0.1:3001`：
+
+```sh
+pnpm run dev:email-worker
+```
+
+再用另一个终端启动 Web；默认开发代理已经指向 `http://127.0.0.1:3000`：
 
 ```sh
 pnpm run dev:web

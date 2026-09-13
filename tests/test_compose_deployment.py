@@ -7,6 +7,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = PROJECT_ROOT / "deploy/compose.yaml"
 PREVIEW_COMPOSE_PATH = PROJECT_ROOT / "deploy/compose.preview.yaml"
 API_DOCKERFILE_PATH = PROJECT_ROOT / "apps/api/Dockerfile"
+ROOT_PACKAGE_PATH = PROJECT_ROOT / "package.json"
 
 
 class ComposeDeploymentTests(unittest.TestCase):
@@ -15,7 +16,10 @@ class ComposeDeploymentTests(unittest.TestCase):
         services_source = compose.split("\nvolumes:\n", maxsplit=1)[0]
         services = re.findall(r"^  ([a-z0-9][a-z0-9-]*):$", services_source, re.MULTILINE)
 
-        self.assertEqual(services, ["postgres", "valkey", "rustfs", "rustfs-init", "api"])
+        self.assertEqual(
+            services,
+            ["postgres", "valkey", "rustfs", "rustfs-init", "email-worker", "api"],
+        )
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
         self.assertIn(
             "image: ${IMS_RUSTFS_IMAGE:-rustfs/rustfs:1.0.0-beta.12}",
@@ -54,9 +58,38 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("required: false", compose)
         self.assertIn("node apps/api/scripts/migration/postgres-migrations.js", compose)
         self.assertIn("api-data:/app/data", compose)
+        worker = compose.split("\n  email-worker:\n", maxsplit=1)[1].split(
+            "\n  api:\n", maxsplit=1
+        )[0]
+        self.assertIn("image: ${IMS_API_IMAGE:-imsweb-api:local}", worker)
+        self.assertIn("condition: service_healthy", worker)
+        self.assertNotIn("rustfs", worker)
+        self.assertNotIn("valkey", worker)
+        self.assertIn("IMS_PLATFORM_JWT_SECRET: ${IMS_PLATFORM_JWT_SECRET-}", worker)
+        self.assertIn("DATABASE_URL: ${IMS_API_DATABASE_URL:-", worker)
+        self.assertIn("- start:email-worker", worker)
+        self.assertIn("http://127.0.0.1:3001/health/ready", worker)
+        self.assertIn("restart: unless-stopped", worker)
+        self.assertIn("init: true", worker)
+        self.assertIn("stop_grace_period: 2m", worker)
+        self.assertNotRegex(worker, r"(?m)^    ports:")
+        self.assertNotRegex(worker, r"(?m)^    volumes:")
+        self.assertNotIn("api-data", worker)
         self.assertIn("    stop_grace_period: 10m", compose)
         self.assertNotRegex(compose, r"(?i)nginx")
         self.assertNotIn("network_mode: host", compose)
+
+    def test_local_api_compose_entrypoints_start_the_email_worker(self):
+        package = ROOT_PACKAGE_PATH.read_text(encoding="utf-8")
+
+        self.assertIn(
+            '"dev:api:up": "docker compose --profile local-cache --profile local-storage -f deploy/compose.yaml up -d --build email-worker api"',
+            package,
+        )
+        self.assertIn(
+            '"dev:api:r2:up": "docker compose --profile local-cache --env-file apps/api/.env -f deploy/compose.yaml up -d --build email-worker api"',
+            package,
+        )
 
     def test_api_accepts_external_s3_and_postgresql_pool_configuration(self):
         compose = COMPOSE_PATH.read_text(encoding="utf-8")

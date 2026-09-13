@@ -165,11 +165,72 @@ test("development configuration derives a fully local runtime", async () => {
   assert.equal(configuration.apiEnvironment.IMS_UPLOADS_DIR, "data/uploads");
   assert.equal("IMS_SITE_ORIGIN" in configuration.apiEnvironment, false);
   assert.equal(
+    configuration.emailWorkerHealthOrigin,
+    "http://127.0.0.1:3001",
+  );
+  assert.equal(
+    configuration.emailWorkerEnvironment.IMS_EMAIL_WORKER_HEALTH_HOST,
+    "127.0.0.1",
+  );
+  assert.equal(
+    configuration.emailWorkerEnvironment.IMS_EMAIL_WORKER_HEALTH_PORT,
+    "3001",
+  );
+  assert.equal(
+    configuration.emailWorkerEnvironment.DATABASE_URL,
+    configuration.databaseUrl,
+  );
+  assert.equal(
+    configuration.emailWorkerEnvironment.IMS_PLATFORM_JWT_SECRET,
+    configuration.apiEnvironment.IMS_PLATFORM_JWT_SECRET,
+  );
+  assert.equal(
+    "IMS_BACKOFFICE_JWT_SECRET" in configuration.emailWorkerEnvironment,
+    false,
+  );
+  assert.equal("IMS_VALKEY_URL" in configuration.emailWorkerEnvironment, false);
+  assert.equal("AWS_ACCESS_KEY_ID" in configuration.emailWorkerEnvironment, false);
+  assert.equal(
     configuration.webEnvironment.IMS_API_ORIGIN,
     "http://127.0.0.1:3100",
   );
   assert.equal("VITE_IMS_APP_TARGET" in configuration.apiEnvironment, false);
   assert.equal("VITE_IMS_APP_TARGET" in configuration.webEnvironment, false);
+});
+
+test("development configuration rejects conflicting worker health ports", async () => {
+  const { parseArguments, resolveDevelopmentConfiguration } = await launcher;
+
+  const conflicts = [
+    { port: "3100", label: "API", args: ["--api-port", "3100"] },
+    { port: "5173", label: "Web", args: [] },
+    { port: "5432", label: "PostgreSQL", args: [] },
+    { port: "6379", label: "Valkey", args: [] },
+    { port: "9000", label: "RustFS API", args: [] },
+    { port: "9001", label: "RustFS console", args: [] },
+  ];
+  for (const conflict of conflicts) {
+    assert.throws(
+      () =>
+        resolveDevelopmentConfiguration({
+          environment: { IMS_DEV_EMAIL_WORKER_HEALTH_PORT: conflict.port },
+          deployEnvironment: {},
+          options: parseArguments(conflict.args, {}),
+        }),
+      new RegExp(`different from the ${conflict.label} port`),
+    );
+  }
+
+  const configuration = resolveDevelopmentConfiguration({
+    environment: { IMS_DEV_EMAIL_WORKER_HEALTH_PORT: "3301" },
+    deployEnvironment: {},
+    options: parseArguments([], {}),
+  });
+  assert.equal(configuration.emailWorkerHealthPort, 3301);
+  assert.equal(
+    configuration.emailWorkerHealthOrigin,
+    "http://127.0.0.1:3301",
+  );
 });
 
 test("development configuration uses the configured browser-reachable RustFS origin", async () => {
@@ -410,6 +471,13 @@ test("development command plan orders local infrastructure before hot reload", a
     "migration:postgresql",
   ]);
   assert.deepEqual(plan.api.args, ["--filter", "@imsweb/api", "run", "dev"]);
+  assert.deepEqual(plan.emailWorker.args, [
+    "--filter",
+    "@imsweb/api",
+    "run",
+    "dev:email-worker",
+  ]);
+  assert.equal(plan.emailWorker.env, configuration.emailWorkerEnvironment);
   assert.deepEqual(plan.web.args, [
     "--filter",
     "@imsweb/web",
@@ -725,6 +793,8 @@ test("development launcher waits for managed children instead of forcing cleanup
     source,
     /await Promise\.all\(children\.map\(\(entry\) => entry\.outcome\)\)/,
   );
+  assert.match(source, /startWatchProcess\("Email worker", plan\.emailWorker\)/);
+  assert.match(source, /emailWorker\.outcome/);
 });
 
 test("development launcher help and dry-run have no runtime prerequisites", () => {
@@ -745,6 +815,11 @@ test("development launcher help and dry-run have no runtime prerequisites", () =
   assert.match(dryRun, /Startup plan \(no commands executed\)/);
   assert.match(dryRun, /Web URL: http:\/\/127\.0\.0\.1:5180/);
   assert.match(dryRun, /API URL: http:\/\/127\.0\.0\.1:3100/);
+  assert.match(dryRun, /Start email worker/);
+  assert.match(
+    dryRun,
+    /Email worker health URL: http:\/\/127\.0\.0\.1:3001/,
+  );
   assert.doesNotMatch(dryRun, /imsweb-local-development-secret/);
 });
 

@@ -321,7 +321,7 @@ jobs:
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Deploy immutable preview image
+      - name: Deploy immutable preview worker and API image
         id: deployment
         if: steps.freshness.outputs.deploy == 'true'
         env:
@@ -392,14 +392,21 @@ jobs:
           RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
           DEPLOYMENT_OUTCOME: ${{ steps.deployment.outcome }}
           VERIFICATION_OUTCOME: ${{ steps.verification.outcome }}
+          FRESHNESS_OUTCOME: ${{ steps.freshness.outcome }}
           WAS_CURRENT: ${{ steps.freshness.outputs.deploy }}
         run: |
-          if [[ "$WAS_CURRENT" != "true" ]]; then
+          if [[ "$FRESHNESS_OUTCOME" != "success" ]]; then
+            status="deployment did not start because the freshness check failed"
+            worker_status="not verified because deployment did not start"
+          elif [[ "$WAS_CURRENT" != "true" ]]; then
             status="skipped because a newer release/v1.1 commit exists"
+            worker_status="not verified because deployment was skipped"
           elif [[ "$DEPLOYMENT_OUTCOME" == "success" && "$VERIFICATION_OUTCOME" == "success" ]]; then
             status="deployed"
+            worker_status="all configured replicas passed remote readiness before API verification"
           else
             status="deployment or verification failed"
+            worker_status="not reported ready because deployment or verification failed"
           fi
           {
             echo "## Preview deployment"
@@ -408,4 +415,5 @@ jobs:
             echo "- Release: \`$PREVIEW_ID\`"
             echo "- Commit: \`$RELEASE_SHA\`"
             echo "- Image digest: \`$DIGEST\`"
+            echo "- Email worker: $worker_status"
           } >> "$GITHUB_STEP_SUMMARY"

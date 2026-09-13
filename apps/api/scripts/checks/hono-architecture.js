@@ -283,6 +283,16 @@ const portContracts = new Map([
         ],
     ],
     [
+        "email-delivery.ts",
+        [
+            "PlatformEmailJobPayloadCipher",
+            "PlatformEmailDeliveryQueue",
+            "PlatformEmailDeliveryWorkerStore",
+            "PlatformEmailWorkerSender",
+            "PlatformEmailResendPolicyCache",
+        ],
+    ],
+    [
         "repositories/admin.ts",
         [
             "BackofficeAuthRepository",

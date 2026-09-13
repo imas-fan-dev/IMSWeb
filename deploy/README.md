@@ -1,9 +1,9 @@
 # Compose 部署
 
-`deploy/compose.yaml` 用于启动 PostgreSQL 和 IMSWeb Hono API。本地开发还会通过
-`local-cache` profile 启动 Valkey、通过 `local-storage` profile 启动 RustFS；生产可以关闭
-这两个 profile，让 API 连接独立 Valkey 和 Cloudflare R2。
-API 镜像包含构建后的 Web 静态资源，并在启动前幂等应用 PostgreSQL migrations。Compose
+`deploy/compose.yaml` 用于启动 PostgreSQL、IMSWeb Hono API 和独立邮件 Worker。本地开发还会
+通过 `local-cache` profile 启动 Valkey、通过 `local-storage` profile 启动 RustFS；生产可以
+关闭这两个 profile，让 API 连接独立 Valkey 和 Cloudflare R2。API 与 Worker 使用同一镜像，
+其中包含构建后的 Web 静态资源和 PostgreSQL migrations。Compose
 不包含反向代理或 TLS 入口；宿主机 Nginx 的参考配置位于
 [`deploy/nginx/`](nginx/README.md)，但不会作为 Compose 服务启动。Fudaba exchange map 默认使用
 官方在线 OpenFreeMap，不包含大型地图产物。选择自分发源时，PMTiles/glyph/sprite/raster release
@@ -24,7 +24,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml config
 ```
 
 日常源码开发优先运行根目录 `pnpm dev`。它会复用本 Compose 文件启动并等待 PostgreSQL、Valkey 和 RustFS，
-初始化 bucket、应用 migration，再启动宿主机上的 API/Web 热更新进程；无需先复制
+初始化 bucket、应用 migration，再启动宿主机上的 API、邮件 Worker 和 Web 热更新进程；无需先复制
 `deploy/.env`。如需调整本地依赖端口或凭据，再从模板创建该文件。停止依赖且保留数据卷使用
 `pnpm run dev:down`。启动和停止前可运行 `pnpm run dev:doctor`；统一入口仅允许 Unix socket、
 Windows named pipe 或回环地址上的本机 Docker/Podman endpoint，远程 context 会被拒绝。
@@ -49,11 +49,13 @@ pnpm run dev:postgresql:up
 docker compose --profile local-cache -f deploy/compose.yaml up -d valkey
 pnpm run dev:rustfs:up
 pnpm run dev:node
+pnpm run dev:email-worker
 ```
 
 API 仅映射到宿主机回环地址，容器内通过 `postgres:5432` 访问数据库、通过 `valkey:6379`
-访问本地缓存；本地 storage profile 默认通过 `rustfs:9000` 访问对象存储，生产使用配置的独立
-Valkey 与外部 S3 API endpoint。
+访问本地缓存；邮件 Worker 不发布宿主机端口，只连接 PostgreSQL 和外部 SMTP。其健康检查仅在
+容器内的 `127.0.0.1:3001` 提供。本地 storage profile 默认通过 `rustfs:9000` 访问对象存储，
+生产使用配置的独立 Valkey 与外部 S3 API endpoint。
 
 RustFS S3 API 默认也只绑定回环地址。需要让局域网浏览器直接读取公开对象时，在 Git 忽略的
 `deploy/.env` 设置 `IMS_RUSTFS_API_BIND_ADDRESS=0.0.0.0`，并把
@@ -89,8 +91,8 @@ docker compose \
 preview 默认只绑定回环端口，并通过 SSH 隧道访问。`deploy-compose-preview.sh` 要求 API、PostgreSQL、
 Valkey 使用互不相同的非特权端口；它还会验证 bucket 名包含独立的 `test` 段、endpoint 是
 无凭据、无路径的 Cloudflare R2 HTTPS S3 API 地址、region 为 `auto`、`IMS_S3_FORCE_PATH_STYLE` 为
-`false`。候选镜像失败时只恢复上一 API 镜像，不恢复 preview PostgreSQL；R2 测试桶对象不随部署
-回滚改变。
+`false`。候选镜像失败时先恢复并验证上一邮件 Worker，再恢复上一 API；该流程不恢复 preview
+PostgreSQL，R2 测试桶对象也不随部署回滚改变。
 
 ## PostgreSQL + Cloudflare R2
 
@@ -107,10 +109,19 @@ R2 使用 `auto` region；
 ```sh
 : "${IMS_API_IMAGE:?set the verified GHCR image@sha256 digest}"
 docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml config --quiet
-docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml pull api
+docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml pull email-worker api
 docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml \
-  up -d --no-build postgres api
+  up -d --no-build postgres
+docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml \
+  run --rm --no-deps api node apps/api/scripts/migration/postgres-migrations.js
+docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml \
+  up -d --no-build --no-deps email-worker
+docker compose --env-file /etc/imsweb/production.env -f deploy/compose.yaml \
+  up -d --no-build --no-deps api
 ```
+
+执行 migration 前必须确认 PostgreSQL 已健康，启动 API 前必须确认邮件 Worker 已健康。正式发布
+仍应使用受锁部署脚本完成相同的等待和逐副本检查。
 
 未启用 `local-storage` profile 时，Compose 不启动 RustFS；API 只使用配置的 R2 bucket。
 手工排障时可以把目标主机的私有环境文件传给 Compose，但不得执行 `--build`；生产镜像必须使用

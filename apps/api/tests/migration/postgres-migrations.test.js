@@ -13,6 +13,10 @@ const {
     readMigrations,
     validateMigrationFilenames
 } = require('../../scripts/migration/postgres-migrations');
+const {
+    createPostgresTestHarness,
+    postgresIntegrationEnabled
+} = require('../integration/postgres-harness.ts');
 
 test('released Platform and Fudaba migrations remain byte-for-byte immutable', () => {
     const expected = new Map([
@@ -154,6 +158,10 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
             },
             {
                 version: '20260912210000_platform_email_configuration',
+                phase: 'post-data'
+            },
+            {
+                version: '20260913120000_platform_email_delivery_jobs',
                 phase: 'post-data'
             }
         ]
@@ -605,6 +613,35 @@ test('PostgreSQL migrations are ordered and split around the data import', () =>
     assert.match(editorialPresentation.sql, /ADD COLUMN cover_focal_x DOUBLE PRECISION/);
     assert.match(editorialPresentation.sql, /ADD COLUMN related_links JSONB/);
     assert.match(editorialPresentation.sql, /registration_url/);
+    const emailDeliveryJobs = migrations.find(
+        ({ version }) => version === '20260913120000_platform_email_delivery_jobs'
+    );
+    assert.match(
+        emailDeliveryJobs.sql,
+        /ADD COLUMN resend_cooldown_seconds INTEGER NOT NULL DEFAULT 60/
+    );
+    assert.match(emailDeliveryJobs.sql, /resend_cooldown_seconds BETWEEN 30 AND 600/);
+    assert.match(
+        emailDeliveryJobs.sql,
+        /CREATE TABLE public\.platform_email_delivery_jobs/
+    );
+    assert.match(emailDeliveryJobs.sql, /purpose IN \('registration', 'password_reset'\)/);
+    assert.match(
+        emailDeliveryJobs.sql,
+        /state IN \([\s\S]+'queued', 'running', 'retry_wait', 'completed', 'failed',[\s\S]+'superseded'/
+    );
+    assert.match(emailDeliveryJobs.sql, /attempts BETWEEN 0 AND 2/);
+    assert.match(emailDeliveryJobs.sql, /platform_email_delivery_jobs_claim_idx/);
+    assert.match(emailDeliveryJobs.sql, /platform_email_delivery_jobs_expired_lease_idx/);
+    assert.match(emailDeliveryJobs.sql, /platform_email_delivery_jobs_deadline_idx/);
+    assert.match(
+        emailDeliveryJobs.sql,
+        /platform_email_delivery_jobs_terminal_retention_idx/
+    );
+    assert.doesNotMatch(
+        emailDeliveryJobs.sql,
+        /recipient_email|\bcode\s+TEXT|rendered_(?:subject|body)|smtp_response/i
+    );
 });
 
 test('PostgreSQL migration arguments require one PostgreSQL database URL', () => {
@@ -628,13 +665,100 @@ test('PostgreSQL migration arguments require one PostgreSQL database URL', () =>
 
 test('PostgreSQL migration catalog is available without a database connection', () => {
     const catalog = migrationCatalog();
-    assert.equal(catalog.count, 47);
+    assert.equal(catalog.count, 48);
     assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
     assert.equal(
         catalog.migrations.at(-1).version,
-        '20260912210000_platform_email_configuration'
+        '20260913120000_platform_email_delivery_jobs'
     );
     assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
+});
+
+test('email delivery migration creates the constrained queue and resend policy', {
+    skip: !postgresIntegrationEnabled()
+}, async (t) => {
+    const harness = await createPostgresTestHarness({
+        label: 'email-delivery-schema',
+        seedCanonicalAgencies: false
+    });
+    t.after(() => harness.close());
+    const database = harness.connection;
+
+    const columns = (await database.prepare(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='platform_email_delivery_jobs'
+         ORDER BY ordinal_position`
+    ).all()).results.map(({ column_name }) => column_name);
+    assert.deepEqual(columns, [
+        'id',
+        'purpose',
+        'delivery_token',
+        'payload_ciphertext',
+        'payload_version',
+        'state',
+        'attempts',
+        'next_attempt_at',
+        'deadline_at',
+        'lease_token',
+        'lease_expires_at',
+        'failure_category',
+        'acceptance_ambiguous',
+        'last_attempt_at',
+        'accepted_at',
+        'completed_at',
+        'failed_at',
+        'created_at',
+        'updated_at'
+    ]);
+
+    const indexes = (await database.prepare(
+        `SELECT indexname FROM pg_indexes
+         WHERE schemaname='public' AND tablename='platform_email_delivery_jobs'
+         ORDER BY indexname`
+    ).all()).results.map(({ indexname }) => indexname);
+    assert.deepEqual(indexes, [
+        'platform_email_delivery_jobs_claim_idx',
+        'platform_email_delivery_jobs_deadline_idx',
+        'platform_email_delivery_jobs_delivery_token_key',
+        'platform_email_delivery_jobs_expired_lease_idx',
+        'platform_email_delivery_jobs_pkey',
+        'platform_email_delivery_jobs_terminal_retention_idx'
+    ]);
+
+    const constraints = (await database.prepare(
+        `SELECT pg_get_constraintdef(oid) AS definition
+         FROM pg_constraint
+         WHERE conrelid='public.platform_email_delivery_jobs'::regclass
+         ORDER BY conname`
+    ).all()).results.map(({ definition }) => definition).join('\n');
+    assert.match(constraints, /purpose.*registration.*password_reset/s);
+    assert.match(constraints, /state.*queued.*running.*retry_wait.*completed.*failed.*superseded/s);
+    assert.match(constraints, /attempts >= 0.*attempts <= 2/s);
+    assert.match(constraints, /state = 'running'.*lease_token IS NOT NULL.*lease_expires_at IS NOT NULL/s);
+    assert.match(constraints, /state = 'completed'.*accepted_at IS NOT NULL.*completed_at IS NOT NULL/s);
+    assert.match(constraints, /state = 'failed'.*failed_at IS NOT NULL.*failure_category IS NOT NULL/s);
+
+    const policy = await database.prepare(
+        `SELECT resend_cooldown_seconds FROM platform_email_configuration
+         WHERE singleton_id=1`
+    ).first();
+    assert.equal(policy.resend_cooldown_seconds, 60);
+    await database.prepare(
+        'UPDATE platform_email_configuration SET resend_cooldown_seconds=? WHERE singleton_id=1'
+    ).bind(30).run();
+    await database.prepare(
+        'UPDATE platform_email_configuration SET resend_cooldown_seconds=? WHERE singleton_id=1'
+    ).bind(600).run();
+    await assert.rejects(
+        database.prepare(
+            'UPDATE platform_email_configuration SET resend_cooldown_seconds=? WHERE singleton_id=1'
+        ).bind(29).run()
+    );
+    await assert.rejects(
+        database.prepare(
+            'UPDATE platform_email_configuration SET resend_cooldown_seconds=? WHERE singleton_id=1'
+        ).bind(601).run()
+    );
 });
 
 test('PostgreSQL migration names keep the frozen sequence and use UTC timestamps after it', () => {
@@ -736,7 +860,8 @@ test('PostgreSQL migration runner is repeatable and rejects checksum drift', asy
         '20260826130000_namecard_legacy_tables_read_only',
         '20260901140000_dynamic_platform_oauth_providers',
         '20260902120000_platform_session_devices',
-        '20260912210000_platform_email_configuration'
+        '20260912210000_platform_email_configuration',
+        '20260913120000_platform_email_delivery_jobs'
     ]);
     const second = await applyMigrations(client, { migrations });
     assert.deepEqual(second.executed, []);

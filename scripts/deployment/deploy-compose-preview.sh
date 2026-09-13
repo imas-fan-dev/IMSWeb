@@ -21,6 +21,7 @@ compose_override_source=$6
 runtime_env=${IMS_PREVIEW_RUNTIME_ENV_FILE:-$deploy_root/config/preview.env}
 super_admin_username=${IMS_PREVIEW_SUPER_ADMIN_USERNAME:-}
 container_cli=${IMS_CONTAINER_CLI:-docker}
+database_attempts=${IMS_DEPLOY_DATABASE_ATTEMPTS:-30}
 probe_attempts=${IMS_DEPLOY_PROBE_ATTEMPTS:-45}
 probe_delay=${IMS_DEPLOY_PROBE_DELAY_SECONDS:-2}
 
@@ -51,6 +52,8 @@ deploy_root_segments="/${deploy_root#/}/"
     fail "preview environment file must stay under the deploy root"
 [[ "$container_cli" == "docker" || "$container_cli" == "podman" ]] ||
     fail "IMS_CONTAINER_CLI must be docker or podman"
+[[ "$database_attempts" =~ ^[1-9][0-9]*$ ]] ||
+    fail "IMS_DEPLOY_DATABASE_ATTEMPTS must be a positive integer"
 [[ "$probe_attempts" =~ ^[1-9][0-9]*$ ]] ||
     fail "IMS_DEPLOY_PROBE_ATTEMPTS must be a positive integer"
 [[ "$probe_delay" =~ ^[0-9]+$ ]] ||
@@ -139,6 +142,12 @@ for required_key in \
     AWS_SECRET_ACCESS_KEY; do
     require_environment_value "$required_key"
 done
+worker_replicas=$(environment_value IMS_EMAIL_WORKER_REPLICAS)
+worker_replicas=${worker_replicas:-1}
+[[ "$worker_replicas" =~ ^[1-9][0-9]*$ ]] ||
+    fail "IMS_EMAIL_WORKER_REPLICAS must be a positive integer"
+((worker_replicas <= 32)) ||
+    fail "IMS_EMAIL_WORKER_REPLICAS must not exceed 32"
 
 port_keys=(
     IMS_API_PORT
@@ -276,6 +285,64 @@ if [[ -e "$current_link" || -L "$current_link" ]]; then
     fi
 fi
 
+wait_for_postgres() {
+    local compose_file=$1
+    local compose_override=$2
+    local selected_image=$3
+    for _ in $(seq 1 "$database_attempts"); do
+        if compose "$compose_file" "$compose_override" "$selected_image" exec -T postgres \
+            sh -ec 'pg_isready --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' \
+            >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep "$probe_delay"
+    done
+    return 1
+}
+
+email_workers_healthy() {
+    local compose_file=$1
+    local compose_override=$2
+    local selected_image=$3
+    local worker_ids=()
+    local state
+    mapfile -t worker_ids < <(
+        compose "$compose_file" "$compose_override" "$selected_image" \
+            ps --all --quiet email-worker
+    )
+    [[ ${#worker_ids[@]} -eq $worker_replicas ]] || return 1
+    for worker_id in "${worker_ids[@]}"; do
+        [[ -n "$worker_id" ]] || return 1
+        state=$(
+            "$container_cli" inspect --format \
+                '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
+                "$worker_id" 2>/dev/null
+        ) || return 1
+        [[ "$state" == "running healthy" ]] || return 1
+    done
+}
+
+wait_for_email_workers() {
+    local compose_file=$1
+    local compose_override=$2
+    local selected_image=$3
+    for _ in $(seq 1 "$probe_attempts"); do
+        if email_workers_healthy "$compose_file" "$compose_override" "$selected_image"; then
+            return 0
+        fi
+        sleep "$probe_delay"
+    done
+    return 1
+}
+
+compose_has_email_worker() {
+    local compose_file=$1
+    local compose_override=$2
+    local selected_image=$3
+    compose "$compose_file" "$compose_override" "$selected_image" config --services | \
+        grep -Fxq email-worker
+}
+
 internal_probe() {
     local compose_file=$1
     local compose_override=$2
@@ -311,13 +378,30 @@ wait_for_preview() {
 }
 
 deployment_error=
-printf '%s\n' "Pulling and starting $image_ref"
+printf '%s\n' "Pulling $image_ref for the API and email worker."
 if ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
-    "$image_ref" pull api; then
+    "$image_ref" pull api email-worker; then
     deployment_error="candidate image pull failed"
 elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
-    "$image_ref" up -d --no-build; then
-    deployment_error="candidate Compose startup failed"
+    "$image_ref" up -d --no-build postgres valkey; then
+    deployment_error="candidate data service startup failed"
+elif ! wait_for_postgres "$release_dir/compose.yaml" \
+    "$release_dir/compose.preview.yaml" "$image_ref"; then
+    deployment_error="candidate PostgreSQL readiness check failed"
+elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
+    "$image_ref" run --rm --no-deps api \
+    node apps/api/scripts/migration/postgres-migrations.js; then
+    deployment_error="candidate PostgreSQL migration failed"
+elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
+    "$image_ref" up -d --no-build --no-deps \
+    --scale "email-worker=$worker_replicas" email-worker; then
+    deployment_error="candidate email worker startup failed"
+elif ! wait_for_email_workers "$release_dir/compose.yaml" \
+    "$release_dir/compose.preview.yaml" "$image_ref"; then
+    deployment_error="candidate email worker health checks failed"
+elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
+    "$image_ref" up -d --no-build --no-deps api; then
+    deployment_error="candidate API startup failed"
 elif ! wait_for_preview "$release_dir/compose.yaml" \
     "$release_dir/compose.preview.yaml" "$image_ref"; then
     deployment_error="candidate preview health checks failed"
@@ -326,14 +410,23 @@ fi
 if [[ -n "$deployment_error" ]]; then
     printf '%s\n' "$deployment_error" >&2
     compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
-        "$image_ref" ps >&2 || true
+        "$image_ref" ps --all >&2 || true
     compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
-        "$image_ref" logs --no-color --tail 200 api >&2 || true
+        "$image_ref" logs --no-color --tail 200 email-worker api >&2 || true
 
     if [[ -n "$current_dir" && "$current_dir" != "$release_dir" ]]; then
         printf '%s\n' "Restoring previous preview release $current_release" >&2
+        if ! compose_has_email_worker "$current_compose" "$current_override" "$current_image"; then
+            fail "$deployment_error; the previous preview release has no email worker and cannot be an automatic rollback target after the Release A migration"
+        fi
         if compose "$current_compose" "$current_override" "$current_image" \
-            up -d --no-build --no-deps api &&
+            pull email-worker api &&
+            compose "$current_compose" "$current_override" "$current_image" \
+                up -d --no-build --no-deps \
+                --scale "email-worker=$worker_replicas" email-worker &&
+            wait_for_email_workers "$current_compose" "$current_override" "$current_image" &&
+            compose "$current_compose" "$current_override" "$current_image" \
+                up -d --no-build --no-deps api &&
             wait_for_preview "$current_compose" "$current_override" "$current_image"; then
             printf '%s\n' \
                 "Previous preview release restored; database and object storage were not restored." >&2
@@ -342,7 +435,7 @@ if [[ -n "$deployment_error" ]]; then
         fi
     elif [[ -z "$current_dir" ]]; then
         compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
-            "$image_ref" stop api >/dev/null 2>&1 || true
+            "$image_ref" stop api email-worker >/dev/null 2>&1 || true
     fi
     fail "$deployment_error; current preview pointer was not changed"
 fi

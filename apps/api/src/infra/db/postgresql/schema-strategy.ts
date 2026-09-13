@@ -4,11 +4,11 @@ import type {
 } from "@/infra/db/sql/database";
 
 // Must name the newest migration whose columns production code already reads.
-// Session device columns are selected by listRefreshSessionsByAccount, so a
+// The independent email worker reads the delivery queue and resend policy, so a
 // deploy that skipped this migration has to fail at startup with an actionable
-// message instead of throwing "column does not exist" on the first query.
+// message instead of throwing "relation does not exist" on its first poll.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    "20260902120000_platform_session_devices";
+    "20260913120000_platform_email_delivery_jobs";
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {
     private readonly verifications = new WeakMap<

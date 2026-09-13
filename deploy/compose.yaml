@@ -145,6 +145,56 @@ services:
         mc anonymous set-json /tmp/policy.json "local/$${IMS_RUSTFS_BUCKET}"
         mc version enable "local/$${IMS_RUSTFS_BUCKET}"
 
+  email-worker:
+    image: ${IMS_API_IMAGE:-imsweb-api:local}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,postgres,host.containers.internal,host.docker.internal"
+      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,postgres,host.containers.internal,host.docker.internal"
+      NODE_ENV: ${IMS_API_NODE_ENV:-development}
+      IMS_ENV_FILE: ""
+      IMS_PLATFORM_JWT_SECRET: ${IMS_PLATFORM_JWT_SECRET-}
+      DATABASE_URL: ${IMS_API_DATABASE_URL:-postgresql://imsweb:imsweb-local-password@postgres:5432/imsweb}
+      IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}
+      IMS_PG_IDLE_TIMEOUT_MS: ${IMS_PG_IDLE_TIMEOUT_MS:-30000}
+      IMS_PG_CONNECTION_TIMEOUT_MS: ${IMS_PG_CONNECTION_TIMEOUT_MS-}
+      IMS_PG_STATEMENT_TIMEOUT_MS: ${IMS_PG_STATEMENT_TIMEOUT_MS:-30000}
+      IMS_PG_IDLE_TRANSACTION_TIMEOUT_MS: ${IMS_PG_IDLE_TRANSACTION_TIMEOUT_MS:-30000}
+      IMS_PROJECT_ROOT: /app
+    command:
+      - npm
+      - --prefix
+      - apps/api
+      - run
+      - start:email-worker
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 2m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
   api:
     image: ${IMS_API_IMAGE:-imsweb-api:local}
     build:

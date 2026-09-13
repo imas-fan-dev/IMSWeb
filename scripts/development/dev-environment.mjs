@@ -13,6 +13,7 @@ export const repositoryRoot = path.resolve(scriptDirectory, "../..");
 
 export const minimumNodeVersion = Object.freeze([22, 13, 0]);
 const defaultApiPort = 3000;
+const defaultEmailWorkerHealthPort = 3001;
 const defaultWebPort = 5173;
 const loopbackHost = "127.0.0.1";
 const readinessTimeoutMs = 90_000;
@@ -51,7 +52,8 @@ Options:
   -h, --help       Show this help
 
 Environment overrides:
-  IMS_DEV_API_PORT, IMS_DEV_WEB_PORT, IMS_DEV_R2_ENV_FILE
+  IMS_DEV_API_PORT, IMS_DEV_EMAIL_WORKER_HEALTH_PORT, IMS_DEV_WEB_PORT
+  IMS_DEV_R2_ENV_FILE
   IMS_VALKEY_PORT
   IMS_DEV_FUDABA_PUBLIC_READ_ENABLED, IMS_DEV_FUDABA_WRITE_ENABLED
   IMS_DEV_FUDABA_MAP_ENABLED, IMS_DEV_FUDABA_MAP_STYLE_URL
@@ -538,6 +540,25 @@ export function resolveDevelopmentConfiguration({
     infrastructure.IMS_VALKEY_PORT,
     "IMS_VALKEY_PORT",
   );
+  const emailWorkerHealthPort = parsePort(
+    environment.IMS_DEV_EMAIL_WORKER_HEALTH_PORT ||
+      defaultEmailWorkerHealthPort,
+    "IMS_DEV_EMAIL_WORKER_HEALTH_PORT",
+  );
+  const reservedDevelopmentPorts = new Map([
+    [options.apiPort, "API"],
+    [options.webPort, "Web"],
+    [postgresPort, "PostgreSQL"],
+    [valkeyPort, "Valkey"],
+    [rustfsPort, "RustFS API"],
+    [rustfsConsolePort, "RustFS console"],
+  ]);
+  const conflictingService = reservedDevelopmentPorts.get(emailWorkerHealthPort);
+  if (conflictingService) {
+    throw new Error(
+      `Email worker health port must be different from the ${conflictingService} port`,
+    );
+  }
   const database = infrastructure.IMS_POSTGRES_DB;
   const username = infrastructure.IMS_POSTGRES_USER;
   const password = infrastructure.IMS_POSTGRES_PASSWORD;
@@ -562,6 +583,7 @@ export function resolveDevelopmentConfiguration({
   }
 
   const apiOrigin = `http://${loopbackHost}:${options.apiPort}`;
+  const emailWorkerHealthOrigin = `http://${loopbackHost}:${emailWorkerHealthPort}`;
   const webOrigin = `http://${loopbackHost}:${options.webPort}`;
   const rustfsOrigin = parseRustfsPublicOrigin(
     infrastructure.IMS_RUSTFS_PUBLIC_ORIGIN ||
@@ -631,6 +653,8 @@ export function resolveDevelopmentConfiguration({
   return {
     ...options,
     apiOrigin,
+    emailWorkerHealthOrigin,
+    emailWorkerHealthPort,
     webOrigin,
     rustfsOrigin,
     rustfsConsoleOrigin,
@@ -650,6 +674,16 @@ export function resolveDevelopmentConfiguration({
       ...infrastructure,
     },
     apiEnvironment,
+    emailWorkerEnvironment: {
+      ...applicationEnvironment,
+      NODE_ENV: "development",
+      IMS_ENV_FILE: "",
+      IMS_PROJECT_ROOT: repositoryRoot,
+      IMS_PLATFORM_JWT_SECRET: "imsweb-local-development-platform-secret",
+      DATABASE_URL: databaseUrl,
+      IMS_EMAIL_WORKER_HEALTH_HOST: loopbackHost,
+      IMS_EMAIL_WORKER_HEALTH_PORT: String(emailWorkerHealthPort),
+    },
     webEnvironment: {
       ...applicationEnvironment,
       IMS_API_ORIGIN: apiOrigin,
@@ -719,6 +753,11 @@ export function buildCommandPlan(configuration) {
       command: process.platform === "win32" ? "pnpm.cmd" : "pnpm",
       args: ["--filter", "@imsweb/api", "run", "dev"],
       env: configuration.apiEnvironment,
+    },
+    emailWorker: {
+      command: process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+      args: ["--filter", "@imsweb/api", "run", "dev:email-worker"],
+      env: configuration.emailWorkerEnvironment,
     },
     web: {
       command: process.platform === "win32" ? "pnpm.cmd" : "pnpm",
@@ -1157,6 +1196,28 @@ async function supervise(configuration, plan) {
       throw unexpectedExitError(apiReadiness, "before becoming ready");
     }
 
+    const emailWorker = registerChild(
+      "Email worker",
+      startWatchProcess("Email worker", plan.emailWorker),
+    );
+    const emailWorkerReadiness = await Promise.race([
+      waitForUrl(
+        "Email worker",
+        `${configuration.emailWorkerHealthOrigin}/health/ready`,
+        emailWorker.child,
+      ).then(() => ({ type: "ready" })),
+      signalPromise,
+      api.outcome,
+      emailWorker.outcome,
+    ]);
+    if (emailWorkerReadiness.type === "signal") return;
+    if (emailWorkerReadiness.type === "exit") {
+      throw unexpectedExitError(
+        emailWorkerReadiness,
+        "before becoming ready",
+      );
+    }
+
     const web = registerChild(
       "React Web",
       startWatchProcess("React Web", plan.web),
@@ -1167,6 +1228,7 @@ async function supervise(configuration, plan) {
       })),
       signalPromise,
       api.outcome,
+      emailWorker.outcome,
       web.outcome,
     ]);
     if (webReadiness.type === "signal") return;
@@ -1181,6 +1243,7 @@ async function supervise(configuration, plan) {
       ).then(() => ({ type: "ready" })),
       signalPromise,
       api.outcome,
+      emailWorker.outcome,
       web.outcome,
     ]);
     if (proxyReadiness.type === "signal") return;
@@ -1194,6 +1257,9 @@ async function supervise(configuration, plan) {
     process.stdout.write("\n[dev] Development environment is ready\n");
     process.stdout.write(`[dev] Web:           ${configuration.webOrigin}\n`);
     process.stdout.write(`[dev] API:           ${configuration.apiOrigin}\n`);
+    process.stdout.write(
+      `[dev] Worker health: ${configuration.emailWorkerHealthOrigin}\n`,
+    );
     process.stdout.write(`[dev] Valkey:        ${configuration.valkeyUrl}\n`);
     if (configuration.storageMode === "r2") {
       process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
@@ -1206,7 +1272,7 @@ async function supervise(configuration, plan) {
       );
     }
     process.stdout.write(
-      "[dev] Press Ctrl+C to stop API and Web. Local data services stay running.\n\n",
+      "[dev] Press Ctrl+C to stop API, email worker, and Web. Local data services stay running.\n\n",
     );
 
     const outcome = await Promise.race([
@@ -1308,6 +1374,21 @@ async function doctor(configuration, plan) {
         ? "choose another port with --api-port or IMS_DEV_API_PORT"
         : portFailureHint(apiPortProbe, configuration.apiPort, "API"),
   });
+  const emailWorkerPortProbe = await probePort(
+    configuration.emailWorkerHealthPort,
+  );
+  checks.push({
+    label: `Email worker health port ${configuration.emailWorkerHealthPort} available`,
+    ok: emailWorkerPortProbe.available,
+    hint:
+      emailWorkerPortProbe.code === "EADDRINUSE"
+        ? "choose another port with IMS_DEV_EMAIL_WORKER_HEALTH_PORT"
+        : portFailureHint(
+            emailWorkerPortProbe,
+            configuration.emailWorkerHealthPort,
+            "Email worker health",
+          ),
+  });
   const webPortProbe = await probePort(configuration.webPort);
   checks.push({
     label: `Web port ${configuration.webPort} available`,
@@ -1351,6 +1432,7 @@ function printPlan(configuration, plan) {
     ...(plan.rustfsInit ? [["Initialize RustFS bucket", plan.rustfsInit]] : []),
     ["Apply PostgreSQL migrations", plan.migrate],
     ["Start Hono API", plan.api],
+    ["Start email worker", plan.emailWorker],
     ["Start React Web", plan.web],
   ];
   for (const [label, specification] of commands) {
@@ -1360,6 +1442,9 @@ function printPlan(configuration, plan) {
   }
   process.stdout.write(`[dev] Web URL: ${configuration.webOrigin}\n`);
   process.stdout.write(`[dev] API URL: ${configuration.apiOrigin}\n`);
+  process.stdout.write(
+    `[dev] Email worker health URL: ${configuration.emailWorkerHealthOrigin}\n`,
+  );
   process.stdout.write(`[dev] Valkey URL: ${configuration.valkeyUrl}\n`);
   if (configuration.storageMode === "r2") {
     process.stdout.write(`[dev] R2 test bucket: ${configuration.bucket}\n`);
@@ -1448,6 +1533,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   for (const [label, port] of [
     ["API", configuration.apiPort],
+    ["Email worker health", configuration.emailWorkerHealthPort],
     ["Web", configuration.webPort],
   ]) {
     const probe = await probePort(port);

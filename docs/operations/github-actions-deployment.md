@@ -6,14 +6,18 @@
 > 适用环境：GitHub-hosted runner、GHCR、单台 Linux production host 和用户目录 preview
 
 IMSWeb 使用 GitHub-hosted runner 构建并发布 API 容器镜像，再通过 SSH 调用目标主机上的受锁
-Compose 发布脚本。API 镜像同时包含 Hono 服务、Web 静态文件和 PostgreSQL migrations；主机
-配置、数据库卷、对象存储凭据和应用秘密不进入 GitHub 构建制品。
+Compose 发布脚本。API 镜像同时包含 Hono 服务、独立邮件 Worker、Web 静态文件和 PostgreSQL
+migrations；主机配置、数据库卷、对象存储凭据和应用秘密不进入 GitHub 构建制品。
 
-production 自动部署适用于单台 Linux 主机上的 PostgreSQL/API Compose 栈、宿主机 Nginx 和
-Cloudflare R2。preview 使用同一主机上的独立 rootless Compose 项目、本地 Valkey，对象存储直接使用
-共享的 Cloudflare R2 测试桶（与本地开发的 `deploy/.env.r2-test` 同一个 bucket），不运行本地 RustFS。
-PostgreSQL 和 API 运行时状态仍位于部署用户的 home 下。两个环境的 `api` 都是单副本，容器重建会产生
-短暂中断；本流程不宣称 blue/green 或零停机。
+production 自动部署适用于单台 Linux 主机上的 PostgreSQL、API、邮件 Worker Compose 栈、宿主机
+Nginx 和 Cloudflare R2。preview 使用同一主机上的独立 rootless Compose 项目、本地 Valkey，对象存储
+直接使用共享的 Cloudflare R2 测试桶（与本地开发的 `deploy/.env.r2-test` 同一个 bucket），不运行本地
+RustFS。PostgreSQL 和 API 运行时状态仍位于部署用户的 home 下。两个环境的 `api` 都是单副本；邮件
+Worker 默认一个副本，可通过 `IMS_EMAIL_WORKER_REPLICAS` 扩展到最多 32 个。容器重建会产生短暂
+中断；本流程不宣称 blue/green 或零停机。
+
+Release A 只扩展队列表、Worker 和部署能力。注册与密码重置验证码的 HTTP 请求仍同步等待 SMTP，
+正常流量不会创建邮件任务。后续不包含 schema 变更的切换发布才会让 API 事务入队。
 
 ## 1. 工作流
 
@@ -168,7 +172,9 @@ IMS_POSTGRES_PASSWORD=<secret>
 
 IMS_API_NODE_ENV=production
 IMS_API_DATABASE_URL=postgresql://imsweb:<url-encoded-password>@postgres:5432/imsweb
-IMS_JWT_SECRET=<high-entropy-secret>
+IMS_JWT_SECRET=<high-entropy-legacy-backoffice-secret>
+IMS_PLATFORM_JWT_SECRET=<high-entropy-platform-secret>
+IMS_EMAIL_WORKER_REPLICAS=1
 IMS_COOKIE_SECURE=true
 IMS_CLIENT_ADDRESS_SOURCE=nginx
 IMS_SITE_PACKAGE_MAX_UPLOAD_BYTES=83886080
@@ -208,8 +214,10 @@ install -m 0600 /path/to/private-preview.env \
 
 `preview.env` 使用 `deploy/.env.example` 中相同的变量名，但必须使用独立随机 PostgreSQL 与 JWT 凭据，
 不能复制模板默认值。它必须设置 `COMPOSE_PROJECT_NAME=imsweb-preview`、`COMPOSE_PROFILES=local-cache`（
-不启用 `local-storage`）、`IMS_API_NODE_ENV=development` 和三个互不重复的非特权宿主机端口（API、
-PostgreSQL、Valkey）。对象存储直接指向共享的 Cloudflare R2 测试桶，凭据与 `deploy/.env.r2-test`
+不启用 `local-storage`）、`IMS_API_NODE_ENV=development`、`IMS_EMAIL_WORKER_REPLICAS=1` 和三个互不
+重复的非特权宿主机端口（API、PostgreSQL、Valkey）。Worker 健康服务只绑定在容器内部，
+不需要分配宿主机端口。对象存储直接指向共享的 Cloudflare R2 测试桶，凭据与
+`deploy/.env.r2-test`
 一致：bucket 名必须包含独立的 `test` 段，`IMS_S3_REGION=auto`，`IMS_S3_ENDPOINT` 必须是无凭据、
 无路径的 Cloudflare R2 HTTPS S3 API 地址，`IMS_S3_FORCE_PATH_STYLE=false`。`deploy-compose-preview.sh`
 会在任何容器写操作前检查这些约束。
@@ -236,10 +244,11 @@ Workflow 会按以下顺序执行：
 7. 认证包装脚本从远端普通文件执行部署脚本；部署脚本 stdin 固定为 `/dev/null`，避免 Compose
    子进程消费令牌或尚未读取的脚本内容，退出时删除临时认证配置；
 8. 取得发布锁，验证生产配置，启动 PostgreSQL 并创建 custom-format `pg_dump`；
-9. 拉取 digest、重建 API，检查 `/api/wiki/test`、`/api/news` 和首页；
-10. 要求远端输出 `Deployment completed.` 完成标记，再从 GitHub-hosted runner 验证正式 HTTPS
-    入口；
-11. 原子更新 `/srv/imsweb/current` 并写入发布记录。
+9. 为 API 和邮件 Worker 拉取同一个 digest，使用候选镜像先执行 PostgreSQL migrations；
+10. 启动配置数量的邮件 Worker，逐个检查容器健康状态，全部就绪后才重建 API；
+11. 检查 `/api/wiki/test`、`/api/news` 和首页，要求远端输出 `Deployment completed.` 完成标记，
+    再从 GitHub-hosted runner 验证正式 HTTPS 入口；
+12. 原子更新 `/srv/imsweb/current` 并写入发布记录。
 
 生产状态位于：
 
@@ -253,9 +262,10 @@ Workflow 会按以下顺序执行：
 
 Workflow 不在生产机执行 `git pull`，也不在生产机重新构建镜像。相同 Tag 的手动重新部署只有在
 release metadata、Compose 文件、Tag digest 和 commit digest 全部一致时才会继续。
-已有部署会先使用 `current` release 的 Compose 配置启动并备份 PostgreSQL；候选发布使用
-`--no-deps` 只重建 API。PostgreSQL 镜像或配置升级必须走独立维护窗口，不能夹带在普通 Tag
-发布中。
+已有部署会先使用 `current` release 的 Compose 配置启动并备份 PostgreSQL；候选发布显式运行
+migration，然后使用 `--no-deps` 依次重建邮件 Worker 和 API。部署脚本通过 Compose 取得所有
+Worker 容器 ID，并逐个要求 `running healthy`，不会用任意一个健康副本代表整个服务。
+PostgreSQL 镜像或配置升级必须走独立维护窗口，不能夹带在普通 Tag 发布中。
 
 preview 流程同样只部署不可变 digest，并把 base Compose、preview override 和 metadata 保存到
 `$PREVIEW_DEPLOY_ROOT/releases/preview-<commit-prefix>/`。`current` 与 `previous` 软链接在远端探测
@@ -264,22 +274,28 @@ preview 流程同样只部署不可变 digest，并把 base Compose、preview ov
 
 ## 5. 回滚与恢复边界
 
-候选容器启动、内部健康检查或生产机公网检查失败时，脚本会重新启动 `current` 指向的上一镜像，
-并保持 `current` 不变。自动回滚只切换代码，不恢复 PostgreSQL 或 R2。
+候选容器启动、内部健康检查或生产机公网检查失败时，脚本会先恢复并验证 `current` 指向的上一
+邮件 Worker，再恢复上一 API，并保持 `current` 不变。失败诊断同时包含 Worker 和 API 的状态与
+末尾日志。自动回滚只切换代码，不恢复 PostgreSQL 或 R2。
 
-PostgreSQL migration 在 API 启动前执行，数据库变更必须遵循 expand/contract，使上一版本仍能
-理解迁移后的 schema。禁止在普通 Tag 发布中删除列、重编号主键或迁移权威媒体。涉及数据库与
-R2 配对恢复、停写或破坏性 migration 的版本不得依赖本自动流程，应走独立维护窗口和
-`docs/operations/runbook.md`。
+PostgreSQL migration 在邮件 Worker 和 API 启动前执行，数据库变更必须遵循 expand/contract，使
+上一版本仍能理解迁移后的 schema。禁止在普通 Tag 发布中删除列、重编号主键或迁移权威媒体。
+涉及数据库与 R2 配对恢复、停写或破坏性 migration 的版本不得依赖本自动流程，应走独立维护窗口
+和 `docs/operations/runbook.md`。
+
+Release A 的邮件任务 migration 对旧镜像属于未知 migration。应用该 migration 后，Release A 之前
+的镜像不能作为自动代码回滚目标；若扩展发布失败，恢复必须继续使用带同步邮件 API 和 Worker 能力
+的 Release A 镜像，或按现有生产手工恢复边界恢复数据库。preview 不提供自动数据库恢复。完成并
+验证 Release A 前，不得开始无 migration 的异步入队切换发布。
 
 每次 production 部署创建的 `pg_dump` 是代码发布前的数据库恢复点，不是与 R2 同窗口冻结的完整
 灾备快照。不要自动恢复该文件。真实数据恢复必须先保留故障现场，匹配数据库与媒体恢复点，并
 取得明确批准。
 
-preview 不创建数据库备份。候选 API 启动或探测失败时，脚本恢复 `current` 指向的上一 API 镜像，
-但不恢复 preview PostgreSQL。preview migration 也必须遵循 expand/contract；需要清空或恢复 preview
-数据库时，应作为单独操作执行，不得隐藏在自动部署中。共享 R2 测试桶的对象独立于部署生命周期，
-不随回滚或重部变化。
+preview 不创建数据库备份。候选 Worker、API 启动或探测失败时，脚本先恢复并验证 `current` 指向
+的上一 Worker，再恢复上一 API，但不恢复 preview PostgreSQL。preview migration 也必须遵循
+expand/contract；需要清空或恢复 preview 数据库时，应作为单独操作执行，不得隐藏在自动部署中。
+共享 R2 测试桶的对象独立于部署生命周期，不随回滚或重新部署变化。
 
 ## 6. 手动重新部署
 
