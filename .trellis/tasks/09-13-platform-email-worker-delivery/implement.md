@@ -254,13 +254,13 @@ pnpm run test
 
 Release gate:
 
-- [ ] Independent review verifies every PRD acceptance criterion and both deployment rollback paths.
-- [ ] Commit Release B2 separately from Release B1.
-- [ ] Push Release B2 to `release/v1.1` and monitor preview deployment.
-- [ ] Verify Worker becomes ready before candidate API.
-- [ ] Request one registration code and one password-reset code in preview; require enqueue latency independent of SMTP response time and confirm delivery/activation through the normal workflows.
-- [ ] Verify no plaintext code/email in job rows or logs.
-- [ ] Verify queue drains and no job remains stuck beyond its deadline/lease.
+- [x] Independent review verifies every PRD acceptance criterion and both deployment rollback paths.
+- [x] Commit Release B2 separately from Release B1.
+- [x] Push Release B2 to `release/v1.1` and monitor preview deployment.
+- [x] Verify Worker becomes ready before candidate API.
+- [x] Request one registration code and one password-reset code in preview; require enqueue latency independent of SMTP response time and confirm delivery/activation through the normal workflows. The user confirmed the complete preview workflow operates normally on 2026-09-14.
+- [x] Verify no plaintext code/email in job rows or logs. Static schema and automated coverage pass; the live job table has zero plaintext email/code/content/credential columns, and the latest 500 Worker log lines contain zero email-address or sensitive-field patterns.
+- [x] Verify queue drains and no job remains stuck beyond its deadline/lease. The post-acceptance preview queue contains one `completed` job and no runnable or expired non-terminal jobs; the Worker remains healthy.
 
 Rollback point:
 
@@ -271,10 +271,18 @@ Rollback point:
 
 ## 14. Finish
 
-- [ ] Run `trellis-check` against the final scope.
+- [x] Run `trellis-check` against the final scope.
 - [x] Update relevant Trellis specs only for durable new project conventions, not task-specific details.
 - [x] Record the deferred persisted external-service configuration cache as next-version scope for OAuth and full SMTP settings; do not implement a business-data dual-write framework or migrate unrelated caches in this task.
-- [ ] Record the Release A, B1 and B2 commit IDs and preview deployment evidence.
+- [x] Record the Release A, B1 and B2 commit IDs and preview deployment evidence.
 - [x] Confirm unrelated working-tree changes remain untouched.
-- [ ] Commit any final documentation/spec-only changes using Conventional Commit style.
-- [ ] Archive the Trellis task only after all three preview checkpoints and the full final quality gate pass.
+- [x] Commit any final documentation/spec-only changes using Conventional Commit style.
+- [x] Archive the Trellis task only after all three preview checkpoints and the full final quality gate pass.
+
+Release evidence:
+
+- Release A: `7f38ec6585153af958b25bfa2bcaed4fb5430012`; preview workflow `34764019009` succeeded with the independent Worker ready.
+- Release B1 schema checkpoint: `ac002671`; preview workflow `34775694762` succeeded at head `bc895f1c` after the PostgreSQL cleanup fixes.
+- Release B2: `097121ae4bfe6b34e7dc486de3cef1a3b985f739`, followed by deterministic Web test fix `07e1a0041ad34a17594f57a220226521a4be4886`; preview workflow `34782793876` passed source resolution, static and repository checks, immutable-image verification, deployment, Worker-before-API readiness, and SSH verification. Remote `current` resolved to `preview-07e1a0041ad3`, with API and Worker both `running/healthy`.
+- The complete local `pnpm run check && pnpm run test` gate passed before the B2 commit. The test-only follow-up passed the complete Web `check` gate and ten consecutive focused runs.
+- On 2026-09-14 the user confirmed that the complete preview email workflow operates normally. A final read-only runtime check found SMTP enabled with all required configuration fields present, API and Worker both healthy, one completed delivery job with no non-terminal backlog, zero plaintext-sensitive columns in the job table, and no email-address or sensitive-field patterns in the latest 500 Worker log lines.
