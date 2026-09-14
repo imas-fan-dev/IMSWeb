@@ -150,7 +150,7 @@ test("production inventory preserves approved totals and route-level reconciliat
       passthrough: 18,
       "non-object-applicable": 64,
     },
-    responses: { total: 621, json: 557, nonJson: 64 },
+    responses: { total: 619, json: 557, nonJson: 62 },
     unresolved: 0,
   });
   assert.deepEqual(current, artifact);

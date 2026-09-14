@@ -26,7 +26,7 @@ export default defineConfig({
   webServer: process.env.E2E_APP_BASE_URL
     ? undefined
     : {
-        command: "pnpm dev:app",
+        command: "IMS_APP_E2E_CROSS_ORIGIN=1 pnpm dev:app",
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

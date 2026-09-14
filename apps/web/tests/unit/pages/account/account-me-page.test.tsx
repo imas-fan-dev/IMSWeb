@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter } from "react-router"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { i18n } from "~/i18n/config"
 import AccountMePage from "~/pages/account/me/account-me-page"
@@ -13,10 +13,18 @@ const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
 }))
 
+const avatarMocks = vi.hoisted(() => ({
+  usePlatformAvatarSource: vi.fn(),
+}))
+
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
   usePlatformSession: sessionMocks.usePlatformSession,
+}))
+
+vi.mock("~/components/platform/use-platform-avatar-source", () => ({
+  usePlatformAvatarSource: avatarMocks.usePlatformAvatarSource,
 }))
 
 vi.mock("~/components/shared/theme-toggle", () => ({
@@ -53,6 +61,7 @@ function sessionState(
           : null,
     error: status === "error" ? new Error("session unavailable") : null,
     acceptSession: vi.fn(),
+    acceptProfile: vi.fn(),
     reload: sessionMocks.reload,
     logout: sessionMocks.logout,
   }
@@ -84,9 +93,22 @@ function expectAccountHeading() {
 describe("AccountMePage", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(
+      true
+    )
+    vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(
+      1
+    )
     sessionMocks.reload.mockResolvedValue(undefined)
     sessionMocks.logout.mockResolvedValue(undefined)
+    avatarMocks.usePlatformAvatarSource.mockImplementation(
+      (avatarUrl: string | null | undefined) => avatarUrl
+    )
     await i18n.changeLanguage("zh-CN")
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it("shows a fixed account skeleton while the session is loading", () => {
@@ -157,6 +179,9 @@ describe("AccountMePage", () => {
     expect(screen.getByText("测试制作人")).toBeVisible()
     expect(screen.getByText("上海")).toBeVisible()
     expect(screen.getByText("已登录")).toBeVisible()
+    expect(
+      await screen.findByRole("img", { name: "测试制作人的头像" })
+    ).toHaveAttribute("src", "/avatar.webp")
 
     const expectedSections = [
       ["个人资料", "/account/me/profile"],
@@ -177,6 +202,27 @@ describe("AccountMePage", () => {
     sessionMocks.usePlatformSession.mockReturnValue(sessionState("anonymous"))
     rendered.rerender(<TestPage />)
     expect(await screen.findByText("已退出帐号")).toBeVisible()
+  })
+
+  it("uses an authenticated Blob source and keeps fallback behavior", async () => {
+    avatarMocks.usePlatformAvatarSource.mockReturnValue("blob:app-avatar")
+    sessionMocks.usePlatformSession.mockReturnValue(
+      sessionState("authenticated")
+    )
+    const page = renderPage()
+
+    expect(
+      await screen.findByRole("img", { name: "测试制作人的头像" })
+    ).toHaveAttribute("src", "blob:app-avatar")
+
+    avatarMocks.usePlatformAvatarSource.mockReturnValue(null)
+    page.rerender(<TestPage />)
+    expect(
+      screen.queryByRole("img", { name: "测试制作人的头像" })
+    ).not.toBeInTheDocument()
+    expect(
+      page.container.querySelector('[data-slot="avatar-fallback"]')
+    ).toHaveTextContent("测")
   })
 
   it("keeps a restricted account visibly read-only", () => {

@@ -167,6 +167,23 @@ const aboutAvatarMultipartSchema = z
     (body) => body.includes('name="image"'),
     "expected image multipart field"
   )
+const platformAvatarMultipartSchema = z
+  .string()
+  .min(1)
+  .refine((body) => {
+    const fieldNames = Array.from(
+      body.matchAll(/content-disposition:\s*form-data;\s*name="([^"]+)"/gi),
+      (match) => match[1]
+    )
+    return (
+      fieldNames.length === 2 &&
+      fieldNames.filter((name) => name === "image").length === 1 &&
+      fieldNames.filter((name) => name === "expectedUpdatedAt").length === 1 &&
+      /content-disposition:\s*form-data;\s*name="image";\s*filename="[^"]+"/i.test(
+        body
+      )
+    )
+  }, "expected exactly one image and one expectedUpdatedAt multipart field")
 const multipartFormDataContentTypeSchema = z
   .string()
   .regex(/^multipart\/form-data;\s*boundary=\S+$/i)
@@ -565,6 +582,26 @@ export function resolveApiContract(
       responses: {
         200: platformProfileResponseSchema,
         401: platformHttpErrorSchema,
+      },
+    }
+  if (method === "PUT" && path === "/api/platform/me/avatar")
+    return {
+      rawBody: {
+        name: "Platform avatar upload multipart body",
+        reason:
+          "Avatar uploads carry one image and the current profile revision.",
+        schema: platformAvatarMultipartSchema,
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        200: platformProfileMutationResponseSchema,
+        400: platformProfileHttpErrorSchema,
+        401: platformProfileHttpErrorSchema,
+        403: platformProfileHttpErrorSchema,
+        409: platformProfileHttpErrorSchema,
+        413: platformProfileHttpErrorSchema,
+        429: platformProfileHttpErrorSchema,
+        500: platformProfileHttpErrorSchema,
       },
     }
   if (method === "PUT" && path === "/api/platform/me")

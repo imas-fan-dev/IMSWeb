@@ -52,6 +52,14 @@ Redirects, media and site streams remain API-local success boundaries. Their
 JSON error bodies use contracts types. HTTP conformance tests parse untouched
 JSON with the shared schema and compare the parsed result with the raw body.
 
+Private media that a cross-origin client must read with `Authorization` uses the
+fixed-endpoint contract in
+[Web API, state, and contracts](../../web/frontend/api-state-and-contracts.md#scenario-bearer-authenticated-private-media).
+Select `objectReadResponse(..., { mode: 'proxy' })` only in the authenticated
+route that requires byte delivery. Keep redirect mode as the helper default and
+preserve private cache, referrer, `Vary`, GET/HEAD, Range, missing-key and
+dangling-object semantics in route-level tests.
+
 `pnpm run check:rules` resolves every mounted request validator and
 `c.json(...)` emitter through the TypeScript compiler. Keep route factories,
 path builders, and view mappers statically resolvable. Register each non-JSON

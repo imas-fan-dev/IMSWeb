@@ -1,13 +1,15 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ApiError } from "~/lib/api"
+import { ApiError, type PlatformProfile } from "~/lib/api"
 import CommunityExchangeMePage from "~/pages/community/exchange/me/community-exchange-me-page"
+import { ProfileEditor } from "~/pages/community/exchange/me/profile-editor"
 
 const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
+  acceptProfile: vi.fn(),
   reload: vi.fn(),
 }))
 
@@ -20,6 +22,7 @@ const apiMocks = vi.hoisted(() => ({
   getWikiCatalog: vi.fn(),
   updatePlatformProfile: vi.fn(),
   uploadPlatformAvatar: vi.fn(),
+  removePlatformAvatar: vi.fn(),
   createFudabaCard: vi.fn(),
   updateFudabaCard: vi.fn(),
   uploadFudabaCardMedia: vi.fn(),
@@ -32,6 +35,7 @@ const apiMocks = vi.hoisted(() => ({
   sendEnvelopes: vi.fn(),
   sendProfileUpdate: vi.fn(),
   sendAvatarUpload: vi.fn(),
+  sendAvatarRemoval: vi.fn(),
   sendCreate: vi.fn(),
   sendUpdate: vi.fn(),
   sendMediaUpload: vi.fn(),
@@ -55,6 +59,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getWikiCatalog: apiMocks.getWikiCatalog,
     updatePlatformProfile: apiMocks.updatePlatformProfile,
     uploadPlatformAvatar: apiMocks.uploadPlatformAvatar,
+    removePlatformAvatar: apiMocks.removePlatformAvatar,
     createFudabaCard: apiMocks.createFudabaCard,
     updateFudabaCard: apiMocks.updateFudabaCard,
     uploadFudabaCardMedia: apiMocks.uploadFudabaCardMedia,
@@ -62,7 +67,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   }
 })
 
-const profile = {
+const profile: PlatformProfile = {
   displayName: "春香P",
   avatarUrl: null,
   homeCity: "上海",
@@ -107,15 +112,30 @@ const card = {
   updatedAt: "2026-08-02T09:00:00.000Z",
 }
 
+function deferred<T>() {
+  let resolvePromise!: (value: T) => void
+  let rejectPromise!: (error: unknown) => void
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve
+    rejectPromise = reject
+  })
+  return {
+    promise,
+    resolve: (value: T) => resolvePromise(value),
+    reject: (error: unknown) => rejectPromise(error),
+  }
+}
+
 function authenticatedSession(
-  status: "authenticated" | "restricted" = "authenticated"
+  status: "authenticated" | "restricted" = "authenticated",
+  accountId = "platform-1"
 ) {
   return {
     status,
     session: {
       success: true,
       account: {
-        id: "platform-1",
+        id: accountId,
         status: status === "restricted" ? "restricted" : "active",
       },
       profile: {
@@ -126,17 +146,22 @@ function authenticatedSession(
       },
     },
     error: null,
+    acceptProfile: sessionMocks.acceptProfile,
     reload: sessionMocks.reload,
     logout: vi.fn(),
   }
 }
 
-function renderPage() {
-  return render(
+function pageTree() {
+  return (
     <MemoryRouter initialEntries={["/community/exchange/me"]}>
       <CommunityExchangeMePage />
     </MemoryRouter>
   )
+}
+
+function renderPage() {
+  return render(pageTree())
 }
 
 function renderAccountSection() {
@@ -167,6 +192,9 @@ describe("CommunityExchangeMePage", () => {
     })
     apiMocks.uploadPlatformAvatar.mockReturnValue({
       send: apiMocks.sendAvatarUpload,
+    })
+    apiMocks.removePlatformAvatar.mockReturnValue({
+      send: apiMocks.sendAvatarRemoval,
     })
     apiMocks.createFudabaCard.mockReturnValue({ send: apiMocks.sendCreate })
     apiMocks.updateFudabaCard.mockReturnValue({ send: apiMocks.sendUpdate })
@@ -232,6 +260,10 @@ describe("CommunityExchangeMePage", () => {
         updatedAt: 11,
       },
     })
+    apiMocks.sendAvatarRemoval.mockResolvedValue({
+      success: true,
+      profile: { ...profile, avatarUrl: null, updatedAt: 11 },
+    })
     apiMocks.sendUpdate.mockResolvedValue({
       success: true,
       card: { ...card, displayName: "更新后的名片", revision: 4 },
@@ -295,6 +327,336 @@ describe("CommunityExchangeMePage", () => {
       )
     })
     expect(await screen.findByText("名片资料已保存。")).toBeVisible()
+  })
+
+  it.each([
+    ["Web workspace", renderPage],
+    ["App profile section", renderAccountSection],
+  ])(
+    "propagates an uploaded avatar and its revision through the %s",
+    async (_label, renderProfilePage) => {
+      const user = userEvent.setup()
+      renderProfilePage()
+
+      await screen.findByRole("heading", { name: "个人资料" })
+      await user.upload(
+        screen.getByLabelText("头像"),
+        new File(["avatar"], "avatar.png", { type: "image/png" })
+      )
+      await user.click(screen.getByRole("button", { name: "上传头像" }))
+
+      const savedProfile = {
+        ...profile,
+        avatarUrl: "/api/platform/me/avatar?v=11",
+        updatedAt: 11,
+      }
+      await waitFor(() => {
+        expect(sessionMocks.acceptProfile).toHaveBeenCalledWith(
+          "platform-1",
+          savedProfile
+        )
+      })
+      expect(screen.getByRole("button", { name: "移除头像" })).toBeVisible()
+
+      const profileName = screen.getByRole("textbox", { name: "显示名称" })
+      await user.clear(profileName)
+      await user.type(profileName, "更新后的制作人")
+      await user.click(screen.getByRole("button", { name: "保存资料" }))
+      await waitFor(() => {
+        expect(apiMocks.updatePlatformProfile).toHaveBeenCalledWith(
+          expect.objectContaining({ expectedUpdatedAt: 11 })
+        )
+      })
+    }
+  )
+
+  it("propagates avatar removal and its revision to local and session state", async () => {
+    const profileWithAvatar = {
+      ...profile,
+      avatarUrl: "/api/platform/me/avatar?v=10",
+    }
+    apiMocks.sendProfile.mockResolvedValue({
+      success: true,
+      account: { id: "platform-1", status: "active" },
+      capabilities: { fudabaWrite: true },
+      profile: profileWithAvatar,
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole("button", { name: "移除头像" }))
+
+    const savedProfile = { ...profile, avatarUrl: null, updatedAt: 11 }
+    await waitFor(() => {
+      expect(apiMocks.removePlatformAvatar).toHaveBeenCalledWith(10)
+      expect(sessionMocks.acceptProfile).toHaveBeenCalledWith(
+        "platform-1",
+        savedProfile
+      )
+    })
+    expect(
+      screen.queryByRole("button", { name: "移除头像" })
+    ).not.toBeInTheDocument()
+
+    const profileName = screen.getByRole("textbox", { name: "显示名称" })
+    await user.clear(profileName)
+    await user.type(profileName, "移除头像后的制作人")
+    await user.click(screen.getByRole("button", { name: "保存资料" }))
+    await waitFor(() => {
+      expect(apiMocks.updatePlatformProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedUpdatedAt: 11 })
+      )
+    })
+  })
+
+  it("keeps a failed avatar upload out of local and session state", async () => {
+    apiMocks.sendAvatarUpload.mockRejectedValue(new Error("upload failed"))
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByRole("heading", { name: "个人资料" })
+    await user.upload(
+      screen.getByLabelText("头像"),
+      new File(["avatar"], "avatar.png", { type: "image/png" })
+    )
+    await user.click(screen.getByRole("button", { name: "上传头像" }))
+
+    expect(await screen.findByText(/头像上传失败/)).toBeVisible()
+    expect(sessionMocks.acceptProfile).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole("button", { name: "移除头像" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("suppresses a mutation failure after its workspace generation expires", async () => {
+    const staleSave = deferred<never>()
+    apiMocks.sendProfileUpdate.mockReset().mockReturnValue(staleSave.promise)
+    let operationCurrent = true
+    const onWriteClosed = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <ProfileEditor
+          profile={profile}
+          readOnly={false}
+          readOnlyReason={null}
+          onSaved={() => true}
+          onReload={vi.fn()}
+          isOperationCurrent={() => operationCurrent}
+          onWriteClosed={onWriteClosed}
+        />
+      </MemoryRouter>
+    )
+
+    await user.click(screen.getByRole("button", { name: "保存资料" }))
+    await waitFor(() =>
+      expect(apiMocks.sendProfileUpdate).toHaveBeenCalledOnce()
+    )
+    operationCurrent = false
+    await act(async () => {
+      staleSave.reject(
+        new ApiError("Not Found", {
+          kind: "http",
+          status: 404,
+          payload: "Not Found",
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(onWriteClosed).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("preserves conflict feedback when a stale reload fails", async () => {
+    const staleReload = deferred<PlatformProfile>()
+    apiMocks.sendProfileUpdate.mockReset().mockRejectedValueOnce(
+      new ApiError("资料版本冲突", {
+        kind: "http",
+        status: 409,
+        code: "PLATFORM_PROFILE_CONFLICT",
+        payload: { updatedAt: 11 },
+      })
+    )
+    let operationCurrent = true
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <ProfileEditor
+          profile={profile}
+          readOnly={false}
+          readOnlyReason={null}
+          onSaved={() => true}
+          onReload={() => staleReload.promise}
+          isOperationCurrent={() => operationCurrent}
+          onWriteClosed={vi.fn()}
+        />
+      </MemoryRouter>
+    )
+
+    await user.click(screen.getByRole("button", { name: "保存资料" }))
+    await user.click(
+      await screen.findByRole("button", { name: "载入最新资料" })
+    )
+    operationCurrent = false
+    await act(async () => {
+      staleReload.reject(new Error("stale reload failed"))
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText("资料版本冲突")).toBeVisible()
+    expect(screen.queryByText("stale reload failed")).not.toBeInTheDocument()
+  })
+
+  it("ignores an avatar upload that completes after the account changes", async () => {
+    const avatarUpload = deferred<{
+      success: true
+      profile: typeof profile
+    }>()
+    const nextWorkspace = deferred<{
+      success: true
+      account: { id: string; status: "active" }
+      capabilities: { fudabaWrite: true }
+      profile: typeof profile
+    }>()
+    apiMocks.sendProfile
+      .mockReset()
+      .mockResolvedValueOnce({
+        success: true,
+        account: { id: "platform-1", status: "active" },
+        capabilities: { fudabaWrite: true },
+        profile,
+      })
+      .mockReturnValueOnce(nextWorkspace.promise)
+    apiMocks.sendAvatarUpload.mockReset().mockReturnValue(avatarUpload.promise)
+
+    const user = userEvent.setup()
+    const view = renderPage()
+    await screen.findByRole("heading", { name: "个人资料" })
+    await user.upload(
+      screen.getByLabelText("头像"),
+      new File(["avatar"], "avatar.png", { type: "image/png" })
+    )
+    await user.click(screen.getByRole("button", { name: "上传头像" }))
+    await waitFor(() =>
+      expect(apiMocks.sendAvatarUpload).toHaveBeenCalledOnce()
+    )
+
+    sessionMocks.usePlatformSession.mockReturnValue(
+      authenticatedSession("authenticated", "platform-2")
+    )
+    view.rerender(pageTree())
+    await waitFor(() => expect(apiMocks.sendProfile).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      avatarUpload.resolve({
+        success: true,
+        profile: {
+          ...profile,
+          avatarUrl: "/api/platform/me/avatar?v=11",
+          updatedAt: 11,
+        },
+      })
+      await avatarUpload.promise
+    })
+    expect(sessionMocks.acceptProfile).not.toHaveBeenCalled()
+
+    const nextProfile = {
+      ...profile,
+      displayName: "千早P",
+      homeCity: "东京",
+      updatedAt: 20,
+    }
+    await act(async () => {
+      nextWorkspace.resolve({
+        success: true,
+        account: { id: "platform-2", status: "active" },
+        capabilities: { fudabaWrite: true },
+        profile: nextProfile,
+      })
+      await nextWorkspace.promise
+    })
+    expect(await screen.findByDisplayValue("千早P")).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "移除头像" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("ignores a profile reload that completes after the account changes", async () => {
+    const staleReload = deferred<{
+      success: true
+      account: { id: string; status: "active" }
+      capabilities: { fudabaWrite: true }
+      profile: typeof profile
+    }>()
+    const nextWorkspace = deferred<{
+      success: true
+      account: { id: string; status: "active" }
+      capabilities: { fudabaWrite: true }
+      profile: typeof profile
+    }>()
+    apiMocks.sendProfile
+      .mockReset()
+      .mockResolvedValueOnce({
+        success: true,
+        account: { id: "platform-1", status: "active" },
+        capabilities: { fudabaWrite: true },
+        profile,
+      })
+      .mockReturnValueOnce(staleReload.promise)
+      .mockReturnValueOnce(nextWorkspace.promise)
+    apiMocks.sendProfileUpdate.mockRejectedValueOnce(
+      new ApiError("资料版本冲突", {
+        kind: "http",
+        status: 409,
+        code: "PLATFORM_PROFILE_CONFLICT",
+        payload: { updatedAt: 11 },
+      })
+    )
+
+    const user = userEvent.setup()
+    const view = renderPage()
+    await screen.findByRole("heading", { name: "个人资料" })
+    await user.click(screen.getByRole("button", { name: "保存资料" }))
+    await user.click(
+      await screen.findByRole("button", { name: "载入最新资料" })
+    )
+    await waitFor(() => expect(apiMocks.sendProfile).toHaveBeenCalledTimes(2))
+
+    sessionMocks.usePlatformSession.mockReturnValue(
+      authenticatedSession("authenticated", "platform-2")
+    )
+    view.rerender(pageTree())
+    await waitFor(() => expect(apiMocks.sendProfile).toHaveBeenCalledTimes(3))
+
+    const nextProfile = {
+      ...profile,
+      displayName: "千早P",
+      homeCity: "东京",
+      updatedAt: 20,
+    }
+    await act(async () => {
+      nextWorkspace.resolve({
+        success: true,
+        account: { id: "platform-2", status: "active" },
+        capabilities: { fudabaWrite: true },
+        profile: nextProfile,
+      })
+      await nextWorkspace.promise
+    })
+    expect(await screen.findByDisplayValue("千早P")).toBeVisible()
+
+    await act(async () => {
+      staleReload.resolve({
+        success: true,
+        account: { id: "platform-1", status: "active" },
+        capabilities: { fudabaWrite: true },
+        profile: { ...profile, displayName: "迟到的春香P", updatedAt: 11 },
+      })
+      await staleReload.promise
+    })
+    expect(screen.getByDisplayValue("千早P")).toBeVisible()
+    expect(screen.queryByDisplayValue("迟到的春香P")).not.toBeInTheDocument()
   })
 
   it("preserves card input and offers reload after a revision conflict", async () => {
@@ -428,6 +790,7 @@ describe("CommunityExchangeMePage", () => {
       status: "anonymous",
       session: null,
       error: null,
+      acceptProfile: sessionMocks.acceptProfile,
       reload: sessionMocks.reload,
       logout: vi.fn(),
     })

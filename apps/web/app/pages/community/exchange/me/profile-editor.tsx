@@ -47,13 +47,15 @@ export function ProfileEditor({
   readOnlyReason,
   onSaved,
   onReload,
+  isOperationCurrent,
   onWriteClosed,
 }: {
   profile: PlatformProfile
   readOnly: boolean
   readOnlyReason: string | null
-  onSaved: (profile: PlatformProfile) => void
-  onReload: () => Promise<PlatformProfile>
+  onSaved: (profile: PlatformProfile) => boolean
+  onReload: () => Promise<PlatformProfile | null>
+  isOperationCurrent: () => boolean
   onWriteClosed: () => void
 }) {
   const { t } = useTranslation()
@@ -76,6 +78,7 @@ export function ProfileEditor({
   })
 
   function mutationFailure(error: unknown, fallback: string) {
+    if (!isOperationCurrent()) return
     if (isProfileConflict(error)) {
       setFeedback({
         kind: "conflict",
@@ -105,8 +108,8 @@ export function ProfileEditor({
         bio: draft.bio,
         expectedUpdatedAt: profile.updatedAt,
       }).send()
+      if (!onSaved(result.profile)) return
       setDraft(profileFields(result.profile))
-      onSaved(result.profile)
       setFeedback({
         kind: "success",
         message: t("platformAccount.profileEditor.saved"),
@@ -128,8 +131,8 @@ export function ProfileEditor({
         image: avatarFile,
         expectedUpdatedAt: profile.updatedAt,
       }).send()
+      if (!onSaved(result.profile)) return
       setDraft(profileFields(result.profile))
-      onSaved(result.profile)
       clearAvatar()
       setFeedback({
         kind: "success",
@@ -153,8 +156,8 @@ export function ProfileEditor({
     setFeedback(null)
     try {
       const result = await removePlatformAvatar(profile.updatedAt).send()
+      if (!onSaved(result.profile)) return
       setDraft(profileFields(result.profile))
-      onSaved(result.profile)
       clearAvatar()
       setFeedback({
         kind: "success",
@@ -174,12 +177,14 @@ export function ProfileEditor({
   async function reloadLatest() {
     try {
       const latest = await onReload()
+      if (!latest) return
       setDraft(profileFields(latest))
       setFeedback({
         kind: "success",
         message: t("platformAccount.profileEditor.reloaded"),
       })
     } catch (error) {
+      if (!isOperationCurrent()) return
       setFeedback({
         kind: "error",
         message: apiMessage(

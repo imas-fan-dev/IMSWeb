@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
+import { usePlatformAvatarSource } from "~/components/platform/use-platform-avatar-source"
 import { PageShell } from "~/components/shared/page-shell"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -61,6 +62,10 @@ function AccountUtilities() {
 export default function AccountMePage() {
   const { t } = useTranslation()
   const platform = usePlatformSession()
+  const avatarSource = usePlatformAvatarSource(
+    platform.session?.profile.avatarUrl,
+    platform.session?.account.id
+  )
   const [logoutAttempt, setLogoutAttempt] =
     useState<Exclude<LogoutFeedback, "success">>("idle")
   const logoutFeedback: LogoutFeedback =
@@ -227,9 +232,9 @@ export default function AccountMePage() {
         aria-label={t("platformAccount.app.identity")}
       >
         <Avatar size="lg" className="size-14 shrink-0">
-          {profile.avatarUrl ? (
+          {avatarSource ? (
             <AvatarImage
-              src={profile.avatarUrl}
+              src={avatarSource}
               alt={t("platformAccount.avatarAlt", { name: displayName })}
               referrerPolicy="no-referrer"
             />

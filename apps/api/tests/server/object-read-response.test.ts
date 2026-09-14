@@ -50,6 +50,48 @@ test('S3-capable media responses redirect GET and HEAD without loading object by
     ), null);
 });
 
+test('proxy mode bypasses signed URLs and preserves stored byte semantics', async () => {
+    let readUrls = 0;
+    let gets = 0;
+    const body = new Uint8Array([0x52, 0x49, 0x46, 0x46]);
+    const storage = {
+        async createReadUrl() {
+            readUrls += 1;
+            return {
+                url: 'https://private-media.example.test/avatar.webp?signed=1',
+                visibility: 'private'
+            } as const;
+        },
+        async get() {
+            gets += 1;
+            return {
+                body,
+                size: body.byteLength,
+                contentType: 'image/webp',
+                etag: 'avatar-etag'
+            };
+        }
+    } as unknown as ObjectStorage;
+
+    const response = await objectReadResponse(
+        new Request('http://api.test/api/platform/me/avatar', {
+            headers: { range: 'bytes=1-2' }
+        }),
+        storage,
+        'protected/platform/avatar.webp',
+        { 'Cache-Control': 'private, no-store' },
+        { mode: 'proxy' }
+    );
+
+    assert.equal(response?.status, 206);
+    assert.equal(response?.headers.get('content-type'), 'image/webp');
+    assert.equal(response?.headers.get('content-range'), 'bytes 1-2/4');
+    assert.equal(response?.headers.get('cache-control'), 'private, no-store');
+    assert.deepEqual(new Uint8Array(await response!.arrayBuffer()), body.slice(1, 3));
+    assert.equal(readUrls, 0);
+    assert.equal(gets, 1);
+});
+
 test('public redirects receive a bounded cache policy when the handler has none', async () => {
     const storage = {
         async createReadUrl() {

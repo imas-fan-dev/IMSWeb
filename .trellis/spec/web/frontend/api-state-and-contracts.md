@@ -62,3 +62,103 @@ sections or obscures the page composition. Put reusable transport behavior in
 Do not copy server data into a second global store without a demonstrated
 cross-page requirement. Reuse the endpoint cache and invalidation names already
 defined in `app/lib/api/cache-policy.ts`.
+
+## Scenario: Bearer-authenticated private media
+
+### 1. Scope / Trigger
+
+Use this contract when a browser or packaged App must render private media that
+requires an `Authorization` header. It applies to fixed, API-owned media routes;
+it does not turn arbitrary external URLs or every protected object into Blob
+requests.
+
+### 2. Signatures
+
+Declare a fixed non-JSON endpoint in the shared API facade:
+
+```typescript
+platformApiClient.Get<Blob>(FIXED_MEDIA_PATH, {
+  meta: {
+    authRealm: "platform",
+    responseType: "blob",
+    errorSchema: platformHttpErrorSchema,
+  },
+});
+```
+
+The matching API route opts into byte delivery without changing other object
+readers:
+
+```typescript
+objectReadResponse(request, storage, key, privateHeaders, { mode: "proxy" });
+```
+
+### 3. Contracts
+
+- The caller cannot supply the authenticated request origin or path. A profile
+  URL may select the fixed endpoint only after exact API-origin and pathname
+  validation.
+- Same-origin Web media and external OAuth images remain direct image sources.
+  Platform credentials must never be embedded in a URL or attached to an
+  external host.
+- The API authenticates before reading the protected object and returns bytes
+  instead of redirecting the browser to object storage. Unrelated
+  `objectReadResponse()` callers keep the default redirect mode.
+- A temporary object URL is keyed by account identity and the full versioned
+  media URL. URL or account changes abort the prior Method, ignore stale
+  completions, and revoke every replaced or unmounted object URL.
+- Protected responses use `Cache-Control: private, no-store`,
+  `Referrer-Policy: no-referrer`, and `Vary: Authorization, Cookie` on success
+  and not-found branches.
+
+### 4. Validation & Error Matrix
+
+| Condition                              | Required result                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Missing or invalid Platform credential | Preserve the contracts-owned JSON `401` response                                                  |
+| Profile has no object key              | `404 text/plain`; GET body is `Not Found`, HEAD body is empty, and private headers remain present |
+| Stored key has no object               | Use the same GET/HEAD `404` contract as a missing key                                             |
+| Full object read                       | Return authenticated bytes and stored content metadata                                            |
+| Valid single range                     | Return the existing `206` body and range headers                                                  |
+| Invalid range                          | Preserve the existing `416` response                                                              |
+| Client request fails or is superseded  | Render the current account fallback and never restore an older Blob URL                           |
+
+### 5. Good/Base/Bad Cases
+
+- Good: recognize one versioned managed-avatar URL, fetch the fixed avatar path
+  through `platformApiClient`, render an object URL, and revoke it on account or
+  revision change.
+- Base: render a same-origin or external OAuth avatar directly without invoking
+  the authenticated Blob endpoint.
+- Bad: use `<img src>` for cross-origin Bearer media, fetch the URL stored in a
+  profile with Platform credentials, put a token in the query string, or change
+  every protected object route from redirects to API proxying.
+
+### 6. Tests Required
+
+- Endpoint tests assert the fixed path, auth realm, Blob response type and JSON
+  error schema.
+- Hook tests cover direct sources, managed success and failure, abort, account
+  and revision races, late completion, replacement and unmount revocation.
+- API contract tests cover authenticated GET and HEAD, Range `206`/`416`, exact
+  missing-key and dangling-object `404` behavior, private headers, and an
+  unauthenticated `401`.
+- A packaged-App browser test uses different loopback hostnames for the page and
+  API, requires Bearer headers, asserts a `blob:` image source, and rejects any
+  object-storage request.
+
+### 7. Wrong vs Correct
+
+```typescript
+// Wrong: direct images cannot attach the App's Bearer credential, and this URL
+// could belong to an external OAuth provider.
+return <img src={profile.avatarUrl} />
+
+// Correct: classification selects a fixed authenticated endpoint; the source
+// hook owns cancellation, stale-result fencing and object URL revocation.
+const avatarSource = usePlatformAvatarSource(
+  profile.avatarUrl,
+  session.account.id
+)
+return avatarSource ? <img src={avatarSource} /> : <AvatarFallback />
+```

@@ -32,6 +32,9 @@ function SessionProbe() {
       <output aria-label="display-name">
         {session.session?.profile.displayName ?? "none"}
       </output>
+      <output aria-label="session-json">
+        {session.session ? JSON.stringify(session.session) : "none"}
+      </output>
       <button type="button" onClick={() => void session.reload()}>
         reload
       </button>
@@ -40,6 +43,15 @@ function SessionProbe() {
         onClick={() => session.acceptSession(activeSession)}
       >
         accept
+      </button>
+      <button type="button" onClick={() => session.acceptSession(otherSession)}>
+        switch-account
+      </button>
+      <button
+        type="button"
+        onClick={() => session.acceptProfile("platform-1", updatedProfile)}
+      >
+        accept-profile
       </button>
       <button type="button" onClick={() => void session.logout()}>
         logout
@@ -65,6 +77,27 @@ const activeSession = {
     homeCity: null,
     bio: "",
   },
+  accessToken: "access-1",
+  refreshToken: "refresh-1",
+}
+
+const otherSession = {
+  ...activeSession,
+  account: { id: "platform-2", status: "active" as const },
+  profile: {
+    ...activeSession.profile,
+    displayName: "Other Producer",
+  },
+  accessToken: "access-2",
+  refreshToken: "refresh-2",
+}
+
+const updatedProfile = {
+  displayName: "Updated Producer",
+  avatarUrl: "/api/platform/me/avatar?v=2",
+  homeCity: "上海",
+  bio: "Updated bio",
+  updatedAt: 2,
 }
 
 describe("PlatformSessionProvider", () => {
@@ -137,6 +170,102 @@ describe("PlatformSessionProvider", () => {
       "Platform Producer"
     )
     expect(apiMocks.getSessionSend).not.toHaveBeenCalled()
+  })
+
+  it("accepts a matching profile without replacing session fields", async () => {
+    apiMocks.hasSessionHint.mockReturnValue(false)
+
+    renderProvider()
+    await userEvent.click(screen.getByRole("button", { name: "accept" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "accept-profile" })
+    )
+
+    expect(screen.getByLabelText("session-status")).toHaveTextContent(
+      "authenticated"
+    )
+    expect(
+      JSON.parse(screen.getByLabelText("session-json").textContent ?? "")
+    ).toEqual({
+      ...activeSession,
+      profile: {
+        displayName: updatedProfile.displayName,
+        avatarUrl: updatedProfile.avatarUrl,
+        homeCity: updatedProfile.homeCity,
+        bio: updatedProfile.bio,
+      },
+    })
+  })
+
+  it("ignores an old account profile after the live account changes", async () => {
+    apiMocks.hasSessionHint.mockReturnValue(false)
+
+    renderProvider()
+    await userEvent.click(screen.getByRole("button", { name: "accept" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "switch-account" })
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: "accept-profile" })
+    )
+
+    expect(
+      JSON.parse(screen.getByLabelText("session-json").textContent ?? "")
+    ).toEqual(otherSession)
+  })
+
+  it("does not let a profile update restore state during a deferred reload", async () => {
+    apiMocks.hasSessionHint.mockReturnValue(false)
+    const freshSession = {
+      ...activeSession,
+      profile: { ...activeSession.profile, displayName: "Reloaded Producer" },
+    }
+    let resolveReload!: (session: typeof freshSession) => void
+
+    renderProvider()
+    await userEvent.click(screen.getByRole("button", { name: "accept" }))
+    apiMocks.hasSessionHint.mockReturnValue(true)
+    apiMocks.getSessionSend.mockReturnValue(
+      new Promise<typeof freshSession>((resolve) => {
+        resolveReload = resolve
+      })
+    )
+    await userEvent.click(screen.getByRole("button", { name: "reload" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "accept-profile" })
+    )
+
+    expect(screen.getByLabelText("session-status")).toHaveTextContent("loading")
+    expect(screen.getByLabelText("session-json")).toHaveTextContent("none")
+    await act(() => resolveReload(freshSession))
+    expect(screen.getByLabelText("display-name")).toHaveTextContent(
+      "Reloaded Producer"
+    )
+  })
+
+  it("does not let a profile update restore state during a deferred logout", async () => {
+    apiMocks.hasSessionHint.mockReturnValue(false)
+    let resolveLogout!: (result: { success: true }) => void
+
+    renderProvider()
+    await userEvent.click(screen.getByRole("button", { name: "accept" }))
+    apiMocks.hasSessionHint.mockReturnValue(true)
+    apiMocks.logoutSend.mockReturnValue(
+      new Promise<{ success: true }>((resolve) => {
+        resolveLogout = resolve
+      })
+    )
+    await userEvent.click(screen.getByRole("button", { name: "logout" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "accept-profile" })
+    )
+
+    expect(screen.getByLabelText("session-status")).toHaveTextContent("loading")
+    await act(() => resolveLogout({ success: true }))
+    expect(screen.getByLabelText("session-status")).toHaveTextContent(
+      "anonymous"
+    )
+    expect(screen.getByLabelText("session-json")).toHaveTextContent("none")
   })
 
   it("drops rejected sessions but surfaces unexpected failures", async () => {

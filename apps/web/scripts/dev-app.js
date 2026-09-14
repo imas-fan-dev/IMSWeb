@@ -100,23 +100,31 @@ export function appDevEnvironment(environment = process.env) {
     throw new Error("IMS_RUSTFS_API_PORT must be a valid TCP port")
   }
 
+  const e2eApiOrigin =
+    environment.IMS_APP_E2E_CROSS_ORIGIN === "1"
+      ? `http://127.0.0.1:${APP_DEV_PORT}`
+      : ""
+
   return {
     ...environment,
     IMS_LOCAL_MEDIA_PROXY_ORIGIN: `http://127.0.0.1:${localMediaPort}`,
     VITE_IMS_APP_TARGET: "app",
     VITE_IMS_LOCAL_MEDIA_PATH_PREFIX: `/${localMediaBucket}`,
-    // Tauri's dev URL scheme forwards same-origin requests to this Vite server.
-    // Keeping the API relative avoids iOS WebKit's separate LAN fetch path.
-    VITE_IMS_API_ORIGIN: "",
+    // Tauri development stays same-origin. Playwright opts into a second
+    // loopback hostname to exercise packaged-App bearer authentication.
+    VITE_IMS_API_ORIGIN: e2eApiOrigin,
     VITE_IMS_PUBLIC_SITE_ORIGIN: origin,
   }
 }
 
 export function runAppDev(environment = process.env) {
   const devEnvironment = appDevEnvironment(environment)
+  const apiDescription = devEnvironment.VITE_IMS_API_ORIGIN
+    ? `cross-origin API ${devEnvironment.VITE_IMS_API_ORIGIN}`
+    : "same-origin API"
   globalThis.console.log(
     `Starting App development at ${devEnvironment.VITE_IMS_PUBLIC_SITE_ORIGIN} ` +
-      "with same-origin API and local site-package proxying"
+      `with ${apiDescription} and local site-package proxying`
   )
 
   const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm"

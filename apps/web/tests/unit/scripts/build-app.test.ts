@@ -197,6 +197,12 @@ describe("App development environment", () => {
     })
   })
 
+  it("uses a second loopback hostname for packaged-App browser tests", () => {
+    expect(
+      appDevEnvironment({ IMS_APP_E2E_CROSS_ORIGIN: "1" }).VITE_IMS_API_ORIGIN
+    ).toBe(`http://127.0.0.1:${APP_DEV_PORT}`)
+  })
+
   it("uses localhost for desktop Tauri development", () => {
     expect(appDevOrigin({})).toBe(`http://localhost:${APP_DEV_PORT}`)
   })

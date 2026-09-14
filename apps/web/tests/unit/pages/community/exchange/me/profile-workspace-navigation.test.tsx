@@ -1,9 +1,18 @@
 import { render, screen } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter } from "react-router"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { i18n } from "~/i18n/config"
+
+const avatarMocks = vi.hoisted(() => ({
+  usePlatformAvatarSource: vi.fn(),
+}))
+
+vi.mock("~/components/platform/use-platform-avatar-source", () => ({
+  usePlatformAvatarSource: avatarMocks.usePlatformAvatarSource,
+}))
+
 import {
   ProfileWorkspaceNavigation,
   isProfileWorkspaceSection,
@@ -23,6 +32,7 @@ function renderNavigation(sectionBasePath?: string) {
       <MemoryRouter>
         <ProfileWorkspaceNavigation
           profile={profile}
+          accountId="platform-1"
           cardCount={2}
           activeSection="profile"
           sectionBasePath={sectionBasePath}
@@ -34,12 +44,20 @@ function renderNavigation(sectionBasePath?: string) {
 
 describe("ProfileWorkspaceNavigation", () => {
   beforeEach(async () => {
+    vi.clearAllMocks()
+    avatarMocks.usePlatformAvatarSource.mockImplementation(
+      (avatarUrl: string | null | undefined) => avatarUrl
+    )
     await i18n.changeLanguage("zh-CN")
   })
 
-  it("keeps query-string links for the Web exchange workspace", () => {
+  it("keeps query-string links and an account-keyed avatar for the Web workspace", () => {
     renderNavigation()
 
+    expect(avatarMocks.usePlatformAvatarSource).toHaveBeenCalledWith(
+      profile.avatarUrl,
+      "platform-1"
+    )
     expect(screen.getByRole("link", { name: "个人资料" })).toHaveAttribute(
       "href",
       "/community/exchange/me"

@@ -11,6 +11,7 @@ import {
     ACCOUNT_ID,
     OwnerRouteFixture,
     bearerHeaders,
+    cookieHeaders,
     mediaUpload,
     profileBody
 } from '../fixtures/owner-route-fixture';
@@ -285,6 +286,20 @@ test('Platform profile writes consume the shared Platform write budget', async (
 });
 
 test('Platform avatar reads stay 404 until the account stores an avatar object', async () => {
+    const assertAvatarNotFound = async (response: Response, method: 'GET' | 'HEAD') => {
+        assert.equal(response.status, 404, method);
+        assert.equal(response.headers.get('content-type'), 'text/plain; charset=UTF-8');
+        assert.equal(response.headers.get('cache-control'), 'private, no-store');
+        assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+        assert.match(response.headers.get('vary') ?? '', /Authorization/);
+        assert.match(response.headers.get('vary') ?? '', /Cookie/);
+        if (method === 'HEAD') {
+            assert.equal((await response.arrayBuffer()).byteLength, 0);
+        } else {
+            assert.equal(await response.text(), 'Not Found');
+        }
+    };
+
     const fixture = new OwnerRouteFixture();
     assert.equal(fixture.profile.avatar_object_key, null);
     for (const method of ['GET', 'HEAD'] as const) {
@@ -292,7 +307,7 @@ test('Platform avatar reads stay 404 until the account stores an avatar object',
             method,
             headers: bearerHeaders()
         });
-        assert.equal(response.status, 404, method);
+        await assertAvatarNotFound(response, method);
         assert.equal(fixture.storage.readUrls.length, 0, method);
     }
 
@@ -303,15 +318,121 @@ test('Platform avatar reads stay 404 until the account stores an avatar object',
         headers: bearerHeaders(),
         redirect: 'manual'
     });
-    assert.equal(served.status, 307);
+    assert.equal(served.status, 200);
+    assert.equal(served.headers.get('content-type'), 'image/webp');
+    assert.equal(served.headers.get('content-length'), '4');
+    assert.equal(served.headers.get('accept-ranges'), 'bytes');
     assert.equal(served.headers.get('cache-control'), 'private, no-store');
-    assert.deepEqual(fixture.storage.readUrls, [{ key, method: 'GET' }]);
+    assert.equal(served.headers.get('referrer-policy'), 'no-referrer');
+    assert.match(served.headers.get('vary') ?? '', /Authorization/);
+    assert.match(served.headers.get('vary') ?? '', /Cookie/);
+    assert.deepEqual(
+        new Uint8Array(await served.arrayBuffer()),
+        new Uint8Array([0x52, 0x49, 0x46, 0x46])
+    );
+    assert.deepEqual(fixture.storage.readUrls, []);
+
+    const head = await fixture.app.request(AVATAR_URL, {
+        method: 'HEAD',
+        headers: bearerHeaders()
+    });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get('content-length'), '4');
+    assert.equal(head.headers.get('cache-control'), 'private, no-store');
+    assert.equal(head.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal((await head.arrayBuffer()).byteLength, 0);
+
+    for (const method of ['GET', 'HEAD'] as const) {
+        const cookieRead = await fixture.app.request(AVATAR_URL, {
+            method,
+            headers: cookieHeaders(null)
+        });
+        assert.equal(cookieRead.status, 200, `cookie ${method}`);
+        assert.equal(cookieRead.headers.get('content-type'), 'image/webp');
+        assert.equal(cookieRead.headers.get('cache-control'), 'private, no-store');
+        assert.match(cookieRead.headers.get('vary') ?? '', /Authorization/);
+        assert.match(cookieRead.headers.get('vary') ?? '', /Cookie/);
+        if (method === 'HEAD') {
+            assert.equal((await cookieRead.arrayBuffer()).byteLength, 0);
+        } else {
+            assert.deepEqual(
+                new Uint8Array(await cookieRead.arrayBuffer()),
+                new Uint8Array([0x52, 0x49, 0x46, 0x46])
+            );
+        }
+    }
+
+    const range = await fixture.app.request(AVATAR_URL, {
+        headers: bearerHeaders({ range: 'bytes=1-2' })
+    });
+    assert.equal(range.status, 206);
+    assert.equal(range.headers.get('content-range'), 'bytes 1-2/4');
+    assert.equal(range.headers.get('content-length'), '2');
+    assert.equal(range.headers.get('cache-control'), 'private, no-store');
+    assert.equal(range.headers.get('referrer-policy'), 'no-referrer');
+    assert.deepEqual(
+        new Uint8Array(await range.arrayBuffer()),
+        new Uint8Array([0x49, 0x46])
+    );
+
+    const headRange = await fixture.app.request(AVATAR_URL, {
+        method: 'HEAD',
+        headers: bearerHeaders({ range: 'bytes=1-2' })
+    });
+    assert.equal(headRange.status, 206);
+    assert.equal(headRange.headers.get('content-range'), 'bytes 1-2/4');
+    assert.equal(headRange.headers.get('content-length'), '2');
+    assert.equal((await headRange.arrayBuffer()).byteLength, 0);
+
+    for (const invalidRange of ['bytes=4-', 'bytes=0-1,3-3']) {
+        const unsatisfied = await fixture.app.request(AVATAR_URL, {
+            headers: bearerHeaders({ range: invalidRange })
+        });
+        assert.equal(unsatisfied.status, 416, invalidRange);
+        assert.equal(unsatisfied.headers.get('content-range'), 'bytes */4');
+        assert.equal(
+            unsatisfied.headers.get('cache-control'),
+            'private, no-store'
+        );
+        assert.equal(
+            unsatisfied.headers.get('referrer-policy'),
+            'no-referrer'
+        );
+        assert.equal((await unsatisfied.arrayBuffer()).byteLength, 0);
+    }
+    assert.deepEqual(fixture.storage.readUrls, []);
 
     const missingObject = new OwnerRouteFixture();
     missingObject.profile.avatar_object_key = 'protected/platform/avatars/gone.webp';
-    assert.equal((await missingObject.app.request(AVATAR_URL, {
-        headers: bearerHeaders()
-    })).status, 404, 'a dangling avatar key is a miss, not a 500');
+    for (const method of ['GET', 'HEAD'] as const) {
+        const response = await missingObject.app.request(AVATAR_URL, {
+            method,
+            headers: bearerHeaders()
+        });
+        await assertAvatarNotFound(response, method);
+    }
+
+    const unauthorized = new OwnerRouteFixture();
+    const unauthorizedKey = 'protected/platform/avatars/private.webp';
+    unauthorized.profile.avatar_object_key = unauthorizedKey;
+    unauthorized.storage.seed(unauthorizedKey);
+    let unauthorizedStorageReads = 0;
+    const storageGet = unauthorized.storage.get.bind(unauthorized.storage);
+    unauthorized.storage.get = async (objectKey) => {
+        unauthorizedStorageReads += 1;
+        return storageGet(objectKey);
+    };
+    const anonymousHead = await unauthorized.app.request(AVATAR_URL, {
+        method: 'HEAD'
+    });
+    assert.equal(anonymousHead.status, 401);
+    const anonymousRange = await unauthorized.app.request(AVATAR_URL, {
+        headers: { range: 'bytes=0-1' }
+    });
+    assert.equal(anonymousRange.status, 401);
+    assert.equal((await anonymousRange.json() as ErrorBody).code,
+        'PLATFORM_SESSION_INVALID');
+    assert.equal(unauthorizedStorageReads, 0);
 });
 
 // Display name, home city, and bio are Platform identity rather than Fudaba

@@ -85,11 +85,28 @@ type CommunityExchangeMePageProps = {
   sectionBasePath?: string
 }
 
-export default function CommunityExchangeMePage({
+export default function CommunityExchangeMePage(
+  props: CommunityExchangeMePageProps = {}
+) {
+  const platform = usePlatformSession()
+  const accountScope = platform.session?.account.id ?? platform.status
+
+  return (
+    <CommunityExchangeMeWorkspace
+      key={accountScope}
+      {...props}
+      platform={platform}
+    />
+  )
+}
+
+function CommunityExchangeMeWorkspace({
   section,
   sectionBasePath,
-}: CommunityExchangeMePageProps = {}) {
-  const platform = usePlatformSession()
+  platform,
+}: CommunityExchangeMePageProps & {
+  platform: ReturnType<typeof usePlatformSession>
+}) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const [state, setState] = useState<WorkspaceState>(initialState)
@@ -105,6 +122,8 @@ export default function CommunityExchangeMePage({
   const activeSection =
     section ??
     (isProfileWorkspaceSection(requestedSection) ? requestedSection : "profile")
+  const profileAccountId = platform.session?.account.id
+  const profileOperationGeneration = workspaceGeneration.current
 
   const loadWorkspace = useCallback(async () => {
     const generation = ++workspaceGeneration.current
@@ -163,12 +182,23 @@ export default function CommunityExchangeMePage({
     }
   }, [loadWorkspace, platform.session?.account.id, platform.status])
 
-  function saveProfile(profile: PlatformProfile) {
-    setState((current) => ({ ...current, profile }))
+  function isProfileOperationCurrent(): boolean {
+    return Boolean(
+      profileAccountId &&
+      workspaceGeneration.current === profileOperationGeneration
+    )
   }
 
-  async function reloadProfile() {
+  function saveProfile(profile: PlatformProfile): boolean {
+    if (!profileAccountId || !isProfileOperationCurrent()) return false
+    setState((current) => ({ ...current, profile }))
+    platform.acceptProfile(profileAccountId, profile)
+    return true
+  }
+
+  async function reloadProfile(): Promise<PlatformProfile | null> {
     const result = await getPlatformProfile().send()
+    if (!isProfileOperationCurrent()) return null
     setState((current) => ({
       ...current,
       profile: result.profile,
@@ -407,6 +437,7 @@ export default function CommunityExchangeMePage({
       >
         <ProfileWorkspaceNavigation
           profile={state.profile}
+          accountId={profileAccountId}
           cardCount={state.cards.length}
           activeSection={activeSection}
           sectionBasePath={accountSectionBasePath}
@@ -455,6 +486,7 @@ export default function CommunityExchangeMePage({
               readOnlyReason={profileReadOnlyReason}
               onSaved={saveProfile}
               onReload={reloadProfile}
+              isOperationCurrent={isProfileOperationCurrent}
               onWriteClosed={closeWrites}
             />
           </div>

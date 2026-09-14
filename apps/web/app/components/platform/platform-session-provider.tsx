@@ -14,6 +14,7 @@ import {
   hasPlatformSessionHint,
   isApiError,
   logoutPlatform,
+  type PlatformProfile,
   type PlatformSession,
 } from "~/lib/api"
 
@@ -32,6 +33,7 @@ interface PlatformSessionState {
 
 interface PlatformSessionContextValue extends PlatformSessionState {
   acceptSession: (session: PlatformSession) => void
+  acceptProfile: (accountId: string, profile: PlatformProfile) => void
   reload: () => Promise<void>
   logout: () => Promise<void>
 }
@@ -49,6 +51,7 @@ const PlatformSessionContext = createContext<
 const optionalAnonymousContext: PlatformSessionContextValue = {
   ...anonymousState,
   acceptSession: () => undefined,
+  acceptProfile: () => undefined,
   reload: async () => undefined,
   logout: async () => undefined,
 }
@@ -77,6 +80,34 @@ export function PlatformSessionProvider({ children }: { children: ReactNode }) {
     requestGeneration.current += 1
     setState(resolvedSessionState(session))
   }, [])
+
+  const acceptProfile = useCallback(
+    (accountId: string, profile: PlatformProfile) => {
+      setState((current) => {
+        if (
+          (current.status !== "authenticated" &&
+            current.status !== "restricted") ||
+          !current.session ||
+          current.session.account.id !== accountId
+        ) {
+          return current
+        }
+        return {
+          ...current,
+          session: {
+            ...current.session,
+            profile: {
+              displayName: profile.displayName,
+              avatarUrl: profile.avatarUrl,
+              homeCity: profile.homeCity,
+              bio: profile.bio,
+            },
+          },
+        }
+      })
+    },
+    []
+  )
 
   const reload = useCallback(async () => {
     const generation = ++requestGeneration.current
@@ -129,8 +160,8 @@ export function PlatformSessionProvider({ children }: { children: ReactNode }) {
   }, [reload])
 
   const value = useMemo<PlatformSessionContextValue>(
-    () => ({ ...state, acceptSession, reload, logout }),
-    [acceptSession, logout, reload, state]
+    () => ({ ...state, acceptSession, acceptProfile, reload, logout }),
+    [acceptProfile, acceptSession, logout, reload, state]
   )
 
   return (

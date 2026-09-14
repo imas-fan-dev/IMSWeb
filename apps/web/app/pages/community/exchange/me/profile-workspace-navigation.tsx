@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { usePlatformAvatarSource } from "~/components/platform/use-platform-avatar-source"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import type { PlatformProfile } from "~/lib/api"
 import { cn } from "~/lib/utils"
@@ -83,16 +84,22 @@ export function isProfileWorkspaceSection(
 
 export function ProfileWorkspaceNavigation({
   profile,
+  accountId,
   cardCount,
   activeSection,
   sectionBasePath,
 }: {
   profile: PlatformProfile
+  accountId?: string | null
   cardCount: number
   activeSection: ProfileWorkspaceSection
   sectionBasePath?: string
 }) {
   const { t } = useTranslation()
+  const avatarSource = usePlatformAvatarSource(
+    sectionBasePath ? null : profile.avatarUrl,
+    accountId
+  )
 
   if (sectionBasePath) return null
 
@@ -100,9 +107,9 @@ export function ProfileWorkspaceNavigation({
     <aside className="min-w-0 border-b bg-muted/15 lg:sticky lg:top-16 lg:max-h-[calc(100svh-4rem)] lg:self-start lg:overflow-y-auto lg:border-r lg:border-b-0">
       <div className="flex min-w-0 items-center gap-3 p-4 sm:px-6 lg:p-5">
         <Avatar size="lg" className="size-12 shrink-0">
-          {profile.avatarUrl ? (
+          {avatarSource ? (
             <AvatarImage
-              src={profile.avatarUrl}
+              src={avatarSource}
               alt={`${profile.displayName}的头像`}
               referrerPolicy="no-referrer"
             />

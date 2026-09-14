@@ -514,6 +514,36 @@ describe("ApiDispatcher", () => {
     ).toThrow("status 200 must declare at least one response schema")
   })
 
+  it("requires the exact Platform avatar multipart field set", () => {
+    const schema = resolveApiContract("PUT", "/api/platform/me/avatar").rawBody
+      ?.schema
+    expect(schema).toBeDefined()
+
+    const multipartBody = (fieldNames: string[]) =>
+      fieldNames
+        .map((name) => {
+          const filename = name === "image" ? '; filename="avatar.png"' : ""
+          return `--avatar-boundary\r\nContent-Disposition: form-data; name="${name}"${filename}\r\n\r\nvalue\r\n`
+        })
+        .join("") + "--avatar-boundary--\r\n"
+
+    const validBody = multipartBody(["image", "expectedUpdatedAt"])
+    expect(schema!.safeParse(validBody).success).toBe(true)
+    expect(
+      schema!.safeParse(validBody.replace('; filename="avatar.png"', ""))
+        .success
+    ).toBe(false)
+    expect(
+      schema!.safeParse(multipartBody(["image", "image", "expectedUpdatedAt"]))
+        .success
+    ).toBe(false)
+    expect(
+      schema!.safeParse(
+        multipartBody(["image", "expectedUpdatedAt", "displayName"])
+      ).success
+    ).toBe(false)
+  })
+
   it("anchors dynamic catalog paths to their owning API namespaces", () => {
     expect(() =>
       resolveApiContract(

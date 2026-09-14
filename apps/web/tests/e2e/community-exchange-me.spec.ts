@@ -1,6 +1,12 @@
 import AxeBuilder from "@axe-core/playwright"
 import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
+import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
+
+const onePixelPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64"
+)
 
 const profile = {
   displayName: "浏览器制作人",
@@ -73,7 +79,14 @@ const publishedLocation: LocationFixture = {
 }
 
 test.beforeEach(async ({ context, page }) => {
+  let currentProfile: PlatformProfile = { ...profile }
   await context.addCookies([
+    {
+      name: "ims_platform_access",
+      value: "exchange-me-session",
+      domain: "127.0.0.1",
+      path: "/",
+    },
     {
       name: "ims_platform_csrf",
       value: "exchange-me-csrf",
@@ -92,10 +105,10 @@ test.beforeEach(async ({ context, page }) => {
           success: true,
           account: { id: "platform-browser", status: "active" },
           profile: {
-            displayName: profile.displayName,
-            avatarUrl: null,
-            homeCity: profile.homeCity,
-            bio: profile.bio,
+            displayName: currentProfile.displayName,
+            avatarUrl: currentProfile.avatarUrl,
+            homeCity: currentProfile.homeCity,
+            bio: currentProfile.bio,
           },
         },
       })
@@ -110,7 +123,7 @@ test.beforeEach(async ({ context, page }) => {
           success: true,
           account: { id: "platform-browser", status: "active" },
           capabilities: { fudabaWrite: true },
-          profile,
+          profile: currentProfile,
         },
       })
     },
@@ -120,19 +133,42 @@ test.beforeEach(async ({ context, page }) => {
     "**/api/platform/me",
     async (route) => {
       const submission = route.request().postDataJSON()
+      currentProfile = {
+        ...currentProfile,
+        displayName: submission.displayName,
+        homeCity: submission.homeCity,
+        bio: submission.bio,
+        updatedAt: currentProfile.updatedAt + 1,
+      }
       await route.fulfill({
-        json: {
-          success: true,
-          profile: {
-            ...profile,
-            displayName: submission.displayName,
-            updatedAt: 11,
-          },
-        },
+        json: { success: true, profile: currentProfile },
       })
     },
     "PUT"
   )
+  await api.mockRoute(
+    "**/api/platform/me/avatar",
+    async (route) => {
+      currentProfile = {
+        ...currentProfile,
+        avatarUrl: `/api/platform/me/avatar?v=${currentProfile.updatedAt + 1}`,
+        updatedAt: currentProfile.updatedAt + 1,
+      }
+      await route.fulfill({
+        json: { success: true, profile: currentProfile },
+      })
+    },
+    "PUT"
+  )
+  await page.route(/\/api\/platform\/me\/avatar\?v=\d+$/, async (route) => {
+    const request = route.request()
+    expect(request.method()).toBe("GET")
+    expect(await request.headerValue("authorization")).toBeNull()
+    expect(await request.headerValue("cookie")).toContain(
+      "ims_platform_access=exchange-me-session"
+    )
+    await route.fulfill({ body: onePixelPng, contentType: "image/png" })
+  })
   await api.mockRoute(
     "**/api/community/exchange/me/series",
     async (route) => {
@@ -436,6 +472,25 @@ test("edits the authenticated profile and card without viewport overflow", async
     "href",
     "/community/exchange/me"
   )
+  await page.keyboard.press("Escape")
+
+  await page.locator("#exchange-profile-avatar").setInputFiles({
+    name: "avatar.png",
+    mimeType: "image/png",
+    buffer: onePixelPng,
+  })
+  await page.getByRole("button", { name: "上传头像" }).click()
+  await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
+  await expect(
+    accountTrigger.locator('[data-slot="avatar-image"]')
+  ).toHaveAttribute("src", "/api/platform/me/avatar?v=11")
+  await accountTrigger.click()
+  await expect(
+    page.locator('[data-slot="popover-content"] [data-slot="avatar-image"]')
+  ).toHaveAttribute("src", "/api/platform/me/avatar?v=11")
+  await expect(
+    page.locator('aside [data-slot="avatar-image"]')
+  ).toHaveAttribute("src", "/api/platform/me/avatar?v=11")
   await page.keyboard.press("Escape")
 
   const profileName = page.getByRole("textbox", { name: "显示名称" })

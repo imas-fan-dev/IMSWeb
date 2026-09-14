@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "d871c52cb39ee1de75a6b9923d4def13a28302e5a1b97bb6d6bdb7f3bcdde7be",
+    "semanticDigest": "689ef7fd0b94d3c9080f908c9e0caa006959a229cfcdd7d4ee3eb3d44e44396e",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -27,9 +27,9 @@
       "non-object-applicable": 64
     },
     "responses": {
-      "total": 621,
+      "total": 619,
       "json": 557,
-      "nonJson": 64
+      "nonJson": 62
     },
     "unresolved": 0
   },
@@ -4474,13 +4474,8 @@
       "responses": [
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
+          "kind": "response-constructor",
+          "expression": "request . method === \"HEAD\" ? null : \"Not Found\""
         }
       ]
     },
@@ -6176,13 +6171,8 @@
       "responses": [
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
-        },
-        {
-          "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-          "kind": "non-json",
-          "expression": "\"Not Found\""
+          "kind": "response-constructor",
+          "expression": "request . method === \"HEAD\" ? null : \"Not Found\""
         }
       ]
     },
@@ -19262,16 +19252,8 @@
       "path": "/api/platform/me/avatar",
       "handlerSymbol": "handleServePlatformAvatar",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "GET",
-      "path": "/api/platform/me/avatar",
-      "handlerSymbol": "handleServePlatformAvatar",
-      "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
+      "kind": "response-constructor",
+      "expression": "request . method === \"HEAD\" ? null : \"Not Found\""
     },
     {
       "method": "GET",
@@ -19646,16 +19628,8 @@
       "path": "/api/platform/me/avatar",
       "handlerSymbol": "handleServePlatformAvatar",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
-    },
-    {
-      "method": "HEAD",
-      "path": "/api/platform/me/avatar",
-      "handlerSymbol": "handleServePlatformAvatar",
-      "file": "apps/api/src/domains/identity/platform-profile/handlers/serve-avatar.ts",
-      "kind": "non-json",
-      "expression": "\"Not Found\""
+      "kind": "response-constructor",
+      "expression": "request . method === \"HEAD\" ? null : \"Not Found\""
     },
     {
       "method": "HEAD",
