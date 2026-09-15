@@ -71,7 +71,10 @@ test("managed email policy is accessible without viewport overflow", async ({
           element.scrollWidth - element.clientWidth > 1
         )
       })
-      .map((element) => element.id || element.textContent?.trim() || element.tagName),
+      .map(
+        (element) =>
+          element.id || element.textContent?.trim() || element.tagName
+      ),
   }))
   expect(overflow).toEqual({ page: false, controls: [] })
 
