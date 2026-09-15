@@ -182,6 +182,38 @@ export const resources = {
             removed: "头像已移除。",
             removedToast: "头像已移除",
             removeFailed: "头像移除失败，请稍后重试。",
+            current: "当前头像",
+            currentDetail: "这是当前正在使用的头像。",
+            fallback: "默认头像",
+            fallbackDetail: "尚未设置头像，当前显示名称首字母。",
+            pending: "待上传头像",
+            pendingDetail: "裁剪结果仅保存在本机，点击“保存头像”后才会上传。",
+            preview: "头像预览",
+            save: "保存头像",
+            cancelChanges: "取消更改",
+            select: "选择头像",
+            change: "重新选择",
+            removeConfirm: {
+              title: "移除当前头像？",
+              description: "这会移除当前头像，包括关联的外部头像。",
+              confirm: "确认移除",
+            },
+            crop: {
+              title: "裁剪头像",
+              description: "拖动图片调整构图，使用缩放控制细节。",
+              close: "关闭裁剪",
+              cropArea: "拖动图片调整头像构图",
+              zoom: "缩放",
+              zoomValue: "{{value}} 倍",
+              cancel: "取消",
+              confirm: "使用此头像",
+              errors: {
+                decode: "无法读取这张图片，请选择另一张图片。",
+                canvas: "浏览器无法处理这张图片，请选择另一张图片。",
+                export: "无法生成头像图片，请稍后重试。",
+                invalidCrop: "图片裁剪区域无效，请重新调整后再试。",
+              },
+            },
           },
           fields: {
             displayName: "显示名称",
@@ -555,6 +587,45 @@ export const resources = {
             removed: "Your avatar has been removed.",
             removedToast: "Avatar removed",
             removeFailed: "The avatar could not be removed. Try again shortly.",
+            current: "Current avatar",
+            currentDetail: "This is the avatar currently in use.",
+            fallback: "Default avatar",
+            fallbackDetail:
+              "No avatar is set, so the display-name initial is shown.",
+            pending: "Avatar ready to upload",
+            pendingDetail:
+              "This crop is stored locally until you select Save avatar.",
+            preview: "Avatar preview",
+            save: "Save avatar",
+            cancelChanges: "Cancel changes",
+            select: "Choose avatar",
+            change: "Choose another image",
+            removeConfirm: {
+              title: "Remove the current avatar?",
+              description:
+                "This removes the current avatar, including a linked external avatar.",
+              confirm: "Remove avatar",
+            },
+            crop: {
+              title: "Crop avatar",
+              description:
+                "Drag the image to frame it and use zoom for detail.",
+              close: "Close crop",
+              cropArea: "Drag the image to frame the avatar",
+              zoom: "Zoom",
+              zoomValue: "{{value}}x",
+              cancel: "Cancel",
+              confirm: "Use this avatar",
+              errors: {
+                decode: "This image could not be read. Choose another image.",
+                canvas:
+                  "Your browser could not process this image. Choose another image.",
+                export:
+                  "The avatar image could not be created. Try again shortly.",
+                invalidCrop:
+                  "The crop area is invalid. Adjust the image and try again.",
+              },
+            },
           },
           fields: {
             displayName: "Display name",

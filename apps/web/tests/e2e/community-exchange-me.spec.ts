@@ -3,9 +3,12 @@ import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
 
-const onePixelPng = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-  "base64"
+const avatarFixture = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
+    <rect width="320" height="240" fill="#2463a8" />
+    <circle cx="160" cy="120" r="72" fill="#f4c95d" />
+    <path d="M92 208c19-42 48-63 68-63s49 21 68 63" fill="#ef8354" />
+  </svg>`
 )
 
 const profile = {
@@ -160,6 +163,23 @@ test.beforeEach(async ({ context, page }) => {
     },
     "PUT"
   )
+  await page.route("**/api/platform/me/avatar", async (route) => {
+    const request = route.request()
+    if (request.method() !== "DELETE") {
+      await route.fallback()
+      return
+    }
+    expect(await request.headerValue("authorization")).toBeNull()
+    expect(await request.headerValue("cookie")).toContain(
+      "ims_platform_access=exchange-me-session"
+    )
+    currentProfile = {
+      ...currentProfile,
+      avatarUrl: null,
+      updatedAt: currentProfile.updatedAt + 1,
+    }
+    await route.fulfill({ json: { success: true, profile: currentProfile } })
+  })
   await page.route(/\/api\/platform\/me\/avatar\?v=\d+$/, async (route) => {
     const request = route.request()
     expect(request.method()).toBe("GET")
@@ -167,7 +187,7 @@ test.beforeEach(async ({ context, page }) => {
     expect(await request.headerValue("cookie")).toContain(
       "ims_platform_access=exchange-me-session"
     )
-    await route.fulfill({ body: onePixelPng, contentType: "image/png" })
+    await route.fulfill({ body: avatarFixture, contentType: "image/svg+xml" })
   })
   await api.mockRoute(
     "**/api/community/exchange/me/series",
@@ -474,12 +494,74 @@ test("edits the authenticated profile and card without viewport overflow", async
   )
   await page.keyboard.press("Escape")
 
-  await page.locator("#exchange-profile-avatar").setInputFiles({
-    name: "avatar.png",
-    mimeType: "image/png",
-    buffer: onePixelPng,
+  let avatarPutRequests = 0
+  let avatarDeleteRequests = 0
+  page.on("request", (request) => {
+    if (!request.url().endsWith("/api/platform/me/avatar")) return
+    if (request.method() === "PUT") avatarPutRequests += 1
+    if (request.method() === "DELETE") avatarDeleteRequests += 1
   })
-  await page.getByRole("button", { name: "上传头像" }).click()
+
+  await page.locator("#exchange-profile-avatar").setInputFiles({
+    name: "avatar.svg",
+    mimeType: "image/svg+xml",
+    buffer: avatarFixture,
+  })
+  const cropDialog = page.getByRole("dialog")
+  await expect(cropDialog).toContainText("使用此头像")
+  const cropArea = cropDialog.locator(".reactEasyCrop_CropArea")
+  await expect(cropArea).toBeVisible()
+  const [dialogBox, cropBox] = await Promise.all([
+    cropDialog.boundingBox(),
+    cropArea.boundingBox(),
+  ])
+  expect(dialogBox).not.toBeNull()
+  expect(cropBox).not.toBeNull()
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
+  expect(dialogBox!.y).toBeGreaterThanOrEqual(0)
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(
+    (await page.viewportSize())!.width
+  )
+  expect(Math.abs(cropBox!.width - cropBox!.height)).toBeLessThanOrEqual(2)
+  await expect(cropArea).toHaveCSS("border-radius", "50%")
+
+  const zoom = cropDialog.getByRole("slider", { name: "缩放" })
+  const zoomBefore = await zoom.inputValue()
+  await zoom.press("ArrowRight")
+  await expect(zoom).not.toHaveValue(zoomBefore)
+  if (isMobile) {
+    for (const control of [
+      cropDialog.getByRole("button", { name: "取消" }),
+      cropDialog.getByRole("button", { name: "使用此头像" }),
+    ]) {
+      await expect(control).toBeVisible()
+      expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth
+      ),
+      "mobile crop dialog overflow"
+    ).toBe(true)
+  }
+
+  await cropDialog.getByRole("button", { name: "使用此头像" }).click()
+  await expect(page.getByRole("button", { name: "保存头像" })).toBeVisible()
+  expect(avatarPutRequests).toBe(0)
+  await page.screenshot({
+    path: `/tmp/imsweb-profile-workspace-avatar-staged-${testInfo.project.name}.png`,
+    fullPage: true,
+  })
+
+  await Promise.all([
+    page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" &&
+        request.url().endsWith("/api/platform/me/avatar")
+    ),
+    page.getByRole("button", { name: "保存头像" }).click(),
+  ])
+  expect(avatarPutRequests).toBe(1)
   await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
   await expect(
     accountTrigger.locator('[data-slot="avatar-image"]')
@@ -492,6 +574,34 @@ test("edits the authenticated profile and card without viewport overflow", async
     page.locator('aside [data-slot="avatar-image"]')
   ).toHaveAttribute("src", "/api/platform/me/avatar?v=11")
   await page.keyboard.press("Escape")
+  await page.screenshot({
+    path: `/tmp/imsweb-profile-workspace-avatar-saved-${testInfo.project.name}.png`,
+    fullPage: true,
+  })
+
+  await page.getByRole("button", { name: "移除头像" }).click()
+  const removeDialog = page.getByRole("alertdialog")
+  await expect(removeDialog).toBeVisible()
+  await removeDialog.getByRole("button", { name: "取消" }).click()
+  expect(avatarDeleteRequests).toBe(0)
+  await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
+
+  await page.getByRole("button", { name: "移除头像" }).click()
+  await Promise.all([
+    page.waitForRequest(
+      (request) =>
+        request.method() === "DELETE" &&
+        request.url().endsWith("/api/platform/me/avatar")
+    ),
+    page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "确认移除" })
+      .click(),
+  ])
+  expect(avatarDeleteRequests).toBe(1)
+  await expect(
+    accountTrigger.locator('[data-slot="avatar-fallback"]')
+  ).toBeVisible()
 
   const profileName = page.getByRole("textbox", { name: "显示名称" })
   await profileName.fill("更新后的浏览器制作人")

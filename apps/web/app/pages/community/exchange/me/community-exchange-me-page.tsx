@@ -482,6 +482,7 @@ function CommunityExchangeMeWorkspace({
           >
             <ProfileEditor
               profile={state.profile}
+              accountId={profileAccountId}
               readOnly={profileReadOnly}
               readOnlyReason={profileReadOnlyReason}
               onSaved={saveProfile}

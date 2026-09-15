@@ -1,17 +1,13 @@
 import {
   CircleAlertIcon,
-  ImageUpIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
   SaveIcon,
-  Trash2Icon,
-  UserRoundIcon,
 } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import { FileUploadControl } from "~/components/shared/file-upload-control"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -29,7 +25,6 @@ import {
   uploadPlatformAvatar,
   type PlatformProfile,
 } from "~/lib/api"
-import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import {
   apiMessage,
   isFeatureClosed,
@@ -38,11 +33,13 @@ import {
   validateImage,
   type EditorFeedback,
 } from "./exchange-me-model"
+import { AvatarUploadEditor } from "./components/avatar-upload-editor"
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024
 
 export function ProfileEditor({
   profile,
+  accountId,
   readOnly,
   readOnlyReason,
   onSaved,
@@ -51,6 +48,7 @@ export function ProfileEditor({
   onWriteClosed,
 }: {
   profile: PlatformProfile
+  accountId?: string | null
   readOnly: boolean
   readOnlyReason: string | null
   onSaved: (profile: PlatformProfile) => boolean
@@ -61,21 +59,8 @@ export function ProfileEditor({
   const { t } = useTranslation()
   const [draft, setDraft] = useState(() => profileFields(profile))
   const [saving, setSaving] = useState(false)
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [removingAvatar, setRemovingAvatar] = useState(false)
+  const [avatarBusy, setAvatarBusy] = useState(false)
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null)
-  const {
-    browse: browseAvatar,
-    clear: clearAvatar,
-    file: avatarFile,
-    preparing: preparingAvatar,
-    selectFile: selectAvatar,
-  } = useAppPreparedImage({
-    mediaKind: "platform-avatar",
-    validate: (file) => validateImage(file, MAX_AVATAR_BYTES),
-    onError: (message) => setFeedback({ kind: "error", message }),
-    onSelected: () => setFeedback(null),
-  })
 
   function mutationFailure(error: unknown, fallback: string) {
     if (!isOperationCurrent()) return
@@ -122,55 +107,48 @@ export function ProfileEditor({
     }
   }
 
-  async function uploadAvatar() {
-    if (!avatarFile) return
-    setUploadingAvatar(true)
+  async function uploadAvatar(file: File) {
     setFeedback(null)
     try {
       const result = await uploadPlatformAvatar({
-        image: avatarFile,
+        image: file,
         expectedUpdatedAt: profile.updatedAt,
       }).send()
-      if (!onSaved(result.profile)) return
+      if (!onSaved(result.profile)) return false
       setDraft(profileFields(result.profile))
-      clearAvatar()
       setFeedback({
         kind: "success",
         message: t("platformAccount.profileEditor.avatar.updated"),
       })
       toast.success(t("platformAccount.profileEditor.avatar.updatedToast"))
+      return true
     } catch (error) {
       mutationFailure(
         error,
         t("platformAccount.profileEditor.avatar.uploadFailed")
       )
-    } finally {
-      setUploadingAvatar(false)
+      return false
     }
   }
 
-  // `clearAvatar()` only drops the locally staged file. This removes the avatar
-  // the server already stores, under the same optimistic fence as a save.
   async function removeAvatar() {
-    setRemovingAvatar(true)
     setFeedback(null)
     try {
       const result = await removePlatformAvatar(profile.updatedAt).send()
-      if (!onSaved(result.profile)) return
+      if (!onSaved(result.profile)) return false
       setDraft(profileFields(result.profile))
-      clearAvatar()
       setFeedback({
         kind: "success",
         message: t("platformAccount.profileEditor.avatar.removed"),
       })
       toast.success(t("platformAccount.profileEditor.avatar.removedToast"))
+      return true
     } catch (error) {
       mutationFailure(
         error,
         t("platformAccount.profileEditor.avatar.removeFailed")
       )
-    } finally {
-      setRemovingAvatar(false)
+      return false
     }
   }
 
@@ -195,7 +173,7 @@ export function ProfileEditor({
     }
   }
 
-  const busy = saving || preparingAvatar || uploadingAvatar || removingAvatar
+  const busy = saving || avatarBusy
 
   return (
     <section
@@ -259,73 +237,18 @@ export function ProfileEditor({
         </Alert>
       ) : null}
 
-      <div className="mt-5">
-        <Field data-disabled={readOnly || undefined}>
-          <FieldLabel htmlFor="exchange-profile-avatar">
-            {t("platformAccount.profileEditor.avatar.label")}
-          </FieldLabel>
-          <FileUploadControl
-            id="exchange-profile-avatar"
-            compact
-            accept="image/*"
-            emptyTitle={t("platformAccount.profileEditor.avatar.emptyTitle")}
-            emptyDetail={t("platformAccount.profileEditor.avatar.emptyDetail")}
-            fileKind={t("platformAccount.profileEditor.avatar.fileKind")}
-            file={avatarFile}
-            disabled={readOnly || saving}
-            preparing={preparingAvatar}
-            uploading={uploadingAvatar}
-            selectedIcon={UserRoundIcon}
-            emptyIcon={ImageUpIcon}
-            onBrowse={browseAvatar}
-            onSelect={selectAvatar}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="self-start"
-            disabled={readOnly || busy || !avatarFile}
-            onClick={() => void uploadAvatar()}
-          >
-            {uploadingAvatar ? (
-              <LoaderCircleIcon
-                data-icon="inline-start"
-                className="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-            ) : (
-              <ImageUpIcon data-icon="inline-start" aria-hidden="true" />
-            )}
-            {uploadingAvatar
-              ? t("platformAccount.profileEditor.avatar.uploading")
-              : t("platformAccount.profileEditor.avatar.upload")}
-          </Button>
-          {profile.avatarUrl ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              disabled={readOnly || busy}
-              onClick={() => void removeAvatar()}
-            >
-              {removingAvatar ? (
-                <LoaderCircleIcon
-                  data-icon="inline-start"
-                  className="animate-spin motion-reduce:animate-none"
-                  aria-hidden="true"
-                />
-              ) : (
-                <Trash2Icon data-icon="inline-start" aria-hidden="true" />
-              )}
-              {removingAvatar
-                ? t("platformAccount.profileEditor.avatar.removing")
-                : t("platformAccount.profileEditor.avatar.remove")}
-            </Button>
-          ) : null}
-        </Field>
-      </div>
+      <AvatarUploadEditor
+        key={accountId ?? "no-account"}
+        profile={profile}
+        accountId={accountId}
+        disabled={readOnly || saving}
+        onBusyChange={setAvatarBusy}
+        onError={(message) => setFeedback({ kind: "error", message })}
+        onClearFeedback={() => setFeedback(null)}
+        validate={(file) => validateImage(file, MAX_AVATAR_BYTES)}
+        onUpload={uploadAvatar}
+        onRemove={removeAvatar}
+      />
 
       <form className="mt-6" onSubmit={(event) => void saveProfile(event)}>
         <FieldGroup>

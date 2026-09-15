@@ -13,6 +13,10 @@ const sessionMocks = vi.hoisted(() => ({
   reload: vi.fn(),
 }))
 
+const cropMocks = vi.hoisted(() => ({
+  cropAvatarImage: vi.fn(),
+}))
+
 const apiMocks = vi.hoisted(() => ({
   getPlatformProfile: vi.fn(),
   getFudabaOwnerSeries: vi.fn(),
@@ -40,6 +44,32 @@ const apiMocks = vi.hoisted(() => ({
   sendUpdate: vi.fn(),
   sendMediaUpload: vi.fn(),
   sendDelete: vi.fn(),
+}))
+
+vi.mock("react-easy-crop", async () => {
+  const React = await vi.importActual<typeof import("react")>("react")
+
+  function EasyCrop({
+    onCropComplete,
+  }: {
+    onCropComplete: (area: unknown, pixels: unknown) => void
+  }) {
+    const completed = React.useRef(false)
+    React.useEffect(() => {
+      if (completed.current) return
+      completed.current = true
+      onCropComplete({}, { height: 480, width: 480, x: 20, y: 10 })
+    }, [onCropComplete])
+
+    return React.createElement("div", { "data-testid": "avatar-cropper" })
+  }
+
+  return { default: EasyCrop }
+})
+
+vi.mock("~/lib/media/crop-avatar-image", () => ({
+  cropAvatarImage: cropMocks.cropAvatarImage,
+  CropAvatarImageError: class CropAvatarImageError extends Error {},
 }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
@@ -252,6 +282,10 @@ describe("CommunityExchangeMePage", () => {
       success: true,
       profile: { ...profile, displayName: "更新后的制作人", updatedAt: 11 },
     })
+    cropMocks.cropAvatarImage.mockImplementation(
+      async (source: File) =>
+        new File(["cropped"], `cropped-${source.name}`, { type: "image/webp" })
+    )
     apiMocks.sendAvatarUpload.mockResolvedValue({
       success: true,
       profile: {
@@ -343,7 +377,10 @@ describe("CommunityExchangeMePage", () => {
         screen.getByLabelText("头像"),
         new File(["avatar"], "avatar.png", { type: "image/png" })
       )
-      await user.click(screen.getByRole("button", { name: "上传头像" }))
+      await user.click(
+        await screen.findByRole("button", { name: "使用此头像" })
+      )
+      await user.click(screen.getByRole("button", { name: "保存头像" }))
 
       const savedProfile = {
         ...profile,
@@ -385,6 +422,10 @@ describe("CommunityExchangeMePage", () => {
     renderPage()
 
     await user.click(await screen.findByRole("button", { name: "移除头像" }))
+    expect(
+      screen.getByRole("heading", { name: "移除当前头像？" })
+    ).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "确认移除" }))
 
     const savedProfile = { ...profile, avatarUrl: null, updatedAt: 11 }
     await waitFor(() => {
@@ -419,7 +460,8 @@ describe("CommunityExchangeMePage", () => {
       screen.getByLabelText("头像"),
       new File(["avatar"], "avatar.png", { type: "image/png" })
     )
-    await user.click(screen.getByRole("button", { name: "上传头像" }))
+    await user.click(await screen.findByRole("button", { name: "使用此头像" }))
+    await user.click(screen.getByRole("button", { name: "保存头像" }))
 
     expect(await screen.findByText(/头像上传失败/)).toBeVisible()
     expect(sessionMocks.acceptProfile).not.toHaveBeenCalled()
@@ -537,9 +579,13 @@ describe("CommunityExchangeMePage", () => {
       screen.getByLabelText("头像"),
       new File(["avatar"], "avatar.png", { type: "image/png" })
     )
-    await user.click(screen.getByRole("button", { name: "上传头像" }))
+    await user.click(await screen.findByRole("button", { name: "使用此头像" }))
+    await user.click(screen.getByRole("button", { name: "保存头像" }))
     await waitFor(() =>
       expect(apiMocks.sendAvatarUpload).toHaveBeenCalledOnce()
+    )
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "保存资料" })).toBeDisabled()
     )
 
     sessionMocks.usePlatformSession.mockReturnValue(

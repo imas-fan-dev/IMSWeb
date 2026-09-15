@@ -6,13 +6,16 @@ const APP_ACCESS_TOKEN = "app-avatar-access-token"
 const APP_CORS_HEADERS = {
   "Access-Control-Allow-Headers":
     "Authorization, Content-Type, X-IMS-Auth-Mode, X-CSRFToken",
-  "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS, POST, PUT",
+  "Access-Control-Allow-Methods": "DELETE, GET, HEAD, OPTIONS, POST, PUT",
   "Access-Control-Allow-Origin": APP_DOCUMENT_ORIGIN,
 }
 
-const onePixelPng = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-  "base64"
+const avatarFixture = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
+    <rect width="320" height="240" fill="#2463a8" />
+    <circle cx="160" cy="120" r="72" fill="#f4c95d" />
+    <path d="M92 208c19-42 48-63 68-63s49 21 68 63" fill="#ef8354" />
+  </svg>`
 )
 
 const session = {
@@ -161,10 +164,20 @@ test("uses an account root and independent profile section stack", async ({
       await fulfillJson(route, { success: true, profile })
       return
     }
+    if (route.request().method() === "DELETE") {
+      const profile = {
+        ...session.profile,
+        avatarUrl: null,
+        updatedAt: 3,
+      }
+      accountMocks.setProfile(profile)
+      await fulfillJson(route, { success: true, profile })
+      return
+    }
     avatarReadUrls.push(route.request().url())
     await route.fulfill({
-      body: onePixelPng,
-      contentType: "image/png",
+      body: avatarFixture,
+      contentType: "image/svg+xml",
       headers: APP_CORS_HEADERS,
     })
   })
@@ -209,13 +222,88 @@ test("uses an account root and independent profile section stack", async ({
     accountNavigation.getByRole("link", { name: "我的" })
   ).toHaveAttribute("aria-current", "page")
 
-  await page.locator("#exchange-profile-avatar").setInputFiles({
-    name: "avatar.png",
-    mimeType: "image/png",
-    buffer: onePixelPng,
+  let avatarPutRequests = 0
+  let avatarDeleteRequests = 0
+  page.on("request", (request) => {
+    if (!request.url().endsWith("/api/platform/me/avatar")) return
+    if (request.method() === "PUT") avatarPutRequests += 1
+    if (request.method() === "DELETE") avatarDeleteRequests += 1
   })
-  await page.getByRole("button", { name: "上传头像" }).click()
+
+  await page.locator("#exchange-profile-avatar").setInputFiles({
+    name: "avatar.svg",
+    mimeType: "image/svg+xml",
+    buffer: avatarFixture,
+  })
+  const cropDialog = page.getByRole("dialog")
+  await expect(cropDialog).toContainText("使用此头像")
+  const cropArea = cropDialog.locator(".reactEasyCrop_CropArea")
+  await expect(cropArea).toBeVisible()
+  const [dialogBox, cropBox] = await Promise.all([
+    cropDialog.boundingBox(),
+    cropArea.boundingBox(),
+  ])
+  const viewport = page.viewportSize()!
+  expect(dialogBox).not.toBeNull()
+  expect(cropBox).not.toBeNull()
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
+  expect(dialogBox!.y).toBeGreaterThanOrEqual(47)
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewport.width)
+  expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(
+    viewport.height - 34
+  )
+  expect(Math.abs(cropBox!.width - cropBox!.height)).toBeLessThanOrEqual(2)
+  await expect(cropArea).toHaveCSS("border-radius", "50%")
+
+  const zoom = cropDialog.getByRole("slider", { name: "缩放" })
+  const zoomBefore = await zoom.inputValue()
+  await zoom.press("ArrowRight")
+  await expect(zoom).not.toHaveValue(zoomBefore)
+  for (const control of [
+    cropDialog.getByRole("button", { name: "取消" }),
+    cropDialog.getByRole("button", { name: "使用此头像" }),
+  ]) {
+    await expect(control).toBeVisible()
+    expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  }
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth
+    ),
+    "App crop dialog overflow"
+  ).toBe(true)
+
+  await cropDialog.getByRole("button", { name: "使用此头像" }).click()
+  const saveAvatar = page.getByRole("button", { name: "保存头像" })
+  await expect(saveAvatar).toBeVisible()
+  expect((await saveAvatar.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  expect(avatarPutRequests).toBe(0)
+  if (process.env.CAPTURE_APP_QA === "1") {
+    await page.screenshot({
+      path: `/tmp/imsweb-app-avatar-staged-${testInfo.project.name}.png`,
+      fullPage: true,
+    })
+  }
+  await Promise.all([
+    page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" &&
+        request.url().endsWith("/api/platform/me/avatar")
+    ),
+    saveAvatar.click(),
+  ])
+  expect(avatarPutRequests).toBe(1)
   await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
+  await expect(page.getByRole("img", { name: "当前头像" })).toHaveAttribute(
+    "src",
+    /^blob:/
+  )
+  if (process.env.CAPTURE_APP_QA === "1") {
+    await page.screenshot({
+      path: `/tmp/imsweb-app-avatar-saved-${testInfo.project.name}.png`,
+      fullPage: true,
+    })
+  }
   await backButton.click()
   await expect(page).toHaveURL(/\/account\/me$/)
 
@@ -225,6 +313,34 @@ test("uses an account root and independent profile section stack", async ({
   await expect(
     page.getByRole("img", { name: "App 制作人的头像" })
   ).toHaveAttribute("src", /^blob:/)
+
+  await page.getByRole("link", { name: /个人资料/ }).click()
+  await expect(page).toHaveURL(/\/account\/me\/profile$/)
+  await page.getByRole("button", { name: "移除头像" }).click()
+  const removeDialog = page.getByRole("alertdialog")
+  await expect(removeDialog).toBeVisible()
+  await removeDialog.getByRole("button", { name: "取消" }).click()
+  expect(avatarDeleteRequests).toBe(0)
+  await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
+
+  await page.getByRole("button", { name: "移除头像" }).click()
+  await Promise.all([
+    page.waitForRequest(
+      (request) =>
+        request.method() === "DELETE" &&
+        request.url().endsWith("/api/platform/me/avatar")
+    ),
+    page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "确认移除" })
+      .click(),
+  ])
+  expect(avatarDeleteRequests).toBe(1)
+  await backButton.click()
+  await expect(page).toHaveURL(/\/account\/me$/)
+  await expect(page.getByRole("img", { name: "App 制作人的头像" })).toHaveCount(
+    0
+  )
   expect(avatarReadUrls.length).toBeGreaterThan(0)
   expect(
     avatarReadUrls.every(
