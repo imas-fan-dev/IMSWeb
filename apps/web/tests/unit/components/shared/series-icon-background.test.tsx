@@ -19,9 +19,9 @@ async function renderBackground() {
   const result = render(<SeriesIconBackground />)
 
   await waitFor(() => {
-    expect(
-      result.container.querySelectorAll("img.series-icon-motif")
-    ).toHaveLength(12)
+    const motifs = result.container.querySelectorAll("img.series-icon-motif")
+    expect(motifs).toHaveLength(12)
+    expect(motifs[0]?.getAttribute("style")).toContain("translate3d(")
   })
 
   return result
@@ -78,7 +78,9 @@ describe("SeriesIconBackground", () => {
     expect(motifs[2]).toHaveAttribute("src", "/icon/agencies/1.webp")
     expect(firstMotif).toHaveAttribute("width", "1")
     expect(firstMotif).toHaveAttribute("height", "1")
-    expect(firstMotif).toHaveStyle({ width: "119px", opacity: "0.370" })
+    await waitFor(() => {
+      expect(firstMotif).toHaveStyle({ width: "119px", opacity: "0.370" })
+    })
 
     const [initialX, initialY, initialRotation] = readTransform(firstMotif)
     act(() => nextFrame?.(16))
