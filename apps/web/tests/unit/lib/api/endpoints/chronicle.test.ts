@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   chronicleActivitySchema,
@@ -7,8 +7,6 @@ import {
 } from "~/lib/api/endpoints/chronicle"
 
 describe("chronicle API contracts", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("accepts the public activity summary returned by Hono", () => {
     expect(
       chronicleActivitySummarySchema.parse({

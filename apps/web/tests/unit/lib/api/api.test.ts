@@ -22,7 +22,6 @@ import { handleApiResponse } from "~/lib/api/response"
 import { withBackofficeAuth, withBackofficeCsrf } from "~/lib/api/types"
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
   document.cookie = "csrf_token=; Max-Age=0; path=/"
 })

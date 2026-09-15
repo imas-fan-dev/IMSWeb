@@ -2,7 +2,7 @@ import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { WikiIndexPage } from "~/pages/wiki/modern/index"
 
@@ -185,8 +185,6 @@ function LocationProbe() {
 }
 
 describe("WikiIndexPage", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("switches dynamic agencies and filters the selected idol directory", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
       const url = new URL(

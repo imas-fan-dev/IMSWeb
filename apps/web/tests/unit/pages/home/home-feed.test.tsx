@@ -1,7 +1,7 @@
 import { useRequest } from "alova/client"
 import { act, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { getHomeNews } from "~/lib/api"
 import { HomeFeed } from "~/pages/home/components/home-feed"
@@ -38,10 +38,6 @@ function renderHomeFeed() {
 }
 
 describe("home feed alova integration", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("updates React state with parsed news data", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

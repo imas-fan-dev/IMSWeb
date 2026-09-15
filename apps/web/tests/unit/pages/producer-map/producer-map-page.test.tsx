@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import ProducerMapPage from "~/pages/producer-map/index"
 import type { ProducerMapContent } from "~/lib/api"
@@ -100,8 +100,6 @@ function geometry() {
 }
 
 describe("ProducerMapPage", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("renders configured regions, filters communities, and opens contact media", async () => {
     vi.stubGlobal(
       "fetch",

@@ -172,7 +172,6 @@ const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
 
 describe("StoryPage", () => {
   afterEach(() => {
-    vi.unstubAllGlobals()
     if (scrollIntoViewDescriptor) {
       Object.defineProperty(
         HTMLElement.prototype,

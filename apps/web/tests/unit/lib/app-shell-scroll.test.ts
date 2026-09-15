@@ -53,7 +53,6 @@ describe("App window restoration", () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   function grow(nextHeight: number) {

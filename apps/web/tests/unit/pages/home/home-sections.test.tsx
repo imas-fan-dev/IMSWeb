@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { ActivityHighlights } from "~/pages/home/components/activity-highlights"
 import { RandomIdol } from "~/pages/home/components/random-idol"
@@ -126,11 +126,6 @@ function HomeSections() {
 }
 
 describe("home supporting sections", () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  })
-
   it("renders activity highlights only from the community-post spotlight API", async () => {
     stubInformation([
       {

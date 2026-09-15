@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryEditorDialog } from "~/pages/admin/stories/components/story-editor-dialog"
 import { defaultWikiImageTransform, type WikiAdminStory } from "~/lib/api"
@@ -66,11 +66,6 @@ function storyCardMutation(mediaRevision = 4) {
 describe("StoryEditorDialog", () => {
   beforeEach(() => {
     document.cookie = "ims_admin_csrf=story-editor-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
   })
 
   it("creates one card and multiple source entries in a single request", async () => {

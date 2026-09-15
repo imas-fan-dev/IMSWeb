@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { getEditorialEvent } from "~/lib/api"
 
@@ -9,8 +9,6 @@ function jsonResponse(payload: unknown) {
 }
 
 describe("getEditorialEvent", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("accepts the API-normalized response used by historical list entries", async () => {
     vi.stubGlobal(
       "fetch",

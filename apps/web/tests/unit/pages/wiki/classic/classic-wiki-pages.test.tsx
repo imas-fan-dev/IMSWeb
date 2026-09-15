@@ -2,7 +2,7 @@ import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { ClassicStoryPage } from "~/pages/wiki/classic/classic-story-page"
 import { ClassicWikiPage } from "~/pages/wiki/classic/index"
@@ -370,8 +370,6 @@ function gakumasSCardPayload() {
 }
 
 describe("classic Wiki pages", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("keeps the template-style navigation and grouped classic story links", async () => {
     let backgroundRequest = 0
     vi.stubGlobal(

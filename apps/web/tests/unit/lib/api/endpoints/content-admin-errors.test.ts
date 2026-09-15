@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   getAboutPageContent,
@@ -14,10 +14,6 @@ const protectedError = { message: "无权限（仅op可访问）" }
 function errorResponse() {
   return Response.json(protectedError, { status: 403 })
 }
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 describe("content endpoint error contracts", () => {
   it("keeps About and Producer Map protected errors off public routes", async () => {

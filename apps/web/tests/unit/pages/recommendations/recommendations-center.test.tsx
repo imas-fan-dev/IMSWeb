@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { RecommendationsCenter } from "~/pages/recommendations/index"
 import { cacheRecommendationFeed, parseRecommendationPage } from "~/lib/api"
@@ -58,10 +58,6 @@ describe("RecommendationsCenter", () => {
   beforeEach(() => {
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it("rejects imprecise numeric IDs while accepting PostgreSQL bigint strings", () => {

@@ -2,7 +2,7 @@ import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 vi.mock("~/lib/app-target", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/app-target")>()
@@ -34,8 +34,6 @@ const storyPayload = {
   },
   categories: [],
 }
-
-afterEach(() => vi.unstubAllGlobals())
 
 describe("StoryPage App layout", () => {
   it("clears App chrome for the floating navigation and short drawer", async () => {

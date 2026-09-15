@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryManager } from "~/pages/admin/stories/components/story-manager"
 import type { WikiAdminCatalog, WikiAdminStories } from "~/lib/api"
@@ -238,10 +238,6 @@ function storiesPayload(upName = "投稿者") {
 describe("StoryManager", () => {
   beforeEach(() => {
     document.cookie = "ims_admin_csrf=wiki-manager-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it("loads dynamic Wiki data and edits the selected story id", async () => {

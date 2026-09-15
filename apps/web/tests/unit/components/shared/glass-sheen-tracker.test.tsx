@@ -100,7 +100,6 @@ describe("GlassSheenTracker", () => {
 
   afterEach(() => {
     document.body.replaceChildren()
-    vi.unstubAllGlobals()
   })
 
   beforeEach(() => {

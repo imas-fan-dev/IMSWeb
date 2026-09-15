@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import AdminChronicle from "~/pages/admin/chronicle/index"
 
@@ -12,10 +12,6 @@ function jsonResponse(payload: unknown) {
 }
 
 describe("AdminChronicle", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("loads each review queue without updating state during render", async () => {
     const requestedPaths: string[] = []
     const fetchMock = vi

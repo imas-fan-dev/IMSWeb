@@ -58,7 +58,6 @@ describe("getCurrentCoordinates", () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it("uses browser geolocation outside a real Tauri runtime", async () => {

@@ -38,7 +38,6 @@ const snapshot = {
 }
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
 })
 

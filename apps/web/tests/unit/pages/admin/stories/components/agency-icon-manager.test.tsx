@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AgencyIconManager } from "~/pages/admin/stories/components/agency-icon-manager"
 import type { WikiAdminCatalog } from "~/lib/api"
@@ -76,11 +76,6 @@ function catalogPayload(iconUrl: string | null) {
 describe("AgencyIconManager", () => {
   beforeEach(() => {
     document.cookie = "ims_admin_csrf=wiki-agency-icon-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
   })
 
   it("uploads, previews, and removes the selected series icon", async () => {

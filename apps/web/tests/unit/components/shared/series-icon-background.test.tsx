@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SeriesIconBackground } from "~/components/shared/series-icon-background"
 
@@ -58,11 +58,6 @@ describe("SeriesIconBackground", () => {
       })
     )
     vi.stubGlobal("cancelAnimationFrame", vi.fn())
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it("moves a reduced set of agency icon motifs across the viewport", async () => {

@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { StyleSpecification } from "maplibre-gl"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GeolocationFailure } from "~/lib/geolocation"
 import { ExchangeOfficeMap } from "~/pages/community/exchange/exchange-office-map"
@@ -145,11 +145,6 @@ describe("ExchangeOfficeMap App viewport memory", () => {
       vi.fn(() => 1)
     )
     vi.stubGlobal("cancelAnimationFrame", vi.fn())
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it("restores center and zoom after the map route remounts", () => {

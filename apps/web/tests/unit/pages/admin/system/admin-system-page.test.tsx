@@ -58,7 +58,6 @@ function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.clearAllMocks()
   document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
   document.body.removeAttribute("style")

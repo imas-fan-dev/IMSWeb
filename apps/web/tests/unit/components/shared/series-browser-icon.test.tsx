@@ -43,7 +43,6 @@ describe("SeriesBrowserIcon", () => {
       icon.remove()
     })
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 

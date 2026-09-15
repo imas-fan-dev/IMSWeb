@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import AdminLogin from "~/pages/admin/login/index"
 
@@ -21,10 +21,6 @@ function jsonResponse(payload: unknown, status = 200) {
 }
 
 describe("AdminLogin", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("submits to the role-gated endpoint and shows permission denial", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const requestUrl = input instanceof Request ? input.url : String(input)

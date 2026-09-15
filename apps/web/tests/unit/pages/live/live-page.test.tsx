@@ -59,7 +59,6 @@ function archiveEvents() {
 describe("Live", () => {
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it("shows the next two weeks, monthly archives, and ten-item pages", async () => {

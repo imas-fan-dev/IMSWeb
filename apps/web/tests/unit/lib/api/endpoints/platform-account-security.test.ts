@@ -59,7 +59,6 @@ function captureRequests(response: (path: string) => unknown) {
 }
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
 })
 

@@ -48,7 +48,6 @@ describe("theme controls", () => {
     Reflect.deleteProperty(document, "startViewTransition")
     Reflect.deleteProperty(document.documentElement, "animate")
     document.head.querySelector('meta[name="theme-color"]')?.remove()
-    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 

@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { InformationManager } from "~/pages/admin/information/index"
 
@@ -44,10 +44,6 @@ function stubInformationRequest() {
 }
 
 describe("InformationManager", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("opens a blank create dialog from the published list", async () => {
     stubInformationRequest()
     const user = userEvent.setup()

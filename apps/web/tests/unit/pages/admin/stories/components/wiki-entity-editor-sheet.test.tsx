@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import type { ReactNode } from "react"
 import { toast } from "sonner"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { i18n } from "~/i18n/config"
 import { defaultLanguage, defaultNamespace } from "~/i18n/resources"
@@ -43,11 +43,6 @@ describe("WikiEntityEditorDialog", () => {
   beforeEach(async () => {
     await i18n.changeLanguage(defaultLanguage)
     document.cookie = "ims_admin_csrf=wiki-entity-editor-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
   })
 
   it("closes and refreshes after entity save succeeds but media save fails", async () => {

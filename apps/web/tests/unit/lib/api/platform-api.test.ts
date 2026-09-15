@@ -16,7 +16,6 @@ import {
 import { withPlatformAuth, withPlatformCsrf } from "~/lib/api/types"
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
 })
 

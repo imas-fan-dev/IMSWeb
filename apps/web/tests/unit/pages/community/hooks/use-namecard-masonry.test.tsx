@@ -1,5 +1,5 @@
-import { act, cleanup, render, screen } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { act, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { Namecard } from "~/lib/api"
 import { useNamecardMasonry } from "~/pages/community/hooks/use-namecard-masonry"
@@ -113,12 +113,6 @@ describe("useNamecardMasonry", () => {
         return { height: heights[id - 1] ?? 0 } as DOMRect
       }
     )
-  })
-
-  afterEach(() => {
-    cleanup()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it("measures initial natural heights with a 12px gap and parity columns before enabling", () => {

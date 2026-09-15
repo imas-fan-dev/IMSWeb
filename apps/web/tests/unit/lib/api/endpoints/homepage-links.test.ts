@@ -1,10 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { getAdminHomepageLinks, getHomepageLinks } from "~/lib/api"
 
 describe("homepage link endpoints", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("keeps protected and public error contracts separate", async () => {
     const error = { message: "无权限（仅op可访问）" }
     vi.stubGlobal(

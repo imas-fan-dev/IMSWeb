@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import AdminEventsPage from "~/pages/admin/events/index"
 
@@ -46,11 +46,6 @@ function renderPage() {
 }
 
 describe("AdminEventsPage", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.clearAllMocks()
-  })
-
   it("uses the unified community-post APIs and links to the full-page editor", async () => {
     vi.stubGlobal(
       "fetch",

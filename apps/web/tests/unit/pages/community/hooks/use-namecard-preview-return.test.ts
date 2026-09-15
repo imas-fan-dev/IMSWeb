@@ -61,7 +61,6 @@ describe("useNamecardPreviewReturn", () => {
 
   afterEach(() => {
     root.remove()
-    vi.unstubAllGlobals()
     if (scrollToDescriptor) {
       Object.defineProperty(
         HTMLElement.prototype,

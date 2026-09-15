@@ -11,7 +11,6 @@ async function loadEventsEndpoint() {
 
 afterEach(() => {
   vi.unstubAllEnvs()
-  vi.unstubAllGlobals()
   vi.resetModules()
 })
 

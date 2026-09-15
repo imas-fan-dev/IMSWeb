@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { getNamecardPage, namecardSchema } from "~/lib/api/endpoints/community"
 import {
@@ -9,8 +9,6 @@ import {
 } from "~/lib/api/endpoints/fudaba/guest-submissions"
 
 describe("community API contracts", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("rejects numeric string card IDs instead of coercing wire data", () => {
     expect(() =>
       namecardSchema.parse({

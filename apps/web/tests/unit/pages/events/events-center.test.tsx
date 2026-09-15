@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EventsCenter } from "~/pages/events/index"
 import { cacheEventFeed } from "~/lib/api"
@@ -63,10 +63,6 @@ describe("EventsCenter", () => {
   beforeEach(() => {
     vi.stubGlobal("scrollTo", vi.fn())
     vi.stubGlobal("IntersectionObserver", undefined)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it("loads cursor pages by scroll alone and deduplicates rows", async () => {

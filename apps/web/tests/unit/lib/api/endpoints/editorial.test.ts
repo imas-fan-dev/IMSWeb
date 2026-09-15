@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   deleteAdminEditorial,
@@ -27,8 +27,6 @@ function requestDetails(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 describe("editorial API endpoints", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("uses the shared success schema for the three editorial mutations", async () => {
     document.cookie = "ims_admin_csrf=editorial-test; path=/"
     const fetchMock = vi

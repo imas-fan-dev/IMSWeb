@@ -67,7 +67,6 @@ const emptyWikiStories = {
 
 describe("Alova client cache policy", () => {
   afterEach(() => {
-    vi.unstubAllGlobals()
     document.cookie = "csrf_token=; Max-Age=0; path=/"
   })
 

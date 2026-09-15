@@ -67,7 +67,6 @@ function requestOf(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
   document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
 })

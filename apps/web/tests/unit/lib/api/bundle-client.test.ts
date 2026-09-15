@@ -59,7 +59,6 @@ const GEOMETRY_BODY = {
 
 afterEach(() => {
   vi.unstubAllEnvs()
-  vi.unstubAllGlobals()
   vi.resetModules()
 })
 

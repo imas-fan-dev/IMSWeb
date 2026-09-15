@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createMemoryRouter, RouterProvider } from "react-router"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryManagementPage } from "~/pages/admin/stories"
 import type { WikiAdminCatalog, WikiAdminStories } from "~/lib/api"
@@ -181,10 +181,6 @@ const stories = {
 describe("StoryManagementPage", () => {
   beforeEach(() => {
     document.cookie = "csrf_token=wiki-workbench-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it("persists outline state in the URL and sends the current card revision", async () => {

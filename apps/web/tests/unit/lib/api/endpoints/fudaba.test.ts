@@ -156,7 +156,6 @@ const cardFields = {
 }
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
 })
 

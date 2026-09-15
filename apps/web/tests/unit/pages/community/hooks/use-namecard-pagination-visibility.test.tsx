@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { StrictMode } from "react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useNamecardPaginationVisibility } from "~/pages/community/hooks/use-namecard-pagination-visibility"
 
@@ -67,11 +67,6 @@ describe("useNamecardPaginationVisibility", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
       () => rect
     )
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it("measures on mount without waiting for the first observer callback", () => {

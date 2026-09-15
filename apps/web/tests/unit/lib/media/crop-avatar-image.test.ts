@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   cropAvatarImage,
@@ -56,11 +56,6 @@ async function expectCropError(
 }
 
 describe("cropAvatarImage", () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  })
-
   it("uses the selected square pixels without enlarging a small crop", async () => {
     const { bitmap } = mockBitmap(800, 600)
     const { canvas, drawImage, toBlob } = mockCanvas()

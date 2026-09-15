@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   createWikiAgency,
@@ -133,10 +133,6 @@ function idolMutationResult(id: number) {
 describe("Wiki admin API", () => {
   beforeEach(() => {
     document.cookie = "ims_admin_csrf=wiki-api-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it("validates the dynamic catalog and selected idol story view", async () => {

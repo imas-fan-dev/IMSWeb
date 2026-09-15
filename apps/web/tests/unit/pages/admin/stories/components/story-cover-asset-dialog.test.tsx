@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { StoryCoverAssetDialog } from "~/pages/admin/stories/components/story-cover-asset-dialog"
 
@@ -19,11 +19,6 @@ function requestDetails(call: unknown[]) {
 describe("StoryCoverAssetDialog", () => {
   beforeEach(() => {
     document.cookie = "ims_admin_csrf=story-cover-asset-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
   })
 
   it("previews and saves the full-image presentation policy", async () => {
