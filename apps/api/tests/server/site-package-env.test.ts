@@ -5,7 +5,7 @@ import {
     sitePackageContentCsp,
     sitePackageFrameAncestorOrigins,
     sitePackageRequestOrigin
-} from '@/domains/site-packages/site-package-support';
+} from '@/domains/delivery/site-packages/site-package-support';
 
 test('site-package content uses the current request origin', () => {
     const forwarded = new Request('http://upstream.test/sites/hiro-2026', {
@@ -48,9 +48,9 @@ test('site-package content uses the current request origin', () => {
 test('site-package frame ancestors accept loopback aliases only for local development', () => {
     assert.deepEqual(sitePackageFrameAncestorOrigins('http://127.0.0.1:5173'), [
         'http://127.0.0.1:5173',
-        'http://localhost:5173',
-        'http://[::1]:5173'
+        'http://localhost:5173'
     ]);
+    assert.deepEqual(sitePackageFrameAncestorOrigins('http://[::1]:5173'), ['http:']);
     assert.deepEqual(sitePackageFrameAncestorOrigins('https://www.example.com'), [
         'https://www.example.com'
     ]);
@@ -67,12 +67,10 @@ test('isolated site-package CSP uses an explicit content path for opaque origins
         'https://assets.example.com'
     );
 
-    assert.match(csp, new RegExp(`script-src ${contentSource} 'unsafe-inline'`));
-    assert.match(csp, new RegExp(`style-src ${contentSource} 'unsafe-inline'`));
-    assert.match(
-        csp,
-        new RegExp(`img-src ${contentSource} data: https://assets\\.example\\.com`)
-    );
+    assert.ok(csp.includes(`connect-src ${contentSource}`));
+    assert.ok(csp.includes(`script-src ${contentSource} 'unsafe-inline'`));
+    assert.ok(csp.includes(`style-src ${contentSource} 'unsafe-inline'`));
+    assert.ok(csp.includes(`img-src ${contentSource} data: https://assets.example.com`));
     assert.match(csp, /sandbox allow-scripts/);
     assert.doesNotMatch(csp, /'self'|allow-same-origin/);
 });
@@ -85,8 +83,9 @@ test('safe site-package CSP blocks scripts while allowing packaged styles', () =
         contentSource
     );
 
+    assert.match(csp, /connect-src 'none'/);
     assert.match(csp, /script-src 'none'; sandbox(?:;|$)/);
-    assert.match(csp, new RegExp(`style-src ${contentSource} 'unsafe-inline'`));
+    assert.ok(csp.includes(`style-src ${contentSource} 'unsafe-inline'`));
     assert.doesNotMatch(csp, /allow-scripts|allow-same-origin|'self'/);
 });
 

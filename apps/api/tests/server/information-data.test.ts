@@ -5,7 +5,7 @@ import {
     informationCardSummary,
     parseInformationIndex,
     serializeInformationIndex
-} from '@/domains/information/data';
+} from '@/domains/content/information/data';
 
 test('information index defaults empty and strips HTML from public summaries', () => {
     const index = defaultInformationIndex();

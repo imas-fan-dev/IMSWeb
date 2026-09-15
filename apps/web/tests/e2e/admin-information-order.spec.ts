@@ -1,108 +1,129 @@
-import { expect, test } from "@playwright/test"
+import type {
+  AdminEditorialSpotlight,
+  EditorialArticleList,
+} from "@imsweb/contracts/editorial"
+import { expect, test } from "./fixtures/test"
 
-const informationCards = [
-  {
-    id: "information-first",
-    category: "activity",
-    contentType: "external",
-    image: "/brand/series/wall/765pro.webp",
-    link: "https://example.test/first",
-    title: "活动资讯第一项",
-    updatedAt: "2026-07-31T00:00:00.000Z",
-  },
-  {
-    id: "information-second",
-    category: "fan",
-    contentType: "external",
-    image: "/brand/series/wall/cinderella-girls.webp",
-    link: "https://example.test/second",
-    title: "同人活动第二项",
-    updatedAt: "2026-07-31T00:00:00.000Z",
-  },
-]
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import {
+  installAdminEditorialMock,
+  type AdminSpotlightSelection,
+} from "./fixtures/admin-editorial"
 
-test("admin reorders activity information with the drag handle", async ({
-  context,
-  page,
-}) => {
-  let orderedCards = informationCards
-  let submittedOrder: string[] | undefined
-
-  await context.addCookies([
+const posts = {
+  items: [
     {
-      name: "csrf_token",
-      value: "information-order-e2e",
-      domain: "127.0.0.1",
-      path: "/",
+      id: 41,
+      title: "活动资讯第一项",
+      summary: "活动资讯摘要。",
+      cover_url: "/brand/series/wall/765pro.webp",
+      cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+      body_html: "",
+      status: "published",
+      revision: 1,
+      related_links: [],
+      kind: "event",
     },
-  ])
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "information-operator",
-          producername: "活动运营",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+    {
+      id: 42,
+      title: "同人活动第二项",
+      summary: "同人活动摘要。",
+      cover_url: "/brand/series/wall/cinderella-girls.webp",
+      cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+      body_html: "",
+      status: "published",
+      revision: 1,
+      related_links: [],
+      kind: "event",
+    },
+  ],
+} satisfies EditorialArticleList
+
+let spotlight = {
+  items: [
+    {
+      post_id: 41,
+      category: "activity",
+      sort_order: 0,
+      title: "活动资讯第一项",
+      status: "published",
+      image_url: "/brand/series/wall/765pro.webp",
+      kind: "event",
+      cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+    },
+    {
+      post_id: 42,
+      category: "fan",
+      sort_order: 1,
+      title: "同人活动第二项",
+      status: "published",
+      image_url: "/brand/series/wall/cinderella-girls.webp",
+      kind: "event",
+      cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+    },
+  ],
+} satisfies AdminEditorialSpotlight
+
+function applySpotlightOrder(items: AdminSpotlightSelection[]) {
+  const byId = new Map(spotlight.items.map((entry) => [entry.post_id, entry]))
+  spotlight = {
+    items: items.map((item, index) => ({
+      ...byId.get(Number(item.postId))!,
+      category: item.category,
+      sort_order: index,
+    })),
+  }
+}
+
+test.beforeEach(() => {
+  spotlight = {
+    items: spotlight.items
+      .slice()
+      .sort((left, right) => left.post_id - right.post_id)
+      .map((entry, index) => ({ ...entry, sort_order: index })),
+  }
+})
+
+test("admin reorders homepage spotlight entries", async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
+    csrfToken: "information-order-e2e",
+    user: {
+      username: "information-operator",
+      producername: "活动运营",
+    },
   })
-  await page.route("**/api/admin/information**", async (route) => {
-    const request = route.request()
-    const pathname = new URL(request.url()).pathname
-
-    if (
-      request.method() === "PUT" &&
-      pathname === "/api/admin/information/order"
-    ) {
-      const body = request.postDataJSON() as { ids: string[] }
-      submittedOrder = body.ids
-      const byId = new Map(orderedCards.map((card) => [card.id, card]))
-      orderedCards = body.ids.map((id) => byId.get(id)!)
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      })
-      return
-    }
-
-    if (request.method() === "GET" && pathname === "/api/admin/information") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ version: 1, cards: orderedCards, assets: [] }),
-      })
-      return
-    }
-
-    await route.abort()
+  const editorial = await installAdminEditorialMock(api, {
+    posts: posts.items,
+    getSpotlight: () => spotlight.items,
+    onReplaceSpotlight: applySpotlightOrder,
+    postsTimes: 2,
+    spotlightTimes: 2,
   })
 
-  await page.goto("/admin/information")
+  await page.goto("/admin/events")
+  await page.getByRole("tab", { name: "首页精选" }).click()
 
-  const panel = page.getByRole("region", { name: "已发布活动内容" })
-  await expect(panel.getByRole("article")).toHaveCount(2)
+  const panel = page.getByRole("region", { name: "首页精选顺序" })
+  await expect(panel.getByText("活动资讯第一项", { exact: true })).toBeVisible()
+  await expect(panel.getByText("同人活动第二项", { exact: true })).toBeVisible()
 
-  const firstHandle = panel.getByRole("button", {
-    name: "拖动排序：活动资讯第一项",
-  })
-  await firstHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
+  await panel.getByRole("button", { name: "下移" }).first().click()
+  const titles = panel.locator("p.font-medium")
+  await expect(titles).toHaveText(["同人活动第二项", "活动资讯第一项"])
 
+  await panel.getByRole("button", { name: "保存精选" }).click()
   await expect
-    .poll(() => submittedOrder)
-    .toEqual(["information-second", "information-first"])
-  await expect(panel.locator("article h3")).toHaveText([
-    "同人活动第二项",
-    "活动资讯第一项",
-  ])
+    .poll(() => editorial.replacements.at(-1))
+    .toEqual({
+      items: [
+        { postId: 42, category: "fan" },
+        { postId: 41, category: "activity" },
+      ],
+      csrfToken: "information-order-e2e",
+    })
+  await expect(titles).toHaveText(["同人活动第二项", "活动资讯第一项"])
 
   const hasHorizontalOverflow = await page.evaluate(
     () =>

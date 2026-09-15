@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
     buildInformationHtmlDocument,
     INFORMATION_DOCUMENT_CSP
-} from '@/domains/information/information-html-document';
+} from '@/domains/content/information/information-html-document';
 
 test('information HTML documents escape metadata and keep managed body markup', () => {
     const document = buildInformationHtmlDocument(

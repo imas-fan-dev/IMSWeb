@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+    healthLiveResponseSchema,
+    healthReadySuccessResponseSchema,
+    healthReadyUnavailableResponseSchema
+} from '@imsweb/contracts/system';
 import { createHonoApp } from '@/app';
 
 test('request IDs, health probes, and structured request logs stay correlated', async (t) => {
@@ -35,13 +40,24 @@ test('request IDs, health probes, and structured request logs stay correlated', 
     });
     assert.equal(live.status, 200);
     assert.equal(live.headers.get('X-Request-Id'), 'trace-live-1');
+    const liveBody = await live.json();
+    assert.deepEqual(healthLiveResponseSchema.parse(liveBody), liveBody);
 
     const readiness = await app.request('/api/health/ready');
     assert.equal(readiness.status, 200);
+    const readinessBody = await readiness.json();
+    assert.deepEqual(
+        healthReadySuccessResponseSchema.parse(readinessBody),
+        readinessBody
+    );
     ready = false;
     const unavailable = await app.request('/api/health/ready');
     assert.equal(unavailable.status, 503);
-    assert.deepEqual(await unavailable.json(), { status: 'unavailable' });
+    const unavailableBody = await unavailable.json();
+    assert.deepEqual(
+        healthReadyUnavailableResponseSchema.parse(unavailableBody),
+        unavailableBody
+    );
 
     const failed = await app.request('/api/test/failure', {
         headers: { 'X-Request-Id': 'trace-error-1' }
@@ -70,7 +86,11 @@ test('request IDs, health probes, and structured request logs stay correlated', 
     }, { requestLogging: true });
     const initializationUnavailable = await initializationFailure.request('/api/health/ready');
     assert.equal(initializationUnavailable.status, 503);
-    assert.deepEqual(await initializationUnavailable.json(), { status: 'unavailable' });
+    const initializationUnavailableBody = await initializationUnavailable.json();
+    assert.deepEqual(
+        healthReadyUnavailableResponseSchema.parse(initializationUnavailableBody),
+        initializationUnavailableBody
+    );
     assert.ok(warnings.some((entry) => {
         const parsed = JSON.parse(entry) as Record<string, unknown>;
         return parsed.event === 'health_readiness_failed' &&

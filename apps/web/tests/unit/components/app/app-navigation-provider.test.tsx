@@ -1,0 +1,545 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  type ReactNode,
+} from "react"
+import {
+  createBrowserRouter,
+  createMemoryRouter,
+  MemoryRouter,
+  RouterProvider,
+  useLocation,
+} from "react-router"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import {
+  AppNavigationProvider,
+  useAppNavigation,
+} from "~/components/app/app-navigation-provider"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+
+const mocks = vi.hoisted(() => ({
+  restore: vi.fn(),
+  top: vi.fn(),
+  status: "anonymous",
+  session: null as { account: { id: string } } | null,
+}))
+const SessionContext = createContext<Pick<typeof mocks, "status" | "session">>({
+  status: "anonymous",
+  session: null,
+})
+vi.mock("~/components/platform/platform-session-provider", () => ({
+  usePlatformSession: () => useContext(SessionContext),
+}))
+vi.mock("~/lib/app-shell-scroll", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/app-shell-scroll")>()),
+  beginAppScrollRestoration: mocks.restore,
+  scrollAppViewToTop: mocks.top,
+}))
+
+function Probe() {
+  const location = useLocation()
+  const { activateTab, goBack } = useAppNavigation()
+  // Model document clamping before the parent's route-commit effect.
+  useLayoutEffect(() => {
+    window.scrollY = 0
+  }, [location.key])
+  return (
+    <>
+      <output data-testid="location">
+        {location.pathname}
+        {location.search}
+        {location.hash}
+      </output>
+      <output data-testid="key">{location.key}</output>
+      <button onClick={() => activateTab("community")}>社区</button>
+      <button onClick={() => activateTab("map")}>交换地图</button>
+      <button onClick={() => activateTab("resources")}>资料</button>
+      <button onClick={() => activateTab("account")}>我的</button>
+      <button onClick={goBack}>返回</button>
+      <NavigationLink to="/works/example?edition=2#intro">
+        作品详情
+      </NavigationLink>
+      <NavigationLink to="/community/exchange/offices/tokyo?view=members#team">
+        事务所详情
+      </NavigationLink>
+    </>
+  )
+}
+
+function SessionHarness({ children }: { children: ReactNode }) {
+  return (
+    <SessionContext.Provider
+      value={{ status: mocks.status, session: mocks.session }}
+    >
+      {children}
+    </SessionContext.Provider>
+  )
+}
+
+function Tree({
+  entries = ["/community/cards?page=2&size=12#card-13"],
+}: {
+  entries?: string[]
+}) {
+  return (
+    <SessionHarness>
+      <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
+        <AppNavigationProvider>
+          <Probe />
+        </AppNavigationProvider>
+      </MemoryRouter>
+    </SessionHarness>
+  )
+}
+
+function readAt(top: number) {
+  act(() => {
+    window.scrollY = top
+    window.dispatchEvent(new Event("scroll"))
+  })
+}
+
+describe("App navigation coordination", () => {
+  beforeEach(() => {
+    mocks.status = "anonymous"
+    mocks.session = null
+    mocks.restore.mockReset().mockImplementation(() => vi.fn())
+    mocks.top.mockReset()
+  })
+  afterEach(() => {
+    window.scrollY = 0
+  })
+
+  it("restores the full last URL and source position before document replacement", async () => {
+    const user = userEvent.setup()
+    render(<Tree />)
+    readAt(812)
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
+    await user.click(screen.getByRole("button", { name: "社区" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/community/cards?page=2&size=12#card-13"
+    )
+    expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
+  })
+
+  it("keeps map root parameters without scrolling or adding history on reselection", async () => {
+    const user = userEvent.setup()
+    const href = "/community/exchange?series=765#office-tokyo"
+    render(<Tree entries={[href]} />)
+    const key = screen.getByTestId("key").textContent
+    await user.click(screen.getByRole("button", { name: "交换地图" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(href)
+    expect(screen.getByTestId("key")).toHaveTextContent(key!)
+    expect(mocks.top).not.toHaveBeenCalled()
+    expect(mocks.restore).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    const restores = mocks.restore.mock.calls.length
+    await user.click(screen.getByRole("button", { name: "交换地图" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(href)
+    expect(mocks.restore).toHaveBeenCalledTimes(restores)
+  })
+
+  it("keeps public office reading separate from Community and reselects the map root", async () => {
+    const user = userEvent.setup()
+    render(<Tree />)
+    readAt(812)
+    await user.click(screen.getByRole("link", { name: "事务所详情" }))
+    readAt(430)
+    await user.click(screen.getByRole("button", { name: "社区" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/community/cards?page=2&size=12#card-13"
+    )
+    expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
+    await user.click(screen.getByRole("button", { name: "交换地图" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/community/exchange/offices/tokyo?view=members#team"
+    )
+    expect(mocks.restore).toHaveBeenLastCalledWith(430, expect.any(Object))
+    await user.click(screen.getByRole("button", { name: "交换地图" }))
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/community/exchange"
+    )
+  })
+
+  it("records ordinary resource links and reselects root without pushing history", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/apps"]} />)
+    await user.click(screen.getByRole("link", { name: "作品详情" }))
+    readAt(400)
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    await user.click(screen.getByRole("button", { name: "资料" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/works/example?edition=2#intro"
+    )
+    expect(mocks.restore).toHaveBeenLastCalledWith(400, expect.any(Object))
+    await user.click(screen.getByRole("button", { name: "资料" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
+    const key = screen.getByTestId("key").textContent
+    readAt(200)
+    await user.click(screen.getByRole("button", { name: "资料" }))
+    expect(mocks.top).toHaveBeenCalledOnce()
+    expect(screen.getByTestId("key")).toHaveTextContent(key!)
+  })
+
+  it.each([
+    ["/community/cards?page=2", "/community"],
+    ["/community/exchange/offices/tokyo?view=members", "/community/exchange"],
+  ])(
+    "replaces direct entry %s with its root without observed history",
+    async (href, root) => {
+      const user = userEvent.setup()
+      render(<Tree entries={["/about", href]} />)
+      await user.click(screen.getByRole("button", { name: "返回" }))
+      expect(screen.getByTestId("location").textContent).toBe(root)
+      await user.click(screen.getByRole("button", { name: "我的" }))
+      await user.click(screen.getByRole("button", { name: "返回" }))
+      expect(screen.getByTestId("location").textContent).toBe(root)
+    }
+  )
+
+  it("cancels earlier restores and preserves a still-pending reading target", async () => {
+    const user = userEvent.setup()
+    const cancel = vi.fn()
+    mocks.restore.mockReturnValue(cancel)
+    render(<Tree />)
+    readAt(812)
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    await user.click(screen.getByRole("button", { name: "社区" }))
+    readAt(100)
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    expect(cancel).toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "社区" }))
+    expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
+  })
+
+  it("retains only the last action when clicks happen before a commit", () => {
+    render(<Tree />)
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "我的" }))
+      fireEvent.click(screen.getByRole("button", { name: "资料" }))
+    })
+    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
+    expect(mocks.restore).toHaveBeenCalledTimes(1)
+    expect(mocks.restore).toHaveBeenCalledWith(0, expect.any(Object))
+  })
+
+  it.each([
+    ["/community/cards?page=2&size=12#card-13", "社区"],
+    ["/community", "社区"],
+    ["/works/example?edition=2#intro", "资料"],
+  ])(
+    "restores %s when a section roundtrip happens before commit",
+    (href, label) => {
+      render(<Tree entries={[href]} />)
+      readAt(812)
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: "我的" }))
+        fireEvent.click(screen.getByRole("button", { name: label }))
+      })
+      expect(screen.getByTestId("location")).toHaveTextContent(href)
+      expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
+      expect(mocks.top).not.toHaveBeenCalled()
+    }
+  )
+
+  it("reselects a pending section after a rapid roundtrip", () => {
+    render(<Tree entries={["/works/example?edition=2#intro"]} />)
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "我的" }))
+      fireEvent.click(screen.getByRole("button", { name: "资料" }))
+      fireEvent.click(screen.getByRole("button", { name: "资料" }))
+    })
+    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
+    expect(mocks.restore).toHaveBeenLastCalledWith(0, expect.any(Object))
+  })
+
+  it("keeps a pending root selection when another tab interrupts it", async () => {
+    render(<Tree entries={["/works/example?edition=2#intro"]} />)
+    readAt(812)
+    act(() => {
+      for (const label of ["我的", "资料", "资料", "我的"]) {
+        fireEvent.click(screen.getByRole("button", { name: label }))
+      }
+    })
+    expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
+    await userEvent.setup().click(screen.getByRole("button", { name: "资料" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
+    expect(mocks.restore).toHaveBeenLastCalledWith(0, expect.any(Object))
+  })
+
+  it("preserves root query and hash when reselecting a pending root", () => {
+    const href = "/apps?group=wiki#catalog"
+    render(<Tree entries={[href]} />)
+    readAt(812)
+    act(() => {
+      for (const label of ["我的", "资料", "资料"]) {
+        fireEvent.click(screen.getByRole("button", { name: label }))
+      }
+    })
+    expect(screen.getByTestId("location")).toHaveTextContent(href)
+    expect(mocks.restore).toHaveBeenLastCalledWith(0, expect.any(Object))
+  })
+
+  it("opens Community at its own root after visiting the fullscreen map", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/community/exchange?city=Tokyo"]} />)
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    mocks.restore.mockClear()
+    await user.click(screen.getByRole("button", { name: "社区" }))
+    expect(screen.getByTestId("location").textContent).toBe("/community")
+    expect(mocks.restore).toHaveBeenCalledTimes(1)
+    expect(mocks.restore).toHaveBeenLastCalledWith(0, expect.any(Object))
+    await user.click(screen.getByRole("button", { name: "交换地图" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/community/exchange?city=Tokyo"
+    )
+    expect(mocks.restore).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ["/account/me/favorites", "anonymous", "/account/me"],
+    ["/account/me/favorites", "authenticated", "/account/me"],
+    [
+      "/about?from=/account/me#help",
+      "anonymous",
+      "/about?from=/account/me#help",
+    ],
+    [
+      "/about?from=/account/me#help",
+      "authenticated",
+      "/about?from=/account/me#help",
+    ],
+  ])(
+    "resolves pending %s when identity becomes %s",
+    async (href, status, expectedHref) => {
+      mocks.status = "authenticated"
+      mocks.session = { account: { id: "1" } }
+      let held = false
+      let release = () => {}
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const router = createMemoryRouter(
+        [
+          {
+            element: (
+              <AppNavigationProvider>
+                <Probe />
+              </AppNavigationProvider>
+            ),
+            hydrateFallbackElement: <></>,
+            children: [
+              { path: "/community", element: <></> },
+              { path: "/account/me", element: <></> },
+              {
+                path: href.split(/[?#]/, 1)[0],
+                element: <></>,
+                loader: async () => {
+                  if (held) await gate
+                  return null
+                },
+              },
+            ],
+          },
+        ],
+        { initialEntries: [href] }
+      )
+      const tree = () => (
+        <SessionHarness>
+          <RouterProvider router={router} />
+        </SessionHarness>
+      )
+      const { rerender } = render(tree())
+      const user = userEvent.setup()
+      try {
+        await screen.findByTestId("location")
+        readAt(500)
+        await user.click(screen.getByRole("button", { name: "社区" }))
+        held = true
+        vi.useFakeTimers()
+        fireEvent.click(screen.getByRole("button", { name: "我的" }))
+        act(() => vi.advanceTimersByTime(3100))
+        vi.useRealTimers()
+        expect(screen.getByTestId("location").textContent).toBe("/community")
+        expect(router.state.navigation.state).toBe("loading")
+        mocks.status = status
+        mocks.session =
+          status === "authenticated" ? { account: { id: "2" } } : null
+        rerender(tree())
+        await act(async () => {
+          held = false
+          release()
+          await Promise.resolve()
+        })
+        await waitFor(() =>
+          expect(screen.getByTestId("location").textContent).toBe(expectedHref)
+        )
+        if (expectedHref === href) {
+          expect(mocks.restore).toHaveBeenLastCalledWith(
+            500,
+            expect.any(Object)
+          )
+        } else {
+          expect(mocks.restore).not.toHaveBeenCalledWith(
+            500,
+            expect.any(Object)
+          )
+        }
+        await user.click(screen.getByRole("button", { name: "返回" }))
+        expect(screen.getByTestId("location").textContent).toBe("/community")
+        await user.click(screen.getByRole("button", { name: "我的" }))
+        await waitFor(() =>
+          expect(screen.getByTestId("location").textContent).toBe(expectedHref)
+        )
+      } finally {
+        vi.useRealTimers()
+        release()
+        router.dispose()
+      }
+    }
+  )
+
+  it.each([
+    {
+      description:
+        "replaces a personal browser commit before React paints an identity change",
+      ordinaryLink: false,
+    },
+    {
+      description:
+        "keeps a newer ordinary navigation during an identity change",
+      ordinaryLink: true,
+    },
+  ])("$description", async ({ ordinaryLink }) => {
+    const previousHref = window.location.href
+    const previousState = window.history.state
+    window.history.replaceState(null, "", "/account/me/favorites")
+    mocks.status = "authenticated"
+    mocks.session = { account: { id: "1" } }
+    const router = createBrowserRouter([
+      {
+        path: "*",
+        element: (
+          <AppNavigationProvider>
+            <Probe />
+          </AppNavigationProvider>
+        ),
+      },
+    ])
+    const tree = () => (
+      <SessionHarness>
+        <RouterProvider router={router} />
+      </SessionHarness>
+    )
+    const { rerender } = render(tree())
+    const user = userEvent.setup()
+    try {
+      readAt(500)
+      await user.click(screen.getByRole("button", { name: "社区" }))
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: "我的" }))
+        expect(window.location.pathname).toBe("/account/me/favorites")
+        if (ordinaryLink) {
+          fireEvent.click(screen.getByRole("link", { name: "作品详情" }))
+          expect(window.location.pathname).toBe("/works/example")
+        }
+        expect(screen.getByTestId("location").textContent).toBe("/community")
+        mocks.status = "anonymous"
+        mocks.session = null
+        rerender(tree())
+      })
+      expect(screen.getByTestId("location").textContent).toBe(
+        ordinaryLink ? "/works/example?edition=2#intro" : "/account/me"
+      )
+      expect(mocks.restore).not.toHaveBeenCalledWith(500, expect.any(Object))
+      if (!ordinaryLink) {
+        await user.click(screen.getByRole("button", { name: "返回" }))
+        await waitFor(() =>
+          expect(screen.getByTestId("location").textContent).toBe("/community")
+        )
+      }
+    } finally {
+      router.dispose()
+      window.history.replaceState(previousState, "", previousHref)
+    }
+  })
+
+  it("cancels personal position restoration when identity changes after commit", async () => {
+    mocks.status = "authenticated"
+    mocks.session = { account: { id: "1" } }
+    const { rerender } = render(<Tree entries={["/account/me/favorites"]} />)
+    const user = userEvent.setup()
+    readAt(500)
+    await user.click(screen.getByRole("button", { name: "社区" }))
+    const cancel = vi.fn()
+    mocks.restore.mockReturnValue(cancel)
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    mocks.status = "anonymous"
+    mocks.session = null
+    rerender(<Tree entries={["/account/me/favorites"]} />)
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ["/community/cards?page=2", "社区", "我的"],
+    ["/about?from=/account/me#help", "我的", "社区"],
+  ])(
+    "keeps public %s reading active when identity changes",
+    async (href, tab, away) => {
+      mocks.status = "authenticated"
+      mocks.session = { account: { id: "1" } }
+      const { rerender } = render(<Tree entries={[href]} />)
+      const user = userEvent.setup()
+      readAt(812)
+      await user.click(screen.getByRole("button", { name: away }))
+      const cancel = vi.fn()
+      mocks.restore.mockReturnValue(cancel)
+      await user.click(screen.getByRole("button", { name: tab }))
+      const calls = mocks.restore.mock.calls.length
+      mocks.status = "anonymous"
+      mocks.session = null
+      rerender(<Tree entries={[href]} />)
+      expect(cancel).not.toHaveBeenCalled()
+      expect(mocks.restore).toHaveBeenCalledTimes(calls)
+      expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
+      await user.click(screen.getByRole("button", { name: away }))
+      await user.click(screen.getByRole("button", { name: tab }))
+      expect(screen.getByTestId("location").textContent).toBe(href)
+      expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
+    }
+  )
+
+  it("does not add another history entry when reselecting a pending root", async () => {
+    render(<Tree entries={["/works/example"]} />)
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "资料" }))
+      fireEvent.click(screen.getByRole("button", { name: "资料" }))
+    })
+    expect(screen.getByTestId("location").textContent).toBe("/apps")
+    await userEvent.setup().click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location").textContent).toBe("/works/example")
+  })
+
+  it("does not recapture an old personal page after the account changes", async () => {
+    mocks.status = "authenticated"
+    mocks.session = { account: { id: "1" } }
+    const user = userEvent.setup()
+    const { rerender } = render(<Tree entries={["/account/me/favorites"]} />)
+    mocks.status = "anonymous"
+    mocks.session = null
+    rerender(<Tree entries={["/account/me/favorites"]} />)
+    readAt(200)
+    await user.click(screen.getByRole("button", { name: "社区" }))
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
+    expect(screen.getByTestId("location")).not.toHaveTextContent("favorites")
+  })
+})

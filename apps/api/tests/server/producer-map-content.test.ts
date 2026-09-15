@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
+import { assertContractJson as assertRawJsonConforms } from '../contracts/contract-json';
 import { test } from 'node:test';
+import {
+    producerMapAdminSnapshotSchema,
+    producerMapAdminUpdateSchema,
+    producerMapContentSchema,
+    producerMapErrorResponseSchema,
+    producerMapImageUploadSchema
+} from '@imsweb/contracts/producer-map';
+import {
+    failureMessageResponseSchema,
+    messageErrorResponseSchema
+} from '@imsweb/contracts/common';
 import { createHonoApp } from '@/app';
-import type { ProducerMapContent } from '@/domains/producer-map/data';
+import type { ProducerMapContent } from '@/domains/content/producer-map/data';
 import { producerMapAssetObjectKey } from '@/utils/storage/business-object-keys';
 import type {
     ListedObject,
@@ -129,7 +141,7 @@ function producerMapContent(): ProducerMapContent {
     };
 }
 
-function fixture() {
+function fixture(dept = 'op') {
     const storage = new MemoryStorage();
     const audit: AuditLogInput[] = [];
     const services: RuntimeServices = {
@@ -140,14 +152,14 @@ function fixture() {
             async insertAuditLog(input) { audit.push(input); },
             async listRecentAuditLogs() { return []; }
         },
-        tokens: {
+        backofficeTokens: {
             async sign() { return 'producer-map-token'; },
             async verify() {
                 return {
                     id: 1,
                     username: 'map-editor',
                     producername: 'Map Producer',
-                    dept: 'op',
+                    dept,
                     csrfSecret: 'producer-map-csrf'
                 };
             }
@@ -171,7 +183,7 @@ test('producer map images are authenticated, audited, and publicly readable', as
         method: 'POST',
         body: unauthorizedForm
     });
-    assert.equal(unauthorized.status, 401);
+    await assertRawJsonConforms(unauthorized, 401, failureMessageResponseSchema);
 
     const form = new FormData();
     form.append(
@@ -184,8 +196,11 @@ test('producer map images are authenticated, audited, and publicly readable', as
         headers: { Authorization: 'Bearer producer-map-token' },
         body: form
     });
-    assert.equal(response.status, 200);
-    const uploaded = await response.json() as { success: true; url: string };
+    const uploaded = await assertRawJsonConforms(
+        response,
+        200,
+        producerMapImageUploadSchema
+    );
     assert.equal(uploaded.success, true);
     assert.match(
         uploaded.url,
@@ -231,9 +246,11 @@ test('producer map media is served from semantic object storage', async () => {
 test('producer map reports unconfigured content without serving defaults', async () => {
     const { request } = fixture();
     const response = await request('/api/producer-map');
-    assert.equal(response.status, 404);
     assert.equal(response.headers.get('cache-control'), 'no-cache');
-    assert.deepEqual(await response.json(), { error: '制作人地图尚未配置' });
+    assert.deepEqual(
+        await assertRawJsonConforms(response, 404, producerMapErrorResponseSchema),
+        { error: '制作人地图尚未配置' }
+    );
 });
 
 test('producer map admin updates are authenticated, audited, and revision guarded', async () => {
@@ -343,4 +360,93 @@ test('producer map rejects unsafe links and duplicate provinces', async () => {
     });
     assert.equal(duplicateResponse.status, 400);
     assert.match((await duplicateResponse.json() as { error: string }).error, /行政区不能重复/);
+});
+
+test('producer map mounted JSON responses preserve shared schemas and project unknown update fields', async () => {
+    const { request } = fixture();
+    const headers = {
+        Authorization: 'Bearer producer-map-token',
+        'Content-Type': 'application/json'
+    };
+
+    await assertRawJsonConforms(
+        await request('/api/admin/producer-map'),
+        401,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await fixture('editor').request('/api/admin/producer-map', { headers }),
+        403,
+        messageErrorResponseSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/producer-map', { headers }),
+        200,
+        producerMapAdminSnapshotSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers: {
+                Cookie: 'ims_admin_access=producer-map-token; ims_admin_csrf=producer-map-csrf',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ content: producerMapContent(), revision: null })
+        }),
+        403,
+        failureMessageResponseSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers,
+            body: '{'
+        }),
+        400,
+        producerMapErrorResponseSchema
+    );
+
+    const content = producerMapContent() as ProducerMapContent & { ignored?: string };
+    content.ignored = 'legacy editor state';
+    const saved = await assertRawJsonConforms(
+        await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+                content,
+                revision: null,
+                ignoredEnvelopeField: true
+            })
+        }),
+        200,
+        producerMapAdminUpdateSchema
+    );
+    assert.equal('ignored' in saved.content, false);
+    await assertRawJsonConforms(
+        await request('/api/producer-map'),
+        200,
+        producerMapContentSchema
+    );
+    await assertRawJsonConforms(
+        await request('/api/admin/producer-map', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ content: producerMapContent(), revision: null })
+        }),
+        409,
+        producerMapErrorResponseSchema
+    );
+
+    const form = new FormData();
+    form.append('ignored-text-field', 'ignored');
+    form.append('image', new Blob([Uint8Array.of(7)], { type: 'image/png' }), 'proof.png');
+    await assertRawJsonConforms(
+        await request('/api/admin/producer-map/images', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer producer-map-token' },
+            body: form
+        }),
+        200,
+        producerMapImageUploadSchema
+    );
 });

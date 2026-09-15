@@ -79,7 +79,7 @@ export function InformationDocumentFrame({
       referrerPolicy="no-referrer"
       onLoad={handleLoad}
       style={{ height }}
-      className="min-h-[60svh] w-full rounded-md border bg-background"
+      className="min-h-[60svh] w-full max-w-full min-w-0 rounded-md border bg-background"
     />
   )
 }

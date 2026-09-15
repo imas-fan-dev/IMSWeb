@@ -8,7 +8,7 @@ import {
     uploadedPng,
     type WikiFixture
 } from './fixture';
-import { categoryStorageSlug } from '@/domains/wiki/service';
+import { categoryStorageSlug } from '@/domains/content/wiki/service';
 
 const WRITE_ENDPOINTS = [
     { method: 'POST', path: '/api/wiki/add_story' },
@@ -1445,8 +1445,13 @@ describe('Wiki category and card secondary edit contract', () => {
 describe('Wiki destructive revision and audit contract', () => {
     test('whole-card and whole-category deletion require current revisions and audit only success', async () => {
         const cardFixture = createWikiFixture();
+        cardFixture.services.config!.clientAddressSource = 'nginx';
         seedOriginal(cardFixture);
-        const cardHeaders = await cardFixture.authHeaders('editor');
+        const cardHeaders = {
+            ...await cardFixture.authHeaders('editor'),
+            'X-Forwarded-For': '203.0.113.20, 10.0.0.1',
+            'X-Real-IP': '198.51.100.20'
+        };
 
         const missingCardRevision = await postForm(
             cardFixture,
@@ -1490,10 +1495,15 @@ describe('Wiki destructive revision and audit contract', () => {
         assert.equal(cardFixture.story.cards.length, 0);
         assert.equal(cardFixture.auditLogs.length, 1);
         assert.equal(cardFixture.auditLogs[0]?.action, '删除 Wiki 剧情卡片');
+        assert.equal(cardFixture.auditLogs[0]?.ip, 'unknown');
 
         const categoryFixture = createWikiFixture();
+        categoryFixture.services.config!.clientAddressSource = 'nginx';
         seedOriginal(categoryFixture);
-        const categoryHeaders = await categoryFixture.authHeaders('op');
+        const categoryHeaders = {
+            ...await categoryFixture.authHeaders('op'),
+            'X-Forwarded-For': '2001:db8::20'
+        };
         const staleCategory = await postForm(
             categoryFixture,
             '/api/wiki/delete_category',
@@ -1517,5 +1527,6 @@ describe('Wiki destructive revision and audit contract', () => {
         assert.equal(deletedCategory.status, 200);
         assert.equal(categoryFixture.auditLogs.length, 1);
         assert.equal(categoryFixture.auditLogs[0]?.action, '删除 Wiki 分类');
+        assert.equal(categoryFixture.auditLogs[0]?.ip, '2001:db8::20');
     });
 });

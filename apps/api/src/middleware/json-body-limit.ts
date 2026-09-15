@@ -1,3 +1,5 @@
+import { adminApiPath, apiPath, platformAuthPath, wikiPath } from '@imsweb/contracts/paths';
+import type { ErrorResponse } from '@imsweb/contracts/common';
 import type { MiddlewareHandler } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { isDynamicBusinessRequest, validatedRequestPath } from '@/middleware/rate-limit';
@@ -20,14 +22,18 @@ function isMultipartContentType(value: string | undefined): boolean {
 function routeParsesJson(method: string, pathname: string): boolean {
     const normalizedMethod = method.toUpperCase();
     if (normalizedMethod === 'POST') {
-        return pathname === '/api/login' ||
-            pathname === '/api/admin/login' ||
-            pathname === '/api/emojis' ||
-            pathname === '/api/reactions' ||
-            pathname === '/api/wiki/parse_bilibili';
+        return pathname === apiPath('/login') ||
+            pathname === adminApiPath('/login') ||
+            pathname === adminApiPath('/auth/login') ||
+            pathname === platformAuthPath('/login') ||
+            pathname === platformAuthPath('/register') ||
+            pathname === platformAuthPath('/register/verification-code') ||
+            pathname === apiPath('/emojis') ||
+            pathname === apiPath('/reactions') ||
+            pathname === wikiPath('/parse_bilibili');
     }
     return normalizedMethod === 'DELETE' &&
-        (pathname === '/api/emojis' || pathname === '/api/reactions');
+        (pathname === apiPath('/emojis') || pathname === apiPath('/reactions'));
 }
 
 function shouldLimitBody(request: Request, pathname: string): boolean {
@@ -40,8 +46,11 @@ function shouldLimitBody(request: Request, pathname: string): boolean {
 }
 
 function tooLarge(maxBytes: number): Response {
+    const body = {
+        error: `JSON body exceeds ${maxBytes} byte limit`,
+    } satisfies ErrorResponse;
     return Response.json(
-        { error: `JSON body exceeds ${maxBytes} byte limit` },
+        body,
         { status: 413 }
     );
 }
@@ -49,7 +58,7 @@ function tooLarge(maxBytes: number): Response {
 function routeBodyMaxBytes(request: Request, pathname: string, fallback: number): number {
     if (
         ['POST', 'PUT'].includes(request.method.toUpperCase()) &&
-        (pathname === '/api/admin/information' || pathname.startsWith('/api/admin/information/'))
+        (pathname === adminApiPath('/information') || pathname.startsWith(adminApiPath('/information/')))
     ) {
         return INFORMATION_JSON_BODY_MAX_BYTES;
     }

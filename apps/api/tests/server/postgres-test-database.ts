@@ -1,115 +1,59 @@
-import crypto from 'node:crypto';
-import { after, type TestContext } from 'node:test';
-import { Pool } from 'pg';
+import { after, test as nodeTest, type TestContext } from 'node:test';
 import {
     PostgresConnection,
     type PostgresConnectionOptions
 } from '@/infra/db/postgresql/connection';
+import {
+    closeSharedPostgresTestAllocator,
+    connectionOptions,
+    getSharedPostgresTestAllocator,
+    postgresIntegrationEnabled,
+    type PostgresTestDatabase
+} from '../postgres-test-lifecycle.js';
 
-interface PostgresMigrationModule {
-    migratePostgres(options: {
-        connectionString: string;
-        migrationsPath?: string;
-    }): Promise<unknown>;
-}
+const allocations = new WeakMap<PostgresConnection, PostgresTestDatabase>();
 
-const { migratePostgres } = require('../../scripts/migration/postgres-migrations.js') as
-    PostgresMigrationModule;
+export const postgresTest: typeof nodeTest = (
+    postgresIntegrationEnabled() ? nodeTest : nodeTest.skip
+) as typeof nodeTest;
 
-const adminUrl = process.env.IMS_TEST_DATABASE_URL ||
-    'postgresql://imsweb:imsweb-local-password@127.0.0.1:5432/postgres';
-const adminPool = new Pool({
-    connectionString: adminUrl,
-    max: 4,
-    application_name: 'imsweb-tests-admin',
-    allowExitOnIdle: true
-});
-const connectionUrls = new WeakMap<PostgresConnection, string>();
-const connectionGroups = new WeakMap<PostgresConnection, Set<PostgresConnection>>();
-const createdDatabases = new Set<string>();
-const templateName = databaseName('template');
-let template: Promise<void> | undefined;
-
-function databaseName(label: string): string {
-    const normalized = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 16);
-    return `ims_test_${normalized}_${process.pid}_${crypto.randomBytes(5).toString('hex')}`;
-}
-
-function quoteIdentifier(value: string): string {
-    if (!/^[a-z][a-z0-9_]{0,62}$/.test(value)) {
-        throw new Error(`Invalid PostgreSQL test database name: ${value}`);
-    }
-    return `"${value}"`;
-}
-
-function urlForDatabase(name: string): string {
-    const url = new URL(adminUrl);
-    url.pathname = `/${name}`;
-    return url.toString();
-}
-
-function connectionOptions(connectionString: string): PostgresConnectionOptions {
-    return {
-        connectionString,
-        maxConnections: 4,
-        idleTimeoutMs: 5_000,
-        connectionTimeoutMs: 5_000,
-        statementTimeoutMs: 30_000,
-        idleInTransactionTimeoutMs: 30_000
-    };
-}
-
-async function ensureTemplate(): Promise<void> {
-    template ??= (async () => {
-        await adminPool.query(`CREATE DATABASE ${quoteIdentifier(templateName)}`);
-        createdDatabases.add(templateName);
-        await migratePostgres({ connectionString: urlForDatabase(templateName) });
-    })();
-    return template;
-}
-
-async function dropDatabase(name: string): Promise<void> {
-    if (!createdDatabases.delete(name)) return;
-    await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(name)} WITH (FORCE)`);
+function createConnection(database: PostgresTestDatabase): PostgresConnection {
+    const options = connectionOptions(database.databaseUrl) as PostgresConnectionOptions;
+    const connection = database.registerConnection(PostgresConnection.create(options));
+    allocations.set(connection, database);
+    return connection;
 }
 
 export async function createPostgresTestDatabase(
     t: TestContext,
     label: string
 ): Promise<PostgresConnection> {
-    await ensureTemplate();
-    const name = databaseName(label);
-    await adminPool.query(
-        `CREATE DATABASE ${quoteIdentifier(name)} TEMPLATE ${quoteIdentifier(templateName)}`
-    );
-    createdDatabases.add(name);
-    const connectionString = urlForDatabase(name);
-    const database = PostgresConnection.create(connectionOptions(connectionString));
-    connectionUrls.set(database, connectionString);
-    connectionGroups.set(database, new Set([database]));
-    t.after(async () => {
-        await Promise.all([...connectionGroups.get(database) ?? []].map((connection) =>
-            connection.close()
-        ));
-        await dropDatabase(name);
-    });
-    return database;
+    const database = await getSharedPostgresTestAllocator().allocate({ label });
+    let connection: PostgresConnection;
+    try {
+        connection = createConnection(database);
+    } catch (error) {
+        try {
+            await database.close();
+        } catch (cleanupError) {
+            throw new AggregateError(
+                [error, cleanupError],
+                'PostgreSQL test connection setup and cleanup both failed'
+            );
+        }
+        throw error;
+    }
+    t.after(() => database.close());
+    return connection;
 }
 
 export function connectPostgresTestDatabase(
     _t: TestContext,
-    database: PostgresConnection
+    connection: PostgresConnection
 ): PostgresConnection {
-    const connectionString = connectionUrls.get(database);
-    if (!connectionString) throw new Error('Unknown PostgreSQL test database');
-    const connection = PostgresConnection.create(connectionOptions(connectionString));
-    connectionGroups.get(database)?.add(connection);
-    return connection;
+    const database = allocations.get(connection);
+    if (!database) throw new Error('Unknown PostgreSQL test database');
+    return createConnection(database);
 }
 
-after(async () => {
-    for (const name of [...createdDatabases].reverse()) {
-        await dropDatabase(name);
-    }
-    await adminPool.end();
-});
+after(() => closeSharedPostgresTestAllocator());

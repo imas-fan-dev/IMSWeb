@@ -1,8 +1,9 @@
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
-import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
+import { NativeTabBarSuppression } from "~/components/ui/native-tab-bar-suppression"
+import { cn } from "~/lib/utils"
 import { XIcon } from "lucide-react"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -42,19 +43,30 @@ function DialogContent({
   children,
   showCloseButton = true,
   overlayClassName,
+  safeArea = "inset",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   overlayClassName?: string
+  safeArea?: "custom" | "inset" | "viewport"
 }) {
   return (
     <DialogPortal>
+      <NativeTabBarSuppression />
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        data-safe-area={safeArea}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
+          "glass-surface glass-panel fixed z-50 grid gap-4 rounded-xl p-4 text-sm text-popover-foreground duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          safeArea === "inset" &&
+            "top-1/2 left-1/2 max-h-(--overlay-safe-height) w-(--overlay-safe-width) max-w-full -translate-1/2 overflow-y-auto overscroll-contain sm:max-w-sm",
+          className,
+          safeArea === "inset"
+            ? "top-1/2 left-1/2 max-h-(--overlay-safe-height) w-(--overlay-safe-width) -translate-1/2"
+            : safeArea === "viewport"
+              ? "inset-0 h-dvh max-h-none w-screen max-w-none translate-0"
+              : undefined
         )}
         {...props}
       >
@@ -101,7 +113,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/40 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

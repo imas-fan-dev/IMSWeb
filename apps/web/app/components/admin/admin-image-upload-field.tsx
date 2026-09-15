@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next"
 
 import { AdminFileUploadField } from "./admin-file-upload-field"
 
-const adminImageAccept = "image/png,image/jpeg,image/webp,image/avif"
+const adminImageAccept =
+  "image/png,image/jpeg,image/webp,image/avif,image/heic,image/heif"
 
 export function AdminImageUploadField({
   id,

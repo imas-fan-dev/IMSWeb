@@ -1,4 +1,9 @@
-import { expect, test } from "@playwright/test"
+import type { Locator, Page } from "@playwright/test"
+
+import { api, expect, test } from "./fixtures/test"
+
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const content = {
   version: 1,
@@ -63,29 +68,74 @@ const content = {
   updatedAt: null,
 }
 
-test.beforeEach(async ({ context, page }) => {
-  await context.addCookies([
-    {
-      name: "csrf_token",
-      value: "about-avatar-e2e",
-      domain: "127.0.0.1",
-      path: "/",
-    },
+async function moveDownWithKeyboard(
+  page: Page,
+  handle: Locator,
+  orderedHandles: Locator,
+  expectedLabels: string[]
+) {
+  const activeLabel = await handle.getAttribute("aria-label")
+  const handles = await orderedHandles.all()
+  const activeIndex = (
+    await Promise.all(
+      handles.map((candidate) => candidate.getAttribute("aria-label"))
+    )
+  ).indexOf(activeLabel)
+  const [activeBox, targetBox] = await Promise.all([
+    handles[activeIndex]?.boundingBox(),
+    handles[activeIndex + 1]?.boundingBox(),
   ])
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "about-editor",
-          producername: "关于页编辑",
-          dept: "op",
-          adminRole: "admin",
-        },
-      }),
-    })
+  if (!activeBox || !targetBox) {
+    throw new Error(`Cannot move ${activeLabel ?? "unknown drag handle"} down`)
+  }
+  const targetDistance = Math.abs(targetBox.y - activeBox.y)
+
+  await handle.focus()
+  await page.keyboard.press("Space")
+  await expect(handle).toHaveAttribute("aria-pressed", "true")
+  await page.keyboard.press("ArrowDown")
+  await expect
+    .poll(() =>
+      handle.evaluate((element) => {
+        const row = element.closest<HTMLElement>("div.grid")
+        if (!row) return 0
+        const transform = getComputedStyle(row).transform
+        return transform === "none" ? 0 : Math.abs(new DOMMatrix(transform).m42)
+      })
+    )
+    .toBeGreaterThanOrEqual(targetDistance * 0.8)
+  await expect
+    .poll(() =>
+      handle.evaluate((element) => {
+        const row = element.closest<HTMLElement>("div.grid")
+        return (
+          row
+            ?.getAnimations({ subtree: false })
+            .every((animation) =>
+              ["finished", "idle"].includes(animation.playState)
+            ) ?? false
+        )
+      })
+    )
+    .toBe(true)
+  await page.keyboard.press("Space")
+  await expect
+    .poll(() =>
+      orderedHandles.evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute("aria-label"))
+      )
+    )
+    .toEqual(expectedLabels)
+}
+
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
+    csrfToken: "about-avatar-e2e",
+    user: {
+      username: "about-editor",
+      producername: "关于页编辑",
+    },
   })
   await page.route("**/uploads/about/member-avatars/*", async (route) => {
     await route.fulfill({
@@ -110,18 +160,33 @@ test("roster sorting and scoped avatar edits stay in the draft until page save",
   page.on("pageerror", (error) => browserErrors.push(error.message))
   const savedState: { groups: typeof content.groups | null } = { groups: null }
   const readSavedGroups = () => savedState.groups
-  await page.route("**/api/admin/about/member-avatar", async (route) => {
-    expect(route.request().headers()["x-csrftoken"]).toBe("about-avatar-e2e")
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        url: "/uploads/about/member-avatars/producer-a.webp",
-      }),
-    })
-  })
-  await page.route("**/api/admin/about", async (route) => {
-    if (route.request().method() === "PUT") {
+  await api.mockRoute(
+    "**/api/admin/about/member-avatar",
+    async (route) => {
+      expect(route.request().headers()["x-csrftoken"]).toBe("about-avatar-e2e")
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          url: "/uploads/about/member-avatars/producer-a.webp",
+        }),
+      })
+    },
+    "POST"
+  )
+  await api.mockRoute(
+    "**/api/admin/about",
+    async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ content, revision: '"revision-1"' }),
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/admin/about",
+    async (route) => {
       const requestBody = route.request().postDataJSON()
       savedState.groups = requestBody.content.groups
       await route.fulfill({
@@ -135,13 +200,9 @@ test("roster sorting and scoped avatar edits stay in the draft until page save",
           revision: '"revision-2"',
         }),
       })
-      return
-    }
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ content, revision: '"revision-1"' }),
-    })
-  })
+    },
+    "PUT"
+  )
 
   await page.goto("/admin/about")
   await expect(page.getByRole("heading", { name: "关于页配置" })).toBeVisible()
@@ -155,23 +216,23 @@ test("roster sorting and scoped avatar edits stay in the draft until page save",
   const groupHandle = page.getByRole("button", {
     name: "拖动排序：创始人",
   })
-  await groupHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
+  await moveDownWithKeyboard(
+    page,
+    groupHandle,
+    page.getByRole("button", { name: /^拖动排序：(创始人|维护组)$/ }),
+    ["拖动排序：维护组", "拖动排序：创始人"]
+  )
 
   const memberHandle = page.getByRole("button", {
     name: "拖动排序：制作人A",
     exact: true,
   })
-  await memberHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
+  await moveDownWithKeyboard(
+    page,
+    memberHandle,
+    page.getByRole("button", { name: /^拖动排序：制作人A2?$/ }),
+    ["拖动排序：制作人A2", "拖动排序：制作人A"]
+  )
 
   await page
     .getByRole("button", { name: "编辑成员 制作人A", exact: true })

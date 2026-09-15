@@ -1,5 +1,5 @@
+import { postgresTest as test } from './postgres-test-database';
 import assert from 'node:assert/strict';
-import test from 'node:test';
 import { PostgresqlObjectDeletionWorker } from '@/infra/db/postgresql/object-deletion-worker';
 import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
 import type { ObjectStorage } from '@/ports/object-storage';

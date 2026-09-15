@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { I18nextProvider } from "react-i18next"
 import type { ReactNode } from "react"
 import { toast } from "sonner"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { i18n } from "~/i18n/config"
 import { defaultLanguage, defaultNamespace } from "~/i18n/resources"
@@ -14,6 +14,10 @@ import {
   type WikiAdminGroup,
   type WikiAdminIdol,
 } from "~/lib/api"
+import type {
+  WikiAgencyMutationResult,
+  WikiIdolMutationResult,
+} from "@imsweb/contracts/wiki"
 
 function requestDetails(call: unknown[]) {
   const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
@@ -38,12 +42,7 @@ function TestI18nProvider({ children }: { children: ReactNode }) {
 describe("WikiEntityEditorDialog", () => {
   beforeEach(async () => {
     await i18n.changeLanguage(defaultLanguage)
-    document.cookie = "csrf_token=wiki-entity-editor-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
+    document.cookie = "ims_admin_csrf=wiki-entity-editor-test; path=/"
   })
 
   it("closes and refreshes after entity save succeeds but media save fails", async () => {
@@ -53,7 +52,22 @@ describe("WikiEntityEditorDialog", () => {
       if (path === "/api/admin/wiki/agencies" && request.method === "POST") {
         return Promise.resolve(
           Response.json(
-            { status: "success", agency: { id: 9 } },
+            {
+              status: "success",
+              agency: {
+                id: 9,
+                code: "vproject",
+                name: "Virtual Project",
+                color: "#8dbbff",
+                wikiEnabled: true,
+                bannerTitle: "Virtual Project",
+                displayOrder: 0,
+                layoutRevision: 0,
+                iconUrl: null,
+                imageTransform: defaultWikiImageTransform,
+                mediaRevision: 0,
+              },
+            } satisfies WikiAgencyMutationResult,
             { status: 201 }
           )
         )
@@ -136,11 +150,32 @@ describe("WikiEntityEditorDialog", () => {
   })
 
   it("submits a story content page with its story subtype", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        Response.json({ status: "success", idol: { id: 42 } }, { status: 201 })
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          status: "success",
+          idol: {
+            id: 42,
+            agencyId: 6,
+            name: "周年活动",
+            folderName: "anniversary_event",
+            color: null,
+            wikiUrl: "https://wiki.example.test/events/anniversary",
+            wikiEnabled: true,
+            displayOrder: 0,
+            textColor: "#ffffff",
+            imageFit: "cover",
+            groupIds: [],
+            imageUrl: "",
+            imageTransform: defaultWikiImageTransform,
+            mediaRevision: 0,
+            entryKind: "story",
+            entrySubtype: "event",
+          },
+        } satisfies WikiIdolMutationResult,
+        { status: 201 }
       )
+    )
     vi.stubGlobal("fetch", fetchMock)
     const agency: WikiAdminAgency = {
       id: 6,

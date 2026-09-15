@@ -1,7 +1,7 @@
 # @imsweb/api
 
-IMSWeb 后端已迁移为 TypeScript + Hono。当前唯一运行入口是 Hono Node，活动运行时统一使用
-PostgreSQL 与 RustFS/S3，并提供 Sharp 和流式 multipart，监听 `127.0.0.1:3000`。
+IMSWeb 后端已迁移为 TypeScript + Hono。Node 运行时包含监听 `127.0.0.1:3000` 的 Hono API
+和独立邮件 Worker。两者共用 PostgreSQL；API 还使用 RustFS/S3、Sharp 和流式 multipart。
 filesystem 对象存储适配器只用于显式的本地开发环境。
 
 原 Express 与 Flask 路由均由 Hono 实现；Flask、Jinja、Gunicorn 和 uWSGI 不属于公开仓库
@@ -46,6 +46,10 @@ infra/security/  bcrypt、bcryptjs、hmac
 `infra/db/sql`，共享仓储实现属于 `infra/db/repositories`，
 具体中间件实现不得进入 `utils`。
 
+Domain 内部按业务能力组织的目录、命名和渐进迁移规则见
+[Domain 能力分层与编写结构](../../docs/architecture/domain-capabilities.md)，当前能力导航见
+[`src/domains/README.md`](src/domains/README.md)。
+
 ## 本地验证
 
 JavaScript 工具链要求 Node.js `>=22.13.0`，包管理器固定为 pnpm `11.10.0`。
@@ -61,7 +65,9 @@ pnpm run test
 
 `pnpm run check` 会验证 Node 类型、Hono 架构边界和 Web 客户端 manifest。
 `pnpm run test` 还会运行 Node、Wiki DOM/CRUD、资源和仓库级部署契约；Hono
-不需要 Python Web 依赖。
+不需要 Python Web 依赖。API test owner 只构建一次 server artifact。Root test 在同一个
+runner 进程中完成 delivery build 后继续执行不再构建的 API 阶段，同时保留 syntax 和
+architecture checks；该阶段不能作为独立命令使用旧 artifact。
 
 ## 启动
 
@@ -71,22 +77,24 @@ pnpm run test
 pnpm dev
 ```
 
-该入口会启动并等待 PostgreSQL/RustFS、幂等迁移 schema，再同时启动 API 与 Web 热更新进程；
-它会禁用 `apps/api/.env` 并注入完整的隔离本地配置。API 默认监听
-`http://127.0.0.1:3000`。需要只调试 API 时，可按 [`.env.example`](.env.example)
-配置 `apps/api/.env`，手动启动依赖和 migration 后运行 `pnpm run dev:node`；API 会自动读取并
-监听该文件，已有 shell 环境变量优先。
+该入口会启动并等待 PostgreSQL、Valkey 和 RustFS，幂等迁移 schema，再依次启动 API、邮件
+Worker 与 Web 热更新进程；它会禁用 `apps/api/.env` 并注入完整的隔离本地配置。API 默认监听
+`http://127.0.0.1:3000`，Worker 健康检查默认监听 `http://127.0.0.1:3001`。需要只调试 API
+时，可按 [`.env.example`](.env.example) 配置 `apps/api/.env`，手动启动依赖和 migration 后
+运行 `pnpm run dev:node`；需要同时调试邮件投递时，另行运行 `pnpm run dev:email-worker`。
 
-构建后运行：
+构建后分别运行 API 或邮件 Worker：
 
 ```sh
 pnpm run build
 pnpm run start
+pnpm run start:email-worker
 ```
 
-生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度 `IMS_JWT_SECRET`。管理员登录使用
-15 分钟 access JWT 与可轮换、可撤销的 30 天 refresh token；发布前必须应用最新 PostgreSQL
-迁移。数据库导入、媒体迁移和部署配置分别见下方专项文档。
+生产环境必须在 `apps/api/.env` 或进程管理器中设置高强度
+`IMS_BACKOFFICE_JWT_SECRET`。管理员登录使用 15 分钟 access JWT 与可轮换、可撤销的 30 天
+refresh token；旧 `IMS_JWT_SECRET` 只用于 Backoffice 滚动兼容和代码回滚。发布前必须应用
+最新 PostgreSQL 迁移。数据库导入、媒体迁移和部署配置分别见下方专项文档。
 
 ## 静态资源
 
@@ -96,8 +104,9 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 
 ## 部署入口
 
-`deploy/compose.yaml` 可以构建并启动 Hono API、本地 PostgreSQL 和 RustFS，但不提供反向代理
-或 TLS。API 镜像包含 Web 发布物，Compose 启动时会先幂等应用 PostgreSQL migrations。由外部
+`deploy/compose.yaml` 可以构建并启动 Hono API、独立邮件 Worker、本地 PostgreSQL、Valkey 和
+RustFS，但不提供反向代理或 TLS。API 与 Worker 使用同一镜像；发布流程先应用 PostgreSQL
+migrations，再启动并验证 Worker，最后启动 API。由外部
 受信 Nginx 接入时，将 `IMS_CLIENT_ADDRESS_SOURCE=nginx` 注入 Hono，并确保入口覆盖客户端
 提供的转发头。直接访问 Hono 时保留默认 `direct`，不要信任代理头。
 
@@ -105,9 +114,10 @@ Node 发布集合由 `@imsweb/web` 的生产构建生成，并通过
 
 ## 文档
 
-- [数据库配置](../../docs/database-configuration.md)
-- [Node 文件对象存储](../../docs/object-storage.md)
-- [部署、备份与回滚](../../docs/operations-runbook.md)
+- [数据库配置](../../docs/operations/database-configuration.md)
+- [缓存架构与 Valkey](../../docs/architecture/cache.md)
+- [Node 文件对象存储](../../docs/architecture/object-storage.md)
+- [部署、备份与回滚](../../docs/operations/runbook.md)
 - [本地依赖服务](../../deploy/README.md)
 - [Hono 操作脚本](scripts/README.md)
 

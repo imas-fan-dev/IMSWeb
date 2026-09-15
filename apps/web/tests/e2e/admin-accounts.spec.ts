@@ -1,44 +1,44 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 
-test.beforeEach(async ({ page }) => {
-  await page.route("**/api/check", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        user: {
-          id: 1,
-          username: "super-operator",
-          producername: "Super Operator",
-          dept: "op",
-          adminRole: "super_admin",
-        },
-      }),
-    })
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+
+test.beforeEach(async ({ page, api }) => {
+  installEmptyWikiCatalogMock(api)
+  await installAdminAuthMock(page, api, {
+    user: {
+      username: "super-operator",
+      producername: "Super Operator",
+      adminRole: "super_admin",
+    },
   })
-  await page.route("**/api/admin/accounts", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        success: true,
-        accounts: [
-          {
-            id: 1,
-            username: "super-operator",
-            producername: "Super Operator",
-            adminRole: "super_admin",
-          },
-          {
-            id: 2,
-            username: "regular-operator",
-            producername: "Regular Operator",
-            adminRole: "admin",
-          },
-        ],
-      }),
-    })
-  })
+  await api.mockRoute(
+    "**/api/admin/accounts",
+    async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          accounts: [
+            {
+              id: 1,
+              username: "super-operator",
+              producername: "Super Operator",
+              adminRole: "super_admin",
+            },
+            {
+              id: 2,
+              username: "regular-operator",
+              producername: "Regular Operator",
+              adminRole: "admin",
+            },
+          ],
+        }),
+      })
+    },
+    "GET"
+  )
 })
 
 test("super administrator manages accounts without viewport overflow", async ({

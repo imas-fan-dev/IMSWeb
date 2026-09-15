@@ -1,9 +1,9 @@
 import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import type { WikiPublicStories } from "~/lib/api"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 interface ClassicStoryProfileProps {
   stories: WikiPublicStories
@@ -38,23 +38,27 @@ export function ClassicStoryProfile({
         </div>
       </dl>
       <nav className="wiki-classic-story-actions" aria-label="页面操作">
-        <Link
+        <NavigationLink
           to={`/wiki/classic?agency=${encodeURIComponent(stories.agency.name)}`}
         >
           <ArrowLeftIcon />
           返回上一页
-        </Link>
-        <Link
+        </NavigationLink>
+        <NavigationLink
           to={`/story?agency=${encodeURIComponent(stories.agency.name)}&idol=${encodeURIComponent(stories.idol.name)}`}
         >
           <WikiViewSwitchIcon tone="dark" />
           新版视图
-        </Link>
+        </NavigationLink>
         {stories.idol.wikiUrl ? (
-          <a href={stories.idol.wikiUrl} target="_blank" rel="noreferrer">
+          <NavigationLink
+            href={stories.idol.wikiUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
             <ExternalLinkIcon />
             查看 Wiki
-          </a>
+          </NavigationLink>
         ) : null}
       </nav>
     </aside>

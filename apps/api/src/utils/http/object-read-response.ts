@@ -1,16 +1,28 @@
-import type { ObjectStorage } from '@/ports/object-storage';
+import type { ObjectReadTarget, ObjectStorage } from '@/ports/object-storage';
 import { storedObjectResponse } from '@/utils/http/stored-object-response';
+
+interface ObjectReadResponseOptions {
+    mode?: 'redirect' | 'proxy';
+}
 
 export async function objectReadResponse(
     request: Request,
     storage: ObjectStorage,
     key: string,
-    extraHeaders?: HeadersInit
+    extraHeaders?: HeadersInit,
+    options: ObjectReadResponseOptions = {},
 ): Promise<Response | null> {
-    if (storage.createReadUrl) {
-        const target = await storage.createReadUrl(key, {
-            method: request.method === 'HEAD' ? 'HEAD' : 'GET'
-        });
+    if (options.mode !== 'proxy' && storage.createReadUrl) {
+        let target: ObjectReadTarget | null;
+        try {
+            target = await storage.createReadUrl(key, {
+                method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+            });
+        } catch (error) {
+            throw new Error(`Failed to create an object read URL for ${key}`, {
+                cause: error,
+            });
+        }
         if (!target) return null;
         const headers = new Headers(extraHeaders);
         headers.set('Location', target.url);
@@ -22,6 +34,12 @@ export async function objectReadResponse(
         headers.set('Referrer-Policy', 'no-referrer');
         return new Response(null, { status: 307, headers });
     }
-    const object = await storage.get(key);
-    return object ? storedObjectResponse(request, object, extraHeaders) : null;
+    try {
+        const object = await storage.get(key);
+        return object
+            ? storedObjectResponse(request, object, extraHeaders)
+            : null;
+    } catch (error) {
+        throw new Error(`Failed to read object ${key}`, { cause: error });
+    }
 }

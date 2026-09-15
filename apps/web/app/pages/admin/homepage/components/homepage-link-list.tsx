@@ -14,6 +14,7 @@ import type { HomepageLink } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { AdminEmptyState, AdminPanel } from "~/components/admin/admin-ui"
 import { SortableList } from "~/components/admin/sortable-list"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function HomepageLinkRow({
   link,
@@ -42,7 +43,7 @@ function HomepageLinkRow({
             {link.description}
           </p>
         ) : null}
-        <a
+        <NavigationLink
           href={link.href}
           target="_blank"
           rel="noreferrer"
@@ -50,7 +51,7 @@ function HomepageLinkRow({
         >
           <span className="truncate">{link.href}</span>
           <ArrowUpRightIcon className="size-3 shrink-0" aria-hidden="true" />
-        </a>
+        </NavigationLink>
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2">
         <Button

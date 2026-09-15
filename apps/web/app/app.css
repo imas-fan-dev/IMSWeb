@@ -67,8 +67,47 @@
   --radius-4xl: var(--radius);
 }
 
+/*
+ * Motion contract. Four curves, no more. Every transition in the product picks
+ * one of these; ad-hoc cubic-beziers are the main source of motion noise.
+ */
+@theme {
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-interactive: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-ui: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-card: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 :root {
   color-scheme: light;
+  --duration-fast: 140ms;
+  --duration-ui: 240ms;
+  --duration-reveal: 560ms;
+  --duration-hero: 720ms;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-viewport-width: calc(
+    100vw - var(--safe-area-left) - var(--safe-area-right)
+  );
+  --safe-viewport-height: calc(
+    100dvh - var(--safe-area-top) - var(--safe-area-bottom)
+  );
+  --overlay-safe-block-inset: max(
+    calc(1rem + var(--safe-area-top)),
+    calc(1rem + var(--safe-area-bottom))
+  );
+  --overlay-safe-inline-inset: max(
+    calc(1rem + var(--safe-area-left)),
+    calc(1rem + var(--safe-area-right))
+  );
+  --overlay-safe-width: calc(
+    100vw - var(--overlay-safe-inline-inset) - var(--overlay-safe-inline-inset)
+  );
+  --overlay-safe-height: calc(
+    100dvh - var(--overlay-safe-block-inset) - var(--overlay-safe-block-inset)
+  );
   --background: oklch(0.995 0.002 90);
   --foreground: oklch(0.17 0.008 270);
   --card: oklch(1 0 0);
@@ -120,6 +159,57 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  /*
+   * Liquid glass material.
+   * blur + saturate + inset white highlight + float shadow is the full recipe;
+   * dropping saturate() is what makes cheap glass look grey.
+   */
+  --glass-rgb: 255 255 255;
+  --glass-blur: 16px;
+  --glass-saturate: 180%;
+  --glass-alpha-bar: 0.62;
+  --glass-alpha-panel: 0.78;
+  --glass-alpha-rest: 0.5;
+  --glass-alpha-hover: 0.68;
+  --glass-alpha-active: 0.82;
+  --glass-highlight: rgb(255 255 255 / 80%);
+  --glass-edge: rgb(255 255 255 / 55%);
+  --glass-hairline: rgb(24 20 26 / 10%);
+  --glass-shadow-float:
+    0 12px 34px rgb(60 34 48 / 13%), 0 2px 6px rgb(60 34 48 / 6%);
+  --glass-shadow-panel: 0 24px 60px rgb(60 34 48 / 16%);
+  /* Accent wash: the directional light source that makes glass read as liquid. */
+  --glass-accent: var(--primary);
+  --glass-accent-strength: 7%;
+}
+
+/*
+ * Series-tinted glass. Set data-glass-accent on any ancestor and every glass
+ * surface beneath it picks up that franchise hue at --glass-accent-strength.
+ */
+[data-glass-accent="765"] {
+  --glass-accent: var(--franchise-765);
+}
+
+[data-glass-accent="cg"] {
+  --glass-accent: var(--franchise-cg);
+}
+
+[data-glass-accent="ml"] {
+  --glass-accent: var(--franchise-ml);
+}
+
+[data-glass-accent="sidem"] {
+  --glass-accent: var(--franchise-sidem);
+}
+
+[data-glass-accent="sc"] {
+  --glass-accent: var(--franchise-sc);
+}
+
+[data-glass-accent="gk"] {
+  --glass-accent: var(--franchise-gk);
 }
 
 .dark {
@@ -163,6 +253,668 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  /* Dark glass: the white highlight drops an order of magnitude or it chalks. */
+  --glass-rgb: 26 26 31;
+  --glass-alpha-bar: 0.58;
+  --glass-alpha-panel: 0.74;
+  --glass-alpha-rest: 0.46;
+  --glass-alpha-hover: 0.64;
+  --glass-alpha-active: 0.8;
+  --glass-highlight: rgb(255 255 255 / 14%);
+  --glass-edge: rgb(255 255 255 / 10%);
+  --glass-hairline: rgb(255 255 255 / 12%);
+  --glass-shadow-float:
+    0 12px 34px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 28%);
+  --glass-shadow-panel: 0 24px 60px rgb(0 0 0 / 52%);
+  --glass-accent-strength: 10%;
+}
+
+@layer components {
+  /*
+   * Material law: glass belongs to the floating system layer only
+   * (top bar, dock, dialog, sheet, popover, toast, FAB). Dense content
+   * surfaces use .glass-quiet, which has the same edge treatment and zero
+   * backdrop-filter cost.
+   */
+  .glass-surface {
+    --glass-alpha: var(--glass-alpha-rest);
+    --glass-shadow: var(--glass-shadow-float);
+    position: relative;
+    background-color: rgb(var(--glass-rgb) / var(--glass-alpha));
+    background-image: linear-gradient(
+      165deg,
+      color-mix(
+          in oklch,
+          var(--glass-accent) var(--glass-accent-strength),
+          transparent
+        )
+        0%,
+      transparent 58%
+    );
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      inset 0 0 0 1px var(--glass-edge),
+      var(--glass-shadow);
+  }
+
+  /*
+   * Sticky top bar: sits on the page edge, so no float shadow, hairline
+   * instead. Bars are wide, so the accent wash is halved to stay a highlight
+   * rather than a colour field.
+   */
+  .glass-bar {
+    --glass-alpha: var(--glass-alpha-bar);
+    --glass-accent-strength: 4%;
+    --glass-shadow: 0 1px 0 0 var(--glass-hairline);
+  }
+
+  /* Overlay surfaces: opaque enough for body copy, lifted by the panel shadow. */
+  .glass-panel {
+    --glass-alpha: var(--glass-alpha-panel);
+    --glass-shadow: var(--glass-shadow-panel);
+  }
+
+  /*
+   * Interactive glass. Level is expressed by opacity, not by border colour:
+   * rest -> hover -> active is a single readable ladder.
+   */
+  .glass-control {
+    transition:
+      background-color var(--duration-fast) var(--ease-interactive),
+      box-shadow var(--duration-fast) var(--ease-interactive),
+      transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-control:hover {
+    --glass-alpha: var(--glass-alpha-hover);
+  }
+
+  .glass-control:active {
+    --glass-alpha: var(--glass-alpha-active);
+  }
+
+  /*
+   * Non-blurred glass for content. Same edge language, no compositing cost, so
+   * it is safe inside long lists, tables and virtualised grids.
+   */
+  .glass-quiet {
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      inset 0 0 0 1px var(--glass-edge);
+  }
+
+  /*
+   * Two layers moving at different speeds is what sells depth: the frame lifts
+   * quickly, the image inside drifts. Neither touches layout.
+   */
+  .media-hover {
+    transition:
+      transform var(--duration-ui) var(--ease-card),
+      box-shadow var(--duration-ui) var(--ease-card);
+  }
+
+  .media-hover [data-media-zoom] {
+    transition: transform 500ms var(--ease-card);
+  }
+
+  .media-hover:hover,
+  .media-hover:focus-visible,
+  a:focus-visible .media-hover,
+  a:hover .media-hover {
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-float);
+  }
+
+  .media-hover:hover [data-media-zoom],
+  a:hover .media-hover [data-media-zoom] {
+    transform: scale(1.04);
+  }
+
+  /* Horizontal scrollers fade at the edges instead of shouting with a shadow. */
+  .edge-fade-x {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 6%,
+      black 94%,
+      transparent 100%
+    );
+  }
+
+  /*
+   * Faux refraction, the all-engine floor.
+   *
+   * Real refraction needs `backdrop-filter: url(#svg)`, which only Chromium
+   * renders. Rather than let WebKit and Gecko fall back to flat frosted glass,
+   * every engine gets this: a rim that brightens over the last few pixels and
+   * darkens on the opposite edge, which is how a bullnose edge reads when it
+   * bends the light passing through it. It distorts nothing, but it carries the
+   * thickness cue that plain blur throws away.
+   */
+  .glass-refract {
+    --glass-rim: 10px;
+    position: relative;
+    /*
+     * Isolate so the decoration can sit at z-index -1: above this surface's own
+     * background, below its text. Painting a bright rim over body copy is the
+     * fastest way to fail the contrast gate.
+     */
+    isolation: isolate;
+  }
+
+  .glass-refract::before {
+    position: absolute;
+    z-index: -1;
+    content: "";
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.55;
+    background:
+      linear-gradient(
+        to bottom,
+        var(--glass-highlight) 0,
+        transparent var(--glass-rim)
+      ),
+      linear-gradient(
+        to top,
+        var(--glass-hairline) 0,
+        transparent var(--glass-rim)
+      ),
+      linear-gradient(
+        to right,
+        var(--glass-edge) 0,
+        transparent var(--glass-rim)
+      ),
+      linear-gradient(
+        to left,
+        var(--glass-edge) 0,
+        transparent var(--glass-rim)
+      );
+    pointer-events: none;
+  }
+
+  /*
+   * Pointer-tracked specular highlight. Passive surfaces keep the original
+   * single-gradient sheen. Only explicitly interactive surfaces replace it
+   * with a contact glow that spreads from the press point.
+   */
+  .glass-sheen,
+  .glass-control {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .glass-sheen::after,
+  .glass-control::after {
+    position: absolute;
+    z-index: -1;
+    content: "";
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    background: radial-gradient(
+      circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
+      var(--glass-highlight) 0%,
+      transparent 42%
+    );
+    transition: opacity var(--duration-ui) var(--ease-ui);
+    pointer-events: none;
+  }
+
+  .glass-sheen[data-glass-interactive]::after,
+  .glass-control::after {
+    background:
+      radial-gradient(
+        circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
+        rgb(255 255 255 / 58%) 0%,
+        color-mix(in oklch, var(--glass-accent) 14%, transparent) 28%,
+        transparent 64%
+      ),
+      radial-gradient(
+        circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
+        var(--glass-highlight) 0%,
+        transparent 48%
+      );
+    transform: scale(0.84);
+    transform-origin: var(--glass-pointer-x, 50%) var(--glass-pointer-y, 50%);
+    transition:
+      opacity var(--duration-ui) var(--ease-ui),
+      transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-sheen[data-glass-interactive]:has(.glass-tab:focus-visible)::after,
+  .glass-control:focus-visible::after {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .glass-sheen:hover::after,
+    .glass-control:hover::after {
+      opacity: 0.6;
+    }
+
+    .glass-sheen[data-glass-interactive]:hover::after,
+    .glass-control:hover::after {
+      transform: scale(1);
+    }
+  }
+
+  .glass-sheen[data-glass-interactive][data-glass-pressed]::after,
+  .glass-control[data-glass-pressed]::after {
+    opacity: 1;
+    transform: scale(1);
+    animation: glass-touch-glow var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-sheen[data-glass-interactive][data-glass-releasing]::after,
+  .glass-control[data-glass-releasing]::after {
+    opacity: 0;
+    transform: scale(0.84);
+    animation: none;
+    transition-duration: var(--duration-fast);
+  }
+
+  .glass-sheen[data-glass-interactive][data-glass-exiting]::after,
+  .glass-control[data-glass-exiting]::after {
+    animation: glass-touch-exit var(--duration-fast) var(--ease-interactive)
+      both;
+  }
+
+  /*
+   * Scroll-driven bar. The bar starts light over the page top and condenses as
+   * content slides under it. Only alpha moves; the blur radius is deliberately
+   * left alone, because animating it forces a full-surface re-blur every frame
+   * and that is the single most reliable way to drop frames on mobile WebViews.
+   */
+  .glass-scroll-bar {
+    --glass-alpha: calc(
+      var(--glass-alpha-rest) +
+        (var(--glass-alpha-bar) - var(--glass-alpha-rest)) *
+        var(--glass-scroll-progress)
+    );
+  }
+
+  /*
+   * Travelling lens: one pill that moves between navigation entries instead of
+   * a background painted per entry. Shared by the app tab bar and the website
+   * header so both read as the same control at two sizes.
+   *
+   * Split over two elements on purpose. The outer .glass-lens owns position and
+   * transitions `translate`, so the travel itself is never interrupted; the
+   * inner .glass-lens-skin owns the material and replays a squash-and-stretch
+   * keyframe on every switch. Keying the skin by the active slot makes React
+   * remount it, which restarts the animation cleanly and avoids the usual
+   * force-a-reflow hack.
+   *
+   * `translate`, not `transform`: Tailwind v4 emits translate-x-* as the
+   * independent `translate` property, so a transition naming `transform` here
+   * silently never fires and the lens snaps between slots.
+   */
+  .glass-lens {
+    transition:
+      translate var(--duration-ui) var(--ease-emphasized),
+      opacity var(--duration-fast) var(--ease-ui);
+  }
+
+  /*
+   * Deformation amplitude rides the distance travelled, so a step to the
+   * neighbour barely pulls while a jump across the bar stretches hard.
+   * --glass-lens-travel is that distance in slots, written once per navigation
+   * during render and never per frame. It defaults to 0, which collapses every
+   * keyframe to the identity transform, so a first paint stays still.
+   */
+  .glass-lens-skin {
+    --glass-lens-stretch: clamp(0, 0.07 * var(--glass-lens-travel, 0), 0.22);
+    transform-origin: center;
+    animation: glass-lens-travel var(--duration-ui) var(--ease-emphasized);
+  }
+
+  /*
+   * Pressable navigation entry. Colour and press share one --duration-fast
+   * budget, and the press is a transform so it composites instead of relighting
+   * the glass underneath it.
+   */
+  .glass-tab {
+    --glass-tab-press: 0.95;
+    touch-action: none;
+    transition:
+      color var(--duration-fast) var(--ease-interactive),
+      transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-tab:active {
+    transform: scale(var(--glass-tab-press));
+  }
+
+  /*
+   * The contact point becomes the transform origin. Pointer movement updates
+   * these values once per frame, with JS clamping the pull and stretch so the
+   * control flexes without leaving its hit target or shifting layout.
+   */
+  .glass-control[data-glass-pressed],
+  .glass-tab[data-glass-pressed] {
+    transform-origin: var(--glass-press-origin-x, 50%)
+      var(--glass-press-origin-y, 50%);
+    transform: translate3d(
+        var(--glass-press-offset-x, 0),
+        var(--glass-press-offset-y, 0),
+        0
+      )
+      scaleX(var(--glass-press-scale-x, 0.975))
+      scaleY(var(--glass-press-scale-y, 0.94));
+  }
+
+  .glass-control[data-glass-releasing],
+  .glass-tab[data-glass-releasing] {
+    animation: glass-control-release var(--duration-ui) var(--ease-interactive);
+  }
+
+  /*
+   * The icon of the entry that just became active dips, overshoots, and settles.
+   * The outgoing entry loses the animation, which restores its base transform;
+   * the transition below eases that back to rest rather than snapping it.
+   * Text-only entries carry no marked icon, so the website header gets the lens
+   * and the press without a second thing moving.
+   */
+  .glass-tab [data-glass-tab-icon] {
+    transform-origin: center;
+    transition: transform var(--duration-fast) var(--ease-interactive);
+  }
+
+  .glass-tab[aria-current="page"] [data-glass-tab-icon] {
+    animation: glass-tab-settle var(--duration-ui) var(--ease-interactive);
+  }
+}
+
+/*
+ * Squash and stretch along the direction of travel. Both axes are pure scale on
+ * a transform, so this composites; width, height and the blur radius are left
+ * alone deliberately, because re-blurring a translucent surface every frame is
+ * what drops frames on low-end WebViews.
+ */
+@keyframes glass-lens-travel {
+  0% {
+    transform: scaleX(1) scaleY(1);
+  }
+
+  28% {
+    transform: scaleX(calc(1 + var(--glass-lens-stretch)))
+      scaleY(calc(1 - var(--glass-lens-stretch) * 0.5));
+  }
+
+  64% {
+    transform: scaleX(calc(1 - var(--glass-lens-stretch) * 0.28))
+      scaleY(calc(1 + var(--glass-lens-stretch) * 0.2));
+  }
+
+  100% {
+    transform: scaleX(1) scaleY(1);
+  }
+}
+
+@keyframes glass-tab-settle {
+  0% {
+    transform: scale(0.86);
+  }
+
+  55% {
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* The contact glow lights immediately, then settles across the whole surface. */
+@keyframes glass-touch-glow {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.35);
+  }
+
+  48% {
+    opacity: 1;
+    transform: scale(0.86);
+  }
+
+  78% {
+    opacity: 0.92;
+    transform: scale(1.03);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Exit fades from the exact crossed edge without accepting stale transitions. */
+@keyframes glass-touch-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+}
+
+/* Release carries one small overshoot and counter-squash before resting. */
+@keyframes glass-control-release {
+  0% {
+    transform: translate3d(
+        var(--glass-press-offset-x, 0),
+        var(--glass-press-offset-y, 0),
+        0
+      )
+      scaleX(var(--glass-press-scale-x, 0.975))
+      scaleY(var(--glass-press-scale-y, 0.94));
+  }
+
+  38% {
+    transform: translate3d(0, 0, 0) scaleX(1.025) scaleY(0.985);
+  }
+
+  68% {
+    transform: translate3d(0, 0, 0) scaleX(0.992) scaleY(1.012);
+  }
+
+  84% {
+    transform: translate3d(0, 0, 0) scaleX(1.006) scaleY(0.997);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(1) scaleY(1);
+  }
+}
+
+/*
+ * Defaults to 1 (fully condensed) so engines without scroll-driven animation
+ * get the higher-contrast bar rather than the translucent one.
+ */
+@property --glass-scroll-progress {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@supports (animation-timeline: scroll()) {
+  @layer components {
+    .glass-scroll-bar {
+      animation: glass-scroll-settle linear both;
+      animation-range: 0 160px;
+      animation-timeline: scroll();
+    }
+  }
+}
+
+@keyframes glass-scroll-settle {
+  from {
+    --glass-scroll-progress: 0;
+  }
+
+  to {
+    --glass-scroll-progress: 1;
+  }
+}
+
+/*
+ * Real refraction, the Chromium ceiling. Off by default.
+ *
+ * `backdrop-filter: url()` is rendered by Chromium, silently dropped by WebKit,
+ * and reported to stop Gecko rendering the element outright (Firefox bug
+ * 1787623). It is therefore attached to `.glass-refract::before`, a decorative
+ * overlay that carries no content, so the worst case on a hostile engine costs
+ * a rim highlight rather than the surface itself.
+ *
+ * Enabling is an explicit opt-in on the root element. Do not turn it on until
+ * the effect has been verified on all three engines; see
+ * docs/architecture/glass-refraction-platform-strategy.md.
+ */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  @layer components {
+    [data-glass-refraction="on"] .glass-refract::before {
+      -webkit-backdrop-filter: url("#glass-displacement");
+      backdrop-filter: url("#glass-displacement");
+    }
+  }
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  @layer components {
+    .glass-surface {
+      -webkit-backdrop-filter: blur(var(--glass-blur))
+        saturate(var(--glass-saturate));
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    }
+  }
+}
+
+/* Transparency is a preference, not a requirement. Fall back to solid surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  @layer components {
+    .glass-surface {
+      --glass-alpha: 1;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-color: var(--popover);
+      background-image: none;
+    }
+
+    .glass-bar {
+      background-color: var(--background);
+    }
+
+    .glass-refract::before,
+    .glass-sheen::after,
+    .glass-control::after {
+      display: none;
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  @layer components {
+    .glass-surface,
+    .glass-quiet {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background-image: none;
+      box-shadow: none;
+      border: 1px solid CanvasText;
+    }
+
+    .edge-fade-x {
+      mask-image: none;
+    }
+
+    .glass-refract::before,
+    .glass-sheen::after,
+    .glass-control::after {
+      display: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * `html { scroll-behavior: smooth }` further down is unconditional, and
+   * CSSOM-View defines `scrollTo`'s default `behavior: "auto"` as "defer to the
+   * element's computed scroll-behavior". So every scripted scroll that asks for
+   * `auto` animates anyway, including the ones that explicitly downgrade
+   * themselves when this query matches. Turning the property off here fixes the
+   * whole class at once: back-to-top, anchor jumps and router scroll
+   * restoration alike.
+   */
+  html {
+    scroll-behavior: auto;
+  }
+
+  @layer components {
+    .glass-control,
+    .media-hover,
+    .media-hover [data-media-zoom] {
+      transition: none;
+    }
+
+    .media-hover:hover,
+    .media-hover:focus-visible,
+    a:hover .media-hover {
+      transform: none;
+    }
+
+    .media-hover:hover [data-media-zoom],
+    a:hover .media-hover [data-media-zoom] {
+      transform: none;
+    }
+
+    /* Hold the bar at its condensed value instead of tracking the scroller. */
+    .glass-scroll-bar {
+      --glass-scroll-progress: 1;
+      animation: none;
+    }
+
+    .glass-sheen::after,
+    .glass-control::after {
+      transition: none;
+      animation: none;
+    }
+
+    .glass-control[data-glass-pressed],
+    .glass-control[data-glass-releasing],
+    .glass-control[data-glass-exiting],
+    .glass-tab[data-glass-pressed],
+    .glass-tab[data-glass-releasing],
+    .glass-tab[data-glass-exiting] {
+      transform: none;
+      animation: none;
+    }
+
+    /*
+     * Navigation motion collapses to an instant state change: the lens is
+     * already at the new slot on the first frame, nothing deforms, and a press
+     * reports itself through colour alone.
+     */
+    .glass-lens,
+    .glass-tab,
+    .glass-tab [data-glass-tab-icon] {
+      transition: none;
+    }
+
+    .glass-lens-skin,
+    .glass-tab[aria-current="page"] [data-glass-tab-icon] {
+      animation: none;
+    }
+
+    .glass-tab:active {
+      transform: none;
+    }
+  }
 }
 
 @layer base {
@@ -251,8 +1003,10 @@
   top: 0;
   left: 0;
   width: 48px;
+  aspect-ratio: 1;
   max-width: none;
   height: auto;
+  object-fit: contain;
   opacity: 0;
   transform-origin: center;
   backface-visibility: hidden;
@@ -275,7 +1029,35 @@
   }
 }
 
+html[data-app-target="app"],
+[data-app-shell] {
+  --app-header-height: 3rem;
+  --app-header-inset: calc(var(--app-header-height) + var(--safe-area-top));
+  --app-bottom-clearance: calc(5.25rem + var(--safe-area-bottom));
+  --app-floating-bottom: calc(6rem + var(--safe-area-bottom));
+  --app-safe-inline: max(1rem, var(--safe-area-left), var(--safe-area-right));
+  --app-viewport-height: calc(100dvh - var(--app-header-inset));
+  --app-content-height: calc(
+    var(--app-viewport-height) - var(--app-bottom-clearance)
+  );
+}
+
+html[data-app-target="app"][data-app-immersive],
+[data-app-shell][data-app-immersive] {
+  --app-header-height: 0px;
+  --app-header-inset: var(--safe-area-top);
+}
+
 @media (max-width: 767px) {
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-left,
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-right {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
+  [data-exchange-office-map] .maplibregl-ctrl-bottom-left {
+    max-width: calc(100% - 5rem);
+  }
+
   body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
     bottom: calc(4.25rem + env(safe-area-inset-bottom));
   }

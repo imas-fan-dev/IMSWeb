@@ -1,5 +1,9 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
+
+import { installAdminAuthMock } from "./fixtures/admin-auth"
+import type { ApiDispatcher } from "./fixtures/api-dispatcher"
+import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -16,53 +20,111 @@ type BoundingBox = {
   height: number
 }
 
-async function mockNamecardApi(page: Page, cardCount = 12) {
-  await page.route("**/api/check**", async (route) => {
-    await route.fulfill({
-      json: {
-        success: true,
-        user: {
-          id: 1,
-          username: "namecard-upload-qa",
-          producername: "名片上传检查",
-          dept: "op",
-          adminRole: "admin",
+async function mockNamecardApi(
+  page: Page,
+  api: ApiDispatcher,
+  cardCount: number,
+  submissionTimes: 0 | 1
+) {
+  await installAdminAuthMock(page, api, {
+    csrfToken: "namecard-upload-e2e",
+    user: {
+      username: "namecard-upload-qa",
+      producername: "名片上传检查",
+    },
+  })
+
+  await api.mockRoute(
+    "**/api/wiki/catalog**",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          status: "success",
+          agencies: [
+            {
+              id: 1,
+              code: "765",
+              name: "765PRO",
+              color: "#f34e6c",
+              bannerTitle: "765PRO",
+              iconUrl: null,
+              idolCount: 1,
+              entryCount: 1,
+              imageTransform: {
+                fit: "cover",
+                focalX: 0.5,
+                focalY: 0.5,
+                zoom: 1,
+                rotation: 0,
+              },
+            },
+          ],
+          searchEntries: [
+            {
+              id: 1,
+              name: "天海春香",
+              agencyId: 1,
+              agencyCode: "765",
+              agencyName: "765PRO",
+              agencyColor: "#f34e6c",
+              entryKind: "idol",
+              entrySubtype: null,
+            },
+          ],
+          selection: null,
         },
-      },
-    })
-  })
+      })
+    },
+    "GET"
+  )
 
-  await page.route("**/api/cards**", async (route) => {
-    await route.fulfill({
-      json: {
-        list: Array.from({ length: cardCount }, (_, index) => ({
-          id: index + 1,
-          image1_url: FRONT_IMAGE,
-          image2_url: BACK_IMAGE,
-          image1_thumbnail_url: FRONT_IMAGE,
-          image2_thumbnail_url: BACK_IMAGE,
-          status: "approved",
-          created_at: null,
-        })),
-        total: cardCount,
-        totalPage: cardCount === 0 ? 0 : 1,
-      },
-    })
-  })
+  await api.mockRoute(
+    "**/api/cards**",
+    async (route) => {
+      const response = makeNamecardPage(
+        Array.from({ length: cardCount }, (_, index) =>
+          makeNamecard({
+            id: index + 1,
+            image1_url: FRONT_IMAGE,
+            image2_url: BACK_IMAGE,
+            image1_thumbnail_url: FRONT_IMAGE,
+            image2_thumbnail_url: BACK_IMAGE,
+          })
+        )
+      )
+      await route.fulfill({ status: 200, json: response })
+    },
+    "GET"
+  )
 
-  await page.route("**/api/reactions**", async (route) => {
-    await route.fulfill({ json: {} })
-  })
+  await api.mockRoute(
+    "**/api/reactions**",
+    async (route) => {
+      await route.fulfill({ json: {} })
+    },
+    "GET",
+    cardCount
+  )
 
-  await page.route("**/api/uploadNameCard", async (route) => {
-    await route.fulfill({
-      json: {
-        msg: "名片已提交审核",
-        submission: { id: 1, status: "pending", revision: 0 },
-        withdrawalToken: "a".repeat(64),
-      },
-    })
-  })
+  await api.mockRoute(
+    "**/api/community/exchange/guest-submissions",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          success: true,
+          message: "名片已提交审核",
+          submission: {
+            id: 1,
+            publicationStatus: "pending",
+            revision: 0,
+          },
+          withdrawalToken: "a".repeat(64),
+        },
+      })
+    },
+    "POST",
+    submissionTimes
+  )
 }
 
 async function requireBoundingBox(locator: Locator) {
@@ -83,8 +145,9 @@ function boxesOverlap(first: BoundingBox, second: BoundingBox) {
 
 test("uploads both sides from the dialog and restores trigger focus", async ({
   page,
+  api,
 }) => {
-  await mockNamecardApi(page, 0)
+  await mockNamecardApi(page, api, 0, 1)
   await page.goto("/community/cards")
 
   const uploadTrigger = page.getByRole("button", { name: "上传名片" })
@@ -113,6 +176,7 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
   await expect(backInput).toHaveAttribute("type", "file")
   await expect(submitButton).toBeDisabled()
   await expect(uploadDialog.getByRole("button", { name: "取消" })).toBeVisible()
+  await uploadDialog.getByRole("checkbox", { name: /天海春香/ }).click()
 
   await frontInput.setInputFiles({
     name: "namecard-front.png",
@@ -131,7 +195,8 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
 
   const uploadRequestPromise = page.waitForRequest(
     (request) =>
-      new URL(request.url()).pathname === "/api/uploadNameCard" &&
+      new URL(request.url()).pathname ===
+        "/api/community/exchange/guest-submissions" &&
       request.method() === "POST"
   )
   await submitButton.click()
@@ -139,12 +204,13 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
   const multipartBody = uploadRequest.postDataBuffer()?.toString("utf8") ?? ""
 
   expect(multipartBody.match(/name="images"/g)).toHaveLength(2)
+  expect(multipartBody).toContain('name="seriesCode"')
+  expect(multipartBody).toContain('name="favoriteIdolIds"')
+  expect(multipartBody).toContain("[1]")
   expect(multipartBody).toContain('filename="namecard-front.png"')
   expect(multipartBody).toContain('filename="namecard-back.png"')
   await expect(uploadDialog).toBeVisible()
-  await expect(
-    uploadDialog.getByText("请保存投稿管理链接")
-  ).toBeVisible()
+  await expect(uploadDialog.getByText("请保存投稿管理链接")).toBeVisible()
   await expect(
     uploadDialog.getByRole("link", { name: "管理这次投稿" })
   ).toBeVisible()
@@ -155,9 +221,21 @@ test("uploads both sides from the dialog and restores trigger focus", async ({
 
 test("keeps the responsive upload action and dialog inside the viewport", async ({
   page,
+  api,
 }) => {
-  await mockNamecardApi(page)
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    await page.setViewportSize({ width: 360, height: 640 })
+  }
+  await mockNamecardApi(page, api, 12, 0)
   await page.goto("/community/cards")
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--safe-area-top", "47px")
+      document.documentElement.style.setProperty("--safe-area-right", "0px")
+      document.documentElement.style.setProperty("--safe-area-bottom", "34px")
+      document.documentElement.style.setProperty("--safe-area-left", "0px")
+    })
+  }
 
   const uploadTrigger = page.getByRole("button", { name: "上传名片" })
   const uploadLabel = uploadTrigger.getByText("上传名片", { exact: true })
@@ -244,6 +322,18 @@ test("keeps the responsive upload action and dialog inside the viewport", async 
   expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(
     viewport.height + 1
   )
+  if (viewport.width < 640) {
+    const safeBlockInset = 47 + 16
+    const safeInlineInset = 16
+    expect(dialogBox.x).toBeGreaterThanOrEqual(safeInlineInset - 1)
+    expect(dialogBox.y).toBeGreaterThanOrEqual(safeBlockInset - 1)
+    expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(
+      viewport.width - safeInlineInset + 1
+    )
+    expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(
+      viewport.height - safeBlockInset + 1
+    )
+  }
 
   const overflow = await uploadDialog.evaluate((element) => ({
     dialog: element.scrollWidth > element.clientWidth,
@@ -253,12 +343,58 @@ test("keeps the responsive upload action and dialog inside the viewport", async 
   }))
   expect(overflow.dialog).toBe(false)
   expect(overflow.document).toBe(false)
+
+  if (viewport.width < 640) {
+    const scrollBody = uploadDialog.locator("[data-namecard-upload-body]")
+    const dialogTitle = uploadDialog.getByRole("heading", {
+      name: "提交制作人名片",
+    })
+    const submitButton = uploadDialog.getByRole("button", {
+      name: "提交审核",
+    })
+    await uploadDialog.evaluate(async (element) => {
+      await Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished)
+      )
+    })
+    const beforeScroll = await Promise.all([
+      requireBoundingBox(dialogTitle),
+      requireBoundingBox(submitButton),
+    ])
+    const scrollMetrics = await scrollBody.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }))
+
+    expect(scrollMetrics.scrollHeight).toBeGreaterThan(
+      scrollMetrics.clientHeight
+    )
+    await scrollBody.evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    const afterScroll = await Promise.all([
+      requireBoundingBox(dialogTitle),
+      requireBoundingBox(submitButton),
+    ])
+
+    expect(Math.abs(afterScroll[0].y - beforeScroll[0].y)).toBeLessThanOrEqual(
+      1
+    )
+    expect(Math.abs(afterScroll[1].y - beforeScroll[1].y)).toBeLessThanOrEqual(
+      1
+    )
+    await expect(dialogTitle).toBeVisible()
+    await expect(submitButton).toBeVisible()
+  }
 })
 
 test("keeps the upload action on the trailing-slash route", async ({
   page,
+  api,
 }) => {
-  await mockNamecardApi(page, 0)
+  await mockNamecardApi(page, api, 0, 0)
 
   await page.goto("/community/cards/")
 

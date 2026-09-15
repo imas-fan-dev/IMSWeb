@@ -1,5 +1,4 @@
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
-import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
 import { IDOL_FONT_URL } from "~/pages/works/brand-assets"
@@ -10,6 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
 import { getWorkDestination, getWorkEntry } from "~/pages/works/works-content"
 import type { Route } from "./+types/work-detail-page"
 
@@ -17,6 +19,10 @@ export function meta({ params }: Route.MetaArgs) {
   const entry = getWorkEntry(params.workSlug)
   return [{ title: `${entry?.title ?? "作品专题"} | IMSWeb` }]
 }
+
+const workDetailMinHeight = IS_APP_TARGET
+  ? "min-h-(--app-content-height)"
+  : "min-h-[calc(100svh-4rem)]"
 
 function WorkNavCard({
   entry,
@@ -49,7 +55,7 @@ function WorkNavCard({
               variant="ghost"
               size="sm"
               className="justify-start"
-              render={<Link to={navLink.href} />}
+              render={<NavigationLink to={navLink.href} />}
               nativeButton={false}
             >
               {navLink.label}
@@ -62,7 +68,7 @@ function WorkNavCard({
               variant="ghost"
               size="sm"
               className="justify-start"
-              render={<a href={link.href} />}
+              render={<NavigationLink href={link.href} />}
               nativeButton={false}
             >
               {link.label}
@@ -74,7 +80,7 @@ function WorkNavCard({
             variant="ghost"
             size="sm"
             className="justify-start"
-            render={<Link to="/works" />}
+            render={<NavigationLink to="/works" />}
             nativeButton={false}
           >
             <ArrowLeftIcon data-icon="inline-start" />
@@ -90,7 +96,7 @@ function WorkNavCard({
             key={navLink.href}
             variant="outline"
             size="sm"
-            render={<Link to={navLink.href} />}
+            render={<NavigationLink to={navLink.href} />}
             nativeButton={false}
           >
             {navLink.label}
@@ -101,7 +107,7 @@ function WorkNavCard({
             key={link.href}
             variant="outline"
             size="sm"
-            render={<a href={link.href} />}
+            render={<NavigationLink href={link.href} />}
             nativeButton={false}
           >
             {link.label}
@@ -111,7 +117,7 @@ function WorkNavCard({
         <Button
           variant="outline"
           size="sm"
-          render={<Link to="/works" />}
+          render={<NavigationLink to="/works" />}
           nativeButton={false}
         >
           <ArrowLeftIcon data-icon="inline-start" />
@@ -128,7 +134,13 @@ function FranchiseDetail({
   entry: NonNullable<ReturnType<typeof getWorkEntry>>
 }) {
   return (
-    <section className="relative mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-400 flex-col items-center gap-8 overflow-hidden px-6 py-8 sm:py-12 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between lg:px-12.5 lg:py-16 xl:py-20">
+    <section
+      className={cn(
+        "relative mx-auto flex w-full max-w-400 flex-col items-center gap-8 overflow-hidden px-6 py-8 sm:py-12 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between lg:px-12.5 lg:py-16 xl:py-20",
+        workDetailMinHeight
+      )}
+      data-testid="work-detail-franchise"
+    >
       {/* On narrow screens, mirror About's ambient artwork treatment. */}
       <div className="pointer-events-none absolute inset-y-0 right-[-12%] w-[72%] overflow-hidden sm:right-[-8%] sm:w-[60%] lg:relative lg:inset-auto lg:flex lg:w-auto lg:flex-1 lg:justify-center lg:overflow-visible">
         {entry.characterImage ? (
@@ -269,7 +281,7 @@ export default function WorkDetailPage({ params }: Route.ComponentProps) {
         <Button
           className="mt-8"
           variant="outline"
-          render={<Link to="/works" />}
+          render={<NavigationLink to="/works" />}
           nativeButton={false}
         >
           <ArrowLeftIcon data-icon="inline-start" />
@@ -284,7 +296,10 @@ export default function WorkDetailPage({ params }: Route.ComponentProps) {
   return (
     <main
       id="main-content"
-      className="relative isolate min-h-[calc(100svh-4rem)] scroll-mt-16 overflow-x-clip"
+      className={cn(
+        "relative isolate scroll-mt-16 overflow-x-clip",
+        workDetailMinHeight
+      )}
     >
       {/* Idol font */}
       <style>{`
@@ -295,7 +310,10 @@ export default function WorkDetailPage({ params }: Route.ComponentProps) {
         }
       `}</style>
 
-      <div className="relative z-10 min-h-[calc(100svh-4rem)]">
+      <div
+        className={cn("relative z-10", workDetailMinHeight)}
+        data-testid="work-detail-surface"
+      >
         {isFranchise ? (
           <FranchiseDetail entry={entry} />
         ) : (

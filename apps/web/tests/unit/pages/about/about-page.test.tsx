@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import About from "~/pages/about/index"
 import type { AboutPageContent } from "~/lib/api"
@@ -59,10 +59,6 @@ function jsonResponse(payload: unknown, status = 200) {
 }
 
 describe("About page", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("renders API-configured identity, overview, and people groups", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(aboutContent()))
     vi.stubGlobal("fetch", fetchMock)

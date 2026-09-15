@@ -59,6 +59,17 @@ test('[AST-01] release clients package the Web build and encoded variants', () =
     assert.ok(manifest.files.includes('__spa-fallback.html'));
     assert.ok(manifest.files.includes('index.html.br'));
     assert.ok(manifest.files.includes('index.html.gz'));
+    for (const license of [
+        'emoji/twemoji/LICENSE-GRAPHICS.txt',
+        'emoji/twemoji/NOTICE.txt'
+    ]) {
+        assert.ok(manifest.files.includes(license), `${license} must ship with the graphics`);
+        assert.deepEqual(
+            fs.readFileSync(path.join(CLIENT_ROOT, license)),
+            fs.readFileSync(path.join(WEB_ROOT, license)),
+            license
+        );
+    }
 
     for (const relative of manifest.files) {
         assert.deepEqual(
@@ -82,6 +93,18 @@ test('[AST-01] release clients package the Web build and encoded variants', () =
             fs.readFileSync(path.join(CLIENT_ROOT, sourceRelative)),
             relative
         );
+    }
+});
+
+test('[AST-01] client build permits exact license assets but rejects other text files', () => {
+    const unexpected = path.join(WEB_ROOT, '__unexpected__.txt');
+    fs.writeFileSync(unexpected, 'not publishable', { flag: 'wx' });
+    try {
+        const result = run(BUILD_SCRIPT);
+        assert.notEqual(result.status, 0);
+        assert.match(`${result.stdout}\n${result.stderr}`, /Forbidden client asset: __unexpected__\.txt/);
+    } finally {
+        fs.rmSync(unexpected, { force: true });
     }
 });
 

@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { lazy, Suspense, useMemo, useState } from "react"
 
+import { PageShell } from "~/components/shared/page-shell"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
@@ -30,6 +31,9 @@ import {
   type ProducerMapRegion,
   type ProducerMapSeries,
 } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
+import { cn } from "~/lib/utils"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const chinaCommunityMapModule =
   import("~/components/producer-map/china-community-map")
@@ -63,11 +67,14 @@ function DialogImageViewport({
 
   return (
     <div
-      className={
+      className={cn(
+        "relative flex w-full min-w-0 items-center justify-center overflow-hidden rounded-md bg-muted",
         layout === "region"
-          ? "relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md bg-muted"
-          : "relative flex h-[min(60svh,36rem)] min-h-64 w-full items-center justify-center overflow-hidden rounded-md border bg-muted"
-      }
+          ? "aspect-video"
+          : IS_APP_TARGET
+            ? "h-[min(50svh,28rem)] min-h-48 border"
+            : "h-[min(60svh,36rem)] min-h-64 border"
+      )}
       data-image-state={state}
       aria-label={`${alt}加载区域`}
     >
@@ -116,21 +123,26 @@ export function meta() {
 
 function LoadingState() {
   return (
-    <main
-      id="main-content"
-      className="flex min-h-[65svh] items-center justify-center px-4 py-16"
+    <PageShell
+      width="read"
+      className="flex min-h-48 items-center justify-center"
     >
       <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
         正在读取制作人地图
       </p>
-    </main>
+    </PageShell>
   )
 }
 
 function MapLoadingState() {
   return (
-    <div className="flex aspect-4/3 min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-sm text-muted-foreground sm:aspect-16/10 lg:aspect-auto lg:h-168">
+    <div
+      className={cn(
+        "flex aspect-4/3 items-center justify-center border-y bg-muted/30 px-6 text-sm text-muted-foreground sm:aspect-16/10 lg:aspect-auto lg:h-168",
+        IS_APP_TARGET ? "min-h-64" : "min-h-80"
+      )}
+    >
       <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
       <span className="ml-2">正在读取地图边界</span>
     </div>
@@ -139,7 +151,12 @@ function MapLoadingState() {
 
 function MapUnavailableState() {
   return (
-    <div className="flex aspect-4/3 min-h-80 items-center justify-center border-y bg-muted/30 px-6 text-center text-sm text-muted-foreground sm:aspect-16/10 lg:aspect-auto lg:h-168">
+    <div
+      className={cn(
+        "flex aspect-4/3 items-center justify-center border-y bg-muted/30 px-6 text-center text-sm text-muted-foreground sm:aspect-16/10 lg:aspect-auto lg:h-168",
+        IS_APP_TARGET ? "min-h-64" : "min-h-80"
+      )}
+    >
       地图边界暂时无法加载，地区与社群名录仍可正常浏览。
     </div>
   )
@@ -278,7 +295,11 @@ function CommunityCard({
               variant="outline"
               size="sm"
               render={
-                <a href={community.linkUrl} target="_blank" rel="noreferrer" />
+                <NavigationLink
+                  href={community.linkUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                />
               }
               nativeButton={false}
             >
@@ -356,9 +377,9 @@ export default function ProducerMapPage() {
   if (error || !data) {
     const unconfigured = isApiError(error) && error.status === 404
     return (
-      <main
-        id="main-content"
-        className="mx-auto flex min-h-[65svh] w-full max-w-3xl items-center px-4 py-16 sm:px-6"
+      <PageShell
+        width="read"
+        className="flex min-h-48 items-center justify-center"
       >
         <Alert variant={unconfigured ? "default" : "destructive"}>
           <AlertTitle>
@@ -376,34 +397,44 @@ export default function ProducerMapPage() {
             </Button>
           </AlertDescription>
         </Alert>
-      </main>
+      </PageShell>
     )
   }
 
   return (
-    <main id="main-content" className="relative isolate overflow-clip">
+    <PageShell width="wide" className="relative isolate overflow-clip">
       <div className="relative z-10">
-        <section className="border-b">
-          <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-            <div className="max-w-3xl">
-              <h1 className="text-3xl/tight font-semibold sm:text-5xl">
-                {data.title}
-              </h1>
-              {data.subtitle ? (
-                <p className="mt-3 text-sm font-semibold text-muted-foreground sm:text-base">
-                  {data.subtitle}
-                </p>
-              ) : null}
-              <p className="mt-6 max-w-2xl text-base/7 text-muted-foreground sm:text-lg">
-                {data.introduction}
+        <section
+          className={cn("border-b", IS_APP_TARGET ? "pb-5" : "pb-10 sm:pb-12")}
+        >
+          <div className="max-w-3xl min-w-0">
+            <h1
+              className={cn(
+                "font-semibold wrap-anywhere",
+                IS_APP_TARGET ? "text-2xl/tight" : "text-3xl/tight sm:text-5xl"
+              )}
+            >
+              {data.title}
+            </h1>
+            {data.subtitle ? (
+              <p className="mt-3 text-sm font-semibold wrap-anywhere text-muted-foreground sm:text-base">
+                {data.subtitle}
               </p>
-            </div>
+            ) : null}
+            <p
+              className={cn(
+                "max-w-2xl wrap-anywhere text-muted-foreground",
+                IS_APP_TARGET ? "mt-3 text-sm/6" : "mt-6 text-base/7 sm:text-lg"
+              )}
+            >
+              {data.introduction}
+            </p>
           </div>
-          <SeriesAccentStrip className="h-1.5" />
+          <SeriesAccentStrip className="mt-5 h-1.5 sm:mt-8" />
         </section>
 
         <section className="border-b" aria-label="地区社群地图">
-          <div className="mx-auto w-full max-w-7xl">
+          <div className="min-w-0">
             {geometry ? (
               <Suspense fallback={<MapLoadingState />}>
                 <ChinaCommunityMap
@@ -426,15 +457,17 @@ export default function ProducerMapPage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <section className={IS_APP_TARGET ? "pt-6" : "pt-12 sm:pt-16"}>
           <div className="flex flex-col gap-6 border-b pb-8 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold">{data.directoryTitle}</h2>
+              <h2 className="text-2xl font-semibold wrap-anywhere">
+                {data.directoryTitle}
+              </h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 {visibleCommunities.length} 个公开条目
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:w-136">
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:w-136">
               <label className="relative">
                 <span className="sr-only">搜索社群</span>
                 <SearchIcon
@@ -484,16 +517,16 @@ export default function ProducerMapPage() {
           )}
 
           <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
+            <p className="min-w-0 text-xs wrap-anywhere text-muted-foreground">
               地图来源：{" "}
-              <a
+              <NavigationLink
                 href={data.mapSourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="underline decoration-border underline-offset-4 hover:text-foreground"
+                className="wrap-anywhere underline decoration-border underline-offset-4 hover:text-foreground"
               >
                 {data.mapSourceLabel}
-              </a>
+              </NavigationLink>
             </p>
             <Button
               type="button"
@@ -526,6 +559,6 @@ export default function ProducerMapPage() {
           if (!open) setImageRegion(null)
         }}
       />
-    </main>
+    </PageShell>
   )
 }

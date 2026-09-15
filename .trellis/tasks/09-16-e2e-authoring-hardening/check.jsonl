@@ -1,0 +1,4 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared review and quality conventions."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Review criteria for browser coverage, the automatic API dispatcher fixture, zero retries, and the new CI-stable authoring section this task adds."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Review criteria for the toast and popover surfaces the fixed specs now settle before interacting."}
+{"file":".trellis/spec/repository/ci.md","reason":"Review criteria for lane isolation, zero-retry browser validation, and command ownership."}

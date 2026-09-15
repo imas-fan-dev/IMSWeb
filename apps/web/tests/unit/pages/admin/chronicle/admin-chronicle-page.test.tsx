@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router"
+import { describe, expect, it, vi } from "vitest"
 
 import AdminChronicle from "~/pages/admin/chronicle/index"
 
@@ -11,10 +12,6 @@ function jsonResponse(payload: unknown) {
 }
 
 describe("AdminChronicle", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("loads each review queue without updating state during render", async () => {
     const requestedPaths: string[] = []
     const fetchMock = vi
@@ -56,7 +53,11 @@ describe("AdminChronicle", () => {
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
-    render(<AdminChronicle />)
+    render(
+      <MemoryRouter>
+        <AdminChronicle />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText("pending.webp")).toBeVisible()
     expect(screen.getByText("上传者：制作人A")).toBeVisible()

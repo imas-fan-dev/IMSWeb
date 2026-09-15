@@ -9,7 +9,7 @@ const {
     PRODUCER_MAP_PROVINCES,
     serializeProducerMapContent,
     validateProducerMapDraft
-} = require('../../src/domains/producer-map/data.ts');
+} = require('../../src/domains/content/producer-map/data.ts');
 const {
     PRODUCER_MAP_OBJECT_KEY,
     producerMapAssetObjectKey
