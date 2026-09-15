@@ -112,6 +112,34 @@ await expect(profileSavedToast).toHaveCount(0)
 - 修用例 vs 修产品：顶栏控件被 toast 覆盖在产品上确有可讨论之处（移动端尤其明显），但用例里先做显式落定是确定性最高、影响面最小的收敛方式；产品侧若确认要改，另开任务。
 - 共用辅助函数 vs 每个 spec 自己写：两处需要同一语义，共用可以避免下一次只修一半。
 
+## 第二次 CI 结果与拆分决定
+
+修复推送后（CI run 35019780072）：`Validate Web` 通过，Web 侧两处失败消失；`Validate App` 只剩 `app-webkit` 一个 project 失败，其中 app-iphone 12.4s 通过、app-android 11.8s 通过、app-webkit 20.5s 超时。
+
+app-webkit 的 trace 显示 20s 预算的去向：
+
+```text
+ 2.73  goto /account/me                  前 2.7s 是 fixture 与浏览器启动
+ 8.59  click 使用此头像
+11.19  expect 保存头像可见               裁剪确认后预览渲染 2.6s
+12.87  page.reload
+15.20  expect 顶部头像 src               重启重新加载应用 2.3s
+17.76  click 确认移除
+19.02  settleToasts 第二轮
+20.01  测试超时
+```
+
+也就是说两处 toast 空等已被消除（第一轮 settleToasts 只花 0.9s），剩下的 20s 全是真实交互：fixture 启动、首屏、裁剪、保存、reload、移除。这是一个用例覆盖了上传、重启、移除三段状态，单凭它自己就占满了 20s 预算；同一个用例在 Chromium 两个 project 上也要 12s。
+
+按本节规则（接近上限就拆分，不放宽超时）拆成两个用例：
+
+- `uses an account root and uploads an avatar in the profile section`：账号根与栏目栈、裁剪弹层几何、保存头像、顶部提示落定、返回账号根。
+- `serves the persisted avatar at startup and removes it from the profile section`：启动即从公开对象 URL 解析已持久化头像（无 Authorization 头）、移除弹层的取消与确认、头像读取与控制台/远端请求计数。
+
+第二段用 `openAccountRoot(..., { profile })` 在首次启动前注入已持久化的 `avatarUrl`，所以不必重做上传；「上传后重启仍用同一 URL」这一契约由第一段的 PUT 响应与第二段的启动读取合并保证。两段共用新增的 `openAccountRoot` 辅助函数（统一的 mock、头像路由、请求计数）。
+
+本地 CI 等价运行：12 passed / 4 skipped，单次 2.9–5.0s（拆分前单用例 6.2–7.7s）。
+
 ## 兼容性与回滚
 
 - 辅助函数依赖 sonner 的两处输出；sonner 升版本导致属性变化时，`settleToasts` 会在空 locator 上失败，属于显式失败而非静默跳过。

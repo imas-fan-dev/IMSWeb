@@ -185,6 +185,93 @@ async function installAccountMocks(
   }
 }
 
+type AccountPageContext = {
+  page: Page
+  api: ApiDispatcher
+  apiOrigins: string[]
+  baseURL: string | undefined
+}
+
+/**
+ * Open the App account root with the shared platform mocks installed, plus the
+ * avatar transport and the request accounting both account scenarios assert.
+ * `profile` seeds the session the App reads during its first startup, which is
+ * how the removal scenario starts from an avatar persisted by an earlier run.
+ */
+async function openAccountRoot(
+  { page, api, apiOrigins, baseURL }: AccountPageContext,
+  options: { profile?: Partial<AppProfile> } = {}
+) {
+  if (!baseURL || apiOrigins.length !== 1) {
+    throw new Error("App account E2E requires one page and API origin")
+  }
+  const documentOrigin = new URL(baseURL).origin
+  const apiOrigin = apiOrigins[0]!
+  const avatarUrl = new URL(AVATAR_PATH, apiOrigin).href
+  const corsHeaders = appCorsHeaders(documentOrigin)
+  const accountMocks = await installAccountMocks(api, corsHeaders)
+  if (options.profile) {
+    accountMocks.setProfile({
+      ...session.profile,
+      updatedAt: 1,
+      ...options.profile,
+    })
+  }
+
+  const allowedRequestOrigins = new Set([documentOrigin, apiOrigin])
+  const avatarReadUrls: string[] = []
+  const apiRequestOrigins: string[] = []
+  const pageErrors: string[] = []
+  const remoteRequests: string[] = []
+  const avatarWrites = { put: 0, delete: 0 }
+
+  page.on("pageerror", (error) => pageErrors.push(error.message))
+  page.on("request", (request) => {
+    const url = new URL(request.url())
+    if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
+      apiRequestOrigins.push(url.origin)
+    }
+    if (url.pathname === "/api/platform/me/avatar") {
+      if (request.method() === "PUT") avatarWrites.put += 1
+      if (request.method() === "DELETE") avatarWrites.delete += 1
+    }
+    if (request.url() === avatarUrl) {
+      avatarReadUrls.push(request.url())
+      expect(request.headers().authorization).toBeUndefined()
+      return
+    }
+    if (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      !allowedRequestOrigins.has(url.origin)
+    ) {
+      remoteRequests.push(request.url())
+    }
+  })
+  await page.route(avatarUrl, async (route) => {
+    await route.fulfill({
+      body: avatarFixture,
+      contentType: "image/svg+xml",
+    })
+  })
+
+  await page.goto("/account/me")
+  expect(new URL(page.url()).origin).toBe(documentOrigin)
+  await applySafeArea(page)
+
+  return {
+    documentOrigin,
+    apiOrigin,
+    avatarUrl,
+    corsHeaders,
+    accountMocks,
+    avatarReadUrls,
+    apiRequestOrigins,
+    pageErrors,
+    remoteRequests,
+    avatarWrites,
+  }
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   test.skip(
     !["app-iphone", "app-android", "app-webkit"].includes(
@@ -198,50 +285,21 @@ test.beforeEach(async ({ page }, testInfo) => {
     document.cookie = "ims_platform_csrf=e2e; path=/"
   }, APP_ACCESS_TOKEN)
 })
-
 test(
-  "uses an account root and independent profile section stack",
+  "uses an account root and uploads an avatar in the profile section",
   {
     tag: ["@app-iphone", "@app-android", "@app-webkit"],
   },
   async ({ page, api, apiOrigins, baseURL }, testInfo) => {
-    if (!baseURL || apiOrigins.length !== 1) {
-      throw new Error("App account E2E requires one page and API origin")
-    }
-    const documentOrigin = new URL(baseURL).origin
-    const apiOrigin = apiOrigins[0]!
-    const avatarUrl = new URL(AVATAR_PATH, apiOrigin).href
-    const corsHeaders = appCorsHeaders(documentOrigin)
-    const allowedRequestOrigins = new Set([documentOrigin, apiOrigin])
-    const accountMocks = await installAccountMocks(api, corsHeaders)
-    const avatarReadUrls: string[] = []
-    const apiRequestOrigins: string[] = []
-    const pageErrors: string[] = []
-    const remoteRequests: string[] = []
-    page.on("pageerror", (error) => pageErrors.push(error.message))
-    page.on("request", (request) => {
-      const url = new URL(request.url())
-      if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
-        apiRequestOrigins.push(url.origin)
-      }
-      if (request.url() === avatarUrl) {
-        avatarReadUrls.push(request.url())
-        expect(request.headers().authorization).toBeUndefined()
-        return
-      }
-      if (
-        (url.protocol === "http:" || url.protocol === "https:") &&
-        !allowedRequestOrigins.has(url.origin)
-      ) {
-        remoteRequests.push(request.url())
-      }
-    })
-    await page.route(avatarUrl, async (route) => {
-      await route.fulfill({
-        body: avatarFixture,
-        contentType: "image/svg+xml",
-      })
-    })
+    const {
+      documentOrigin,
+      apiOrigin,
+      avatarUrl,
+      corsHeaders,
+      accountMocks,
+      avatarWrites,
+    } = await openAccountRoot({ page, api, apiOrigins, baseURL })
+
     await api.mock(
       { method: "PUT", path: "/api/platform/me/avatar", times: 1 },
       async (route) => {
@@ -255,23 +313,6 @@ test(
         await fulfillJson(route, { success: true, profile }, corsHeaders)
       }
     )
-    await api.mock(
-      { method: "DELETE", path: "/api/platform/me/avatar", times: 1 },
-      async (route) => {
-        expectPlatformBearer(route.request().headers())
-        const profile = {
-          ...session.profile,
-          avatarUrl: null,
-          updatedAt: 3,
-        }
-        accountMocks.setProfile(profile)
-        await fulfillJson(route, { success: true, profile }, corsHeaders)
-      }
-    )
-
-    await page.goto("/account/me")
-    expect(new URL(page.url()).origin).toBe(documentOrigin)
-    await applySafeArea(page)
 
     await expect(page.getByText("App 制作人")).toBeVisible()
     await expect(page.getByText("上海")).toBeVisible()
@@ -308,14 +349,6 @@ test(
     await expect(
       accountNavigation.getByRole("link", { name: "我的" })
     ).toHaveAttribute("aria-current", "page")
-
-    let avatarPutRequests = 0
-    let avatarDeleteRequests = 0
-    page.on("request", (request) => {
-      if (!request.url().endsWith("/api/platform/me/avatar")) return
-      if (request.method() === "PUT") avatarPutRequests += 1
-      if (request.method() === "DELETE") avatarDeleteRequests += 1
-    })
 
     await page.locator("#exchange-profile-avatar").setInputFiles({
       name: "avatar.svg",
@@ -370,7 +403,7 @@ test(
     const saveAvatar = page.getByRole("button", { name: "保存头像" })
     await expect(saveAvatar).toBeVisible()
     expect((await saveAvatar.boundingBox())!.height).toBeGreaterThanOrEqual(44)
-    expect(avatarPutRequests).toBe(0)
+    expect(avatarWrites.put).toBe(0)
     if (process.env.CAPTURE_APP_QA === "1") {
       await page.screenshot({
         path: `/tmp/imsweb-app-avatar-staged-${testInfo.project.name}.png`,
@@ -388,7 +421,7 @@ test(
     expect(
       await avatarPutResponse.headerValue("access-control-allow-origin")
     ).toBe(documentOrigin)
-    expect(avatarPutRequests).toBe(1)
+    expect(avatarWrites.put).toBe(1)
     await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
     await expect(page.getByRole("img", { name: "当前头像" })).toHaveAttribute(
       "src",
@@ -406,10 +439,48 @@ test(
     }
     await backButton.click()
     await expect(page).toHaveURL(/\/account\/me$/)
+  }
+)
 
-    // Recreate the packaged-App session boundary so this scenario proves a
-    // persisted avatar keeps its public object URL across startup.
-    await page.reload()
+test(
+  "serves the persisted avatar at startup and removes it from the profile section",
+  {
+    tag: ["@app-iphone", "@app-android", "@app-webkit"],
+  },
+  async ({ page, api, apiOrigins, baseURL }, testInfo) => {
+    const {
+      documentOrigin,
+      apiOrigin,
+      avatarUrl,
+      corsHeaders,
+      accountMocks,
+      avatarReadUrls,
+      apiRequestOrigins,
+      pageErrors,
+      remoteRequests,
+      avatarWrites,
+    } = await openAccountRoot(
+      { page, api, apiOrigins, baseURL },
+      { profile: { avatarUrl: AVATAR_PATH, updatedAt: 2 } }
+    )
+
+    await api.mock(
+      { method: "DELETE", path: "/api/platform/me/avatar", times: 1 },
+      async (route) => {
+        expectPlatformBearer(route.request().headers())
+        const profile = {
+          ...session.profile,
+          avatarUrl: null,
+          updatedAt: 3,
+        }
+        accountMocks.setProfile(profile)
+        await fulfillJson(route, { success: true, profile }, corsHeaders)
+      }
+    )
+
+    // The avatar belongs to a profile persisted by an earlier session, so this
+    // startup must resolve it from the public object URL again, without an
+    // Authorization header on the image read.
     await expect(
       page.getByRole("img", { name: "App 制作人的头像" })
     ).toHaveAttribute("src", avatarUrl)
@@ -420,7 +491,7 @@ test(
     const removeDialog = page.getByRole("alertdialog")
     await expect(removeDialog).toBeVisible()
     await removeDialog.getByRole("button", { name: "取消" }).click()
-    expect(avatarDeleteRequests).toBe(0)
+    expect(avatarWrites.delete).toBe(0)
     await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
 
     await page.getByRole("button", { name: "移除头像" }).click()
@@ -438,11 +509,12 @@ test(
     expect(
       await avatarDeleteResponse.headerValue("access-control-allow-origin")
     ).toBe(documentOrigin)
-    expect(avatarDeleteRequests).toBe(1)
+    expect(avatarWrites.delete).toBe(1)
     const avatarRemovedToast = page.getByText("头像已移除", { exact: true })
     await expect(avatarRemovedToast).toBeVisible()
     await settleToasts(page)
     await expect(avatarRemovedToast).toHaveCount(0)
+    const backButton = page.getByRole("button", { name: "返回" })
     await backButton.click()
     await expect(page).toHaveURL(/\/account\/me$/)
     await expect(

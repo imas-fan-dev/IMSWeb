@@ -73,12 +73,20 @@ only signal the lane produces.
 
 ### 2. Contracts
 
-- **Budget.** The same spec takes roughly 1.5x to 2.5x longer on a CI runner
-  than on a developer machine. Leave at least half of the configured `timeout`
-  as headroom for the assertion total in one test. When a test nears the limit,
-  split it or remove waiting; do not raise `timeout` and do not depend on a
-  retry. The App account scenario used to spend about 8s of its 20s budget on
-  two sonner auto-dismiss timers and crossed the limit on every App project.
+- **Budget.** The same spec takes roughly 1.5x to 3x longer on a CI runner than
+  on a developer machine, and the App WebKit project sits at the slow end of
+  that range. Two costs land before the first assertion: browser and fixture
+  startup, then the first navigation. Together they take about 5s of a 20s
+  budget on CI, so a scenario carrying an upload, a restart, and a removal does
+  not fit in one test. Keep the measured CI wall clock of a single test at or
+  under two thirds of the configured `timeout`; when it goes over, split the
+  test at a state boundary or remove waiting. Do not raise `timeout` and do not
+  depend on a retry. The App account flow reached 12.4s, 11.8s, and 20.5s across
+  the three App projects while it covered the upload, the restart, and the
+  removal in one scenario; split at the persisted-avatar boundary, the same
+  coverage runs in 3s to 5s locally per scenario. An earlier version of it had
+  also spent about 8s of its 20s budget waiting out two sonner auto-dismiss
+  timers.
 - **Transient overlays.** The `Toaster` is fixed to the top-right on Web and to
   a full-width top strip on narrow App viewports, so a toast can cover the
   account trigger and the App back button. Settle the toast before driving
@@ -112,10 +120,10 @@ only signal the lane produces.
 
 The E2E source-policy test keeps every spec on the automatic fixture and
 rejects fixed-time waits, so a new helper must live under `tests/e2e/fixtures/`
-and stay off the `*.spec.*` scan. The two shared call sites are the avatar-save
-header interaction in `community-exchange-me.spec.ts` and both avatar toasts in
-`app-account.spec.ts`. Run the affected specs with CI-equivalent settings and
-compare the reported wall clock against the configured `timeout`:
+and stay off the `*.spec.*` scan. The shared call sites are the avatar-save
+header interaction in `community-exchange-me.spec.ts` and the upload and removal
+toast in `app-account.spec.ts`. Run the affected specs with CI-equivalent
+settings and compare the reported wall clock against the configured `timeout`:
 
 ```sh
 CI=1 pnpm --filter @imsweb/web exec playwright test tests/e2e/community-exchange-me.spec.ts --workers=1 --retries=0
