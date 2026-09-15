@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "689ef7fd0b94d3c9080f908c9e0caa006959a229cfcdd7d4ee3eb3d44e44396e",
+    "semanticDigest": "e9c6ca47d79426d9917370343a0d61107f04b1d4c0ee3a6f6d0e961eb2123131",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -1546,7 +1546,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/delete-avatar.ts",
           "kind": "json",
-          "expression": "{ success : true , profile : platformProfileView ( result . profile ) } satisfies PlatformProfileMutationResponse"
+          "expression": "{ success : true , profile : await platformProfileView ( result . profile , services ( c ) . storage ) } satisfies PlatformProfileMutationResponse"
         },
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/delete-avatar.ts",
@@ -4444,7 +4444,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/get-profile.ts",
           "kind": "json",
-          "expression": "{ success : true , account : { id : identity . account . id , status : identity . account . status } , capabilities : { fudabaWrite : services ( c ) . config ?. fudabaWriteEnabled === true } , profile : platformProfileView ( identity . profile ) } satisfies PlatformProfileResponse"
+          "expression": "{ success : true , account : { id : identity . account . id , status : identity . account . status } , capabilities : { fudabaWrite : services ( c ) . config ?. fudabaWriteEnabled === true } , profile : await platformProfileView ( identity . profile , services ( c ) . storage ) } satisfies PlatformProfileResponse"
         }
       ]
     },
@@ -12119,7 +12119,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/update-profile.ts",
           "kind": "json",
-          "expression": "{ success : true , profile : platformProfileView ( result . profile ) } satisfies PlatformProfileMutationResponse"
+          "expression": "{ success : true , profile : await platformProfileView ( result . profile , services ( c ) . storage ) } satisfies PlatformProfileMutationResponse"
         },
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/update-profile.ts",
@@ -12157,7 +12157,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts",
           "kind": "json",
-          "expression": "{ success : true , profile : platformProfileView ( recovered . profile ) }"
+          "expression": "{ success : true , profile : await platformProfileView ( recovered . profile , runtime . storage ) }"
         },
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts",
@@ -12172,7 +12172,7 @@
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts",
           "kind": "json",
-          "expression": "{ success : true , profile : platformProfileView ( result . profile ) }"
+          "expression": "{ success : true , profile : await platformProfileView ( result . profile , runtime . storage ) }"
         },
         {
           "file": "apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts",
@@ -18069,7 +18069,7 @@
       "handlerSymbol": "handleDeletePlatformAvatar",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/delete-avatar.ts",
       "kind": "json",
-      "expression": "{ success : true , profile : platformProfileView ( result . profile ) } satisfies PlatformProfileMutationResponse"
+      "expression": "{ success : true , profile : await platformProfileView ( result . profile , services ( c ) . storage ) } satisfies PlatformProfileMutationResponse"
     },
     {
       "method": "DELETE",
@@ -19245,7 +19245,7 @@
       "handlerSymbol": "handleGetPlatformProfile",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/get-profile.ts",
       "kind": "json",
-      "expression": "{ success : true , account : { id : identity . account . id , status : identity . account . status } , capabilities : { fudabaWrite : services ( c ) . config ?. fudabaWriteEnabled === true } , profile : platformProfileView ( identity . profile ) } satisfies PlatformProfileResponse"
+      "expression": "{ success : true , account : { id : identity . account . id , status : identity . account . status } , capabilities : { fudabaWrite : services ( c ) . config ?. fudabaWriteEnabled === true } , profile : await platformProfileView ( identity . profile , services ( c ) . storage ) } satisfies PlatformProfileResponse"
     },
     {
       "method": "GET",
@@ -22261,7 +22261,7 @@
       "handlerSymbol": "handleUpdatePlatformProfile",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/update-profile.ts",
       "kind": "json",
-      "expression": "{ success : true , profile : platformProfileView ( result . profile ) } satisfies PlatformProfileMutationResponse"
+      "expression": "{ success : true , profile : await platformProfileView ( result . profile , services ( c ) . storage ) } satisfies PlatformProfileMutationResponse"
     },
     {
       "method": "PUT",
@@ -22285,7 +22285,7 @@
       "handlerSymbol": "handleUploadPlatformAvatar",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts",
       "kind": "json",
-      "expression": "{ success : true , profile : platformProfileView ( recovered . profile ) }"
+      "expression": "{ success : true , profile : await platformProfileView ( recovered . profile , runtime . storage ) }"
     },
     {
       "method": "PUT",
@@ -22309,7 +22309,7 @@
       "handlerSymbol": "handleUploadPlatformAvatar",
       "file": "apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts",
       "kind": "json",
-      "expression": "{ success : true , profile : platformProfileView ( result . profile ) }"
+      "expression": "{ success : true , profile : await platformProfileView ( result . profile , runtime . storage ) }"
     },
     {
       "method": "PUT",
