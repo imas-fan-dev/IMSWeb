@@ -5,6 +5,10 @@ import { ApiDispatcher } from "./api-dispatcher"
 export { expect } from "@playwright/test"
 export type { ApiDispatcher } from "./api-dispatcher"
 
+export type ApiTestOptions = {
+  apiOrigins: string[]
+}
+
 let activeApi: ApiDispatcher | undefined
 
 export const api = new Proxy({} as ApiDispatcher, {
@@ -17,12 +21,13 @@ export const api = new Proxy({} as ApiDispatcher, {
   },
 })
 
-export const test = base.extend<{ api: ApiDispatcher }>({
+export const test = base.extend<{ api: ApiDispatcher } & ApiTestOptions>({
+  apiOrigins: [[], { option: true }],
   api: [
-    async ({ baseURL, context }, run) => {
+    async ({ apiOrigins, baseURL, context }, run) => {
       if (!baseURL)
         throw new Error("Playwright API dispatcher requires baseURL")
-      const dispatcher = new ApiDispatcher(baseURL)
+      const dispatcher = new ApiDispatcher(baseURL, apiOrigins)
       await dispatcher.install(context)
       if (activeApi) {
         await dispatcher.dispose()

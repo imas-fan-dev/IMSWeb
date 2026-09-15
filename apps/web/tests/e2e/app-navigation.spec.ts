@@ -76,63 +76,67 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" })
 })
 
-test("resumes paginated reading after delayed data and follows actual history", async ({
-  page,
-  api,
-}, testInfo) => {
-  const fixture = await mockNamecardBrowsing(page, api, 36, undefined, {
-    cards: 3,
-    reactionReads: 36,
-    reactionWrites: 0,
-  })
-  installSeededPublicApis(api, [
-    { path: "/api/community/exchange/series", times: 1 },
-  ])
-  await page.goto(cardsUrl)
-  const top = await readCards(page)
-  await nav(page).getByRole("link", { name: "我的", exact: true }).click()
-  await expectAccountPage(page)
-  fixture.hold(2)
-  await nav(page).getByRole("link", { name: "社区", exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(cardsUrl.replace("?", "\\?")))
-  await expect.poll(() => fixture.requests.length).toBe(2)
-  await frame(page)
-  fixture.release()
-  await expect
-    .poll(() => page.evaluate(() => window.scrollY))
-    .toBeCloseTo(top, 0)
-  await expect(
-    nav(page).getByRole("link", { name: "社区", exact: true })
-  ).toHaveAttribute("aria-current", "page")
-  await page.screenshot({
-    path: testInfo.outputPath("restored-card-reading.png"),
-  })
-  await page.getByRole("button", { name: "返回", exact: true }).click()
-  await expectAccountPage(page)
-  await nav(page).getByRole("link", { name: "社区", exact: true }).click()
-  await expect(
-    page.getByRole("button", { name: "查看制作人名片 13 正面" })
-  ).toBeAttached()
-  await nav(page).getByRole("link", { name: "社区", exact: true }).click()
-  await expect(page).toHaveURL(/\/community$/)
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
-  for (const href of [
-    "/events",
-    "/community/cards",
-    "/community/exchange",
-    "/producer-map",
-  ]) {
-    await expect(page.locator(`main a[href="${href}"]`)).toBeVisible()
+test(
+  "resumes paginated reading after delayed data and follows actual history",
+  {
+    tag: "@app-webkit",
+  },
+  async ({ page, api }, testInfo) => {
+    const fixture = await mockNamecardBrowsing(page, api, 36, undefined, {
+      cards: 3,
+      reactionReads: 36,
+      reactionWrites: 0,
+    })
+    installSeededPublicApis(api, [
+      { path: "/api/community/exchange/series", times: 1 },
+    ])
+    await page.goto(cardsUrl)
+    const top = await readCards(page)
+    await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+    await expectAccountPage(page)
+    fixture.hold(2)
+    await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(cardsUrl.replace("?", "\\?")))
+    await expect.poll(() => fixture.requests.length).toBe(2)
+    await frame(page)
+    fixture.release()
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeCloseTo(top, 0)
+    await expect(
+      nav(page).getByRole("link", { name: "社区", exact: true })
+    ).toHaveAttribute("aria-current", "page")
+    await page.screenshot({
+      path: testInfo.outputPath("restored-card-reading.png"),
+    })
+    await page.getByRole("button", { name: "返回", exact: true }).click()
+    await expectAccountPage(page)
+    await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+    await expect(
+      page.getByRole("button", { name: "查看制作人名片 13 正面" })
+    ).toBeAttached()
+    await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+    await expect(page).toHaveURL(/\/community$/)
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+    for (const href of [
+      "/events",
+      "/community/cards",
+      "/community/exchange",
+      "/producer-map",
+    ]) {
+      await expect(page.locator(`main a[href="${href}"]`)).toBeVisible()
+    }
+    await expect(
+      page.getByRole("button", { name: "返回", exact: true })
+    ).toHaveCount(0)
   }
-  await expect(
-    page.getByRole("button", { name: "返回", exact: true })
-  ).toHaveCount(0)
-})
+)
 
 test("keeps the reading position when reaction rows arrive after initial restoration", async ({
   page,
   api,
 }) => {
+  await page.clock.install()
   const counts = { "👍": 2, "🎮": 4, "🌹": 3, "🍔": 5, "🍭": 6, "🔨": 7 }
   const fixture = await mockNamecardBrowsing(
     page,
@@ -161,17 +165,18 @@ test("keeps the reading position when reaction rows arrive after initial restora
   try {
     await nav(page).getByRole("link", { name: "社区", exact: true }).click()
     await expect(reactions).toHaveCount(0)
+    await page.clock.runFor(16)
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeCloseTo(top, 0)
     // Exercise growth beyond the former two-second restoration deadline.
-    await page.waitForTimeout(2300)
+    await page.clock.runFor(2300)
     release()
     await expect(reactions).toHaveCount(6)
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollHeight))
       .toBe(sourceHeight)
-    await frame(page)
+    await page.clock.runFor(32)
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeCloseTo(top, 0)

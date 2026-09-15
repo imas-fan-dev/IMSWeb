@@ -114,6 +114,7 @@ import {
   adminPlatformEmailTestResponseSchema,
 } from "@imsweb/contracts/platform/admin-email"
 import {
+  platformAvatarRemovalRequestSchema,
   platformHttpErrorSchema,
   platformLoginRequestSchema,
   platformOAuthProvidersResponseSchema,
@@ -600,6 +601,19 @@ export function resolveApiContract(
         403: platformProfileHttpErrorSchema,
         409: platformProfileHttpErrorSchema,
         413: platformProfileHttpErrorSchema,
+        429: platformProfileHttpErrorSchema,
+        500: platformProfileHttpErrorSchema,
+      },
+    }
+  if (method === "DELETE" && path === "/api/platform/me/avatar")
+    return {
+      body: platformAvatarRemovalRequestSchema,
+      responses: {
+        200: platformProfileMutationResponseSchema,
+        400: platformProfileHttpErrorSchema,
+        401: platformProfileHttpErrorSchema,
+        403: platformProfileHttpErrorSchema,
+        409: platformProfileHttpErrorSchema,
         429: platformProfileHttpErrorSchema,
         500: platformProfileHttpErrorSchema,
       },

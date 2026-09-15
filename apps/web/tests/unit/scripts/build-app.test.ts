@@ -203,6 +203,15 @@ describe("App development environment", () => {
     ).toBe(`http://127.0.0.1:${APP_DEV_PORT}`)
   })
 
+  it("uses the normalized API origin supplied by the App E2E runner", () => {
+    expect(
+      appDevEnvironment({
+        IMS_APP_E2E_CROSS_ORIGIN: "1",
+        E2E_APP_API_ORIGIN: "https://api.example.test",
+      }).VITE_IMS_API_ORIGIN
+    ).toBe("https://api.example.test")
+  })
+
   it("uses localhost for desktop Tauri development", () => {
     expect(appDevOrigin({})).toBe(`http://localhost:${APP_DEV_PORT}`)
   })

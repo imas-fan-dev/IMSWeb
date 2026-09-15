@@ -9,7 +9,7 @@ type RouteMatcher = (url: URL) => boolean
 type TestRoute = ReturnType<typeof makeRoute>
 type RouteHandler = (route: TestRoute) => Promise<void>
 
-function makeHarness() {
+function makeHarness(apiOrigins: readonly string[] = []) {
   let matcher: RouteMatcher | undefined
   let handler: RouteHandler | undefined
   const page = {
@@ -21,7 +21,7 @@ function makeHarness() {
     ),
     unroute: vi.fn(),
   }
-  const dispatcher = new ApiDispatcher("https://example.test")
+  const dispatcher = new ApiDispatcher("https://example.test", apiOrigins)
   return {
     dispatcher,
     page,
@@ -122,6 +122,28 @@ describe("ApiDispatcher", () => {
     expect(harness.matcher()(new URL("https://example.test/api/events"))).toBe(
       true
     )
+  })
+
+  it("matches configured API origins exactly and deduplicates them", async () => {
+    const harness = makeHarness([
+      "https://api.example.test",
+      "https://api.example.test/",
+    ])
+    await harness.install()
+
+    expect(
+      harness.matcher()(new URL("https://api.example.test/api/events"))
+    ).toBe(true)
+    expect(
+      harness.matcher()(new URL("https://api.example.test.evil/api/events"))
+    ).toBe(false)
+    expect(
+      harness.matcher()(new URL("https://cdn.example.test/api/events"))
+    ).toBe(false)
+  })
+
+  it("rejects malformed configured API origins", () => {
+    expect(() => makeHarness(["not an origin"])).toThrow("Invalid URL")
   })
 
   it("fails an unregistered path", async () => {

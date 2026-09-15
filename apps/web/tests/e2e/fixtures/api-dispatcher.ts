@@ -199,7 +199,7 @@ function registrationLabel(registration: Registration) {
 }
 
 export class ApiDispatcher {
-  readonly #origin: string
+  readonly #origins: ReadonlySet<string>
   readonly #registrations: Registration[] = []
   readonly #records: ApiRequestRecord[] = []
   readonly #violations: string[] = []
@@ -207,15 +207,17 @@ export class ApiDispatcher {
   #routeMatcher: ((url: URL) => boolean) | undefined
   #routeHandler: ((route: Route) => Promise<void>) | undefined
 
-  constructor(baseURL: string) {
-    this.#origin = new URL(baseURL).origin
+  constructor(baseURL: string, apiOrigins: readonly string[] = []) {
+    this.#origins = new Set(
+      [baseURL, ...apiOrigins].map((origin) => new URL(origin).origin)
+    )
   }
 
   async install(context: BrowserContext) {
     if (this.#context) throw new Error("API dispatcher is already installed")
     this.#context = context
     this.#routeMatcher = (url) =>
-      url.origin === this.#origin &&
+      this.#origins.has(url.origin) &&
       (url.pathname === "/api" || url.pathname.startsWith("/api/"))
     this.#routeHandler = (route) => this.#dispatch(route)
     try {

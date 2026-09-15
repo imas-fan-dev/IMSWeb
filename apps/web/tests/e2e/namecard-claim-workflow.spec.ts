@@ -9,6 +9,15 @@ const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
   "data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///ywAAAAAAQABAAACAkQBADs="
 
+async function waitForNextPaint(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  )
+}
+
 const catalog = {
   status: "success",
   agencies: [
@@ -290,7 +299,7 @@ test("registered user submits a legacy-card claim from the public wall", async (
     )
   ).toBe(false)
   expect(consoleErrors).toEqual([])
-  await page.waitForTimeout(500)
+  await waitForNextPaint(page)
   await expect(page.getByRole("dialog")).not.toBeVisible()
   await page.screenshot({
     path: `/tmp/imsweb-namecard-claim-${testInfo.project.name}.png`,
@@ -652,7 +661,7 @@ test("administrator reviews registered cards and legacy-card claims", async ({
         document.documentElement.clientWidth
     )
   ).toBe(false)
-  await page.waitForTimeout(500)
+  await waitForNextPaint(page)
   await expect(page.getByRole("dialog")).not.toBeVisible()
   await page.screenshot({
     path: `/tmp/imsweb-namecard-admin-review-${testInfo.project.name}.png`,

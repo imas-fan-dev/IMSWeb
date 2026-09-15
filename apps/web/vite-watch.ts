@@ -3,6 +3,7 @@ export const GENERATED_BUILD_WATCH_OPTIONS = {
     "**/build/**",
     "**/build-app/**",
     "**/src-tauri/gen/**",
+    "**/src-tauri/icon-sources/**",
     "**/src-tauri/icons/**",
     "**/src-tauri/target/**",
   ],

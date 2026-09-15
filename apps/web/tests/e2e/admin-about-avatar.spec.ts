@@ -1,3 +1,5 @@
+import type { Locator, Page } from "@playwright/test"
+
 import { api, expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
@@ -64,6 +66,66 @@ const content = {
     },
   ],
   updatedAt: null,
+}
+
+async function moveDownWithKeyboard(
+  page: Page,
+  handle: Locator,
+  orderedHandles: Locator,
+  expectedLabels: string[]
+) {
+  const activeLabel = await handle.getAttribute("aria-label")
+  const handles = await orderedHandles.all()
+  const activeIndex = (
+    await Promise.all(
+      handles.map((candidate) => candidate.getAttribute("aria-label"))
+    )
+  ).indexOf(activeLabel)
+  const [activeBox, targetBox] = await Promise.all([
+    handles[activeIndex]?.boundingBox(),
+    handles[activeIndex + 1]?.boundingBox(),
+  ])
+  if (!activeBox || !targetBox) {
+    throw new Error(`Cannot move ${activeLabel ?? "unknown drag handle"} down`)
+  }
+  const targetDistance = Math.abs(targetBox.y - activeBox.y)
+
+  await handle.focus()
+  await page.keyboard.press("Space")
+  await expect(handle).toHaveAttribute("aria-pressed", "true")
+  await page.keyboard.press("ArrowDown")
+  await expect
+    .poll(() =>
+      handle.evaluate((element) => {
+        const row = element.closest<HTMLElement>("div.grid")
+        if (!row) return 0
+        const transform = getComputedStyle(row).transform
+        return transform === "none" ? 0 : Math.abs(new DOMMatrix(transform).m42)
+      })
+    )
+    .toBeGreaterThanOrEqual(targetDistance * 0.8)
+  await expect
+    .poll(() =>
+      handle.evaluate((element) => {
+        const row = element.closest<HTMLElement>("div.grid")
+        return (
+          row
+            ?.getAnimations({ subtree: false })
+            .every((animation) =>
+              ["finished", "idle"].includes(animation.playState)
+            ) ?? false
+        )
+      })
+    )
+    .toBe(true)
+  await page.keyboard.press("Space")
+  await expect
+    .poll(() =>
+      orderedHandles.evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute("aria-label"))
+      )
+    )
+    .toEqual(expectedLabels)
 }
 
 test.beforeEach(async ({ page, api }) => {
@@ -154,23 +216,23 @@ test("roster sorting and scoped avatar edits stay in the draft until page save",
   const groupHandle = page.getByRole("button", {
     name: "拖动排序：创始人",
   })
-  await groupHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
+  await moveDownWithKeyboard(
+    page,
+    groupHandle,
+    page.getByRole("button", { name: /^拖动排序：(创始人|维护组)$/ }),
+    ["拖动排序：维护组", "拖动排序：创始人"]
+  )
 
   const memberHandle = page.getByRole("button", {
     name: "拖动排序：制作人A",
     exact: true,
   })
-  await memberHandle.focus()
-  await page.keyboard.press("Space")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("ArrowDown")
-  await page.waitForTimeout(100)
-  await page.keyboard.press("Space")
+  await moveDownWithKeyboard(
+    page,
+    memberHandle,
+    page.getByRole("button", { name: /^拖动排序：制作人A2?$/ }),
+    ["拖动排序：制作人A2", "拖动排序：制作人A"]
+  )
 
   await page
     .getByRole("button", { name: "编辑成员 制作人A", exact: true })

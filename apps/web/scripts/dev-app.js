@@ -102,7 +102,7 @@ export function appDevEnvironment(environment = process.env) {
 
   const e2eApiOrigin =
     environment.IMS_APP_E2E_CROSS_ORIGIN === "1"
-      ? `http://127.0.0.1:${APP_DEV_PORT}`
+      ? environment.E2E_APP_API_ORIGIN || `http://127.0.0.1:${APP_DEV_PORT}`
       : ""
 
   return {

@@ -99,7 +99,17 @@ const publicRoutes: Array<{
   {
     path: "/community/exchange",
     title: /名片交换事务所.*IMSWeb/i,
-    apis: [],
+    apis: [
+      { path: "/api/wiki/catalog", times: 1 },
+      { path: "/api/community/exchange/series", times: 1 },
+      { path: "/api/community/exchange/offices", times: 1 },
+      { path: "/api/community/exchange/cards", times: 1 },
+      { path: "/api/community/exchange/map/config", times: 1 },
+      {
+        path: "/api/community/exchange/map/offices",
+        times: { min: 1, max: 3 },
+      },
+    ],
   },
   {
     path: "/community/cards",
@@ -124,7 +134,11 @@ const publicRoutes: Array<{
     title: /剧情档案.*IMSWeb/i,
     apis: withCatalog("/api/wiki/random_bg"),
   },
-  { path: "/wiki/classic", title: /经典剧情导航.*IMSWeb/i, apis: [] },
+  {
+    path: "/wiki/classic",
+    title: /经典剧情导航.*IMSWeb/i,
+    apis: withCatalog("/api/wiki/random_bg"),
+  },
   {
     path: "/story",
     title: /剧情详情.*IMSWeb/i,
@@ -135,7 +149,11 @@ const publicRoutes: Array<{
     title: /剧情详情.*IMSWeb/i,
     apis: [{ path: "/api/wiki/catalog", times: 1 }],
   },
-  { path: "/story/classic", title: /经典剧情详情.*IMSWeb/i, apis: [] },
+  {
+    path: "/story/classic",
+    title: /经典剧情详情.*IMSWeb/i,
+    apis: [{ path: "/api/wiki/catalog", times: 1 }],
+  },
   {
     path: "/works/sc",
     title: /SHINY COLORS.*IMSWeb/i,
@@ -200,6 +218,7 @@ for (const route of publicRoutes) {
       await expect(background).toHaveCount(1)
       await expect(background.locator(".series-icon-motif")).toHaveCount(12)
     }
+    await page.waitForLoadState("networkidle")
 
     expect(
       unexpectedConsoleErrors(route.path, consoleErrors),
@@ -230,49 +249,51 @@ test("the interface stays Chinese when an English preference is stored", async (
     .toBe("zh-CN")
 })
 
-test("work detail content stays below the sticky site header", async ({
-  page,
-  api,
-  isMobile,
-}) => {
-  installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
-  if (!isMobile) {
-    await page.setViewportSize({ width: 1600, height: 900 })
-  }
-  await page.goto("/works/sc")
+test(
+  "work detail content stays below the sticky site header",
+  {
+    tag: "@mobile",
+  },
+  async ({ page, api, isMobile }) => {
+    installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
+    if (!isMobile) {
+      await page.setViewportSize({ width: 1600, height: 900 })
+    }
+    await page.goto("/works/sc")
 
-  const header = page.getByRole("banner")
-  const title = page.getByRole("heading", {
-    name: "THE IDOLM@STER",
-    exact: true,
-  })
-  await expect(header).toBeVisible()
-  await expect(title).toBeVisible()
-
-  const headerBox = await header.boundingBox()
-  const titleBox = await title.boundingBox()
-  expect(headerBox).not.toBeNull()
-  expect(titleBox).not.toBeNull()
-  expect(titleBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height)
-
-  const hasHorizontalOverflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > window.innerWidth
-  )
-  expect(hasHorizontalOverflow).toBe(false)
-
-  if (!isMobile) {
-    const copyBox = await page.getByTestId("work-detail-copy").boundingBox()
-    const navBox = await page.getByTestId("work-nav-card").boundingBox()
-    const character = page.getByRole("img", {
-      name: "SHINY COLORS 角色立绘",
+    const header = page.getByRole("banner")
+    const title = page.getByRole("heading", {
+      name: "THE IDOLM@STER",
+      exact: true,
     })
-    expect(copyBox).not.toBeNull()
-    expect(navBox).not.toBeNull()
-    expect(copyBox!.x + copyBox!.width).toBeLessThanOrEqual(navBox!.x)
-    await expect(character).toHaveCSS("opacity", "1")
-    await expect(character.locator("..")).toHaveCSS("position", "relative")
+    await expect(header).toBeVisible()
+    await expect(title).toBeVisible()
+
+    const headerBox = await header.boundingBox()
+    const titleBox = await title.boundingBox()
+    expect(headerBox).not.toBeNull()
+    expect(titleBox).not.toBeNull()
+    expect(titleBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height)
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth
+    )
+    expect(hasHorizontalOverflow).toBe(false)
+
+    if (!isMobile) {
+      const copyBox = await page.getByTestId("work-detail-copy").boundingBox()
+      const navBox = await page.getByTestId("work-nav-card").boundingBox()
+      const character = page.getByRole("img", {
+        name: "SHINY COLORS 角色立绘",
+      })
+      expect(copyBox).not.toBeNull()
+      expect(navBox).not.toBeNull()
+      expect(copyBox!.x + copyBox!.width).toBeLessThanOrEqual(navBox!.x)
+      await expect(character).toHaveCSS("opacity", "1")
+      await expect(character.locator("..")).toHaveCSS("position", "relative")
+    }
   }
-})
+)
 
 test("work detail keeps narrow-screen artwork behind the copy", async ({
   page,
@@ -375,95 +396,101 @@ test.fixme("work detail actually renders the idolFont face", async ({
     .toBe(true)
 })
 
-test("work detail carries the lightweight global series background", async ({
-  page,
-  api,
-  isMobile,
-}) => {
-  installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
-  await page.goto("/works/sc")
+test(
+  "work detail carries the lightweight global series background",
+  {
+    tag: "@mobile",
+  },
+  async ({ page, api, isMobile }) => {
+    installSeededPublicApis(api, [{ path: "/api/wiki/catalog", times: 1 }])
+    await page.goto("/works/sc")
 
-  const background = page.getByTestId("series-icon-background")
-  const motifs = background.locator(".series-icon-motif")
-  await expect(background).toBeVisible()
-  await expect(motifs).toHaveCount(12)
-  await expect(motifs.filter({ visible: true })).toHaveCount(isMobile ? 8 : 12)
-
-  const visibleWidths = await motifs.evaluateAll((elements) =>
-    elements
-      .filter((element) => !(element as HTMLElement).hidden)
-      .map((element) => Number.parseFloat(getComputedStyle(element).width))
-  )
-  const [minimumWidth, maximumWidth] = isMobile ? [50, 98] : [68, 136]
-  expect(
-    visibleWidths.every(
-      (width) => width >= minimumWidth && width <= maximumWidth
+    const background = page.getByTestId("series-icon-background")
+    const motifs = background.locator(".series-icon-motif")
+    await expect(background).toBeVisible()
+    await expect(motifs).toHaveCount(12)
+    await expect(motifs.filter({ visible: true })).toHaveCount(
+      isMobile ? 8 : 12
     )
-  ).toBe(true)
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth
+
+    const visibleWidths = await motifs.evaluateAll((elements) =>
+      elements
+        .filter((element) => !(element as HTMLElement).hidden)
+        .map((element) => Number.parseFloat(getComputedStyle(element).width))
     )
-  ).toBe(true)
+    const [minimumWidth, maximumWidth] = isMobile ? [50, 98] : [68, 136]
+    expect(
+      visibleWidths.every(
+        (width) => width >= minimumWidth && width <= maximumWidth
+      )
+    ).toBe(true)
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth
+      )
+    ).toBe(true)
 
-  const firstMotif = motifs.first()
-  await expect(firstMotif).toHaveCSS("filter", "none")
-  await expect(firstMotif).toHaveCSS("will-change", "transform")
-  const initialTransform = await firstMotif.evaluate(
-    (element) => element.style.transform
-  )
-  await expect
-    .poll(() => firstMotif.evaluate((element) => element.style.transform))
-    .not.toBe(initialTransform)
-})
-
-test("mobile navigation keeps link semantics and closes after routing", async ({
-  page,
-  api,
-  isMobile,
-}) => {
-  test.skip(!isMobile, "mobile navigation is hidden on desktop")
-  installSeededPublicApis(
-    api,
-    homeSeededApis.map((registration) =>
-      registration.path === "/api/events"
-        ? { ...registration, times: 2 }
-        : registration
+    const firstMotif = motifs.first()
+    await expect(firstMotif).toHaveCSS("filter", "none")
+    await expect(firstMotif).toHaveCSS("will-change", "transform")
+    const initialTransform = await firstMotif.evaluate(
+      (element) => element.style.transform
     )
-  )
+    await expect
+      .poll(() => firstMotif.evaluate((element) => element.style.transform))
+      .not.toBe(initialTransform)
+  }
+)
 
-  const consoleErrors: string[] = []
-  page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text())
-  })
+test(
+  "mobile navigation keeps link semantics and closes after routing",
+  {
+    tag: "@mobile",
+  },
+  async ({ page, api, isMobile }) => {
+    test.skip(!isMobile, "mobile navigation is hidden on desktop")
+    installSeededPublicApis(
+      api,
+      homeSeededApis.map((registration) =>
+        registration.path === "/api/events"
+          ? { ...registration, times: 2 }
+          : registration
+      )
+    )
 
-  await page.goto("/")
-  const trigger = page.getByRole("button", {
-    name: /打开导航|Open navigation/,
-  })
-  await expect(trigger).toBeEnabled()
-  await trigger.click()
+    const consoleErrors: string[] = []
+    page.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text())
+    })
 
-  const dialog = page.getByRole("dialog", {
-    name: /站点导航|Site navigation/,
-  })
-  await expect(dialog).toBeVisible()
-  const navigation = dialog.getByRole("navigation", {
-    name: /移动端主导航|Mobile navigation/,
-  })
-  const eventsLink = navigation.getByRole("link", {
-    name: /社区动态|Events/,
-    exact: true,
-  })
+    await page.goto("/")
+    const trigger = page.getByRole("button", {
+      name: /打开导航|Open navigation/,
+    })
+    await expect(trigger).toBeEnabled()
+    await trigger.click()
 
-  await expect(eventsLink).toHaveAttribute("href", "/events")
-  await eventsLink.click()
-  await expect(page).toHaveURL(/\/events$/)
-  await expect(
-    page.getByRole("dialog", { name: /站点导航|Site navigation/ })
-  ).toBeHidden()
-  expect(consoleErrors).toEqual([])
-})
+    const dialog = page.getByRole("dialog", {
+      name: /站点导航|Site navigation/,
+    })
+    await expect(dialog).toBeVisible()
+    const navigation = dialog.getByRole("navigation", {
+      name: /移动端主导航|Mobile navigation/,
+    })
+    const eventsLink = navigation.getByRole("link", {
+      name: /社区动态|Events/,
+      exact: true,
+    })
+
+    await expect(eventsLink).toHaveAttribute("href", "/events")
+    await eventsLink.click()
+    await expect(page).toHaveURL(/\/events$/)
+    await expect(
+      page.getByRole("dialog", { name: /站点导航|Site navigation/ })
+    ).toBeHidden()
+    expect(consoleErrors).toEqual([])
+  }
+)
 
 test("desktop navigation lens stays within its glass segment", async ({
   page,
@@ -797,113 +824,114 @@ test("desktop navigation lens stays within its glass segment", async ({
   }
 })
 
-test("homepage navigation keeps secondary destinations in the directory", async ({
-  page,
-  api,
-  isMobile,
-}) => {
-  if (process.env.CAPTURE_HEADER_QA === "1") {
-    await page.addInitScript(() => {
-      localStorage.setItem("imsweb.language", "zh-CN")
-    })
-  }
-  installHomepageLinksMock(api)
-  installSeededPublicApis(
-    api,
-    homeSeededApis.filter(
-      (registration) => registration.path !== "/api/homepage-links"
+test(
+  "homepage navigation keeps secondary destinations in the directory",
+  {
+    tag: ["@mobile", "@firefox"],
+  },
+  async ({ page, api, isMobile }) => {
+    if (process.env.CAPTURE_HEADER_QA === "1") {
+      await page.addInitScript(() => {
+        localStorage.setItem("imsweb.language", "zh-CN")
+      })
+    }
+    installHomepageLinksMock(api)
+    installSeededPublicApis(
+      api,
+      homeSeededApis.filter(
+        (registration) => registration.path !== "/api/homepage-links"
+      )
     )
-  )
-  await page.goto("/")
+    await page.goto("/")
 
-  if (isMobile) {
-    const trigger = page.getByRole("button", {
-      name: /打开导航|Open navigation/,
-    })
-    await expect(trigger).toBeEnabled()
-    await trigger.click()
-  }
+    if (isMobile) {
+      const trigger = page.getByRole("button", {
+        name: /打开导航|Open navigation/,
+      })
+      await expect(trigger).toBeEnabled()
+      await trigger.click()
+    }
 
-  const navigation = isMobile
-    ? page
-        .getByRole("dialog", { name: /站点导航|Site navigation/ })
-        .getByRole("navigation", {
-          name: /移动端主导航|Mobile navigation/,
-        })
-    : page.getByRole("navigation", { name: /主导航|Main navigation/ })
-  await expect(navigation.locator("a")).toHaveCount(isMobile ? 7 : 6)
+    const navigation = isMobile
+      ? page
+          .getByRole("dialog", { name: /站点导航|Site navigation/ })
+          .getByRole("navigation", {
+            name: /移动端主导航|Mobile navigation/,
+          })
+      : page.getByRole("navigation", { name: /主导航|Main navigation/ })
+    await expect(navigation.locator("a")).toHaveCount(isMobile ? 7 : 6)
 
-  for (const primaryHref of [
-    "/",
-    "/events",
-    "/recommendations",
-    "/live",
-    "/community",
-    "/about",
-  ]) {
-    await expect(navigation.locator(`a[href="${primaryHref}"]`)).toBeVisible()
-  }
-  for (const secondaryHref of [
-    "/community/exchange",
-    "/community/cards",
-    "/producer-map",
-    "/works",
-    "/chronicle",
-  ]) {
-    await expect(navigation.locator(`a[href="${secondaryHref}"]`)).toHaveCount(
-      0
-    )
-  }
-  await expect(page.locator('a[href="/runninggame/"]')).toHaveCount(0)
-  await expect(
-    (isMobile ? navigation : page.getByRole("banner")).getByRole("link", {
-      name: /剧情站|Story Archive/,
-    })
-  ).toHaveAttribute("href", "/wiki")
-  if (isMobile) {
-    await page.keyboard.press("Escape")
-    await expect(navigation).toBeHidden()
-  }
+    for (const primaryHref of [
+      "/",
+      "/events",
+      "/recommendations",
+      "/live",
+      "/community",
+      "/about",
+    ]) {
+      await expect(navigation.locator(`a[href="${primaryHref}"]`)).toBeVisible()
+    }
+    for (const secondaryHref of [
+      "/community/exchange",
+      "/community/cards",
+      "/producer-map",
+      "/works",
+      "/chronicle",
+    ]) {
+      await expect(
+        navigation.locator(`a[href="${secondaryHref}"]`)
+      ).toHaveCount(0)
+    }
+    await expect(page.locator('a[href="/runninggame/"]')).toHaveCount(0)
+    await expect(
+      (isMobile ? navigation : page.getByRole("banner")).getByRole("link", {
+        name: /剧情站|Story Archive/,
+      })
+    ).toHaveAttribute("href", "/wiki")
+    if (isMobile) {
+      await page.keyboard.press("Escape")
+      await expect(navigation).toBeHidden()
+    }
 
-  const directory = page.getByRole("region", { name: "站点导航" })
-  for (const href of [
-    "/community/exchange",
-    "/community/cards",
-    "/producer-map",
-    "/works",
-    "/chronicle",
-  ]) {
-    await expect(directory.locator(`a[href="${href}"]`)).toBeVisible()
-  }
-  await expect(directory.getByRole("link", { name: /剧情站/ })).toHaveAttribute(
-    "href",
-    "/wiki"
-  )
+    const directory = page.getByRole("region", { name: "站点导航" })
+    for (const href of [
+      "/community/exchange",
+      "/community/cards",
+      "/producer-map",
+      "/works",
+      "/chronicle",
+    ]) {
+      await expect(directory.locator(`a[href="${href}"]`)).toBeVisible()
+    }
+    await expect(
+      directory.getByRole("link", { name: /剧情站/ })
+    ).toHaveAttribute("href", "/wiki")
 
-  await expect(
-    page.getByRole("contentinfo").getByRole("link", {
-      name: /剧情站|Story Archive/,
-    })
-  ).toHaveAttribute("href", "/wiki/")
-  if (process.env.CAPTURE_HEADER_QA === "1") {
-    await page.getByRole("contentinfo").scrollIntoViewIfNeeded()
-    await page.screenshot({
-      path: `/tmp/imsweb-footer-story-site-${isMobile ? "mobile" : "desktop"}.png`,
-    })
-  }
-  await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
-  await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
+    await expect(
+      page.getByRole("contentinfo").getByRole("link", {
+        name: /剧情站|Story Archive/,
+      })
+    ).toHaveAttribute("href", "/wiki/")
+    if (process.env.CAPTURE_HEADER_QA === "1") {
+      await page.getByRole("contentinfo").scrollIntoViewIfNeeded()
+      await page.screenshot({
+        path: `/tmp/imsweb-footer-story-site-${isMobile ? "mobile" : "desktop"}.png`,
+      })
+    }
+    await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
+    await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
 
-  const friendLinksBox = await page
-    .getByRole("region", { name: "友情链接" })
-    .boundingBox()
-  const siteSupportBox = await page
-    .getByRole("region", { name: "网站支持" })
-    .boundingBox()
-  expect(friendLinksBox).not.toBeNull()
-  expect(siteSupportBox).not.toBeNull()
-  expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
-})
+    const friendLinksBox = await page
+      .getByRole("region", { name: "友情链接" })
+      .boundingBox()
+    const siteSupportBox = await page
+      .getByRole("region", { name: "网站支持" })
+      .boundingBox()
+    expect(friendLinksBox).not.toBeNull()
+    expect(siteSupportBox).not.toBeNull()
+    expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
+  }
+)
 
 test("homepage directory uses compact responsive columns", async ({
   page,
@@ -1046,167 +1074,174 @@ test("theme toggle persists the selected color scheme", async ({
 
   await page.reload()
   await expect(root).toHaveClass(/dark/)
+  await page.waitForLoadState("networkidle")
 })
 
-test("default wiki hero gives story artwork an expanded frame", async ({
-  page,
-  api,
-  isMobile,
-}) => {
-  installSeededPublicApis(api, [
-    {
-      path: "/api/wiki/catalog",
-      times: { min: 0, max: 1 },
-    },
-    {
-      path: "/api/wiki/random_bg",
-      times: { min: 0, max: 1 },
-    },
-  ])
-  await page.goto("/wiki")
+test(
+  "default wiki hero gives story artwork an expanded frame",
+  {
+    tag: "@mobile",
+  },
+  async ({ page, api, isMobile }) => {
+    installSeededPublicApis(api, [
+      {
+        path: "/api/wiki/catalog",
+        times: { min: 0, max: 1 },
+      },
+      {
+        path: "/api/wiki/random_bg",
+        times: { min: 0, max: 1 },
+      },
+    ])
+    await page.goto("/wiki")
 
-  const hero = page.getByRole("region", { name: "剧情档案视觉" })
-  await expect(hero).toBeVisible()
-  const heroBox = await hero.boundingBox()
-  expect(heroBox).not.toBeNull()
-  expect(heroBox!.height).toBeGreaterThanOrEqual(isMobile ? 448 : 480)
+    const hero = page.getByRole("region", { name: "剧情档案视觉" })
+    await expect(hero).toBeVisible()
+    const heroBox = await hero.boundingBox()
+    expect(heroBox).not.toBeNull()
+    expect(heroBox!.height).toBeGreaterThanOrEqual(isMobile ? 448 : 480)
 
-  const artwork = hero.getByRole("img")
-  if ((await artwork.count()) > 0) {
-    await expect(artwork).toHaveCSS("opacity", "1")
-    await expect(artwork).toHaveCSS("object-fit", "cover")
-    await expect(artwork).toHaveCSS("object-position", "50% 25%")
-  }
-  await expect(
-    hero
-      .getByRole("link", { name: "经典视图" })
-      .locator('img[src="/brand/wiki-view-switch.png"]')
-  ).toHaveCount(1)
+    const artwork = hero.getByRole("img")
+    if ((await artwork.count()) > 0) {
+      await expect(artwork).toHaveCSS("opacity", "1")
+      await expect(artwork).toHaveCSS("object-fit", "cover")
+      await expect(artwork).toHaveCSS("object-position", "50% 25%")
+    }
+    await expect(
+      hero
+        .getByRole("link", { name: "经典视图" })
+        .locator('img[src="/brand/wiki-view-switch.png"]')
+    ).toHaveCount(1)
 
-  const hasHorizontalOverflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > window.innerWidth
-  )
-  expect(hasHorizontalOverflow).toBe(false)
-})
-
-test("home exposes current discovery and birthday interactions", async ({
-  page,
-  api,
-  isMobile,
-}) => {
-  installHomepageLinksMock(api)
-  installSeededPublicApis(
-    api,
-    homeSeededApis
-      .filter(
-        (registration) =>
-          registration.path !== "/api/homepage-links" &&
-          registration.path !== "/api/community-posts/spotlight"
-      )
-      .map((registration) =>
-        registration.path === "/api/wiki/random_idol"
-          ? { ...registration, times: 2 }
-          : registration
-      )
-  )
-  api.mockRoute(
-    "/api/community-posts/spotlight",
-    async (route) => {
-      const response = { items: [] } satisfies EditorialSpotlight
-      await route.fulfill({ status: 200, json: response })
-    },
-    "GET"
-  )
-
-  await page.goto("/")
-
-  const brandBackground = page.getByTestId("series-icon-background")
-  await expect(brandBackground).toBeVisible()
-  await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(12)
-  const firstMotif = brandBackground.locator(".series-icon-motif").first()
-  await expect(firstMotif).toHaveCSS("filter", "none")
-  const initialTransform = await firstMotif.evaluate(
-    (element) => element.style.transform
-  )
-  await expect
-    .poll(() => firstMotif.evaluate((element) => element.style.transform))
-    .not.toBe(initialTransform)
-
-  const seriesWall = page.getByRole("region", {
-    name: "THE iDOLM@STER",
-  })
-  await expect(seriesWall.getByRole("link")).toHaveCount(6)
-  await expect(seriesWall.getByTestId("series-band")).toHaveCount(6)
-  await expect(seriesWall.locator("img")).toHaveCount(6)
-  await expect(seriesWall.locator("img").first()).toHaveAttribute(
-    "src",
-    "/brand/series/wall/765pro.webp"
-  )
-  if (!isMobile) {
-    const viewportWidth = page.viewportSize()?.width ?? 0
-    const lastSeriesBand = await seriesWall
-      .getByTestId("series-band")
-      .last()
-      .boundingBox()
-    expect(lastSeriesBand).not.toBeNull()
-    expect(lastSeriesBand!.x + lastSeriesBand!.width).toBeGreaterThan(
-      viewportWidth * 0.95
+    const hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth
     )
+    expect(hasHorizontalOverflow).toBe(false)
   }
+)
 
-  const directory = page.getByRole("region", { name: "站点导航" })
-  await expect(
-    directory.getByRole("link", { name: /活动中心/ })
-  ).toHaveAttribute("href", "/events")
-  await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
-  await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
-  await expect(
-    directory.getByRole("link", { name: /关于 IMSWeb/ })
-  ).toHaveAttribute("href", "/about")
+test(
+  "home exposes current discovery and birthday interactions",
+  {
+    tag: "@mobile",
+  },
+  async ({ page, api, isMobile }) => {
+    installHomepageLinksMock(api)
+    installSeededPublicApis(
+      api,
+      homeSeededApis
+        .filter(
+          (registration) =>
+            registration.path !== "/api/homepage-links" &&
+            registration.path !== "/api/community-posts/spotlight"
+        )
+        .map((registration) =>
+          registration.path === "/api/wiki/random_idol"
+            ? { ...registration, times: 2 }
+            : registration
+        )
+    )
+    api.mockRoute(
+      "/api/community-posts/spotlight",
+      async (route) => {
+        const response = { items: [] } satisfies EditorialSpotlight
+        await route.fulfill({ status: 200, json: response })
+      },
+      "GET"
+    )
 
-  const calendar = page.getByRole("region", { name: "偶像生日日历" })
-  const visibleMonth = calendar.getByTestId("calendar-month")
-  const initialMonth = await visibleMonth.innerText()
-  await calendar.getByRole("button", { name: "下个月" }).click()
-  await expect(visibleMonth).not.toHaveText(initialMonth)
-  await calendar.getByRole("button", { name: "今日" }).click()
-  await expect(visibleMonth).toHaveText(initialMonth)
+    await page.goto("/")
 
-  const friendLinks = page.getByRole("region", { name: "友情链接" })
-  await expect(
-    friendLinks.getByRole("link", { name: /偶像大师 SP 汉化/ })
-  ).toHaveAttribute("href", "https://sp.idolmaster.top/")
+    const brandBackground = page.getByTestId("series-icon-background")
+    await expect(brandBackground).toBeVisible()
+    await expect(brandBackground.locator(".series-icon-motif")).toHaveCount(12)
+    const firstMotif = brandBackground.locator(".series-icon-motif").first()
+    await expect(firstMotif).toHaveCSS("filter", "none")
+    const initialTransform = await firstMotif.evaluate(
+      (element) => element.style.transform
+    )
+    await expect
+      .poll(() => firstMotif.evaluate((element) => element.style.transform))
+      .not.toBe(initialTransform)
 
-  const highlights = page.getByRole("region", {
-    name: "活动资讯与同人活动",
-  })
-  await expect(
-    highlights.getByRole("status", { name: "正在加载活动资讯" })
-  ).toHaveCount(0)
-  await expect(highlights.getByRole("link")).toHaveCount(0)
-  await expect(highlights.getByText("当前没有已发布的活动资讯。")).toBeVisible()
+    const seriesWall = page.getByRole("region", {
+      name: "THE iDOLM@STER",
+    })
+    await expect(seriesWall.getByRole("link")).toHaveCount(6)
+    await expect(seriesWall.getByTestId("series-band")).toHaveCount(6)
+    await expect(seriesWall.locator("img")).toHaveCount(6)
+    await expect(seriesWall.locator("img").first()).toHaveAttribute(
+      "src",
+      "/brand/series/wall/765pro.webp"
+    )
+    if (!isMobile) {
+      const viewportWidth = page.viewportSize()?.width ?? 0
+      const lastSeriesBand = await seriesWall
+        .getByTestId("series-band")
+        .last()
+        .boundingBox()
+      expect(lastSeriesBand).not.toBeNull()
+      expect(lastSeriesBand!.x + lastSeriesBand!.width).toBeGreaterThan(
+        viewportWidth * 0.95
+      )
+    }
 
-  const randomIdol = page.getByRole("region", { name: "随机担当" })
-  await randomIdol.getByRole("button", { name: "随机选择" }).click()
-  await expect(randomIdol.getByRole("link")).toHaveCount(1)
-  await expect(randomIdol.getByTestId("random-idol-avatar")).toBeVisible()
-  await expect(
-    randomIdol.getByRole("link", { name: "查看剧情档案" })
-  ).toHaveAttribute("href", /^\/story\?agency=.+&idol=.+/)
-  await expect(randomIdol.getByText(/剧情站收录/)).toHaveCount(0)
+    const directory = page.getByRole("region", { name: "站点导航" })
+    await expect(
+      directory.getByRole("link", { name: /活动中心/ })
+    ).toHaveAttribute("href", "/events")
+    await expect(directory.locator('a[href="/community/cards"]')).toBeVisible()
+    await expect(directory.locator('a[href="/producer-map"]')).toBeVisible()
+    await expect(
+      directory.getByRole("link", { name: /关于 IMSWeb/ })
+    ).toHaveAttribute("href", "/about")
 
-  const siteSupport = page.getByRole("region", { name: "网站支持" })
-  await expect(siteSupport.getByRole("link")).toHaveAttribute(
-    "href",
-    "https://app.rainyun.com/"
-  )
+    const calendar = page.getByRole("region", { name: "偶像生日日历" })
+    const visibleMonth = calendar.getByTestId("calendar-month")
+    const initialMonth = await visibleMonth.innerText()
+    await calendar.getByRole("button", { name: "下个月" }).click()
+    await expect(visibleMonth).not.toHaveText(initialMonth)
+    await calendar.getByRole("button", { name: "今日" }).click()
+    await expect(visibleMonth).toHaveText(initialMonth)
 
-  const friendLinksBox = await friendLinks.boundingBox()
-  const siteSupportBox = await siteSupport.boundingBox()
-  expect(friendLinksBox).not.toBeNull()
-  expect(siteSupportBox).not.toBeNull()
-  expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
-})
+    const friendLinks = page.getByRole("region", { name: "友情链接" })
+    await expect(
+      friendLinks.getByRole("link", { name: /偶像大师 SP 汉化/ })
+    ).toHaveAttribute("href", "https://sp.idolmaster.top/")
+
+    const highlights = page.getByRole("region", {
+      name: "活动资讯与同人活动",
+    })
+    await expect(
+      highlights.getByRole("status", { name: "正在加载活动资讯" })
+    ).toHaveCount(0)
+    await expect(highlights.getByRole("link")).toHaveCount(0)
+    await expect(
+      highlights.getByText("当前没有已发布的活动资讯。")
+    ).toBeVisible()
+
+    const randomIdol = page.getByRole("region", { name: "随机担当" })
+    await randomIdol.getByRole("button", { name: "随机选择" }).click()
+    await expect(randomIdol.getByRole("link")).toHaveCount(1)
+    await expect(randomIdol.getByTestId("random-idol-avatar")).toBeVisible()
+    await expect(
+      randomIdol.getByRole("link", { name: "查看剧情档案" })
+    ).toHaveAttribute("href", /^\/story\?agency=.+&idol=.+/)
+    await expect(randomIdol.getByText(/剧情站收录/)).toHaveCount(0)
+
+    const siteSupport = page.getByRole("region", { name: "网站支持" })
+    await expect(siteSupport.getByRole("link")).toHaveAttribute(
+      "href",
+      "https://app.rainyun.com/"
+    )
+
+    const friendLinksBox = await friendLinks.boundingBox()
+    const siteSupportBox = await siteSupport.boundingBox()
+    expect(friendLinksBox).not.toBeNull()
+    expect(siteSupportBox).not.toBeNull()
+    expect(friendLinksBox!.y).toBeLessThan(siteSupportBox!.y)
+  }
+)
 
 test("home random idol uses a square portrait and agency marker", async ({
   page,

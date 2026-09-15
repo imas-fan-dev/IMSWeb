@@ -1,4 +1,7 @@
-import { expect, test } from "@playwright/test"
+import type { Page } from "@playwright/test"
+
+import { installSeededPublicApis } from "./fixtures/public-content"
+import { expect, test } from "./fixtures/test"
 
 const homepageLinks = {
   sections: {
@@ -60,7 +63,7 @@ const homepageLinks = {
   },
 }
 
-async function applySafeArea(page: import("@playwright/test").Page) {
+async function applySafeArea(page: Page) {
   await page.addStyleTag({
     content: `
       :root {
@@ -81,66 +84,78 @@ async function applySafeArea(page: import("@playwright/test").Page) {
   })
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, api }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
-  await page.route("**/api/homepage-links", async (route) => {
-    await route.fulfill({ json: homepageLinks })
-  })
-})
-
-test("keeps the five App roots usable inside the safe area", async ({
-  page,
-}) => {
-  await page.goto("/")
-  await applySafeArea(page)
-
-  const navigation = page.getByRole("navigation", { name: "主导航" })
-  await expect(navigation).toBeVisible()
-  await expect(navigation.getByRole("link")).toHaveText([
-    "首页",
-    "社区",
-    "交换地图",
-    "资料",
-    "我的",
+  await api.mock(
+    { method: "GET", path: "/api/homepage-links", times: 1 },
+    (route) => route.fulfill({ json: homepageLinks })
+  )
+  installSeededPublicApis(api, [
+    { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
+    { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },
+    { path: "/api/community-posts/spotlight", times: { min: 0, max: 1 } },
+    { path: "/api/news", times: { min: 0, max: 1 } },
+    { path: "/api/events", times: { min: 0, max: 1 } },
   ])
-
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth
-      )
-    )
-    .toBe(true)
-
-  const shellTokens = await page
-    .locator("[data-app-shell]")
-    .evaluate((shell) => {
-      const style = getComputedStyle(shell)
-      return {
-        bottom: style.getPropertyValue("--app-bottom-clearance").trim(),
-        header: style.getPropertyValue("--app-header-inset").trim(),
-        inline: style.getPropertyValue("--app-safe-inline").trim(),
-      }
-    })
-  expect(shellTokens.bottom).toContain("5.25rem")
-  expect(shellTokens.header).toContain("3rem")
-  expect(shellTokens.inline).toContain("1rem")
-
-  await navigation.getByRole("link", { name: "资料" }).click()
-  await expect(page).toHaveURL(/\/apps$/)
-  await expect(
-    navigation.getByRole("link", { name: "资料", exact: true })
-  ).toHaveAttribute("aria-current", "page")
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth
-      )
-    )
-    .toBe(true)
 })
+
+test(
+  "keeps the five App roots usable inside the safe area",
+  {
+    tag: ["@app-landscape", "@app-webkit"],
+  },
+  async ({ page }) => {
+    await page.goto("/")
+    await applySafeArea(page)
+
+    const navigation = page.getByRole("navigation", { name: "主导航" })
+    await expect(navigation).toBeVisible()
+    await expect(navigation.getByRole("link")).toHaveText([
+      "首页",
+      "社区",
+      "交换地图",
+      "资料",
+      "我的",
+    ])
+
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth
+        )
+      )
+      .toBe(true)
+
+    const shellTokens = await page
+      .locator("[data-app-shell]")
+      .evaluate((shell) => {
+        const style = getComputedStyle(shell)
+        return {
+          bottom: style.getPropertyValue("--app-bottom-clearance").trim(),
+          header: style.getPropertyValue("--app-header-inset").trim(),
+          inline: style.getPropertyValue("--app-safe-inline").trim(),
+        }
+      })
+    expect(shellTokens.bottom).toContain("5.25rem")
+    expect(shellTokens.header).toContain("3rem")
+    expect(shellTokens.inline).toContain("1rem")
+
+    await navigation.getByRole("link", { name: "资料" }).click()
+    await expect(page).toHaveURL(/\/apps$/)
+    await expect(
+      navigation.getByRole("link", { name: "资料", exact: true })
+    ).toHaveAttribute("aria-current", "page")
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth
+        )
+      )
+      .toBe(true)
+  }
+)
 
 test("renders App community links as a two-column text list", async ({
   page,

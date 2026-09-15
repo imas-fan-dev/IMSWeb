@@ -165,23 +165,22 @@ test.beforeEach(async ({ context, page }) => {
     },
     "PUT"
   )
-  await page.route("**/api/platform/me/avatar", async (route) => {
-    const request = route.request()
-    if (request.method() !== "DELETE") {
-      await route.fallback()
-      return
+  await api.mock(
+    { method: "DELETE", path: "/api/platform/me/avatar", times: 1 },
+    async (route) => {
+      const request = route.request()
+      expect(await request.headerValue("authorization")).toBeNull()
+      expect(await request.headerValue("cookie")).toContain(
+        "ims_platform_access=exchange-me-session"
+      )
+      currentProfile = {
+        ...currentProfile,
+        avatarUrl: null,
+        updatedAt: currentProfile.updatedAt + 1,
+      }
+      await route.fulfill({ json: { success: true, profile: currentProfile } })
     }
-    expect(await request.headerValue("authorization")).toBeNull()
-    expect(await request.headerValue("cookie")).toContain(
-      "ims_platform_access=exchange-me-session"
-    )
-    currentProfile = {
-      ...currentProfile,
-      avatarUrl: null,
-      updatedAt: currentProfile.updatedAt + 1,
-    }
-    await route.fulfill({ json: { success: true, profile: currentProfile } })
-  })
+  )
   await page.route("https://public-media.example.test/**", async (route) => {
     const request = route.request()
     expect(request.method()).toBe("GET")
@@ -464,7 +463,7 @@ test.beforeEach(async ({ context, page }) => {
   )
 })
 
-test("edits the authenticated profile and card without viewport overflow", async ({
+test("edits the authenticated profile and card without viewport overflow @mobile", async ({
   page,
   isMobile,
 }, testInfo) => {
@@ -509,12 +508,16 @@ test("edits the authenticated profile and card without viewport overflow", async
   })
   const cropDialog = page.getByRole("dialog")
   await expect(cropDialog).toContainText("使用此头像")
+  const cropCanvas = cropDialog.getByTestId("avatar-crop-canvas")
+  await expect(cropCanvas).toBeVisible()
   const cropArea = cropDialog.locator(".reactEasyCrop_CropArea")
   await expect(cropArea).toBeVisible()
-  const [dialogBox, cropBox] = await Promise.all([
+  const [canvasBox, dialogBox, cropBox] = await Promise.all([
+    cropCanvas.boundingBox(),
     cropDialog.boundingBox(),
     cropArea.boundingBox(),
   ])
+  expect(canvasBox).not.toBeNull()
   expect(dialogBox).not.toBeNull()
   expect(cropBox).not.toBeNull()
   expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
@@ -522,10 +525,17 @@ test("edits the authenticated profile and card without viewport overflow", async
   expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(
     (await page.viewportSize())!.width
   )
+  expect(Math.abs(canvasBox!.width - canvasBox!.height)).toBeLessThanOrEqual(2)
   expect(Math.abs(cropBox!.width - cropBox!.height)).toBeLessThanOrEqual(2)
   await expect(cropArea).toHaveCSS("border-radius", "50%")
 
   const zoom = cropDialog.getByRole("slider", { name: "缩放" })
+  const zoomBox = await zoom.boundingBox()
+  expect(zoomBox).not.toBeNull()
+  expect(zoomBox!.y - (canvasBox!.y + canvasBox!.height)).toBeLessThanOrEqual(
+    64
+  )
+  await expect(zoom).toHaveAttribute("min", "0.5")
   const zoomBefore = await zoom.inputValue()
   await zoom.press("ArrowRight")
   await expect(zoom).not.toHaveValue(zoomBefore)

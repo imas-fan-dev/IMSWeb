@@ -1,5 +1,5 @@
 import type { WikiPublicCatalog } from "@imsweb/contracts/wiki"
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type ApiDispatcher } from "./fixtures/test"
 
 const TEST_IMAGE_TRANSFORM = {
   fit: "cover",
@@ -39,20 +39,31 @@ const TEST_WIKI_CATALOG = {
   selection: null,
 } satisfies WikiPublicCatalog
 
-async function mockWikiApis(page: Page) {
-  await page.route("**/api/wiki/catalog**", async (route) => {
-    await route.fulfill({ json: TEST_WIKI_CATALOG })
-  })
-  await page.route("**/api/wiki/random_bg", async (route) => {
-    await route.fulfill({
-      json: {
-        url: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=",
-      },
-    })
-  })
+async function mockWikiApis(api: ApiDispatcher) {
+  await api.mock(
+    {
+      method: "GET",
+      path: "/api/wiki/catalog",
+      times: { min: 1, max: 2 },
+    },
+    (route) => route.fulfill({ json: TEST_WIKI_CATALOG })
+  )
+  await api.mock(
+    {
+      method: "GET",
+      path: "/api/wiki/random_bg",
+      times: { min: 0, max: 1 },
+    },
+    (route) =>
+      route.fulfill({
+        json: {
+          url: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=",
+        },
+      })
+  )
 }
 
-test.beforeEach(async ({ page }, testInfo) => {
+test.beforeEach(async ({ page, api }, testInfo) => {
   const landscape = testInfo.project.name === "app-landscape"
   await page.addInitScript(
     ({ top, right, bottom, left }) => {
@@ -66,148 +77,158 @@ test.beforeEach(async ({ page }, testInfo) => {
       ? { top: "0px", right: "47px", bottom: "21px", left: "47px" }
       : { top: "47px", right: "0px", bottom: "34px", left: "0px" }
   )
-  await mockWikiApis(page)
+  await mockWikiApis(api)
 })
 
-test("keeps the modern Wiki dial on its trigger and the search inside the App viewport", async ({
-  page,
-}, testInfo) => {
-  await page.goto("/wiki")
-  await expect(page.locator("html")).toHaveAttribute("data-app-target", "app")
+test(
+  "keeps the modern Wiki dial on its trigger and the search inside the App viewport",
+  {
+    tag: ["@app-landscape", "@app-webkit"],
+  },
+  async ({ page }, testInfo) => {
+    await page.goto("/wiki")
+    await expect(page.locator("html")).toHaveAttribute("data-app-target", "app")
 
-  const dialTrigger = page.getByRole("button", { name: "打开企划拨盘" })
-  const searchTrigger = page.getByRole("button", { name: "打开全屏搜索" })
-  await expect(dialTrigger).toBeVisible()
-  await expect(searchTrigger).toBeVisible()
-  // The open dialog hides the rest of the page from the accessibility tree, so
-  // the trigger's box has to be read while it is still reachable by role.
-  const dialTriggerBox = await dialTrigger.boundingBox()
-  expect(dialTriggerBox).not.toBeNull()
+    const dialTrigger = page.getByRole("button", { name: "打开企划拨盘" })
+    const searchTrigger = page.getByRole("button", { name: "打开全屏搜索" })
+    await expect(dialTrigger).toBeVisible()
+    await expect(searchTrigger).toBeVisible()
+    // The open dialog hides the rest of the page from the accessibility tree, so
+    // the trigger's box has to be read while it is still reachable by role.
+    const dialTriggerBox = await dialTrigger.boundingBox()
+    expect(dialTriggerBox).not.toBeNull()
 
-  await dialTrigger.click()
-  const dialDialog = page.getByRole("dialog", { name: "选择企划" })
-  const dial = page.getByRole("group", { name: "企划拨盘" })
-  await expect(dialDialog).toBeVisible()
-  await expect(dial).toBeVisible()
-  const minimumDialWidth = Math.min(
-    280,
-    (page.viewportSize()?.height ?? 844) * 0.48
-  )
-  await expect
-    .poll(() =>
-      dial.evaluate((element) => element.getBoundingClientRect().width)
+    await dialTrigger.click()
+    const dialDialog = page.getByRole("dialog", { name: "选择企划" })
+    const dial = page.getByRole("group", { name: "企划拨盘" })
+    await expect(dialDialog).toBeVisible()
+    await expect(dial).toBeVisible()
+    const minimumDialWidth = Math.min(
+      280,
+      (page.viewportSize()?.height ?? 844) * 0.48
     )
-    .toBeGreaterThanOrEqual(minimumDialWidth)
-  await expect
-    .poll(() =>
-      dialDialog.evaluate((element) =>
-        element
-          .getAnimations({ subtree: false })
-          .every((animation) => animation.playState === "finished")
+    await expect
+      .poll(() =>
+        dial.evaluate((element) => element.getBoundingClientRect().width)
       )
-    )
-    .toBe(true)
-  const dialGeometry = await dial.evaluate((element) => {
-    const rect = element.getBoundingClientRect()
-    const style = getComputedStyle(element)
-    const reachable = [
-      element.querySelector<HTMLElement>("[data-wiki-agency-dial-center]")!,
-      element.querySelector<HTMLElement>('[data-wiki-agency-preview="true"]')!,
-    ].map((node) => {
-      const box = node.getBoundingClientRect()
+      .toBeGreaterThanOrEqual(minimumDialWidth)
+    await expect
+      .poll(() =>
+        dialDialog.evaluate((element) =>
+          element
+            .getAnimations({ subtree: false })
+            .every((animation) => animation.playState === "finished")
+        )
+      )
+      .toBe(true)
+    const dialGeometry = await dial.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      const reachable = [
+        element.querySelector<HTMLElement>("[data-wiki-agency-dial-center]")!,
+        element.querySelector<HTMLElement>(
+          '[data-wiki-agency-preview="true"]'
+        )!,
+      ].map((node) => {
+        const box = node.getBoundingClientRect()
+        return {
+          left: box.left,
+          right: box.right,
+          top: box.top,
+          bottom: box.bottom,
+        }
+      })
       return {
-        left: box.left,
-        right: box.right,
-        top: box.top,
-        bottom: box.bottom,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2,
+        reachable,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        appViewportHeight: style
+          .getPropertyValue("--app-viewport-height")
+          .trim(),
+        appBottomClearance: style
+          .getPropertyValue("--app-bottom-clearance")
+          .trim(),
       }
     })
-    return {
-      width: rect.width,
-      height: rect.height,
-      centerX: rect.left + rect.width / 2,
-      centerY: rect.top + rect.height / 2,
-      reachable,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-      appViewportHeight: style.getPropertyValue("--app-viewport-height").trim(),
-      appBottomClearance: style
-        .getPropertyValue("--app-bottom-clearance")
-        .trim(),
+    expect(dialGeometry.appViewportHeight).not.toBe("")
+    expect(dialGeometry.appBottomClearance).not.toBe("")
+    expect(dialGeometry.width).toBeGreaterThanOrEqual(minimumDialWidth)
+    expect(
+      Math.abs(dialGeometry.width - dialGeometry.height)
+    ).toBeLessThanOrEqual(1)
+    // The wheel orbits the trigger, so the box is centred on it. That anchor puts
+    // part of the box past the left and bottom screen edges, so the dial's own
+    // rect is not what containment is measured on; the hub and the options the
+    // user moves through have to stay reachable.
+    expect(
+      Math.abs(
+        dialGeometry.centerX - (dialTriggerBox!.x + dialTriggerBox!.width / 2)
+      )
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(
+        dialGeometry.centerY - (dialTriggerBox!.y + dialTriggerBox!.height / 2)
+      )
+    ).toBeLessThanOrEqual(1)
+    expect(dialGeometry.reachable).toHaveLength(2)
+    for (const reachableBox of dialGeometry.reachable) {
+      expect(reachableBox.left).toBeGreaterThanOrEqual(-1)
+      expect(reachableBox.right).toBeLessThanOrEqual(
+        dialGeometry.viewportWidth + 1
+      )
+      expect(reachableBox.top).toBeGreaterThanOrEqual(-1)
+      expect(reachableBox.bottom).toBeLessThanOrEqual(
+        dialGeometry.viewportHeight + 1
+      )
     }
-  })
-  expect(dialGeometry.appViewportHeight).not.toBe("")
-  expect(dialGeometry.appBottomClearance).not.toBe("")
-  expect(dialGeometry.width).toBeGreaterThanOrEqual(minimumDialWidth)
-  expect(
-    Math.abs(dialGeometry.width - dialGeometry.height)
-  ).toBeLessThanOrEqual(1)
-  // The wheel orbits the trigger, so the box is centred on it. That anchor puts
-  // part of the box past the left and bottom screen edges, so the dial's own
-  // rect is not what containment is measured on; the hub and the options the
-  // user moves through have to stay reachable.
-  expect(
-    Math.abs(
-      dialGeometry.centerX - (dialTriggerBox!.x + dialTriggerBox!.width / 2)
-    )
-  ).toBeLessThanOrEqual(1)
-  expect(
-    Math.abs(
-      dialGeometry.centerY - (dialTriggerBox!.y + dialTriggerBox!.height / 2)
-    )
-  ).toBeLessThanOrEqual(1)
-  expect(dialGeometry.reachable).toHaveLength(2)
-  for (const reachableBox of dialGeometry.reachable) {
-    expect(reachableBox.left).toBeGreaterThanOrEqual(-1)
-    expect(reachableBox.right).toBeLessThanOrEqual(
-      dialGeometry.viewportWidth + 1
-    )
-    expect(reachableBox.top).toBeGreaterThanOrEqual(-1)
-    expect(reachableBox.bottom).toBeLessThanOrEqual(
-      dialGeometry.viewportHeight + 1
-    )
-  }
 
-  if (process.env.CAPTURE_APP_QA === "1") {
-    await page.screenshot({
-      path: `/tmp/imsweb-app-wiki-dial-${testInfo.project.name}.png`,
-    })
-  }
-
-  await page.keyboard.press("Escape")
-  await expect(dialDialog).toBeHidden()
-
-  await searchTrigger.click()
-  const searchDialog = page.getByRole("dialog", { name: "搜索 Wiki" })
-  await expect(searchDialog).toBeVisible()
-  await expect(
-    searchDialog.getByPlaceholder("搜索全站偶像或内容页")
-  ).toBeVisible()
-  const searchGeometry = await searchDialog.evaluate((element) => {
-    const rect = element.getBoundingClientRect()
-    const style = getComputedStyle(element)
-    return {
-      top: rect.top,
-      bottom: rect.bottom,
-      height: rect.height,
-      viewportHeight: window.innerHeight,
-      appHeaderInset: style.getPropertyValue("--app-header-inset").trim(),
-      appViewportHeight: style.getPropertyValue("--app-viewport-height").trim(),
+    if (process.env.CAPTURE_APP_QA === "1") {
+      await page.screenshot({
+        path: `/tmp/imsweb-app-wiki-dial-${testInfo.project.name}.png`,
+      })
     }
-  })
-  expect(searchGeometry.appHeaderInset).not.toBe("")
-  expect(searchGeometry.appViewportHeight).not.toBe("")
-  expect(searchGeometry.top).toBeGreaterThanOrEqual(0)
-  expect(searchGeometry.bottom).toBeLessThanOrEqual(
-    searchGeometry.viewportHeight + 1
-  )
-  expect(searchGeometry.height).toBeGreaterThan(
-    searchGeometry.viewportHeight * 0.7
-  )
 
-  if (process.env.CAPTURE_APP_QA === "1") {
-    await page.screenshot({
-      path: `/tmp/imsweb-app-wiki-search-${testInfo.project.name}.png`,
+    await page.keyboard.press("Escape")
+    await expect(dialDialog).toBeHidden()
+
+    await searchTrigger.click()
+    const searchDialog = page.getByRole("dialog", { name: "搜索 Wiki" })
+    await expect(searchDialog).toBeVisible()
+    await expect(
+      searchDialog.getByPlaceholder("搜索全站偶像或内容页")
+    ).toBeVisible()
+    const searchGeometry = await searchDialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      return {
+        top: rect.top,
+        bottom: rect.bottom,
+        height: rect.height,
+        viewportHeight: window.innerHeight,
+        appHeaderInset: style.getPropertyValue("--app-header-inset").trim(),
+        appViewportHeight: style
+          .getPropertyValue("--app-viewport-height")
+          .trim(),
+      }
     })
+    expect(searchGeometry.appHeaderInset).not.toBe("")
+    expect(searchGeometry.appViewportHeight).not.toBe("")
+    expect(searchGeometry.top).toBeGreaterThanOrEqual(0)
+    expect(searchGeometry.bottom).toBeLessThanOrEqual(
+      searchGeometry.viewportHeight + 1
+    )
+    expect(searchGeometry.height).toBeGreaterThan(
+      searchGeometry.viewportHeight * 0.7
+    )
+
+    if (process.env.CAPTURE_APP_QA === "1") {
+      await page.screenshot({
+        path: `/tmp/imsweb-app-wiki-search-${testInfo.project.name}.png`,
+      })
+    }
   }
-})
+)

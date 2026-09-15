@@ -13,11 +13,12 @@ import { GENERATED_BUILD_WATCH_OPTIONS } from "../../vite-watch"
 import viteConfig from "../../vite.config"
 
 describe("Vite file watching", () => {
-  it("ignores Web and Tauri build artifacts", () => {
+  it("ignores Web build output and non-runtime Tauri files", () => {
     expect(GENERATED_BUILD_WATCH_OPTIONS.ignored).toEqual([
       "**/build/**",
       "**/build-app/**",
       "**/src-tauri/gen/**",
+      "**/src-tauri/icon-sources/**",
       "**/src-tauri/icons/**",
       "**/src-tauri/target/**",
     ])
