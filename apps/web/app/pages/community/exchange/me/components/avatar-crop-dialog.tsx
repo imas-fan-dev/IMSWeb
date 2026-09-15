@@ -19,6 +19,8 @@ import {
   CropAvatarImageError,
 } from "~/lib/media/crop-avatar-image"
 
+const minimumAvatarZoom = 0.5
+
 export function AvatarCropDialog({
   file,
   onCancel,
@@ -96,7 +98,7 @@ export function AvatarCropDialog({
       <DialogContent
         safeArea="custom"
         showCloseButton={false}
-        className="inset-x-[max(1rem,var(--safe-area-left))] top-[max(1rem,var(--safe-area-top))] bottom-[max(1rem,var(--safe-area-bottom))] mx-auto grid w-auto max-w-2xl grid-rows-[auto_minmax(14rem,1fr)_auto_auto] gap-4 overflow-hidden sm:top-1/2 sm:bottom-auto sm:w-[min(42rem,var(--overlay-safe-width))] sm:-translate-y-1/2 data-open:zoom-in-100 data-closed:zoom-out-100"
+        className="inset-x-[max(1rem,var(--safe-area-left))] top-[max(1rem,var(--safe-area-top))] bottom-[max(1rem,var(--safe-area-bottom))] mx-auto grid w-auto max-w-2xl grid-rows-[auto_auto_auto_auto] content-start gap-4 overflow-y-auto sm:top-1/2 sm:bottom-auto sm:w-[min(42rem,var(--overlay-safe-width))] sm:-translate-y-1/2 data-open:zoom-in-100 data-closed:zoom-out-100"
       >
         <DialogHeader className="pr-10">
           <DialogTitle>
@@ -119,7 +121,10 @@ export function AvatarCropDialog({
           <XIcon aria-hidden="true" />
         </Button>
 
-        <div className="relative min-h-0 overflow-hidden rounded-lg bg-muted">
+        <div
+          data-testid="avatar-crop-canvas"
+          className="relative aspect-square w-full max-w-[34dvh] justify-self-center overflow-hidden rounded-lg bg-muted sm:max-w-120"
+        >
           {source ? (
             <Cropper
               image={source}
@@ -127,9 +132,10 @@ export function AvatarCropDialog({
               zoom={zoom}
               aspect={1}
               cropShape="round"
-              minZoom={1}
+              minZoom={minimumAvatarZoom}
               maxZoom={3}
               objectFit="cover"
+              restrictPosition
               showGrid={false}
               roundCropAreaPixels
               keyboardStep={5}
@@ -164,14 +170,16 @@ export function AvatarCropDialog({
             <Slider
               id="avatar-crop-zoom"
               value={[zoom]}
-              min={1}
+              min={minimumAvatarZoom}
               max={3}
               step={0.1}
               aria-label={t("platformAccount.profileEditor.avatar.crop.zoom")}
               thumbLabel={t("platformAccount.profileEditor.avatar.crop.zoom")}
               disabled={processing}
               onValueChange={(value) =>
-                setZoom(Array.isArray(value) ? (value[0] ?? 1) : value)
+                setZoom(
+                  Array.isArray(value) ? (value[0] ?? minimumAvatarZoom) : value
+                )
               }
             />
           </div>

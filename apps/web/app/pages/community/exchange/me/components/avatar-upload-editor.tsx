@@ -1,13 +1,12 @@
 import {
+  EllipsisIcon,
   ImageUpIcon,
   LoaderCircleIcon,
   Trash2Icon,
-  UserRoundIcon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { FileUploadControl } from "~/components/shared/file-upload-control"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +21,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
+import { Field, FieldDescription, FieldTitle } from "~/components/ui/field"
 import { useAppPreparedImage } from "~/lib/media/use-app-prepared-image"
 import type { PlatformProfile } from "~/lib/api"
 import { AvatarCropDialog } from "./avatar-crop-dialog"
@@ -61,6 +60,7 @@ export function AvatarUploadEditor({
     null
   )
   const mountedRef = useRef(true)
+  const inputRef = useRef<HTMLInputElement>(null)
   const {
     browse,
     clear: clearPrepared,
@@ -107,6 +107,10 @@ export function AvatarUploadEditor({
       URL.revokeObjectURL(source)
     }
   }, [pendingFile])
+
+  useEffect(() => {
+    if (!selectedFile && inputRef.current) inputRef.current.value = ""
+  }, [selectedFile])
 
   const operationBusy = preparing || cropOpen || uploading || removing
 
@@ -190,10 +194,42 @@ export function AvatarUploadEditor({
 
   return (
     <>
-      <div className="mt-5 border-y py-5">
+      <div className="py-1">
         <Field data-disabled={disabled || undefined}>
-          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
-            <Avatar size="lg" className="size-24 self-center sm:self-start">
+          <div className="relative flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+            <FieldTitle>
+              {t("platformAccount.profileEditor.avatar.label")}
+            </FieldTitle>
+            <Badge variant="secondary">{t(statusKey)}</Badge>
+            {profile.avatarUrl ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="absolute right-0 lg:static lg:ml-auto"
+                aria-label={t("platformAccount.profileEditor.avatar.remove")}
+                title={t("platformAccount.profileEditor.avatar.remove")}
+                disabled={busy}
+                onClick={() => setRemoveOpen(true)}
+              >
+                <EllipsisIcon aria-hidden="true" />
+              </Button>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="group/avatar relative mt-3 size-20! shrink-0 self-center rounded-full p-0 hover:bg-transparent lg:self-start"
+            aria-label={t("platformAccount.profileEditor.avatar.select")}
+            title={t("platformAccount.profileEditor.avatar.select")}
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
+          >
+            <Avatar
+              size="lg"
+              className="pointer-events-none data-[size=lg]:size-20"
+            >
               {displaySource ? (
                 <AvatarImage
                   src={displaySource}
@@ -207,43 +243,34 @@ export function AvatarUploadEditor({
               ) : null}
               <AvatarFallback>{fallbackInitial}</AvatarFallback>
             </Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <FieldLabel htmlFor="exchange-profile-avatar">
-                  {t("platformAccount.profileEditor.avatar.label")}
-                </FieldLabel>
-                <Badge variant="secondary">{t(statusKey)}</Badge>
-              </div>
-              <FieldDescription className="mt-1">
-                {t(detailKey)}
-              </FieldDescription>
-            </div>
-          </div>
+            <span className="absolute right-0 bottom-0 flex size-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-colors group-hover/avatar:border-primary group-hover/avatar:text-primary group-focus-visible/avatar:border-ring group-focus-visible/avatar:text-primary">
+              <ImageUpIcon className="size-3.5" aria-hidden="true" />
+            </span>
+          </Button>
+          {showingPending || !profile.avatarUrl ? (
+            <FieldDescription className="mt-2 text-center lg:text-left">
+              {t(detailKey)}
+            </FieldDescription>
+          ) : null}
 
-          <div className="mt-4">
-            <FileUploadControl
-              id="exchange-profile-avatar"
-              compact
-              accept="image/*"
-              emptyTitle={t(
-                pendingFile
-                  ? "platformAccount.profileEditor.avatar.change"
-                  : "platformAccount.profileEditor.avatar.select"
-              )}
-              emptyDetail={t(
-                "platformAccount.profileEditor.avatar.emptyDetail"
-              )}
-              fileKind={t("platformAccount.profileEditor.avatar.fileKind")}
-              file={selectedFile}
-              disabled={busy}
-              preparing={preparing}
-              uploading={uploading}
-              selectedIcon={UserRoundIcon}
-              emptyIcon={ImageUpIcon}
-              onBrowse={browse}
-              onSelect={selectFile}
-            />
-          </div>
+          <input
+            ref={inputRef}
+            id="exchange-profile-avatar"
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            disabled={busy}
+            aria-label={t("platformAccount.profileEditor.avatar.label")}
+            aria-busy={preparing || uploading}
+            onClick={(event) => {
+              if (!browse) return
+              event.preventDefault()
+              void browse()
+            }}
+            onChange={(event) =>
+              selectFile(event.currentTarget.files?.[0] ?? null)
+            }
+          />
 
           {pendingFile ? (
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -276,19 +303,6 @@ export function AvatarUploadEditor({
                 {t("platformAccount.profileEditor.avatar.cancelChanges")}
               </Button>
             </div>
-          ) : null}
-
-          {profile.avatarUrl ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="mt-4 min-h-11 self-start text-destructive hover:text-destructive"
-              disabled={busy}
-              onClick={() => setRemoveOpen(true)}
-            >
-              <Trash2Icon data-icon="inline-start" aria-hidden="true" />
-              {t("platformAccount.profileEditor.avatar.remove")}
-            </Button>
           ) : null}
         </Field>
       </div>

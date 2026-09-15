@@ -10,9 +10,13 @@ vi.mock("react-easy-crop", async () => {
   const React = await vi.importActual<typeof import("react")>("react")
 
   function EasyCrop({
+    minZoom,
     onCropComplete,
+    restrictPosition,
   }: {
+    minZoom: number
     onCropComplete: (area: unknown, pixels: unknown) => void
+    restrictPosition: boolean
   }) {
     const completed = React.useRef(false)
     React.useEffect(() => {
@@ -21,7 +25,11 @@ vi.mock("react-easy-crop", async () => {
       onCropComplete({}, { height: 480, width: 480, x: 20, y: 10 })
     }, [onCropComplete])
 
-    return React.createElement("div", { "data-testid": "avatar-cropper" })
+    return React.createElement("div", {
+      "data-min-zoom": minZoom,
+      "data-restrict-position": restrictPosition,
+      "data-testid": "avatar-cropper",
+    })
   }
 
   return { default: EasyCrop }
@@ -143,6 +151,18 @@ describe("AvatarUploadEditor", () => {
     expect(screen.getByText("春")).toBeVisible()
   })
 
+  it("opens the existing file input when the avatar frame is selected", async () => {
+    const user = userEvent.setup()
+    renderEditor()
+
+    const fileInput = screen.getByLabelText("头像")
+    const click = vi.spyOn(fileInput, "click")
+
+    await user.click(screen.getByRole("button", { name: "选择头像" }))
+
+    expect(click).toHaveBeenCalledOnce()
+  })
+
   it("cancels a crop without staging or uploading the selected image", async () => {
     const user = userEvent.setup()
     const onClearFeedback = vi.fn()
@@ -159,6 +179,22 @@ describe("AvatarUploadEditor", () => {
     })
     expect(screen.queryByText("待上传头像")).not.toBeInTheDocument()
     expect(onUpload).not.toHaveBeenCalled()
+  })
+
+  it("allows a wider avatar crop without exposing empty image space", async () => {
+    const user = userEvent.setup()
+    renderEditor()
+
+    await user.upload(screen.getByLabelText("头像"), file("wide.png"))
+
+    expect(await screen.findByTestId("avatar-cropper")).toHaveAttribute(
+      "data-min-zoom",
+      "0.5"
+    )
+    expect(screen.getByTestId("avatar-cropper")).toHaveAttribute(
+      "data-restrict-position",
+      "true"
+    )
   })
 
   it("stages a cropped preview, replaces it, and revokes both preview URLs", async () => {

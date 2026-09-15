@@ -11,12 +11,7 @@ import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "~/components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import { Textarea } from "~/components/ui/textarea"
 import {
@@ -237,20 +232,25 @@ export function ProfileEditor({
         </Alert>
       ) : null}
 
-      <AvatarUploadEditor
-        key={accountId ?? "no-account"}
-        profile={profile}
-        disabled={readOnly || saving}
-        onBusyChange={setAvatarBusy}
-        onError={(message) => setFeedback({ kind: "error", message })}
-        onClearFeedback={() => setFeedback(null)}
-        validate={(file) => validateImage(file, MAX_AVATAR_BYTES)}
-        onUpload={uploadAvatar}
-        onRemove={removeAvatar}
-      />
+      <form
+        className="mt-6 grid gap-5 lg:grid-cols-[minmax(12rem,14rem)_minmax(0,1fr)] lg:gap-x-6"
+        onSubmit={(event) => void saveProfile(event)}
+      >
+        <div className="border-b pb-5 lg:border-0 lg:pb-0">
+          <AvatarUploadEditor
+            key={accountId ?? "no-account"}
+            profile={profile}
+            disabled={readOnly || saving}
+            onBusyChange={setAvatarBusy}
+            onError={(message) => setFeedback({ kind: "error", message })}
+            onClearFeedback={() => setFeedback(null)}
+            validate={(file) => validateImage(file, MAX_AVATAR_BYTES)}
+            onUpload={uploadAvatar}
+            onRemove={removeAvatar}
+          />
+        </div>
 
-      <form className="mt-6" onSubmit={(event) => void saveProfile(event)}>
-        <FieldGroup>
+        <div className="flex flex-col gap-5">
           <Field data-disabled={readOnly || undefined}>
             <FieldLabel htmlFor="exchange-profile-name">
               {t("platformAccount.profileEditor.fields.displayName")}
@@ -294,29 +294,32 @@ export function ProfileEditor({
               {t("platformAccount.profileEditor.fields.homeCityDescription")}
             </FieldDescription>
           </Field>
-          <Field data-disabled={readOnly || undefined}>
-            <FieldLabel htmlFor="exchange-profile-bio">
-              {t("platformAccount.profileEditor.fields.bio")}
-            </FieldLabel>
-            <Textarea
-              id="exchange-profile-bio"
-              value={draft.bio}
-              maxLength={2000}
-              disabled={readOnly || busy}
-              className="min-h-28 resize-y"
-              onChange={(event) => {
-                const bio = event.currentTarget.value
-                setDraft((current) => ({
-                  ...current,
-                  bio,
-                }))
-              }}
-            />
-          </Field>
-        </FieldGroup>
+        </div>
+        <Field
+          className="lg:col-span-2 lg:col-start-1"
+          data-disabled={readOnly || undefined}
+        >
+          <FieldLabel htmlFor="exchange-profile-bio">
+            {t("platformAccount.profileEditor.fields.bio")}
+          </FieldLabel>
+          <Textarea
+            id="exchange-profile-bio"
+            value={draft.bio}
+            maxLength={2000}
+            disabled={readOnly || busy}
+            className="min-h-28 resize-y"
+            onChange={(event) => {
+              const bio = event.currentTarget.value
+              setDraft((current) => ({
+                ...current,
+                bio,
+              }))
+            }}
+          />
+        </Field>
         <Button
           type="submit"
-          className="mt-5 w-full"
+          className="w-full lg:col-span-2 lg:col-start-1"
           disabled={readOnly || busy || !draft.displayName.trim()}
         >
           {saving ? (

@@ -347,6 +347,7 @@ test(
     await expect(cropArea).toHaveCSS("border-radius", "50%")
 
     const zoom = cropDialog.getByRole("slider", { name: "缩放" })
+    await expect(zoom).toHaveAttribute("min", "0.5")
     const zoomBefore = await zoom.inputValue()
     await zoom.press("ArrowRight")
     await expect(zoom).not.toHaveValue(zoomBefore)
