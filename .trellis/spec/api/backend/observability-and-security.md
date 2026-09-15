@@ -37,6 +37,24 @@ Read environment configuration at the runtime boundary. Domain code consumes
 typed values through `RuntimeServices.config`; it does not read `process.env`
 to select implementations.
 
+## Client address trust
+
+All rate-limit, audit, submission, session, and security-event consumers obtain
+the client address through the middleware-owned resolver. Domain handlers must
+not parse `X-Forwarded-For` or `X-Real-IP` independently.
+
+Use `IMS_CLIENT_ADDRESS_SOURCE=direct` only when the connection peer is the
+client. This mode ignores forwarding headers. Use `nginx` only when a trusted,
+non-bypassable Nginx is the public entry point and replaces both forwarding
+headers with `$remote_addr`; appending a client-provided forwarding chain is
+not trusted. The application port must remain bound to a private or loopback
+interface in this mode.
+
+The trusted header contract is one IPv4 or IPv6 literal. Missing, empty,
+invalid, or comma-separated values resolve to `unknown` so proxy
+misconfiguration cannot inject an arbitrary audit value or split IP-based rate
+limits.
+
 Do not commit secrets, databases, uploads, generated clients, or historical
 private assets. Static client output must come from the verified Web build and
 match `apps/api/dist/client-manifest.json`.

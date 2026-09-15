@@ -75,6 +75,11 @@ RustFS S3 API 默认也只绑定回环地址。需要让局域网浏览器直接
 
 preview 的对象存储是共享的 Cloudflare R2 测试桶（与本地 `deploy/.env.r2-test` 同一个 bucket），不是本地
 RustFS；preview 从不启用 `local-storage` profile，只启用 `local-cache`（Valkey）。
+私有的 `$HOME/preview/config/preview.env` 必须设置 `IMS_CLIENT_ADDRESS_SOURCE=nginx`；已有
+`direct` 配置必须在下一次部署前修改。Preview API 只允许宿主机 Nginx 通过回环发布端口访问。
+Nginx 必须把客户端提交的 `X-Forwarded-For` 和 `X-Real-IP` 覆盖为 `$remote_addr`，不能把该 API
+端口直接暴露到公网。仓库中的 `deploy/nginx/imsweb.conf.example` 记录了这项入口契约，服务器实际
+站点文件仍由主机运维管理。
 
 使用与 CI 相同的配置做只读渲染检查：
 

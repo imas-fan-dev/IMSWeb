@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
-import { getConnInfo } from '@hono/node-server/conninfo';
 import type { AppEnvironment } from '@/app';
+import { getRequestClientAddress } from '@/middleware/client-address';
 import type {
     AdminAccountRepository,
     AuditRepository,
@@ -79,14 +79,5 @@ export function sitePackageRepository(c: Context<AppEnvironment>): SitePackageRe
 
 export function getClientAddress(c: Context<AppEnvironment>): string {
     const source = services(c).config?.clientAddressSource || 'direct';
-    if (source === 'direct') {
-        try {
-            return getConnInfo(c).remote.address || 'unknown';
-        } catch {
-            return 'unknown';
-        }
-    }
-    const forwarded = c.req.header('x-forwarded-for');
-    if (forwarded) return forwarded.split(',').at(-1)?.trim() || 'unknown';
-    return c.req.header('x-real-ip')?.trim() || 'unknown';
+    return getRequestClientAddress(c, source);
 }

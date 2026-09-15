@@ -222,6 +222,12 @@ install -m 0600 /path/to/private-preview.env \
 无路径的 Cloudflare R2 HTTPS S3 API 地址，`IMS_S3_FORCE_PATH_STYLE=false`。`deploy-compose-preview.sh`
 会在任何容器写操作前检查这些约束。
 
+Preview 的私有 `$HOME/preview/config/preview.env` 还必须设置
+`IMS_CLIENT_ADDRESS_SOURCE=nginx`。已有文件若仍为 `direct`，须在下一次部署前修改。宿主机 Nginx
+是唯一公网入口，必须用 `$remote_addr` 覆盖请求中的 `X-Forwarded-For` 和 `X-Real-IP`，再代理到
+回环绑定的 Preview API 端口。该端口不得从公网直接访问，否则客户端可绕过 Nginx 伪造受信地址头。
+站点证书和实际虚拟主机配置仍由服务器维护，不随仓库部署。
+
 ## 4. 发布流程
 
 创建并推送签名或 annotated Tag：

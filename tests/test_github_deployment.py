@@ -721,7 +721,7 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
                     "IMS_PLATFORM_JWT_SECRET=platform-secret",
                     "IMS_EMAIL_WORKER_REPLICAS=2",
                     "IMS_COOKIE_SECURE=false",
-                    "IMS_CLIENT_ADDRESS_SOURCE=direct",
+                    "IMS_CLIENT_ADDRESS_SOURCE=nginx",
                     "IMS_OBJECT_STORAGE=s3",
                     f"IMS_S3_ENDPOINT=https://{'0' * 32}.r2.cloudflarestorage.com",
                     "IMS_S3_REGION=auto",
@@ -955,6 +955,35 @@ class ComposePreviewDeploymentTests(unittest.TestCase):
             "must not be readable or writable by group or others",
             result.stderr,
         )
+
+    def test_preview_client_address_source_rejects_direct_before_container_writes(self):
+        lines = self.runtime_env.read_text(encoding="utf-8").splitlines()
+        lines = [
+            "IMS_CLIENT_ADDRESS_SOURCE=direct"
+            if line.startswith("IMS_CLIENT_ADDRESS_SOURCE=")
+            else line
+            for line in lines
+        ]
+        self.runtime_env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"
+
+        result = self.deploy("1" * 40, image)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("IMS_CLIENT_ADDRESS_SOURCE must be nginx", result.stderr)
+        command_log = self.container_log.read_text(encoding="utf-8")
+        self.assertFalse(any(
+            operation in command
+            for command in command_log.splitlines()
+            for operation in (
+                " pull ",
+                " run ",
+                " up ",
+                " exec ",
+                " stop ",
+                " rm ",
+            )
+        ))
 
     def test_preview_deploy_root_must_stay_under_user_home(self):
         image = f"ghcr.io/imas-fan-dev/imsweb-api@sha256:{'a' * 64}"

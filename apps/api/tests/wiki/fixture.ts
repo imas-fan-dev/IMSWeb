@@ -1467,7 +1467,7 @@ export interface WikiFixture {
     images: FixtureImageProcessor;
     uploads: FixtureUploadParser;
     staticRequests: string[];
-    auditLogs: Array<{ action: string; target: string }>;
+    auditLogs: Array<{ action: string; target: string; ip: string }>;
     setFetch(fetchImpl: typeof globalThis.fetch): void;
     auth(role?: string, csrf?: string): Promise<{ token: string; csrf: string }>;
     authHeaders(role?: string, csrf?: string): Promise<Record<string, string>>;
@@ -1481,7 +1481,7 @@ export function createWikiFixture(): WikiFixture {
     const uploads = new FixtureUploadParser();
     const tokens = new HmacBackofficeTokenService('wiki-contract-secret-that-is-longer-than-thirty-two-bytes');
     const staticRequests: string[] = [];
-    const auditLogs: Array<{ action: string; target: string }> = [];
+    const auditLogs: Array<{ action: string; target: string; ip: string }> = [];
     const services: RuntimeServices = {
         story,
         storage,
@@ -1490,7 +1490,11 @@ export function createWikiFixture(): WikiFixture {
         backofficeTokens: tokens,
         audit: {
             async insertAuditLog(input) {
-                auditLogs.push({ action: input.action, target: input.target });
+                auditLogs.push({
+                    action: input.action,
+                    target: input.target,
+                    ip: input.ip
+                });
             },
             async listRecentAuditLogs() { return []; }
         },

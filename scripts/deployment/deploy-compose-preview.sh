@@ -117,8 +117,8 @@ require_environment_value() {
     fail "IMS_API_NODE_ENV must be development for the isolated preview"
 [[ "$(environment_value IMS_COOKIE_SECURE)" == "false" ]] ||
     fail "IMS_COOKIE_SECURE must be false for the loopback preview"
-[[ "$(environment_value IMS_CLIENT_ADDRESS_SOURCE)" == "direct" ]] ||
-    fail "IMS_CLIENT_ADDRESS_SOURCE must be direct"
+[[ "$(environment_value IMS_CLIENT_ADDRESS_SOURCE)" == "nginx" ]] ||
+    fail "IMS_CLIENT_ADDRESS_SOURCE must be nginx"
 [[ "$(environment_value IMS_OBJECT_STORAGE)" == "s3" ]] ||
     fail "IMS_OBJECT_STORAGE must be s3"
 [[ "$(environment_value IMS_S3_ENDPOINT)" =~ ^https://[0-9a-f]{32}\.r2\.cloudflarestorage\.com$ ]] ||

@@ -3,6 +3,7 @@ import { getCookie } from "hono/cookie";
 import type { ParsedUpload, UploadedFile } from "@/ports/http";
 import type { RuntimeServices } from "@/ports/runtime-services";
 import type { NewStoryLinkInput, StoryRepository } from "@/ports/repositories";
+import { getRequestClientAddress } from "@/middleware/client-address";
 import {
     BACKOFFICE_ACCESS_TOKEN_COOKIE,
     LEGACY_BACKOFFICE_ACCESS_TOKEN_COOKIE,
@@ -147,17 +148,15 @@ export async function writeWikiAudit<E extends Env>(
                       token.value,
                   ) ?? services.backofficeTokens.verify(token.value))
                 : await services.backofficeTokens.verify(token.value);
-        const forwarded = context.req.header("x-forwarded-for");
-        const ip =
-            forwarded?.split(",").at(-1)?.trim() ||
-            context.req.header("x-real-ip")?.trim() ||
-            "unknown";
         await services.audit.insertAuditLog({
             username: claims.username,
             producername: claims.producername || "",
             action,
             target,
-            ip,
+            ip: getRequestClientAddress(
+                context,
+                services.config?.clientAddressSource || "direct",
+            ),
             time: new Date().toISOString(),
         });
     } catch (error) {
