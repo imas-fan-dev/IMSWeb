@@ -240,7 +240,6 @@ export function ProfileEditor({
       <AvatarUploadEditor
         key={accountId ?? "no-account"}
         profile={profile}
-        accountId={accountId}
         disabled={readOnly || saving}
         onBusyChange={setAvatarBusy}
         onError={(message) => setFeedback({ kind: "error", message })}

@@ -1,6 +1,10 @@
 import type { ObjectStorage } from "@/ports/object-storage";
 import { publicMediaObjectKey } from "@/utils/storage/business-object-keys";
 
+interface RequirePublicObjectUrlOptions {
+    publishIfUnavailable?: boolean;
+}
+
 export async function resolvePublicObjectUrl(
     storage: ObjectStorage,
     key: string,
@@ -21,6 +25,7 @@ export async function resolvePublicObjectUrl(
 export async function requirePublicObjectUrl(
     storage: ObjectStorage,
     key: string,
+    options: RequirePublicObjectUrlOptions = {},
 ): Promise<string> {
     if (!storage.createPublicReadUrl) {
         throw Object.assign(new Error("公开对象读取地址未配置"), {
@@ -34,6 +39,17 @@ export async function requirePublicObjectUrl(
         throw Object.assign(new Error("公开对象读取地址不可用", { cause }), {
             status: 503,
         });
+    }
+    if (options.publishIfUnavailable && storage.publish) {
+        try {
+            await storage.publish(key);
+            const url = await storage.createPublicReadUrl(key);
+            if (url) return url;
+        } catch (cause) {
+            throw Object.assign(new Error("公开对象读取地址不可用", { cause }), {
+                status: 503,
+            });
+        }
     }
     throw Object.assign(new Error("公开对象读取地址不可用"), { status: 503 });
 }

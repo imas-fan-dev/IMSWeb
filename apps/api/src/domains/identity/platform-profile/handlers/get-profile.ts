@@ -7,7 +7,9 @@ import type { AppEnvironment } from '@/app';
 import { platformProfileView } from '@/domains/identity/platform-profile/profile-view';
 import { services } from '@/middleware/hono-context';
 
-export function handleGetPlatformProfile(c: Context<AppEnvironment>): Response {
+export async function handleGetPlatformProfile(
+    c: Context<AppEnvironment>
+): Promise<Response> {
     const identity = c.get('platformAccount');
     if (!identity) {
         return c.json(
@@ -21,6 +23,6 @@ export function handleGetPlatformProfile(c: Context<AppEnvironment>): Response {
         capabilities: {
             fudabaWrite: services(c).config?.fudabaWriteEnabled === true
         },
-        profile: platformProfileView(identity.profile)
+        profile: await platformProfileView(identity.profile, services(c).storage)
     } satisfies PlatformProfileResponse);
 }

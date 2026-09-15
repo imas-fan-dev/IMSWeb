@@ -15,6 +15,7 @@ import type {
     UpdatePlatformProfileTextInput
 } from '@/ports/repositories';
 import type { PlatformJwtClaims, PlatformTokenService } from '@/ports/security';
+import type { ObjectStorage } from '@/ports/object-storage';
 import { createWikiFixture, type WikiFixture } from '../wiki/fixture';
 
 const PLATFORM_ACCOUNT_ID = 'platform-conformance-account';
@@ -155,34 +156,41 @@ function attachPlatformAccount(
 }
 
 describe('Platform profile wire-contract conformance', () => {
-    test('platformProfileView output satisfies the shared profile schema', () => {
+    test('platformProfileView output satisfies the shared profile schema', async () => {
         // Every avatar branch of the projection is exercised, because the
         // strict schema rejects both an unexpected key and a null-vs-string
         // drift in avatarUrl.
-        const external = platformProfileView(platformProfileRecord({
+        const storage: Pick<ObjectStorage, 'createPublicReadUrl'> = {
+            async createPublicReadUrl(key) {
+                return `https://public-media.example.test/${key}`;
+            }
+        };
+        const external = await platformProfileView(platformProfileRecord({
             avatar_external_url: 'https://avatars.example.test/owner.png'
-        }));
+        }), storage as ObjectStorage);
         assert.equal(
             platformProfileSchema.parse(external).avatarUrl,
             'https://avatars.example.test/owner.png'
         );
 
-        const stored = platformProfileView(platformProfileRecord({
+        const stored = await platformProfileView(platformProfileRecord({
             avatar_object_key: 'protected/platform/avatar.webp',
             updated_at: 4_200
-        }));
+        }), storage as ObjectStorage);
         assert.equal(
             platformProfileSchema.parse(stored).avatarUrl,
-            '/api/platform/me/avatar?v=4200'
+            'https://public-media.example.test/protected/platform/avatar.webp'
         );
 
-        const missing = platformProfileView(platformProfileRecord());
+        const missing = await platformProfileView(platformProfileRecord(), storage as ObjectStorage);
         assert.equal(platformProfileSchema.parse(missing).avatarUrl, null);
     });
 
     test('profile read response satisfies the shared wire schema', async () => {
         const fixture = attachPlatformAccount(createWikiFixture(), {
-            profile: { avatar_object_key: 'protected/platform/avatar.webp' }
+            profile: {
+                avatar_external_url: 'https://public-media.example.test/platform/avatar.webp'
+            }
         });
 
         const response = await fixture.app.request('/api/platform/me', {
@@ -195,7 +203,10 @@ describe('Platform profile wire-contract conformance', () => {
             status: 'active'
         });
         assert.equal(body.capabilities.fudabaWrite, true);
-        assert.equal(body.profile.avatarUrl, '/api/platform/me/avatar?v=1000');
+        assert.equal(
+            body.profile.avatarUrl,
+            'https://public-media.example.test/platform/avatar.webp'
+        );
         assert.equal(body.profile.updatedAt, 1_000);
     });
 

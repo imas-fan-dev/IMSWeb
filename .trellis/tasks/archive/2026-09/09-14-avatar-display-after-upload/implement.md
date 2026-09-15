@@ -64,8 +64,12 @@
 - [x] Re-review the account-scope and generation-fence remediation.
   - No high- or medium-severity findings remain; the residual direct stale-removal/logout matrix is covered structurally by the shared `onSaved` and `mutationFailure` fences but not repeated for every operation.
 - [x] Update Trellis specs only if implementation establishes a reusable authenticated-private-media rule.
-- [ ] Commit only active-task and avatar-fix files after full validation.
+- [x] Commit only active-task and avatar-fix files after full validation.
+  - Commit `832f212fa6db5d1846b59703709cc1088ce97d79` (`fix(platform): render uploaded avatars`) contains the 37 reviewed avatar implementation, test, inventory, specification and task files. App navigation task edits, the release-notes script and `.vitest/` remained outside the commit.
 - [ ] Verify preview Web behavior and App-target behavior before archiving the task.
+  - Preview workflow `34841198513` deployed `832f212fa6db5d1846b59703709cc1088ce97d79` after source, static, architecture, repository-test, immutable-image, provenance, deployment and SSH verification jobs passed. `https://preview.idol-master.top/api/health/ready` and the preview root return HTTP 200.
+  - Local App target `http://localhost:1420/` runs the same source with the migrated API and email worker ready. Automated cross-origin App avatar coverage passed on Chromium iPhone, Chromium Android and WebKit portrait projects.
+  - Archival still requires an authenticated preview upload check confirming that the account trigger, account popover and profile area replace the initial-letter fallback without a reload.
 
 ## Rollback Point
 

@@ -1,8 +1,9 @@
-import { platformApiPath, platformAuthPath } from '@imsweb/contracts/paths';
+import { platformAuthPath } from '@imsweb/contracts/paths';
 import type { PlatformSession } from '@imsweb/contracts/platform';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { AppEnvironment } from '@/app';
+import { platformProfileView } from '@/domains/identity/platform-profile/profile-view';
 import type {
     PlatformAccountWithProfile,
     PlatformRefreshSessionRecord,
@@ -173,12 +174,7 @@ export async function platformSessionPayload(
     tokens?: PlatformSessionTokens | null
 ): Promise<PlatformSession> {
     const { account, profile } = identity;
-    let avatarUrl = profile.avatar_external_url;
-    if (!avatarUrl && profile.avatar_object_key) {
-        avatarUrl = await services(c).storage?.createPublicReadUrl?.(
-            profile.avatar_object_key
-        ) ?? platformApiPath('/me/avatar');
-    }
+    const profileView = await platformProfileView(profile, services(c).storage);
     return {
         success: true,
         // 会话仅为 active/restricted 账号建立（establishPlatformSession 前置校验），
@@ -189,7 +185,7 @@ export async function platformSessionPayload(
         },
         profile: {
             displayName: profile.display_name,
-            avatarUrl,
+            avatarUrl: profileView.avatarUrl,
             homeCity: profile.home_city,
             bio: profile.bio
         },

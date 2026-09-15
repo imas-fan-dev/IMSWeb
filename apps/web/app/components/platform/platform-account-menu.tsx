@@ -10,7 +10,6 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
-import { usePlatformAvatarSource } from "~/components/platform/use-platform-avatar-source"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -26,10 +25,7 @@ export function PlatformAccountMenu() {
   const { t } = useTranslation()
   const platform = usePlatformSession()
   const displayName = platform.session?.profile.displayName ?? ""
-  const avatarSource = usePlatformAvatarSource(
-    platform.session?.profile.avatarUrl,
-    platform.session?.account.id
-  )
+  const avatarSource = platform.session?.profile.avatarUrl
   const restricted = platform.status === "restricted"
   const triggerLabel =
     platform.status === "loading"

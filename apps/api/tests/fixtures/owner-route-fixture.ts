@@ -231,6 +231,18 @@ export class ProtectedMemoryStorage implements ObjectStorage {
             : null;
     }
 
+    async createPublicReadUrl(key: string): Promise<string | null> {
+        const object = this.objects.get(key);
+        if (!object || object.options.protectedAccess) return null;
+        return `https://public-media.example.test/${key}`;
+    }
+
+    async publish(key: string): Promise<void> {
+        const object = this.objects.get(key);
+        if (!object) throw new Error('missing object');
+        object.options = { ...object.options, protectedAccess: false };
+    }
+
     async put(
         key: string,
         body: Uint8Array,

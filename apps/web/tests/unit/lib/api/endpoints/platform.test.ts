@@ -26,7 +26,7 @@ import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
 const profile = {
   displayName: "Platform Producer",
-  avatarUrl: "/api/platform/me/avatar?v=1000",
+  avatarUrl: "https://public-media.example.test/platform/avatars/1000.webp",
   homeCity: "上海",
   bio: "Profile bio",
   updatedAt: 1000,

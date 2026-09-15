@@ -6,7 +6,7 @@ import type {
 import type { AppEnvironment } from '@/app';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { platformProfileView } from '@/domains/identity/platform-profile/profile-view';
-import { platformAccountRepository } from '@/middleware/hono-context';
+import { platformAccountRepository, services } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
 export async function handleUpdatePlatformProfile(
@@ -37,7 +37,7 @@ export async function handleUpdatePlatformProfile(
         }
         return c.json({
             success: true,
-            profile: platformProfileView(result.profile)
+            profile: await platformProfileView(result.profile, services(c).storage)
         } satisfies PlatformProfileMutationResponse);
     } catch (error) {
         const status = statusFromError(error);

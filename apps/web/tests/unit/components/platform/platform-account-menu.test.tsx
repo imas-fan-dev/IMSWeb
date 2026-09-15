@@ -15,16 +15,8 @@ const sessionMocks = vi.hoisted(() => ({
   logout: vi.fn(),
 }))
 
-const avatarMocks = vi.hoisted(() => ({
-  usePlatformAvatarSource: vi.fn(),
-}))
-
 vi.mock("~/components/platform/platform-session-provider", () => ({
   usePlatformSession: sessionMocks.usePlatformSession,
-}))
-
-vi.mock("~/components/platform/use-platform-avatar-source", () => ({
-  usePlatformAvatarSource: avatarMocks.usePlatformAvatarSource,
 }))
 
 function renderMenu() {
@@ -75,9 +67,6 @@ describe("PlatformAccountMenu", () => {
     )
     vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(
       1
-    )
-    avatarMocks.usePlatformAvatarSource.mockImplementation(
-      (avatarUrl: string | null | undefined) => avatarUrl
     )
     await i18n.changeLanguage("zh-CN")
   })
@@ -133,7 +122,7 @@ describe("PlatformAccountMenu", () => {
     expect(sessionMocks.logout).toHaveBeenCalledOnce()
   })
 
-  it("shares a refreshed resolved avatar between the trigger and popover", async () => {
+  it("shares a refreshed direct avatar URL between the trigger and popover", async () => {
     sessionMocks.usePlatformSession.mockReturnValue(
       sessionState("authenticated", null)
     )
@@ -142,11 +131,11 @@ describe("PlatformAccountMenu", () => {
       menu.container.querySelectorAll('[data-slot="avatar-image"]')
     ).toHaveLength(0)
 
-    const managedUrl = "/api/platform/me/avatar?v=2"
+    const directUrl =
+      "https://public-media.example.test/platform/avatars/2.webp"
     sessionMocks.usePlatformSession.mockReturnValue(
-      sessionState("authenticated", managedUrl)
+      sessionState("authenticated", directUrl)
     )
-    avatarMocks.usePlatformAvatarSource.mockReturnValue("blob:managed-avatar")
     menu.rerender(
       <MemoryRouter>
         <I18nextProvider i18n={i18n}>
@@ -166,11 +155,7 @@ describe("PlatformAccountMenu", () => {
     const images = document.querySelectorAll('[data-slot="avatar-image"]')
     expect(
       Array.from(images).map((image) => image.getAttribute("src"))
-    ).toEqual(["blob:managed-avatar", "blob:managed-avatar"])
-    expect(avatarMocks.usePlatformAvatarSource).toHaveBeenLastCalledWith(
-      managedUrl,
-      "platform-1"
-    )
+    ).toEqual([directUrl, directUrl])
   })
 
   it("labels restricted sessions without treating them as anonymous", async () => {

@@ -13,18 +13,10 @@ const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
 }))
 
-const avatarMocks = vi.hoisted(() => ({
-  usePlatformAvatarSource: vi.fn(),
-}))
-
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
   usePlatformSession: sessionMocks.usePlatformSession,
-}))
-
-vi.mock("~/components/platform/use-platform-avatar-source", () => ({
-  usePlatformAvatarSource: avatarMocks.usePlatformAvatarSource,
 }))
 
 vi.mock("~/components/shared/theme-toggle", () => ({
@@ -101,9 +93,6 @@ describe("AccountMePage", () => {
     )
     sessionMocks.reload.mockResolvedValue(undefined)
     sessionMocks.logout.mockResolvedValue(undefined)
-    avatarMocks.usePlatformAvatarSource.mockImplementation(
-      (avatarUrl: string | null | undefined) => avatarUrl
-    )
     await i18n.changeLanguage("zh-CN")
   })
 
@@ -204,8 +193,7 @@ describe("AccountMePage", () => {
     expect(await screen.findByText("已退出帐号")).toBeVisible()
   })
 
-  it("uses an authenticated Blob source and keeps fallback behavior", async () => {
-    avatarMocks.usePlatformAvatarSource.mockReturnValue("blob:app-avatar")
+  it("uses an authenticated direct source and keeps fallback behavior", async () => {
     sessionMocks.usePlatformSession.mockReturnValue(
       sessionState("authenticated")
     )
@@ -213,9 +201,15 @@ describe("AccountMePage", () => {
 
     expect(
       await screen.findByRole("img", { name: "测试制作人的头像" })
-    ).toHaveAttribute("src", "blob:app-avatar")
+    ).toHaveAttribute("src", "/avatar.webp")
 
-    avatarMocks.usePlatformAvatarSource.mockReturnValue(null)
+    sessionMocks.usePlatformSession.mockReturnValue({
+      ...sessionState("authenticated"),
+      session: {
+        ...activeSession,
+        profile: { ...activeSession.profile, avatarUrl: null },
+      },
+    })
     page.rerender(<TestPage />)
     expect(
       screen.queryByRole("img", { name: "测试制作人的头像" })

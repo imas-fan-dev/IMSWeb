@@ -94,7 +94,7 @@ const otherSession = {
 
 const updatedProfile = {
   displayName: "Updated Producer",
-  avatarUrl: "/api/platform/me/avatar?v=2",
+  avatarUrl: "https://public-media.example.test/platform/avatars/2.webp",
   homeCity: "上海",
   bio: "Updated bio",
   updatedAt: 2,

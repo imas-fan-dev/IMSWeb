@@ -48,7 +48,7 @@ test('Platform profile GET and text update expose a fenced owner projection',
         assert.deepEqual(initial.account, { id: ACCOUNT_ID, status: 'active' });
         assert.equal(initial.capabilities.fudabaWrite, true);
         assert.equal(initial.profile.avatarUrl,
-            `/api/platform/me/avatar?v=${SEEDED_UPDATED_AT}`);
+            'https://public-media.example.test/protected/platform/avatar.webp');
         assert.equal(JSON.stringify(initial).includes('avatar_object_key'), false);
 
         const expectedUpdatedAt = initial.profile.updatedAt;
@@ -507,13 +507,13 @@ test('Platform avatar uploads ignore the Fudaba rollout switch', async () => {
     const stored = fixture.storage.puts.at(-1);
     assert.equal(stored?.key.startsWith(`platform/accounts/${ACCOUNT_ID}/avatars/`), true,
         stored?.key);
-    assert.equal(stored?.options.protectedAccess, true);
+    assert.equal(stored?.options.protectedAccess, undefined);
     assert.equal(stored?.options.metadata?.kind, 'platform-avatar');
 });
 
 // Replacing an avatar is an optimistic-lock write against `profile.updatedAt`,
 // and the object it replaces has to be swept or every re-upload strands a
-// protected orphan. These assertions used to ride along with the Fudaba
+// public orphan. These assertions used to ride along with the Fudaba
 // card-side CAS test, which shared one fixture for both domains.
 test('avatar uploads commit under owner CAS and sweep the replaced object', async () => {
     const fixture = new OwnerRouteFixture();
@@ -534,7 +534,7 @@ test('avatar uploads commit under owner CAS and sweep the replaced object', asyn
 
     assert.equal(fixture.storage.puts.length, 1);
     const stored = fixture.storage.puts[0];
-    assert.equal(stored?.options.protectedAccess, true);
+    assert.equal(stored?.options.protectedAccess, undefined);
     assert.equal(stored?.options.metadata?.account, ACCOUNT_ID);
     assert.equal(fixture.storage.objects.has(stored!.key), true);
 });

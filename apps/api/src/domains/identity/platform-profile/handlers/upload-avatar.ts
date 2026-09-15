@@ -89,7 +89,6 @@ export async function handleUploadPlatformAvatar(
         ownerToken = randomHex(32);
         await runtime.storage.put(key, converted.body, {
             contentType: 'image/webp',
-            protectedAccess: true,
             ownerToken,
             metadata: {
                 kind: 'platform-avatar',
@@ -125,7 +124,7 @@ export async function handleUploadPlatformAvatar(
                 await cleanupReplacedAvatar(c, previousObjectKey, key);
                 return c.json({
                     success: true,
-                    profile: platformProfileView(recovered.profile)
+                    profile: await platformProfileView(recovered.profile, runtime.storage)
                 });
             }
             throw error;
@@ -148,7 +147,10 @@ export async function handleUploadPlatformAvatar(
         committed = true;
         cleanupNewObject = false;
         await cleanupReplacedAvatar(c, result.previousAvatarObjectKey, key);
-        return c.json({ success: true, profile: platformProfileView(result.profile) });
+        return c.json({
+            success: true,
+            profile: await platformProfileView(result.profile, runtime.storage)
+        });
     } catch (error) {
         if (key && !committed && cleanupNewObject) {
             await deleteOwnedObjectWithCompensation(runtime, key, ownerToken)

@@ -18,6 +18,8 @@ const profile = {
   bio: "周末参加线下交换",
   updatedAt: 10,
 }
+const directAvatarUrl =
+  "https://public-media.example.test/platform/accounts/platform-browser/avatars/current.webp"
 
 const card = {
   id: "card-1",
@@ -154,7 +156,7 @@ test.beforeEach(async ({ context, page }) => {
     async (route) => {
       currentProfile = {
         ...currentProfile,
-        avatarUrl: `/api/platform/me/avatar?v=${currentProfile.updatedAt + 1}`,
+        avatarUrl: directAvatarUrl,
         updatedAt: currentProfile.updatedAt + 1,
       }
       await route.fulfill({
@@ -180,13 +182,11 @@ test.beforeEach(async ({ context, page }) => {
     }
     await route.fulfill({ json: { success: true, profile: currentProfile } })
   })
-  await page.route(/\/api\/platform\/me\/avatar\?v=\d+$/, async (route) => {
+  await page.route("https://public-media.example.test/**", async (route) => {
     const request = route.request()
     expect(request.method()).toBe("GET")
     expect(await request.headerValue("authorization")).toBeNull()
-    expect(await request.headerValue("cookie")).toContain(
-      "ims_platform_access=exchange-me-session"
-    )
+    expect(await request.headerValue("cookie")).toBeNull()
     await route.fulfill({ body: avatarFixture, contentType: "image/svg+xml" })
   })
   await api.mockRoute(
@@ -565,14 +565,14 @@ test("edits the authenticated profile and card without viewport overflow", async
   await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
   await expect(
     accountTrigger.locator('[data-slot="avatar-image"]')
-  ).toHaveAttribute("src", "/api/platform/me/avatar?v=11")
+  ).toHaveAttribute("src", directAvatarUrl)
   await accountTrigger.click()
   await expect(
     page.locator('[data-slot="popover-content"] [data-slot="avatar-image"]')
-  ).toHaveAttribute("src", "/api/platform/me/avatar?v=11")
+  ).toHaveAttribute("src", directAvatarUrl)
   await expect(
     page.locator('aside [data-slot="avatar-image"]')
-  ).toHaveAttribute("src", "/api/platform/me/avatar?v=11")
+  ).toHaveAttribute("src", directAvatarUrl)
   await page.keyboard.press("Escape")
   await page.screenshot({
     path: `/tmp/imsweb-profile-workspace-avatar-saved-${testInfo.project.name}.png`,

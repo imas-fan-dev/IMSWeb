@@ -41,12 +41,8 @@ import {
 } from "../../media-urls"
 import { parsed } from "../../parsed"
 import { readCookie } from "../../cookies"
-import { API_ORIGIN } from "../../origin"
 import { platformApiClient } from "../../platform-client"
-import {
-  hasStoredPlatformSession,
-  usesPlatformBearerAuth,
-} from "../../platform-token-store"
+import { hasStoredPlatformSession } from "../../platform-token-store"
 import { PLATFORM_CSRF_COOKIE_NAME } from "../../request"
 import { withPlatformAuth, withPlatformCsrf } from "../../types"
 
@@ -237,35 +233,6 @@ export function getPlatformProfile() {
       select: normalizePlatformProfileResponse,
     })
   )
-}
-
-const PLATFORM_AVATAR_PATH = platformApiPath("/me/avatar")
-
-export function isManagedPlatformAvatarUrl(
-  avatarUrl: string | null | undefined
-): boolean {
-  const value = avatarUrl?.trim()
-  if (!usesPlatformBearerAuth || !API_ORIGIN || !value) return false
-  try {
-    const apiUrl = new URL(API_ORIGIN)
-    const candidate = new URL(value, `${API_ORIGIN}/`)
-    return (
-      candidate.origin === apiUrl.origin &&
-      candidate.pathname === PLATFORM_AVATAR_PATH
-    )
-  } catch {
-    return false
-  }
-}
-
-export function getPlatformAvatar() {
-  return platformApiClient.Get<Blob>(PLATFORM_AVATAR_PATH, {
-    meta: {
-      authRealm: "platform",
-      responseType: "blob",
-      errorSchema: platformHttpErrorSchema,
-    },
-  })
 }
 
 export function updatePlatformProfile(input: PlatformProfileUpdate) {

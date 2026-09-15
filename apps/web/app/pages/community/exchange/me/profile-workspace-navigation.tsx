@@ -7,7 +7,6 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { usePlatformAvatarSource } from "~/components/platform/use-platform-avatar-source"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import type { PlatformProfile } from "~/lib/api"
 import { cn } from "~/lib/utils"
@@ -84,22 +83,17 @@ export function isProfileWorkspaceSection(
 
 export function ProfileWorkspaceNavigation({
   profile,
-  accountId,
   cardCount,
   activeSection,
   sectionBasePath,
 }: {
   profile: PlatformProfile
-  accountId?: string | null
   cardCount: number
   activeSection: ProfileWorkspaceSection
   sectionBasePath?: string
 }) {
   const { t } = useTranslation()
-  const avatarSource = usePlatformAvatarSource(
-    sectionBasePath ? null : profile.avatarUrl,
-    accountId
-  )
+  const avatarSource = sectionBasePath ? null : profile.avatarUrl
 
   if (sectionBasePath) return null
 

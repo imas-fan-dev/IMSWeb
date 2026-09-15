@@ -7,7 +7,6 @@ import {
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { usePlatformAvatarSource } from "~/components/platform/use-platform-avatar-source"
 import { FileUploadControl } from "~/components/shared/file-upload-control"
 import {
   AlertDialog,
@@ -30,7 +29,6 @@ import { AvatarCropDialog } from "./avatar-crop-dialog"
 
 export function AvatarUploadEditor({
   profile,
-  accountId,
   disabled,
   onBusyChange,
   onError,
@@ -40,7 +38,6 @@ export function AvatarUploadEditor({
   onRemove,
 }: {
   profile: PlatformProfile
-  accountId?: string | null
   disabled: boolean
   onBusyChange: (busy: boolean) => void
   onError: (message: string) => void
@@ -50,7 +47,7 @@ export function AvatarUploadEditor({
   onRemove: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
-  const avatarSource = usePlatformAvatarSource(profile.avatarUrl, accountId)
+  const avatarSource = profile.avatarUrl
   const [cropOpen, setCropOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pendingPreview, setPendingPreview] = useState<{

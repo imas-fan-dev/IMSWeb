@@ -6,10 +6,6 @@ const cropMocks = vi.hoisted(() => ({
   cropAvatarImage: vi.fn(),
 }))
 
-const avatarSourceMocks = vi.hoisted(() => ({
-  usePlatformAvatarSource: vi.fn(),
-}))
-
 vi.mock("react-easy-crop", async () => {
   const React = await vi.importActual<typeof import("react")>("react")
 
@@ -34,10 +30,6 @@ vi.mock("react-easy-crop", async () => {
 vi.mock("~/lib/media/crop-avatar-image", () => ({
   cropAvatarImage: cropMocks.cropAvatarImage,
   CropAvatarImageError: class CropAvatarImageError extends Error {},
-}))
-
-vi.mock("~/components/platform/use-platform-avatar-source", () => ({
-  usePlatformAvatarSource: avatarSourceMocks.usePlatformAvatarSource,
 }))
 
 vi.mock("~/components/ui/avatar", async () => {
@@ -82,7 +74,6 @@ function renderEditor(
   const onUpload = vi.fn().mockResolvedValue(true)
   const onRemove = vi.fn().mockResolvedValue(true)
   const props: React.ComponentProps<typeof AvatarUploadEditor> = {
-    accountId: "platform-1",
     disabled: false,
     onBusyChange: vi.fn(),
     onClearFeedback: vi.fn(),
@@ -112,9 +103,6 @@ async function selectAndCrop(
 describe("AvatarUploadEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    avatarSourceMocks.usePlatformAvatarSource.mockImplementation(
-      (source) => source
-    )
     cropMocks.cropAvatarImage.mockImplementation(
       async (source: File) =>
         new File(["cropped"], `cropped-${source.name}`, { type: "image/webp" })
@@ -139,7 +127,6 @@ describe("AvatarUploadEditor", () => {
 
     rerender(
       <AvatarUploadEditor
-        accountId="platform-1"
         disabled
         onBusyChange={vi.fn()}
         onClearFeedback={vi.fn()}

@@ -290,7 +290,7 @@ describe("CommunityExchangeMePage", () => {
       success: true,
       profile: {
         ...profile,
-        avatarUrl: "/api/platform/me/avatar?v=11",
+        avatarUrl: "https://public-media.example.test/platform/avatars/11.webp",
         updatedAt: 11,
       },
     })
@@ -384,7 +384,7 @@ describe("CommunityExchangeMePage", () => {
 
       const savedProfile = {
         ...profile,
-        avatarUrl: "/api/platform/me/avatar?v=11",
+        avatarUrl: "https://public-media.example.test/platform/avatars/11.webp",
         updatedAt: 11,
       }
       await waitFor(() => {
@@ -410,7 +410,7 @@ describe("CommunityExchangeMePage", () => {
   it("propagates avatar removal and its revision to local and session state", async () => {
     const profileWithAvatar = {
       ...profile,
-      avatarUrl: "/api/platform/me/avatar?v=10",
+      avatarUrl: "https://public-media.example.test/platform/avatars/10.webp",
     }
     apiMocks.sendProfile.mockResolvedValue({
       success: true,
@@ -599,7 +599,8 @@ describe("CommunityExchangeMePage", () => {
         success: true,
         profile: {
           ...profile,
-          avatarUrl: "/api/platform/me/avatar?v=11",
+          avatarUrl:
+            "https://public-media.example.test/platform/avatars/11.webp",
           updatedAt: 11,
         },
       })

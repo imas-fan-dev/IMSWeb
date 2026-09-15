@@ -78,6 +78,29 @@ test('required public URLs fail closed instead of returning an application fallb
     );
 });
 
+test('required public URLs can promote a legacy private object before resolving', async () => {
+    let publicAccess = false;
+    let publishes = 0;
+    const storage = {
+        ...storageWithPublicUrls(() => publicAccess
+            ? 'https://cdn.example.test/platform/avatar.webp'
+            : null),
+        async publish(key: string) {
+            assert.equal(key, 'platform/avatar.webp');
+            publishes += 1;
+            publicAccess = true;
+        }
+    } satisfies ObjectStorage;
+
+    assert.equal(
+        await requirePublicObjectUrl(storage, 'platform/avatar.webp', {
+            publishIfUnavailable: true
+        }),
+        'https://cdn.example.test/platform/avatar.webp'
+    );
+    assert.equal(publishes, 1);
+});
+
 test('public media field rewriting changes only declared string fields', async () => {
     const storage = storageWithPublicUrls((key) => `https://cdn.example.test/${key}`);
     const source = {

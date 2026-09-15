@@ -437,7 +437,6 @@ function CommunityExchangeMeWorkspace({
       >
         <ProfileWorkspaceNavigation
           profile={state.profile}
-          accountId={profileAccountId}
           cardCount={state.cards.length}
           activeSection={activeSection}
           sectionBasePath={accountSectionBasePath}

@@ -1,7 +1,7 @@
 import { expect, test, type Route } from "@playwright/test"
 
 const APP_DOCUMENT_ORIGIN = "http://localhost:1420"
-const APP_API_ORIGIN = "http://127.0.0.1:1420"
+const AVATAR_MEDIA_ORIGIN = "https://public-media.example.test"
 const APP_ACCESS_TOKEN = "app-avatar-access-token"
 const APP_CORS_HEADERS = {
   "Access-Control-Allow-Headers":
@@ -143,6 +143,11 @@ test("uses an account root and independent profile section stack", async ({
   page.on("pageerror", (error) => pageErrors.push(error.message))
   page.on("request", (request) => {
     const url = new URL(request.url())
+    if (url.origin === AVATAR_MEDIA_ORIGIN) {
+      avatarReadUrls.push(request.url())
+      expect(request.headers().authorization).toBeUndefined()
+      return
+    }
     if (
       (url.protocol === "http:" || url.protocol === "https:") &&
       url.hostname !== "localhost" &&
@@ -151,13 +156,19 @@ test("uses an account root and independent profile section stack", async ({
       remoteRequests.push(request.url())
     }
   })
+  await page.route(`${AVATAR_MEDIA_ORIGIN}/**`, async (route) => {
+    await route.fulfill({
+      body: avatarFixture,
+      contentType: "image/svg+xml",
+    })
+  })
   await page.route("**/api/platform/me/avatar*", async (route) => {
     if (await fulfillPreflight(route)) return
     expectPlatformBearer(route)
     if (route.request().method() === "PUT") {
       const profile = {
         ...session.profile,
-        avatarUrl: "/api/platform/me/avatar?v=2",
+        avatarUrl: `${AVATAR_MEDIA_ORIGIN}/platform/accounts/platform-app/avatars/2.webp`,
         updatedAt: 2,
       }
       accountMocks.setProfile(profile)
@@ -174,12 +185,7 @@ test("uses an account root and independent profile section stack", async ({
       await fulfillJson(route, { success: true, profile })
       return
     }
-    avatarReadUrls.push(route.request().url())
-    await route.fulfill({
-      body: avatarFixture,
-      contentType: "image/svg+xml",
-      headers: APP_CORS_HEADERS,
-    })
+    await route.abort()
   })
 
   await page.goto("/account/me")
@@ -296,7 +302,7 @@ test("uses an account root and independent profile section stack", async ({
   await expect(page.getByRole("button", { name: "移除头像" })).toBeVisible()
   await expect(page.getByRole("img", { name: "当前头像" })).toHaveAttribute(
     "src",
-    /^blob:/
+    `${AVATAR_MEDIA_ORIGIN}/platform/accounts/platform-app/avatars/2.webp`
   )
   if (process.env.CAPTURE_APP_QA === "1") {
     await page.screenshot({
@@ -308,11 +314,14 @@ test("uses an account root and independent profile section stack", async ({
   await expect(page).toHaveURL(/\/account\/me$/)
 
   // Recreate the packaged-App session boundary so this scenario proves a
-  // persisted managed avatar survives startup and loads through Bearer auth.
+  // persisted avatar keeps its public object URL across startup.
   await page.reload()
   await expect(
     page.getByRole("img", { name: "App 制作人的头像" })
-  ).toHaveAttribute("src", /^blob:/)
+  ).toHaveAttribute(
+    "src",
+    `${AVATAR_MEDIA_ORIGIN}/platform/accounts/platform-app/avatars/2.webp`
+  )
 
   await page.getByRole("link", { name: /个人资料/ }).click()
   await expect(page).toHaveURL(/\/account\/me\/profile$/)
@@ -344,7 +353,9 @@ test("uses an account root and independent profile section stack", async ({
   expect(avatarReadUrls.length).toBeGreaterThan(0)
   expect(
     avatarReadUrls.every(
-      (url) => url === `${APP_API_ORIGIN}/api/platform/me/avatar`
+      (url) =>
+        url ===
+        `${AVATAR_MEDIA_ORIGIN}/platform/accounts/platform-app/avatars/2.webp`
     )
   ).toBe(true)
   expect(pageErrors).toEqual([])

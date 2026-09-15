@@ -47,7 +47,7 @@ export async function handleDeletePlatformAvatar(
         }
         return c.json({
             success: true,
-            profile: platformProfileView(result.profile)
+            profile: await platformProfileView(result.profile, services(c).storage)
         } satisfies PlatformProfileMutationResponse);
     } catch (error) {
         const status = statusFromError(error);
