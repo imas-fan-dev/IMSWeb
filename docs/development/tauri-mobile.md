@@ -2,7 +2,7 @@
 
 > 文档类型：开发
 > 状态：Active
-> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/Cargo.toml`、`apps/web/src-tauri/src/lib.rs`、`apps/web/src-tauri/capabilities/geolocation.json`、`apps/web/src-tauri/icon-sources/app-icon.json`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/geolocation.ts`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
+> 权威来源：`apps/web/src-tauri/tauri.conf.json`、`apps/web/src-tauri/tauri.android.conf.json`、`apps/web/src-tauri/tauri.ios.conf.json`、`apps/web/src-tauri/Info.ios.plist`、`apps/web/src-tauri/Cargo.toml`、`apps/web/src-tauri/src/lib.rs`、`apps/web/src-tauri/capabilities/geolocation.json`、`apps/web/src-tauri/icon-sources/app-icon.json`、`apps/web/src-tauri/icon-sources/ios-liquid-glass/`、`apps/web/scripts/sync-ios-app-icon.js`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/app/lib/geolocation.ts`、`apps/web/app/lib/native-glass.ts` 和 `apps/web/package.json`
 
 本文件描述 Web workspace 中 Tauri 2 移动端外壳的当前状态、前置条件和尚未打通的契约。
 桌面与移动构建复用同一份 React Router SPA 产物，不存在第二套前端源码。
@@ -22,8 +22,12 @@
 - Tauri 自动将 `tauri.android.conf.json` 或 `tauri.ios.conf.json` 合并到基础配置。Android 配置
   只管理调试 application ID 后缀，iOS 配置管理最低系统版本和 `Info.ios.plist` 的合并入口。平台文件
   以 JSON Merge Patch 覆盖基础字段，数组会整体替换，因此共享字段必须继续留在基础配置。
-- `src-tauri/icon-sources/app-icon.json` 为 iOS、桌面和 Android 统一生成图标。Android 使用独立背景、
-  透明前景和单色图层；adaptive icon 的字标位于安全区，旧版 launcher 图标单独放大前景。
+- `src-tauri/icon-sources/app-icon.json` 驱动 `tauri icon`，为桌面、Android 和 iOS 旧系统生成位图图标。
+  默认图 `public/brand/imsweb-app-icon.png` 本身是派生资产，由 `icon-sources/app-icon.svg` 的几何
+  加亮色底板栅格化而来；Android 使用独立背景（同一个纯平色）、透明前景和单色图层，
+  adaptive icon 的字标位于安全区，旧版 launcher 图标单独放大前景。iOS 26 及以上的图标改由
+  `src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/` 这个 Icon
+  Composer 文档驱动，同一条命令生成的 `AppIcon.appiconset` 保留为 iOS 15–25 的兜底。
 - `Info.ios.plist` 是 iOS 专属声明，Tauri 会在生成 Apple 工程时自动合并。它声明真机访问局域网
   所需的 ATS 明文例外、局域网用途说明、事务所地图使用期间定位的用途说明，以及 iOS 27 要求的
   UIKit scene 生命周期。
@@ -91,7 +95,10 @@ pnpm --filter @imsweb/web run tauri android dev --host <开发机局域网 IP> [
 ```
 
 Tauri 的 `dev` 和 `build` 会先运行 `icon:app`，因此 Android 生成工程被删除或重建后仍会恢复专用图层。`icon:app` 还会规范化 ICNS 顶层块顺序，使相同输入的重复生成不产生二进制差异。
-修改 `public/brand/imsweb-app-icon.png` 或 `src-tauri/icon-sources/` 后，也可以单独运行该命令检查派生图标。
+修改 `src-tauri/icon-sources/app-icon.svg` 后重跑 `--write` 与 `--full-icon`（命令见
+[资产来源记录](../../docs/governance/assets.md)）刷新源图，再运行上述命令检查派生图标。
+
+图标按平台分流。桌面使用 `src-tauri/icons/` 下的 `icon.icns` 和 `icon.ico`，Android 使用 `app-icon.json` 生成的三图层 adaptive icon 加旧版 launcher 位图；三者与 iOS 图层同源，都是扁平版（字面不再有金属渐变），亮色底板统一为 `#e0e1e3`。iOS 26 及以上加载 `src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon`：`scripts/sync-ios-app-icon.js` 把该目录复制到 `gen/apple/AppIcon.icon`，再给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，使 `actool` 把它编译成 `IconImageStack`。接线放在 `icon:app` 而不是 `build.rs`，因为 `icon:app` 是 `beforeBuildCommand`，在 xcodebuild 读取工程之前执行；`build.rs` 要等 xcodebuild 进入 cargo 阶段才运行，已经晚于工程读取。同步脚本幂等，`gen/apple` 不存在时静默跳过，桌面与 Android 构建不受影响。
 
 `init` 会在 `src-tauri/gen/` 下生成平台工程。执行前先确认 identifier 与签名归属，
 identifier 变更后需要重新生成。`gen/` 始终是派生产物；iOS 原生源码放在

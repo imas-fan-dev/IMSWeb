@@ -3,6 +3,7 @@ const { readFile } = require("node:fs/promises");
 const path = require("node:path");
 const test = require("node:test");
 const { pathToFileURL } = require("node:url");
+const zlib = require("node:zlib");
 
 const webRoot = path.resolve(__dirname, "../apps/web");
 const routerConfigUrl = pathToFileURL(
@@ -12,6 +13,115 @@ const routeMetadataUrl = pathToFileURL(
   path.resolve(webRoot, "app/route-metadata.ts"),
 );
 const devAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/dev-app.js"));
+
+// The icon layers ship as RGBA PNGs whose shape lives in alpha. The root tests
+// must not pull in an image dependency, so this decodes exactly what the icon
+// pipeline writes: 8-bit RGBA, non-interlaced.
+function decodePng(buffer) {
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  const chunks = [];
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const start = offset + 8;
+    if (type === "IHDR") {
+      width = buffer.readUInt32BE(start);
+      height = buffer.readUInt32BE(start + 4);
+      assert.equal(buffer[start + 8], 8, "8-bit channels");
+      assert.equal(buffer[start + 9], 6, "RGBA colour type");
+      assert.equal(buffer[start + 12], 0, "not interlaced");
+    } else if (type === "IDAT") {
+      chunks.push(buffer.subarray(start, start + length));
+    } else if (type === "IEND") {
+      break;
+    }
+    offset = start + length + 4;
+  }
+  const raw = zlib.inflateSync(Buffer.concat(chunks));
+  const stride = width * 4;
+  const data = Buffer.alloc(height * stride);
+  let previous = Buffer.alloc(stride);
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[y * (stride + 1)];
+    const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    const row = Buffer.alloc(stride);
+    for (let x = 0; x < stride; x += 1) {
+      const left = x >= 4 ? row[x - 4] : 0;
+      const up = previous[x];
+      const upLeft = x >= 4 ? previous[x - 4] : 0;
+      let value = line[x];
+      if (filter === 1) value += left;
+      else if (filter === 2) value += up;
+      else if (filter === 3) value += (left + up) >> 1;
+      else if (filter === 4) {
+        const estimate = left + up - upLeft;
+        const a = Math.abs(estimate - left);
+        const b = Math.abs(estimate - up);
+        const c = Math.abs(estimate - upLeft);
+        value += a <= b && a <= c ? left : b <= c ? up : upLeft;
+      }
+      row[x] = value & 0xff;
+    }
+    row.copy(data, y * stride);
+    previous = row;
+  }
+  return { width, height, data };
+}
+
+function alphaMask(image) {
+  const mask = new Uint8Array(image.width * image.height);
+  for (let i = 0; i < mask.length; i += 1) {
+    mask[i] = image.data[i * 4 + 3] > 127 ? 1 : 0;
+  }
+  return mask;
+}
+
+// Sample every cubic of a path, so contour smoothness can be measured.
+function samplePath(data, perCurve = 24) {
+  const numbers = data.match(/-?\d+\.?\d*/g).map(Number);
+  const points = [[numbers[0], numbers[1]]];
+  for (let i = 2; i + 6 <= numbers.length; i += 6) {
+    const [x0, y0] = points[points.length - 1];
+    const [x1, y1] = numbers.slice(i, i + 2);
+    const [x2, y2] = numbers.slice(i + 2, i + 4);
+    const [x3, y3] = numbers.slice(i + 4, i + 6);
+    for (let k = 1; k <= perCurve; k += 1) {
+      const t = k / perCurve;
+      const m = 1 - t;
+      points.push([
+        m ** 3 * x0 + 3 * m ** 2 * t * x1 + 3 * m * t ** 2 * x2 + t ** 3 * x3,
+        m ** 3 * y0 + 3 * m ** 2 * t * y1 + 3 * m * t ** 2 * y2 + t ** 3 * y3,
+      ]);
+    }
+  }
+  return points;
+}
+
+// Tightest turn per pixel of contour, in degrees. A corner rounds this out; a
+// kink spikes because the direction changes within a fraction of a pixel.
+function peakTurnPerPixel(points) {
+  const closed = [...points, points[0]];
+  let peak = 0;
+  for (let i = 1; i < closed.length - 1; i += 1) {
+    const incoming = [
+      closed[i][0] - closed[i - 1][0],
+      closed[i][1] - closed[i - 1][1],
+    ];
+    const outgoing = [
+      closed[i + 1][0] - closed[i][0],
+      closed[i + 1][1] - closed[i][1],
+    ];
+    const first = Math.hypot(...incoming);
+    const second = Math.hypot(...outgoing);
+    if (first === 0 || second === 0) continue;
+    const cosine = (incoming[0] * outgoing[0] + incoming[1] * outgoing[1]) / (first * second);
+    const turn = (Math.acos(Math.min(1, Math.max(-1, cosine))) * 180) / Math.PI;
+    peak = Math.max(peak, turn / ((first + second) / 2));
+  }
+  return peak;
+}
 
 test("browser and Tauri targets keep separate servers and build outputs", async () => {
   const previousTarget = process.env.VITE_IMS_APP_TARGET;
@@ -103,7 +213,7 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
     assert.equal(webPackage.scripts["dev:app"], "node scripts/dev-app.js");
     assert.equal(
       webPackage.scripts["icon:app"],
-      "tauri icon src-tauri/icon-sources/app-icon.json && node scripts/canonicalize-icns.js src-tauri/icons/icon.icns",
+      "tauri icon src-tauri/icon-sources/app-icon.json && node scripts/canonicalize-icns.js src-tauri/icons/icon.icns && node scripts/sync-ios-app-icon.js",
     );
 
     const appIconManifestPath = path.resolve(
@@ -195,6 +305,220 @@ test("browser and Tauri targets keep separate servers and build outputs", async 
       process.env.VITE_IMS_APP_TARGET = previousTarget;
     }
   }
+});
+
+// The iOS 26 Liquid Glass icon is a controlled Icon Composer document that the
+// build-time sync script copies into src-tauri/gen/apple and references from
+// project.pbxproj. Array order matters: ictool treats the first group and the
+// first layer in a group as the topmost entry, so At must precede Wordmark and
+// Outline or the glyph renders as a flat dark silhouette. The @ sits in its own
+// group because the Liquid Glass parameters are group-scoped.
+test("iOS Liquid Glass icon ships a layered Icon Composer document", async () => {
+  const iconDirectory = path.resolve(
+    webRoot,
+    "src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon",
+  );
+  const metadata = JSON.parse(
+    await readFile(path.join(iconDirectory, "icon.json"), "utf8"),
+  );
+  assert.deepEqual(
+    metadata.groups.map((group) => group.name),
+    ["At", "Mark"],
+  );
+  const layers = metadata.groups.flatMap((group) => group.layers);
+  assert.deepEqual(
+    layers.map((layer) => layer.name),
+    ["At", "Wordmark", "Outline"],
+  );
+
+  const at = metadata.groups[0];
+  assert.equal(at.layers[0].glass, true);
+  assert.equal(at.specular, true);
+  assert.equal(at.lighting, "individual");
+  assert.ok(at.translucency.enabled);
+  assert.ok(at.refractivity.enabled);
+
+  for (const layer of layers) {
+    assert.ok(
+      !Object.hasOwn(layer, "fill"),
+      `${layer.name} must keep fill-specializations authoritative`,
+    );
+    assert.ok(Array.isArray(layer["fill-specializations"]));
+    const png = await readFile(
+      path.join(iconDirectory, "Assets", layer["image-name"]),
+    );
+    assert.deepEqual(
+      png.subarray(0, 8),
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    );
+    assert.equal(png.readUInt32BE(16), 1024);
+    assert.equal(png.readUInt32BE(20), 1024);
+    assert.equal(png[25], 6);
+  }
+});
+
+test("the icon layers come from one tracked SVG geometry source", async () => {
+  const sources = path.resolve(webRoot, "src-tauri/icon-sources");
+  const svg = await readFile(path.join(sources, "app-icon.svg"), "utf8");
+
+  assert.match(
+    svg,
+    /viewBox="0 0 1024 1024"/,
+    "the SVG must stay on the 1024 canvas the layers use",
+  );
+
+  const paths = [];
+  for (const chunk of svg.split("<path").slice(1)) {
+    const head = chunk.split("/>", 1)[0];
+    const id = /\bid="([^"]+)"/.exec(head);
+    const layer = /\bdata-layer="([^"]+)"/.exec(head);
+    const data = /\sd="([^"]+)"/.exec(head);
+    if (id && layer && data) {
+      paths.push({ id: id[1], layer: layer[1], tag: head, data: data[1] });
+    }
+  }
+  assert.deepEqual(
+    paths.map(({ id }) => id),
+    ["outline-frame", "outline-at", "wordmark", "at-keyline", "at"],
+    "hand-drawn primitives must stay in stacking order",
+  );
+  assert.deepEqual(
+    paths.map(({ layer }) => layer),
+    ["outline", "outline", "wordmark", "wordmark", "at"],
+    "each primitive must declare the .icon layer it rasterises into",
+  );
+  for (const { id, data } of paths) {
+    assert.match(data, /^M[\d.,-]+C/, `${id} must start with a Bezier path`);
+    assert.match(data, /Z$/, `${id} must close every subpath`);
+    assert.doesNotMatch(
+      data,
+      /[A-BD-LN-Y]/,
+      `${id} must use only cubic Beziers and close commands`,
+    );
+  }
+
+  const pathTag = (id) => paths.find((path) => path.id === id)?.tag ?? "";
+  const pathData = (id) => paths.find((path) => path.id === id)?.data ?? "";
+  const subpaths = (id) => pathData(id).split("M").slice(1);
+  // The black frame is the inner ink -- the wordmark shapes plus the @ -- offset
+  // by 56 px and traced back, so 28 px of black lands outside every edge. The
+  // offset leaves a sharp re-entrant notch wherever two offset shapes merge, so
+  // the band ships as one closed contour whose junctions are filleted.
+  const frame = pathTag("outline-frame");
+  assert.match(frame, /fill="#111113"/);
+  assert.match(frame, /fill-rule="nonzero"/);
+  assert.doesNotMatch(
+    frame,
+    /stroke/,
+    "the frame must ship as geometry, not as a stroked outline",
+  );
+  assert.equal(
+    subpaths("outline-frame").length,
+    1,
+    "the frame is one closed band with no separate hole subpath",
+  );
+  // Every transition on the frame's outer contour must be an arc. A kink shows
+  // up as tens of degrees of turn inside a fraction of a pixel; the tightest
+  // designed corner, the m's 13 px bottom radius, measures about 26 deg/px.
+  const frameTurn = peakTurnPerPixel(samplePath(pathData("outline-frame")));
+  assert.ok(
+    frameTurn < 45,
+    `frame contour must stay free of kinks, measured ${frameTurn.toFixed(1)} deg/px`,
+  );
+  // The a inside the @ is re-authored as one elliptical arc, so its opening is
+  // a continuous sweep instead of a traced polygon with flats and nicks.
+  assert.equal(
+    subpaths("at").length,
+    2,
+    "the @ is the outer contour plus the a's counter",
+  );
+  assert.equal(
+    (subpaths("at")[1].match(/C/g) ?? []).length,
+    4,
+    "the a's counter must stay a four-arc ellipse",
+  );
+  const outlineAt = pathTag("outline-at");
+  assert.match(outlineAt, /fill="#111113"/);
+  assert.match(outlineAt, /stroke-width="56"/);
+  assert.match(outlineAt, /stroke-linejoin="round"/);
+  assert.match(outlineAt, /stroke-linecap="round"/);
+  assert.match(pathTag("wordmark"), /fill="#f6f6f8"/);
+  const atKeyline = pathTag("at-keyline");
+  assert.match(atKeyline, /fill="none"/);
+  assert.match(atKeyline, /stroke-width="9"/);
+  assert.match(pathTag("at"), /fill="#c91a1d"/);
+  assert.doesNotMatch(
+    svg,
+    /<(?:text|image)\b/,
+    "the checked-in SVG must not depend on a font or raster image",
+  );
+
+  // Android reuses the same geometry, so its monochrome layer is the
+  // silhouette layer byte for byte.
+  const [monochrome, outline] = await Promise.all([
+    readFile(path.join(sources, "android-monochrome.png")),
+    readFile(
+      path.join(
+        sources,
+        "ios-liquid-glass/AppIcon.icon/Assets/Outline.png",
+      ),
+    ),
+  ]);
+  assert.deepEqual(monochrome, outline);
+});
+
+// The @ carries its own black edge, and the outline layer sits underneath, so
+// the white would hide that edge wherever a letterform crosses it: the m's
+// right leg over the ring, the s over the @'s lower right. The rasteriser cuts
+// the white back from 6 px to 20 px outside the @, leaving the keyline drawn
+// and the black edge visible. This measures the shipped layers rather than the
+// master, because that cut is a property of the raster step.
+test("the @ keeps its own black edge above the letterform white", async () => {
+  const assets = path.resolve(
+    webRoot,
+    "src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets",
+  );
+  const [wordmarkPng, atPng] = await Promise.all([
+    readFile(path.join(assets, "Wordmark.png")),
+    readFile(path.join(assets, "At.png")),
+  ]);
+  const wordmarkImage = decodePng(wordmarkPng);
+  const atImage = decodePng(atPng);
+  assert.equal(wordmarkImage.width, 1024);
+  assert.equal(atImage.width, 1024);
+  const wordmark = alphaMask(wordmarkImage);
+  const at = alphaMask(atImage);
+  const size = 1024;
+  const isAt = (x, y) =>
+    x >= 0 && y >= 0 && x < size && y < size && at[y * size + x] === 1;
+  // Sampled disk: true when the @ reaches within `radius` of that pixel.
+  const nearAt = (x, y, radius) => {
+    for (let step = 0; step < 32; step += 1) {
+      const angle = (step * Math.PI) / 16;
+      const dx = Math.round(radius * Math.cos(angle));
+      const dy = Math.round(radius * Math.sin(angle));
+      if (isAt(x + dx, y + dy)) return true;
+    }
+    return false;
+  };
+  let keyline = 0;
+  let covered = 0;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      if (wordmark[y * size + x] === 0) continue;
+      if (nearAt(x, y, 6)) keyline += 1;
+      else if (nearAt(x, y, 18)) covered += 1;
+    }
+  }
+  assert.equal(
+    covered,
+    0,
+    "wordmark white must stay out of the @'s black edge band",
+  );
+  assert.ok(
+    keyline > 5000,
+    `the @ keyline must stay drawn, measured ${keyline} px of white`,
+  );
 });
 
 test("every App tab icon is bundled as a usable iOS vector asset", async () => {

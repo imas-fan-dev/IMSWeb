@@ -19,27 +19,81 @@
 
 ### App icon
 
-`public/brand/imsweb-app-icon.png` 是桌面/移动客户端的应用图标源文件，画布 1024 x 1024。它由仓库维护者通过已配置的
-`gpt-image-2` 图像生成及图像编辑 API 创建：服务输出的 1254 x 1254 PNG 被标准化为仓库中的 1024 x 1024 源文件。
-提示词限定与主站 logo 呼应的左上 `im`、右下 `@s` 阶梯布局、红色 `@`、银色金属字面、黑白双层描边和右倾斜体；只借用
-构图节奏，不复制主站的中文字形，也未导入第三方图像。仓库维护者随后重建无框的银色底面，移除全画布暗影和生成图外框，
-使 iOS 系统圆角成为唯一的应用图标外形；最后通过图像编辑保留原有上下阶梯位置，仅横向向中心收拢，并让红色 `@`
-以前景层覆盖相邻银色字面，修复重叠处的断裂描边、残片和背景拼接痕迹。仓库维护者随后将完整字标组作为单层移动到画布中心，
-不改变字形间距、大小或前后层级；最终可见字标包围范围的中心为 `(511, 511)`，与 1024 px 画布中心相差不足 1 px。
+`public/brand/imsweb-app-icon.png` 是桌面客户端的应用图标源文件，画布 1024 x 1024。它现在是**派生**资产：
+由 `apps/web/src-tauri/icon-sources/app-icon.svg` 的几何配上亮色底板（`#e0e1e3`，与 `icon.json` 的 light fill 同值）
+栅格化而来，与应用图标同源同算法。`pnpm run icon:app` 由它派生出 `src-tauri/icons/` 下的桌面图标、
+iOS 旧系统 `AppIcon.appiconset` 的 18 张 PNG，以及 Android 旧版 launcher（`ic_launcher.png`、`ic_launcher_round.png`）。
+重生成命令：
+
+```sh
+python3 .trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layers.py \
+    --full-icon apps/web/public/brand/imsweb-app-icon.png \
+    --android-background apps/web/src-tauri/icon-sources/android-background.png
+```
+
+沿革：本文件先前是仓库维护者用已配置的 `gpt-image-2` 图像生成与图像编辑 API 制作的金属版
+（1254 x 1254 输出标准化为 1024 x 1024，提示词只限定与主站 logo 呼应的左上 `im`、右下 `@s` 阶梯布局、
+红色 `@`、银色金属字面、黑白双层描边与右倾斜体，未导入第三方图像）。那一版现在只存在于版本库历史里，
+可用 `git show <提交>:apps/web/public/brand/imsweb-app-icon.png` 取回；当前版本不再有金属渐变、
+双层浅色描边与烘焙投影，与 iOS / Android 图层逐像素同源。
 
 | Web 路径                           | 字节数 | SHA-256                                                            |
 | ---------------------------------- | ------ | ------------------------------------------------------------------ |
-| `public/brand/imsweb-app-icon.png` | 356397 | `de20945c1ebba390dd658120a3aaf46c3bd3d1b9b282d2f359b76923935520fa` |
+| `public/brand/imsweb-app-icon.png` | 12493 | `fd25deff4e087924cfa059c2796326e807e9e7352cfd19e3bb5eaad606e0e2bb` |
 
-Android launcher icon 另有三张仓库内图层源文件。背景层按主图每行两侧的无字标像素重建，保留银色横向纹理；前景层从同一主图分离字标和局部阴影，并缩放到 adaptive icon 安全区；单色层复用前景 alpha，供 Android 13 及以上的主题图标使用。这些处理未引入第三方图像。
+Android launcher icon 另有三张仓库内图层源文件。背景层是与 iOS 亮色外观同一个纯平色底板（`#e0e1e3`），
+不再保留原来的纵向银色渐变。前景层原为金属版本（字面带纵向渐变与拉丝，黑边外有白环，右下带立体挤出），
+现与 iOS 一并扁平化：形状取同一份 SVG 几何，涂色改为 `icon.json` 的三色纯平值，字面光泽、白环与立体挤出都不再保留；
+单色层是描边层的 alpha，供 Android 13 及以上的主题图标使用。这些处理未引入第三方图像。
 
-| 仓库路径                                                 | 字节数 | SHA-256                                                            |
+前景层与单色层由 `apps/web/src-tauri/icon-sources/app-icon.svg` 派生，结构说明见下一节。等价的栅格化脚本记录在 `.trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layers.py`，只作任务记录，不参与构建：
+
+```sh
+python3 .trellis/tasks/09-15-ios-liquid-glass-app-icon/research/build-icon-layers.py \
+    --write --svg apps/web/src-tauri/icon-sources/app-icon.svg --out /tmp/icon-layers
+```
+
+`app-icon.svg` 是几何真相源。它不含 `<text>`、字体引用或栅格图像；改控制点、圆角半径或描边宽度后跑 `--write`，即可重生成五张 PNG。
+
+| 仓库路径 | 字节数 | SHA-256 |
 | -------------------------------------------------------- | ------ | ------------------------------------------------------------------ |
-| `apps/web/src-tauri/icon-sources/android-background.png` | 8652   | `f7cca8cae5d0b051c89302a346cc488cdd77968ac52b1c4f9ba2df4fde64326a` |
-| `apps/web/src-tauri/icon-sources/android-foreground.png` | 488011 | `239f26fe661906c19fcb28e62f378568457b5bb900d1a4c7c78807f3f60dd3e7` |
-| `apps/web/src-tauri/icon-sources/android-monochrome.png` | 105269 | `2b320c63a2abc6b2e9cc00a19dcbd23c66141ef59d0e72d4fca84c73559bb0ef` |
+| `apps/web/src-tauri/icon-sources/android-background.png` | 6492 | `1b9292b3df86bc86545096a1dc31786eb6f5536385170863e1337ddb9149083c` |
+| `apps/web/src-tauri/icon-sources/android-foreground.png` | 12492 | `397228e63326d96507843a287ea88f850db1a8467c82fdd5ebbd39cabef38efb` |
+| `apps/web/src-tauri/icon-sources/android-monochrome.png` | 8174 | `af3bb8109d7064878302a05345b50045842c22979c9bf267fd709541153cc4aa` |
 
 `apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm run icon:app` 派生，不单独登记；命令会在生成后规范化 ICNS 顶层块顺序，保证相同源图产生相同的版本库内容。替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
+
+### iOS Liquid Glass 图标
+
+iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/`。三张图层与 Android 图层同源，都是扁平蒙版：RGB 统一填白，形状全部落在 alpha 上，配色交给 `icon.json` 的 `fill-specializations`。
+
+几何来自 `apps/web/src-tauri/icon-sources/app-icon.svg`，由五个纯路径 primitive 构成：
+
+1. `outline-frame`（描边层）由内部图形直接生成：先把 `wordmark` 与 `at` 的路径并集向外扩 56 px，得到一条 28 px 可见宽度的黑带，再把这条带子重新描摹成一条闭合轮廓随 SVG 提交。它不再描摹贴纸剪影，因此不会继承旧稿的波浪、缺口与厚度漂移；外扩会在两块外扩图形相交处留下尖锐的凹角（`m` 与 `@`、`@` 与 `s` 之间），也会在 `m` 右腿与 `s` 之间留下一处向内咬的浅湾，所以在描摹之前先用 28 px **圆盘**闭运算把凹角和浅湾都倒成圆弧（不用方形结构元：`PIL` 的 `MaxFilter` 是方窗，会把凸弧沿对角线胀出去），描摹时再叠 24 px 倒角与 8 px 弧长平滑，外轮廓的每一段过渡因此都是连续的。`m` 的腿间槽、`i` 点与竖笔之间的缝、`@` 环与内 `a` 之间的空隙仍由外扩的内侧一半填成黑色，可见黑边仍是 28 px。
+2. `outline-at`（描边层）是 `@` 自己的同一条 `d` 加 56 px 圆角描边，把 28 px 黑边画在 `@` 形状之外。`@` 因此有独立黑边，与黑框同宽、互不干扰，叠在字面上时边界清晰。
+3. `wordmark`（字面层）是 `i`、圆点、平顶 `m` 与 `s`：`i` 与 `m` 由圆角斜切块按旧稿量测比例手绘（字腿 74 px、腿间槽 20 px、`i` 竖笔 77 px、斜切 0.364，`m` 右上肩半径 34 px 以贴合旧稿的圆肩），`s` 从旧金属稿的字面区域平滑描摹，保留上臂、左脊、中腹、下臂与一个 42° 斜向的负空间。
+4. `at-keyline`（字面层）复用 `@` 的同一条 `d`，用 9 px 白色圆角描边画出细白衬线，被 `At` 层压住内侧，只露出约 4.5 px。
+5. `at`（`@` 层）是红色填充的 `@` 轮廓：外环、内 `a` 碗、斜竖笔，以及一条按椭圆重建的 `a` 负空间。
+
+`@` 的外轮廓、`s` 与黑框都来自描摹：4 倍放大后跑 marching squares，再与蒙版做若干轮拟合，按弧长均匀重采样，最后转成**周期性三次样条**（C2，曲率在节点上连续）。这一点是刻意的：Catmull-Rom 只有 C1，曲率在每个采样点跳变，长圆弧会读成一段段圆度不同的弧、直线段与转折。均匀采样同样关键，控制点疏密不一时一个很小的方向变化就会读成尖角。
+
+`@` 内 `a` 的负空间不描摹：它接近椭圆，先按主轴拟合，再按描摹面积做等面积缩放，最后由四个三次贝塞尔（`0.5523 r` 手柄）画出。内圆弧因此是一条连续曲线，没有栅格描摹留下的平面段和缺口。手绘的 `i` 与 `m` 用连续曲率的圆角：手柄长度取 `0.72 r` 而不是圆弧的 `0.5523 r`，曲率从直线端的 0 平滑升到圆角，直线接圆弧处不再有曲率突变。手绘部分按画布中心对齐：斜切函数把整组字面下移 16.5 px，使外扩后的外轮廓落在 1024 画布正中。笔画的形状全部落在路径数据里、随 SVG 提交；构建期不读取旧位图，也不依赖 Python 或图像库。五个 primitive 只使用 `M`、`C`、`Z` 命令；黑框用 `nonzero` 填充，字面与 `@` 层用 `evenodd`，`@` 的负空间是同一路径上的反向子路径，与外轮廓一起参与描边，所以内孔边缘也是黑的。源文件没有 `<text>`、字体文件、第三方图像，也没有继承旧稿的拉丝、挤出与双重描边。
+
+`app-icon.svg` 渲染回栅格时，每条 primitive 按自己的 `fill` / `stroke` / `fill-rule` 单独出图，再按 `data-layer` 取 alpha 并集；先生成 4096 px，再盒式降采样到 1024，所以描边宽度和曲线在最终尺寸上都是平滑的。
+
+字面层在这之后还有一步修正。`@` 自己的黑边画在**最底层**（描边层），而字面白在它上面，所以凡是字面横跨 `@` 黑边的地方（`m` 右腿压住 `@` 环顶部、`s` 压住 `@` 右下），黑边都会被白盖掉，`@` 看起来直接贴着字面。栅格化因此在字面层上再减去 `@` 外围 6 px 到 20 px 的一条环带，把黑边让回来；内圈 6 px 以内保留，因为 9 px 白衬线只有 4.5 px 露在外面。这条环带一定落在黑框内部（脚本会断言，否则报错退出），所以不会在字面上开出透底的空洞。
+
+图层分组与材质：`@` 单独成组（Liquid Glass 的材质参数是组级属性），开启 `glass`，并配 `specular`、`translucency`、`blur-material`、`refractivity` 和 `lighting: individual`，阴影浅色用 `layer-color`、暗色用 `neutral`，让红色 `@` 读起来像玻璃珠（`@` 的独立黑边来自描边层，与这层玻璃互不干扰）。字面与描边所在的 `Mark` 组保持无 `glass`：带 `glass: true` 时系统会在每层边界叠加约 8 px 宽的边缘高光，白色字面上不可见，但会在描边和 `@` 边界上留下偏粉的亮带。`ictool` 导出时忽略该标志，所以分组的实际效果只能在真机或模拟器构建上验证。处理未引入第三方图像。
+
+| 仓库路径 | 字节数 | SHA-256 |
+| ----------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------ |
+| `apps/web/src-tauri/icon-sources/app-icon.svg` | 50929 | `02443e9840d1b08853505b5666cc115d1cfaf3f6d753751c613d5bdb96c1226f` |
+| `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/icon.json` | 2490 | `aa9e7fc3a5cc17b27b99c78a8d3c187d741af9d4819de6027842c3bf5a419631` |
+| `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/Outline.png` | 8174 | `af3bb8109d7064878302a05345b50045842c22979c9bf267fd709541153cc4aa` |
+| `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/Wordmark.png` | 12185 | `f4e6b52023433ef141d1d1a45e43fbdc86c612522ee831924663749192059fc8` |
+| `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/At.png` | 8939 | `1e49386990e4ca42da78baad5c277ec7e11734c2685dbdd48f842f3f24ffb2a3` |
+
+`apps/web/scripts/sync-ios-app-icon.js` 由 `pnpm run icon:app` 调用。它把该目录复制进派生的 `gen/apple/AppIcon.icon`，并给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，让 `actool` 把 `.icon` 当作图标栈，而不是资源目录里的普通文件。
 
 ### 系列墙与随机 icon
 

@@ -205,9 +205,9 @@ Web 不包含从私有 Legacy 仓库迁入的图片、字体、音视频或品�
 
 ## App icon
 
-`public/brand/imsweb-app-icon.png` 是客户端 1:1 图标的默认源文件。图标经 `gpt-image-2` 生成与图像编辑，采用与主站 logo 呼应的左上 `im` 与右下 `@s` 阶梯布局；两层保持原有的纵向位置，仅横向向中心收拢，整组字标居中于画布。红色 `@` 位于前景并压住相邻银色字面，所有字形保留连续的金属字面、黑白双层描边和右倾斜体。32 px 下仍保留清晰的 `@` 强调。
+`public/brand/imsweb-app-icon.png` 是桌面客户端 1:1 图标的默认源文件。它由 `src-tauri/icon-sources/app-icon.svg` 的几何配上亮色底板栅格化而来，与应用图标同源：左上 `im` 与右下 `@s` 阶梯布局、红色 `@`、黑白双层描边与右倾斜体，字面已扁平化（不再有金属渐变与拉丝），32 px 下仍保留清晰的 `@` 强调。生成命令见[来源与许可登记](../../docs/governance/assets.md)。
 
-Android 另外使用 `src-tauri/icon-sources/` 中的背景、透明前景和单色图层。前景字标位于 adaptive icon 安全区，旧版 launcher 图标通过 `android_fg_scale` 提高占比；Android 13 及以上可以使用单色层生成主题图标。`app-icon.json` 是 Tauri icon manifest，默认图仍供 iOS、桌面和商店图标使用。
+Android 另外使用 `src-tauri/icon-sources/` 中的背景、透明前景和单色图层。三张图层与桌面源图、iOS 图层同源同算法：背景是与 iOS 亮色外观同一个纯平色底板，前景与单色取自同一份 SVG 几何。前景字标位于 adaptive icon 安全区，旧版 launcher 图标通过 `android_fg_scale` 提高占比；Android 13 及以上可以使用单色层生成主题图标。`app-icon.json` 是 Tauri icon manifest，默认图供桌面、iOS 旧系统与 Android 旧版 launcher 图标使用。
 
 `src-tauri/icons/` 下的全部 PNG、`icon.icns` 和 `icon.ico` 都是派生产物，不要手改。替换默认图或 Android 图层后，从本 workspace 重新生成：
 
