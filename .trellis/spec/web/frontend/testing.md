@@ -36,6 +36,18 @@ stable canvas path, so Firefox skips that one success case while retaining the
 explicit map-failure and directory fallback coverage. Do not remove the
 Chromium canvas assertion or the Firefox fallback test.
 
+Keep complete compatible coverage on the primary `chromium-desktop` and
+`app-small` projects. Secondary browser and device projects collect only tests
+tagged for an invariant they uniquely own. Every secondary project must execute
+at least one assertion; any runtime skip must be named in the task's E2E
+inventory. Both Playwright configurations use zero retries so fixture, startup,
+and product failures retain their first cause.
+
+E2E specs must not use `page.waitForTimeout()` or poll wall-clock APIs to create
+delays. Wait for visible state, requests, focus, geometry, or animation
+completion. When elapsed time is itself the tested boundary, use Playwright's
+controlled clock and still observe the resulting state.
+
 After a worktree sync or dependency update adds contracts entrypoints, restart
 existing Vite previews before running the matrix. A linked package can otherwise
 be served as raw CommonJS against stale dependency optimization. HTTP 200 alone
@@ -43,13 +55,27 @@ does not prove the client started: wait for the navigation to render, exercise a
 client-side link, and check for page errors. Verify both App and ordinary Web
 previews when both are reused.
 
-## Scenario: Same-origin API mocks in Playwright
+Only one Playwright command may own a configured Web or App base URL at a time.
+Do not terminate a listener merely because it predates the command inspecting
+it; another validation lane may own that process. Concurrent browser validation
+must use distinct explicit base URLs and independently owned servers. The Vite
+watcher excludes non-runtime Tauri icon sources because device asset generation
+must not reload an unrelated Web test document.
+
+## Scenario: API mocks in Playwright
 
 ### 1. Scope / Trigger
 
-Ordinary Web Playwright tests that intercept a same-origin `/api` request use
-`tests/e2e/fixtures/test.ts`. App-only suites stay on their App fixture unless
-they directly reuse the shared dispatcher without changing App behavior.
+Every ordinary Web and App Playwright spec imports `test` from
+`tests/e2e/fixtures/test.ts`. The automatic fixture installs `ApiDispatcher`
+before the test body and checks its expected call counts during teardown. A
+direct Playwright route must not handle JSON `/api` traffic; native routes are
+limited to non-JSON browser boundaries such as media and map assets.
+
+Ordinary Web tests use the page origin. App tests also receive the normalized
+`E2E_APP_API_ORIGIN` through the typed `apiOrigins` project option. An external
+`E2E_APP_BASE_URL` requires that API origin explicitly. Both values must be
+credential-free HTTP(S) origins with no path, query, or fragment.
 
 ### 2. Signatures
 
@@ -84,8 +110,11 @@ non-empty name and reason, request contracts, and an explicit call count.
 - A pass-through is valid only when the suite owner starts and health-checks
   the target service in every environment that runs the test. The Vite API
   proxy does not provision an API server.
-- Every ordinary test gets one same-origin `/api` catch-all. Non-API and
-  cross-origin traffic remains outside that route.
+- Every test gets one `/api` catch-all for the page origin and any explicitly
+  configured API origins. Non-API and unrelated cross-origin traffic remains
+  outside that route.
+- Direct `page.route`, `context.route`, or HAR handling of JSON `/api` traffic is
+  forbidden. Keep non-JSON browser interception explicit and local to the test.
 
 ### 4. Validation & Error Matrix
 
@@ -117,14 +146,18 @@ Dispatcher unit coverage must include unknown paths, wrong methods, duplicate
 registrations in both orders, invalid or extra query/body data, multipart
 content type, undeclared statuses, every response alternative, non-exact JSON,
 unmet and excessive calls, setup/teardown failure preservation, and unaffected
-non-API traffic. A domain that replaces live seeded responses must also pass
-with `IMS_API_ORIGIN` set to an unused loopback port, proving the fixture has no
+non-API traffic. Configuration coverage must include distinct page and API
+origins plus rejected malformed origins. The E2E source-policy test must keep
+all specs on the automatic fixture and reject direct API routing and fixed-time
+waits. A domain that replaces live seeded responses must also pass with
+`IMS_API_ORIGIN` set to an unused loopback port, proving the fixture has no
 hidden proxy dependency. Run affected browser domains before the complete CI
 matrix:
 
 ```sh
 pnpm --filter @imsweb/web exec vitest run tests/unit/e2e/api-dispatcher.test.ts
 CI=1 pnpm --filter @imsweb/web exec playwright test --workers=1 --retries=0
+CI=1 pnpm --filter @imsweb/web exec playwright test --config playwright.app.config.ts --workers=1 --retries=0
 ```
 
 ### 7. Wrong vs Correct
@@ -145,6 +178,7 @@ pnpm --filter @imsweb/web run lint
 pnpm --filter @imsweb/web run typecheck
 pnpm --filter @imsweb/web run test:unit
 pnpm --filter @imsweb/web run test:e2e
+pnpm --filter @imsweb/web run test:e2e:app
 pnpm --filter @imsweb/web run build
 ```
 

@@ -24,7 +24,8 @@
     "09-08-playwright-api-dispatcher",
     "09-08-frontend-route-test-orchestration",
     "09-08-specialized-tests-route-inventory",
-    "09-08-r2-font-cors"
+    "09-08-r2-font-cors",
+    "09-15-e2e-ci-stability"
   ],
   "parent": null,
   "relatedFiles": [],
