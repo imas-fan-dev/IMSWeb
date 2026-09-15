@@ -62,6 +62,66 @@ must use distinct explicit base URLs and independently owned servers. The Vite
 watcher excludes non-runtime Tauri icon sources because device asset generation
 must not reload an unrelated Web test document.
 
+## Scenario: CI-stable browser test authoring
+
+### 1. Scope / Trigger
+
+Apply this contract when adding or editing an ordinary Web or App Playwright
+spec, and when a spec is close to the configured `timeout` on a CI runner. Both
+Playwright configurations run with zero retries, so the first failure is the
+only signal the lane produces.
+
+### 2. Contracts
+
+- **Budget.** The same spec takes roughly 1.5x to 2.5x longer on a CI runner
+  than on a developer machine. Leave at least half of the configured `timeout`
+  as headroom for the assertion total in one test. When a test nears the limit,
+  split it or remove waiting; do not raise `timeout` and do not depend on a
+  retry. The App account scenario used to spend about 8s of its 20s budget on
+  two sonner auto-dismiss timers and crossed the limit on every App project.
+- **Transient overlays.** The `Toaster` is fixed to the top-right on Web and to
+  a full-width top strip on narrow App viewports, so a toast can cover the
+  account trigger and the App back button. Settle the toast before driving
+  those controls: call `settleToasts(page)` from
+  `tests/e2e/fixtures/toast.ts`, which closes every live toast through its
+  `Close toast` button and asserts `[data-sonner-toast]` drops to zero. Do not
+  spend budget waiting out sonner's 4s auto-dismiss timer. Only call it after
+  the action that raises the toast has completed, or the count assertion can
+  pass before the toast mounts.
+- **Assert the new state after a click.** When the preceding action re-renders
+  the control being clicked, assert that interaction's visible result
+  immediately after the click, for example `[data-slot="popover-content"]`
+  being visible, before asserting anything inside it. A swallowed click then
+  fails at the popover instead of surfacing later as a missing child element in
+  `community-exchange-me.spec.ts`.
+
+### 3. Good / Base / Bad Cases
+
+- Good: after saving the avatar, call `settleToasts(page)`, click
+  `accountTrigger`, assert the account popover is visible, then assert the
+  avatar `src` inside it.
+- Base: a spec that raises no toast before touching header controls needs no
+  call; a spec that does raise one settles it even when the toast would have
+  auto-dismissed on its own.
+- Bad: `await expect(toast).toBeHidden({ timeout: 10_000 })` to let the 4s
+  timer elapse, `page.waitForTimeout()`, a raised `timeout`, or clicking a
+  header control and asserting only a descendant that a swallowed click also
+  leaves missing.
+
+### 4. Tests Required
+
+The E2E source-policy test keeps every spec on the automatic fixture and
+rejects fixed-time waits, so a new helper must live under `tests/e2e/fixtures/`
+and stay off the `*.spec.*` scan. The two shared call sites are the avatar-save
+header interaction in `community-exchange-me.spec.ts` and both avatar toasts in
+`app-account.spec.ts`. Run the affected specs with CI-equivalent settings and
+compare the reported wall clock against the configured `timeout`:
+
+```sh
+CI=1 pnpm --filter @imsweb/web exec playwright test tests/e2e/community-exchange-me.spec.ts --workers=1 --retries=0
+CI=1 pnpm --filter @imsweb/web exec playwright test --config playwright.app.config.ts tests/e2e/app-account.spec.ts --workers=1 --retries=0
+```
+
 ## Scenario: API mocks in Playwright
 
 ### 1. Scope / Trigger

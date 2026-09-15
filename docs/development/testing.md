@@ -44,7 +44,9 @@ Web 与 API build。
 | 仓库边界、部署和规则        | `tests/`                                                                            | Python `unittest`、Node test runner  |
 
 Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API 测试应靠近受测 workspace，
-但不可把生产实现复制进测试目录。
+但不可把生产实现复制进测试目录。Web 浏览器用例在 CI 预算、瞬时浮层与点击后状态断言上的
+编写约束见 [Web testing spec](../../.trellis/spec/web/frontend/testing.md) 的 CI-stable browser test
+authoring 一节。
 
 ## 风险到验证
 

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared implementation and quality conventions for repository changes."}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web package structure, commands, and frontend ownership boundaries."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Browser-test ownership, automatic fixture import, zero-retry policy, and prohibited fixed-time waits that the new helper and specs must respect."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Toast, Popover, and header control semantics that explain which surface a test may drive and when."}
+{"file":".trellis/spec/repository/ci.md","reason":"Affected-workspace lanes, zero-retry browser validation, and the CI job topology these two E2E lanes run under."}

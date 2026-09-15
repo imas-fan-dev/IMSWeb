@@ -1,6 +1,7 @@
 import type { Page, Route } from "@playwright/test"
 
 import { expect, test, type ApiDispatcher } from "./fixtures/test"
+import { settleToasts } from "./fixtures/toast"
 
 const AVATAR_PATH = "/platform/accounts/platform-app/avatars/2.webp"
 const APP_ACCESS_TOKEN = "app-avatar-access-token"
@@ -395,7 +396,8 @@ test(
     )
     const avatarUpdatedToast = page.getByText("头像已更新", { exact: true })
     await expect(avatarUpdatedToast).toBeVisible()
-    await expect(avatarUpdatedToast).toBeHidden({ timeout: 10_000 })
+    await settleToasts(page)
+    await expect(avatarUpdatedToast).toHaveCount(0)
     if (process.env.CAPTURE_APP_QA === "1") {
       await page.screenshot({
         path: `/tmp/imsweb-app-avatar-saved-${testInfo.project.name}.png`,
@@ -439,7 +441,8 @@ test(
     expect(avatarDeleteRequests).toBe(1)
     const avatarRemovedToast = page.getByText("头像已移除", { exact: true })
     await expect(avatarRemovedToast).toBeVisible()
-    await expect(avatarRemovedToast).toBeHidden({ timeout: 10_000 })
+    await settleToasts(page)
+    await expect(avatarRemovedToast).toHaveCount(0)
     await backButton.click()
     await expect(page).toHaveURL(/\/account\/me$/)
     await expect(

@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright"
 import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
+import { settleToasts } from "./fixtures/toast"
 
 const avatarFixture = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
@@ -576,9 +577,12 @@ test("edits the authenticated profile and card without viewport overflow @mobile
   await expect(
     accountTrigger.locator('[data-slot="avatar-image"]')
   ).toHaveAttribute("src", directAvatarUrl)
+  await settleToasts(page)
   await accountTrigger.click()
+  const accountPopover = page.locator('[data-slot="popover-content"]')
+  await expect(accountPopover).toBeVisible()
   await expect(
-    page.locator('[data-slot="popover-content"] [data-slot="avatar-image"]')
+    accountPopover.locator('[data-slot="avatar-image"]')
   ).toHaveAttribute("src", directAvatarUrl)
   await expect(
     page.locator('aside [data-slot="avatar-image"]')
@@ -617,9 +621,10 @@ test("edits the authenticated profile and card without viewport overflow @mobile
   await profileName.fill("更新后的浏览器制作人")
   await page.getByRole("button", { name: "保存资料" }).click()
   await expect(page.getByText("制作人资料已保存。")).toBeVisible()
-  await expect(
-    page.getByText("制作人资料已保存", { exact: true })
-  ).not.toBeVisible({ timeout: 6_000 })
+  const profileSavedToast = page.getByText("制作人资料已保存", { exact: true })
+  await expect(profileSavedToast).toBeVisible()
+  await settleToasts(page)
+  await expect(profileSavedToast).toHaveCount(0)
 
   await page.getByRole("link", { name: "交换名片", exact: true }).click()
   await expect(page).toHaveURL(/section=cards/)
