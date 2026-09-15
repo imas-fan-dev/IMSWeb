@@ -36,6 +36,9 @@ NODE_SETUP_ACTION = (
 PNPM_SETUP_ACTION = (
     "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10"
 )
+UPLOAD_ARTIFACT_ACTION = (
+    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7"
+)
 GOOGLE_CHROME_APT_CLEANUP = (
     "sudo rm -f /etc/apt/sources.list.d/google-chrome.list "
     "/etc/apt/sources.list.d/google-chrome.sources"
@@ -251,6 +254,13 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "playwright install --with-deps chromium webkit",
             "run build:app",
             "run test:e2e:app",
+            "name: Upload App browser failure evidence",
+            "if: failure()",
+            UPLOAD_ARTIFACT_ACTION,
+            "name: app-playwright-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path: /tmp/imsweb-app-playwright",
+            "if-no-files-found: ignore",
+            "retention-days: 7",
         ):
             self.assertIn(token, app)
 
@@ -259,7 +269,18 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertIn("node scripts/testing/run-test-owner.mjs delivery web", web)
         self.assertIn(GOOGLE_CHROME_APT_CLEANUP, web)
         self.assertIn("playwright install --with-deps chromium firefox", web)
+        self.assertIn("name: Upload Web browser failure evidence", web)
+        self.assertIn("if: failure()", web)
+        self.assertIn(UPLOAD_ARTIFACT_ACTION, web)
+        self.assertIn(
+            "name: web-playwright-${{ github.run_id }}-${{ github.run_attempt }}",
+            web,
+        )
+        self.assertIn("path: /tmp/imsweb-web-playwright", web)
+        self.assertIn("if-no-files-found: ignore", web)
+        self.assertIn("retention-days: 7", web)
         self.assertEqual(ci.count(GOOGLE_CHROME_APT_CLEANUP), 2)
+        self.assertEqual(ci.count(UPLOAD_ARTIFACT_ACTION), 2)
         self.assertIn("pnpm --filter @imsweb/web run test -- ci", web)
         self.assertNotIn("--unit-prepared", web)
 
