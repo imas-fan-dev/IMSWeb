@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/web/frontend/index.md", "reason": "Web 前端 spec 索引：确认改动应落在 page、component、ui primitive 还是 app/lib，以及实现前必须阅读的权威文件。"}
+{"file": ".trellis/spec/web/frontend/architecture.md", "reason": "路由、页面、布局与共享模块的归属规则，用于判断新增 attribution dialog 与解析模块放在哪一层。"}
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "组件所有权、设计 token、可访问性与弹层几何约束，直接约束授权 dialog、菜单条目与浮动控件的尺寸和观感。"}
+{"file": ".trellis/spec/web/frontend/app-navigation.md", "reason": "分区所有权、tab 输入排队与原生 tab 验证流程，T4 接线原生菜单与 tab bar 抑制时必须遵循。"}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "原生插件、capability、permission 与平台元数据契约，T1 新增 setControls 命令与权限文件时必须遵循其场景格式。"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "单元、组件、浏览器与路由测试的放置与命令约定，T5 的测试改造与新增文件清单同步依据。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本任务跨越 CSS、React、Tauri 插件与原生 Swift 四层，需要该指南追踪调用方与消费者。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "地图玻璃已是第三套并行实现，改造前必须确认能否复用 --glass-* token 与现有弹层组件而不是新增抽象。"}
+{"file": ".trellis/tasks/09-17-mobile-map-interface-redesign/research/current-map-ui.md", "reason": "本任务的现状证据：控件清单、行号、测试断言冲突点、玻璃体系与平台识别机制。"}
+{"file": "docs/architecture/glass-refraction-platform-strategy.md", "reason": "玻璃折射的平台策略 ADR，给出两层玻璃策略与'原生例外仅限导航层'的既有边界，本任务要扩展该边界。"}
+{"file": "docs/development/app-device-delivery.md", "reason": "iOS/Android 设备交付与构建矩阵，T1 的 Swift 改动与 T4 的设备验收必须通过 app:* 脚本执行。"}
+{"file": "docs/development/ai-environment.md", "reason": "工作区预检、本地数据服务与验证证据要求，作为实现与验收的环境前置。"}

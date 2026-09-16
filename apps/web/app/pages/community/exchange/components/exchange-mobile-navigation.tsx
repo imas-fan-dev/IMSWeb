@@ -1,25 +1,34 @@
 import {
   Building2Icon,
   CreditCardIcon,
+  InfoIcon,
   ListFilterIcon,
   MapIcon,
   MenuIcon,
   UserRoundIcon,
   XIcon,
 } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Button } from "~/components/ui/button"
 import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
+import { useNativeGlassControl } from "~/lib/native-glass-controls"
+import type {
+  NativeGlassControlEvent,
+  NativeGlassMenuItem,
+} from "~/lib/native-glass-panel"
 import { cn } from "~/lib/utils"
+import type { ExchangeMapAttribution } from "~/pages/community/exchange/exchange-map-attribution"
 
 interface ExchangeMobileNavigationProps {
   filterActive: boolean
   filterApplied: boolean
   officesActive: boolean
   cardsActive: boolean
+  attribution?: ExchangeMapAttribution | null
+  onOpenAttribution?: (trigger?: HTMLElement | null) => void
   onShowMap: () => void
   onOpenFilter: () => void
   onOpenOffices: () => void
@@ -47,6 +56,7 @@ function ExchangeMapNavigationActions({
   filterApplied,
   officesActive,
   cardsActive,
+  attribution,
   itemClassName,
   localToolsOnly = false,
   onNavigate,
@@ -54,6 +64,7 @@ function ExchangeMapNavigationActions({
   onOpenFilter,
   onOpenOffices,
   onOpenCards,
+  onOpenAttribution,
 }: ExchangeMapNavigationActionsProps) {
   const mapActive = !filterActive && !officesActive && !cardsActive
 
@@ -115,6 +126,21 @@ function ExchangeMapNavigationActions({
         <CreditCardIcon className="size-5" aria-hidden="true" />
         <span aria-hidden="true">名片</span>
       </button>
+      {attribution ? (
+        <button
+          type="button"
+          className={itemClassName}
+          aria-label="查看地图数据来源"
+          aria-haspopup="dialog"
+          onClick={(event) => {
+            onNavigate?.()
+            onOpenAttribution?.(event.currentTarget)
+          }}
+        >
+          <InfoIcon className="size-5" aria-hidden="true" />
+          <span aria-hidden="true">数据来源</span>
+        </button>
+      ) : null}
       {localToolsOnly ? null : (
         <NavigationLink
           to="/community/exchange/me"
@@ -130,8 +156,66 @@ function ExchangeMapNavigationActions({
   )
 }
 
-function AppExchangeMapNavigation(props: ExchangeMobileNavigationProps) {
+function AppExchangeMapNavigation({
+  filterActive,
+  filterApplied,
+  officesActive,
+  cardsActive,
+  attribution,
+  onOpenFilter,
+  onOpenOffices,
+  onOpenCards,
+  onOpenAttribution,
+  ...props
+}: ExchangeMobileNavigationProps) {
   const [expanded, setExpanded] = useState(false)
+  const menuItems: NativeGlassMenuItem[] = [
+    {
+      id: "filter",
+      icon: "list-filter",
+      label: "筛选",
+      active: filterActive,
+      badge: filterApplied,
+    },
+    {
+      id: "offices",
+      icon: "building-2",
+      label: "事务所",
+      active: officesActive,
+    },
+    { id: "cards", icon: "credit-card", label: "名片", active: cardsActive },
+    ...(attribution
+      ? [{ id: "attribution", icon: "info", label: "数据来源" }]
+      : []),
+  ]
+
+  const handleNativeEvent = useCallback(
+    (event: NativeGlassControlEvent) => {
+      if (event.action === "press") {
+        setExpanded((current) => !current)
+        return
+      }
+      if (event.action !== "menu-item") return
+      setExpanded(false)
+      if (event.itemId === "filter") onOpenFilter()
+      else if (event.itemId === "offices") onOpenOffices()
+      else if (event.itemId === "cards") onOpenCards()
+      else if (event.itemId === "attribution") onOpenAttribution?.()
+    },
+    [onOpenAttribution, onOpenCards, onOpenFilter, onOpenOffices]
+  )
+
+  const { controlRef, panelRef } = useNativeGlassControl(
+    "map-tools",
+    {
+      kind: "menu",
+      icon: expanded ? "x" : "menu",
+      label: expanded ? "收起地图工具" : "展开地图工具",
+      expanded,
+      items: menuItems,
+    },
+    handleNativeEvent
+  )
 
   return (
     <div
@@ -141,9 +225,11 @@ function AppExchangeMapNavigation(props: ExchangeMobileNavigationProps) {
       )}
     >
       <Button
+        ref={controlRef}
         type="button"
         variant="outline"
         size="icon"
+        data-native-glass-control="map-tools"
         className="exchange-map-app-control pointer-events-auto size-10 rounded-lg transition-[transform,background-color] duration-200 active:scale-95 motion-reduce:transition-none"
         aria-label={expanded ? "收起地图工具" : "展开地图工具"}
         aria-controls="exchange-map-tools"
@@ -168,6 +254,8 @@ function AppExchangeMapNavigation(props: ExchangeMobileNavigationProps) {
       </Button>
       <div
         id="exchange-map-tools"
+        ref={panelRef}
+        data-native-glass-twin="map-tools"
         role="toolbar"
         inert={!expanded}
         className={cn(
@@ -182,6 +270,15 @@ function AppExchangeMapNavigation(props: ExchangeMobileNavigationProps) {
         <SeriesAccentStrip className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5" />
         <ExchangeMapNavigationActions
           {...props}
+          filterActive={filterActive}
+          filterApplied={filterApplied}
+          officesActive={officesActive}
+          cardsActive={cardsActive}
+          attribution={attribution}
+          onOpenFilter={onOpenFilter}
+          onOpenOffices={onOpenOffices}
+          onOpenCards={onOpenCards}
+          onOpenAttribution={onOpenAttribution}
           itemClassName={sideItemClassName}
           localToolsOnly
           onNavigate={() => setExpanded(false)}
@@ -196,7 +293,10 @@ export function ExchangeMobileNavigation(props: ExchangeMobileNavigationProps) {
 
   return (
     <nav
-      className="pointer-events-auto absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 grid h-17 grid-cols-5 overflow-hidden rounded-lg border bg-background/95 shadow-lg backdrop-blur-md md:hidden"
+      className={cn(
+        "pointer-events-auto absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 grid h-17 overflow-hidden rounded-lg border bg-background/95 shadow-lg backdrop-blur-md md:hidden",
+        props.attribution ? "grid-cols-6" : "grid-cols-5"
+      )}
       aria-label="交换地图导航"
     >
       <SeriesAccentStrip className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5" />

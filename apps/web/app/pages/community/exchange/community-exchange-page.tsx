@@ -1,6 +1,7 @@
 import {
   Building2Icon,
   CreditCardIcon,
+  InfoIcon,
   ListFilterIcon,
   MapPinnedIcon,
   RefreshCwIcon,
@@ -56,12 +57,18 @@ import {
   type FudabaSeries,
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import {
+  NativeGlassControlsProvider,
+  useNativeGlassControl,
+} from "~/lib/native-glass-controls"
 import { cn } from "~/lib/utils"
 import { CommunityExchangeMapSection } from "./community-exchange-map-section"
 import { ExchangeDiscoveryRail } from "./components/exchange-discovery-rail"
+import { ExchangeMapAttributionDialog } from "./components/exchange-map-attribution-dialog"
 import { ExchangeMobileNavigation } from "./components/exchange-mobile-navigation"
 import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
 import { ExchangeCard, OfficeCard } from "./exchange-components"
+import type { ExchangeMapAttribution } from "./exchange-map-attribution"
 import {
   exchangeMapFilterDefaults,
   rememberExchangeMapFilters,
@@ -373,6 +380,52 @@ function DirectoryResults({
   )
 }
 
+/**
+ * The refresh control is its own component so the native-glass hook sits inside
+ * `NativeGlassControlsProvider` instead of on the provider's own owner.
+ */
+function ExchangeRefreshButton({
+  refreshing,
+  onRefresh,
+}: {
+  refreshing: boolean
+  onRefresh: () => void
+}) {
+  const { controlRef } = useNativeGlassControl(
+    "refresh",
+    {
+      kind: "icon-button",
+      icon: "refresh-cw",
+      label: "刷新交换区",
+      disabled: refreshing,
+    },
+    () => onRefresh()
+  )
+
+  return (
+    <Button
+      ref={controlRef}
+      type="button"
+      variant="outline"
+      size="icon"
+      className={cn(
+        IS_APP_TARGET &&
+          "exchange-map-app-control pointer-events-auto size-10 rounded-lg"
+      )}
+      aria-label="刷新交换区"
+      title="刷新"
+      data-native-glass-control={IS_APP_TARGET ? "refresh" : undefined}
+      disabled={refreshing}
+      onClick={onRefresh}
+    >
+      <RefreshCwIcon
+        className={cn(refreshing && "animate-spin motion-reduce:animate-none")}
+        aria-hidden="true"
+      />
+    </Button>
+  )
+}
+
 export function meta() {
   return [
     { title: "名片交换事务所 | IMSWeb" },
@@ -419,6 +472,38 @@ export default function CommunityExchangePage() {
   const officeRequestInFlight = useRef<symbol | null>(null)
   const cardRequestInFlight = useRef<symbol | null>(null)
   const isNarrow = useNarrowWorkspace()
+  const [attribution, setAttribution] = useState<ExchangeMapAttribution | null>(
+    null
+  )
+  const [attributionOpen, setAttributionOpen] = useState(false)
+  const attributionTriggerRef = useRef<HTMLElement | null>(null)
+
+  const openAttribution = useCallback((trigger?: HTMLElement | null) => {
+    attributionTriggerRef.current = trigger ?? null
+    setAttributionOpen(true)
+  }, [])
+
+  const handleAttributionOpenChange = useCallback((open: boolean) => {
+    setAttributionOpen(open)
+    if (open) return
+
+    // The App entry sits in a panel that collapses on the same click, so it is
+    // inert by the time the dialog closes. Fall back to the always-visible
+    // menu trigger there; the Web entries can take focus back themselves.
+    const trigger = attributionTriggerRef.current
+    const fallback = document.querySelector<HTMLElement>(
+      '[data-native-glass-control="map-tools"]'
+    )
+    const target =
+      trigger && trigger.isConnected && !trigger.closest("[inert]")
+        ? trigger
+        : fallback
+    window.requestAnimationFrame(() => target?.focus({ preventScroll: true }))
+  }, [])
+
+  useEffect(() => {
+    if (!attribution) setAttributionOpen(false)
+  }, [attribution])
 
   const loadFirstPage = useCallback(async () => {
     const generation = ++requestGeneration.current
@@ -641,26 +726,6 @@ export default function CommunityExchangePage() {
     onSeriesToggle: toggleSeriesFilter,
     onReset: resetFilters,
   }
-  const refreshControl = (
-    <Button
-      type="button"
-      variant="outline"
-      size="icon"
-      className={cn(
-        IS_APP_TARGET &&
-          "exchange-map-app-control pointer-events-auto size-10 rounded-lg"
-      )}
-      aria-label="刷新交换区"
-      title="刷新"
-      disabled={refreshing}
-      onClick={() => void loadFirstPage()}
-    >
-      <RefreshCwIcon
-        className={cn(refreshing && "animate-spin motion-reduce:animate-none")}
-        aria-hidden="true"
-      />
-    </Button>
-  )
 
   return (
     <main
@@ -671,7 +736,7 @@ export default function CommunityExchangePage() {
       )}
     >
       {state.phase === "ready" ? (
-        <>
+        <NativeGlassControlsProvider>
           <div className="flex size-full min-h-0">
             <ExchangeDiscoveryRail
               cityDraft={cityDraft}
@@ -694,6 +759,9 @@ export default function CommunityExchangePage() {
               onRefresh={() => void loadFirstPage()}
               onOpenOffices={() => openDirectory("offices")}
               onOpenCards={() => openDirectory("cards")}
+              onOpenAttribution={
+                attribution ? (trigger) => openAttribution(trigger) : undefined
+              }
             />
 
             <div className="relative min-w-0 flex-1">
@@ -702,6 +770,7 @@ export default function CommunityExchangePage() {
                 series={seriesCodes.length ? seriesCodes : undefined}
                 seriesCatalog={state.series}
                 open={openOnly ? true : undefined}
+                onAttributionChange={setAttribution}
                 onSwitchDirectory={() => openDirectory("offices")}
               />
 
@@ -720,7 +789,10 @@ export default function CommunityExchangePage() {
                 aria-label="地图工具"
               >
                 {IS_APP_TARGET ? (
-                  refreshControl
+                  <ExchangeRefreshButton
+                    refreshing={refreshing}
+                    onRefresh={() => void loadFirstPage()}
+                  />
                 ) : (
                   <div className="pointer-events-auto relative overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur-sm sm:rounded-lg">
                     <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
@@ -739,7 +811,10 @@ export default function CommunityExchangePage() {
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        {refreshControl}
+                        <ExchangeRefreshButton
+                          refreshing={refreshing}
+                          onRefresh={() => void loadFirstPage()}
+                        />
                         <div className="hidden shrink-0 items-center gap-1 md:flex">
                           <Button
                             type="button"
@@ -782,6 +857,21 @@ export default function CommunityExchangePage() {
                           >
                             <UserRoundCogIcon aria-hidden="true" />
                           </NavigationLink>
+                          {attribution ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              aria-label="查看地图数据来源"
+                              aria-haspopup="dialog"
+                              title="数据来源"
+                              onClick={(event) =>
+                                openAttribution(event.currentTarget)
+                              }
+                            >
+                              <InfoIcon aria-hidden="true" />
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -794,6 +884,8 @@ export default function CommunityExchangePage() {
                 filterApplied={hasFilters}
                 officesActive={directoryOpen && directoryView === "offices"}
                 cardsActive={directoryOpen && directoryView === "cards"}
+                attribution={attribution}
+                onOpenAttribution={openAttribution}
                 onShowMap={() => {
                   setFilterOpen(false)
                   setDirectoryOpen(false)
@@ -854,7 +946,13 @@ export default function CommunityExchangePage() {
               />
             </SheetContent>
           </Sheet>
-        </>
+
+          <ExchangeMapAttributionDialog
+            attribution={attribution}
+            open={attributionOpen}
+            onOpenChange={handleAttributionOpenChange}
+          />
+        </NativeGlassControlsProvider>
       ) : (
         <section className="relative flex size-full min-h-0 items-center justify-center overflow-hidden px-4">
           <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />

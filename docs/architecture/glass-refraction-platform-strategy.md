@@ -25,6 +25,7 @@ Web 上实现真折射的唯一可行路径是 `backdrop-filter: url(#svg-filter
 | App Android Web 内容与底栏 | Chromium WebView | 正常渲染 |
 | App iOS Web 内容与旧系统回退底栏 | WKWebView | 静默丢弃，无软件回退 |
 | App iOS 26+ 原生底栏 | UIKit `UITabBarController` | 系统原生材质与自适应宽度，不经过 CSS |
+| App iOS 26+ 地图浮动控件 | UIKit `UIGlassEffect` 与 `UIGlassContainerEffect` | 系统原生材质，采样其下方原生层与地图，不经过 CSS |
 
 WebKit 的丢弃发生在 `RenderLayerBacking::updateBackdropFilters()`，它在 `hasReferenceFilter()` 处短路。
 与 `filter: url()` 不同，这条路径没有软件回退。
@@ -35,7 +36,8 @@ Firefox 的表现是正确性事故而非保真度问题：应用了引用滤镜
 
 ## 决策
 
-WebView 和浏览器内容采用地板加封顶的两层结构；iOS 26 及以上的 App 底栏采用 UIKit 原生例外。
+WebView 和浏览器内容采用地板加封顶的两层结构；iOS 26 及以上的 App 底栏与地图页浮动控件采用
+UIKit 原生例外。
 
 **地板：伪折射，全平台生效。** 用边缘渐变带、内阴影和高光模拟透镜边缘，产生厚度与折射的观感，
 不扭曲背后的真实内容。所有引擎都能看到，包括 iOS 应用与 Safari。
@@ -53,8 +55,27 @@ WebView 和浏览器内容采用地板加封顶的两层结构；iOS 26 及以�
 **iOS 26+ App 底栏：原生 Liquid Glass。** 仓库内 Tauri 插件在 WKWebView 上方安装系统
 `UITabBarController`，由 UIKit 负责原生材质、按压反馈、安全区和宽度。原生 tab 复用 React 的 Lucide
 图标 ID。Web 底栏只有在插件返回 `supported: true` 后才隐藏。iOS 26 以下与 Android 保留 Web 回退，
-但移动 App 底栏不启用手指位置追踪或白色触点高光；旧系统只保留静态玻璃、单枚透镜与按压缩放。此例外
-只属于 App 导航层，不改变页面内 CSS 玻璃的两层策略。
+但移动 App 底栏不启用手指位置追踪或白色触点高光；旧系统只保留静态玻璃、单枚透镜与按压缩放。
+
+**iOS 26+ App 地图浮动控件：原生绘制。** 交换地图页的定位、菜单触发与展开面板、刷新四类浮动控件
+同样交给 UIKit 绘制，玻璃折射其下方实时地图。这条例外的边界比底栏更窄：
+
+- 只在 `IS_APP_TARGET` 且运行时为 iOS 26 及以上的 App 生效；Android、iOS 26 以下、以及 Web
+  全部保留 CSS 玻璃。
+- 只有上述四类控件走原生。地图页其余浮层——数据点计数、数据更新告警、详情/筛选/名录 Sheet、
+  地图不可用占位卡——仍是 DOM 加上 CSS 玻璃。
+- 原生控件自带图标、文案、按压反馈与可访问名称；Web 侧只推送几何、状态与菜单项，并接收点击事件。
+- 原生路径启用时对应 DOM 孪生以 `display: none` 退出布局，而不是变成透明。透明会留下第二个焦点位、
+  第二份按压反馈和一层压在原生气泡下的 tooltip。插件返回 `supported: false` 时不写该标记，界面上
+  只有 CSS 玻璃，不出现空白占位或双份控件。
+
+**为什么页面内控件只能原生绘制内容。** `UIGlassEffect` 采样的是原生层树中位于它下方的内容，而本页
+背景是不透明的 MapLibre canvas。玻璃视图放在 WKWebView 之下会被 canvas 完全遮住，放在之上则会盖住
+DOM 控件本身。这一层无法同时拿到真折射与 DOM 内容，因此只能由原生绘制控件本体，再把点击转发回
+Web。这与底栏受的约束同源，也是它没有推广到全部页面 UI 的原因：每个控件都要付出一次几何同步和一套
+原生可访问性。
+
+除上述两处例外，页面内容的 CSS 玻璃仍走两层策略。
 
 ## 实测结果
 
@@ -93,8 +114,12 @@ Firefox 与 WebKit 的基线不稳定，推测与系列图标背景的持续动�
 ## 后果
 
 - iOS 与 Android 应用会有可见的观感差异。Android 的 WebView 表面可拿到真折射封顶；iOS 页面
-  内容仍使用伪折射地板，但 iOS 26+ 底栏改用系统原生 Liquid Glass。iOS 26 以下使用无白色触点高光
+  内容仍使用伪折射地板，但 iOS 26+ 底栏与地图浮动控件改用系统原生 Liquid Glass。iOS 26 以下使用无白色触点高光
   的 Web 回退。该差异必须写入验收标准并标注为预期行为，否则会被反复当作缺陷提交。
+- 地图浮动控件的几何由 Web 侧测量后推送给原生层，所以控件的位置、圆角、尺寸与文案必须与 DOM 版本
+  保持一致。移动一个浮动控件就要同时顾到 CSS、测量与推送三处。
+- 原生控件的折射无法在浏览器里验证。`pnpm run app ios` 构建通过不等于观感通过，必须跑 iOS 26 模拟器
+  或真机，并覆盖有刘海与无刘海两种情况、旋转与菜单展开三类布局变化。
 - 折射需要维护两套实现，各自调参。
 - Firefox 的关闭属于正确性措施，需要有自动化守护。
   现有 `playwright.config.ts` 只有 `chromium-desktop` 与 `chromium-mobile` 两个 project，
@@ -102,11 +127,12 @@ Firefox 与 WebKit 的基线不稳定，推测与系列图标背景的持续动�
 - 真折射的开销集中在移动端。已有公开实践只在有能力的桌面浏览器上开启该滤镜，手机与低端设备一律关闭。
   低端 Android WebView 上的帧率尚无实测数据，需要先取基线再决定是否收窄启用条件。
 - 若未来 WebKit 支持引用式 `backdrop-filter`，iOS 页面内容和旧系统回退可以直接复用封顶层；
-  iOS 26+ 原生底栏不受这项变化影响。
+  iOS 26+ 原生底栏与地图浮动控件不受这项变化影响。
 
 ## 证据
 
-- Apple WWDC25「Meet Liquid Glass」与 UIKit Liquid Glass 开发讲座，说明交互式原生玻璃 API。
+- Apple WWDC25「Meet Liquid Glass」与 UIKit Liquid Glass 开发讲座，说明交互式原生玻璃 API，
+  包括 `UIGlassEffect`、`UIGlassContainerEffect` 与其采样范围。
 - MDN `backdrop-filter` 属性页与浏览器兼容表。
 - WebKit Pull Request 68614，说明引用式 backdrop filter 被静默丢弃且无软件回退。
 - WebKit Bug 245510，`backdrop-filter: url()` 与 `feDisplacementMap` 不工作。

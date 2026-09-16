@@ -192,6 +192,29 @@ tracker or add `glass-sheen`, `glass-control`, or `data-glass-interactive` to a
 production surface without a new interaction review covering nested ownership,
 pointer exit, keyboard focus, touch behavior, and reduced motion.
 
+### Map data attribution notice
+
+The OpenMapTiles notice is a licence obligation, and it is no longer drawn inside the map. Keep one
+source of truth and a gapless set of entry points:
+
+- Read the notice from the loaded style (`map.getStyle().sources[*].attribution`); the first
+  non-empty string wins. Do not copy the text into a component, a contract, or a second metadata
+  field, and do not refetch the style JSON to obtain it.
+- Parse it once with `parseMapAttribution`
+  (`app/pages/community/exchange/exchange-map-attribution.ts`) into ordered
+  `{ kind: "text" | "link" }` segments and render those. `dangerouslySetInnerHTML` is forbidden; only
+  `https:` hrefs survive and anything else degrades to plain text.
+- `null` means the entry is not rendered at all — no disabled button, no empty dialog.
+- The entry points must cover a gapless union of widths: the App folding panel, the Web top card at
+  768–1023px, the Web bottom navigation below 768px, and the Web discovery rail at 1024px and up.
+  Whenever a container gains a width-hiding class, re-check that no width loses its only entry.
+- One controlled dialog serves the page. Each entry carries `aria-haspopup="dialog"` and returns
+  focus to its trigger on close. The App entry sits in a panel that collapses on the same click, so
+  that case falls back to the always-visible menu trigger instead of focusing an `[inert]` node.
+- The bottom navigation derives its column count from whether the entry exists (`grid-cols-6` with
+  the notice, `grid-cols-5` without). At 375px every item stays at least 44 × 44 CSS pixels and the
+  document must not overflow horizontally.
+
 ## Public assets
 
 Files added to `apps/web/public/` need a clear runtime purpose and an entry in

@@ -232,9 +232,10 @@ test(
 
     const canvas = page.locator("canvas.maplibregl-canvas")
     await expect(canvas).toBeVisible({ timeout: 15_000 })
-    await expect(page.locator(".maplibregl-ctrl-compass")).toHaveCount(0)
-    await expect(page.locator(".maplibregl-ctrl-zoom-in")).toBeVisible()
-    await expect(page.locator(".maplibregl-ctrl-zoom-out")).toBeVisible()
+    // Zoom and attribution are gestures/content, not MapLibre control widgets:
+    // the map must render none of the built-in control groups.
+    await expect(page.locator(".maplibregl-ctrl-group")).toHaveCount(0)
+    await expect(page.locator(".maplibregl-ctrl-attrib")).toHaveCount(0)
     await expect(
       page.getByRole("button", { name: "回到我的位置" })
     ).toBeVisible()

@@ -6,6 +6,7 @@ Default permissions for the plugin
 
 - `allow-configure`
 - `allow-update`
+- `allow-set-controls`
 - `allow-destroy`
 
 ## Permission Table
@@ -91,6 +92,32 @@ Enables the ping command without any pre-configured scope.
 <td>
 
 Denies the ping command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:allow-set-controls`
+
+</td>
+<td>
+
+Enables the set_controls command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-glass:deny-set-controls`
+
+</td>
+<td>
+
+Denies the set_controls command without any pre-configured scope.
 
 </td>
 </tr>

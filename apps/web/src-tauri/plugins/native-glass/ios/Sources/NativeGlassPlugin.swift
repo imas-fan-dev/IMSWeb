@@ -10,7 +10,7 @@ private func logNativeGlass(_ message: String) {
 }
 #endif
 
-private let imsTabBarSelectedColor = UIColor(
+let imsTabBarSelectedColor = UIColor(
   red: 1,
   green: 23.0 / 255.0,
   blue: 79.0 / 255.0,
@@ -128,6 +128,10 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
   private var isSynchronizingSelection = false
   private var tabBarController: UITabBarController?
   private var tabBarHost: NativeGlassTabBarHostViewController?
+  // Stored as the base class so this iOS 15-compatible plugin type never
+  // declares a stored property of an iOS 26-only subclass. Every read casts
+  // inside an `#available(iOS 26.0, *)` scope.
+  private var controlHost: UIViewController?
 
   override func load(webview: WKWebView) {
     self.webview = webview
@@ -200,9 +204,59 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     }
   }
 
+  @objc public func setControls(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(NativeGlassControlsArgs.self)
+
+    guard #available(iOS 26.0, *) else {
+      invoke.resolve(["supported": false, "reason": "requires-ios-26"])
+      return
+    }
+
+    DispatchQueue.main.async {
+      guard let hostController = self.manager.viewController else {
+        invoke.resolve(["supported": false, "reason": "native-glass-unavailable"])
+        return
+      }
+
+      // An empty set is the teardown path, not an unsupported platform: it
+      // must still report success so the Web side clears `data-native-glass`.
+      if args.controls.isEmpty {
+        (self.controlHost as? NativeGlassControlHostViewController)?.clear()
+        invoke.resolve(["supported": true])
+        return
+      }
+
+      guard let webview = self.webview else {
+        invoke.resolve(["supported": false, "reason": "native-glass-unavailable"])
+        return
+      }
+
+      let host = self.installControlHost(in: hostController)
+      host.onEvent = { [weak self] id, action, itemId in
+        self?.dispatchControl(id: id, action: action, itemId: itemId)
+      }
+      // The host is installed with Auto Layout, so its frame is still `.zero`
+      // until a layout pass runs. Measuring the offset from an unlaid frame
+      // would place every control at the webview origin.
+      host.view.layoutIfNeeded()
+      let offset = self.controlOffset(in: host.overlayView, webview: webview)
+      if host.render(controls: args.controls, dark: args.dark, offset: offset) {
+        invoke.resolve(["supported": true])
+      } else {
+        // Any missing Lucide asset fails the whole set rather than drawing a
+        // partial control surface. The DOM twins stay visible.
+        host.clear()
+        invoke.resolve(["supported": false, "reason": "lucide-icon-unavailable"])
+      }
+    }
+  }
+
   @objc public func destroy(_ invoke: Invoke) {
     DispatchQueue.main.async {
       self.removeBar(animated: true)
+      if #available(iOS 26.0, *) {
+        self.removeControlHost()
+      }
       invoke.resolve()
     }
   }
@@ -350,6 +404,71 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
     tabBarHost.willMove(toParent: nil)
     tabBarHost.view.removeFromSuperview()
     tabBarHost.removeFromParent()
+  }
+
+  @available(iOS 26.0, *)
+  private func installControlHost(
+    in hostController: UIViewController
+  ) -> NativeGlassControlHostViewController {
+    if let existing = controlHost as? NativeGlassControlHostViewController {
+      return existing
+    }
+
+    let host = NativeGlassControlHostViewController()
+    hostController.addChild(host)
+    hostController.view.addSubview(host.view)
+    host.view.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      host.view.leadingAnchor.constraint(equalTo: hostController.view.leadingAnchor),
+      host.view.trailingAnchor.constraint(equalTo: hostController.view.trailingAnchor),
+      host.view.topAnchor.constraint(equalTo: hostController.view.topAnchor),
+      host.view.bottomAnchor.constraint(equalTo: hostController.view.bottomAnchor)
+    ])
+    host.didMove(toParent: hostController)
+    controlHost = host
+    return host
+  }
+
+  @available(iOS 26.0, *)
+  private func removeControlHost() {
+    guard let host = controlHost as? NativeGlassControlHostViewController else { return }
+    controlHost = nil
+    host.clear()
+    host.willMove(toParent: nil)
+    host.view.removeFromSuperview()
+    host.removeFromParent()
+  }
+
+  /// Maps the WebView's CSS viewport origin into the overlay's coordinate
+  /// space. The WKWebView fills the window, so its frame origin is usually
+  /// already the CSS origin; the adjusted content inset covers a WebKit scroll
+  /// view that insets itself for the safe area. `safeAreaInsets` alone would
+  /// double-count when `viewport-fit=cover` lets the page place its own
+  /// `env(safe-area-inset-*)` padding.
+  private func controlOffset(in hostView: UIView, webview: WKWebView) -> CGPoint {
+    let origin = webview.convert(CGPoint.zero, to: hostView)
+    let inset = webview.scrollView.adjustedContentInset
+    return CGPoint(x: origin.x + inset.left, y: origin.y + inset.top)
+  }
+
+  private func dispatchControl(id: String, action: String, itemId: String?) {
+    guard let webview else { return }
+
+    var detail: [String: String] = ["id": id, "action": action]
+    if let itemId {
+      detail["itemId"] = itemId
+    }
+    guard
+      let detailData = try? JSONSerialization.data(
+        withJSONObject: detail,
+        options: [.sortedKeys]
+      ),
+      let detailLiteral = String(data: detailData, encoding: .utf8)
+    else { return }
+
+    let script =
+      "window.dispatchEvent(new CustomEvent('ims:native-glass-control',{detail:\(detailLiteral)}))"
+    webview.evaluateJavaScript(script, completionHandler: nil)
   }
 }
 

@@ -1058,16 +1058,20 @@ html[data-app-target="app"] {
   touch-action: pan-x pan-y;
 }
 
+/*
+ * Native Liquid Glass controls are drawn above the WKWebView, which only
+ * refracts native layers below it, so the DOM twin has to leave the layout
+ * instead of turning transparent. A transparent twin would keep a second focus
+ * stop, a second press animation, and a tooltip under the native surface.
+ * Only the packaged iOS App on iOS 26+ writes this attribute; a rejected or
+ * unsupported native path never sets it, so Android and the Web keep the twins.
+ */
+html[data-native-glass="controls"] [data-native-glass-control],
+html[data-native-glass="controls"] [data-native-glass-twin] {
+  display: none;
+}
+
 @media (max-width: 767px) {
-  [data-exchange-office-map] .maplibregl-ctrl-bottom-left,
-  [data-exchange-office-map] .maplibregl-ctrl-bottom-right {
-    bottom: calc(5.5rem + env(safe-area-inset-bottom));
-  }
-
-  [data-exchange-office-map] .maplibregl-ctrl-bottom-left {
-    max-width: calc(100% - 5rem);
-  }
-
   body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
     bottom: calc(4.25rem + env(safe-area-inset-bottom));
   }

@@ -4,6 +4,7 @@ import type { StyleSpecification } from "maplibre-gl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GeolocationFailure } from "~/lib/geolocation"
+import type { ExchangeMapAttribution } from "~/pages/community/exchange/exchange-map-attribution"
 import { ExchangeOfficeMap } from "~/pages/community/exchange/exchange-office-map"
 
 const geolocationMocks = vi.hoisted(() => ({
@@ -23,10 +24,18 @@ const maplibreMocks = vi.hoisted(() => {
     options: { center: [number, number]; zoom: number }
     center: [number, number]
     zoom: number
-    touchZoomRotate = { disableRotation: vi.fn() }
-    keyboard = { disableRotation: vi.fn() }
+    touchZoomRotate = {
+      disableRotation: vi.fn(),
+      disable: vi.fn(),
+      enable: vi.fn(),
+    }
+    keyboard = { disableRotation: vi.fn(), disable: vi.fn(), enable: vi.fn() }
+    doubleClickZoom = { disable: vi.fn(), enable: vi.fn() }
+    dragPan = { disable: vi.fn(), enable: vi.fn() }
+    scrollZoom = { disable: vi.fn(), enable: vi.fn() }
     addControl = vi.fn()
     getSource = vi.fn(() => null)
+    getStyle = vi.fn()
     on = vi.fn()
     off = vi.fn()
     setStyle = vi.fn()
@@ -102,11 +111,9 @@ vi.mock("pmtiles", () => ({
 }))
 vi.mock("maplibre-gl", () => ({
   addProtocol: vi.fn(),
-  AttributionControl: class AttributionControlMock {},
   GeoJSONSource: maplibreMocks.GeoJSONSourceMock,
   Map: maplibreMocks.MapMock,
   Marker: maplibreMocks.MarkerMock,
-  NavigationControl: class NavigationControlMock {},
   setWorkerUrl: vi.fn(),
 }))
 
@@ -327,5 +334,131 @@ describe("ExchangeOfficeMap App viewport memory", () => {
     expect(oldMap?.easeTo).not.toHaveBeenCalled()
     expect(maplibreMocks.instances[1]?.easeTo).not.toHaveBeenCalled()
     expect(screen.queryByText("已回到您的位置")).not.toBeInTheDocument()
+  })
+
+  it("does not add MapLibre zoom or attribution controls", () => {
+    render(<ExchangeOfficeMap {...mapProps} />)
+
+    expect(maplibreMocks.instances[0]?.addControl).not.toHaveBeenCalled()
+  })
+
+  it("keeps pinch, double-click, keyboard and drag enabled", () => {
+    render(<ExchangeOfficeMap {...mapProps} />)
+    const map = maplibreMocks.instances[0]
+    if (!map) throw new Error("地图实例未创建")
+
+    // Rotation is the only interaction the map turns off. Everything else has
+    // to stay on: the zoom buttons are gone, so pinch, double-click and the
+    // keyboard are the only ways left to change zoom.
+    expect(map.touchZoomRotate.disableRotation).toHaveBeenCalled()
+    expect(map.keyboard.disableRotation).toHaveBeenCalled()
+
+    for (const handler of [
+      map.touchZoomRotate,
+      map.keyboard,
+      map.doubleClickZoom,
+      map.dragPan,
+      map.scrollZoom,
+    ]) {
+      expect(handler.disable).not.toHaveBeenCalled()
+    }
+  })
+
+  const attributionStyle = {
+    version: 8 as const,
+    sources: {
+      openmaptiles: {
+        type: "vector" as const,
+        attribution:
+          '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+      },
+      ne2_shaded: { type: "raster" as const, tiles: [] },
+    },
+    layers: [],
+  }
+
+  function styleDataHandler(map: (typeof maplibreMocks.instances)[number]) {
+    const call = map.on.mock.calls.find(([type]) => type === "styledata")
+    if (!call) throw new Error("未注册 styledata 监听")
+    return call[1] as () => void
+  }
+
+  it("emits the parsed source attribution once the style data is available", () => {
+    const onAttributionChange = vi.fn()
+    render(
+      <ExchangeOfficeMap
+        {...mapProps}
+        onAttributionChange={onAttributionChange}
+      />
+    )
+    const map = maplibreMocks.instances[0]
+    if (!map) throw new Error("地图实例未创建")
+    map.getStyle.mockReturnValue(attributionStyle)
+
+    act(() => styleDataHandler(map)())
+
+    expect(onAttributionChange).toHaveBeenCalledTimes(1)
+    const emitted = onAttributionChange.mock
+      .calls[0]?.[0] as ExchangeMapAttribution
+    expect(
+      emitted.segments.filter((segment) => segment.kind === "link")
+    ).toEqual([
+      {
+        kind: "link",
+        label: "OpenFreeMap",
+        href: "https://openfreemap.org",
+      },
+      {
+        kind: "link",
+        label: "© OpenMapTiles",
+        href: "https://www.openmaptiles.org/",
+      },
+      {
+        kind: "link",
+        label: "OpenStreetMap",
+        href: "https://www.openstreetmap.org/copyright",
+      },
+    ])
+  })
+
+  it("does not re-emit an unchanged attribution across style events", () => {
+    const onAttributionChange = vi.fn()
+    render(
+      <ExchangeOfficeMap
+        {...mapProps}
+        onAttributionChange={onAttributionChange}
+      />
+    )
+    const map = maplibreMocks.instances[0]
+    if (!map) throw new Error("地图实例未创建")
+    map.getStyle.mockReturnValue(attributionStyle)
+    const handleStyleData = styleDataHandler(map)
+
+    act(() => handleStyleData())
+    act(() => handleStyleData())
+
+    expect(onAttributionChange).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears the attribution when the map unmounts", () => {
+    const onAttributionChange = vi.fn()
+    const route = render(
+      <ExchangeOfficeMap
+        {...mapProps}
+        onAttributionChange={onAttributionChange}
+      />
+    )
+    const map = maplibreMocks.instances[0]
+    if (!map) throw new Error("地图实例未创建")
+    map.getStyle.mockReturnValue(attributionStyle)
+
+    act(() => styleDataHandler(map)())
+    expect(onAttributionChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ segments: expect.any(Array) })
+    )
+
+    route.unmount()
+
+    expect(onAttributionChange).toHaveBeenLastCalledWith(null)
   })
 })

@@ -3,6 +3,7 @@ import {
   ChevronRightIcon,
   CreditCardIcon,
   EyeIcon,
+  InfoIcon,
   MapPinIcon,
   RadioTowerIcon,
   RefreshCwIcon,
@@ -41,6 +42,13 @@ interface ExchangeDiscoveryRailProps {
   onRefresh: () => void
   onOpenOffices: () => void
   onOpenCards: () => void
+  /**
+   * Present only while the map style carries a notice. The rail is the sole
+   * container visible at `lg` and up, so this is the desktop's attribution
+   * entry point; the top card covers 768–1023px and the bottom nav covers
+   * narrower viewports.
+   */
+  onOpenAttribution?: (trigger: HTMLElement) => void
 }
 
 function officeSeriesLabel(
@@ -73,6 +81,7 @@ export function ExchangeDiscoveryRail({
   onRefresh,
   onOpenOffices,
   onOpenCards,
+  onOpenAttribution,
 }: ExchangeDiscoveryRailProps) {
   return (
     <aside
@@ -114,6 +123,19 @@ export function ExchangeDiscoveryRail({
               aria-hidden="true"
             />
           </Button>
+          {onOpenAttribution ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="查看地图数据来源"
+              aria-haspopup="dialog"
+              title="数据来源"
+              onClick={(event) => onOpenAttribution(event.currentTarget)}
+            >
+              <InfoIcon aria-hidden="true" />
+            </Button>
+          ) : null}
         </div>
 
         <form className="mt-4 flex gap-2" onSubmit={onCitySubmit}>

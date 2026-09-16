@@ -3,12 +3,10 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import { LoaderCircleIcon, LocateFixedIcon } from "lucide-react"
 import {
   addProtocol,
-  AttributionControl,
   GeoJSONSource,
   Map as MapLibreMap,
   type MapSourceDataEvent,
   Marker,
-  NavigationControl,
   setWorkerUrl,
   type StyleSpecification,
 } from "maplibre-gl"
@@ -29,6 +27,7 @@ import {
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
+import { useNativeGlassControl } from "~/lib/native-glass-controls"
 import { cn } from "~/lib/utils"
 
 import {
@@ -38,6 +37,10 @@ import {
   CHINA_DASH_LINE_LAYER_ID,
   TAIWAN_PROVINCE_LABEL_LAYER_ID,
 } from "./exchange-boundary-compliance"
+import {
+  parseMapAttribution,
+  type ExchangeMapAttribution,
+} from "./exchange-map-attribution"
 import type { FudabaMapOfficeGroup } from "./exchange-map-model"
 import {
   createMapDeliveryContext,
@@ -229,10 +232,29 @@ export interface ExchangeOfficeMapProps {
   onSelectGroup: (groupKey: string) => void
   onViewportChange: (bounds: ReturnType<typeof splitViewportBounds>) => void
   onFatalError: (error: Error) => void
+  onAttributionChange?: (value: ExchangeMapAttribution | null) => void
 }
 
 function mapError(error: unknown) {
   return error instanceof Error ? error : new Error("地图渲染失败")
+}
+
+/**
+ * The attribution notice is a licence obligation, so it is read from the
+ * authoritative place MapLibre already holds: the loaded style's sources. A
+ * style may carry several sources; the first non-empty notice wins.
+ */
+function styleAttributionSource(
+  style: StyleSpecification | undefined
+): string | null {
+  if (!style?.sources) return null
+  for (const source of Object.values(style.sources)) {
+    const attribution = (source as { attribution?: unknown }).attribution
+    if (typeof attribution === "string" && attribution.trim()) {
+      return attribution
+    }
+  }
+  return null
 }
 
 function featureCollection(groups: readonly FudabaMapOfficeGroup[]) {
@@ -496,6 +518,7 @@ export function ExchangeOfficeMap({
   onSelectGroup,
   onViewportChange,
   onFatalError,
+  onAttributionChange,
 }: ExchangeOfficeMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -505,6 +528,8 @@ export function ExchangeOfficeMap({
   const onSelectGroupRef = useRef(onSelectGroup)
   const onViewportChangeRef = useRef(onViewportChange)
   const onFatalErrorRef = useRef(onFatalError)
+  const onAttributionChangeRef = useRef(onAttributionChange)
+  const attributionSignatureRef = useRef<string | null>(null)
   const refreshMarkersRef = useRef<() => void>(() => undefined)
   const userLocationMarkerRef = useRef<Marker | null>(null)
   const locationRequestRef = useRef(0)
@@ -562,13 +587,35 @@ export function ExchangeOfficeMap({
     }
   }, [])
 
+  const { controlRef: locateControlRef } = useNativeGlassControl(
+    "locate",
+    {
+      kind: "icon-button",
+      icon:
+        locationState.phase === "locating" ? "loader-circle" : "locate-fixed",
+      label: "回到我的位置",
+      disabled: locationState.phase === "locating",
+    },
+    () => {
+      void locateUser()
+    }
+  )
+
   useEffect(() => {
     groupsRef.current = groups
     selectedGroupKeyRef.current = selectedGroupKey
     onSelectGroupRef.current = onSelectGroup
     onViewportChangeRef.current = onViewportChange
     onFatalErrorRef.current = onFatalError
-  }, [groups, onFatalError, onSelectGroup, onViewportChange, selectedGroupKey])
+    onAttributionChangeRef.current = onAttributionChange
+  }, [
+    groups,
+    onAttributionChange,
+    onFatalError,
+    onSelectGroup,
+    onViewportChange,
+    selectedGroupKey,
+  ])
 
   useEffect(() => {
     const container = containerRef.current
@@ -576,6 +623,15 @@ export function ExchangeOfficeMap({
 
     setLocationState({ phase: "idle", message: "" })
     container.dataset.mapState = "loading"
+    // `styledata` fires repeatedly for one style (source and layer edits), so
+    // the notice is deduplicated by content and only crosses the page boundary
+    // when it actually changes.
+    const emitAttribution = (value: ExchangeMapAttribution | null) => {
+      const signature = value ? JSON.stringify(value) : ""
+      if (attributionSignatureRef.current === signature) return
+      attributionSignatureRef.current = signature
+      onAttributionChangeRef.current?.(value)
+    }
     const deliveryContext = createMapDeliveryContext(
       resolveMapTransportOrigin(),
       styleUrl
@@ -584,6 +640,7 @@ export function ExchangeOfficeMap({
     const webglProbe = document.createElement("canvas")
     if (!webglProbe.getContext("webgl2") && !webglProbe.getContext("webgl")) {
       container.dataset.mapState = "error"
+      emitAttribution(null)
       onFatalErrorRef.current(new Error("当前浏览器不支持 WebGL 地图"))
       return
     }
@@ -597,6 +654,7 @@ export function ExchangeOfficeMap({
       if (fatalErrorSentRef.current) return
       fatalErrorSentRef.current = true
       container.dataset.mapState = "error"
+      emitAttribution(null)
       onFatalErrorRef.current(mapError(error))
     }
 
@@ -637,14 +695,17 @@ export function ExchangeOfficeMap({
     mapRef.current = map
     map.touchZoomRotate.disableRotation()
     map.keyboard.disableRotation()
-    map.addControl(new AttributionControl({ compact: true }), "bottom-left")
-    container
-      .querySelector<HTMLElement>(".maplibregl-ctrl-attrib-button")
-      ?.click()
-    map.addControl(
-      new NavigationControl({ showCompass: false, showZoom: true }),
-      "bottom-right"
-    )
+
+    const readAttribution = () => {
+      const style = map.getStyle()
+      if (!style) return
+      emitAttribution(parseMapAttribution(styleAttributionSource(style)))
+    }
+    const handleStyleData = () => readAttribution()
+    map.on("styledata", handleStyleData)
+    map.on("style.load", handleStyleData)
+    // The style can already be attached before the listeners are registered.
+    readAttribution()
 
     const clearMarkers = () => {
       for (const { marker } of markersRef.current.values()) marker.remove()
@@ -772,7 +833,7 @@ export function ExchangeOfficeMap({
         const canvas = map.getCanvas()
         canvas.setAttribute(
           "aria-label",
-          "区域事务所地图。使用方向键移动地图，使用加减按钮缩放。"
+          "区域事务所地图。使用方向键移动地图，使用双指捏合、双击或键盘加号减号缩放。"
         )
         // 基础底图在 transformStyle 阶段已经完成配色。边界合规图层需要
         // 等样式加载后创建，再重用同一套配置补齐新增图层。
@@ -879,6 +940,9 @@ export function ExchangeOfficeMap({
       map.off("sourcedata", handleOfficeSourceData)
       map.off("moveend", handleMoveEnd)
       map.off("error", handleError)
+      map.off("styledata", handleStyleData)
+      map.off("style.load", handleStyleData)
+      emitAttribution(null)
       if (IS_APP_TARGET) {
         rememberExchangeMapViewport(currentSessionViewport(map))
       }
@@ -929,6 +993,7 @@ export function ExchangeOfficeMap({
           <TooltipTrigger
             render={
               <Button
+                ref={locateControlRef}
                 type="button"
                 variant="outline"
                 size="icon"
@@ -938,6 +1003,7 @@ export function ExchangeOfficeMap({
                   locationControlOffset
                 )}
                 aria-label="回到我的位置"
+                data-native-glass-control="locate"
                 aria-busy={locationState.phase === "locating"}
                 disabled={locationState.phase === "locating"}
                 onClick={locateUser}

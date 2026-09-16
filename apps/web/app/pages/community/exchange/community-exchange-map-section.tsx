@@ -40,6 +40,7 @@ import {
   mergeMapOfficeResponses,
   type FudabaMapOfficeGroup,
 } from "./exchange-map-model"
+import type { ExchangeMapAttribution } from "./exchange-map-attribution"
 import type { ExchangeOfficeMapProps } from "./exchange-office-map"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
@@ -209,12 +210,14 @@ export function CommunityExchangeMapSection({
   seriesCatalog = [],
   open,
   onSwitchDirectory,
+  onAttributionChange,
 }: {
   city?: string
   series?: readonly string[]
   seriesCatalog?: readonly FudabaSeries[]
   open?: boolean
   onSwitchDirectory: () => void
+  onAttributionChange?: (value: ExchangeMapAttribution | null) => void
 }) {
   const [config, setConfig] = useState<ConfigState>(initialConfigState)
   const [MapComponent, setMapComponent] = useState<MapComponent | null>(null)
@@ -389,6 +392,7 @@ export function CommunityExchangeMapSection({
           onSelectGroup={selectGroup}
           onViewportChange={(bounds) => void loadBounds(bounds)}
           onFatalError={handleFatalError}
+          onAttributionChange={onAttributionChange}
         />
       ) : null}
 

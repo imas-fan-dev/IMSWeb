@@ -223,6 +223,29 @@ test(
       toolbar.getByRole("button", { name: "打开名片名录" })
     ).toBeVisible()
 
+    // The attribution entry lives in the same folding panel and opens the one
+    // shared dialog. The panel collapses on the same click, so focus returns
+    // to the always-visible menu trigger rather than the hidden entry.
+    const attributionEntry = toolbar.getByRole("button", {
+      name: "查看地图数据来源",
+    })
+    await expect(attributionEntry).toBeVisible()
+    await expect(attributionEntry).toHaveAttribute("aria-haspopup", "dialog")
+    await attributionEntry.click()
+    const attributionDialog = page.getByRole("dialog", {
+      name: "地图数据来源",
+    })
+    await expect(attributionDialog).toBeVisible()
+    await expect(
+      attributionDialog.getByRole("link", { name: "DataV GeoAtlas" })
+    ).toHaveAttribute(
+      "href",
+      "https://datav.aliyun.com/portal/school/atlas/area_selector"
+    )
+    await page.keyboard.press("Escape")
+    await expect(attributionDialog).toHaveCount(0)
+    await expect(toolTrigger).toBeFocused()
+
     await expect
       .poll(async () => {
         const [tools, navigation] = await Promise.all([
@@ -334,20 +357,33 @@ test(
     await expect(filterDialog).toHaveCount(0)
 
     const requestCountBeforeZoom = mapBounds.length
-    await page.locator(".maplibregl-ctrl-zoom-in").click()
+    // The +/− control is gone, so the camera change is driven by the
+    // double-click gesture that MapLibre's default `doubleClickZoom` owns.
+    // `scrollZoom` also zooms, but a wheel event carries a delta the handler
+    // scales per event, while a double click is one discrete, repeatable
+    // action on the emulated touch device this project runs.
+    await canvas.dblclick()
     await expect
       .poll(() => mapBounds.length)
       .toBeGreaterThan(requestCountBeforeZoom)
+    const readStoredZoom = () =>
+      page.evaluate(() => {
+        const stored = sessionStorage.getItem("ims:community-exchange-map")
+        return stored ? JSON.parse(stored).viewport?.zoom : null
+      })
+    await expect.poll(readStoredZoom).toBeGreaterThan(4.05)
+
+    // The removed +/− buttons were also the only pointer-free zoom entry, so
+    // the keyboard path is asserted here: MapLibre's keyboard handler owns the
+    // `=` / `+` keys while the canvas holds focus. Pinch has no automated
+    // substitute; its handler is covered by the component's gesture guard.
+    await canvas.focus()
+    const zoomBeforeKeyboard = await readStoredZoom()
+    await page.keyboard.press("Equal")
+    await expect.poll(readStoredZoom).toBeGreaterThan(zoomBeforeKeyboard)
+
     const zoomedBounds = mapBounds.at(-1)
     expect(zoomedBounds).toBeTruthy()
-    await expect
-      .poll(() =>
-        page.evaluate(() => {
-          const stored = sessionStorage.getItem("ims:community-exchange-map")
-          return stored ? JSON.parse(stored).viewport?.zoom : null
-        })
-      )
-      .toBeGreaterThan(4.05)
     const preservedMapState = await page.evaluate(() =>
       JSON.parse(sessionStorage.getItem("ims:community-exchange-map") ?? "null")
     )

@@ -353,6 +353,62 @@ iconUrl: iconPath(`/agencies/${id}.webp`);
   as a rule rather than a value, e.g.
   `expect(["official", "community"]).toContain(item.source_type)`.
 
+## Scenario: MapLibre map fixtures and camera gestures
+
+### 1. Scope / Trigger
+
+Apply this contract when a browser test renders the exchange map: serving a style, driving a camera
+change, or asserting the map's own controls and notices.
+
+### 2. Contracts
+
+- **Never name a GeoJSON source `openmaptiles`.** `exchange-boundary-compliance.ts` adds its
+  `boundary_china_claim` layer with `source-layer: "boundary"` whenever a source with that id
+  exists, and MapLibre rejects a source layer on a GeoJSON source. That error reaches
+  `onFatalError`, the map is replaced by the unavailable card, and nothing is printed to the
+  console — the spec then fails on a missing dialog instead of on the real cause. Give the test
+  style's notice source another id; the `openmaptiles` id itself is covered by the map component
+  unit test.
+- Serve the style through a non-API route (`page.route("**/maps/<fixture>.json")`); `/api` belongs to
+  `ApiDispatcher`.
+- Register the workspace's incidental requests explicitly. Mounting the exchange workspace also
+  requests `/api/wiki/catalog` for series-icon fallbacks, so an attribution-only spec still needs
+  `{ path: "/api/wiki/catalog", times: { min: 0, max: 2 } }` from the seeded-content fixtures; an
+  unregistered request fails teardown.
+- Drive the camera with a gesture. MapLibre's `NavigationControl` is gone, so a camera change comes
+  from `canvas.dblclick()` or a wheel event on `canvas.maplibregl-canvas`, observed through
+  `expect.poll` on the request the viewport write-back produces. Double-click is the stable choice on
+  the emulated touch project, where a wheel delta is scaled per event.
+- Assert control absence by container: `.maplibregl-ctrl-group` and `.maplibregl-ctrl-attrib` counts
+  are zero. Individual `.maplibregl-ctrl-zoom-in` / `-compass` selectors disappear with the control.
+- The attribution entry is width-dependent. Assert one reachable entry per range and that the other
+  containers' entries are hidden: below 768px the bottom navigation, 768–1023px the top card,
+  1024px and up the discovery rail, plus the App folding panel. A single-width assertion does not
+  prove the union is gapless.
+- `prefers-reduced-transparency` cannot be emulated by Playwright, so that fallback is asserted
+  against the stylesheet, the way `tests/unit/lib/glass-material.test.ts` does for `app.css`. For the
+  map, `tests/unit/pages/community/exchange/exchange-map-styles.test.ts` checks the reduced block, the
+  absence of dead `.maplibregl-ctrl*` rules, and that the map surfaces read `--glass-blur` /
+  `--glass-saturate` instead of a private copy of the numbers.
+
+### 3. Good / Base / Bad Cases
+
+- Good: the attribution spec reads the notice from `public/maps/exchange-style.json` itself, serves a
+  dependency-free style carrying that string, and opens the dialog from each width range.
+- Base: `community-exchange-map.spec.ts` uses the packaged `/maps/exchange-test-style.json` and
+  asserts `.maplibregl-ctrl-group` is absent.
+- Bad: an inline GeoJSON style with a source named `openmaptiles`, or a delete-the-assertion response
+  to a missing zoom button.
+
+### 4. Tests Required
+
+- One browser test per attribution entry range, plus a 375px case asserting no horizontal overflow
+  and 44 × 44 CSS pixel targets on every bottom-navigation item.
+- One browser test asserting no entry and no empty dialog when the style carries no notice, at each
+  of the three Web widths.
+- A rewritten viewport-persistence case in `app-map.spec.ts` driven by `canvas.dblclick()` that still
+  asserts growing map bounds and a persisted zoom.
+
 ## Commands
 
 ```sh

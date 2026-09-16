@@ -331,6 +331,18 @@
           "markdownDescription": "Denies the ping command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_controls command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-controls",
+          "markdownDescription": "Enables the set_controls command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_controls command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-controls",
+          "markdownDescription": "Denies the set_controls command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update",
@@ -343,10 +355,10 @@
           "markdownDescription": "Denies the update command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-configure`\n- `allow-update`\n- `allow-destroy`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-configure`\n- `allow-update`\n- `allow-set-controls`\n- `allow-destroy`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-configure`\n- `allow-update`\n- `allow-destroy`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-configure`\n- `allow-update`\n- `allow-set-controls`\n- `allow-destroy`"
         }
       ]
     }

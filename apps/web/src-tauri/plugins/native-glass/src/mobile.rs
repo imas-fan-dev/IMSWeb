@@ -4,7 +4,7 @@ use tauri::{
     AppHandle, Runtime,
 };
 
-use crate::models::{ConfigureOptions, NativeGlassStatus, UpdateOptions};
+use crate::models::{ConfigureOptions, NativeGlassStatus, SetControlsArgs, UpdateOptions};
 
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_native_glass);
@@ -33,6 +33,12 @@ impl<R: Runtime> NativeGlass<R> {
     pub fn update(&self, options: UpdateOptions) -> crate::Result<NativeGlassStatus> {
         self.0
             .run_mobile_plugin("update", options)
+            .map_err(Into::into)
+    }
+
+    pub fn set_controls(&self, args: SetControlsArgs) -> crate::Result<NativeGlassStatus> {
+        self.0
+            .run_mobile_plugin("setControls", args)
             .map_err(Into::into)
     }
 

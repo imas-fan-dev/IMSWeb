@@ -4,11 +4,24 @@ import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
 
 import { ExchangeMobileNavigation } from "~/pages/community/exchange/components/exchange-mobile-navigation"
+import type { ExchangeMapAttribution } from "~/pages/community/exchange/exchange-map-attribution"
 
 vi.mock("~/lib/app-target", () => ({
   APP_FLOATING_CONTROL_OFFSET: "bottom-[var(--app-floating-bottom)]",
   IS_APP_TARGET: true,
 }))
+
+const attribution: ExchangeMapAttribution = {
+  segments: [
+    { kind: "link", label: "OpenFreeMap", href: "https://openfreemap.org" },
+    { kind: "text", value: " Data from " },
+    {
+      kind: "link",
+      label: "OpenStreetMap",
+      href: "https://www.openstreetmap.org/copyright",
+    },
+  ],
+}
 
 function renderNavigation(
   props: Partial<React.ComponentProps<typeof ExchangeMobileNavigation>> = {}
@@ -18,6 +31,7 @@ function renderNavigation(
     onOpenFilter: vi.fn(),
     onOpenOffices: vi.fn(),
     onOpenCards: vi.fn(),
+    onOpenAttribution: vi.fn(),
   }
 
   render(
@@ -94,6 +108,9 @@ describe("ExchangeMobileNavigation app target", () => {
     expect(
       within(tools).getByRole("button", { name: "打开名片名录" })
     ).toBeVisible()
+    expect(
+      within(tools).queryByRole("button", { name: "查看地图数据来源" })
+    ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "打开筛选" }))
 
@@ -122,5 +139,31 @@ describe("ExchangeMobileNavigation app target", () => {
     expect(
       screen.queryByRole("button", { name: "地图" })
     ).not.toBeInTheDocument()
+  })
+
+  it("opens the attribution dialog from the map tools and collapses the panel", async () => {
+    const user = userEvent.setup()
+    const callbacks = renderNavigation({ attribution })
+
+    await user.click(screen.getByRole("button", { name: "展开地图工具" }))
+
+    const tools = screen.getByRole("toolbar", {
+      name: "交换地图工具",
+    })
+    const entry = within(tools).getByRole("button", {
+      name: "查看地图数据来源",
+    })
+    expect(entry).toHaveAttribute("aria-haspopup", "dialog")
+
+    await user.click(entry)
+
+    expect(callbacks.onOpenAttribution).toHaveBeenCalledOnce()
+    expect(callbacks.onOpenAttribution).toHaveBeenCalledWith(entry)
+    expect(
+      screen.queryByRole("toolbar", { name: "交换地图工具" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "展开地图工具" })
+    ).toHaveAttribute("aria-expanded", "false")
   })
 })

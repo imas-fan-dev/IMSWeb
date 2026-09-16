@@ -568,6 +568,77 @@ test("every App tab icon is bundled as a usable iOS vector asset", async () => {
   }
 });
 
+// The plugin refuses the native path when any control icon is missing, so a
+// typo in either the Rust inventory or a control's `icon` value silently drops
+// iOS 26 back to CSS glass instead of failing loudly. This test keeps the
+// inventory, the packaged vectors and the Web call sites in one agreement.
+test("every native glass control icon is bundled and actually requested", async () => {
+  const controlSources = [
+    "app/pages/community/exchange/exchange-office-map.tsx",
+    "app/pages/community/exchange/community-exchange-page.tsx",
+    "app/pages/community/exchange/components/exchange-mobile-navigation.tsx",
+  ];
+  const [buildScript, ...sources] = await Promise.all([
+    readFile(`${webRoot}/src-tauri/build.rs`, "utf8"),
+    ...controlSources.map((file) => readFile(`${webRoot}/${file}`, "utf8")),
+  ]);
+
+  const inventory = buildScript.match(
+    /const LUCIDE_CONTROL_ICONS:\s*\[&str;\s*(\d+)\]\s*=\s*\[([\s\S]*?)\];/,
+  );
+  assert.ok(inventory, "iOS build must declare its control icon inventory");
+  const bundled = Array.from(
+    inventory[2].matchAll(/"([^"]+)"/g),
+    (match) => match[1],
+  );
+  assert.equal(bundled.length, Number(inventory[1]));
+  assert.equal(new Set(bundled).size, bundled.length);
+
+  // Every native control declares its icon as either a literal or a ternary
+  // (`expanded ? "x" : "menu"`), so both shapes are read here. The direction
+  // that matters is the silent one: an icon a control asks for but the bundle
+  // does not carry turns the whole native path off with no error anywhere.
+  const referenced = new Set();
+  for (const source of sources) {
+    for (const match of source.matchAll(
+      /icon:\s*(?:"([a-z0-9-]+)"|[\s\S]{0,120}?\?\s*"([a-z0-9-]+)"\s*:\s*"([a-z0-9-]+)")/g,
+    )) {
+      for (const capture of match.slice(1)) {
+        if (capture) referenced.add(capture);
+      }
+    }
+  }
+  // Guards the extractor itself: falling below the icon set the map controls
+  // declare today means the pattern stopped matching, not that icons went away.
+  assert.ok(
+    referenced.size >= 9,
+    `expected at least 9 native control icons, read ${referenced.size}`,
+  );
+  for (const icon of referenced) {
+    assert.ok(
+      bundled.includes(icon),
+      `native control requests "${icon}" which the iOS bundle does not carry`,
+    );
+  }
+
+  const catalog = path.join(
+    webRoot,
+    "src-tauri/plugins/native-glass/ios/Sources/Resources/Lucide.xcassets",
+  );
+  for (const icon of bundled) {
+    const imageset = path.join(catalog, `${icon}.imageset`);
+    const metadata = JSON.parse(
+      await readFile(path.join(imageset, "Contents.json"), "utf8"),
+    );
+    assert.equal(metadata.properties["preserves-vector-representation"], true);
+    const universal = metadata.images.find((image) => image.idiom === "universal");
+    assert.equal(universal?.filename, `${icon}.pdf`);
+    const vector = await readFile(path.join(imageset, universal.filename));
+    assert.equal(vector.subarray(0, 5).toString("ascii"), "%PDF-");
+    assert.match(vector.toString("latin1"), /%%EOF\s*$/);
+  }
+});
+
 // The iOS bundler merges src-tauri/Info.ios.plist into the generated Xcode
 // project's Info.plist, so a key lost in an edit only shows up on a device:
 // without UIApplicationSceneManifest UIKit traps in
