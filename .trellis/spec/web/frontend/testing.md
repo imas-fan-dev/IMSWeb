@@ -73,20 +73,22 @@ only signal the lane produces.
 
 ### 2. Contracts
 
-- **Budget.** The same spec takes roughly 1.5x to 3x longer on a CI runner than
-  on a developer machine, and the App WebKit project sits at the slow end of
-  that range. Two costs land before the first assertion: browser and fixture
-  startup, then the first navigation. Together they take about 5s of a 20s
-  budget on CI, so a scenario carrying an upload, a restart, and a removal does
-  not fit in one test. Keep the measured CI wall clock of a single test at or
-  under two thirds of the configured `timeout`; when it goes over, split the
-  test at a state boundary or remove waiting. Do not raise `timeout` and do not
-  depend on a retry. The App account flow reached 12.4s, 11.8s, and 20.5s across
-  the three App projects while it covered the upload, the restart, and the
-  removal in one scenario; split at the persisted-avatar boundary, the same
-  coverage runs in 3s to 5s locally per scenario. An earlier version of it had
-  also spent about 8s of its 20s budget waiting out two sonner auto-dismiss
-  timers.
+- **Budget.** The same spec takes roughly 1.5x to 5x longer on a CI runner than
+  on a developer machine, and the multiplier grows with canvas and image work on
+  the App WebKit project. Two costs land before the first assertion: browser and
+  fixture startup, then the first navigation. Together they take about 5s of a
+  20s budget on CI, so a scenario carrying an upload, a restart, and a removal
+  does not fit in one test. Split at a state boundary once a scenario's measured
+  CI wall clock passes two thirds of the configured `timeout`. For a flow that
+  cannot be split further, treat 3s of headroom as the floor: run-to-run variance
+  on the App WebKit project is about 2s and zero retries absorb none of it. Do
+  not raise `timeout` and do not depend on a retry. Measured envelope after the
+  account split: the upload scenario runs in 7.9s, 7.7s, and 17.0s across
+  app-iphone, app-android, and app-webkit, the removal scenario in 7.3s, 7.4s,
+  and 10.6s, and the Web profile and card flow in 13.4s on chromium-desktop and
+  15.9s on chromium-mobile. `app-events` already sits at 16.5s on app-iphone and
+  app-webkit, so the upload scenario's 17.0s is the measured floor of a crop flow
+  that has no further state to split at, not a number to plan against.
 - **Transient overlays.** The `Toaster` is fixed to the top-right on Web and to
   a full-width top strip on narrow App viewports, so a toast can cover the
   account trigger and the App back button. Settle the toast before driving

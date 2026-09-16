@@ -23,12 +23,12 @@ App 用例之所以在 CI 上刚好卡在 20s：它在一个 20s 预算内两次
 
 ## Acceptance Criteria
 
-- [ ] `apps/web/tests/e2e/community-exchange-me.spec.ts` 在保存头像后先落定 toast，再点击账号触发按钮，并在断言头像前显式等待 `[data-slot="popover-content"]` 可见。
-- [ ] `apps/web/tests/e2e/app-account.spec.ts` 不再使用 `toBeHidden({ timeout: 10_000 })` 等待 toast 自动消失，改为显式关闭 + 断言消失。
-- [ ] 新增的 toast 落定辅助函数被两个 spec 复用，且测试文件仍从 `./fixtures/test` 导入 `test`。
-- [ ] 本地 `CI=1` 下两条用例全绿：Web `community-exchange-me.spec.ts -g "edits the authenticated profile and card without viewport overflow"`、App `app-account.spec.ts -g "uses an account root and independent profile section stack"`（3 个 App project 全部通过，且单次耗时明显低于 20s）。
-- [ ] `.trellis/spec/web/frontend/testing.md` 含上述三条 CI 编写约束，`docs/development/testing.md` 有一处指向它的链接。
-- [ ] `pnpm --filter @imsweb/web run lint`、`typecheck`、`test:unit` 通过；`pnpm run check:rules` 通过。
+- [x] `apps/web/tests/e2e/community-exchange-me.spec.ts` 在保存头像后先落定 toast，再点击账号触发按钮，并在断言头像前显式等待 `[data-slot="popover-content"]` 可见。
+- [x] `apps/web/tests/e2e/app-account.spec.ts` 不再使用 `toBeHidden({ timeout: 10_000 })` 等待 toast 自动消失，改为显式关闭 + 断言消失；第一次 CI 过后该用例仍在 app-webkit 触碰 20s，已在「已持久化头像」边界拆成两个用例。
+- [x] 新增的 toast 落定辅助函数被两个 spec 复用，且测试文件仍从 `./fixtures/test` 导入 `test`。
+- [x] 本地 `CI=1` 下两条用例全绿，并在 CI run [35022627372](https://github.com/imas-fan-dev/IMSWeb/actions/runs/35022627372)（commit b7f190e8）验证：七个 job 全部 success，App 侧拆分后的两个用例在三个 project 全部通过（app-iphone 7.9s/7.3s、app-android 7.7s/7.4s、app-webkit 17.0s/10.6s），Web 侧 `community-exchange-me.spec.ts` 在 chromium-desktop 13.4s、chromium-mobile 15.9s 通过。app-webkit 的上传场景 17.0s 是本 lane 最紧的一条，已记入 spec 的预算段落作为不可再拆流程的实测下限。
+- [x] `.trellis/spec/web/frontend/testing.md` 含上述三条 CI 编写约束，`docs/development/testing.md` 有一处指向它的链接。
+- [x] `pnpm --filter @imsweb/web run lint`、`typecheck`、`test:unit` 通过；`pnpm run check:rules` 通过（CI 侧 Validate Web 同样跑通 185 个文件 / 1181 个单测）。
 
 ## Notes
 

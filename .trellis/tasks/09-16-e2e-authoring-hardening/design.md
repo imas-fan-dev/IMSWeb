@@ -140,6 +140,28 @@ app-webkit 的 trace 显示 20s 预算的去向：
 
 本地 CI 等价运行：12 passed / 4 skipped，单次 2.9–5.0s（拆分前单用例 6.2–7.7s）。
 
+## 第三次 CI 结果：全绿
+
+`b7f190e8` 推送后 CI run [35022627372](https://github.com/imas-fan-dev/IMSWeb/actions/runs/35022627372) 七个 job 全部 success（含聚合的 `Validate repository`），耗时 20:56:09Z–21:14:40Z。
+
+拆分后的实测耗时（同一份代码、同一轮）：
+
+```text
+uses an account root and uploads an avatar in the profile section
+  app-iphone 7.9s   app-android 7.7s   app-webkit 17.0s
+serves the persisted avatar at startup and removes it from the profile section
+  app-iphone 7.3s   app-android 7.4s   app-webkit 10.6s
+```
+
+对照拆分前：那一个覆盖上传+重启+移除的用例在同一 lane 上是 app-iphone 12.4s、app-android 11.8s、app-webkit 20.5s（超时）。
+
+需要记下的两点：
+
+- app-webkit 上传场景 17.0s 是本 lane 最紧的一条，只剩 3s 余量。本地同一用例只要 3.0–3.5s，即这条路径在 CI 上的倍率达到 5 倍，远高于其他用例的 1.5–2.5 倍；裁剪弹层与图片解码是差值所在（移除场景不含裁剪，app-webkit 只要 10.6s）。同一 lane 里 `app-events` 在 app-iphone 与 app-webkit 也都要 16.5s，说明接近上限的用例在这个仓库里并非只此一条。
+- 该场景已经没有可再拆的状态边界（裁剪几何本身就是 WebKit 独有的不变量），所以 spec 的预算段落把 17.0s 记为不可再拆流程的实测下限，而不是目标值。
+
+Web 侧同轮：`community-exchange-me.spec.ts` 在 chromium-desktop 13.4s、chromium-mobile 15.9s 通过（修复前 CI mobile 是 20.8s 超时），Validate Web 整体 104 个用例、12.7m。
+
 ## 兼容性与回滚
 
 - 辅助函数依赖 sonner 的两处输出；sonner 升版本导致属性变化时，`settleToasts` 会在空 locator 上失败，属于显式失败而非静默跳过。
