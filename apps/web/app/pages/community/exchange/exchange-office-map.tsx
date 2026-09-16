@@ -46,6 +46,7 @@ import {
   createMapDeliveryContext,
   DEFAULT_EXCHANGE_MAP_VIEWPORT,
   exchangeMapInitialViewport,
+  EXCHANGE_MAP_FLOATING_GROUP,
   EXCHANGE_MAP_MAX_ZOOM,
   EXCHANGE_MAP_MIN_ZOOM,
   rememberExchangeMapViewport,
@@ -594,6 +595,7 @@ export function ExchangeOfficeMap({
       icon:
         locationState.phase === "locating" ? "loader-circle" : "locate-fixed",
       label: "回到我的位置",
+      group: EXCHANGE_MAP_FLOATING_GROUP,
       disabled: locationState.phase === "locating",
     },
     () => {
@@ -973,8 +975,11 @@ export function ExchangeOfficeMap({
     }
   }, [selectedGroupKey])
 
+  // Both pill segments share one size and one inline offset: the native capsule
+  // spans the union of the two frames, so any difference would leave a segment
+  // off-centre inside its own glass.
   const locationControlOffset = IS_APP_TARGET
-    ? "right-3 bottom-[calc(var(--app-floating-bottom)+8.75rem)] size-10 md:right-2.5 md:bottom-20 md:size-8"
+    ? "right-3 bottom-[calc(var(--app-floating-bottom)+3rem)] size-12 md:right-2.5 md:bottom-[calc(var(--app-floating-bottom)+2.5rem)] md:size-10"
     : "right-2.5 bottom-20"
 
   return (
@@ -998,8 +1003,10 @@ export function ExchangeOfficeMap({
                 variant="outline"
                 size="icon"
                 className={cn(
-                  "absolute z-10 bg-background/95 shadow-sm backdrop-blur-sm",
-                  IS_APP_TARGET && "exchange-map-app-control",
+                  "absolute z-10",
+                  IS_APP_TARGET
+                    ? "exchange-map-app-control exchange-map-app-surface exchange-map-app-pill-top"
+                    : "bg-background/95 shadow-sm backdrop-blur-sm",
                   locationControlOffset
                 )}
                 aria-label="回到我的位置"
@@ -1010,11 +1017,11 @@ export function ExchangeOfficeMap({
               >
                 {locationState.phase === "locating" ? (
                   <LoaderCircleIcon
-                    className="animate-spin motion-reduce:animate-none"
+                    className="size-5 animate-spin motion-reduce:animate-none"
                     aria-hidden="true"
                   />
                 ) : (
-                  <LocateFixedIcon aria-hidden="true" />
+                  <LocateFixedIcon className="size-5" aria-hidden="true" />
                 )}
               </Button>
             }
@@ -1027,7 +1034,7 @@ export function ExchangeOfficeMap({
         className={cn(
           "pointer-events-none absolute z-10 max-w-56",
           IS_APP_TARGET
-            ? "right-16 bottom-[calc(var(--app-floating-bottom)+8.75rem)] md:right-12 md:bottom-20"
+            ? "right-16 bottom-[calc(var(--app-floating-bottom)+3rem)] md:right-12 md:bottom-[calc(var(--app-floating-bottom)+2.5rem)]"
             : "right-12 bottom-20"
         )}
         aria-live="polite"

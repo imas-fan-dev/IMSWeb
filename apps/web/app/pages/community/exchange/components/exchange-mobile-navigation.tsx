@@ -20,6 +20,7 @@ import type {
   NativeGlassMenuItem,
 } from "~/lib/native-glass-panel"
 import { cn } from "~/lib/utils"
+import { EXCHANGE_MAP_FLOATING_GROUP } from "~/pages/community/exchange/exchange-map-model"
 import type { ExchangeMapAttribution } from "~/pages/community/exchange/exchange-map-attribution"
 
 interface ExchangeMobileNavigationProps {
@@ -211,6 +212,7 @@ function AppExchangeMapNavigation({
       kind: "menu",
       icon: expanded ? "x" : "menu",
       label: expanded ? "收起地图工具" : "展开地图工具",
+      group: EXCHANGE_MAP_FLOATING_GROUP,
       expanded,
       items: menuItems,
     },
@@ -220,7 +222,7 @@ function AppExchangeMapNavigation({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute right-3 z-30 lg:hidden",
+        "pointer-events-none absolute right-3 z-30 lg:hidden md:right-2.5",
         APP_FLOATING_CONTROL_OFFSET
       )}
     >
@@ -230,7 +232,7 @@ function AppExchangeMapNavigation({
         variant="outline"
         size="icon"
         data-native-glass-control="map-tools"
-        className="exchange-map-app-control pointer-events-auto size-10 rounded-lg transition-[transform,background-color] duration-200 active:scale-95 motion-reduce:transition-none"
+        className="exchange-map-app-control exchange-map-app-surface exchange-map-app-pill-bottom pointer-events-auto size-12 transition-[transform,background-color] duration-200 active:scale-95 motion-reduce:transition-none md:size-10"
         aria-label={expanded ? "收起地图工具" : "展开地图工具"}
         aria-controls="exchange-map-tools"
         aria-expanded={expanded}

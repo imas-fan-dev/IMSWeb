@@ -108,6 +108,7 @@ type NativeGlassControl =
       label: string
       frame: NativeGlassFrame
       cornerRadius: number
+      group?: string
       active?: boolean
       disabled?: boolean
     }
@@ -118,8 +119,10 @@ type NativeGlassControl =
       label: string
       frame: NativeGlassFrame
       cornerRadius: number
+      group?: string
       expanded: boolean
       panelWidth: number
+      panelCornerRadius?: number
       items: NativeGlassMenuItem[]
     }
 
@@ -128,6 +131,18 @@ setControls(args: { controls: NativeGlassControl[]; dark: boolean }): NativeGlas
 
 `frame` 使用 CSS 像素、原点在 webview 视口左上角。iOS 上 CSS 像素与 UIKit point 同尺度，
 webview 铺满窗口，所以坐标平移以 webview 在宿主视图中的原点为基准。
+
+`group` 是 R6 追加的可选字段（取值相同的控件在原生侧合成一个胶囊，例如定位与地图工具），
+Rust/Swift/TS 三侧同步声明：仅影响绘制，不改变控件 id 与事件路由；未分组或空字符串走原路径。
+分组的几何仍来自 Web：原生胶囊取各成员 frame 的并集，外圆角为 `min(宽, 高) / 2`，
+相邻成员的共享边上画一条内缩 1pt 细线，且该细线不接收触摸（否则会产生 1pt 的"点不到地图"死区）。
+成员内的控件不再各自绘制玻璃；分组中的 menu 成员保留自己的面板，只是面板改为胶囊的兄弟视图。
+
+`panelCornerRadius` 是同一个回归逼出来的第二个可选字段：面板的圆角原本直接复用触发段的
+`cornerRadius`，而药丸下段的共享边必须是直边（DOM 侧 `border-start-start-radius: 0`、
+原生侧胶囊外圆角由并集推出），于是面板跟着变成了直角。面板与触发段是两种形状，
+几何仍由 Web 侧拥有：`panelCornerRadius` 取面板孪生自己的 `borderTopLeftRadius` 单独上报，
+Swift 在字段缺失时回退到 `cornerRadius`，所以旧负载的分组前行为不变。
 
 T1 实现时选择用 `webview.scrollView.adjustedContentInset` 而非 `safeAreaInsets`：在
 `viewport-fit=cover` 下后者会把安全区重复叠加一次。该选择需要设备验收重点核对，

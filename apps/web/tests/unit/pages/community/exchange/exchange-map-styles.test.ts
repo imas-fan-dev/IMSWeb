@@ -87,4 +87,29 @@ describe("exchange map stylesheet", () => {
     expect(body).toContain("rgb(255 255 255 / 98%)")
     expect(body).not.toMatch(/backdrop-filter: blur/)
   })
+
+  it("joins the locate and map-tools twins into one pill", () => {
+    const top = blockBody(mapStylesheet, ".exchange-map-app-pill-top {")
+    const bottom = blockBody(mapStylesheet, ".exchange-map-app-pill-bottom {")
+    const seam = blockBody(mapStylesheet, ".exchange-map-app-pill-bottom::before {")
+
+    // Only the outer corners curve; the shared edge stays straight or the two
+    // segments read as two buttons that happen to touch.
+    expect(top).toContain("border-start-start-radius: 9999px")
+    expect(top).toContain("border-end-start-radius: 0")
+    expect(top).toContain("border-bottom-width: 0")
+    expect(bottom).toContain("border-end-end-radius: 9999px")
+    expect(bottom).toContain("border-start-start-radius: 0")
+    expect(bottom).toContain("border-top-width: 0")
+    // The separator replaces the shared border, so the surface's inset
+    // highlight would draw a bright second line on the same edge.
+    expect(bottom).not.toContain("--glass-highlight")
+    expect(seam).toContain("height: 1px")
+    expect(seam).toContain("inset-inline: 0.5rem")
+    // Both rules are single-class selectors, so their position after the
+    // surface block is what lets them override its radius, border and shadow.
+    expect(mapStylesheet.indexOf(".exchange-map-app-pill-top")).toBeGreaterThan(
+      mapStylesheet.indexOf(".exchange-map-app-surface {")
+    )
+  })
 })

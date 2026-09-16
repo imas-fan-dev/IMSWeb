@@ -117,6 +117,22 @@ W1 已交付的实际接口（以代码为准，不要按早期命名写）：
 
 验证：`pnpm --filter @imsweb/web format`;`pnpm --filter @imsweb/web lint`;`pnpm run test:web`;`pnpm run test:web-routing`;`pnpm run build`;`pnpm run check:rules`。
 
+## T6 药丸化（R6 追加，W3 串行）
+
+目标：App 右下角的定位与地图工具合并为一个液态玻璃药丸，参照 Apple 地图的原生控件。
+
+- [x] T6.1 协议新增可选 `group`：`native-glass/src/models.rs` 两个变体各加 `#[serde(default)] group: Option<String>`（Rust 是强类型的 serde 枚举，不加这一侧 Swift 收不到该字段），`GlassControlView.swift` 的 `NativeGlassControlPayload` 加 `let group: String?`，`native-glass-panel.ts`/`native-glass-controls.tsx` 两处 spec 透传。
+- [x] T6.2 原生绘制：`GlassControlRenderer` 按 group 合并，胶囊取成员 frame 的并集、圆角 `min(宽, 高) / 2`；成员改为非玻璃的 `GlassControlButton`（不再各自绘制玻璃），相邻成员共享边画内缩 1pt 细线且 `isUserInteractionEnabled = false`；分组中的 menu 成员保留面板，面板作为胶囊的兄弟视图。
+- [x] T6.3 DOM 形状：`exchange-office-map.css` 新增 `.exchange-map-app-pill-top` / `.exchange-map-app-pill-bottom`（外圆角 `9999px`、共享边直边且去边框、下段去 inset highlight 并用 `::before` 画内缩分隔线），两段都带上 `exchange-map-app-surface` 与 `exchange-map-app-control`。
+- [x] T6.4 几何对齐：定位段与菜单触发段共用同一尺寸与同一 `md:right-2.5`（否则并集宽于单段、图标偏心）；错误提示气泡跟随定位段。最终尺寸见 T6.9。
+- [x] T6.5 测试：`native-glass-controls.test.tsx` 新增分组透传与两段无缝相邻、未分组控件不带 group 两条；`exchange-map-styles.test.ts` 新增药丸样式契约（外圆角、共享边直边、分隔线内缩、规则位于 surface 之后）；`exchange-mobile-navigation.test.tsx` 更新类名断言。
+- [x] T6.6 编译与设备验证：`cargo check --target aarch64-apple-ios-sim`（Rust 模型）与 `pnpm run app ios --target device --release`（唯一会编译 `ios/Sources/*.swift` 的路径），随后安装到 iPhone-texas 观察胶囊形状、分隔线、按压反馈与手势透传。
+- [x] T6.7 面板圆角回归修复：药丸下段共享边是直角，而面板圆角一直复用触发段的 `cornerRadius`，展开后变直角。协议在三个（四个）面同步新增可选 `panelCornerRadius`：`models.rs` 的 menu 变体加 `#[serde(default)] panel_corner_radius: Option<f64>`、`GlassControlView.swift` 加 `let panelCornerRadius: Double?` 且缺失时回退到 `cornerRadius`、`native-glass-panel.ts` 的 menu 类型与 `native-glass-controls.tsx` 的采集各加一处；回归测试锁住触发段 0 / 面板 8 的分开上传。
+- [x] T6.8 修复后重新构建安装：`TAURI_APPLE_DEVELOPMENT_TEAM` + `VITE_IMS_API_ORIGIN`/`VITE_IMS_PUBLIC_SITE_ORIGIN` 指向 preview，`pnpm run app ios --target device --device 00008150-001978A22208401C --release`，devicectl 报告安装并启动成功。
+- [x] T6.9 药丸加大（追加）：两段由 `size-10` / `md:size-8` 改为 `size-12` / `md:size-10`（48px / 40px），定位段底偏移与错误气泡同步改为 `+3rem` / `md:+2.5rem`（等于段高，否则两段不再相邻），定位段图标由 Button 默认的 16px 统一为 `size-5`；`exchange-mobile-navigation.test.tsx` 的尺寸断言随之更新，原生胶囊与图标（`min(高 × 0.5, 22)`）随 Web 侧几何自动跟随。
+
+验证：`pnpm --filter @imsweb/web run lint`;`pnpm --filter @imsweb/web exec vitest run tests/unit/lib/native-glass-controls.test.tsx tests/unit/pages/community/exchange/exchange-map-styles.test.ts tests/unit/pages/community/exchange/components/exchange-mobile-navigation.test.tsx`;`cargo check`;`pnpm run app ios --target device --release`。
+
 ## 收口检查
 
 - [x] 全范围复检：`pnpm run check:root`、`pnpm --filter @imsweb/web run check`（lint + typecheck + unit + build）、

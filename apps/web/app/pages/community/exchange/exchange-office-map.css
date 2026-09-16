@@ -82,6 +82,45 @@
   opacity: 0.55;
 }
 
+/*
+ * The App joins the locate control and the map-tools trigger into one pill, the
+ * way Apple Maps stacks its own map controls. Both DOM twins keep their own box
+ * (the native path measures them), so only the outer corners curve and the
+ * shared edge stays straight. `9999px` resolves to half the shorter side, which
+ * is the same capsule radius the native renderer derives from the union of the
+ * two frames.
+ */
+.exchange-map-app-pill-top {
+  border-start-start-radius: 9999px;
+  border-start-end-radius: 9999px;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+  border-bottom-width: 0;
+}
+
+.exchange-map-app-pill-bottom {
+  position: relative;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-end-start-radius: 9999px;
+  border-end-end-radius: 9999px;
+  border-top-width: 0;
+  /*
+   * The separator replaces the border on the shared edge, so the surface
+   * recipe's inset highlight would otherwise draw a bright second line there.
+   */
+  box-shadow: var(--glass-shadow-float);
+}
+
+.exchange-map-app-pill-bottom::before {
+  position: absolute;
+  inset-inline: 0.5rem;
+  top: 0;
+  height: 1px;
+  content: "";
+  background-color: rgb(23 29 38 / 12%);
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .exchange-map-app-viewport::before {
     background: linear-gradient(

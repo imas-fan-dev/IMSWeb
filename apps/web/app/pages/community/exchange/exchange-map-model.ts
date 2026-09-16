@@ -23,6 +23,12 @@ export interface ExchangeMapFilters {
 
 export const EXCHANGE_MAP_MIN_ZOOM = 2.3
 export const EXCHANGE_MAP_MAX_ZOOM = 11
+/**
+ * The App draws the locate control and the map-tools trigger as one glass pill,
+ * so both register under this group and the native renderer fills the union of
+ * their frames with a single capsule. The name is opaque to the plugin.
+ */
+export const EXCHANGE_MAP_FLOATING_GROUP = "map-floating"
 export const DEFAULT_EXCHANGE_MAP_VIEWPORT: Readonly<ExchangeMapViewport> = {
   center: [127.1, 31.2],
   zoom: 4.05,

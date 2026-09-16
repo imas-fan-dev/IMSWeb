@@ -1,4 +1,7 @@
 {
+  "ignore": [
+    "apps/web/src-tauri/plugins/native-glass/ios/**"
+  ],
   "rules": {
     "bundler-and-runtime-conventions": {
       "disable": [

@@ -56,6 +56,17 @@ dialog 内容包含 `exchange-style.json` 中 `sources.openmaptiles.attribution`
 
 既有降级路径继续成立：`prefers-reduced-transparency: reduce` 下退回不透明背景，`forced-colors: active` 下保持可用对比度。
 
+### R6 右下角控件药丸化（2026-09-17 追加）
+
+App 右下角的 `定位` 与 `地图工具` 入口合并为**一个**液态玻璃药丸，竖向排列，两端半圆，两段之间有一条内缩的分隔细线，参照 Apple 地图自身的控件。
+
+- 合并只改变样式与相对位置：两段各自仍是一个独立控件，事件、可访问名称与既有处理器不变。
+- 顺序维持现状（定位在上、地图工具在下），菜单面板仍从下段向左展开、底边对齐。
+- 两段的宽度与右偏移在所有断点一致，否则原生胶囊会因并集宽于单段而出现错位；外圆角由同一几何关系推出（`min(宽, 高) / 2`），不在两侧各写一个数值。
+- 段尺寸在手机上取 48px（`size-12`，`md:` 取 40px），图标统一 20px。因为两段共享一个胶囊，定位段的底偏移必须等于段高（`+3rem` / `md:+2.5rem`）——改尺寸时两者必须同时改，否则药丸会裂开或重叠。
+- 原生路径用一个 `UIGlassEffect` 胶囊覆盖两段的并集，内部放置两段（不再各自绘制玻璃）并画内缩分隔线；DOM 路径用同一套 `-surface` 配方与内缩分隔线近似同一形状。
+- 合并的是触发段：展开菜单时**面板保留自己的圆角**。药丸段的共享边是直角，面板不是药丸的一部分，两者形状必须分别测量上报。
+
 ### R5 不变更的行为
 
 不改变地图数据加载、区域边界合规处理、点位选中、viewport 记忆、定位成功/失败与错误提示、筛选/名录/详情 Sheet 的既有行为。
@@ -103,6 +114,14 @@ dialog 内容包含 `exchange-style.json` 中 `sources.openmaptiles.attribution`
       与第 8 条同因：需要能打开地图页并注入触摸的环境。
 - [x] `prefers-reduced-transparency: reduce` 下地图浮动控件为不透明背景且无 backdrop-filter。
       证据：`exchange-map-styles.test.ts` 断言地图 CSS 的 reduce 分支同时包含 `backdrop-filter: none` 与 `rgb(255 255 255 / 98%)`，且不含 `backdrop-filter: blur`；`glass-material.test.ts` 继续覆盖 `app.css` 的降级块。Playwright 无法模拟该媒体特性，故以样式契约断言。
+- [x] App 右下角的定位与地图工具构成单个药丸：两段尺寸与右偏移一致，共享边为直边且带内缩分隔线，外圆角等于段宽的一半。
+      证据：`native-glass-controls.test.tsx` 断言两段都在 `group` 相同、帧相邻（定位的 `y + height` 等于菜单的 `y`）；`exchange-map-styles.test.ts` 断言药丸规则存在且没有给两段各自写圆角数值；`exchange-mobile-navigation.test.tsx` 断言菜单段带药丸类名。设备观感属第 8 条同一批次。
+- [x] 药丸不改变事件路径：两段各自仍发出 `press` 并路由到原处理器，分组在协议上是可选字段，未分组的控件渲染路径不变。
+- [x] 展开菜单时原生面板保留圆角：面板携带自己的测量圆角（`panelCornerRadius`），药丸共享边的直角不会被面板复用。
+      证据：`native-glass-controls.test.tsx` 断言触发段 0 / 面板 8 分别上传，`GlassControlView.swift` 在字段缺失时回退到 `cornerRadius`；设备观感属第 8 条同一批次。
+- [x] 药丸尺寸：手机 48px（`size-12`）、`md:` 40px（`md:size-10`），两段图标 20px，定位段底偏移等于段高（`+3rem` / `md:+2.5rem`）。
+      证据：`exchange-mobile-navigation.test.tsx` 断言菜单段 `size-12` / `md:size-10`；`native-glass-controls.test.tsx` 按注入帧断言两段无缝相邻；设备观感属第 8 条同一批次。
+      证据：`native-glass-panel.test.ts` 与 `native-glass-controls.test.tsx` 继续通过（事件解析与未知 id 忽略未变）；Rust 侧 `group` 为 `#[serde(default)] Option<String>`，旧载荷仍可反序列化。
 - [x] `pnpm --filter @imsweb/web lint`、`pnpm run test:web`、`pnpm run build` 通过。
       证据：`pnpm --filter @imsweb/web run check`（lint + typecheck + unit + build）通过；unit 208 文件 / 1351 用例通过。`pnpm run test:web` 的整套 Playwright（7 workers）在 home 页面 9 条用例上因并发负载失败，按仓库约定的 CI 方式 `CI=1 --workers=1 --retries=0` 复跑同两个文件为 37 passed / 3 skipped / 0 failed，属既有并行抖动而非本任务回归。
 - [x] `docs/architecture/glass-refraction-platform-strategy.md` 已更新，记录原生例外扩展到页面内浮动控件的原因与边界。

@@ -61,11 +61,18 @@ describe("ExchangeMobileNavigation app target", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false")
     expect(toggle).toHaveClass(
       "exchange-map-app-control",
-      "size-10",
-      "rounded-lg"
+      "exchange-map-app-surface",
+      "exchange-map-app-pill-bottom",
+      "size-12",
+      "md:size-10"
     )
+    // The Button's own `rounded-lg` utility stays on the element: the pill's
+    // shape comes from the unlayered `.exchange-map-app-pill-*` rules, which win
+    // over Tailwind's utilities layer (asserted in exchange-map-styles.test.ts).
+    expect(toggle).toHaveClass("exchange-map-app-pill-bottom")
     expect(toggle.parentElement).toHaveClass(
-      "bottom-[var(--app-floating-bottom)]"
+      "bottom-[var(--app-floating-bottom)]",
+      "md:right-2.5"
     )
     expect(toggle.parentElement).not.toHaveClass("md:hidden")
     expect(toggle.parentElement).toHaveClass("lg:hidden")

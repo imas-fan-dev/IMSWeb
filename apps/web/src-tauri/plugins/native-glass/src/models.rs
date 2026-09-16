@@ -65,6 +65,11 @@ pub struct NativeGlassMenuItem {
 /// pixels relative to the WebView viewport; the iOS side maps that to UIKit
 /// points. The tag is `kind` so both variants share one internally tagged union
 /// across the Rust, Swift, and TypeScript boundaries.
+///
+/// `group` joins neighbours into one glass capsule: every control carrying the
+/// same non-empty value renders inside a single pill, so the Web side can
+/// describe a cluster such as locate + map tools without a new variant. It is
+/// optional, so a payload written before grouping existed still decodes.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "kind")]
 pub enum NativeGlassControl {
@@ -75,6 +80,8 @@ pub enum NativeGlassControl {
         label: String,
         frame: NativeGlassFrame,
         corner_radius: f64,
+        #[serde(default)]
+        group: Option<String>,
         #[serde(default)]
         active: bool,
         #[serde(default)]
@@ -87,8 +94,16 @@ pub enum NativeGlassControl {
         label: String,
         frame: NativeGlassFrame,
         corner_radius: f64,
+        #[serde(default)]
+        group: Option<String>,
         expanded: bool,
         panel_width: f64,
+        /// The panel is a surface of its own, so it carries its own radius: a
+        /// pill segment reports a square shared edge, which is right for the
+        /// capsule and wrong for the menu it opens. Absent means "use the
+        /// trigger's radius", which is how ungrouped menus already behaved.
+        #[serde(default)]
+        panel_corner_radius: Option<f64>,
         items: Vec<NativeGlassMenuItem>,
     },
 }

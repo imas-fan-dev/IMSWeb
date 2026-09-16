@@ -37,6 +37,7 @@ export type NativeGlassControlSpec =
       label: string
       active?: boolean
       disabled?: boolean
+      group?: string
     }
   | {
       kind: "menu"
@@ -44,6 +45,7 @@ export type NativeGlassControlSpec =
       label: string
       expanded: boolean
       items: NativeGlassMenuItem[]
+      group?: string
     }
 
 type NativeGlassRegistration = {
@@ -108,6 +110,15 @@ function measurePanelWidth(element: HTMLElement | null): number {
 }
 
 /**
+ * The panel is a surface of its own, so it carries its own radius. Reading the
+ * trigger's instead would square the expanded menu off the moment that trigger
+ * became a pill segment, whose shared edge is deliberately straight.
+ */
+function measurePanelRadius(element: HTMLElement | null): number {
+  return element ? measureCornerRadius(element) : 0
+}
+
+/**
  * Owns the native control overlay for one page. It is inert unless the packaged
  * iOS App is the runtime; the real verdict is the `supported` flag the plugin
  * returns, and the DOM twins only leave the layout after that flag is true.
@@ -140,8 +151,10 @@ export function NativeGlassControlsProvider({
           label: spec.label,
           frame,
           cornerRadius,
+          group: spec.group,
           expanded: spec.expanded,
           panelWidth: measurePanelWidth(registration.panelElement),
+          panelCornerRadius: measurePanelRadius(registration.panelElement),
           items: spec.items,
         })
       } else {
@@ -152,6 +165,7 @@ export function NativeGlassControlsProvider({
           label: spec.label,
           frame,
           cornerRadius,
+          group: spec.group,
           active: spec.active ?? false,
           disabled: spec.disabled ?? false,
         })

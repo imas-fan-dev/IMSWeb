@@ -116,6 +116,7 @@ describe("native glass panel bridge", () => {
         cornerRadius: 8,
         expanded: true,
         panelWidth: 144,
+        panelCornerRadius: 12,
         items: [
           { id: "filter", icon: "list-filter", label: "筛选", badge: true },
         ],

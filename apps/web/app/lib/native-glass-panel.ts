@@ -29,6 +29,11 @@ type NativeGlassControlBase = {
   label: string
   frame: NativeGlassFrame
   cornerRadius: number
+  /**
+   * Neighbours sharing one non-empty value are drawn as a single glass pill on
+   * the native side; the Web side still owns every frame inside it.
+   */
+  group?: string
 }
 
 /**
@@ -47,6 +52,12 @@ export type NativeGlassControl =
       kind: "menu"
       expanded: boolean
       panelWidth: number
+      /**
+       * The panel is a separate surface from its trigger, so it carries its own
+       * radius: a pill segment reports a square shared edge, which is correct
+       * for the capsule and would square off the expanded menu.
+       */
+      panelCornerRadius: number
       items: NativeGlassMenuItem[]
     })
 
