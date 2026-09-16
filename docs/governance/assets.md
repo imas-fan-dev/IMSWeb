@@ -83,12 +83,14 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 
 字面层在这之后还有一步修正。`@` 自己的黑边画在**最底层**（描边层），而字面白在它上面，所以凡是字面横跨 `@` 黑边的地方（`m` 右腿压住 `@` 环顶部、`s` 压住 `@` 右下），黑边都会被白盖掉，`@` 看起来直接贴着字面。栅格化因此在字面层上再减去 `@` 外围 6 px 到 20 px 的一条环带，把黑边让回来；内圈 6 px 以内保留，因为 9 px 白衬线只有 4.5 px 露在外面。这条环带一定落在黑框内部（脚本会断言，否则报错退出），所以不会在字面上开出透底的空洞。
 
-图层分组与材质：`@` 单独成组（Liquid Glass 的材质参数是组级属性），开启 `glass`，并配 `specular`、`translucency`、`blur-material`、`refractivity` 和 `lighting: individual`，阴影浅色用 `layer-color`、暗色用 `neutral`，让红色 `@` 读起来像玻璃珠（`@` 的独立黑边来自描边层，与这层玻璃互不干扰）。字面与描边所在的 `Mark` 组保持无 `glass`：带 `glass: true` 时系统会在每层边界叠加约 8 px 宽的边缘高光，白色字面上不可见，但会在描边和 `@` 边界上留下偏粉的亮带。`ictool` 导出时忽略该标志，所以分组的实际效果只能在真机或模拟器构建上验证。处理未引入第三方图像。
+图层分组与材质：`@` 单独成组（Liquid Glass 的材质参数是组级属性），开启 `glass`，并配 `specular`、`translucency`、`blur-material` 和 `lighting: individual`，阴影浅色用 `layer-color`、暗色用 `neutral`，让红色 `@` 读起来像玻璃珠（`@` 的独立黑边来自描边层，与这层玻璃互不干扰）。字面与描边所在的 `Mark` 组保持无 `glass`：带 `glass: true` 时系统会在每层边界叠加约 8 px 宽的边缘高光，白色字面上不可见，但会在描边和 `@` 边界上留下偏粉的亮带。`ictool` 导出时忽略该标志，所以分组的实际效果只能在真机或模拟器构建上验证。处理未引入第三方图像。
+
+`icon.json` 保持在 Icon Composer 1.5 能生成的形态：不含顶层 `features` 数组，组上也不含 `refractivity` 对象。这两个键由 Icon Composer 2.0（随 Xcode 27 发布）写入，Xcode 26 的 `actool` 读不了，归档时会先报 `Could not open "AppIcon.icon"`、再抛一个 nil 对象异常并中断，而预览版 iOS 任务所用的 runner 镜像最高只有 Xcode 26.6，留着任一键都会让每次 iOS 预览发布失败。等 runner 镜像带上 Xcode 27 再恢复；`tests/tauri-build-configuration.test.js` 断言这两个键缺席，回退时会在本地检查就先暴露，不必等 CI 跑到 macOS 任务。
 
 | 仓库路径 | 字节数 | SHA-256 |
 | ----------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------ |
 | `apps/web/src-tauri/icon-sources/app-icon.svg` | 50929 | `02443e9840d1b08853505b5666cc115d1cfaf3f6d753751c613d5bdb96c1226f` |
-| `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/icon.json` | 2490 | `aa9e7fc3a5cc17b27b99c78a8d3c187d741af9d4819de6027842c3bf5a419631` |
+| `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/icon.json` | 2341 | `fb8725278154307920d0e980b945f0192f1569f3a8360f4f7fd531c9260f3f9e` |
 | `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/Outline.png` | 8174 | `af3bb8109d7064878302a05345b50045842c22979c9bf267fd709541153cc4aa` |
 | `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/Wordmark.png` | 12185 | `f4e6b52023433ef141d1d1a45e43fbdc86c612522ee831924663749192059fc8` |
 | `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/At.png` | 8939 | `1e49386990e4ca42da78baad5c277ec7e11734c2685dbdd48f842f3f24ffb2a3` |

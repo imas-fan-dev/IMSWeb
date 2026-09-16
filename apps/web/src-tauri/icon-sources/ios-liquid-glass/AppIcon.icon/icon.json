@@ -1,7 +1,4 @@
 {
-  "features" : [
-    "refractivity"
-  ],
   "fill-specializations" : [
     {
       "value" : {
@@ -40,11 +37,6 @@
       ],
       "lighting" : "individual",
       "name" : "At",
-      "refractivity" : {
-        "depth" : 0.5,
-        "enabled" : true,
-        "strength" : 0.8
-      },
       "shadow" : {
         "kind" : "layer-color",
         "opacity" : 0.5

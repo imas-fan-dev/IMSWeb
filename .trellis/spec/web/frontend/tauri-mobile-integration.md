@@ -192,8 +192,16 @@ byte for byte.
   tighter shoulder reads as a kink once the 28 px offset is applied to it).
 - `icon.json` groups are ordered top-first in Icon Composer 27.0 (`groups[0]` is the top layer),
   which is the reverse of the published 2.0 documentation. The `@` keeps its own group with
-  `glass`, `specular`, `translucency`, `blur-material`, `refractivity`, and `lighting: individual`;
-  the wordmark group stays glass-free because `glass` adds an ~8 px rim at its boundaries.
+  `glass`, `specular`, `translucency`, `blur-material`, and `lighting: individual`; the wordmark
+  group stays glass-free because `glass` adds an ~8 px rim at its boundaries.
+- Keep `icon.json` in the shape Icon Composer 1.5 can produce: no top-level `features` array and no
+  per-group `refractivity` object. Icon Composer 2.0 (Xcode 27) writes both, and `actool` in Xcode 26
+  dies on them while archiving: first `Could not open "AppIcon.icon"`, then a nil-object exception that
+  fails `ARCHIVE FAILED`. The preview iOS job runs on `macos-26-arm64`, whose newest Xcode is 26.6, so
+  either key blocks every iOS preview release, while a local Xcode 27 build succeeds and hides the
+  problem until CI. Restore the keys only once those runner images ship Xcode 27.
+  `tests/tauri-build-configuration.test.js` asserts their absence, so a reintroduced key fails the
+  local check instead of an 8-minute macOS CI job.
 - `ictool` ignores the `glass` flag, so glass behaviour is only verifiable on a simulator or device.
 - Desktop `src-tauri/icons/*`, `icon.icns`, `icon.ico`, and `android-background.png` must stay untouched by
   an iOS-layer-only change. They do follow the shared raster sources when a geometry change regenerates them:

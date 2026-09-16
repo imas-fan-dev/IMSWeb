@@ -336,7 +336,14 @@ test("iOS Liquid Glass icon ships a layered Icon Composer document", async () =>
   assert.equal(at.specular, true);
   assert.equal(at.lighting, "individual");
   assert.ok(at.translucency.enabled);
-  assert.ok(at.refractivity.enabled);
+  // Icon Composer 2.0, which ships with Xcode 27, writes two keys that actool
+  // in Xcode 26 cannot read: the top-level "features" array and a per-group
+  // "refractivity" object. Archiving then fails with `Could not open
+  // "AppIcon.icon"` and a nil-object exception, and the preview iOS job runs on
+  // a runner image whose newest Xcode is 26.6, so either key blocks every iOS
+  // preview release. Restore both once those images ship Xcode 27.
+  assert.ok(!Object.hasOwn(metadata, "features"));
+  assert.ok(!Object.hasOwn(at, "refractivity"));
 
   for (const layer of layers) {
     assert.ok(
