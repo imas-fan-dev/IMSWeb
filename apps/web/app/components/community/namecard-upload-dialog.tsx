@@ -22,6 +22,7 @@ import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Dialog,
   DialogClose,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -202,11 +203,12 @@ export function NamecardUploadDialog() {
       </DialogTrigger>
 
       <DialogContent
-        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        layout="pinned"
+        className="gap-0 p-0 sm:max-w-2xl"
         aria-busy={busy}
       >
         <form
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => void submit(event)}
         >
           <DialogHeader className="shrink-0 p-4 pr-12 pb-0">
@@ -216,8 +218,8 @@ export function NamecardUploadDialog() {
             </DialogDescription>
           </DialogHeader>
 
-          <div
-            className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-5"
+          <DialogBody
+            className="flex flex-col gap-5 px-4 py-5"
             data-namecard-upload-body
           >
             <Alert>
@@ -391,9 +393,9 @@ export function NamecardUploadDialog() {
                 />
               </Field>
             </FieldGroup>
-          </div>
+          </DialogBody>
 
-          <DialogFooter className="m-0 shrink-0 rounded-none">
+          <DialogFooter className="m-0 rounded-none">
             <DialogClose
               render={
                 <Button type="button" variant="outline" disabled={busy} />

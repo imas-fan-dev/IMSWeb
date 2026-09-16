@@ -222,7 +222,7 @@ export function RegionEditorDialog({
       }}
     >
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl"
+        className="overflow-y-auto sm:max-w-2xl"
         showCloseButton={!uploading}
         finalFocus={finalFocus}
       >
@@ -395,7 +395,7 @@ export function CommunityEditorDialog({
       }}
     >
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl"
+        className="overflow-y-auto sm:max-w-2xl"
         showCloseButton={!uploading}
       >
         <form className="contents" onSubmit={submit}>

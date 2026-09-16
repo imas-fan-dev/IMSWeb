@@ -87,7 +87,7 @@ export function InformationEditorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="max-h-[calc(100svh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-5xl"
+        className="grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-5xl"
       >
         <form className="contents" onSubmit={submit}>
           <DialogHeader className="pr-8">

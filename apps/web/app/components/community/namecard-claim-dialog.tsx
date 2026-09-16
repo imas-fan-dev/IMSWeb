@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -142,8 +143,11 @@ export function NamecardClaimDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
-        <form className="space-y-5" onSubmit={(event) => void submit(event)}>
+      <DialogContent layout="pinned" className="sm:max-w-2xl">
+        <form
+          className="flex min-h-0 flex-1 flex-col space-y-5"
+          onSubmit={(event) => void submit(event)}
+        >
           <DialogHeader>
             <DialogTitle>认领历史名片 #{card?.id ?? ""}</DialogTitle>
             <DialogDescription>
@@ -151,7 +155,8 @@ export function NamecardClaimDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {!authenticated ? (
+          <DialogBody className="space-y-5">
+            {!authenticated ? (
             <Alert>
               <CircleAlertIcon aria-hidden="true" />
               <AlertTitle>
@@ -272,7 +277,8 @@ export function NamecardClaimDialog({
               />
               正在载入
             </div>
-          )}
+            )}
+          </DialogBody>
 
           <DialogFooter>
             <Button

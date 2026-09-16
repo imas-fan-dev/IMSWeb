@@ -207,7 +207,7 @@ function RegionImageDialog({
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-sm"
-        className="max-h-[calc(100svh-2rem)] max-w-[calc(100%-2rem)] gap-3 overflow-hidden bg-background p-3 sm:max-w-6xl"
+        className="max-w-[calc(100%-2rem)] gap-3 overflow-hidden bg-background p-3 sm:max-w-6xl"
       >
         <DialogHeader className="flex-row items-center gap-3 px-1">
           <div className="min-w-0 flex-1">

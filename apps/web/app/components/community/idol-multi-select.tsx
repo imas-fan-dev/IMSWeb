@@ -128,7 +128,7 @@ export function IdolMultiSelect({
               return (
                 <label
                   key={idol.id}
-                  className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60 has-disabled:cursor-not-allowed has-disabled:opacity-60"
+                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60 has-disabled:cursor-not-allowed has-disabled:opacity-60"
                 >
                   <Checkbox
                     checked={checked}

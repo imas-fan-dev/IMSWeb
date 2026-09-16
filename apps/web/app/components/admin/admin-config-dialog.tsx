@@ -49,7 +49,7 @@ export function AdminConfigDialog({
       }}
     >
       <DialogContent
-        className={`max-h-[calc(100dvh-2rem)] overflow-y-auto ${contentClassName ?? "sm:max-w-lg"}`}
+        className={`overflow-y-auto ${contentClassName ?? "sm:max-w-lg"}`}
         showCloseButton={!saving}
       >
         <form className="contents" onSubmit={submit}>

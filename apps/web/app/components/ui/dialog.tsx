@@ -44,11 +44,13 @@ function DialogContent({
   showCloseButton = true,
   overlayClassName,
   safeArea = "inset",
+  layout = "scroll",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   overlayClassName?: string
   safeArea?: "custom" | "inset" | "viewport"
+  layout?: "scroll" | "pinned"
 }) {
   return (
     <DialogPortal>
@@ -57,13 +59,26 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         data-safe-area={safeArea}
+        data-layout={layout}
         className={cn(
           "glass-surface glass-panel fixed z-50 grid gap-4 rounded-xl p-4 text-sm text-popover-foreground duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // `safeArea="inset"` owns its own size: the geometry is repeated
+          // after `className` (and `cn` is `twMerge(clsx(...))`), so a caller
+          // `max-h-*` / `w-*` never wins. Callers must not pass those.
           safeArea === "inset" &&
-            "top-1/2 left-1/2 max-h-(--overlay-safe-height) w-(--overlay-safe-width) max-w-full -translate-1/2 overflow-y-auto overscroll-contain sm:max-w-sm",
+            cn(
+              "top-1/2 left-1/2 max-h-(--overlay-safe-height) w-(--overlay-safe-width) max-w-full -translate-1/2",
+              // Scrolling depends on the layout, not on tailwind-merge
+              // resolving `overflow` against `overflow-y`.
+              layout === "scroll" && "overflow-y-auto overscroll-contain",
+              "sm:max-w-sm"
+            ),
           className,
           safeArea === "inset"
-            ? "top-1/2 left-1/2 max-h-(--overlay-safe-height) w-(--overlay-safe-width) -translate-1/2"
+            ? cn(
+                "top-1/2 left-1/2 max-h-(--overlay-safe-height) w-(--overlay-safe-width) -translate-1/2",
+                layout === "pinned" && "flex flex-col overflow-hidden"
+              )
             : safeArea === "viewport"
               ? "inset-0 h-dvh max-h-none w-screen max-w-none translate-0"
               : undefined
@@ -77,7 +92,7 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                className="absolute top-2 right-2 max-sm:size-11"
                 size="icon-sm"
               />
             }
@@ -95,7 +110,20 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex shrink-0 flex-col gap-2", className)}
+      {...props}
+    />
+  )
+}
+
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn(
+        "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+        className
+      )}
       {...props}
     />
   )
@@ -113,7 +141,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/40 p-4 sm:flex-row sm:justify-end",
+        "-mx-4 -mb-4 flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/40 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -159,6 +187,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

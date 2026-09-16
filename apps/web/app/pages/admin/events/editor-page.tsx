@@ -1115,7 +1115,7 @@ export default function AdminEventEditorPage({ params }: Route.ComponentProps) {
         />
       ) : null}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-h-[90svh] max-w-6xl overflow-y-auto p-0">
+    <DialogContent className="max-w-6xl overflow-y-auto p-0">
           <DialogHeader className="border-b p-5">
             <DialogTitle>公开文章预览</DialogTitle>
             <DialogDescription>

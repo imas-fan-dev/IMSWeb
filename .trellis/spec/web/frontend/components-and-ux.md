@@ -215,6 +215,91 @@ source of truth and a gapless set of entry points:
   the notice, `grid-cols-5` without). At 375px every item stays at least 44 × 44 CSS pixels and the
   document must not overflow horizontally.
 
+## Scenario: Mobile dialog sizing and scrolling
+
+### 1. Scope / Trigger
+
+Apply this contract to every centered dialog built on `app/components/ui/dialog.tsx`, and whenever a dialog is long enough to exceed a phone viewport, a caller wants to size one, or a footer or close button must stay reachable.
+
+### 2. Signatures
+
+```tsx
+DialogContent({ layout?: "scroll" | "pinned", safeArea?: "custom" | "inset" | "viewport", … })
+DialogBody({ className, …props }) // data-slot="dialog-body"
+```
+
+### 3. Contracts
+
+- `safeArea="inset"` owns its own size. The geometry (`max-h-(--overlay-safe-height)`,
+  `w-(--overlay-safe-width)`, centering) is written **after** `className`, and `cn` is
+  `twMerge(clsx(...))`, so a caller's `max-h-*` / `w-*` never wins. Do not pass them; delete them
+  when you find them, because they read as if they decide the size.
+- Scrollability comes from `layout`, not from tailwind-merge resolving `overflow` against
+  `overflow-y`. `scroll` (the default) puts `overflow-y-auto overscroll-contain` on the popup;
+  `pinned` puts `overflow-hidden` there plus `flex flex-col` display, so the default path is
+  byte-identical to the pre-`layout` behaviour.
+- `pinned` requires the whole chain to be flex. Any wrapper between `DialogContent` and
+  `DialogHeader` / `DialogBody` / `DialogFooter` — usually a `<form>` — must carry
+  `flex min-h-0 flex-1 flex-col`. Without it the body cannot shrink, the content overflows the
+  `overflow-hidden` popup, and no element scrolls at all.
+- `DialogBody` (`min-h-0 flex-1 overflow-y-auto overscroll-contain`) is the only scroll region in
+  `pinned`. `DialogHeader` and `DialogFooter` are `shrink-0`, so both stay in place.
+- The close button stays `absolute top-2 right-2` and needs no wrapper: the `pinned` root does not
+  scroll, so it is already pinned. It grows to 44 × 44 CSS pixels below the `sm` breakpoint.
+- Option rows rendered inside a dialog are at least `min-h-11` (44px) on touch widths.
+- `DialogFooter`'s `-mx-4 -mb-4` assumes the popup's `p-4`. A wrapper form still aligns the bar to
+  the panel edges because the form spans the popup's content box.
+- A dialog opens with a 100ms zoom, so geometry read straight after `toBeVisible()` is scaled (a
+  44px target measures 43.45px). Wait for finite animations before reading boxes.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Caller passes `max-h-[90svh]` | The primitive's `--overlay-safe-height` still wins |
+| `layout="pinned"` with no `DialogBody` | Defect, not a supported shape: content is clipped with no scroller |
+| Wrapper form missing `flex min-h-0 flex-1 flex-col` | Body cannot shrink; clipped with no scroller |
+| Long content at 320 × 568 | Only the body scrolls; `document.scrollingElement.scrollTop` stays 0 |
+| An inner element needs its own limit | Keep that `max-h`: only `DialogContent` sizes are primitive-owned |
+| Short dialog, no `layout` prop | Default `scroll` behaviour, unchanged |
+
+### 5. Good / Base / Bad Cases
+
+- Good: the namecard claim and upload dialogs use `layout="pinned"`, make the form the flex chain,
+  wrap the fields in `DialogBody`, and keep `DialogFooter` inside the form.
+- Base: a short settings dialog keeps the default `scroll` layout and is untouched.
+- Bad: removing the popup's `overflow-y-auto` outright, which silently turns every existing dialog
+  from "scrolls" into "clipped"; a caller-supplied `max-h`; a hand-rolled
+  `grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden` that predates `layout="pinned"`.
+
+### 6. Tests Required
+
+- `tests/unit/components/ui/dialog.test.tsx`: both layouts' rendered classes and `data-layout`, and
+  a caller `max-h-[90svh]` failing to override the safe-area height.
+- `tests/e2e/namecard-claim-workflow.spec.ts` `@mobile` cases at 375 × 667 and 320 × 568: the panel
+  inside `window.visualViewport`, the submit button visible without scrolling, the body overflowing
+  and scrolling while the footer and close button boxes do not move, `document.scrollingElement`
+  top at 0, and the close button plus every option row at least 44 × 44.
+- Real-device soft keyboard `dvh` shrink is device-only evidence; a passing unit or build is not it.
+
+### 7. Wrong vs Correct
+
+```tsx
+// Wrong: the caller looks like it owns the size, and the footer cannot stay put.
+<DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+  <form>{header}{fields}<DialogFooter /></form>
+</DialogContent>
+
+// Correct: the primitive owns the size, and the body is the scroll region.
+<DialogContent layout="pinned" className="sm:max-w-2xl">
+  <form className="flex min-h-0 flex-1 flex-col space-y-5">
+    <DialogHeader />
+    <DialogBody className="space-y-5">{fields}</DialogBody>
+    <DialogFooter />
+  </form>
+</DialogContent>
+```
+
 ## Public assets
 
 Files added to `apps/web/public/` need a clear runtime purpose and an entry in

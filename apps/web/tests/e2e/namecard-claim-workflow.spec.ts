@@ -1,6 +1,6 @@
 import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { api, expect, test } from "./fixtures/test"
-import type { Page } from "@playwright/test"
+import type { Locator, Page } from "@playwright/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
@@ -304,6 +304,171 @@ test("registered user submits a legacy-card claim from the public wall", async (
   await page.screenshot({
     path: `/tmp/imsweb-namecard-claim-${testInfo.project.name}.png`,
     fullPage: true,
+  })
+})
+
+// The claim dialog is the long-form case for a phone: the whole panel used to
+// scroll, so 提交认领审核 and the ✕ could leave the viewport. The pinned layout
+// keeps both in place and scrolls only the body.
+async function mockClaimSurface(page: Page) {
+  await mockPlatformSession(page)
+  await api.mockRoute(
+    "**/api/wiki/catalog**",
+    async (route) => {
+      await route.fulfill({ json: catalog })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/me/cards",
+    async (route) => {
+      await route.fulfill({ json: { items: [] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/cards**",
+    async (route) => {
+      await route.fulfill({
+        json: {
+          list: [
+            {
+              id: 42,
+              seriesCode: "765",
+              favoriteIdols: [favoriteIdol],
+              claimStatus: "unclaimed",
+              viewerClaimState: null,
+              image1_url: FRONT_IMAGE,
+              image2_url: BACK_IMAGE,
+              image1_thumbnail_url: FRONT_IMAGE,
+              image2_thumbnail_url: BACK_IMAGE,
+              status: "approved",
+              created_at: "2026-08-16T19:30:00.000Z",
+            },
+          ],
+          total: 1,
+          totalPage: 1,
+        },
+      })
+    },
+    "GET"
+  )
+  await api.mockRoute(
+    "**/api/reactions**",
+    async (route) => {
+      await route.fulfill({ json: {} })
+    },
+    "GET"
+  )
+}
+
+async function openClaimDialog(page: Page) {
+  await page.goto("/community/cards")
+  await page.getByRole("button", { name: "认领这张旧名片" }).click()
+  const dialog = page.getByRole("dialog", { name: "认领历史名片 #42" })
+  await expect(dialog).toBeVisible()
+  await settleDialog(dialog)
+  return dialog
+}
+
+// The popup opens with a 100ms zoom-in, so measuring straight after `toBeVisible`
+// returns scaled geometry (a 44px target reads as 43.45px). Let the finite
+// animations finish, allowing cancellation, before any box is read.
+async function settleDialog(dialog: Locator) {
+  await dialog.evaluate((node) =>
+    Promise.allSettled(
+      node
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished)
+    )
+  )
+}
+
+function expectSameBox(
+  before: { x: number; y: number } | null,
+  after: { x: number; y: number } | null
+) {
+  expect(before).not.toBeNull()
+  expect(after).not.toBeNull()
+  expect(Math.abs((after as { y: number }).y - (before as { y: number }).y)).toBeLessThanOrEqual(1)
+  expect(Math.abs((after as { x: number }).x - (before as { x: number }).x)).toBeLessThanOrEqual(1)
+}
+
+test.describe("claim dialog mobile constraints @mobile", () => {
+  test.use({ viewport: { width: 375, height: 667 }, hasTouch: true })
+
+  test("keeps the dialog and its primary action inside the phone viewport", async ({
+    page,
+  }) => {
+    await mockClaimSurface(page)
+    const dialog = await openClaimDialog(page)
+
+    const viewport = await page.evaluate(() => ({
+      width: window.visualViewport?.width ?? window.innerWidth,
+      height: window.visualViewport?.height ?? window.innerHeight,
+    }))
+    const panel = await dialog.boundingBox()
+    const submit = await dialog
+      .getByRole("button", { name: "提交认领审核" })
+      .boundingBox()
+
+    expect(panel).not.toBeNull()
+    expect(submit).not.toBeNull()
+    expect(panel!.x).toBeGreaterThanOrEqual(-1)
+    expect(panel!.y).toBeGreaterThanOrEqual(-1)
+    expect(panel!.x + panel!.width).toBeLessThanOrEqual(viewport.width + 1)
+    expect(panel!.y + panel!.height).toBeLessThanOrEqual(viewport.height + 1)
+    // Reachable without scrolling anything: the footer is not below the fold.
+    expect(submit!.y).toBeGreaterThanOrEqual(0)
+    expect(submit!.y + submit!.height).toBeLessThanOrEqual(viewport.height + 1)
+    expect(
+      await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
+    ).toBe(0)
+
+    // Touch targets: the close button and every option row.
+    const close = await dialog.locator('[data-slot="dialog-close"]').boundingBox()
+    expect(close!.width).toBeGreaterThanOrEqual(44)
+    expect(close!.height).toBeGreaterThanOrEqual(44)
+    const rowHeights = await dialog
+      .locator('[aria-label="担当偶像候选"] label')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getBoundingClientRect().height)
+      )
+    expect(rowHeights.length).toBeGreaterThan(0)
+    expect(rowHeights.filter((height) => height < 44)).toEqual([])
+  })
+
+  test("keeps the footer and close button fixed while only the body scrolls", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 568 })
+    await mockClaimSurface(page)
+    const dialog = await openClaimDialog(page)
+
+    const body = dialog.locator('[data-slot="dialog-body"]')
+    const footer = dialog.locator('[data-slot="dialog-footer"]')
+    const close = dialog.locator('[data-slot="dialog-close"]')
+    await expect(body).toBeVisible()
+
+    const overflow = await body.evaluate((node) => ({
+      scrollHeight: node.scrollHeight,
+      clientHeight: node.clientHeight,
+    }))
+    expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight)
+
+    const footerBefore = await footer.boundingBox()
+    const closeBefore = await close.boundingBox()
+    await body.evaluate((node) => {
+      node.scrollTop = node.scrollHeight
+    })
+    await waitForNextPaint(page)
+
+    expect(await body.evaluate((node) => node.scrollTop)).toBeGreaterThan(0)
+    expectSameBox(footerBefore, await footer.boundingBox())
+    expectSameBox(closeBefore, await close.boundingBox())
+    expect(
+      await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
+    ).toBe(0)
   })
 })
 
