@@ -339,3 +339,188 @@ for (const outcome of ["shortened", "error"] as const) {
     ).toBeVisible()
   })
 }
+
+const ACCOUNT_SESSION = {
+  success: true,
+  account: { id: "platform-app", status: "active" },
+  profile: {
+    displayName: "App 制作人",
+    avatarUrl: null as string | null,
+    homeCity: "上海",
+    bio: "",
+  },
+}
+
+function installAppResourcesMocks(api: ApiDispatcher) {
+  api.expect({
+    method: "GET",
+    path: "/api/homepage-links",
+    responses: { 200: homepageLinksSchema },
+    times: { min: 1, max: 4 },
+    handle: () => ({
+      status: 200,
+      json: {
+        sections: {
+          navigation: Array.from({ length: 24 }, (_, index) => ({
+            id: `extra-${index}`,
+            section: "navigation",
+            title: `扩展资料 ${index + 1}`,
+            description: "测试目录滚动与扩展入口保留",
+            href: `https://example.com/resource/${index}`,
+            icon: "external-link",
+            accent: "info",
+            displayOrder: index,
+          })),
+          friend: [],
+          support: [],
+        },
+      },
+    }),
+  })
+  installEmptyWikiCatalogMock(api, { min: 1, max: 8 })
+}
+
+/**
+ * Enough of the authenticated 我的 workspace for the back-navigation paths:
+ * the session, the profile the workspace reads, and the two card endpoints the
+ * cards section loads. The section only needs to mount, not render data.
+ */
+function installAccountMocks(api: ApiDispatcher) {
+  api.mock(
+    {
+      method: "GET",
+      path: "/api/platform/auth/session",
+      times: { min: 1, max: 4 },
+    },
+    (route) =>
+      route.fulfill({
+        json: { ...ACCOUNT_SESSION, profile: { ...ACCOUNT_SESSION.profile } },
+      })
+  )
+  api.mock(
+    { method: "GET", path: "/api/platform/me", times: { min: 1, max: 4 } },
+    (route) =>
+      route.fulfill({
+        json: {
+          ...ACCOUNT_SESSION,
+          capabilities: { fudabaWrite: true },
+          profile: { ...ACCOUNT_SESSION.profile, updatedAt: 1 },
+        },
+      })
+  )
+  for (const path of [
+    "/api/community/exchange/me/series",
+    "/api/community/exchange/me/cards",
+    "/api/community/exchange/me/claim-envelopes",
+    "/api/community/exchange/me/offices",
+  ]) {
+    api.mock({ method: "GET", path, times: { min: 0, max: 4 } }, (route) =>
+      route.fulfill({ json: { items: [] } })
+    )
+  }
+  api.mock(
+    {
+      method: "GET",
+      path: "/api/community/exchange/me/favorites",
+      times: { min: 0, max: 4 },
+    },
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [],
+          pageInfo: { hasNextPage: false, nextCursor: null },
+        },
+      })
+  )
+}
+
+async function setAccountSessionHint(page: Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("ims.platform.access-token", "app-nav-token")
+    document.cookie = "ims_platform_csrf=e2e; path=/"
+  })
+}
+
+test(
+  "keeps the app viewport free of pinch and double-tap zoom",
+  { tag: "@app-webkit" },
+  async ({ page }) => {
+    await page.goto("/account/me")
+    const viewport = page.locator('meta[name="viewport"]')
+    await expect(viewport).toHaveAttribute("content", /maximum-scale=1/)
+    await expect(viewport).toHaveAttribute("content", /user-scalable=no/)
+    await expect(viewport).toHaveAttribute("content", /viewport-fit=cover/)
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => getComputedStyle(document.documentElement).touchAction
+        )
+      )
+      .toBe("pan-x pan-y")
+  }
+)
+
+test(
+  "returns to the account root from a directly entered section",
+  { tag: "@app-webkit" },
+  async ({ page, api }) => {
+    installEmptyWikiCatalogMock(api, { min: 0, max: 4 })
+    await page.goto("/account/me/cards")
+    await expect(page).toHaveURL(/\/account\/me\/cards$/)
+    await page.getByRole("button", { name: "返回", exact: true }).click()
+    await expect(page).toHaveURL(/\/account\/me$/)
+  }
+)
+
+test(
+  "returns to the account root after entering a section from another tab",
+  { tag: "@app-webkit" },
+  async ({ page, api }) => {
+    await setAccountSessionHint(page)
+    installAppResourcesMocks(api)
+    installAccountMocks(api)
+    await page.goto("/apps")
+    await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+    await expect(page).toHaveURL(/\/account\/me$/)
+    await page.locator('a[href="/account/me/cards"]').click()
+    await expect(page).toHaveURL(/\/account\/me\/cards$/)
+    await page.getByRole("button", { name: "返回", exact: true }).click()
+    await expect(page).toHaveURL(/\/account\/me$/)
+  }
+)
+
+test(
+  "keeps browsing history on the account root",
+  { tag: "@app-webkit" },
+  async ({ page, api }) => {
+    installAppResourcesMocks(api)
+    await page.goto("/apps")
+    await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+    await expect(page).toHaveURL(/\/account\/me$/)
+    await page.goBack()
+    await expect(page).toHaveURL(/\/apps$/)
+  }
+)
+
+test(
+  "returns a restored account section to its root on a native pop",
+  { tag: "@app-webkit" },
+  async ({ page, api }) => {
+    await setAccountSessionHint(page)
+    installAppResourcesMocks(api)
+    installAccountMocks(api)
+    await page.goto("/account/me")
+    await page.locator('a[href="/account/me/cards"]').click()
+    await expect(page).toHaveURL(/\/account\/me\/cards$/)
+    // Leave the tab, then restore it, so /account/me no longer sits below the
+    // section in session history and a native pop would land on 资料.
+    await nav(page).getByRole("link", { name: "资料", exact: true }).click()
+    await expect(page).toHaveURL(/\/apps$/)
+    await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+    await expect(page).toHaveURL(/\/account\/me\/cards$/)
+    await page.goBack()
+    await expect(page).toHaveURL(/\/account\/me$/)
+    await page.goBack()
+    await expect(page).toHaveURL(/\/apps$/)
+  }
+)

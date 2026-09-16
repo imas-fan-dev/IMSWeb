@@ -34,6 +34,9 @@ tauri-plugin-native-glass = { path = "plugins/native-glass" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tauri-plugin-native-image = { path = "plugins/native-image" }
+# Used only to reach WKWebView's allowsBackForwardNavigationGestures property,
+# which wry 0.55 never sets on iOS and Tauri exposes no config for.
+objc2 = "0.6"
 
 # tao 0.35.3 returns a borrowed pointer from
 # `application:configurationForConnectingSceneSession:options:` where UIKit expects an

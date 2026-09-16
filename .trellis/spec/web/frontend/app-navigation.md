@@ -30,7 +30,25 @@ declare function beginAppScrollRestoration(
     onFinish?: (result: "success" | "deadline" | "cancelled") => void
   }
 ): () => void
+
+declare function appBackHierarchyTarget(pathname: string): string | null
 ```
+
+Back inside My climbs the route hierarchy instead of replaying browsing
+history. `appBackHierarchyTarget` returns `/account/me` for
+`/account/me/<section>` and `/account/security`, and `null` for `/account/me`
+itself and for every other route. `goBack` pops when the tracked entry below the
+current one is already that parent, and otherwise replaces the subpage entry
+with it, so a second back still reaches the previous section. The rule stays in
+the tab model beside the other prefix sets, so the header button and the native
+back gesture share one decision.
+
+A native pop never calls `goBack`, so the provider also inspects commits. When a
+POP leaves a subpage whose parent is not its destination, the provider pushes
+that parent: the push drops the popped-forward section entry and keeps the entry
+below, so a second pop still reaches the previous tab. This covers a section
+restored from another tab, where no parent ever sat below it. Only a real pop
+counts, because a restored commit reuses the current entry key.
 
 Use `appTabIdForPathname` and `appTabRoot` from the tab model. Do not create a
 second prefix list for directories, headers, or native selection. Personal
@@ -95,6 +113,8 @@ trace can alter the timing being measured.
 | Rapid A → B → A before commit | Restore A; do not interpret it as A reselection |
 | Unknown route | No forced tab selection |
 | Back with observed App history | Use actual history, including section switches |
+| Back on an Account subpage | Reach `/account/me`: pop when that parent is already the entry below, otherwise replace the subpage entry |
+| Back on the Account root | Use actual history and leave My for the previous location |
 | Direct entry without observed history | Replace with the owning root; do not create a back loop |
 | Account identity changes | Clear personal snapshots and pending personal restoration before saving the new commit |
 | Fullscreen exchange map | Select Map and leave viewport/filter restoration to the map |
@@ -140,12 +160,17 @@ Community's existing exchange-availability rules.
 ## 6. Required assertions
 
 - `app-tab-model.test.ts`: five-tab order, personal-before-map-before-community
-  ownership, roots, unknown paths, and icons.
+  ownership, roots, unknown paths, icons, and the back hierarchy targets for
+  section, security, root, and unrelated account routes.
 - `app-navigation-provider.test.tsx`: full URLs, source position, actual back,
   replace fallback, account changes during slow loading and before React paints,
   queued roundtrips, interrupted root selection, root query/hash preservation,
   public `/about` reading across committed and pending identity changes,
-  independent Community/Map reading, and map root reselection without scrolling.
+  independent Community/Map reading, and map root reselection without scrolling,
+  plus hierarchy back from a directly entered Account subpage, from a subpage
+  whose parent sits below, and from a subpage entered in another section, a
+  native pop that leaves a restored section for the parent and then for the tab
+  below it, and the unchanged history behavior on the Account root.
   Use a real browser-history router for commit-versus-paint assertions.
 - `app-shell-scroll.test.ts`: delayed height, later anchoring, user cancellation,
   pointer and Space activation order, timeout, cleanup, missing ResizeObserver,
@@ -155,7 +180,10 @@ Community's existing exchange-availability rules.
   the five App projects. A test expecting a remount and a second request must
   await the destination page's rendered identity before switching back. A URL
   update alone can precede React's commit; a rapid roundtrip can correctly keep
-  the original component and make no second request.
+  the original component and make no second request. Cover the My hierarchy back
+  from a direct entry, from a subpage entered in another section, a native pop
+  from a section restored after a tab switch, and unchanged history behavior on
+  the Account root.
 - Existing shell, map, events, account, Wiki, and namecard App tests retain their
   geometry and modal assertions. Scope tab locators to the named main navigation.
 - Infrastructure tests compare active model icons with the Rust inventory and

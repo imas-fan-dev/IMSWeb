@@ -90,3 +90,18 @@ export function appTabIndexForPathname(pathname: string) {
 export function appTabRoot(id: AppTabId) {
   return APP_TABS.find((tab) => tab.id === id)?.to ?? "/"
 }
+
+/**
+ * The App back button climbs one level inside 我的 instead of replaying the
+ * browser history. These are the account routes whose parent is the Account tab
+ * root, `/account/me`; the root itself returns null and keeps its history
+ * semantics. Kept beside the tab model rather than in a page so the navigation
+ * layer owns the rule for both the button and the native back gesture.
+ */
+export function appBackHierarchyTarget(pathname: string) {
+  const normalized = normalizeAppPathname(pathname)
+  if (normalized === "/account/me") return null
+  if (normalized === "/account/security") return "/account/me"
+  if (pathBelongsTo(normalized, "/account/me")) return "/account/me"
+  return null
+}

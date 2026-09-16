@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core"
 import {
   createContext,
   useCallback,
@@ -11,6 +12,7 @@ import {
 import { useLocation, useNavigationType } from "react-router"
 
 import {
+  appBackHierarchyTarget,
   appTabIdForPathname,
   appTabRoot,
   isPersonalAppRoute,
@@ -34,6 +36,7 @@ import {
   normalizeAppPathname,
   scrollAppViewToTop,
 } from "~/lib/app-shell-scroll"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 
 interface AppNavigationContextValue {
@@ -92,6 +95,8 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     [location]
   )
   const currentHref = appNavigationHref(currentLocation)
+  const hierarchyBackTarget = appBackHierarchyTarget(currentLocation.pathname)
+  const goBackRef = useRef<() => void>(() => undefined)
   const identity =
     status === "authenticated" || status === "restricted"
       ? `account:${session?.account.id ?? "unknown"}`
@@ -217,6 +222,24 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     cancelPending()
     cancelRestoration()
 
+    // Inside 我的 the back control climbs the route hierarchy instead of
+    // replaying browsing history. When the parent already sits directly below
+    // this entry a pop keeps the stack untouched; otherwise the subpage entry
+    // is replaced so the next pop still reaches the previous tab.
+    if (hierarchyBackTarget) {
+      const { entries, index } = stateRef.current.history
+      const parentHref = entries[index - 1]?.href
+      const parentPathname = parentHref
+        ? normalizeAppPathname(parentHref.split(/[?#]/, 1)[0] ?? "/")
+        : null
+      if (parentPathname === hierarchyBackTarget) {
+        navigate(-1)
+      } else {
+        navigate(hierarchyBackTarget, { replace: true })
+      }
+      return
+    }
+
     if (hasUsableAppHistoryBack(stateRef.current)) {
       navigate(-1)
       return
@@ -236,10 +259,59 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     cancelPending,
     cancelRestoration,
     currentLocation,
+    hierarchyBackTarget,
     navigate,
     queueTabNavigation,
     rememberCurrentLocation,
   ])
+
+  useLayoutEffect(() => {
+    goBackRef.current = goBack
+  }, [goBack])
+
+  // On Android, Tauri's `app` plugin pops the WebView's own history unless a JS
+  // listener exists, which is the wrong destination inside 我的. Register the
+  // listener for those pages only, so every other screen keeps the default
+  // back-or-exit behavior. iOS edge-swipe back is enabled natively in
+  // src-tauri/src/lib.rs, where it pops the same session history.
+  useEffect(() => {
+    if (!IS_APP_TARGET || !isTauri() || !hierarchyBackTarget) return
+
+    let disposed = false
+    let release: (() => void) | undefined
+    void import("@tauri-apps/api/app")
+      .then(({ onBackButtonPress }) =>
+        onBackButtonPress(() => goBackRef.current())
+      )
+      .then((listener) => {
+        const unregister = () => {
+          void listener.unregister()
+        }
+        if (disposed) unregister()
+        else release = unregister
+      })
+      .catch(() => undefined)
+
+    return () => {
+      disposed = true
+      release?.()
+    }
+  }, [hierarchyBackTarget])
+
+  // A native pop (the iOS edge swipe, or Tauri's default Android back before
+  // the listener attaches) replays session history. A section restored from
+  // another tab has no /account/me below it, so that pop would land on the
+  // previous tab. Push the parent to match the back control: the destination
+  // entry replaces nothing, so a second pop still reaches the previous tab.
+  useLayoutEffect(() => {
+    if (navigationType !== "POP") return
+    const previous = committedLocationRef.current
+    // A restored commit reuses the same entry; only a real pop changes it.
+    if (!previous || previous.key === currentLocation.key) return
+    const leftTarget = appBackHierarchyTarget(previous.pathname)
+    if (!leftTarget || leftTarget === currentLocation.pathname) return
+    navigate(leftTarget)
+  }, [currentLocation.key, currentLocation.pathname, navigate, navigationType])
 
   useLayoutEffect(() => {
     const previous = committedLocationRef.current

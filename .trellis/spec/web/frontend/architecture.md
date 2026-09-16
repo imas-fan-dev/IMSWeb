@@ -15,6 +15,18 @@ The route manifest also separates Web and Tauri app targets. Exclude a module at
 manifest construction time when it must not enter the app build graph. Do not
 filter routes after importing their page modules.
 
+Route modules receive their props from the router, not from the caller. The
+React Router Vite plugin rewrites every route module's default export into a
+`UNSAFE_withComponentProps` wrapper that injects `params`, `loaderData`,
+`actionData`, and `matches`, and that wrapper drops any props passed where the
+export is rendered. A page that must show the same view as another route
+therefore imports a non-route module, exports its own default element, and
+passes explicit props (see `community-exchange-me-workspace.tsx` next to the
+`community-exchange-me-page.tsx` route module). Never render another route
+module's default export as a child component: the props silently disappear and
+unit tests still pass, because the plugin does not run under vitest. Cover that
+path in an app-target browser test.
+
 ## Ownership by directory
 
 - Page-only UI stays beside its page, under a local `components/` directory

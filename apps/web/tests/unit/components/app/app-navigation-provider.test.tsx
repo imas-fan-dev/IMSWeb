@@ -12,6 +12,7 @@ import {
   MemoryRouter,
   RouterProvider,
   useLocation,
+  useNavigate,
 } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -43,6 +44,7 @@ vi.mock("~/lib/app-shell-scroll", async (importOriginal) => ({
 function Probe() {
   const location = useLocation()
   const { activateTab, goBack } = useAppNavigation()
+  const navigate = useNavigate()
   // Model document clamping before the parent's route-commit effect.
   useLayoutEffect(() => {
     window.scrollY = 0
@@ -60,12 +62,18 @@ function Probe() {
       <button onClick={() => activateTab("resources")}>资料</button>
       <button onClick={() => activateTab("account")}>我的</button>
       <button onClick={goBack}>返回</button>
+      {/* Models the native pop: WKWebView's edge swipe and Tauri's default
+          Android back both replay session history without going through the
+          back control. */}
+      <button onClick={() => navigate(-1)}>原生返回</button>
       <NavigationLink to="/works/example?edition=2#intro">
         作品详情
       </NavigationLink>
       <NavigationLink to="/community/exchange/offices/tokyo?view=members#team">
         事务所详情
       </NavigationLink>
+      <NavigationLink to="/account/me/cards">我的交换名片</NavigationLink>
+      <NavigationLink to="/account/security">帐号安全</NavigationLink>
     </>
   )
 }
@@ -526,6 +534,63 @@ describe("App navigation coordination", () => {
     expect(screen.getByTestId("location").textContent).toBe("/apps")
     await userEvent.setup().click(screen.getByRole("button", { name: "返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/works/example")
+  })
+
+  it.each(["/account/me/cards", "/account/security"])(
+    "lands on the account root from directly entered %s",
+    async (href) => {
+      const user = userEvent.setup()
+      render(<Tree entries={[href]} />)
+      expect(screen.getByTestId("location").textContent).toBe(href)
+      await user.click(screen.getByRole("button", { name: "返回" }))
+      expect(screen.getByTestId("location").textContent).toBe("/account/me")
+    }
+  )
+
+  it("pops to the account root when the parent sits below the subpage", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/account/me"]} />)
+    await user.click(screen.getByRole("link", { name: "我的交换名片" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/account/me/cards"
+    )
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+  })
+
+  it("pushes the account root when a native pop leaves a restored section", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/community", "/account/me/cards"]} />)
+    expect(screen.getByTestId("location").textContent).toBe(
+      "/account/me/cards"
+    )
+    await user.click(screen.getByRole("button", { name: "原生返回" }))
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location").textContent).toBe("/community")
+  })
+
+  it("replaces a cross-tab account subpage with the account root", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/community"]} />)
+    await user.click(screen.getByRole("link", { name: "我的交换名片" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/account/me/cards"
+    )
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location").textContent).toBe("/community")
+  })
+
+  it("keeps browsing history on the account root", async () => {
+    const user = userEvent.setup()
+    const href = "/community/cards?page=2&size=12#card-13"
+    render(<Tree entries={[href]} />)
+    await user.click(screen.getByRole("button", { name: "我的" }))
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(href)
   })
 
   it("does not recapture an old personal page after the account changes", async () => {

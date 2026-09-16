@@ -254,3 +254,75 @@ the fill path.
 Correct: keep one hand-authored or traced `d` per shape, produce the frame by offsetting those
 shapes and tracing the result, and let `stroke-width` produce the keyline, so the outline can never
 drift away from the fill.
+
+## Scenario: App viewport zoom and native back navigation
+
+### 1. Scope / Trigger
+
+Use this contract when the packaged App's viewport behavior or back gesture changes: pinch or
+double-tap zoom, the app viewport meta, WKWebView gesture flags, or the Android system back. The
+Web build keeps a zoomable, history-driven viewport; only the app target changes.
+
+### 2. Signatures
+
+| Owner | Entry point |
+| --- | --- |
+| Viewport meta | `VIEWPORT_CONTENT` in `apps/web/app/lib/app-target.ts` |
+| Zoom gesture policy | `html[data-app-target="app"]` in `apps/web/app/app.css` |
+| Back decision | `appBackHierarchyTarget` in `apps/web/app/components/app/app-tab-model.ts`, consumed by `goBack` |
+| Android back | `onBackButtonPress` from `@tauri-apps/api/app` |
+| iOS back swipe | `enable_ios_back_swipe` in `apps/web/src-tauri/src/lib.rs` |
+
+### 3. Contracts
+
+- The app viewport string adds `maximum-scale=1, user-scalable=no` to
+  `width=device-width, initial-scale=1, viewport-fit=cover`; the Web string stays
+  `width=device-width, initial-scale=1`. WKWebView honors the two directives, iOS Safari ignores
+  them, and `touch-action: pan-x pan-y` on the app root covers double-tap zoom in both engines
+  while leaving scrolling and map panning intact.
+- Android back is Tauri's. `tauri 2.11.5` `AppPlugin.kt` registers an `OnBackPressedCallback` that
+  calls `webView.goBack()` and exits the activity when `canGoBack()` is false. A JS
+  `onBackButtonPress` listener replaces that default with a `back-button` event carrying
+  `canGoBack`. Register the listener only on the routes where the app owns the destination and
+  unregister on exit, so every other screen keeps back-or-exit. Registration is asynchronous, so a
+  press in the first moments after arrival can still take the default path.
+- iOS edge swipe is off by default. In `wry 0.55.1` the `setAllowsBackForwardNavigationGestures`
+  call sits inside `#[cfg(target_os = "macos")]` (`src/wkwebview/mod.rs:512`) and
+  `back_forward_navigation_gestures` defaults to `false` (`src/lib.rs:840`). Tauri exposes no
+  configuration, so `setup` flips the WKWebView property through the documented `with_webview`
+  hook. The native pop replays WKWebView session history, so the gesture reaches `/account/me` only
+  when that parent is the entry below the subpage.
+- Keep the destination rule in the Web navigation layer. Native code only enables or forwards the
+  gesture; it must not duplicate section ownership.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| App target document | Meta carries `maximum-scale=1`, `user-scalable=no`, `viewport-fit=cover`; root `touch-action` is `pan-x pan-y` |
+| Web target document | Viewport meta unchanged and no root `touch-action`; the website stays zoomable |
+| Android back on a My subpage | Run the app `goBack` and land on `/account/me` |
+| Android back on any other screen | No listener, so Tauri's default back-or-exit applies |
+| iOS edge swipe with the parent below | Land on `/account/me` |
+| iOS edge swipe with no parent below | Known gap: the swipe pops to the previous location while the button replaces to `/account/me`; matching them needs a `popstate` correction layer |
+| Desktop or non-Tauri runtime | Skip the native listener; `isTauri()` is false |
+
+### 5. Good / Base / Bad Cases
+
+- Good: enter My from another section, open 我的资料, then press back or swipe once; both land on
+  `/account/me`, and a second back leaves My for the previous section.
+- Base: a direct deep link into `/account/me/cards` makes the button replace the entry with
+  `/account/me`; no parent entry exists below for the iOS gesture.
+- Bad: register `onBackButtonPress` globally, which silently disables Tauri's back-or-exit behavior
+  on every other screen, or claim the app cannot zoom while the Web viewport string or
+  `touch-action` still allows it.
+
+### 6. Tests Required
+
+- App Playwright asserts the app viewport meta values and the computed root `touch-action`, plus the
+  button hierarchy back from a direct entry, from a subpage entered in another section, and the
+  unchanged history behavior on the Account root.
+- `cargo check --target aarch64-apple-ios-sim` covers the iOS function.
+- Real pinch zoom, double-tap zoom, the Android system back, and the iOS edge swipe need simulator
+  or device evidence. Browser mocks and a compile check do not prove them, and the iOS gesture has
+  no automated substitute, because desktop WebKit ignores the native flag.

@@ -1048,6 +1048,16 @@ html[data-app-target="app"][data-app-immersive],
   --app-header-inset: var(--safe-area-top);
 }
 
+/*
+ * The packaged App owns its viewport: pinch-zoom and double-tap zoom stay off
+ * so the shell reads as a native screen rather than a zoomable website.
+ * pan-x/pan-y keeps one- and two-finger scrolling and map panning working.
+ * The Web build never sets data-app-target, so website zoom is unchanged.
+ */
+html[data-app-target="app"] {
+  touch-action: pan-x pan-y;
+}
+
 @media (max-width: 767px) {
   [data-exchange-office-map] .maplibregl-ctrl-bottom-left,
   [data-exchange-office-map] .maplibregl-ctrl-bottom-right {

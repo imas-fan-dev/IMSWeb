@@ -14,9 +14,15 @@ export const IS_APP_TARGET = import.meta.env.VITE_IMS_APP_TARGET === "app"
  * the plain viewport: its layouts do not budget for the insets, so opting the
  * site into the display cutout would slide the site header under the status bar
  * on notched phones.
+ *
+ * The app build also pins `maximum-scale=1` and `user-scalable=no`, so the
+ * packaged shell cannot be pinch-zoomed or double-tap-zoomed. iOS Safari
+ * ignores those two directives, but the WKWebView that hosts the app honors
+ * them; the `touch-action` rule in `app.css` covers the remaining double-tap
+ * case on both engines. The website keeps free zoom for accessibility.
  */
 export const VIEWPORT_CONTENT = IS_APP_TARGET
-  ? "width=device-width, initial-scale=1, viewport-fit=cover"
+  ? "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
   : "width=device-width, initial-scale=1"
 
 /**

@@ -34,6 +34,13 @@ not self-explanatory.
 - Keep loading, error, empty, and success states within stable layout bounds.
 - Verify that text, dialogs, fixed actions, maps, and navigation do not overlap
   or create horizontal overflow at mobile and desktop sizes.
+- A visually hidden form control must not contribute layout width. Tailwind's
+  `.sr-only` sets `width: 1px`, so a wrapper variant that resets a direct
+  `.sr-only` child to `w-auto` (as `Field` did) hands an absolutely positioned
+  file input its shrink-to-fit width instead: the avatar uploader measured 361px
+  and made every App account section 56px wider than a 320px viewport. Keep the
+  override at `w-px`, and assert `document.documentElement.scrollWidth ===
+  window.innerWidth` at 320px for pages that host hidden inputs.
 - Preserve Tauri safe areas for app-target fixed UI.
 - Keep essential labels and actions visible by default. A hover-only presentation may
   hide them only under the combined `hover: hover` and `pointer: fine` media query;

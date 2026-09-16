@@ -1,3 +1,32 @@
+/// Opens the iOS edge-swipe back gesture.
+///
+/// WKWebView defaults `allowsBackForwardNavigationGestures` to `NO`, and wry
+/// 0.55 only applies `back_forward_navigation_gestures` on macOS (its own docs
+/// mark the attribute unsupported on iOS), so the packaged app ships without a
+/// native back swipe. Tauri exposes no configuration for it, so the shell flips
+/// the WKWebView property directly through the documented `with_webview` hook.
+/// The web app's 我的 subpages sit on top of `/account/me` in session history,
+/// so a gesture back there lands on the Account root, matching the in-app back
+/// button.
+#[cfg(target_os = "ios")]
+fn enable_ios_back_swipe(app: &tauri::AppHandle) {
+    use objc2::runtime::AnyObject;
+    use tauri::Manager;
+
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.with_webview(|webview| {
+        let webview: *mut AnyObject = webview.inner().cast();
+        unsafe {
+            let _: () = objc2::msg_send![
+                webview,
+                setAllowsBackForwardNavigationGestures: true
+            ];
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -13,6 +42,9 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            #[cfg(target_os = "ios")]
+            enable_ios_back_swipe(app.handle());
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

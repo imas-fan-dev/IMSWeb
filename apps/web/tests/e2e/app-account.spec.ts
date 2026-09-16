@@ -108,7 +108,7 @@ async function installAccountMocks(
     {
       method: "GET",
       path: "/api/platform/me",
-      times: { min: 1, max: 6 },
+      times: { min: 1, max: 12 },
     },
     async (route) => {
       expectPlatformBearer(route.request().headers())
@@ -128,7 +128,7 @@ async function installAccountMocks(
     "/api/community/exchange/me/cards",
   ]) {
     await api.mock(
-      { method: "GET", path, times: { min: 0, max: 4 } },
+      { method: "GET", path, times: { min: 0, max: 12 } },
       (route) => fulfillJson(route, emptyItems, corsHeaders)
     )
   }
@@ -137,7 +137,7 @@ async function installAccountMocks(
     "/api/community/exchange/me/offices",
   ]) {
     await api.mock(
-      { method: "GET", path, times: { min: 0, max: 4 } },
+      { method: "GET", path, times: { min: 0, max: 12 } },
       (route) => fulfillJson(route, emptyItems, corsHeaders)
     )
   }
@@ -145,7 +145,7 @@ async function installAccountMocks(
     {
       method: "GET",
       path: "/api/community/exchange/me/favorites",
-      times: { min: 0, max: 4 },
+      times: { min: 0, max: 12 },
     },
     async (route) => {
       await fulfillJson(
@@ -162,7 +162,7 @@ async function installAccountMocks(
     {
       method: "GET",
       path: "/api/wiki/catalog",
-      times: { min: 0, max: 2 },
+      times: { min: 0, max: 12 },
     },
     async (route) => {
       await fulfillJson(
@@ -541,3 +541,58 @@ test(
     }
   }
 )
+
+test.describe("我的资料 submenu", () => {
+  test.use({ viewport: { width: 320, height: 568 } })
+
+  test(
+    "switches all five sections at a 320px viewport without horizontal overflow",
+    {
+      tag: ["@app-iphone", "@app-android", "@app-webkit"],
+    },
+    async ({ page, api, apiOrigins, baseURL }) => {
+      await openAccountRoot({ page, api, apiOrigins, baseURL })
+      await expect(page.getByText("App 制作人")).toBeVisible()
+
+      const sections = [
+        ["profile", "个人资料"],
+        ["cards", "交换名片"],
+        ["favorites", "收藏夹"],
+        ["offices", "事务所与位置"],
+        ["claims", "认领消息"],
+      ] as const
+      const panelIds = sections.map(([id]) => id)
+
+      for (const [section, label] of sections) {
+        const link = page.locator(`a[href="/account/me/${section}"]`)
+        await expect(link).toContainText(label)
+        await link.click()
+        await expect(page).toHaveURL(
+          (url) => url.pathname === `/account/me/${section}`
+        )
+
+        for (const panelId of panelIds) {
+          const panel = page.locator(`#profile-workspace-section-${panelId}`)
+          if (panelId === section) {
+            await expect(panel, `${panelId} is the active panel`).toBeVisible()
+          } else {
+            await expect(panel, `${panelId} stays hidden`).toBeHidden()
+          }
+        }
+
+        await expect
+          .poll(
+            () =>
+              page.evaluate(
+                () => document.documentElement.scrollWidth === window.innerWidth
+              ),
+            { message: `${section} fits the 320px viewport` }
+          )
+          .toBe(true)
+
+        await page.goBack()
+        await expect(page).toHaveURL(/\/account\/me$/)
+      }
+    }
+  )
+})

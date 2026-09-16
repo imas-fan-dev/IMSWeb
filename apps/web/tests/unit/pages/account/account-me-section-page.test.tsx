@@ -10,10 +10,10 @@ const businessMocks = vi.hoisted(() => ({
 }))
 
 vi.mock(
-  "~/pages/community/exchange/me/community-exchange-me-page",
+  "~/pages/community/exchange/me/community-exchange-me-workspace",
   async () => {
     const { useState } = await import("react")
-    function MockCommunityExchangeMePage({
+    function MockCommunityExchangeMeWorkspace({
       section,
       sectionBasePath,
     }: {
@@ -40,8 +40,7 @@ vi.mock(
     }
 
     return {
-      meta: () => [],
-      default: MockCommunityExchangeMePage,
+      CommunityExchangeMeWorkspace: MockCommunityExchangeMeWorkspace,
     }
   }
 )

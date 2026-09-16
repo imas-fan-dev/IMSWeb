@@ -1,9 +1,10 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, Route, Routes } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError, type PlatformProfile } from "~/lib/api"
+import AccountMeSectionPage from "~/pages/account/me/account-me-section-page"
 import CommunityExchangeMePage from "~/pages/community/exchange/me/community-exchange-me-page"
 import { ProfileEditor } from "~/pages/community/exchange/me/profile-editor"
 
@@ -194,13 +195,13 @@ function renderPage() {
   return render(pageTree())
 }
 
-function renderAccountSection() {
+function renderAccountSection(section = "profile") {
   return render(
-    <MemoryRouter initialEntries={["/account/me/profile"]}>
-      <CommunityExchangeMePage
-        section="profile"
-        sectionBasePath="/account/me"
-      />
+    <MemoryRouter initialEntries={[`/account/me/${section}`]}>
+      <Routes>
+        <Route path="/account/me" element={<div>帐号首页</div>} />
+        <Route path="/account/me/:section" element={<AccountMeSectionPage />} />
+      </Routes>
     </MemoryRouter>
   )
 }
@@ -816,6 +817,31 @@ describe("CommunityExchangeMePage", () => {
     expect(screen.getByText("编辑暂未开放")).toBeVisible()
     expect(screen.getByRole("button", { name: "新建名片" })).toBeDisabled()
   })
+
+  it.each(["cards", "favorites", "offices", "claims"])(
+    "renders the %s App section while the other panels stay hidden",
+    async (section) => {
+      renderAccountSection(section)
+
+      await waitFor(() =>
+        expect(
+          document.getElementById(`profile-workspace-section-${section}`)
+        ).not.toHaveAttribute("hidden")
+      )
+      for (const other of [
+        "profile",
+        "cards",
+        "favorites",
+        "offices",
+        "claims",
+      ]) {
+        if (other === section) continue
+        expect(
+          document.getElementById(`profile-workspace-section-${other}`)
+        ).toHaveAttribute("hidden")
+      }
+    }
+  )
 
   it("uses a single App section without the legacy workspace header or tab grid", async () => {
     renderAccountSection()

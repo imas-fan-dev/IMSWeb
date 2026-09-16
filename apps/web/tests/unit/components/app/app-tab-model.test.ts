@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   APP_TABS,
+  appBackHierarchyTarget,
   appTabIdForPathname,
   appTabIndexForPathname,
 } from "~/components/app/app-tab-model"
@@ -45,6 +46,24 @@ describe("app tab route ownership", () => {
     ["/about", "account"],
   ] as const)("assigns %s to %s", (pathname, tab) => {
     expect(appTabIdForPathname(pathname)).toBe(tab)
+  })
+
+  it.each([
+    ["/account/me", null],
+    ["/account/me/", null],
+    ["/account/me/profile", "/account/me"],
+    ["/account/me/cards", "/account/me"],
+    ["/account/me/favorites", "/account/me"],
+    ["/account/security", "/account/me"],
+    ["/account/security/", "/account/me"],
+    ["/account/login", null],
+    ["/account/register", null],
+    ["/account/password-reset", null],
+    ["/community/exchange/me", null],
+    ["/community/exchange/me/profile", null],
+    ["/about", null],
+  ] as const)("maps %s to back parent %s", (pathname, parent) => {
+    expect(appBackHierarchyTarget(pathname)).toBe(parent)
   })
 
   it("normalizes trailing slashes and leaves unknown routes unowned", () => {
