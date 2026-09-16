@@ -18,6 +18,9 @@
       container write. Manual recovery must use the image digest recorded in
       release metadata rather than a legacy mutable tag from the private env.
 - [ ] For Cloudflare writes, identify the exact bucket/domain, authorization scope, external snapshot, cache-purge boundary, and rollback checks.
+- [ ] Adding or removing a `package.json` script is a surface change. Bump the
+      count for that package in `tests/test_workspace_boundaries.py` and say what
+      the script is for.
 
 ## Quality Check
 
@@ -29,3 +32,7 @@
 - [ ] Preview environment errors fail before image pulls, one-off containers,
       service recreation, or other container writes.
 - [ ] Cloudflare changes prove control-plane readback, data-plane behavior, browser behavior, and rollback independently.
+- [ ] Root infrastructure tests pass locally
+      (`node scripts/testing/run-test-owner.mjs governance`). The script-count,
+      dev-lifecycle, and registry ratchets live there, so pushing without them
+      buys a failed CI round trip instead of a fix.

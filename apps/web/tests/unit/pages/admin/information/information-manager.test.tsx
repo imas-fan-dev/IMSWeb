@@ -1,8 +1,10 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { InformationManager } from "~/pages/admin/information/index"
 
 function renderManager() {
@@ -30,17 +32,8 @@ const informationPayload = {
   assets: ["/uploads/summer.webp", "/uploads/body.webp"],
 }
 
-function jsonResponse(payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    headers: { "content-type": "application/json" },
-  })
-}
-
 function stubInformationRequest() {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(() => Promise.resolve(jsonResponse(informationPayload)))
-  )
+  installFetchMock(() => Promise.resolve(jsonResponse(informationPayload)))
 }
 
 describe("InformationManager", () => {
@@ -99,12 +92,12 @@ describe("InformationManager", () => {
   })
 
   it("keeps the edit dialog open until saving succeeds", async () => {
-    document.cookie = "csrf_token=information-manager-test; path=/"
+    setCsrfCookie("legacy", "information-manager-test")
     let resolveSave: (response: Response) => void = () => undefined
     const saveResponse = new Promise<Response>((resolve) => {
       resolveSave = resolve
     })
-    const fetchMock = vi.fn(
+    const fetchMock = installFetchMock(
       (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const method =
           input instanceof Request ? input.method : (init?.method ?? "GET")
@@ -112,7 +105,6 @@ describe("InformationManager", () => {
         return Promise.resolve(jsonResponse(informationPayload))
       }
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     renderManager()
@@ -154,9 +146,9 @@ describe("InformationManager", () => {
   })
 
   it("does not retry a successful save when list refresh fails", async () => {
-    document.cookie = "csrf_token=information-refresh-test; path=/"
+    setCsrfCookie("legacy", "information-refresh-test")
     let informationLoads = 0
-    const fetchMock = vi.fn(
+    const fetchMock = installFetchMock(
       (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const method =
           input instanceof Request ? input.method : (init?.method ?? "GET")
@@ -177,7 +169,6 @@ describe("InformationManager", () => {
         )
       }
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     renderManager()

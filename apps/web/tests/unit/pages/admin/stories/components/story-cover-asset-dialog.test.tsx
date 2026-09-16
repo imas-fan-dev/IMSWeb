@@ -1,28 +1,21 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StoryCoverAssetDialog } from "~/pages/admin/stories/components/story-cover-asset-dialog"
-
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return { body: input.body, method: input.method, url: input.url }
-  }
-  return {
-    body: init?.body ?? null,
-    method: init?.method ?? "GET",
-    url: String(input),
-  }
-}
 
 describe("StoryCoverAssetDialog", () => {
   beforeEach(() => {
-    document.cookie = "ims_admin_csrf=story-cover-asset-test; path=/"
+    setCsrfCookie("backoffice", "story-cover-asset-test")
   })
 
   it("previews and saves the full-image presentation policy", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+    const fetchMock = installFetchMock().mockResolvedValue(
       Response.json({
         status: "success",
         asset: {
@@ -38,7 +31,6 @@ describe("StoryCoverAssetDialog", () => {
         },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(

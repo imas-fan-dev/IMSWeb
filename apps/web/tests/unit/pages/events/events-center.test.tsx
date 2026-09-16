@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import { EventsCenter } from "~/pages/events/index"
 import { cacheEventFeed } from "~/lib/api"
 import type { EventListItem } from "~/lib/api"
@@ -33,12 +34,6 @@ vi.mock("@tanstack/react-virtual", () => ({
   },
 }))
 
-function jsonResponse(value: unknown) {
-  return new Response(JSON.stringify(value), {
-    headers: { "content-type": "application/json" },
-  })
-}
-
 function requestUrl(input: RequestInfo | URL) {
   return input instanceof Request ? input.url : String(input)
 }
@@ -66,8 +61,7 @@ describe("EventsCenter", () => {
   })
 
   it("loads cursor pages by scroll alone and deduplicates rows", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [event(3), event(2)],
@@ -88,7 +82,6 @@ describe("EventsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     render(
       <MemoryRouter>
@@ -122,8 +115,7 @@ describe("EventsCenter", () => {
   })
 
   it("recovers from the initial error into the empty state", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockRejectedValueOnce(new TypeError("offline"))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -135,7 +127,6 @@ describe("EventsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(
@@ -179,8 +170,7 @@ describe("EventsCenter", () => {
       }
     }
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver)
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [event(2)],
@@ -201,7 +191,6 @@ describe("EventsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     render(
       <MemoryRouter>
@@ -228,8 +217,7 @@ describe("EventsCenter", () => {
         snapshotAt: "65",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     render(
       <MemoryRouter>
@@ -269,7 +257,7 @@ describe("EventsCenter", () => {
     })
     const directUrl =
       "https://media.example.test/editorial/events/event-1/poster.png"
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+    const fetchMock = installFetchMock().mockResolvedValueOnce(
       jsonResponse({
         items: [{ ...event(1), image_url: directUrl }],
         pageInfo: {
@@ -279,7 +267,6 @@ describe("EventsCenter", () => {
         },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(

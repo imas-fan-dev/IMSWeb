@@ -16,6 +16,11 @@ import {
     postgresIntegrationEnabled,
 } from "../integration/postgres-harness";
 import { seedCanonicalFudabaAgencies } from "../integration/fudaba-agency-fixture";
+import {
+    insertBackofficeAccount,
+    insertFudabaOfficePublicLocation,
+    insertPlatformAccount,
+} from "../fixtures/rows";
 
 const SUBMITTED_AT = "2026-08-03T01:00:00.000Z";
 const RESUBMITTED_AT = "2026-08-03T02:00:00.000Z";
@@ -57,14 +62,7 @@ async function seedAccount(
     id: string,
     status: PlatformAccountStatus = "active",
 ): Promise<void> {
-    await fixture.database
-        .prepare(
-            `INSERT INTO platform_accounts
-            (id, status, token_version, created_at, updated_at, deleted_at)
-         VALUES (?, ?, 0, 1700000000000, 1700000000000, ?)`,
-        )
-        .bind(id, status, status === "deleted" ? 1700000000000 : null)
-        .run();
+    await insertPlatformAccount(fixture.database, id, { status });
 }
 
 function office(
@@ -97,17 +95,13 @@ function office(
 }
 
 async function seedReviewer(fixture: Fixture): Promise<number> {
-    const row = await fixture.database
-        .prepare(
-            `INSERT INTO backoffice_accounts
-            (username, password, dept, producername, admin_role)
-         VALUES (?, 'hash', 'op', 'Reviewer', 'admin')
-         RETURNING id`,
-        )
-        .bind(`${fixture.dialect}-location-reviewer`)
-        .first<{ id: number }>();
+    const row = await insertBackofficeAccount(
+        fixture.database,
+        `${fixture.dialect}-location-reviewer`,
+        { producername: "Reviewer" },
+    );
     assert.ok(row);
-    return Number(row.id);
+    return row;
 }
 
 async function insertReviewedLocation(
@@ -121,25 +115,21 @@ async function insertReviewedLocation(
         note?: string;
     },
 ): Promise<void> {
-    await fixture.database
-        .prepare(
-            `INSERT INTO fudaba_office_public_locations
-            (office_id, latitude_e1, longitude_e1, review_state, revision,
-             submitted_at, reviewed_at, reviewed_by, review_note, review_audit_id)
-         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
-        )
-        .bind(
-            input.officeId,
-            input.latitudeE1,
-            input.longitudeE1,
-            input.state ?? "published",
-            SUBMITTED_AT,
-            REVIEWED_AT,
-            input.reviewerId,
-            input.note ?? "",
-            crypto.randomUUID(),
-        )
-        .run();
+    await insertFudabaOfficePublicLocation(
+        fixture.database,
+        input.officeId,
+        SUBMITTED_AT,
+        {
+            latitude_e1: input.latitudeE1,
+            longitude_e1: input.longitudeE1,
+            review_state: input.state ?? "published",
+            revision: 1,
+            reviewed_at: REVIEWED_AT,
+            reviewed_by: input.reviewerId,
+            review_note: input.note ?? "",
+            review_audit_id: crypto.randomUUID(),
+        },
+    );
 }
 
 function reviewAudit(target: string) {
@@ -201,15 +191,12 @@ async function assertLocationRepository(
             archivedAt: RESUBMITTED_AT,
         }),
     );
-    await fixture.database
-        .prepare(
-            `INSERT INTO fudaba_office_public_locations
-            (office_id, latitude_e1, longitude_e1, review_state, revision,
-             submitted_at, reviewed_at, reviewed_by, review_note)
-         VALUES ('location-hidden', 300, 1200, 'pending', 0, ?, NULL, NULL, '')`,
-        )
-        .bind(SUBMITTED_AT)
-        .run();
+    await insertFudabaOfficePublicLocation(
+        fixture.database,
+        "location-hidden",
+        SUBMITTED_AT,
+        { latitude_e1: 300, longitude_e1: 1200 },
+    );
 
     const created = await fixture.repository.saveOfficePublicLocationForOwner({
         officeId: "location-main",

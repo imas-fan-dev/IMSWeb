@@ -8,6 +8,7 @@ import {
   API_PROXY_PATH_PREFIXES,
   PUBLIC_SITE_PROXY_PATH_PREFIXES,
 } from "./app/lib/bundle-path-policy"
+import { mockWorkerScriptPlugin } from "./mocks/worker-script-plugin"
 import {
   localExchangeMapAssets,
   TAURI_MAP_ORIGINS,
@@ -78,6 +79,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   plugins: [
+    mockWorkerScriptPlugin(),
     localExchangeMapAssets(workspaceRoot),
     tailwindcss(),
     reactRouter(),
@@ -137,6 +139,18 @@ export default defineConfig({
           { target: publicSiteProxyOrigin, changeOrigin: true },
         ])
       ),
+      // The information page loads an API-rendered HTML document in a sandboxed
+      // iframe at `/information/:id/content`. Production serves the SPA and the
+      // API from one Node process, so that root-relative URL resolves there. In
+      // development the API sits behind this proxy instead, and no entry in
+      // `API_PROXY_PATH_PREFIXES` covers the path. A bare `/information` prefix
+      // cannot be added either: Vite matches non-regex keys by prefix, so it
+      // would capture the page route `/information/:contentId` too. Match only
+      // the document path, allowing a query string because Vite tests `req.url`.
+      "^/information/[^/]+/content(?:$|\\?)": {
+        target: honoOrigin,
+        changeOrigin: false,
+      },
       ...Object.fromEntries(
         API_PROXY_PATH_PREFIXES.map((path) => [
           path,

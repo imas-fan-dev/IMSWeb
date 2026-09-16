@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readContractJson as contractJson } from "../contracts/contract-json";
 import { test } from "node:test";
-import { createHonoApp } from "@/app";
+import { createTestApp, testRequest } from "./test-app";
 import {
     fudabaCardPageSchema,
     fudabaErrorResponseSchema,
@@ -256,9 +256,10 @@ function runtime(
 
 test("Fudaba public read feature gate hides every route by default", async () => {
     const fudaba = new PublicFudabaFixture();
-    const app = createHonoApp(() => runtime(fudaba, { enabled: false }));
-    const response = await app.request(
-        "http://ims.test/api/community/exchange/series",
+    const app = createTestApp(() => runtime(fudaba, { enabled: false }));
+    const response = await testRequest(
+        app,
+        "/api/community/exchange/series",
     );
     assert.equal(response.status, 404);
     assert.match(response.headers.get("content-type") ?? "", /^text\/plain/i);
@@ -268,13 +269,14 @@ test("Fudaba public read feature gate hides every route by default", async () =>
 
 test("Fudaba public series fails closed when icon storage is unavailable", async () => {
     const fudaba = new PublicFudabaFixture();
-    const app = createHonoApp(() => ({
+    const app = createTestApp(() => ({
         ...runtime(fudaba),
         storage: undefined,
     }));
 
-    const response = await app.request(
-        "http://ims.test/api/community/exchange/series",
+    const response = await testRequest(
+        app,
+        "/api/community/exchange/series",
     );
     assert.equal(response.status, 503);
     assert.deepEqual(await contractJson(response, fudabaErrorResponseSchema), {
@@ -284,9 +286,10 @@ test("Fudaba public series fails closed when icon storage is unavailable", async
 
 test("anonymous Fudaba discovery exposes only public projections and stable cursors", async () => {
     const fudaba = new PublicFudabaFixture();
-    const app = createHonoApp(() => runtime(fudaba));
-    const seriesResponse = await app.request(
-        "http://ims.test/api/community/exchange/series",
+    const app = createTestApp(() => runtime(fudaba));
+    const seriesResponse = await testRequest(
+        app,
+        "/api/community/exchange/series",
     );
     assert.equal(seriesResponse.status, 200);
     assert.deepEqual(await contractJson(seriesResponse, fudabaSeriesListSchema), {
@@ -309,8 +312,9 @@ test("anonymous Fudaba discovery exposes only public projections and stable curs
             },
         ],
     });
-    const response = await app.request(
-        "http://ims.test/api/community/exchange/offices?city=Shanghai&limit=1",
+    const response = await testRequest(
+        app,
+        "/api/community/exchange/offices?city=Shanghai&limit=1",
         { headers: { cookie: "ims_admin_access=backoffice-token" } },
     );
     assert.equal(response.status, 200);
@@ -338,17 +342,19 @@ test("anonymous Fudaba discovery exposes only public projections and stable curs
         limit: 2,
     });
 
-    const mismatched = await app.request(
-        `http://ims.test/api/community/exchange/offices?city=Beijing&limit=1&cursor=${body.pageInfo.nextCursor}`,
+    const mismatched = await testRequest(
+        app,
+        `/api/community/exchange/offices?city=Beijing&limit=1&cursor=${body.pageInfo.nextCursor}`,
     );
     assert.equal(mismatched.status, 400);
 });
 
 test("valid Platform auth adds viewer flags while Backoffice remains anonymous", async () => {
     const fudaba = new PublicFudabaFixture();
-    const app = createHonoApp(() => runtime(fudaba));
-    const anonymous = await app.request(
-        "http://ims.test/api/community/exchange/cards",
+    const app = createTestApp(() => runtime(fudaba));
+    const anonymous = await testRequest(
+        app,
+        "/api/community/exchange/cards",
         {
             headers: { cookie: "ims_admin_access=backoffice-token" },
         },
@@ -356,8 +362,9 @@ test("valid Platform auth adds viewer flags while Backoffice remains anonymous",
     assert.equal(anonymous.status, 200);
     assert.equal(fudaba.lastCardInput?.viewerAccountId, null);
 
-    const authenticated = await app.request(
-        "http://ims.test/api/community/exchange/cards",
+    const authenticated = await testRequest(
+        app,
+        "/api/community/exchange/cards",
         { headers: { authorization: "Bearer valid-platform" } },
     );
     assert.equal(authenticated.status, 200);
@@ -371,8 +378,9 @@ test("valid Platform auth adds viewer flags while Backoffice remains anonymous",
     });
     assert.equal(JSON.stringify(body).includes("object_key"), false);
 
-    const office = await app.request(
-        "http://ims.test/api/community/exchange/offices/上海-office-a",
+    const office = await testRequest(
+        app,
+        "/api/community/exchange/offices/上海-office-a",
         { headers: { authorization: "Bearer valid-platform" } },
     );
     assert.equal(office.status, 200);
@@ -391,20 +399,22 @@ test("valid Platform auth adds viewer flags while Backoffice remains anonymous",
 
 test("invalid or blocked Platform credentials never downgrade to anonymous", async () => {
     const fudaba = new PublicFudabaFixture();
-    const activeApp = createHonoApp(() => runtime(fudaba));
-    const invalid = await activeApp.request(
-        "http://ims.test/api/community/exchange/cards",
+    const activeApp = createTestApp(() => runtime(fudaba));
+    const invalid = await testRequest(
+        activeApp,
+        "/api/community/exchange/cards",
         { headers: { cookie: `${PLATFORM_ACCESS_TOKEN_COOKIE}=invalid` } },
     );
     assert.equal(invalid.status, 401);
 
-    const suspendedApp = createHonoApp(() =>
+    const suspendedApp = createTestApp(() =>
         runtime(fudaba, {
             accountStatus: "suspended",
         }),
     );
-    const suspended = await suspendedApp.request(
-        "http://ims.test/api/community/exchange/cards",
+    const suspended = await testRequest(
+        suspendedApp,
+        "/api/community/exchange/cards",
         { headers: { authorization: "Bearer valid-platform" } },
     );
     assert.equal(suspended.status, 403);
@@ -412,36 +422,40 @@ test("invalid or blocked Platform credentials never downgrade to anonymous", asy
 
 test("office visibility, query validation, and public media fail closed", async () => {
     const fudaba = new PublicFudabaFixture();
-    const app = createHonoApp(() => runtime(fudaba));
+    const app = createTestApp(() => runtime(fudaba));
     fudaba.officeVisible = false;
     assert.equal(
         (
-            await app.request(
-                "http://ims.test/api/community/exchange/offices/上海-office-a",
+            await testRequest(
+                app,
+                "/api/community/exchange/offices/上海-office-a",
             )
         ).status,
         404,
     );
     assert.equal(
         (
-            await app.request(
-                "http://ims.test/api/community/exchange/offices?bbox=1,2,3,4",
+            await testRequest(
+                app,
+                "/api/community/exchange/offices?bbox=1,2,3,4",
             )
         ).status,
         400,
     );
     assert.equal(
         (
-            await app.request(
-                "http://ims.test/api/community/exchange/cards?available=yes",
+            await testRequest(
+                app,
+                "/api/community/exchange/cards?available=yes",
             )
         ).status,
         400,
     );
 
     fudaba.card = publicCard({ front_object_key: "private/card-a/front.webp" });
-    const unavailable = await app.request(
-        "http://ims.test/api/community/exchange/cards",
+    const unavailable = await testRequest(
+        app,
+        "/api/community/exchange/cards",
     );
     assert.equal(unavailable.status, 503);
     assert.deepEqual(await contractJson(unavailable, fudabaErrorResponseSchema), {
@@ -451,9 +465,10 @@ test("office visibility, query validation, and public media fail closed", async 
 
 test("Fudaba public queries reject duplicate, out-of-range, and mismatched cursor input", async () => {
     const fudaba = new PublicFudabaFixture();
-    const app = createHonoApp(() => runtime(fudaba));
-    const multiSeries = await app.request(
-        "http://ims.test/api/community/exchange/offices" +
+    const app = createTestApp(() => runtime(fudaba));
+    const multiSeries = await testRequest(
+        app,
+        "/api/community/exchange/offices" +
             "?series=765&series=cg&limit=2",
     );
     assert.equal(multiSeries.status, 200);
@@ -471,22 +486,24 @@ test("Fudaba public queries reject duplicate, out-of-range, and mismatched curso
         "/api/community/exchange/offices/office-a?unexpected=true",
     ]) {
         assert.equal(
-            (await app.request(`http://ims.test${path}`)).status,
+            (await testRequest(app, path)).status,
             400,
             path,
         );
     }
 
-    const firstPage = await app.request(
-        "http://ims.test/api/community/exchange/cards?series=765&limit=1",
+    const firstPage = await testRequest(
+        app,
+        "/api/community/exchange/cards?series=765&limit=1",
     );
     assert.equal(firstPage.status, 200);
     const body = (await firstPage.json()) as {
         pageInfo: { nextCursor: string | null };
     };
     assert.ok(body.pageInfo.nextCursor);
-    const mismatch = await app.request(
-        "http://ims.test/api/community/exchange/cards" +
+    const mismatch = await testRequest(
+        app,
+        "/api/community/exchange/cards" +
             `?series=cg&limit=1&cursor=${body.pageInfo.nextCursor}`,
     );
     assert.equal(mismatch.status, 400);
@@ -494,16 +511,18 @@ test("Fudaba public queries reject duplicate, out-of-range, and mismatched curso
 
 test("Fudaba public surface registers no mutation routes", async () => {
     const fudaba = new PublicFudabaFixture();
-    const app = createHonoApp(() => runtime(fudaba));
+    const app = createTestApp(() => runtime(fudaba));
     for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
-        const response = await app.request(
-            "http://ims.test/api/community/exchange/cards",
+        const response = await testRequest(
+            app,
+            "/api/community/exchange/cards",
             { method },
         );
         assert.equal(response.status, 404, method);
     }
-    const invalidCredentialMutation = await app.request(
-        "http://ims.test/api/community/exchange/cards",
+    const invalidCredentialMutation = await testRequest(
+        app,
+        "/api/community/exchange/cards",
         {
             method: "POST",
             headers: { authorization: "Bearer invalid-platform" },

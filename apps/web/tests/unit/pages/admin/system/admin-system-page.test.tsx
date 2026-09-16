@@ -2,6 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import AdminSystemPage from "~/pages/admin/system/index"
 
 const toasts = vi.hoisted(() => ({
@@ -51,58 +56,49 @@ function snapshot(
   }
 }
 
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
-
 afterEach(() => {
   vi.clearAllMocks()
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
   document.body.removeAttribute("style")
 })
 
 describe("AdminSystemPage", () => {
   it("adds and edits map sources through the shared configuration dialog", async () => {
-    document.cookie = "ims_admin_csrf=system-csrf; path=/"
+    setCsrfCookie("backoffice", "system-csrf")
     let current = snapshot()
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
-        const pathname = new URL(request.url).pathname
-        if (request.method === "GET") return Response.json(current)
-        if (
-          request.method === "POST" &&
-          pathname.endsWith("/map-delivery/sources")
-        ) {
-          current = snapshot(
-            [...current.sources, edgeSource],
-            current.activeSourceId,
-            "etag-2"
-          )
-          return Response.json({ success: true, delivery: current })
-        }
-        if (
-          request.method === "PUT" &&
-          pathname.endsWith("/map-delivery/sources/source-edge")
-        ) {
-          const edited = { ...edgeSource, name: "边缘地图源 v2" }
-          current = snapshot(
-            current.sources.map((source) =>
-              source.id === edited.id ? edited : source
-            ),
-            current.activeSourceId,
-            "etag-3"
-          )
-          return Response.json({ success: true, delivery: current })
-        }
-        throw new Error(`Unexpected request: ${request.method} ${request.url}`)
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
+      const pathname = new URL(request.url).pathname
+      if (request.method === "GET") return Response.json(current)
+      if (
+        request.method === "POST" &&
+        pathname.endsWith("/map-delivery/sources")
+      ) {
+        current = snapshot(
+          [...current.sources, edgeSource],
+          current.activeSourceId,
+          "etag-2"
+        )
+        return Response.json({ success: true, delivery: current })
+      }
+      if (
+        request.method === "PUT" &&
+        pathname.endsWith("/map-delivery/sources/source-edge")
+      ) {
+        const edited = { ...edgeSource, name: "边缘地图源 v2" }
+        current = snapshot(
+          current.sources.map((source) =>
+            source.id === edited.id ? edited : source
+          ),
+          current.activeSourceId,
+          "etag-3"
+        )
+        return Response.json({ success: true, delivery: current })
+      }
+      throw new Error(`Unexpected request: ${request.method} ${request.url}`)
+    })
     const user = userEvent.setup()
 
     render(<AdminSystemPage />)
@@ -145,39 +141,34 @@ describe("AdminSystemPage", () => {
   })
 
   it("activates one source, protects it from deletion, and deletes an inactive source", async () => {
-    document.cookie = "ims_admin_csrf=system-csrf; path=/"
+    setCsrfCookie("backoffice", "system-csrf")
     let current = snapshot()
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
-        const pathname = new URL(request.url).pathname
-        if (request.method === "GET") return Response.json(current)
-        if (
-          request.method === "PUT" &&
-          pathname.endsWith("/map-delivery/active")
-        ) {
-          current = snapshot(current.sources, r2Source.id, "etag-2")
-          return Response.json({ success: true, delivery: current })
-        }
-        if (
-          request.method === "DELETE" &&
-          pathname.endsWith("/source-self-hosted")
-        ) {
-          current = snapshot(
-            current.sources.filter(
-              (source) => source.id !== selfHostedSource.id
-            ),
-            current.activeSourceId,
-            "etag-3"
-          )
-          return Response.json({ success: true, delivery: current })
-        }
-        throw new Error(`Unexpected request: ${request.method} ${request.url}`)
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
+      const pathname = new URL(request.url).pathname
+      if (request.method === "GET") return Response.json(current)
+      if (
+        request.method === "PUT" &&
+        pathname.endsWith("/map-delivery/active")
+      ) {
+        current = snapshot(current.sources, r2Source.id, "etag-2")
+        return Response.json({ success: true, delivery: current })
+      }
+      if (
+        request.method === "DELETE" &&
+        pathname.endsWith("/source-self-hosted")
+      ) {
+        current = snapshot(
+          current.sources.filter((source) => source.id !== selfHostedSource.id),
+          current.activeSourceId,
+          "etag-3"
+        )
+        return Response.json({ success: true, delivery: current })
+      }
+      throw new Error(`Unexpected request: ${request.method} ${request.url}`)
+    })
     const user = userEvent.setup()
 
     render(<AdminSystemPage />)
@@ -222,26 +213,23 @@ describe("AdminSystemPage", () => {
   })
 
   it("reloads the latest collection after a revision conflict", async () => {
-    document.cookie = "ims_admin_csrf=system-csrf; path=/"
+    setCsrfCookie("backoffice", "system-csrf")
     let getCount = 0
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        if (request.method === "GET") {
-          getCount += 1
-          return Response.json(
-            getCount === 1
-              ? snapshot()
-              : snapshot([officialSource, r2Source], r2Source.id, "etag-2")
-          )
-        }
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      if (request.method === "GET") {
+        getCount += 1
         return Response.json(
-          { error: "Map delivery revision conflict" },
-          { status: 409 }
+          getCount === 1
+            ? snapshot()
+            : snapshot([officialSource, r2Source], r2Source.id, "etag-2")
         )
-      })
-    )
+      }
+      return Response.json(
+        { error: "Map delivery revision conflict" },
+        { status: 409 }
+      )
+    })
     const user = userEvent.setup()
 
     render(<AdminSystemPage />)

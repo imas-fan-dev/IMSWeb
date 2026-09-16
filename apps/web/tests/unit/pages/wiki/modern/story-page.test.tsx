@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import { StoryPage } from "~/pages/wiki/modern/story-page"
 
 function storyPayload(
@@ -184,10 +185,7 @@ describe("StoryPage", () => {
   })
 
   it("renders grouped cards and multiple sources, then filters them", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload()))
     const user = userEvent.setup()
 
     renderStory()
@@ -263,19 +261,14 @@ describe("StoryPage", () => {
   })
 
   it("shows the configured external Wiki link in the profile", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          Response.json(
-            storyPayload(
-              true,
-              false,
-              "https://wiki.example.test/idols/sakuragi-mano"
-            )
-          )
+    installFetchMock().mockResolvedValue(
+      Response.json(
+        storyPayload(
+          true,
+          false,
+          "https://wiki.example.test/idols/sakuragi-mano"
         )
+      )
     )
 
     renderStory()
@@ -289,12 +282,7 @@ describe("StoryPage", () => {
   })
 
   it("filters Gakumas S-card stories by cast in the modern view", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json(gakumasSCardPayload()))
-    )
+    installFetchMock().mockResolvedValue(Response.json(gakumasSCardPayload()))
     const user = userEvent.setup()
 
     renderStory("/story?agency=学园偶像大师&idol=S卡")
@@ -343,12 +331,7 @@ describe("StoryPage", () => {
   })
 
   it("shows the dynamic empty state when no cards are available", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json(storyPayload(false)))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload(false)))
 
     renderStory()
 
@@ -371,10 +354,7 @@ describe("StoryPage", () => {
       })),
     }
     payload.categories = [landscapeCategory, portraitCategory]
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload))
-    )
+    installFetchMock().mockResolvedValue(Response.json(payload))
 
     renderStory()
 
@@ -408,10 +388,7 @@ describe("StoryPage", () => {
       configurable: true,
       value: scrollIntoView,
     })
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload()))
 
     renderStory("/story?agency=闪耀色彩&idol=樱木真乃#story-card-401")
 
@@ -453,10 +430,7 @@ describe("StoryPage", () => {
       configurable: true,
       value: scrollIntoView,
     })
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload()))
 
     renderStory(initialEntry)
 
@@ -468,11 +442,8 @@ describe("StoryPage", () => {
   })
 
   it("only keeps cards with story sources in full color", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json(storyPayload(true, true)))
+    installFetchMock().mockResolvedValue(
+      Response.json(storyPayload(true, true))
     )
     const user = userEvent.setup()
 
@@ -511,10 +482,7 @@ describe("StoryPage", () => {
   })
 
   it("opens the mobile navigation and closes it after selection", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload()))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload()))
     const user = userEvent.setup()
 
     renderStory()

@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   activateAdminFudabaMapSource,
   createAdminFudabaMapSource,
@@ -11,12 +16,6 @@ import {
   updateAdminFudabaMapSource,
 } from "~/lib/api"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
-
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
 
 const activeSource = {
   id: "source-r2",
@@ -38,7 +37,7 @@ const snapshot = {
 }
 
 afterEach(() => {
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("Fudaba map delivery API", () => {
@@ -72,13 +71,10 @@ describe("Fudaba map delivery API", () => {
 
   it("loads the dynamic source snapshot with Backoffice auth policy", async () => {
     let request: Request | undefined
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        request = requestFrom(input, init).clone()
-        return Response.json(snapshot)
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      request = requestFrom(input, init).clone()
+      return Response.json(snapshot)
+    })
 
     await expect(getAdminFudabaMapDelivery().send()).resolves.toEqual(snapshot)
 
@@ -91,15 +87,12 @@ describe("Fudaba map delivery API", () => {
   })
 
   it("creates, edits, activates, and deletes sources with revision and CSRF", async () => {
-    document.cookie = "ims_admin_csrf=map-delivery-csrf; path=/"
+    setCsrfCookie("backoffice", "map-delivery-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        requests.push(requestFrom(input, init).clone())
-        return Response.json({ success: true, delivery: snapshot })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(requestFrom(input, init).clone())
+      return Response.json({ success: true, delivery: snapshot })
+    })
 
     await createAdminFudabaMapSource(
       "R2 test",

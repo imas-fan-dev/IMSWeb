@@ -1,24 +1,18 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createMemoryRouter, RouterProvider } from "react-router"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StoryManagementPage } from "~/pages/admin/stories"
 import type { WikiAdminCatalog, WikiAdminStories } from "~/lib/api"
 
 function json(payload: unknown) {
   return Promise.resolve(Response.json(payload))
-}
-
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  return input instanceof Request
-    ? { body: input.body, method: input.method, url: input.url }
-    : {
-        body: init?.body ?? null,
-        method: init?.method ?? "GET",
-        url: String(input),
-      }
 }
 
 const catalog = {
@@ -180,12 +174,12 @@ const stories = {
 
 describe("StoryManagementPage", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=wiki-workbench-test; path=/"
+    setCsrfCookie("legacy", "wiki-workbench-test")
   })
 
   it("persists outline state in the URL and sends the current card revision", async () => {
     const deleteForms: FormData[] = []
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+    installFetchMock((...args) => {
       const request = requestDetails(args)
       const url = new URL(request.url, window.location.origin)
       if (url.pathname === "/api/admin/wiki/catalog") return json(catalog)
@@ -210,7 +204,6 @@ describe("StoryManagementPage", () => {
       }
       return Promise.reject(new Error(`Unexpected request: ${request.url}`))
     })
-    vi.stubGlobal("fetch", fetchMock)
     const router = createMemoryRouter(
       [{ path: "/admin/stories", element: <StoryManagementPage /> }],
       {

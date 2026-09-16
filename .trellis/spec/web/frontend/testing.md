@@ -11,13 +11,46 @@ the owner under `app/`:
 - `tests/unit/lib/`
 - `tests/unit/i18n/`
 
-Use `~/` imports for production modules. Prefer role, label, and visible-state
-assertions over implementation details. A changed data-driven view covers
-loading, error, empty, and success states when each can occur.
+Use `~/` imports for production modules. Tests, mock modules, and tooling reach
+files anywhere under the workspace root through `@/`: `@/mocks/data/wiki`,
+`@/tests/unit/support/api-client`, `@/vite.config`. Both aliases resolve through
+the `tsconfig.json` paths entry, so tsc, Vitest, Vite, and Playwright agree on
+them. Prefer an alias over a `../../../../` climb, which breaks when the
+importing test moves and hides which module is actually being reached.
+
+Prefer role, label, and visible-state assertions over implementation details. A
+changed data-driven view covers loading, error, empty, and success states when
+each can occur.
 
 Endpoint tests should prove the path, method, request payload, CSRF metadata,
 and parsed response behavior. Follow tests under
 `tests/unit/lib/api/endpoints/`.
+
+### Shared assembly layer
+
+`tests/unit/support/` holds the assemble-once helpers. Use them instead of
+copying their bodies into a new test:
+
+| Module            | Provides                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| `api-client.ts`   | `requestDetails`, `requestFrom`, `successResponse`, `jsonResponse`, `installFetchMock` |
+| `harness.tsx`     | `I18nTestProvider`, `renderPage`                                                       |
+| `dom-events.ts`   | `touchEvent`                                                                           |
+| `auth-cookies.ts` | `setCsrfCookie`, `clearCsrfCookie`                                                     |
+
+These boundaries are deliberate:
+
+- `renderPage` wraps `MemoryRouter` and nothing else. It does not install i18n —
+  `tests/setup.ts` already supplies the global instance, and the single test that
+  swaps languages wraps `I18nextProvider` itself.
+- There is no `setupUser`. Every `userEvent.setup()` call passes no arguments, so
+  a wrapper would add an import hop without removing work.
+- No assertion helpers. A failure has to stay readable at the call site.
+
+`tests/unit/e2e/unit-source-policy.test.ts` enforces what can be checked
+mechanically: global teardown stays in `vitest.config.ts`, no
+`vi.unstubAllGlobals()` returns, and a new unit test does not import
+`MemoryRouter` directly against a shrinking baseline.
 
 ## Browser tests
 
@@ -240,6 +273,86 @@ api.mockRoute("**/api/events**", handler);
 api.mockRoute({ method: "GET", path: "/api/events", times: 1 }, handler);
 ```
 
+## Scenario: Dev-time API mocks
+
+### 1. Scope / Trigger
+
+Rendering a page without a running API: `pnpm run dev:web:mock`, or
+`VITE_IMS_MOCK_API=1` on a web dev server. This is the developer-facing layer
+under `apps/web/mocks/`. It is a different mechanism from "API mocks in
+Playwright", which drives `page.route` from a spec, and from the API's own
+database-backed test fixtures.
+
+### 2. Contracts
+
+- `mocks/data/*.ts` holds contract-typed factories; each module keeps a
+  conformance test under `tests/unit/mocks/data/`.
+- `mocks/handlers/*.ts` declares `msw` `http.get` handlers; `handlers/index.ts`
+  exports `mockHandlers`.
+- `app/entry.client.tsx` starts the worker only when
+  `import.meta.env.VITE_IMS_MOCK_API === "1"`, so the mock chunk stays dead code
+  in a production build. Re-verify that with a build whenever the entry changes.
+- Reads only. A request matching no handler reaches the network by design, so a
+  page that depends on an unmocked endpoint shows its real degraded state.
+- `tests/unit/mocks/handlers/public.test.ts` is the drift guard. Every declared
+  path needs a contract-schema entry, and every `:param` handler needs a concrete
+  request plus a case proving it echoes the parameter. Resolve paths through the
+  `@imsweb/contracts/paths` builders rather than matching builder call text.
+- Media is served from `mocks/assets/`. Keep the API-shaped prefixes so the
+  app's media normalisation stays exercised, and put each URL family's asset
+  choice in the route table (`msw` resolves the first match) instead of parsing
+  the request URL.
+
+### 3. Tests Required
+
+`pnpm --filter @imsweb/web run test:unit` covers the drift guard and each
+factory's conformance test. Confirm a real page renders by starting the dev
+server with `IMS_API_ORIGIN` pointed at an unused loopback port, so a fallthrough
+looks like a failure instead of a silently working proxy.
+
+## Scenario: Contract-typed fixture fidelity
+
+### 1. Scope / Trigger
+
+Writing or changing a factory that stands in for an API response, under
+`apps/web/mocks/data/` or anywhere else.
+
+### 2. Contracts
+
+- Parsing is the floor, not the bar. A fixture can satisfy its schema and still
+  render nothing.
+- `assertFactoryCoversSchema` compares **required keys only**. An optional field
+  that a page reads is invisible to it, so passing that helper does not by itself
+  make a factory faithful.
+- Reproduce states the domain permits. `set-entry-status` refuses to publish a
+  chronicle entry without `occurred_on` and `source_type`, so a `published`
+  fixture carrying neither describes a response the API cannot produce.
+- Derive media URLs from the builder the API uses
+  (`iconPath`/`imagePath`/`publicAssetsPath`). Invented root-relative prefixes
+  have shipped twice here, and the resulting 404s were not attributed to the
+  fixture.
+- When overriding a default, pass every value an assertion or lookup reads and
+  leave only format-only boilerplate to the default. A default can be load
+  bearing for consumer logic, so do not change one casually.
+
+### 3. Good / Base / Bad Cases
+
+```ts
+// Bad: the prefix exists nowhere in apps/api/src or packages/contracts/src.
+iconUrl: "/exchange-series/765.webp";
+
+// Correct: the same builder list-public-series.ts falls back to.
+iconUrl: iconPath(`/agencies/${id}.webp`);
+```
+
+### 4. Tests Required
+
+- One conformance test per factory, calling `assertFactoryCoversSchema` before
+  `schema.parse` so the helper's missing-keys message surfaces rather than zod's.
+- An explicit invariant test for every optional-but-load-bearing field, written
+  as a rule rather than a value, e.g.
+  `expect(["official", "community"]).toContain(item.source_type)`.
+
 ## Commands
 
 ```sh
@@ -255,3 +368,14 @@ pnpm --filter @imsweb/web run build
 `pnpm --filter @imsweb/web run check` runs lint, typecheck, unit tests, and the
 production build. Run root `pnpm run test:web-routing` after route manifest,
 prerender, server path ownership, or SPA fallback changes.
+
+Root `pnpm run dev:web:mock` starts the web dev server with the mock API enabled,
+so pages render without a backend; see "Dev-time API mocks".
+
+Local Playwright runs use the default worker count, and a parallel run on a busy
+machine fails specs that pass at `--workers=1`. Reproduce a browser failure the
+way CI runs it before treating it as a regression:
+
+```sh
+CI=1 pnpm --filter @imsweb/web exec playwright test --workers=1 --retries=0
+```

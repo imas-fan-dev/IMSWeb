@@ -8,9 +8,9 @@ import {
   parseByteRange,
   resolveExchangeMapAssetPath,
   tauriMapAssetCorsOrigin,
-} from "../../vite-exchange-map-assets"
-import { GENERATED_BUILD_WATCH_OPTIONS } from "../../vite-watch"
-import viteConfig from "../../vite.config"
+} from "@/vite-exchange-map-assets"
+import { GENERATED_BUILD_WATCH_OPTIONS } from "@/vite-watch"
+import viteConfig from "@/vite.config"
 
 describe("Vite file watching", () => {
   it("ignores Web build output and non-runtime Tauri files", () => {

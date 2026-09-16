@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   createRecommendation,
   getAdminAccounts,
@@ -10,15 +15,8 @@ import {
   uploadIdolMedia,
 } from "~/lib/api/endpoints/admin"
 
-function jsonResponse(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json" },
-  })
-}
-
 afterEach(() => {
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("shared admin endpoint contracts", () => {
@@ -31,10 +29,7 @@ describe("shared admin endpoint contracts", () => {
       dept: "editor",
       adminRole: null,
     }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(payload))
-    )
+    installFetchMock().mockResolvedValue(jsonResponse(payload))
 
     await expect(loginAdmin("wiki-editor", "password").send()).resolves.toEqual(
       payload
@@ -42,14 +37,12 @@ describe("shared admin endpoint contracts", () => {
   })
 
   it("validates protected error envelopes and rejects extra fields", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    installFetchMock()
       .mockResolvedValueOnce(jsonResponse({ error: "已退役" }, 410))
       .mockResolvedValueOnce(jsonResponse({ message: "无权限" }, 403))
       .mockResolvedValueOnce(
         jsonResponse({ error: "已退役", unexpected: true }, 410)
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(getAdminInformation().send()).rejects.toMatchObject({
       kind: "http",
@@ -69,9 +62,8 @@ describe("shared admin endpoint contracts", () => {
   })
 
   it("validates the Admin 2xx business-error envelopes", async () => {
-    document.cookie = "ims_admin_csrf=admin-contract-csrf; path=/"
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    setCsrfCookie("backoffice", "admin-contract-csrf")
+    installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({ success: false, msg: "新闻数据加载失败" })
       )
@@ -82,7 +74,6 @@ describe("shared admin endpoint contracts", () => {
       .mockResolvedValueOnce(
         jsonResponse({ status: "error", msg: "企划不存在" })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(getRecommendations().send()).rejects.toMatchObject({
       kind: "business",

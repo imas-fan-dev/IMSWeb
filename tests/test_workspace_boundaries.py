@@ -225,9 +225,11 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             (PROJECT_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
         )["scripts"]
 
-        self.assertEqual(len(root_scripts), 56)
+        # Raise these counts deliberately, and name what the new script is for.
+        # The mock API dev server added `dev:web:mock` (root) and `dev:mock` (web).
+        self.assertEqual(len(root_scripts), 57)
         self.assertEqual(len(api_scripts), 43)
-        self.assertEqual(len(web_scripts), 20)
+        self.assertEqual(len(web_scripts), 21)
         self.assertTrue(
             {
                 "build",

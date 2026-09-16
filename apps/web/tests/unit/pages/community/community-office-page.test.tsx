@@ -3,6 +3,18 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  makeFudabaCard,
+  makeFudabaOfficeDetail,
+  makeFudabaOwnerCard,
+  makeFudabaOwnerCardList,
+  makeFudabaSeries,
+  makeFudabaSeriesList,
+} from "@/mocks/data/fudaba"
+import {
+  makePlatformProfileResponse,
+  makePlatformSession,
+} from "@/mocks/data/platform"
 import { ApiError } from "~/lib/api"
 import CommunityOfficePage from "~/pages/community/exchange/community-office-page"
 
@@ -52,25 +64,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
 })
 
 const placedCard = {
-  id: "card-1",
-  producerName: "春香P",
-  displayName: "交换会用名片",
-  seriesCode: "765",
-  favoriteIdol: "天海春香",
-  frontImageUrl: "/brand/series/wall/765pro.webp",
-  backImageUrl: "/brand/series/wall/cinderella-girls.webp",
-  accent: "#f34e6c",
-  bio: "",
-  tradeNote: "现场交换",
-  available: true,
-  source: null,
-  createdAt: "2026-08-02T08:00:00.000Z",
-  interactions: {
-    likes: 2,
-    favorites: 1,
-    viewerLiked: true,
-    viewerFavorited: false,
-  },
+  ...makeFudabaCard({ displayName: "交换会用名片" }),
   viewerOwned: true,
   placement: {
     pinnedAt: "2026-08-02T09:00:00.000Z",
@@ -84,31 +78,14 @@ const placedCard = {
 }
 
 const ownerCard = {
-  id: placedCard.id,
-  producerName: placedCard.producerName,
+  ...makeFudabaOwnerCard(),
   displayName: placedCard.displayName,
-  seriesCode: placedCard.seriesCode,
-  favoriteIdol: placedCard.favoriteIdol,
-  frontImageUrl: placedCard.frontImageUrl,
-  backImageUrl: placedCard.backImageUrl,
-  accent: placedCard.accent,
-  bio: placedCard.bio,
-  tradeNote: placedCard.tradeNote,
-  available: placedCard.available,
-  mediaRightsStatus: "approved",
-  publicationStatus: "published",
-  revision: 2,
-  createdAt: placedCard.createdAt,
-  updatedAt: "2026-08-02T09:00:00.000Z",
 }
 
 const unplacedOwnerCard = {
   ...ownerCard,
   id: "card-2",
   displayName: "第二张公开名片",
-  revision: 1,
-  createdAt: "2026-08-02T08:10:00.000Z",
-  updatedAt: "2026-08-02T09:10:00.000Z",
 }
 
 function renderPage() {
@@ -129,16 +106,9 @@ function renderPage() {
 function mockAuthenticatedPlatformSession() {
   const authenticated = {
     status: "authenticated",
-    session: {
-      success: true,
+    session: makePlatformSession({
       account: { id: "platform-1", status: "active" },
-      profile: {
-        displayName: "春香P",
-        avatarUrl: null,
-        homeCity: "上海",
-        bio: "",
-      },
-    },
+    }),
     error: null,
     acceptSession: vi.fn(),
     reload: vi.fn(),
@@ -170,53 +140,23 @@ describe("CommunityOfficePage", () => {
     apiMocks.saveFudabaCardPlacement.mockReturnValue({
       send: apiMocks.sendPlacement,
     })
-    apiMocks.sendSeries.mockResolvedValue({
-      items: [
-        {
-          id: 1,
-          code: "765",
-          displayName: "765PRO",
-          color: "#f34f6d",
-          iconUrl: "/icon/agencies/1.webp",
-          imageTransform: {
-            fit: "contain",
-            focalX: 0.5,
-            focalY: 0.5,
-            zoom: 1,
-            rotation: 0,
-          },
-          displayOrder: 0,
-          activeOfficeCount: 1,
-        },
-      ],
-    })
-    apiMocks.sendOffice.mockResolvedValue({
-      id: "office-1",
-      slug: "shanghai-weekend",
-      name: "上海周末交换事务所",
-      intro: "每周末开放的线下交换点。",
-      city: "上海",
-      address: "西岸艺术中心入口",
-      accent: "#2581c7",
-      coverUrl: null,
-      isOpen: true,
-      visitorCount: 21,
-      seriesCodes: ["765"],
-      cards: [placedCard],
-    })
-    apiMocks.sendOwnerCards.mockResolvedValue({ items: [ownerCard] })
-    apiMocks.sendProfile.mockResolvedValue({
-      success: true,
-      account: { id: "platform-1", status: "active" },
-      capabilities: { fudabaWrite: true },
-      profile: {
-        displayName: "春香P",
-        avatarUrl: null,
-        homeCity: "上海",
-        bio: "",
-        updatedAt: 1,
-      },
-    })
+    apiMocks.sendSeries.mockResolvedValue(
+      makeFudabaSeriesList({ items: [makeFudabaSeries()] })
+    )
+    apiMocks.sendOffice.mockResolvedValue(
+      makeFudabaOfficeDetail({
+        name: "上海周末交换事务所",
+        cards: [placedCard],
+      })
+    )
+    apiMocks.sendOwnerCards.mockResolvedValue(
+      makeFudabaOwnerCardList({ items: [ownerCard] })
+    )
+    apiMocks.sendProfile.mockResolvedValue(
+      makePlatformProfileResponse({
+        account: { id: "platform-1", status: "active" },
+      })
+    )
     apiMocks.sendPlacement.mockResolvedValue({
       success: true,
       placement: {
@@ -327,9 +267,9 @@ describe("CommunityOfficePage", () => {
   it("keeps a successful placement out of the retry path when refresh fails", async () => {
     const user = userEvent.setup()
     mockAuthenticatedPlatformSession()
-    apiMocks.sendOwnerCards.mockResolvedValue({
-      items: [ownerCard, unplacedOwnerCard],
-    })
+    apiMocks.sendOwnerCards.mockResolvedValue(
+      makeFudabaOwnerCardList({ items: [ownerCard, unplacedOwnerCard] })
+    )
     apiMocks.sendPlacement.mockResolvedValueOnce({
       success: true,
       placement: {

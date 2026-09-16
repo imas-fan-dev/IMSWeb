@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import { RecommendationsCenter } from "~/pages/recommendations/index"
 import { cacheRecommendationFeed, parseRecommendationPage } from "~/lib/api"
 import type { Recommendation } from "~/lib/api"
@@ -29,12 +30,6 @@ vi.mock("@tanstack/react-virtual", () => ({
     }
   },
 }))
-
-function jsonResponse(value: unknown) {
-  return new Response(JSON.stringify(value), {
-    headers: { "content-type": "application/json" },
-  })
-}
 
 function requestUrl(input: RequestInfo | URL) {
   return input instanceof Request ? input.url : String(input)
@@ -72,8 +67,7 @@ describe("RecommendationsCenter", () => {
   })
 
   it("loads cursor pages by scroll alone and deduplicates rows", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [recommendation(3), recommendation(2)],
@@ -94,7 +88,6 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     render(<RecommendationsCenter />)
 
@@ -124,8 +117,7 @@ describe("RecommendationsCenter", () => {
   })
 
   it("recovers from the initial error into the empty state", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockRejectedValueOnce(new TypeError("offline"))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -137,7 +129,6 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<RecommendationsCenter />)
@@ -177,8 +168,7 @@ describe("RecommendationsCenter", () => {
       }
     }
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver)
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [recommendation(2)],
@@ -199,7 +189,6 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     render(<RecommendationsCenter />)
 
@@ -222,8 +211,7 @@ describe("RecommendationsCenter", () => {
         snapshotAt: "65",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     render(<RecommendationsCenter />)
 
@@ -250,7 +238,7 @@ describe("RecommendationsCenter", () => {
         snapshotAt: "1",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+    const fetchMock = installFetchMock().mockResolvedValueOnce(
       jsonResponse({
         items: [recommendation(1)],
         pageInfo: {
@@ -260,7 +248,6 @@ describe("RecommendationsCenter", () => {
         },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<RecommendationsCenter />)

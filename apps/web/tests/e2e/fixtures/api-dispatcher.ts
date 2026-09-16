@@ -1,7 +1,7 @@
 import type { BrowserContext, Request, Route } from "@playwright/test"
 import type { z } from "@imsweb/contracts/z"
 
-import { hasExactJsonStructure } from "../../../app/lib/api/json-contract"
+import { hasExactJsonStructure } from "~/lib/api/json-contract"
 import { resolveApiContract } from "./api-contract-catalog"
 
 type Schema = z.ZodTypeAny

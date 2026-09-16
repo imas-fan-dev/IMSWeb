@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   createAdminPlatformOAuthProvider,
   deleteAdminPlatformOAuthProvider,
@@ -51,37 +56,34 @@ const writeInput = {
 }
 
 afterEach(() => {
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("Platform OAuth admin endpoint contracts", () => {
   it("calls each provider endpoint with exact shared request and response schemas", async () => {
-    document.cookie = "ims_admin_csrf=admin-csrf; path=/"
+    setCsrfCookie("backoffice", "admin-csrf")
     const requests: Array<{
       path: string
       method: string
       csrf: string | null
       body: unknown
     }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const path = new URL(String(input), "http://ims.test").pathname
-        requests.push({
-          path,
-          method: init?.method ?? "GET",
-          csrf: new Headers(init?.headers).get(CSRF_HEADER_NAME),
-          body: init?.body ? JSON.parse(String(init.body)) : undefined,
-        })
-        if (init?.method === "GET") {
-          return Response.json({ success: true, providers: [provider] })
-        }
-        if (init?.method === "DELETE") {
-          return Response.json({ success: true, deletedCode: "github" })
-        }
-        return Response.json({ success: true, provider })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input), "http://ims.test").pathname
+      requests.push({
+        path,
+        method: init?.method ?? "GET",
+        csrf: new Headers(init?.headers).get(CSRF_HEADER_NAME),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
       })
-    )
+      if (init?.method === "GET") {
+        return Response.json({ success: true, providers: [provider] })
+      }
+      if (init?.method === "DELETE") {
+        return Response.json({ success: true, deletedCode: "github" })
+      }
+      return Response.json({ success: true, provider })
+    })
 
     await expect(getAdminPlatformOAuthProviders().send()).resolves.toEqual({
       success: true,
@@ -161,11 +163,8 @@ describe("Platform OAuth admin endpoint contracts", () => {
   })
 
   it("rejects success payloads with emitted unknown fields", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({ success: true, providers: [], unexpected: true })
-      )
+    installFetchMock(async () =>
+      Response.json({ success: true, providers: [], unexpected: true })
     )
 
     await expect(getAdminPlatformOAuthProviders().send()).rejects.toMatchObject(

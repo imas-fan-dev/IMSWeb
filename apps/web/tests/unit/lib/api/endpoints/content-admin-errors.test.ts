@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import {
   getAboutPageContent,
   getAdminAboutPageContent,
@@ -17,10 +18,7 @@ function errorResponse() {
 
 describe("content endpoint error contracts", () => {
   it("keeps About and Producer Map protected errors off public routes", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation(async () => errorResponse())
-    )
+    installFetchMock().mockImplementation(async () => errorResponse())
 
     await expect(getAdminAboutPageContent().send()).rejects.toMatchObject({
       kind: "http",

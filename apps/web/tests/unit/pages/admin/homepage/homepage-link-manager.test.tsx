@@ -3,6 +3,15 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import {
+  installFetchMock,
+  jsonResponse,
+  requestFrom,
+} from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import { HomepageLinkManager } from "~/pages/admin/homepage/index"
 
 function renderManager() {
@@ -11,18 +20,6 @@ function renderManager() {
       <HomepageLinkManager />
     </MemoryRouter>
   )
-}
-
-function jsonResponse(payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    headers: { "content-type": "application/json" },
-  })
-}
-
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
 }
 
 const homepageLinks = {
@@ -58,14 +55,11 @@ const homepageLinks = {
 describe("HomepageLinkManager", () => {
   afterEach(() => {
     vi.restoreAllMocks()
-    document.cookie = "csrf_token=; Max-Age=0; path=/"
+    clearCsrfCookie("legacy")
   })
 
   it("keeps the list first and opens an edit dialog with row values", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(jsonResponse(homepageLinks)))
-    )
+    installFetchMock(() => Promise.resolve(jsonResponse(homepageLinks)))
     const user = userEvent.setup()
 
     renderManager()
@@ -92,10 +86,7 @@ describe("HomepageLinkManager", () => {
   })
 
   it("opens a blank create dialog for each selected section", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(jsonResponse(homepageLinks)))
-    )
+    installFetchMock(() => Promise.resolve(jsonResponse(homepageLinks)))
     const user = userEvent.setup()
 
     renderManager()
@@ -118,33 +109,30 @@ describe("HomepageLinkManager", () => {
   })
 
   it("creates a link, closes the dialog, and resets the next draft", async () => {
-    document.cookie = "csrf_token=homepage-links-test; path=/"
+    setCsrfCookie("legacy", "homepage-links-test")
     const requests: Request[] = []
     const sections = {
       navigation: [...homepageLinks.sections.navigation],
       friend: [],
       support: [...homepageLinks.sections.support],
     }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
 
-        if (request.method === "POST") {
-          const submission = await request.clone().json()
-          const link = {
-            ...submission,
-            id: "navigation-new",
-            displayOrder: sections.navigation.length,
-          }
-          sections.navigation.push(link)
-          return Response.json({ success: true, link }, { status: 201 })
+      if (request.method === "POST") {
+        const submission = await request.clone().json()
+        const link = {
+          ...submission,
+          id: "navigation-new",
+          displayOrder: sections.navigation.length,
         }
+        sections.navigation.push(link)
+        return Response.json({ success: true, link }, { status: 201 })
+      }
 
-        return jsonResponse({ sections })
-      })
-    )
+      return jsonResponse({ sections })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -183,34 +171,31 @@ describe("HomepageLinkManager", () => {
   })
 
   it("keeps a successful create closed when the following refresh fails", async () => {
-    document.cookie = "csrf_token=homepage-refresh-failure; path=/"
+    setCsrfCookie("legacy", "homepage-refresh-failure")
     let getCount = 0
     let createCount = 0
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        if (request.method === "POST") {
-          createCount += 1
-          return Response.json(
-            {
-              success: true,
-              link: {
-                ...homepageLinks.sections.navigation[0],
-                id: "navigation-created",
-                title: "已保存链接",
-              },
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      if (request.method === "POST") {
+        createCount += 1
+        return Response.json(
+          {
+            success: true,
+            link: {
+              ...homepageLinks.sections.navigation[0],
+              id: "navigation-created",
+              title: "已保存链接",
             },
-            { status: 201 }
-          )
-        }
-        getCount += 1
-        if (getCount > 1) {
-          return Response.json({ error: "refresh failed" }, { status: 500 })
-        }
-        return jsonResponse(homepageLinks)
-      })
-    )
+          },
+          { status: 201 }
+        )
+      }
+      getCount += 1
+      if (getCount > 1) {
+        return Response.json({ error: "refresh failed" }, { status: 500 })
+      }
+      return jsonResponse(homepageLinks)
+    })
     const user = userEvent.setup()
 
     renderManager()

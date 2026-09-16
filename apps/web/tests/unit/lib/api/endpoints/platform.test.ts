@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   getPlatformOAuthProviders,
   getPlatformProfile,
@@ -33,7 +38,7 @@ const profile = {
 }
 
 afterEach(() => {
-  document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("platform")
 })
 
 describe("Platform profile API contracts", () => {
@@ -115,35 +120,32 @@ describe("Platform profile API contracts", () => {
 
   it("posts normalized login, verification, and registration inputs", async () => {
     const requests: Array<{ path: string; body: unknown }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const path = new URL(String(input), "http://ims.test").pathname
-        requests.push({
-          path,
-          body: JSON.parse(String(init?.body)),
-        })
-        if (path.endsWith("verification-code")) {
-          return Response.json(
-            { success: true, queued: true, retryAfterSeconds: 30 },
-            { status: 202 }
-          )
-        }
-        return Response.json(
-          {
-            success: true,
-            account: { id: "platform-owner", status: "active" },
-            profile: {
-              displayName: path.endsWith("register") ? "新制作人" : "制作人",
-              avatarUrl: null,
-              homeCity: null,
-              bio: "",
-            },
-          },
-          { status: path.endsWith("register") ? 201 : 200 }
-        )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input), "http://ims.test").pathname
+      requests.push({
+        path,
+        body: JSON.parse(String(init?.body)),
       })
-    )
+      if (path.endsWith("verification-code")) {
+        return Response.json(
+          { success: true, queued: true, retryAfterSeconds: 30 },
+          { status: 202 }
+        )
+      }
+      return Response.json(
+        {
+          success: true,
+          account: { id: "platform-owner", status: "active" },
+          profile: {
+            displayName: path.endsWith("register") ? "新制作人" : "制作人",
+            avatarUrl: null,
+            homeCity: null,
+            bio: "",
+          },
+        },
+        { status: path.endsWith("register") ? 201 : 200 }
+      )
+    })
 
     await loginPlatform({
       email: "  Producer@Example.com ",
@@ -197,41 +199,38 @@ describe("Platform profile API contracts", () => {
   })
 
   it("wires public auth, session, reset, and provider calls to shared schemas", async () => {
-    document.cookie = "ims_platform_csrf=logout-csrf; path=/"
+    setCsrfCookie("platform", "logout-csrf")
     const requests: Array<{ path: string; method: string; body: unknown }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const path = new URL(String(input), "http://ims.test").pathname
-        requests.push({
-          path,
-          method: init?.method ?? "GET",
-          body: init?.body ? JSON.parse(String(init.body)) : undefined,
-        })
-        if (path.endsWith("/providers")) {
-          return Response.json({ success: true, providers: [] })
-        }
-        if (path.endsWith("/session")) {
-          return Response.json({
-            success: true,
-            account: { id: "platform-owner", status: "active" },
-            profile: {
-              displayName: "Platform Producer",
-              avatarUrl: null,
-              homeCity: null,
-              bio: "",
-            },
-          })
-        }
-        if (path.endsWith("verification-code")) {
-          return Response.json(
-            { success: true, queued: true, retryAfterSeconds: 600 },
-            { status: 202 }
-          )
-        }
-        return Response.json({ success: true })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input), "http://ims.test").pathname
+      requests.push({
+        path,
+        method: init?.method ?? "GET",
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
       })
-    )
+      if (path.endsWith("/providers")) {
+        return Response.json({ success: true, providers: [] })
+      }
+      if (path.endsWith("/session")) {
+        return Response.json({
+          success: true,
+          account: { id: "platform-owner", status: "active" },
+          profile: {
+            displayName: "Platform Producer",
+            avatarUrl: null,
+            homeCity: null,
+            bio: "",
+          },
+        })
+      }
+      if (path.endsWith("verification-code")) {
+        return Response.json(
+          { success: true, queued: true, retryAfterSeconds: 600 },
+          { status: 202 }
+        )
+      }
+      return Response.json({ success: true })
+    })
 
     await expect(getPlatformOAuthProviders().send()).resolves.toEqual({
       success: true,
@@ -284,13 +283,11 @@ describe("Platform profile API contracts", () => {
   })
 
   it("rejects legacy verification acknowledgement payloads", async () => {
-    const fetchMock = vi
-      .fn()
+    installFetchMock()
       .mockResolvedValueOnce(Response.json({ success: true }, { status: 202 }))
       .mockResolvedValueOnce(
         Response.json({ success: true, sent: true }, { status: 202 })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(
       sendPlatformRegistrationVerificationCode({
@@ -339,31 +336,28 @@ describe("Platform profile API contracts", () => {
   })
 
   it("uses Platform auth for reads and Platform CSRF for JSON writes", async () => {
-    document.cookie = "ims_platform_csrf=profile-csrf; path=/"
+    setCsrfCookie("platform", "profile-csrf")
     const requests: Array<{ url: string; init?: RequestInit }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = new URL(String(input), "http://ims.test")
-        requests.push({ url: url.pathname, init })
-        if (init?.method === "GET") {
-          return Response.json({
-            success: true,
-            account: { id: "platform-owner", status: "active" },
-            profile,
-            capabilities: { fudabaWrite: false },
-          })
-        }
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://ims.test")
+      requests.push({ url: url.pathname, init })
+      if (init?.method === "GET") {
         return Response.json({
           success: true,
-          profile: {
-            ...profile,
-            displayName: "Updated Owner",
-            updatedAt: 1001,
-          },
+          account: { id: "platform-owner", status: "active" },
+          profile,
+          capabilities: { fudabaWrite: false },
         })
+      }
+      return Response.json({
+        success: true,
+        profile: {
+          ...profile,
+          displayName: "Updated Owner",
+          updatedAt: 1001,
+        },
       })
-    )
+    })
 
     await expect(getPlatformProfile().send()).resolves.toMatchObject({
       profile: { displayName: "Platform Producer" },
@@ -398,21 +392,18 @@ describe("Platform profile API contracts", () => {
   })
 
   it("uploads avatars as multipart PUT requests with revision fencing", async () => {
-    document.cookie = "ims_platform_csrf=avatar-csrf; path=/"
+    setCsrfCookie("platform", "avatar-csrf")
     let request: RequestInit | undefined
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        expect(new URL(String(input), "http://ims.test").pathname).toBe(
-          "/api/platform/me/avatar"
-        )
-        request = init
-        return Response.json({
-          success: true,
-          profile: { ...profile, updatedAt: 1001 },
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new URL(String(input), "http://ims.test").pathname).toBe(
+        "/api/platform/me/avatar"
+      )
+      request = init
+      return Response.json({
+        success: true,
+        profile: { ...profile, updatedAt: 1001 },
       })
-    )
+    })
     const image = new File(["avatar"], "avatar.png", { type: "image/png" })
 
     await expect(
@@ -430,21 +421,18 @@ describe("Platform profile API contracts", () => {
   })
 
   it("removes avatars as fenced DELETE requests", async () => {
-    document.cookie = "ims_platform_csrf=remove-csrf; path=/"
+    setCsrfCookie("platform", "remove-csrf")
     let request: RequestInit | undefined
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        expect(new URL(String(input), "http://ims.test").pathname).toBe(
-          "/api/platform/me/avatar"
-        )
-        request = init
-        return Response.json({
-          success: true,
-          profile: { ...profile, avatarUrl: null, updatedAt: 1001 },
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new URL(String(input), "http://ims.test").pathname).toBe(
+        "/api/platform/me/avatar"
+      )
+      request = init
+      return Response.json({
+        success: true,
+        profile: { ...profile, avatarUrl: null, updatedAt: 1001 },
       })
-    )
+    })
 
     await expect(removePlatformAvatar(1000).send()).resolves.toMatchObject({
       profile: { avatarUrl: null, updatedAt: 1001 },

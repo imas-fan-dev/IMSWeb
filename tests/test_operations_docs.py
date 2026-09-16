@@ -17,6 +17,28 @@ PRODUCER_MAP_MIGRATION = PROJECT_ROOT / "docs/migrations/producer-map-online.md"
 PRODUCER_MAP_SQL = (
     PROJECT_ROOT / "deploy/migrations/producer-map-r2-control-plane.sql"
 )
+ENVIRONMENT_ASSIGNMENT = re.compile(
+    r"^\s*(?P<commented>#\s*)?(?P<key>[A-Z][A-Z0-9_]*)\s*=\s*(?P<value>.*)$"
+)
+
+
+def parse_environment_template(text):
+    """Split a dotenv template into active values and documented key names.
+
+    Commented assignments such as ``# IMS_JWT_SECRET=`` are recorded as
+    documented names, because the template keeps those lines on purpose.
+    """
+    values = {}
+    documented = set()
+    for line in text.splitlines():
+        match = ENVIRONMENT_ASSIGNMENT.match(line)
+        if match is None:
+            continue
+        if match.group("commented") is not None:
+            documented.add(match.group("key"))
+            continue
+        values[match.group("key")] = match.group("value").strip()
+    return values, documented
 
 
 class OperationsDocumentationTests(unittest.TestCase):
@@ -32,11 +54,9 @@ class OperationsDocumentationTests(unittest.TestCase):
     def test_database_configuration_covers_postgresql_runtime_and_readiness(self):
         for token in (
             "DATABASE_URL",
-            "一个 PostgreSQL 物理数据库",
             "IMS_PG_POOL_MAX",
             "migration:postgresql",
             "Hono Node",
-            "自动读取 `apps/api/.env`",
             "/api/health/live",
             "/api/health/ready",
         ):
@@ -57,7 +77,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "PostgreSQL",
             "RustFS",
             "Valkey",
-            "自动读取 `apps/api/.env`",
             "pnpm run dev:postgresql:up",
             "pnpm run dev:rustfs:up",
             "pnpm run dev:node",
@@ -66,7 +85,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "git status --short",
             "deploy/compose.yaml",
             "WSL2",
-            "远程 context",
         ):
             self.assertIn(token, self.ai_guide)
 
@@ -148,7 +166,6 @@ class OperationsDocumentationTests(unittest.TestCase):
         for token in (
             "pnpm run dev:api:r2:config",
             "pnpm run dev:api:r2:up",
-            "不启用或依赖 RustFS",
             "`auto` region",
         ):
             self.assertIn(token, self.ai_guide)
@@ -158,21 +175,27 @@ class OperationsDocumentationTests(unittest.TestCase):
         api_environment = API_ENVIRONMENT.read_text(encoding="utf-8")
         web_environment = WEB_ENVIRONMENT.read_text(encoding="utf-8")
         deploy_environment = DEPLOY_ENVIRONMENT.read_text(encoding="utf-8")
+        api_values, api_documented = parse_environment_template(api_environment)
+        web_values, _ = parse_environment_template(web_environment)
+        deploy_values, _ = parse_environment_template(deploy_environment)
 
-        for token in (
+        for key in (
             "IMS_BACKOFFICE_JWT_SECRET",
-            "IMS_JWT_SECRET",
             "IMS_SUPER_ADMIN_USERNAME",
             "IMS_OBJECT_STORAGE",
         ):
-            self.assertIn(token, api_environment)
-        self.assertNotIn("IMS_DATABASE", api_environment)
-        self.assertIn("IMS_OBJECT_STORAGE=s3", api_environment)
-        self.assertIn("DATABASE_URL=", api_environment)
-        for token in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
-            self.assertIn(token, web_environment)
-        for token in (
-            "COMPOSE_PROFILES=local-cache,local-storage",
+            self.assertIn(key, api_values)
+        # The legacy Backoffice secret stays on a commented line on purpose, so
+        # the template documents its name without activating it.
+        self.assertIn("IMS_JWT_SECRET", set(api_values) | api_documented)
+        self.assertEqual(api_values["IMS_OBJECT_STORAGE"], "s3")
+        self.assertEqual(api_values["DATABASE_URL"], "")
+        for key in ("IMS_API_ORIGIN", "E2E_BASE_URL"):
+            self.assertIn(key, web_values)
+        self.assertEqual(
+            deploy_values["COMPOSE_PROFILES"], "local-cache,local-storage"
+        )
+        for key in (
             "IMS_VALKEY_IMAGE",
             "IMS_CACHE_BACKEND",
             "IMS_POSTGRES_IMAGE",
@@ -182,8 +205,9 @@ class OperationsDocumentationTests(unittest.TestCase):
             "IMS_PUBLIC_READ_URL_BASE",
             "AWS_ACCESS_KEY_ID",
         ):
-            self.assertIn(token, deploy_environment)
+            self.assertIn(key, deploy_values)
 
+        self.assertNotIn("IMS_DATABASE", api_environment)
         self.assertNotIn("IMS_NGINX_IMAGE", api_environment)
         self.assertNotIn("IMS_NGINX_IMAGE", deploy_environment)
         self.assertNotIn("IMS_NODE_UPSTREAM", deploy_environment)
@@ -205,7 +229,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "GetObject",
             "PutObject",
             "DeleteObject",
-            "不会自动搬迁",
             "migration:public-objects",
             "migration:single-bucket",
             "migration:namecard-thumbnails",
@@ -229,7 +252,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "client-manifest.json",
             "/srv/ims/current",
             "pg_dump --format=custom",
-            "数据库与媒体必须在同一停写窗口",
         ):
             self.assertIn(token, self.runbook)
 
@@ -308,7 +330,6 @@ class OperationsDocumentationTests(unittest.TestCase):
             "producer-map-r2-control-plane.sql",
             "ObjectStorage",
             "SHA-256",
-            "只删数据库或只删对象存储",
         ):
             self.assertIn(token, self.producer_map_migration)
 

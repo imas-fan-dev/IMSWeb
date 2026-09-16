@@ -8,7 +8,10 @@ const projectRoot = fileURLToPath(new URL(".", import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
+      // `~` is app source; `@` is the workspace root, which is how a test
+      // reaches `mocks/` and `tests/` without climbing `../../../../`.
       "~": path.resolve(projectRoot, "app"),
+      "@": projectRoot,
     },
   },
   test: {

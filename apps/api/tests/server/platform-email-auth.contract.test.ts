@@ -14,7 +14,7 @@ import {
     platformRegistrationVerificationResponseSchema,
     platformSessionSchema,
 } from "@imsweb/contracts/platform";
-import { createHonoApp } from "@/app";
+import { createTestApp, testRequest } from "./test-app";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
 import { SqlPlatformEmailDeliveryRepository } from "@/infra/db/repositories/platform-email-delivery-repository";
 import { PlatformEmailJobPayloadCipherAdapter } from "@/infra/email/smtp/platform-email-job-payload";
@@ -64,7 +64,7 @@ const initializedPostgresSchema: SqlSchemaStrategy = {
 };
 
 interface Fixture {
-    app: ReturnType<typeof createHonoApp>;
+    app: ReturnType<typeof createTestApp>;
     database: ManagedSqlDatabase;
     databaseUrl?: string;
     repository: SqlPlatformAccountRepository;
@@ -114,7 +114,7 @@ function appWithPlatformEmail(
     deliveryRepository: SqlPlatformEmailDeliveryRepository,
     payloadCipher: PlatformEmailJobPayloadCipher,
     cache?: CacheStore,
-): ReturnType<typeof createHonoApp> {
+): ReturnType<typeof createTestApp> {
     const runtime = {
         platformAccounts: repository,
         passwords: new BcryptPasswordVerifier(),
@@ -129,7 +129,7 @@ function appWithPlatformEmail(
         ...(cache ? { cache } : {}),
         config: { cookieSecure: false, clientAddressSource: "direct" },
     } as unknown as RuntimeServices;
-    return createHonoApp(() => runtime);
+    return createTestApp(() => runtime);
 }
 
 function emailAccount(
@@ -637,8 +637,9 @@ test("bearer callers get tokens from registration and login, cookie callers do n
     ]);
 
     // The returned token is the whole session for a client without a cookie jar.
-    const session = await fixture.app.request(
-        "http://ims.test/api/platform/auth/session",
+    const session = await testRequest(
+        fixture.app,
+        "/api/platform/auth/session",
         { headers: bearerTokenHeaders(loggedIn.accessToken!) },
     );
     assert.equal(session.status, 200, await session.clone().text());
@@ -1696,8 +1697,9 @@ test("email auth strictly validates JSON shapes and credential fields", async (t
         });
         assertPrivateAuthResponse(response);
     }
-    const invalidJson = await app.request(
-        "http://ims.test/api/platform/auth/login",
+    const invalidJson = await testRequest(
+        app,
+        "/api/platform/auth/login",
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1709,8 +1711,9 @@ test("email auth strictly validates JSON shapes and credential fields", async (t
         success: false,
         code: "PLATFORM_AUTH_INPUT_INVALID",
     });
-    const missingJsonType = await app.request(
-        "http://ims.test/api/platform/auth/register",
+    const missingJsonType = await testRequest(
+        app,
+        "/api/platform/auth/register",
         { method: "POST", body: JSON.stringify(invalidRegistrations[0]) },
     );
     assert.equal(missingJsonType.status, 415);
@@ -1726,7 +1729,7 @@ nodeTest("Platform email auth routes use independent IP rate-limit buckets", asy
         limit: number;
         windowSeconds: number;
     }> = [];
-    const app = createHonoApp(() => ({
+    const app = createTestApp(() => ({
         rateLimiter: {
             async consume(bucket, _key, limit, windowSeconds) {
                 calls.push({ bucket, limit, windowSeconds });
@@ -1785,7 +1788,7 @@ nodeTest("login account limiting shares a normalized digest across rotating IPs 
     let repositoryLookups = 0;
     let passwordVerifications = 0;
     const resetAt = Date.now() + 61_000;
-    const app = createHonoApp(
+    const app = createTestApp(
         () =>
             ({
                 platformAccounts: {

@@ -2,6 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StoryEditorDialog } from "~/pages/admin/stories/components/story-editor-dialog"
 import { defaultWikiImageTransform, type WikiAdminStory } from "~/lib/api"
 import type { WikiStoryCardMutationResult } from "@imsweb/contracts/wiki"
@@ -40,18 +45,6 @@ const sourcePlatforms = [
   },
 ]
 
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return { body: input.body, method: input.method, url: input.url }
-  }
-  return {
-    body: init?.body ?? null,
-    method: init?.method ?? "GET",
-    url: String(input),
-  }
-}
-
 function storyCardMutation(mediaRevision = 4) {
   return {
     status: "success",
@@ -65,14 +58,13 @@ function storyCardMutation(mediaRevision = 4) {
 
 describe("StoryEditorDialog", () => {
   beforeEach(() => {
-    document.cookie = "ims_admin_csrf=story-editor-test; path=/"
+    setCsrfCookie("backoffice", "story-editor-test")
   })
 
   it("creates one card and multiple source entries in a single request", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success", sourceCount: 2 }))
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      Response.json({ status: "success", sourceCount: 2 })
+    )
     const onOpenChange = vi.fn()
     const onSaved = vi.fn()
     const user = userEvent.setup()
@@ -146,10 +138,9 @@ describe("StoryEditorDialog", () => {
   })
 
   it("creates a card without source entries", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success", sourceCount: 0 }))
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      Response.json({ status: "success", sourceCount: 0 })
+    )
     const onSaved = vi.fn()
     const user = userEvent.setup()
 
@@ -180,12 +171,9 @@ describe("StoryEditorDialog", () => {
   })
 
   it("adds multiple sources to the selected card identity and revision", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        Response.json({ status: "success", sourceCount: 2, mediaRevision: 4 })
-      )
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      Response.json({ status: "success", sourceCount: 2, mediaRevision: 4 })
+    )
     const story: WikiAdminStory = {
       id: 21,
       cardId: 11,
@@ -271,10 +259,9 @@ describe("StoryEditorDialog", () => {
   })
 
   it("edits card metadata without sending source fields", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json(storyCardMutation()))
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      Response.json(storyCardMutation())
+    )
     const story: WikiAdminStory = {
       id: 21,
       cardId: 11,
@@ -341,10 +328,9 @@ describe("StoryEditorDialog", () => {
   })
 
   it("binds a reusable agency cover without uploading duplicate bytes", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json(storyCardMutation()))
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      Response.json(storyCardMutation())
+    )
     const story: WikiAdminStory = {
       id: 21,
       cardId: 11,

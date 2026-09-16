@@ -10,7 +10,7 @@ import { test as nodeTest, type TestContext } from "node:test";
 import { postgresTest as test } from '../integration/postgres-harness';
 import { pathToFileURL } from "node:url";
 import { sign, verify } from "hono/utils/jwt/jwt";
-import { createHonoApp } from "@/app";
+import { createTestApp, testRequest } from "./test-app";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
 import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service";
 import type {
@@ -60,7 +60,7 @@ interface SeededSession {
 }
 
 interface Fixture {
-    app: ReturnType<typeof createHonoApp>;
+    app: ReturnType<typeof createTestApp>;
     database: ManagedSqlDatabase;
     databaseUrl?: string;
     platformTokens: TestPlatformTokenService;
@@ -194,7 +194,7 @@ async function createFixture(t: TestContext): Promise<Fixture> {
             clientAddressSource: "nginx",
         },
     } as unknown as RuntimeServices;
-    const app = createHonoApp(() => runtime);
+    const app = createTestApp(() => runtime);
     let closed = false;
     const fixture: Fixture = {
         app,
@@ -300,7 +300,7 @@ async function sessionRequest(
     fixture: Fixture,
     cookies: Map<string, string>,
 ): Promise<Response> {
-    return fixture.app.request("http://ims.test/api/platform/auth/session", {
+    return testRequest(fixture.app, "/api/platform/auth/session", {
         headers: { Cookie: cookieHeader(cookies) },
     });
 }
@@ -310,7 +310,7 @@ async function refreshRequest(
     cookies: Map<string, string>,
     csrf?: string,
 ): Promise<Response> {
-    return fixture.app.request("http://ims.test/api/platform/auth/refresh", {
+    return testRequest(fixture.app, "/api/platform/auth/refresh", {
         method: "POST",
         headers: {
             Cookie: cookieHeader(cookies),
@@ -359,8 +359,9 @@ test("Platform session authenticates active and restricted accounts through a li
     const fixture = await createFixture(t);
     const active = await fixture.seedSession({ accountId: "platform-active" });
 
-    const anonymous = await fixture.app.request(
-        "http://ims.test/api/platform/auth/session",
+    const anonymous = await testRequest(
+        fixture.app,
+        "/api/platform/auth/session",
     );
     assert.equal(anonymous.status, 401);
     assert.deepEqual(await anonymous.json(), {
@@ -530,8 +531,9 @@ test("Platform and Backoffice reject each other even when their test secret is s
         },
         ACCESS_TTL_SECONDS,
     );
-    const platformAtBackoffice = await fixture.app.request(
-        "http://ims.test/api/admin/auth/session",
+    const platformAtBackoffice = await testRequest(
+        fixture.app,
+        "/api/admin/auth/session",
         {
             headers: {
                 Cookie: `ims_admin_access=${encodeURIComponent(session.accessToken)}`,
@@ -540,8 +542,9 @@ test("Platform and Backoffice reject each other even when their test secret is s
     );
     assert.equal(platformAtBackoffice.status, 401);
 
-    const backofficeAtPlatform = await fixture.app.request(
-        "http://ims.test/api/platform/auth/session",
+    const backofficeAtPlatform = await testRequest(
+        fixture.app,
+        "/api/platform/auth/session",
         {
             headers: {
                 Cookie: `${ACCESS_COOKIE}=${encodeURIComponent(backofficeToken)}`,
@@ -699,8 +702,9 @@ test("Bearer callers refresh without cookies and only they receive tokens", asyn
 
     // The packaged client has no cookie jar: the refresh token travels in a
     // header, and CSRF double-submit is neither possible nor needed there.
-    const bearer = await fixture.app.request(
-        "http://ims.test/api/platform/auth/refresh",
+    const bearer = await testRequest(
+        fixture.app,
+        "/api/platform/auth/refresh",
         {
             method: "POST",
             headers: {
@@ -725,15 +729,17 @@ test("Bearer callers refresh without cookies and only they receive tokens", asyn
     assert.equal(claims.id, session.accountId);
     assert.equal(claims.sessionId, session.sessionId);
 
-    const authorized = await fixture.app.request(
-        "http://ims.test/api/platform/auth/session",
+    const authorized = await testRequest(
+        fixture.app,
+        "/api/platform/auth/session",
         { headers: { Authorization: `Bearer ${rotated.accessToken}` } },
     );
     assert.equal(authorized.status, 200);
 
     // The rotated refresh token keeps working through the same header path.
-    const again = await fixture.app.request(
-        "http://ims.test/api/platform/auth/refresh",
+    const again = await testRequest(
+        fixture.app,
+        "/api/platform/auth/refresh",
         {
             method: "POST",
             headers: {
@@ -870,8 +876,9 @@ async function assertRotationReplayAndLogout(
     logoutCookies.set("ims_admin_access", "backoffice-access-must-survive");
     logoutCookies.set("ims_admin_refresh", "backoffice-refresh-must-survive");
     logoutCookies.set("ims_admin_csrf", "backoffice-csrf-must-survive");
-    const logout = await fixture.app.request(
-        "http://ims.test/api/platform/auth/logout",
+    const logout = await testRequest(
+        fixture.app,
+        "/api/platform/auth/logout",
         {
             method: "POST",
             headers: {
@@ -956,7 +963,7 @@ nodeTest("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket",
         limit: number;
         windowSeconds: number;
     }> = [];
-    const app = createHonoApp(() => ({
+    const app = createTestApp(() => ({
         rateLimiter: {
             async consume(bucket, _key, limit, windowSeconds) {
                 calls.push({ bucket, limit, windowSeconds });
@@ -968,8 +975,9 @@ nodeTest("Platform refresh has a dedicated 120 per 15 minute rate-limit bucket",
             },
         },
     }));
-    const response = await app.request(
-        "http://ims.test/api/platform/auth/refresh",
+    const response = await testRequest(
+        app,
+        "/api/platform/auth/refresh",
         {
             method: "POST",
         },
@@ -986,8 +994,9 @@ test("Platform logout is idempotent and Bearer authentication does not require C
     const session = await fixture.seedSession({
         accountId: "platform-bearer-logout",
     });
-    const bearerLogout = await fixture.app.request(
-        "http://ims.test/api/platform/auth/logout",
+    const bearerLogout = await testRequest(
+        fixture.app,
+        "/api/platform/auth/logout",
         {
             method: "POST",
             headers: { Authorization: `Bearer ${session.accessToken}` },
@@ -996,8 +1005,9 @@ test("Platform logout is idempotent and Bearer authentication does not require C
     assert.equal(bearerLogout.status, 200);
     assert.ok((await sessionRow(fixture, session.sessionId))?.revoked_at);
 
-    const anonymousLogout = await fixture.app.request(
-        "http://ims.test/api/platform/auth/logout",
+    const anonymousLogout = await testRequest(
+        fixture.app,
+        "/api/platform/auth/logout",
         { method: "POST" },
     );
     assert.equal(anonymousLogout.status, 200);
@@ -1060,7 +1070,7 @@ test("real PostgreSQL emits refresh success only for the cross-instance CAS winn
         } as unknown as RuntimeServices;
         const siblingFixture = {
             ...fixture,
-            app: createHonoApp(() => siblingRuntime),
+            app: createTestApp(() => siblingRuntime),
         };
 
         const responses = await Promise.all([

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import {
   chronicleActivitySchema,
   chronicleActivitySummarySchema,
@@ -33,11 +34,8 @@ describe("chronicle API contracts", () => {
 
   it("validates the legacy Chronicle upload error envelope", async () => {
     const payload = { success: false as const, error: "图片格式不支持" }
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json(payload, { status: 400 }))
+    installFetchMock().mockResolvedValue(
+      Response.json(payload, { status: 400 })
     )
 
     await expect(

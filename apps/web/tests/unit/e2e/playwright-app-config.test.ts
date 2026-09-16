@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { resolveAppE2EOrigins } from "../../../playwright.app.config"
+import { resolveAppE2EOrigins } from "@/playwright.app.config"
 
 describe("App Playwright origin configuration", () => {
   it("uses the local cross-origin API default", () => {

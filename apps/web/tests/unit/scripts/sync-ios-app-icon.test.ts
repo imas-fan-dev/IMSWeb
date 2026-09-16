@@ -15,7 +15,7 @@ import {
   deterministicObjectId,
   syncIosAppIcon,
   wireAppIconIntoProject,
-} from "../../../scripts/sync-ios-app-icon.js"
+} from "@/scripts/sync-ios-app-icon.js"
 
 const PROJECT_FIXTURE = `// !$*UTF8*$!
 {

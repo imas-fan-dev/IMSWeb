@@ -1,20 +1,11 @@
 import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { I18nextProvider } from "react-i18next"
-import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { I18nTestProvider } from "@/tests/unit/support/harness"
 import { i18n } from "~/i18n/config"
-import { defaultLanguage, defaultNamespace } from "~/i18n/resources"
+import { defaultLanguage } from "~/i18n/resources"
 import { AdminImageUploadField } from "~/components/admin/admin-image-upload-field"
-
-function TestI18nProvider({ children }: { children: ReactNode }) {
-  return (
-    <I18nextProvider i18n={i18n} defaultNS={defaultNamespace}>
-      {children}
-    </I18nextProvider>
-  )
-}
 
 describe("AdminImageUploadField", () => {
   beforeEach(async () => {
@@ -32,7 +23,7 @@ describe("AdminImageUploadField", () => {
         description="选择活动封面。"
         onSelect={onSelect}
       />,
-      { wrapper: TestI18nProvider }
+      { wrapper: I18nTestProvider }
     )
 
     const file = new File([new Uint8Array(1536)], "summer-live.png", {
@@ -77,7 +68,7 @@ describe("AdminImageUploadField", () => {
         uploading
         onSelect={vi.fn()}
       />,
-      { wrapper: TestI18nProvider }
+      { wrapper: I18nTestProvider }
     )
 
     expect(screen.getByLabelText("正文图片")).toBeDisabled()
@@ -98,7 +89,7 @@ describe("AdminImageUploadField", () => {
         file={file}
         onSelect={vi.fn()}
       />,
-      { wrapper: TestI18nProvider }
+      { wrapper: I18nTestProvider }
     )
 
     expect(screen.getByRole("group", { name: "图片文件选择" })).toBeVisible()
@@ -122,7 +113,7 @@ describe("AdminImageUploadField", () => {
         description="Choose an image."
         onSelect={vi.fn()}
       />,
-      { wrapper: TestI18nProvider }
+      { wrapper: I18nTestProvider }
     )
 
     await act(() => i18n.changeLanguage("en"))

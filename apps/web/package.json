@@ -13,6 +13,7 @@
     "design:lint": "designmd lint DESIGN.md",
     "dev": "VITE_IMS_APP_TARGET=web react-router dev",
     "dev:app": "node scripts/dev-app.js",
+    "dev:mock": "VITE_IMS_MOCK_API=1 VITE_IMS_APP_TARGET=web react-router dev",
     "icon:app": "tauri icon src-tauri/icon-sources/app-icon.json && node scripts/canonicalize-icns.js src-tauri/icons/icon.icns && node scripts/sync-ios-app-icon.js",
     "lint": "eslint . --max-warnings=0",
     "preview": "VITE_IMS_APP_TARGET=web vite preview --host 127.0.0.1",
@@ -23,7 +24,7 @@
     "test:unit": "VITE_IMS_APP_TARGET=web vitest run",
     "test:watch": "VITE_IMS_APP_TARGET=web vitest",
     "typecheck": "VITE_IMS_APP_TARGET=web react-router typegen && tsc",
-    "format": "prettier --write --no-error-on-unmatched-pattern \"app/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json,md}\" \"docs/**/*.md\""
+    "format": "prettier --write --no-error-on-unmatched-pattern \"app/**/*.{ts,tsx,css}\" \"mocks/**/*.ts\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json,md}\" \"docs/**/*.md\""
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

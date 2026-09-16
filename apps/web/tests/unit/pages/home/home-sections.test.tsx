@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import { ActivityHighlights } from "~/pages/home/components/activity-highlights"
 import { RandomIdol } from "~/pages/home/components/random-idol"
 import { SiteSupport } from "~/pages/home/components/site-support"
@@ -94,7 +95,7 @@ function stubInformation(
   randomIdols: unknown[] = [randomIdolPayload()]
 ) {
   let randomRequest = 0
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = installFetchMock(async (input: RequestInfo | URL) => {
     const rawUrl = input instanceof Request ? input.url : String(input)
     const url = new URL(rawUrl, window.location.origin)
     const payload =
@@ -109,7 +110,6 @@ function stubInformation(
       headers: { "content-type": "application/json" },
     })
   })
-  vi.stubGlobal("fetch", fetchMock)
   return fetchMock
 }
 

@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   fudabaLocationReviewListSchema,
   getFudabaLocationReviews,
@@ -25,14 +30,8 @@ const review = {
   reviewNote: "",
 }
 
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
-
 afterEach(() => {
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("Fudaba location review API", () => {
@@ -61,11 +60,8 @@ describe("Fudaba location review API", () => {
 
   it("accepts the Backoffice failure envelope on the admin queue", async () => {
     const payload = { success: false as const, message: "未登录" }
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json(payload, { status: 403 }))
+    installFetchMock().mockResolvedValue(
+      Response.json(payload, { status: 403 })
     )
 
     await expect(
@@ -79,13 +75,10 @@ describe("Fudaba location review API", () => {
 
   it("loads a filtered queue with Backoffice auth", async () => {
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        requests.push(requestFrom(input, init).clone())
-        return Response.json({ items: [review] })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(requestFrom(input, init).clone())
+      return Response.json({ items: [review] })
+    })
 
     await expect(
       getFudabaLocationReviews("rejected", 25).send()
@@ -101,26 +94,23 @@ describe("Fudaba location review API", () => {
   })
 
   it("URL-encodes office IDs and sends CAS decisions with Backoffice CSRF", async () => {
-    document.cookie = "ims_admin_csrf=location-review-csrf; path=/"
+    setCsrfCookie("backoffice", "location-review-csrf")
     let submitted: Request | undefined
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        submitted = requestFrom(input, init).clone()
-        return Response.json({
-          success: true,
-          officeLocation: {
-            officeId: "office /?#",
-            location: review.location,
-            reviewState: "rejected",
-            revision: 4,
-            submittedAt: review.submittedAt,
-            reviewedAt: "2026-08-03T02:00:00.000Z",
-            reviewNote: "公开范围不合适",
-          },
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      submitted = requestFrom(input, init).clone()
+      return Response.json({
+        success: true,
+        officeLocation: {
+          officeId: "office /?#",
+          location: review.location,
+          reviewState: "rejected",
+          revision: 4,
+          submittedAt: review.submittedAt,
+          reviewedAt: "2026-08-03T02:00:00.000Z",
+          reviewNote: "公开范围不合适",
+        },
       })
-    )
+    })
 
     await reviewFudabaLocation("office /?#", {
       decision: "reject",

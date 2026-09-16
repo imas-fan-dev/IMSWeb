@@ -120,6 +120,15 @@ export type SeededPublicApiRegistration = {
   times: ApiTimes
 }
 
+export const homeSeededApis: SeededPublicApiRegistration[] = [
+  { path: "/api/wiki/random_idol", times: 1 },
+  { path: "/api/wiki/catalog", times: 1 },
+  { path: "/api/community-posts/spotlight", times: 1 },
+  { path: "/api/homepage-links", times: 1 },
+  { path: "/api/news", times: 1 },
+  { path: "/api/events", times: 1 },
+]
+
 function installEventsMock(api: ApiDispatcher, times: ApiTimes) {
   api.expect({
     name: "deterministic public events",

@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
+import { touchEvent } from "@/tests/unit/support/dom-events"
 import { RecommendationsCenter } from "~/pages/recommendations/index"
 
 const feed = vi.hoisted(() => ({
@@ -49,15 +50,6 @@ vi.mock("@tanstack/react-virtual", () => ({
     measureElement: vi.fn(),
   }),
 }))
-
-// jsdom ships no TouchEvent constructor, and the hook only reads `touches`.
-function touchEvent(type: "touchstart" | "touchmove" | "touchend", y: number) {
-  const event = new Event(type, { bubbles: true, cancelable: true })
-  Object.defineProperty(event, "touches", {
-    value: type === "touchend" ? [] : [{ clientY: y }],
-  })
-  return event
-}
 
 describe("RecommendationsCenter in the App target", () => {
   it("drops the counter and refresh control beside the title", () => {

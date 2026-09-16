@@ -2,8 +2,8 @@ import { successFlagSchema } from "@imsweb/contracts/common"
 import { z } from "@imsweb/contracts/z"
 import { describe, expect, it, vi } from "vitest"
 
-import { resolveApiContract } from "../../e2e/fixtures/api-contract-catalog"
-import { ApiDispatcher } from "../../e2e/fixtures/api-dispatcher"
+import { resolveApiContract } from "@/tests/e2e/fixtures/api-contract-catalog"
+import { ApiDispatcher } from "@/tests/e2e/fixtures/api-dispatcher"
 
 type RouteMatcher = (url: URL) => boolean
 type TestRoute = ReturnType<typeof makeRoute>

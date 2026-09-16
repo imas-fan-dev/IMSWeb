@@ -29,6 +29,7 @@
     "dev:node": "pnpm --filter @imsweb/api run dev",
     "dev:email-worker": "pnpm --filter @imsweb/api run dev:email-worker",
     "dev:web": "pnpm --filter @imsweb/web run dev",
+    "dev:web:mock": "pnpm --filter @imsweb/web run dev:mock",
     "app": "pnpm --filter @imsweb/web run app",
     "app:doctor": "pnpm --filter @imsweb/web run app:doctor",
     "dev:data:export": "pnpm --filter @imsweb/api run dev:data:export",

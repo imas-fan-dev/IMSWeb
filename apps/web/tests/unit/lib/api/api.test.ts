@@ -1,6 +1,11 @@
 import { z } from "@imsweb/contracts/z"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import { adminApiClient } from "~/lib/api/admin-client"
 import { ApiError, normalizeRequestError } from "~/lib/api/api-error"
 import { apiClient } from "~/lib/api/client"
@@ -22,8 +27,8 @@ import { handleApiResponse } from "~/lib/api/response"
 import { withBackofficeAuth, withBackofficeCsrf } from "~/lib/api/types"
 
 afterEach(() => {
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
-  document.cookie = "csrf_token=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
+  clearCsrfCookie("legacy")
 })
 
 describe("API request policy", () => {
@@ -82,7 +87,7 @@ describe("API request policy", () => {
   })
 
   it("uses a legacy CSRF cookie as a Backoffice session hint during upgrades", () => {
-    document.cookie = "csrf_token=legacy-session-hint; path=/"
+    setCsrfCookie("legacy", "legacy-session-hint")
 
     expect(hasBackofficeSessionHint()).toBe(true)
   })
@@ -328,7 +333,7 @@ describe("network errors", () => {
 
 describe("Alova access-token refresh", () => {
   it("uses the role-gated admin endpoint without refreshing a failed login", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = installFetchMock(async (input: RequestInfo | URL) => {
       expect(new URL(String(input), "http://ims.test").pathname).toBe(
         "/api/admin/auth/login"
       )
@@ -340,7 +345,6 @@ describe("Alova access-token refresh", () => {
         { status: 401 }
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(loginAdmin("reader", "password").send()).rejects.toMatchObject(
       {
@@ -353,7 +357,7 @@ describe("Alova access-token refresh", () => {
   })
 
   it("does not refresh a public request that returns 401", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = installFetchMock(async (input: RequestInfo | URL) => {
       const pathname = new URL(String(input), "http://ims.test").pathname
       expect(pathname).toBe("/api/news")
       return Response.json(
@@ -361,7 +365,6 @@ describe("Alova access-token refresh", () => {
         { status: 401 }
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(apiClient.Get("/api/news").send()).rejects.toMatchObject({
       kind: "http",
@@ -372,8 +375,8 @@ describe("Alova access-token refresh", () => {
   })
 
   it("does not refresh or replay a failed admin logout", async () => {
-    document.cookie = "ims_admin_csrf=logout-csrf; path=/"
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    setCsrfCookie("backoffice", "logout-csrf")
+    const fetchMock = installFetchMock(async (input: RequestInfo | URL) => {
       expect(new URL(String(input), "http://ims.test").pathname).toBe(
         "/api/admin/auth/logout"
       )
@@ -382,7 +385,6 @@ describe("Alova access-token refresh", () => {
         { status: 401 }
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(logoutAdmin().send()).rejects.toMatchObject({
       kind: "http",
@@ -393,15 +395,14 @@ describe("Alova access-token refresh", () => {
   })
 
   it("sends the legacy CSRF cookie to the canonical logout during an upgrade", async () => {
-    document.cookie = "csrf_token=legacy-logout-csrf; path=/"
+    setCsrfCookie("legacy", "legacy-logout-csrf")
     let logoutHeaders: Headers | undefined
-    const fetchMock = vi.fn(
+    const fetchMock = installFetchMock(
       async (_input: RequestInfo | URL, init?: RequestInit) => {
         logoutHeaders = new Headers(init?.headers)
         return Response.json({ success: true })
       }
     )
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(logoutAdmin().send()).resolves.toEqual({ success: true })
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -409,7 +410,7 @@ describe("Alova access-token refresh", () => {
   })
 
   it("settles every request when a concurrent admin refresh fails", async () => {
-    document.cookie = "ims_admin_csrf=expired-refresh-csrf; path=/"
+    setCsrfCookie("backoffice", "expired-refresh-csrf")
     let checkRequests = 0
     let refreshRequests = 0
     let releaseInitialChecks!: () => void
@@ -417,31 +418,28 @@ describe("Alova access-token refresh", () => {
       releaseInitialChecks = resolve
     })
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        if (pathname === "/api/admin/auth/refresh") {
-          refreshRequests += 1
-          return Response.json(
-            { success: false, message: "刷新令牌已失效" },
-            { status: 401 }
-          )
+    installFetchMock(async (input: RequestInfo | URL) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      if (pathname === "/api/admin/auth/refresh") {
+        refreshRequests += 1
+        return Response.json(
+          { success: false, message: "刷新令牌已失效" },
+          { status: 401 }
+        )
+      }
+      if (pathname === "/api/admin/auth/session") {
+        checkRequests += 1
+        if (checkRequests <= 2) {
+          if (checkRequests === 2) releaseInitialChecks()
+          await initialChecksReady
         }
-        if (pathname === "/api/admin/auth/session") {
-          checkRequests += 1
-          if (checkRequests <= 2) {
-            if (checkRequests === 2) releaseInitialChecks()
-            await initialChecksReady
-          }
-          return Response.json(
-            { success: false, message: "token invalid" },
-            { status: 401 }
-          )
-        }
-        throw new Error(`Unexpected request: ${pathname}`)
-      })
-    )
+        return Response.json(
+          { success: false, message: "token invalid" },
+          { status: 401 }
+        )
+      }
+      throw new Error(`Unexpected request: ${pathname}`)
+    })
 
     const requests = [
       getAdminSession().send(),
@@ -472,7 +470,7 @@ describe("Alova access-token refresh", () => {
   })
 
   it("coalesces concurrent 401 responses and replays both requests", async () => {
-    document.cookie = "ims_admin_csrf=alova-refresh-csrf; path=/"
+    setCsrfCookie("backoffice", "alova-refresh-csrf")
     let checkRequests = 0
     let refreshRequests = 0
     let refreshHeaders: Headers | undefined
@@ -481,49 +479,46 @@ describe("Alova access-token refresh", () => {
       releaseInitialChecks = resolve
     })
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        if (pathname === "/api/admin/auth/refresh") {
-          refreshRequests += 1
-          refreshHeaders = new Headers(init?.headers)
-          return Response.json({
-            success: true,
-            user: {
-              id: 1,
-              username: "alova-op",
-              producername: "Alova Producer",
-              dept: "op",
-              adminRole: "admin",
-            },
-          })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      if (pathname === "/api/admin/auth/refresh") {
+        refreshRequests += 1
+        refreshHeaders = new Headers(init?.headers)
+        return Response.json({
+          success: true,
+          user: {
+            id: 1,
+            username: "alova-op",
+            producername: "Alova Producer",
+            dept: "op",
+            adminRole: "admin",
+          },
+        })
+      }
+      if (pathname === "/api/admin/auth/session") {
+        checkRequests += 1
+        if (checkRequests <= 2) {
+          if (checkRequests === 2) releaseInitialChecks()
+          await initialChecksReady
+          return Response.json(
+            { success: false, message: "token无效" },
+            { status: 401 }
+          )
         }
-        if (pathname === "/api/admin/auth/session") {
-          checkRequests += 1
-          if (checkRequests <= 2) {
-            if (checkRequests === 2) releaseInitialChecks()
-            await initialChecksReady
-            return Response.json(
-              { success: false, message: "token无效" },
-              { status: 401 }
-            )
-          }
-          return Response.json({
-            success: true,
-            user: {
-              id: 1,
-              username: "alova-op",
-              producername: "Alova Producer",
-              dept: "op",
-              adminRole: "admin",
-              csrfSecret: "alova-refresh-csrf",
-            },
-          })
-        }
-        throw new Error(`Unexpected request: ${pathname}`)
-      })
-    )
+        return Response.json({
+          success: true,
+          user: {
+            id: 1,
+            username: "alova-op",
+            producername: "Alova Producer",
+            dept: "op",
+            adminRole: "admin",
+            csrfSecret: "alova-refresh-csrf",
+          },
+        })
+      }
+      throw new Error(`Unexpected request: ${pathname}`)
+    })
 
     const [first, second] = await Promise.all([
       getAdminSession().send(),

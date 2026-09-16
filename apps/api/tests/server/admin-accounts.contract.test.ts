@@ -8,22 +8,22 @@ import {
     adminAuditLogListSchema,
     adminLogoutSuccessResponseSchema
 } from '@imsweb/contracts/admin';
-import { createHonoApp } from '@/app';
+import { insertFudabaOfficePublicLocation, insertPlatformAccount, insertUser } from '../fixtures/rows';
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
 import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
-import { queryOne } from '@/infra/db/sql/query';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { AdminRole } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { createPostgresTestDatabase } from './postgres-test-database';
+import { createTestApp, testRequest } from './test-app';
 
 const SECRET = 'admin-accounts-contract-secret-at-least-thirty-two-bytes';
 
 interface Fixture {
-    app: ReturnType<typeof createHonoApp>;
+    app: ReturnType<typeof createTestApp>;
     connection: PostgresConnection;
     repository: SqlBackofficeAuthRepository;
     audit: SqlAuditRepository;
@@ -38,13 +38,12 @@ async function insertAccount(
     dept: 'op' | 'editor',
     role: AdminRole | null
 ): Promise<number> {
-    const result = await queryOne<{ id: number }>(connection,
-        `INSERT INTO users (username, password, dept, producername, admin_role)
-         VALUES (?, 'stored-digest', ?, ?, ?) RETURNING id`,
-        [username, dept, `${username} P`, role]
-    );
-    if (!result) throw new Error('Test account was not inserted');
-    return result.id;
+    return insertUser(connection, username, {
+        password: 'stored-digest',
+        dept,
+        producername: `${username} P`,
+        admin_role: role
+    });
 }
 
 async function createFixture(t: TestContext): Promise<Fixture> {
@@ -71,7 +70,7 @@ async function createFixture(t: TestContext): Promise<Fixture> {
         config: { cookieSecure: false }
     };
     return {
-        app: createHonoApp(() => services),
+        app: createTestApp(() => services),
         connection,
         repository,
         audit,
@@ -106,7 +105,7 @@ test('only the super administrator can list op accounts', async (t) => {
     const fixture = await createFixture(t);
     t.after(() => fixture.close());
 
-    const regular = await fixture.app.request('http://ims.test/api/admin/accounts', {
+    const regular = await testRequest(fixture.app, '/api/admin/accounts', {
         headers: await authHeaders(fixture, {
             id: fixture.ids.admin,
             username: 'regular-operator',
@@ -116,7 +115,7 @@ test('only the super administrator can list op accounts', async (t) => {
     });
     assert.equal(regular.status, 403);
 
-    const editor = await fixture.app.request('http://ims.test/api/admin/accounts', {
+    const editor = await testRequest(fixture.app, '/api/admin/accounts', {
         headers: await authHeaders(fixture, {
             id: fixture.ids.editor,
             username: 'wiki-editor',
@@ -126,7 +125,7 @@ test('only the super administrator can list op accounts', async (t) => {
     });
     assert.equal(editor.status, 403);
 
-    const response = await fixture.app.request('http://ims.test/api/admin/accounts', {
+    const response = await testRequest(fixture.app, '/api/admin/accounts', {
         headers: await authHeaders(fixture, {
             id: fixture.ids.superAdmin,
             username: 'super-operator',
@@ -152,7 +151,7 @@ test('only the super administrator can list op accounts', async (t) => {
 test('audit logs use the shared response contract', async (t) => {
     const fixture = await createFixture(t);
     t.after(() => fixture.close());
-    const response = await fixture.app.request('http://ims.test/api/admin/logs', {
+    const response = await testRequest(fixture.app, '/api/admin/logs', {
         headers: await authHeaders(fixture, {
             id: fixture.ids.superAdmin,
             username: 'super-operator',
@@ -175,7 +174,7 @@ test('super administrator creates only regular op accounts and audits the mutati
         dept: 'op',
         role: 'super_admin'
     });
-    const response = await fixture.app.request('http://ims.test/api/admin/accounts', {
+    const response = await testRequest(fixture.app, '/api/admin/accounts', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -195,7 +194,7 @@ test('super administrator creates only regular op accounts and audits the mutati
     assert.equal(created.admin_role, 'admin');
     assert.equal(created.password, 'hashed:secure-password-123');
 
-    const invalid = await fixture.app.request('http://ims.test/api/admin/accounts', {
+    const invalid = await testRequest(fixture.app, '/api/admin/accounts', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -212,7 +211,7 @@ test('super administrator creates only regular op accounts and audits the mutati
         message: '用户名、制作人名称或密码不符合要求'
     });
 
-    const duplicate = await fixture.app.request('http://ims.test/api/admin/accounts', {
+    const duplicate = await testRequest(fixture.app, '/api/admin/accounts', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -245,22 +244,25 @@ test('super administrator deletes a regular op and revokes its refresh sessions'
         dept: 'op',
         role: 'super_admin'
     });
-    const removeEditor = await fixture.app.request(
-        `http://ims.test/api/admin/accounts/${fixture.ids.editor}`,
+    const removeEditor = await testRequest(
+        fixture.app,
+        `/api/admin/accounts/${fixture.ids.editor}`,
         { method: 'DELETE', headers }
     );
     assert.equal(removeEditor.status, 404);
     const removeEditorBody = await removeEditor.json();
     assert.deepEqual(adminAccountErrorResponseSchema.parse(removeEditorBody), removeEditorBody);
 
-    const removeSelf = await fixture.app.request(
-        `http://ims.test/api/admin/accounts/${fixture.ids.superAdmin}`,
+    const removeSelf = await testRequest(
+        fixture.app,
+        `/api/admin/accounts/${fixture.ids.superAdmin}`,
         { method: 'DELETE', headers }
     );
     assert.equal(removeSelf.status, 409);
 
-    const removed = await fixture.app.request(
-        `http://ims.test/api/admin/accounts/${fixture.ids.admin}`,
+    const removed = await testRequest(
+        fixture.app,
+        `/api/admin/accounts/${fixture.ids.admin}`,
         { method: 'DELETE', headers }
     );
     assert.equal(removed.status, 200);
@@ -296,8 +298,9 @@ test('administrator deletion preserves resolved Fudaba moderation actors', async
         role: 'super_admin'
     });
 
-    const response = await fixture.app.request(
-        `http://ims.test/api/admin/accounts/${fixture.ids.admin}`,
+    const response = await testRequest(
+        fixture.app,
+        `/api/admin/accounts/${fixture.ids.admin}`,
         { method: 'DELETE', headers }
     );
 
@@ -314,12 +317,7 @@ test('administrator deletion preserves Fudaba public-location reviewers', async 
     t.after(() => fixture.close());
     const submittedAt = '2026-08-03T01:00:00.000Z';
     const reviewedAt = '2026-08-03T02:00:00.000Z';
-    await fixture.connection.prepare(
-        `INSERT INTO platform_accounts
-            (id, status, token_version, created_at, updated_at, deleted_at)
-         VALUES ('reviewed-location-owner', 'active', 0, 1700000000000,
-                 1700000000000, NULL)`
-    ).run();
+    await insertPlatformAccount(fixture.connection, 'reviewed-location-owner');
     await fixture.connection.prepare(
         `INSERT INTO fudaba_offices
             (id, owner_account_id, slug, name, city, address, latitude, longitude,
@@ -328,13 +326,18 @@ test('administrator deletion preserves Fudaba public-location reviewers', async 
                  'reviewed-location-office', 'Reviewed office', 'Shanghai',
                  'Private exact address', 31.2304, 121.4737, ?, ?)`
     ).bind(submittedAt, submittedAt).run();
-    await fixture.connection.prepare(
-        `INSERT INTO fudaba_office_public_locations
-            (office_id, latitude_e1, longitude_e1, review_state, revision,
-             submitted_at, reviewed_at, reviewed_by, review_audit_id, review_note)
-         VALUES ('reviewed-location-office', 312, 1215, 'published', 1,
-                 ?, ?, ?, '00000000-0000-4000-8000-000000000004', '')`
-    ).bind(submittedAt, reviewedAt, fixture.ids.admin).run();
+    await insertFudabaOfficePublicLocation(
+        fixture.connection,
+        'reviewed-location-office',
+        submittedAt,
+        {
+            review_state: 'published',
+            revision: 1,
+            reviewed_at: reviewedAt,
+            reviewed_by: fixture.ids.admin,
+            review_audit_id: '00000000-0000-4000-8000-000000000004'
+        }
+    );
     const headers = await authHeaders(fixture, {
         id: fixture.ids.superAdmin,
         username: 'super-operator',
@@ -342,8 +345,9 @@ test('administrator deletion preserves Fudaba public-location reviewers', async 
         role: 'super_admin'
     });
 
-    const response = await fixture.app.request(
-        `http://ims.test/api/admin/accounts/${fixture.ids.admin}`,
+    const response = await testRequest(
+        fixture.app,
+        `/api/admin/accounts/${fixture.ids.admin}`,
         { method: 'DELETE', headers }
     );
 

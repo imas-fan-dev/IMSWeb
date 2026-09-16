@@ -9,6 +9,7 @@ vi.mock("~/lib/app-target", async (importOriginal) => {
   return { ...actual, IS_APP_TARGET: true }
 })
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import { StoryPage } from "~/pages/wiki/modern/story-page"
 
 const storyPayload = {
@@ -37,10 +38,7 @@ const storyPayload = {
 
 describe("StoryPage App layout", () => {
   it("clears App chrome for the floating navigation and short drawer", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(Response.json(storyPayload))
-    )
+    installFetchMock().mockResolvedValue(Response.json(storyPayload))
     const user = userEvent.setup()
 
     render(

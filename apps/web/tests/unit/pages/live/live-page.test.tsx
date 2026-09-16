@@ -8,15 +8,10 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import Live from "~/pages/live/index"
 
 const FIXED_TODAY = new Date(2026, 7, 20, 12)
-
-function jsonResponse(value: unknown) {
-  return new Response(JSON.stringify(value), {
-    headers: { "content-type": "application/json" },
-  })
-}
 
 function shiftedDate(days: number) {
   const date = new Date()
@@ -73,7 +68,7 @@ describe("Live", () => {
       liveEvent("history-late", new Date(2020, 7, 20, 12), "历史公演 B"),
       liveEvent("history-early", new Date(2020, 7, 3, 12), "历史公演 A"),
     ]
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    const fetchMock = installFetchMock((input) => {
       const rawUrl = input instanceof Request ? input.url : String(input)
       const months = new URL(rawUrl, "http://localhost").searchParams.get(
         "months"
@@ -82,7 +77,6 @@ describe("Live", () => {
         jsonResponse(months === "2020-08" ? historicalEvents : initialEvents)
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<Live />)
@@ -126,10 +120,7 @@ describe("Live", () => {
   })
 
   it("shows empty states for both schedule areas", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(jsonResponse([]))
-    )
+    installFetchMock().mockResolvedValue(jsonResponse([]))
 
     render(<Live />)
 
@@ -138,10 +129,7 @@ describe("Live", () => {
   })
 
   it("shows independent initial loading errors", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockRejectedValue(new TypeError("offline"))
-    )
+    installFetchMock().mockRejectedValue(new TypeError("offline"))
 
     render(<Live />)
 

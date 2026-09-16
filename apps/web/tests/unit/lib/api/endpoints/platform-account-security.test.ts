@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   changePlatformPassword,
   getPlatformOAuthLinks,
@@ -42,24 +47,21 @@ const link = {
 
 function captureRequests(response: (path: string) => unknown) {
   const requests: CapturedRequest[] = []
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = new URL(String(input), "http://ims.test").pathname
-      requests.push({
-        path,
-        method: init?.method,
-        csrf: new Headers(init?.headers).get(CSRF_HEADER_NAME),
-        body: init?.body ? JSON.parse(String(init.body)) : undefined,
-      })
-      return Response.json(response(path))
+  installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input), "http://ims.test").pathname
+    requests.push({
+      path,
+      method: init?.method,
+      csrf: new Headers(init?.headers).get(CSRF_HEADER_NAME),
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
     })
-  )
+    return Response.json(response(path))
+  })
   return requests
 }
 
 afterEach(() => {
-  document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("platform")
 })
 
 describe("Platform account security API contracts", () => {
@@ -98,7 +100,7 @@ describe("Platform account security API contracts", () => {
   })
 
   it("posts a password change with the CSRF header and both secrets", async () => {
-    document.cookie = "ims_platform_csrf=security-csrf; path=/"
+    setCsrfCookie("platform", "security-csrf")
     const requests = captureRequests(() => ({
       success: true,
       revokedSessionCount: 3,
@@ -152,7 +154,7 @@ describe("Platform account security API contracts", () => {
   })
 
   it("revokes one device and every other device as distinct DELETEs", async () => {
-    document.cookie = "ims_platform_csrf=revoke-csrf; path=/"
+    setCsrfCookie("platform", "revoke-csrf")
     const requests = captureRequests((path) => ({
       success: true,
       revokedSessionCount: path.endsWith("/sessions") ? 4 : 1,
@@ -188,7 +190,7 @@ describe("Platform account security API contracts", () => {
   })
 
   it("reads OAuth links and unlinks one provider by path segment", async () => {
-    document.cookie = "ims_platform_csrf=unlink-csrf; path=/"
+    setCsrfCookie("platform", "unlink-csrf")
     const requests = captureRequests((path) =>
       path.endsWith("/oauth-links")
         ? { success: true, links: [link], passwordEnabled: true }

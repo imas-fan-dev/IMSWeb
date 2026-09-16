@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import { adminApiClient } from "~/lib/api/admin-client"
 import { apiClient } from "~/lib/api/client"
 import {
@@ -16,7 +21,7 @@ import {
 import { withPlatformAuth, withPlatformCsrf } from "~/lib/api/types"
 
 afterEach(() => {
-  document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("platform")
 })
 
 describe("Platform API boundary", () => {
@@ -61,12 +66,12 @@ describe("Platform API boundary", () => {
 
   it("uses the readable Platform CSRF cookie as the session hint", () => {
     expect(hasPlatformSessionHint()).toBe(false)
-    document.cookie = "ims_platform_csrf=platform-session-hint; path=/"
+    setCsrfCookie("platform", "platform-session-hint")
     expect(hasPlatformSessionHint()).toBe(true)
   })
 
   it("coalesces concurrent Platform 401 responses and replays each once", async () => {
-    document.cookie = "ims_platform_csrf=platform-refresh-csrf; path=/"
+    setCsrfCookie("platform", "platform-refresh-csrf")
     let sessionRequests = 0
     let refreshRequests = 0
     let refreshHeaders: Headers | undefined
@@ -75,48 +80,45 @@ describe("Platform API boundary", () => {
       releaseInitialRequests = resolve
     })
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        if (pathname === "/api/platform/auth/refresh") {
-          refreshRequests += 1
-          refreshHeaders = new Headers(init?.headers)
-          return Response.json({
-            success: true,
-            account: { id: "platform-1", status: "active" },
-            profile: {
-              displayName: "Platform Producer",
-              avatarUrl: null,
-              homeCity: null,
-              bio: "",
-            },
-          })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      if (pathname === "/api/platform/auth/refresh") {
+        refreshRequests += 1
+        refreshHeaders = new Headers(init?.headers)
+        return Response.json({
+          success: true,
+          account: { id: "platform-1", status: "active" },
+          profile: {
+            displayName: "Platform Producer",
+            avatarUrl: null,
+            homeCity: null,
+            bio: "",
+          },
+        })
+      }
+      if (pathname === "/api/platform/auth/session") {
+        sessionRequests += 1
+        if (sessionRequests <= 2) {
+          if (sessionRequests === 2) releaseInitialRequests()
+          await initialRequestsReady
+          return Response.json(
+            { success: false, code: "PLATFORM_SESSION_INVALID" },
+            { status: 401 }
+          )
         }
-        if (pathname === "/api/platform/auth/session") {
-          sessionRequests += 1
-          if (sessionRequests <= 2) {
-            if (sessionRequests === 2) releaseInitialRequests()
-            await initialRequestsReady
-            return Response.json(
-              { success: false, code: "PLATFORM_SESSION_INVALID" },
-              { status: 401 }
-            )
-          }
-          return Response.json({
-            success: true,
-            account: { id: "platform-1", status: "active" },
-            profile: {
-              displayName: "Platform Producer",
-              avatarUrl: null,
-              homeCity: null,
-              bio: "",
-            },
-          })
-        }
-        throw new Error(`Unexpected request: ${pathname}`)
-      })
-    )
+        return Response.json({
+          success: true,
+          account: { id: "platform-1", status: "active" },
+          profile: {
+            displayName: "Platform Producer",
+            avatarUrl: null,
+            homeCity: null,
+            bio: "",
+          },
+        })
+      }
+      throw new Error(`Unexpected request: ${pathname}`)
+    })
 
     const [first, second] = await Promise.all([
       getPlatformSession().send(),
@@ -137,7 +139,7 @@ describe("Platform API boundary", () => {
   })
 
   it("settles every waiter when Platform refresh fails", async () => {
-    document.cookie = "ims_platform_csrf=expired-platform-csrf; path=/"
+    setCsrfCookie("platform", "expired-platform-csrf")
     let sessionRequests = 0
     let refreshRequests = 0
     let releaseInitialRequests!: () => void
@@ -145,31 +147,28 @@ describe("Platform API boundary", () => {
       releaseInitialRequests = resolve
     })
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        if (pathname === "/api/platform/auth/refresh") {
-          refreshRequests += 1
-          return Response.json(
-            { success: false, code: "PLATFORM_SESSION_INVALID" },
-            { status: 401 }
-          )
+    installFetchMock(async (input: RequestInfo | URL) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      if (pathname === "/api/platform/auth/refresh") {
+        refreshRequests += 1
+        return Response.json(
+          { success: false, code: "PLATFORM_SESSION_INVALID" },
+          { status: 401 }
+        )
+      }
+      if (pathname === "/api/platform/auth/session") {
+        sessionRequests += 1
+        if (sessionRequests <= 2) {
+          if (sessionRequests === 2) releaseInitialRequests()
+          await initialRequestsReady
         }
-        if (pathname === "/api/platform/auth/session") {
-          sessionRequests += 1
-          if (sessionRequests <= 2) {
-            if (sessionRequests === 2) releaseInitialRequests()
-            await initialRequestsReady
-          }
-          return Response.json(
-            { success: false, code: "PLATFORM_SESSION_INVALID" },
-            { status: 401 }
-          )
-        }
-        throw new Error(`Unexpected request: ${pathname}`)
-      })
-    )
+        return Response.json(
+          { success: false, code: "PLATFORM_SESSION_INVALID" },
+          { status: 401 }
+        )
+      }
+      throw new Error(`Unexpected request: ${pathname}`)
+    })
 
     const requests = [
       getPlatformSession().send(),
@@ -194,46 +193,43 @@ describe("Platform API boundary", () => {
   })
 
   it("refreshes again after an offline replay fails and the network recovers", async () => {
-    document.cookie = "ims_platform_csrf=network-recovery-csrf; path=/"
+    setCsrfCookie("platform", "network-recovery-csrf")
     let sessionRequests = 0
     let refreshRequests = 0
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        if (pathname === "/api/platform/auth/refresh") {
-          refreshRequests += 1
-          if (refreshRequests === 1) {
-            throw new TypeError("refresh network unavailable")
-          }
-          return Response.json({ success: true })
+    installFetchMock(async (input: RequestInfo | URL) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      if (pathname === "/api/platform/auth/refresh") {
+        refreshRequests += 1
+        if (refreshRequests === 1) {
+          throw new TypeError("refresh network unavailable")
         }
-        if (pathname === "/api/platform/auth/session") {
-          sessionRequests += 1
-          if (sessionRequests === 2) {
-            throw new TypeError("replay network unavailable")
-          }
-          if (sessionRequests === 1 || sessionRequests === 3) {
-            return Response.json(
-              { success: false, code: "PLATFORM_SESSION_INVALID" },
-              { status: 401 }
-            )
-          }
-          return Response.json({
-            success: true,
-            account: { id: "platform-recovered", status: "active" },
-            profile: {
-              displayName: "Recovered Producer",
-              avatarUrl: null,
-              homeCity: null,
-              bio: "",
-            },
-          })
+        return Response.json({ success: true })
+      }
+      if (pathname === "/api/platform/auth/session") {
+        sessionRequests += 1
+        if (sessionRequests === 2) {
+          throw new TypeError("replay network unavailable")
         }
-        throw new Error(`Unexpected request: ${pathname}`)
-      })
-    )
+        if (sessionRequests === 1 || sessionRequests === 3) {
+          return Response.json(
+            { success: false, code: "PLATFORM_SESSION_INVALID" },
+            { status: 401 }
+          )
+        }
+        return Response.json({
+          success: true,
+          account: { id: "platform-recovered", status: "active" },
+          profile: {
+            displayName: "Recovered Producer",
+            avatarUrl: null,
+            homeCity: null,
+            bio: "",
+          },
+        })
+      }
+      throw new Error(`Unexpected request: ${pathname}`)
+    })
 
     await expect(getPlatformSession().send()).rejects.toThrow(/网络请求失败/)
     await expect(getPlatformSession().send()).resolves.toMatchObject({
@@ -244,8 +240,7 @@ describe("Platform API boundary", () => {
   })
 
   it("never lets public or Backoffice clients execute Platform methods", async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     await expect(
       apiClient
@@ -261,15 +256,12 @@ describe("Platform API boundary", () => {
   })
 
   it("marks logout as a Platform-only mutation", async () => {
-    document.cookie = "ims_platform_csrf=logout-platform-csrf; path=/"
+    setCsrfCookie("platform", "logout-platform-csrf")
     let logoutHeaders: Headers | undefined
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-        logoutHeaders = new Headers(init?.headers)
-        return Response.json({ success: true })
-      })
-    )
+    installFetchMock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      logoutHeaders = new Headers(init?.headers)
+      return Response.json({ success: true })
+    })
 
     await expect(logoutPlatform().send()).resolves.toEqual({ success: true })
     expect(logoutHeaders?.get(CSRF_HEADER_NAME)).toBe("logout-platform-csrf")

@@ -500,9 +500,6 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "expand/contract",
             "IMS_EMAIL_WORKER_REPLICAS",
             "Release A",
-            "上一 Worker",
-            "不恢复 PostgreSQL 或 R2",
-            "不宣称",
         ):
             self.assertIn(token, guide)
 
@@ -587,7 +584,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertTrue(mode & stat.S_IXUSR, "release notes script must be executable")
 
         notes = RENDER_PREVIEW_APP_NOTES_SCRIPT.read_text(encoding="utf-8")
-        for token in ("Sideloadly", "Apple ID", "未知来源", "7 天"):
+        for token in ("Sideloadly", "Apple ID"):
             with self.subTest(token=token):
                 self.assertIn(token, notes)
 

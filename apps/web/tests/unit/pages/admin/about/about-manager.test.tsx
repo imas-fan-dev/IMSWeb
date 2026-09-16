@@ -8,6 +8,15 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import {
+  installFetchMock,
+  jsonResponse,
+  requestFrom,
+} from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import { AboutManager } from "~/pages/admin/about/index"
 import type { AboutPageContent } from "~/lib/api"
 
@@ -76,34 +85,19 @@ function aboutContent(): AboutPageContent {
   }
 }
 
-function jsonResponse(payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    headers: { "content-type": "application/json" },
-  })
-}
-
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://localhost"), init)
-}
-
 function stubSnapshot(content: AboutPageContent | null = aboutContent()) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      jsonResponse({
-        content,
-        revision: content ? '"revision-7"' : null,
-      })
-    )
+  installFetchMock().mockResolvedValue(
+    jsonResponse({
+      content,
+      revision: content ? '"revision-7"' : null,
+    })
   )
 }
 
 describe("AboutManager", () => {
   afterEach(() => {
     vi.restoreAllMocks()
-    document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+    clearCsrfCookie("backoffice")
   })
 
   it("starts first-time configuration from a content-free draft", async () => {
@@ -120,42 +114,38 @@ describe("AboutManager", () => {
 
   it("uploads and composes the hero without exposing an image path field", async () => {
     const original = aboutContent()
-    document.cookie = "ims_admin_csrf=about-manager-test; path=/"
+    setCsrfCookie("backoffice", "about-manager-test")
     let savedBody: unknown
     let uploadedHeroFileName: string | null = null
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const request = requestFrom(input, init)
-        if (request.method === "POST") {
-          const form = init?.body
-          if (!(form instanceof FormData))
-            throw new Error("missing upload form")
-          const image = form.get("image")
-          uploadedHeroFileName = image instanceof File ? image.name : null
-          return jsonResponse({
-            success: true,
-            url: "/uploads/about/hero/new-hero.webp",
-          })
+    installFetchMock(async (input, init) => {
+      const request = requestFrom(input, init)
+      if (request.method === "POST") {
+        const form = init?.body
+        if (!(form instanceof FormData)) throw new Error("missing upload form")
+        const image = form.get("image")
+        uploadedHeroFileName = image instanceof File ? image.name : null
+        return jsonResponse({
+          success: true,
+          url: "/uploads/about/hero/new-hero.webp",
+        })
+      }
+      if (request.method === "PUT") {
+        savedBody = await request.clone().json()
+        const submitted = savedBody as {
+          content: AboutPageContent
+          revision: string | null
         }
-        if (request.method === "PUT") {
-          savedBody = await request.clone().json()
-          const submitted = savedBody as {
-            content: AboutPageContent
-            revision: string | null
-          }
-          return jsonResponse({
-            success: true,
-            content: {
-              ...submitted.content,
-              updatedAt: "2026-07-25T01:00:00.000Z",
-            },
-            revision: '"revision-8"',
-          })
-        }
-        return jsonResponse({ content: original, revision: '"revision-7"' })
-      })
-    vi.stubGlobal("fetch", fetchMock)
+        return jsonResponse({
+          success: true,
+          content: {
+            ...submitted.content,
+            updatedAt: "2026-07-25T01:00:00.000Z",
+          },
+          revision: '"revision-8"',
+        })
+      }
+      return jsonResponse({ content: original, revision: '"revision-7"' })
+    })
     const user = userEvent.setup()
 
     render(<AboutManager />)
@@ -254,41 +244,38 @@ describe("AboutManager", () => {
 
   it("keeps member edits local to the selected group until both saves", async () => {
     const original = aboutContent()
-    document.cookie = "csrf_token=about-manager-test; path=/"
+    setCsrfCookie("legacy", "about-manager-test")
     const savedRequest: {
       current: { content: AboutPageContent; revision: string | null } | null
     } = { current: null }
     const readSavedRequest = () => savedRequest.current
     let avatarUploadCount = 0
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const request = requestFrom(input, init)
-        if (request.method === "POST") {
-          avatarUploadCount += 1
-          return jsonResponse({
-            success: true,
-            url: "/uploads/about/member-avatars/producer-b.webp",
-          })
+    installFetchMock(async (input, init) => {
+      const request = requestFrom(input, init)
+      if (request.method === "POST") {
+        avatarUploadCount += 1
+        return jsonResponse({
+          success: true,
+          url: "/uploads/about/member-avatars/producer-b.webp",
+        })
+      }
+      if (request.method === "PUT") {
+        const submitted = (await request.clone().json()) as {
+          content: AboutPageContent
+          revision: string | null
         }
-        if (request.method === "PUT") {
-          const submitted = (await request.clone().json()) as {
-            content: AboutPageContent
-            revision: string | null
-          }
-          savedRequest.current = submitted
-          return jsonResponse({
-            success: true,
-            content: {
-              ...submitted.content,
-              updatedAt: "2026-07-25T01:00:00.000Z",
-            },
-            revision: '"revision-8"',
-          })
-        }
-        return jsonResponse({ content: original, revision: '"revision-7"' })
-      })
-    vi.stubGlobal("fetch", fetchMock)
+        savedRequest.current = submitted
+        return jsonResponse({
+          success: true,
+          content: {
+            ...submitted.content,
+            updatedAt: "2026-07-25T01:00:00.000Z",
+          },
+          revision: '"revision-8"',
+        })
+      }
+      return jsonResponse({ content: original, revision: '"revision-7"' })
+    })
     const user = userEvent.setup()
 
     render(<AboutManager />)

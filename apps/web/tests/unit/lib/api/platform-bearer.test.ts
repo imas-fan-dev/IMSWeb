@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
+import { PLATFORM_CSRF_COOKIE_NAME } from "~/lib/api/request"
+
 async function loadBearerModules(configuredOrigin: string) {
   vi.resetModules()
   vi.stubEnv("VITE_IMS_API_ORIGIN", configuredOrigin)
@@ -71,12 +74,12 @@ describe("platform token custody", () => {
 describe("platform request policy", () => {
   it("sends cookies and CSRF for browser builds", async () => {
     const { request } = await loadBearerModules("")
-    document.cookie = "ims_platform_csrf=csrf-value"
+    setCsrfCookie("platform", "csrf-value")
     const target = policyTarget({ authRealm: "platform", csrf: true })
 
     request.applyApiRequestPolicy(target, {
       authRealm: "platform",
-      csrfCookieName: "ims_platform_csrf",
+      csrfCookieName: PLATFORM_CSRF_COOKIE_NAME,
     })
 
     expect(target.config).toMatchObject({ credentials: "same-origin" })
@@ -93,7 +96,7 @@ describe("platform request policy", () => {
 
     request.applyApiRequestPolicy(target, {
       authRealm: "platform",
-      csrfCookieName: "ims_platform_csrf",
+      csrfCookieName: PLATFORM_CSRF_COOKIE_NAME,
     })
 
     // No cookie can reach a cross-origin API that grants no credentials, so a
@@ -110,7 +113,7 @@ describe("platform request policy", () => {
 
     request.applyApiRequestPolicy(target, {
       authRealm: "platform",
-      csrfCookieName: "ims_platform_csrf",
+      csrfCookieName: PLATFORM_CSRF_COOKIE_NAME,
     })
 
     expect(target.config.headers["X-IMS-Auth-Mode"]).toBe("bearer")

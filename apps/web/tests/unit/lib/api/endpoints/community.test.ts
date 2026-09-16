@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import { getNamecardPage, namecardSchema } from "~/lib/api/endpoints/community"
 import {
   getFudabaGuestSubmission,
@@ -37,7 +38,7 @@ describe("community API contracts", () => {
       input: RequestInfo | URL
       init: RequestInit | undefined
     }> = []
-    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    installFetchMock((input: RequestInfo | URL, init?: RequestInit) => {
       requests.push({ input, init })
       return Promise.resolve(
         Response.json({
@@ -52,7 +53,6 @@ describe("community API contracts", () => {
         })
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     await uploadFudabaGuestSubmission(
       new File(["front"], "front.png", { type: "image/png" }),
@@ -81,21 +81,18 @@ describe("community API contracts", () => {
   })
 
   it("parses the one-time withdrawal receipt returned after upload", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(
-          Response.json({
-            success: true,
-            message: "已提交审核",
-            submission: {
-              id: 19,
-              publicationStatus: "pending",
-              revision: 0,
-            },
-            withdrawalToken: "a".repeat(64),
-          })
-        )
+    installFetchMock(() =>
+      Promise.resolve(
+        Response.json({
+          success: true,
+          message: "已提交审核",
+          submission: {
+            id: 19,
+            publicationStatus: "pending",
+            revision: 0,
+          },
+          withdrawalToken: "a".repeat(64),
+        })
       )
     )
 
@@ -117,33 +114,29 @@ describe("community API contracts", () => {
 
   it("does not cache viewer-specific claim state across sessions", async () => {
     let requestCount = 0
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => {
-        requestCount += 1
-        return Promise.resolve(
-          Response.json({
-            list: [
-              {
-                id: 42,
-                seriesCode: null,
-                favoriteIdols: [],
-                image1_url: "/uploads/front.webp",
-                image2_url: "/uploads/back.webp",
-                image1_thumbnail_url:
-                  "/uploads/namecard/thumbnail/front.webp.jpg",
-                image2_thumbnail_url:
-                  "/uploads/namecard/thumbnail/back.webp.jpg",
-                claimStatus: requestCount === 1 ? "unclaimed" : "pending",
-                viewerClaimState: requestCount === 1 ? null : "pending",
-              },
-            ],
-            total: 1,
-            totalPage: 1,
-          })
-        )
-      })
-    )
+    installFetchMock(() => {
+      requestCount += 1
+      return Promise.resolve(
+        Response.json({
+          list: [
+            {
+              id: 42,
+              seriesCode: null,
+              favoriteIdols: [],
+              image1_url: "/uploads/front.webp",
+              image2_url: "/uploads/back.webp",
+              image1_thumbnail_url:
+                "/uploads/namecard/thumbnail/front.webp.jpg",
+              image2_thumbnail_url: "/uploads/namecard/thumbnail/back.webp.jpg",
+              claimStatus: requestCount === 1 ? "unclaimed" : "pending",
+              viewerClaimState: requestCount === 1 ? null : "pending",
+            },
+          ],
+          total: 1,
+          totalPage: 1,
+        })
+      )
+    })
 
     const first = await getNamecardPage().send()
     const second = await getNamecardPage().send()
@@ -155,27 +148,24 @@ describe("community API contracts", () => {
 
   it("uses the Fudaba receipt header and camelCase withdrawal body", async () => {
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-        const request =
-          input instanceof Request
-            ? input
-            : new Request(new URL(String(input), "http://localhost"), init)
-        requests.push(request)
-        const submission = {
-          id: 19,
-          seriesCode: null,
-          favoriteIdols: [],
-          frontImageUrl: "/protected/front.webp",
-          backImageUrl: "/protected/back.webp",
-          publicationStatus: request.method === "GET" ? "pending" : "withdrawn",
-          createdAt: "2026-08-11T02:00:00.000Z",
-          revision: request.method === "GET" ? 2 : 3,
-        }
-        return Promise.resolve(Response.json({ success: true, submission }))
-      })
-    )
+    installFetchMock((input: RequestInfo | URL, init?: RequestInit) => {
+      const request =
+        input instanceof Request
+          ? input
+          : new Request(new URL(String(input), "http://localhost"), init)
+      requests.push(request)
+      const submission = {
+        id: 19,
+        seriesCode: null,
+        favoriteIdols: [],
+        frontImageUrl: "/protected/front.webp",
+        backImageUrl: "/protected/back.webp",
+        publicationStatus: request.method === "GET" ? "pending" : "withdrawn",
+        createdAt: "2026-08-11T02:00:00.000Z",
+        revision: request.method === "GET" ? 2 : 3,
+      }
+      return Promise.resolve(Response.json({ success: true, submission }))
+    })
 
     await getFudabaGuestSubmission(19, "private-receipt-token").send()
     await withdrawFudabaGuestSubmission(19, "private-receipt-token", 2).send()

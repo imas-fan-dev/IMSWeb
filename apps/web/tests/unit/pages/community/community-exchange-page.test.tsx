@@ -1,8 +1,9 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react"
+import { act, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter, useLocation } from "react-router"
+import { useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { renderPage } from "@/tests/unit/support/harness"
 import { ApiError } from "~/lib/api"
 import CommunityExchangePage from "~/pages/community/exchange/community-exchange-page"
 
@@ -146,11 +147,7 @@ describe("CommunityExchangePage", () => {
 
   it("opens on the map and keeps both public directories reachable", async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter initialEntries={["/community/exchange"]}>
-        <CommunityExchangePage />
-      </MemoryRouter>
-    )
+    renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
 
     const map = await screen.findByRole("button", { name: "模拟地图内容" })
     expect(map).toBeVisible()
@@ -231,11 +228,12 @@ describe("CommunityExchangePage", () => {
 
   it("keeps multi-select series tags in every discovery request", async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter initialEntries={["/community/exchange"]}>
+    renderPage(
+      <>
         <CommunityExchangePage />
         <LocationProbe />
-      </MemoryRouter>
+      </>,
+      { route: "/community/exchange" }
     )
 
     await user.click(await screen.findByRole("button", { name: /765PRO/ }))
@@ -287,15 +285,15 @@ describe("CommunityExchangePage", () => {
 
   it("keeps only filters in the URL and opens the directory escape hatch", async () => {
     const user = userEvent.setup()
-    render(
-      <MemoryRouter
-        initialEntries={[
-          "/community/exchange?view=map&city=%E4%B8%8A%E6%B5%B7&bbox=100,20,130,45",
-        ]}
-      >
+    renderPage(
+      <>
         <CommunityExchangePage />
         <LocationProbe />
-      </MemoryRouter>
+      </>,
+      {
+        route:
+          "/community/exchange?view=map&city=%E4%B8%8A%E6%B5%B7&bbox=100,20,130,45",
+      }
     )
 
     expect(
@@ -335,11 +333,7 @@ describe("CommunityExchangePage", () => {
       })
     )
 
-    render(
-      <MemoryRouter>
-        <CommunityExchangePage />
-      </MemoryRouter>
-    )
+    renderPage(<CommunityExchangePage />)
 
     expect(await screen.findByText("社区交换区尚未开放")).toBeVisible()
     expect(
@@ -356,11 +350,7 @@ describe("CommunityExchangePage", () => {
       })
     )
 
-    render(
-      <MemoryRouter>
-        <CommunityExchangePage />
-      </MemoryRouter>
-    )
+    renderPage(<CommunityExchangePage />)
 
     expect(await screen.findByText("社区交换区暂时无法加载")).toBeVisible()
     expect(screen.queryByText("社区交换区尚未开放")).not.toBeInTheDocument()
@@ -400,11 +390,7 @@ describe("CommunityExchangePage", () => {
       .mockImplementationOnce(() => currentPage.promise)
 
     const user = userEvent.setup()
-    render(
-      <MemoryRouter initialEntries={["/community/exchange"]}>
-        <CommunityExchangePage />
-      </MemoryRouter>
-    )
+    renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
 
     await user.click(
       await screen.findByRole("button", { name: "模拟地图内容" })

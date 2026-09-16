@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StorySourceCatalogDialog } from "~/pages/admin/stories/components/story-source-catalog-dialog"
 
 const contentTypes = [
@@ -30,11 +32,11 @@ const sourcePlatforms = [
 
 describe("StorySourceCatalogDialog", () => {
   beforeEach(() => {
-    document.cookie = "ims_admin_csrf=source-catalog-test; path=/"
+    setCsrfCookie("backoffice", "source-catalog-test")
   })
 
   it("creates a dynamic content type used by source editors", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+    const fetchMock = installFetchMock().mockResolvedValue(
       Response.json({
         status: "success",
         option: {
@@ -48,7 +50,6 @@ describe("StorySourceCatalogDialog", () => {
         },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const onSaved = vi.fn()
     const user = userEvent.setup()
 

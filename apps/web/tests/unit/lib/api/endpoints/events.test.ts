@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+
 const API_ORIGIN = "https://api.imsweb.test"
 
 async function loadEventsEndpoint() {
@@ -16,7 +18,7 @@ afterEach(() => {
 
 describe("event endpoints", () => {
   it("validates and normalizes event poster URLs at the API boundary", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+    installFetchMock().mockResolvedValue(
       new Response(
         JSON.stringify({
           items: [
@@ -35,7 +37,6 @@ describe("event endpoints", () => {
         { headers: { "content-type": "application/json" } }
       )
     )
-    vi.stubGlobal("fetch", fetchMock)
 
     const { getEventPage } = await loadEventsEndpoint()
     const page = await getEventPage().send()

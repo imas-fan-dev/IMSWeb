@@ -1,11 +1,10 @@
 import userEvent from "@testing-library/user-event"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
-import { I18nextProvider } from "react-i18next"
-import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { I18nTestProvider } from "@/tests/unit/support/harness"
 import { i18n } from "~/i18n/config"
-import { defaultLanguage, defaultNamespace } from "~/i18n/resources"
+import { defaultLanguage } from "~/i18n/resources"
 import { ThemeColorSync, ThemeToggle } from "~/components/shared/theme-toggle"
 
 const themeState = vi.hoisted(() => ({
@@ -23,14 +22,6 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("next-themes", () => ({
   useTheme: () => themeState,
 }))
-
-function TestI18nProvider({ children }: { children: ReactNode }) {
-  return (
-    <I18nextProvider i18n={i18n} defaultNS={defaultNamespace}>
-      {children}
-    </I18nextProvider>
-  )
-}
 
 describe("theme controls", () => {
   beforeEach(async () => {
@@ -54,7 +45,7 @@ describe("theme controls", () => {
   it("falls back to a global fade when view transitions are unavailable", async () => {
     const user = userEvent.setup()
     const { rerender } = render(<ThemeToggle />, {
-      wrapper: TestI18nProvider,
+      wrapper: I18nTestProvider,
     })
     const toggle = screen.getByRole("button", {
       name: "切换亮色或暗色模式",
@@ -104,7 +95,7 @@ describe("theme controls", () => {
     })
 
     const user = userEvent.setup()
-    render(<ThemeToggle />, { wrapper: TestI18nProvider })
+    render(<ThemeToggle />, { wrapper: I18nTestProvider })
     await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
 
     expect(themeState.setTheme).toHaveBeenCalledWith("dark")
@@ -162,7 +153,7 @@ describe("theme controls", () => {
     })
 
     const user = userEvent.setup()
-    render(<ThemeToggle />, { wrapper: TestI18nProvider })
+    render(<ThemeToggle />, { wrapper: I18nTestProvider })
     const toggle = screen.getByRole("button", {
       name: "切换亮色或暗色模式",
     })
@@ -210,7 +201,7 @@ describe("theme controls", () => {
   it("switches instantly when reduced motion is requested", async () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }))
     const user = userEvent.setup()
-    render(<ThemeToggle />, { wrapper: TestI18nProvider })
+    render(<ThemeToggle />, { wrapper: I18nTestProvider })
 
     await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
 

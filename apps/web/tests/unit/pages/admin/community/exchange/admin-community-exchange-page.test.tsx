@@ -2,6 +2,11 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import AdminCommunityExchangePage from "~/pages/admin/community/exchange/admin-community-exchange-page"
 
 const toastMocks = vi.hoisted(() => ({
@@ -29,12 +34,6 @@ const pendingReview = {
   reviewNote: "",
 }
 
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
-
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((next) => {
@@ -45,36 +44,33 @@ function deferred<T>() {
 
 afterEach(() => {
   vi.clearAllMocks()
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("AdminCommunityExchangePage", () => {
   it("filters the three review states and renders review metadata", async () => {
     const requestedStates: string[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        const state = new URL(request.url).searchParams.get("state") ?? ""
-        requestedStates.push(state)
-        return Response.json({
-          items:
-            state === "pending"
-              ? [pendingReview]
-              : state === "published"
-                ? [
-                    {
-                      ...pendingReview,
-                      reviewState: "published",
-                      reviewedAt: "2026-08-03T02:00:00.000Z",
-                      reviewedBy: 7,
-                      reviewNote: "区域精度符合公开要求",
-                    },
-                  ]
-                : [],
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      const state = new URL(request.url).searchParams.get("state") ?? ""
+      requestedStates.push(state)
+      return Response.json({
+        items:
+          state === "pending"
+            ? [pendingReview]
+            : state === "published"
+              ? [
+                  {
+                    ...pendingReview,
+                    reviewState: "published",
+                    reviewedAt: "2026-08-03T02:00:00.000Z",
+                    reviewedBy: 7,
+                    reviewNote: "区域精度符合公开要求",
+                  },
+                ]
+              : [],
       })
-    )
+    })
     const user = userEvent.setup()
 
     render(<AdminCommunityExchangePage />)
@@ -94,32 +90,29 @@ describe("AdminCommunityExchangePage", () => {
   })
 
   it("requires a rejection reason and submits it with CSRF and revision", async () => {
-    document.cookie = "ims_admin_csrf=location-page-csrf; path=/"
+    setCsrfCookie("backoffice", "location-page-csrf")
     const requests: Request[] = []
     let reviewed = false
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
-        if (request.method === "PUT") {
-          reviewed = true
-          return Response.json({
-            success: true,
-            officeLocation: {
-              officeId: pendingReview.officeId,
-              location: pendingReview.location,
-              reviewState: "rejected",
-              revision: 4,
-              submittedAt: pendingReview.submittedAt,
-              reviewedAt: "2026-08-03T02:00:00.000Z",
-              reviewNote: "公开范围不合适",
-            },
-          })
-        }
-        return Response.json({ items: reviewed ? [] : [pendingReview] })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
+      if (request.method === "PUT") {
+        reviewed = true
+        return Response.json({
+          success: true,
+          officeLocation: {
+            officeId: pendingReview.officeId,
+            location: pendingReview.location,
+            reviewState: "rejected",
+            revision: 4,
+            submittedAt: pendingReview.submittedAt,
+            reviewedAt: "2026-08-03T02:00:00.000Z",
+            reviewNote: "公开范围不合适",
+          },
+        })
+      }
+      return Response.json({ items: reviewed ? [] : [pendingReview] })
+    })
     const user = userEvent.setup()
 
     render(<AdminCommunityExchangePage />)
@@ -148,26 +141,23 @@ describe("AdminCommunityExchangePage", () => {
   })
 
   it("keeps the review note after a revision conflict and refresh", async () => {
-    document.cookie = "ims_admin_csrf=location-conflict-csrf; path=/"
+    setCsrfCookie("backoffice", "location-conflict-csrf")
     let listRequests = 0
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        if (request.method === "PUT") {
-          return Response.json(
-            {
-              success: false,
-              code: "FUDABA_OFFICE_LOCATION_CONFLICT",
-              revision: 4,
-            },
-            { status: 409 }
-          )
-        }
-        listRequests += 1
-        return Response.json({ items: [pendingReview] })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      if (request.method === "PUT") {
+        return Response.json(
+          {
+            success: false,
+            code: "FUDABA_OFFICE_LOCATION_CONFLICT",
+            revision: 4,
+          },
+          { status: 409 }
+        )
+      }
+      listRequests += 1
+      return Response.json({ items: [pendingReview] })
+    })
     const user = userEvent.setup()
 
     render(<AdminCommunityExchangePage />)
@@ -188,7 +178,7 @@ describe("AdminCommunityExchangePage", () => {
   })
 
   it("tracks concurrent review requests independently", async () => {
-    document.cookie = "ims_admin_csrf=location-concurrent-csrf; path=/"
+    setCsrfCookie("backoffice", "location-concurrent-csrf")
     const firstMutation = deferred<Response>()
     const secondMutation = deferred<Response>()
     const completed = new Set<string>()
@@ -203,22 +193,19 @@ describe("AdminCommunityExchangePage", () => {
         longitude: 120.2,
       },
     }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        if (request.method === "PUT") {
-          return new URL(request.url).pathname.endsWith("/office-1")
-            ? firstMutation.promise
-            : secondMutation.promise
-        }
-        return Response.json({
-          items: [pendingReview, secondReview].filter(
-            (item) => !completed.has(item.officeId)
-          ),
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      if (request.method === "PUT") {
+        return new URL(request.url).pathname.endsWith("/office-1")
+          ? firstMutation.promise
+          : secondMutation.promise
+      }
+      return Response.json({
+        items: [pendingReview, secondReview].filter(
+          (item) => !completed.has(item.officeId)
+        ),
       })
-    )
+    })
     const user = userEvent.setup()
 
     render(<AdminCommunityExchangePage />)
@@ -285,14 +272,11 @@ describe("AdminCommunityExchangePage", () => {
 
   it("shows a load error and retries to the empty state", async () => {
     let attempt = 0
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        attempt += 1
-        if (attempt === 1) throw new TypeError("network unavailable")
-        return Response.json({ items: [] })
-      })
-    )
+    installFetchMock(async () => {
+      attempt += 1
+      if (attempt === 1) throw new TypeError("network unavailable")
+      return Response.json({ items: [] })
+    })
     const user = userEvent.setup()
 
     render(<AdminCommunityExchangePage />)

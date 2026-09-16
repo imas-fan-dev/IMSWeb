@@ -40,13 +40,16 @@ Web 与 API build。
 | Wiki contract 与数据        | `apps/api/tests/wiki/`                                                              | Node test runner、PostgreSQL fixture |
 | API migration 与资产        | `apps/api/tests/migration/`、`apps/api/tests/assets/`                               | Node test runner                     |
 | Web 页面、组件和 API client | `apps/web/tests/unit/`                                                              | Vitest、Testing Library              |
+| Web 开发期 mock API         | `apps/web/mocks/`                                                                   | MSW                                  |
 | Web 浏览器流程              | `apps/web/tests/e2e/`                                                               | Playwright desktop/mobile            |
 | 仓库边界、部署和规则        | `tests/`                                                                            | Python `unittest`、Node test runner  |
 
 Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API 测试应靠近受测 workspace，
 但不可把生产实现复制进测试目录。Web 浏览器用例在 CI 预算、瞬时浮层与点击后状态断言上的
 编写约束见 [Web testing spec](../../.trellis/spec/web/frontend/testing.md) 的 CI-stable browser test
-authoring 一节。
+authoring 一节；Web 单测的共享装配层（`tests/unit/support/`）、契约化 fixture 工厂与开发期
+mock API 的编写约定见同一 spec 的 shared assembly layer、contract-typed fixture fidelity 与
+dev-time API mocks 三节。
 
 ## 风险到验证
 

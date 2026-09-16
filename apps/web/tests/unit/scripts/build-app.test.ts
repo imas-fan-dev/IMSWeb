@@ -6,17 +6,17 @@ import { describe, expect, it } from "vitest"
 import {
   androidReleaseAllowsCleartext,
   configureGeneratedAndroidCleartext,
-} from "../../../scripts/android-release-network.js"
+} from "@/scripts/android-release-network.js"
 import {
   DEFAULT_APP_ORIGIN,
   appBuildEnvironment,
   normalizeAppBuildOrigin,
-} from "../../../scripts/build-app.js"
+} from "@/scripts/build-app.js"
 import {
   APP_DEV_PORT,
   appDevEnvironment,
   appDevOrigin,
-} from "../../../scripts/dev-app.js"
+} from "@/scripts/dev-app.js"
 
 describe("App build environment", () => {
   it("uses the public production origin when no override is provided", () => {

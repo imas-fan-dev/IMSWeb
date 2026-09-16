@@ -1,50 +1,46 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import { RecommendationManager } from "~/pages/admin/recommendations/index"
-
-function jsonResponse(payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    headers: { "content-type": "application/json" },
-  })
-}
 
 describe("RecommendationManager", () => {
   afterEach(() => {
-    document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+    clearCsrfCookie("backoffice")
   })
 
   it("reuses Bilibili parsing to fill and submit the recommendation cover", async () => {
-    document.cookie = "ims_admin_csrf=recommendation-test; path=/"
+    setCsrfCookie("backoffice", "recommendation-test")
     let submittedForm: FormData | null = null
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const request =
-          input instanceof Request
-            ? input
-            : new Request(new URL(String(input), window.location.origin), init)
-        const pathname = new URL(request.url).pathname
-        if (pathname === "/api/wiki/parse_bilibili") {
-          expect(await request.clone().json()).toEqual({
-            url: "https://www.bilibili.com/video/BV1xx411c7mD",
-          })
-          return jsonResponse({
-            status: "success",
-            title: "B站解析标题",
-            up: "测试UP",
-            std_url: "https://www.bilibili.com/video/BV1xx411c7mD",
-            cover_url: "https://i0.hdslb.com/bfs/archive/cover.jpg",
-          })
-        }
-        if (pathname === "/api/admin/news" && request.method === "POST") {
-          submittedForm = await request.clone().formData()
-          return jsonResponse({ success: true })
-        }
-        return jsonResponse({ success: true, data: [] })
-      })
-    vi.stubGlobal("fetch", fetchMock)
+    installFetchMock(async (input, init) => {
+      const request =
+        input instanceof Request
+          ? input
+          : new Request(new URL(String(input), window.location.origin), init)
+      const pathname = new URL(request.url).pathname
+      if (pathname === "/api/wiki/parse_bilibili") {
+        expect(await request.clone().json()).toEqual({
+          url: "https://www.bilibili.com/video/BV1xx411c7mD",
+        })
+        return jsonResponse({
+          status: "success",
+          title: "B站解析标题",
+          up: "测试UP",
+          std_url: "https://www.bilibili.com/video/BV1xx411c7mD",
+          cover_url: "https://i0.hdslb.com/bfs/archive/cover.jpg",
+        })
+      }
+      if (pathname === "/api/admin/news" && request.method === "POST") {
+        submittedForm = await request.clone().formData()
+        return jsonResponse({ success: true })
+      }
+      return jsonResponse({ success: true, data: [] })
+    })
     const user = userEvent.setup()
 
     render(<RecommendationManager />)

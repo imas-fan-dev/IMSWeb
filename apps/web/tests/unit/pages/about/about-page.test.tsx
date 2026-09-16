@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import About from "~/pages/about/index"
 import type { AboutPageContent } from "~/lib/api"
 import { seriesWallItems } from "~/lib/series-wall"
@@ -51,17 +52,11 @@ function aboutContent(): AboutPageContent {
   }
 }
 
-function jsonResponse(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json" },
-  })
-}
-
 describe("About page", () => {
   it("renders API-configured identity, overview, and people groups", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(aboutContent()))
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      jsonResponse(aboutContent())
+    )
 
     const { container } = render(<About />)
 
@@ -104,7 +99,7 @@ describe("About page", () => {
   })
 
   it("offers a retry when dynamic content cannot be loaded", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")))
+    installFetchMock().mockRejectedValue(new Error("offline"))
 
     render(<About />)
 
@@ -113,9 +108,8 @@ describe("About page", () => {
   })
 
   it("renders an unpublished state when no About content exists", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(jsonResponse({ error: "关于页尚未配置" }, 404))
+    installFetchMock().mockResolvedValue(
+      jsonResponse({ error: "关于页尚未配置" }, 404)
     )
 
     render(<About />)

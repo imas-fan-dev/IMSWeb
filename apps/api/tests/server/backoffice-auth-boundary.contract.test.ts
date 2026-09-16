@@ -5,6 +5,7 @@ import {
     serializeCookieHeader as cookieHeader,
     setCookieHeaders as setCookies
 } from '../fixtures/auth-request';
+import { insertBackofficeAccount } from '../fixtures/rows';
 import type { TestContext } from 'node:test';
 import { sign as signJwt } from 'hono/utils/jwt/jwt';
 import {
@@ -15,7 +16,6 @@ import {
     adminRefreshSuccessResponseSchema,
     adminSessionSchema
 } from '@imsweb/contracts/admin';
-import { createHonoApp } from '@/app';
 import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
 import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
@@ -24,6 +24,7 @@ import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy'
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { createPostgresTestDatabase } from './postgres-test-database';
+import { createTestApp, testRequest } from './test-app';
 
 const USERNAME = 'backoffice-boundary-op';
 const PASSWORD = 'backoffice-boundary-password';
@@ -41,7 +42,7 @@ const LEGACY_SUCCESSORS = new Map([
 ]);
 
 interface Fixture {
-    app: ReturnType<typeof createHonoApp>;
+    app: ReturnType<typeof createTestApp>;
     connection: PostgresConnection;
     repository: SqlBackofficeAuthRepository;
     tokens: HmacBackofficeTokenService;
@@ -104,11 +105,10 @@ async function createFixture(
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const repository = new SqlBackofficeAuthRepository(connection);
     const audit = new SqlAuditRepository(connection);
-    await connection.prepare(
-        `INSERT INTO backoffice_accounts
-            (username, password, dept, producername, admin_role)
-         VALUES (?, 'backoffice-boundary-digest', 'op', 'Boundary Producer', 'admin')`
-    ).bind(USERNAME).run();
+    await insertBackofficeAccount(connection, USERNAME, {
+        password: 'backoffice-boundary-digest',
+        producername: 'Boundary Producer'
+    });
     const tokens = new HmacBackofficeTokenService(SECRET, legacySecret ?? undefined);
     const runtime: RuntimeServices = {
         backofficeAuth: repository,
@@ -122,7 +122,7 @@ async function createFixture(
         config: { cookieSecure: false }
     };
     return {
-        app: createHonoApp(() => runtime),
+        app: createTestApp(() => runtime),
         connection,
         repository,
         tokens,
@@ -133,7 +133,7 @@ async function createFixture(
 }
 
 async function login(fixture: Fixture, route = '/api/admin/auth/login') {
-    return fixture.app.request(`http://ims.test${route}`, {
+    return testRequest(fixture.app, route, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: USERNAME, password: PASSWORD })
@@ -157,7 +157,7 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
     assert.equal(claims.aud, 'ims-backoffice');
     assert.equal(claims.kind, 'backoffice');
 
-    const session = await fixture.app.request('http://ims.test/api/admin/auth/session', {
+    const session = await testRequest(fixture.app, '/api/admin/auth/session', {
         headers: { Cookie: cookieHeader(loginCookies) }
     });
     assert.equal(session.status, 200);
@@ -166,7 +166,7 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
     assert.equal((sessionBody as { user: { username: string } }).user.username, USERNAME);
 
     const csrf = loginCookies.get(CSRF_COOKIE)!;
-    const refreshed = await fixture.app.request('http://ims.test/api/admin/auth/refresh', {
+    const refreshed = await testRequest(fixture.app, '/api/admin/auth/refresh', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(loginCookies),
@@ -181,7 +181,7 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
     assert.notEqual(refreshedCookies.get(REFRESH_COOKIE), loginCookies.get(REFRESH_COOKIE));
     assert.equal(refreshedCookies.get(CSRF_COOKIE), csrf);
 
-    const logout = await fixture.app.request('http://ims.test/api/admin/auth/logout', {
+    const logout = await testRequest(fixture.app, '/api/admin/auth/logout', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(refreshedCookies),
@@ -197,13 +197,14 @@ test('canonical Backoffice auth lifecycle uses isolated routes and ims_admin coo
 test('canonical login accepts editor accounts while the legacy admin login remains op-only', async (t) => {
     const fixture = await createFixture(t);
     t.after(() => fixture.close());
-    await fixture.connection.prepare(
-        `INSERT INTO backoffice_accounts
-            (username, password, dept, producername, admin_role)
-         VALUES (?, 'backoffice-boundary-digest', 'editor', NULL, NULL)`
-    ).bind('backoffice-boundary-editor').run();
+    await insertBackofficeAccount(fixture.connection, 'backoffice-boundary-editor', {
+        password: 'backoffice-boundary-digest',
+        dept: 'editor',
+        producername: null,
+        admin_role: null
+    });
 
-    const canonical = await fixture.app.request('http://ims.test/api/admin/auth/login', {
+    const canonical = await testRequest(fixture.app, '/api/admin/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -224,7 +225,7 @@ test('canonical login accepts editor accounts while the legacy admin login remai
         adminRole: null
     });
 
-    const invalidInput = await fixture.app.request('http://ims.test/api/admin/auth/login', {
+    const invalidInput = await testRequest(fixture.app, '/api/admin/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: '', password: PASSWORD })
@@ -233,8 +234,9 @@ test('canonical login accepts editor accounts while the legacy admin login remai
     const invalidInputBody = await invalidInput.json();
     assert.deepEqual(adminLoginErrorResponseSchema.parse(invalidInputBody), invalidInputBody);
 
-    const invalidCredentials = await fixture.app.request(
-        'http://ims.test/api/admin/auth/login',
+    const invalidCredentials = await testRequest(
+        fixture.app,
+        '/api/admin/auth/login',
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -251,7 +253,7 @@ test('canonical login accepts editor accounts while the legacy admin login remai
         invalidCredentialsBody
     );
 
-    const legacyAdmin = await fixture.app.request('http://ims.test/api/admin/login', {
+    const legacyAdmin = await testRequest(fixture.app, '/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -328,15 +330,17 @@ test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
         ['Authorization', { Authorization: `Bearer ${legacyToken}` }],
         ['canonical cookie', { Cookie: `${ACCESS_COOKIE}=${legacyToken}` }]
     ] as const) {
-        const response = await fixture.app.request(
-            'http://ims.test/api/admin/auth/session',
+        const response = await testRequest(
+            fixture.app,
+            '/api/admin/auth/session',
             { headers }
         );
         assert.equal(response.status, 401, label);
     }
 
-    const legacyCookie = await fixture.app.request(
-        'http://ims.test/api/admin/auth/session',
+    const legacyCookie = await testRequest(
+        fixture.app,
+        '/api/admin/auth/session',
         { headers: { Cookie: `token=${legacyToken}` } }
     );
     assert.equal(legacyCookie.status, 200);
@@ -347,8 +351,9 @@ test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
         aud: 'ims-platform',
         kind: 'platform'
     }, LEGACY_SECRET, 'HS256');
-    const platformCookie = await fixture.app.request(
-        'http://ims.test/api/admin/auth/session',
+    const platformCookie = await testRequest(
+        fixture.app,
+        '/api/admin/auth/session',
         { headers: { Cookie: `token=${platformToken}` } }
     );
     assert.equal(platformCookie.status, 401);
@@ -356,8 +361,9 @@ test('realm-less legacy JWTs are accepted only from the legacy Backoffice cookie
     const strictOnlyFixture = await createFixture(t, null);
     t.after(() => strictOnlyFixture.close());
     const currentSecretLegacyToken = await signJwt(legacyClaims, SECRET, 'HS256');
-    const disabledBridge = await strictOnlyFixture.app.request(
-        'http://ims.test/api/admin/auth/session',
+    const disabledBridge = await testRequest(
+        strictOnlyFixture.app,
+        '/api/admin/auth/session',
         { headers: { Cookie: `token=${currentSecretLegacyToken}` } }
     );
     assert.equal(disabledBridge.status, 401);
@@ -383,7 +389,7 @@ test('logout revokes coexisting canonical and legacy refresh sessions', async (t
             const csrf = route === '/api/logout'
                 ? legacy.get('csrf_token')!
                 : canonical.get(CSRF_COOKIE)!;
-            const response = await fixture.app.request(`http://ims.test${route}`, {
+            const response = await testRequest(fixture.app, route, {
                 method: 'POST',
                 headers: {
                     Cookie: cookieHeader(cookies),
@@ -409,8 +415,9 @@ test('logout revokes coexisting canonical and legacy refresh sessions', async (t
                 ).bind(session.id).first<{ revoked_at: number | null }>();
                 assert.equal(typeof stored?.revoked_at, 'number', route);
             }
-            const canonicalReplay = await fixture.app.request(
-                'http://ims.test/api/admin/auth/refresh',
+            const canonicalReplay = await testRequest(
+                fixture.app,
+                '/api/admin/auth/refresh',
                 {
                     method: 'POST',
                     headers: {
@@ -420,7 +427,7 @@ test('logout revokes coexisting canonical and legacy refresh sessions', async (t
                 }
             );
             assert.equal(canonicalReplay.status, 401, route);
-            const legacyReplay = await fixture.app.request('http://ims.test/api/refresh', {
+            const legacyReplay = await testRequest(fixture.app, '/api/refresh', {
                 method: 'POST',
                 headers: {
                     Cookie: cookieHeader(legacy),
@@ -449,20 +456,22 @@ test('legacy Backoffice endpoints are deprecated and old cookies only bridge int
         if (legacyLoginPath === '/api/login') legacyCookies = cookies;
     }
 
-    const canonicalSessionFromLegacyCookie = await fixture.app.request(
-        'http://ims.test/api/admin/auth/session',
+    const canonicalSessionFromLegacyCookie = await testRequest(
+        fixture.app,
+        '/api/admin/auth/session',
         { headers: { Cookie: cookieHeader(legacyCookies) } }
     );
     assert.equal(canonicalSessionFromLegacyCookie.status, 200);
 
-    const legacySession = await fixture.app.request('http://ims.test/api/check', {
+    const legacySession = await testRequest(fixture.app, '/api/check', {
         headers: { Cookie: cookieHeader(legacyCookies) }
     });
     assert.equal(legacySession.status, 200);
     assertDeprecated(legacySession, '/api/check');
 
-    const canonicalRefresh = await fixture.app.request(
-        'http://ims.test/api/admin/auth/refresh',
+    const canonicalRefresh = await testRequest(
+        fixture.app,
+        '/api/admin/auth/refresh',
         {
             method: 'POST',
             headers: {
@@ -476,7 +485,7 @@ test('legacy Backoffice endpoints are deprecated and old cookies only bridge int
 
     const secondLegacyLogin = await login(fixture, '/api/login');
     const secondLegacyCookies = cookieValues(secondLegacyLogin);
-    const legacyRefresh = await fixture.app.request('http://ims.test/api/refresh', {
+    const legacyRefresh = await testRequest(fixture.app, '/api/refresh', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(secondLegacyCookies),
@@ -488,7 +497,7 @@ test('legacy Backoffice endpoints are deprecated and old cookies only bridge int
 
     const logoutLogin = await login(fixture, '/api/login');
     const logoutCookies = cookieValues(logoutLogin);
-    const legacyLogout = await fixture.app.request('http://ims.test/api/logout', {
+    const legacyLogout = await testRequest(fixture.app, '/api/logout', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(logoutCookies),

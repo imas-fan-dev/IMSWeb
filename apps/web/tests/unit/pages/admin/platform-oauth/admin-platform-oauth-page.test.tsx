@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Outlet, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import type { AdminSession, PlatformOAuthAdminProvider } from "~/lib/api"
 import AdminPlatformOAuthPage from "~/pages/admin/platform-oauth/index"
 
@@ -75,17 +80,11 @@ function renderPage(session: AdminSession = superSession) {
   )
 }
 
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
-
 function providerFetch(
   requests: Request[],
   mutation: (request: Request) => Response | Promise<Response>
 ) {
-  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = requestFrom(input, init)
     requests.push(request.clone())
     if (request.method === "GET") {
@@ -95,19 +94,18 @@ function providerFetch(
       })
     }
     return mutation(request)
-  })
+  }
 }
 
 afterEach(() => {
   vi.clearAllMocks()
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
   document.body.removeAttribute("style")
 })
 
 describe("AdminPlatformOAuthPage", () => {
   it("blocks regular administrators before loading provider credentials", () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     renderPage({ ...superSession, id: 2, adminRole: "admin" })
 
@@ -116,10 +114,9 @@ describe("AdminPlatformOAuthPage", () => {
   })
 
   it("renders dynamic provider icons and edits without resending an empty secret", async () => {
-    document.cookie = "ims_admin_csrf=oauth-csrf; path=/"
+    setCsrfCookie("backoffice", "oauth-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
+    installFetchMock(
       providerFetch(requests, async (request) => {
         expect(request.method).toBe("PUT")
         return Response.json({
@@ -200,10 +197,9 @@ describe("AdminPlatformOAuthPage", () => {
   })
 
   it("creates a provider through the shared dialog", async () => {
-    document.cookie = "ims_admin_csrf=oauth-csrf; path=/"
+    setCsrfCookie("backoffice", "oauth-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
+    installFetchMock(
       providerFetch(requests, async (request) => {
         const payload = (await request.clone().json()) as Record<
           string,
@@ -271,10 +267,9 @@ describe("AdminPlatformOAuthPage", () => {
   })
 
   it("deletes a provider after confirmation", async () => {
-    document.cookie = "ims_admin_csrf=oauth-csrf; path=/"
+    setCsrfCookie("backoffice", "oauth-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
+    installFetchMock(
       providerFetch(requests, (request) => {
         expect(request.method).toBe("DELETE")
         return Response.json({ success: true, deletedCode: "custom-oidc" })

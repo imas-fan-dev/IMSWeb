@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Outlet, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, requestFrom } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import type { AdminSession } from "~/lib/api"
 import AdminPlatformEmailPage from "~/pages/admin/platform-email/index"
 
@@ -52,21 +57,14 @@ function renderPage(session: AdminSession = superSession) {
   )
 }
 
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
-
 afterEach(() => {
   vi.clearAllMocks()
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("AdminPlatformEmailPage", () => {
   it("blocks regular administrators before loading SMTP credentials", () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     renderPage({ ...superSession, id: 2, adminRole: "admin" })
 
@@ -75,27 +73,24 @@ describe("AdminPlatformEmailPage", () => {
   })
 
   it("preserves stored credentials while enabling SMTP", async () => {
-    document.cookie = "ims_admin_csrf=email-csrf; path=/"
+    setCsrfCookie("backoffice", "email-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
-        if (request.method === "GET") {
-          return Response.json({ success: true, settings })
-        }
-        return Response.json({
-          success: true,
-          settings: {
-            ...settings,
-            enabled: true,
-            resendCooldownSeconds: 30,
-            updatedAt: 1001,
-          },
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
+      if (request.method === "GET") {
+        return Response.json({ success: true, settings })
+      }
+      return Response.json({
+        success: true,
+        settings: {
+          ...settings,
+          enabled: true,
+          resendCooldownSeconds: 30,
+          updatedAt: 1001,
+        },
       })
-    )
+    })
     const user = userEvent.setup()
 
     renderPage()
@@ -132,10 +127,7 @@ describe("AdminPlatformEmailPage", () => {
   })
 
   it("enforces the resend cooldown bounds in the draft", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => Response.json({ success: true, settings }))
-    )
+    installFetchMock(async () => Response.json({ success: true, settings }))
     const user = userEvent.setup()
 
     renderPage()
@@ -168,34 +160,31 @@ describe("AdminPlatformEmailPage", () => {
   })
 
   it("refreshes a conflicting revision and retains stored credentials", async () => {
-    document.cookie = "ims_admin_csrf=email-csrf; path=/"
+    setCsrfCookie("backoffice", "email-csrf")
     const refreshedSettings = {
       ...settings,
       resendCooldownSeconds: 30,
       updatedAt: 1001,
     }
     let getRequests = 0
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        if (request.method === "GET") {
-          getRequests += 1
-          return Response.json({
-            success: true,
-            settings: getRequests === 1 ? settings : refreshedSettings,
-          })
-        }
-        return Response.json(
-          {
-            success: false,
-            code: "REVISION_CONFLICT",
-            settings: refreshedSettings,
-          },
-          { status: 409 }
-        )
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      if (request.method === "GET") {
+        getRequests += 1
+        return Response.json({
+          success: true,
+          settings: getRequests === 1 ? settings : refreshedSettings,
+        })
+      }
+      return Response.json(
+        {
+          success: false,
+          code: "REVISION_CONFLICT",
+          settings: refreshedSettings,
+        },
+        { status: 409 }
+      )
+    })
     const user = userEvent.setup()
 
     renderPage()
@@ -216,22 +205,19 @@ describe("AdminPlatformEmailPage", () => {
   })
 
   it("sends a test message with the unsaved form configuration", async () => {
-    document.cookie = "ims_admin_csrf=email-csrf; path=/"
+    setCsrfCookie("backoffice", "email-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        requests.push(request.clone())
-        if (request.method === "GET") {
-          return Response.json({ success: true, settings })
-        }
-        return Response.json({
-          success: true,
-          deliveredTo: "admin@example.com",
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      requests.push(request.clone())
+      if (request.method === "GET") {
+        return Response.json({ success: true, settings })
+      }
+      return Response.json({
+        success: true,
+        deliveredTo: "admin@example.com",
       })
-    )
+    })
     const user = userEvent.setup()
 
     renderPage()

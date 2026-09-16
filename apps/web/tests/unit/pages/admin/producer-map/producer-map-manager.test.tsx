@@ -7,6 +7,15 @@ import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import {
+  installFetchMock,
+  jsonResponse,
+  requestFrom,
+} from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import type { ProducerMapContent, ProducerMapRegion } from "~/lib/api"
 import { ProducerMapManager } from "~/pages/admin/producer-map/index"
 import {
@@ -124,19 +133,6 @@ function geometry() {
   }
 }
 
-function jsonResponse(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json" },
-  })
-}
-
-function requestFrom(input: RequestInfo | URL, init?: RequestInit) {
-  return input instanceof Request
-    ? input
-    : new Request(new URL(String(input), "http://ims.test"), init)
-}
-
 function isGeometryRequest(request: Request) {
   return new URL(request.url).pathname === "/maps/china-provinces.json"
 }
@@ -151,7 +147,7 @@ function renderManager() {
 
 describe("ProducerMapManager", () => {
   afterEach(() => {
-    document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+    clearCsrfCookie("backoffice")
   })
 
   it("generates opaque community IDs outside the editor", () => {
@@ -183,15 +179,12 @@ describe("ProducerMapManager", () => {
   })
 
   it("keeps page metadata inline and opens ID-free create dialogs", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        return isGeometryRequest(request)
-          ? jsonResponse(geometry())
-          : jsonResponse({ content: null, revision: null })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      return isGeometryRequest(request)
+        ? jsonResponse(geometry())
+        : jsonResponse({ content: null, revision: null })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -235,28 +228,25 @@ describe("ProducerMapManager", () => {
   })
 
   it("stages dialog edits and saves them with the current revision", async () => {
-    document.cookie = "ims_admin_csrf=producer-map-manager-test; path=/"
+    setCsrfCookie("backoffice", "producer-map-manager-test")
     let savedBody: unknown
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const request = requestFrom(input, init)
-        if (isGeometryRequest(request)) return jsonResponse(geometry())
-        if (request.method === "PUT") {
-          savedBody = await request.clone().json()
-          const submitted = savedBody as { content: ProducerMapContent }
-          return jsonResponse({
-            success: true,
-            content: {
-              ...submitted.content,
-              updatedAt: "2026-08-11T01:00:00.000Z",
-            },
-            revision: '"revision-2"',
-          })
-        }
-        return jsonResponse({ content: content(), revision: '"revision-1"' })
-      })
-    vi.stubGlobal("fetch", fetchMock)
+    installFetchMock(async (input, init) => {
+      const request = requestFrom(input, init)
+      if (isGeometryRequest(request)) return jsonResponse(geometry())
+      if (request.method === "PUT") {
+        savedBody = await request.clone().json()
+        const submitted = savedBody as { content: ProducerMapContent }
+        return jsonResponse({
+          success: true,
+          content: {
+            ...submitted.content,
+            updatedAt: "2026-08-11T01:00:00.000Z",
+          },
+          revision: '"revision-2"',
+        })
+      }
+      return jsonResponse({ content: content(), revision: '"revision-1"' })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -309,40 +299,36 @@ describe("ProducerMapManager", () => {
   })
 
   it("uploads, replaces, and removes dialog images without exposing paths", async () => {
-    document.cookie = "ims_admin_csrf=producer-map-upload-test; path=/"
+    setCsrfCookie("backoffice", "producer-map-upload-test")
     let savedBody: unknown
     const uploadedNames: string[] = []
     const uploadCsrf: Array<string | null> = []
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const request = requestFrom(input, init)
-        if (isGeometryRequest(request)) return jsonResponse(geometry())
-        if (request.method === "POST") {
-          const form = init?.body
-          if (!(form instanceof FormData))
-            throw new Error("missing upload form")
-          const image = form.get("image")
-          if (!(image instanceof File)) throw new Error("missing upload image")
-          uploadedNames.push(image.name)
-          uploadCsrf.push(request.headers.get("x-csrftoken"))
-          return jsonResponse({
-            success: true,
-            url: `/uploads/producer-map/${image.name}.webp`,
-          })
-        }
-        if (request.method === "PUT") {
-          savedBody = await request.clone().json()
-          const submitted = savedBody as { content: ProducerMapContent }
-          return jsonResponse({
-            success: true,
-            content: submitted.content,
-            revision: '"revision-2"',
-          })
-        }
-        return jsonResponse({ content: content(), revision: '"revision-1"' })
-      })
-    vi.stubGlobal("fetch", fetchMock)
+    installFetchMock(async (input, init) => {
+      const request = requestFrom(input, init)
+      if (isGeometryRequest(request)) return jsonResponse(geometry())
+      if (request.method === "POST") {
+        const form = init?.body
+        if (!(form instanceof FormData)) throw new Error("missing upload form")
+        const image = form.get("image")
+        if (!(image instanceof File)) throw new Error("missing upload image")
+        uploadedNames.push(image.name)
+        uploadCsrf.push(request.headers.get("x-csrftoken"))
+        return jsonResponse({
+          success: true,
+          url: `/uploads/producer-map/${image.name}.webp`,
+        })
+      }
+      if (request.method === "PUT") {
+        savedBody = await request.clone().json()
+        const submitted = savedBody as { content: ProducerMapContent }
+        return jsonResponse({
+          success: true,
+          content: submitted.content,
+          revision: '"revision-2"',
+        })
+      }
+      return jsonResponse({ content: content(), revision: '"revision-1"' })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -429,7 +415,7 @@ describe("ProducerMapManager", () => {
   })
 
   it("persists drag order only when the page is saved", async () => {
-    document.cookie = "csrf_token=producer-map-order-test; path=/"
+    setCsrfCookie("legacy", "producer-map-order-test")
     const current = content()
     current.communities.push({
       ...current.communities[0]!,
@@ -438,23 +424,20 @@ describe("ProducerMapManager", () => {
       platform: "Discord",
     })
     let savedBody: unknown
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const request = requestFrom(input, init)
-        if (isGeometryRequest(request)) return jsonResponse(geometry())
-        if (request.method === "PUT") {
-          savedBody = await request.clone().json()
-          const submitted = savedBody as { content: ProducerMapContent }
-          return jsonResponse({
-            success: true,
-            content: submitted.content,
-            revision: '"revision-2"',
-          })
-        }
-        return jsonResponse({ content: current, revision: '"revision-1"' })
-      })
-    vi.stubGlobal("fetch", fetchMock)
+    installFetchMock(async (input, init) => {
+      const request = requestFrom(input, init)
+      if (isGeometryRequest(request)) return jsonResponse(geometry())
+      if (request.method === "PUT") {
+        savedBody = await request.clone().json()
+        const submitted = savedBody as { content: ProducerMapContent }
+        return jsonResponse({
+          success: true,
+          content: submitted.content,
+          revision: '"revision-2"',
+        })
+      }
+      return jsonResponse({ content: current, revision: '"revision-1"' })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -477,30 +460,27 @@ describe("ProducerMapManager", () => {
   })
 
   it("keeps region drag order in the secondary view until page save", async () => {
-    document.cookie = "csrf_token=producer-map-region-order-test; path=/"
+    setCsrfCookie("legacy", "producer-map-region-order-test")
     const current = content()
     current.regions.push({
       ...createRegion("北京市"),
       name: "北京制作人社群",
     })
     let savedBody: unknown
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async (input, init) => {
-        const request = requestFrom(input, init)
-        if (isGeometryRequest(request)) return jsonResponse(geometry())
-        if (request.method === "PUT") {
-          savedBody = await request.clone().json()
-          const submitted = savedBody as { content: ProducerMapContent }
-          return jsonResponse({
-            success: true,
-            content: submitted.content,
-            revision: '"revision-2"',
-          })
-        }
-        return jsonResponse({ content: current, revision: '"revision-1"' })
-      })
-    vi.stubGlobal("fetch", fetchMock)
+    installFetchMock(async (input, init) => {
+      const request = requestFrom(input, init)
+      if (isGeometryRequest(request)) return jsonResponse(geometry())
+      if (request.method === "PUT") {
+        savedBody = await request.clone().json()
+        const submitted = savedBody as { content: ProducerMapContent }
+        return jsonResponse({
+          success: true,
+          content: submitted.content,
+          revision: '"revision-2"',
+        })
+      }
+      return jsonResponse({ content: current, revision: '"revision-1"' })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -522,7 +502,7 @@ describe("ProducerMapManager", () => {
   })
 
   it("disables region ordering actions while the page save is pending", async () => {
-    document.cookie = "csrf_token=producer-map-saving-test; path=/"
+    setCsrfCookie("legacy", "producer-map-saving-test")
     const current = content()
     current.regions.push({
       ...createRegion("北京市"),
@@ -532,15 +512,12 @@ describe("ProducerMapManager", () => {
     const saveResponse = new Promise<Response>((resolve) => {
       resolveSave = resolve
     })
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        if (isGeometryRequest(request)) return jsonResponse(geometry())
-        if (request.method === "PUT") return saveResponse
-        return jsonResponse({ content: current, revision: '"revision-1"' })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      if (isGeometryRequest(request)) return jsonResponse(geometry())
+      if (request.method === "PUT") return saveResponse
+      return jsonResponse({ content: current, revision: '"revision-1"' })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -575,15 +552,12 @@ describe("ProducerMapManager", () => {
   })
 
   it("keeps province editing available when map geometry fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        return isGeometryRequest(request)
-          ? jsonResponse({ error: "geometry unavailable" }, 500)
-          : jsonResponse({ content: content(), revision: '"revision-1"' })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      return isGeometryRequest(request)
+        ? jsonResponse({ error: "geometry unavailable" }, 500)
+        : jsonResponse({ content: content(), revision: '"revision-1"' })
+    })
     const user = userEvent.setup()
 
     renderManager()
@@ -597,15 +571,12 @@ describe("ProducerMapManager", () => {
   })
 
   it("confirms local deletion before removing a row", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestFrom(input, init)
-        return isGeometryRequest(request)
-          ? jsonResponse(geometry())
-          : jsonResponse({ content: content(), revision: '"revision-1"' })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestFrom(input, init)
+      return isGeometryRequest(request)
+        ? jsonResponse(geometry())
+        : jsonResponse({ content: content(), revision: '"revision-1"' })
+    })
     const user = userEvent.setup()
 
     renderManager()

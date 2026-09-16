@@ -16,6 +16,7 @@ import {
     postgresIntegrationEnabled
 } from '../integration/postgres-harness';
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
+import { insertBackofficeAccount, insertPlatformAccount } from '../fixtures/rows';
 
 const CREATED_AT = '2026-08-02T00:00:00.000Z';
 const UPDATED_AT = '2026-08-02T00:01:00.000Z';
@@ -114,25 +115,18 @@ async function seedPlatformAccount(
     fixture: Fixture,
     accountId: string
 ): Promise<void> {
-    await fixture.database.prepare(
-        `INSERT INTO platform_accounts
-            (id, status, token_version, created_at, updated_at, deleted_at)
-         VALUES (?, 'active', 0, ?, ?, NULL)`
-    ).bind(accountId, 1_700_000_000_000, 1_700_000_000_000).run();
+    await insertPlatformAccount(fixture.database, accountId);
 }
 
 async function seedBackofficeActor(
     fixture: Fixture,
     username: string
 ): Promise<number> {
-    const actor = await fixture.database.prepare(
-        `INSERT INTO backoffice_accounts
-            (username, password, dept, producername, admin_role)
-         VALUES (?, 'hash', 'op', ?, 'admin')
-         RETURNING id`
-    ).bind(username, username).first<{ id: number }>();
+    const actor = await insertBackofficeAccount(fixture.database, username, {
+        producername: username
+    });
     assert.ok(actor);
-    return actor.id;
+    return actor;
 }
 
 async function placeCard(

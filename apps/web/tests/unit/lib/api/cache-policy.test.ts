@@ -1,6 +1,11 @@
 import { defaultWikiImageTransform } from "@imsweb/contracts/wiki"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   CLIENT_CACHE_DURATION,
   NO_CLIENT_CACHE,
@@ -67,7 +72,7 @@ const emptyWikiStories = {
 
 describe("Alova client cache policy", () => {
   afterEach(() => {
-    document.cookie = "csrf_token=; Max-Age=0; path=/"
+    clearCsrfCookie("legacy")
   })
 
   it("keeps caching opt-in and assigns durations by content volatility", () => {
@@ -159,7 +164,7 @@ describe("Alova client cache policy", () => {
   it("caches Wiki reads per parameter set but never caches random results", async () => {
     let backgroundRequest = 0
     let randomIdolRequest = 0
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+    const fetchMock = installFetchMock(async (input) => {
       const url = new URL(
         input instanceof Request ? input.url : String(input),
         window.location.origin
@@ -178,7 +183,6 @@ describe("Alova client cache policy", () => {
       }
       return Response.json(emptyWikiCatalog)
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     const firstCatalog = getWikiCatalog("765PRO")
     const repeatedCatalog = getWikiCatalog("765PRO")
@@ -202,8 +206,8 @@ describe("Alova client cache policy", () => {
   })
 
   it("invalidates all Wiki variants after legacy media writes", async () => {
-    document.cookie = "csrf_token=wiki-cache-test; path=/"
-    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    setCsrfCookie("legacy", "wiki-cache-test")
+    const fetchMock = installFetchMock(async (input, init) => {
       const url = new URL(
         input instanceof Request ? input.url : String(input),
         window.location.origin
@@ -219,7 +223,6 @@ describe("Alova client cache policy", () => {
       }
       return Response.json(emptyWikiCatalog)
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     const readWikiVariants = async () => {
       await getWikiCatalog("765PRO").send()
@@ -242,7 +245,7 @@ describe("Alova client cache policy", () => {
   })
 
   it("refreshes cached admin-facing event feeds after a write", async () => {
-    document.cookie = "csrf_token=event-cache-test; path=/"
+    setCsrfCookie("legacy", "event-cache-test")
     const emptyEventPage = {
       items: [],
       pageInfo: {
@@ -251,7 +254,7 @@ describe("Alova client cache policy", () => {
         snapshotAt: null,
       },
     }
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+    const fetchMock = installFetchMock(async (input) => {
       const url = new URL(
         input instanceof Request ? input.url : String(input),
         window.location.origin
@@ -260,7 +263,6 @@ describe("Alova client cache policy", () => {
         ? Response.json(emptyEventPage)
         : Response.json({ success: true, id: 1 })
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     await getEventPage({ limit: 50 }).send()
     await getEventPage({ limit: 50 }).send()

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import {
   API_PROXY_PATH_PREFIXES,
   PUBLIC_SITE_PROXY_PATH_PREFIXES,
@@ -34,7 +35,7 @@ async function loadApi(configuredOrigin: string) {
  */
 function captureRequestUrl(body: unknown = {}) {
   const urls: string[] = []
-  vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
+  installFetchMock((input: RequestInfo | URL) => {
     urls.push(typeof input === "string" ? input : String(input))
     return Promise.resolve(
       new Response(JSON.stringify(body), {

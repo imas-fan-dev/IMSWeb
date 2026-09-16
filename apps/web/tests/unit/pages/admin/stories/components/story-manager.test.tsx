@@ -1,8 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StoryManager } from "~/pages/admin/stories/components/story-manager"
 import type { WikiAdminCatalog, WikiAdminStories } from "~/lib/api"
 
@@ -12,24 +17,6 @@ function renderManager() {
       <StoryManager />
     </MemoryRouter>
   )
-}
-
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return {
-      body: input.body,
-      headers: input.headers,
-      method: input.method,
-      url: input.url,
-    }
-  }
-  return {
-    body: init?.body ?? null,
-    headers: new Headers(init?.headers),
-    method: init?.method ?? "GET",
-    url: String(input),
-  }
 }
 
 function catalogPayload() {
@@ -237,12 +224,12 @@ function storiesPayload(upName = "投稿者") {
 
 describe("StoryManager", () => {
   beforeEach(() => {
-    document.cookie = "ims_admin_csrf=wiki-manager-test; path=/"
+    setCsrfCookie("backoffice", "wiki-manager-test")
   })
 
   it("loads dynamic Wiki data and edits the selected story id", async () => {
     let currentUpName = "投稿者"
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+    const fetchMock = installFetchMock((...args) => {
       const request = requestDetails(args)
       const url = new URL(request.url, window.location.origin)
       if (url.pathname === "/api/admin/wiki/catalog") {
@@ -266,7 +253,6 @@ describe("StoryManager", () => {
         new Error(`Unexpected request: ${request.method} ${url.pathname}`)
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     renderManager()

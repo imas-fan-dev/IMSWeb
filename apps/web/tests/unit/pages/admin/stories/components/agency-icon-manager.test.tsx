@@ -2,26 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { AgencyIconManager } from "~/pages/admin/stories/components/agency-icon-manager"
 import type { WikiAdminCatalog } from "~/lib/api"
-
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return {
-      body: input.body,
-      headers: input.headers,
-      method: input.method,
-      url: input.url,
-    }
-  }
-  return {
-    body: init?.body ?? null,
-    headers: new Headers(init?.headers),
-    method: init?.method ?? "GET",
-    url: String(input),
-  }
-}
 
 function catalogPayload(iconUrl: string | null) {
   return {
@@ -75,12 +62,12 @@ function catalogPayload(iconUrl: string | null) {
 
 describe("AgencyIconManager", () => {
   beforeEach(() => {
-    document.cookie = "ims_admin_csrf=wiki-agency-icon-test; path=/"
+    setCsrfCookie("backoffice", "wiki-agency-icon-test")
   })
 
   it("uploads, previews, and removes the selected series icon", async () => {
     let iconUrl: string | null = "/icon/agencies/6.webp"
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((...args) => {
+    const fetchMock = installFetchMock((...args) => {
       const request = requestDetails(args)
       const url = new URL(request.url, window.location.origin)
       if (
@@ -109,7 +96,6 @@ describe("AgencyIconManager", () => {
         new Error(`Unexpected request: ${request.method} ${url.pathname}`)
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
     const objectUrl = vi
       .spyOn(URL, "createObjectURL")
       .mockReturnValue("blob:series-icon-preview")

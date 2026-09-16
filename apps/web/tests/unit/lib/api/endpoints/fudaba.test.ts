@@ -1,5 +1,26 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import type {
+  FudabaOwnerCard,
+  FudabaOwnerOffice,
+} from "@imsweb/contracts/fudaba"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
+import {
+  makeFudabaCard,
+  makeFudabaCardPage,
+  makeFudabaOffice,
+  makeFudabaOfficePage,
+  makeFudabaOwnerCard,
+  makeFudabaOwnerCardList,
+  makeFudabaOwnerOffice,
+  makeFudabaOwnerOfficeList,
+  makeFudabaSeries,
+  makeFudabaSeriesList,
+} from "@/mocks/data/fudaba"
 import {
   createFudabaCard,
   createFudabaOffice,
@@ -37,42 +58,16 @@ import {
 } from "~/lib/api/endpoints/fudaba"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
 
-const card = {
-  id: "card-1",
-  producerName: "春香P",
-  displayName: "交换会用名片",
-  seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
-  frontImageUrl: "/media/card-1-front.webp",
-  backImageUrl: "/media/card-1-back.webp",
-  accent: "#f34e6c",
-  bio: "周末参加线下活动",
-  tradeNote: "希望交换同系列名片",
-  available: true,
-  source: null,
-  createdAt: "2026-08-02T08:00:00.000Z",
+const card = makeFudabaCard({
   interactions: {
     likes: 2,
     favorites: 1,
     viewerLiked: false,
     viewerFavorited: true,
   },
-}
+})
 
-const office = {
-  id: "office-1",
-  slug: "shanghai-weekend",
-  name: "上海周末交换事务所",
-  intro: "面向线下活动的交换点。",
-  city: "上海",
-  address: "西岸艺术中心入口",
-  accent: "#2581c7",
-  coverUrl: null,
-  isOpen: true,
-  visitorCount: 12,
-  seriesCodes: ["765", "cg"],
-}
+const office = makeFudabaOffice({ city: "上海" })
 
 const placement = {
   pinnedAt: "2026-08-02T09:00:00.000Z",
@@ -84,50 +79,20 @@ const placement = {
   updatedAt: "2026-08-02T10:00:00.000Z",
 }
 
-const ownerCard = {
+const ownerCard: FudabaOwnerCard = {
+  ...makeFudabaOwnerCard(),
   id: "owner-card",
-  producerName: "春香P",
-  displayName: "交换会用名片",
-  seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
-  frontImageUrl: "/api/community/exchange/me/cards/owner-card/media/front?v=1",
-  backImageUrl: "/api/community/exchange/me/cards/owner-card/media/back?v=1",
-  accent: "#f34e6c",
-  bio: "周末参加线下活动",
-  tradeNote: "希望交换同系列名片",
-  available: true,
-  mediaRightsStatus: "unknown" as const,
-  publicationStatus: "pending" as const,
-  revision: 1,
-  createdAt: "2026-08-02T08:00:00.000Z",
-  updatedAt: "2026-08-02T08:00:00.000Z",
+  publicationStatus: "pending",
 }
 
-const ownerOffice = {
+const ownerOffice: FudabaOwnerOffice = {
+  ...makeFudabaOwnerOffice(),
   id: "owner-office",
-  slug: "shanghai-owner-office",
-  name: "上海制作人交换事务所",
-  intro: "周末线下交换",
-  city: "上海",
-  address: "西岸艺术中心入口",
   location: {
     latitude: 31.18452,
     longitude: 121.45678,
-    precision: "exact" as const,
+    precision: "exact",
   },
-  accent: "#2581c7",
-  coverUrl: null,
-  pendingCoverUrl: null,
-  pendingCoverSubmittedAt: null,
-  isOpen: true,
-  visitorCount: 12,
-  status: "active" as const,
-  revision: 3,
-  seriesCodes: ["765"],
-  createdAt: "2026-08-02T08:00:00.000Z",
-  updatedAt: "2026-08-02T09:00:00.000Z",
-  archivedAt: null,
 }
 
 const ownerLocation = {
@@ -156,31 +121,28 @@ const cardFields = {
 }
 
 afterEach(() => {
-  document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("platform")
 })
 
 describe("Fudaba Web API contracts", () => {
   it("accepts the public discovery responses", () => {
-    const parsedSeries = fudabaSeriesListSchema.parse({
-      items: [
-        {
-          id: 1,
-          code: "765",
-          displayName: "765PRO",
-          color: "#f34f6d",
-          iconUrl: "https://assets.example.test/icon/765.webp",
-          imageTransform: {
-            fit: "contain",
-            focalX: 0.4,
-            focalY: 0.6,
-            zoom: 1.2,
-            rotation: 0,
-          },
-          displayOrder: 0,
-          activeOfficeCount: 1,
-        },
-      ],
-    })
+    const parsedSeries = fudabaSeriesListSchema.parse(
+      makeFudabaSeriesList({
+        items: [
+          makeFudabaSeries({
+            color: "#f34f6d",
+            iconUrl: "https://assets.example.test/icon/765.webp",
+            imageTransform: {
+              fit: "contain",
+              focalX: 0.4,
+              focalY: 0.6,
+              zoom: 1.2,
+              rotation: 0,
+            },
+          }),
+        ],
+      })
+    )
     expect(parsedSeries.items[0]).toMatchObject({
       id: 1,
       code: "765",
@@ -200,17 +162,17 @@ describe("Fudaba Web API contracts", () => {
     ).toThrow()
 
     expect(
-      fudabaOfficePageSchema.parse({
-        items: [office],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      }).items[0]?.city
+      fudabaOfficePageSchema.parse(makeFudabaOfficePage({ items: [office] }))
+        .items[0]?.city
     ).toBe("上海")
 
     expect(
-      fudabaCardPageSchema.parse({
-        items: [card],
-        pageInfo: { hasNextPage: true, nextCursor: "next-page" },
-      }).items[0]?.interactions.viewerFavorited
+      fudabaCardPageSchema.parse(
+        makeFudabaCardPage({
+          items: [card],
+          pageInfo: { hasNextPage: true, nextCursor: "next-page" },
+        })
+      ).items[0]?.interactions.viewerFavorited
     ).toBe(true)
   })
 
@@ -437,19 +399,16 @@ describe("Fudaba Web API contracts", () => {
 
   it("requests map config and bounded offices with Platform auth", async () => {
     const requests: Array<{ url: URL; init?: RequestInit }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = new URL(String(input), "http://ims.test")
-        requests.push({ url, init })
-        if (url.pathname.endsWith("/map/config")) {
-          return Response.json({
-            styleUrl: "/api/community/exchange/map/style.json",
-          })
-        }
-        return Response.json({ items: [], truncated: false })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://ims.test")
+      requests.push({ url, init })
+      if (url.pathname.endsWith("/map/config")) {
+        return Response.json({
+          styleUrl: "/api/community/exchange/map/style.json",
+        })
+      }
+      return Response.json({ items: [], truncated: false })
+    })
 
     await getFudabaMapConfig().send()
     await getFudabaMapOffices({
@@ -480,30 +439,27 @@ describe("Fudaba Web API contracts", () => {
 
   it("searches places through the authenticated same-origin endpoint", async () => {
     const requests: Array<{ url: URL; init?: RequestInit }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = new URL(String(input), "http://ims.test")
-        requests.push({ url, init })
-        return Response.json({
-          success: true,
-          items: [
-            {
-              id: "way:200",
-              label: "西岸艺术中心",
-              address: "西岸艺术中心，徐汇区，上海市，中国",
-              city: "上海市",
-              location: {
-                latitude: 31.1842,
-                longitude: 121.4665,
-                precision: "exact",
-              },
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://ims.test")
+      requests.push({ url, init })
+      return Response.json({
+        success: true,
+        items: [
+          {
+            id: "way:200",
+            label: "西岸艺术中心",
+            address: "西岸艺术中心，徐汇区，上海市，中国",
+            city: "上海市",
+            location: {
+              latitude: 31.1842,
+              longitude: 121.4665,
+              precision: "exact",
             },
-          ],
-          attribution: "© OpenStreetMap contributors",
-        })
+          },
+        ],
+        attribution: "© OpenStreetMap contributors",
       })
-    )
+    })
 
     const response = await searchFudabaPlaces(" 西岸艺术中心 ").send()
 
@@ -542,8 +498,9 @@ describe("Fudaba Web API contracts", () => {
 
   it("accepts only the exact owner card projection and mutation fields", () => {
     expect(
-      fudabaOwnerCardListSchema.parse({ items: [ownerCard] }).items[0]
-        ?.publicationStatus
+      fudabaOwnerCardListSchema.parse(
+        makeFudabaOwnerCardList({ items: [ownerCard] })
+      ).items[0]?.publicationStatus
     ).toBe("pending")
 
     expect(() =>
@@ -562,8 +519,9 @@ describe("Fudaba Web API contracts", () => {
 
   it("keeps exact owner office data separate from regional public locations", () => {
     expect(
-      fudabaOwnerOfficeListSchema.parse({ items: [ownerOffice] }).items[0]
-        ?.location
+      fudabaOwnerOfficeListSchema.parse(
+        makeFudabaOwnerOfficeList({ items: [ownerOffice] })
+      ).items[0]?.location
     ).toEqual({
       latitude: 31.18452,
       longitude: 121.45678,
@@ -591,44 +549,24 @@ describe("Fudaba Web API contracts", () => {
   it("uses authenticated owner reads and URL-encodes card IDs", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = []
     const encodedCardId = "owner%20card%3F%23"
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        requests.push({ url: pathname, init })
-        if (pathname.endsWith("/me/series")) {
-          return Response.json({
-            items: [
-              {
-                id: 1,
-                code: "765",
-                displayName: "765PRO",
-                color: "#f34f6d",
-                iconUrl: "https://assets.example.test/icon/765.webp",
-                imageTransform: {
-                  fit: "contain",
-                  focalX: 0.5,
-                  focalY: 0.5,
-                  zoom: 1,
-                  rotation: 0,
-                },
-                displayOrder: 0,
-                activeOfficeCount: 1,
-              },
-            ],
-          })
-        }
-        if (pathname.endsWith("/me/cards")) {
-          return Response.json({ items: [ownerCard] })
-        }
-        if (pathname.endsWith(`/${encodedCardId}`)) {
-          return Response.json({
-            card: { ...ownerCard, id: "owner card?#" },
-          })
-        }
-        throw new Error(`Unexpected request: ${pathname}`)
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      requests.push({ url: pathname, init })
+      if (pathname.endsWith("/me/series")) {
+        return Response.json(
+          makeFudabaSeriesList({ items: [makeFudabaSeries()] })
+        )
+      }
+      if (pathname.endsWith("/me/cards")) {
+        return Response.json(makeFudabaOwnerCardList({ items: [ownerCard] }))
+      }
+      if (pathname.endsWith(`/${encodedCardId}`)) {
+        return Response.json({
+          card: { ...ownerCard, id: "owner card?#" },
+        })
+      }
+      throw new Error(`Unexpected request: ${pathname}`)
+    })
 
     await expect(getFudabaOwnerSeries().send()).resolves.toMatchObject({
       items: [{ code: "765" }],
@@ -653,19 +591,16 @@ describe("Fudaba Web API contracts", () => {
   })
 
   it("uses strict JSON and multipart bodies with Platform CSRF for writes", async () => {
-    document.cookie = "ims_platform_csrf=owner-write-csrf; path=/"
+    setCsrfCookie("platform", "owner-write-csrf")
     const requests: Array<{ url: string; init?: RequestInit }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        requests.push({ url: pathname, init })
-        if (init?.method === "DELETE") {
-          return Response.json({ success: true, revision: 2 })
-        }
-        return Response.json({ success: true, card: ownerCard })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      requests.push({ url: pathname, init })
+      if (init?.method === "DELETE") {
+        return Response.json({ success: true, revision: 2 })
+      }
+      return Response.json({ success: true, card: ownerCard })
+    })
     const front = new File(["front"], "front.png", { type: "image/png" })
     const back = new File(["back"], "back.png", { type: "image/png" })
     const replacement = new File(["next"], "next.png", {
@@ -719,19 +654,16 @@ describe("Fudaba Web API contracts", () => {
   })
 
   it("saves and deletes encoded wall placements with Platform CSRF", async () => {
-    document.cookie = "ims_platform_csrf=wall-write-csrf; path=/"
+    setCsrfCookie("platform", "wall-write-csrf")
     const requests: Array<{ url: string; init?: RequestInit }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        requests.push({ url: pathname, init })
-        if (init?.method === "DELETE") {
-          return Response.json({ success: true, revision: 4 })
-        }
-        return Response.json({ success: true, placement })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      requests.push({ url: pathname, init })
+      if (init?.method === "DELETE") {
+        return Response.json({ success: true, revision: 4 })
+      }
+      return Response.json({ success: true, placement })
+    })
 
     const saved = await saveFudabaCardPlacement("office ?#", "card ?#", {
       x: 20,
@@ -776,8 +708,7 @@ describe("Fudaba Web API contracts", () => {
   })
 
   it("rejects invalid placement paths and values before requesting", () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
     const validInput = {
       x: 20,
       y: 80,
@@ -815,38 +746,37 @@ describe("Fudaba Web API contracts", () => {
   })
 
   it("uses owner office CAS, idempotency, and independent location endpoints", async () => {
-    document.cookie = "ims_platform_csrf=owner-office-csrf; path=/"
+    setCsrfCookie("platform", "owner-office-csrf")
     const requests: Array<{ url: string; init?: RequestInit }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const pathname = new URL(String(input), "http://ims.test").pathname
-        requests.push({ url: pathname, init })
-        if (init?.method === "DELETE") return Response.json({ success: true })
-        if (pathname.endsWith("/location") && init?.method === "PUT") {
-          return Response.json({
-            success: true,
-            officeLocation: {
-              ...ownerLocation,
-              reviewState: "pending",
-              revision: 3,
-              reviewedAt: null,
-              reviewNote: "",
-            },
-          })
-        }
-        if (pathname.endsWith("/location")) {
-          return Response.json({ location: ownerLocation })
-        }
-        if (pathname.endsWith("/me/offices") && init?.method === "GET") {
-          return Response.json({ items: [ownerOffice] })
-        }
-        if (pathname.endsWith("/owner-office") && init?.method === "GET") {
-          return Response.json({ office: ownerOffice })
-        }
-        return Response.json({ success: true, office: ownerOffice })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pathname = new URL(String(input), "http://ims.test").pathname
+      requests.push({ url: pathname, init })
+      if (init?.method === "DELETE") return Response.json({ success: true })
+      if (pathname.endsWith("/location") && init?.method === "PUT") {
+        return Response.json({
+          success: true,
+          officeLocation: {
+            ...ownerLocation,
+            reviewState: "pending",
+            revision: 3,
+            reviewedAt: null,
+            reviewNote: "",
+          },
+        })
+      }
+      if (pathname.endsWith("/location")) {
+        return Response.json({ location: ownerLocation })
+      }
+      if (pathname.endsWith("/me/offices") && init?.method === "GET") {
+        return Response.json(
+          makeFudabaOwnerOfficeList({ items: [ownerOffice] })
+        )
+      }
+      if (pathname.endsWith("/owner-office") && init?.method === "GET") {
+        return Response.json({ office: ownerOffice })
+      }
+      return Response.json({ success: true, office: ownerOffice })
+    })
     const fields = {
       name: ownerOffice.name,
       intro: ownerOffice.intro,

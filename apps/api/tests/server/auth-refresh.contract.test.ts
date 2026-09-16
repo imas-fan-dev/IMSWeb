@@ -5,24 +5,25 @@ import {
     serializeCookieHeader as cookieHeader,
     setCookieHeaders as setCookies
 } from '../fixtures/auth-request';
+import { insertUser } from '../fixtures/rows';
 import type { TestContext } from 'node:test';
-import { createHonoApp } from '@/app';
 import { SqlAuditRepository } from '@/infra/db/repositories/audit-repository';
 import { SqlBackofficeAuthRepository } from '@/infra/db/repositories/backoffice-auth-repository';
 import { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
-import { executeSql, queryOne } from '@/infra/db/sql/query';
+import { queryOne } from '@/infra/db/sql/query';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import { hashBackofficeAuthSecret } from '@/domains/admin/backoffice-auth/backoffice-auth-session';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { createPostgresTestDatabase } from './postgres-test-database';
+import { createTestApp, testRequest } from './test-app';
 
 const USERNAME = 'refresh-contract-op';
 const NON_OP_USERNAME = 'refresh-contract-user';
 const PASSWORD = 'refresh-contract-password';
 
 interface AuthFixture {
-    app: ReturnType<typeof createHonoApp>;
+    app: ReturnType<typeof createTestApp>;
     connection: PostgresConnection;
     repository: SqlBackofficeAuthRepository;
     close(): Promise<void>;
@@ -39,16 +40,17 @@ async function createFixture(t: TestContext): Promise<AuthFixture> {
     await new PostgresqlSchemaStrategy().initializeCore(connection);
     const repository = new SqlBackofficeAuthRepository(connection);
     const audit = new SqlAuditRepository(connection);
-    await executeSql(connection,
-        `INSERT INTO users (username, password, dept, producername, admin_role)
-         VALUES (?, 'refresh-contract-digest', 'op', 'Refresh Contract Producer', 'admin')`,
-        [USERNAME]
-    );
-    await executeSql(connection,
-        `INSERT INTO users (username, password, dept, producername)
-         VALUES (?, 'refresh-contract-digest', 'user', 'Refresh Contract User')`,
-        [NON_OP_USERNAME]
-    );
+    await insertUser(connection, USERNAME, {
+        password: 'refresh-contract-digest',
+        producername: 'Refresh Contract Producer',
+        admin_role: 'admin'
+    });
+    await insertUser(connection, NON_OP_USERNAME, {
+        password: 'refresh-contract-digest',
+        dept: 'user',
+        producername: 'Refresh Contract User',
+        admin_role: null
+    });
     const runtime: RuntimeServices = {
         backofficeAuth: repository,
         audit,
@@ -63,7 +65,7 @@ async function createFixture(t: TestContext): Promise<AuthFixture> {
         config: { cookieSecure: false }
     };
     return {
-        app: createHonoApp(() => runtime),
+        app: createTestApp(() => runtime),
         connection,
         repository,
         async close() {
@@ -80,8 +82,9 @@ async function login(
     cookies: Map<string, string>;
     body: { success: boolean; token?: string; message?: string };
 }> {
-    const response = await fixture.app.request(
-        `http://ims.test${options.path || '/api/login'}`,
+    const response = await testRequest(
+        fixture.app,
+        options.path || '/api/login',
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -165,13 +168,13 @@ test('access JWT login creates a rotating refresh session with CSRF binding', as
     assert.equal(stored.token_hash, await hashBackofficeAuthSecret(refreshToken));
     assert.notEqual(stored.token_hash, refreshToken);
 
-    const missingCsrf = await fixture.app.request('http://ims.test/api/refresh', {
+    const missingCsrf = await testRequest(fixture.app, '/api/refresh', {
         method: 'POST',
         headers: { Cookie: cookieHeader(session.cookies) }
     });
     assert.equal(missingCsrf.status, 403);
 
-    const refreshed = await fixture.app.request('http://ims.test/api/refresh', {
+    const refreshed = await testRequest(fixture.app, '/api/refresh', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(session.cookies),
@@ -184,14 +187,14 @@ test('access JWT login creates a rotating refresh session with CSRF binding', as
     assert.notEqual(nextCookies.get('refresh_token'), refreshToken);
     assert.equal(nextCookies.get('csrf_token'), csrf);
 
-    const check = await fixture.app.request('http://ims.test/api/check', {
+    const check = await testRequest(fixture.app, '/api/check', {
         headers: { Cookie: cookieHeader(nextCookies) }
     });
     assert.equal(check.status, 200);
 
     const replayCookies = new Map(nextCookies);
     replayCookies.set('refresh_token', refreshToken);
-    const replay = await fixture.app.request('http://ims.test/api/refresh', {
+    const replay = await testRequest(fixture.app, '/api/refresh', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(replayCookies),
@@ -200,7 +203,7 @@ test('access JWT login creates a rotating refresh session with CSRF binding', as
     });
     assert.equal(replay.status, 401);
 
-    const revokedSuccessor = await fixture.app.request('http://ims.test/api/refresh', {
+    const revokedSuccessor = await testRequest(fixture.app, '/api/refresh', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(nextCookies),
@@ -216,7 +219,7 @@ test('logout revokes the refresh session and clears all authentication cookies',
 
     const session = await login(fixture);
     const csrf = session.cookies.get('csrf_token')!;
-    const logout = await fixture.app.request('http://ims.test/api/logout', {
+    const logout = await testRequest(fixture.app, '/api/logout', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(session.cookies),
@@ -237,7 +240,7 @@ test('logout revokes the refresh session and clears all authentication cookies',
     );
     for (const cookie of setCookies(logout)) assert.match(cookie, /Max-Age=0/i);
 
-    const refresh = await fixture.app.request('http://ims.test/api/refresh', {
+    const refresh = await testRequest(fixture.app, '/api/refresh', {
         method: 'POST',
         headers: {
             Cookie: cookieHeader(session.cookies),

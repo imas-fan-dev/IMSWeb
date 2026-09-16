@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   createFudabaLegacyCardClaim,
   getAdminFudabaCardClaims,
@@ -67,35 +72,32 @@ function requestOf(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 afterEach(() => {
-  document.cookie = "ims_platform_csrf=; Max-Age=0; path=/"
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("platform")
+  clearCsrfCookie("backoffice")
 })
 
 describe("Fudaba card claim API", () => {
   it("lists and confirms same-ID claim envelopes with Platform CSRF", async () => {
-    document.cookie = "ims_platform_csrf=platform-claim-csrf; path=/"
+    setCsrfCookie("platform", "platform-claim-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestOf(input, init)
-        requests.push(request)
-        if (request.method === "GET") {
-          return Response.json({ items: [envelope] })
-        }
-        return Response.json({
-          success: true,
-          envelope: {
-            ...envelope,
-            actionState: "confirmed",
-            claimId: claim.id,
-            revision: 1,
-            actedAt: "2026-08-16T10:05:00.000Z",
-          },
-          claim,
-        })
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestOf(input, init)
+      requests.push(request)
+      if (request.method === "GET") {
+        return Response.json({ items: [envelope] })
+      }
+      return Response.json({
+        success: true,
+        envelope: {
+          ...envelope,
+          actionState: "confirmed",
+          claimId: claim.id,
+          revision: 1,
+          actedAt: "2026-08-16T10:05:00.000Z",
+        },
+        claim,
       })
-    )
+    })
 
     await expect(getFudabaClaimEnvelopes().send()).resolves.toMatchObject({
       items: [{ legacyCardId: 42, actionState: "pending" }],
@@ -117,15 +119,12 @@ describe("Fudaba card claim API", () => {
   })
 
   it("submits an old-card claim with ordered idol IDs", async () => {
-    document.cookie = "ims_platform_csrf=platform-claim-csrf; path=/"
+    setCsrfCookie("platform", "platform-claim-csrf")
     let request: Request | null = null
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        request = requestOf(input, init)
-        return Response.json({ success: true, claim })
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      request = requestOf(input, init)
+      return Response.json({ success: true, claim })
+    })
 
     await expect(
       createFudabaLegacyCardClaim(42, {
@@ -148,8 +147,7 @@ describe("Fudaba card claim API", () => {
   })
 
   it("validates exact Backoffice errors on the admin review queue", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    installFetchMock()
       .mockResolvedValueOnce(
         Response.json({ message: "无权限（仅op可访问）" }, { status: 403 })
       )
@@ -159,7 +157,6 @@ describe("Fudaba card claim API", () => {
           { status: 403 }
         )
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     await expect(getAdminFudabaCardReviews().send()).rejects.toMatchObject({
       kind: "http",
@@ -174,42 +171,39 @@ describe("Fudaba card claim API", () => {
   })
 
   it("parses admin card and claim queues and sends revisioned reviews", async () => {
-    document.cookie = "ims_admin_csrf=admin-claim-csrf; path=/"
+    setCsrfCookie("backoffice", "admin-claim-csrf")
     const requests: Request[] = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = requestOf(input, init)
-        requests.push(request)
-        const pathname = new URL(request.url).pathname
-        if (request.method === "GET" && pathname.endsWith("card-reviews")) {
-          return Response.json({
-            items: [
-              {
-                card: ownerCard,
-                owner: { id: "owner-1", displayName: "春香P" },
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = requestOf(input, init)
+      requests.push(request)
+      const pathname = new URL(request.url).pathname
+      if (request.method === "GET" && pathname.endsWith("card-reviews")) {
+        return Response.json({
+          items: [
+            {
+              card: ownerCard,
+              owner: { id: "owner-1", displayName: "春香P" },
+            },
+          ],
+        })
+      }
+      if (request.method === "GET") {
+        return Response.json({
+          items: [
+            {
+              ...claim,
+              claimant: { id: "owner-1", displayName: "春香P" },
+              legacyCard: {
+                id: 42,
+                frontImageUrl: "/legacy-front.webp",
+                backImageUrl: "/legacy-back.webp",
               },
-            ],
-          })
-        }
-        if (request.method === "GET") {
-          return Response.json({
-            items: [
-              {
-                ...claim,
-                claimant: { id: "owner-1", displayName: "春香P" },
-                legacyCard: {
-                  id: 42,
-                  frontImageUrl: "/legacy-front.webp",
-                  backImageUrl: "/legacy-back.webp",
-                },
-              },
-            ],
-          })
-        }
-        return Response.json({ success: true, revision: 3 })
-      })
-    )
+            },
+          ],
+        })
+      }
+      return Response.json({ success: true, revision: 3 })
+    })
 
     await expect(getAdminFudabaCardReviews().send()).resolves.toMatchObject({
       items: [{ card: { id: "registered-1" } }],

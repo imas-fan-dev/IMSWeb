@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { describe, expect, it, vi } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
 import { getHomeNews } from "~/lib/api"
 import { HomeFeed } from "~/pages/home/components/home-feed"
 
@@ -39,7 +40,7 @@ function renderHomeFeed() {
 
 describe("home feed alova integration", () => {
   it("updates React state with parsed news data", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
+    const fetchMock = installFetchMock().mockResolvedValue(
       new Response(
         JSON.stringify([
           {
@@ -53,7 +54,6 @@ describe("home feed alova integration", () => {
         { headers: { "content-type": "application/json" } }
       )
     )
-    vi.stubGlobal("fetch", fetchMock)
     const onSuccess = vi.fn()
 
     render(<NewsProbe onSuccess={onSuccess} />)
@@ -97,7 +97,7 @@ describe("home feed alova integration", () => {
       content: `https://example.com/news/${index + 1}`,
       date: "2026-07-24T00:00:00.000Z",
     }))
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    const fetchMock = installFetchMock((input) => {
       const url = input instanceof Request ? input.url : String(input)
       if (url.includes("/api/events")) {
         return Promise.resolve(
@@ -120,7 +120,6 @@ describe("home feed alova integration", () => {
         })
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     const { container } = renderHomeFeed()
 
@@ -218,7 +217,7 @@ describe("home feed alova integration", () => {
       content: `https://example.com/narrow/${index + 1}`,
       date: null,
     }))
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    const fetchMock = installFetchMock((input) => {
       const url = input instanceof Request ? input.url : String(input)
       if (url.includes("/api/events")) {
         return Promise.resolve(
@@ -249,7 +248,6 @@ describe("home feed alova integration", () => {
         )
       )
     })
-    vi.stubGlobal("fetch", fetchMock)
 
     renderHomeFeed()
 

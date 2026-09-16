@@ -16,7 +16,7 @@ import {
   canonicalizeIcns,
   canonicalizeIcnsFile,
   parseIcns,
-} from "../../../scripts/canonicalize-icns.js"
+} from "@/scripts/canonicalize-icns.js"
 
 function makeChunk(type: string, payload: string) {
   if (Buffer.byteLength(type, "latin1") !== 4) {

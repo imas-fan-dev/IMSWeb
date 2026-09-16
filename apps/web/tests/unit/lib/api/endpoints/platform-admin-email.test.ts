@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
+import { installFetchMock } from "@/tests/unit/support/api-client"
+import {
+  clearCsrfCookie,
+  setCsrfCookie,
+} from "@/tests/unit/support/auth-cookies"
 import {
   getAdminPlatformEmailSettings,
   testAdminPlatformEmailSettings,
@@ -35,47 +40,44 @@ const writeInput = {
 }
 
 afterEach(() => {
-  document.cookie = "ims_admin_csrf=; Max-Age=0; path=/"
+  clearCsrfCookie("backoffice")
 })
 
 describe("Platform email admin endpoint contracts", () => {
   it("uses the SMTP settings and test endpoints with CSRF-protected requests", async () => {
-    document.cookie = "ims_admin_csrf=admin-csrf; path=/"
+    setCsrfCookie("backoffice", "admin-csrf")
     const requests: Array<{
       path: string
       method: string
       csrf: string | null
       body: unknown
     }> = []
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const path = new URL(String(input), "http://ims.test").pathname
-        requests.push({
-          path,
-          method: init?.method ?? "GET",
-          csrf: new Headers(init?.headers).get(CSRF_HEADER_NAME),
-          body: init?.body ? JSON.parse(String(init.body)) : undefined,
-        })
-        if ((init?.method ?? "GET") === "GET") {
-          return Response.json({ success: true, settings })
-        }
-        if (path.endsWith("/test")) {
-          return Response.json({
-            success: true,
-            deliveredTo: "admin@example.com",
-          })
-        }
+    installFetchMock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input), "http://ims.test").pathname
+      requests.push({
+        path,
+        method: init?.method ?? "GET",
+        csrf: new Headers(init?.headers).get(CSRF_HEADER_NAME),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      })
+      if ((init?.method ?? "GET") === "GET") {
+        return Response.json({ success: true, settings })
+      }
+      if (path.endsWith("/test")) {
         return Response.json({
           success: true,
-          settings: {
-            ...settings,
-            enabled: true,
-            resendCooldownSeconds: writeInput.resendCooldownSeconds,
-          },
+          deliveredTo: "admin@example.com",
         })
+      }
+      return Response.json({
+        success: true,
+        settings: {
+          ...settings,
+          enabled: true,
+          resendCooldownSeconds: writeInput.resendCooldownSeconds,
+        },
       })
-    )
+    })
 
     await expect(getAdminPlatformEmailSettings().send()).resolves.toEqual({
       success: true,
@@ -128,11 +130,8 @@ describe("Platform email admin endpoint contracts", () => {
   })
 
   it("rejects SMTP settings responses with unknown fields", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({ success: true, settings, legacyMode: "cloudflare" })
-      )
+    installFetchMock(async () =>
+      Response.json({ success: true, settings, legacyMode: "cloudflare" })
     )
 
     await expect(getAdminPlatformEmailSettings().send()).rejects.toMatchObject({
