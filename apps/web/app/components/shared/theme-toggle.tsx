@@ -1,4 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core"
 import { MoonIcon, SunIcon } from "lucide-react"
 import { useEffect } from "react"
 import { useTheme } from "next-themes"
@@ -25,8 +24,19 @@ type ThemeTransitionOrigin = {
   y: number
 }
 
-function isAndroidTauriWebView() {
-  return isTauri() && /\bAndroid\b/i.test(window.navigator.userAgent)
+function supportsCircularThemeTransition(root: HTMLElement) {
+  if (
+    typeof document.startViewTransition !== "function" ||
+    typeof root.animate !== "function"
+  ) {
+    return false
+  }
+
+  return (
+    typeof CSS === "undefined" ||
+    typeof CSS.supports !== "function" ||
+    CSS.supports("selector(::view-transition-new(root))")
+  )
 }
 
 function themeIsApplied(theme: ThemeName) {
@@ -102,11 +112,7 @@ function changeThemeWithTransition(
     return
   }
 
-  if (
-    isAndroidTauriWebView() ||
-    typeof document.startViewTransition !== "function" ||
-    typeof root.animate !== "function"
-  ) {
+  if (!supportsCircularThemeTransition(root)) {
     startFallbackTransition(theme, setTheme, sequence)
     return
   }
@@ -122,9 +128,15 @@ function changeThemeWithTransition(
   )
 
   root.dataset.themeTransition = "circle"
-  const transition = document.startViewTransition(() =>
-    setThemeAndWait(theme, setTheme)
-  )
+  let transition: ViewTransition
+  try {
+    transition = document.startViewTransition(() =>
+      setThemeAndWait(theme, setTheme)
+    )
+  } catch {
+    startFallbackTransition(theme, setTheme, sequence)
+    return
+  }
   activeViewTransition = transition
 
   void (async () => {
