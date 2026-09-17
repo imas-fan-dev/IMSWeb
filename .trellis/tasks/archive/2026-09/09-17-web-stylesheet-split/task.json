@@ -15,7 +15,7 @@
   "branch": "release/v1.1",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "4808f375",
   "pr_url": null,
   "subtasks": [],
   "children": [],
