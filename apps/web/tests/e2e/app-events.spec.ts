@@ -428,6 +428,7 @@ test(
     installSeededPublicApis(api, [
       { path: "/api/wiki/catalog", times: { min: 0, max: 1 } },
       { path: "/api/wiki/random_idol", times: { min: 0, max: 1 } },
+      { path: "/api/community/exchange/series", times: { min: 0, max: 1 } },
     ])
 
     await page.goto("/")
@@ -630,5 +631,10 @@ test(
     await page.getByRole("button", { name: "返回", exact: true }).click()
     await expect(page).toHaveURL(/\/events$/)
     await expect(list).toBeVisible()
+
+    // The events list belongs to Community, so the tree back leaves the
+    // community flow at its root instead of replaying the home-page visit.
+    await page.getByRole("button", { name: "返回", exact: true }).click()
+    await expect(page).toHaveURL(/\/community$/)
   }
 )

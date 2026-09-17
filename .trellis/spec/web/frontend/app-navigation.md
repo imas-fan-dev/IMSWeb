@@ -31,24 +31,43 @@ declare function beginAppScrollRestoration(
   }
 ): () => void
 
-declare function appBackHierarchyTarget(pathname: string): string | null
+declare function appTabRoot(id: AppTabId): string
+
+type AppBackTarget =
+  | { kind: "parent"; href: string }
+  | { kind: "root" }
+  | { kind: "unknown" }
+
+declare function resolveAppBackTarget(pathname: string): AppBackTarget
 ```
 
-Back inside My climbs the route hierarchy instead of replaying browsing
-history. `appBackHierarchyTarget` returns `/account/me` for
-`/account/me/<section>` and `/account/security`, and `null` for `/account/me`
-itself and for every other route. `goBack` pops when the tracked entry below the
-current one is already that parent, and otherwise replaces the subpage entry
-with it, so a second back still reaches the previous section. The rule stays in
-the tab model beside the other prefix sets, so the header button and the native
-back gesture share one decision.
+Back follows a page tree, not browsing history. `resolveAppBackTarget` maps the
+current pathname to its single logical parent: `parent` carries the parent
+pathname, `root` marks the five tab roots (`/`, `/community`,
+`/community/exchange`, `/apps`, `/account/me`), and `unknown` covers a path that
+is not an App route. Query and hash never change the result, and a written rule
+returns the parent's pathname only.
+
+`goBack` returns immediately on `root`, so a tab root is a no-op even when the
+control is invoked directly. On `parent` it pops when the tracked entry below
+the current one already has that pathname, and otherwise replaces the current
+entry with the parent, so a cross-tab jump or a direct entry cannot grow the
+stack or create a back loop. Only `unknown` keeps the older fallback: observed
+App history, then the owning tab root, then `/`.
+
+The rule table lives in the tab model beside the other prefix sets, so the
+header control, the Android listener, and the iOS swipe correction share one
+decision. Rule order is load-bearing: exact roots precede prefixes, `/account/me`
+precedes the exchange-map subtree, `submissions` precedes `cards`, and each
+exact parent precedes its own detail prefix.
 
 A native pop never calls `goBack`, so the provider also inspects commits. When a
-POP leaves a subpage whose parent is not its destination, the provider pushes
-that parent: the push drops the popped-forward section entry and keeps the entry
-below, so a second pop still reaches the previous tab. This covers a section
-restored from another tab, where no parent ever sat below it. Only a real pop
-counts, because a restored commit reuses the current entry key.
+POP leaves a page whose target is `parent` and the destination is not that
+parent, the provider pushes it: the push drops the popped-forward entry and
+keeps the history below, so the next native gesture still climbs the tree. The
+correction is a PUSH, so it never re-triggers itself. Only a real pop counts,
+because a restored commit reuses the current entry key. A tab root is not
+corrected, so the platform gesture there still replays history.
 
 Use `appTabIdForPathname` and `appTabRoot` from the tab model. Do not create a
 second prefix list for directories, headers, or native selection. Personal
@@ -87,6 +106,12 @@ by the Web fallback. UIKit owns native geometry. The fallback derives its lens
 width from the item count. Every active Lucide ID must be copied by
 `src-tauri/build.rs` into the main iOS asset catalog and have a valid vector asset.
 
+The App my-profile section pages (`/account/me/<section>`) render no page-level
+refresh icon button. Their section panels keep conflict-level "load latest" and
+failure-state "reload" controls; do not remove those. The standalone
+`/community/exchange/me` header keeps its own refresh control, and map, feed,
+producer-map, and recommendation refreshes are unaffected.
+
 The header names the section. A child page needs its own visible title, including
 pages that were previously tab roots. Fullscreen exchange maps retain their
 header exclusion. Modal suppression remains active until the final modal closes.
@@ -112,10 +137,10 @@ trace can alter the timing being measured.
 | Reselect a pending root | Set its requested position to zero without another navigation or history entry |
 | Rapid A → B → A before commit | Restore A; do not interpret it as A reselection |
 | Unknown route | No forced tab selection |
-| Back with observed App history | Use actual history, including section switches |
-| Back on an Account subpage | Reach `/account/me`: pop when that parent is already the entry below, otherwise replace the subpage entry |
-| Back on the Account root | Use actual history and leave My for the previous location |
-| Direct entry without observed history | Replace with the owning root; do not create a back loop |
+| Back on a page with a logical parent | Reach that parent: pop when it already sits below, otherwise replace the current entry |
+| Back on a tab root | Render no back control; an invoked back leaves the address unchanged |
+| Back on a path outside the tree | Use observed App history, then the owning root |
+| Direct entry without observed history | Replace with the logical parent; do not create a back loop |
 | Account identity changes | Clear personal snapshots and pending personal restoration before saving the new commit |
 | Fullscreen exchange map | Select Map and leave viewport/filter restoration to the map |
 | Reselect exchange-map root | Preserve URL and camera/filter, add no history entry or window scroll |
@@ -155,22 +180,30 @@ Directory entries use resolved destinations and navigation behavior. Preserve
 query/hash presets, otherwise inaccessible deep links, and external extensions.
 Deduplicate only identical canonical URLs with the same navigation behavior.
 Keep core resource shortcuts usable during directory API failure and preserve
-Community's existing exchange-availability rules.
+Community's existing exchange-availability rules. The core shortcut set is one
+entry: 剧情站, pointing at `/wiki`. Do not reintroduce a separate 剧情 shortcut
+for `/story`, and do not label the Wiki entry "App Wiki" in App-facing copy.
 
 ## 6. Required assertions
 
 - `app-tab-model.test.ts`: five-tab order, personal-before-map-before-community
-  ownership, roots, unknown paths, icons, and the back hierarchy targets for
-  section, security, root, and unrelated account routes.
-- `app-navigation-provider.test.tsx`: full URLs, source position, actual back,
-  replace fallback, account changes during slow loading and before React paints,
+  ownership, roots, unknown paths, icons, and one case per back-tree rule
+  (tab roots, both account prefixes, exchange-map subtree with personal-before-
+  map ordering, cards and submissions ordering, events, works, packages,
+  chronicle, wiki, story, tier-list, live, recommendations, information),
+  plus query/hash insensitivity, trailing-slash normalization, and `unknown`.
+- `routes-app-target.test.ts`: every App target route resolves inside the back
+  tree, so the rule table cannot drift from the route manifest.
+- `app-navigation-provider.test.tsx`: full URLs, source position, replace
+  fallback, account changes during slow loading and before React paints,
   queued roundtrips, interrupted root selection, root query/hash preservation,
   public `/about` reading across committed and pending identity changes,
   independent Community/Map reading, and map root reselection without scrolling,
-  plus hierarchy back from a directly entered Account subpage, from a subpage
-  whose parent sits below, and from a subpage entered in another section, a
-  native pop that leaves a restored section for the parent and then for the tab
-  below it, and the unchanged history behavior on the Account root.
+  plus tree back from a directly entered page, from a page whose parent sits
+  below, from a page entered in another section, after a cross-tab jump, and
+  through the wiki/story pair, a no-op back on a tab root, a native pop that
+  leaves a restored section for the parent and then for the tab below it, and no
+  second correction for the same commit.
   Use a real browser-history router for commit-versus-paint assertions.
 - `app-shell-scroll.test.ts`: delayed height, later anchoring, user cancellation,
   pointer and Space activation order, timeout, cleanup, missing ResizeObserver,
@@ -180,10 +213,10 @@ Community's existing exchange-availability rules.
   the five App projects. A test expecting a remount and a second request must
   await the destination page's rendered identity before switching back. A URL
   update alone can precede React's commit; a rapid roundtrip can correctly keep
-  the original component and make no second request. Cover the My hierarchy back
-  from a direct entry, from a subpage entered in another section, a native pop
-  from a section restored after a tab switch, and unchanged history behavior on
-  the Account root.
+  the original component and make no second request. Cover tree back from a
+  direct entry, from a page entered in another section, and after a cross-tab
+  jump, a native pop from a section restored after a tab switch, the platform
+  gesture on a tab root, and the no-op back control on a tab root.
 - Existing shell, map, events, account, Wiki, and namecard App tests retain their
   geometry and modal assertions. Scope tab locators to the named main navigation.
 - Infrastructure tests compare active model icons with the Rust inventory and

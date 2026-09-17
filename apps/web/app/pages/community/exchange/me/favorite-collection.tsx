@@ -1,9 +1,8 @@
-import { BookmarkIcon, RefreshCwIcon } from "lucide-react"
+import { BookmarkIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { InfiniteScrollFooter } from "~/components/shared/infinite-scroll-footer"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { Button } from "~/components/ui/button"
 import {
   Empty,
   EmptyDescription,
@@ -43,7 +42,7 @@ export function FavoriteCollection({ series }: { series: FudabaSeries[] }) {
   // The panel scrolls with the page, so the sentinel reaches the viewport the
   // same way it does on a feed page. Pull-to-refresh is deliberately absent:
   // this is one tab among several, and a page-level gesture would refresh
-  // whichever panel happened to be hidden. The header button stays scoped.
+  // whichever panel happened to be hidden.
   const loadMoreSentinelRef = useInfiniteScroll({
     hasNextPage: pageInfo.hasNextPage,
     loading: loadingMore,
@@ -74,16 +73,6 @@ export function FavoriteCollection({ series }: { series: FudabaSeries[] }) {
       generation.current += 1
     }
   }, [accept, reject])
-
-  function reload() {
-    const requested = ++generation.current
-    setPhase("loading")
-    setError(null)
-    void getFudabaFavoriteCardPage({ limit: PAGE_SIZE })
-      .send()
-      .then((page) => accept(page, requested))
-      .catch((caught: unknown) => reject(caught, requested))
-  }
 
   async function loadMore() {
     if (!pageInfo.nextCursor || loadingMore) return
@@ -132,16 +121,6 @@ export function FavoriteCollection({ series }: { series: FudabaSeries[] }) {
             收藏的名片会集中在这里，取消收藏后会立即移出列表。
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="刷新收藏夹"
-          title="刷新"
-          onClick={reload}
-        >
-          <RefreshCwIcon aria-hidden="true" />
-        </Button>
       </div>
 
       {error ? (

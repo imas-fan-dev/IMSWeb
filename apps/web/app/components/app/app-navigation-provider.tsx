@@ -12,10 +12,10 @@ import {
 import { useLocation, useNavigationType } from "react-router"
 
 import {
-  appBackHierarchyTarget,
   appTabIdForPathname,
   appTabRoot,
   isPersonalAppRoute,
+  resolveAppBackTarget,
   type AppTabId,
 } from "~/components/app/app-tab-model"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
@@ -95,7 +95,10 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     [location]
   )
   const currentHref = appNavigationHref(currentLocation)
-  const hierarchyBackTarget = appBackHierarchyTarget(currentLocation.pathname)
+  const backTarget = useMemo(
+    () => resolveAppBackTarget(currentLocation.pathname),
+    [currentLocation.pathname]
+  )
   const goBackRef = useRef<() => void>(() => undefined)
   const identity =
     status === "authenticated" || status === "restricted"
@@ -222,20 +225,26 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     cancelPending()
     cancelRestoration()
 
-    // Inside 我的 the back control climbs the route hierarchy instead of
-    // replaying browsing history. When the parent already sits directly below
-    // this entry a pop keeps the stack untouched; otherwise the subpage entry
-    // is replaced so the next pop still reaches the previous tab.
-    if (hierarchyBackTarget) {
+    // Back follows the page tree: the destination is a property of the current
+    // address, not of the entries the user happened to visit. A tab root ends
+    // the tree, so the control is a no-op even when it is invoked directly.
+    if (backTarget.kind === "root") return
+
+    if (backTarget.kind === "parent") {
+      // Popping keeps the history shallow and reuses Router's own restoration
+      // when the parent is already the entry below. Compare pathnames so a
+      // root keeps its query and hash: `/community?page=2` is still the parent.
       const { entries, index } = stateRef.current.history
-      const parentHref = entries[index - 1]?.href
-      const parentPathname = parentHref
-        ? normalizeAppPathname(parentHref.split(/[?#]/, 1)[0] ?? "/")
+      const below = entries[index - 1]
+      const belowPathname = below
+        ? normalizeAppPathname(below.href.split(/[?#]/, 1)[0] ?? "/")
         : null
-      if (parentPathname === hierarchyBackTarget) {
+      if (belowPathname === backTarget.href) {
         navigate(-1)
       } else {
-        navigate(hierarchyBackTarget, { replace: true })
+        // A cross-tab jump or a direct entry has no parent below, so replace
+        // the current entry instead of growing the stack.
+        navigate(backTarget.href, { replace: true })
       }
       return
     }
@@ -256,10 +265,10 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
     }
     queueTabNavigation(activeId ?? "home", root, 0, true)
   }, [
+    backTarget,
     cancelPending,
     cancelRestoration,
     currentLocation,
-    hierarchyBackTarget,
     navigate,
     queueTabNavigation,
     rememberCurrentLocation,
@@ -270,12 +279,12 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
   }, [goBack])
 
   // On Android, Tauri's `app` plugin pops the WebView's own history unless a JS
-  // listener exists, which is the wrong destination inside 我的. Register the
-  // listener for those pages only, so every other screen keeps the default
-  // back-or-exit behavior. iOS edge-swipe back is enabled natively in
+  // listener exists, which would ignore the page tree. Register the listener
+  // only on pages that have a logical parent, so tab roots keep the platform's
+  // default back-or-exit behavior. iOS edge-swipe back is enabled natively in
   // src-tauri/src/lib.rs, where it pops the same session history.
   useEffect(() => {
-    if (!IS_APP_TARGET || !isTauri() || !hierarchyBackTarget) return
+    if (!IS_APP_TARGET || !isTauri() || backTarget.kind !== "parent") return
 
     let disposed = false
     let release: (() => void) | undefined
@@ -296,21 +305,24 @@ export function AppNavigationProvider({ children }: { children: ReactNode }) {
       disposed = true
       release?.()
     }
-  }, [hierarchyBackTarget])
+  }, [backTarget.kind])
 
   // A native pop (the iOS edge swipe, or Tauri's default Android back before
-  // the listener attaches) replays session history. A section restored from
-  // another tab has no /account/me below it, so that pop would land on the
-  // previous tab. Push the parent to match the back control: the destination
-  // entry replaces nothing, so a second pop still reaches the previous tab.
+  // the listener attaches) replays session history, so it can land somewhere
+  // the page tree does not allow. When the page being left has a logical
+  // parent, push that parent to match the back control. The push drops the
+  // popped-forward entry while keeping the history below it, so the next
+  // native gesture still climbs the tree; the correction itself is a PUSH, so
+  // it never re-triggers the correction.
   useLayoutEffect(() => {
     if (navigationType !== "POP") return
     const previous = committedLocationRef.current
     // A restored commit reuses the same entry; only a real pop changes it.
     if (!previous || previous.key === currentLocation.key) return
-    const leftTarget = appBackHierarchyTarget(previous.pathname)
-    if (!leftTarget || leftTarget === currentLocation.pathname) return
-    navigate(leftTarget)
+    const leftTarget = resolveAppBackTarget(previous.pathname)
+    if (leftTarget.kind !== "parent") return
+    if (leftTarget.href === currentLocation.pathname) return
+    navigate(leftTarget.href)
   }, [currentLocation.key, currentLocation.pathname, navigate, navigationType])
 
   useLayoutEffect(() => {

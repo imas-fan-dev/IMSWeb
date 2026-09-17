@@ -855,7 +855,9 @@ describe("CommunityExchangeMePage", () => {
     expect(
       screen.queryByRole("link", { name: "名片交换事务所" })
     ).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "刷新个人档案" })).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "刷新个人档案" })
+    ).not.toBeInTheDocument()
   })
 
   it("does not probe owner APIs for an anonymous visitor", () => {

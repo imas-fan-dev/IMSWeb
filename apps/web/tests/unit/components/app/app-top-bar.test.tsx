@@ -51,7 +51,7 @@ describe("AppTopBar", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("returns through observed history from a resource detail page", async () => {
+  it("returns a resource detail page to its logical parent", async () => {
     const user = userEvent.setup()
     renderTopBar(["/apps"])
     await user.click(screen.getByRole("link", { name: "打开详情" }))
@@ -59,22 +59,40 @@ describe("AppTopBar", () => {
     expect(screen.getByText("资料", { selector: "p" })).toBeVisible()
     await user.click(screen.getByRole("button", { name: "返回" }))
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/apps")
+    expect(screen.getByTestId("location")).toHaveTextContent("/works")
   })
 
   it.each([
     ["/account/login", "/account/me", "我的"],
+    ["/account/register", "/account/me", "我的"],
+    ["/account/password-reset", "/account/me", "我的"],
+    ["/about", "/account/me", "我的"],
+    ["/community/exchange/me", "/account/me", "我的"],
+    ["/works/sample", "/works", "资料"],
+    ["/events/42", "/events", "社区"],
+    ["/story", "/wiki", "资料"],
+    ["/information/42", "/", "首页"],
     ["/community/exchange/offices/tokyo", "/community/exchange", "交换地图"],
-  ])(
-    "returns direct entry %s to its owning root",
-    async (href, root, title) => {
+  ] as const)(
+    "returns direct entry %s to its logical parent",
+    async (href, parent, title) => {
       const user = userEvent.setup()
       renderTopBar([href])
       expect(screen.getByText(title, { selector: "p" })).toBeVisible()
 
       await user.click(screen.getByRole("button", { name: "返回" }))
 
-      expect(screen.getByTestId("location").textContent).toBe(root)
+      expect(screen.getByTestId("location").textContent).toBe(parent)
+    }
+  )
+
+  it.each(["/", "/community", "/community/exchange", "/apps", "/account/me"])(
+    "renders no back control on tab root %s",
+    (href) => {
+      renderTopBar([href])
+      expect(
+        screen.queryByRole("button", { name: "返回" })
+      ).not.toBeInTheDocument()
     }
   )
 })

@@ -5,9 +5,9 @@
 /// mark the attribute unsupported on iOS), so the packaged app ships without a
 /// native back swipe. Tauri exposes no configuration for it, so the shell flips
 /// the WKWebView property directly through the documented `with_webview` hook.
-/// The web app's 我的 subpages sit on top of `/account/me` in session history,
-/// so a gesture back there lands on the Account root, matching the in-app back
-/// button.
+/// The gesture still replays session history rather than the web app's page
+/// tree, so the web provider corrects a pop that lands away from the logical
+/// parent. Tab roots have no parent and keep the plain history behavior.
 #[cfg(target_os = "ios")]
 fn enable_ios_back_swipe(app: &tauri::AppHandle) {
     use objc2::runtime::AnyObject;

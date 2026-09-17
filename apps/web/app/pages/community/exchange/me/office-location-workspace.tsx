@@ -473,17 +473,6 @@ export function OfficeLocationWorkspace({
             <div className="flex gap-2">
               <Button
                 type="button"
-                variant="outline"
-                size="icon"
-                aria-label="刷新我的事务所"
-                title="刷新"
-                disabled={mutationPending}
-                onClick={() => void loadWorkspace()}
-              >
-                <RefreshCwIcon aria-hidden="true" />
-              </Button>
-              <Button
-                type="button"
                 disabled={readOnly || mutationPending}
                 onClick={beginCreate}
               >

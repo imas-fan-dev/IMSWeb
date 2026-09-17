@@ -81,14 +81,12 @@ describe("AppsPage", () => {
 
     renderPage()
 
-    expect(screen.getByRole("link", { name: /App Wiki/ })).toHaveAttribute(
-      "href",
-      "/wiki"
-    )
-    expect(screen.getByRole("link", { name: /剧情/ })).toHaveAttribute(
-      "href",
-      "/story"
-    )
+    const coreLinks = within(
+      screen.getByRole("region", { name: "核心资料" })
+    ).getAllByRole("link")
+    expect(coreLinks).toHaveLength(1)
+    expect(coreLinks[0]).toHaveAttribute("href", "/wiki")
+    expect(coreLinks[0]).toHaveAccessibleName(/剧情站/)
     expect(screen.getByRole("status", { name: "正在加载应用" })).toBeVisible()
   })
 
@@ -98,7 +96,12 @@ describe("AppsPage", () => {
 
     renderPage()
 
-    expect(screen.getByRole("link", { name: /App Wiki/ })).toBeVisible()
+    expect(
+      within(screen.getByRole("region", { name: "核心资料" })).getByRole(
+        "link",
+        { name: /剧情站/ }
+      )
+    ).toBeVisible()
     expect(screen.getByText("更多入口暂时无法加载")).toBeVisible()
     expect(screen.getByText(/核心资料仍可使用/)).toBeVisible()
     await user.click(screen.getByRole("button", { name: "重试" }))
@@ -111,7 +114,7 @@ describe("AppsPage", () => {
     renderPage()
 
     expect(screen.getByText("当前没有更多入口")).toBeVisible()
-    expect(screen.getAllByRole("link")).toHaveLength(2)
+    expect(screen.getAllByRole("link")).toHaveLength(1)
   })
 
   it("groups resources by resolved destination and preserves extensions", () => {

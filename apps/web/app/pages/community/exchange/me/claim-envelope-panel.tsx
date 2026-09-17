@@ -3,7 +3,6 @@ import {
   CircleAlertIcon,
   LoaderCircleIcon,
   MailIcon,
-  RefreshCwIcon,
   XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
@@ -113,22 +112,6 @@ export function ClaimEnvelopePanel({ readOnly }: { readOnly: boolean }) {
               系统发现同 ID 的历史名片时，会在这里询问是否为本人名片。
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="刷新名片认领信封"
-            title="刷新"
-            disabled={loading}
-            onClick={() => void load()}
-          >
-            <RefreshCwIcon
-              className={
-                loading ? "animate-spin motion-reduce:animate-none" : ""
-              }
-              aria-hidden="true"
-            />
-          </Button>
         </div>
 
         {error ? (

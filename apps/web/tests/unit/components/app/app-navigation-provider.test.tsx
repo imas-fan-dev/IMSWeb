@@ -74,6 +74,8 @@ function Probe() {
       </NavigationLink>
       <NavigationLink to="/account/me/cards">我的交换名片</NavigationLink>
       <NavigationLink to="/account/security">帐号安全</NavigationLink>
+      <NavigationLink to="/wiki">企划目录</NavigationLink>
+      <NavigationLink to="/story">剧情档案</NavigationLink>
     </>
   )
 }
@@ -134,7 +136,9 @@ describe("App navigation coordination", () => {
     )
     expect(mocks.restore).toHaveBeenLastCalledWith(812, expect.any(Object))
     await user.click(screen.getByRole("button", { name: "返回" }))
-    expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
+    // `/community/cards` climbs to the Community root, not to whichever tab the
+    // user happened to visit last.
+    expect(screen.getByTestId("location").textContent).toBe("/community")
   })
 
   it("keeps map root parameters without scrolling or adding history on reselection", async () => {
@@ -201,7 +205,7 @@ describe("App navigation coordination", () => {
     ["/community/cards?page=2", "/community"],
     ["/community/exchange/offices/tokyo?view=members", "/community/exchange"],
   ])(
-    "replaces direct entry %s with its root without observed history",
+    "returns direct entry %s to its logical parent without observed history",
     async (href, root) => {
       const user = userEvent.setup()
       render(<Tree entries={["/about", href]} />)
@@ -209,7 +213,9 @@ describe("App navigation coordination", () => {
       expect(screen.getByTestId("location").textContent).toBe(root)
       await user.click(screen.getByRole("button", { name: "我的" }))
       await user.click(screen.getByRole("button", { name: "返回" }))
-      expect(screen.getByTestId("location").textContent).toBe(root)
+      // The replacement landed on My's parent; the root itself has no parent,
+      // so a second back must not replay the discarded entry.
+      expect(screen.getByTestId("location").textContent).toBe("/account/me")
     }
   )
 
@@ -402,11 +408,11 @@ describe("App navigation coordination", () => {
           )
         }
         await user.click(screen.getByRole("button", { name: "返回" }))
-        expect(screen.getByTestId("location").textContent).toBe("/community")
+        // Both resolved destinations climb to My: the account root is a no-op
+        // and `/about` is its child.
+        expect(screen.getByTestId("location").textContent).toBe("/account/me")
         await user.click(screen.getByRole("button", { name: "我的" }))
-        await waitFor(() =>
-          expect(screen.getByTestId("location").textContent).toBe(expectedHref)
-        )
+        expect(screen.getByTestId("location").textContent).toBe("/account/me")
       } finally {
         vi.useRealTimers()
         release()
@@ -470,9 +476,8 @@ describe("App navigation coordination", () => {
       expect(mocks.restore).not.toHaveBeenCalledWith(500, expect.any(Object))
       if (!ordinaryLink) {
         await user.click(screen.getByRole("button", { name: "返回" }))
-        await waitFor(() =>
-          expect(screen.getByTestId("location").textContent).toBe("/community")
-        )
+        // The resolved account root ends the tree, so back stays put.
+        expect(screen.getByTestId("location").textContent).toBe("/account/me")
       }
     } finally {
       router.dispose()
@@ -532,8 +537,11 @@ describe("App navigation coordination", () => {
       fireEvent.click(screen.getByRole("button", { name: "资料" }))
     })
     expect(screen.getByTestId("location").textContent).toBe("/apps")
+    const key = screen.getByTestId("key").textContent
     await userEvent.setup().click(screen.getByRole("button", { name: "返回" }))
-    expect(screen.getByTestId("location").textContent).toBe("/works/example")
+    // `/apps` is a tab root: back is a no-op, and the reselect added no entry.
+    expect(screen.getByTestId("location").textContent).toBe("/apps")
+    expect(screen.getByTestId("key").textContent).toBe(key)
   })
 
   it.each(["/account/me/cards", "/account/security"])(
@@ -561,12 +569,12 @@ describe("App navigation coordination", () => {
   it("pushes the account root when a native pop leaves a restored section", async () => {
     const user = userEvent.setup()
     render(<Tree entries={["/community", "/account/me/cards"]} />)
-    expect(screen.getByTestId("location").textContent).toBe(
-      "/account/me/cards"
-    )
+    expect(screen.getByTestId("location").textContent).toBe("/account/me/cards")
     await user.click(screen.getByRole("button", { name: "原生返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
-    await user.click(screen.getByRole("button", { name: "返回" }))
+    // The corrected parent is a tab root, so the next native pop climbs again
+    // instead of the correction repeating.
+    await user.click(screen.getByRole("button", { name: "原生返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/community")
   })
 
@@ -579,18 +587,74 @@ describe("App navigation coordination", () => {
     )
     await user.click(screen.getByRole("button", { name: "返回" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
+    // The account root ends the tree: a second back is a no-op.
     await user.click(screen.getByRole("button", { name: "返回" }))
-    expect(screen.getByTestId("location").textContent).toBe("/community")
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
   })
 
-  it("keeps browsing history on the account root", async () => {
+  it("climbs the logical tree after a cross-tab jump", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/works/example"]} />)
+    await user.click(screen.getByRole("link", { name: "我的交换名片" }))
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/account/me/cards"
+    )
+    // The resource page below the jump is not the parent, so the subpage is
+    // replaced with My instead of popping back to Resources.
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+  })
+
+  it.each([
+    ["/wiki", "/wiki", "剧情档案", "/story"],
+    ["/story", "/apps", "企划目录", "/wiki"],
+  ])(
+    "climbs %s to %s back through the tree",
+    async (start, parent, link, destination) => {
+      const user = userEvent.setup()
+      render(<Tree entries={[start]} />)
+      await user.click(screen.getByRole("link", { name: link }))
+      expect(screen.getByTestId("location").textContent).toBe(destination)
+      await user.click(screen.getByRole("button", { name: "返回" }))
+      expect(screen.getByTestId("location").textContent).toBe(parent)
+    }
+  )
+
+  it.each([
+    ["/wiki?agency=X", "/apps"],
+    ["/community/exchange/me?section=profile", "/account/me"],
+    ["/events?page=2", "/community"],
+  ])("keeps %s on its pathname's parent", async (href, parent) => {
+    const user = userEvent.setup()
+    render(<Tree entries={[href]} />)
+    await user.click(screen.getByRole("button", { name: "返回" }))
+    expect(screen.getByTestId("location").textContent).toBe(parent)
+  })
+
+  it("does not bounce after the native pop correction", async () => {
+    const user = userEvent.setup()
+    render(<Tree entries={["/community", "/account/me/cards"]} />)
+    await user.click(screen.getByRole("button", { name: "原生返回" }))
+    const key = screen.getByTestId("key").textContent
+    // The correction is a PUSH, so React must not run it a second time for the
+    // same commit: the entry below the corrected page stays put.
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
+    expect(screen.getByTestId("key").textContent).toBe(key)
+  })
+
+  it("keeps the account root in place when back is invoked", async () => {
     const user = userEvent.setup()
     const href = "/community/cards?page=2&size=12#card-13"
     render(<Tree entries={[href]} />)
     await user.click(screen.getByRole("button", { name: "我的" }))
     expect(screen.getByTestId("location").textContent).toBe("/account/me")
     await user.click(screen.getByRole("button", { name: "返回" }))
-    expect(screen.getByTestId("location")).toHaveTextContent(href)
+    // The tab root has no logical parent, so the control must not replay the
+    // history that reached it.
+    expect(screen.getByTestId("location").textContent).toBe("/account/me")
   })
 
   it("does not recapture an old personal page after the account changes", async () => {

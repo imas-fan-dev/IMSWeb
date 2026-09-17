@@ -77,14 +77,14 @@ test.beforeEach(async ({ page }) => {
 })
 
 test(
-  "resumes paginated reading after delayed data and follows actual history",
+  "resumes paginated reading after delayed data and returns to the community root",
   {
     tag: "@app-webkit",
   },
   async ({ page, api }, testInfo) => {
     const fixture = await mockNamecardBrowsing(page, api, 36, undefined, {
-      cards: 3,
-      reactionReads: 36,
+      cards: 2,
+      reactionReads: 24,
       reactionWrites: 0,
     })
     installSeededPublicApis(api, [
@@ -110,12 +110,8 @@ test(
       path: testInfo.outputPath("restored-card-reading.png"),
     })
     await page.getByRole("button", { name: "返回", exact: true }).click()
-    await expectAccountPage(page)
-    await nav(page).getByRole("link", { name: "社区", exact: true }).click()
-    await expect(
-      page.getByRole("button", { name: "查看制作人名片 13 正面" })
-    ).toBeAttached()
-    await nav(page).getByRole("link", { name: "社区", exact: true }).click()
+    // The wall's logical parent is the community root, not the My tab the user
+    // happened to visit in between.
     await expect(page).toHaveURL(/\/community$/)
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
     for (const href of [
@@ -212,7 +208,7 @@ test("resumes resource details and reselects a root without adding history", asy
   await nav(page).getByRole("link", { name: "资料", exact: true }).click()
   await expect(page).toHaveURL(/\/apps$/)
   await expect(page.locator('main a[href="/wiki"]')).toBeVisible()
-  await expect(page.locator('main a[href="/story"]')).toBeVisible()
+  await expect(page.locator('main a[href="/story"]')).toHaveCount(0)
   await expect(page.getByText("扩展资料 24", { exact: true })).toBeAttached()
   await page.evaluate(() => window.scrollTo({ top: 500, behavior: "instant" }))
   await expect
@@ -490,13 +486,41 @@ test(
 )
 
 test(
-  "keeps browsing history on the account root",
+  "returns a cross-tab account section to the account root",
+  { tag: "@app-webkit" },
+  async ({ page, api }) => {
+    await setAccountSessionHint(page)
+    installEmptyWikiCatalogMock(api, { min: 0, max: 4 })
+    installAccountMocks(api)
+    // Start on a resources detail page so the section is reached from another
+    // tab and no account parent ever sits below it in session history.
+    await page.goto("/works/765")
+    await expect(page).toHaveURL(/\/works\/765$/)
+    await nav(page).getByRole("link", { name: "我的", exact: true }).click()
+    await expect(page).toHaveURL(/\/account\/me$/)
+    await page.locator('a[href="/account/me/cards"]').click()
+    await expect(page).toHaveURL(/\/account\/me\/cards$/)
+    await page.getByRole("button", { name: "返回", exact: true }).click()
+    // The page tree decides the destination, not the visit order that reached
+    // the section from the resources tab.
+    await expect(page).toHaveURL(/\/account\/me$/)
+  }
+)
+
+test(
+  "keeps the platform back gesture on the account root",
   { tag: "@app-webkit" },
   async ({ page, api }) => {
     installAppResourcesMocks(api)
     await page.goto("/apps")
     await nav(page).getByRole("link", { name: "我的", exact: true }).click()
     await expect(page).toHaveURL(/\/account\/me$/)
+    // A tab root ends the page tree, so the header renders no back control.
+    await expect(
+      page.getByRole("button", { name: "返回", exact: true })
+    ).toHaveCount(0)
+    // The browser/native POP is not corrected on a root, so it still replays
+    // session history to the previous tab.
     await page.goBack()
     await expect(page).toHaveURL(/\/apps$/)
   }
@@ -520,6 +544,8 @@ test(
     await expect(page).toHaveURL(/\/account\/me\/cards$/)
     await page.goBack()
     await expect(page).toHaveURL(/\/account\/me$/)
+    // The correction is a push, so the next native pop still reaches the tab
+    // below instead of bouncing back to the section.
     await page.goBack()
     await expect(page).toHaveURL(/\/apps$/)
   }

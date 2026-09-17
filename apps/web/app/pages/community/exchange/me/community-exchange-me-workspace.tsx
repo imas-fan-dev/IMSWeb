@@ -446,20 +446,6 @@ function ProfileWorkspace({
               : "px-4 py-8 sm:px-6 lg:px-8"
           )}
         >
-          {accountSectionBasePath ? (
-            <div className="mb-4 flex items-center justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="刷新个人档案"
-                title="刷新"
-                onClick={() => void loadWorkspace()}
-              >
-                <RefreshCwIcon aria-hidden="true" />
-              </Button>
-            </div>
-          ) : null}
           {sectionReadOnlyReason ? (
             <Alert>
               <LockKeyholeIcon aria-hidden="true" />

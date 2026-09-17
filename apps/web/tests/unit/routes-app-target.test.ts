@@ -1,6 +1,7 @@
 import type { RouteConfigEntry } from "@react-router/dev/routes"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { resolveAppBackTarget } from "~/components/app/app-tab-model"
 import {
   prerenderRoutesForTarget,
   routeDescriptorsForTarget,
@@ -79,6 +80,19 @@ describe("app target routes", () => {
     expect(routeFile(routes, "story")).toBe("pages/wiki/modern/story-page.tsx")
     expect(routeFile(routes, "wiki/classic")).toBeUndefined()
     expect(routeFile(routes, "story/classic")).toBeUndefined()
+  })
+
+  it("resolves every App target route inside the back tree", () => {
+    const descriptors = routeDescriptorsForTarget("app")
+    expect(descriptors).toHaveLength(31)
+    for (const descriptor of descriptors) {
+      const path = descriptor.index ? "" : (descriptor.path ?? "")
+      const pathname = `/${path.replace(/:[^/]+/g, "sample")}`
+      expect(
+        resolveAppBackTarget(pathname).kind,
+        `${pathname} is missing from the App back tree`
+      ).not.toBe("unknown")
+    }
   })
 
   it("keeps App-only routes out of the Web manifest", async () => {

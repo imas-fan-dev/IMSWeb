@@ -339,12 +339,6 @@ describe("OfficeLocationWorkspace", () => {
       screen.getByRole("combobox", { name: "当前事务所", hidden: true })
     ).toBeDisabled()
     expect(
-      screen.getByRole("button", {
-        name: "刷新我的事务所",
-        hidden: true,
-      })
-    ).toBeDisabled()
-    expect(
       screen.getByRole("button", { name: "新建事务所", hidden: true })
     ).toBeDisabled()
 
@@ -457,12 +451,6 @@ describe("OfficeLocationWorkspace", () => {
     })
     expect(
       screen.getByRole("combobox", { name: "当前事务所", hidden: true })
-    ).toBeDisabled()
-    expect(
-      screen.getByRole("button", {
-        name: "刷新我的事务所",
-        hidden: true,
-      })
     ).toBeDisabled()
     expect(
       screen.getByRole("button", { name: "新建事务所", hidden: true })

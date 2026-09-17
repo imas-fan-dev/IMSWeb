@@ -2,7 +2,11 @@ import { ArrowLeftIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
-import { APP_TABS, appTabIdForPathname } from "~/components/app/app-tab-model"
+import {
+  APP_TABS,
+  appTabIdForPathname,
+  resolveAppBackTarget,
+} from "~/components/app/app-tab-model"
 import { useAppNavigation } from "~/components/app/app-navigation-provider"
 import { BrandWordmark } from "~/components/shared/brand-wordmark"
 import { ThemeToggle } from "~/components/shared/theme-toggle"
@@ -23,7 +27,9 @@ export function AppTopBar() {
   if (isNonScrollingAppRoute(pathname)) return null
 
   const isHome = pathname === "/"
-  const isTabRoot = activeTab?.to === pathname
+  // Only a page with a logical parent gets a back control; a tab root is the
+  // end of the tree.
+  const isRootPage = resolveAppBackTarget(pathname).kind === "root"
   const activeLabel = activeTab ? t(activeTab.label) : "IMSWeb"
   const backLabel = t("navigation.back")
 
@@ -34,7 +40,7 @@ export function AppTopBar() {
           <BrandWordmark className="h-6" />
           <ThemeToggle />
         </div>
-      ) : isTabRoot ? (
+      ) : isRootPage ? (
         <div className="relative z-10 flex h-12 items-center px-(--app-safe-inline)">
           <p className="truncate text-base font-semibold">{activeLabel}</p>
         </div>

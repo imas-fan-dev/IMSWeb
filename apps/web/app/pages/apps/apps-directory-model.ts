@@ -11,22 +11,12 @@ export const coreResourceLinks = [
   {
     id: "app-resource-wiki",
     section: "navigation",
-    title: "App Wiki",
-    description: "查阅偶像大师作品、角色与企划资料。",
+    title: "剧情站",
+    description: "按企划查阅站内收录的剧情、角色与作品资料。",
     href: "/wiki",
     icon: "book-open",
     accent: "primary",
     displayOrder: 0,
-  },
-  {
-    id: "app-resource-story",
-    section: "navigation",
-    title: "剧情",
-    description: "按企划浏览站内收录的剧情内容。",
-    href: "/story",
-    icon: "library",
-    accent: "info",
-    displayOrder: 1,
   },
 ] satisfies HomepageLink[]
 

@@ -21,7 +21,7 @@ export function meta() {
     { title: "资料 | IMSWeb" },
     {
       name: "description",
-      content: "查阅 IMSWeb Wiki、剧情与其他资料入口。",
+      content: "查阅站内剧情站与其他资料入口。",
     },
   ]
 }
@@ -43,7 +43,7 @@ export function AppsDirectory() {
           资料
         </h1>
         <p className="mt-2 text-sm/6 text-muted-foreground">
-          查阅站内 Wiki、剧情与其他资料工具。
+          查阅站内剧情站与其他资料工具。
         </p>
       </header>
 
