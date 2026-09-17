@@ -66,6 +66,31 @@ export function shouldAttemptNativeGlass(): boolean {
   })
 }
 
+export function isAndroidRuntimeIdentity(userAgent: string): boolean {
+  return /\bAndroid\b/i.test(userAgent)
+}
+
+function isAndroidTauriRuntime(): boolean {
+  return (
+    IS_APP_TARGET &&
+    typeof window !== "undefined" &&
+    isTauri() &&
+    isAndroidRuntimeIdentity(window.navigator.userAgent)
+  )
+}
+
+export function shouldSyncAndroidSystemBars(): boolean {
+  return isAndroidTauriRuntime()
+}
+
+export function shouldUseAndroidWebViewPixelCoordinates(): boolean {
+  return isAndroidTauriRuntime()
+}
+
+export async function syncAndroidSystemBars(dark: boolean): Promise<void> {
+  await invoke("plugin:native-glass|update", { options: { dark } })
+}
+
 export async function configureNativeGlass(
   options: NativeGlassConfigureOptions
 ): Promise<NativeGlassStatus> {

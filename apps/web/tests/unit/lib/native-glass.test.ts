@@ -14,9 +14,13 @@ vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
 import {
   configureNativeGlass,
   destroyNativeGlass,
+  isAndroidRuntimeIdentity,
   isIosRuntimeIdentity,
   nativeTabRoute,
+  shouldSyncAndroidSystemBars,
+  shouldUseAndroidWebViewPixelCoordinates,
   shouldAttemptNativeGlass,
+  syncAndroidSystemBars,
   updateNativeGlass,
 } from "~/lib/native-glass"
 
@@ -66,6 +70,24 @@ describe("native glass bridge", () => {
   it("does not attempt native glass outside a Tauri runtime", () => {
     mocks.isTauri.mockReturnValue(false)
     expect(shouldAttemptNativeGlass()).toBe(false)
+  })
+
+  it("limits system-bar synchronization to Android Tauri runtimes", async () => {
+    expect(isAndroidRuntimeIdentity("Mozilla/5.0 (Linux; Android 16)")).toBe(
+      true
+    )
+    expect(isAndroidRuntimeIdentity("Mozilla/5.0 (iPhone)")).toBe(false)
+
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (Linux; Android 16)"
+    )
+    expect(shouldSyncAndroidSystemBars()).toBe(true)
+    expect(shouldUseAndroidWebViewPixelCoordinates()).toBe(true)
+
+    await syncAndroidSystemBars(true)
+    expect(mocks.invoke).toHaveBeenCalledWith("plugin:native-glass|update", {
+      options: { dark: true },
+    })
   })
 
   it("uses the scoped plugin commands", async () => {

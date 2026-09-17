@@ -4,6 +4,11 @@ import { useTheme } from "next-themes"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "~/components/ui/button"
+import {
+  shouldSyncAndroidSystemBars,
+  shouldUseAndroidWebViewPixelCoordinates,
+  syncAndroidSystemBars,
+} from "~/lib/native-glass"
 import { cn } from "~/lib/utils"
 
 const themeColors = {
@@ -16,12 +21,20 @@ const revealTransitionDuration = 500
 let themeTransitionTimer: number | undefined
 let activeViewTransition: ViewTransition | undefined
 let themeTransitionSequence = 0
+let deferAndroidSystemBarSync = false
 
 type ThemeName = "dark" | "light"
 
 type ThemeTransitionOrigin = {
   x: number
   y: number
+}
+
+function completeAndroidSystemBarSync(theme: ThemeName) {
+  deferAndroidSystemBarSync = false
+  if (shouldSyncAndroidSystemBars()) {
+    void syncAndroidSystemBars(theme === "dark").catch(() => undefined)
+  }
 }
 
 function supportsCircularThemeTransition(root: HTMLElement) {
@@ -84,6 +97,7 @@ function startFallbackTransition(
   themeTransitionTimer = window.setTimeout(() => {
     if (sequence === themeTransitionSequence) {
       delete root.dataset.themeTransition
+      completeAndroidSystemBarSync(theme)
     }
     themeTransitionTimer = undefined
   }, fallbackTransitionDuration)
@@ -112,6 +126,8 @@ function changeThemeWithTransition(
     return
   }
 
+  deferAndroidSystemBarSync = shouldSyncAndroidSystemBars()
+
   if (!supportsCircularThemeTransition(root)) {
     startFallbackTransition(theme, setTheme, sequence)
     return
@@ -126,6 +142,14 @@ function changeThemeWithTransition(
     Math.max(originX, viewportWidth - originX),
     Math.max(originY, viewportHeight - originY)
   )
+  // Android WebView resolves root view-transition clip-path coordinates in
+  // physical pixels. DOM geometry is CSS pixels, so scale only this runtime.
+  const coordinateScale = shouldUseAndroidWebViewPixelCoordinates()
+    ? window.devicePixelRatio
+    : 1
+  const animationOriginX = originX * coordinateScale
+  const animationOriginY = originY * coordinateScale
+  const animationRadius = radius * coordinateScale
 
   root.dataset.themeTransition = "circle"
   let transition: ViewTransition
@@ -147,8 +171,8 @@ function changeThemeWithTransition(
       const reveal = root.animate(
         {
           clipPath: [
-            `circle(0px at ${originX}px ${originY}px)`,
-            `circle(${radius}px at ${originX}px ${originY}px)`,
+            `circle(0px at ${animationOriginX}px ${animationOriginY}px)`,
+            `circle(${animationRadius}px at ${animationOriginX}px ${animationOriginY}px)`,
           ],
         },
         {
@@ -165,6 +189,7 @@ function changeThemeWithTransition(
       if (sequence === themeTransitionSequence) {
         delete root.dataset.themeTransition
         activeViewTransition = undefined
+        completeAndroidSystemBarSync(theme)
       }
     }
   })()
@@ -174,13 +199,19 @@ export function ThemeColorSync() {
   const { resolvedTheme } = useTheme()
 
   useEffect(() => {
+    if (!resolvedTheme) return
+
+    const dark = resolvedTheme === "dark"
     const themeColor = document.querySelector<HTMLMetaElement>(
       'meta[name="theme-color"]'
     )
-    if (!themeColor || !resolvedTheme) return
+    if (themeColor) {
+      themeColor.content = dark ? themeColors.dark : themeColors.light
+    }
 
-    themeColor.content =
-      resolvedTheme === "dark" ? themeColors.dark : themeColors.light
+    if (shouldSyncAndroidSystemBars() && !deferAndroidSystemBarSync) {
+      void syncAndroidSystemBars(dark).catch(() => undefined)
+    }
   }, [resolvedTheme])
 
   return null

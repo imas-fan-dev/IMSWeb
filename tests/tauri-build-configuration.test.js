@@ -730,6 +730,46 @@ test("mobile geolocation keeps its native access narrowly scoped", async () => {
   );
 });
 
+test("Android synchronizes navigation-bar contrast through the native plugin", async () => {
+  const [rustEntry, iosCapabilityText, androidCapabilityText, androidPlugin] = await Promise.all([
+    readFile(`${webRoot}/src-tauri/src/lib.rs`, "utf8"),
+    readFile(`${webRoot}/src-tauri/capabilities/native-glass.json`, "utf8"),
+    readFile(
+      `${webRoot}/src-tauri/capabilities/native-glass-android.json`,
+      "utf8",
+    ),
+    readFile(
+      `${webRoot}/src-tauri/plugins/native-glass/android/src/main/java/NativeGlassPlugin.kt`,
+      "utf8",
+    ),
+  ]);
+  const iosCapability = JSON.parse(iosCapabilityText);
+  const androidCapability = JSON.parse(androidCapabilityText);
+
+  assert.match(
+    rustEntry,
+    /#\[cfg\(mobile\)\]\s+let builder = builder\.plugin\(tauri_plugin_native_glass::init\(\)\);/,
+  );
+  assert.deepEqual(iosCapability.platforms, ["iOS"]);
+  assert.deepEqual(iosCapability.permissions, ["native-glass:default"]);
+  assert.deepEqual(androidCapability.platforms, ["android"]);
+  assert.deepEqual(androidCapability.permissions, ["native-glass:allow-update"]);
+  assert.match(androidPlugin, /@Command\s+fun update\(invoke: Invoke\)/);
+  assert.match(
+    androidPlugin,
+    /WindowCompat\s+\.getInsetsController\(window, window\.decorView\)\s+\.apply \{\s+isAppearanceLightNavigationBars\s*=\s*!args\.dark && supportsLightNavigationBar/,
+  );
+  assert.match(androidPlugin, /isAppearanceLightStatusBars = !args\.dark/);
+  assert.match(
+    androidPlugin,
+    /Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.O/,
+  );
+  assert.match(
+    androidPlugin,
+    /window\.navigationBarColor =\s+if \(args\.dark \|\| !supportsLightNavigationBar\)/,
+  );
+});
+
 // The Swift side writes prepared uploads into the iOS caches root and the Web
 // side reads them back through the fs plugin, so the capability scope and the
 // plugin's directory have to name the same place. They live in different

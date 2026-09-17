@@ -12,14 +12,29 @@ const themeState = vi.hoisted(() => ({
   setTheme: vi.fn(),
 }))
 
+const nativeGlassState = vi.hoisted(() => ({
+  shouldSyncAndroidSystemBars: vi.fn(() => false),
+  shouldUseAndroidWebViewPixelCoordinates: vi.fn(() => false),
+  syncAndroidSystemBars: vi.fn(),
+}))
+
 vi.mock("next-themes", () => ({
   useTheme: () => themeState,
 }))
+
+vi.mock("~/lib/native-glass", () => nativeGlassState)
 
 describe("theme controls", () => {
   beforeEach(async () => {
     themeState.resolvedTheme = "light"
     themeState.setTheme.mockReset()
+    nativeGlassState.shouldSyncAndroidSystemBars.mockReset()
+    nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(false)
+    nativeGlassState.shouldUseAndroidWebViewPixelCoordinates.mockReset()
+    nativeGlassState.shouldUseAndroidWebViewPixelCoordinates.mockReturnValue(
+      false
+    )
+    nativeGlassState.syncAndroidSystemBars.mockReset()
     await i18n.changeLanguage(defaultLanguage)
   })
 
@@ -99,10 +114,37 @@ describe("theme controls", () => {
     themeState.setTheme.mockImplementation((theme: string) => {
       document.documentElement.classList.toggle("dark", theme === "dark")
     })
+    nativeGlassState.shouldUseAndroidWebViewPixelCoordinates.mockReturnValue(
+      true
+    )
+    vi.stubGlobal("visualViewport", {
+      height: 640,
+      offsetLeft: 8,
+      offsetTop: 24,
+      width: 360,
+    })
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 2.5,
+    })
 
     const user = userEvent.setup()
     render(<ThemeToggle />, { wrapper: I18nTestProvider })
-    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
+    const toggle = screen.getByRole("button", {
+      name: "切换亮色或暗色模式",
+    })
+    vi.spyOn(toggle, "getBoundingClientRect").mockReturnValue({
+      bottom: 72,
+      height: 32,
+      left: 100,
+      right: 132,
+      top: 40,
+      width: 32,
+      x: 100,
+      y: 40,
+      toJSON: () => undefined,
+    })
+    await user.click(toggle)
 
     expect(themeState.setTheme).toHaveBeenCalledWith("dark")
     await waitFor(() => expect(animate).toHaveBeenCalledOnce())
@@ -117,6 +159,11 @@ describe("theme controls", () => {
         duration: 500,
         pseudoElement: "::view-transition-new(root)",
       })
+    )
+    const [keyframes] = animate.mock.calls[0] as [{ clipPath: string[] }]
+    expect(keyframes.clipPath[0]).toBe("circle(0px at 270px 80px)")
+    expect(keyframes.clipPath[1]).toBe(
+      `circle(${Math.hypot(252, 608) * 2.5}px at 270px 80px)`
     )
 
     finishAnimation()
@@ -300,5 +347,88 @@ describe("theme controls", () => {
     render(<ThemeColorSync />)
 
     await waitFor(() => expect(themeColor.content).toBe("#171717"))
+  })
+
+  it("synchronizes Android system bars without adding a second animation", async () => {
+    const themeColor = document.createElement("meta")
+    themeColor.name = "theme-color"
+    document.head.append(themeColor)
+    nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
+    nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
+
+    themeState.resolvedTheme = "dark"
+    const { rerender } = render(<ThemeColorSync />)
+
+    await waitFor(() => {
+      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(true)
+    })
+    expect(themeColor.content).toBe("#171717")
+
+    themeState.resolvedTheme = "light"
+    rerender(<ThemeColorSync />)
+
+    await waitFor(() => {
+      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenLastCalledWith(
+        false
+      )
+    })
+    expect(themeColor.content).toBe("#fdfdfb")
+  })
+
+  it("waits for the circular reveal before synchronizing Android system bars", async () => {
+    let finishAnimation: () => void = () => {}
+    const animationFinished = new Promise<void>((resolve) => {
+      finishAnimation = resolve
+    })
+    const animate = vi.fn().mockReturnValue({ finished: animationFinished })
+    const startViewTransition = vi.fn((update: () => void | Promise<void>) => {
+      const updateCallbackDone = Promise.resolve(update())
+      return {
+        finished: animationFinished,
+        ready: updateCallbackDone,
+        skipTransition: vi.fn(),
+        types: new Set<string>(),
+        updateCallbackDone,
+      }
+    })
+    Object.defineProperty(document.documentElement, "animate", {
+      configurable: true,
+      value: animate,
+    })
+    Object.defineProperty(document, "startViewTransition", {
+      configurable: true,
+      value: startViewTransition,
+    })
+    themeState.setTheme.mockImplementation((theme: string) => {
+      document.documentElement.classList.toggle("dark", theme === "dark")
+    })
+
+    const { rerender } = render(
+      <>
+        <ThemeToggle />
+        <ThemeColorSync />
+      </>,
+      { wrapper: I18nTestProvider }
+    )
+    nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
+    nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
+
+    themeState.resolvedTheme = "dark"
+    rerender(
+      <>
+        <ThemeToggle />
+        <ThemeColorSync />
+      </>
+    )
+
+    await waitFor(() => expect(animate).toHaveBeenCalledOnce())
+    expect(nativeGlassState.syncAndroidSystemBars).not.toHaveBeenCalled()
+
+    finishAnimation()
+    await waitFor(() => {
+      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(true)
+    })
   })
 })

@@ -35,10 +35,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init());
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_geolocation::init());
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_native_glass::init());
     #[cfg(target_os = "ios")]
-    let builder = builder
-        .plugin(tauri_plugin_native_glass::init())
-        .plugin(tauri_plugin_native_image::init());
+    let builder = builder.plugin(tauri_plugin_native_image::init());
 
     builder
         .setup(|app| {
