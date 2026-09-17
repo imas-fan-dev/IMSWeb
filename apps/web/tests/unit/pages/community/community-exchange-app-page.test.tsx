@@ -14,7 +14,31 @@ const apiMocks = vi.hoisted(() => ({
   sendCards: vi.fn(),
 }))
 
+const glassMocks = vi.hoisted(() => ({
+  registrations: [] as Array<{ id: string; icon: string; label: string }>,
+}))
+
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
+
+// The native bridge is the only path that draws real Liquid Glass on iOS 26, so
+// the page has to keep handing the toolbar refresh control to it.
+vi.mock("~/lib/native-glass-controls", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/native-glass-controls")>()
+  return {
+    ...actual,
+    useNativeGlassControl: (
+      ...args: Parameters<typeof actual.useNativeGlassControl>
+    ) => {
+      glassMocks.registrations.push({
+        id: args[0],
+        icon: args[1].icon,
+        label: args[1].label,
+      })
+      return actual.useNativeGlassControl(...args)
+    },
+  }
+})
 
 vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
@@ -43,6 +67,7 @@ vi.mock(
 describe("CommunityExchangePage app map toolbar", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    glassMocks.registrations.length = 0
     apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOfficePage.mockReturnValue({ send: apiMocks.sendOffices })
     apiMocks.getFudabaCardPage.mockReturnValue({ send: apiMocks.sendCards })
@@ -76,12 +101,32 @@ describe("CommunityExchangePage app map toolbar", () => {
     expect(refresh).toHaveClass(
       "exchange-map-app-control",
       "size-10",
-      "rounded-lg"
+      "rounded-full"
     )
 
     await user.click(refresh)
     await waitFor(() => {
       expect(apiMocks.sendSeries).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it("hands the map toolbar refresh control to the native glass bridge", async () => {
+    render(
+      <MemoryRouter initialEntries={["/community/exchange"]}>
+        <CommunityExchangePage />
+      </MemoryRouter>
+    )
+
+    const refresh = await screen.findByRole("button", { name: "刷新交换区" })
+
+    // `data-native-glass-control` is the hook `app.css` uses to hide the DOM twin
+    // once the overlay reports `supported: true`, so the Web and UIKit copies can
+    // never be visible at the same time.
+    expect(refresh).toHaveAttribute("data-native-glass-control", "refresh")
+    expect(glassMocks.registrations).toContainEqual({
+      id: "refresh",
+      icon: "refresh-cw",
+      label: "刷新交换区",
     })
   })
 })

@@ -461,3 +461,38 @@ test(
     await expect(mapTab).not.toHaveAttribute("aria-current", "page")
   }
 )
+
+test(
+  "renders the app map refresh control as a circle",
+  {
+    tag: ["@app-iphone", "@app-landscape"],
+  },
+  async ({ page, api }) => {
+    installMapMocks(api)
+    await page.goto("/community/exchange")
+    await applySafeArea(page)
+    await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // The control stands alone above the map on the app target, so it reads as a
+    // circle like the locate and map-tool controls, not as a rounded square. The
+    // native glass overlay measures this radius from the DOM twin, so the
+    // computed radius is what decides the drawn shape too.
+    const refresh = page.getByRole("button", { name: "刷新交换区" })
+    await expect(refresh).toBeVisible()
+    const shape = await refresh.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return {
+        width: rect.width,
+        height: rect.height,
+        radius: Number.parseFloat(
+          window.getComputedStyle(element).borderTopLeftRadius
+        ),
+      }
+    })
+
+    expect(shape.width).toBe(shape.height)
+    expect(shape.radius).toBeGreaterThanOrEqual(shape.width / 2)
+  }
+)

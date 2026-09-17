@@ -34,6 +34,7 @@ vi.mock("~/lib/native-glass-panel", async (importOriginal) => {
  */
 let rects = new WeakMap<Element, DOMRect>()
 let widths = new WeakMap<Element, number>()
+let heights = new WeakMap<Element, number>()
 
 function measure(element: Element, rect: DOMRectInit) {
   rects.set(element, DOMRect.fromRect(rect))
@@ -157,6 +158,7 @@ beforeEach(() => {
   mocks.sync.mockResolvedValue({ supported: true })
   rects = new WeakMap()
   widths = new WeakMap()
+  heights = new WeakMap()
   frames = []
 
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
@@ -170,6 +172,12 @@ beforeEach(() => {
     configurable: true,
     get(this: Element) {
       return widths.get(this) ?? 0
+    },
+  })
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get(this: Element) {
+      return heights.get(this) ?? 0
     },
   })
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -375,6 +383,7 @@ describe("native glass control overlay", () => {
     const panel = document.querySelector('[data-native-glass-twin="map-tools"]')
     if (!panel) throw new Error("the menu panel twin is missing")
     widths.set(panel, 144)
+    heights.set(panel, 200)
     measureCornerRadii([
       [trigger, "0px"],
       [panel, "8px"],
@@ -387,6 +396,24 @@ describe("native glass control overlay", () => {
       panelWidth: 144,
       panelCornerRadius: 8,
     })
+  })
+
+  it("caps a fully rounded twin at half of its shorter side", async () => {
+    // Tailwind's `rounded-full` compiles to `border-radius: 3.40282e38px`.
+    // That number used to travel to `layer.cornerRadius` unchanged, which drew
+    // the App's map refresh control as a rounded square instead of a circle.
+    render(
+      <NativeGlassControlsProvider>
+        <LocateTwin />
+      </NativeGlassControlsProvider>
+    )
+    const button = locateButton()
+    measure(button, { x: 12, y: 400, width: 40, height: 40 })
+    measureCornerRadius(button, "340282001837565597733306976381245063168px")
+
+    await settle()
+
+    expect(lastControls()[0]?.cornerRadius).toBe(20)
   })
 
   it("routes a native press to the registered control and ignores the rest", async () => {

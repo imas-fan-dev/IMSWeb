@@ -93,13 +93,16 @@ function measureFrame(element: HTMLElement): NativeGlassFrame | null {
   return { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
 }
 
-function measureCornerRadius(element: HTMLElement): number {
-  return withMeasurableLayout(element, () => {
-    const radius = Number.parseFloat(
-      getComputedStyle(element).borderTopLeftRadius
+function measureCornerRadius(
+  element: HTMLElement,
+  frame: NativeGlassFrame
+): number {
+  return withMeasurableLayout(element, () =>
+    readCornerRadius(
+      getComputedStyle(element).borderTopLeftRadius,
+      Math.min(frame.width, frame.height) / 2
     )
-    return Number.isFinite(radius) ? radius : 0
-  })
+  )
 }
 
 function measurePanelWidth(element: HTMLElement | null): number {
@@ -110,12 +113,31 @@ function measurePanelWidth(element: HTMLElement | null): number {
 }
 
 /**
+ * A radius at or beyond half of the shorter side is the same shape as a fully
+ * rounded box, and Tailwind encodes exactly that: `rounded-full` compiles to
+ * `border-radius: 3.40282e38px`. Handing that number to the native layer drew
+ * a square, not a circle, so the native radius is capped where the box size is
+ * still known.
+ */
+function readCornerRadius(raw: string, limit: number): number {
+  const radius = Number.parseFloat(raw)
+  if (!Number.isFinite(radius)) return 0
+  return Math.min(Math.max(0, radius), limit)
+}
+
+/**
  * The panel is a surface of its own, so it carries its own radius. Reading the
  * trigger's instead would square the expanded menu off the moment that trigger
  * became a pill segment, whose shared edge is deliberately straight.
  */
 function measurePanelRadius(element: HTMLElement | null): number {
-  return element ? measureCornerRadius(element) : 0
+  if (!element) return 0
+  return withMeasurableLayout(element, () =>
+    readCornerRadius(
+      getComputedStyle(element).borderTopLeftRadius,
+      Math.min(element.offsetWidth, element.offsetHeight) / 2
+    )
+  )
 }
 
 /**
@@ -141,7 +163,7 @@ export function NativeGlassControlsProvider({
       if (!element || !element.isConnected) continue
       const frame = measureFrame(element)
       if (!frame) continue
-      const cornerRadius = measureCornerRadius(element)
+      const cornerRadius = measureCornerRadius(element, frame)
       const spec = registration.spec
       if (spec.kind === "menu") {
         controls.push({

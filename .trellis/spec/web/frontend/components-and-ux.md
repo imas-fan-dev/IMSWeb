@@ -192,6 +192,18 @@ tracker or add `glass-sheen`, `glass-control`, or `data-glass-interactive` to a
 production surface without a new interaction review covering nested ownership,
 pointer exit, keyboard focus, touch behavior, and reduced motion.
 
+### App map floating control shapes
+
+The App draws the exchange map controls through the native glass overlay, so the DOM twin's
+computed radius is the shape the user sees: `measureCornerRadius` in
+`app/lib/native-glass-controls.tsx` reads `borderTopLeftRadius`, caps it at half of the shorter
+side, and hands it to `GlassControlView`. That cap matters because Tailwind's `rounded-full`
+compiles to `3.40282e38px`, which drew a rounded square until it existed. A standalone control is
+a circle (`rounded-full`); a stacked pair is one capsule (`.exchange-map-app-pill-top` /
+`.exchange-map-app-pill-bottom`). Do not leave a map control on a `rounded-lg` square. Assert the
+shape in a browser test rather than by reading the class string, because the radius decides the
+drawing: a circle needs `radius >= min(width, height) / 2` on a square control.
+
 ### Map data attribution notice
 
 The OpenMapTiles notice is a licence obligation, and it is no longer drawn inside the map. Keep one

@@ -389,6 +389,10 @@ with an underscore from the command name).
   `webview.scrollView.adjustedContentInset` — not `safeAreaInsets`, which double-counts the safe
   area under `viewport-fit=cover`.
 - `cornerRadius`, width and height come from the Web side. Swift never hardcodes geometry.
+- `cornerRadius` is capped at half of the shorter side before it is sent. Tailwind's `rounded-full`
+  compiles to `border-radius: 3.40282e38px`, and handing that number to `layer.cornerRadius` drew
+  the App map refresh control as a rounded square instead of a circle. Anything at or beyond half of
+  the shorter side is read as "as round as the box allows", which is the shape the twin paints.
 - `setControls` replaces the whole set. Incremental updates are forbidden because they let the two
   sides diverge.
 - A missing Lucide asset fails the **whole** set with `supported: false` rather than natively drawing
@@ -430,6 +434,7 @@ with an underscore from the command name).
 | `setControls` rejects | Treated as unsupported; no root marker, no unhandled rejection |
 | Marker already written, then the set stops being supported | Marker is removed on the next sync |
 | Native icon asset missing | Whole set declines with `supported: false` |
+| Twin radius is at or beyond half of its shorter side (`rounded-full`) | Capped to half of the shorter side before `set_controls`, so an ungrouped control stays a circle |
 | Sheet or dialog open | Empty control set pushed; the map keeps its CSS twins |
 | Event carries an unknown id, or a `menu-item` without `itemId`, or is not a `CustomEvent` | Ignored; `nativeGlassControlEvent` returns `null` |
 | Component unmounts | Empty set pushed, marker deleted, listeners and frame callback released |
@@ -450,11 +455,15 @@ with an underscore from the command name).
 
 - `tests/unit/lib/native-glass-panel.test.ts`: event parsing for valid, malformed and partial
   details; admission truth table for Web, Android and iOS identities.
+- `tests/unit/pages/community/community-exchange-app-page.test.tsx`: the App map toolbar refresh
+  control still registers with the bridge (`refresh` id, `refresh-cw` icon, `刷新交换区` label) and
+  carries `data-native-glass-control="refresh"`, so the DOM twin and the UIKit control can never be
+  visible at the same time.
 - `tests/unit/lib/native-glass-controls.test.tsx`: no plugin call when not admitted; no registration
   without a provider; marker written only after `supported: true`; `supported: false` and a rejected
   invoke both keep the twins; empty set while the tab bar is suppressed; menu panel width and items
-  forwarded; native events routed only to registered controls; a viewport change re-syncs; unmount
-  clears the set and the marker.
+  forwarded; a fully rounded twin capped at half of its shorter side; native events routed only to
+  registered controls; a viewport change re-syncs; unmount clears the set and the marker.
 - `tests/tauri-build-configuration.test.js` keeps both iOS icon inventories in agreement with the Web call
   sites and validates each packaged vector, and `cargo check --target aarch64-apple-ios-sim` covers the
   Rust side. A control icon the bundle does not carry disables the whole native path, so that parity is

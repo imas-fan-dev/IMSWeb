@@ -410,7 +410,7 @@ function ExchangeRefreshButton({
       size="icon"
       className={cn(
         IS_APP_TARGET &&
-          "exchange-map-app-control pointer-events-auto size-10 rounded-lg"
+          "exchange-map-app-control pointer-events-auto size-10 rounded-full"
       )}
       aria-label="刷新交换区"
       title="刷新"
