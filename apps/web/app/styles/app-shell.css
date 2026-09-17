@@ -36,6 +36,13 @@
    */
   html[data-app-target="app"] {
     touch-action: pan-x pan-y;
+    /*
+     * Android 15 gesture navigation is transparent under enforced edge-to-edge.
+     * Paint the document canvas so the WebView's current theme reaches the
+     * gesture area; native navigationBarColor only remains a compatibility path
+     * for navigation modes where Android still honors it.
+     */
+    background-color: var(--background);
   }
 }
 

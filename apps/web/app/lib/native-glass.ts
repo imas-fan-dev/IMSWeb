@@ -83,10 +83,6 @@ export function shouldSyncAndroidSystemBars(): boolean {
   return isAndroidTauriRuntime()
 }
 
-export function shouldUseAndroidWebViewPixelCoordinates(): boolean {
-  return isAndroidTauriRuntime()
-}
-
 export async function syncAndroidSystemBars(dark: boolean): Promise<void> {
   await invoke("plugin:native-glass|update", { options: { dark } })
 }

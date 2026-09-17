@@ -491,3 +491,97 @@ element it finds first.
 
 The trigger carries the measurable id; the panel carries `data-native-glass-twin`, which only the
 hide rule and the panel-width read consume.
+
+## Scenario: Android theme and system-bar synchronization
+
+### 1. Scope / Trigger
+
+Use this contract when a WebView theme change must update Android status- or navigation-bar icon
+contrast. The change crosses the React theme state, a Tauri plugin command, a capability allowlist,
+and Android window policy. It applies to Android only; iOS native-glass controls and ordinary Web
+must not invoke this path.
+
+### 2. Signatures
+
+```ts
+syncAndroidSystemBars(dark: boolean): Promise<void>
+// Tauri command: plugin:native-glass|update
+// capability: native-glass:allow-update (android only)
+```
+
+The plugin receives `{ options: { dark: boolean } }` and applies the result on the Android UI thread.
+
+### 3. Contracts
+
+- `ThemeColorSync` calls the command once when `resolvedTheme` commits in an Android Tauri runtime.
+  Initial load, system-driven changes, reduced motion, circular reveal, and fade fallback share that
+  immediate commit point. Animation cleanup must not make a second call.
+- Android 15 and later with `targetSdk >= 35` enforce edge-to-edge. Gesture navigation is transparent,
+  so `navigationBarColor` does not own its background. `html[data-app-target="app"]` paints
+  `var(--background)` to carry the active Web theme under the gesture area.
+- The native plugin sets status and navigation icon appearance to contrast with `dark`. It retains
+  `navigationBarColor` only for lower API levels and three-button navigation, where Android can still
+  honor the color.
+- API 21-25 cannot draw dark navigation icons. A light theme therefore keeps a dark navigation
+  background with light icons; API 23-25 may still use dark status-bar icons. API 26 and later may
+  use the light navigation background with dark icons.
+- Do not hand-edit `src-tauri/gen/`. Register mobile plugins in owned Rust/plugin sources and expose
+  the Android command through a narrowly scoped capability.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Web, desktop, or iOS runtime | No Android system-bar invoke |
+| Android Tauri, light theme, API 26+ | Light compatibility navigation background; dark status/navigation icons |
+| Android Tauri, dark theme | Dark compatibility navigation background; light status/navigation icons |
+| Android Tauri, light theme, API 21-25 | Dark navigation background with light navigation icons; status icons are dark only on API 23+ |
+| Android 15+ gesture navigation | Web document background reaches the transparent gesture area; icon contrast still updates |
+| Android command rejects | Theme remains applied; no unhandled promise rejection |
+
+### 5. Good / Base / Bad Cases
+
+- Good: an Android 15 App target changes `html.dark`, paints the matching document canvas, and invokes
+  the native contrast update once at the theme commit.
+- Base: an Android 10 three-button device uses the native navigation color compatibility path and the
+  same icon contract.
+- Bad: multiplying View Transition CSS coordinates by `devicePixelRatio`, delaying native icon updates
+  until animation cleanup, or expecting `navigationBarColor` to paint an Android 15 gesture bar.
+
+### 6. Tests Required
+
+- `apps/web/tests/unit/components/shared/theme-toggle.test.tsx`: circular/fade/reduced-motion behavior,
+  CSS-pixel clip-path coordinates, and exactly one Android bridge call per theme commit.
+- `apps/web/tests/unit/layouts/app-shell-styles.test.ts`: App-target document canvas paints
+  `var(--background)` without changing the Web target.
+- `apps/web/src-tauri/plugins/native-glass/android/src/test/java/SystemBarAppearanceTest.kt`: API 21,
+  API 23-25, API 26+, and dark/light appearance branches.
+- `tests/tauri-build-configuration.test.js`: Android command registration and capability scope.
+- Build and install a packaged Android App on a physical API 35+ gesture-navigation device. Verify
+  dark/light page canvas, status/navigation icon contrast, reduced motion, and repeated switches.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```kotlin
+window.navigationBarColor = lightColor
+```
+
+On Android 15 gesture navigation, the enforced transparent system bar can ignore this value and show
+whatever the application draws beneath it.
+
+#### Correct
+
+```css
+html[data-app-target="app"] {
+  background-color: var(--background);
+}
+```
+
+```kotlin
+controller.isAppearanceLightNavigationBars = !dark
+controller.isAppearanceLightStatusBars = !dark
+```
+
+The WebView provides the edge-to-edge background while the native plugin owns icon contrast.

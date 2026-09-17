@@ -14,7 +14,6 @@ const themeState = vi.hoisted(() => ({
 
 const nativeGlassState = vi.hoisted(() => ({
   shouldSyncAndroidSystemBars: vi.fn(() => false),
-  shouldUseAndroidWebViewPixelCoordinates: vi.fn(() => false),
   syncAndroidSystemBars: vi.fn(),
 }))
 
@@ -30,10 +29,6 @@ describe("theme controls", () => {
     themeState.setTheme.mockReset()
     nativeGlassState.shouldSyncAndroidSystemBars.mockReset()
     nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(false)
-    nativeGlassState.shouldUseAndroidWebViewPixelCoordinates.mockReset()
-    nativeGlassState.shouldUseAndroidWebViewPixelCoordinates.mockReturnValue(
-      false
-    )
     nativeGlassState.syncAndroidSystemBars.mockReset()
     await i18n.changeLanguage(defaultLanguage)
   })
@@ -114,9 +109,6 @@ describe("theme controls", () => {
     themeState.setTheme.mockImplementation((theme: string) => {
       document.documentElement.classList.toggle("dark", theme === "dark")
     })
-    nativeGlassState.shouldUseAndroidWebViewPixelCoordinates.mockReturnValue(
-      true
-    )
     vi.stubGlobal("visualViewport", {
       height: 640,
       offsetLeft: 8,
@@ -161,9 +153,9 @@ describe("theme controls", () => {
       })
     )
     const [keyframes] = animate.mock.calls[0] as [{ clipPath: string[] }]
-    expect(keyframes.clipPath[0]).toBe("circle(0px at 270px 80px)")
+    expect(keyframes.clipPath[0]).toBe("circle(0px at 108px 32px)")
     expect(keyframes.clipPath[1]).toBe(
-      `circle(${Math.hypot(252, 608) * 2.5}px at 270px 80px)`
+      `circle(${Math.hypot(252, 608)}px at 108px 32px)`
     )
 
     finishAnimation()
@@ -375,7 +367,7 @@ describe("theme controls", () => {
     expect(themeColor.content).toBe("#fdfdfb")
   })
 
-  it("waits for the circular reveal before synchronizing Android system bars", async () => {
+  it("synchronizes Android system bars when the circular reveal commits", async () => {
     let finishAnimation: () => void = () => {}
     const animationFinished = new Promise<void>((resolve) => {
       finishAnimation = resolve
@@ -424,11 +416,48 @@ describe("theme controls", () => {
     )
 
     await waitFor(() => expect(animate).toHaveBeenCalledOnce())
-    expect(nativeGlassState.syncAndroidSystemBars).not.toHaveBeenCalled()
-
-    finishAnimation()
     await waitFor(() => {
       expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(true)
     })
+
+    finishAnimation()
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveAttribute(
+        "data-theme-transition"
+      )
+    })
+    expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledOnce()
+  })
+
+  it("synchronizes Android system bars when the fade fallback commits", async () => {
+    const { rerender } = render(
+      <>
+        <ThemeToggle />
+        <ThemeColorSync />
+      </>,
+      { wrapper: I18nTestProvider }
+    )
+    nativeGlassState.shouldSyncAndroidSystemBars.mockReturnValue(true)
+    nativeGlassState.syncAndroidSystemBars.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "切换亮色或暗色模式" }))
+
+    themeState.resolvedTheme = "dark"
+    rerender(
+      <>
+        <ThemeToggle />
+        <ThemeColorSync />
+      </>
+    )
+
+    await waitFor(() => {
+      expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledWith(true)
+    })
+    expect(nativeGlassState.syncAndroidSystemBars).toHaveBeenCalledOnce()
+    expect(document.documentElement).toHaveAttribute(
+      "data-theme-transition",
+      "fade"
+    )
   })
 })

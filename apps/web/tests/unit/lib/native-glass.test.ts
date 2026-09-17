@@ -18,7 +18,6 @@ import {
   isIosRuntimeIdentity,
   nativeTabRoute,
   shouldSyncAndroidSystemBars,
-  shouldUseAndroidWebViewPixelCoordinates,
   shouldAttemptNativeGlass,
   syncAndroidSystemBars,
   updateNativeGlass,
@@ -82,7 +81,6 @@ describe("native glass bridge", () => {
       "Mozilla/5.0 (Linux; Android 16)"
     )
     expect(shouldSyncAndroidSystemBars()).toBe(true)
-    expect(shouldUseAndroidWebViewPixelCoordinates()).toBe(true)
 
     await syncAndroidSystemBars(true)
     expect(mocks.invoke).toHaveBeenCalledWith("plugin:native-glass|update", {

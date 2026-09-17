@@ -1,8 +1,6 @@
 package top.idol_master.imsweb.nativeglass
 
 import android.app.Activity
-import android.graphics.Color
-import android.os.Build
 import android.view.View
 import android.webkit.WebView
 import androidx.core.view.WindowCompat
@@ -31,19 +29,17 @@ class NativeGlassPlugin(
         val args = invoke.parseArgs(UpdateArgs::class.java)
         hostActivity.runOnUiThread {
             val window = hostActivity.window
-            val supportsLightNavigationBar = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-            window.navigationBarColor =
-                if (args.dark || !supportsLightNavigationBar) {
-                    Color.rgb(23, 23, 23)
-                } else {
-                    Color.rgb(253, 253, 251)
-                }
+            val appearance = systemBarAppearance(args.dark)
+            // Android 15 gesture navigation is transparent under edge-to-edge,
+            // so the App document canvas supplies its background. Keep this
+            // write for earlier Android releases and three-button navigation.
+            window.navigationBarColor = appearance.navigationBarColor
             WindowCompat
                 .getInsetsController(window, window.decorView)
                 .apply {
                     isAppearanceLightNavigationBars =
-                        !args.dark && supportsLightNavigationBar
-                    isAppearanceLightStatusBars = !args.dark
+                        appearance.lightNavigationBarIcons
+                    isAppearanceLightStatusBars = appearance.lightStatusBarIcons
                 }
             invoke.resolve(JSObject().put("supported", true))
         }

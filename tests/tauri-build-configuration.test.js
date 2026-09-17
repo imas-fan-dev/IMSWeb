@@ -731,7 +731,13 @@ test("mobile geolocation keeps its native access narrowly scoped", async () => {
 });
 
 test("Android synchronizes navigation-bar contrast through the native plugin", async () => {
-  const [rustEntry, iosCapabilityText, androidCapabilityText, androidPlugin] = await Promise.all([
+  const [
+    rustEntry,
+    iosCapabilityText,
+    androidCapabilityText,
+    androidPlugin,
+    systemBars,
+  ] = await Promise.all([
     readFile(`${webRoot}/src-tauri/src/lib.rs`, "utf8"),
     readFile(`${webRoot}/src-tauri/capabilities/native-glass.json`, "utf8"),
     readFile(
@@ -740,6 +746,10 @@ test("Android synchronizes navigation-bar contrast through the native plugin", a
     ),
     readFile(
       `${webRoot}/src-tauri/plugins/native-glass/android/src/main/java/NativeGlassPlugin.kt`,
+      "utf8",
+    ),
+    readFile(
+      `${webRoot}/src-tauri/plugins/native-glass/android/src/main/java/SystemBarAppearance.kt`,
       "utf8",
     ),
   ]);
@@ -753,21 +763,35 @@ test("Android synchronizes navigation-bar contrast through the native plugin", a
   assert.deepEqual(iosCapability.platforms, ["iOS"]);
   assert.deepEqual(iosCapability.permissions, ["native-glass:default"]);
   assert.deepEqual(androidCapability.platforms, ["android"]);
-  assert.deepEqual(androidCapability.permissions, ["native-glass:allow-update"]);
-  assert.match(androidPlugin, /@Command\s+fun update\(invoke: Invoke\)/);
-  assert.match(
-    androidPlugin,
-    /WindowCompat\s+\.getInsetsController\(window, window\.decorView\)\s+\.apply \{\s+isAppearanceLightNavigationBars\s*=\s*!args\.dark && supportsLightNavigationBar/,
+  assert.deepEqual(androidCapability.permissions, [
+    "native-glass:allow-update",
+  ]);
+
+  // Normalize whitespace so this test protects the native command and its
+  // policy rather than Kotlin wrapping or indentation.
+  const compact = (source) => source.replace(/\s+/g, "");
+  const plugin = compact(androidPlugin);
+  const policy = compact(systemBars);
+  assert.ok(androidPlugin.includes("@Command"));
+  assert.ok(plugin.includes("funupdate(invoke:Invoke)"));
+  assert.ok(plugin.includes("valappearance=systemBarAppearance(args.dark)"));
+  assert.ok(
+    plugin.includes("window.navigationBarColor=appearance.navigationBarColor"),
   );
-  assert.match(androidPlugin, /isAppearanceLightStatusBars = !args\.dark/);
-  assert.match(
-    androidPlugin,
-    /Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.O/,
+  assert.ok(
+    plugin.includes(
+      "isAppearanceLightNavigationBars=appearance.lightNavigationBarIcons",
+    ),
   );
-  assert.match(
-    androidPlugin,
-    /window\.navigationBarColor =\s+if \(args\.dark \|\| !supportsLightNavigationBar\)/,
+  assert.ok(
+    plugin.includes(
+      "isAppearanceLightStatusBars=appearance.lightStatusBarIcons",
+    ),
   );
+  assert.ok(policy.includes("sdkInt>=Build.VERSION_CODES.O"));
+  assert.ok(policy.includes("sdkInt>=Build.VERSION_CODES.M"));
+  assert.ok(policy.includes("LIGHT_NAVIGATION_BAR_COLOR=-131589"));
+  assert.ok(policy.includes("DARK_NAVIGATION_BAR_COLOR=-15263977"));
 });
 
 // The Swift side writes prepared uploads into the iOS caches root and the Web
