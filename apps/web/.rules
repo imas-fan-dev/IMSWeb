@@ -41,8 +41,8 @@ Prerequisites have two synchronized surfaces and no third: the executable checks
 
 Before changing user-visible UI, read the repository-level `DESIGN.md`. Its YAML
 tokens are the normative design values and its prose defines how the public site
-and operations console apply them. Keep `DESIGN.md` and `app/app.css` aligned when
-changing global visual tokens.
+and operations console apply them. Keep `DESIGN.md` and the stylesheets under
+`app/styles/` aligned when changing global visual tokens.
 
 Follow `.prettierrc`: two spaces, no semicolons, double quotes, 80 columns, and Tailwind class sorting. Use the `~/` alias for `app/` imports, kebab-case filenames, and PascalCase component exports. Reuse shadcn/Base UI primitives and Lucide icons. Keep route components focused on data and composition rather than duplicating API policy or low-level UI behavior.
 

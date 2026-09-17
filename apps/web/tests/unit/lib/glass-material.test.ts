@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest"
 
 import { seriesWallItems } from "~/lib/series-wall"
 
-const stylesheet = readFileSync(resolve(process.cwd(), "app/app.css"), "utf8")
+import { readAppStylesheet } from "@/tests/unit/support/stylesheet-source"
+
+const stylesheet = readAppStylesheet()
 const designReference = readFileSync(
   resolve(process.cwd(), "DESIGN.md"),
   "utf8"
@@ -12,15 +14,19 @@ const designReference = readFileSync(
 
 function ruleBody(selector: string) {
   const start = stylesheet.indexOf(`${selector} {`)
-  expect(start, `${selector} is missing from app.css`).toBeGreaterThan(-1)
+  expect(
+    start,
+    `${selector} is missing from the app stylesheets`
+  ).toBeGreaterThan(-1)
   return stylesheet.slice(start, stylesheet.indexOf("\n  }", start))
 }
 
 function keyframesBody(name: string) {
   const start = stylesheet.indexOf(`@keyframes ${name} {`)
-  expect(start, `@keyframes ${name} is missing from app.css`).toBeGreaterThan(
-    -1
-  )
+  expect(
+    start,
+    `@keyframes ${name} is missing from the app stylesheets`
+  ).toBeGreaterThan(-1)
   return stylesheet.slice(start, stylesheet.indexOf("\n}", start))
 }
 

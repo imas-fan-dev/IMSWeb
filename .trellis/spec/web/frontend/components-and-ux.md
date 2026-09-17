@@ -3,12 +3,45 @@
 ## Design authority
 
 `apps/web/DESIGN.md` defines the product's visual tokens and application rules.
-`apps/web/app/app.css` implements those tokens. Read both before changing global
-color, typography, spacing, radius, elevation, material, or motion.
+`apps/web/app/app.css` imports the layered stylesheets under `apps/web/app/styles/`
+that implement those tokens. Read both before changing global color, typography,
+spacing, radius, elevation, material, or motion.
 
-When a global token changes, update `DESIGN.md` and `app.css` together and run
+When a global token changes, update `DESIGN.md` and the stylesheet that declares
+it (`app/styles/theme.css` owns every token) together and run
 `pnpm --filter @imsweb/web run design:lint`. Do not introduce a one-off token
 that duplicates an existing semantic color or spacing value.
+
+### Stylesheet layers
+
+`app/app.css` is an entry, not a stylesheet: four Tailwind imports, one
+`@layer overrides;` declaration, then local imports in cascade order (`theme`,
+`glass`, `accessibility`, `media`, `app-shell`). Put a new rule in the file that
+owns its concern instead of appending to the entry.
+
+Every style rule must sit in one of three layers. An unlayered author rule beats
+all of them, which is how this stylesheet used to behave and why the shape is now
+pinned by a test rather than by convention:
+
+- `base` — token declarations and element defaults. A utility class may override
+these, which is the point.
+- `components` — component and material classes (`.glass-*`, `.media-hover`,
+`.series-icon-*`). A utility class may still override these.
+- `overrides` — only the rules that must win against a utility class on the same
+element: the capability fallbacks (`prefers-reduced-motion`,
+`prefers-reduced-transparency`, `forced-colors`), attribute-driven hiding such
+as the native-glass twins, and the wiki mobile-search lift. Choose this layer
+only when the element really carries a competing utility; reaching for it
+otherwise hides the real cascade from the next reader.
+
+`@property`, `@keyframes`, `@theme`, and `@custom-variant` stay at the top level
+because they do not participate in the cascade.
+
+`tests/unit/lib/stylesheet-layers.test.ts` enforces the import order, the absence
+of unlayered rules, and the three layer names. A test that asserts on a rule
+reads the files through `tests/unit/support/stylesheet-source.ts` instead of
+naming one path, so a later split cannot leave the assertion passing against an
+empty string.
 
 ## Component choice and ownership
 
@@ -29,7 +62,7 @@ not self-explanatory.
 
 - Provide semantic roles and visible labels for interactive controls.
 - Support keyboard focus and operation. Use `:focus-visible` behavior already
-  defined in `app.css`.
+  defined in `app/styles/theme.css`.
 - Respect `prefers-reduced-motion` for non-essential motion.
 - Keep loading, error, empty, and success states within stable layout bounds.
 - Verify that text, dialogs, fixed actions, maps, and navigation do not overlap

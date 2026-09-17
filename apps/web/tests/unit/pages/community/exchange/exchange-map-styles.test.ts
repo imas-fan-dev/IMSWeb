@@ -3,6 +3,8 @@ import { resolve } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { readAppStylesheet } from "@/tests/unit/support/stylesheet-source"
+
 const mapStylesheet = readFileSync(
   resolve(
     process.cwd(),
@@ -10,10 +12,7 @@ const mapStylesheet = readFileSync(
   ),
   "utf8"
 )
-const appStylesheet = readFileSync(
-  resolve(process.cwd(), "app/app.css"),
-  "utf8"
-)
+const appStylesheet = readAppStylesheet()
 
 /**
  * Slices one balanced `{ ... }` block so an assertion can be scoped to the
@@ -91,7 +90,10 @@ describe("exchange map stylesheet", () => {
   it("joins the locate and map-tools twins into one pill", () => {
     const top = blockBody(mapStylesheet, ".exchange-map-app-pill-top {")
     const bottom = blockBody(mapStylesheet, ".exchange-map-app-pill-bottom {")
-    const seam = blockBody(mapStylesheet, ".exchange-map-app-pill-bottom::before {")
+    const seam = blockBody(
+      mapStylesheet,
+      ".exchange-map-app-pill-bottom::before {"
+    )
 
     // Only the outer corners curve; the shared edge stays straight or the two
     // segments read as two buttons that happen to touch.

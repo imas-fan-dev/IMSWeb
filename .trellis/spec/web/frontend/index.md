@@ -15,7 +15,7 @@ index and do not replace those files.
 | --- | --- |
 | [Architecture](./architecture.md) | Routes, pages, layouts, shared modules, app shell |
 | [API, state, and contracts](./api-state-and-contracts.md) | Endpoints, parsing, CSRF, request state |
-| [Components and UX](./components-and-ux.md) | Ownership, design tokens, accessibility, bounded namecard columns, pagination, preview lifecycle, popup geometry |
+| [Components and UX](./components-and-ux.md) | Ownership, stylesheet layers and design tokens, accessibility, bounded namecard columns, pagination, preview lifecycle, popup geometry |
 | [App navigation](./app-navigation.md) | Section ownership, queued tab input, scroll continuity, back behavior, directories, and native tab verification |
 | [Tauri mobile integration](./tauri-mobile-integration.md) | Native plugin, capability, permission, and platform metadata contracts |
 | [Testing](./testing.md) | Unit, component, browser, and routing tests |
@@ -24,7 +24,7 @@ index and do not replace those files.
 
 - [ ] Read `apps/web/.rules` and the relevant page or component tests.
 - [ ] For visible changes, read `apps/web/DESIGN.md` and inspect the matching
-      tokens in `apps/web/app/app.css`.
+      tokens in `apps/web/app/styles/theme.css`.
 - [ ] Confirm whether the code belongs to a page, layout, reusable component,
       UI primitive, or `app/lib` infrastructure.
 - [ ] Check `~/lib/api` and `@imsweb/contracts` before creating request code or

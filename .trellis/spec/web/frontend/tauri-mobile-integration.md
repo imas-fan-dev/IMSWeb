@@ -268,7 +268,7 @@ Web build keeps a zoomable, history-driven viewport; only the app target changes
 | Owner | Entry point |
 | --- | --- |
 | Viewport meta | `VIEWPORT_CONTENT` in `apps/web/app/lib/app-target.ts` |
-| Zoom gesture policy | `html[data-app-target="app"]` in `apps/web/app/app.css` |
+| Zoom gesture policy | `html[data-app-target="app"]` in `apps/web/app/styles/app-shell.css` |
 | Back decision | `appBackHierarchyTarget` in `apps/web/app/components/app/app-tab-model.ts`, consumed by `goBack` |
 | Android back | `onBackButtonPress` from `@tauri-apps/api/app` |
 | iOS back swipe | `enable_ios_back_swipe` in `apps/web/src-tauri/src/lib.rs` |
@@ -400,7 +400,7 @@ with an underscore from the command name).
 - `shouldUseNativeGlassControls()` is an admission check only (`IS_APP_TARGET && isTauri() &&
   isIosRuntimeIdentity(...)`). The real verdict is the `supported` flag the plugin returns; only a
   `true` result writes the document-root marker `data-native-glass="controls"`, which
-  `app.css` uses to hide the twins:
+  `app/styles/app-shell.css` uses to hide the twins:
 
   ```css
   html[data-native-glass="controls"] [data-native-glass-control],

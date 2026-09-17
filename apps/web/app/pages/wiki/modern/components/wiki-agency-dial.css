@@ -96,7 +96,8 @@
 
 [data-wiki-agency-dial-popup][data-open] {
   transform-origin: center;
-  animation: wiki-agency-dial-popup-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+  animation: wiki-agency-dial-popup-in var(--duration-reveal)
+    var(--ease-interactive) both !important;
 }
 
 [data-wiki-agency-dial-popup][data-closed] {

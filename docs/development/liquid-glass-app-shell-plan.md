@@ -2,7 +2,7 @@
 
 > 文档类型：开发
 > 状态：Active
-> 权威来源：`apps/web/app/app.css`、`apps/web/app/routes.ts`、`apps/web/app/layouts/`、`apps/web/playwright.config.ts` 和分支 `codex/astra-glass-wip-20260818`
+> 权威来源：`apps/web/app/app.css` 入口与其 `apps/web/app/styles/` 分层文件、`apps/web/app/routes.ts`、`apps/web/app/layouts/`、`apps/web/playwright.config.ts` 和分支 `codex/astra-glass-wip-20260818`
 
 本计划覆盖两件事：把液态玻璃提升为全站视觉语言，以及为 Tauri 打包产物提供专属的外壳、导航与启动界面。
 折射策略的取舍理由不在本文件，见 [玻璃折射的平台策略](../architecture/glass-refraction-platform-strategy.md)。
@@ -38,8 +38,8 @@
 
 | 轨道 | 内容 | 独占文件 | 阻塞依赖 |
 | --- | --- | --- | --- |
-| T1 玻璃材质层 | token、工具类、`DESIGN.md` Materials 章节、ui 组件采纳 | `apps/web/app/app.css`、`apps/web/DESIGN.md`、`apps/web/app/components/ui/*` | 无 |
-| T2 动效与折射 | 状态过渡、滚动驱动、指针跟随高光、伪折射地板、真折射封顶 | `apps/web/app/app.css` 的动效区段、新增 SVG filter 资源、高光驱动模块 | T1 |
+| T1 玻璃材质层 | token、工具类、`DESIGN.md` Materials 章节、ui 组件采纳 | `apps/web/app/styles/theme.css`、`apps/web/app/styles/glass.css`、`apps/web/DESIGN.md`、`apps/web/app/components/ui/*` | 无 |
+| T2 动效与折射 | 状态过渡、滚动驱动、指针跟随高光、伪折射地板、真折射封顶 | `apps/web/app/styles/glass.css` 的动效区段、新增 SVG filter 资源、高光驱动模块 | T1 |
 | T3 验证基建 | Firefox project、axe 覆盖扩展 | `apps/web/playwright.config.ts`、`apps/web/tests/e2e/*.accessibility.spec.ts` | 无 |
 | T4 App 构建分叉 | 构建期开关、路由裁剪、prerender 调整 | `apps/web/vite.config.ts`、`apps/web/app/routes.ts`、`apps/web/react-router.config.ts` | 无 |
 | T5 App 外壳 UI | 冷启动遮罩、app layout、底部 tab bar、「我的」静态壳 | `apps/web/app/layouts/root-layout.tsx`、新增 app layout 与 tab bar 组件、新增「我的」页面 | T4 |
@@ -59,7 +59,7 @@
 
 | 文件 | 争用轨道 | 处理 |
 | --- | --- | --- |
-| `apps/web/app/app.css` | T1、T2 | 强制串行。T2 在 T1 合入后开工 |
+| `apps/web/app/styles/theme.css`、`apps/web/app/styles/glass.css` | T1、T2 | 强制串行。T2 在 T1 合入后开工 |
 | `apps/web/app/layouts/public-layout.tsx` | T1、T6 | 来源分支改过该文件，T6 必须等 T1 的冲突通过完成 |
 | `apps/web/app/components/ui/*` | T1 独占 | 其他轨道不得改动这些文件 |
 

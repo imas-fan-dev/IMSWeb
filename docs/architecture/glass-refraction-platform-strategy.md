@@ -2,7 +2,7 @@
 
 > 文档类型：架构
 > 状态：Decision
-> 权威来源：`apps/web/app/app.css`、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/playwright.config.ts` 和 MDN `backdrop-filter` 兼容表
+> 权威来源：`apps/web/app/app.css` 入口与其 `apps/web/app/styles/` 分层文件、`apps/web/src-tauri/plugins/native-glass/`、`apps/web/playwright.config.ts` 和 MDN `backdrop-filter` 兼容表
 
 本决策记录液态玻璃中「折射」这一层的实现路线，以及由此产生的跨平台观感差异。
 实施步骤见 [液态玻璃升级与 App 外壳实施计划](../development/liquid-glass-app-shell-plan.md)。

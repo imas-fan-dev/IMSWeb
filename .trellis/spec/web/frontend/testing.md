@@ -386,7 +386,8 @@ change, or asserting the map's own controls and notices.
   1024px and up the discovery rail, plus the App folding panel. A single-width assertion does not
   prove the union is gapless.
 - `prefers-reduced-transparency` cannot be emulated by Playwright, so that fallback is asserted
-  against the stylesheet, the way `tests/unit/lib/glass-material.test.ts` does for `app.css`. For the
+  against the stylesheet, the way `tests/unit/lib/glass-material.test.ts` does through
+  `tests/unit/support/stylesheet-source.ts`. For the
   map, `tests/unit/pages/community/exchange/exchange-map-styles.test.ts` checks the reduced block, the
   absence of dead `.maplibregl-ctrl*` rules, and that the map surfaces read `--glass-blur` /
   `--glass-saturate` instead of a private copy of the numbers.
