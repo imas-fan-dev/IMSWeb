@@ -90,7 +90,8 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         created_at: CREATED_AT,
         updated_at: CREATED_AT,
         deleted_at: null,
-        ...overrides
+        ...overrides,
+        origin: overrides.origin ?? 'exchange'
     };
 }
 

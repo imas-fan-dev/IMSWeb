@@ -344,6 +344,61 @@ test('both card-side uploads commit through owner CAS without leaking keys', asy
     }
 });
 
+// A compatibility row is read back by the namecard readers, which reverse the
+// stored key into a public path and understand only the namecards layout. Those
+// readers run for every status except withdrawn and rejected, so the layout may
+// not drift while a card sits between reviews -- a Fudaba-layout key here used
+// to throw and blank the whole listing that contained the row.
+test('a compatibility card replacement keeps the namecards media layout', async () => {
+    const fixture = new OwnerRouteFixture();
+    fixture.cards.set('legacy-card', ownerCard({
+        id: 'legacy-card',
+        origin: 'legacy',
+        legacy_card_id: 42,
+        front_object_key: 'community/namecards/assets/legacy-42-front/image.webp',
+        back_object_key: 'community/namecards/assets/legacy-42-back/image.webp',
+        publication_status: 'published'
+    }));
+    fixture.uploads.next = mediaUpload({
+        cardId: 'legacy-card',
+        expectedRevision: '1'
+    });
+    const response = await fixture.app.request(
+        'http://ims.test/api/community/exchange/uploads/front',
+        { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+    );
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.deepEqual(fixture.storage.puts.map((put) => put.key), [
+        'community/namecards/assets/legacy-card-front/image.webp'
+    ]);
+    // The replacement is not public yet: `updateCardMediaForOwner` reset the
+    // card to `pending`, so the object stays protected until the review
+    // publishes the card again.
+    assert.equal(fixture.storage.puts[0]!.options.protectedAccess, true);
+    assert.equal(fixture.cards.get('legacy-card')?.publication_status, 'pending');
+});
+
+test('an exchange card replacement keeps the versioned owner layout', async () => {
+    const fixture = new OwnerRouteFixture();
+    fixture.uploads.next = mediaUpload({
+        cardId: 'owner-card',
+        expectedRevision: '1'
+    });
+    const response = await fixture.app.request(
+        'http://ims.test/api/community/exchange/uploads/back',
+        { method: 'PUT', headers: bearerHeaders(), body: new FormData() }
+    );
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    const keys = fixture.storage.puts.map((put) => put.key);
+    assert.equal(keys.length, 1);
+    assert.match(
+        keys[0]!,
+        /^community\/fudaba\/cards\/owner-card\/versions\/[^/]+\/back\.webp$/
+    );
+});
+
 test('soft deletion fences the owner write and removes protected card media', async () => {
     const fixture = new OwnerRouteFixture();
     const current = fixture.cards.get('owner-card')!;

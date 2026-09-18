@@ -3,6 +3,8 @@ import type { WikiImageTransform } from "@/ports/repositories/wiki";
 
 export type FudabaOfficeStatus = "active" | "hidden" | "archived";
 
+export type FudabaCardOrigin = "exchange" | "guest" | "legacy";
+
 export type FudabaCardPublicationStatus =
     | "draft"
     | "pending"
@@ -157,6 +159,7 @@ export interface FudabaCardRecord {
     favorite_idol: string;
     favorite_idols: CardIdolSelectionRecord[];
     legacy_card_id: number | null;
+    origin: FudabaCardOrigin;
     front_object_key: string;
     back_object_key: string;
     accent: string;

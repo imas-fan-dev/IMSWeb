@@ -39,6 +39,7 @@ function registeredCard(): FudabaRegisteredCardReviewRecord {
         favorite_idol: '天海春香',
         favorite_idols: [idol()],
         legacy_card_id: null,
+        origin: 'exchange',
         front_object_key: 'community/fudaba/cards/registered-review/front.webp',
         back_object_key: 'community/fudaba/cards/registered-review/back.webp',
         accent: '#f34e6c',

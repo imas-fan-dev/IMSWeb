@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView, parseFudabaRevision, validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
+import { isNamecardCompatibilityOrigin } from '@/domains/community/fudaba/card-media-layout';
 import {
     fudabaRepository,
     services
@@ -13,7 +14,10 @@ import type {
 import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { convertUserImageToWebp } from '@/utils/media/user-image';
-import { fudabaCardSideVersionObjectKey } from '@/utils/storage/business-object-keys';
+import {
+    fudabaCardSideVersionObjectKey,
+    namecardCardMediaObjectKey
+} from '@/utils/storage/business-object-keys';
 import {
     deleteObjectWithCompensation,
     deleteOwnedObjectWithCompensation
@@ -102,8 +106,18 @@ export async function handleUploadFudabaOwnedMedia(
             runtime.images,
             MAX_CARD_IMAGE_BYTES
         );
-        key = fudabaCardSideVersionObjectKey(cardId, side, crypto.randomUUID());
+        // A compatibility row passes through the namecard readers, which reverse
+        // the key, so its replacement has to land in the namecards layout. An
+        // exchange row only ever reaches the owner route, which serves the key
+        // verbatim and keeps the versioned Fudaba layout.
+        key = isNamecardCompatibilityOrigin(current.origin)
+            ? namecardCardMediaObjectKey(cardId, side)
+            : fudabaCardSideVersionObjectKey(cardId, side, crypto.randomUUID());
         ownerToken = randomHex(32);
+        // `updateCardMediaForOwner` resets the card to `pending` with unknown
+        // media rights, so the replacement is not publicly visible yet. It is
+        // stored protected and becomes public only when the review publishes
+        // the card again, which is also where already-stored media is published.
         await runtime.storage.put(key, converted.body, {
             contentType: 'image/webp',
             protectedAccess: true,

@@ -129,16 +129,29 @@ export function namecardOriginalUrlFromObjectKey(key: string): string {
 // media, so a Fudaba-layout key has no readable public form there. The stem is
 // derived from the card rather than from the source so a claim never collides
 // with, or silently reuses, the legacy object it copied from.
+// A compatibility row (guest/legacy) must keep the canonical namecards layout,
+// because the namecard readers reverse the stored key back into a public path
+// and they do so for every status except withdrawn and rejected -- including
+// rows awaiting review. The stem is derived from the card rather than from any
+// source object so it is stable for that card and never collides with, or
+// silently reuses, an object it copied from.
+export function namecardCardMediaObjectKey(
+    cardId: string,
+    side: 'front' | 'back',
+    extension: string = 'webp'
+): string {
+    return namecardImageObjectKey(
+        `${fudabaEntitySegment(cardId)}-${side}.${fudabaImageExtension(extension)}`
+    );
+}
+
 export function namecardClaimMediaObjectKey(
     sourceObjectKey: string,
     cardId: string,
     side: 'front' | 'back'
 ): string {
     const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(sourceObjectKey);
-    const extension = match ? match[2]! : 'webp';
-    return namecardImageObjectKey(
-        `${fudabaEntitySegment(cardId)}-${side}.${extension}`
-    );
+    return namecardCardMediaObjectKey(cardId, side, match ? match[2]! : 'webp');
 }
 
 export function producerMapAssetObjectKey(filename: string): string {

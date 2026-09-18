@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ensureNamecardThumbnails } from '@/domains/community/fudaba/card-media-assets';
 import {
+    namecardCardMediaObjectKey,
     namecardClaimMediaObjectKey,
     namecardMediaObjectKeys,
     namecardOriginalUrlFromObjectKey,
@@ -107,6 +108,19 @@ test('claimed media keeps the source extension and never reuses the source', () 
             sourceKey
         );
     }
+});
+
+// Every writer that targets a compatibility row goes through this one builder,
+// so pin its output against the readers that will reverse it back. A key the
+// reversal cannot read takes down the whole listing that contains it.
+test('card media keys stay readable by the namecard readers', () => {
+    const key = namecardCardMediaObjectKey('legacy-42', 'front');
+    assert.equal(key, 'community/namecards/assets/legacy-42-front/image.webp');
+    assert.equal(
+        namecardOriginalUrlFromObjectKey(key),
+        '/uploads/namecard/original/legacy-42-front.webp'
+    );
+    assert.equal(publicMediaObjectKey(namecardOriginalUrlFromObjectKey(key)), key);
 });
 
 function stubThumbnailRuntime(overrides: {

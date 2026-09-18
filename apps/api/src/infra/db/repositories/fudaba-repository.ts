@@ -77,7 +77,7 @@ const OWNER_OFFICE_COLUMNS = `office.id, office.owner_account_id, office.slug,
     office.is_open, office.visitor_count, office.status, office.revision,
     office.created_at, office.updated_at, office.archived_at`;
 const CARD_COLUMNS = `id, owner_account_id, producer_name, display_name,
-    series_code, favorite_idol, legacy_card_id, front_object_key,
+    series_code, favorite_idol, legacy_card_id, origin, front_object_key,
     back_object_key, accent, bio, trade_note, available, source_url,
     source_label, source_credit, media_rights_status, publication_status,
     revision, created_at, updated_at, deleted_at`;
