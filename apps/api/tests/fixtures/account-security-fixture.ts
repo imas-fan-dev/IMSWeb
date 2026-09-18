@@ -14,9 +14,15 @@ import {
     PLATFORM_CSRF_TOKEN_COOKIE
 } from '@/domains/identity/platform-auth/contracts/session';
 import type { PasswordVerifier } from '@/ports/security';
+import type { PlatformOAuthClient, PlatformOAuthProviderSummary } from '@/ports/oauth';
 import type {
+    CreateVerifiedEmailCredentialForAccountInput,
+    CreateVerifiedEmailCredentialForAccountResult,
     DeletePlatformOAuthIdentityInput,
     DeletePlatformOAuthIdentityResult,
+    MigrateEmailCredentialForAccountInput,
+    MigrateEmailCredentialForAccountResult,
+    NewPlatformOAuthStateInput,
     PlatformAccountRepository,
     PlatformAccountStatus,
     PlatformEmailCredentialRecord,
@@ -26,6 +32,7 @@ import type {
     UpdatePlatformPasswordInput,
     UpdatePlatformPasswordResult
 } from '@/ports/repositories';
+import { hashPlatformEmailBindingCode } from '@/domains/identity/platform-account-security/email/email-binding-code';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import {
     bearerTokenHeaders,
@@ -123,6 +130,18 @@ export interface AccountSecurityFixtureOptions {
     accountStatus?: PlatformAccountStatus;
     credential?: PlatformEmailCredentialRecord | null;
     oauthLinks?: StoredOAuthLink[];
+    oauthProviders?: PlatformOAuthProviderSummary[];
+    foreignEmails?: string[];
+}
+
+/** One row of the shared verification-code table, reduced to the columns the
+ * binding repository clauses actually read. */
+export interface StoredVerificationCode {
+    codeHash: string;
+    consumedToken: string | null;
+    expiresAt: number;
+    attemptsRemaining: number;
+    deliveryToken: string | null;
 }
 
 export class AccountSecurityFixture {
@@ -135,6 +154,18 @@ export class AccountSecurityFixture {
     readonly passwordInputs: UpdatePlatformPasswordInput[] = [];
     readonly unlinkInputs: DeletePlatformOAuthIdentityInput[] = [];
     oauthLinks: StoredOAuthLink[];
+    readonly verificationCodes = new Map<string, StoredVerificationCode>();
+    /** The raw code the stub cipher saw, so a test can submit what the mail carried. */
+    readonly emailedCodes = new Map<string, string>();
+    readonly emailEnqueues: Array<{ normalizedEmail: string; codeHash: string; createdAt: number }> = [];
+    readonly emailBindingInputs: CreateVerifiedEmailCredentialForAccountInput[] = [];
+    readonly emailMigrationInputs: MigrateEmailCredentialForAccountInput[] = [];
+    readonly oauthStateInputs: NewPlatformOAuthStateInput[] = [];
+    readonly foreignEmails: Set<string>;
+    oauthProviders: PlatformOAuthProviderSummary[];
+    oauthAuthorizationUrl: URL | null = new URL(
+        'https://github.example.test/authorize'
+    );
     readonly app: ReturnType<typeof createHonoApp>;
 
     constructor(options: AccountSecurityFixtureOptions = {}) {
@@ -156,6 +187,15 @@ export class AccountSecurityFixture {
         this.oauthLinks = [
             ...(options.oauthLinks ?? [oauthLink(GOOGLE_PROVIDER)]),
             oauthLink(FOREIGN_PROVIDER, { account_id: FOREIGN_ACCOUNT_ID })
+        ];
+        this.foreignEmails = new Set(options.foreignEmails ?? []);
+        this.oauthProviders = options.oauthProviders ?? [
+            {
+                code: GITHUB_PROVIDER,
+                displayName: 'GitHub',
+                icon: 'github',
+                buttonColor: '#24292f'
+            }
         ];
         for (const record of [
             session(CURRENT_SESSION_ID, ACCOUNT_ID),
@@ -187,6 +227,49 @@ export class AccountSecurityFixture {
             .filter((link) => link.account_id === accountId)
             .map((link) => link.provider_code)
             .sort();
+    }
+
+    /**
+     * Seeds the verification-code table with a binding-domain hash. The domain
+     * function is shared on purpose: the fixture mirrors the storage side of
+     * the protocol, not the hash derivation.
+     */
+    issueEmailBindingCode(
+        email: string,
+        code: string,
+        overrides: Partial<StoredVerificationCode> = {}
+    ): void {
+        this.emailedCodes.set(email, code);
+        this.verificationCodes.set(email, {
+            codeHash: hashPlatformEmailBindingCode(email, code),
+            consumedToken: null,
+            expiresAt: Date.now() + 10 * 60_000,
+            attemptsRemaining: 5,
+            deliveryToken: null,
+            ...overrides
+        });
+    }
+
+    private foreignIdentity() {
+        return {
+            account: {
+                id: FOREIGN_ACCOUNT_ID,
+                status: 'active' as const,
+                token_version: 0,
+                created_at: 500,
+                updated_at: 500,
+                deleted_at: null
+            },
+            profile: {
+                account_id: FOREIGN_ACCOUNT_ID,
+                display_name: 'Foreign Owner',
+                avatar_object_key: null,
+                avatar_external_url: null,
+                home_city: null,
+                bio: '',
+                updated_at: 500
+            }
+        };
     }
 
     // One source of truth for "does this account have a password", so the list
@@ -288,6 +371,108 @@ export class AccountSecurityFixture {
                 (link) => link !== target
             );
             return { status: 'deleted' };
+        },
+        findEmailIdentity: async (email: string) => {
+            const credential = this.credentialFor(ACCOUNT_ID);
+            if (credential && credential.normalized_email === email) {
+                return { ...this.identity(), credential: { ...credential } };
+            }
+            if (this.foreignEmails.has(email)) {
+                return {
+                    ...this.foreignIdentity(),
+                    credential: {
+                        normalized_email: email,
+                        account_id: FOREIGN_ACCOUNT_ID,
+                        algorithm: 'bcrypt' as const,
+                        parameters_json: '{}',
+                        salt: null,
+                        password_hash: storedDigest('foreign-secret'),
+                        created_at: 500,
+                        updated_at: 500
+                    }
+                };
+            }
+            return null;
+        },
+        // Mirrors the repository batch: the credential fence runs first, the
+        // code must still be unconsumed and undelivered, the target address
+        // must be free, and only then is the code spent and the row written.
+        createVerifiedEmailCredentialForAccount: async (
+            input: CreateVerifiedEmailCredentialForAccountInput
+        ): Promise<CreateVerifiedEmailCredentialForAccountResult> => {
+            this.emailBindingInputs.push(input);
+            const existing = this.credentialFor(input.accountId);
+            if (existing) {
+                return { status: 'already-bound', credential: { ...existing } };
+            }
+            const code = this.verificationCodes.get(input.credential.normalizedEmail);
+            if (
+                !code ||
+                code.deliveryToken !== null ||
+                code.consumedToken !== null ||
+                code.expiresAt <= input.verification.verifiedAt ||
+                code.attemptsRemaining <= 0 ||
+                code.codeHash !== input.verification.codeHash
+            ) {
+                return { status: 'verification-invalid' };
+            }
+            if (this.foreignEmails.has(input.credential.normalizedEmail)) {
+                return { status: 'email-conflict' };
+            }
+            code.consumedToken = input.verification.consumedToken;
+            this.verificationCodes.delete(input.credential.normalizedEmail);
+            this.credential = {
+                normalized_email: input.credential.normalizedEmail,
+                account_id: input.accountId,
+                algorithm: 'bcrypt',
+                parameters_json: input.credential.parametersJson,
+                salt: null,
+                password_hash: input.credential.passwordHash,
+                created_at: input.credential.createdAt,
+                updated_at: input.credential.updatedAt
+            };
+            return { status: 'created', credential: { ...this.credential } };
+        },
+        // Moving in place: only the address and `updated_at` change, and the
+        // fence is the exact credential the handler read.
+        migrateEmailCredentialForAccount: async (
+            input: MigrateEmailCredentialForAccountInput
+        ): Promise<MigrateEmailCredentialForAccountResult> => {
+            this.emailMigrationInputs.push(input);
+            const current = this.credentialFor(input.accountId);
+            if (!current) return { status: 'not-bound' };
+            if (
+                current.normalized_email !== input.currentNormalizedEmail ||
+                current.password_hash !== input.expectedPasswordHash ||
+                current.updated_at !== input.expectedUpdatedAt
+            ) {
+                return { status: 'state-conflict' };
+            }
+            const code = this.verificationCodes.get(input.newNormalizedEmail);
+            if (
+                !code ||
+                code.deliveryToken !== null ||
+                code.consumedToken !== null ||
+                code.expiresAt <= input.verification.verifiedAt ||
+                code.attemptsRemaining <= 0 ||
+                code.codeHash !== input.verification.codeHash
+            ) {
+                return { status: 'verification-invalid' };
+            }
+            if (this.foreignEmails.has(input.newNormalizedEmail)) {
+                return { status: 'email-conflict' };
+            }
+            code.consumedToken = input.verification.consumedToken;
+            this.verificationCodes.delete(input.newNormalizedEmail);
+            this.credential = {
+                ...current,
+                normalized_email: input.newNormalizedEmail,
+                updated_at: input.updatedAt
+            };
+            return { status: 'migrated', credential: { ...this.credential } };
+        },
+        createOAuthState: async (input: NewPlatformOAuthStateInput) => {
+            this.oauthStateInputs.push(input);
         },
         listRefreshSessionsByAccount: async (
             accountId: string,
@@ -419,7 +604,65 @@ export class AccountSecurityFixture {
                     };
                 }
             },
-            config: { cookieSecure: false }
+            config: { cookieSecure: false },
+            platformEmailDeliveryQueue: {
+                enqueueRegistration: async (input: {
+                    normalizedEmail: string;
+                    codeHash: string;
+                    createdAt: number;
+                }) => {
+                    this.emailEnqueues.push({
+                        normalizedEmail: input.normalizedEmail,
+                        codeHash: input.codeHash,
+                        createdAt: input.createdAt
+                    });
+                    this.verificationCodes.set(input.normalizedEmail, {
+                        codeHash: input.codeHash,
+                        consumedToken: null,
+                        expiresAt: input.createdAt + 10 * 60_000,
+                        attemptsRemaining: 5,
+                        deliveryToken: null
+                    });
+                    return {
+                        status: 'queued' as const,
+                        resendAfter: input.createdAt + 30_000,
+                        retryAfterSeconds: 30,
+                        policyUpdatedAt: input.createdAt
+                    };
+                }
+            },
+            platformEmailJobPayloadCipher: {
+                encrypt: (
+                    identity: Record<string, unknown>,
+                    payload: {
+                        normalizedEmail: string;
+                        code: string;
+                    }
+                ) => {
+                    this.emailedCodes.set(payload.normalizedEmail, payload.code);
+                    return {
+                        ...identity,
+                        normalizedEmail: payload.normalizedEmail,
+                        payloadCiphertext: 'stub-ciphertext'
+                    };
+                },
+                decrypt: () => {
+                    throw new Error('not used');
+                }
+            },
+            platformEmailResendPolicy: {
+                getPolicy: async () => ({
+                    resendCooldownSeconds: 30,
+                    updatedAt: 1_000
+                })
+            },
+            platformOAuth: {
+                listProviders: async () => [...this.oauthProviders],
+                createAuthorizationUrl: async () => this.oauthAuthorizationUrl,
+                exchangeAuthorizationCode: async () => {
+                    throw new Error('not used');
+                }
+            } as unknown as PlatformOAuthClient
         } as unknown as RuntimeServices;
     }
 }

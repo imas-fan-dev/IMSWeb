@@ -31,6 +31,7 @@ import { requestCompletionLogger } from "@/middleware/request-observability";
 import { isSensitiveRequestPath } from "@/middleware/static-path-policy";
 import { registerAuditRoutes } from "@/domains/admin/audit/routes";
 import { registerAdminAccountRoutes } from "@/domains/admin/admin-accounts/routes";
+import { registerAdminPlatformUserRoutes } from "@/domains/admin/platform-users/routes";
 import { registerAboutRoutes } from "@/domains/content/about/routes";
 import { registerBackofficeAuthRoutes } from "@/domains/admin/backoffice-auth/routes";
 import { registerBrandAssetRoutes } from "@/domains/content/brand-assets/routes";
@@ -266,6 +267,7 @@ export function createHonoApp<
     // registered before these routes match.
     registerPlatformAccountSecurityRoutes(app);
     registerAdminAccountRoutes(app);
+    registerAdminPlatformUserRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);
     registerFudabaRoutes(app);

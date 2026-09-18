@@ -34,6 +34,10 @@ export const platformWriteRateLimit = limiter('platform-write-account', 120);
 // shared IP cannot exhaust a single account, and one account cannot brute-force
 // its own current password from many addresses.
 export const platformPasswordRateLimit = limiter('platform-security-password-account', 10);
+// Email binding shares the account dimension with the other security writes.
+// It is a separate bucket from the password one so a user resetting a password
+// and re-verifying an email cannot spend each other's budget.
+export const platformEmailCredentialRateLimit = limiter('platform-security-email-account', 10);
 export const platformSessionRateLimit = limiter('platform-security-session-account', 60);
 // An account owns a handful of links at most, so a generous ceiling still leaves
 // no room for grinding the endpoint to enumerate provider codes.

@@ -561,7 +561,7 @@ const domainSections = new Map([
         "identity",
         ["platform-auth", "platform-profile", "platform-account-security"],
     ],
-    ["admin", ["backoffice-auth", "admin-accounts", "audit"]],
+    ["admin", ["backoffice-auth", "admin-accounts", "audit", "platform-users"]],
     [
         "content",
         [
@@ -629,6 +629,7 @@ const validatedRequestDomains = new Set([
     "media",
     "namecards",
     "news",
+    "platform-users",
     "producer-map",
     "site",
     "site-packages",

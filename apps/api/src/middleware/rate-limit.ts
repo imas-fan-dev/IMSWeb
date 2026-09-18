@@ -1,4 +1,4 @@
-import { adminApiPath, apiPath, eventChroniclePath, exchangePath, platformApiPath, platformAuthPath, wikiPath } from '@imsweb/contracts/paths';
+import { adminApiPath, apiPath, eventChroniclePath, exchangePath, platformApiPath, platformAuthOAuthPath, platformAuthPath, wikiPath } from '@imsweb/contracts/paths';
 import type { ErrorResponse } from '@imsweb/contracts/common';
 import { createHash } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
@@ -61,6 +61,14 @@ export const PLATFORM_AUTH_REFRESH_LIMIT = {
 
 export const PLATFORM_AUTH_LOGIN_LIMIT = {
   bucket: "platform-auth-login",
+  limit: 20,
+  windowSeconds: 15 * 60,
+} as const;
+
+// A one-time code is short-lived and already single-use, so this budget only
+// has to stop an attacker from hammering the endpoint with guesses.
+export const PLATFORM_OAUTH_EXCHANGE_LIMIT = {
+  bucket: "platform-oauth-exchange",
   limit: 20,
   windowSeconds: 15 * 60,
 } as const;
@@ -296,6 +304,9 @@ function requestSpecificLimit(
     pathname === platformAuthPath('/refresh')
   ) {
     return PLATFORM_AUTH_REFRESH_LIMIT;
+  }
+  if (method === "POST" && pathname === platformAuthOAuthPath('/exchange')) {
+    return PLATFORM_OAUTH_EXCHANGE_LIMIT;
   }
   if (method === "POST" && pathname === platformAuthPath('/login')) {
     return PLATFORM_AUTH_LOGIN_LIMIT;

@@ -1,22 +1,37 @@
 import type {
+    CountPlatformAccountsForAdminInput,
     CreatePlatformEmailAccountResult,
+    CreatePlatformOAuthExchangeCodeInput,
+    CreatePlatformOAuthIdentityForAccountInput,
+    CreatePlatformOAuthIdentityForAccountResult,
+    CreateVerifiedEmailCredentialForAccountInput,
+    CreateVerifiedEmailCredentialForAccountResult,
     CreateVerifiedPlatformEmailAccountResult,
     CompletePlatformPasswordResetInput,
     CompletePlatformPasswordResetResult,
     CreatePlatformOAuthAccountResult,
     DeletePlatformOAuthIdentityInput,
     DeletePlatformOAuthIdentityResult,
+    ForceLogoutPlatformAccountInput,
+    ForceLogoutPlatformAccountResult,
+    ListPlatformAccountsForAdminInput,
+    MigrateEmailCredentialForAccountInput,
+    MigrateEmailCredentialForAccountResult,
     NewPlatformRefreshSessionInput,
     NewPlatformAccountInput,
     NewPlatformEmailAccountInput,
     NewPlatformOAuthAccountInput,
     NewPlatformOAuthStateInput,
     NewVerifiedPlatformEmailAccountInput,
+    PlatformAccountAdminRecord,
+    PlatformAccountAdminSearchField,
     PlatformAccountRecord,
     PlatformAccountRepository,
     PlatformAccountWithProfile,
     PlatformEmailCredentialRecord,
     PlatformEmailIdentity,
+    PlatformOAuthClientTarget,
+    PlatformOAuthExchangeCodeRecord,
     PlatformOAuthIdentity,
     PlatformOAuthLinkRecord,
     PlatformOAuthStateRecord,
@@ -25,6 +40,8 @@ import type {
     PlatformRefreshSessionRecord,
     PlatformSecurityEventInput,
     RevokePlatformRefreshSessionsInput,
+    SetPlatformAccountStatusInput,
+    SetPlatformAccountStatusResult,
     UpdatePlatformPasswordInput,
     UpdatePlatformPasswordResult,
     UpdatePlatformProfileAvatarInput,
@@ -51,6 +68,29 @@ const REFRESH_SESSION_LIST_LIMIT = 200;
 // Bounded by UNIQUE (account_id, provider_code) in practice, but the wire
 // contract caps the array, so the statement caps it too.
 const OAUTH_LINK_LIST_LIMIT = 64;
+// The admin list/detail projection. Session rows never enter it, so no
+// `token_hash` / `previous_token_hash` / `csrf_hash` can leak by accident;
+// the count subquery answers "are they signed in" on its own. `?` is the
+// caller's `activeAt` clock.
+const ADMIN_ACCOUNT_SELECT = `SELECT accounts.id, accounts.status,
+        profiles.display_name, credential.normalized_email,
+        (credential.account_id IS NOT NULL) AS has_password,
+        (
+            SELECT COUNT(*) FROM platform_refresh_sessions session
+            WHERE session.account_id=accounts.id AND session.revoked_at IS NULL
+              AND session.expires_at>?
+        ) AS active_session_count,
+        (
+            SELECT MAX(COALESCE(session.last_seen_at, session.created_at))
+            FROM platform_refresh_sessions session
+            WHERE session.account_id=accounts.id
+        ) AS last_login_at,
+        accounts.created_at, accounts.updated_at
+ FROM platform_accounts accounts
+ JOIN platform_profiles profiles ON profiles.account_id=accounts.id
+ LEFT JOIN platform_email_credentials credential
+   ON credential.account_id=accounts.id
+ WHERE accounts.deleted_at IS NULL`;
 
 interface PlatformAccountProfileRow extends PlatformAccountRecord {
     profile_account_id: string;
@@ -101,6 +141,23 @@ interface PlatformOAuthIdentityRow extends PlatformAccountProfileRow {
     oauth_provider_avatar_url: string;
     oauth_created_at: number;
     oauth_updated_at: number;
+}
+
+interface PlatformOAuthExchangeCodeRow {
+    account_id: string;
+    code_challenge: string;
+}
+
+interface PlatformAccountAdminRow {
+    id: string;
+    status: PlatformAccountAdminRecord['status'];
+    display_name: string;
+    normalized_email: string | null;
+    has_password: boolean | number | string;
+    active_session_count: number | string;
+    last_login_at: number | string | null;
+    created_at: number;
+    updated_at: number;
 }
 
 interface PlatformEmailIdentityRow extends PlatformAccountProfileRow {
@@ -179,6 +236,26 @@ function isEmailConflict(error: unknown): boolean {
         typeof candidate.message === 'string' &&
         candidate.message.includes(
             'UNIQUE constraint failed: platform_email_credentials.normalized_email'
+        );
+}
+
+// The account_id unique constraint is a different conflict from the email
+// primary key: it means "this account already has a credential", which the
+// binding flow reports as already-bound rather than as a taken address.
+// `isEmailConflict` above only matches `_pkey`, so this needs its own check.
+function isEmailAccountConflict(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const candidate = error as { code?: unknown; constraint?: unknown; message?: unknown };
+    if (
+        candidate.code === '23505' &&
+        candidate.constraint === 'platform_email_credentials_account_id_key'
+    ) {
+        return true;
+    }
+    return candidate.code === 'SQLITE_CONSTRAINT' &&
+        typeof candidate.message === 'string' &&
+        candidate.message.includes(
+            'UNIQUE constraint failed: platform_email_credentials.account_id'
         );
 }
 
@@ -506,12 +583,16 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
                 this.database,
                 `INSERT INTO platform_oauth_states
                     (state_hash, provider_code, intent, linking_account_id,
-                     code_verifier, return_path, expires_at, created_at)
-                 VALUES (?, ?, ?, NULL, ?, ?, ?, ?)`,
+                     client_target, app_code_challenge, code_verifier,
+                     return_path, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     input.stateHash,
                     input.providerCode,
                     input.intent,
+                    input.linkingAccountId,
+                    input.clientTarget,
+                    input.appCodeChallenge,
                     input.codeVerifier,
                     input.returnPath,
                     input.expiresAt,
@@ -521,6 +602,11 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
         ]));
     }
 
+    // The whole row comes back, including `intent` and `client_target`: the
+    // callback, not this statement, decides which flow owns the state. Filtering
+    // on `intent='login'` here would force link and app flows into a second,
+    // racy read. `state_hash` is the primary key, so the row is unique either
+    // way.
     async consumeOAuthState(
         stateHash: string,
         providerCode: PlatformOAuthProviderCode,
@@ -529,13 +615,27 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
         const result = await sqlStatement(
             this.database,
             `DELETE FROM platform_oauth_states
-             WHERE state_hash=? AND provider_code=? AND intent='login'
-               AND expires_at>?
+             WHERE state_hash=? AND provider_code=? AND expires_at>?
              RETURNING state_hash, provider_code, intent, linking_account_id,
-                       code_verifier, return_path, expires_at, created_at`,
+                       client_target, app_code_challenge, code_verifier,
+                       return_path, expires_at, created_at`,
             [stateHash, providerCode, consumedAt]
         ).all<PlatformOAuthStateRecord>();
         return result.results[0] ?? null;
+    }
+
+    async findOAuthStateClientTarget(
+        stateHash: string,
+        providerCode: PlatformOAuthProviderCode,
+        now: number
+    ): Promise<PlatformOAuthClientTarget | null> {
+        const row = await queryOne<{ client_target: PlatformOAuthClientTarget }>(
+            this.database,
+            `SELECT client_target FROM platform_oauth_states
+             WHERE state_hash=? AND provider_code=? AND expires_at>?`,
+            [stateHash, providerCode, now]
+        );
+        return row?.client_target ?? null;
     }
 
     async findOAuthIdentity(
@@ -757,6 +857,135 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
         return { status: 'created', identity };
     }
 
+    createOAuthIdentityForAccount(
+        input: CreatePlatformOAuthIdentityForAccountInput
+    ): Promise<CreatePlatformOAuthIdentityForAccountResult> {
+        return this.serializeWrite(async () => {
+            // The pre-read only chooses the answer; the unique constraints on
+            // `platform_oauth_identities` decide the race. Reading first keeps
+            // the idempotent re-bind and the two conflicts from writing a row.
+            const existing = await this.findOAuthIdentity(
+                input.providerCode,
+                input.providerSubject
+            );
+            if (existing) {
+                return existing.oauth.account_id === input.accountId
+                    ? { status: 'already-linked', identity: existing }
+                    : { status: 'identity-conflict', identity: existing };
+            }
+            const ownLink = await queryOne<{ account_id: string }>(
+                this.database,
+                `SELECT account_id FROM platform_oauth_identities
+                 WHERE account_id=? AND provider_code=?`,
+                [input.accountId, input.providerCode]
+            );
+            if (ownLink) return { status: 'provider-conflict' };
+            try {
+                const results = await this.database.batch([
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO platform_oauth_identities
+                            (provider_code, provider_subject, account_id,
+                             provider_display_name, provider_avatar_url,
+                             created_at, updated_at)
+                         SELECT ?, ?, ?, ?, ?, ?, ?
+                         WHERE EXISTS (
+                             SELECT 1 FROM platform_accounts account
+                             WHERE account.id=? AND account.status='active'
+                               AND account.deleted_at IS NULL
+                         )`,
+                        [
+                            input.providerCode,
+                            input.providerSubject,
+                            input.accountId,
+                            input.providerDisplayName,
+                            input.providerAvatarUrl,
+                            input.createdAt,
+                            input.updatedAt,
+                            input.accountId
+                        ]
+                    ),
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO platform_security_events
+                            (id, account_id, event_type, request_id, ip_address,
+                             user_agent, metadata_json, created_at)
+                         SELECT ?, account_id, ?, ?, ?, ?, ?, ?
+                         FROM platform_oauth_identities identity
+                         WHERE identity.account_id=?
+                           AND identity.provider_code=?
+                           AND identity.provider_subject=?`,
+                        [
+                            ...conditionalSecurityEventValues(input.event),
+                            input.accountId,
+                            input.providerCode,
+                            input.providerSubject
+                        ]
+                    )
+                ]);
+                if (results[0]?.meta.changes !== 1) return { status: 'not-found' };
+            } catch (error) {
+                if (!isOAuthIdentityConflict(error)) throw error;
+                const raced = await this.findOAuthIdentity(
+                    input.providerCode,
+                    input.providerSubject
+                );
+                if (!raced) return { status: 'provider-conflict' };
+                return raced.oauth.account_id === input.accountId
+                    ? { status: 'already-linked', identity: raced }
+                    : { status: 'identity-conflict', identity: raced };
+            }
+            const identity = await this.findOAuthIdentity(
+                input.providerCode,
+                input.providerSubject
+            );
+            if (!identity) throw new Error('Platform OAuth identity was not linked');
+            return { status: 'created', identity };
+        });
+    }
+
+    async createOAuthExchangeCode(
+        input: CreatePlatformOAuthExchangeCodeInput
+    ): Promise<void> {
+        await this.serializeWrite(() => this.database.batch([
+            sqlStatement(
+                this.database,
+                `DELETE FROM platform_oauth_exchange_codes WHERE expires_at<=?`,
+                [input.createdAt]
+            ),
+            sqlStatement(
+                this.database,
+                `INSERT INTO platform_oauth_exchange_codes
+                    (code_hash, account_id, code_challenge, expires_at, created_at)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [
+                    input.codeHash,
+                    input.accountId,
+                    input.codeChallenge,
+                    input.expiresAt,
+                    input.createdAt
+                ]
+            )
+        ]));
+    }
+
+    // DELETE ... RETURNING is the whole point: validation and invalidation are
+    // one statement, so two concurrent exchanges cannot both redeem the same
+    // code. The cache port has no GETDEL, which is why this cannot live there.
+    async consumeOAuthExchangeCode(
+        codeHash: string,
+        consumedAt: number
+    ): Promise<PlatformOAuthExchangeCodeRecord | null> {
+        const result = await sqlStatement(
+            this.database,
+            `DELETE FROM platform_oauth_exchange_codes
+             WHERE code_hash=? AND expires_at>?
+             RETURNING account_id, code_challenge`,
+            [codeHash, consumedAt]
+        ).all<PlatformOAuthExchangeCodeRow>();
+        return result.results[0] ?? null;
+    }
+
     async createEmailAccount(
         input: NewPlatformEmailAccountInput
     ): Promise<CreatePlatformEmailAccountResult> {
@@ -954,6 +1183,259 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
             const identity = await this.findAccountWithProfileById(input.id);
             if (!identity) throw new Error('Verified Platform email account was not created');
             return { status: 'created', identity };
+        });
+    }
+
+    // Provisioning a first email credential on an account that already exists.
+    // Same `consumed_token` fence as `createVerifiedEmailAccount`, but the
+    // account and profile are not created here: the caller is already signed
+    // in. `account_id`'s unique constraint is the backstop against two
+    // concurrent binds, reported as `already-bound` rather than `email-conflict`
+    // so the caller is not told the address is taken by someone else.
+    createVerifiedEmailCredentialForAccount(
+        input: CreateVerifiedEmailCredentialForAccountInput
+    ): Promise<CreateVerifiedEmailCredentialForAccountResult> {
+        return this.serializeWrite(async () => {
+            const already = await this.findEmailCredentialByAccountId(
+                input.accountId
+            );
+            if (already) return { status: 'already-bound', credential: already };
+            let results;
+            try {
+                results = await this.database.batch([
+                    sqlStatement(
+                        this.database,
+                        `UPDATE platform_email_verification_codes
+                         SET attempts_remaining=attempts_remaining-
+                                CASE WHEN code_hash=? THEN 0 ELSE 1 END,
+                             consumed_token=CASE WHEN code_hash=? THEN ? ELSE NULL END,
+                             updated_at=?
+                         WHERE normalized_email=? AND consumed_token IS NULL
+                           AND delivery_token IS NULL
+                           AND expires_at>? AND attempts_remaining>0
+                         RETURNING consumed_token`,
+                        [
+                            input.verification.codeHash,
+                            input.verification.codeHash,
+                            input.verification.consumedToken,
+                            input.verification.verifiedAt,
+                            input.credential.normalizedEmail,
+                            input.verification.verifiedAt
+                        ]
+                    ),
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO platform_email_credentials
+                            (normalized_email, account_id, algorithm, parameters_json,
+                             salt, password_hash, created_at, updated_at)
+                         SELECT ?, ?, ?, ?, NULL, ?, ?, ?
+                         WHERE EXISTS (
+                             SELECT 1 FROM platform_email_verification_codes
+                             WHERE normalized_email=? AND code_hash=?
+                               AND consumed_token=? AND expires_at>?
+                         ) AND EXISTS (
+                             SELECT 1 FROM platform_accounts account
+                             WHERE account.id=? AND account.status='active'
+                               AND account.deleted_at IS NULL
+                         )`,
+                        [
+                            input.credential.normalizedEmail,
+                            input.accountId,
+                            input.credential.algorithm,
+                            input.credential.parametersJson,
+                            input.credential.passwordHash,
+                            input.credential.createdAt,
+                            input.credential.updatedAt,
+                            input.credential.normalizedEmail,
+                            input.verification.codeHash,
+                            input.verification.consumedToken,
+                            input.verification.verifiedAt,
+                            input.accountId
+                        ]
+                    ),
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO platform_security_events
+                            (id, account_id, event_type, request_id, ip_address,
+                             user_agent, metadata_json, created_at)
+                         SELECT ?, account_id, ?, ?, ?, ?, ?, ?
+                         FROM platform_email_credentials
+                         WHERE normalized_email=? AND account_id=?`,
+                        [
+                            ...conditionalSecurityEventValues(input.event),
+                            input.credential.normalizedEmail,
+                            input.accountId
+                        ]
+                    ),
+                    sqlStatement(
+                        this.database,
+                        `DELETE FROM platform_email_verification_codes
+                         WHERE normalized_email=? AND code_hash=? AND consumed_token=?
+                           AND EXISTS (
+                               SELECT 1 FROM platform_email_credentials credential
+                               WHERE credential.normalized_email=?
+                                 AND credential.account_id=?
+                           )`,
+                        [
+                            input.credential.normalizedEmail,
+                            input.verification.codeHash,
+                            input.verification.consumedToken,
+                            input.credential.normalizedEmail,
+                            input.accountId
+                        ]
+                    )
+                ]);
+            } catch (error) {
+                if (isEmailAccountConflict(error)) {
+                    const bound = await this.findEmailCredentialByAccountId(
+                        input.accountId
+                    );
+                    if (bound) return { status: 'already-bound', credential: bound };
+                    throw error;
+                }
+                if (isEmailConflict(error)) return { status: 'email-conflict' };
+                throw error;
+            }
+            if (results[1]?.meta.changes !== 1 || results[3]?.meta.changes !== 1) {
+                return { status: 'verification-invalid' };
+            }
+            const credential = await this.findEmailCredentialByAccountId(
+                input.accountId
+            );
+            if (!credential) {
+                throw new Error('Platform email credential was not created');
+            }
+            return { status: 'created', credential };
+        });
+    }
+
+    // Moving an email credential in place. Only the address and `updated_at`
+    // move, so the password hash, algorithm and salt survive (AC2a). The
+    // `UPDATE`'s own WHERE carries the code fence and the optimistic row
+    // fence, so it either applies to exactly the credential the handler read or
+    // applies nothing.
+    migrateEmailCredentialForAccount(
+        input: MigrateEmailCredentialForAccountInput
+    ): Promise<MigrateEmailCredentialForAccountResult> {
+        return this.serializeWrite(async () => {
+            const current = await this.findEmailCredentialByAccountId(
+                input.accountId
+            );
+            if (!current) return { status: 'not-bound' };
+            if (
+                current.normalized_email !== input.currentNormalizedEmail ||
+                current.password_hash !== input.expectedPasswordHash ||
+                current.updated_at !== input.expectedUpdatedAt
+            ) {
+                return { status: 'state-conflict' };
+            }
+            let results;
+            try {
+                results = await this.database.batch([
+                    sqlStatement(
+                        this.database,
+                        `UPDATE platform_email_verification_codes
+                         SET attempts_remaining=attempts_remaining-
+                                CASE WHEN code_hash=? THEN 0 ELSE 1 END,
+                             consumed_token=CASE WHEN code_hash=? THEN ? ELSE NULL END,
+                             updated_at=?
+                         WHERE normalized_email=? AND consumed_token IS NULL
+                           AND delivery_token IS NULL
+                           AND expires_at>? AND attempts_remaining>0
+                         RETURNING consumed_token`,
+                        [
+                            input.verification.codeHash,
+                            input.verification.codeHash,
+                            input.verification.consumedToken,
+                            input.verification.verifiedAt,
+                            input.newNormalizedEmail,
+                            input.verification.verifiedAt
+                        ]
+                    ),
+                    sqlStatement(
+                        this.database,
+                        `UPDATE platform_email_credentials
+                         SET normalized_email=?, updated_at=?
+                         WHERE account_id=? AND normalized_email=?
+                           AND password_hash=? AND updated_at=?
+                           AND EXISTS (
+                               SELECT 1 FROM platform_email_verification_codes
+                               WHERE normalized_email=? AND code_hash=?
+                                 AND consumed_token=? AND expires_at>?
+                           )`,
+                        [
+                            input.newNormalizedEmail,
+                            input.updatedAt,
+                            input.accountId,
+                            input.currentNormalizedEmail,
+                            input.expectedPasswordHash,
+                            input.expectedUpdatedAt,
+                            input.newNormalizedEmail,
+                            input.verification.codeHash,
+                            input.verification.consumedToken,
+                            input.verification.verifiedAt
+                        ]
+                    ),
+                    sqlStatement(
+                        this.database,
+                        `INSERT INTO platform_security_events
+                            (id, account_id, event_type, request_id, ip_address,
+                             user_agent, metadata_json, created_at)
+                         SELECT ?, account_id, ?, ?, ?, ?, ?, ?
+                         FROM platform_email_credentials
+                         WHERE normalized_email=? AND account_id=?`,
+                        [
+                            ...conditionalSecurityEventValues(input.event),
+                            input.newNormalizedEmail,
+                            input.accountId
+                        ]
+                    ),
+                    sqlStatement(
+                        this.database,
+                        `DELETE FROM platform_email_verification_codes
+                         WHERE normalized_email=? AND code_hash=? AND consumed_token=?
+                           AND EXISTS (
+                               SELECT 1 FROM platform_email_credentials credential
+                               WHERE credential.normalized_email=?
+                                 AND credential.account_id=?
+                           )`,
+                        [
+                            input.newNormalizedEmail,
+                            input.verification.codeHash,
+                            input.verification.consumedToken,
+                            input.newNormalizedEmail,
+                            input.accountId
+                        ]
+                    )
+                ]);
+            } catch (error) {
+                if (isEmailConflict(error)) return { status: 'email-conflict' };
+                throw error;
+            }
+            if (results[1]?.meta.changes !== 1) {
+                // The fence missed after it passed the pre-read. Re-read to tell
+                // a concurrent writer (state conflict) from a code that never
+                // validated (verification invalid) instead of guessing.
+                const after = await this.findEmailCredentialByAccountId(
+                    input.accountId
+                );
+                if (!after) return { status: 'not-bound' };
+                if (
+                    after.normalized_email !== input.currentNormalizedEmail ||
+                    after.password_hash !== input.expectedPasswordHash ||
+                    after.updated_at !== input.expectedUpdatedAt
+                ) {
+                    return { status: 'state-conflict' };
+                }
+                return { status: 'verification-invalid' };
+            }
+            const credential = await this.findEmailCredentialByAccountId(
+                input.accountId
+            );
+            if (!credential) {
+                throw new Error('Platform email credential was not migrated');
+            }
+            return { status: 'migrated', credential };
         });
     }
 
@@ -1694,6 +2176,271 @@ export class SqlPlatformAccountRepository implements PlatformAccountRepository, 
                 'DELETE FROM platform_refresh_sessions WHERE expires_at<=?',
                 [now]
             );
+        });
+    }
+
+    // ── Admin platform-user management ────────────────────────────────────
+
+    private adminAccountRecord(
+        row: PlatformAccountAdminRow
+    ): PlatformAccountAdminRecord {
+        return {
+            id: row.id,
+            status: row.status,
+            display_name: row.display_name,
+            normalized_email: row.normalized_email,
+            has_password: sqlBoolean(row.has_password),
+            active_session_count: Number(row.active_session_count),
+            last_login_at:
+                row.last_login_at === null ? null : Number(row.last_login_at),
+            created_at: row.created_at,
+            updated_at: row.updated_at
+        };
+    }
+
+    private adminAccountFilter(input: {
+        field: PlatformAccountAdminSearchField;
+        query: string | null;
+    }): { sql: string; values: unknown[] } {
+        if (input.query === null) return { sql: '', values: [] };
+        switch (input.field) {
+            case 'id':
+                return { sql: ' AND accounts.id=?', values: [input.query] };
+            case 'email':
+                return {
+                    sql: ' AND credential.normalized_email=?',
+                    values: [input.query]
+                };
+            case 'display_name':
+                // The domain escapes `%`, `_` and `\` in `query`; the
+                // explicit backslash escape keeps PostgreSQL from treating
+                // those as wildcards.
+                return {
+                    sql: ` AND profiles.display_name ILIKE ? ESCAPE '\\'`,
+                    values: [input.query]
+                };
+        }
+    }
+
+    private async requireAdminAccount(
+        accountId: string,
+        activeAt: number
+    ): Promise<PlatformAccountAdminRecord> {
+        const row = await queryOne<PlatformAccountAdminRow>(
+            this.database,
+            `${ADMIN_ACCOUNT_SELECT} AND accounts.id=?`,
+            [activeAt, accountId]
+        );
+        if (!row) throw new Error('Admin account projection was not found');
+        return this.adminAccountRecord(row);
+    }
+
+    async listPlatformAccountsForAdmin(
+        input: ListPlatformAccountsForAdminInput
+    ): Promise<PlatformAccountAdminRecord[]> {
+        const filter = this.adminAccountFilter(input);
+        const rows = await queryAll<PlatformAccountAdminRow>(
+            this.database,
+            `${ADMIN_ACCOUNT_SELECT}${filter.sql}
+             ORDER BY accounts.created_at DESC, accounts.id ASC
+             LIMIT ? OFFSET ?`,
+            [input.activeAt, ...filter.values, input.limit, input.offset]
+        );
+        return rows.map((row) => this.adminAccountRecord(row));
+    }
+
+    async countPlatformAccountsForAdmin(
+        input: CountPlatformAccountsForAdminInput
+    ): Promise<number> {
+        const filter = this.adminAccountFilter(input);
+        const row = await queryOne<{ total: number | string }>(
+            this.database,
+            `SELECT COUNT(*) AS total
+             FROM platform_accounts accounts
+             JOIN platform_profiles profiles ON profiles.account_id=accounts.id
+             LEFT JOIN platform_email_credentials credential
+               ON credential.account_id=accounts.id
+             WHERE accounts.deleted_at IS NULL${filter.sql}`,
+            [...filter.values]
+        );
+        return Number(row?.total ?? 0);
+    }
+
+    async setPlatformAccountStatus(
+        input: SetPlatformAccountStatusInput
+    ): Promise<SetPlatformAccountStatusResult> {
+        return this.serializeWrite(async () => {
+            const current = await queryOne<{
+                status: PlatformAccountRecord['status'];
+                updated_at: number;
+                deleted_at: number | null;
+            }>(
+                this.database,
+                `SELECT status, updated_at, deleted_at FROM platform_accounts
+                 WHERE id=?`,
+                [input.accountId]
+            );
+            if (!current || current.deleted_at !== null) {
+                return { status: 'not-found' };
+            }
+            if (current.updated_at !== input.expectedUpdatedAt) {
+                return {
+                    status: 'conflict',
+                    account: await this.requireAdminAccount(
+                        input.accountId,
+                        input.updatedAt
+                    )
+                };
+            }
+            if (current.status === input.status) {
+                return {
+                    status: 'saved',
+                    changed: false,
+                    account: await this.requireAdminAccount(
+                        input.accountId,
+                        input.updatedAt
+                    )
+                };
+            }
+            // `restricted` is a platform risk state; the admin surface may
+            // suspend it but may not clear it back to `active`.
+            if (input.status === 'active' && current.status !== 'suspended') {
+                return {
+                    status: 'unsupported',
+                    account: await this.requireAdminAccount(
+                        input.accountId,
+                        input.updatedAt
+                    )
+                };
+            }
+            const statements = [
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO platform_security_events
+                        (id, account_id, event_type, request_id, ip_address,
+                         user_agent, metadata_json, created_at)
+                     SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                     FROM platform_accounts
+                     WHERE id=? AND updated_at=? AND deleted_at IS NULL`,
+                    [
+                        ...securityEventValues(input.event, input.accountId),
+                        input.accountId,
+                        input.expectedUpdatedAt
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    // The session sweep is fenced on the status write: if the
+                    // status landed elsewhere, the sessions must not be
+                    // revoked. Bumping `token_version` and revoking refresh
+                    // sessions are the two halves of an immediate logout, so
+                    // they live in one batch.
+                    `UPDATE platform_accounts
+                     SET status=?,
+                         token_version=token_version +
+                             CASE WHEN ?='suspended' THEN 1 ELSE 0 END,
+                         updated_at=?
+                     WHERE id=? AND updated_at=? AND deleted_at IS NULL
+                       AND status IN ('active', 'restricted', 'suspended')`,
+                    [
+                        input.status,
+                        input.status,
+                        input.updatedAt,
+                        input.accountId,
+                        input.expectedUpdatedAt
+                    ]
+                )
+            ];
+            if (input.status === 'suspended') {
+                statements.push(sqlStatement(
+                    this.database,
+                    `UPDATE platform_refresh_sessions
+                     SET revoked_at=?, updated_at=?
+                     WHERE account_id=? AND revoked_at IS NULL AND expires_at>?
+                       AND EXISTS (
+                           SELECT 1 FROM platform_accounts
+                           WHERE id=? AND status='suspended' AND updated_at=?
+                       )`,
+                    [
+                        input.updatedAt,
+                        input.updatedAt,
+                        input.accountId,
+                        input.updatedAt,
+                        input.accountId,
+                        input.updatedAt
+                    ]
+                ));
+            }
+            const results = await this.database.batch(statements);
+            if (results[1]?.meta.changes !== 1) {
+                return {
+                    status: 'conflict',
+                    account: await this.requireAdminAccount(
+                        input.accountId,
+                        input.updatedAt
+                    )
+                };
+            }
+            return {
+                status: 'saved',
+                changed: true,
+                account: await this.requireAdminAccount(
+                    input.accountId,
+                    input.updatedAt
+                )
+            };
+        });
+    }
+
+    async forceLogoutPlatformAccount(
+        input: ForceLogoutPlatformAccountInput
+    ): Promise<ForceLogoutPlatformAccountResult> {
+        return this.serializeWrite(async () => {
+            const results = await this.database.batch([
+                sqlStatement(
+                    this.database,
+                    `INSERT INTO platform_security_events
+                        (id, account_id, event_type, request_id, ip_address,
+                         user_agent, metadata_json, created_at)
+                     SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                     FROM platform_accounts
+                     WHERE id=? AND deleted_at IS NULL`,
+                    [
+                        ...securityEventValues(input.event, input.accountId),
+                        input.accountId
+                    ]
+                ),
+                sqlStatement(
+                    this.database,
+                    `UPDATE platform_accounts
+                     SET token_version=token_version+1, updated_at=?
+                     WHERE id=? AND deleted_at IS NULL`,
+                    [input.revokedAt, input.accountId]
+                ),
+                sqlStatement(
+                    this.database,
+                    `UPDATE platform_refresh_sessions
+                     SET revoked_at=?, updated_at=?
+                     WHERE account_id=? AND revoked_at IS NULL AND expires_at>?
+                       AND EXISTS (
+                           SELECT 1 FROM platform_accounts
+                           WHERE id=? AND updated_at=?
+                       )`,
+                    [
+                        input.revokedAt,
+                        input.revokedAt,
+                        input.accountId,
+                        input.revokedAt,
+                        input.accountId,
+                        input.revokedAt
+                    ]
+                )
+            ]);
+            if (results[1]?.meta.changes !== 1) return { status: 'not-found' };
+            return {
+                status: 'saved',
+                revokedSessionCount: results[2]?.meta.changes ?? 0
+            };
         });
     }
 }

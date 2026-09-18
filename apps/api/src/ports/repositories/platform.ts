@@ -146,26 +146,218 @@ export type CreatePlatformOAuthAccountResult =
     | { status: "created"; identity: PlatformOAuthIdentity }
     | { status: "identity-conflict"; identity: PlatformOAuthIdentity };
 
+/**
+ * Which surface started an OAuth round trip: `web` returns with a document
+ * redirect, `app` returns through a custom-scheme deep link carrying a
+ * one-time exchange code. Orthogonal to `intent`, which names the flow
+ * (`login` vs account `link`).
+ */
+export type PlatformOAuthClientTarget = "web" | "app";
+
 export interface PlatformOAuthStateRecord {
     state_hash: string;
     provider_code: PlatformOAuthProviderCode;
     intent: "login" | "link";
     linking_account_id: string | null;
+    client_target: PlatformOAuthClientTarget;
+    app_code_challenge: string | null;
     code_verifier: string | null;
     return_path: string;
     expires_at: number;
     created_at: number;
 }
 
+/**
+ * A state row carries both dimensions on purpose. The database checks keep
+ * them honest: a `link` row must carry `linkingAccountId`, and an `app` row
+ * must carry the `appCodeChallenge` whose verifier never leaves the app
+ * process. The callback reads `intent` to pick who owns the flow and
+ * `clientTarget` to pick the return channel.
+ */
 export interface NewPlatformOAuthStateInput {
     stateHash: string;
     providerCode: PlatformOAuthProviderCode;
-    intent: "login";
+    intent: "login" | "link";
+    linkingAccountId: string | null;
+    clientTarget: PlatformOAuthClientTarget;
+    appCodeChallenge: string | null;
     codeVerifier: string;
     returnPath: string;
     expiresAt: number;
     createdAt: number;
 }
+
+/**
+ * A short-lived code handed to the app through a custom-scheme deep link.
+ * Only the SHA-256 hash is stored; the raw code never touches the database,
+ * and the row is deleted in the same statement that validates it.
+ */
+export interface PlatformOAuthExchangeCodeRecord {
+    account_id: string;
+    code_challenge: string;
+}
+
+export interface CreatePlatformOAuthExchangeCodeInput {
+    codeHash: string;
+    accountId: string;
+    codeChallenge: string;
+    expiresAt: number;
+    createdAt: number;
+}
+
+/**
+ * Linking a provider to an account that already exists. Deliberately not
+ * `createOAuthAccount`, which builds a whole account and is login-only.
+ *
+ * `already-linked` is the idempotent re-bind of a link the account already
+ * owns. `identity-conflict` means the provider subject belongs to another
+ * account and no row was written. `provider-conflict` means this account
+ * already has a different subject for that provider and must unlink first.
+ * The uniqueness constraints on `platform_oauth_identities`, not a read
+ * before the insert, decide the ownership race.
+ */
+export interface CreatePlatformOAuthIdentityForAccountInput {
+    accountId: string;
+    providerCode: PlatformOAuthProviderCode;
+    providerSubject: string;
+    providerDisplayName: string;
+    providerAvatarUrl: string;
+    createdAt: number;
+    updatedAt: number;
+    event: PlatformSecurityEventInput;
+}
+
+export type CreatePlatformOAuthIdentityForAccountResult =
+    | { status: "created"; identity: PlatformOAuthIdentity }
+    | { status: "already-linked"; identity: PlatformOAuthIdentity }
+    | { status: "identity-conflict"; identity: PlatformOAuthIdentity }
+    | { status: "provider-conflict" }
+    | { status: "not-found" };
+
+/**
+ * Proof that the caller consumed a code from
+ * `platform_email_verification_codes`. The domain hashes the code with a
+ * purpose-specific prefix (`platform-email-binding\0`), so a binding code and
+ * a registration code never collide even though they share the table.
+ */
+export interface PlatformEmailVerificationProof {
+    codeHash: string;
+    consumedToken: string;
+    verifiedAt: number;
+}
+
+export interface CreatePlatformEmailCredentialInput {
+    normalizedEmail: string;
+    algorithm: "bcrypt";
+    parametersJson: string;
+    passwordHash: string;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface CreateVerifiedEmailCredentialForAccountInput {
+    accountId: string;
+    credential: CreatePlatformEmailCredentialInput;
+    verification: PlatformEmailVerificationProof;
+    event: PlatformSecurityEventInput;
+}
+
+export type CreateVerifiedEmailCredentialForAccountResult =
+    | { status: "created"; credential: PlatformEmailCredentialRecord }
+    | { status: "already-bound"; credential: PlatformEmailCredentialRecord }
+    | { status: "email-conflict" }
+    | { status: "verification-invalid" };
+
+/**
+ * Moving an existing email credential to a new address. Only
+ * `normalized_email` and `updated_at` change, so the password hash, algorithm
+ * and salt survive the move. `expectedPasswordHash` / `expectedUpdatedAt`
+ * fence the row the caller read, so a concurrent password change or second
+ * migration loses the race instead of silently overwriting it.
+ */
+export interface MigrateEmailCredentialForAccountInput {
+    accountId: string;
+    currentNormalizedEmail: string;
+    newNormalizedEmail: string;
+    expectedPasswordHash: string;
+    expectedUpdatedAt: number;
+    updatedAt: number;
+    verification: PlatformEmailVerificationProof;
+    event: PlatformSecurityEventInput;
+}
+
+export type MigrateEmailCredentialForAccountResult =
+    | { status: "migrated"; credential: PlatformEmailCredentialRecord }
+    | { status: "not-bound" }
+    | { status: "state-conflict" }
+    | { status: "verification-invalid" }
+    | { status: "email-conflict" };
+
+// ── Admin platform-user management ────────────────────────────────────────
+
+export type PlatformAccountAdminSearchField = "id" | "email" | "display_name";
+
+/**
+ * The admin surface's projection. It has no session row and no credential
+ * secret: `active_session_count` answers "are they signed in" without handing
+ * out `token_hash` / `previous_token_hash` / `csrf_hash`.
+ */
+export interface PlatformAccountAdminRecord {
+    id: string;
+    status: PlatformAccountStatus;
+    display_name: string;
+    normalized_email: string | null;
+    has_password: boolean;
+    active_session_count: number;
+    last_login_at: number | null;
+    created_at: number;
+    updated_at: number;
+}
+
+export interface ListPlatformAccountsForAdminInput {
+    field: PlatformAccountAdminSearchField;
+    /** Already normalized by the domain; `null` lists every account. */
+    query: string | null;
+    limit: number;
+    offset: number;
+    /** The caller's clock, matching `listRefreshSessionsByAccount`. */
+    activeAt: number;
+}
+
+export interface CountPlatformAccountsForAdminInput {
+    field: PlatformAccountAdminSearchField;
+    query: string | null;
+}
+
+/**
+ * Suspension bumps `token_version` and revokes live refresh sessions in the
+ * same batch, fenced on the status write: an access token cannot outlive the
+ * ban, and sessions are not swept when the status write lost a race.
+ * `expectedUpdatedAt` is the optimistic lock behind `REVISION_CONFLICT`.
+ */
+export interface SetPlatformAccountStatusInput {
+    accountId: string;
+    status: "active" | "suspended";
+    expectedUpdatedAt: number;
+    updatedAt: number;
+    event: PlatformSecurityEventInput;
+}
+
+export type SetPlatformAccountStatusResult =
+    | { status: "saved"; changed: boolean; account: PlatformAccountAdminRecord }
+    | { status: "not-found" }
+    | { status: "conflict"; account: PlatformAccountAdminRecord }
+    | { status: "unsupported"; account: PlatformAccountAdminRecord };
+
+export interface ForceLogoutPlatformAccountInput {
+    accountId: string;
+    revokedAt: number;
+    event: PlatformSecurityEventInput;
+}
+
+export type ForceLogoutPlatformAccountResult =
+    | { status: "saved"; revokedSessionCount: number }
+    | { status: "not-found" };
 
 export type CreatePlatformEmailAccountResult =
     | { status: "created"; identity: PlatformAccountWithProfile }
@@ -279,6 +471,10 @@ export type PlatformSecurityEventType =
     | "auth.password_reset.completed"
     | "auth.password.changed"
     | "auth.oauth.unlinked"
+    | "auth.oauth.linked"
+    | "auth.email.bound"
+    | "auth.email.changed"
+    | "auth.account.reactivated"
     | "auth.session.revoked";
 
 export interface PlatformSecurityEventInput {
@@ -317,6 +513,17 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
         providerCode: PlatformOAuthProviderCode,
         consumedAt: number,
     ): Promise<PlatformOAuthStateRecord | null>;
+    /**
+     * Read-only look at who started a state row, used only when a provider
+     * denies the request before the callback can consume it. The app needs to
+     * be told to stop waiting; the web flow keeps its `/account/login`
+     * redirect. Does not consume the row.
+     */
+    findOAuthStateClientTarget(
+        stateHash: string,
+        providerCode: PlatformOAuthProviderCode,
+        now: number,
+    ): Promise<PlatformOAuthClientTarget | null>;
     findOAuthIdentity(
         providerCode: PlatformOAuthProviderCode,
         providerSubject: string,
@@ -336,6 +543,20 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
     createOAuthAccount(
         input: NewPlatformOAuthAccountInput,
     ): Promise<CreatePlatformOAuthAccountResult>;
+    createOAuthIdentityForAccount(
+        input: CreatePlatformOAuthIdentityForAccountInput,
+    ): Promise<CreatePlatformOAuthIdentityForAccountResult>;
+    createOAuthExchangeCode(
+        input: CreatePlatformOAuthExchangeCodeInput,
+    ): Promise<void>;
+    /**
+     * Deletes and returns in one statement, so two concurrent exchanges cannot
+     * both redeem the same code. Expired rows are not returned.
+     */
+    consumeOAuthExchangeCode(
+        codeHash: string,
+        consumedAt: number,
+    ): Promise<PlatformOAuthExchangeCodeRecord | null>;
     findAccountById(id: string): Promise<PlatformAccountRecord | null>;
     findAccountWithProfileById(
         id: string,
@@ -346,6 +567,12 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
     createVerifiedEmailAccount(
         input: NewVerifiedPlatformEmailAccountInput,
     ): Promise<CreateVerifiedPlatformEmailAccountResult>;
+    createVerifiedEmailCredentialForAccount(
+        input: CreateVerifiedEmailCredentialForAccountInput,
+    ): Promise<CreateVerifiedEmailCredentialForAccountResult>;
+    migrateEmailCredentialForAccount(
+        input: MigrateEmailCredentialForAccountInput,
+    ): Promise<MigrateEmailCredentialForAccountResult>;
     completePasswordReset(
         input: CompletePlatformPasswordResetInput,
     ): Promise<CompletePlatformPasswordResetResult>;
@@ -415,6 +642,18 @@ export interface PlatformAccountRepository extends PlatformOAuthProviderStore {
         event: PlatformSecurityEventInput;
     }): Promise<boolean>;
     deleteExpiredRefreshSessions(now: number): Promise<void>;
+    listPlatformAccountsForAdmin(
+        input: ListPlatformAccountsForAdminInput,
+    ): Promise<PlatformAccountAdminRecord[]>;
+    countPlatformAccountsForAdmin(
+        input: CountPlatformAccountsForAdminInput,
+    ): Promise<number>;
+    setPlatformAccountStatus(
+        input: SetPlatformAccountStatusInput,
+    ): Promise<SetPlatformAccountStatusResult>;
+    forceLogoutPlatformAccount(
+        input: ForceLogoutPlatformAccountInput,
+    ): Promise<ForceLogoutPlatformAccountResult>;
 }
 
 export interface WikiStorySourcePlatformRecord {

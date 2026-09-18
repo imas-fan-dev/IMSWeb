@@ -1,5 +1,6 @@
 import {
     platformOAuthCallbackQuerySchema,
+    platformOAuthExchangeRequestSchema,
     platformOAuthProviderParamsSchema,
     platformOAuthStartQuerySchema
 } from '@imsweb/contracts/platform';
@@ -24,21 +25,41 @@ import {
     handlePlatformOAuthStart,
 } from '@/domains/identity/platform-auth/oauth/handlers/oauth-login';
 import {
+    handlePlatformOAuthExchange,
+    oauthExchangeInputInvalid
+} from '@/domains/identity/platform-auth/oauth/handlers/oauth-exchange';
+import { requirePlatformJson } from '@/domains/identity/platform-auth/platform-json-request';
+import {
     jsonSchemaValidator,
     paramSchemaValidator,
     querySchemaValidator
 } from '@/middleware/request-validation';
 import { createCapabilityRouter, type ImsCapabilityRouter } from '@/routing/capability-router';
 
+// SAFETY: param/query validators run before the validated-request context is
+// recorded, so their handler type cannot name it; Hono's registration signature
+// only accepts the generic `MiddlewareHandler` shape.
 const publicProviderParams = paramSchemaValidator(platformOAuthProviderParamsSchema) as unknown as MiddlewareHandler<AppEnvironment>;
+// SAFETY: see above — query validation precedes context narrowing.
 const publicOAuthStartQuery = querySchemaValidator(platformOAuthStartQuerySchema) as unknown as MiddlewareHandler<AppEnvironment>;
+// SAFETY: see above — query validation precedes context narrowing.
 const publicOAuthCallbackQuery = querySchemaValidator(platformOAuthCallbackQuerySchema) as unknown as MiddlewareHandler<AppEnvironment>;
+// SAFETY: see above — param validation precedes context narrowing.
 const adminProviderParams = paramSchemaValidator(platformOAuthAdminProviderParamsSchema, {
     invalidMessage: 'OAuth provider 无效'
 }) as unknown as MiddlewareHandler<AppEnvironment>;
 
 export function platformOAuthRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
+    routes.post(
+        '/exchange',
+        requirePlatformJson,
+        jsonSchemaValidator(platformOAuthExchangeRequestSchema, {
+            errorBody: oauthExchangeInputInvalid,
+            malformedMessage: 'PLATFORM_OAUTH_EXCHANGE_INVALID'
+        }),
+        handlePlatformOAuthExchange
+    );
     routes.get('/providers', handlePlatformOAuthProviders);
     routes.get(
         '/:provider/start',
@@ -77,6 +98,8 @@ export function platformOAuthAdminRoutes(): ImsCapabilityRouter {
         jsonSchemaValidator(platformOAuthProviderUpdateRequestSchema, {
             malformedMessage: '请求正文必须为 JSON'
         }),
+        // SAFETY: registered after the JSON validator, so the narrowed validated
+        // context the handler declares is guaranteed to exist here.
         handleUpdateAdminPlatformOAuthProvider as unknown as MiddlewareHandler<AppEnvironment>,
     );
     routes.delete(
@@ -88,6 +111,8 @@ export function platformOAuthAdminRoutes(): ImsCapabilityRouter {
         jsonSchemaValidator(platformOAuthProviderDeleteRequestSchema, {
             malformedMessage: '请求正文必须为 JSON'
         }),
+        // SAFETY: registered after the JSON validator, so the narrowed validated
+        // context the handler declares is guaranteed to exist here.
         handleDeleteAdminPlatformOAuthProvider as unknown as MiddlewareHandler<AppEnvironment>,
     );
     return routes;

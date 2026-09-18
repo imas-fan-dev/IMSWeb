@@ -1,5 +1,6 @@
 import { platformApiPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
+import { platformEmailRoutes } from '@/domains/identity/platform-account-security/email/routes';
 import { platformOAuthLinkRoutes } from '@/domains/identity/platform-account-security/oauth-links/routes';
 import { platformPasswordRoutes } from '@/domains/identity/platform-account-security/password/routes';
 import { platformAccountSessionRoutes } from '@/domains/identity/platform-account-security/sessions/routes';
@@ -21,4 +22,5 @@ export function registerPlatformAccountSecurityRoutes(app: ImsHonoApp): void {
     app.route(platformApiPath('/me'), platformPasswordRoutes());
     app.route(platformApiPath('/me'), platformAccountSessionRoutes());
     app.route(platformApiPath('/me'), platformOAuthLinkRoutes());
+    app.route(platformApiPath('/me'), platformEmailRoutes());
 }
