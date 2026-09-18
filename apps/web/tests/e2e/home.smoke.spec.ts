@@ -361,6 +361,12 @@ test(
     await expect(
       page.getByRole("dialog", { name: /站点导航|Site navigation/ })
     ).toBeHidden()
+    // The events page fetches its first page from an effect, so the URL change
+    // alone does not prove the request reached the network. Without this wait
+    // the /api/events expectation above can race the teardown. The empty state
+    // renders only once the response has arrived, which makes the second call a
+    // fact rather than a matter of scheduling.
+    await expect(page.getByText("当前没有已发布社区动态")).toBeVisible()
     expect(consoleErrors).toEqual([])
   }
 )
