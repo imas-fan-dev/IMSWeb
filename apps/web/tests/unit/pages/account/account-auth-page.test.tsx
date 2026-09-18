@@ -32,6 +32,9 @@ vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
     ...actual,
+    getPlatformOAuthProviders: () => ({
+      send: vi.fn().mockResolvedValue({ providers: [] }),
+    }),
     loginPlatform: (input: unknown) => {
       apiMocks.loginInput(input)
       return { send: apiMocks.loginSend }
@@ -118,6 +121,7 @@ async function fillLogin() {
 describe("Platform account auth pages", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
     sessionMocks.usePlatformSession.mockReturnValue(anonymousState())
     await i18n.changeLanguage("zh-CN")
   })

@@ -11,6 +11,7 @@ import AccountPasswordResetPage from "~/pages/account/reset/account-password-res
 
 const apiMocks = vi.hoisted(() => ({
   getPlatformOAuthProviders: vi.fn(),
+  oauthProvidersSend: vi.fn(),
   loginPlatform: vi.fn(),
   loginSend: vi.fn(),
 }))
@@ -26,7 +27,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
     ...actual,
-    getPlatformOAuthProviders: apiMocks.getPlatformOAuthProviders,
+    getPlatformOAuthProviders: () => ({ send: apiMocks.oauthProvidersSend }),
     loginPlatform: apiMocks.loginPlatform,
   }
 })
@@ -56,6 +57,8 @@ const pages = [
 describe("App account auth layout", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
+    apiMocks.oauthProvidersSend.mockResolvedValue({ providers: [] })
     apiMocks.loginPlatform.mockReturnValue({ send: apiMocks.loginSend })
     sessionMocks.usePlatformSession.mockReturnValue({
       status: "anonymous",
@@ -129,8 +132,18 @@ describe("App account auth layout", () => {
     })
   })
 
-  it("does not request or render OAuth providers in the App target", () => {
-    const { container } = render(
+  it("loads OAuth providers in the App target and renders the app entry", async () => {
+    apiMocks.oauthProvidersSend.mockResolvedValue({
+      providers: [
+        {
+          code: "github",
+          displayName: "GitHub",
+          icon: "github",
+          buttonColor: "#24292f",
+        },
+      ],
+    })
+    render(
       <MemoryRouter initialEntries={["/account/login"]}>
         <I18nextProvider i18n={i18n}>
           <Routes>
@@ -140,7 +153,10 @@ describe("App account auth layout", () => {
       </MemoryRouter>
     )
 
-    expect(apiMocks.getPlatformOAuthProviders).not.toHaveBeenCalled()
-    expect(container).not.toHaveTextContent("使用第三方帐号继续")
+    await waitFor(() => {
+      expect(apiMocks.oauthProvidersSend).toHaveBeenCalled()
+    })
+    expect(await screen.findByText("使用第三方帐号继续")).toBeVisible()
+    expect(screen.getByRole("button", { name: "GitHub" })).toBeVisible()
   })
 })

@@ -51,6 +51,11 @@ import {
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
+import { PlatformOAuthAppSection } from "./platform-oauth-app-section"
+import {
+  platformOAuthReasonKey,
+  type PlatformOAuthAppErrorKey,
+} from "./use-platform-oauth-app-login"
 
 type AccountAuthMode = "login" | "register" | "reset"
 type FieldName =
@@ -61,6 +66,32 @@ type FieldName =
   | "code"
 type FieldErrors = Partial<Record<FieldName, string>>
 type VerificationFeedbackKind = "error" | "success"
+type PlatformOAuthProviderStatus = "idle" | "loading" | "ready" | "error"
+
+// The email survives the whole-page navigation an OAuth round trip performs.
+// Only the email: never the password or a verification code.
+const EMAIL_DRAFT_STORAGE_KEY = "ims.platform.email-draft"
+
+function readEmailDraft(): string {
+  try {
+    return window.sessionStorage.getItem(EMAIL_DRAFT_STORAGE_KEY) ?? ""
+  } catch {
+    return ""
+  }
+}
+
+function writeEmailDraft(email: string): void {
+  try {
+    if (email) window.sessionStorage.setItem(EMAIL_DRAFT_STORAGE_KEY, email)
+    else window.sessionStorage.removeItem(EMAIL_DRAFT_STORAGE_KEY)
+  } catch {
+    // Storage may be denied in a hardened WebView; the form still works.
+  }
+}
+
+function clearEmailDraft(): void {
+  writeEmailDraft("")
+}
 
 function remainingCooldownSeconds(deadline: number): number {
   return Math.min(600, Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
@@ -74,8 +105,13 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const { t } = useTranslation()
   const navigate = useNavigation()
   const platform = usePlatformSession()
-  const [searchParams] = useSearchParams()
-  const [email, setEmail] = useState("")
+  const [searchParams, setSearchParams] = useSearchParams()
+  // A whole-page OAuth navigation drops in-memory form state, so the email is
+  // restored from sessionStorage. The password and any verification code are
+  // never persisted.
+  const [email, setEmail] = useState(() =>
+    mode === "register" ? "" : readEmailDraft()
+  )
   const [password, setPassword] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -97,6 +133,15 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const [oauthProviders, setOauthProviders] = useState<PlatformOAuthProvider[]>(
     []
   )
+  const [oauthProvidersStatus, setOauthProvidersStatus] =
+    useState<PlatformOAuthProviderStatus>("idle")
+  const [oauthProvidersAttempt, setOauthProvidersAttempt] = useState(0)
+  // Read once from the launch URL; the effect below drops the parameter so a
+  // refresh cannot repeat the message.
+  const [oauthFailureKey] = useState<PlatformOAuthAppErrorKey | null>(() => {
+    const reason = searchParams.get("oauth")
+    return reason ? platformOAuthReasonKey(reason) : null
+  })
 
   const isRegister = mode === "register"
   const isReset = mode === "reset"
@@ -129,20 +174,43 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   }, [accountHome, completed, isReset, navigate])
 
   useEffect(() => {
-    if (isReset || IS_APP_TARGET) return
+    if (isReset) return
     let active = true
     void getPlatformOAuthProviders()
       .send()
       .then((response) => {
-        if (active) setOauthProviders(response.providers)
+        if (!active) return
+        setOauthProviders(response.providers)
+        setOauthProvidersStatus("ready")
       })
       .catch(() => {
-        if (active) setOauthProviders([])
+        if (!active) return
+        setOauthProviders([])
+        setOauthProvidersStatus("error")
       })
     return () => {
       active = false
     }
-  }, [isReset])
+  }, [isReset, oauthProvidersAttempt])
+
+  // The API sends failed round trips back with `?oauth=<reason>`. The message
+  // is captured on first render; here the parameter is cleared so a refresh
+  // does not repeat it.
+  useEffect(() => {
+    if (!searchParams.has("oauth")) return
+    const next = new URLSearchParams(searchParams)
+    next.delete("oauth")
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (mode === "register") return
+    writeEmailDraft(email)
+  }, [email, mode])
+
+  useEffect(() => {
+    if (platform.session) clearEmailDraft()
+  }, [platform.session])
 
   useEffect(() => {
     if (verificationCooldownDeadline === null) return
@@ -266,6 +334,11 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
       value <= 600
       ? value
       : null
+  }
+
+  function retryOAuthProviders() {
+    setOauthProvidersStatus("loading")
+    setOauthProvidersAttempt((attempt) => attempt + 1)
   }
 
   async function sendVerificationCode() {
@@ -551,6 +624,12 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                   <AlertTitle>
                     {t("platformAuth.passwordReset.complete")}
                   </AlertTitle>
+                </Alert>
+              ) : null}
+
+              {oauthFailureKey ? (
+                <Alert variant="destructive">
+                  <AlertTitle>{t(oauthFailureKey)}</AlertTitle>
                 </Alert>
               ) : null}
 
@@ -877,43 +956,65 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                 )}
               </Button>
 
+              {!isReset && oauthProvidersStatus === "error" ? (
+                <Alert variant="destructive">
+                  <AlertTitle>{t("platformAuth.oauth.loadFailed")}</AlertTitle>
+                  <AlertDescription>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={retryOAuthProviders}
+                    >
+                      {t("platformAuth.oauth.retry")}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               {!isReset && oauthProviders.length > 0 ? (
-                <NavigationBoundary availability="web">
-                  <div className="space-y-3 pt-1">
-                    <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
-                      <span className="h-px flex-1 bg-border" />
-                      <span>{t("platformAuth.oauth.continueWith")}</span>
-                      <span className="h-px flex-1 bg-border" />
+                IS_APP_TARGET ? (
+                  <PlatformOAuthAppSection providers={oauthProviders} />
+                ) : (
+                  <NavigationBoundary availability="web">
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+                        <span className="h-px flex-1 bg-border" />
+                        <span>{t("platformAuth.oauth.continueWith")}</span>
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {oauthProviders.map((provider) => (
+                          <NavigationLink
+                            key={provider.code}
+                            href={platformAuthOAuthPath(
+                              `/${provider.code}/start?returnPath=${encodeURIComponent(accountHome)}`
+                            )}
+                            className={buttonVariants({
+                              variant: "outline",
+                              size: "lg",
+                              className:
+                                "h-11 min-w-0 justify-center hover:opacity-90",
+                            })}
+                            style={platformOAuthButtonStyle(
+                              provider.buttonColor
+                            )}
+                          >
+                            <PlatformOAuthProviderIcon
+                              provider={provider.icon}
+                              className="size-4"
+                              data-icon="inline-start"
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">
+                              {provider.displayName}
+                            </span>
+                          </NavigationLink>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {oauthProviders.map((provider) => (
-                        <NavigationLink
-                          key={provider.code}
-                          href={platformAuthOAuthPath(
-                            `/${provider.code}/start?returnPath=${encodeURIComponent(accountHome)}`
-                          )}
-                          className={buttonVariants({
-                            variant: "outline",
-                            size: "lg",
-                            className:
-                              "h-11 min-w-0 justify-center hover:opacity-90",
-                          })}
-                          style={platformOAuthButtonStyle(provider.buttonColor)}
-                        >
-                          <PlatformOAuthProviderIcon
-                            provider={provider.icon}
-                            className="size-4"
-                            data-icon="inline-start"
-                            aria-hidden="true"
-                          />
-                          <span className="truncate">
-                            {provider.displayName}
-                          </span>
-                        </NavigationLink>
-                      ))}
-                    </div>
-                  </div>
-                </NavigationBoundary>
+                  </NavigationBoundary>
+                )
               ) : null}
 
               <p className="text-center text-sm text-muted-foreground">

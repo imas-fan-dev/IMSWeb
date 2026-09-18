@@ -182,6 +182,15 @@
       "test": { "file": "apps/api/tests/server/platform-oauth-wire-contract-conformance.test.ts", "symbol": "mounted OAuth discovery, start, and callback preserve their wire contracts" }
     },
     {
+      "id": "PLATFORM-OAUTH-LINK-START-01",
+      "sourceFile": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link.ts",
+      "symbol": "handleStartPlatformOAuthLink",
+      "responseKind": "redirect",
+      "reason": "OAuth link start redirects to the configured provider or back to account security with a reason.",
+      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/platform/account-security.ts", "symbol": "platformAccountSecurityErrorSchema" },
+      "test": { "file": "apps/api/tests/server/platform-email-binding.contract.test.ts", "symbol": "OAuth link start writes an intent=link state and redirects to the provider" }
+    },
+    {
       "id": "PLATFORM-OAUTH-CALLBACK-01",
       "sourceFile": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-login.ts",
       "symbol": "handlePlatformOAuthCallback",

@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { Outlet, useLocation, useMatch } from "react-router"
 
@@ -15,6 +15,8 @@ import {
   normalizeAppPathname,
 } from "~/lib/app-shell-scroll"
 import { APP_FLOATING_CONTROL_OFFSET } from "~/lib/app-target"
+import { useNavigation } from "~/lib/navigation/use-navigation"
+import { startPlatformOAuthDeepLink } from "~/lib/platform-oauth-deep-link"
 import { cn } from "~/lib/utils"
 
 /**
@@ -41,6 +43,21 @@ export default function AppLayout() {
     root.toggleAttribute("data-app-immersive", isExchangeMap)
     return () => root.removeAttribute("data-app-immersive")
   }, [isExchangeMap])
+
+  // The OAuth return deep link belongs to the app, not to the sign-in screen.
+  // A cold start delivers it while the app sits on whatever route it launched
+  // with, so delivery starts here — at the shell, once — and a callback nothing
+  // is listening for sends the user to the screen that can redeem it.
+  const navigate = useNavigation()
+  const navigateRef = useRef(navigate)
+  useEffect(() => {
+    navigateRef.current = navigate
+  }, [navigate])
+  useEffect(() => {
+    startPlatformOAuthDeepLink(() => {
+      navigateRef.current("/account/login", { replace: true })
+    })
+  }, [])
 
   // The wiki catalog puts its own search button in this corner below `md`, so
   // back-to-top yields the slot exactly as it does in `public-layout.tsx`.

@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button"
 import { Separator } from "~/components/ui/separator"
 import { Skeleton } from "~/components/ui/skeleton"
 
+import { EmailCredentialSection } from "./email-credential-section"
 import { OAuthLinkSection } from "./oauth-link-section"
 import { PasswordSection } from "./password-section"
 import { SessionDeviceSection } from "./session-device-section"
@@ -163,6 +164,14 @@ export default function AccountSecurityPage() {
         readOnly={readOnly}
         passwordEnabled={passwordEnabled}
         onPasswordChanged={() => setSessionRefreshToken((token) => token + 1)}
+      />
+
+      <Separator />
+
+      <EmailCredentialSection
+        readOnly={readOnly}
+        passwordEnabled={passwordEnabled}
+        onEmailChanged={() => setPasswordEnabled(true)}
       />
 
       <Separator />

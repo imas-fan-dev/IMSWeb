@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router"
@@ -6,6 +6,12 @@ import { describe, expect, it, vi } from "vitest"
 
 import { i18n } from "~/i18n/config"
 import AppLayout from "~/layouts/app-layout"
+
+const deepLink = vi.hoisted(() => ({ start: vi.fn() }))
+
+vi.mock("~/lib/platform-oauth-deep-link", () => ({
+  startPlatformOAuthDeepLink: deepLink.start,
+}))
 
 vi.mock("~/components/app/app-cold-start-mask", () => ({
   AppColdStartMask: () => null,
@@ -187,5 +193,36 @@ describe("AppLayout", () => {
       "pt-[env(safe-area-inset-top)]"
     )
     expect(screen.getByRole("navigation", { name: "App 导航" })).toBeVisible()
+  })
+
+  // The defect this guards: the callback used to be handled only by the sign-in
+  // screen, so a cold start — where the OS delivers it while the app sits on an
+  // unrelated route — left the user there with a code nobody redeemed.
+  it("sends an unclaimed OAuth callback to the sign-in screen", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route index element={<main>首页内容</main>} />
+              <Route path="account/login" element={<main>登录内容</main>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nextProvider>
+    )
+
+    // Delivery starts at the shell exactly once: a second subscription would
+    // hand the same one-time code to two consumers.
+    expect(deepLink.start).toHaveBeenCalledTimes(1)
+    const onUnclaimed = deepLink.start.mock.calls[0]?.[0] as
+      | (() => void)
+      | undefined
+    expect(typeof onUnclaimed).toBe("function")
+
+    act(() => onUnclaimed?.())
+
+    expect(screen.getByText("登录内容")).toBeVisible()
+    expect(screen.queryByText("首页内容")).not.toBeInTheDocument()
   })
 })

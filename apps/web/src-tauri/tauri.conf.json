@@ -23,6 +23,17 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "mobile": [
+        {
+          "scheme": ["imsweb"],
+          "host": "oauth",
+          "pathPrefix": ["/callback"]
+        }
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

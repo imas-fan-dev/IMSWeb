@@ -3,45 +3,45 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "e9c6ca47d79426d9917370343a0d61107f04b1d4c0ee3a6f6d0e961eb2123131",
+    "semanticDigest": "59c09f3d8b40a294bcb7045000aa65e1fe19dbcad7e43ccf91226300d439559a",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 225,
-    "carriers": 285,
-    "reject": 43,
+    "mountedMethodPaths": 236,
+    "carriers": 298,
+    "reject": 50,
     "acceptAndProject": 161,
     "passthrough": 17,
-    "nonObjectApplicable": 64
+    "nonObjectApplicable": 70
   },
   "counts": {
-    "mountedRegistrations": 318,
-    "mountedMethodPaths": 232,
-    "noInputRoutes": 86,
-    "requestCarriers": 308,
+    "mountedRegistrations": 330,
+    "mountedMethodPaths": 243,
+    "noInputRoutes": 87,
+    "requestCarriers": 321,
     "policies": {
-      "reject": 43,
+      "reject": 50,
       "accept-and-project": 183,
       "passthrough": 18,
-      "non-object-applicable": 64
+      "non-object-applicable": 70
     },
     "responses": {
-      "total": 619,
-      "json": 557,
-      "nonJson": 62
+      "total": 656,
+      "json": 592,
+      "nonJson": 64
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 225,
-      "requestCarriers": 285,
+      "mountedMethodPaths": 236,
+      "requestCarriers": 298,
       "policies": {
-        "reject": 43,
+        "reject": 50,
         "accept-and-project": 161,
         "passthrough": 17,
-        "non-object-applicable": 64
+        "non-object-applicable": 70
       }
     },
     "explicitQueryAdditions": [
@@ -116,7 +116,7 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 122,
+      "/api/admin": 128,
       "/api/card": 1,
       "/api/cards": 1,
       "/api/check": 1,
@@ -132,7 +132,7 @@
       "/api/login": 1,
       "/api/logout": 1,
       "/api/news": 1,
-      "/api/platform": 23,
+      "/api/platform": 29,
       "/api/producer-map": 1,
       "/api/reactions": 3,
       "/api/refresh": 1,
@@ -674,6 +674,68 @@
           "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/admin-provider-config.ts",
           "kind": "json",
           "expression": "{ success : false , message : \"OAuth provider \\u5220\\u9664\\u5931\\u8D25\" }"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/platform/users/:id/oauth-links/:provider",
+      "registration": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "handlerSymbol": "handleUnlinkAdminPlatformUserOAuth",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformUserOAuthProviderParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-users",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/unlink-platform-user-oauth.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/platform/users/:id/sessions",
+      "registration": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "handlerSymbol": "handleRevokeAdminPlatformUserSessions",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformUserIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-users",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/revoke-platform-user-sessions.ts",
+          "kind": "json",
+          "expression": "payload"
         }
       ]
     },
@@ -2584,6 +2646,68 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/platform/users",
+      "registration": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "handlerSymbol": "handleListAdminPlatformUsers",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformUserListQuerySchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-users",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/list-platform-users.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/users/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "handlerSymbol": "handleGetAdminPlatformUser",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformUserIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-users",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/get-platform-user.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/producer-map",
       "registration": {
         "file": "apps/api/src/domains/content/producer-map/routes.ts"
@@ -4481,6 +4605,34 @@
     },
     {
       "method": "GET",
+      "path": "/api/platform/me/email",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "handlerSymbol": "handleGetPlatformEmailCredential",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/get-email-credential.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/platform/me/oauth-links",
       "registration": {
         "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
@@ -4504,6 +4656,56 @@
           "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/list-oauth-links.ts",
           "kind": "json",
           "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "handlerSymbol": "handleStartPlatformOAuthLink",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "schemaSymbol": "platformOAuthLinkParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/account-security",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "schemaSymbol": "platformOAuthLinkStartQuerySchema",
+          "schemaModule": "@imsweb/contracts/platform/account-security",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link.ts",
+          "kind": "non-json",
+          "expression": "destination . toString ( )"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link.ts",
+          "kind": "non-json",
+          "expression": "authorizationUrl . toString ( )"
         }
       ]
     },
@@ -8702,6 +8904,47 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/users/:id/password-reset",
+      "registration": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "handlerSymbol": "handleTriggerAdminPlatformUserPasswordReset",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformUserIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-users",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/trigger-platform-user-password-reset.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds : result . retryAfterSeconds } satisfies PlatformRetryableAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/trigger-platform-user-password-reset.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_USER_PASSWORD_RESET_UNAVAILABLE\" } satisfies AdminPlatformUserPasswordResetUnavailableError"
+        },
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/trigger-platform-user-password-reset.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/producer-map/images",
       "registration": {
         "file": "apps/api/src/domains/content/producer-map/routes.ts"
@@ -9846,6 +10089,62 @@
     },
     {
       "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-auth/oauth/routes.ts"
+      },
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-auth/oauth/routes.ts"
+          },
+          "schemaSymbol": "platformOAuthExchangeRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-auth/oauth/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_OAUTH_EXCHANGE_BEARER_REQUIRED\" } satisfies PlatformAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_OAUTH_EXCHANGE_EXPIRED\" } satisfies PlatformAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_OAUTH_EXCHANGE_INVALID\" } satisfies PlatformAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_ACCOUNT_UNAVAILABLE\" } satisfies PlatformAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_ACCOUNT_UNAVAILABLE\" } satisfies PlatformAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+          "kind": "json",
+          "expression": "await platformSessionPayload ( c , identity , tokens ) satisfies PlatformSession"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/platform/auth/password-reset",
       "registration": {
         "file": "apps/api/src/domains/identity/platform-auth/password-reset/routes.ts"
@@ -9912,22 +10211,17 @@
         {
           "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
           "kind": "json",
+          "expression": "{ success : true , queued : true , retryAfterSeconds : result . retryAfterSeconds } satisfies PasswordResetIssueResponse"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds : result . retryAfterSeconds } satisfies PlatformRetryableAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
+          "kind": "json",
           "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_UNAVAILABLE\" } satisfies PlatformAuthError"
-        },
-        {
-          "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
-        },
-        {
-          "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-          "kind": "json",
-          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
-        },
-        {
-          "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-          "kind": "json",
-          "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PasswordResetIssueResponse"
         }
       ]
     },
@@ -10063,6 +10357,184 @@
           "file": "apps/api/src/domains/identity/platform-auth/registration/handlers/send-verification-code.ts",
           "kind": "json",
           "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PlatformRegistrationVerificationResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+          },
+          "schemaSymbol": "platformEmailBindRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/account-security",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_ALREADY_BOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+          "kind": "json",
+          "expression": "payload"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_ALREADY_BOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_INVALID\" }"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+          },
+          "schemaSymbol": "platformEmailChangeRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/account-security",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_NOT_BOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_UNCHANGED\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_PASSWORD_CURRENT_INVALID\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "payload"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_NOT_BOUND\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_STATE_CONFLICT\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_INVALID\" }"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/verification-code",
+      "registration": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "handlerSymbol": "handleSendPlatformEmailBindingCode",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+          },
+          "schemaSymbol": "platformEmailVerificationCodeRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/account-security",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE\" } satisfies PlatformAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_UNCHANGED\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
+        },
+        {
+          "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+          "kind": "json",
+          "expression": "payload"
         }
       ]
     },
@@ -11300,6 +11772,56 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/platform/users/:id/status",
+      "registration": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateAdminPlatformUserStatus",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformUserIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-users",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "policy": "non-object-applicable",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "schemaSymbol": "adminPlatformUserStatusRequestSchema",
+          "schemaModule": "@imsweb/contracts/platform/admin-users",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/update-platform-user-status.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"REVISION_CONFLICT\" , user : toAdminPlatformUser ( result . account ) } satisfies AdminPlatformUserConflictError"
+        },
+        {
+          "file": "apps/api/src/domains/admin/platform-users/handlers/update-platform-user-status.ts",
+          "kind": "json",
+          "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/producer-map",
       "registration": {
         "file": "apps/api/src/domains/content/producer-map/routes.ts"
@@ -12406,6 +12928,40 @@
     },
     {
       "method": "DELETE",
+      "path": "/api/admin/platform/users/:id/oauth-links/:provider",
+      "handlerSymbol": "handleUnlinkAdminPlatformUserOAuth",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformUserOAuthProviderParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-users",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/platform/users/:id/sessions",
+      "handlerSymbol": "handleRevokeAdminPlatformUserSessions",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformUserIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-users",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "DELETE",
       "path": "/api/admin/site-packages/:id/revisions/:revisionId",
       "handlerSymbol": "handleDeleteSitePackageRevision",
       "kind": "param",
@@ -13164,6 +13720,40 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/users",
+      "handlerSymbol": "handleListAdminPlatformUsers",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformUserListQuerySchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-users",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/users/:id",
+      "handlerSymbol": "handleGetAdminPlatformUser",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformUserIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-users",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",
@@ -13961,6 +14551,40 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLink",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "schemaSymbol": "platformOAuthLinkParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/account-security",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLink",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "schemaSymbol": "platformOAuthLinkStartQuerySchema",
+      "schemaModule": "@imsweb/contracts/platform/account-security",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",
@@ -15977,6 +16601,23 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/users/:id/password-reset",
+      "handlerSymbol": "handleTriggerAdminPlatformUserPasswordReset",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformUserIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-users",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/site-packages/:id/revisions",
       "handlerSymbol": "handleCreateSitePackageRevision",
       "kind": "param",
@@ -16436,6 +17077,23 @@
     },
     {
       "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-auth/oauth/routes.ts"
+      },
+      "schemaSymbol": "platformOAuthExchangeRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-auth/oauth/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/platform/auth/password-reset",
       "handlerSymbol": "handlePlatformPasswordReset",
       "kind": "json",
@@ -16498,6 +17156,57 @@
       "schemaModule": "@imsweb/contracts/platform",
       "schemaLocation": {
         "file": "apps/api/src/domains/identity/platform-auth/registration/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "schemaSymbol": "platformEmailBindRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/account-security",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "schemaSymbol": "platformEmailChangeRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/account-security",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/verification-code",
+      "handlerSymbol": "handleSendPlatformEmailBindingCode",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
+      },
+      "schemaSymbol": "platformEmailVerificationCodeRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/account-security",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/identity/platform-account-security/email/routes.ts"
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
@@ -16991,6 +17700,40 @@
       "schemaModule": "@imsweb/contracts/platform/admin-email",
       "schemaLocation": {
         "file": "apps/api/src/domains/identity/platform-auth/email-settings/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/users/:id/status",
+      "handlerSymbol": "handleUpdateAdminPlatformUserStatus",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformUserIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-users",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/users/:id/status",
+      "handlerSymbol": "handleUpdateAdminPlatformUserStatus",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
+      },
+      "schemaSymbol": "adminPlatformUserStatusRequestSchema",
+      "schemaModule": "@imsweb/contracts/platform/admin-users",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/platform-users/routes.ts"
       },
       "policy": "reject",
       "syntaxPolicy": "reject"
@@ -17630,6 +18373,22 @@
       "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/admin-provider-config.ts",
       "kind": "json",
       "expression": "{ success : false , message : \"OAuth provider \\u5220\\u9664\\u5931\\u8D25\" }"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/platform/users/:id/oauth-links/:provider",
+      "handlerSymbol": "handleUnlinkAdminPlatformUserOAuth",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/unlink-platform-user-oauth.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/platform/users/:id/sessions",
+      "handlerSymbol": "handleRevokeAdminPlatformUserSessions",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/revoke-platform-user-sessions.ts",
+      "kind": "json",
+      "expression": "payload"
     },
     {
       "method": "DELETE",
@@ -18473,6 +19232,22 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/platform/users",
+      "handlerSymbol": "handleListAdminPlatformUsers",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/list-platform-users.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/platform/users/:id",
+      "handlerSymbol": "handleGetAdminPlatformUser",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/get-platform-user.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/producer-map",
       "handlerSymbol": "handleGetAdminProducerMap",
       "file": "apps/api/src/domains/content/producer-map/handlers/get-admin-producer-map.ts",
@@ -19257,11 +20032,35 @@
     },
     {
       "method": "GET",
+      "path": "/api/platform/me/email",
+      "handlerSymbol": "handleGetPlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/get-email-credential.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "GET",
       "path": "/api/platform/me/oauth-links",
       "handlerSymbol": "handleListPlatformOAuthLinks",
       "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/list-oauth-links.ts",
       "kind": "json",
       "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLink",
+      "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link.ts",
+      "kind": "non-json",
+      "expression": "destination . toString ( )"
+    },
+    {
+      "method": "GET",
+      "path": "/api/platform/me/oauth-links/:provider/start",
+      "handlerSymbol": "handleStartPlatformOAuthLink",
+      "file": "apps/api/src/domains/identity/platform-account-security/oauth-links/handlers/start-oauth-link.ts",
+      "kind": "non-json",
+      "expression": "authorizationUrl . toString ( )"
     },
     {
       "method": "GET",
@@ -20361,6 +21160,30 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/platform/users/:id/password-reset",
+      "handlerSymbol": "handleTriggerAdminPlatformUserPasswordReset",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/trigger-platform-user-password-reset.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds : result . retryAfterSeconds } satisfies PlatformRetryableAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/users/:id/password-reset",
+      "handlerSymbol": "handleTriggerAdminPlatformUserPasswordReset",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/trigger-platform-user-password-reset.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_USER_PASSWORD_RESET_UNAVAILABLE\" } satisfies AdminPlatformUserPasswordResetUnavailableError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/platform/users/:id/password-reset",
+      "handlerSymbol": "handleTriggerAdminPlatformUserPasswordReset",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/trigger-platform-user-password-reset.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/producer-map/images",
       "handlerSymbol": "handleUploadProducerMapImage",
       "file": "apps/api/src/domains/content/producer-map/handlers/upload-producer-map-image.ts",
@@ -20977,6 +21800,54 @@
     },
     {
       "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_OAUTH_EXCHANGE_BEARER_REQUIRED\" } satisfies PlatformAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_OAUTH_EXCHANGE_EXPIRED\" } satisfies PlatformAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_OAUTH_EXCHANGE_INVALID\" } satisfies PlatformAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_ACCOUNT_UNAVAILABLE\" } satisfies PlatformAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_ACCOUNT_UNAVAILABLE\" } satisfies PlatformAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/oauth/exchange",
+      "handlerSymbol": "handlePlatformOAuthExchange",
+      "file": "apps/api/src/domains/identity/platform-auth/oauth/handlers/oauth-exchange.ts",
+      "kind": "json",
+      "expression": "await platformSessionPayload ( c , identity , tokens ) satisfies PlatformSession"
+    },
+    {
+      "method": "POST",
       "path": "/api/platform/auth/password-reset",
       "handlerSymbol": "handlePlatformPasswordReset",
       "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
@@ -21005,31 +21876,23 @@
       "handlerSymbol": "handlePlatformPasswordResetVerification",
       "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
       "kind": "json",
+      "expression": "{ success : true , queued : true , retryAfterSeconds : result . retryAfterSeconds } satisfies PasswordResetIssueResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/password-reset/verification-code",
+      "handlerSymbol": "handlePlatformPasswordResetVerification",
+      "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds : result . retryAfterSeconds } satisfies PlatformRetryableAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/auth/password-reset/verification-code",
+      "handlerSymbol": "handlePlatformPasswordResetVerification",
+      "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
+      "kind": "json",
       "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_UNAVAILABLE\" } satisfies PlatformAuthError"
-    },
-    {
-      "method": "POST",
-      "path": "/api/platform/auth/password-reset/verification-code",
-      "handlerSymbol": "handlePlatformPasswordResetVerification",
-      "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
-    },
-    {
-      "method": "POST",
-      "path": "/api/platform/auth/password-reset/verification-code",
-      "handlerSymbol": "handlePlatformPasswordResetVerification",
-      "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-      "kind": "json",
-      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_RESET_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
-    },
-    {
-      "method": "POST",
-      "path": "/api/platform/auth/password-reset/verification-code",
-      "handlerSymbol": "handlePlatformPasswordResetVerification",
-      "file": "apps/api/src/domains/identity/platform-auth/password-reset/handlers/reset-password.ts",
-      "kind": "json",
-      "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PasswordResetIssueResponse"
     },
     {
       "method": "POST",
@@ -21126,6 +21989,166 @@
       "file": "apps/api/src/domains/identity/platform-auth/registration/handlers/send-verification-code.ts",
       "kind": "json",
       "expression": "{ success : true , queued : true , retryAfterSeconds : issued . retryAfterSeconds , } satisfies PlatformRegistrationVerificationResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_ALREADY_BOUND\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_ALREADY_BOUND\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/bind",
+      "handlerSymbol": "handleBindPlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/bind-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_INVALID\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_NOT_BOUND\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_UNCHANGED\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_PASSWORD_CURRENT_INVALID\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "payload"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_NOT_BOUND\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_STATE_CONFLICT\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/change",
+      "handlerSymbol": "handleChangePlatformEmailCredential",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/change-email-credential.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_INVALID\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/verification-code",
+      "handlerSymbol": "handleSendPlatformEmailBindingCode",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE\" } satisfies PlatformAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/verification-code",
+      "handlerSymbol": "handleSendPlatformEmailBindingCode",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_UNCHANGED\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/verification-code",
+      "handlerSymbol": "handleSendPlatformEmailBindingCode",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_CONFLICT\" }"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/verification-code",
+      "handlerSymbol": "handleSendPlatformEmailBindingCode",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"PLATFORM_EMAIL_VERIFICATION_COOLDOWN\" , retryAfterSeconds } satisfies PlatformRetryableAuthError"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform/me/email/verification-code",
+      "handlerSymbol": "handleSendPlatformEmailBindingCode",
+      "file": "apps/api/src/domains/identity/platform-account-security/email/handlers/send-email-binding-code.ts",
+      "kind": "json",
+      "expression": "payload"
     },
     {
       "method": "POST",
@@ -21726,6 +22749,22 @@
       "file": "apps/api/src/domains/identity/platform-auth/email-settings/handlers/admin-email-settings.ts",
       "kind": "json",
       "expression": "{ success : false , message : \"\\u90AE\\u4EF6\\u670D\\u52A1\\u914D\\u7F6E\\u5931\\u8D25\" }"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/users/:id/status",
+      "handlerSymbol": "handleUpdateAdminPlatformUserStatus",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/update-platform-user-status.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"REVISION_CONFLICT\" , user : toAdminPlatformUser ( result . account ) } satisfies AdminPlatformUserConflictError"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/platform/users/:id/status",
+      "handlerSymbol": "handleUpdateAdminPlatformUserStatus",
+      "file": "apps/api/src/domains/admin/platform-users/handlers/update-platform-user-status.ts",
+      "kind": "json",
+      "expression": "payload"
     },
     {
       "method": "PUT",

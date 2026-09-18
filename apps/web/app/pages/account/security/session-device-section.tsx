@@ -1,10 +1,13 @@
 import {
   CircleAlertIcon,
   CircleCheckIcon,
-  LaptopIcon,
+  CircleHelpIcon,
   LoaderCircleIcon,
   LogOutIcon,
+  MonitorIcon,
   RefreshCwIcon,
+  SmartphoneIcon,
+  TabletIcon,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -25,6 +28,13 @@ import {
   isRateLimited,
   isSessionNotFound,
 } from "./account-security-model"
+import {
+  DEVICE_LABEL_SEPARATOR,
+  DEVICE_PLATFORM_KEYS,
+  DEVICE_SYSTEM_KEYS,
+  parseSessionUserAgent,
+  shortSessionDeviceId,
+} from "./session-device-model"
 
 export function SessionDeviceSection({
   readOnly,
@@ -202,24 +212,55 @@ export function SessionDeviceSection({
       ) : (
         <ul className="mt-4 divide-y border-y">
           {entries.map((device) => {
-            const deviceLabel =
-              device.userAgent ||
-              t("platformAccount.security.sessions.unknownDevice")
+            const descriptor = parseSessionUserAgent(device.userAgent)
+            const shortId = shortSessionDeviceId(device.id)
+            const head =
+              descriptor.platform !== null
+                ? descriptor.platform === "android" &&
+                  descriptor.platformVersion !== null
+                  ? t(
+                      "platformAccount.security.sessions.devicePlatform.androidVersion",
+                      { version: descriptor.platformVersion }
+                    )
+                  : t(DEVICE_PLATFORM_KEYS[descriptor.platform])
+                : descriptor.system !== null
+                  ? t("platformAccount.security.sessions.deviceUnknownSystem", {
+                      system: t(DEVICE_SYSTEM_KEYS[descriptor.system]),
+                    })
+                  : t("platformAccount.security.sessions.unknownDevice")
+            const deviceLabel = shortId
+              ? `${head}${DEVICE_LABEL_SEPARATOR}${shortId}`
+              : head
+            const DeviceIcon =
+              descriptor.deviceType === "phone"
+                ? SmartphoneIcon
+                : descriptor.deviceType === "tablet"
+                  ? TabletIcon
+                  : descriptor.deviceType === "desktop"
+                    ? MonitorIcon
+                    : CircleHelpIcon
             return (
               <li
                 key={device.id}
                 className="flex min-w-0 items-start gap-3 py-4"
                 data-session-id={device.id}
                 data-session-current={device.current ? "true" : "false"}
+                data-device-type={descriptor.deviceType ?? "unknown"}
               >
-                <LaptopIcon
+                <DeviceIcon
                   className="mt-0.5 size-5 shrink-0 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <p className="min-w-0 text-sm font-medium break-all">
-                      {deviceLabel}
+                      {head}
+                      {shortId ? (
+                        <span className="text-muted-foreground">
+                          {DEVICE_LABEL_SEPARATOR}
+                          {shortId}
+                        </span>
+                      ) : null}
                     </p>
                     {device.current ? (
                       <Badge variant="secondary">
@@ -255,6 +296,18 @@ export function SessionDeviceSection({
                           : formatTimestamp(device.lastSeenAt, i18n.language)}
                       </dd>
                     </div>
+                    {device.userAgent ? (
+                      <div className="flex min-w-0 gap-1 sm:col-span-2">
+                        <dt>
+                          {t(
+                            "platformAccount.security.sessions.userAgentLabel"
+                          )}
+                        </dt>
+                        <dd className="min-w-0 break-all">
+                          {device.userAgent}
+                        </dd>
+                      </div>
+                    ) : null}
                   </dl>
                 </div>
                 {/*

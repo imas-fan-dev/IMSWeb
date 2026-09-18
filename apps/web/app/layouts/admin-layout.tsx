@@ -163,6 +163,14 @@ const navigation: Array<{
     superOnly: true,
   },
   {
+    to: "/admin/platform/users",
+    label: "平台用户",
+    description: "C 端帐号检索与处置",
+    icon: UsersRoundIcon,
+    accent: "bg-franchise-cg",
+    superOnly: true,
+  },
+  {
     to: "/admin/system",
     label: "系统配置",
     description: "地图分发与运行时设置",

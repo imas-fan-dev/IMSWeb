@@ -7,22 +7,29 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useSearchParams } from "react-router"
 
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Alert, AlertDescription } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   getPlatformOAuthLinks,
-  unlinkPlatformOAuthLink,
+  getPlatformOAuthProviders,
+  platformOAuthLinkStartUrl,
   type PlatformOAuthLink,
+  type PlatformOAuthProvider,
+  unlinkPlatformOAuthLink,
 } from "~/lib/api"
 
 import {
   formatTimestamp,
   isLastLoginMethod,
   isOAuthLinkNotFound,
+  isOAuthLinkSuccess,
   isRateLimited,
+  oauthLinkReasonKey,
 } from "./account-security-model"
 
 export function OAuthLinkSection({
@@ -38,7 +45,26 @@ export function OAuthLinkSection({
   onLoginMethodsLoaded?: (state: { passwordEnabled: boolean }) => void
 }) {
   const { t, i18n } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  // The API hands the binding round trip back as `?oauth=<reason>`. The reason
+  // is captured once at mount and the parameter is stripped, so a refresh does
+  // not replay the banner but the first render still shows it.
+  const [initialOauthReason] = useState(() => searchParams.get("oauth"))
+  const oauthNotice = initialOauthReason
+    ? (() => {
+        const key = oauthLinkReasonKey(initialOauthReason)
+        return key
+          ? { key, success: isOAuthLinkSuccess(initialOauthReason) }
+          : null
+      })()
+    : null
+  const oauthMessage = oauthNotice
+    ? t(oauthNotice.key, { provider: "" }).trim()
+    : ""
   const [links, setLinks] = useState<PlatformOAuthLink[] | null>(null)
+  const [providers, setProviders] = useState<PlatformOAuthProvider[] | null>(
+    null
+  )
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [pendingProvider, setPendingProvider] = useState<string | null>(null)
@@ -46,17 +72,37 @@ export function OAuthLinkSection({
   const [actionError, setActionError] = useState("")
   const [reloadToken, setReloadToken] = useState(0)
 
+  // The reason is consumed once and stripped so a refresh does not replay it.
+  const oauthReason = searchParams.get("oauth")
+  useEffect(() => {
+    if (!oauthReason) return
+    setSearchParams(
+      (params) => {
+        const next = new URLSearchParams(params)
+        next.delete("oauth")
+        return next
+      },
+      { replace: true }
+    )
+  }, [oauthReason, setSearchParams])
+
   useEffect(() => {
     let active = true
-    void getPlatformOAuthLinks()
-      .send()
-      .then((result) => {
+    // The linked list answers "what can be unlinked"; the provider list answers
+    // "what can still be linked". Neither contains the other, so both are read
+    // and the section renders their difference.
+    void Promise.all([
+      getPlatformOAuthLinks().send(),
+      getPlatformOAuthProviders().send(),
+    ])
+      .then(([linkResult, providerResult]) => {
         if (!active) return
-        setLinks(result.links)
+        setLinks(linkResult.links)
+        setProviders(providerResult.providers)
         // This response is the login-method inventory, not just a link list, so
         // it is also what tells the password form whether it has anything to
         // change. Reporting it up here keeps that to one request.
-        onLoginMethodsLoaded?.({ passwordEnabled: result.passwordEnabled })
+        onLoginMethodsLoaded?.({ passwordEnabled: linkResult.passwordEnabled })
         setLoadFailed(false)
         setLoading(false)
       })
@@ -101,6 +147,10 @@ export function OAuthLinkSection({
   }
 
   const entries = links ?? []
+  const linkedProviders = new Set(entries.map((link) => link.provider))
+  const unlinked = (providers ?? []).filter(
+    (provider) => !linkedProviders.has(provider.code)
+  )
 
   return (
     <section
@@ -114,17 +164,17 @@ export function OAuthLinkSection({
         {t("platformAccount.security.oauth.description")}
       </p>
 
-      {feedback ? (
+      {feedback || (oauthNotice?.success && oauthMessage) ? (
         <Alert className="mt-4" aria-live="polite">
           <CircleCheckIcon aria-hidden="true" />
-          <AlertDescription>{feedback}</AlertDescription>
+          <AlertDescription>{feedback || oauthMessage}</AlertDescription>
         </Alert>
       ) : null}
 
-      {actionError ? (
+      {actionError || (oauthNotice && !oauthNotice.success) ? (
         <Alert variant="destructive" className="mt-4" aria-live="assertive">
           <CircleAlertIcon aria-hidden="true" />
-          <AlertDescription>{actionError}</AlertDescription>
+          <AlertDescription>{actionError || oauthMessage}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -142,7 +192,7 @@ export function OAuthLinkSection({
             {t("platformAccount.security.oauth.loadFailed")}
           </AlertDescription>
         </Alert>
-      ) : entries.length === 0 ? (
+      ) : entries.length === 0 && unlinked.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
           {t("platformAccount.security.oauth.empty")}
         </p>
@@ -153,6 +203,7 @@ export function OAuthLinkSection({
               key={link.provider}
               className="flex min-w-0 items-start gap-3 py-4"
               data-provider={link.provider}
+              data-linked="true"
               data-removable={link.removable ? "true" : "false"}
             >
               <LinkIcon
@@ -218,6 +269,49 @@ export function OAuthLinkSection({
                     ? "platformAccount.security.oauth.unlinking"
                     : "platformAccount.security.oauth.unlink"
                 )}
+              </Button>
+            </li>
+          ))}
+          {unlinked.map((provider) => (
+            <li
+              key={provider.code}
+              className="flex min-w-0 items-start gap-3 py-4"
+              data-provider={provider.code}
+              data-linked="false"
+            >
+              <LinkIcon
+                className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="min-w-0 truncate text-sm font-medium">
+                  {provider.displayName}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t("platformAccount.security.oauth.availableHint")}
+                </p>
+              </div>
+              {/*
+                A plain document navigation, exactly like the provider buttons
+                on the login page: the API answers /start with a 303 to the
+                provider. No JSON schema exists for a redirect success.
+              */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                nativeButton={false}
+                disabled={readOnly}
+                aria-label={t("platformAccount.security.oauth.linkLabel", {
+                  provider: provider.displayName,
+                })}
+                render={
+                  <NavigationLink
+                    href={platformOAuthLinkStartUrl(provider.code)}
+                  />
+                }
+              >
+                {t("platformAccount.security.oauth.link")}
               </Button>
             </li>
           ))}

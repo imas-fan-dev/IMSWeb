@@ -64,6 +64,86 @@ export function isRateLimited(error: unknown): boolean {
 }
 
 /**
+ * Email binding / change failures.
+ *
+ * Each code is a different next action for the user, so they are matched one by
+ * one rather than collapsed: a taken address needs a new address, a bad code
+ * needs a new code, and a stale-state conflict needs a reload.
+ */
+export function isEmailConflict(error: unknown): boolean {
+  return matches(error, 409, "PLATFORM_EMAIL_CONFLICT")
+}
+
+export function isEmailUnchanged(error: unknown): boolean {
+  return matches(error, 400, "PLATFORM_EMAIL_UNCHANGED")
+}
+
+export function isEmailAlreadyBound(error: unknown): boolean {
+  return matches(error, 409, "PLATFORM_EMAIL_ALREADY_BOUND")
+}
+
+export function isEmailNotBound(error: unknown): boolean {
+  return matches(error, 409, "PLATFORM_EMAIL_NOT_BOUND")
+}
+
+export function isEmailVerificationInvalid(error: unknown): boolean {
+  return matches(error, 400, "PLATFORM_EMAIL_VERIFICATION_INVALID")
+}
+
+export function isEmailStateConflict(error: unknown): boolean {
+  return matches(error, 409, "PLATFORM_EMAIL_STATE_CONFLICT")
+}
+
+export function isEmailInputInvalid(error: unknown): boolean {
+  return matches(error, 400, "PLATFORM_EMAIL_INPUT_INVALID")
+}
+
+export function isEmailUnavailable(error: unknown): boolean {
+  return matches(error, 503, "PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE")
+}
+
+/**
+ * The `?oauth=` reason the API appends when it hands the OAuth round trip back.
+ *
+ * Success and failure share one channel, and the reason set is closed, so an
+ * unknown value must degrade to the generic failure instead of leaking into the
+ * UI as a raw token.
+ */
+export type PlatformOAuthLinkReasonKey =
+  | "platformAccount.security.oauth.linked"
+  | "platformAccount.security.oauth.linkConflict"
+  | "platformAccount.security.oauth.linkAlreadyBound"
+  | "platformAccount.security.oauth.linkUnavailable"
+  | "platformAccount.security.oauth.linkExpired"
+  | "platformAccount.security.oauth.linkFailed"
+
+export function oauthLinkReasonKey(
+  reason: string | null
+): PlatformOAuthLinkReasonKey | null {
+  switch (reason) {
+    case "linked":
+      return "platformAccount.security.oauth.linked"
+    case "link-conflict":
+      return "platformAccount.security.oauth.linkConflict"
+    case "link-already-bound":
+      return "platformAccount.security.oauth.linkAlreadyBound"
+    case "link-unavailable":
+      return "platformAccount.security.oauth.linkUnavailable"
+    case "link-expired":
+      return "platformAccount.security.oauth.linkExpired"
+    case "link-invalid":
+    case "link-failed":
+      return "platformAccount.security.oauth.linkFailed"
+    default:
+      return null
+  }
+}
+
+export function isOAuthLinkSuccess(reason: string | null): boolean {
+  return reason === "linked"
+}
+
+/**
  * Epoch milliseconds as a human-readable local timestamp.
  *
  * `Intl` resolves the locale itself; an unsupported tag falls back to the

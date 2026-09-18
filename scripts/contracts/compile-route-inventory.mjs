@@ -9,7 +9,7 @@ const ts = createRequire(new URL("../../packages/contracts/package.json", import
 const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
-const BASELINE = { mountedMethodPaths: 225, carriers: 285, reject: 43, acceptAndProject: 161, passthrough: 17, nonObjectApplicable: 64 };
+const BASELINE = { mountedMethodPaths: 236, carriers: 298, reject: 50, acceptAndProject: 161, passthrough: 17, nonObjectApplicable: 70 };
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },
