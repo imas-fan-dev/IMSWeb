@@ -230,8 +230,16 @@ export const platformOAuthProviderParamsSchema = z
   .object({ provider: z.string() })
   .strict();
 
+// The start route is shared by desktop Web, mobile Web, and the app shell.
+// `client` selects the return channel (document redirect vs. app deep link) and
+// `codeChallenge` binds the app's ephemeral PKCE verifier to the state row.
+// Existing unknown keys keep their legacy stripped behavior.
 export const platformOAuthStartQuerySchema = z
-  .object({ returnPath: z.string().optional() })
+  .object({
+    returnPath: z.string().optional(),
+    client: z.enum(["web", "app"]).optional(),
+    codeChallenge: z.string().min(43).max(43).optional(),
+  })
   .strip();
 
 // OAuth providers may attach vendor-specific callback fields. Preserve them so
@@ -243,6 +251,16 @@ export const platformOAuthCallbackQuerySchema = z
     state: z.string().optional(),
   })
   .passthrough();
+
+// The app redeems its one-time deep-link code here, proving possession of the
+// PKCE verifier that never left the app process. The response reuses
+// `platformSessionSchema`; only the bearer auth mode returns tokens.
+export const platformOAuthExchangeRequestSchema = z
+  .object({
+    code: z.string().min(43).max(128),
+    codeVerifier: z.string().min(43).max(128),
+  })
+  .strict();
 
 export const platformAccountSchema = z
   .object({
@@ -312,6 +330,9 @@ export type PlatformOAuthProviderParams = z.infer<
 export type PlatformOAuthStartQuery = z.infer<typeof platformOAuthStartQuerySchema>;
 export type PlatformOAuthCallbackQuery = z.infer<
   typeof platformOAuthCallbackQuerySchema
+>;
+export type PlatformOAuthExchangeRequest = z.infer<
+  typeof platformOAuthExchangeRequestSchema
 >;
 export type PlatformMutationRateLimitResponse = z.infer<
   typeof platformMutationRateLimitResponseSchema

@@ -66,6 +66,11 @@
       "require": "./dist/platform/admin-email.js",
       "default": "./dist/platform/admin-email.js"
     },
+    "./platform/admin-users": {
+      "types": "./dist/platform/admin-users.d.ts",
+      "require": "./dist/platform/admin-users.js",
+      "default": "./dist/platform/admin-users.js"
+    },
     "./platform/account-security": {
       "types": "./dist/platform/account-security.d.ts",
       "require": "./dist/platform/account-security.js",

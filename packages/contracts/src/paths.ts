@@ -5,6 +5,11 @@ export const PLATFORM_API_PATH_PREFIX = `${API_PATH_PREFIX}/platform` as const
 export const PLATFORM_AUTH_PATH_PREFIX = `${PLATFORM_API_PATH_PREFIX}/auth` as const
 export const PLATFORM_AUTH_OAUTH_PATH_PREFIX = `${PLATFORM_AUTH_PATH_PREFIX}/oauth` as const
 export const ADMIN_PLATFORM_AUTH_OAUTH_PATH_PREFIX = `${ADMIN_API_PATH_PREFIX}/platform/auth/oauth` as const
+
+// App-only OAuth return channel. API targets it with a 303 after the HTTPS
+// provider callback, and Web matches it when the deep link reopens the app.
+// Providers never see it, so the single HTTPS redirect_uri stays unchanged.
+export const APP_OAUTH_CALLBACK_URL = "imsweb://oauth/callback" as const
 export const COMMUNITY_API_PATH_PREFIX = `${API_PATH_PREFIX}/community` as const
 export const EXCHANGE_PATH_PREFIX = `${COMMUNITY_API_PATH_PREFIX}/exchange` as const
 export const ADMIN_EXCHANGE_PATH_PREFIX = `${ADMIN_API_PATH_PREFIX}/community/exchange` as const

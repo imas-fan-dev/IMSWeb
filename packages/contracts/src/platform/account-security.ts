@@ -4,6 +4,8 @@ import {
   platformHttpErrorSchema,
   platformLoginPasswordSchema,
   platformOAuthProviderCodeSchema,
+  platformPasswordSchema,
+  platformRegistrationEmailSchema,
 } from "./index.js";
 
 export const platformPasswordChangeRequestSchema = z
@@ -87,6 +89,49 @@ export const platformOAuthUnlinkResponseSchema = successEnvelope({
   provider: platformOAuthProviderCodeSchema,
 }).strict();
 
+// The link-start route binds the caller's session to the provider round trip.
+// It accepts no client input, so the strict empty object rejects stray query keys.
+export const platformOAuthLinkStartQuerySchema = z.object({}).strict();
+
+// The binding code shares platform_email_verification_codes with registration,
+// so the request shape mirrors registration verification while the hash domain
+// keeps the two code spaces disjoint server-side.
+export const platformEmailVerificationCodeRequestSchema = z
+  .object({ email: platformRegistrationEmailSchema })
+  .strict();
+
+export const platformEmailVerificationCodeResponseSchema = successEnvelope({
+  queued: z.literal(true),
+  retryAfterSeconds: z.number().int().min(1).max(600),
+}).strict();
+
+export const platformEmailCredentialResponseSchema = successEnvelope({
+  email: z.string().min(3).max(320).nullable(),
+}).strict();
+
+// Binding provisions the account's first email credential, so it carries a new password.
+export const platformEmailBindRequestSchema = z
+  .object({
+    email: platformRegistrationEmailSchema,
+    code: z.string().regex(/^\d{6}$/),
+    newPassword: platformPasswordSchema,
+  })
+  .strict();
+
+// Changing an existing credential keeps the stored password hash, so it re-proves
+// ownership with the current password instead of setting a new one.
+export const platformEmailChangeRequestSchema = z
+  .object({
+    email: platformRegistrationEmailSchema,
+    code: z.string().regex(/^\d{6}$/),
+    currentPassword: platformLoginPasswordSchema,
+  })
+  .strict();
+
+export const platformEmailBindingResponseSchema = successEnvelope({
+  email: z.string().min(3).max(320),
+}).strict();
+
 export const platformPasswordChangeResponseSchema = successEnvelope({
   revokedSessionCount: z.number().int().safe().nonnegative(),
   accessToken: z.string().min(1).optional(),
@@ -122,4 +167,25 @@ export type PlatformOAuthLinkListResponse = z.infer<
 >;
 export type PlatformOAuthUnlinkResponse = z.infer<
   typeof platformOAuthUnlinkResponseSchema
+>;
+export type PlatformOAuthLinkStartQuery = z.infer<
+  typeof platformOAuthLinkStartQuerySchema
+>;
+export type PlatformEmailVerificationCodeRequest = z.infer<
+  typeof platformEmailVerificationCodeRequestSchema
+>;
+export type PlatformEmailVerificationCodeResponse = z.infer<
+  typeof platformEmailVerificationCodeResponseSchema
+>;
+export type PlatformEmailCredentialResponse = z.infer<
+  typeof platformEmailCredentialResponseSchema
+>;
+export type PlatformEmailBindRequest = z.infer<
+  typeof platformEmailBindRequestSchema
+>;
+export type PlatformEmailChangeRequest = z.infer<
+  typeof platformEmailChangeRequestSchema
+>;
+export type PlatformEmailBindingResponse = z.infer<
+  typeof platformEmailBindingResponseSchema
 >;

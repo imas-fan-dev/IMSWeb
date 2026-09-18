@@ -27,6 +27,7 @@ src/
     index.ts             # 会话/资料/OAuth 发现/注册验证
     admin.ts             # 超管 OAuth 提供方配置
     admin-email.ts       # 超管 SMTP 邮件服务配置
+    admin-users.ts       # 超管平台用户帐号检索与处置
   runtime-primitives.ts  # 不依赖 zod 的内部字符串原子
   fudaba/
     index.ts             # 交换站核心（原子 + 公开/业主线契约）
@@ -112,6 +113,7 @@ code imports the narrow public module.
 | `@imsweb/contracts/fudaba/location-review` | `fudabaLocationReview` | schema |
 | `@imsweb/contracts/platform/admin` | `platformAdmin` | schema |
 | `@imsweb/contracts/platform/admin-email` | `platformAdminEmail` | schema |
+| `@imsweb/contracts/platform/admin-users` | `platformAdminUsers` | schema |
 | `@imsweb/contracts/platform/account-security` | `platformAccountSecurity` | schema |
 | `@imsweb/contracts/live` | `live` | schema |
 | `@imsweb/contracts/events` | `events` | schema |
