@@ -106,6 +106,25 @@ pnpm --filter @imsweb/web run test:unit
 pnpm --filter @imsweb/web run test:e2e
 ```
 
+### pre-commit 覆盖边界
+
+`check:pre-commit` 在 `git diff --cached --check` 之后先运行三个不依赖基础设施的仓库级期望值
+守护，再执行其余静态检查：
+
+| 守护 | 固定内容 |
+| --- | --- |
+| `node scripts/testing/run-test-owner.mjs contracts` | mounted inventory 总数、前端路由元数据、non-JSON 边界清单 |
+| `pnpm --filter @imsweb/api run test:migration` | 迁移有序清单、`catalog.count` 与已发布迁移校验和 |
+| `pnpm --filter @imsweb/web run test:unit routes.test.ts` | 类型化 Web 路由清单长度与 prerender 数量 |
+
+这三个测试把仓库级计数写成期望值；新增路由、迁移或页面时必须同步更新，否则提交会在
+pre-commit 阶段被拒绝，而不是等到 CI 或部署。三个守护合计约 10s，相对 `check:pre-commit`
+约 170s 的总时长可以忽略。
+
+`check:pre-commit` 有意不覆盖 governance owner（约 139s）、API/Web owner 的完整套件和浏览器
+lane；这些仍只由 CI 运行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前如需完全对齐应运行
+`pnpm run test:infra`。
+
 Root `test:web-routing` 调用 delivery integration owner；该 owner 在当前 job 内构建两个
 workspace 后运行 frontend routing 与 packaged-client asset contracts。CI 的 Web lane 运行
 Chromium、移动 Chromium 与 Firefox 的普通 Web Playwright 矩阵；App Playwright 由独立 App
