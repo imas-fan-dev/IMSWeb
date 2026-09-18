@@ -63,7 +63,8 @@ export async function handleListNamecards(
             total,
             totalPage: Math.ceil(total / size)
         } satisfies NamecardPageResponse);
-    } catch {
+    } catch (error) {
+        console.error('Failed to list namecards', error);
         return c.json({ msg: '查询失败' } satisfies NamecardListErrorResponse);
     }
 }

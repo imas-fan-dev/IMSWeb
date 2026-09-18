@@ -20,8 +20,7 @@ import { randomHex } from '@/utils/crypto/random';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { objectReadResponse } from '@/utils/http/object-read-response';
 import {
-    fudabaCardBackObjectKey,
-    fudabaCardFrontObjectKey,
+    namecardClaimMediaObjectKey,
     namecardMediaObjectKeys
 } from '@/utils/storage/business-object-keys';
 import {
@@ -250,8 +249,8 @@ async function copyLegacyMedia(
         namecardMediaObjectKeys(claim.legacy_image2_url)[0]
     ];
     const destinationKeys = [
-        fudabaCardFrontObjectKey(cardId, 'webp'),
-        fudabaCardBackObjectKey(cardId, 'webp')
+        namecardClaimMediaObjectKey(sourceKeys[0]!, cardId, 'front'),
+        namecardClaimMediaObjectKey(sourceKeys[1]!, cardId, 'back')
     ];
     for (let index = 0; index < sourceKeys.length; index += 1) {
         const source = await storage.get(sourceKeys[index]!);

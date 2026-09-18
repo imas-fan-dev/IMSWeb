@@ -9,6 +9,7 @@ import {
     handleReviewFudabaRegisteredCard
 } from '@/domains/community/fudaba/moderation/handlers/admin-card-reviews';
 import type { ObjectStorage, StoredObject } from '@/ports/object-storage';
+import { namecardOriginalUrlFromObjectKey } from '@/utils/storage/business-object-keys';
 import type {
     FudabaAdminCardClaimRecord,
     FudabaCardClaimRecord,
@@ -295,6 +296,67 @@ test('new claimed-card media is public before the final database transition', as
     assert.equal(response.status, 200);
     assert.equal(completeCalls, 1);
     assert.equal(published.length, 2);
+});
+
+// The claimed row keeps `origin='legacy'`, so the public namecard wall still
+// publishes it and addresses its media by reversing the stored object key. A
+// Fudaba-layout key (`community/fudaba/cards/...`) has no public form, so that
+// reversal threw and returned an opaque `查询失败` for the entire wall.
+test('claimed media lands where the public namecard wall can read it', async () => {
+    const claim = adminClaim();
+    const destinations: string[] = [];
+    const published: string[] = [];
+    const repository: Partial<FudabaRepository> = {
+        async findAdminCardClaim() { return claim; },
+        async beginCardClaimReview() {
+            return { status: 'claimed', claim: claimRecord() };
+        },
+        async completeCardClaimReview() {
+            return {
+                status: 'saved',
+                claim: { ...claimRecord(), state: 'approved' as const, revision: 2 },
+                card: null
+            };
+        },
+        async rollbackCardClaimReview() {
+            throw new Error('successful claim must not roll back');
+        }
+    };
+    const objectStorage = storage({
+        async get(key) { return stored(key.includes('front') ? 1 : 2); },
+        async put(key, body) {
+            destinations.push(key);
+            return stored(body[0] ?? 0);
+        },
+        async publish(key) { published.push(key); }
+    });
+
+    const response = await app(runtime(repository, objectStorage)).request(
+        'http://ims.test/claims/claim-review',
+        {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                decision: 'approve',
+                expectedRevision: 0,
+                note: 'verified'
+            })
+        }
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(destinations, [
+        'community/namecards/assets/legacy-42-front/image.webp',
+        'community/namecards/assets/legacy-42-back/image.webp'
+    ]);
+    assert.deepEqual(published, destinations);
+    for (const key of destinations) {
+        assert.match(
+            namecardOriginalUrlFromObjectKey(key),
+            /^\/uploads\/namecard\/original\//
+        );
+    }
+    assert.notEqual(destinations[0], claim.legacy_image1_url);
 });
 
 

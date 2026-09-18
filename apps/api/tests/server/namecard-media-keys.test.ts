@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ensureNamecardThumbnails } from '@/domains/community/fudaba/card-media-assets';
 import {
+    namecardClaimMediaObjectKey,
     namecardMediaObjectKeys,
+    namecardOriginalUrlFromObjectKey,
     namecardThumbnailObjectKey,
     namecardThumbnailPublicUrl,
     publicMediaObjectKey
@@ -57,6 +59,54 @@ test('legacy thumbnail paths map back to the canonical thumbnail key', () => {
         () => publicMediaObjectKey('uploads/namecard/thumbnail/.jpg'),
         /Unsupported namecard thumbnail path/
     );
+});
+
+// A claim copies a legacy card's media onto a row that the public wall still
+// publishes (`origin` is immutable provenance, so it stays 'legacy'). Writing a
+// Fudaba-layout key there has no public form, so the wall's key reversal threw
+// and took the entire card list down with it. These tests pin the layout.
+test('claimed legacy media keeps the canonical namecards layout', () => {
+    const sourceKey = 'community/namecards/assets/legacy-original/image.webp';
+    const front = namecardClaimMediaObjectKey(sourceKey, 'legacy-12', 'front');
+    const back = namecardClaimMediaObjectKey(sourceKey, 'legacy-12', 'back');
+    assert.equal(front, 'community/namecards/assets/legacy-12-front/image.webp');
+    assert.equal(back, 'community/namecards/assets/legacy-12-back/image.webp');
+    assert.equal(
+        namecardOriginalUrlFromObjectKey(front),
+        '/uploads/namecard/original/legacy-12-front.webp'
+    );
+    assert.equal(
+        namecardOriginalUrlFromObjectKey(back),
+        '/uploads/namecard/original/legacy-12-back.webp'
+    );
+});
+
+test('claimed media round-trips through the public media chain', () => {
+    const key = namecardClaimMediaObjectKey(
+        'community/namecards/assets/legacy-original/image.webp',
+        'legacy-12',
+        'front'
+    );
+    const publicUrl = namecardOriginalUrlFromObjectKey(key);
+    assert.equal(publicMediaObjectKey(publicUrl), key);
+    assert.deepEqual(namecardMediaObjectKeys(publicUrl), [
+        key,
+        'community/namecards/assets/legacy-12-front/thumbnail.jpg'
+    ]);
+});
+
+test('claimed media keeps the source extension and never reuses the source', () => {
+    const sourceKey = 'community/namecards/assets/legacy-original/image.png';
+    assert.equal(
+        namecardClaimMediaObjectKey(sourceKey, 'legacy-7', 'front'),
+        'community/namecards/assets/legacy-7-front/image.png'
+    );
+    for (const side of ['front', 'back'] as const) {
+        assert.notEqual(
+            namecardClaimMediaObjectKey(sourceKey, 'legacy-7', side),
+            sourceKey
+        );
+    }
 });
 
 function stubThumbnailRuntime(overrides: {

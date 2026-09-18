@@ -124,6 +124,23 @@ export function namecardOriginalUrlFromObjectKey(key: string): string {
     return publicUploadsPath(`/namecard/original/${match[1]}.${match[2]}`);
 }
 
+// A claimed guest/legacy row must keep the canonical namecards layout: the
+// public namecard wall reverses namecardImageObjectKey to address a card's
+// media, so a Fudaba-layout key has no readable public form there. The stem is
+// derived from the card rather than from the source so a claim never collides
+// with, or silently reuses, the legacy object it copied from.
+export function namecardClaimMediaObjectKey(
+    sourceObjectKey: string,
+    cardId: string,
+    side: 'front' | 'back'
+): string {
+    const match = NAMECARD_ORIGINAL_OBJECT_KEY_PATTERN.exec(sourceObjectKey);
+    const extension = match ? match[2]! : 'webp';
+    return namecardImageObjectKey(
+        `${fudabaEntitySegment(cardId)}-${side}.${extension}`
+    );
+}
+
 export function producerMapAssetObjectKey(filename: string): string {
     const file = fileParts(filename);
     return `community/producer-map/assets/${file.stem}/image.${file.extension}`;
