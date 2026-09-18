@@ -124,3 +124,18 @@ live runtime admission predicates all support the bridge path.
    or a command-level test if the plugin harness supports it. Verify both
    colors and these flags: light theme sets light navigation and status-bar
    appearances; dark theme clears both. The physical device is API 35, so it
+   exercises the API 26+ branch; the pre-M and Android 6 branches are only
+   reachable through the plugin's own unit tests.
+
+## Archive note
+
+This artifact was committed while the sentence above was still incomplete. All
+four recommendations were implemented in `3e5f950b`: `SystemBarAppearance.kt`
+extracts the color and icon-flag decision, `SystemBarAppearanceTest.kt` covers
+the Android 15, pre-M, and Android 6 branches, and the Web tests assert one
+bridge call per theme commit.
+
+The device-side steps were not executed against that commit: keyframe capture
+at DPR 2.625, a 60 fps trace for one light-to-dark and one dark-to-light
+toggle, and the instrumentation run. The connected device `A059` still holds
+the `0.1.0-preview.202609170814` package, which predates `3e5f950b`.
