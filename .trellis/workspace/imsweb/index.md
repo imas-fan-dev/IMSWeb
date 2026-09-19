@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
+- **Total Sessions**: 7
 - **Last Active**: 2026-09-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~191 | Active |
+| `journal-1.md` | ~238 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-09-19 | 统一测试执行到 Vitest 并接入报表与覆盖率 | `f9a1358f` | `release/v1.1` |
 | 6 | 2026-09-19 | 对齐 Trellis spec 与仓库 docs 到已落地代码 | `squashed` | `release/v1.1` |
 | 5 | 2026-09-04 | 完成 CMS 文章标题回填 | `1dd6ffb` | `release/v1.1` |
 | 4 | 2026-09-03 | Split CI by affected workspace | `squashed` | `release/v1.1` |

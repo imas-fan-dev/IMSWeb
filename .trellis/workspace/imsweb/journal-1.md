@@ -192,3 +192,47 @@
 ### Next Steps
 
 - 无：两层文档已与当前代码对齐，后续新契约随实现同批补齐。
+
+
+## Session 7: 统一测试执行到 Vitest 并接入报表与覆盖率
+<!-- trellis-session: v=2 fp=9ae00a215ca843ef -->
+
+**Date**: 2026-09-19
+**Task**: 统一测试执行到 Vitest 并接入报表与覆盖率
+**Package**: web
+**Branch**: `release/v1.1`
+
+### Summary
+
+把 API 与根契约/治理两个执行域从 Node 内置 test runner 迁到 Vitest，让三个执行域共用一套 runner 形态；同时从零接入 JUnit XML 与 v8 覆盖率：三域配置各自同形，CI 上传报告 artifact，API 与 Web 设以实测基线起步的阈值门禁，仓库契约与治理域只产 JUnit。Python unittest 与 Playwright 未动。分支 chore/vitest-test-unification 以 squash 方式并入 release/v1.1。
+
+### Main Changes
+
+- API 域：新增 apps/api/vitest.config.mts（node 环境、fork 隔离、@ 指向 src），134 个用例文件迁到 Vitest；CJS 测试文件 ESM 化，3 个迁移测试按需带 tsx/cjs 加载器；PostgreSQL 适配器上移到 tests/postgres-test-database.ts，TestContext 的 t 参数换成 onTestFinished 与 ctx.skip。
+- 类型门禁合并为一条：新增 apps/api/tsconfig.tests.json 覆盖 src 与 tests/**，取代 tests/server 与 tests/wiki 各自的 tsc；apps/api/tests/tsconfig.json 只为编辑器保留；API plan 收敛为 build + syntax + architecture + 一次 Vitest 全量，apps/api 的 package script 仍为 43 个。
+- 仓库域：9 个根 node:test 文件迁到 Vitest，由 apps/api 宿主（根 package.json 只能声明 husky），根域配置保持无 import 的普通对象导出；run-test-owner.mjs 的冻结 plan 形状与逐文件清单不变，--config 传绝对路径。
+- 报表与覆盖率：三域同形配置，CI 产出并上传 reports/junit-<domain>.xml；覆盖率由 IMS_TEST_COVERAGE_ENABLED 打开，只设在两个衡量整个域的 CI 步骤上（若按 CI 判定，App lane 的单文件 Web 运行与 integration lane 的 test:assets 会撞上全域阈值）；阈值取实测基线下取整且只能上调（API 79/66/84/76、Web 73/67/67/70）；仓库域只产 JUnit，因为三次调用共用一份 scripts/** 分母，最小口径 1.36%，而 CPU 密集的 contracts 要多付约 40s。
+- 治理与文档：新增 tests/vitest-reporting.test.mjs 守住三域配置不变量与 CI 旗标位置；docs/development/testing.md 新增“报告与覆盖率”并重测 pre-commit 耗时；api 与 web 的 testing spec 同步；父任务与三个子任务的 prd/design/implement/verification 随本次合并进入仓库。
+- 合并操作：主检出先删除此前为集中 Trellis 状态建立的 .trellis/tasks 符号链接，再 git merge --squash；主检出需先 pnpm install（vitest 声明在 apps/api），否则 pre-commit 的 contracts owner 找不到 vitest 而失败。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f9a1358f` | test: run the whole suite on Vitest with JUnit reports and coverage gates |
+
+### Testing
+
+- [OK] [OK] pnpm run test 退出 0，364s：governance 4 文件/64 用例 + Python Ran 123、contracts 3/29、delivery root 3/27 + Python Ran 2、delivery integration test:assets 2/10、API 134 文件/884 用例、Web 220 文件/1534 用例。
+- [OK] [OK] pnpm run check 退出 0，208s（含 Web lint/typecheck/build 与 API architecture 381 模块）；pnpm run check:pre-commit 退出 0，166s，首次作为单条命令跑通。
+- [OK] [OK] 覆盖率双向验证：CI 旗标下 API 76.66/66.15/84.03/79.74 与 Web 70.5/67.85/67.32/73.43 均过阈值并退出 0；单文件运行（vitest run --coverage tests/wiki）打印四条 ERROR: Coverage for 并退出 1。
+- [OK] [OK] PostgreSQL 关闭路径 218 个跳过与迁移基线一致；三份 JUnit 文件逐份解析（884/1532/5 个 testcase，classname 为测试文件路径）。
+- [OK] [OK] 合并后树的 git diff 与分支内容为空，即通过全部验收的树就是落地的树；提交哈希 f9a1358f。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 迁移无待办项。若要收紧覆盖率，在 API 与 Web 的实测值上小幅上调阈值即可，仓库域要先合并三次调用的覆盖率收集再考虑门禁。分支 chore/vitest-test-unification 仍在本地且已 squash，仅作审计用，不需要粒度历史即可删除。
