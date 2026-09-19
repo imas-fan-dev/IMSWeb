@@ -16,19 +16,39 @@ RustFS。PostgreSQL 和 API 运行时状态仍位于部署用户的 home 下。�
 Worker 默认一个副本，可通过 `IMS_EMAIL_WORKER_REPLICAS` 扩展到最多 32 个。容器重建会产生短暂
 中断；本流程不宣称 blue/green 或零停机。
 
-Release A 只扩展队列表、Worker 和部署能力。注册与密码重置验证码的 HTTP 请求仍同步等待 SMTP，
-正常流量不会创建邮件任务。后续不包含 schema 变更的切换发布才会让 API 事务入队。
+验证码 HTTP 请求已经改为事务入队，不再同步等待 SMTP：注册与密码重置的 handler 在同一事务内
+写入投递任务，由邮件 Worker 异步发送。入队所需的队列、payload 加密和重发策略缺任何一项时端点
+返回 `503`，而不是退回同步发送。
 
 ## 1. 工作流
 
-仓库包含三个工作流：
+仓库包含四个工作流：
 
-- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上先运行 `pnpm run check`，
-  再分步运行基础设施契约、API 运行时、服务端、Wiki、迁移和 Web 路由测试；
+- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上按受影响工作区分派任务。`changes`
+  检测受影响的工作区，再由 `repository`、`app`、`web`、`api`、`integration` 按需运行，最后由
+  `result` 汇总选中与跳过的结果。`repository` 依次运行 `pnpm run check:root`、governance、
+  contracts 和 `delivery repository`。CI 不调用 `pnpm run check` 这个聚合命令；
 - `.github/workflows/deploy.yml`：发布稳定 SemVer Tag，并允许从 GitHub Actions 页面重新部署
   已存在的 Tag；
 - `.github/workflows/deploy-preview.yml`：在 `release/v1.1` push 时自动构建和部署 preview，也允许
-  从该分支手动确认后重新部署当前 commit 已有的镜像。
+  从该分支手动确认后重新部署当前 commit 已有的镜像；
+- `.github/workflows/release-preview-app.yml`：在 `release/v1.1` 的 App preview tag 上构建移动端
+  预览产物，见[预览 App 发布](preview-app-release.md)。
+
+### Playwright 失败证据
+
+App 与 Web 两个浏览器 lane 在失败时会上传 Playwright 输出目录，供事后定位：
+
+| Lane | 输出目录 | Artifact 名称 |
+| --- | --- | --- |
+| App | `/tmp/imsweb-app-playwright` | `app-playwright-<run_id>-<run_attempt>` |
+| Web | `/tmp/imsweb-web-playwright` | `web-playwright-<run_id>-<run_attempt>` |
+
+上传步骤以 `if: failure()` 触发，`if-no-files-found: ignore`，`retention-days: 7`。artifact 名称带
+run id 与 attempt，因为同一 run 的重跑不得覆盖首次尝试的证据。目录名与
+`apps/web/playwright.config.ts`、`apps/web/playwright.app.config.ts` 的 `outputDir` 必须一致，
+否则失败时上传的是空目录。留证据的目的是定位当次失败；长期发布记录属于 PR、issue 或 release
+条目，不靠提高 artifact 保留天数解决。
 
 CI、发布构建和部署配置校验都从 `.nvmrc` 读取当前 Node.js 版本，API 镜像的
 `ARG NODE_VERSION` 必须与它一致；基础设施测试会检查这项约束。各 workspace 的

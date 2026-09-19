@@ -5,6 +5,11 @@ not abstract two implementations merely because their current text looks alike.
 
 ## Search before adding
 
+Read the owning `.rules` file first. `AGENTS.md`, the root `.rules`, and each
+workspace's `.rules` (`apps/api/.rules`, `apps/web/.rules`,
+`packages/contracts/.rules`) are the binding convention sources; the package
+specs summarize them. A guide cannot override a `.rules` file.
+
 Search by business term, exported symbol, response field, path fragment, and
 test description. Check the established ownership locations:
 
@@ -51,6 +56,7 @@ review each occurrence rather than replacing blindly.
 ## Completion checklist
 
 - [ ] The abstraction has a clear owner and at least one real shared rule.
+- [ ] The owning `.rules` file was read before the change was designed.
 - [ ] Existing code was searched before a new helper or constant was added.
 - [ ] Names describe business responsibility rather than implementation shape.
 - [ ] No generic barrel or catch-all module was introduced.

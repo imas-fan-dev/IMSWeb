@@ -232,9 +232,13 @@ Platform 注册验证码和密码重置邮件只使用后台动态 SMTP 配置�
 SMTP 时，相关验证码接口返回服务不可用，不会把验证码写入日志。轮换 `IMS_PLATFORM_JWT_SECRET`
 后必须重新录入 SMTP 凭据。
 
-Release A 的 `pnpm dev` 会同时运行邮件 Worker，但验证码 HTTP 请求仍走同步 SMTP，队列表在正常
-请求下保持为空。只有后续无 schema 变更的切换发布才会让 API 改为事务入队；不要根据 Worker 已
-启动推断异步投递已经启用。
+`pnpm dev` 会同时运行邮件 Worker。验证码不再在请求里同步等 SMTP：注册和密码重置的 handler 在
+同一事务内把投递任务写入队列，Worker 领取后发送并分类记录失败。因此队列表为空只说明当前没有
+待发邮件，不再说明异步投递未启用。
+
+入队需要队列、payload 加密和重发策略全部接线；缺任何一项时验证码端点直接返回
+`503 PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE`，不会退回同步发送。本地未配置或未启用 SMTP
+时同样如此。
 
 本地运行统一使用 PostgreSQL 与 S3 兼容的 RustFS。
 需要绕过统一启动器排障时，可以分别启动依赖：

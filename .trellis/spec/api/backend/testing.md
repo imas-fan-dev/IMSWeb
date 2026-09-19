@@ -13,6 +13,20 @@ API tests live under `apps/api/tests/` and use Node's test runner.
 Name tests `*.test.ts` or `*.test.js`. Put regressions beside the owning suite,
 not in a new miscellaneous test directory.
 
+The identity and admin surface uses named suites rather than one file per
+module. Extend the owning suite instead of adding a parallel one:
+
+| Suite | Owns |
+| --- | --- |
+| `platform-oauth-callback-branches` | Login vs link callback dispatch, deep-link targets, the `flow=link` stamp |
+| `platform-oauth-exchange` | Bearer gate, single-use redemption, replay, verifier mismatch, expiry, account status |
+| `platform-oauth-wire-contract-conformance` | Raw JSON equality for the OAuth wire shapes |
+| `platform-account-security.contract` | Password, session, email, and OAuth-link account surfaces |
+| `platform-email-*.test.ts` | Email delivery queue, payload, resend policy, and settings |
+| `node-email-delivery-runner` | The email worker process: claim, lease, retry, terminal states |
+| `admin-platform-users.contract` | Admin platform-user endpoints and their middleware chain |
+| `platform-account-management-repository` | Account-management persistence through the Node runtime |
+
 ## Required coverage
 
 - A new pure function gets a focused unit test when its behavior is not already
@@ -25,6 +39,16 @@ not in a new miscellaneous test directory.
   `apps/api/tests/wiki/wire-contract-conformance.test.ts` and existing inline
   `schema.parse` assertions.
 - A path ownership change runs the root Web routing contract.
+- A one-time credential such as an OAuth exchange code or an email verification
+  code is proved single-use: redeem it, redeem it again, and assert the second
+  attempt fails. Prove expiry separately from replay; they take different
+  branches. See
+  [API authentication](./authentication.md#scenario-app-oauth-return-channel-and-one-time-code-exchange)
+  for the error matrix each assertion maps to.
+- A response that changes shape by session channel asserts both: cookie callers
+  must not receive `accessToken` or `refreshToken`, and bearer callers must.
+- A security-event-bearing write asserts the event exists after a success and
+  is absent after a refused conflict.
 
 ## Scenario: PostgreSQL-backed tests
 

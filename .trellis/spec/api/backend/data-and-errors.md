@@ -8,7 +8,17 @@ path parameters, and query parameters, normalize malformed input to a 400
 response, and preserve typed `c.req.valid(...)` data for handlers. This is the
 only API production boundary that may value-import and execute a contracts
 request schema. Existing schemas explicitly preserve strict, strip, or
-passthrough unknown-key behavior; new schemas are strict.
+passthrough unknown-key behavior. New schemas are `strict` unless a documented
+exception applies; see
+[Contract schemas and exports](../../contracts/shared/schemas-and-exports.md#zod-boundary)
+for when `.strip()` or `.passthrough()` is allowed and how to record it.
+
+JSON bodies that the Platform surface accepts declare their content-type
+explicitly. `requirePlatformJson` (`src/domains/identity/platform-auth/platform-json-request.ts`)
+rejects any other content type with `415 PLATFORM_AUTH_JSON_REQUIRED` before the
+body schema runs, so a form-encoded or text body never reaches a JSON validator
+and never reports a misleading field error. Pair it with
+`platformJsonInputInvalid()` only for the malformed-body case.
 
 Handlers should accept a `ValidatedRequestContext` when a route validator has
 already run. Do not parse the same payload again in the handler or pass raw
@@ -269,3 +279,91 @@ await database.transaction(async (transaction) => {
 Build and validate the plan inside the same transaction before the first update.
 Throwing on a conflict or related-row failure lets `ManagedSqlDatabase` roll the
 whole batch back.
+
+## Scenario: Platform account avatars in object storage
+
+### 1. Scope / Trigger
+
+Use this contract when changing avatar upload, storage keys, or the authenticated
+avatar read path for a Platform account.
+
+### 2. Signatures
+
+```ts
+// apps/api/src/utils/storage/business-object-keys.ts
+platformAccountAvatarVersionObjectKey(accountId: string, version: string): string
+// -> `platform/accounts/<accountId>/avatars/<version>.webp`
+
+// apps/api/src/domains/identity/platform-profile/handlers/upload-avatar.ts
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+key = platformAccountAvatarVersionObjectKey(accountId, crypto.randomUUID())
+
+// serve-avatar.ts
+const AVATAR_RESPONSE_HEADERS = {
+    'Cache-Control': 'private, no-store',
+    'Referrer-Policy': 'no-referrer',
+    'Vary': 'Authorization, Cookie',
+}
+objectReadResponse(c.req.raw, storage, key, AVATAR_RESPONSE_HEADERS, { mode: 'proxy' })
+```
+
+### 3. Contracts
+
+- Each upload writes a new versioned object. The version is a random UUID, so an
+  upload never overwrites the bytes a cached response already points at.
+- Avatars are normalized to `image/webp` before storage, with an upload cap of
+  5 MiB plus a bounded multipart envelope allowance.
+- The object key is stored on the account's own profile row. Read paths use the
+  stored key; they do not rebuild it from the generator. This is what keeps
+  avatars uploaded before the `platform/` move readable while their old
+  `community/fudaba/accounts/` objects still exist.
+- The read path is authenticated and uses `objectReadResponse` in `proxy` mode
+  with the fixed headers above. It is not a public redirect and not a
+  `/uploads` path.
+- A profile with no stored key, or a key whose object is gone, returns the
+  plain-text 404 with the same private headers, for GET and HEAD alike.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Upload larger than the cap | Rejected before an object is written |
+| Unsupported source image type | Rejected; `webkit` conversion does not silently succeed |
+| Profile has no `avatar_object_key` | 404 with private headers, not an empty 200 |
+| Stored key no longer resolves to an object | 404 with private headers |
+| Unauthenticated read | Rejected by the route's auth middleware before storage is touched |
+
+### 5. Good/Base/Bad Cases
+
+- Good: upload a JPEG, store the WebP object under a fresh UUID, persist the key
+  on the profile row, and serve it through the authenticated proxy.
+- Base: replace an avatar twice; both versions exist and only the profile row
+  decides which one readers get.
+- Bad: build the key from the account id at read time, write the original bytes
+  under a fixed name, or serve avatars through an unauthenticated redirect.
+
+### 6. Tests Required
+
+- Assert the upload path writes a versioned `platform/accounts/...` key, the
+  read path returns `private, no-store` with GET and HEAD, and a missing or
+  dangling key yields the plain-text 404.
+- Assert an account whose stored key still uses the legacy
+  `community/fudaba/accounts/` layout remains readable.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Read-time reconstruction: silently breaks every avatar uploaded before the
+// key layout moved, and re-resolves a key the row no longer owns.
+const key = platformAccountAvatarVersionObjectKey(accountId, accountId)
+```
+
+#### Correct
+
+```ts
+// The row is the source of truth for which object this account displays.
+const key = c.get('platformAccount')?.profile.avatar_object_key
+if (!key) return avatarNotFoundResponse(c.req.raw)
+```

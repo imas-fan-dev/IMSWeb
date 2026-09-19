@@ -64,7 +64,16 @@ transaction/advisory lock 下运行。普通导入优先使用 migration script�
 
 ```sh
 pnpm run test:r2:producer-map
-pnpm --filter @imsweb/api run test:server -- producer-map
+pnpm --filter @imsweb/api run test:server
+```
+
+`test:server` 会把 `tests/server/` 下的用例整体跑一遍，其中包含
+`producer-map-content.test.ts`。Node 的 `--test` 不接受按名字过滤的位置参数，所以不要写成
+`test:server -- producer-map`，那样 Node 会把 `producer-map` 当成不存在的测试文件而直接退出。
+需要只跑这一个文件时，在 `apps/api` 下显式指定路径：
+
+```sh
+TSX_TSCONFIG_PATH=tsconfig.server.json node --import tsx --test tests/server/producer-map-content.test.ts
 ```
 
 对账要求：

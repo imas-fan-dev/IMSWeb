@@ -79,6 +79,7 @@ API 启动时会自动读取同一 workspace 下的 `apps/api/.env`，但 system
 | `IMS_EVENT_BASE_DIR` | 编年史状态目录 | release 外绝对目录 |
 | `IMS_STORY_DATA_DIR` | 剧情图片目录 | release 外绝对目录 |
 | `IMS_OBJECT_STORAGE` | 媒体存储 | `filesystem` 或 `s3` |
+| `IMS_EMAIL_WORKER_REPLICAS` | 邮件 Worker 副本数 | 默认 1，最多 32 |
 
 请求幂等记录由 PostgreSQL 持有；共享限流窗口由 Valkey 通过原子 Lua 脚本持有（键为 SHA-256 匿名散列并随窗口 TTL 自动过期），生产多副本必须指向同一 Valkey。限流窗口是可丢失的短期状态，Valkey 重启只会重置限流计数，不影响幂等与账户数据。
 
@@ -198,8 +199,8 @@ pnpm run migration:release:activate -- "$STAGING" "$RELEASE_ID"
 
 ## 7. 入口与 TLS
 
-`deploy/compose.yaml` 可运行构建后的 Hono API、本地 PostgreSQL、Valkey 和 RustFS，但不运行 Nginx、
-TLS 或其他正式入口。API 容器会在启动前幂等应用 migrations；Valkey 只承载可丢失的短期缓存，
+`deploy/compose.yaml` 可运行构建后的 Hono API、邮件 Worker、本地 PostgreSQL、Valkey 和 RustFS，
+但不运行 Nginx、TLS 或其他正式入口。API 容器会在启动前幂等应用 migrations；Valkey 只承载可丢失的短期缓存，
 邮箱验证码和账户状态仍以 PostgreSQL 为准；RustFS 初始化服务创建一个
 bucket，并通过匿名读取策略拒绝 `__protected/`，用于验证签名读取和公开 CDN 路径语义。
 宿主机部署可使用 [`deploy/nginx/`](../../deploy/nginx/README.md) 中的 Nginx 模板：主域名除
@@ -276,6 +277,14 @@ test "$(readlink "$IMS_CURRENT_LINK")" = "$IMS_RELEASES_DIR/$PREVIOUS_RELEASE_ID
   专用 version-purge worker，且不得删除 PostgreSQL 活动索引仍引用的对象。不要手工恢复已删除的
   revision 行。
 - 编年史状态异常：将数据库记录、对象和 journal 作为一个恢复单元检查。
+- 验证码邮件未送达：API 返回 `503 PLATFORM_EMAIL_VERIFICATION_UNAVAILABLE` 说明队列、payload
+  加密或重发策略未接线，属于配置问题而不是投递故障。否则按 `state` 汇总
+  `platform_email_delivery_jobs`：`queued` 与 `retry_wait` 看 `next_attempt_at`，`running` 看
+  `lease_expires_at` 是否已过期（过期租约可被其他副本接管），`failed` 看 `failure_category`
+  与 `attempts`（上限 3 次），`superseded` 表示新请求已顶替旧任务。`deadline_at` 过后不再投递。
+  DNS、TLS、认证、收件人拒绝等类别需要先修配置再重投，不要只改 `state` 字段。后台
+  `/admin/platform/email` 的改动立即生效，但轮换 `IMS_PLATFORM_JWT_SECRET` 后必须重新录入
+  SMTP 凭据。副本数由 `IMS_EMAIL_WORKER_REPLICAS` 控制，Worker 自身不健康时先看它的进程日志。
 - 原生模块启动失败：在目标主机重新用 frozen lockfile 安装，不能跨平台复制依赖。
 
 每次发布或回滚都应记录操作者、时间、release ID、数据库恢复点、媒体清单、验证结果和已知

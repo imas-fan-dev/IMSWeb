@@ -105,12 +105,12 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 
 | Web 路径                                         | Legacy 来源路径                                       | SHA-256                                                            |
 | ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------ |
-| `public/brand/series/wall/765pro.webp`           | `public/assets/images/Production/765intro.png`        | `63da4813056133985026a0bdca7306fac3ec3a1623a954a573c55077a7976ef3` |
-| `public/brand/series/wall/cinderella-girls.webp` | `public/assets/images/Production/Cinderellaintro.png` | `a82350e4e94c043525769a003b4a15609cdb4db742701335d13d3f727bb807c8` |
-| `public/brand/series/wall/million-live.webp`     | `public/assets/images/Production/Millionintro.png`    | `a271dcd8a33ce71e21f4c957a813042c9c5f54dd33f73d73d888be4f5ab66272` |
-| `public/brand/series/wall/sidem.webp`            | `public/assets/images/Production/Sidemintro.png`      | `bded4f68a603c8f1d060b5cf2b35ef3f95fff4939df972d9f0cf1e688598cbec` |
-| `public/brand/series/wall/shiny-colors.webp`     | `public/assets/images/Production/Shinyintro.png`      | `19c28aba0714205de23238a59012288b503d388d0b4922d430919070247f4bb3` |
-| `public/brand/series/wall/gakuen.webp`           | `public/assets/images/Production/Gakuenintro.png`     | `0205ebb95118b234635b57d5d2a7b2043f5cecf52cb8720fe80976d12816d09d` |
+| `public/brand/series/wall/765pro.webp`           | `public/assets/images/Production/765intro.png`        | `806fe4030785721ad508099a1b7c802af031089cd0b7c8f200697cc06b917db5` |
+| `public/brand/series/wall/cinderella-girls.webp` | `public/assets/images/Production/Cinderellaintro.png` | `0455a168e7409f555d30226a7c8aed4b7b9947e47355e78b2749f05ccc021ac1` |
+| `public/brand/series/wall/million-live.webp`     | `public/assets/images/Production/Millionintro.png`    | `c56dffd0ed74cd6b7f64ce4e3c575ae49163f499c53519db521e20cdd51fc07b` |
+| `public/brand/series/wall/sidem.webp`            | `public/assets/images/Production/Sidemintro.png`      | `e3ed7a08ef71ecef1a2ff6003a1fa289664672014a5bed0525ac3ba91389ec62` |
+| `public/brand/series/wall/shiny-colors.webp`     | `public/assets/images/Production/Shinyintro.png`      | `4a9a82a34437c63e5a199b9436b5ace253518cb3003d25364547cf8e2e28e7e0` |
+| `public/brand/series/wall/gakuen.webp`           | `public/assets/images/Production/Gakuenintro.png`     | `81c8e42a8592e7ee382e99740c9e640d51dfe7f24adc0175b0ef089c64a0220f` |
 
 文件由源图转换为 WebP，未改变构图；系列商标和人物图像的权利仍归各自权利人。浏览器
 随机 icon 使用 `image/webp` 类型，页面代码必须从 `seriesWallItems` 读取这些路径，不得

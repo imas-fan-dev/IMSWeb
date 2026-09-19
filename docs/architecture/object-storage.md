@@ -27,7 +27,9 @@ S3 adapter 对业务保存与现有 `ObjectStorage` 端口相同的逻辑 key：
 
 - `editorial/{news,events,information}/`：资讯、活动与首页活动内容；
 - `editorial/about/`：关于页配置、首屏主视觉与成员头像；
+- `editorial/articles/`：编辑文章正文内嵌的图片资源；
 - `community/namecards/`：用户投稿名片；
+- `platform/accounts/`：平台账号头像的版本化对象；
 - `brand/{works,fonts}/`：系列介绍角色立绘与标题字体；
 - `chronicle/{media,metadata,trash}/`：编年史审核流；
 - `wiki/{agencies,shared}/`：Wiki 角色、剧情与公共素材；
@@ -62,8 +64,8 @@ pnpm dlx wrangler@latest r2 bucket cors list imsweb-media-public-prod
 - Core/Story 关系数据，由一个 `DATABASE_URL` 指向的 PostgreSQL 数据库持有；
 - filesystem 模式的删除补偿仍由 `IMS_COMPENSATION_DIR` 指向本地持久卷；S3 模式的补偿、
   重试租约和隔离状态保存在统一数据库的 `s3_compensation_jobs`；
-- 请求幂等租约、响应回放和共享限流窗口保存在 PostgreSQL 的
-  `request_idempotency_records`、`rate_limit_windows` 和 `rate_limit_identities`；
+- 请求幂等租约和响应回放保存在 PostgreSQL 的 `request_idempotency_records`；共享限流窗口
+  由 Valkey 的 `ValkeyRateLimiter` 持有，见[缓存架构](cache.md)；
 - 构建后的 Web 静态文件，仍由 `IMS_PUBLIC_DIR` 提供。
 
 ## 配置
@@ -108,7 +110,7 @@ AWS SDK 使用标准凭据链。部署到 EC2、ECS 或其他 AWS compute 时优
 `apps/api/.env.example`、release 或进程启动命令历史。
 
 应用不执行隐式 DDL。启动服务前必须执行 `pnpm run migration:postgresql` 并确认最新版本
-`20260816193000_namecard_ownership_foundation` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
+`20260913120000_platform_email_delivery_jobs` 已记录在 `ims_schema_migrations`；缺少该版本时服务拒绝初始化。
 
 AWS S3 + IAM Role 示例：
 

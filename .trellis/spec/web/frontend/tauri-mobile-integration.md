@@ -585,3 +585,150 @@ controller.isAppearanceLightStatusBars = !dark
 ```
 
 The WebView provides the edge-to-edge background while the native plugin owns icon contrast.
+
+## Scenario: OAuth return channel
+
+### 1. Scope / Trigger
+
+Use this contract when changing the packaged App's OAuth sign-in or account
+linking: the mobile deep-link configuration, the system-browser handoff, the
+PKCE verifier, the callback listener, or the waiting and cancel states.
+
+The provider only ever redirects to the API's HTTPS callback. The custom-scheme
+deep link is minted after that callback by the API and carries a one-time code;
+the App redeems the code for a bearer session. Providers never see the scheme,
+so the single HTTPS `redirect_uri` is unchanged. The API half is specified in
+[API authentication](../../api/backend/authentication.md#scenario-app-oauth-return-channel-and-one-time-code-exchange);
+the redemption call is specified in
+[Web API, state, and contracts](./api-state-and-contracts.md#scenario-app-oauth-one-time-code-exchange).
+
+### 2. Signatures
+
+```jsonc
+// apps/web/src-tauri/tauri.conf.json
+"plugins": {
+  "deep-link": {
+    "mobile": [{ "scheme": ["imsweb"], "host": "oauth", "pathPrefix": ["/callback"] }]
+  }
+}
+```
+
+```ts
+// packages/contracts/src/paths.ts
+const APP_OAUTH_CALLBACK_URL = "imsweb://oauth/callback"
+
+// app/lib/platform-oauth-deep-link.ts
+parsePlatformOAuthCallbackUrl(value): PlatformOAuthCallbackPayload | null
+startPlatformOAuthDeepLink(onUnclaimed?): void        // idempotent, shell-owned
+subscribePlatformOAuthPayload(handler, flow = "login"): () => void
+
+// app/lib/navigation/system-opener.ts
+openSystemUrl(value): Promise<void>                    // throws outside Tauri
+
+// app/lib/platform-oauth-app-verifier.ts
+createPlatformOAuthPkcePair(): Promise<{ verifier, challenge }>
+writePlatformOAuthAppVerifier(flow, verifier): void
+readPlatformOAuthAppVerifier(flow): string | null
+clearPlatformOAuthAppVerifier(flow): void
+```
+
+Verifier storage keys: `ims.platform.oauth-app-verifier` (login) and
+`ims.platform.oauth-app-link-verifier` (link). Verifier TTL is the API's ten
+minute OAuth state window; the client wait deadline is five minutes, matching the
+exchange code TTL.
+
+### 3. Contracts
+
+- **Matching is exact.** `parsePlatformOAuthCallbackUrl` compares scheme, host,
+  and path against `APP_OAUTH_CALLBACK_URL`. A URL with the same scheme and a
+  different path is not ours and returns `null`.
+- **`flow` is the discriminator.** Login callbacks carry no `flow` key; link
+  callbacks always carry `flow=link`. Do not add a `flow=login` value, and do
+  not let one flow observe the other's payload.
+- **Delivery is shell-owned and idempotent.** `startPlatformOAuthDeepLink` runs
+  once from `AppLayout`. A second subscription would hand the same one-time code
+  to two consumers and burn it for whichever lost the race.
+- **Cold start is buffered.** `getCurrent()` covers the OS launching the app with
+  the callback URL and `onOpenUrl` covers a warm return. A payload that arrives
+  with no listener is held, one slot per flow, and drained synchronously by the
+  first matching listener. That listener receives it exactly once.
+- **Unclaimed callbacks route by flow.** `AppLayout` sends `flow=link` to
+  `/account/security` and everything else to `/account/login`, with
+  `replace: true`.
+- **The verifier never leaves the app process.** It is stored in
+  `localStorage`, not `sessionStorage`, so a killed-and-relaunched process can
+  still redeem the code; it is never placed in a URL, a deep link, or a log.
+  A WebView that denies storage falls back to an in-memory entry.
+- **The capability allow/deny list mirrors the JS guard.** `opener:allow-open-url`
+  in `src-tauri/capabilities/default.json` denies the blocked schemes listed in
+  `BLOCKED_SYSTEM_PROTOCOLS`. Changing one list without the other silently
+  widens what the App can hand to the OS.
+- **Waiting and cancel.** The App shows a waiting state while the authorization
+  page is open in the system browser, with a cancel action. Cancel ends the
+  state and clears the verifier; the five-minute deadline does the same.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| URL matches scheme, host, and path | Payload parsed; `flow` present only when `flow=link` |
+| Same scheme, different path | `null`, and the listener stays silent |
+| Payload carries `code` | Redeemed once through the bearer exchange |
+| Payload carries `error` | Mapped to the flow's reason and shown in the WebView |
+| Callback arrives with no listener | Buffered per flow, then drained by the first listener |
+| Cancel or five-minute deadline | Waiting state ends, verifier cleared |
+| `openSystemUrl` called outside Tauri | Throws; there is no browser fallback |
+| Blocked scheme reaching `openSystemUrl` | Throws before the OS sees it |
+
+### 5. Good/Base/Bad Cases
+
+- Good: tap a provider, authorize in the system browser, return through
+  `imsweb://oauth/callback?code=…`, redeem once, and land signed in.
+- Base: the user cancels in the browser, no deep link arrives, and the waiting
+  state ends at the deadline or on cancel.
+- Bad: subscribing from the sign-in screen (misses a cold start), letting both
+  flows read one pending payload, storing the verifier in `sessionStorage`,
+  adding a blocked scheme to the capability deny list only, or adding a browser
+  fallback to `openSystemUrl`.
+
+### 6. Tests Required
+
+- Unit tests assert exact URL matching, the `flow` discriminator, one-shot drain
+  per flow, cold-start buffering, and shell-level routing for both flows.
+- Unit tests assert the verifier round trip, its TTL, its memory fallback, and
+  that it is cleared on every terminal outcome.
+- `apps/web/tests/e2e/fixtures/platform-auth.ts` supplies
+  `installPlatformOAuthProvidersMock`, `platformOAuthProviderFixtures`, and
+  `installRecoveringPlatformOAuthProvidersMock` for the entry and failure paths.
+- **`openSystemUrl` throws outside a real Tauri runtime**, so a browser cannot
+  complete the system-browser round trip. `app-oauth-sign-in.spec.ts` therefore
+  covers only the visible entry, gated to the three portrait App projects. Deep
+  link delivery, the exchange, and the bearer session need **simulator or device
+  evidence**; a passing browser spec does not prove them.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// A screen-owned subscription races the OS: a cold start can deliver the
+// callback before the screen exists, and the code is then lost.
+useEffect(() => {
+  void subscribePlatformOAuthCallback(handlePayload)
+}, [])
+```
+
+#### Correct
+
+```ts
+// The shell starts delivery once and holds an unclaimed payload until a
+// listener appears; the flow decides the destination.
+useEffect(() => {
+  startPlatformOAuthDeepLink((payload) => {
+    navigateRef.current(
+      payload.flow === "link" ? "/account/security" : "/account/login",
+      { replace: true }
+    )
+  })
+}, [])
+```

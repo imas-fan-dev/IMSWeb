@@ -61,11 +61,18 @@ Change prefixes and builders in `@imsweb/contracts/paths`. Update API route
 registration, middleware classification, cookie scope, Web endpoints, and route
 ownership tests together. Do not leave a raw prefix in either application.
 
-For frontend route ownership, check all three surfaces:
+For frontend route ownership, check all four surfaces:
 
-- `apps/web/app/routes.ts` and prerender or SPA fallback configuration.
+- `apps/web/app/route-metadata.ts`, which holds the descriptors, their `targets`,
+  and their `delivery`; `app/routes.ts` only filters that list by target.
 - Hono's server-path and static-client policy.
-- `pnpm run test:web-routing`.
+- `scripts/contracts/compile-route-inventory.mjs`, run by `pnpm run check:rules`.
+  It resolves every mounted registration through the TypeScript compiler, so an
+  added or removed route fails closed until the tracked inventory is regenerated
+  with `--write`. Regenerate deliberately: it is a semantic artifact, not
+  formatting.
+- `pnpm run test:web-routing`, which validates the built client against Hono's
+  route ownership and the packaged-client asset contract.
 
 ## Persistence and side effects
 

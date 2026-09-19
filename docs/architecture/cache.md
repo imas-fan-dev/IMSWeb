@@ -13,7 +13,7 @@ IMSWeb 的缓存用于短期、可丢失的数据，不承担账户、验证码�
 缓存遵循 `port -> domain/application policy -> infrastructure adapter -> runtime wiring`：
 
 - `apps/api/src/ports/cache.ts` 定义 `CacheStore`，业务代码只依赖这个接口。
-- `apps/api/src/domains/platform-auth/platform-email-cache.ts` 定义邮箱注册 cooldown 的键策略、值格式、TTL 和缓存失败时的回退行为。
+- `apps/api/src/domains/identity/platform-auth/registration/email-verification-cache.ts` 定义邮箱注册 cooldown 的键策略、值格式、TTL 和缓存失败时的回退行为。
 - `apps/api/src/infra/cache/valkey/cache.ts` 使用 node-redis 连接 Valkey；`apps/api/src/infra/cache/memory/cache.ts` 用于测试和 Memory backend。
 - `apps/api/src/runtime/node-services.ts` 根据 `IMS_CACHE_BACKEND` 选择 concrete adapter，并在 runtime shutdown 时关闭连接。
 
@@ -21,22 +21,35 @@ IMSWeb 的缓存用于短期、可丢失的数据，不承担账户、验证码�
 
 ## 邮箱注册边界
 
-PostgreSQL 仍是邮箱注册验证码的唯一权威源，保存：
+PostgreSQL 是邮箱验证码与重发冷却的权威源，保存：
 
 - 验证码 HMAC hash；
 - 发送中和已发送状态；
 - 过期时间、重发冷却、剩余尝试次数；
-- 单次消费 token 和 delivery token。
+- 单次消费 token 和 delivery token；
+- `platform_email_request_cooldowns` 中的请求冷却，按邮箱与用途定位。
 
-Valkey 只保存短期 cooldown：
+Valkey 只保存短期 cooldown，用于省掉每次发送前对权威表的读：
 
 - key 使用 Platform JWT secret 对规范化邮箱做 HMAC，缓存中不出现邮箱、验证码或密码；
-- value 只包含 `retryAfterAt`；
+- value 包含 `enqueuedAt`、`resendCooldownSeconds` 和 `retryAfterAt`；
+- `resendCooldownSeconds` 被限制在 30 到 600 之间；
 - TTL 不超过邮箱验证码 TTL；
 - 缓存读取、写入或删除失败时放弃缓存优化并回退 PostgreSQL；
 - 注册成功或邮件发送失败后尝试清理 cooldown。
 
 因此 Valkey 重启、淘汰或短暂不可用不会绕过验证码校验，也不会丢失注册权威状态。
+
+## 邮件重发策略缓存
+
+重发冷却策略自身还有一层跨副本缓存。`apps/api/src/infra/cache/valkey/platform-email-resend-policy.ts`
+在 `PlatformEmailResendPolicyCache` 端口后缓存整条策略记录（`resendCooldownSeconds` 与
+`updatedAt`），TTL 固定 5 秒，写在一个逻辑键下。
+
+写入使用 `writeIfNewer`：一条 Lua 脚本先校验现有记录的字段形状与取值区间，只有在传入记录的
+`updatedAt` 不早于现有记录时才 `SET`，否则返回 0，表示这次写入被更新的记录压过。这样多个副本
+并发刷新后台策略时不会把旧值写回去。记录不合法时写入直接报错；读取遇到非法 JSON 或形状不符
+按未命中处理。
 
 ## 配置
 
@@ -59,5 +72,6 @@ Valkey 只保存短期 cooldown：
 
 - Memory 和 Valkey adapter 覆盖 `get/set TTL/delete/ping/close`。
 - 邮箱 cooldown 覆盖匿名键、过期、清理、缓存异常回退。
+- 邮件重发策略缓存覆盖字段校验、`updatedAt` 新旧判定和非法记录回退。
 - 本地 Compose healthcheck 必须通过 `valkey-cli ping`。
 - 开发启动器必须在 PostgreSQL/RustFS/Valkey 就绪后再执行 migrations 和启动 API/Web。

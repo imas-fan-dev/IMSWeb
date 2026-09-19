@@ -3,7 +3,7 @@
 > 文档类型：运维
 > 状态：Active
 > 权威来源：`packages/contracts/src/platform/`、`apps/api/src/infra/oauth/platform-oauth-client.ts`、`apps/api/src/infra/db/repositories/platform-account-repository.ts`、`apps/api/migrations/postgresql/20260901140000_dynamic_platform_oauth_providers.sql`
-> 适用环境：Web 端 Platform 登录与后台 OAuth provider 管理
+> 适用环境：Web 与 App 的 Platform 登录、账号绑定及后台 OAuth provider 管理
 > 前置条件：PostgreSQL migration 已应用，最高管理员可访问 `/admin/platform/oauth`
 > 回滚边界：先停用异常 provider；已被身份绑定或未完成登录状态引用的 provider 不得删除
 > 验证方法：后台 provider 列表、公开 provider API、授权跳转与 callback 登录流程
@@ -34,6 +34,19 @@ provider，修改后无需重启 API。
 Bearer token 请求 UserInfo endpoint。当前模型不支持自定义请求头、provider discovery、任意 token
 字段映射或脚本化 profile transform。需要这些能力的 provider 必须先扩展共享 contract 和 runtime，
 不得只在后台填写近似配置。
+
+## App 回跳与 redirect URI
+
+App 内的 OAuth 登录和账号绑定不需要 provider 侧做任何改动，也不需要登记第二个 redirect URI。
+
+流程是：App 用系统浏览器打开同一个授权页，provider 仍然只回调到那个既有的公开 HTTPS
+`redirect_uri`。API 在自己的回调里根据 state 记录判定发起方是 App 之后，再 303 到
+`imsweb://oauth/callback`（定义在 `packages/contracts/src/paths.ts`）。provider 全程看不到这个
+scheme。
+
+所以后台每个 provider 只需要填一个 HTTPS redirect URI。不要为了 App 额外登记自定义 scheme，
+也不要把 `imsweb://` 写进 provider 控制台。新增一个给 App 用的 provider 时，运维动作和 Web
+完全相同。
 
 ## 安全边界
 

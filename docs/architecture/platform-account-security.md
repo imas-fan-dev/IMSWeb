@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | `platform-auth` | 匿名或仅持刷新凭据 | 注册、登录、找回密码、OAuth 回调、刷新、登出 |
 | `platform-profile` | 已登录 | 读写展示字段与头像 |
-| `platform-account-security` | 已登录，且多数 action 需二次证明 | 改密码、换绑邮箱、OAuth 绑定与解绑、会话管理、注销 |
+| `platform-account-security` | 已登录，且多数 action 需二次证明 | 改密码、换绑邮箱、OAuth 绑定与解绑、会话管理（注销尚未实现） |
 
 按身份状态切分的好处是中间件链在 domain 内部保持一致：安全中心的每个写入 action 都是
 `platformAuth → activePlatformMutation → platformCsrf → 限流 → handler`，与
@@ -33,24 +33,45 @@
 完全不同：前者用邮箱验证码替代未知的密码，后者要求出示当前密码。它们共享哈希算法和
 「改密即全端下线」的事务写法，不共享入口语义。
 
+## 实现状态
+
+本文写于开工前，随后实现被拆成四个子任务。部分决策已落地，部分仍是设计，读者不能把两者
+混为一谈：
+
+| 决策 | 状态 | 落点 |
+| --- | --- | --- |
+| 一、注销只能软删 | 未实现 | 无 `deletion/` capability，无 `softDeleteAccount` |
+| 二、注销时写入式匿名化 | 未实现 | 同上 |
+| 三、换绑邮箱建新表 | 已实现，换了做法 | 复用共享验证码表 + 域分离 HMAC，只验新邮箱 |
+| 四、解绑复核剩余登录方式 | 已实现 | `platform-oauth-unlink-repository` 测试钉住 SQL |
+| 五、审计走 `platformSecurityEvent` | 已实现 | `platform_security_events` |
+| 六、改密码复用改密即全端下线 | 已实现 | 保留当前会话 |
+
+注销的两个决策虽然未实现，表结构与读取侧已经为它准备好：`platform_accounts.status` 的 CHECK
+已包含 `'deleted'`，`(status = 'deleted') = (deleted_at IS NOT NULL)` 约束已存在，认证中间件
+也已对 `deleted` 帐号吊销会话并返回 403 `PLATFORM_ACCOUNT_UNAVAILABLE`。缺的是那个动作本身。
+
 ## 能力划分
 
-domain 采用 capability 目录。五项能力各有独立的参与者和生命周期，其中「换绑邮箱」还带
-一个跨请求的状态机，符合 `apps/api/src/domains/README.md` 对 capability 化的判据。
+domain 采用 capability 目录。已实现四项能力，各有独立的参与者和生命周期：
 
 ```text
 platform-account-security/
   routes.ts                      组合入口，只注册路由
   password/                      修改密码
-  email/                         换绑邮箱（双向验证，有状态）
+  email/                         换绑邮箱
   oauth-links/                   绑定与解绑第三方登录
   sessions/                      登录设备列表与吊销
-  deletion/                      账号注销
 ```
+
+四项都挂在 `platformApiPath('/me')` 下，依次是 `/me/password`、`/me/sessions`、
+`/me/oauth-links` 和 `/me/email`；`/me/*` 的私有响应头由更早注册的 profile domain 装上。
+
+注销曾规划为独立的 `deletion/` capability，见决策一与决策二，目前未实现。
 
 ## 关键决策
 
-### 决策一：注销只能软删
+### 决策一：注销只能软删（未实现）
 
 `platform_accounts` 被 12 个 `ON DELETE RESTRICT` 外键引用，其中包括
 `fudaba_offices.owner_account_id`、`fudaba_cards.owner_account_id` 和
@@ -63,7 +84,9 @@ CHECK 约束强制 `(status = 'deleted') = (deleted_at IS NOT NULL)`，两者必
 软删之后账号行仍在，但读取侧已经拦得住：`hono-auth.ts` 对 `suspended` 和 `deleted` 状态
 吊销会话并返回 403。
 
-### 决策二：注销保留内容，但在写入时匿名化身份
+目前只有约束和读取侧到位；发起注销的端点、事务和仓储方法都还没有。
+
+### 决策二：注销保留内容，但在写入时匿名化身份（未实现）
 
 账号注销后，用户已公开的名片和事务所**保留展示**，但一切指向本人的身份字段改为
 匿名占位。交换过名片的对方不会因为对方注销而丢失自己的交换记录，这是保留内容的理由。
@@ -109,22 +132,32 @@ CHECK 约束强制 `(status = 'deleted') = (deleted_at IS NOT NULL)`，两者必
 占位串带一个由 accountId 派生的短后缀，让两个不同的已注销用户在同一个列表里不会看起来
 像同一个人。这不会新增任何关联信息：`owner_account_id` 因为 `RESTRICT` 外键本来就留在行上。
 
-### 决策三：换绑邮箱需要新表
+### 决策三：换绑邮箱复用共享验证码表
 
-现有两套验证码表 `platform_email_verification_codes` 和
-`platform_password_reset_codes` 的主键都是 `normalized_email`，没有账号维度，也没有
-「目标邮箱」的概念。
+初始设计曾打算新建 `platform_email_change_requests`，主键 `account_id`，对
+`target_normalized_email` 建唯一索引，用来按账号定位进行中的请求并防止两个账号并发抢占
+同一个新邮箱。实际实现没有建这张表，改用已有的 `platform_email_verification_codes`。
 
-换绑要同时满足三件事：按账号定位进行中的请求、把新邮箱与账号绑定、防止两个账号并发抢占
-同一个新邮箱。现表装不下，新建 `platform_email_change_requests`，主键 `account_id`，对
-`target_normalized_email` 建唯一索引。
+理由是这个能力不需要跨请求的状态机。换绑被做成一次请求：`/me/email` 在同一个 handler 内
+校验凭据、验证新邮箱的验证码、改写 `platform_email_credentials.normalized_email`。既然没有
+「进行中的请求」需要跟踪，账号维度的表就没有存在理由了。
 
-投递沿用注册验证码已有的两阶段模式（issue → send → completeDelivery / revoke），不重新
-发明。
+验证码表的主键是邮箱，注册与换绑共用同一张表，所以两者必须能区分开。区分靠的是域分离
+HMAC：换绑用 `platform-email-binding\0` 前缀参与哈希，注册用另一套，同一个 `(email, code)`
+组合在两条流程里不会得到相同摘要。密码找回用的是同样的手法（`platform-password-reset\0`）。
+少了这个前缀，注册流程发出的验证码就能在换绑端点被消费，反之亦然。
 
-流程要求新旧邮箱都验证：旧邮箱证明发起人是账号持有者，新邮箱证明地址可达且归其所有。只验
-新邮箱会让接管了会话的攻击者把账号迁走；只验旧邮箱会让用户把账号绑到一个打错字的地址上，
-从而永久失去找回入口。
+**只需要验证新邮箱。** 初始设计要求新旧邮箱都验证，理由是只验新邮箱会让接管了会话的攻击者
+把账号迁走。这个顾虑由当前密码解掉了：换绑要求在同一个请求里重新出示当前密码，它证明发起
+人就是账号持有者，旧邮箱不再需要额外走一遍验证码。只验新邮箱仍然证明新地址可达且归其所有，
+所以也不会把账号绑到一个打错字的地址上。
+
+写入是原子的，并用乐观栅栏防止并发覆盖。仓储在 UPDATE 的 WHERE 里带上 handler 读到的
+`password_hash` 与 `updated_at`，因此并发的改密或第二次迁移会让本次失败并返回
+`PLATFORM_EMAIL_STATE_CONFLICT`，而不是互相静默覆盖。`password_hash` 本身不改写，账号迁移
+后仍能用同一个密码登录。
+
+已经绑定到其他账号的邮箱直接返回 `PLATFORM_EMAIL_CONFLICT`，不需要靠唯一索引兜底。
 
 ### 决策四：解绑必须在事务内复核剩余登录方式
 
@@ -168,10 +201,10 @@ JOIN `platform_oauth_providers` 落地。
 
 ### 数据库迁移
 
-| 变更 | 目的 |
-| --- | --- |
-| `platform_refresh_sessions` 增列 `user_agent`、`ip_address`、`last_seen_at` | 设备列表需要展示这些信息。会话表现在只有 token 哈希和时间戳，无法回答「这是哪台设备」 |
-| 新表 `platform_email_change_requests` | 见决策三 |
+| 变更 | 状态 | 目的 |
+| --- | --- | --- |
+| `platform_refresh_sessions` 增列 `user_agent`、`ip_address`、`last_seen_at` | 已交付 | 设备列表需要展示这些信息。会话表现在只有 token 哈希和时间戳，无法回答「这是哪台设备」 |
+| 新表 `platform_email_change_requests` | 未采用 | 决策三改用共享验证码表 + 域分离 HMAC，因此不需要这张表 |
 
 设备信息不能从 `platform_security_events` JOIN 得到。那张表是事件流，记录的是「某次登录
 来自哪里」，不是「这个会话当前属于哪台设备」，两者会错位。
@@ -186,16 +219,18 @@ JOIN `platform_oauth_providers` 落地。
 - OAuth：`listOAuthIdentitiesByAccount`、`deleteOAuthIdentity`，以及把
   `NewPlatformOAuthStateInput.intent` 从字面量 `'login'` 放开到 `'login' | 'link'`
   （表已预留 `intent` 和 `linking_account_id` 列，只是类型层关着）
-- 换绑邮箱：`changeEmailCredentialAddress`，需同步迁移
-  `platform_email_credentials` 的主键并递增 `token_version`
-- 注销：`softDeleteAccount`
+- 换绑邮箱：`migrateEmailCredentialForAccount`，在事务内改写
+  `platform_email_credentials.normalized_email`，并以读到的 `password_hash` 与 `updated_at`
+  作为乐观栅栏
+- 注销：`softDeleteAccount`（未实现）
 
 ### 类型扩展
 
-`PlatformSecurityEventType` 增加 `auth.password.changed`、
-`auth.email.change_requested`、`auth.email.changed`、`auth.oauth.linked`、
-`auth.oauth.unlinked`、`auth.session.revoked`、`account.deletion_requested`。表侧只有正则
-约束，不需要迁移。
+`PlatformSecurityEventType` 增加了 `auth.password.changed`、`auth.email.changed`、
+`auth.oauth.linked`、`auth.oauth.unlinked` 和 `auth.session.revoked`，另外还补了
+`auth.email.bound` 与 `auth.account.reactivated`。`auth.email.change_requested` 与
+`account.deletion_requested` 没有加，因为对应的换绑状态机和注销都没有实现。表侧只有正则
+约束，增删取值不需要迁移。
 
 ## 限流
 
@@ -207,12 +242,12 @@ JOIN `platform_oauth_providers` 落地。
 
 ## 实施顺序
 
-1. 迁移与仓储方法（改动集中在共享文件，串行）
-2. 改密码、会话列表与吊销（不依赖新表，可并行）
-3. OAuth 解绑（依赖仓储方法，绑定通道可延后）
-4. 换绑邮箱（依赖新表和投递流程，最复杂）
-5. 注销（软删与匿名化清洗同事务，全部落在 identity 域自己的表内）
-6. Web 端安全区块
+1. 迁移与仓储方法（改动集中在共享文件，串行）— 已完成
+2. 改密码、会话列表与吊销（不依赖新表，可并行）— 已完成
+3. OAuth 解绑（依赖仓储方法，绑定通道可延后）— 已完成，绑定通道也已交付
+4. 换绑邮箱（依赖新表和投递流程，最复杂）— 已完成，实现方式见决策三
+5. 注销（软删与匿名化清洗同事务，全部落在 identity 域自己的表内）— 未开始
+6. Web 端安全区块 — 已完成
 
 ## 相关文档
 

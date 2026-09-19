@@ -2,18 +2,34 @@
 
 ## Routes and pages
 
-`apps/web/app/routes.ts` is the typed route manifest. It maps URL entries and
-layouts directly to route-ready modules under `app/pages/`. The page module owns
-its default component, metadata, loaders or actions when present, and URL
-parameter handling.
+`apps/web/app/route-metadata.ts` is the typed route manifest. It declares a
+`RouteDescriptor` per route (`file`, `layout`, `targets`, `delivery`, and the
+optional `id`, `index`, `path`, and `prerender`) plus `SpaFallbackPattern`
+entries for SPA fallbacks. `apps/web/app/routes.ts` is a thin consumer: it reads
+`VITE_IMS_APP_TARGET`, calls `routeDescriptorsForTarget(target)`, and groups the
+result by layout. Keep new routes in `route-metadata.ts`; do not add a parallel
+list to `routes.ts`.
+
+`RouteDelivery` is meaningful to the build, not decoration:
+
+| Value | Meaning |
+| --- | --- |
+| `prerender` | Emitted ahead of time; the descriptor's `prerender` paths drive `prerenderRoutesForTarget` |
+| `spa` | Served by the client router, with `spaFallbackPatternsForTarget` deciding fallback matches |
+| `none` | No static output |
+
+Each descriptor points at a route-ready module under `app/pages/`. The page
+module owns its default component, metadata, loaders or actions when present,
+and URL parameter handling.
 
 Do not create pass-through `app/routes/` modules. Keep root, public, and admin
 layouts in `app/layouts/`. Page modules follow the URL and business hierarchy,
 including `app/pages/admin/<page>/` and nested account or community flows.
 
-The route manifest also separates Web and Tauri app targets. Exclude a module at
-manifest construction time when it must not enter the app build graph. Do not
-filter routes after importing their page modules.
+The route manifest also separates Web and Tauri app targets. Each descriptor's
+`targets` decides which build graph receives it; exclude a module there when it
+must not enter the app build graph. Do not filter routes after importing their
+page modules.
 
 Route modules receive their props from the router, not from the caller. The
 React Router Vite plugin rewrites every route module's default export into a

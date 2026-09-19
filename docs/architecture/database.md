@@ -60,6 +60,13 @@ completed/failed 状态；started 租约不会被清理，以免删除后复用 
 任务或独立 worker 应复用同一端口，不直接复制 SQL。completed 运维
 任务默认保留 30 天，之后按批惰性清理。
 
+平台邮件投递使用同一套思路，但队列表由独立进程消费。注册验证码和密码重置不再在请求里同步
+等 SMTP：handler 在同一事务内入队，`apps/api/src/ports/email-delivery.ts` 定义入队、领取、
+worker store、sender 和重发策略端口，`apps/api/src/email-worker-main.ts` 作为独立进程领取任务
+并暴露 health 端点，失败按类别分类后决定重试或隔离。API 与 worker 因此可以分别重启和扩容，
+邮件投递不会随 API 进程丢失。入队依赖队列、payload 加密和重发策略全部接线；缺任何一项时
+验证码端点直接返回 503，而不是退回同步发送。运维入口见[运维手册](../operations/runbook.md)。
+
 ## 连接与性能
 
 连接池具有建连、空闲、语句和空闲事务超时。普通读取直接使用 pool query，只有 batch 或显式

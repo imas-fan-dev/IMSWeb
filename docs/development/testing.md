@@ -21,10 +21,12 @@
 Delivery 的 `PROFILE` 是 `root`、`repository`、`app`、`web` 或 `integration`；每个 CI lane
 只调用自己拥有的 profile。
 
-Root、API 和 Web 的 package script 数量固定为 55、41 和 20；不得新增 `test:all`，也不为
-准备状态增加 package alias 或可独立调用的跳过参数。
+Root、API 和 Web 的 package script 数量由 `tests/test_workspace_boundaries.py` 钉在 57、43 和
+21；新增 script 要同步这个期望值。不得新增 `test:all`，也不为准备状态增加 package alias 或
+可独立调用的跳过参数。
 
-Root `test` 由同一个 runner 进程按顺序运行 governance、contracts 和 delivery owner。
+Root `test` 由同一个 runner 进程按顺序运行 `check:root`、governance、contracts、delivery 的
+root 与 integration profile、完整 API owner，最后是 Web unit。
 Delivery integration profile 成功构建 Web 和 API 后，该进程才会运行不再构建的 API 阶段，
 其中仍包含 syntax、architecture、Node、server、Wiki 和 migration。这样 API 测试不会接受
 另一次运行留下的 `dist/server/main.js`。CI API lane 直接运行完整 API owner；Web lane 使用

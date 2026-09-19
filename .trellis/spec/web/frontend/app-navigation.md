@@ -3,7 +3,8 @@
 Authority: `apps/web/app/components/app/app-tab-model.ts`,
 `apps/web/app/components/app/app-navigation-provider.tsx`,
 `apps/web/app/lib/app-navigation-state.ts`,
-`apps/web/app/lib/app-shell-scroll.ts`, and `apps/web/DESIGN.md`.
+`apps/web/app/lib/app-shell-scroll.ts`,
+`apps/web/app/lib/navigation/`, and `apps/web/DESIGN.md`.
 
 ## 1. Scope and trigger
 
@@ -12,6 +13,16 @@ navigation, scroll restoration, or native tab items. `AppLayout` owns the
 coordinator. Ordinary Web uses its existing navigation and Router scroll
 restoration. Wiki interactions, map viewport state, and namecard preview state
 remain with their page owners.
+
+`AppLayout` also owns one destination rule that is not a tab concern: the OAuth
+return deep link. `startPlatformOAuthDeepLink` runs once at the shell, and a
+callback that arrives with no listener routes by flow:
+`/account/security` for `flow=link`, `/account/login` otherwise, with
+`replace: true`. The shell owns it because a cold start can deliver the callback
+while the app sits on an unrelated route, and because a screen-owned
+subscription would miss that case. Keep the call in `AppLayout`; do not move it
+into the sign-in page or the account security page. See
+[Tauri mobile integration](./tauri-mobile-integration.md#scenario-oauth-return-channel).
 
 ## 2. Signatures
 
@@ -217,6 +228,11 @@ for `/story`, and do not label the Wiki entry "App Wiki" in App-facing copy.
   direct entry, from a page entered in another section, and after a cross-tab
   jump, a native pop from a section restored after a tab switch, the platform
   gesture on a tab root, and the no-op back control on a tab root.
+- The shell-level OAuth deep-link destination is covered by the App OAuth
+  scenario in [Web testing](./testing.md) and
+  [Tauri mobile integration](./tauri-mobile-integration.md#scenario-oauth-return-channel),
+  not by a tab test. Changing the shell's navigation ownership must not remove
+  the `AppLayout` deep-link subscription.
 - Existing shell, map, events, account, Wiki, and namecard App tests retain their
   geometry and modal assertions. Scope tab locators to the named main navigation.
 - Infrastructure tests compare active model icons with the Rust inventory and

@@ -18,6 +18,7 @@
 | 内容 | `wikiPath`、`adminWikiPath`、`eventChroniclePath` | Wiki、编年史和内容 route |
 | 交付 | `publicUploadsPath`、`publicAssetsPath`、`siteContentPath`、`sitesPath` | 媒体、静态内容和站点包 |
 | 静态资源 | `mapsPath`、`imagePath`、`iconPath`、`cssPath` | 地图和公共交付前缀 |
+| App 深链 | `APP_OAUTH_CALLBACK_URL` | Tauri 外壳的 OAuth 回跳入口，非 HTTP |
 
 路径 builder 负责前缀和斜杠归一化。例如：
 
@@ -29,6 +30,17 @@ sitesPath(`/${encodeURIComponent(slug)}`)
 不要在业务代码中重新拼接 `/api`、`/uploads`、`/site-content`、`/sites` 或其他共享前缀。
 测试 fixture 为了断言公开 URL 可以保留 literal，但生产源码必须通过 source-rules。
 
+### App 深链
+
+`APP_OAUTH_CALLBACK_URL`（`imsweb://oauth/callback`）是这张表里唯一的非 HTTP 常量，也是 App
+外壳接收 OAuth 回跳的入口。流程是：provider 回调到既有的 HTTPS `redirect_uri`，API 在自己的
+回调里判定发起方是 App 之后，再 303 到这个 scheme。provider 因此永远看不到它，也就仍然只需
+要配置一个 HTTPS `redirect_uri`。
+
+这个常量必须只有一处定义。Tauri 注册（`apps/web/src-tauri/tauri.conf.json` 的 deep-link 插件）、
+capability 授权和 Web 端的深链匹配器都对齐它，匹配时逐段比较 scheme、host 和 path；不要在任
+一侧只内联其中一段。
+
 ## 路由所有权
 
 - `apps/api/src/app.ts` 只组合 domain registrar；具体 prefix 由 capability routes 使用 builder。
@@ -36,6 +48,8 @@ sitesPath(`/${encodeURIComponent(slug)}`)
   文件和 SPA fallback 的所有权。
 - `apps/web/app/routes.ts` 负责页面 URL；`app/lib/api/endpoints/` 负责 API URL，二者不要互相
   复制请求逻辑。
+- App 深链的 scheme、host 和 path 同属共享定义；改动时同步 Tauri 注册、capability 与 Web
+  匹配器，并确认这个非 HTTP 常量不会被误当作 route 前缀。
 - cookie path、public delivery 和 middleware sensitive-path 判断都属于共享路径变更的影响面。
 
 ## 变更流程

@@ -309,9 +309,10 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
 **已知取舍**：`localStorage` 不是安全存储。当前 WebView 只加载本地打包资源，没有第三方脚本，
 但换用系统钥匙串（Tauri secure storage 插件）仍是后续改进项。
 
-## 6. 阻塞项
+## 6. 遗留项与待补证据
 
-以下工作仍未完成：
+这一节记录尚未收敛的部分，以及只能靠真机或模拟器拿到的证据。第 1 项仍未完成；第 2 项不影响
+打包客户端；第 3 项的功能已实现，仅剩真机结论（见第 4 项）。
 
 1. **媒体 URL**：约 43 个组件把 API 返回的 URL 直接写进 `src`，依赖浏览器按当前页面解析相对地址。
    已收敛 6 处到 `resolveSafeMediaUrl()`，其余（Wiki 事务所与偶像图标、名片正反面、
@@ -327,5 +328,19 @@ Web 侧由 `apps/web/app/lib/api/platform-token-store.ts` 保管令牌：
    `flow=link` 标识把绑定与登录分开投递（冷启动无监听者时按 flow 落到
    `/account/security` 或 `/account/login`）。iOS 从 303 跳自定义 scheme 的回前台行为
    仍需真机结论（见第 4 项）。
+
+   深链需要在三处对齐：`apps/web/src-tauri/tauri.conf.json` 的 deep-link 插件注册 scheme
+   `imsweb`、host `oauth`、pathPrefix `/callback`；`apps/web/src-tauri/capabilities/default.json`
+   的 `deep-link:default` 与 `opener:allow-open-url`，其中 deny 列表必须与
+   `apps/web/app/lib/navigation/system-opener.ts` 的 `BLOCKED_SYSTEM_PROTOCOLS` 保持一致；
+   以及 Web 端按 `APP_OAUTH_CALLBACK_URL` 逐段匹配 scheme、host、path 的解析器。
+
+   换取一次性码用的 PKCE verifier 按登录与绑定分开存放，各 10 分钟过期。它刻意放在
+   `localStorage` 而不是 `sessionStorage`，因为进程被系统回收后仍然需要完成交换；存储不可用时
+   退到内存，代价是那次交换必须在前台完成。
+
+   `openSystemUrl` 在非 Tauri 环境下直接报错，所以浏览器里的 Playwright 跑不完
+   「系统浏览器授权 → 深链回流」这一圈。深链投递、一次性码交换和 bearer session 只能由真机或
+   模拟器提供证据，浏览器用例只能盖到打包外壳里的 OAuth 入口可见。
 4. **真机验证**：Platform 登录到拉取列表的完整链路仍需纳入发布前设备门禁；站点包的本地
    LAN 访问和系统浏览器跳转已由构建、组件与浏览器回归测试覆盖。

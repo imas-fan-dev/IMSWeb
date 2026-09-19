@@ -38,17 +38,19 @@ Domain、模块和 handler 清单由 `apps/api/scripts/checks/hono-architecture.
 
 | 产品领域 | Domain | 一眼可见的业务范围 | 能力结构 | 级别 |
 | --- | --- | --- | --- | --- |
-| identity | `platform-auth` | 平台账号访问 | sessions、registration、password-reset、oauth | M |
+| identity | `platform-auth` | 平台账号访问 | sessions、registration、password-reset、oauth、email-settings | M |
 | identity | `platform-profile` | 平台个人资料与头像 | profile、avatar | S |
-| identity | `platform-account-security` | 已登录账号安全 | password、email、oauth-links、sessions、deletion | M |
+| identity | `platform-account-security` | 已登录账号安全 | password、email、oauth-links、sessions | M |
 | admin | `backoffice-auth` | 后台操作员会话 | sessions | M |
 | admin | `admin-accounts` | 后台账号生命周期 | accounts | S |
+| admin | `platform-users` | 平台用户账号管理 | handlers（平铺，未分 capability） | M |
 | admin | `audit` | 后台审计记录写入与查询 | write、read | 横切 |
 | content | `wiki` | 企划、内容页、剧情与素材 | catalog、story-content、story-catalog、entity-media、story-assets、tools | L |
 | content | `information` | 资讯公开阅读与后台编排 | public-content、admin-content、assets | M |
 | content | `news` | 新闻发布与公开列表 | news | S |
 | content | `events` | 活动生命周期与媒体 | events、media（增长后再拆） | S |
 | content | `chronicle` | 编年史活动与媒体审核 | activities、moderation、media | M |
+| content | `editorial` | 编辑文章、首页聚焦与编年史编排 | posts、spotlight、chronicle、assets | M |
 | content | `about` | 关于页内容与图片 | page、media（增长后再拆） | S |
 | content | `producer-map` | 制作人地图内容与图片 | map、media（增长后再拆） | S |
 | content | `live-schedule` | 直播日程读取 | schedule | S |
@@ -376,10 +378,15 @@ apps/web/app/lib/api/endpoints/
   fudaba/
     index.ts
     card-claims.ts
+    guest-submissions.ts
     location-review.ts
   platform/
     index.ts
     admin.ts
+    admin-email.ts
+    admin-users.ts
+    account-security.ts
+    oauth-exchange.ts
   wiki/
     index.ts
     schemas.ts

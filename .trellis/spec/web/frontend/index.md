@@ -13,11 +13,11 @@ index and do not replace those files.
 
 | File | Use it for |
 | --- | --- |
-| [Architecture](./architecture.md) | Routes, pages, layouts, shared modules, app shell |
-| [API, state, and contracts](./api-state-and-contracts.md) | Endpoints, parsing, CSRF, request state |
-| [Components and UX](./components-and-ux.md) | Ownership, stylesheet layers and design tokens, accessibility, bounded namecard columns, pagination, preview lifecycle, popup geometry |
-| [App navigation](./app-navigation.md) | Section ownership, queued tab input, scroll continuity, back behavior, directories, and native tab verification |
-| [Tauri mobile integration](./tauri-mobile-integration.md) | Native plugin, capability, permission, and platform metadata contracts |
+| [Architecture](./architecture.md) | Route descriptors, pages, layouts, shared modules, app shell |
+| [API, state, and contracts](./api-state-and-contracts.md) | Endpoints, parsing, CSRF, session transport, App OAuth code exchange, request state |
+| [Components and UX](./components-and-ux.md) | Ownership, stylesheet layers and design tokens, accessibility, account-security sections, provider buttons, bounded namecard columns, pagination, preview lifecycle, popup geometry |
+| [App navigation](./app-navigation.md) | Section ownership, queued tab input, scroll continuity, back behavior, directories, shell-owned OAuth routing, and native tab verification |
+| [Tauri mobile integration](./tauri-mobile-integration.md) | Native plugin, capability, permission, deep-link return, and platform metadata contracts |
 | [Testing](./testing.md) | Unit, component, browser, and routing tests |
 
 ## Pre-Development Checklist
@@ -30,6 +30,9 @@ index and do not replace those files.
 - [ ] Check `~/lib/api` and `@imsweb/contracts` before creating request code or
       a local wire type.
 - [ ] Identify loading, error, empty, and success behavior.
+- [ ] If the flow spans the WebView and the system browser, decide what a
+      browser test can prove and what needs device evidence before writing the
+      test.
 - [ ] Identify desktop, mobile, keyboard, and accessibility coverage.
 
 ## Quality Check

@@ -76,6 +76,36 @@ at least one assertion; any runtime skip must be named in the task's E2E
 inventory. Both Playwright configurations use zero retries so fixture, startup,
 and product failures retain their first cause.
 
+### Platform authentication coverage
+
+Platform auth is split across named specs, and the split follows what a browser
+can actually prove:
+
+| Spec | Owns |
+| --- | --- |
+| `platform-auth.spec.ts` | Web login and registration adopting the returned Platform session, including conflict correction and user-safe errors |
+| `platform-oauth-sign-in.spec.ts` | The Web login screen's OAuth entry: which providers are offered, where a button sends the browser, an unreadable provider list, and `?oauth=<reason>` surfacing |
+| `platform-session-header.spec.ts` | The header's Platform session behavior: an anonymous header that does not probe auth, logging out only the Platform realm, and two tabs sharing one refresh wave |
+| `admin-platform-email.spec.ts` | The Backoffice managed-email policy page |
+| `app-oauth-sign-in.spec.ts` | The App OAuth entry inside the packaged shell |
+
+Use the shared fixtures in `tests/e2e/fixtures/platform-auth.ts`
+(`installPlatformOAuthProvidersMock`, `platformOAuthProviderFixtures`,
+`installRecoveringPlatformOAuthProvidersMock`, `installPlatformSessionMock`)
+rather than inlining a provider payload or a session response in a spec.
+
+`app-oauth-sign-in.spec.ts` gates itself to the three portrait App projects
+(`app-iphone`, `app-android`, `app-webkit`) with a `testInfo.project.name`
+`test.skip`. Keep that gate: the entry only exists in the packaged shell.
+
+> **Warning**: `openSystemUrl` throws outside a real Tauri runtime, and the deep
+> link needs the Tauri plugin. A browser can neither open the system browser nor
+> receive the callback, so deep-link delivery, the one-time code exchange, and
+> the resulting bearer session **cannot** be proved by any Playwright run. They
+> need simulator or device evidence. Do not add a browser test that "passes" by
+> mocking the round trip and then cite it as proof; a browser spec here covers
+> the visible entry and the failure states only.
+
 E2E specs must not use `page.waitForTimeout()` or poll wall-clock APIs to create
 delays. Wait for visible state, requests, focus, geometry, or animation
 completion. When elapsed time is itself the tested boundary, use Playwright's

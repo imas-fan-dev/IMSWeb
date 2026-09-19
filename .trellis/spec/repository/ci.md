@@ -53,6 +53,7 @@ Pull requests use `git merge-base <base> <head>` as the diff base. Pushes use `g
 - The aggregate job is named `Validate repository`, uses `if: always()`, and depends on detection plus every conditional lane. A selected lane must report `success`; an unselected lane must report `skipped`. Detection failure, lane failure, cancellation, or a selection/result mismatch fails the aggregate job when it executes.
 - Each executable lane performs checkout, Node setup from `.nvmrc`, pnpm 11.10.0 setup, and `pnpm install --frozen-lockfile`. External actions stay pinned to full commit SHAs.
 - Before Playwright installs OS dependencies, the App and Web lanes remove only the GitHub runner's unrelated `/etc/apt/sources.list.d/google-chrome.list` and `google-chrome.sources` entries. They retain `playwright install --with-deps` for the pinned bundled browsers; other lanes do not alter apt sources.
+- A failing App or Web lane uploads its Playwright output as run-scoped failure evidence. See the evidence contract below before renaming an artifact, moving an output directory, or changing the upload condition.
 
 ### 4. Validation & Error Matrix
 
@@ -129,3 +130,120 @@ verify_lane app "$APP_SELECTED" "$APP_RESULT"
 ```
 
 The focused command runs one file. The aggregate check couples selection to result, accepting only `true/success` or `false/skipped`.
+
+## Scenario: Playwright failure evidence and release validation
+
+### 1. Scope / Trigger
+
+Use this contract when changing a Playwright upload step, a Playwright output
+directory, `.github/workflows/deploy.yml`, or the tests that read them.
+
+`.github/workflows/deploy.yml` is the complete release validation path. It does
+**not** use changed-path skipping: every release runs the whole set. Do not
+apply the CI detector's lane selection to it.
+
+### 2. Signatures
+
+Failure evidence, one step per browser lane:
+
+```yaml
+- name: Upload App browser failure evidence
+  if: failure()
+  uses: actions/upload-artifact@<full commit sha>
+  with:
+    name: app-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+    path: /tmp/imsweb-app-playwright
+    if-no-files-found: ignore
+    retention-days: 7
+```
+
+The Web lane is identical except for `web-playwright-…` and
+`/tmp/imsweb-web-playwright`. Those paths are the Playwright `outputDir`
+values: `path.join(tmpdir(), "imsweb-web-playwright")` in
+`apps/web/playwright.config.ts` and `path.join(tmpdir(), "imsweb-app-playwright")`
+in `apps/web/playwright.app.config.ts`.
+
+Release job graph (`deploy.yml`):
+
+| Job | Name | Gate |
+| --- | --- | --- |
+| `prepare` | Resolve release | Always; produces the image name and release metadata |
+| `publish` | Test and publish image | `github.event_name == 'push'`, needs `prepare` |
+| `resolve-image` | Resolve immutable image | needs `prepare` + `publish`; on `workflow_dispatch` requires only `prepare` |
+| `deploy` | Deploy production | needs `prepare` + `resolve-image` |
+
+### 3. Contracts
+
+- Evidence is uploaded only when the lane fails. A successful run uploads
+  nothing, so the step must not be hoisted out of the failure branch.
+- The artifact name carries both `github.run_id` and `github.run_attempt`. A
+  re-run of the same run must not overwrite the first attempt's evidence.
+- Retention is 7 days. Do not raise it to make a failure "permanent"; release
+  records belong in the PR, issue, or release entry.
+- `if-no-files-found: ignore` keeps a failure that produced no Playwright output
+  from masking the real error with an upload error.
+- The upload path must stay in sync with the corresponding `outputDir`. A
+  renamed output directory silently turns the evidence step into a no-op.
+- `publish` runs only on a push. A `workflow_dispatch` run goes straight from
+  `prepare` to `resolve-image`, because it is resolving an image that already
+  exists rather than publishing a new one.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Browser lane passes | No artifact uploaded |
+| Browser lane fails with output | Artifact uploaded under the run-scoped name |
+| Browser lane fails with no output | Step ignored, original failure preserved |
+| Same run re-executed | Distinct artifact name per attempt; both attempts retained |
+| `outputDir` renamed without updating the upload path | Detected by the workflow contract test, not silently accepted |
+| `workflow_dispatch` release | `publish` skipped; `resolve-image` still runs |
+| `publish` fails | `resolve-image` and `deploy` do not run |
+
+### 5. Good / Base / Bad Cases
+
+- Good: a Web lane fails, the artifact contains the trace and screenshot for the
+  failing spec, and the name identifies the run and attempt.
+- Base: a release is dispatched manually, `publish` is skipped, and the existing
+  immutable image is deployed.
+- Bad: uploading evidence on every run, sharing one artifact name across
+  attempts, dropping `if: failure()`, or pointing the path at a directory the
+  Playwright config no longer writes.
+
+### 6. Tests Required
+
+`tests/test_github_deployment.py` asserts the triggers, permissions, job graph,
+gates, detector wiring, PostgreSQL isolation, action pinning, and the failure
+artifact steps' names, paths, conditions, and retention. Run:
+
+```sh
+python3 -m unittest tests/test_github_deployment.py
+```
+
+Any change to an upload step or to a Playwright `outputDir` must update both the
+workflow and that contract test in the same change.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```yaml
+# Runs on success too, and drops the attempt: a re-run overwrites the evidence
+# that explains the first failure.
+- uses: actions/upload-artifact@<sha>
+  with:
+    name: app-playwright
+    path: /tmp/imsweb-app-playwright
+```
+
+#### Correct
+
+```yaml
+- if: failure()
+  uses: actions/upload-artifact@<full commit sha>
+  with:
+    name: app-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+    path: /tmp/imsweb-app-playwright
+    if-no-files-found: ignore
+    retention-days: 7
+```

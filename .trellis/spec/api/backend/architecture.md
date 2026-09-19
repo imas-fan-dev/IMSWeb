@@ -8,6 +8,12 @@
 `apps/api/src/runtime/node-services.ts` selects PostgreSQL, Valkey, RustFS or
 S3, Sharp, Busboy, bcrypt, OAuth, and email implementations.
 
+The API has a second process: `apps/api/src/email-worker-main.ts` runs the email
+delivery worker (the `dev:email-worker` and `start:email-worker` scripts) and
+selects its own services through `src/runtime/node-email-worker-services.ts`. It
+serves a health endpoint rather than the product API, so it must not register
+product routes or reuse the HTTP composition root.
+
 Keep concrete selection in `src/runtime/`. A domain route, handler, middleware,
 or utility must not instantiate an adapter or read a driver-specific model.
 
@@ -37,17 +43,40 @@ boundary. Do not work around it with a new barrel or relative import.
 `src/domains/<section>/<domain>/routes.ts` is the stable registration entry.
 Small domains may use a flat `handlers/` directory. Split a larger domain into
 named capabilities only when it has separate actors, permissions, lifecycles,
-or route prefixes. `src/domains/content/wiki/routes.ts`, for example, composes
-media, catalog, and story capabilities without importing their handlers.
+or route prefixes. `src/domains/identity/platform-auth/routes.ts`, for example,
+composes session, registration, password-reset, OAuth, and email-settings
+capabilities without importing their handlers.
 
 Each capability owns its routes, handlers, request parsing, response mapping,
 and named policies. Collaboration between capabilities uses a narrow contract,
 port, or command. Do not add catch-all `service.ts`, `helpers.ts`, `utils.ts`,
 `models.ts`, or `handler-support.ts` files to avoid choosing an owner.
 
+`src/domains/content/wiki/` is a frozen legacy exception, not a template: its
+`README.md` marks `service.ts` and `handler-support.ts` as high-fan-in and
+forbids expanding them. When a domain needs shared code, add a named module with
+a real owner instead.
+
 Read `apps/api/src/domains/README.md` and
 `docs/architecture/domain-capabilities.md` before adding or moving a domain
 capability.
+
+### Identity domain boundary
+
+The `identity` section splits by the caller's identity state, not by feature
+similarity. `src/domains/identity/platform-account-security/routes.ts` records
+the rule:
+
+| Domain | Serves |
+| --- | --- |
+| `platform-auth` | Anonymous or refresh-only callers: registration, password reset, sessions, OAuth start/callback/exchange |
+| `platform-profile` | Display fields for a signed-in account |
+| `platform-account-security` | Callers who must additionally prove a second factor, or writes that target the session surface itself |
+
+That split is what lets every write in `platform-account-security` share one
+middleware chain while `/me/*` responses keep the profile domain's private
+headers. Do not move a capability across these domains because its code looks
+similar; move it when its caller's identity state changes.
 
 ## Shared and utility code
 

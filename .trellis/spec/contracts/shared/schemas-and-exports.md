@@ -19,6 +19,12 @@ gains a second related module. The core module becomes `index.ts`, and package
 export subpaths mirror the folder. Existing examples include `platform/` and
 `fudaba/`.
 
+The `platform/` domain is the current multi-module example: `index.ts` (auth,
+profile, OAuth), `account-security.ts`, `admin.ts`, `admin-users.ts`, and
+`admin-email.ts`, each with its own `@imsweb/contracts/platform/<module>`
+subpath. Adding a module means adding the file, the subpath, and the camelCase
+namespace together.
+
 Multi-source modules place public schemas before admin schemas. Admin schema
 names use an `admin` prefix. Export a shared atom only from its owning core
 module; keep sibling-internal atoms private to avoid ambiguous barrels.
@@ -33,8 +39,23 @@ API may execute a request schema only at an HTTP request-validation boundary;
 all other API layers use contracts imports as types only.
 
 Existing request objects explicitly use `strict`, `strip`, or `passthrough` to
-preserve their unknown-key behavior. New request objects are strict. Response
-schemas are exact: do not coerce, transform, default, or strip response data.
+preserve their unknown-key behavior. New request objects are `strict` by
+default. Response schemas are exact: do not coerce, transform, default, or strip
+response data.
+
+`strict` is the default, not a universal rule. A request schema may deliberately
+diverge, but only as a documented exception:
+
+- `.strip()` when the route must tolerate keys that predate the schema and the
+  legacy behavior is to ignore them.
+- `.passthrough()` when an external counterparty owns part of the payload and
+  the contract must not discard fields it does not model yet.
+
+In both cases the schema carries a comment stating what would break under
+`strict`, so the next reader can tell an exception from an oversight.
+`platformOAuthStartQuerySchema` (`.strip()`) and
+`platformOAuthCallbackQuerySchema` (`.passthrough()`) in
+`packages/contracts/src/platform/index.ts` are the reference pair.
 
 Use `src/common.ts` for stable cross-domain response components such as
 `successEnvelope`, cursor page info, snapshot page info, and numbered page info.
@@ -42,10 +63,17 @@ Do not redefine those shapes inside a domain.
 
 ## Paths
 
-`src/paths.ts` owns shared API prefixes, middleware and cookie scopes, and
-public delivery paths. Add or change the prefix once, then consume its builder
-from both applications. Callers retain only domain suffixes and dynamic
-parameters.
+`src/paths.ts` owns shared API prefixes, middleware and cookie scopes, public
+delivery paths, and app-only URL constants. Add or change the value once, then
+consume its builder or constant from both applications. Callers retain only
+domain suffixes and dynamic parameters.
+
+`APP_OAUTH_CALLBACK_URL` (`imsweb://oauth/callback`) is the app return channel
+rather than an HTTP path: the API targets it with a 303 after the HTTPS provider
+callback, and Web matches it when the deep link reopens the app. Providers never
+see it, which is what keeps the single HTTPS `redirect_uri` unchanged. Do not
+inline the scheme or path in either application, because Web's deep-link matcher
+compares scheme, host, and path against this constant.
 
 Do not add a second path constant in API or Web code. Root `pnpm run check:rules`
 rejects raw shared prefixes in production source.

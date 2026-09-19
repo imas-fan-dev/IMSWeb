@@ -58,6 +58,53 @@ checkboxes or switches for binary settings, tabs for views, and menus for option
 sets. Icon-only buttons need an accessible name and a tooltip when the icon is
 not self-explanatory.
 
+### Account security page
+
+`apps/web/app/pages/account/security/` splits one page into independent
+credential sections: password, email credential, session devices, and OAuth
+links. Each section owns its own loading, error, and success state; the page
+does not gate them behind a single spinner.
+
+The page exposes its account state on the page shell as `data-account-state`,
+with the values `loading`, `error`, `anonymous`, `restricted`, and
+`authenticated`. `app/pages/account/me/account-me-page.tsx` uses the same
+attribute and the same vocabulary, so a test can wait for the surface and know
+which branch it got without reaching into a section. Keep the two pages in step
+when adding a state.
+
+Use `account-security-model.ts` for labels, reason-key mapping, and validation
+shared by the sections instead of duplicating them per section. Keep the OAuth
+link section's result mapping (`oauthLinkReasonKey`) next to the section that
+renders it, and render only translation keys the model already exposes.
+
+### Platform OAuth provider buttons
+
+The same provider list renders differently per target, and the difference is the
+action, not the styling:
+
+| Target | Control | Behavior |
+| --- | --- | --- |
+| Web | Link to `platformAuthOAuthPath('/<code>/start?returnPath=…')` | Whole-document navigation; the API 303s back |
+| App | Button | Opens the authorization page in the system browser, then shows a waiting state |
+
+Share the visual identity (`platformOAuthButtonStyle(color)` for the brand
+background, `PlatformOAuthProviderIcon` for the glyph) so the two targets
+match. Do not share the control itself: a link cannot carry the App's bearer
+session and a button cannot perform the Web's document navigation.
+
+Both targets show a retryable failure state when the provider list fails to
+load. The entry must not silently disappear: an empty OAuth section and a failed
+fetch look identical to the user, and only one of them is recoverable.
+
+### Admin platform users
+
+Admin platform-user pages follow the existing admin table and detail conventions
+(`app/pages/admin/`). Account status changes, session revocation, password-reset
+queues, and OAuth unlinking are separate actions with separate confirmations;
+do not collapse them into one destructive control. Server refusals such as
+"cannot unlink the last credential" surface as the API's reason, not as a
+generic failure.
+
 ## Responsive and accessible behavior
 
 - Provide semantic roles and visible labels for interactive controls.

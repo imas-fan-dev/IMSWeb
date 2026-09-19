@@ -2,7 +2,7 @@
 
 > 文档类型：运维
 > 状态：Active
-> 权威来源：`apps/api/src/config/env.ts`、`apps/api/src/config/postgresql.ts` 和 PostgreSQL migration scripts
+> 权威来源：`apps/api/src/config/env.ts`、`apps/api/src/config/database.ts` 和 PostgreSQL migration scripts
 > 适用环境：本地开发、CI 和生产 Hono Node runtime
 
 Hono Node 只支持 PostgreSQL。Core 与 Story 是同一个 PostgreSQL 物理数据库和同一个连接池上的逻辑

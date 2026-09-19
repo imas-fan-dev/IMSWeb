@@ -15,7 +15,8 @@ them.
 | --- | --- |
 | [Architecture](./architecture.md) | Domains, ports, infrastructure, runtime composition, imports |
 | [Data and errors](./data-and-errors.md) | Validation, repositories, response types, failure handling |
-| [Observability and security](./observability-and-security.md) | Request logs, secrets, auth, sensitive data |
+| [Authentication](./authentication.md) | Session channels, OAuth flows and the app deep-link return, provider trust, account linking |
+| [Observability and security](./observability-and-security.md) | Request logs, secrets, auth policy, audit and security events, sensitive data |
 | [Testing](./testing.md) | Test placement, focused suites, required gates |
 
 ## Pre-Development Checklist
@@ -25,6 +26,8 @@ them.
 - [ ] Trace the request from route registration through handler or service to a
       port. Identify the runtime adapter only when infrastructure changes.
 - [ ] Check `@imsweb/contracts` for an existing wire schema and path builder.
+- [ ] If the change touches a session, OAuth, or a one-time credential, read
+      [Authentication](./authentication.md) before designing the route.
 - [ ] Identify the focused Node test suite before editing.
 - [ ] Keep domain code independent of `apps/api/src/infra/`.
 

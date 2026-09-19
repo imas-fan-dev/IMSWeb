@@ -40,12 +40,38 @@ Backoffice mutations use `adminApiClient` and attach
 `meta: withBackofficeCsrf()`. The shared client reads the CSRF cookie and writes
 the expected header. Do not build that header in a page or endpoint.
 
-Keep session tokens out of `localStorage`. Browser requests use same-origin
-credentials and the shared clients own cookie and refresh behavior.
+Browser requests use same-origin credentials and the shared clients own cookie
+and refresh behavior.
 
 `apps/web/app/lib/api/endpoints/homepage-links.ts` is a compact reference for a
 public cached read and CSRF-protected admin mutations, all parsed against shared
 schemas.
+
+## Session transport
+
+Token custody follows the build target, not the route. `usesPlatformBearerAuth`
+is `isCrossOriginApi`, so the rule is decided once, in
+`app/lib/api/platform-token-store.ts`, and never per call site.
+
+| Build | `API_ORIGIN` | Session |
+| --- | --- | --- |
+| Browser | Same origin | Cookies only. The access token stays httpOnly and no page script can read it |
+| Packaged App | Cross-origin (`tauri://localhost` → API) | Bearer tokens in `localStorage` under `ims.platform.access-token` / `ims.platform.refresh-token` |
+
+A packaged WebView shares no cookie jar with the API origin, so the session
+cookies are dropped and CSRF double-submit has nothing to read. Bearer callers
+ask with `X-IMS-Auth-Mode: bearer` and present the refresh token through
+`X-IMS-Refresh-Token`; the API returns the token fields only for that mode.
+
+`capturePlatformTokens(payload)` stores what login, registration, and refresh
+return, and `clearPlatformTokens()` drops both on logout. Each value is mirrored
+in memory, because a WebView that denies storage (private mode, a hardened
+profile) must still hold a session for as long as the app runs.
+
+The `ims.platform.*` keys are the deliberate exception to keeping credentials
+out of script-readable storage. Both conditions must hold: the build is the
+packaged App, and the API origin is cross-origin. Do not add a third store, and
+do not let browser builds reach this path.
 
 ## Types and state
 
@@ -161,4 +187,86 @@ const avatarSource = usePlatformAvatarSource(
   session.account.id
 )
 return avatarSource ? <img src={avatarSource} /> : <AvatarFallback />
+```
+
+## Scenario: App OAuth one-time code exchange
+
+### 1. Scope / Trigger
+
+Use this contract when changing the packaged App's OAuth redemption call, the
+second half of the deep-link return channel. The API half is specified in
+[API authentication](../../api/backend/authentication.md#scenario-app-oauth-return-channel-and-one-time-code-exchange).
+
+### 2. Signatures
+
+```ts
+// app/lib/api/endpoints/platform/oauth-exchange.ts
+exchangePlatformOAuthSession(input: PlatformOAuthExchangeRequest)
+// POST platformAuthOAuthPath("/exchange")
+// headers: { "X-IMS-Auth-Mode": "bearer" }
+// meta:    withPlatformAuth({ authRole: "login" })
+// parsed:  platformSessionSchema / platformHttpErrorSchema
+```
+
+### 3. Contracts
+
+- This is the only Platform endpoint the App calls with an explicit
+  `X-IMS-Auth-Mode: bearer` header. Browser builds never reach it.
+- The request body is the one-time `code` from the deep link plus the PKCE
+  `codeVerifier`. The verifier is read from
+  `app/lib/platform-oauth-app-verifier.ts`; it is never placed in a URL, a deep
+  link, or a log.
+- The response uses the ordinary `platformSessionSchema`. There is no
+  App-specific session shape; the shared response interceptor stores the tokens
+  through `platform-token-store`, so the caller only accepts the session.
+- A failed redemption leaves the user unauthenticated and surfaced through the
+  flow's error state. Do not retry a consumed code: it cannot succeed, and the
+  retry would replace a precise "expired" message with a confusing one.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Caller without the bearer header | `400`, refused before the body is read |
+| Code already consumed or past its 5-minute TTL | `401`; the flow reports the expired reason |
+| Verifier does not match the code's challenge | `401`; the flow reports the failed reason |
+| Verified but the account is not `active` / `restricted` | `403`; the flow reports the unavailable reason |
+| Redemption succeeds | Session accepted, tokens stored, user lands on the login `returnPath` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: the deep link carries `code`; the hook reads the stored verifier,
+  exchanges once, and the session provider picks up the new session.
+- Base: the user cancels in the system browser, no deep link arrives, and the
+  flow's 5-minute wait deadline ends in the cancelled state.
+- Bad: sending the verifier through the deep link, calling the exchange to
+  "refresh" an existing session, or retrying after a `401`.
+
+### 6. Tests Required
+
+- Endpoint tests assert the path, the bearer header, the auth role, and the
+  success and error schemas.
+- Flow tests assert single-attempt redemption, the wait deadline, the cancel
+  action, and that the verifier is cleared on every terminal outcome.
+- A browser cannot complete the system-browser round trip, so deep-link
+  delivery and exchange need simulator or device evidence. See
+  [Web testing](./testing.md).
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Retrying a consumed code cannot succeed, and the second failure masks the
+// first one's reason.
+if (isApiError(error)) await exchangePlatformOAuthSession(input)
+```
+
+#### Correct
+
+```ts
+// One attempt, then clear the verifier and let the flow's error state decide
+// what the user sees.
+const session = await exchangePlatformOAuthSession({ code, codeVerifier })
+clearPlatformOAuthAppVerifier(flow)
 ```

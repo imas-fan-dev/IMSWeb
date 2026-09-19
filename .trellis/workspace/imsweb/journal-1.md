@@ -148,3 +148,47 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: 对齐 Trellis spec 与仓库 docs 到已落地代码
+<!-- trellis-session: v=2 fp=d79e46e7b852162f -->
+
+**Date**: 2026-09-19
+**Task**: 对齐 Trellis spec 与仓库 docs 到已落地代码
+**Branch**: `release/v1.1`
+
+### Summary
+
+按已落地代码校正两层文档。.trellis/spec 作为 AI 可执行契约：修正五处与实现冲突的陈述，补齐账号管理、app OAuth 深链与一次性码交换、管理端平台用户、CI 证据留存等缺失契约。docs/ 作为人阅读层：标出两份文档里“已设计但从未实现”的内容（账号注销、注销时匿名化、platform_email_change_requests 表），修正一批被代码推翻的陈述，并补齐缺失的运维与导航说明。
+
+### Main Changes
+
+- 修正 5 处与代码冲突的陈述：OAuth request schema 的 strict 断言改为带豁免的默认、打包 App 的 localStorage token custody、路由清单迁移到 app/route-metadata.ts、api/backend 范例改指 identity/platform-auth、边界 ratchet 只断言 root 57 / api 43 / web 21。
+- 新增 .trellis/spec/api/backend/authentication.md：cookie 与 bearer 双会话通道、app OAuth 回跳与一次性码交换（含先消费后比对与重放拒绝）、provider 证书信任策略、绑定安全事件同事务写入。
+- 补齐头像对象存储投递、平台用户审计动作词汇、邮件 worker 运行时、Playwright 失败证据留存与 deploy.yml job 图、文档元数据门禁、.rules 优先的权威模型。
+- docs/architecture/platform-account-security.md：加入实现状态表，标出注销与写入式匿名化未实现（并列出已就绪的 CHECK 约束、配对约束与 403 拒绝），决策三换绑邮箱改写成实际设计（共享验证码表 + 域分离 HMAC，只需当前密码与新邮箱验证码）。
+- docs/ 修正被代码推翻的陈述：验证码已事务入队而非同步等 SMTP、限流窗口已迁到 Valkey、schema 下限、缓存的错误路径与 cooldown 字段、script 计数 57/43/21、config 权威路径、node --test 无法执行的命令、六个资产 SHA-256。
+- docs/ 补齐：邮件 worker 与其队列、app 深链常量与回跳通道（provider 配置无需变动）、缺失的 editorial 域与 admin platform-users、deep-link 注册与 PKCE verifier 保管。
+- 统一文档语气：新增内容不含 em dash，与 docs/ 每千行 4.5 处的既有密度一致。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `squashed` | docs: align the specs and repo docs with the landed work |
+
+### Testing
+
+- [OK] pnpm run check:rules 通过：source rules 895 文件、wire audit 0 violations、route inventory 244 条、docs rules 25 文件。
+- [OK] .trellis/spec 全部 22 个 Markdown 文件与 docs/ 全部 25 个文件零断链、零断锚，且不含日期快照或 retired path。
+- [OK] pre-commit 钩子全绿：contracts 29、api migration 114、web routing 4 测试，加 web lint、typecheck 与 Hono architecture 381 模块。
+- [OK] trellis-check 独立核验 spec 层，修正 3 处事实错误（email worker 脚本归属、wiki README 高扇入标注、loopback 例外自相矛盾）。
+- [OK] docs 层由三个只读审计子代理逐文件对账代码，报告中的每条陈述均在改写前打开源文件复核；审计自身的一处错误（声称 script 计数无人守护）也被反查纠正。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 无：两层文档已与当前代码对齐，后续新契约随实现同批补齐。
