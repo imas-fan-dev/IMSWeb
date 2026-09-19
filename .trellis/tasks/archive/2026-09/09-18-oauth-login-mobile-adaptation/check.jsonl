@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/web/frontend/api-state-and-contracts.md", "reason": "Every new Web endpoint call must use parsed() with contracts success/error schemas and no skipContractCheck."}
+{"file": ".trellis/spec/api/backend/observability-and-security.md", "reason": "Verify one-time codes, verifiers, and tokens never reach logs, and authz/rate-limit placement is correct."}
+{"file": ".trellis/spec/contracts/shared/schemas-and-exports.md", "reason": "Confirm the exchange request schema, response reuse, and regenerated route inventory are exact and fresh."}
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "Check the provider-load failure state, oauth reason alert, and mobile sizing against established UX rules."}
+{"file": "docs/development/app-device-delivery.md", "reason": "Require packaged-build evidence for the deep-link, cold-start, and AC1-AC7 device checks."}

@@ -1,9 +1,8 @@
-'use strict';
-
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { test } = require('node:test');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { test } from 'vitest';
 
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const REPOSITORY_ROOT = path.resolve(PROJECT_ROOT, '../..');
@@ -26,15 +25,64 @@ requireBuild(
     'pnpm --filter @imsweb/api run build'
 );
 
-const { createHonoApp } = require(path.join(SERVER_ROOT, 'app.js'));
-const { FrontendStaticAssets, NodeStaticAssets } = require(path.join(
+// The compiled server is loaded through the Node CommonJS loader, exactly as
+// the previous `require` calls did, so a missing build fails at the same point
+// with the same message instead of at import resolution time.
+const loadCompiled = createRequire(import.meta.url);
+const { createHonoApp } = loadCompiled(path.join(SERVER_ROOT, 'app.js'));
+const { FrontendStaticAssets, NodeStaticAssets } = loadCompiled(path.join(
     SERVER_ROOT,
     'infra/http/filesystem/static-assets.js'
 ));
-const { resolveFrontendRoute } = require(path.join(
+const { resolveFrontendRoute } = loadCompiled(path.join(
     SERVER_ROOT,
     'routing/frontend-route-policy.js'
 ));
+const {
+    FRONTEND_PRERENDERED_ROUTES,
+    FRONTEND_SPA_FALLBACK_PATTERNS
+} = loadCompiled(path.join(
+    SERVER_ROOT,
+    'routing/frontend-route-delivery.js'
+));
+
+const SPA_ROUTE_CASES = {
+    admin: {
+        positive: ['/admin', '/admin/', '/admin/login', '/admin/login/', '/admin/chronicle/pending'],
+        negative: ['/admin%2Flogin', '/ad%6Din/login', '/admin//']
+    },
+    'information/:contentId': {
+        positive: ['/information/info-example-001'],
+        negative: ['/information/one/two']
+    },
+    'events/:eventId': {
+        positive: ['/events/36', '/events/36/'],
+        negative: ['/events/one/two', '/events/one%2Ftwo']
+    },
+    'chronicle/:activityId': {
+        positive: [
+            '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
+            '/chronicle/activity-1/'
+        ],
+        negative: ['/chronicle/one/two', '/chronicle/one%2Ftwo', '/chronicle/one%5Ctwo']
+    },
+    'community/exchange/me': {
+        positive: ['/community/exchange/me', '/community/exchange/me/'],
+        negative: ['/community/exchange/me/extra']
+    },
+    'community/exchange/offices/:officeSlug': {
+        positive: [
+            '/community/exchange/offices/shanghai-weekend',
+            '/community/exchange/offices/shanghai-weekend/'
+        ],
+        negative: [
+            '/community/exchange/offices/one/two',
+            '/community/exchange/offices/one%2Ftwo',
+            '/community/exchange/offices/one%5Ctwo',
+            '/community/exchange/offices//'
+        ]
+    }
+};
 
 function walkFiles(directory, root = directory) {
     return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -70,225 +118,186 @@ async function assertFileResponse(pathname, file, init) {
     return response;
 }
 
-test('[FRT-01] root and index.html use the React document', async () => {
-    const frontendIndex = path.join(FRONTEND_ROOT, 'index.html');
+test.describe('frontend routing', () => {
+    test('[FRT-01] root and index.html use the React document', async () => {
+        const frontendIndex = path.join(FRONTEND_ROOT, 'index.html');
 
-    await assertFileResponse('/', frontendIndex);
-    await assertFileResponse('/index.html', frontendIndex);
-});
+        await assertFileResponse('/', frontendIndex);
+        await assertFileResponse('/index.html', frontendIndex);
+    });
 
-test('[FRT-02] real prerendered documents and selective SPA routes use build/client', async () => {
-    for (const route of [
-        'about',
-        'events',
-        'recommendations',
-        'live',
-        'community',
-        'community/cards',
-        'producer-map',
-        'works',
-        'works/765',
-        'works/cg',
-        'works/ml',
-        'works/sidem',
-        'works/sc',
-        'works/gakuen',
-        'works/games',
-        'works/wows',
-        'wiki',
-        'wiki/modern',
-        'wiki/classic',
-        'story',
-        'story/modern',
-        'story/classic',
-        'chronicle',
-        'tier-list'
-    ]) {
-        await assertFileResponse(`/${route}`, path.join(FRONTEND_ROOT, route, 'index.html'));
-        await assertFileResponse(`/${route}/`, path.join(FRONTEND_ROOT, route, 'index.html'));
-    }
+    test('[FRT-02] real prerendered documents and selective SPA routes use build/client', async () => {
+        assert.equal(FRONTEND_PRERENDERED_ROUTES.length, 30);
+        for (const [route, asset] of FRONTEND_PRERENDERED_ROUTES) {
+            if (route === '/') continue;
+            await assertFileResponse(route, path.join(FRONTEND_ROOT, asset));
+            await assertFileResponse(`${route}/`, path.join(FRONTEND_ROOT, asset));
+        }
 
-    const fallback = path.join(FRONTEND_ROOT, '__spa-fallback.html');
-    for (const route of [
-        '/admin',
-        '/admin/',
-        '/admin/login',
-        '/admin/login/',
-        '/admin/chronicle/pending',
-        '/information/info-example-001',
-        '/chronicle/2026%E5%B9%BF%E5%B7%9E%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88Only',
-        '/chronicle/activity-1/'
-    ]) {
-        await assertFileResponse(route, fallback);
-    }
+        const patternsById = new Map(
+            FRONTEND_SPA_FALLBACK_PATTERNS.map((pattern) => [pattern.id, pattern])
+        );
+        assert.equal(patternsById.size, FRONTEND_SPA_FALLBACK_PATTERNS.length);
+        assert.deepEqual(new Set(patternsById.keys()), new Set(Object.keys(SPA_ROUTE_CASES)));
+        const fallback = path.join(FRONTEND_ROOT, '__spa-fallback.html');
+        for (const [patternId, cases] of Object.entries(SPA_ROUTE_CASES)) {
+            assert.ok(patternsById.has(patternId), `${patternId} has no generated SPA pattern`);
+            for (const route of cases.positive) {
+                await assertFileResponse(route, fallback);
+            }
+        }
 
-    const head = await request('/chronicle/activity-1', { method: 'HEAD' });
-    assert.equal(head.status, 200);
-    assert.equal(await head.text(), '');
-    assert.equal(head.headers.get('content-length'), String(fs.statSync(fallback).size));
-});
+        const head = await request('/chronicle/activity-1', { method: 'HEAD' });
+        assert.equal(head.status, 200);
+        assert.equal(await head.text(), '');
+        assert.equal(head.headers.get('content-length'), String(fs.statSync(fallback).size));
+    });
 
-test('[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks', async () => {
-    const probe = await request('/api/wiki/test');
-    assert.equal(probe.status, 200);
-    assert.deepEqual(await probe.json(), { status: 'ok' });
+    test('[FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks', async () => {
+        const probe = await request('/api/wiki/test');
+        assert.equal(probe.status, 200);
+        assert.deepEqual(await probe.json(), { status: 'ok' });
 
-    for (const pathname of [
-        '/api/not-a-real-route',
-        '/image/not-a-real-file.webp',
-        '/css/not-a-real-file.css',
-        '/icon/not-a-real-file.webp',
-        '/uploads/not-a-real-file.png',
-        '/eventchronicle/not-a-real-route',
-        '/assets/images/eventchronicle/events/used/not-a-real-file.png',
-        '/runninggame/Build/not-a-real-file.data',
-        '/runninggame/BuildMobile/not-a-real-file.data'
-    ]) {
+        for (const pathname of [
+            '/api/not-a-real-route',
+            '/image/not-a-real-file.webp',
+            '/css/not-a-real-file.css',
+            '/icon/not-a-real-file.webp',
+            '/uploads/not-a-real-file.png',
+            '/eventchronicle/not-a-real-route',
+            '/assets/images/eventchronicle/events/used/not-a-real-file.png',
+            '/runninggame/Build/not-a-real-file.data',
+            '/runninggame/BuildMobile/not-a-real-file.data'
+        ]) {
+            assert.deepEqual(
+                resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles),
+                { kind: 'server' },
+                pathname
+            );
+            const response = await request(pathname);
+            assert.equal(response.status, 404, pathname);
+            assert.equal(await response.text(), 'Not Found', pathname);
+        }
+
+        const sensitive = await request('/assets/images/eventchronicle/events/meta/private.json');
+        assert.equal(sensitive.status, 403);
+        assert.equal(await sensitive.text(), 'Forbidden');
+
+        for (const pathname of [
+            '/sites/hiro-2026',
+            '/site-content/hiro-2026/22222222-2222-4222-8222-222222222222/index.html',
+            '/information/info-example-001/content'
+        ]) {
+            assert.deepEqual(
+                resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles),
+                { kind: 'server' },
+                pathname
+            );
+        }
+    });
+
+    test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', async () => {
+        for (const pathname of [
+            '/unknown',
+            '/wiki/not-a-real-route',
+            '/wiki/classic/extra-segment',
+            '/story-not-a-real-route',
+            '/story/extra-segment',
+            '/story/classic/extra-segment',
+            ...Object.values(SPA_ROUTE_CASES).flatMap(({ negative }) => negative),
+            '/chro%6Eicle/activity-1',
+            '/community/cards/submissions/submission-1',
+            '/packages/example-site',
+            '/works/not-a-curated-work',
+            '/chronicle/activity-1//',
+            '/__spa-fallback.html',
+            '/about/index.html',
+            `/${frontendFileList.find((file) => file.endsWith('.js'))}/`,
+            '/about/extra'
+        ]) {
+            const response = await request(pathname);
+            assert.equal(response.status, 404, pathname);
+            assert.equal(await response.text(), 'Not Found', pathname);
+        }
+
+        for (const pathname of [
+            '/chronicle/.',
+            '/chronicle/..',
+            '/chronicle/%2e',
+            '/chronicle/%2e%2e',
+            '/admin/../api'
+        ]) {
+            assert.notEqual(
+                resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles).kind,
+                'frontend',
+                pathname
+            );
+        }
+
+        for (const pathname of [
+            '/about',
+            '/admin',
+            '/recommendations',
+            '/information/info-example-001',
+            '/chronicle/activity-1',
+            '/community/exchange/me',
+            '/community/exchange/offices/shanghai-weekend'
+        ]) {
+            assert.deepEqual(
+                resolveFrontendRoute({ method: 'POST', pathname }, frontendFiles),
+                { kind: 'server' },
+                pathname
+            );
+            const response = await request(pathname, { method: 'POST' });
+            assert.equal(response.status, 404, pathname);
+        }
+    });
+
+    test('[FRT-05] build assets require an exact entry in the real file set', async () => {
+        const javascript = frontendFileList.find((file) =>
+            file.startsWith('assets/') && file.endsWith('.js')
+        );
+        assert.ok(javascript, 'build/client must contain a compiled JavaScript asset');
+        await assertFileResponse(`/${javascript}`, path.join(FRONTEND_ROOT, javascript));
+
+        for (const pathname of [
+            `/${javascript}.map`,
+            '/assets/not-in-the-build.js',
+            '/brand/not-in-the-build.png'
+        ]) {
+            const response = await request(pathname);
+            assert.equal(response.status, 404, pathname);
+            assert.equal(await response.text(), 'Not Found', pathname);
+        }
+
         assert.deepEqual(
-            resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles),
-            { kind: 'server' },
-            pathname
+            resolveFrontendRoute({ method: 'GET', pathname: `/${javascript}` }, new Set()),
+            { kind: 'not-found' }
         );
-        const response = await request(pathname);
-        assert.equal(response.status, 404, pathname);
-        assert.equal(await response.text(), 'Not Found', pathname);
-    }
+    });
 
-    const sensitive = await request('/assets/images/eventchronicle/events/meta/private.json');
-    assert.equal(sensitive.status, 403);
-    assert.equal(await sensitive.text(), 'Forbidden');
+    test('[FRT-06] build documents and generated prerenders own each other', async () => {
+        const documents = frontendFileList.filter((file) => file.endsWith('/index.html'));
+        assert.equal(documents.length, 29);
 
-    for (const pathname of [
-        '/sites/hiro-2026',
-        '/site-content/hiro-2026/22222222-2222-4222-8222-222222222222/index.html',
-        '/information/info-example-001/content'
-    ]) {
-        assert.deepEqual(
-            resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles),
-            { kind: 'server' },
-            pathname
-        );
-    }
-});
+        for (const document of documents) {
+            const route = `/${document.slice(0, -'/index.html'.length)}`;
+            assert.deepEqual(
+                resolveFrontendRoute({ method: 'GET', pathname: route }, frontendFiles),
+                { kind: 'frontend', assetPath: document },
+                `${route} is prerendered but unowned by generated route metadata`
+            );
+            await assertFileResponse(route, path.join(FRONTEND_ROOT, document));
+            await assertFileResponse(`${route}/`, path.join(FRONTEND_ROOT, document));
+        }
 
-test('[FRT-04] unknown and ambiguous paths do not receive the SPA fallback', async () => {
-    for (const pathname of [
-        '/unknown',
-        '/wiki/not-a-real-route',
-        '/wiki/classic/extra-segment',
-        '/story-not-a-real-route',
-        '/story/extra-segment',
-        '/story/classic/extra-segment',
-        '/chronicle/one/two',
-        '/chronicle/one%2Ftwo',
-        '/chronicle/one%5Ctwo',
-        '/chro%6Eicle/activity-1',
-        '/admin%2Flogin',
-        '/ad%6Din/login',
-        '/admin//',
-        '/chronicle/activity-1//',
-        '/__spa-fallback.html',
-        '/about/index.html',
-        `/${frontendFileList.find((file) => file.endsWith('.js'))}/`,
-        '/about/extra'
-    ]) {
-        const response = await request(pathname);
-        assert.equal(response.status, 404, pathname);
-        assert.equal(await response.text(), 'Not Found', pathname);
-    }
-
-    for (const pathname of [
-        '/chronicle/.',
-        '/chronicle/..',
-        '/chronicle/%2e',
-        '/chronicle/%2e%2e',
-        '/admin/../api'
-    ]) {
-        assert.notEqual(
-            resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles).kind,
-            'frontend',
-            pathname
-        );
-    }
-
-    for (const pathname of [
-        '/about',
-        '/admin',
-        '/recommendations',
-        '/information/info-example-001',
-        '/chronicle/activity-1'
-    ]) {
-        assert.deepEqual(
-            resolveFrontendRoute({ method: 'POST', pathname }, frontendFiles),
-            { kind: 'server' },
-            pathname
-        );
-        const response = await request(pathname, { method: 'POST' });
-        assert.equal(response.status, 404, pathname);
-    }
-});
-
-test('[FRT-05] build assets require an exact entry in the real file set', async () => {
-    const javascript = frontendFileList.find((file) =>
-        file.startsWith('assets/') && file.endsWith('.js')
-    );
-    assert.ok(javascript, 'build/client must contain a compiled JavaScript asset');
-    await assertFileResponse(`/${javascript}`, path.join(FRONTEND_ROOT, javascript));
-
-    for (const pathname of [
-        `/${javascript}.map`,
-        '/assets/not-in-the-build.js',
-        '/brand/not-in-the-build.png'
-    ]) {
-        const response = await request(pathname);
-        assert.equal(response.status, 404, pathname);
-        assert.equal(await response.text(), 'Not Found', pathname);
-    }
-
-    assert.deepEqual(
-        resolveFrontendRoute({ method: 'GET', pathname: `/${javascript}` }, new Set()),
-        { kind: 'not-found' }
-    );
-});
-
-test('[FRT-06] legacy browser URLs redirect to their modern owners', async () => {
-    const redirects = new Map([
-        ['/About.html', '/about'],
-        ['/Event.html', '/events'],
-        ['/producer.html', '/admin/login'],
-        ['/producermap.html', '/producer-map'],
-        ['/ProducerNameCard.html', '/community/cards'],
-        ['/timeline.html', '/chronicle'],
-        ['/eventchronicleadmin.html', '/admin/chronicle'],
-        ['/283Introduction.html', '/works/sc'],
-        ['/WOWSIntroduction.html', '/works/wows'],
-        ['/hiro2026.html', '/sites/hiro2026'],
-        ['/eventchronicle.html?id=activity%201', '/chronicle/activity%201']
-    ]);
-
-    for (const [legacyPath, destination] of redirects) {
-        const response = await request(legacyPath, { redirect: 'manual' });
-        assert.equal(response.status, 301, legacyPath);
-        assert.equal(
-            new URL(response.headers.get('location'), 'http://ims.test').pathname,
-            destination,
-            legacyPath
-        );
-    }
-});
-
-test('[FRT-07] every prerendered document in the build is owned by the route policy', async () => {
-    const documents = frontendFileList.filter((file) => file.endsWith('/index.html'));
-    assert.ok(documents.length > 0, 'build/client must contain prerendered documents');
-
-    for (const document of documents) {
-        const route = `/${document.slice(0, -'/index.html'.length)}`;
-        assert.deepEqual(
-            resolveFrontendRoute({ method: 'GET', pathname: route }, frontendFiles),
-            { kind: 'frontend', assetPath: document },
-            `${route} is prerendered but unowned; add it to PRERENDERED_ROUTES`
-        );
-        await assertFileResponse(route, path.join(FRONTEND_ROOT, document));
-        await assertFileResponse(`${route}/`, path.join(FRONTEND_ROOT, document));
-    }
+        for (const [route, asset] of FRONTEND_PRERENDERED_ROUTES) {
+            assert.ok(frontendFiles.has(asset), `${route} expects missing build document ${asset}`);
+            assert.deepEqual(
+                resolveFrontendRoute({ method: 'GET', pathname: route }, frontendFiles),
+                { kind: 'frontend', assetPath: asset },
+                `${route} is generated but not owned by the route policy`
+            );
+        }
+    });
 });

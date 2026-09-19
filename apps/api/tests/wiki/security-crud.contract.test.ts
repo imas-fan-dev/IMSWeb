@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
+import { describe, onTestFinished, test, vi } from 'vitest';
 import {
     createWikiFixture,
     formFields,
@@ -8,7 +8,7 @@ import {
     uploadedPng,
     type WikiFixture
 } from './fixture';
-import { categoryStorageSlug } from '@/domains/wiki/service';
+import { categoryStorageSlug } from '@/domains/content/wiki/service';
 
 const WRITE_ENDPOINTS = [
     { method: 'POST', path: '/api/wiki/add_story' },
@@ -953,8 +953,11 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         }
     });
 
-    test('cleanup failure after a successful database delete does not resurrect the row', async (t) => {
-        const logged = t.mock.method(console, 'error', () => undefined);
+    test('cleanup failure after a successful database delete does not resurrect the row', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        // The previous runner restored mocks after every test; Vitest leaves a
+        // spy in place unless it is restored explicitly.
+        onTestFinished(() => logged.mockRestore());
         const fixture = createWikiFixture();
         const original = seedOriginal(fixture);
         fixture.storage.failDeleteKeys.add(original.key);
@@ -967,11 +970,12 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.equal(fixture.story.stories.length, 0);
         assert.ok(fixture.storage.objects.has(original.key), 'failed retryable cleanup may leave the old object');
         assert.deepEqual(fixture.storage.deletes, [original.key]);
-        assert.equal(logged.mock.callCount(), 1);
+        assert.equal(logged.mock.calls.length, 1);
     });
 
-    test('post-commit cleanup still succeeds when object deletion and compensation enqueue both fail', async (t) => {
-        const logged = t.mock.method(console, 'error', () => undefined);
+    test('post-commit cleanup still succeeds when object deletion and compensation enqueue both fail', async () => {
+        const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        onTestFinished(() => logged.mockRestore());
         const fixture = createWikiFixture();
         const original = seedOriginal(fixture);
         const jobs: Array<{ kind: string; payload: unknown }> = [];
@@ -994,8 +998,8 @@ describe('Wiki CRUD ordering and media cleanup contract', () => {
         assert.equal(fixture.story.stories.length, 0);
         assert.ok(fixture.storage.objects.has(original.key));
         assert.deepEqual(jobs, [{ kind: 'delete-object', payload: { key: original.key } }]);
-        assert.equal(logged.mock.callCount(), 1);
-        assert.match(String(logged.mock.calls[0]?.arguments[0]), /committed Wiki object/);
+        assert.equal(logged.mock.calls.length, 1);
+        assert.match(String(logged.mock.calls[0]?.[0]), /committed Wiki object/);
     });
 
     test('category cleanup enumerates unreferenced prefix objects and compensates each failed key', async () => {
@@ -1445,8 +1449,13 @@ describe('Wiki category and card secondary edit contract', () => {
 describe('Wiki destructive revision and audit contract', () => {
     test('whole-card and whole-category deletion require current revisions and audit only success', async () => {
         const cardFixture = createWikiFixture();
+        cardFixture.services.config!.clientAddressSource = 'nginx';
         seedOriginal(cardFixture);
-        const cardHeaders = await cardFixture.authHeaders('editor');
+        const cardHeaders = {
+            ...await cardFixture.authHeaders('editor'),
+            'X-Forwarded-For': '203.0.113.20, 10.0.0.1',
+            'X-Real-IP': '198.51.100.20'
+        };
 
         const missingCardRevision = await postForm(
             cardFixture,
@@ -1490,10 +1499,15 @@ describe('Wiki destructive revision and audit contract', () => {
         assert.equal(cardFixture.story.cards.length, 0);
         assert.equal(cardFixture.auditLogs.length, 1);
         assert.equal(cardFixture.auditLogs[0]?.action, '删除 Wiki 剧情卡片');
+        assert.equal(cardFixture.auditLogs[0]?.ip, 'unknown');
 
         const categoryFixture = createWikiFixture();
+        categoryFixture.services.config!.clientAddressSource = 'nginx';
         seedOriginal(categoryFixture);
-        const categoryHeaders = await categoryFixture.authHeaders('op');
+        const categoryHeaders = {
+            ...await categoryFixture.authHeaders('op'),
+            'X-Forwarded-For': '2001:db8::20'
+        };
         const staleCategory = await postForm(
             categoryFixture,
             '/api/wiki/delete_category',
@@ -1517,5 +1531,6 @@ describe('Wiki destructive revision and audit contract', () => {
         assert.equal(deletedCategory.status, 200);
         assert.equal(categoryFixture.auditLogs.length, 1);
         assert.equal(categoryFixture.auditLogs[0]?.action, '删除 Wiki 分类');
+        assert.equal(categoryFixture.auditLogs[0]?.ip, '2001:db8::20');
     });
 });

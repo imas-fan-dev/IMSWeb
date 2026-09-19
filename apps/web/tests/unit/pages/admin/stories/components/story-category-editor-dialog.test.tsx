@@ -1,42 +1,43 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  installFetchMock,
+  requestDetails,
+} from "@/tests/unit/support/api-client"
+import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { StoryCategoryEditorDialog } from "~/pages/admin/stories/components/story-category-editor-dialog"
+import type { WikiCategoryMutationResult } from "@imsweb/contracts/wiki"
 
-function requestDetails(call: unknown[]) {
-  const [input, init] = call as [RequestInfo | URL, RequestInit | undefined]
-  if (input instanceof Request) {
-    return {
-      body: input.body,
-      headers: input.headers,
-      method: input.method,
-      url: input.url,
-    }
-  }
+function categoryMutation(
+  name: string,
+  storageSlug: string,
+  displayOrder: number
+) {
   return {
-    body: init?.body ?? null,
-    headers: new Headers(init?.headers),
-    method: init?.method ?? "GET",
-    url: String(input),
-  }
+    status: "success",
+    category: {
+      id: 8,
+      name,
+      storageSlug,
+      displayOrder,
+      showWhenEmpty: true,
+      backgroundEligible: false,
+      revision: 0,
+    },
+  } satisfies WikiCategoryMutationResult
 }
 
 describe("StoryCategoryEditorDialog", () => {
   beforeEach(() => {
-    document.cookie = "csrf_token=story-category-editor-test; path=/"
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
+    setCsrfCookie("backoffice", "story-category-editor-test")
   })
 
   it("prefills the shared category name and closes after a successful patch", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success" }))
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      Response.json(categoryMutation("主线剧情 改", "main_story", 0))
+    )
     const onOpenChange = vi.fn()
     const onSaved = vi.fn()
     const user = userEvent.setup()
@@ -94,10 +95,9 @@ describe("StoryCategoryEditorDialog", () => {
   })
 
   it("adds an explicit category for the selected idol", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ status: "success" }, { status: 201 }))
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock().mockResolvedValue(
+      Response.json(categoryMutation("活动剧情", "event", 1), { status: 201 })
+    )
     const onOpenChange = vi.fn()
     const onSaved = vi.fn()
     const user = userEvent.setup()

@@ -29,6 +29,7 @@ import {
   contentTypeLabel,
   informationErrorMessage,
 } from "../information-model"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 
 function InformationRow({
   card,
@@ -56,7 +57,7 @@ function InformationRow({
         <h3 className="mt-2 line-clamp-2 text-sm font-semibold">
           {card.title}
         </h3>
-        <a
+        <NavigationLink
           href={card.link}
           target={card.contentType === "external" ? "_blank" : undefined}
           rel={card.contentType === "external" ? "noreferrer" : undefined}
@@ -65,7 +66,7 @@ function InformationRow({
         >
           <span>打开内容</span>
           <ArrowUpRightIcon className="size-3 shrink-0" aria-hidden="true" />
-        </a>
+        </NavigationLink>
       </div>
       <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1 sm:self-center">
         <Button

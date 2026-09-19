@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/09-19-vitest-test-unification/design.md", "reason": "权威技术设计：执行域配置布局、postgres 生命周期映射、脚本替换与风险表，实现与检查都以它为准"}
+{"file": ".trellis/tasks/09-19-vitest-test-unification/implement.md", "reason": "阶段顺序、每阶段验证命令与回滚点，决定先做配置骨架再做迁移"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "API 测试所有权、PostgreSQL 生命周期 Signatures 与 Contracts 两节必须同步更新且 contract row 不回退"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Web 侧 Vitest 的既有边界与共享装配层约定，迁移不得破坏"}
+{"file": ".trellis/spec/repository/ci.md", "reason": "CI lane、owner 命令形状与 pnpm/Vitest 参数约束，报表接线必须遵守"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "判断三域配置要不要抽公共模块、以及批量改动后是否引入重复抽象的依据"}
+{"file": "docs/development/testing.md", "reason": "测试执行所有权、脚本数量上限与不得新增别名的治理约束来源"}

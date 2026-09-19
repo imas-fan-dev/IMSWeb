@@ -1,0 +1,114 @@
+tests/migration/cms-article-title-backfill.test.js	CMS article body prefix preserves internal line breaks and existing nodes
+tests/migration/cms-article-title-backfill.test.js	CMS article body remains byte-for-byte unchanged when no text is moved
+tests/migration/cms-article-title-backfill.test.js	CMS article title backfill arguments are dry-run by default and validate input
+tests/migration/cms-article-title-backfill.test.js	CMS article title backfill writes a restricted report and a content-free summary
+tests/migration/cms-article-title-backfill.test.js	CMS article title split only accepts a non-empty leading bracket title
+tests/migration/cms-article-title-backfill.test.js	PostgreSQL apply rejects an invalid candidate before writing any article
+tests/migration/cms-article-title-backfill.test.js	PostgreSQL apply reports an update conflict and rolls back earlier rows
+tests/migration/cms-article-title-backfill.test.js	PostgreSQL apply rolls back the batch after a late event write failure
+tests/migration/cms-article-title-backfill.test.js	PostgreSQL dry-run, apply, and repeat preserve the migration contract
+tests/migration/fudaba-media.test.js	Fudaba R2 locators reject encoded, traversing, or ambiguous paths
+tests/migration/fudaba-media.test.js	Fudaba media CLI is dry-run by default and requires explicit paths
+tests/migration/fudaba-media.test.js	a CAS loser cannot compensate an object created by a competing invocation
+tests/migration/fudaba-media.test.js	a public or different existing target is a non-overwriting conflict
+tests/migration/fudaba-media.test.js	apply confirmations fail before the target runtime is resolved
+tests/migration/fudaba-media.test.js	approved apply writes private-ready objects, reads back, and converges
+tests/migration/fudaba-media.test.js	batch failure compensates only objects created by the migration
+tests/migration/fudaba-media.test.js	dry-run scaffolds v2 rights and performs no target writes
+tests/migration/fudaba-media.test.js	inventory bytes and rights bindings are immutable migration inputs
+tests/migration/fudaba-media.test.js	media apply refuses storage adapters without CAS and fenced deletion
+tests/migration/fudaba-media.test.js	restricted JSON fixtures keep pretty output, final newline, and private mode
+tests/migration/fudaba-metadata-import.test.js	apply confirmation seals source.json independently from the source export
+tests/migration/fudaba-metadata-import.test.js	extract creates an immutable, classified snapshot without leaking security rows
+tests/migration/fudaba-metadata-import.test.js	extract rejects full table, trigger and ledger DDL rewrites
+tests/migration/fudaba-metadata-import.test.js	extract rejects migration-ledger, index and trigger provenance drift
+tests/migration/fudaba-metadata-import.test.js	extract rejects schema drift and classification keys absent from the source
+tests/migration/fudaba-metadata-import.test.js	planning consumes explicitly retained external avatars and denied optional covers
+tests/migration/fudaba-metadata-import.test.js	planning handles source-null update times and empty optional avatars exactly
+tests/migration/fudaba-metadata-import.test.js	planning preserves count provenance and excludes ephemeral auth state
+tests/migration/fudaba-metadata-import.test.js	planning recomputes every media-plan binding after a plan reseal
+tests/migration/fudaba-metadata-import.test.js	planning rejects public media and a manifest detached from its media plan
+tests/migration/fudaba-metadata-import.test.js	planning rejects tampered operational-row provenance
+tests/migration/fudaba-metadata-import.test.js	planning rejects values that only PostgreSQL would otherwise catch
+tests/migration/fudaba-metadata-import.test.js	real PostgreSQL blocks missing or drifted media control-plane state
+tests/migration/fudaba-metadata-import.test.js	real PostgreSQL dry-run, apply, repeat and reconciliation are exact
+tests/migration/fudaba-metadata-import.test.js	real PostgreSQL imports historical children before restoring an archived office
+tests/migration/fudaba-metadata-import.test.js	real PostgreSQL reconciles a lost commit acknowledgement before reporting success
+tests/migration/fudaba-metadata-import.test.js	real PostgreSQL reports alternate unique-key conflicts before writing
+tests/migration/fudaba-metadata-import.test.js	real PostgreSQL rolls back the entire import after a late write failure
+tests/migration/fudaba-metadata-import.test.js	real PostgreSQL serializes concurrent identical applies into one exact dataset
+tests/migration/fudaba-metadata-import.test.js	timestamp and series conversion accept only the locked source contract
+tests/migration/information-to-community-posts.test.js	Information post migration accepts an explicit report path
+tests/migration/information-to-community-posts.test.js	Information post migration apply uses the applied report path
+tests/migration/information-to-community-posts.test.js	Information post migration is dry-run by default
+tests/migration/legacy-about-avatars.test.js	About avatar URL classification only accepts the upload format and confirmed legacy origin
+tests/migration/legacy-about-avatars.test.js	About avatar apply never replaces a conflicting target object
+tests/migration/legacy-about-avatars.test.js	About avatar apply rejects source drift before writing objects
+tests/migration/legacy-about-avatars.test.js	About avatar apply rolls back new objects after a config CAS conflict
+tests/migration/legacy-about-avatars.test.js	About avatar apply stops for unsupported URLs and missing uploaded objects
+tests/migration/legacy-about-avatars.test.js	About avatar migration is read-only by default and requires explicit confirmations
+tests/migration/legacy-about-avatars.test.js	About avatar plan migrates legacy paths and reports unsupported URLs
+tests/migration/legacy-about-avatars.test.js	About avatar response streaming enforces the 10MB limit
+tests/migration/legacy-about-avatars.test.js	About avatar sync plans without writes, then uploads and conditionally rewrites config
+tests/migration/legacy-brand-assets.test.js	brand asset R2 acceptance rejects target and content drift
+tests/migration/legacy-brand-assets.test.js	brand asset migration requires exact apply confirmations
+tests/migration/legacy-brand-assets.test.js	brand asset migration validates the SFNT table directory
+tests/migration/legacy-brand-assets.test.js	brand asset sync plans, writes, and recognizes unchanged objects
+tests/migration/legacy-information-media.test.js	legacy Information migration converts static cards without replacing admin records
+tests/migration/legacy-information-media.test.js	legacy Information migration is read-only unless apply is explicit
+tests/migration/legacy-information-media.test.js	legacy Information migration upgrades only the retired hiro page link
+tests/migration/legacy-information-media.test.js	legacy Information migration writes and verifies six images plus one stored index
+tests/migration/legacy-namecards.test.js	Legacy namecard migration accepts explicit apply confirmations
+tests/migration/legacy-namecards.test.js	Legacy namecard migration is read-only by default and normalizes its source
+tests/migration/legacy-namecards.test.js	Legacy namecard records become validated canonical migration inputs
+tests/migration/legacy-namecards.test.js	Legacy namecard targets use stable ASCII URLs and semantic key inputs
+tests/migration/legacy-namecards.test.js	Legacy reactions reject invalid counts
+tests/migration/legacy-producer-map.test.js	Producer Map R2 acceptance arguments cannot enable writes
+tests/migration/legacy-producer-map.test.js	Producer Map R2 acceptance fails unless source and objects are unchanged
+tests/migration/legacy-producer-map.test.js	Producer Map R2 acceptance validates the exact storage target
+tests/migration/legacy-producer-map.test.js	Producer Map merge fails closed when staged media is incomplete
+tests/migration/legacy-producer-map.test.js	Producer Map migration applies idempotently and preserves admin edits
+tests/migration/legacy-producer-map.test.js	Producer Map migration is read-only by default and normalizes its source
+tests/migration/legacy-producer-map.test.js	Producer Map parser reads legacy titles and community image paths
+tests/migration/legacy-producer-map.test.js	Producer Map parser requires one image for every canonical province
+tests/migration/local-upload-media.test.js	local upload media CLI loads TypeScript modules through the configured runtime
+tests/migration/local-upload-media.test.js	local upload media sync is read-only by default and accepts pnpm separators
+tests/migration/local-upload-media.test.js	local upload media sync rejects unknown or incomplete arguments
+tests/migration/local-upload-media.test.js	local upload media sync requires an explicit apply flag for writes
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill accepts bounded audit concurrency
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill apply requires the exact bucket confirmation
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill is dry-run by default
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill requires S3 object storage
+tests/migration/namecard-unification-reconcile.test.js	namecard unification reconciliation reports clean state for matching tables
+tests/migration/namecard-unification-reconcile.test.js	namecard unification reconciliation surfaces every drift category
+tests/migration/postgres-migrations.test.js	PostgreSQL migration arguments require one PostgreSQL database URL
+tests/migration/postgres-migrations.test.js	PostgreSQL migration catalog is available without a database connection
+tests/migration/postgres-migrations.test.js	PostgreSQL migration names keep the frozen sequence and use UTC timestamps after it
+tests/migration/postgres-migrations.test.js	PostgreSQL migration runner is repeatable and rejects checksum drift
+tests/migration/postgres-migrations.test.js	PostgreSQL migration runner rejects an applied migration deleted from the catalog
+tests/migration/postgres-migrations.test.js	PostgreSQL migration runner rejects an applied migration renamed in the catalog
+tests/migration/postgres-migrations.test.js	PostgreSQL migrations are ordered and split around the data import
+tests/migration/postgres-migrations.test.js	email delivery migration creates the constrained queue and resend policy
+tests/migration/postgres-migrations.test.js	email request cooldown migration creates a narrow bounded anonymous store
+tests/migration/postgres-migrations.test.js	released Platform and Fudaba migrations remain byte-for-byte immutable
+tests/migration/public-object-placement.test.js	public object placement accepts bounded audit concurrency
+tests/migration/public-object-placement.test.js	public object placement apply requires the exact single bucket confirmation
+tests/migration/public-object-placement.test.js	public object placement is dry-run by default
+tests/migration/public-object-placement.test.js	public object placement requires a public read URL
+tests/migration/semantic-object-keys.test.js	semantic media keys preserve public filename identity under business roles
+tests/migration/semantic-object-keys.test.js	semantic migration apply requires an exact bucket confirmation
+tests/migration/semantic-object-keys.test.js	semantic migration resolves old indexed objects without runtime fallback
+tests/migration/semantic-object-keys.test.js	semantic object migration maps each business namespace
+tests/migration/single-bucket-consolidation.test.js	single bucket consolidation is read-only by default
+tests/migration/single-bucket-consolidation.test.js	single bucket consolidation publishes ready objects and protects pending objects
+tests/migration/single-bucket-consolidation.test.js	single bucket consolidation requires exact source and target confirmation
+tests/migration/wiki-media-sync.test.js	Wiki media crawl opens only the story repository when upload is disabled
+tests/migration/wiki-media-sync.test.js	Wiki media sync accepts pnpm forwarded argument separators
+tests/migration/wiki-media-sync.test.js	Wiki media sync extracts story, DOM, inline CSS, and storyData assets
+tests/migration/wiki-media-sync.test.js	Wiki media sync keeps extraction same-origin and resolves CSS-relative paths
+tests/migration/wiki-media-sync.test.js	Wiki media sync maps source paths to stable business object keys
+tests/migration/wiki-media-sync.test.js	Wiki media sync no longer accepts a SQLite database option
+tests/migration/wiki-media-sync.test.js	Wiki media upload reuses storage and closes resources after failure
+tests/migration/wiki-metadata-audit.test.js	Wiki metadata audit rejects unknown and incomplete arguments
+tests/migration/wiki-metadata-audit.test.js	Wiki metadata audit replaces legacy and empty avatar associations with semantic keys
+tests/migration/wiki-metadata-audit.test.js	Wiki metadata audit stays read-only unless apply is explicit

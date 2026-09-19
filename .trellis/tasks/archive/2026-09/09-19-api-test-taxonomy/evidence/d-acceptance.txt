@@ -1,0 +1,23 @@
+$ pnpm --filter @imsweb/api exec vitest run tests/assets
+ Test Files  2 passed (2)
+      Tests  10 passed (10)
+   Duration  10.40s (transform 27ms, setup 0ms, import 290ms, tests 10.37s, environment 0ms)
+EXIT=0
+
+$ pnpm --filter @imsweb/api exec vitest run hono-app-contract.test.js node-listener-probe.test.js node-security.test.js operation-scripts.test.js postgres-test-lifecycle.test.js
+ Test Files  5 passed (5)
+      Tests  74 passed (74)
+   Duration  3.61s (transform 135ms, setup 0ms, import 252ms, tests 6.66s, environment 0ms)
+EXIT=0
+
+$ IMS_TEST_POSTGRES_ENABLED=false pnpm --filter @imsweb/api exec vitest run hono-app-contract.test.js node-listener-probe.test.js node-security.test.js operation-scripts.test.js postgres-test-lifecycle.test.js
+ Test Files  5 passed (5)
+      Tests  38 passed | 36 skipped (74)
+   Duration  3.00s (transform 115ms, setup 0ms, import 245ms, tests 3.20s, environment 0ms)
+EXIT=0
+
+$ IMS_TEST_POSTGRES_ENABLED=false pnpm --filter @imsweb/api exec vitest run tests/assets
+ Test Files  2 passed (2)
+      Tests  10 passed (10)
+   Duration  8.30s (transform 27ms, setup 0ms, import 435ms, tests 8.26s, environment 0ms)
+EXIT=0

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/contracts/shared/quality.md", "reason": "Contracts 构建、表面与质量门禁"}
+{"file": ".trellis/spec/api/backend/testing.md", "reason": "API HTTP 与 runtime 测试要求"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Web endpoint 与页面测试要求"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/enforcement.md", "reason": "AST、Web parsing、exception 和 package enforcement 设计"}
+{"file": ".trellis/tasks/09-06-api-request-response-contracts/research/unknown-request-fields-cost.md", "reason": "Unknown-key 兼容风险与回归范围"}
+{"file": ".trellis/tasks/09-06-unified-json-wire-contract-migration/research/phase-d-final-evidence.md", "reason": "父任务 Acceptance Criteria 的完整验证证据"}

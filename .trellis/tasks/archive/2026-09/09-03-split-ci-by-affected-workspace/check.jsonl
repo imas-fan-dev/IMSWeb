@@ -1,0 +1,7 @@
+{"file":".trellis/spec/guides/index.md","reason":"Check ownership, scope, focused validation, and cross-workspace gates."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify every shared dependency and routing boundary selects the required lanes."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Verify Web and App test coverage matches the approved command boundaries."}
+{"file":".trellis/spec/web/frontend/tauri-mobile-integration.md","reason":"Check that CI does not mutate or depend on generated native projects."}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Verify the API lane retains the required Node and PostgreSQL-backed suites."}
+{"file":".trellis/spec/contracts/shared/quality.md","reason":"Verify contract changes trigger all consumers and shared checks."}
+{"file":".trellis/tasks/09-03-split-ci-by-affected-workspace/research/ci-inventory.md","reason":"Check the implementation against the researched current workflow and path-impact matrix."}

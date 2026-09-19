@@ -1,5 +1,8 @@
 node_modules/
 coverage/
+data/
+src-tauri/target/
+src-tauri/gen/
 .pnpm-store/
 pnpm-lock.yaml
 package-lock.json

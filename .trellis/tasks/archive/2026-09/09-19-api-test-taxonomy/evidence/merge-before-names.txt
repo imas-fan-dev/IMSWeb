@@ -1,0 +1,884 @@
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] client build permits exact license assets but rejects other text files	passed
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] client check rejects missing and extra release files	passed
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] custom client verification stays manifest-closed	passed
+tests/assets/client-allowlist.test.js	client allowlist [AST-01] release clients package the Web build and encoded variants	passed
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-01] root and index.html use the React document	passed
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-02] real prerendered documents and selective SPA routes use build/client	passed
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-03] Hono routes, server 404s, and media ownership are never SPA fallbacks	passed
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-04] unknown and ambiguous paths do not receive the SPA fallback	passed
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-05] build assets require an exact entry in the real file set	passed
+tests/assets/frontend-routing.contract.test.js	frontend routing [FRT-06] build documents and generated prerenders own each other	passed
+tests/hono-app-contract.test.js	Hono app contract [ARC-01 RUN-01 NODE-01] compiled entry exposes separate Hono and Node surfaces	passed
+tests/hono-app-contract.test.js	Hono app contract [ARC-01] default Web assets and mutable data use separate roots	passed
+tests/hono-app-contract.test.js	Hono app contract [RUN-01 WIKI-01] honoApp supports standard Request/Response without a socket	passed
+tests/hono-app-contract.test.js	Hono app contract [RUN-01] compiled startup loads the API-owned .env without overriding process env	passed
+tests/hono-app-contract.test.js	Hono app contract [RUN-01] createHonoApp resolves service dependencies for every request	passed
+tests/hono-app-contract.test.js	Hono app contract [RUN-01] invalid story upload byte limits fail before Node startup	passed
+tests/hono-app-contract.test.js	Hono app contract [RUN-02] importing either compatibility entry never starts a listener	passed
+tests/hono-app-contract.test.js	Hono app contract [SEC-01] production requires an independent high-entropy Platform JWT secret	passed
+tests/hono-app-contract.test.js	Hono app contract [SEC-01] production requires the dedicated Backoffice JWT secret	passed
+tests/hono-app-contract.test.js	Hono app contract [SEC-01] shared app adds security headers to early 413 and 429 responses	passed
+tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL apply rejects an invalid candidate before writing any article	skipped
+tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL apply reports an update conflict and rolls back earlier rows	skipped
+tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL apply rolls back the batch after a late event write failure	skipped
+tests/migration/cms-article-title-backfill.test.js	CMS article PostgreSQL dry-run, apply, and repeat preserve the migration contract	skipped
+tests/migration/cms-article-title-backfill.test.js	CMS article body prefix preserves internal line breaks and existing nodes	passed
+tests/migration/cms-article-title-backfill.test.js	CMS article body remains byte-for-byte unchanged when no text is moved	passed
+tests/migration/cms-article-title-backfill.test.js	CMS article title backfill arguments are dry-run by default and validate input	passed
+tests/migration/cms-article-title-backfill.test.js	CMS article title backfill writes a restricted report and a content-free summary	passed
+tests/migration/cms-article-title-backfill.test.js	CMS article title split only accepts a non-empty leading bracket title	passed
+tests/migration/fudaba-media.test.js	Fudaba media CLI is dry-run by default and requires explicit paths	passed
+tests/migration/fudaba-media.test.js	Fudaba media Fudaba R2 locators reject encoded, traversing, or ambiguous paths	passed
+tests/migration/fudaba-media.test.js	Fudaba media a CAS loser cannot compensate an object created by a competing invocation	passed
+tests/migration/fudaba-media.test.js	Fudaba media a public or different existing target is a non-overwriting conflict	passed
+tests/migration/fudaba-media.test.js	Fudaba media apply confirmations fail before the target runtime is resolved	passed
+tests/migration/fudaba-media.test.js	Fudaba media approved apply writes private-ready objects, reads back, and converges	passed
+tests/migration/fudaba-media.test.js	Fudaba media batch failure compensates only objects created by the migration	passed
+tests/migration/fudaba-media.test.js	Fudaba media dry-run scaffolds v2 rights and performs no target writes	passed
+tests/migration/fudaba-media.test.js	Fudaba media inventory bytes and rights bindings are immutable migration inputs	passed
+tests/migration/fudaba-media.test.js	Fudaba media media apply refuses storage adapters without CAS and fenced deletion	passed
+tests/migration/fudaba-media.test.js	Fudaba media restricted JSON fixtures keep pretty output, final newline, and private mode	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import apply confirmation seals source.json independently from the source export	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract creates an immutable, classified snapshot without leaking security rows	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract rejects full table, trigger and ledger DDL rewrites	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract rejects migration-ledger, index and trigger provenance drift	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import extract rejects schema drift and classification keys absent from the source	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning consumes explicitly retained external avatars and denied optional covers	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning handles source-null update times and empty optional avatars exactly	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning preserves count provenance and excludes ephemeral auth state	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning recomputes every media-plan binding after a plan reseal	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning rejects public media and a manifest detached from its media plan	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning rejects tampered operational-row provenance	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import planning rejects values that only PostgreSQL would otherwise catch	passed
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL blocks missing or drifted media control-plane state	skipped
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL dry-run, apply, repeat and reconciliation are exact	skipped
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL imports historical children before restoring an archived office	skipped
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL reconciles a lost commit acknowledgement before reporting success	skipped
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL reports alternate unique-key conflicts before writing	skipped
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL rolls back the entire import after a late write failure	skipped
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import real PostgreSQL serializes concurrent identical applies into one exact dataset	skipped
+tests/migration/fudaba-metadata-import.test.js	Fudaba metadata import timestamp and series conversion accept only the locked source contract	passed
+tests/migration/information-to-community-posts.test.js	Information post migration accepts an explicit report path	passed
+tests/migration/information-to-community-posts.test.js	Information post migration apply uses the applied report path	passed
+tests/migration/information-to-community-posts.test.js	Information post migration is dry-run by default	passed
+tests/migration/legacy-about-avatars.test.js	About avatar URL classification only accepts the upload format and confirmed legacy origin	passed
+tests/migration/legacy-about-avatars.test.js	About avatar apply never replaces a conflicting target object	passed
+tests/migration/legacy-about-avatars.test.js	About avatar apply rejects source drift before writing objects	passed
+tests/migration/legacy-about-avatars.test.js	About avatar apply rolls back new objects after a config CAS conflict	passed
+tests/migration/legacy-about-avatars.test.js	About avatar apply stops for unsupported URLs and missing uploaded objects	passed
+tests/migration/legacy-about-avatars.test.js	About avatar migration is read-only by default and requires explicit confirmations	passed
+tests/migration/legacy-about-avatars.test.js	About avatar plan migrates legacy paths and reports unsupported URLs	passed
+tests/migration/legacy-about-avatars.test.js	About avatar response streaming enforces the 10MB limit	passed
+tests/migration/legacy-about-avatars.test.js	About avatar sync plans without writes, then uploads and conditionally rewrites config	passed
+tests/migration/legacy-brand-assets.test.js	brand asset R2 acceptance rejects target and content drift	passed
+tests/migration/legacy-brand-assets.test.js	brand asset migration requires exact apply confirmations	passed
+tests/migration/legacy-brand-assets.test.js	brand asset migration validates the SFNT table directory	passed
+tests/migration/legacy-brand-assets.test.js	brand asset sync plans, writes, and recognizes unchanged objects	passed
+tests/migration/legacy-information-media.test.js	legacy Information migration converts static cards without replacing admin records	passed
+tests/migration/legacy-information-media.test.js	legacy Information migration is read-only unless apply is explicit	passed
+tests/migration/legacy-information-media.test.js	legacy Information migration upgrades only the retired hiro page link	passed
+tests/migration/legacy-information-media.test.js	legacy Information migration writes and verifies six images plus one stored index	passed
+tests/migration/legacy-namecards.test.js	Legacy namecard Legacy reactions reject invalid counts	passed
+tests/migration/legacy-namecards.test.js	Legacy namecard migration accepts explicit apply confirmations	passed
+tests/migration/legacy-namecards.test.js	Legacy namecard migration is read-only by default and normalizes its source	passed
+tests/migration/legacy-namecards.test.js	Legacy namecard records become validated canonical migration inputs	passed
+tests/migration/legacy-namecards.test.js	Legacy namecard targets use stable ASCII URLs and semantic key inputs	passed
+tests/migration/legacy-producer-map.test.js	Producer Map R2 acceptance arguments cannot enable writes	passed
+tests/migration/legacy-producer-map.test.js	Producer Map R2 acceptance fails unless source and objects are unchanged	passed
+tests/migration/legacy-producer-map.test.js	Producer Map R2 acceptance validates the exact storage target	passed
+tests/migration/legacy-producer-map.test.js	Producer Map merge fails closed when staged media is incomplete	passed
+tests/migration/legacy-producer-map.test.js	Producer Map migration applies idempotently and preserves admin edits	passed
+tests/migration/legacy-producer-map.test.js	Producer Map migration is read-only by default and normalizes its source	passed
+tests/migration/legacy-producer-map.test.js	Producer Map parser reads legacy titles and community image paths	passed
+tests/migration/legacy-producer-map.test.js	Producer Map parser requires one image for every canonical province	passed
+tests/migration/local-upload-media.test.js	local upload media CLI loads TypeScript modules through the configured runtime	passed
+tests/migration/local-upload-media.test.js	local upload media sync is read-only by default and accepts pnpm separators	passed
+tests/migration/local-upload-media.test.js	local upload media sync rejects unknown or incomplete arguments	passed
+tests/migration/local-upload-media.test.js	local upload media sync requires an explicit apply flag for writes	passed
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill accepts bounded audit concurrency	passed
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill apply requires the exact bucket confirmation	passed
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill is dry-run by default	passed
+tests/migration/namecard-thumbnail-backfill.test.js	namecard thumbnail backfill requires S3 object storage	passed
+tests/migration/namecard-unification-reconcile.test.js	namecard unification reconciliation reports clean state for matching tables	skipped
+tests/migration/namecard-unification-reconcile.test.js	namecard unification reconciliation surfaces every drift category	skipped
+tests/migration/postgres-migrations.test.js	PostgreSQL migration PostgreSQL migrations are ordered and split around the data import	passed
+tests/migration/postgres-migrations.test.js	PostgreSQL migration arguments require one PostgreSQL database URL	passed
+tests/migration/postgres-migrations.test.js	PostgreSQL migration catalog is available without a database connection	passed
+tests/migration/postgres-migrations.test.js	PostgreSQL migration email delivery migration creates the constrained queue and resend policy	skipped
+tests/migration/postgres-migrations.test.js	PostgreSQL migration email request cooldown migration creates a narrow bounded anonymous store	skipped
+tests/migration/postgres-migrations.test.js	PostgreSQL migration names keep the frozen sequence and use UTC timestamps after it	passed
+tests/migration/postgres-migrations.test.js	PostgreSQL migration released Platform and Fudaba migrations remain byte-for-byte immutable	passed
+tests/migration/postgres-migrations.test.js	PostgreSQL migration runner is repeatable and rejects checksum drift	passed
+tests/migration/postgres-migrations.test.js	PostgreSQL migration runner rejects an applied migration deleted from the catalog	passed
+tests/migration/postgres-migrations.test.js	PostgreSQL migration runner rejects an applied migration renamed in the catalog	passed
+tests/migration/public-object-placement.test.js	public object placement accepts bounded audit concurrency	passed
+tests/migration/public-object-placement.test.js	public object placement apply requires the exact single bucket confirmation	passed
+tests/migration/public-object-placement.test.js	public object placement is dry-run by default	passed
+tests/migration/public-object-placement.test.js	public object placement requires a public read URL	passed
+tests/migration/semantic-object-keys.test.js	semantic object migration maps each business namespace	passed
+tests/migration/semantic-object-keys.test.js	semantic object migration semantic media keys preserve public filename identity under business roles	passed
+tests/migration/semantic-object-keys.test.js	semantic object migration semantic migration apply requires an exact bucket confirmation	passed
+tests/migration/semantic-object-keys.test.js	semantic object migration semantic migration resolves old indexed objects without runtime fallback	passed
+tests/migration/single-bucket-consolidation.test.js	single bucket consolidation is read-only by default	passed
+tests/migration/single-bucket-consolidation.test.js	single bucket consolidation publishes ready objects and protects pending objects	passed
+tests/migration/single-bucket-consolidation.test.js	single bucket consolidation requires exact source and target confirmation	passed
+tests/migration/wiki-media-sync.test.js	Wiki media sync Wiki media crawl opens only the story repository when upload is disabled	passed
+tests/migration/wiki-media-sync.test.js	Wiki media sync Wiki media upload reuses storage and closes resources after failure	passed
+tests/migration/wiki-media-sync.test.js	Wiki media sync accepts pnpm forwarded argument separators	passed
+tests/migration/wiki-media-sync.test.js	Wiki media sync extracts story, DOM, inline CSS, and storyData assets	passed
+tests/migration/wiki-media-sync.test.js	Wiki media sync keeps extraction same-origin and resolves CSS-relative paths	passed
+tests/migration/wiki-media-sync.test.js	Wiki media sync maps source paths to stable business object keys	passed
+tests/migration/wiki-media-sync.test.js	Wiki media sync no longer accepts a SQLite database option	passed
+tests/migration/wiki-metadata-audit.test.js	Wiki metadata audit rejects unknown and incomplete arguments	passed
+tests/migration/wiki-metadata-audit.test.js	Wiki metadata audit replaces legacy and empty avatar associations with semantic keys	passed
+tests/migration/wiki-metadata-audit.test.js	Wiki metadata audit stays read-only unless apply is explicit	passed
+tests/node-listener-probe.test.js	node listener probe [RUN-02] loopback listener probe always produces a bounded diagnosis	passed
+tests/node-security.test.js	node security [AUTH-01 CORE-01] shared auth contract runs against Node PostgreSQL and filesystem services	skipped
+tests/node-security.test.js	node security [AUTH-01] Node and WebCrypto JWTs interoperate and invalid token classes stay rejected	skipped
+tests/node-security.test.js	node security [CORE-01] shared reaction contract runs against Node PostgreSQL	skipped
+tests/node-security.test.js	node security [MEDIA-01 NODE-01] shared multipart contract runs against Node streaming parser	skipped
+tests/node-security.test.js	node security [MEDIA-01] shared GET/HEAD and range matrix runs against Node filesystem media	skipped
+tests/node-security.test.js	node security chronicle approval and rejection enforce pending state	skipped
+tests/node-security.test.js	node security chronicle deletion preserves object metadata and rejects traversal	skipped
+tests/node-security.test.js	node security chronicle listings share upload formats and safely encode legacy metadata	skipped
+tests/node-security.test.js	node security chronicle operations preserve decomposed Unicode path identity	skipped
+tests/node-security.test.js	node security chronicle upload commits files using the final multipart activityId	skipped
+tests/node-security.test.js	node security compiled Node news route preserves legacy responses and snapshot pagination	skipped
+tests/node-security.test.js	node security compiled server entry exports the application lifecycle contract	skipped
+tests/node-security.test.js	node security compiled server entry loads independently of the current working directory	skipped
+tests/node-security.test.js	node security cookie-authenticated writes require CSRF while bearer writes remain compatible	skipped
+tests/node-security.test.js	node security event deletion survives media cleanup failure after database commit	skipped
+tests/node-security.test.js	node security legacy information remains public while management points to community posts	skipped
+tests/node-security.test.js	node security legacy server entry forwards the compiled lifecycle contract	skipped
+tests/node-security.test.js	node security login token cookie is HttpOnly	skipped
+tests/node-security.test.js	node security malformed login input is rejected without terminating the server	skipped
+tests/node-security.test.js	node security namecard originals and stored thumbnails enforce approval or op access	skipped
+tests/node-security.test.js	node security news publishing does not write an audit record when user lookup fails	skipped
+tests/node-security.test.js	node security news publishing rejects missing bodies and unsafe links	skipped
+tests/node-security.test.js	node security pending chronicle media requires op authentication	skipped
+tests/node-security.test.js	node security production JWT secret length is measured in UTF-8 bytes	skipped
+tests/node-security.test.js	node security production NODE_ENV is normalized before fail-fast checks	skipped
+tests/node-security.test.js	node security production refuses a short IMS_BACKOFFICE_JWT_SECRET	skipped
+tests/node-security.test.js	node security production refuses to load without IMS_BACKOFFICE_JWT_SECRET	skipped
+tests/node-security.test.js	node security public card endpoints only expose approved non-sensitive data	skipped
+tests/node-security.test.js	node security public upload limiter rejects before Multer writes to disk	skipped
+tests/node-security.test.js	node security raw dot segments cannot bypass sensitive static path checks	skipped
+tests/node-security.test.js	node security reactions require an approved card and a supported value	skipped
+tests/node-security.test.js	node security requiring the compiled server entry does not start a listener	skipped
+tests/node-security.test.js	node security sensitive files and virtual environments are blocked before static serving	skipped
+tests/node-security.test.js	node security spoofed image uploads are rejected without leaving files behind	skipped
+tests/node-security.test.js	node security unauthenticated management routes return 401	skipped
+tests/node-security.test.js	node security unknown NODE_ENV values fail fast	skipped
+tests/operation-scripts.test.js	operation scripts RustFS sync reports exact inventory differences and parses apply mode	passed
+tests/operation-scripts.test.js	operation scripts RustFS sync validates isolated R2 source and local target settings	passed
+tests/operation-scripts.test.js	operation scripts categorized add-user script requires a PostgreSQL DATABASE_URL	passed
+tests/operation-scripts.test.js	operation scripts categorized add-user script writes a PostgreSQL backoffice account	passed
+tests/operation-scripts.test.js	operation scripts categorized password helper emits a bcrypt hash without database access	passed
+tests/operation-scripts.test.js	operation scripts development data script parses export and guarded restore commands	passed
+tests/operation-scripts.test.js	operation scripts development data script recognizes only non-empty regular files	passed
+tests/operation-scripts.test.js	operation scripts development data script rejects archive traversal and invalid manifests	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle HEAD allocations clone one migrated template and track sibling connections	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test URL precedence prefers the dedicated admin URL over the CI URL	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test configuration is enabled by default and supports strict opt-out	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test configuration rejects invalid protocols and non-loopback hosts	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle PostgreSQL test database names are normalized, bounded, and validated	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle allocator aggregates persistent connection and admin close failures	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle allocator rejects an injected unsafe database name before admin queries	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle ambiguous failure after create force-drops the possibly created database	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle closing waits for allocation migration before dropping every owned database	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle connection creation and retryable close failures still force-drop the database	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle connection resolving during close is disposed and never registered	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle custom migration catalogs use an isolated template0 database	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup bounds timeout diagnostics before force-drop	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup still force-drops when backend observation fails	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup timing hooks reject invalid values	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle database cleanup waits for PostgreSQL backends to drain before force-drop	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle failed force-drop remains registered and is retried during allocator shutdown	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle migration failure force-drops the created database and closes the admin pool	passed
+tests/postgres-test-lifecycle.test.js	PostgreSQL test lifecycle shared connection close blocks force-drop until the real close completes	passed
+tests/server/about-page-content.test.ts	about page admin updates are authenticated, audited, and revision guarded	passed
+tests/server/about-page-content.test.ts	about page does not backfill removed static artwork paths	passed
+tests/server/about-page-content.test.ts	about page hero uploads are authenticated, audited, and publicly readable	passed
+tests/server/about-page-content.test.ts	about page member avatar uploads are authenticated, audited, and publicly readable	passed
+tests/server/about-page-content.test.ts	about page mounted JSON responses preserve shared schemas and project unknown update fields	passed
+tests/server/about-page-content.test.ts	about page only persists member avatars returned by the upload endpoint	passed
+tests/server/about-page-content.test.ts	about page rejects invalid hero layout and gradient values	passed
+tests/server/about-page-content.test.ts	about page rejects unsafe image links before persistence	passed
+tests/server/about-page-content.test.ts	about page rejects unsafe profile links before persistence	passed
+tests/server/about-page-content.test.ts	about page reports unconfigured content without serving defaults	passed
+tests/server/abuse-protection.contract.test.ts	abuse protection [SECURITY] shared JSON and abuse limits use the Node memory limiter	passed
+tests/server/abuse-protection.contract.test.ts	abuse protection admin login shares auth throttling and cannot bypass body limits by content type	passed
+tests/server/abuse-protection.contract.test.ts	abuse protection memory rate limiter sweeps expired identities on the request path	passed
+tests/server/admin-accounts.contract.test.ts	admin accounts administrator deletion preserves Fudaba public-location reviewers	skipped
+tests/server/admin-accounts.contract.test.ts	admin accounts administrator deletion preserves resolved Fudaba moderation actors	skipped
+tests/server/admin-accounts.contract.test.ts	admin accounts audit logs use the shared response contract	skipped
+tests/server/admin-accounts.contract.test.ts	admin accounts only the super administrator can list op accounts	skipped
+tests/server/admin-accounts.contract.test.ts	admin accounts super administrator creates only regular op accounts and audits the mutation	skipped
+tests/server/admin-accounts.contract.test.ts	admin accounts super administrator deletes a regular op and revokes its refresh sessions	skipped
+tests/server/admin-platform-users.contract.test.ts	platform-user OAuth unlinking honours the last-credential guard and records the refusal	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user activating a restricted account is refused as unsupported	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user administration requires a super admin	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user detail surfaces OAuth links and 404s for unknown ids	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user force logout revokes sessions and is idempotent	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user list paginates and searches by id, email and display name	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user list query normalization defaults, clamps and escapes LIKE metacharacters	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user password reset refuses suspended and OAuth-only accounts	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user request validation stays strict	passed
+tests/server/admin-platform-users.contract.test.ts	platform-user status changes are optimistic-locked and audited	passed
+tests/server/auth-refresh.contract.test.ts	auth refresh access JWT login creates a rotating refresh session with CSRF binding	skipped
+tests/server/auth-refresh.contract.test.ts	auth refresh admin login issues a refresh session for op users	skipped
+tests/server/auth-refresh.contract.test.ts	auth refresh admin login rejects non-op users before creating a refresh session	skipped
+tests/server/auth-refresh.contract.test.ts	auth refresh logout revokes the refresh session and clears all authentication cookies	skipped
+tests/server/auth-request-helper.test.ts	auth request helpers Bearer and CSRF primitives preserve explicit missing and mismatched states	passed
+tests/server/auth-request-helper.test.ts	auth request helpers Set-Cookie parsing preserves multiple headers and encoded equals signs	passed
+tests/server/auth-request-helper.test.ts	auth request helpers fixture hashing is deterministic SHA-256	passed
+tests/server/auth-request-helper.test.ts	auth request helpers realm wrappers keep Platform and Backoffice cookie names isolated	passed
+tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary Backoffice JWT verification fixes HS256 and rejects missing or wrong realm claims	skipped
+tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary canonical Backoffice auth lifecycle uses isolated routes and ims_admin cookies	skipped
+tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary canonical login accepts editor accounts while the legacy admin login remains op-only	skipped
+tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary legacy Backoffice endpoints are deprecated and old cookies only bridge into Backoffice	skipped
+tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary logout revokes coexisting canonical and legacy refresh sessions	skipped
+tests/server/backoffice-auth-boundary.contract.test.ts	Backoffice auth boundary realm-less legacy JWTs are accepted only from the legacy Backoffice cookie	skipped
+tests/server/bilibili-cover.test.ts	Bilibili cover URLs are normalized and restricted to the image CDN	passed
+tests/server/bilibili-cover.test.ts	Bilibili cover download rejects unsupported and oversized responses	passed
+tests/server/bilibili-cover.test.ts	Bilibili cover download returns an upload-compatible image with bounded fetch options	passed
+tests/server/brand-assets.test.ts	brand assets legacy series images and font resolve through canonical object storage	passed
+tests/server/business-request-models.test.ts	business request models Wiki shared numeric params preserve Number aliases and reject non-positive IDs	passed
+tests/server/business-request-models.test.ts	business request models event request models normalize valid fields and reject ambiguous values	passed
+tests/server/business-request-models.test.ts	business request models namecard request models enforce IDs and preserve legacy parseInt pagination	passed
+tests/server/business-request-models.test.ts	business request models news request models validate IDs, cursors, URLs, and normalized text	passed
+tests/server/cache-config.test.ts	cache configuration defaults tests to memory and development to local Valkey	passed
+tests/server/cache-config.test.ts	cache configuration production cache configuration requires Valkey and validates its URL	passed
+tests/server/cache-config.test.ts	cache configuration rejects unsafe prefixes and timeouts	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle activity responses preserve legacy leading or trailing whitespace verbatim	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle approval resumes after metadata and rollback failures, then replays success	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle attempt quota bounds same-key parsing without spending write quota twice	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle committed deletion compensation still converges on a later request	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle committed deletions stay successful when cleanup and compensation both fail	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle conflict payloads spend quota before image validation	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle mounted JSON responses preserve shared schemas across public and admin routes	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle reject and used-delete operations replay without duplicate side effects	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle rejects malformed idempotency keys before multipart and image parsing	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle takeover barriers preserve the replacement result for every admin mutation	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle upload hides unmarked metadata failures and reports them as server errors	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle upload preserves explicit parser 400 and 413 responses	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle upload replays success and charges every conflicting attempt	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle uploads without an idempotency key spend write quota per request	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle used-media queries isolate activity directory prefixes	passed
+tests/server/chronicle-idempotency.contract.test.ts	Chronicle write-key quota rejects a distinct request without pulling its body	passed
+tests/server/client-address.test.ts	client address resolution direct mode validates the connection peer and ignores forwarding headers	passed
+tests/server/client-address.test.ts	client address resolution nginx mode accepts one IPv4 or IPv6 address and prefers X-Forwarded-For	passed
+tests/server/client-address.test.ts	client address resolution nginx mode rejects missing, invalid, empty, and multi-value headers	passed
+tests/server/client-address.test.ts	client address resolution request adapters apply the configured trust source	passed
+tests/server/contract-json-helper.test.ts	contract JSON helpers detect schema stripping against the original wire payload	passed
+tests/server/contract-json-helper.test.ts	contract JSON helpers preserve status, media type, and untouched payload equality	passed
+tests/server/contract-json-helper.test.ts	contract JSON helpers reject a mismatched expected status	passed
+tests/server/contract-json-helper.test.ts	contract JSON helpers reject non-JSON media types and malformed JSON parameters	passed
+tests/server/core-runtime-contract.test.ts	core runtime contract [CORE-01] shared mutation contract uses Node PostgreSQL/filesystem adapters	skipped
+tests/server/core-runtime-contract.test.ts	core runtime contract [MEDIA-01] shared route boundaries use Node PostgreSQL/filesystem adapters	skipped
+tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] concurrent rate identities remain atomic in memory	skipped
+tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] event image replacement keeps the published record on publish failure	skipped
+tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] namecard approval retries object publication before success	skipped
+tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] post-commit media failures preserve Node success semantics	skipped
+tests/server/core-runtime-contract.test.ts	core runtime contract [STATE-01] shared Chronicle upload budgets use PostgreSQL before parsing	skipped
+tests/server/cors-policy.test.ts	CORS allows loopback development origins	passed
+tests/server/cors-policy.test.ts	CORS allows the packaged client origins without granting credentials	passed
+tests/server/cors-policy.test.ts	CORS does not reflect external origins	passed
+tests/server/cors-policy.test.ts	CORS preflight admits the bearer opt-in headers	passed
+tests/server/editorial-safeguards.test.ts	Editorial admin middleware and conflict boundaries preserve exact JSON errors	passed
+tests/server/editorial-safeguards.test.ts	Editorial all 17 Editorial passthrough JSON entrypoints accept one unknown top-level field	passed
+tests/server/editorial-safeguards.test.ts	Editorial event registration URLs only accept public HTTP(S) or local paths	passed
+tests/server/editorial-safeguards.test.ts	Editorial invalid spotlight entries are rejected without reporting success	passed
+tests/server/editorial-safeguards.test.ts	Editorial legacy HTML images become readable links during editorial migration	passed
+tests/server/editorial-safeguards.test.ts	Editorial mounted reads, assets, and spotlight responses preserve their raw JSON	passed
+tests/server/events-pagination.test.ts	events pagination cursor event pagination holds an id snapshot while new events are inserted	skipped
+tests/server/events-pagination.test.ts	events pagination cursor event pagination returns an explicit empty snapshot	skipped
+tests/server/events-pagination.test.ts	events pagination event cursors retain decimal BIGINT ids and reject invalid pagination modes	skipped
+tests/server/events-pagination.test.ts	events pagination event list responses preserve a title with legacy leading or trailing whitespace verbatim	skipped
+tests/server/events-pagination.test.ts	events pagination event updates require the expected current image reference	skipped
+tests/server/events-pagination.test.ts	events pagination events mounted JSON routes preserve shared schemas and project query and multipart extras	skipped
+tests/server/events-pagination.test.ts	events pagination legacy event pagination keeps its response shape and validates page and size	skipped
+tests/server/events-response.test.ts	events response editorial event responses serialize PostgreSQL timestamps	passed
+tests/server/fudaba-agency-catalog.test.ts	canonical Fudaba agency data is frozen and projections are fresh	passed
+tests/server/fudaba-agency-catalog.test.ts	canonical Fudaba agency data keeps IDs, ordering, names, colors, and icons	passed
+tests/server/fudaba-agency-migration.test.ts	PostgreSQL 0027 blocks associated valiv instead of mapping it to 876	skipped
+tests/server/fudaba-agency-migration.test.ts	PostgreSQL 0027 maps associated Fudaba series to canonical agencies	skipped
+tests/server/fudaba-card-claim-contract.test.ts	Fudaba card claims legacy card claims accept cross-series selections and enforce 1..20 unique idols	passed
+tests/server/fudaba-card-claim-contract.test.ts	Fudaba card claims namecard and claim views expose structured idol and claim metadata	passed
+tests/server/fudaba-card-claim-contract.test.ts	Fudaba card claims registered card fields accept ordered multi-idol JSON and reject invalid sets	passed
+tests/server/fudaba-card-interaction-routes.test.ts	card interaction routes enforce the write gate, auth, CSRF, and rate limit	passed
+tests/server/fudaba-card-interaction-routes.test.ts	card interaction routes interactions on unknown cards stay 404 and never leak repository state	passed
+tests/server/fudaba-card-interaction-routes.test.ts	card interaction routes liking and unliking a card round-trips through the repository	passed
+tests/server/fudaba-card-interaction-routes.test.ts	card interaction routes the favourite collection lists only cards the viewer favourited	passed
+tests/server/fudaba-card-placement-repository.test.ts	Fudaba card placement repository real PostgreSQL enforces the same Fudaba card placement contract	skipped
+tests/server/fudaba-card-placement-routes.test.ts	card placement DELETE enforces CAS, reports in-use state, and advances revision	passed
+tests/server/fudaba-card-placement-routes.test.ts	card placement routes enforce write gate, Platform auth, active status, CSRF, and rate limit	passed
+tests/server/fudaba-card-placement-routes.test.ts	card placement routes strictly validate geometry and expose create/update CAS DTOs	passed
+tests/server/fudaba-card-placement-routes.test.ts	card placement saves hide closed or non-public offices while deletion remains available	passed
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions are listed for anonymous visitors	passed
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions increment and decrement anonymously	passed
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions reject unsupported emoji and unknown cards	passed
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions share the namecard reaction rate limit	passed
+tests/server/fudaba-card-reaction-routes.test.ts	exchange card reactions stay hidden when public read is disabled	passed
+tests/server/fudaba-card-review-handlers.test.ts	Fudaba card review handlers claimed media lands where the public namecard wall can read it	passed
+tests/server/fudaba-card-review-handlers.test.ts	Fudaba card review handlers new claimed-card media is public before the final database transition	passed
+tests/server/fudaba-card-review-handlers.test.ts	Fudaba card review handlers partial legacy-media copy cleans the first object and rolls the claim back	passed
+tests/server/fudaba-card-review-handlers.test.ts	Fudaba card review handlers put-after-write failure cleans the uncertain destination and prior copy	passed
+tests/server/fudaba-card-review-handlers.test.ts	Fudaba card review handlers registered-card publish failure re-protects both objects before rollback	passed
+tests/server/fudaba-card-review-handlers.test.ts	Fudaba card review handlers uncertain claimed-card completion preserves committed public media	passed
+tests/server/fudaba-card-review-handlers.test.ts	Fudaba card review handlers uncertain registered-card completion reconciles committed state without protection	passed
+tests/server/fudaba-claim-review-repository.test.ts	Fudaba claim review repository PostgreSQL claim envelopes, claims, and registered reviews are atomic CAS workflows	skipped
+tests/server/fudaba-domain-repository.test.ts	Fudaba domain repository media rights and moderation constraints cannot be bypassed	skipped
+tests/server/fudaba-domain-repository.test.ts	Fudaba domain repository office creation and series assignment are atomic	skipped
+tests/server/fudaba-domain-repository.test.ts	Fudaba domain repository real PostgreSQL enforces Fudaba ownership and archived-office constraints	skipped
+tests/server/fudaba-domain-repository.test.ts	Fudaba domain repository real PostgreSQL enforces exchange ownership and final-state constraints	skipped
+tests/server/fudaba-domain-repository.test.ts	Fudaba domain repository real PostgreSQL retains actors referenced by resolved moderation cases	skipped
+tests/server/fudaba-location-repository.test.ts	Fudaba location repository real PostgreSQL enforces Fudaba location CAS and public map eligibility	skipped
+tests/server/fudaba-location-routes.test.ts	Fudaba location routes admin review ignores rollout flags but requires Backoffice op, CSRF, CAS, and audit	passed
+tests/server/fudaba-location-routes.test.ts	Fudaba location routes map and location routes enforce dedicated IP and account limits	passed
+tests/server/fudaba-location-routes.test.ts	Fudaba location routes map config and offices require both flags and expose strict regional DTOs	passed
+tests/server/fudaba-location-routes.test.ts	Fudaba location routes map query rejects missing, duplicate, unknown, invalid, and antimeridian input	passed
+tests/server/fudaba-location-routes.test.ts	Fudaba location routes mounted claim routes authenticate reads, reject unknown mutation fields, and preserve business errors	passed
+tests/server/fudaba-location-routes.test.ts	Fudaba location routes owner locations enforce Platform auth, active account, CSRF, quantization, and CAS	passed
+tests/server/fudaba-location-routes.test.ts	Fudaba location routes place search requires auth, validates input, caches results, and rate limits the provider	passed
+tests/server/fudaba-map-delivery.test.ts	map delivery manages a dynamic source collection with CAS and legacy fallback	passed
+tests/server/fudaba-map-delivery.test.ts	map delivery validates raw JSON responses without projecting emitted fields	passed
+tests/server/fudaba-office-management-repository.test.ts	Fudaba office management repository real PostgreSQL owner lock keeps office-create receipts atomic	skipped
+tests/server/fudaba-office-management-repository.test.ts	Fudaba office management repository real PostgreSQL owner offices enforce receipt and cross-replica CAS	skipped
+tests/server/fudaba-office-management-repository.test.ts	Fudaba office management repository real PostgreSQL owner reads keep metadata and series in one snapshot	skipped
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes cover cleanup preserves objects while the database still or possibly references them	passed
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes cover failures release the reservation and uncertain commits reconcile	passed
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes cover upload consumes IP and account limits before multipart parsing	passed
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes cover upload is active-only, reserves before put, and serves private previews	passed
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes cover upload reconciles withdrawal and unknown reads after object storage succeeds	passed
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes metadata and status routes fence stale, hidden, and non-owner writes	passed
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes office creation requires persistent idempotency and replays one resource	passed
+tests/server/fudaba-office-management-routes.test.ts	Fudaba office management routes owner office reads ignore public/write flags and never expose object keys	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes Fudaba public-read and owner-write flags remain independent	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes a compatibility card replacement keeps the namecards media layout	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes an exchange card replacement keeps the versioned owner layout	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes both card-side uploads commit through owner CAS without leaking keys	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes card creation cleans confirmed failures but preserves uncertain repository writes	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes card creation rejects decoded image type mismatches before object writes	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes card creation rejects empty idol selections before object writes	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes card creation sniffs both images and writes only protected owner objects	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes card creation uses IP and account upload limits before multipart parsing	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes card metadata writes enforce owner revision fencing	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes committed create and card-side writes recover after the repository throws	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes cookie writes require the full CSRF triad while Bearer writes bypass CSRF	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes failed confirmation reads preserve objects that ambiguous mutations may reference	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes media CAS conflicts clean the new object and old-object failures enqueue compensation	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes owner card list and detail hide non-owner cards and raw object keys	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes owner card upload rejects an unknown side with compatibility text	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes owner media is protected, private, and inaccessible through another account card	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes owner routes require Platform auth and reject Backoffice tokens	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes restricted Platform accounts retain owner reads but cannot mutate or parse uploads	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes single-side uploads retain their IP and account pre-parse limits	passed
+tests/server/fudaba-owner-routes.test.ts	Fudaba owner routes soft deletion fences the owner write and removes protected card media	passed
+tests/server/fudaba-owner-write-repository.test.ts	Fudaba owner write repository real PostgreSQL enforces Stage 14 profile and card write fences	skipped
+tests/server/fudaba-public-read-repository.test.ts	Fudaba public read repository PostgreSQL exposes the same Fudaba public read models	skipped
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes Fudaba public queries reject duplicate, out-of-range, and mismatched cursor input	passed
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes Fudaba public read feature gate hides every route by default	passed
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes Fudaba public series fails closed when icon storage is unavailable	passed
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes Fudaba public surface registers no mutation routes	passed
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes anonymous Fudaba discovery exposes only public projections and stable cursors	passed
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes invalid or blocked Platform credentials never downgrade to anonymous	passed
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes office visibility, query validation, and public media fail closed	passed
+tests/server/fudaba-public-routes.test.ts	Fudaba public routes valid Platform auth adds viewer flags while Backoffice remains anonymous	passed
+tests/server/handler-model-contract.test.ts	handler model contract capability domains compose named capabilities from their root routes	passed
+tests/server/handler-model-contract.test.ts	handler model contract exported request contracts define concrete validated fields across all domains	passed
+tests/server/handler-model-contract.test.ts	handler model contract route handler inventory remains explicit and complete for all 18 domains	passed
+tests/server/handler-model-contract.test.ts	handler model contract route handlers adopt field-level JSON DTOs or explicit non-JSON response boundaries	passed
+tests/server/handler-model-contract.test.ts	handler model contract route handlers use validated request models and named multipart parsers	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility About and Producer Map validate content before stale revision reads after auth and CSRF	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility Admin Accounts DELETE validates aliases after auth, super-admin, and CSRF checks	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility Fudaba guest submission media requires the private receipt token	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility Fudaba owns anonymous uploads	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility News DELETE preserves Number aliases after auth and CSRF at the stub repository boundary	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility Wiki JSON field validation rejects before the route handler reads its repository	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility Wiki admin authentication precedes shared numeric param validation	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility a valid Fudaba anonymous receipt can read and withdraw only the pending revision	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility approve and reject surface 用户已撤回 (410) once the user withdraws	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility event creation rejects a missing idempotency key before parsing uploads	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility guest namecard image replacement and resubmission routes are not exposed	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility guest submission detail and withdrawal preserve legacy request projection and exact envelopes	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility invalid event IDs preserve legacy 404 bodies without repository side effects	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility invalid namecard IDs preserve public/admin responses after auth and CSRF checks	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility legacy Information reads remain available while the retired admin write API is gone	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility legacy anonymous upload and receipt routes are not exposed	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility legacy reaction aliases retain their separate mutation envelopes and strip extra keys	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility namecard approval heals legacy uploads whose thumbnails were never stored	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility namecard approval publishes originals and thumbnails before the final CAS transition	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility namecard public and admin pagination preserve parseInt aliases and fallbacks	passed
+tests/server/handler-validation-compatibility.test.ts	handler validation compatibility reject namecard soft-rejects a pending submission and audits it	passed
+tests/server/homepage-links.test.ts	homepage links are database-backed and reorder only complete section inventories	skipped
+tests/server/idempotency-fencing.test.ts	filesystem idempotency fences a stale owner after lease takeover	passed
+tests/server/information-data.test.ts	information index defaults empty and strips HTML from public summaries	passed
+tests/server/information-data.test.ts	information index rejects hosted cover images missing from the asset manifest	passed
+tests/server/information-html-document.test.ts	information HTML documents escape metadata and keep managed body markup	passed
+tests/server/information-public-response.test.ts	public information details rewrite cover and managed HTML images to direct URLs	passed
+tests/server/information-reorder.test.ts	Information admin reordering is retired after community post unification	passed
+tests/server/live-schedule.test.ts	live schedule loads requested months, deduplicates records, and caches each month	passed
+tests/server/live-schedule.test.ts	live schedule normalizes only live events and preserves brand identity	passed
+tests/server/live-schedule.test.ts	live schedule returns stale data when a refresh fails	passed
+tests/server/live-schedule.test.ts	live schedule uses the official Japanese date across the UTC and month boundaries	passed
+tests/server/local-upload-sync.test.ts	local upload sync is read-only by default, verifies writes, and is idempotent	passed
+tests/server/local-upload-sync.test.ts	local upload sync maps only mutable business media to stable logical keys	passed
+tests/server/local-upload-sync.test.ts	local upload sync refuses symlinks in the migration source	passed
+tests/server/media-article-assets.test.ts	article body assets are served from their public upload URLs	passed
+tests/server/migration-catalog.test.ts	migration catalog copies SQL files only before an existing boundary	passed
+tests/server/migration-catalog.test.ts	migration catalog fails before creating a fixture for a missing boundary	passed
+tests/server/namecard-media-keys.test.ts	ensureNamecardThumbnails generates missing thumbnails from originals	passed
+tests/server/namecard-media-keys.test.ts	ensureNamecardThumbnails rejects when the original object is missing	passed
+tests/server/namecard-media-keys.test.ts	ensureNamecardThumbnails skips sides whose thumbnails already exist	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys card media keys stay readable by the namecard readers	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys claimed legacy media keeps the canonical namecards layout	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys claimed media keeps the source extension and never reuses the source	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys claimed media round-trips through the public media chain	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys legacy thumbnail paths map back to the canonical thumbnail key	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys namecard media key pairs cover the original and its stored thumbnail	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys namecard thumbnail keys share the original stem under a thumbnail role	passed
+tests/server/namecard-media-keys.test.ts	namecard media keys namecard thumbnail public URLs keep the original filename identity	passed
+tests/server/namecard-metadata-repository.test.ts	PostgreSQL guest namecards may carry optional profile text	skipped
+tests/server/namecard-metadata-repository.test.ts	PostgreSQL guest namecards persist ordered cross-series idol metadata atomically	skipped
+tests/server/namecard-ownership-migration.test.ts	namecard ownership migration preserves historical rows as legacy	skipped
+tests/server/namecard-reaction-reconciliation-migration.test.ts	namecard reaction reconciliation resyncs namecard_reactions from card_emojis drift	skipped
+tests/server/namecard-unification-migration.test.ts	namecard unification migration folds legacy cards into one table	skipped
+tests/server/news-pagination.test.ts	news admin news parses exact success and mutation business-error envelopes	skipped
+tests/server/news-pagination.test.ts	news cursor pagination holds an id snapshot while rows are inserted	skipped
+tests/server/news-pagination.test.ts	news cursor pagination validates limits, cursors, and empty snapshots	skipped
+tests/server/news-pagination.test.ts	news keeps its legacy array response when pagination is not requested	skipped
+tests/server/news-pagination.test.ts	news list responses preserve a title with legacy leading or trailing whitespace verbatim	skipped
+tests/server/node-email-delivery-runner.test.ts	email delivery runner cancels a claim when lease renewal is lost false result	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner cancels a claim when lease renewal is lost rejection	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner cancels a claim when lease renewal is lost timeout	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner claims with a fresh post-maintenance timestamp	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner contains claim failures and continues polling	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner drains claims committed while shutdown begins	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner leaves delayed claims for lease recovery after shutdown times out	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner polls immediately and enforces bounded concurrency	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner readiness expires and refreshes after a successful poll	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner recovers readiness after a failed PostgreSQL poll	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner serializes lease renewals	passed
+tests/server/node-email-delivery-runner.test.ts	email delivery runner waits for graceful work and bounds stalled shutdown	passed
+tests/server/node-email-delivery-runner.test.ts	email worker health follows runner readiness, stopping, and liveness	passed
+tests/server/node-email-delivery-runner.test.ts	email worker shutdownEmailWorker bounds stalled service and active health-server close	passed
+tests/server/object-cleanup-lifecycle.test.ts	object cleanup lifecycle Node service shutdown waits for object cleanup before closing its dependencies	passed
+tests/server/object-cleanup-lifecycle.test.ts	object cleanup lifecycle object cleanup runner stops scheduling and closes only after the active cycle is idle	passed
+tests/server/object-deletion-worker-fencing.test.ts	object deletion worker fencing object deletion lease fences stale worker failure after takeover	skipped
+tests/server/object-deletion-worker.test.ts	PostgreSQL object deletion worker retries and atomically leases prefix jobs	skipped
+tests/server/object-protection-compensation.test.ts	object protection and its compensation are fenced to one object version	passed
+tests/server/object-read-response.test.ts	object read response S3-capable media responses redirect GET and HEAD without loading object bytes	passed
+tests/server/object-read-response.test.ts	object read response proxy mode bypasses signed URLs and preserves stored byte semantics	passed
+tests/server/object-read-response.test.ts	object read response public redirects receive a bounded cache policy when the handler has none	passed
+tests/server/optional-platform-auth.test.ts	optional Platform auth exposes only a fully validated Platform viewer	passed
+tests/server/optional-platform-auth.test.ts	optional Platform auth rejects invalid credentials instead of downgrading	passed
+tests/server/optional-platform-auth.test.ts	optional Platform auth stays anonymous when Platform credentials are absent	passed
+tests/server/platform-account-admin-repository.test.ts	platform account admin repository a stale status write reports a conflict and leaves sessions alone	skipped
+tests/server/platform-account-admin-repository.test.ts	platform account admin repository activating a restricted account is unsupported and unknown ids are not-found	skipped
+tests/server/platform-account-admin-repository.test.ts	platform account admin repository admin list counts only live refresh sessions and reports them without leaking hashes	skipped
+tests/server/platform-account-admin-repository.test.ts	platform account admin repository admin list searches by id, email and display name and hides deleted accounts	skipped
+tests/server/platform-account-admin-repository.test.ts	platform account admin repository force logout revokes every live session, bumps the version and is idempotent	skipped
+tests/server/platform-account-admin-repository.test.ts	platform account admin repository suspending bumps token_version, sweeps live sessions and is not affected by a lost race	skipped
+tests/server/platform-account-admin-repository.test.ts	platform account admin repository the last-credential guard still refuses unlinking an OAuth-only account	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository a concurrent exchange redeems the code for exactly one caller	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository a link state round-trips its account and intent	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository a second subject for the same provider on one account is a provider conflict	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository a stale migration expectation reports state-conflict	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository a stale status revision reports conflict with the current projection	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository a subject owned by another account is refused without a write	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository a wrong binding code leaves the credential unwritten	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository activating a restricted account is unsupported	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository admin listing searches by id, email and display name and excludes deleted accounts	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository an app state carries its challenge and survives the read-only return-channel lookup	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository an exchange code is consumed exactly once	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository an expired exchange code is not returned	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository binding a second credential for one account is already-bound and keeps the code	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository binding a taken address reports email-conflict and rolls the code back	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository binding an email credential consumes the code and survives a password hash	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository forcing a logout revokes every live session and is idempotent	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository linking an identity writes the row and its audit event	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository linking to a missing or inactive account is not found	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository migrating an email keeps the password hash, algorithm and salt	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository migrating without a bound credential reports not-bound	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository re-linking the same subject to the same account is idempotent	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository reactivating a suspended account restores it without bumping twice	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository suspending an account bumps the token version and revokes live sessions atomically	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository two concurrent binds for one account produce exactly one credential	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository two concurrent links of one subject resolve to exactly one owner	skipped
+tests/server/platform-account-management-repository.test.ts	platform account management repository two unlinks cannot strip every login method	skipped
+tests/server/platform-account-security.contract.test.ts	platform account security a disabled provider does not count as a surviving login method	passed
+tests/server/platform-account-security.contract.test.ts	platform account security a password makes a sole OAuth link removable	passed
+tests/server/platform-account-security.contract.test.ts	platform account security a password-less account cannot unlink its only provider	passed
+tests/server/platform-account-security.contract.test.ts	platform account security a restricted account cannot write, but can still read its devices	passed
+tests/server/platform-account-security.contract.test.ts	platform account security a session owned by another account cannot be revoked	passed
+tests/server/platform-account-security.contract.test.ts	platform account security a successful password change keeps this session and drops the others	passed
+tests/server/platform-account-security.contract.test.ts	platform account security a wrong current password is refused without disturbing the account	passed
+tests/server/platform-account-security.contract.test.ts	platform account security account security endpoints carry their own rate limit buckets	passed
+tests/server/platform-account-security.contract.test.ts	platform account security an account without an email credential cannot change a password	passed
+tests/server/platform-account-security.contract.test.ts	platform account security an empty provider string is reported as no value, not as a blank name	passed
+tests/server/platform-account-security.contract.test.ts	platform account security an unknown provider and another account's link are both just missing	passed
+tests/server/platform-account-security.contract.test.ts	platform account security anonymous and restricted callers cannot unlink	passed
+tests/server/platform-account-security.contract.test.ts	platform account security cookie callers must present a matching CSRF token	passed
+tests/server/platform-account-security.contract.test.ts	platform account security cookie callers must present a matching CSRF token to unlink	passed
+tests/server/platform-account-security.contract.test.ts	platform account security packaged clients receive the rotated tokens in the body	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change refuses to reuse the current password	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects array body	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects blank current password	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects malformed JSON	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects missing current password	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects missing new password	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects new password over 128 characters	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects new password over 72 UTF-8 bytes	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects new password under 8 characters	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects non-string new password	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects null body	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects null new password	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change rejects unknown field	passed
+tests/server/platform-account-security.contract.test.ts	platform account security password change requires a JSON content type	passed
+tests/server/platform-account-security.contract.test.ts	platform account security raw JSON conforms across password, sessions, and OAuth unlink	passed
+tests/server/platform-account-security.contract.test.ts	platform account security rejects anonymous callers	passed
+tests/server/platform-account-security.contract.test.ts	platform account security revoking one session only reaches this account	passed
+tests/server/platform-account-security.contract.test.ts	platform account security signing out everywhere else keeps the calling session	passed
+tests/server/platform-account-security.contract.test.ts	platform account security the OAuth link endpoints carry their own rate limit buckets	passed
+tests/server/platform-account-security.contract.test.ts	platform account security the OAuth link list never exposes the third-party subject	passed
+tests/server/platform-account-security.contract.test.ts	platform account security the link list reports whether a password exists at all	passed
+tests/server/platform-account-security.contract.test.ts	platform account security the session list never exposes a session secret	passed
+tests/server/platform-account-security.contract.test.ts	platform account security without a password, one of two enabled links can still go	passed
+tests/server/platform-email-auth.contract.test.ts	platform email auth Platform email auth routes use independent IP rate-limit buckets	passed
+tests/server/platform-email-auth.contract.test.ts	platform email auth bcrypt rejects passwords beyond 72 UTF-8 bytes instead of truncating	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth bearer callers get tokens from registration and login, cookie callers do not	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth cache failure falls through to SQL cooldown with exact Retry-After	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth configured resend intervals and unknown password reset responses come from PostgreSQL	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth durable HTTP enqueue is completed by a fresh worker runner	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth email auth strictly validates JSON shapes and credential fields	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth login account limiting shares a normalized digest across rotating IPs before lookup	passed
+tests/server/platform-email-auth.contract.test.ts	platform email auth login returns one generic credential error and rejects blocked account states	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth long migrated PBKDF2 passwords authenticate without unsafe bcrypt upgrade	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth migrated PBKDF2 accepts only the declared Fudaba parameter contract	passed
+tests/server/platform-email-auth.contract.test.ts	platform email auth migrated PBKDF2 credential logs in once and upgrades with bcrypt CAS	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth password reset cooldown is enumeration-safe with missing or failing cache	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth password reset responses preserve exact JSON and reject invalid API email grammar	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth real PostgreSQL failed resend preserves old code across repository instances	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth real PostgreSQL keeps registration atomic under normalized email races	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth registration verification is hashed, cached, atomically consumed, and single use	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth session fencing returns account unavailable without writing cookies	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth verification enqueue failure returns purpose-specific unavailable response	skipped
+tests/server/platform-email-auth.contract.test.ts	platform email auth verification requests enqueue without SMTP and staged codes remain unusable	skipped
+tests/server/platform-email-binding.contract.test.ts	platform email binding OAuth link start demands a session	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding OAuth link start writes an intent=link state and redirects to the provider	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding a provider denial on a link+app state keeps flow=link	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding a provider that cannot build an authorization URL writes no state	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding a refused app link callback returns an error with flow=link	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding a web link callback still returns to account security with a reason	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding an app link callback returns a one-time code with flow=link	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding an unavailable provider returns to account security with a reason	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding app OAuth link start demands a bearer session	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding app OAuth link start rejects an unknown body key	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding app OAuth link start rejects an unusable challenge	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding app OAuth link start reports an unavailable provider	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding app OAuth link start returns the provider URL and records an app state	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding binding a second email for an account already bound is refused	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding binding requires a valid code and leaves no credential on failure	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding changing an email needs the current password and keeps the credential on refusal	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding changing an email on a provider-only account reports not-bound	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding changing an email preserves the password hash and every live session	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding changing to an address owned by another account is refused without a partial write	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding email binding and OAuth link start use their own account-dimension buckets	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding email binding rejects anonymous callers on every route	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding raw JSON conforms across read, code, and bind	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding sending a code for an address owned by another account is refused up front	passed
+tests/server/platform-email-binding.contract.test.ts	platform email binding the verification code is hashed with the binding domain, not the registration one	passed
+tests/server/platform-email-cache.test.ts	platform email cooldown can be cleared after delivery or registration	passed
+tests/server/platform-email-cache.test.ts	platform email cooldown email cooldown cache operations abort when the backend never settles	passed
+tests/server/platform-email-cache.test.ts	platform email cooldown password reset cooldown uses the same strict snapshot without exposing email	passed
+tests/server/platform-email-cache.test.ts	platform email cooldown rejects malformed records and fails open when unavailable	passed
+tests/server/platform-email-cache.test.ts	platform email cooldown uses an anonymous key, strict snapshot, and deadline TTL	passed
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository a 30-second policy supersedes queued, retrying, and running deliveries	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository anonymous cooldown survives account creation and uses the next policy after expiry	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository competing claims, lease expiry, renewal, and stale owners are fenced	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository completion-first and supersession-first ordering preserve the intended candidate	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository failed resend preserves the active code and missing candidates never retry	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository password reset activation uses acceptance time and remains unusable while queued	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository password reset request cooldown serializes simultaneous first requests	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository password reset request cooldowns are durable, anonymous, and preserve legacy authority	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository password reset supersession and terminal failure preserve the active code	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository registration enqueue is atomic, encrypted, and unusable until delivery completes	skipped
+tests/server/platform-email-delivery-repository.test.ts	platform email delivery repository retry, attempt, deadline, expiry, and retention limits are enforced	skipped
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery classifies only bounded failure evidence	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery closes the transport when its abort signal fires	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery contains a rejection that arrives after deadline closure	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery contains unexpected factory, DNS, and configuration-store errors	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery enforces one absolute deadline across database, DNS, transport, and send	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery pins a public DNS address while retaining the TLS hostname	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery rejects IPv4 and IPv6 non-public DNS answers	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery rejects acceptance resolved after the absolute deadline	passed
+tests/server/platform-email-delivery-service.test.ts	worker SMTP delivery requires explicit acceptance of the intended recipient	passed
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher preserves multibyte recipients	passed
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher rejects authenticated ciphertext tampering	passed
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher round trips one prepared delivery identity	passed
+tests/server/platform-email-job-payload.test.ts	platform email job payload cipher separates credential context and authenticates identity	passed
+tests/server/platform-email-job-payload.test.ts	platform email job payload purpose fixes the verification lifetime	passed
+tests/server/platform-email-resend-policy-cache.test.ts	Valkey resend policy cache rejects delayed stale fills and refreshes equal revisions	passed
+tests/server/platform-email-resend-policy-cache.test.ts	Valkey resend policy cache replaces malformed data and validates replies	passed
+tests/server/platform-email-resend-policy-cache.test.ts	Valkey resend policy cache shares revisions across adapter instances	passed
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader aborts stalled Valkey reads and refills	passed
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader falls back to PostgreSQL when Valkey reads and refills fail	passed
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader refills a cache miss with the PostgreSQL revision	passed
+tests/server/platform-email-resend-policy-cache.test.ts	resend policy reader uses a strict cache hit without reading PostgreSQL	passed
+tests/server/platform-email-settings-contract.test.ts	SMTP administration contracts enforce resend cooldown bounds	passed
+tests/server/platform-email-settings-contract.test.ts	SMTP administration mounted SMTP administration enforces super-admin auth and exact contracts	passed
+tests/server/platform-email-settings-contract.test.ts	SMTP administration returns contract-checked conflicts and strict request errors	passed
+tests/server/platform-email-settings.test.ts	SMTP connections reject non-public and mixed DNS results	passed
+tests/server/platform-email-settings.test.ts	SMTP database compare-and-swap conflicts do not write the resend policy cache	passed
+tests/server/platform-email-settings.test.ts	SMTP policy cache failure does not change a committed settings result	passed
+tests/server/platform-email-settings.test.ts	SMTP policy cache timeout does not delay a committed settings result indefinitely	passed
+tests/server/platform-email-settings.test.ts	SMTP resend cooldown accepts boundaries and retains stored credentials	passed
+tests/server/platform-email-settings.test.ts	SMTP resend cooldown rejects out-of-range and non-integer values	passed
+tests/server/platform-email-settings.test.ts	SMTP settings never expose stored credentials	passed
+tests/server/platform-email-settings.test.ts	SMTP test send uses the complete draft without persisting it	passed
+tests/server/platform-email-settings.test.ts	enabled SMTP updates verify TLS before the optimistic write	passed
+tests/server/platform-email-settings.test.ts	platform email secret cipher preserves SMTP password bytes	passed
+tests/server/platform-email-settings.test.ts	real PostgreSQL stores one SMTP configuration with optimistic concurrency	skipped
+tests/server/platform-email-settings.test.ts	saved SMTP settings write the returned resend policy revision through cache	passed
+tests/server/platform-email-settings.test.ts	stale SMTP writes return the current settings without opening a connection	passed
+tests/server/platform-email-settings.test.ts	worker SMTP delivery reads the active database configuration for every message	passed
+tests/server/platform-oauth-callback-branches.test.ts	a link state binds the identity and never creates a session	passed
+tests/server/platform-oauth-callback-branches.test.ts	a login state never reaches the account-linking write	passed
+tests/server/platform-oauth-callback-branches.test.ts	a provider denial on a web state keeps the login redirect	passed
+tests/server/platform-oauth-callback-branches.test.ts	a provider denial on an app state is handed back to the deep link	passed
+tests/server/platform-oauth-callback-branches.test.ts	a second subject for one provider is reported as already bound	passed
+tests/server/platform-oauth-callback-branches.test.ts	a subject owned by another account is refused without a session	passed
+tests/server/platform-oauth-callback-branches.test.ts	login + app returns a one-time deep-link code instead of a session	passed
+tests/server/platform-oauth-callback-branches.test.ts	login + web keeps the original callback redirect and sets the session cookies	passed
+tests/server/platform-oauth-callback-branches.test.ts	re-linking the same subject is an idempotent success	passed
+tests/server/platform-oauth-exchange.test.ts	a replayed code is rejected after the first redemption	passed
+tests/server/platform-oauth-exchange.test.ts	a valid code and verifier return a bearer session	passed
+tests/server/platform-oauth-exchange.test.ts	a verifier that does not match the challenge is rejected	passed
+tests/server/platform-oauth-exchange.test.ts	an account that cannot hold a session is refused	passed
+tests/server/platform-oauth-exchange.test.ts	an expired or unknown code is rejected	passed
+tests/server/platform-oauth-exchange.test.ts	an invalid exchange body is refused without leaking validation detail	passed
+tests/server/platform-oauth-exchange.test.ts	exchanging without the bearer auth mode is refused	passed
+tests/server/platform-oauth-exchange.test.ts	the exchange endpoint is rate limited	passed
+tests/server/platform-oauth-provider-settings.test.ts	OAuth provider writes reject private endpoint addresses	passed
+tests/server/platform-oauth-provider-settings.test.ts	OAuth settings expose every persisted provider in repository order	passed
+tests/server/platform-oauth-provider-settings.test.ts	generic OAuth exchange uses persisted protocol and nested profile paths	passed
+tests/server/platform-oauth-provider-settings.test.ts	loopback HTTP OAuth endpoints require the explicit development exception	passed
+tests/server/platform-oauth-provider-settings.test.ts	public OAuth settings include only complete enabled providers	passed
+tests/server/platform-oauth-provider-settings.test.ts	real PostgreSQL protects providers referenced by an OAuth state	skipped
+tests/server/platform-oauth-unlink-repository.test.ts	a disabled provider does not count as a surviving login method	skipped
+tests/server/platform-oauth-unlink-repository.test.ts	a password is a login method, so the only link can be unlinked	skipped
+tests/server/platform-oauth-unlink-repository.test.ts	an enabled sibling link lets the other one go	skipped
+tests/server/platform-oauth-unlink-repository.test.ts	another account link is never reachable	skipped
+tests/server/platform-oauth-unlink-repository.test.ts	the sole link of a password-less account survives its own removal	skipped
+tests/server/platform-oauth-wire-contract-conformance.test.ts	mounted OAuth discovery, start, and callback preserve their wire contracts	passed
+tests/server/platform-oauth-wire-contract-conformance.test.ts	mounted OAuth provider administration emits exact success, conflict, and request-error DTOs	passed
+tests/server/platform-profile-wire-contract-conformance.test.ts	Platform profile wire-contract conformance a restricted account still reads back a conforming profile	passed
+tests/server/platform-profile-wire-contract-conformance.test.ts	Platform profile wire-contract conformance platformProfileView output satisfies the shared profile schema	passed
+tests/server/platform-profile-wire-contract-conformance.test.ts	Platform profile wire-contract conformance profile mutation response satisfies the shared wire schema	passed
+tests/server/platform-profile-wire-contract-conformance.test.ts	Platform profile wire-contract conformance profile read response satisfies the shared wire schema	passed
+tests/server/platform-profile.contract.test.ts	Platform avatar reads stay 404 until the account stores an avatar object	passed
+tests/server/platform-profile.contract.test.ts	Platform avatar uploads ignore the Fudaba rollout switch	passed
+tests/server/platform-profile.contract.test.ts	Platform avatar uploads spend a Platform budget, not the Fudaba one	passed
+tests/server/platform-profile.contract.test.ts	Platform profile GET and text update expose a fenced owner projection	passed
+tests/server/platform-profile.contract.test.ts	Platform profile writes accept the boundary lengths their validator allows	passed
+tests/server/platform-profile.contract.test.ts	Platform profile writes consume the shared Platform write budget	passed
+tests/server/platform-profile.contract.test.ts	Platform profile writes ignore the Fudaba rollout switch	passed
+tests/server/platform-profile.contract.test.ts	Platform profile writes reject every malformed submission before the repository	passed
+tests/server/platform-profile.contract.test.ts	a committed avatar write recovers after the repository throws	passed
+tests/server/platform-profile.contract.test.ts	a failed confirmation read preserves the ambiguous avatar object	passed
+tests/server/platform-profile.contract.test.ts	anonymous callers cannot read or write the Platform profile	passed
+tests/server/platform-profile.contract.test.ts	avatar removal clears both avatar columns and sweeps the stored object	passed
+tests/server/platform-profile.contract.test.ts	avatar removal is fenced, validated, and refused for locked accounts	passed
+tests/server/platform-profile.contract.test.ts	avatar uploads commit under owner CAS and sweep the replaced object	passed
+tests/server/platform-profile.contract.test.ts	restricted Platform accounts keep profile reads but lose profile writes	passed
+tests/server/platform-profile.contract.test.ts	suspended and deleted Platform accounts lose the profile route entirely	passed
+tests/server/platform-session-security.contract.test.ts	Bearer callers refresh without cookies and only they receive tokens	skipped
+tests/server/platform-session-security.contract.test.ts	Platform and Backoffice reject each other even when their test secret is shared	skipped
+tests/server/platform-session-security.contract.test.ts	Platform logout is idempotent and Bearer authentication does not require CSRF	skipped
+tests/server/platform-session-security.contract.test.ts	Platform refresh has a dedicated 120 per 15 minute rate-limit bucket	passed
+tests/server/platform-session-security.contract.test.ts	Platform refresh requires cookie, header, and stored CSRF before rotating state	skipped
+tests/server/platform-session-security.contract.test.ts	Platform session authenticates active and restricted accounts through a live family	skipped
+tests/server/platform-session-security.contract.test.ts	production Platform token service fixes HS256 and all realm/session claims	passed
+tests/server/platform-session-security.contract.test.ts	real PostgreSQL emits refresh success only for the cross-instance CAS winner	skipped
+tests/server/platform-session-security.contract.test.ts	real PostgreSQL enforces Platform rotation, replay, logout, and event behavior	skipped
+tests/server/platform-session-security.contract.test.ts	refresh-session writes fence the current account token version atomically	skipped
+tests/server/platform-session-security.contract.test.ts	suspended and deleted Platform accounts are blocked and their family is revoked	skipped
+tests/server/postgresql-request-controls.test.ts	PostgreSQL idempotency serializes concurrent first claims	skipped
+tests/server/postgresql-request-controls.test.ts	PostgreSQL idempotency shares replay and fencing across connections	skipped
+tests/server/postgresql-request-controls.test.ts	PostgreSQL idempotency sweeps only expired terminal records	skipped
+tests/server/producer-map-content.test.ts	producer map admin updates are authenticated, audited, and revision guarded	passed
+tests/server/producer-map-content.test.ts	producer map images are authenticated, audited, and publicly readable	passed
+tests/server/producer-map-content.test.ts	producer map media is served from semantic object storage	passed
+tests/server/producer-map-content.test.ts	producer map mounted JSON responses preserve shared schemas and project unknown update fields	passed
+tests/server/producer-map-content.test.ts	producer map rejects unsafe links and duplicate provinces	passed
+tests/server/producer-map-content.test.ts	producer map reports unconfigured content without serving defaults	passed
+tests/server/public-object-url.test.ts	public URL resolution preserves external, private, and unsupported fallbacks	passed
+tests/server/public-object-url.test.ts	public media URLs resolve legacy business paths to CDN object URLs	passed
+tests/server/public-object-url.test.ts	public media field rewriting changes only declared string fields	passed
+tests/server/public-object-url.test.ts	required public URLs can promote a legacy private object before resolving	passed
+tests/server/public-object-url.test.ts	required public URLs fail closed instead of returning an application fallback	passed
+tests/server/request-observability.test.ts	request IDs, health probes, and structured request logs stay correlated	passed
+tests/server/request-validation-boundaries.test.ts	param and query validators normalize invalid business input before handlers run	passed
+tests/server/request-validation-boundaries.test.ts	schema validators preserve legacy errors without accepting schema-invalid input	passed
+tests/server/request-validation.test.ts	json validator awaits asynchronous request parsers	passed
+tests/server/request-validation.test.ts	json validator can explicitly preserve mislabeled JSON compatibility	passed
+tests/server/request-validation.test.ts	json validator does not hide unexpected parser failures	passed
+tests/server/request-validation.test.ts	json validator exposes parsed request data through req.valid	passed
+tests/server/request-validation.test.ts	json validator normalizes malformed and invalid request errors	passed
+tests/server/request-validation.test.ts	param and query validators expose normalized request models	passed
+tests/server/request-validation.test.ts	schema JSON validators preserve malformed and mislabeled JSON behavior	passed
+tests/server/request-validation.test.ts	schema validator does not hide asynchronous adapter failures	passed
+tests/server/request-validation.test.ts	schema validator does not hide unexpected adapter failures	passed
+tests/server/request-validation.test.ts	schema validators await adapters and preserve custom validation errors	passed
+tests/server/request-validation.test.ts	schema validators preserve explicit strict, strip, and passthrough request policies	passed
+tests/server/runtime-adapters.test.ts	FilesystemObjectStorage maps canonical business keys to owned roots	passed
+tests/server/runtime-adapters.test.ts	Fudaba geocoding requires an identifiable configurable HTTPS provider	passed
+tests/server/runtime-adapters.test.ts	Fudaba map configuration is disabled by default and strictly parsed	passed
+tests/server/runtime-adapters.test.ts	Fudaba map source seeds accept complete style URLs	passed
+tests/server/runtime-adapters.test.ts	Fudaba map style accepts trusted deployment URL shapes	passed
+tests/server/runtime-adapters.test.ts	Fudaba public reads require S3 public object URL configuration	passed
+tests/server/runtime-adapters.test.ts	Fudaba public reads require an explicit boolean feature flag	passed
+tests/server/runtime-adapters.test.ts	Fudaba writes use an independent explicit boolean feature flag	passed
+tests/server/runtime-adapters.test.ts	Node database accepts only a validated PostgreSQL configuration	passed
+tests/server/runtime-adapters.test.ts	Node object storage defaults to S3 and requires explicit filesystem compatibility	passed
+tests/server/runtime-adapters.test.ts	Node repository initialization closes every constructed resource after partial failure	passed
+tests/server/runtime-adapters.test.ts	Node trusts proxy address headers only when Nginx is explicit	passed
+tests/server/runtime-adapters.test.ts	NodeStaticAssets does not open a body for HEAD and opens only the requested byte range	passed
+tests/server/runtime-adapters.test.ts	NodeStaticAssets negotiates precompressed assets without exposing encoded files	passed
+tests/server/runtime-adapters.test.ts	early close does not poison a later Node service and concurrent close is idempotent	passed
+tests/server/runtime-adapters.test.ts	filesystem compensation journal retries a failed idempotent delete to completion	passed
+tests/server/runtime-adapters.test.ts	filesystem idempotency persists replay, rejects fingerprint reuse, and recovers failure	passed
+tests/server/runtime-adapters.test.ts	graceful shutdown stops HTTP acceptance before closing runtime services	passed
+tests/server/runtime-adapters.test.ts	story upload byte limit accepts only a positive bounded safe integer	passed
+tests/server/s3-object-storage.test.ts	S3 compensation preserves public access scope after a delete failure	skipped
+tests/server/s3-object-storage.test.ts	S3 deferred public media stays private until publication moves it	skipped
+tests/server/s3-object-storage.test.ts	S3 deferred publication hides new objects and restores the previous version on rollback	skipped
+tests/server/s3-object-storage.test.ts	S3 ignores objects that have no managed semantic-key index	skipped
+tests/server/s3-object-storage.test.ts	S3 lifecycle fences owner and object identity mutations	skipped
+tests/server/s3-object-storage.test.ts	S3 listings resolve all readable versions with one metadata query	skipped
+tests/server/s3-object-storage.test.ts	S3 object storage keeps owner tokens out of user metadata	skipped
+tests/server/s3-object-storage.test.ts	S3 object storage preserves logical keys across versioned CRUD, copy, and move	skipped
+tests/server/s3-object-storage.test.ts	S3 object storage removes a write when PutObject times out after persistence	skipped
+tests/server/s3-object-storage.test.ts	S3 object storage signs GET and HEAD reads without proxying object bodies	skipped
+tests/server/s3-object-storage.test.ts	S3 object storage validates checksums and rejects unsafe logical keys	skipped
+tests/server/s3-object-storage.test.ts	S3 physical keys support both an optional custom prefix and no prefix	skipped
+tests/server/s3-object-storage.test.ts	S3 protection compensation restores private scope	skipped
+tests/server/s3-object-storage.test.ts	S3 public and protected objects share one bucket with distinct read paths	skipped
+tests/server/s3-object-storage.test.ts	S3 stale recovery and SQL compensation remove unreferenced physical versions	skipped
+tests/server/s3-object-storage.test.ts	ambiguous S3 publication removes an untracked public destination	skipped
+tests/server/s3-object-storage.test.ts	stale S3 protection compensation does not privatize a newer version	skipped
+tests/server/shared-json-error-contract.test.ts	central application JSON errors conform to the common error contract	passed
+tests/server/shared-json-error-contract.test.ts	shared middleware JSON errors conform to their common contracts	passed
+tests/server/shared-paths.test.ts	shared path builders normalize suffix separators without duplicate slashes	passed
+tests/server/shared-paths.test.ts	shared path prefixes compose the canonical API and delivery paths	passed
+tests/server/site-package-archive.test.ts	enforces archive, file, expanded total, and file-count bomb limits	passed
+tests/server/site-package-archive.test.ts	parses a hiro-like isolated package into an immutable manifest	passed
+tests/server/site-package-archive.test.ts	rejects invalid magic, blocked nested files, and missing HTML entry paths	passed
+tests/server/site-package-archive.test.ts	rejects symlink and encrypted ZIP entries	passed
+tests/server/site-package-archive.test.ts	rejects traversal, duplicate, and case-folded path collisions	passed
+tests/server/site-package-archive.test.ts	requires PDF isolation and recognizes escaped PDF action names	passed
+tests/server/site-package-archive.test.ts	safe packages reject JavaScript files and active HTML handlers	passed
+tests/server/site-package-archive.test.ts	uses a conventional packaged icon and warns about unusable declarations	passed
+tests/server/site-package-env.test.ts	isolated site-package CSP uses an explicit content path for opaque origins	passed
+tests/server/site-package-env.test.ts	safe site-package CSP blocks scripts while allowing packaged styles	passed
+tests/server/site-package-env.test.ts	site-package content uses the current request origin	passed
+tests/server/site-package-env.test.ts	site-package frame ancestors accept loopback aliases only for local development	passed
+tests/server/site-package-env.test.ts	site-package upload limit is bounded by the archive parser maximum	passed
+tests/server/site-package-repository.test.ts	PostgreSQL site packages create revisions and atomically switch rollback pointers	skipped
+tests/server/site-package-routes.test.ts	site-package routes share the main origin and enforce manifests, CSP, and revisions	skipped
+tests/server/sql-database.test.ts	PostgreSQL implements the SQL port with one short transaction per batch	passed
+tests/server/sql-database.test.ts	PostgreSQL news pagination uses a bounded descending id range	passed
+tests/server/sql-database.test.ts	PostgreSQL parameter translation ignores quoted and commented question marks	passed
+tests/server/sql-database.test.ts	PostgreSQL reaction upsert qualifies the existing count	passed
+tests/server/story-repository.test.ts	PostgreSQL card edit updates shared card metadata without modifying source links	skipped
+tests/server/story-repository.test.ts	PostgreSQL card source append requires the exact card and current media revision	skipped
+tests/server/story-repository.test.ts	PostgreSQL catalog CRUD supports dynamic agencies and multi-group idols	skipped
+tests/server/story-repository.test.ts	PostgreSQL category rename is scoped by idol assignment and preserves storage slug	skipped
+tests/server/story-repository.test.ts	PostgreSQL group deletion preserves idols and their normalized stories	skipped
+tests/server/story-repository.test.ts	PostgreSQL idol deletion preserves rows while hiding the idol and its stories	skipped
+tests/server/story-repository.test.ts	PostgreSQL normalized stories keep one card and one link per source row	skipped
+tests/server/story-repository.test.ts	PostgreSQL story cover assets are agency scoped, versioned, and protected in use	skipped
+tests/server/story-repository.test.ts	PostgreSQL story lookup selects the requested row within its agency and idol	skipped
+tests/server/story-repository.test.ts	PostgreSQL whole-card and category deletion reject stale revisions	skipped
+tests/server/upload-contract.test.ts	Node streaming multipart parser accepts exactly maxParts and rejects the next part	passed
+tests/server/upload-contract.test.ts	Node streaming multipart parser accepts exactly the configured part limit	passed
+tests/server/upload-contract.test.ts	Node streaming multipart parser counts unknown files against the file limit without Content-Length	passed
+tests/server/upload-contract.test.ts	Node streaming multipart parser rejects one part beyond the configured limit	passed
+tests/server/upload-contract.test.ts	Node streaming multipart parser rejects raw boundary overhead at maxBytes + 1	passed
+tests/server/upload-contract.test.ts	Node streaming multipart parser reports interrupted bodies	passed
+tests/server/upload-contract.test.ts	Sharp image processor validates and converts real image bytes with stable dimensions	passed
+tests/server/upload-contract.test.ts	Sharp runtime includes the libvips fixes for inherited image decoder CVEs	passed
+tests/server/upload-contract.test.ts	namecard normalization bounds only oversized JPEG output	passed
+tests/server/upload-contract.test.ts	shared MD5 implementation matches RFC vectors and legacy Node hashes	passed
+tests/server/upload-contract.test.ts	shared image upload contract accepts standard HEIC and HEIF uploads	passed
+tests/server/upload-contract.test.ts	shared image upload contract rejects extension, MIME, decoded format, and corrupt payload mismatches	passed
+tests/server/valkey-cache.test.ts	Valkey cache aborts a queued command at the caller deadline	passed
+tests/server/valkey-cache.test.ts	Valkey cache namespaces values and applies an expiration command	passed
+tests/server/valkey-cache.test.ts	Valkey cache rejects invalid keys and TTLs before issuing commands	passed
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter exempts replayed identities without extra consumption	passed
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter never stores raw keys or identities	passed
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter rejects invalid buckets, limits, and windows	passed
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter resets expired windows and reports reset timestamps	passed
+tests/server/valkey-rate-limiter.test.ts	Valkey rate limiter shares one atomic budget across limiter instances	passed
+tests/server/valkey-rate-limiter.test.ts	domain and middleware code cannot depend on the Valkey rate limiter	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract an empty story category can be added explicitly for one idol	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract catalog and story reads require an editor or operator session	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract catalog is built from repository agencies and idols	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract catalog writes create a dynamic agency and keep one idol in multiple groups	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract content types and source platforms are managed dynamically and protected in use	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract deleting a group preserves its idols and stories as ungrouped content	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract deleting an idol soft deletes its cards and sources while retaining media	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract selected idol stories expose database rows and managed category choices	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract story reads validate target parameters without leaking unrelated data	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract story_id derives the old group from the stored row and rejects malformed IDs	passed
+tests/wiki/admin-data.contract.test.ts	Wiki admin dynamic data contract story_id edits the selected link while legacy group lookup remains compatible	passed
+tests/wiki/bilibili.contract.test.ts	WIKI-02 isolated Bilibili parsing contract fake video fetch receives the API URL, user agent and abort signal	passed
+tests/wiki/bilibili.contract.test.ts	WIKI-02 isolated Bilibili parsing contract invalid input skips fetch and upstream errors preserve compatible JSON	passed
+tests/wiki/bilibili.contract.test.ts	WIKI-02 isolated Bilibili parsing contract the five-second timeout aborts injected fetch and maps to the legacy gateway error	passed
+tests/wiki/dom.contract.test.ts	WIKI-01 database-associated media and story object paths entity icon routes use database keys while retired static routes and traversal are rejected	passed
+tests/wiki/dom.contract.test.ts	WIKI-01 database-associated media and story object paths health and random background reads remain public and compatible	passed
+tests/wiki/dom.contract.test.ts	WIKI-01 database-associated media and story object paths image GET/HEAD preserve body and metadata while unknown targets remain 404	passed
+tests/wiki/node-cleanup-compensation.contract.test.ts	Node Wiki delete journals a failed cleanup and the next compensation scan converges	passed
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract catalog exposes the requested agency and resolved idol artwork anonymously	passed
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract catalog places idols without memberships in the final ungrouped collection	passed
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract catalog rejects unknown agencies without hiding the default selection	passed
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract random idol samples only enabled Wiki idol entries with resolved artwork	passed
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract story reads validate the requested agency and idol	passed
+tests/wiki/public-data.contract.test.ts	Wiki public dynamic data contract story view aggregates cards and multiple sources with encoded media URLs	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract a card can be created, read, and retained without source entries	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category cleanup does not cross a sibling directory prefix	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category cleanup enumerates unreferenced prefix objects and compensates each failed key	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category move copies before commit, deletes old after commit, and category delete cleans the copy	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract category-move commit failure cleans the copy and preserves the original	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract cleanup failure after a successful database delete does not resurrect the row	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract delete_story and delete_category commit failures preserve their old rows and objects	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract one card request creates multiple sources and source deletion retains the empty card	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract post-commit cleanup still succeeds when object deletion and compensation enqueue both fail	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract source deletion guards media revision and cleans exact unreferenced legacy images	passed
+tests/wiki/security-crud.contract.test.ts	Wiki CRUD ordering and media cleanup contract successful replacement edit deletes the old object, then delete_story removes the replacement	passed
+tests/wiki/security-crud.contract.test.ts	Wiki Cookie JWT, role and Header-to-claim CSRF contract JWT claim CSRF is required and unapproved roles stay forbidden	passed
+tests/wiki/security-crud.contract.test.ts	Wiki Cookie JWT, role and Header-to-claim CSRF contract all writes reject missing Cookie JWT, even with valid Authorization JWT	passed
+tests/wiki/security-crud.contract.test.ts	Wiki Cookie JWT, role and Header-to-claim CSRF contract editor and op Cookie JWTs can write with only the matching CSRF header	passed
+tests/wiki/security-crud.contract.test.ts	Wiki agency icon object storage contract upload publishes a versioned catalog icon and delete removes it	passed
+tests/wiki/security-crud.contract.test.ts	Wiki agency story cover asset contract asset upload fails cleanly when a direct public read URL is unavailable	passed
+tests/wiki/security-crud.contract.test.ts	Wiki agency story cover asset contract asset upload rejects an unknown presentation policy	passed
+tests/wiki/security-crud.contract.test.ts	Wiki agency story cover asset contract one uploaded asset can back a card and cannot be deleted while referenced	passed
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract card edit moves its image and metadata while preserving every source	passed
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract card image replacement and failed category move preserve object consistency	passed
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract category rename validates the selected idol and preserves its storage slug	passed
+tests/wiki/security-crud.contract.test.ts	Wiki category and card secondary edit contract dedicated source append targets only an existing card at its current revision	passed
+tests/wiki/security-crud.contract.test.ts	Wiki destructive revision and audit contract whole-card and whole-category deletion require current revisions and audit only success	passed
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract agency, group and idol uploads use unique objects and persist transforms	passed
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract invalid transform fails before object and repository writes	passed
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract stale upload is rejected and its uncommitted object is cleaned	passed
+tests/wiki/security-crud.contract.test.ts	Wiki entity media revision and transform contract transform-only save increments the revision without rewriting the object	passed
+tests/wiki/security-crud.contract.test.ts	Wiki idol media object storage contract upload switches the catalog to object storage and delete clears the association	passed
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract conflicting add keeps the winning card and cleans the uncommitted upload	passed
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract edit commit failure removes the replacement and preserves the old row/object	passed
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract invalid, MIME-mismatched, forged and undecodable images fail before database/object writes	passed
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract oversized multipart is rejected before the upload parser	passed
+tests/wiki/security-crud.contract.test.ts	Wiki upload validation and compensation contract partial object write and insert commit failure both clean the new object	passed
+tests/wiki/wire-contract-conformance.test.ts	Wiki wire-contract conformance admin catalog and stories responses satisfy the shared wire schemas	passed
+tests/wiki/wire-contract-conformance.test.ts	Wiki wire-contract conformance mutation and authorization error responses preserve the shared raw wire shapes	passed
+tests/wiki/wire-contract-conformance.test.ts	Wiki wire-contract conformance public catalog and stories responses satisfy the shared wire schemas	passed

@@ -1,0 +1,12 @@
+{"file":".trellis/spec/api/backend/architecture.md","reason":"Verify API dependency direction, ports, concrete adapter placement and runtime composition."}
+{"file":".trellis/spec/api/backend/data-and-errors.md","reason":"Verify transactional enqueue/activation/failure semantics and expected error handling."}
+{"file":".trellis/spec/api/backend/observability-and-security.md","reason":"Audit logs and persistence for plaintext email, codes, credentials and raw SMTP responses."}
+{"file":".trellis/spec/api/backend/testing.md","reason":"Verify active PostgreSQL regressions and complete API quality gates."}
+{"file":".trellis/spec/web/frontend/api-state-and-contracts.md","reason":"Verify exact parsed response contracts and no page-local transport bypass."}
+{"file":".trellis/spec/web/frontend/components-and-ux.md","reason":"Verify countdown success copy, accessibility and responsive layout."}
+{"file":".trellis/spec/web/frontend/testing.md","reason":"Verify focused unit/browser coverage and complete Web checks."}
+{"file":".trellis/spec/contracts/shared/schemas-and-exports.md","reason":"Verify exact queue acknowledgement schemas and package boundaries."}
+{"file":".trellis/spec/contracts/shared/quality.md","reason":"Verify API/Web contract conformance and export synchronization."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review the complete write path and compensation behavior across every layer."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check worker and cipher reuse decisions against established repository patterns."}
+{"file":".trellis/tasks/09-13-platform-email-worker-delivery/research/worker-architecture.md","reason":"Check implementation against researched races, fencing, retry, rollout and rollback constraints."}

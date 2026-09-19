@@ -19,6 +19,10 @@ const allowedExtensions = new Set([
     '.jpg', '.js', '.json', '.png', '.svg', '.webp', '.woff', '.woff2'
 ]);
 const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.svg']);
+const allowedTextAssets = new Set([
+    'emoji/twemoji/LICENSE-GRAPHICS.txt',
+    'emoji/twemoji/NOTICE.txt'
+]);
 const compressionThreshold = 1024;
 const forbiddenSegments = new Set([
     '.git', '.staging', '.trash', '.venv', '__pycache__', 'data', 'database',
@@ -39,10 +43,13 @@ function assertPublishable(relative, stat) {
         throw new Error(`Unsafe client asset path: ${relative}`);
     }
     const lower = relative.toLowerCase();
+    const allowedTextAsset = allowedTextAssets.has(relative);
     if (
         lower.split('/').some((segment) => forbiddenSegments.has(segment)) ||
-        forbiddenExtensions.test(lower) ||
-        !allowedExtensions.has(path.posix.extname(lower))
+        (!allowedTextAsset && (
+            forbiddenExtensions.test(lower) ||
+            !allowedExtensions.has(path.posix.extname(lower))
+        ))
     ) {
         throw new Error(`Forbidden client asset: ${relative}`);
     }

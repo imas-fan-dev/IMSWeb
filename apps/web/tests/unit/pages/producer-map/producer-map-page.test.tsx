@@ -6,8 +6,9 @@ import {
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import ProducerMapPage from "~/pages/producer-map/index"
 import type { ProducerMapContent } from "~/lib/api"
 
@@ -80,13 +81,6 @@ function content(): ProducerMapContent {
   }
 }
 
-function jsonResponse(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "content-type": "application/json" },
-  })
-}
-
 function requestPath(input: RequestInfo | URL) {
   const url = input instanceof Request ? input.url : String(input)
   return new URL(url, "http://localhost").pathname
@@ -100,15 +94,10 @@ function geometry() {
 }
 
 describe("ProducerMapPage", () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it("renders configured regions, filters communities, and opens contact media", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) =>
-        jsonResponse(
-          requestPath(input) === "/api/producer-map" ? content() : geometry()
-        )
+    installFetchMock(async (input: RequestInfo | URL) =>
+      jsonResponse(
+        requestPath(input) === "/api/producer-map" ? content() : geometry()
       )
     )
     const user = userEvent.setup()
@@ -162,15 +151,12 @@ describe("ProducerMapPage", () => {
   })
 
   it("offers retry when the producer map API cannot be loaded", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        if (requestPath(input) === "/api/producer-map") {
-          throw new Error("offline")
-        }
-        return jsonResponse(geometry())
-      })
-    )
+    installFetchMock(async (input: RequestInfo | URL) => {
+      if (requestPath(input) === "/api/producer-map") {
+        throw new Error("offline")
+      }
+      return jsonResponse(geometry())
+    })
 
     render(<ProducerMapPage />)
 
@@ -179,13 +165,10 @@ describe("ProducerMapPage", () => {
   })
 
   it("renders an unpublished state when no Producer Map content exists", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) =>
-        requestPath(input) === "/api/producer-map"
-          ? jsonResponse({ error: "制作人地图尚未配置" }, 404)
-          : jsonResponse(geometry())
-      )
+    installFetchMock(async (input: RequestInfo | URL) =>
+      requestPath(input) === "/api/producer-map"
+        ? jsonResponse({ error: "制作人地图尚未配置" }, 404)
+        : jsonResponse(geometry())
     )
 
     render(<ProducerMapPage />)
@@ -196,14 +179,11 @@ describe("ProducerMapPage", () => {
 
   it("starts content and geometry requests before either response settles", async () => {
     const pending = new Map<string, (response: Response) => void>()
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        (input: RequestInfo | URL) =>
-          new Promise<Response>((resolve) => {
-            pending.set(requestPath(input), resolve)
-          })
-      )
+    installFetchMock(
+      (input: RequestInfo | URL) =>
+        new Promise<Response>((resolve) => {
+          pending.set(requestPath(input), resolve)
+        })
     )
 
     render(<ProducerMapPage />)
@@ -223,7 +203,7 @@ describe("ProducerMapPage", () => {
 
   it("forces both map requests when the user refreshes", async () => {
     let contentRequests = 0
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = installFetchMock(async (input: RequestInfo | URL) => {
       if (requestPath(input) === "/api/producer-map") {
         contentRequests += 1
         return jsonResponse({
@@ -233,7 +213,6 @@ describe("ProducerMapPage", () => {
       }
       return jsonResponse(geometry())
     })
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<ProducerMapPage />)

@@ -17,6 +17,7 @@ import { WikiIdolGrid } from "~/pages/wiki/modern/components/wiki-idol-grid"
 import { WikiVoicedFilter } from "~/pages/wiki/modern/components/wiki-voiced-filter"
 import { getWikiCatalog, getWikiRandomBackground, isApiError } from "~/lib/api"
 import type { WikiPublicCatalog, WikiRandomBackground } from "~/lib/api"
+import { IS_APP_TARGET } from "~/lib/app-target"
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "剧情档案暂时无法加载"
@@ -137,7 +138,11 @@ export function WikiIndexPage() {
       <WikiHero
         background={backgroundRequest.data}
         loading={backgroundLoading}
-        classicHref={`/wiki/classic${requestedAgency ? `?agency=${encodeURIComponent(requestedAgency)}` : ""}`}
+        classicHref={
+          import.meta.env.VITE_IMS_APP_TARGET === "app"
+            ? undefined
+            : `/wiki/classic${requestedAgency ? `?agency=${encodeURIComponent(requestedAgency)}` : ""}`
+        }
         onRefresh={() => setBackgroundVersion((current) => current + 1)}
       />
 
@@ -261,24 +266,26 @@ export function WikiIndexPage() {
                   {selection.agency.name}
                 </h2>
               </div>
-              <div className="relative hidden w-full sm:max-w-sm md:block">
-                <label className="relative block">
-                  <span className="sr-only">全局搜索内容页</span>
-                  <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="搜索全站偶像或内容页"
-                    className="pl-9"
+              {!IS_APP_TARGET ? (
+                <div className="relative hidden w-full sm:max-w-sm md:block">
+                  <label className="relative block">
+                    <span className="sr-only">全局搜索内容页</span>
+                    <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="搜索全站偶像或内容页"
+                      className="pl-9"
+                    />
+                  </label>
+                  <WikiGlobalSearchResults
+                    entries={availableCatalog?.searchEntries ?? []}
+                    query={query}
+                    view="modern"
+                    onNavigate={() => setQuery("")}
                   />
-                </label>
-                <WikiGlobalSearchResults
-                  entries={availableCatalog?.searchEntries ?? []}
-                  query={query}
-                  view="modern"
-                  onNavigate={() => setQuery("")}
-                />
-              </div>
+                </div>
+              ) : null}
             </div>
 
             <WikiGroupFilter
@@ -323,12 +330,14 @@ export function WikiIndexPage() {
         agencies={availableCatalog?.agencies ?? []}
         selectedAgency={selection?.agency.name || requestedAgency || null}
         disabled={!requestIsCurrent}
+        view="modern"
+        visibilityClassName={IS_APP_TARGET ? "" : undefined}
         onSelectAgency={selectAgency}
       />
       <WikiMobileSearch
         entries={availableCatalog?.searchEntries ?? []}
         view="modern"
-        className="md:hidden"
+        className={IS_APP_TARGET ? "" : "md:hidden"}
       />
     </main>
   )

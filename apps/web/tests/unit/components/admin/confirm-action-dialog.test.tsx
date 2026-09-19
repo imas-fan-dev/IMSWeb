@@ -37,10 +37,7 @@ describe("ConfirmActionDialog", () => {
       />
     )
 
-    expect(screen.getByRole("alertdialog")).toHaveAttribute(
-      "aria-busy",
-      "true"
-    )
+    expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-busy", "true")
     expect(screen.getByRole("button", { name: "取消" })).toBeDisabled()
     const confirm = screen.getByRole("button", { name: "正在处理" })
     expect(confirm).toBeDisabled()

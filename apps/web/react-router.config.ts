@@ -1,34 +1,18 @@
 import type { Config } from "@react-router/dev/config"
 
+import { prerenderRoutesForTarget } from "./app/route-metadata.ts"
+
+const isAppTarget = process.env.VITE_IMS_APP_TARGET === "app"
+
 export default {
   ssr: false,
-  // Dynamic Chronicle and admin routes use the SPA fallback. API and media
-  // routes stay outside this list and continue to be routed to Hono.
-  prerender: [
-    "/",
-    "/about",
-    "/events",
-    "/recommendations",
-    "/live",
-    "/community",
-    "/community/cards",
-    "/producer-map",
-    "/tier-list",
-    "/works",
-    "/works/765",
-    "/works/cg",
-    "/works/ml",
-    "/works/sidem",
-    "/works/sc",
-    "/works/gakuen",
-    "/works/games",
-    "/works/wows",
-    "/wiki",
-    "/wiki/modern",
-    "/wiki/classic",
-    "/story",
-    "/story/modern",
-    "/story/classic",
-    "/chronicle",
-  ],
+  buildDirectory: isAppTarget ? "build-app" : "build",
+  future: {
+    v8_middleware: true,
+    v8_splitRouteModules: true,
+    v8_viteEnvironmentApi: true,
+    v8_passThroughRequests: true,
+    v8_trailingSlashAwareDataRequests: true,
+  },
+  prerender: prerenderRoutesForTarget(isAppTarget ? "app" : "web"),
 } satisfies Config

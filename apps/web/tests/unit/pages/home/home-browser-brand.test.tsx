@@ -15,7 +15,6 @@ describe("HomeBrowserBrand", () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 
@@ -52,9 +51,9 @@ describe("HomeBrowserBrand", () => {
 
     const { unmount } = render(<HomeBrowserBrand />)
     vi.advanceTimersByTime(10_000)
-    document.title = "活动中心 | IMSWeb"
+    document.title = "社区动态 | IMSWeb"
 
     unmount()
-    expect(document.title).toBe("活动中心 | IMSWeb")
+    expect(document.title).toBe("社区动态 | IMSWeb")
   })
 })

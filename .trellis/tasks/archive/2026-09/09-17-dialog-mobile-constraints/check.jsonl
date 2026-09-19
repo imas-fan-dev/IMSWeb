@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "核对弹窗基元的移动端约束是否落在共享基元而不是调用方"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "核对新增单测与浏览器测试是否符合既有测试规范与 CI 口径"}
+{"file": ".trellis/spec/web/frontend/tauri-mobile-integration.md", "reason": "核对安全区/原生 tab bar 相关改动没有破坏既有移动端契约"}

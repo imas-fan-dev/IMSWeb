@@ -1,7 +1,8 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { installFetchMock, jsonResponse } from "@/tests/unit/support/api-client"
 import { RecommendationsCenter } from "~/pages/recommendations/index"
 import { cacheRecommendationFeed, parseRecommendationPage } from "~/lib/api"
 import type { Recommendation } from "~/lib/api"
@@ -30,12 +31,6 @@ vi.mock("@tanstack/react-virtual", () => ({
   },
 }))
 
-function jsonResponse(value: unknown) {
-  return new Response(JSON.stringify(value), {
-    headers: { "content-type": "application/json" },
-  })
-}
-
 function requestUrl(input: RequestInfo | URL) {
   return input instanceof Request ? input.url : String(input)
 }
@@ -60,10 +55,6 @@ describe("RecommendationsCenter", () => {
     vi.stubGlobal("IntersectionObserver", undefined)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it("rejects imprecise numeric IDs while accepting PostgreSQL bigint strings", () => {
     expect(() =>
       parseRecommendationPage([recommendation(Number.MAX_SAFE_INTEGER + 1)])
@@ -75,9 +66,8 @@ describe("RecommendationsCenter", () => {
     ).toBe("9223372036854775807")
   })
 
-  it("loads cursor pages, deduplicates rows, and exposes a manual fallback", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+  it("loads cursor pages by scroll alone and deduplicates rows", async () => {
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [recommendation(3), recommendation(2)],
@@ -98,18 +88,20 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
-    const user = userEvent.setup()
 
     render(<RecommendationsCenter />)
 
+    // No click anywhere. With IntersectionObserver stubbed out, the scroll
+    // fallback is what carries the list, and it runs once on mount so a first
+    // page shorter than the viewport still advances.
     expect(await screen.findByRole("heading", { name: "推荐 3" })).toBeVisible()
-    await user.click(screen.getByRole("button", { name: "加载更多推荐" }))
-
     expect(await screen.findByRole("heading", { name: "推荐 1" })).toBeVisible()
     expect(screen.getAllByRole("heading", { name: "推荐 2" })).toHaveLength(1)
     expect(screen.getAllByRole("listitem")).toHaveLength(3)
     expect(screen.getByText("已显示本批次的全部推荐")).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: /加载更多/ })
+    ).not.toBeInTheDocument()
 
     const firstUrl = new URL(
       requestUrl(fetchMock.mock.calls[0]![0]),
@@ -125,8 +117,7 @@ describe("RecommendationsCenter", () => {
   })
 
   it("recovers from the initial error into the empty state", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockRejectedValueOnce(new TypeError("offline"))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -138,7 +129,6 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<RecommendationsCenter />)
@@ -178,8 +168,7 @@ describe("RecommendationsCenter", () => {
       }
     }
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver)
-    const fetchMock = vi
-      .fn<typeof fetch>()
+    const fetchMock = installFetchMock()
       .mockResolvedValueOnce(
         jsonResponse({
           items: [recommendation(2)],
@@ -200,7 +189,6 @@ describe("RecommendationsCenter", () => {
           },
         })
       )
-    vi.stubGlobal("fetch", fetchMock)
 
     render(<RecommendationsCenter />)
 
@@ -223,8 +211,7 @@ describe("RecommendationsCenter", () => {
         snapshotAt: "65",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>()
-    vi.stubGlobal("fetch", fetchMock)
+    const fetchMock = installFetchMock()
 
     render(<RecommendationsCenter />)
 
@@ -251,7 +238,7 @@ describe("RecommendationsCenter", () => {
         snapshotAt: "1",
       },
     })
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+    const fetchMock = installFetchMock().mockResolvedValueOnce(
       jsonResponse({
         items: [recommendation(1)],
         pageInfo: {
@@ -261,7 +248,6 @@ describe("RecommendationsCenter", () => {
         },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
 
     render(<RecommendationsCenter />)

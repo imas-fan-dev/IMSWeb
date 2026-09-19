@@ -1,0 +1,28 @@
+{
+  "id": "unified-json-wire-contract-migration",
+  "name": "unified-json-wire-contract-migration",
+  "title": "全量 JSON Wire 契约迁移",
+  "description": "在一个执行子任务中统一迁移所有 HTTP JSON request/response contracts，并通过 Terra 业务批次并行实现后集中集成门禁。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-09-06",
+  "completedAt": "2026-09-07",
+  "branch": "release/v1.1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-06-api-request-response-contracts",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "execution": "terra-parallel-worktrees"
+  }
+}

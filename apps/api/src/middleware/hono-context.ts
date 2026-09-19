@@ -1,13 +1,16 @@
 import type { Context } from 'hono';
-import { getConnInfo } from '@hono/node-server/conninfo';
 import type { AppEnvironment } from '@/app';
+import { getRequestClientAddress } from '@/middleware/client-address';
 import type {
     AdminAccountRepository,
     AuditRepository,
-    AuthRepository,
+    BackofficeAuthRepository,
+    EditorialRepository,
     EventRepository,
+    FudabaRepository,
     NamecardRepository,
     NewsRepository,
+    PlatformAccountRepository,
     ReactionRepository,
     SitePackageRepository
 } from '@/ports/repositories';
@@ -26,12 +29,24 @@ function requireRepository<Key extends keyof RuntimeServices>(
     return repository as NonNullable<RuntimeServices[Key]>;
 }
 
-export function authRepository(c: Context<AppEnvironment>): AuthRepository {
-    return requireRepository(c, 'auth');
+export function backofficeAuthRepository(
+    c: Context<AppEnvironment>
+): BackofficeAuthRepository {
+    return requireRepository(c, 'backofficeAuth');
 }
 
 export function adminAccountRepository(c: Context<AppEnvironment>): AdminAccountRepository {
     return requireRepository(c, 'adminAccounts');
+}
+
+export function platformAccountRepository(
+    c: Context<AppEnvironment>
+): PlatformAccountRepository {
+    return requireRepository(c, 'platformAccounts');
+}
+
+export function fudabaRepository(c: Context<AppEnvironment>): FudabaRepository {
+    return requireRepository(c, 'fudaba');
 }
 
 export function auditRepository(c: Context<AppEnvironment>): AuditRepository {
@@ -44,6 +59,10 @@ export function newsRepository(c: Context<AppEnvironment>): NewsRepository {
 
 export function eventRepository(c: Context<AppEnvironment>): EventRepository {
     return requireRepository(c, 'events');
+}
+
+export function editorialRepository(c: Context<AppEnvironment>): EditorialRepository {
+    return requireRepository(c, 'editorial');
 }
 
 export function namecardRepository(c: Context<AppEnvironment>): NamecardRepository {
@@ -60,14 +79,5 @@ export function sitePackageRepository(c: Context<AppEnvironment>): SitePackageRe
 
 export function getClientAddress(c: Context<AppEnvironment>): string {
     const source = services(c).config?.clientAddressSource || 'direct';
-    if (source === 'direct') {
-        try {
-            return getConnInfo(c).remote.address || 'unknown';
-        } catch {
-            return 'unknown';
-        }
-    }
-    const forwarded = c.req.header('x-forwarded-for');
-    if (forwarded) return forwarded.split(',').at(-1)?.trim() || 'unknown';
-    return c.req.header('x-real-ip')?.trim() || 'unknown';
+    return getRequestClientAddress(c, source);
 }
