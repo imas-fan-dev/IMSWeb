@@ -103,21 +103,21 @@ WebView 拿不到 bearer 会话，直接把 401 的 JSON 渲染成页面。绑�
 ## Acceptance Criteria
 
 - [ ] AC1 iOS 与 Android app 内均能看到 OAuth 登录入口
-- [ ] AC2 app 内点击 OAuth 后在系统浏览器打开 provider 授权页，app 内出现等待态
+- [x] AC2 app 内点击 OAuth 后在系统浏览器打开 provider 授权页，app 内出现等待态
 - [ ] AC3 授权完成后 app 自动回到前台并完成登录，无需手动切回
-- [ ] AC4 一次性授权码消费后重放被拒；超过时效被拒
-- [ ] AC5 app 内登录成功后会话可用，且不依赖 cookie
-- [ ] AC6 Web（桌面与移动浏览器）登录行为与改动前一致，无回归
+- [x] AC4 一次性授权码消费后重放被拒；超过时效被拒
+- [x] AC5 app 内登录成功后会话可用，且不依赖 cookie
+- [x] AC6 Web（桌面与移动浏览器）登录行为与改动前一致，无回归
 - [ ] AC7 用户在浏览器中取消授权时，app 等待态能正常结束并给出提示
-- [ ] AC8 provider 列表加载失败时入口显示失败态与重试，不静默消失
-- [ ] AC9 登录失败时登录页展示由 `?oauth=<reason>` 映射出的原因
-- [ ] AC10 provider 表结构与 `validatePlatformOAuthRedirectUri` 的 HTTPS 校验均未变更
-- [ ] AC11 app 内点绑定不再导航到 API（不再出现裸 JSON）；系统浏览器打开授权页，app 内出现等待态
-- [ ] AC12 授权完成后深链带 `code` 与 `flow=link`，app 换取会话后列表刷新并提示已绑定
-- [ ] AC13 `link-conflict` / `link-already-bound` / `link-unavailable` / `link-expired` 在 app 内可见
-- [ ] AC14 登录深链与绑定深链互不串流（含冷启动缓存投递）
-- [ ] AC15 Web 绑定行为与改动前一致，既有测试不回归
-- [ ] AC16 app 绑定复用的一次性码重放仍被拒
+- [x] AC8 provider 列表加载失败时入口显示失败态与重试，不静默消失
+- [x] AC9 登录失败时登录页展示由 `?oauth=<reason>` 映射出的原因
+- [x] AC10 provider 表结构与 `validatePlatformOAuthRedirectUri` 的 HTTPS 校验均未变更
+- [x] AC11 app 内点绑定不再导航到 API（不再出现裸 JSON）；系统浏览器打开授权页，app 内出现等待态
+- [x] AC12 授权完成后深链带 `code` 与 `flow=link`，app 换取会话后列表刷新并提示已绑定
+- [x] AC13 `link-conflict` / `link-already-bound` / `link-unavailable` / `link-expired` 在 app 内可见
+- [x] AC14 登录深链与绑定深链互不串流（含冷启动缓存投递）
+- [x] AC15 Web 绑定行为与改动前一致，既有测试不回归
+- [x] AC16 app 绑定复用的一次性码重放仍被拒
 
 ## Out of Scope
 

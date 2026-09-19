@@ -77,13 +77,13 @@ Web 端已登录用户能从站头账号菜单进入「帐号安全」页。
 
 ## Acceptance Criteria
 
-- [ ] AC1 Web 构建下，已登录用户可从站头账号菜单点击进入 `/account/security`
-- [ ] AC2 入口文案为「帐号安全」/「Account security」，与 `/account/me` 中该入口一致
-- [ ] AC3 未登录时不渲染该入口
-- [ ] AC4 app target 的可达性无回归
-- [ ] AC5 `git diff` 中不出现 `route-metadata.ts`、`packages/contracts`、
+- [x] AC1 Web 构建下，已登录用户可从站头账号菜单点击进入 `/account/security`
+- [x] AC2 入口文案为「帐号安全」/「Account security」，与 `/account/me` 中该入口一致
+- [x] AC3 未登录时不渲染该入口
+- [x] AC4 app target 的可达性无回归
+- [x] AC5 `git diff` 中不出现 `route-metadata.ts`、`packages/contracts`、
       `scripts/contracts/current-wire-contract-inventory.json` 的改动
-- [ ] AC6 新增入口有单元测试覆盖，且既有 `platform-account-menu` 测试不回归
+- [x] AC6 新增入口有单元测试覆盖，且既有 `platform-account-menu` 测试不回归
 
 ## Out of Scope
 

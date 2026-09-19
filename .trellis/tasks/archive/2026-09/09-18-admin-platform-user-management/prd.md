@@ -50,14 +50,14 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1 检索能按邮箱、用户名、ID 三种条件各自命中目标用户；无匹配时返回空列表而非错误
-- [ ] AC2 详情返回的绑定状态与实际一致：`hasPassword` 反映是否存在密码凭据，OAuth 列表与 `listOAuthIdentitiesByAccount` 一致
-- [ ] AC3 禁用后该用户无法建立新会话，且既有会话失效；启用后恢复
-- [ ] AC4 强制下线后该用户全部会话立即失效，重复执行不报错
+- [x] AC1 检索能按邮箱、用户名、ID 三种条件各自命中目标用户；无匹配时返回空列表而非错误
+- [x] AC2 详情返回的绑定状态与实际一致：`hasPassword` 反映是否存在密码凭据，OAuth 列表与 `listOAuthIdentitiesByAccount` 一致
+- [x] AC3 禁用后该用户无法建立新会话，且既有会话失效；启用后恢复
+- [x] AC4 强制下线后该用户全部会话立即失效，重复执行不报错
 - [ ] AC5 触发密码重置后用户侧收到重置邮件，重置链接可完成改密
-- [ ] AC6 当目标 provider 是用户末位可用登录凭据时，解绑被拒绝并返回可区分的业务错误
-- [ ] AC7 每个处置动作在 audit log 中留下包含操作人、目标用户、动作、结果的可检索记录
-- [ ] AC8 用户列表与详情响应中不出现 `token_hash` / `previous_token_hash` / `csrf_hash` 任何字段
+- [x] AC6 当目标 provider 是用户末位可用登录凭据时，解绑被拒绝并返回可区分的业务错误
+- [x] AC7 每个处置动作在 audit log 中留下包含操作人、目标用户、动作、结果的可检索记录
+- [x] AC8 用户列表与详情响应中不出现 `token_hash` / `previous_token_hash` / `csrf_hash` 任何字段
 - [ ] AC9 非法输入（不存在用户、格式错误 ID、越权 provider）返回可区分错误，且不产生 audit 噪声记录
 
 ## Out of Scope
