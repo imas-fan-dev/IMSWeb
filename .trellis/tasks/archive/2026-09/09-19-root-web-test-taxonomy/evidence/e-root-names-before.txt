@@ -1,0 +1,125 @@
+== scripts/contracts/tests/compile-frontend-route-metadata.test.mjs (6)
+accepts an order-independent exact SPA pattern set
+rejects invalid modes and invalid metadata
+rejects missing and stale generated metadata
+rejects omitted prerenders and mismatched SPA patterns
+the tracked API artifact matches the Web descriptor
+writes deterministic TypeScript and accepts a current artifact
+== scripts/contracts/tests/compile-route-inventory.test.mjs (19)
+CLI check and write own only the JSON artifact while report renders Markdown to stdout
+CLI writes deterministic JSON and rejects stale or invalid mode combinations
+a new source diagnostic fails closed before write or freshness comparison
+anonymous handler identity preserves distinct handlers and factory calls without false deduplication
+comment-only and unrelated source edits preserve semantic JSON freshness
+expands factories, mounts, aliases, loops, method arrays, raw reads, and response candidates
+follows imported request helpers and recognizes route-local validator wrappers
+long expression suffix
+mounted route
+non-JSON linkage
+production inventory preserves approved totals and route-level reconciliation
+reports a production baseline mismatch instead of accepting an incomplete inventory
+reports unresolved dynamic routes as fatal diagnostics instead of dropping them
+response changes after the former display cap and inside string whitespace make JSON stale
+response expression
+route, carrier, policy, response, and non-JSON linkage mutations make JSON stale
+string whitespace
+top-level request carrier
+unknown-key policy
+== scripts/testing/tests/run-test-owner.test.mjs (12)
+a parent termination signal reaches the active child without hanging
+every API profile runs its tests in one explicit Vitest command
+every Web profile runs units before browser tests
+governance, contracts, and delivery keep disjoint source lists
+skip flags and ambiguous profiles fail closed
+spawned commands preserve cwd, environment, and failure status
+the API owner leaves the packaged-Web suite to delivery integration
+the CLI returns the first child failure code
+the integration delivery profile always builds Web and API
+the root plan builds API once before its prepared API test group
+the standalone API Node profile builds before using its artifact
+the standalone API owner builds once and runs one API test group
+== tests/ci-affected-workspaces.test.js (28)
+.github/workflows/ci.yml
+apps/api/scripts/build/build-client.js
+apps/api/src/domains/news/routes.ts
+apps/api/src/domains/news/service.ts
+apps/api/src/routing/frontend-route-delivery.ts
+apps/web/app/routes.ts
+apps/web/public/brand/imsweb-app-icon.png
+apps/web/scripts/build-app.js
+apps/web/src-tauri/tauri.conf.json
+apps/web/tests/unit/pages/home/home-page.test.tsx
+classifies App scripts, App tests, and browser Web configuration
+classifies the representative single-path ownership table
+deploy/compose.yaml
+detects additions, deletions, and rename ownership from a push diff
+docs/README.md
+docs/development/app-device-delivery.md
+docs/operations/github-actions-deployment.md
+fails open for unavailable bases, Git failures, and malformed diffs
+formats deterministic lowercase GitHub outputs
+package.json
+packages/contracts/src/news.ts
+parses NUL-delimited additions, modifications, and deletions
+parses both old and new paths for renames
+rejects malformed name-status records
+scripts/testing/run-test-owner.mjs
+unclassified/new-file.xyz
+unions ownership across every changed path
+uses the pull-request merge base and accepts a valid empty diff
+== tests/contracts/non-json-boundaries.test.mjs (4)
+accepts compiler-resolved aliases, mixed JSON errors, factory handlers, and static assets
+rejects stale symbols, tests, schema provenance, C5 evidence, and duplicate response kinds
+rejects title-only focused tests and incompatible explicit text content types
+rejects unregistered handlers, unreachable manifest entries, wildcards, and local inline handlers
+== tests/development-environment.test.js (20)
+R2 command plan starts PostgreSQL without RustFS
+R2 development preparation skips RustFS
+R2 hot reload rejects a bucket not marked as test
+development command plan orders local infrastructure before hot reload
+development configuration derives a fully local runtime
+development configuration isolates an explicit R2 test runtime
+development configuration rejects conflicting worker health ports
+development configuration rejects unsafe Fudaba overrides
+development configuration translates explicit Fudaba gates
+development configuration uses the configured browser-reachable RustFS origin
+development launcher enforces the repository Node baseline
+development launcher help and dry-run have no runtime prerequisites
+development launcher parses defaults and explicit ports
+development launcher recognizes only local container endpoints
+development launcher refuses remote targets before Compose writes
+development launcher rejects ambiguous or invalid arguments
+development launcher resolves Docker and Podman targets safely
+development launcher waits for managed children instead of forcing cleanup shutdown
+development preparation stops before migration when readiness fails
+development preparation waits for dependencies before migration
+== tests/exchange-map-assets.test.js (6)
+OpenMap publication keys start with namespace then release version
+OpenMap publication manifest describes the canonical object tree
+OpenMap publication refuses an unasserted or production bucket
+exchange map preparation is a no-write dry-run by default
+exchange map preparation plans a complete z0-11 same-origin release
+exchange map preparation rejects unsafe or ambiguous options
+== tests/tauri-build-configuration.test.js (11)
+Android synchronizes navigation-bar contrast through the native plugin
+browser and Tauri targets keep separate servers and build outputs
+every App tab icon is bundled as a usable iOS vector asset
+every native glass control icon is bundled and actually requested
+iOS Liquid Glass icon ships a layered Icon Composer document
+iOS plist keeps the device and scene declarations
+mobile geolocation keeps its native access narrowly scoped
+native image capability reads the directory the iOS plugin writes
+the @ keeps its own black edge above the letterform white
+the app OAuth deep link matches its shared callback URL
+the icon layers come from one tracked SVG geometry source
+== tests/tauri-device-delivery.test.js (10)
+app release derives a semver-safe preview version from the base version
+app release parses platform, version suffix, build number, and signing options
+build arguments and identifiers match the Tauri and Gradle contracts
+device delivery documentation is registered and linked
+device delivery keeps one argument-driven entry per workspace
+device delivery parses targets, profiles, and passthrough arguments
+iOS builds clear only the products they are about to rewrite
+prerequisite report groups checks and surfaces blocking failures
+preview app release documentation is registered and linked
+target selection prefers running targets and rejects ambiguity

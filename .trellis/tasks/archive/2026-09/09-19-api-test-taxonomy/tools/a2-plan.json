@@ -1,0 +1,144 @@
+{
+    "batch": "A2",
+    "note": "apps/api/tests/server, second 25 basenames of the deterministic byte-order slice (fudaba-card-reaction-routes ... media-article-assets) plus client-address.test.ts, which A1 already brought to the target shape and which is therefore not listed here (and asserted unchanged by the name diff). about-page-content.test.ts is the A1 leftover correction and is edited by hand, not by this plan.",
+    "files": [
+        {
+            "path": "tests/server/fudaba-card-reaction-routes.test.ts",
+            "subject": "exchange card reactions",
+            "cases": [11, 12, 13, 14, 15]
+        },
+        {
+            "path": "tests/server/fudaba-card-review-handlers.test.ts",
+            "subject": "Fudaba card review handlers",
+            "cases": [20, 21, 22, 23, 24, 25, 26]
+        },
+        {
+            "path": "tests/server/fudaba-claim-review-repository.test.ts",
+            "subject": "Fudaba claim review repository",
+            "wrapper": "describe",
+            "importDescribeNew": true,
+            "cases": [19]
+        },
+        {
+            "path": "tests/server/fudaba-domain-repository.test.ts",
+            "subject": "Fudaba domain repository",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "includeInterleaved": true,
+            "cases": [21, 24, 26, 27, 28]
+        },
+        {
+            "path": "tests/server/fudaba-location-repository.test.ts",
+            "subject": "Fudaba location repository",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [27]
+        },
+        {
+            "path": "tests/server/fudaba-location-routes.test.ts",
+            "subject": "Fudaba location routes",
+            "cases": [30, 31, 32, 33, 34, 35, 36]
+        },
+        {
+            "path": "tests/server/fudaba-map-delivery.test.ts",
+            "subject": "map delivery",
+            "cases": [20, 21]
+        },
+        {
+            "path": "tests/server/fudaba-office-management-repository.test.ts",
+            "subject": "Fudaba office management repository",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "includeInterleaved": true,
+            "cases": [28, 30, 31]
+        },
+        {
+            "path": "tests/server/fudaba-office-management-routes.test.ts",
+            "subject": "Fudaba office management routes",
+            "cases": [29, 30, 31, 32, 33, 34, 35, 36]
+        },
+        {
+            "path": "tests/server/fudaba-owner-routes.test.ts",
+            "subject": "Fudaba owner routes",
+            "cases": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+            "nested": [{ "subject": "card creation", "cases": [10, 11, 12] }]
+        },
+        {
+            "path": "tests/server/fudaba-owner-write-repository.test.ts",
+            "subject": "Fudaba owner write repository",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [23]
+        },
+        {
+            "path": "tests/server/fudaba-public-read-repository.test.ts",
+            "subject": "Fudaba public read repository",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [23]
+        },
+        {
+            "path": "tests/server/fudaba-public-routes.test.ts",
+            "subject": "Fudaba public routes",
+            "cases": [16, 17, 18, 19, 20, 21, 22, 23]
+        },
+        {
+            "path": "tests/server/handler-model-contract.test.ts",
+            "subject": "handler model contract",
+            "cases": [27, 28, 29, 30, 31]
+        },
+        {
+            "path": "tests/server/handler-validation-compatibility.test.ts",
+            "subject": "handler validation compatibility",
+            "cases": [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
+            "nested": [{ "subject": "namecard approval", "cases": [19, 20] }]
+        },
+        {
+            "path": "tests/server/homepage-links.test.ts",
+            "subject": "homepage links",
+            "wrapper": "describe",
+            "importVitestDescribe": true,
+            "cases": [12]
+        },
+        {
+            "path": "tests/server/idempotency-fencing.test.ts",
+            "subject": "filesystem idempotency",
+            "cases": [6]
+        },
+        {
+            "path": "tests/server/information-data.test.ts",
+            "subject": "information index",
+            "cases": [3, 4]
+        },
+        {
+            "path": "tests/server/information-html-document.test.ts",
+            "subject": "information HTML documents",
+            "cases": [3]
+        },
+        {
+            "path": "tests/server/information-public-response.test.ts",
+            "subject": "public information details",
+            "cases": [5]
+        },
+        {
+            "path": "tests/server/information-reorder.test.ts",
+            "subject": "Information admin reordering",
+            "cases": [10]
+        },
+        {
+            "path": "tests/server/live-schedule.test.ts",
+            "subject": "live schedule",
+            "cases": [10, 11, 12, 13]
+        },
+        {
+            "path": "tests/server/local-upload-sync.test.ts",
+            "subject": "local upload sync",
+            "cases": [9, 10, 11]
+        },
+        {
+            "path": "tests/server/media-article-assets.test.ts",
+            "subject": "article body assets",
+            "cases": [5]
+        }
+    ]
+}

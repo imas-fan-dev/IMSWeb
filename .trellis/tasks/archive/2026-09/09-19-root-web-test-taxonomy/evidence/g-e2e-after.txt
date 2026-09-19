@@ -1,0 +1,209 @@
+# Playwright --list AFTER (both configs), cwd apps/web
+
+## pnpm exec playwright test --list
+Listing tests:
+  [chromium-desktop] › activity-cover-preview.spec.ts:38:3 › activity cover preview › public activity covers open in the full-page viewer
+  [chromium-desktop] › activity-cover-preview.spec.ts:112:3 › activity cover preview › namecard images open in the full-page viewer
+  [chromium-desktop] › admin-about-avatar.spec.ts:157:3 › admin about avatar › roster sorting and scoped avatar edits stay in the draft until page save
+  [chromium-desktop] › admin-accounts.spec.ts:45:3 › admin accounts › super administrator manages accounts without viewport overflow
+  [chromium-desktop] › admin-community-exchange-location.spec.ts:37:3 › admin community exchange location › administrator reviews a regional office location without viewport overflow
+  [chromium-desktop] › admin-events.spec.ts:54:3 › admin events › admin article rows keep actions inside the panel
+  [chromium-desktop] › admin-homepage-links.spec.ts:30:3 › admin homepage links › admin reorders homepage links with the drag handle
+  [chromium-desktop] › admin-information-order.spec.ts:89:3 › admin information order › admin reorders homepage spotlight entries
+  [chromium-desktop] › admin-login.spec.ts:7:3 › admin login › admin login is usable and accessible
+  [chromium-desktop] › admin-platform-email.spec.ts:44:3 › admin platform email › managed email policy is accessible without viewport overflow
+  [chromium-desktop] › admin-producer-map-map.spec.ts:83:3 › admin producer map › admin edits configured and unconfigured provinces from the real map
+  [chromium-desktop] › admin-upload.spec.ts:36:3 › admin upload › admin file upload uses the shared responsive interaction
+  [chromium-desktop] › community-exchange-map-attribution.spec.ts:214:3 › community exchange map attribution › opens the attribution dialog from the bottom navigation below 768px
+  [chromium-desktop] › community-exchange-map-attribution.spec.ts:230:3 › community exchange map attribution › opens the attribution dialog from the top card between 768px and 1023px
+  [chromium-desktop] › community-exchange-map-attribution.spec.ts:243:3 › community exchange map attribution › opens the attribution dialog from the discovery rail at 1024px and up
+  [chromium-desktop] › community-exchange-map-attribution.spec.ts:256:3 › community exchange map attribution › keeps every entry inside 375px with six 44px bottom targets
+  [chromium-desktop] › community-exchange-map-attribution.spec.ts:291:3 › community exchange map attribution › renders no entry and no empty dialog when the style carries no notice
+  [chromium-desktop] › community-exchange-map.spec.ts:185:3 › community exchange map › fills the public workspace with a responsive map and keeps both directories reachable
+  [chromium-desktop] › community-exchange-map.spec.ts:591:3 › community exchange map › falls back to the directory without hiding cards when config fails
+  [chromium-desktop] › community-exchange-me.spec.ts:468:3 › community exchange me › edits the authenticated profile and card without viewport overflow @mobile
+  [chromium-desktop] › community-exchange.spec.ts:176:3 › community exchange › discovers an exchange office and preserves the detail deep link
+  [chromium-desktop] › community-exchange.spec.ts:355:3 › community exchange › keeps boundary card placements inside the visible wall
+  [chromium-desktop] › community-exchange.spec.ts:426:3 › community exchange › lets a card owner arrange and persist the free-placement wall
+  [chromium-desktop] › community.accessibility.spec.ts:9:3 › community accessibility › community hub has no automatically detectable WCAG A/AA violations
+  [chromium-desktop] › events-mobile.spec.ts:332:3 › events mobile › mobile Web keeps community discovery, list, and detail stable
+  [chromium-desktop] › events.accessibility.spec.ts:9:3 › events accessibility › events center has no automatically detectable WCAG A/AA violations
+  [chromium-desktop] › home-browser-brand.spec.ts:10:3 › home browser brand › favicon cycles globally while only the home title changes
+  [chromium-desktop] › home-layout-geometry.spec.ts:16:3 › home layout geometry › work detail content stays below the sticky site header
+  [chromium-desktop] › home-layout-geometry.spec.ts:64:3 › home layout geometry › work detail keeps narrow-screen artwork behind the copy
+  [chromium-desktop] › home-layout-geometry.spec.ts:91:3 › home layout geometry › work detail carries the lightweight global series background
+  [chromium-desktop] › home-layout-geometry.spec.ts:137:3 › home layout geometry › desktop navigation lens stays within its glass segment
+  [chromium-desktop] › home-layout-geometry.spec.ts:475:3 › home layout geometry › homepage directory uses compact responsive columns
+  [chromium-desktop] › home-layout-geometry.spec.ts:543:3 › home layout geometry › default wiki hero gives story artwork an expanded frame
+  [chromium-desktop] › home-layout-geometry.spec.ts:586:3 › home layout geometry › home random idol uses a square portrait and agency marker
+  [chromium-desktop] › home.accessibility.spec.ts:9:3 › home accessibility › home has no automatically detectable WCAG A/AA violations
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › / renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /about renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /events renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /recommendations renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /live renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /community renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /account/login renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /account/register renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /community/exchange renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /community/cards renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /works renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /wiki renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /wiki/modern renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /wiki/classic renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /story renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /story/modern renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /story/classic renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /works/sc renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:163:5 › home smoke › /chronicle renders a healthy IMSWeb document
+  [chromium-desktop] › home.smoke.spec.ts:226:3 › home smoke › the interface stays Chinese when an English preference is stored
+  [chromium-desktop] › home.smoke.spec.ts:247:8 › home smoke › work detail loads its character directly from R2
+  [chromium-desktop] › home.smoke.spec.ts:303:8 › home smoke › work detail actually renders the idolFont face
+  [chromium-desktop] › home.smoke.spec.ts:321:3 › home smoke › mobile navigation keeps link semantics and closes after routing
+  [chromium-desktop] › home.smoke.spec.ts:377:3 › home smoke › homepage navigation keeps secondary destinations in the directory
+  [chromium-desktop] › home.smoke.spec.ts:490:3 › home smoke › theme toggle persists the selected color scheme
+  [chromium-desktop] › home.smoke.spec.ts:570:3 › home smoke › home exposes current discovery and birthday interactions
+  [chromium-desktop] › namecard-claim-workflow.spec.ts:130:3 › namecard claim workflow › anonymous visitors do not see the legacy-card claim action
+  [chromium-desktop] › namecard-claim-workflow.spec.ts:180:3 › namecard claim workflow › registered user submits a legacy-card claim from the public wall
+  [chromium-desktop] › namecard-claim-workflow.spec.ts:405:5 › namecard claim workflow › claim dialog mobile constraints @mobile › keeps the dialog and its primary action inside the phone viewport
+  [chromium-desktop] › namecard-claim-workflow.spec.ts:450:5 › namecard claim workflow › claim dialog mobile constraints @mobile › keeps the footer and close button fixed while only the body scrolls
+  [chromium-desktop] › namecard-claim-workflow.spec.ts:504:3 › namecard claim workflow › same-ID envelope asks the owner before submitting an admin-reviewed claim
+  [chromium-desktop] › namecard-claim-workflow.spec.ts:694:3 › namecard claim workflow › administrator reviews registered cards and legacy-card claims
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:22:5 › namecard mobile browsing › keeps complete faces and preview controls inside 320x568
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:22:5 › namecard mobile browsing › keeps complete faces and preview controls inside 390x844
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:22:5 › namecard mobile browsing › keeps complete faces and preview controls inside 844x390
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:92:3 › namecard mobile browsing › packs columns by content height and reflows after delayed reactions and resizing
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:152:3 › namecard mobile browsing › keeps mobile reactions compact with at most four entries per row
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:197:3 › namecard mobile browsing › keeps all 48 reaction-heavy cards separated without overflowing grid capacity
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:258:3 › namecard mobile browsing › uses compact pagination with keyboard draft controls and reveals the next page
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:305:3 › namecard mobile browsing › reads across page boundaries and returns to the original list face and position
+  [chromium-desktop] › namecard-mobile-browsing.spec.ts:352:3 › namecard mobile browsing › keeps the current card on failure, retries, and ignores responses after closing
+  [chromium-desktop] › namecard-pagination.spec.ts:8:3 › namecard pagination › namecard wall changes page size and jumps to a page
+  [chromium-desktop] › namecard-preview.spec.ts:40:3 › namecard preview › switches both namecard sides without rebuilding the preview
+  [chromium-desktop] › namecard-upload.spec.ts:147:3 › namecard upload › uploads both sides from the dialog and restores trigger focus
+  [chromium-desktop] › namecard-upload.spec.ts:225:3 › namecard upload › keeps the responsive upload action and dialog inside the viewport
+  [chromium-desktop] › namecard-upload.spec.ts:398:3 › namecard upload › keeps the upload action on the trailing-slash route
+  [chromium-desktop] › platform-auth.spec.ts:113:3 › platform auth › logs in and adopts the returned Platform session
+  [chromium-desktop] › platform-auth.spec.ts:171:3 › platform auth › registers after a conflict is corrected and keeps errors user-safe
+  [chromium-desktop] › platform-oauth-sign-in.spec.ts:28:3 › platform oauth sign-in › offers every enabled provider and links it to its start route
+  [chromium-desktop] › platform-oauth-sign-in.spec.ts:50:3 › platform oauth sign-in › keeps a retryable failure when the provider list cannot be read
+  [chromium-desktop] › platform-oauth-sign-in.spec.ts:78:5 › platform oauth sign-in › explains ?oauth=denied on the login screen
+  [chromium-desktop] › platform-oauth-sign-in.spec.ts:78:5 › platform oauth sign-in › explains ?oauth=expired on the login screen
+  [chromium-desktop] › platform-oauth-sign-in.spec.ts:78:5 › platform oauth sign-in › explains ?oauth=unavailable on the login screen
+  [chromium-desktop] › platform-oauth-sign-in.spec.ts:78:5 › platform oauth sign-in › explains ?oauth=unexpected on the login screen
+  [chromium-desktop] › platform-oauth-sign-in.spec.ts:101:5 › platform oauth sign-in › phone viewport › keeps the OAuth entry visible and reachable on a phone
+  [chromium-desktop] › platform-session-header.spec.ts:15:3 › platform session header › anonymous header stays compact and does not probe Platform auth
+  [chromium-desktop] › platform-session-header.spec.ts:63:3 › platform session header › authenticated header logs out only the Platform realm
+  [chromium-desktop] › platform-session-header.spec.ts:144:3 › platform session header › authenticated header offers account security
+  [chromium-desktop] › platform-session-header.spec.ts:181:3 › platform session header › two tabs coordinate one Platform refresh wave
+  [chromium-desktop] › story-cover-assets.spec.ts:83:3 › story cover assets › full-image shared covers stay complete across preview canvases
+  [chromium-desktop] › story-cover-assets.spec.ts:127:3 › story cover assets › public story cards render full-image shared covers without cropping
+  [chromium-desktop] › wiki-mobile.spec.ts:20:3 › wiki mobile › mobile Wiki agency switching preserves both scroll positions
+  [chromium-desktop] › wiki-mobile.spec.ts:87:3 › wiki mobile › modern Wiki windowed dial loops and switches agencies
+  [chromium-desktop] › wiki-mobile.spec.ts:471:3 › wiki mobile › classic Wiki follows the mobile content order without narrow title wraps
+  [chromium-desktop] › wiki-mobile.spec.ts:645:3 › wiki mobile › modern Wiki keeps group navigation and mobile search fixed
+  [chromium-desktop] › wiki-mobile.spec.ts:744:3 › wiki mobile › classic story portrait cards use two readable mobile columns
+  [chromium-desktop] › wiki-mobile.spec.ts:774:3 › wiki mobile › story source labels stay visible in both mobile views
+  [chromium-desktop] › wiki-mobile.spec.ts:817:3 › wiki mobile › modern story navigation stays clickable over the mobile footer
+  [chromium-desktop] › wiki-mobile.spec.ts:861:3 › wiki mobile › classic text-only story cards do not render nested frames
+  [chromium-desktop] › wiki-mobile.spec.ts:925:3 › wiki mobile › new story cards without story sources render in gray
+  [chromium-desktop] › wiki-mobile.spec.ts:959:3 › wiki mobile › classic desktop idol groups align incomplete rows to the left
+  [chromium-desktop] › wiki-mobile.spec.ts:1013:3 › wiki mobile › classic Wiki styles survive returning from a story
+  [chromium-desktop] › wiki.accessibility.spec.ts:9:3 › wiki accessibility › wiki archive has no automatically detectable WCAG A/AA violations
+  [chromium-mobile] › community-exchange-map.spec.ts:185:3 › community exchange map › fills the public workspace with a responsive map and keeps both directories reachable
+  [chromium-mobile] › community-exchange-me.spec.ts:468:3 › community exchange me › edits the authenticated profile and card without viewport overflow @mobile
+  [chromium-mobile] › events-mobile.spec.ts:332:3 › events mobile › mobile Web keeps community discovery, list, and detail stable
+  [chromium-mobile] › home-layout-geometry.spec.ts:16:3 › home layout geometry › work detail content stays below the sticky site header
+  [chromium-mobile] › home-layout-geometry.spec.ts:91:3 › home layout geometry › work detail carries the lightweight global series background
+  [chromium-mobile] › home-layout-geometry.spec.ts:543:3 › home layout geometry › default wiki hero gives story artwork an expanded frame
+  [chromium-mobile] › home.smoke.spec.ts:321:3 › home smoke › mobile navigation keeps link semantics and closes after routing
+  [chromium-mobile] › home.smoke.spec.ts:377:3 › home smoke › homepage navigation keeps secondary destinations in the directory
+  [chromium-mobile] › home.smoke.spec.ts:570:3 › home smoke › home exposes current discovery and birthday interactions
+  [chromium-mobile] › namecard-claim-workflow.spec.ts:405:5 › namecard claim workflow › claim dialog mobile constraints @mobile › keeps the dialog and its primary action inside the phone viewport
+  [chromium-mobile] › namecard-claim-workflow.spec.ts:450:5 › namecard claim workflow › claim dialog mobile constraints @mobile › keeps the footer and close button fixed while only the body scrolls
+  [chromium-mobile] › platform-oauth-sign-in.spec.ts:101:5 › platform oauth sign-in › phone viewport › keeps the OAuth entry visible and reachable on a phone
+  [chromium-mobile] › wiki-mobile.spec.ts:20:3 › wiki mobile › mobile Wiki agency switching preserves both scroll positions
+  [chromium-mobile] › wiki-mobile.spec.ts:87:3 › wiki mobile › modern Wiki windowed dial loops and switches agencies
+  [chromium-mobile] › wiki-mobile.spec.ts:471:3 › wiki mobile › classic Wiki follows the mobile content order without narrow title wraps
+  [chromium-mobile] › wiki-mobile.spec.ts:645:3 › wiki mobile › modern Wiki keeps group navigation and mobile search fixed
+  [chromium-mobile] › wiki-mobile.spec.ts:744:3 › wiki mobile › classic story portrait cards use two readable mobile columns
+  [chromium-mobile] › wiki-mobile.spec.ts:774:3 › wiki mobile › story source labels stay visible in both mobile views
+  [chromium-mobile] › wiki-mobile.spec.ts:817:3 › wiki mobile › modern story navigation stays clickable over the mobile footer
+  [firefox-desktop] › community-exchange-map.spec.ts:591:3 › community exchange map › falls back to the directory without hiding cards when config fails
+  [firefox-desktop] › home.accessibility.spec.ts:9:3 › home accessibility › home has no automatically detectable WCAG A/AA violations
+  [firefox-desktop] › home.smoke.spec.ts:377:3 › home smoke › homepage navigation keeps secondary destinations in the directory
+  [firefox-desktop] › platform-auth.spec.ts:113:3 › platform auth › logs in and adopts the returned Platform session
+  [firefox-desktop] › platform-auth.spec.ts:171:3 › platform auth › registers after a conflict is corrected and keeps errors user-safe
+  [firefox-desktop] › wiki.accessibility.spec.ts:9:3 › wiki accessibility › wiki archive has no automatically detectable WCAG A/AA violations
+Total: 133 tests in 33 files
+
+## pnpm exec playwright test --config playwright.app.config.ts --list
+Listing tests:
+  [app-small] › app-account.spec.ts:289:3 › app account › uses an account root and uploads an avatar in the profile section
+  [app-small] › app-account.spec.ts:452:3 › app account › serves the persisted avatar at startup and removes it from the profile section
+  [app-small] › app-account.spec.ts:555:5 › app account › 我的资料 submenu › switches all five sections at a 320px viewport without horizontal overflow
+  [app-small] › app-events.spec.ts:421:3 › app events › App community flow respects safe areas and stable list geometry
+  [app-small] › app-interactive-pages.spec.ts:49:3 › app interactive pages › keeps the Works detail within the App content viewport
+  [app-small] › app-interactive-pages.spec.ts:80:3 › app interactive pages › keeps the Tier List pool and toolbar clear of the App tab bar
+  [app-small] › app-map.spec.ts:145:3 › app map › uses browser geolocation to return to the current position
+  [app-small] › app-map.spec.ts:189:3 › app map › renders the exchange map behind non-overlapping local and global controls
+  [app-small] › app-map.spec.ts:304:3 › app map › keeps map filters and camera while switching tabs without scrolling the document
+  [app-small] › app-map.spec.ts:468:3 › app map › renders the app map refresh control as a circle
+  [app-small] › app-namecard-browsing.spec.ts:18:3 › app namecard browsing › preserves App safe areas, complete images and the list return position
+  [app-small] › app-namecard-browsing.spec.ts:79:3 › app namecard browsing › yields floating actions to pagination and renders bundled reaction graphics
+  [app-small] › app-navigation.spec.ts:80:3 › app navigation › resumes paginated reading after delayed data and returns to the community root
+  [app-small] › app-navigation.spec.ts:132:3 › app navigation › keeps the reading position when reaction rows arrive after initial restoration
+  [app-small] › app-navigation.spec.ts:185:3 › app navigation › resumes resource details and reselects a root without adding history
+  [app-small] › app-navigation.spec.ts:231:3 › app navigation › replaces direct-entry back fallback and preserves the selected owner
+  [app-small] › app-navigation.spec.ts:254:3 › app navigation › a newer section switch cancels a delayed restoration
+  [app-small] › app-navigation.spec.ts:283:3 › app navigation › user scrolling cancels delayed restoration
+  [app-small] › app-navigation.spec.ts:307:5 › app navigation › bounds restoration after shortened content
+  [app-small] › app-navigation.spec.ts:307:5 › app navigation › bounds restoration after error content
+  [app-small] › app-navigation.spec.ts:452:3 › app navigation › keeps the app viewport free of pinch and double-tap zoom
+  [app-small] › app-navigation.spec.ts:471:3 › app navigation › returns to the account root from a directly entered section
+  [app-small] › app-navigation.spec.ts:483:3 › app navigation › returns to the account root after entering a section from another tab
+  [app-small] › app-navigation.spec.ts:500:3 › app navigation › returns a cross-tab account section to the account root
+  [app-small] › app-navigation.spec.ts:522:3 › app navigation › keeps the platform back gesture on the account root
+  [app-small] › app-navigation.spec.ts:541:3 › app navigation › returns a restored account section to its root on a native pop
+  [app-small] › app-oauth-sign-in.spec.ts:31:3 › app OAuth sign-in entry › offers the provider entry that the app used to hide
+  [app-small] › app-oauth-sign-in.spec.ts:49:3 › app OAuth sign-in entry › surfaces a failed hand-off instead of leaving a dead provider button
+  [app-small] › app-shell.spec.ts:105:3 › app shell › keeps the five App roots usable inside the safe area
+  [app-small] › app-shell.spec.ts:161:3 › app shell › renders App community links as a two-column text list
+  [app-small] › app-wiki.spec.ts:84:3 › app wiki › keeps the modern Wiki dial on its trigger and the search inside the App viewport
+  [app-iphone] › app-account.spec.ts:289:3 › app account › uses an account root and uploads an avatar in the profile section
+  [app-iphone] › app-account.spec.ts:452:3 › app account › serves the persisted avatar at startup and removes it from the profile section
+  [app-iphone] › app-account.spec.ts:555:5 › app account › 我的资料 submenu › switches all five sections at a 320px viewport without horizontal overflow
+  [app-iphone] › app-map.spec.ts:145:3 › app map › uses browser geolocation to return to the current position
+  [app-iphone] › app-map.spec.ts:189:3 › app map › renders the exchange map behind non-overlapping local and global controls
+  [app-iphone] › app-map.spec.ts:304:3 › app map › keeps map filters and camera while switching tabs without scrolling the document
+  [app-iphone] › app-map.spec.ts:468:3 › app map › renders the app map refresh control as a circle
+  [app-iphone] › app-oauth-sign-in.spec.ts:31:3 › app OAuth sign-in entry › offers the provider entry that the app used to hide
+  [app-iphone] › app-oauth-sign-in.spec.ts:49:3 › app OAuth sign-in entry › surfaces a failed hand-off instead of leaving a dead provider button
+  [app-android] › app-account.spec.ts:289:3 › app account › uses an account root and uploads an avatar in the profile section
+  [app-android] › app-account.spec.ts:452:3 › app account › serves the persisted avatar at startup and removes it from the profile section
+  [app-android] › app-account.spec.ts:555:5 › app account › 我的资料 submenu › switches all five sections at a 320px viewport without horizontal overflow
+  [app-android] › app-oauth-sign-in.spec.ts:31:3 › app OAuth sign-in entry › offers the provider entry that the app used to hide
+  [app-android] › app-oauth-sign-in.spec.ts:49:3 › app OAuth sign-in entry › surfaces a failed hand-off instead of leaving a dead provider button
+  [app-landscape] › app-interactive-pages.spec.ts:49:3 › app interactive pages › keeps the Works detail within the App content viewport
+  [app-landscape] › app-interactive-pages.spec.ts:80:3 › app interactive pages › keeps the Tier List pool and toolbar clear of the App tab bar
+  [app-landscape] › app-map.spec.ts:145:3 › app map › uses browser geolocation to return to the current position
+  [app-landscape] › app-map.spec.ts:189:3 › app map › renders the exchange map behind non-overlapping local and global controls
+  [app-landscape] › app-map.spec.ts:468:3 › app map › renders the app map refresh control as a circle
+  [app-landscape] › app-shell.spec.ts:105:3 › app shell › keeps the five App roots usable inside the safe area
+  [app-landscape] › app-wiki.spec.ts:84:3 › app wiki › keeps the modern Wiki dial on its trigger and the search inside the App viewport
+  [app-webkit] › app-account.spec.ts:289:3 › app account › uses an account root and uploads an avatar in the profile section
+  [app-webkit] › app-account.spec.ts:452:3 › app account › serves the persisted avatar at startup and removes it from the profile section
+  [app-webkit] › app-account.spec.ts:555:5 › app account › 我的资料 submenu › switches all five sections at a 320px viewport without horizontal overflow
+  [app-webkit] › app-events.spec.ts:421:3 › app events › App community flow respects safe areas and stable list geometry
+  [app-webkit] › app-navigation.spec.ts:80:3 › app navigation › resumes paginated reading after delayed data and returns to the community root
+  [app-webkit] › app-navigation.spec.ts:452:3 › app navigation › keeps the app viewport free of pinch and double-tap zoom
+  [app-webkit] › app-navigation.spec.ts:471:3 › app navigation › returns to the account root from a directly entered section
+  [app-webkit] › app-navigation.spec.ts:483:3 › app navigation › returns to the account root after entering a section from another tab
+  [app-webkit] › app-navigation.spec.ts:500:3 › app navigation › returns a cross-tab account section to the account root
+  [app-webkit] › app-navigation.spec.ts:522:3 › app navigation › keeps the platform back gesture on the account root
+  [app-webkit] › app-navigation.spec.ts:541:3 › app navigation › returns a restored account section to its root on a native pop
+  [app-webkit] › app-oauth-sign-in.spec.ts:31:3 › app OAuth sign-in entry › offers the provider entry that the app used to hide
+  [app-webkit] › app-oauth-sign-in.spec.ts:49:3 › app OAuth sign-in entry › surfaces a failed hand-off instead of leaving a dead provider button
+  [app-webkit] › app-shell.spec.ts:105:3 › app shell › keeps the five App roots usable inside the safe area
+  [app-webkit] › app-wiki.spec.ts:84:3 › app wiki › keeps the modern Wiki dial on its trigger and the search inside the App viewport
+Total: 67 tests in 9 files

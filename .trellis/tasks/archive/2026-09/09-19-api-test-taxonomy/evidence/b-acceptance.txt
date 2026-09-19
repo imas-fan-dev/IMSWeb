@@ -1,0 +1,11 @@
+$ pnpm --filter @imsweb/api exec vitest run tests/wiki
+ Test Files  7 passed (7)
+      Tests  60 passed (60)
+   Duration  1.68s (transform 2.99s, setup 0ms, import 5.46s, tests 368ms, environment 0ms)
+EXIT=0
+
+$ IMS_TEST_POSTGRES_ENABLED=false pnpm --filter @imsweb/api exec vitest run tests/wiki
+ Test Files  7 passed (7)
+      Tests  60 passed (60)
+   Duration  1.69s (transform 2.99s, setup 0ms, import 5.49s, tests 394ms, environment 0ms)
+EXIT=0

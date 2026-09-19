@@ -236,3 +236,61 @@
 ### Next Steps
 
 - 迁移无待办项。若要收紧覆盖率，在 API 与 Web 的实测值上小幅上调阈值即可，仓库域要先合并三次调用的覆盖率收集再考虑门禁。分支 chore/vitest-test-unification 仍在本地且已 squash，仅作审计用，不需要粒度历史即可删除。
+
+
+## Session 8: Vitest UI 面板与全仓测试归类（test.describe）
+<!-- trellis-session: v=2 fp=2a505ae610c62a45 -->
+
+**Date**: 2026-09-20
+**Task**: Vitest UI 面板与全仓测试归类（test.describe）
+**Branch**: `chore/vitest-ui-and-test-taxonomy`
+
+### Summary
+
+把本地 Vitest UI 面板接到三个测试域，并把 API、根域、e2e 与 Web 单测的用例按主体归类到 describe；API 侧同时把同族文件合并到 72 个文件。
+
+### Main Changes
+
+- 面板：根 vitest.config.mts 用对象式 test.projects 挂载三个域配置，显式钉住各 workspace root、为三个 project 设不同 groupOrder、并加只服务面板的 cwd 桥 setupFiles——Vitest 4.1.11 的字符串式 project 会把 root 落到配置文件目录、跨 project 混用 maxWorkers 会被拒、forks worker 的 cwd 停在面板启动根，这三点必须绕开；根 devDependencies 由 husky 扩到 husky+vitest+@vitest/ui，根脚本上限 57→58，新增 6 个用例的漂移守卫 tests/vitest-projects.test.mjs。
+- API 归类：apps/api/tests 按「顶层主体 + 连续 ≥2 条共享 ≥3 词字面前缀才开二级」归类，626 条全名无损（判据细化为「旧全名是新全名的字面尾段且唯一」），约定写进 spec/api/backend/testing.md 的 File and suite layout。
+- API 合并：同族文件合并到 72 个文件（20 个族、82 个成员并入），每个原文件的 describe 保留在独立词法块内；合并器处理跨模块同名绑定（可证明的 re-export 保留 barrel 导入，否则按成员改名），非 JSON 边界分析器的 callee 白名单接受 postgresTest。
+- 根域/e2e/Web 归类：根域 9 文件、e2e 41 spec、Web unit 5 文件；根域与 e2e 一律不加二级，因为 Playwright 的层级分隔符是空格而非「 › 」之外的写法、吸收短语会让旧标题路径不再是新路径的字面尾段。
+- 顺序依赖缺陷：node-security 的 chronicle 夹具在 --sequence.shuffle 下因 metadata 目录不存在而失败，复现于归类与合并之前的旧版本，修在 tests/node-security/fixture.js。
+- 收敛评估：Web 单测不做文件合并——干线只有 7/29 个族通过，被拒理由大部分是合并器在 Web 形状上不可信（跨行 vi.mock 工厂让逐行 import 解析把 ) 与 href 当标识符，进而把 vitest/testing-library 的同名全局算成两个符号），结论与数据留在任务 design §7 与 evidence。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `874d4e6f` | feat(test): add a root Vitest panel across the three test domains |
+| `1c446a60` | test(api): group the first server batch under subject describes |
+| `f5a23cdf` | test(api): group the second server batch under subject describes |
+| `2e7d919d` | test(api): group the third server batch under subject describes |
+| `27828b24` | test(api): group the wiki, migration, asset and top-level suites |
+| `d65a0c25` | test(api): group the fourth server batch under subject describes |
+| `17d4172f` | test(api): merge same-family suites into subject files |
+| `1ddcee10` | test(api): nest the two runs the first batch left flat |
+| `51d9d41e` | test(api): keep the event chronicle fixture directory present |
+| `5c1a61b9` | docs(trellis): record the API test layout conventions |
+| `26f5f36c` | test(repository): group the root suites under subject describes |
+| `128b1f3a` | test(web): give each Playwright spec a named flow |
+| `9094facc` | test(web): group the larger Web unit suites by behaviour |
+| `da7778f5` | docs(trellis): record the Web and root suite layout conventions |
+
+### Testing
+
+- [OK] 面板与三域独立运行逐项对齐：365 文件 / 2544 用例（api 134/884、web 220/1534、repository 11/126）。
+- [OK] API：PG 关闭路径 884 用例中 666 passed / 218 skipped 与迁移前一致；--sequence.shuffle 种子 20260920、7、99、12345 全绿；四个提交的 pre-commit 链全绿。
+- [OK] 归类后验收：governance 5/71 + Python Ran 123 OK、contracts 3/29、delivery root 3/27 + Python Ran 2、delivery repository 1/6、Web unit 220/1534、Playwright Web 配置 122 passed/11 skipped 与 App 配置 58 passed/9 skipped。
+- [OK] 合并后验收：apps/api 72 文件 / 884 用例（PG 关闭 666 passed / 218 skipped）、墙钟 32.10s → 28.06s；test:migration 11 文件 / 114 用例。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 父任务 09-19-vitest-ui-and-test-taxonomy 只剩 09-19-root-vitest-ui 的 AC6（推送后 CI 全绿）未验证，另两个子任务已归档。
+- 分支 chore/vitest-ui-and-test-taxonomy 未推送、未合并；是否 squash 合并到 release/v1.1 与是否推送由用户决定。
+- 若要让 Web 单测的二级分组彻底完整，把「单 describe ≥10 用例」的采样阈值下调并重放同一机械判据即可（残留 6 个候选段已逐条记录）。
+- .trellis/tasks 下的任务目录与会话日志按惯例留到合并收尾时作为最后一次文档提交入库。
