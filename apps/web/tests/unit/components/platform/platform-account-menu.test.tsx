@@ -180,4 +180,30 @@ describe("PlatformAccountMenu", () => {
     await userEvent.click(screen.getByRole("button", { name: "重试" }))
     expect(sessionMocks.reload).toHaveBeenCalledOnce()
   })
+
+  it("links a signed-in account to account security", async () => {
+    sessionMocks.usePlatformSession.mockReturnValue(
+      sessionState("authenticated")
+    )
+    renderMenu()
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "帐号：Platform Producer" })
+    )
+
+    // /account/security is web-delivered and prerendered, but its only entry
+    // sat on /account/me, which the web target does not route.
+    const entry = screen.getByRole("link", { name: "帐号安全" })
+    expect(entry).toHaveAttribute("href", "/account/security")
+    expect(entry.querySelector("svg")).toHaveClass("lucide-shield-check")
+  })
+
+  it("keeps account security out of the anonymous menu", async () => {
+    sessionMocks.usePlatformSession.mockReturnValue(sessionState("anonymous"))
+    renderMenu()
+
+    await userEvent.click(screen.getByRole("button", { name: "帐号：未登录" }))
+
+    expect(screen.queryByRole("link", { name: "帐号安全" })).toBeNull()
+  })
 })

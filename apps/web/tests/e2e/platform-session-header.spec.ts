@@ -43,6 +43,7 @@ test("anonymous header stays compact and does not probe Platform auth", async ({
     "href",
     "/account/register"
   )
+  await expect(page.getByRole("link", { name: "帐号安全" })).toHaveCount(0)
   const accessibility = await new AxeBuilder({ page })
     .setLegacyMode()
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -133,6 +134,53 @@ test("authenticated header logs out only the Platform realm", async ({
     (await context.cookies()).find((cookie) => cookie.name === "ims_admin_csrf")
       ?.value
   ).toBe("backoffice-must-survive")
+})
+
+test("authenticated header offers account security", async ({
+  context,
+  page,
+  api,
+}) => {
+  installPublicShellMocks(api, 1)
+  await context.addCookies([
+    {
+      name: "ims_platform_csrf",
+      value: "platform-browser-csrf",
+      domain: "127.0.0.1",
+      path: "/",
+    },
+  ])
+  await api.mockRoute(
+    "**/api/platform/auth/session",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          account: { id: "platform-browser", status: "active" },
+          profile: {
+            displayName: "浏览器制作人",
+            avatarUrl: null,
+            homeCity: null,
+            bio: "",
+          },
+        }),
+      })
+    },
+    "GET"
+  )
+
+  await page.goto("/")
+
+  await page.getByRole("button", { name: "帐号：浏览器制作人" }).click()
+
+  // /account/security is a web-delivered prerendered route, but its only entry
+  // sat on /account/me, which the web target does not route.
+  await expect(page.getByRole("link", { name: "帐号安全" })).toHaveAttribute(
+    "href",
+    "/account/security"
+  )
 })
 
 test("two tabs coordinate one Platform refresh wave", async ({

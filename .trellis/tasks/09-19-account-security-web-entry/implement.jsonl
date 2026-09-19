@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/web/frontend/components-and-ux.md", "reason": "控件类型与账号安全页一致性：导航入口必须用 NavigationLink 而非 button；入口文案与图标需与 /account/me 中同一入口一致"}
+{"file": ".trellis/spec/web/frontend/testing.md", "reason": "Web 组件测试的必需断言与证据要求"}

@@ -22,7 +22,8 @@
     "09-18-account-oauth-email-binding",
     "09-18-account-security-device-display",
     "09-18-admin-platform-user-management",
-    "09-18-oauth-login-mobile-adaptation"
+    "09-18-oauth-login-mobile-adaptation",
+    "09-19-account-security-web-entry"
   ],
   "parent": null,
   "relatedFiles": [],

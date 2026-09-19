@@ -77,6 +77,15 @@ shared by the sections instead of duplicating them per section. Keep the OAuth
 link section's result mapping (`oauthLinkReasonKey`) next to the section that
 renders it, and render only translation keys the model already exposes.
 
+The page is delivered to both targets (`route-metadata.ts` gives
+`account/security` `SHARED_TARGETS` and a prerender), so each target's account
+surface carries its own entry: the web entry sits in `PlatformAccountMenu`
+beside 我的名片, and the App reaches the page through `/account/me` and the tab
+model. Do not leave a web-delivered page reachable only from an app-only route.
+`/account/me` is `APP_TARGET`, so an entry written only there renders for App
+users and is absent for everyone on the web — while the security page itself
+still answers 200, which is what makes the gap invisible to a route check.
+
 ### Platform OAuth provider buttons
 
 The same provider list renders differently per target, and the difference is the
